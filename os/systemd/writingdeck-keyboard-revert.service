@@ -1,0 +1,10 @@
+[Unit]
+Description=Revert an unconfirmed WritingDeck keyboard preview
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/writingdeck-keyboard rollback
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/run/writingdeck /etc/writingdeck
+NoNewPrivileges=yes

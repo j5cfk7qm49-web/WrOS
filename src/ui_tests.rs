@@ -2106,6 +2106,8 @@ const EVERY_KEY: &[(&str, &str, &[&str])] = &[
     ("Everywhere", "F7", &[]),
     ("Everywhere", "F8", &[]),
     ("Everywhere", "F9", &[]),
+    ("Everywhere", "F10", &[]),
+    ("Everywhere", "F12", &[]),
     ("The outline", "↑", &[]),
     ("The outline", "↓", &["↑"]),
     ("The outline", "j", &["↑"]),
@@ -3110,4 +3112,252 @@ fn nothing_in_ctrl_k_is_missing_from_the_menu() {
         .map(|e| e.label)
         .collect();
     assert!(missing.is_empty(), "only in Ctrl-K: {missing:#?}");
+}
+
+// ---- WritingDeck appliance foundation --------------------------------------
+
+#[test]
+fn writingdeck_dashboard_is_navigable_at_required_terminal_sizes() {
+    for (w, h) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let mut d = Desk::open(book(&format!("deck-home-{w}"), true), w, h);
+        let before = d.app.editor.text();
+        d.key(KeyCode::F(12));
+        assert!(d.shows("WRITINGDECK OS"));
+        assert!(d.shows("Resume writing"));
+        assert!(d.shows("local save is not backup"));
+        d.key(KeyCode::End);
+        assert!(d.shows("▸ Configure widgets"));
+        d.key(KeyCode::Enter);
+        assert!(d.shows("Dashboard widgets"));
+        d.key(KeyCode::Esc);
+        d.key(KeyCode::Esc);
+        assert_eq!(d.app.editor.text(), before);
+        assert_eq!(d.app.focus, Focus::Editor);
+    }
+}
+
+#[test]
+fn writingdeck_outline_toggles_without_focus_mode_and_persists() {
+    let root = book("deck-outline", true);
+    let mut d = Desk::open(root.clone(), 100, 30);
+    d.key(KeyCode::F(10));
+    assert!(!d.app.deck.state.current().outline);
+    assert!(!d.app.focus_mode);
+    assert_eq!(d.app.rect_tree.width, 0);
+    assert_eq!(d.app.focus, Focus::Editor);
+    d.key(KeyCode::Tab);
+    assert_eq!(d.app.focus, Focus::Editor);
+    let store = grimoire_core::workspaces::Store::load(&root).unwrap();
+    assert!(!store.state.current().outline);
+    d.key(KeyCode::F(10));
+    assert!(d.app.rect_tree.width > 0);
+}
+
+#[test]
+fn writingdeck_strict_focus_hides_reference_panes_without_closing_them() {
+    let mut d = with_wren("deck-focus-codex");
+    assert!(d.app.codex.is_some());
+    d.ctrl('d');
+    assert!(d.app.focus_mode);
+    assert_eq!(d.app.rect_codex.width, 0);
+    assert_eq!(d.app.rect_beside.width, 0);
+    d.key(KeyCode::Tab);
+    assert_eq!(d.app.focus, Focus::Editor);
+    d.key(KeyCode::Esc);
+    assert!(d.menu_open(), "an invisible reference must not eat Escape");
+    d.key(KeyCode::Esc);
+    d.ctrl('d');
+    assert!(
+        d.app.codex.is_some(),
+        "same note comes back without duplicating it"
+    );
+    assert!(d.app.rect_codex.width > 0);
+}
+
+#[test]
+fn writingdeck_widgets_keep_visibility_and_order_after_reload() {
+    let mut d = Desk::open(book("deck-widgets", true), 80, 24);
+    d.key(KeyCode::F(12));
+    let first = d.app.deck.state.dashboard[0].widget;
+    d.key(KeyCode::Char('J'));
+    assert_eq!(d.app.deck.state.dashboard[1].widget, first);
+    d.key(KeyCode::Char('h'));
+    let s = grimoire_core::workspaces::Store::load(&d.root).unwrap();
+    assert_eq!(s.state.dashboard[1].widget, first);
+    assert!(!s.state.dashboard[1].visible);
+    d.key(KeyCode::Char('w'));
+    d.key(KeyCode::Down);
+    d.key(KeyCode::Enter);
+    assert!(
+        grimoire_core::workspaces::Store::load(&d.root)
+            .unwrap()
+            .state
+            .dashboard[1]
+            .visible
+    );
+}
+
+#[test]
+fn writingdeck_workspaces_restore_document_cursor_and_width() {
+    use crate::app::writingdeck::Page;
+    let mut d = Desk::open(book("deck-workspace", true), 120, 40);
+    d.key(KeyCode::Tab);
+    d.typed("Original words. ");
+    let old_pos = (d.app.editor.cy, d.app.editor.cx);
+    d.app.overlay = Overlay::Deck(Page::Workspaces { sel: 1 });
+    d.key(KeyCode::Char('+'));
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.deck.state.selected, 1);
+    assert_eq!(d.app.rect_tree.width + 2, 32);
+    d.app.editor.place(0, 0);
+    d.app.overlay = Overlay::Deck(Page::Workspaces { sel: 0 });
+    d.key(KeyCode::Enter);
+    assert_eq!((d.app.editor.cy, d.app.editor.cx), old_pos);
+    assert_eq!(d.app.rect_tree.width + 2, 30);
+    assert!(d.app.editor.text().contains("Original words."));
+}
+
+#[test]
+fn writingdeck_custom_shortcuts_are_additive_and_logical() {
+    use crate::app::writingdeck::Page;
+    for layout in ["qwerty", "colemak", "colemak-dh"] {
+        let mut d = Desk::open(book(&format!("deck-shortcuts-{layout}"), true), 100, 30);
+        d.app.overlay = Overlay::Deck(Page::Shortcuts {
+            sel: 0,
+            capture: true,
+        });
+        d.press(KeyEvent::new(
+            KeyCode::Char('g'),
+            KeyModifiers::CONTROL | KeyModifiers::ALT,
+        ));
+        d.key(KeyCode::Esc); // system
+        d.key(KeyCode::Esc); // home
+        d.key(KeyCode::Esc); // prose
+        d.press(KeyEvent::new(
+            KeyCode::Char('g'),
+            KeyModifiers::CONTROL | KeyModifiers::ALT,
+        ));
+        assert!(matches!(d.app.overlay, Overlay::Deck(Page::Home { .. })));
+        d.key(KeyCode::Esc);
+        d.ctrl('s');
+        assert!(
+            d.app.msg.contains("saved"),
+            "legacy Ctrl-S still works under {layout}"
+        );
+        d.typed("é € λ ");
+        assert!(
+            d.app.editor.text().contains("é € λ"),
+            "OS-translated Unicode stays unchanged"
+        );
+    }
+}
+
+#[test]
+fn writingdeck_recovery_prompt_precedes_startup_dashboard() {
+    let root = book("deck-startup-recovery", true);
+    recovery::keep(&root, &first_scene(&root), "Recovered WritingDeck words.").unwrap();
+    let mut d = Desk::open(root, 80, 24);
+    d.app.deck.state.launch_dashboard = true;
+    d.app.init_writingdeck(true);
+    assert!(matches!(d.app.overlay, Overlay::Recover { .. }));
+}
+
+#[test]
+fn writingdeck_keyboard_preview_field_is_not_manuscript_text() {
+    use crate::app::writingdeck::Page;
+    let mut d = Desk::open(book("deck-keyboard-field", true), 80, 24);
+    let text = d.app.editor.text();
+    d.app.overlay = Overlay::Deck(Page::KeyboardTest {
+        text: String::new(),
+    });
+    d.typed("qwerty arstneio ? €");
+    let Overlay::Deck(Page::KeyboardTest { text: field }) = &d.app.overlay else {
+        panic!("question marks must stay in the preview field");
+    };
+    assert_eq!(field, "qwerty arstneio ? €");
+    assert_eq!(d.app.editor.text(), text);
+    d.key(KeyCode::Esc);
+    assert_eq!(d.app.editor.text(), text);
+}
+
+#[test]
+fn writingdeck_tutorial_uses_actual_editor_and_persists_verified_progress() {
+    let root =
+        std::env::temp_dir().join(format!("grimoire-deck-tutorial-ui-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    grimoire_core::tutorial::create_demo(&root).unwrap();
+    let mut d = Desk::open(root, 80, 24);
+    d.app.deck.progress.start(4).unwrap();
+    d.app.focus = Focus::Editor;
+    d.typed("My own new sentence. ");
+    assert!(d.app.deck.progress.completed.contains(&4));
+    let saved = grimoire_core::tutorial::Store::load(&d.root).unwrap();
+    assert!(saved.progress.completed.contains(&4));
+    d.app.deck.progress.start(4).unwrap();
+    assert_eq!(d.app.deck.progress.active, Some(4));
+    assert!(
+        d.app.deck.progress.start(22).is_err(),
+        "Story Spark is planned, not faked"
+    );
+}
+
+#[test]
+fn writingdeck_every_lesson_links_to_real_searchable_offline_help() {
+    for l in grimoire_core::tutorial::lessons() {
+        assert!(
+            crate::help::TOPICS.iter().any(|t| t.id == l.help_topic),
+            "lesson {} has no help",
+            l.id
+        );
+    }
+}
+
+#[test]
+fn writingdeck_async_system_status_is_explicitly_simulated_and_does_not_block_writing() {
+    use crate::app::writingdeck::Page;
+    let mut d = Desk::open(book("deck-system-worker", true), 100, 30);
+    d.app.deck.simulate();
+    d.app.open_system_settings();
+    d.key(KeyCode::Esc);
+    d.key(KeyCode::Esc);
+    d.app.focus = Focus::Editor;
+    d.typed("Writing while status loads. ");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    while d.app.deck.busy && std::time::Instant::now() < deadline {
+        d.app.tick_deck();
+        std::thread::yield_now();
+    }
+    assert!(d.app.deck.snapshot.as_ref().unwrap().simulated);
+    assert!(d.app.editor.text().contains("Writing while status loads."));
+    d.app.overlay = Overlay::Deck(Page::System { sel: 9 });
+    d.key(KeyCode::Enter);
+    assert!(matches!(
+        d.app.overlay,
+        Overlay::Deck(Page::Power { yes: false, .. })
+    ));
+    assert!(
+        !d.app.deck.busy,
+        "merely opening confirmation never powers off"
+    );
+    d.key(KeyCode::Enter); // default cancel
+    assert!(!d.app.deck.busy);
+}
+
+#[test]
+fn writingdeck_bad_layout_state_is_preserved_while_manuscript_still_saves() {
+    let root = book("deck-layout-corrupt", true);
+    let path = grimoire_core::workspaces::Store::path(&root);
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(&path, "broken layout").unwrap();
+    let mut d = Desk::open(root, 80, 24);
+    d.key(KeyCode::Tab);
+    d.typed("Words must still save. ");
+    d.key(KeyCode::F(10));
+    d.ctrl('s');
+    assert_eq!(fs::read_to_string(path).unwrap(), "broken layout");
+    assert!(
+        fs::read_to_string(first_scene(&d.root))
+            .unwrap()
+            .contains("Words must still save.")
+    );
 }

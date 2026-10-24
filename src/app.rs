@@ -30,6 +30,7 @@ use grimoire_core::spell;
 
 mod aids;
 pub(crate) mod overlays;
+pub(crate) mod writingdeck;
 pub use aids::{MarkRow, Sprint, filter_marks as aids_filter};
 
 /// A scene being read aloud: the voice at work on its own thread, the
@@ -160,6 +161,7 @@ type PdfJob = (
 );
 
 pub struct App {
+    pub deck: writingdeck::Deck,
     pub project: Project,
     pub visible: Vec<usize>,
     pub parents: Vec<Option<usize>>,
@@ -407,6 +409,7 @@ pub fn sample_scope((kind, text): &(usize, String)) -> Result<export::Scope, Str
 #[derive(Debug, Clone, PartialEq)]
 pub enum Overlay {
     None,
+    Deck(writingdeck::Page),
     /// The main menu — the discoverable way to reach everything.
     Menu {
         sel: usize,
@@ -711,6 +714,7 @@ impl App {
     /// An App from what [`Setup`] hands it: nothing read from ~/.config, and
     /// with `background` off no threads started — how the tests build one.
     pub fn with(mut project: Project, setup: Setup) -> Result<Self> {
+        let deck = writingdeck::Deck::load(&project.root, setup.background);
         let parents = project.parents();
         // A book no one has opened yet: no day's baseline, nowhere to resume,
         // no words. It opens on the Novel Format guide instead of an empty
@@ -756,6 +760,7 @@ impl App {
         let visible = project.visible();
 
         Ok(Self {
+            deck,
             project,
             visible,
             parents,
@@ -870,6 +875,7 @@ impl App {
             }
             app.resume_where_left();
             app.note_where_it_syncs(setup.background);
+            app.init_writingdeck(setup.background);
             // Say what couldn't be read, once, so an empty row isn't a mystery.
             let unreadable = app
                 .project
@@ -949,6 +955,8 @@ impl App {
             6 => self.music.send(music::Cmd::Next),
             7 => self.open_player(),
             8 => self.spelling(),
+            10 => self.toggle_outline(),
+            12 => self.open_dashboard(),
             _ => {}
         }
     }
@@ -1427,6 +1435,7 @@ impl App {
             return false;
         }
         self.save_resume(true);
+        self.save_deck();
         self.note_day(true);
         if self.sessions_on && sessions::has_writing(&self.project.root) {
             // Local and quick; backing up happens next launch.
@@ -1817,6 +1826,17 @@ impl App {
                 }
             }
             Action::FocusMode => self.toggle_focus_mode(),
+            Action::Dashboard => self.open_dashboard(),
+            Action::SystemSettings => self.open_system_settings(),
+            Action::Workspaces => {
+                self.overlay = Overlay::Deck(writingdeck::Page::Workspaces {
+                    sel: self.deck.state.selected,
+                })
+            }
+            Action::Tutorial => {
+                self.overlay = Overlay::Deck(writingdeck::Page::Tutorial { sel: 0 })
+            }
+            Action::ToggleOutline => self.toggle_outline(),
             Action::BesidePicker => self.open_beside_picker(),
             Action::Beside(path) => {
                 if let Some(i) = self.project.nodes.iter().position(|n| n.path == path) {
@@ -4225,10 +4245,10 @@ impl App {
     fn focusable(&self, f: Focus) -> bool {
         match f {
             // Focus mode hides the tree; Tab mustn't land somewhere unseen.
-            Focus::Tree => !self.focus_mode,
+            Focus::Tree => !self.focus_mode && self.deck.state.current().outline,
             Focus::Editor => self.open.is_some(),
-            Focus::Codex => self.codex.is_some(),
-            Focus::Beside => self.beside.is_some() && self.side_room,
+            Focus::Codex => !self.focus_mode && self.codex.is_some() && self.side_room,
+            Focus::Beside => !self.focus_mode && self.beside.is_some() && self.side_room,
             Focus::Clearing => self.scene_visible,
             Focus::Music => self.music_visible,
         }
@@ -4576,6 +4596,7 @@ impl App {
             ("Start a new book…".into(), Action::NewBook),
             ("Open another book…".into(), Action::OpenBook),
             (row("Settings", "›"), Action::Submenu(Sub::Settings)),
+            (row("WritingDeck dashboard", "(F12)"), Action::Dashboard),
             (row("Help & about", "›"), Action::Submenu(Sub::Help)),
             (row("Quit Grimoire", &format!("({m}Q)")), Action::Quit),
         ];
@@ -4666,6 +4687,9 @@ impl App {
                 (row("Music player…", "(F7)"), Action::MusicPlayer),
             ],
             Sub::Settings => vec![
+                ("System settings…".into(), Action::SystemSettings),
+                ("Workspaces…".into(), Action::Workspaces),
+                ("Toggle outline".into(), Action::ToggleOutline),
                 (row("Themes…", "(F9)"), Action::Themes),
                 ("Music source…".into(), Action::MusicSource),
                 (on_off(self.music.enabled, "music"), Action::MusicToggle),
@@ -4692,6 +4716,7 @@ impl App {
             ],
             Sub::Help => vec![
                 (row("Help…", "(?)"), Action::Help),
+                ("Interactive tutorial…".into(), Action::Tutorial),
                 ("About Grimoire…".into(), Action::About),
                 ("License…".into(), Action::License),
                 ("Donate…".into(), Action::Donate),
@@ -4731,9 +4756,9 @@ impl App {
     pub fn escape(&mut self) {
         if self.focus == Focus::Editor && self.editor.has_selection() {
             self.editor.clear_selection();
-        } else if self.codex.is_some() {
+        } else if !self.focus_mode && self.codex.is_some() {
             self.close_codex();
-        } else if self.beside.is_some() {
+        } else if !self.focus_mode && self.beside.is_some() {
             self.close_beside();
         } else {
             self.open_menu();
@@ -4747,6 +4772,7 @@ impl App {
         if self.focus_mode {
             self.focus_mode = false;
             self.msg = "focus mode off".into();
+            self.save_deck();
             return;
         }
         if self.open.is_none() {
@@ -4754,11 +4780,11 @@ impl App {
             return;
         }
         self.focus_mode = true;
-        if !matches!(self.focus, Focus::Editor | Focus::Codex | Focus::Beside) {
-            self.focus = Focus::Editor;
-        }
+        self.focus = Focus::Editor;
+        self.observe_deck(grimoire_core::tutorial::Event::FocusEntered);
         // Short, so the hint beside it (which names the way out) fits.
         self.msg = "focus mode".into();
+        self.save_deck();
     }
 
     /// Nothing left to write in (the scene was closed or deleted): focus

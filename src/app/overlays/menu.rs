@@ -312,6 +312,14 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "Grimoire is free. A tip on Ko-fi helps it keep growing, and is never required.",
             "getting-started",
         ),
+        Action::Dashboard => ("Opens the offline writing home screen.", "writingdeck"),
+        Action::SystemSettings => (
+            "Shows local system status and safe OS controls.",
+            "writingdeck",
+        ),
+        Action::Workspaces => ("Restores a saved writing layout.", "writingdeck"),
+        Action::Tutorial => ("Opens replayable, event-verified lessons.", "writingdeck"),
+        Action::ToggleOutline => ("Shows or hides the outline independently.", "writingdeck"),
         Action::MenuBack => ("Back to the first menu.", "getting-started"),
         _ => ("", "getting-started"),
     };

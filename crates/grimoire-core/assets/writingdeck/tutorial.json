@@ -1,0 +1,275 @@
+[
+  {
+    "id": 1,
+    "title": "Starting the OS",
+    "help_topic": "writingdeck",
+    "event": "DashboardOpened",
+    "instructions": "Open the WritingDeck home screen with F12. Use Resume writing to return to your manuscript. On the appliance, tty1 starts this interface after login."
+  },
+  {
+    "id": 2,
+    "title": "Keyboard layout selection",
+    "help_topic": "writingdeck",
+    "event": "LayoutConfirmed",
+    "instructions": "Open System settings, then Keyboard layout. Preview a layout in the test field. Press Enter within 15 seconds to keep it, or Escape to revert. Linux translates characters; Grimoire never translates them twice."
+  },
+  {
+    "id": 3,
+    "title": "Creating a novel",
+    "help_topic": "books",
+    "event": null,
+    "instructions": "Create a new novel in a separate folder. This lesson will observe successful creation rather than merely opening a dialog."
+  },
+  {
+    "id": 4,
+    "title": "Writing and Markdown formatting",
+    "help_topic": "writing",
+    "event": "TextEdited",
+    "instructions": "In the safe demo, type an original sentence. The actual manuscript editor, autosave and undo are used. Ctrl-Z reverses the edit; Ctrl-S saves."
+  },
+  {
+    "id": 5,
+    "title": "Navigating scenes and chapters",
+    "help_topic": "outline",
+    "event": "SceneOpened",
+    "instructions": "In the safe demo outline, open the other scene with arrow keys and Enter. The lesson checks that the open document actually changes."
+  },
+  {
+    "id": 6,
+    "title": "Using the corkboard",
+    "help_topic": "corkboard",
+    "event": "CorkboardOpened",
+    "instructions": "Open the real corkboard. Arrow keys move among scene cards. Escape returns without changing prose."
+  },
+  {
+    "id": 7,
+    "title": "Switching workspaces",
+    "help_topic": "writingdeck",
+    "event": "WorkspaceSelected",
+    "instructions": "Open Workspaces from the dashboard and choose another saved layout. Each workspace remembers its primary document position and outline settings."
+  },
+  {
+    "id": 8,
+    "title": "Using focus mode",
+    "help_topic": "focus",
+    "event": "FocusEntered",
+    "instructions": "Enter strict focus mode with Ctrl-D. Only the manuscript remains. Ctrl-D restores the previous layout."
+  },
+  {
+    "id": 9,
+    "title": "Managing panes",
+    "help_topic": "writingdeck",
+    "event": "OutlineToggled",
+    "instructions": "Use F10 to toggle the outline independently. Tab only visits visible panes. This first lesson covers the outline; editable secondary panes are still planned."
+  },
+  {
+    "id": 10,
+    "title": "Custom keyboard shortcuts",
+    "help_topic": "writingdeck",
+    "event": "ShortcutAdded",
+    "instructions": "Open Keyboard shortcuts and add a Ctrl+Alt letter alias. Existing Grimoire bindings are protected. Instructions refer to logical letters under QWERTY, Colemak and Colemak-DH."
+  },
+  {
+    "id": 11,
+    "title": "Sticky-note pins",
+    "help_topic": "notes",
+    "event": null,
+    "instructions": "Pin an existing Markdown note without making a copy. Planned with the pinboard subsystem."
+  },
+  {
+    "id": 12,
+    "title": "Scrolling inside sticky notes",
+    "help_topic": "notes",
+    "event": null,
+    "instructions": "Scroll a sticky card and restore its heading anchor. Planned with semantic pin anchors."
+  },
+  {
+    "id": 13,
+    "title": "Editing notes beside the manuscript",
+    "help_topic": "beside",
+    "event": null,
+    "instructions": "Edit a second document with independent undo and autosave. Existing beside views are read-only; this lesson stays unavailable until that guarantee changes."
+  },
+  {
+    "id": 14,
+    "title": "Writing journal",
+    "help_topic": "writingdeck",
+    "event": null,
+    "instructions": "Review automatic session metrics separately from a freeform reflection. Planned."
+  },
+  {
+    "id": 15,
+    "title": "Scratchpad",
+    "help_topic": "notes",
+    "event": null,
+    "instructions": "Capture an idea, link it to a scene and promote it safely. Planned."
+  },
+  {
+    "id": 16,
+    "title": "Session handoff",
+    "help_topic": "writingdeck",
+    "event": null,
+    "instructions": "Leave a next-session intention and see it after restart. Planned."
+  },
+  {
+    "id": 17,
+    "title": "Daily writing goals",
+    "help_topic": "sprints",
+    "event": "GoalsChanged",
+    "instructions": "Open Goals and change the daily or novel target in the demo. The lesson observes a saved target change, not just the dialog."
+  },
+  {
+    "id": 18,
+    "title": "NaNoWriMo tracking",
+    "help_topic": "writingdeck",
+    "event": null,
+    "instructions": "Try the offline 50,000-word November preset with rest days. No affiliation or account is implied. Planned."
+  },
+  {
+    "id": 19,
+    "title": "Sprints",
+    "help_topic": "sprints",
+    "event": "SprintStarted",
+    "instructions": "Start a real Grimoire writing sprint in the demo. The lesson observes an active sprint. No-editing and revision variants remain planned."
+  },
+  {
+    "id": 20,
+    "title": "Achievements",
+    "help_topic": "writingdeck",
+    "event": null,
+    "instructions": "Explore optional, non-punitive achievements and turn them off. Planned."
+  },
+  {
+    "id": 21,
+    "title": "Daily challenges",
+    "help_topic": "writingdeck",
+    "event": null,
+    "instructions": "Accept a locally persisted daily challenge and distinguish measured progress from self-report. Planned."
+  },
+  {
+    "id": 22,
+    "title": "Story Spark plot generation",
+    "help_topic": "writingdeck",
+    "event": null,
+    "instructions": "Generate and save an offline plot situation. Planned; no unreviewed modern prompt lists are bundled."
+  },
+  {
+    "id": 23,
+    "title": "Random writing challenges",
+    "help_topic": "writingdeck",
+    "event": null,
+    "instructions": "Choose a creative constraint from the licensed library. Planned."
+  },
+  {
+    "id": 24,
+    "title": "Combined plot-and-challenge roulette",
+    "help_topic": "writingdeck",
+    "event": null,
+    "instructions": "Reroll plot and constraint independently or together, with a static accessible view. Planned."
+  },
+  {
+    "id": 25,
+    "title": "Dictionary and thesaurus",
+    "help_topic": "writingdeck",
+    "event": null,
+    "instructions": "Look up senses and choose a context-appropriate synonym without automatic replacement. Planned."
+  },
+  {
+    "id": 26,
+    "title": "Grammar and spelling",
+    "help_topic": "spelling",
+    "event": "SpellingOpened",
+    "instructions": "Open the existing spellcheck suggestions for a misspelled word in the demo. Harper grammar and novel/global ignore scopes remain planned."
+  },
+  {
+    "id": 27,
+    "title": "Hemingway-style highlighting",
+    "help_topic": "writingdeck",
+    "event": null,
+    "instructions": "Compare drafting, revision and deep-analysis profiles. Planned; readability is not literary quality."
+  },
+  {
+    "id": 28,
+    "title": "Nabokov analysis",
+    "help_topic": "writingdeck",
+    "event": null,
+    "instructions": "Run the optional offline Python analyzer and inspect dialogue-aware results. Planned."
+  },
+  {
+    "id": 29,
+    "title": "Proselint",
+    "help_topic": "writingdeck",
+    "event": null,
+    "instructions": "Run standalone proselint and inspect deduplicated editorial findings. Planned."
+  },
+  {
+    "id": 30,
+    "title": "Author-style preservation",
+    "help_topic": "writingdeck",
+    "event": null,
+    "instructions": "Build a profile from enough of your own writing and review informational deviations. Planned."
+  },
+  {
+    "id": 31,
+    "title": "Continuity tracking",
+    "help_topic": "writingdeck",
+    "event": null,
+    "instructions": "Record explicit knowledge and chronology, then distinguish definite contradictions from suggestions. Planned."
+  },
+  {
+    "id": 32,
+    "title": "Inline revision notes",
+    "help_topic": "notes",
+    "event": null,
+    "instructions": "Attach an annotation to a passage and relocate its anchor after an edit. Planned."
+  },
+  {
+    "id": 33,
+    "title": "Draft comparisons",
+    "help_topic": "history",
+    "event": "HistoryOpened",
+    "instructions": "Open the actual scene history in the demo. Named milestones and experimental variants remain planned."
+  },
+  {
+    "id": 34,
+    "title": "Footnotes",
+    "help_topic": "writingdeck",
+    "event": null,
+    "instructions": "Navigate a Markdown footnote and validate genuine DOCX/PDF footnotes. Planned; existing export has not been certified for this."
+  },
+  {
+    "id": 35,
+    "title": "Exporting manuscripts",
+    "help_topic": "compile",
+    "event": null,
+    "instructions": "Export the demo and validate generated files. Existing DOCX, EPUB and PDF workflows are available, but automated tutorial completion is not yet wired."
+  },
+  {
+    "id": 36,
+    "title": "Google Drive backup",
+    "help_topic": "sync",
+    "event": null,
+    "instructions": "Authorize explicitly, verify a versioned off-device backup and perform a test restore. Credentials are required; planned."
+  },
+  {
+    "id": 37,
+    "title": "Mobile access",
+    "help_topic": "sync",
+    "event": null,
+    "instructions": "Use a conflict-safe Markdown handoff; do not assume Google Docs round-trips metadata. Planned."
+  },
+  {
+    "id": 38,
+    "title": "Wi-Fi and system settings",
+    "help_topic": "writingdeck",
+    "event": "SystemOpened",
+    "instructions": "Open actual System settings. Read the cached NetworkManager, battery and brightness status. Missing services are unavailable, not simulated hardware success."
+  },
+  {
+    "id": 39,
+    "title": "Recovery and troubleshooting",
+    "help_topic": "history",
+    "event": "RecoveryHelpOpened",
+    "instructions": "Open the offline History and recovery manual. Learn Ctrl+Alt+F2 for an authenticated maintenance console and the difference between autosave, recovery and backup. Destructive crash exercises are not run on your manuscript."
+  }
+]

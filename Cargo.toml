@@ -18,6 +18,7 @@ path = "src/main.rs"
 
 [dependencies]
 grimoire-core = { path = "crates/grimoire-core", version = "0.7" }
+writingdeck-sys = { path = "crates/writingdeck-sys" }
 anyhow = "1.0.104"
 chrono = "0.4.45"
 # Same cpal that rodio already pulls in; used directly for loopback capture.
@@ -87,7 +88,7 @@ default = ["audio"]
 audio = ["dep:rodio", "dep:cpal"]
 
 [workspace]
-members = ["crates/grimoire-core", "crates/grimoire-app"]
+members = ["crates/grimoire-core", "crates/grimoire-app", "crates/writingdeck-sys"]
 
 # One version for the terminal app and the crates under it; bump it here.
 [workspace.package]

@@ -1,0 +1,12 @@
+[Unit]
+Description=Isolated VM-only WritingDeck acceptance probe
+After=getty@tty1.service writingdeck-keyboard.service systemd-user-sessions.service
+ConditionPathExists=/etc/writingdeck/VM-DEMO-ONLY
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/writingdeck-boot-probe
+TimeoutStartSec=150
+
+[Install]
+WantedBy=multi-user.target

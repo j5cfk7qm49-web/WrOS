@@ -1,0 +1,551 @@
+{
+  "schema_version": 1,
+  "as_of": "2026-10-24",
+  "release": "0.1.0-dev foundation",
+  "features": [
+    {
+      "area": "Baseline",
+      "capability": "Markdown novels, YAML frontmatter, parts/chapters/scenes",
+      "status": "Existing",
+      "verification": "Upstream/current Rust tests",
+      "hardware_verified": false,
+      "detail": "Preserved; no manuscript-format rewrite"
+    },
+    {
+      "area": "Baseline",
+      "capability": "Atomic autosave, dated history, recovery",
+      "status": "Existing",
+      "verification": "Upstream/current failure and recovery tests",
+      "hardware_verified": false,
+      "detail": "Local safety is not off-device backup"
+    },
+    {
+      "area": "Baseline",
+      "capability": "External-file conflicts and guarded mobile saves",
+      "status": "Existing",
+      "verification": "Core sync and grimoire-app integration tests",
+      "hardware_verified": false,
+      "detail": "Existing Android prototype; no iPhone client claim"
+    },
+    {
+      "area": "Baseline",
+      "capability": "Corkboard, find/replace, notes/TK, notebook names",
+      "status": "Existing",
+      "verification": "Upstream/current tests",
+      "hardware_verified": false,
+      "detail": "Keep existing conventions and shortcuts"
+    },
+    {
+      "area": "Baseline",
+      "capability": "Locale spelling and personal/notebook vocabulary",
+      "status": "Existing",
+      "verification": "Upstream/current spelling tests",
+      "hardware_verified": false,
+      "detail": "Harper grammar not yet integrated"
+    },
+    {
+      "area": "OS",
+      "capability": "Detailed audit, architecture, base decision and docs",
+      "status": "Tested",
+      "verification": "Document/manifest checks",
+      "hardware_verified": false,
+      "detail": "Debian 13 Stable chosen; no custom kernel"
+    },
+    {
+      "area": "OS",
+      "capability": "Staged rootfs + regular-file GPT/UEFI image workflow",
+      "status": "Tested",
+      "verification": "Actual QEMU/OVMF whole-disk boot",
+      "hardware_verified": false,
+      "detail": "Reproducible recipe, not bit-identical signed release"
+    },
+    {
+      "area": "OS",
+      "capability": "Boot-to-writing splash + non-root tty1 startup",
+      "status": "Tested",
+      "verification": "Actual VM screen and UID assertion",
+      "hardware_verified": false,
+      "detail": "Explicit VM demo autologin is not production authentication"
+    },
+    {
+      "area": "OS",
+      "capability": "Conventional Linux development mode",
+      "status": "Tested",
+      "verification": "Rust builds/tests + CLI smoke",
+      "hardware_verified": false,
+      "detail": "No appliance policies installed in host"
+    },
+    {
+      "area": "OS",
+      "capability": "Read-only compatibility/disk/account/timezone/layout installation plan",
+      "status": "Tested",
+      "verification": "Rootless fixture tests",
+      "hardware_verified": false,
+      "detail": "No apply mode; mounted/read-only/small/unknown disks refused"
+    },
+    {
+      "area": "OS",
+      "capability": "Production disk/LUKS/account/Wi-Fi first-run installer",
+      "status": "Planned",
+      "verification": "None",
+      "hardware_verified": false,
+      "detail": "Delegate storage/authentication to upstream Debian installer; no physical install performed"
+    },
+    {
+      "area": "OS",
+      "capability": "Authenticated boot + console screen lock / lock before suspend",
+      "status": "Planned",
+      "verification": "None",
+      "hardware_verified": false,
+      "detail": "Critical release gate; VM autologin must not ship"
+    },
+    {
+      "area": "OS",
+      "capability": "Authenticated tty2 maintenance and usable recovery boot",
+      "status": "In progress",
+      "verification": "Upstream unit structure + docs only",
+      "hardware_verified": false,
+      "detail": "Normal Debian account required; demo passwords locked, so usable recovery not certified"
+    },
+    {
+      "area": "OS",
+      "capability": "Signed OS/app updates, snapshots/rollback and offline bundles",
+      "status": "Planned",
+      "verification": "None",
+      "hardware_verified": false,
+      "detail": "Use apt plus a selected upstream snapshot mechanism"
+    },
+    {
+      "area": "OS",
+      "capability": "Secure Boot / legacy BIOS / physical firmware compatibility",
+      "status": "Blocked",
+      "verification": "UEFI without Secure Boot only",
+      "hardware_verified": false,
+      "detail": "Requires signed boot-chain work and identified physical hardware"
+    },
+    {
+      "area": "System",
+      "capability": "Typed Linux + explicitly simulated backend",
+      "status": "Tested",
+      "verification": "Rust adapter/validation tests + worker UI test",
+      "hardware_verified": false,
+      "detail": "No arbitrary shell or manuscript paths in OS requests"
+    },
+    {
+      "area": "System",
+      "capability": "Cached/off-thread network/battery/brightness/storage/timezone status",
+      "status": "Tested",
+      "verification": "Missing-device/fixture tests + networkless VM",
+      "hardware_verified": false,
+      "detail": "Physical battery/backlight behavior not verified"
+    },
+    {
+      "area": "System",
+      "capability": "Wi-Fi radio and scan command interfaces",
+      "status": "Tested",
+      "verification": "Typed command/unit tests",
+      "hardware_verified": false,
+      "detail": "Actual radio/SSID enrollment unverified; nmtui maintenance fallback"
+    },
+    {
+      "area": "System",
+      "capability": "In-app new-network credentials / secret agent",
+      "status": "Planned",
+      "verification": "None",
+      "hardware_verified": false,
+      "detail": "Never passwords in argv/logs"
+    },
+    {
+      "area": "System",
+      "capability": "Brightness request + UI/OS power-saving distinction",
+      "status": "Tested",
+      "verification": "Validation and no-device tests",
+      "hardware_verified": false,
+      "detail": "No physical backlight or battery-savings claim"
+    },
+    {
+      "area": "System",
+      "capability": "Confirmed power requests after successful manuscript save",
+      "status": "Tested",
+      "verification": "TUI confirmation + command construction tests",
+      "hardware_verified": false,
+      "detail": "Physical suspend/restart/shutdown deliberately not run"
+    },
+    {
+      "area": "System",
+      "capability": "Clock/timezone changes, sound/volume, updater/restore panels",
+      "status": "Planned",
+      "verification": "None",
+      "hardware_verified": false,
+      "detail": "Read-only status is not full settings coverage"
+    },
+    {
+      "area": "Keyboard",
+      "capability": "QWERTY/Colemak/DH ANSI/ISO console maps",
+      "status": "Tested",
+      "verification": "Four Unicode map builds; VM QWERTY/DH/Colemak key assertions",
+      "hardware_verified": false,
+      "detail": "Full modifiers/ISO physical keyboard remain unverified"
+    },
+    {
+      "area": "Keyboard",
+      "capability": "15-second preview, token commit and independent rollback",
+      "status": "Tested",
+      "verification": "12 rootless helper tests + real VM systemd timer",
+      "hardware_verified": false,
+      "detail": "Survives client absence; commit generation handles crash boundary"
+    },
+    {
+      "area": "Keyboard",
+      "capability": "Layout persistence / pre-login reapplication",
+      "status": "Tested",
+      "verification": "Guest config commit and boot-command reapplication",
+      "hardware_verified": false,
+      "detail": "Separate cold reboot/suspend hardware verification outstanding"
+    },
+    {
+      "area": "Keyboard",
+      "capability": "Installer/first-run layout wizard and custom map registration",
+      "status": "Planned",
+      "verification": "Planner records registered choices only",
+      "hardware_verified": false,
+      "detail": "Arbitrary runtime keymap paths rejected"
+    },
+    {
+      "area": "Keyboard",
+      "capability": "Safe custom shortcut aliases with legacy compatibility",
+      "status": "Tested",
+      "verification": "TUI capture/persistence + logical/Unicode tests",
+      "hardware_verified": false,
+      "detail": "Only safe aliases for eight actions; not all legacy binding removal/reassignment"
+    },
+    {
+      "area": "Keyboard",
+      "capability": "Raw physical-position shortcuts through generic tty",
+      "status": "Blocked",
+      "verification": "No reliable scan-code channel",
+      "hardware_verified": false,
+      "detail": "Use logical characters and function/arrow keys; no double mapping"
+    },
+    {
+      "area": "Home",
+      "capability": "Real existing-data dashboard widgets + hide/reorder/navigation",
+      "status": "Tested",
+      "verification": "80x24, 100x30, 120x40, 160x50 TUI tests",
+      "hardware_verified": false,
+      "detail": "No fabricated metrics or unimplemented challenge widgets"
+    },
+    {
+      "area": "Home",
+      "capability": "Optional startup home / direct primary restore",
+      "status": "Tested",
+      "verification": "State tests + VM startup + recovery precedence",
+      "hardware_verified": false,
+      "detail": "Newer upstream resume takes priority at startup"
+    },
+    {
+      "area": "Home",
+      "capability": "Journal/pins/scratchpad/handoff/challenge/achievement/revision widgets",
+      "status": "Planned",
+      "verification": "None",
+      "hardware_verified": false,
+      "detail": "Depends on actual domain services"
+    },
+    {
+      "area": "Workspaces",
+      "capability": "Five named primary layout slots + custom clones/width/cursors",
+      "status": "Tested",
+      "verification": "Workspace JSON and TUI restoration tests",
+      "hardware_verified": false,
+      "detail": "Only Focus differs initially; full pane presets not complete"
+    },
+    {
+      "area": "Workspaces",
+      "capability": "F10 outline toggle and strict Ctrl-D focus",
+      "status": "Tested",
+      "verification": "Hidden-pane geometry/focus and persistence tests",
+      "hardware_verified": false,
+      "detail": "Retained references reappear; F11 not assigned"
+    },
+    {
+      "area": "Workspaces",
+      "capability": "Full editable secondary document, independent undo/autosave/selection",
+      "status": "Planned",
+      "verification": "None",
+      "hardware_verified": false,
+      "detail": "Next application milestone; existing beside remains read-only"
+    },
+    {
+      "area": "Workspaces",
+      "capability": "Sticky sidebar, multi-pane ratios and full content presets",
+      "status": "Planned",
+      "verification": "None",
+      "hardware_verified": false,
+      "detail": "Do not conflate primary layout slots with requested full engine"
+    },
+    {
+      "area": "Notes",
+      "capability": "Single-source pins/scopes/cards/categories/trash/anchors/scroll",
+      "status": "Planned",
+      "verification": "None",
+      "hardware_verified": false,
+      "detail": "Markdown source references, not copied content stores"
+    },
+    {
+      "area": "Notes",
+      "capability": "Accurate auto/manual journal, multi-note scratchpad, handoff",
+      "status": "Planned",
+      "verification": "None",
+      "hardware_verified": false,
+      "detail": "Automatic event facts separated from reflections"
+    },
+    {
+      "area": "Productivity",
+      "capability": "Basic daily/book/scene goals, weekly net pace/forecast",
+      "status": "Existing",
+      "verification": "Upstream/current tests",
+      "hardware_verified": false,
+      "detail": "Net growth, not gross/deleted/active-WPH"
+    },
+    {
+      "area": "Productivity",
+      "capability": "Baseline Pomodoro and word/time sprint",
+      "status": "Existing",
+      "verification": "Upstream/current timer/sprint tests",
+      "hardware_verified": false,
+      "detail": "Advanced no-editing/revision variants planned"
+    },
+    {
+      "area": "Productivity",
+      "capability": "Gross/net/deleted, idle-aware time, revision/footnote accounting",
+      "status": "Planned",
+      "verification": "None",
+      "hardware_verified": false,
+      "detail": "Requires edit ledger and injected monotonic clock"
+    },
+    {
+      "area": "Productivity",
+      "capability": "Advanced goals/deadlines + offline 50k November calendar/rest days",
+      "status": "Planned",
+      "verification": "None",
+      "hardware_verified": false,
+      "detail": "No external account/endorsement"
+    },
+    {
+      "area": "Productivity",
+      "capability": "Optional non-punitive achievements and advanced sprints",
+      "status": "Planned",
+      "verification": "None",
+      "hardware_verified": false,
+      "detail": "Fully disableable, no required streaks"
+    },
+    {
+      "area": "Productivity",
+      "capability": "Persisted daily challenges across ten categories",
+      "status": "Planned",
+      "verification": "None",
+      "hardware_verified": false,
+      "detail": "Civil-date/DST/timezone/reroll tests required"
+    },
+    {
+      "area": "Story Spark",
+      "capability": "Specific source/license research and exclusion manifest",
+      "status": "Tested",
+      "verification": "Manifest/source review",
+      "hardware_verified": false,
+      "detail": "No third-party challenge corpus bundled yet"
+    },
+    {
+      "area": "Story Spark",
+      "capability": "1,000+ substantive curated plot options + exercise corpus",
+      "status": "Planned",
+      "verification": "None",
+      "hardware_verified": false,
+      "detail": "No inflated record-count completeness claim"
+    },
+    {
+      "area": "Story Spark",
+      "capability": "Four modes, compatible combinations, roulette/static, history/favorites/actions",
+      "status": "Planned",
+      "verification": "None",
+      "hardware_verified": false,
+      "detail": "Offline non-AI design; tutorial lessons disabled until real"
+    },
+    {
+      "area": "Writing tools",
+      "capability": "Harper grammar + dialogue/novel/global policy",
+      "status": "Planned",
+      "verification": "Crate API/license evaluated only",
+      "hardware_verified": false,
+      "detail": "harper-core 2.13.0 not linked into application"
+    },
+    {
+      "area": "Writing tools",
+      "capability": "Nabokov fiction-aware profiles + native lightweight analysis",
+      "status": "Planned",
+      "verification": "Source/runtime/license evaluated only",
+      "hardware_verified": false,
+      "detail": "Optional Python/model costs not benchmarked"
+    },
+    {
+      "area": "Writing tools",
+      "capability": "Standalone proselint versioned structured-output integration",
+      "status": "Planned",
+      "verification": "0.14/0.16 CLI differences evaluated",
+      "hardware_verified": false,
+      "detail": "No Vale dependency; adapter not implemented"
+    },
+    {
+      "area": "Writing tools",
+      "capability": "Unified deduped stale-safe diagnostics + revision dashboard",
+      "status": "Planned",
+      "verification": "None",
+      "hardware_verified": false,
+      "detail": "No automatic rewrite/quality score"
+    },
+    {
+      "area": "Writing tools",
+      "capability": "Offline WordNet definitions/senses/synonyms/antonyms UI",
+      "status": "Planned",
+      "verification": "Host package evaluated only",
+      "hardware_verified": false,
+      "detail": "Not in minimal VM or current UI"
+    },
+    {
+      "area": "Writing tools",
+      "capability": "Author voice profiles with sufficient-material safeguards",
+      "status": "Planned",
+      "verification": "None",
+      "hardware_verified": false,
+      "detail": "Informational deviations only"
+    },
+    {
+      "area": "Long-form",
+      "capability": "Structured explicit continuity/timeline/knowledge/thread tracker",
+      "status": "Planned",
+      "verification": "None",
+      "hardware_verified": false,
+      "detail": "Definite contradictions require explicit facts"
+    },
+    {
+      "area": "Long-form",
+      "capability": "Text-anchored annotations and revision queue",
+      "status": "Planned",
+      "verification": "None",
+      "hardware_verified": false,
+      "detail": "Separate from published manuscript"
+    },
+    {
+      "area": "Long-form",
+      "capability": "Named milestones/experimental variants/diff/selective restore",
+      "status": "Planned",
+      "verification": "Existing dated history reused later",
+      "hardware_verified": false,
+      "detail": "No competing version store rewrite"
+    },
+    {
+      "area": "Long-form",
+      "capability": "Local sentence-level read-aloud/highlighting/controls",
+      "status": "Existing",
+      "verification": "Existing silent-engine tests",
+      "hardware_verified": false,
+      "detail": "Installed voice engine/model may be needed"
+    },
+    {
+      "area": "Long-form",
+      "capability": "Multi-scene/chapter read-through and mark-for-revision",
+      "status": "Planned",
+      "verification": "None",
+      "hardware_verified": false,
+      "detail": "No cloud speech dependency"
+    },
+    {
+      "area": "Publishing",
+      "capability": "Native DOCX/EPUB/Markdown + print formatting",
+      "status": "Existing",
+      "verification": "Existing output/package tests",
+      "hardware_verified": false,
+      "detail": "Preserved"
+    },
+    {
+      "area": "Publishing",
+      "capability": "PDF through optional headless LibreOffice",
+      "status": "Existing",
+      "verification": "Existing conversion path; external-engine tests conditional",
+      "hardware_verified": false,
+      "detail": "LibreOffice not in minimal image; no page-footnote certification"
+    },
+    {
+      "area": "Publishing",
+      "capability": "Contextual Markdown footnotes + genuine DOCX/PDF bottom-page output",
+      "status": "Planned",
+      "verification": "None",
+      "hardware_verified": false,
+      "detail": "OOXML relationships/pagination fixtures required"
+    },
+    {
+      "area": "Publishing",
+      "capability": "Unified pre-export link/asset/footnote/privacy validation",
+      "status": "Planned",
+      "verification": "None",
+      "hardware_verified": false,
+      "detail": "Some existing note/TK validation is not this full preflight"
+    },
+    {
+      "area": "Cloud",
+      "capability": "Opt-in Drive OAuth, private credentials, upload queue, verified backup/restore",
+      "status": "Planned",
+      "verification": "None",
+      "hardware_verified": false,
+      "detail": "Local state/fake-transport infrastructure can be built without credentials"
+    },
+    {
+      "area": "Cloud",
+      "capability": "Conflict-aware bidirectional sync + safe mobile/Docs evaluation",
+      "status": "Planned",
+      "verification": "Existing generic file conflicts only",
+      "hardware_verified": false,
+      "detail": "Copy/sync/Docs interoperability are separate guarantees"
+    },
+    {
+      "area": "Cloud",
+      "capability": "Live Google authorization/restore/Docs round-trip acceptance",
+      "status": "Blocked",
+      "verification": "No account enrolled or manuscript transmitted",
+      "hardware_verified": false,
+      "detail": "Requires explicit user credentials and consent at M9"
+    },
+    {
+      "area": "Tutorial",
+      "capability": "39-lesson catalog, safe demo, replay/skip/progress, help links",
+      "status": "Tested",
+      "verification": "Core + actual editor/UI tests",
+      "hardware_verified": false,
+      "detail": "15 baseline/foundation lessons wired; 24 explicitly unavailable"
+    },
+    {
+      "area": "Tutorial",
+      "capability": "All 39 complete interactive exercises across final features",
+      "status": "In progress",
+      "verification": "Continuous foundation only",
+      "hardware_verified": false,
+      "detail": "Must land alongside each later feature, not wait until release"
+    },
+    {
+      "area": "Qualification",
+      "capability": "Offline whole-VM operation and low-memory initial measurement",
+      "status": "Tested",
+      "verification": "No network devices; guest process RSS in evidence",
+      "hardware_verified": false,
+      "detail": "Does not include Python/spaCy or physical battery benchmark"
+    },
+    {
+      "area": "Qualification",
+      "capability": "Physical laptop keyboard/Wi-Fi/lock/suspend/battery/update qualification",
+      "status": "Blocked",
+      "verification": "No hardware available in this environment",
+      "hardware_verified": false,
+      "detail": "Record model/firmware before claiming Hardware verified"
+    }
+  ]
+}

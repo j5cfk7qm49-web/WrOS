@@ -1,0 +1,15 @@
+[Unit]
+Description=Apply the committed WritingDeck console layout
+After=systemd-vconsole-setup.service console-setup.service
+Before=getty@tty1.service
+ConditionPathExists=/usr/share/writingdeck/keymaps/qwerty.map
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/writingdeck-keyboard boot
+RemainAfterExit=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/run/writingdeck /etc/writingdeck
+RuntimeDirectory=writingdeck
+NoNewPrivileges=yes

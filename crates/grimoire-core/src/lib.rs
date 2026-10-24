@@ -32,3 +32,6 @@ pub mod spell;
 pub mod submission;
 pub mod sync;
 pub mod typeset;
+
+pub mod tutorial;
+pub mod workspaces;

@@ -1,0 +1,26 @@
+{
+  "kind": "QEMU virtual hardware, NOT physical hardware verification",
+  "recorded_at_utc": "2026-10-24T20:56:05.570301+00:00",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "3a736d50517f54a79880e1bcc8b22fa264ea7578ab18692b5e566b13427e3e8f",
+    "file_count": 182,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "image_sha256": "0114736afb8545acc7ff51881c287a85db8c019e1ea2f22473f8213be0b26b02",
+  "installed_stripped_binary_sha256": "27c7f2c342447219e4648d39c1dee9869785b306e895b9a8a161d5521ac563d8",
+  "firmware": "OVMF UEFI, Secure Boot disabled",
+  "acceleration": "TCG",
+  "memory_mib": 512,
+  "vcpus": 2,
+  "network_devices": 0,
+  "wall_seconds": 69.62,
+  "markers": [
+    "writingdeck-vm login: WRITINGDECK_VM_UI_PASS uid=1000 rss_kib=20108",
+    "WRITINGDECK_VM_POLKIT_PASS",
+    "WRITINGDECK_VM_KEYBOARD_ROLLBACK_PASS",
+    "WRITINGDECK_VM_KEYBOARD_COMMIT_PASS",
+    "WRITINGDECK_VM_PASS"
+  ],
+  "passed": true
+}

@@ -1,0 +1,199 @@
+{
+  "schema_version": 1,
+  "review_date": "2026-10-24",
+  "legal_clearance": false,
+  "distribution_territory": "Not decided; US PD findings are not worldwide permission",
+  "bundled": [
+    {
+      "id": "writingdeck-original-tutorial",
+      "title": "WritingDeck tutorial instructions",
+      "creators": [
+        "WritingDeck contributors"
+      ],
+      "license": "MIT",
+      "edition": "0.1.0-dev",
+      "file": "crates/grimoire-core/assets/writingdeck/tutorial.json",
+      "sha256": "367d562459791eaf82fb72975e79b5351ef3032610d452e4c167b6f15d8cdbbb",
+      "item_count": 39,
+      "license_notice": "LICENSE",
+      "modifications": "Original instructions; no third-party exercise text"
+    },
+    {
+      "id": "writingdeck-original-demo",
+      "title": "WritingDeck safe tutorial scenes",
+      "creators": [
+        "WritingDeck contributors"
+      ],
+      "license": "MIT",
+      "edition": "0.1.0-dev",
+      "file": "crates/grimoire-core/src/tutorial.rs",
+      "sha256": "d84494a725c8c9d3f2ebb208d6cbf393120f52bd490839635003bc6c5eff06cf",
+      "item_count": 2,
+      "license_notice": "LICENSE",
+      "modifications": "Original demo scene strings embedded in the creation function"
+    }
+  ],
+  "evaluated_sources": [
+    {
+      "id": "plotto-1928",
+      "title": "Plotto",
+      "creators": [
+        "William Wallace Cook"
+      ],
+      "edition": "Ellis Publishing Co., 1928 original",
+      "source_url": "https://archive.org/search?query=title%3Aplotto%20AND%20year%3A1928",
+      "rights_finding": "US public-domain candidate; no worldwide clearance",
+      "bundled": false,
+      "exact_ingested_file_sha256": null,
+      "decision": "Excluded pending exact scan/territory review; never import Tin House 2011 additions",
+      "obligations_before_bundling": [
+        "Pin original scan/transcription and hash",
+        "Review territorial rights",
+        "Exclude modern foreword, introduction and artwork",
+        "Retain edition, source and modification attribution"
+      ]
+    },
+    {
+      "id": "polti-ray-1916",
+      "title": "The Thirty-Six Dramatic Situations",
+      "creators": [
+        "Georges Polti",
+        "Lucile Ray (English translator)"
+      ],
+      "edition": "1916 English translation, not a modern annotated edition",
+      "source_url": "https://archive.org/search?query=title%3A%22thirty-six%20dramatic%20situations%22%20AND%20year%3A1916",
+      "rights_finding": "US public-domain candidate for this edition only",
+      "bundled": false,
+      "exact_ingested_file_sha256": null,
+      "decision": "Excluded pending exact edition/file/territory review",
+      "obligations_before_bundling": [
+        "Pin exact 1916 translation source and checksum",
+        "Review translation and territorial rights",
+        "Exclude modern editorial additions"
+      ]
+    },
+    {
+      "id": "century-pg-30294",
+      "title": "The Century Handbook of Writing",
+      "creators": [
+        "Garland Greever",
+        "Easley S. Jones"
+      ],
+      "edition": "Inspected title page The Century Co., New York 1927; copyright 1918; PG release 2009-10-20, updated 2024-10-24",
+      "source_url": "https://www.gutenberg.org/cache/epub/30294/pg30294-images.html",
+      "rights_finding": "Project Gutenberg marks public domain in the USA; global rights not cleared",
+      "bundled": false,
+      "exact_ingested_file_sha256": null,
+      "decision": "Not bundled",
+      "obligations_before_bundling": [
+        "Retain edition/source/creators",
+        "Pin ingested file hash",
+        "Review territorial and Project Gutenberg trademark/redistribution terms",
+        "Attribute transcription provenance: Suzanne Lybarger, Brian Janes, Karina Aleksandrova and Distributed Proofreaders"
+      ]
+    },
+    {
+      "id": "novel-pg-38887",
+      "title": "How to Write a Novel: A Practical Guide to the Art of Fiction",
+      "creators": [
+        "Anonymous"
+      ],
+      "edition": "Grant Richards, 9 Henrietta Street, Covent Garden, London, 1901; PG release 2012-02-15, updated 2012-02-16",
+      "source_url": "https://www.gutenberg.org/cache/epub/38887/pg38887-images.html",
+      "rights_finding": "Project Gutenberg marks public domain in the USA; global rights not cleared",
+      "bundled": false,
+      "exact_ingested_file_sha256": null,
+      "decision": "Not bundled",
+      "obligations_before_bundling": [
+        "Pin actual edition/transcription/hash",
+        "Review territorial and PG trademark/redistribution terms",
+        "Review quoted/third-party additions",
+        "Attribute transcription provenance: David Starner, Lisa Reigel and Distributed Proofreaders; Google Print scans"
+      ]
+    },
+    {
+      "id": "vanguard-2020",
+      "title": "Vanguard: Exercises for the Creative Writing Classroom",
+      "creators": [
+        "Bailey",
+        "Simonian",
+        "Smith"
+      ],
+      "edition": "2020 Pressbooks edition",
+      "source_url": "https://raider.pressbooks.pub/vanguard/",
+      "rights_finding": "CC-BY-SA-4.0 book-level notice, subject to item exceptions",
+      "bundled": false,
+      "exact_ingested_file_sha256": null,
+      "decision": "Not bundled; no assumption that every credited item has book-level rights",
+      "obligations_before_bundling": [
+        "Audit every included item and third-party exception",
+        "Retain full creator/title/source/license/changes attribution",
+        "Retain CC license offline",
+        "Keep adaptations under compatible ShareAlike terms, separate from MIT code",
+        "Pin actual chapter/file hash"
+      ]
+    },
+    {
+      "id": "hcfl-creative-writing",
+      "title": "Introduction to Creative Writing",
+      "creators": [
+        "Lein",
+        "Freeman",
+        "Lumen (full item credits require review)"
+      ],
+      "edition": "Hillsborough Pressbooks online edition, reviewed 2026-10-24",
+      "source_url": "https://pressbooks.hcfl.edu/creativewriting/",
+      "rights_finding": "CC-BY-4.0 book-level notice, subject to separately credited exceptions",
+      "bundled": false,
+      "exact_ingested_file_sha256": null,
+      "decision": "Not bundled",
+      "obligations_before_bundling": [
+        "Audit item-level exceptions and exact creators",
+        "Pin chapter/file/checksum",
+        "Retain creator/title/source/license and change notice offline"
+      ]
+    },
+    {
+      "id": "fried-2021",
+      "title": "Word into Idea: A Creative Writing Exercise",
+      "creators": [
+        "Stephen Fried"
+      ],
+      "edition": "CUNY College of Staten Island, 2021 repository item",
+      "source_url": "https://academicworks.cuny.edu/si_oers/24/",
+      "rights_finding": "CC-BY-4.0 repository notice; exact downloadable file must be pinned",
+      "bundled": false,
+      "exact_ingested_file_sha256": null,
+      "decision": "Not bundled",
+      "obligations_before_bundling": [
+        "Inspect actual exercise file and exceptions",
+        "Record file hash",
+        "Retain author/title/source/license/change attribution offline"
+      ]
+    },
+    {
+      "id": "independent-constraints",
+      "title": "Independently worded constraint exercises",
+      "creators": [
+        "WritingDeck contributors (future)"
+      ],
+      "edition": "No third-party prompt-list text ingested",
+      "source_url": null,
+      "rights_finding": "General methods are not a license to copy modern expression",
+      "bundled": false,
+      "exact_ingested_file_sha256": null,
+      "decision": "No corpus bundled; future independent original wording only",
+      "obligations_before_bundling": [
+        "Do not copy copyrighted prompt lists",
+        "Credit source of method where useful",
+        "License each actual original record and record provenance"
+      ]
+    }
+  ],
+  "third_party_creative_items_bundled": 0,
+  "notes": [
+    "Software/dictionary notices are separately inventoried in software-licenses.json.",
+    "No third-party historical book, exercise or modern prompt list is yet redistributed.",
+    "A corpus ingestion gate must validate exact edition, checksum, rights, changes and retained offline attribution."
+  ]
+}

@@ -32,6 +32,8 @@
 | `F7` | the music player |
 | `F8` | spelling suggestions |
 | `F9` | themes |
+| `F10` | show or hide the outline |
+| `F12` | WritingDeck dashboard |
 
 ## The outline
 

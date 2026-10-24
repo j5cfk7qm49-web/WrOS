@@ -1,0 +1,18 @@
+#!/bin/sh
+# Runs as the authenticated writer, never root. Normal Linux mode can simply
+# invoke `grimoire`; this wrapper is for the dedicated console appliance.
+set -eu
+if [ "$(id -u)" -eq 0 ]; then
+    echo 'Refusing to run the writing application as root.' >&2
+    exit 1
+fi
+export LANG=C.UTF-8
+export TERM="${TERM:-linux}"
+export WRITINGDECK_OS=1
+umask 077
+printf '\033[2J\033[H\n  WRITINGDECK OS\n  Your words. Your machine. Offline first.\n\n'
+# Journal marker proves a non-root console session was reached; it is not a
+# substitute for the VM test's actual rendered-screen assertion.
+logger -t writingdeck-session "WRITINGDECK_SESSION uid=$(id -u) tty=$(tty)"
+# Exit returns to a login prompt rather than exposing an authenticated shell.
+exec /usr/bin/grimoire

@@ -1,0 +1,151 @@
+#!/usr/bin/python3 -I
+"""Only privileged WritingDeck helper. No arbitrary commands, paths or keymaps.
+
+Install root:root 0755, reached via polkit's exact executable annotation. Rollback
+is owned by systemd, not Grimoire. Production paths cannot be changed by env.
+"""
+import fcntl
+import json
+import os
+from pathlib import Path
+import secrets
+import subprocess
+import sys
+import time
+
+LAYOUTS = ("qwerty", "colemak", "colemak-dh-ansi", "colemak-dh-iso")
+
+
+def atomic_json(path, data):
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+    temp = path.with_name(path.name + ".tmp")
+    # All directories are root-owned. O_NOFOLLOW also rejects a stray symlink.
+    fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, "w") as out:
+        json.dump(data, out)
+        out.flush()
+        os.fsync(out.fileno())
+    os.replace(temp, path)
+    os.chmod(path, 0o644 if path.name == "keyboard.json" else 0o600)
+    fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+class KeyboardManager:
+    def __init__(self, config=Path("/etc/writingdeck/keyboard.json"),
+                 pending=Path("/run/writingdeck/keyboard-preview.json"),
+                 maps=Path("/usr/share/writingdeck/keymaps"), runner=None, clock=None):
+        self.config, self.pending, self.maps = config, pending, maps
+        self.run = runner or (lambda args: subprocess.run(args, check=True, timeout=8,
+                                                        stdin=subprocess.DEVNULL,
+                                                        stdout=subprocess.DEVNULL))
+        self.clock = clock or time.monotonic
+
+    def saved(self):
+        if not self.config.exists():
+            return {"layout": "qwerty", "generation": "initial"}
+        value = json.loads(self.config.read_text())
+        if value.get("layout") not in LAYOUTS:
+            raise ValueError("invalid committed keyboard configuration; use recovery shell")
+        return value
+
+    def load(self, layout):
+        if layout not in LAYOUTS:
+            raise ValueError("unregistered layout")
+        path = self.maps / (layout + ".map")
+        if not path.is_file() or path.is_symlink():
+            raise ValueError("missing or unsafe root-owned keymap")
+        self.run(["/usr/bin/loadkeys", "--unicode", "--console=/dev/tty1", str(path)])
+
+    def timer(self, verb):
+        self.run(["/usr/bin/systemctl", verb, "writingdeck-keyboard-revert.timer"])
+
+    def rollback(self):
+        if not self.pending.exists():
+            return {"status": "no-preview"}
+        p = json.loads(self.pending.read_text())
+        saved = self.saved()
+        # Confirmation is a durable commit point. A crash after rename but
+        # before timer cancellation must not undo a committed layout.
+        if saved.get("generation") != p["token"]:
+            self.load(saved["layout"])
+        self.pending.unlink()
+        return {"status": "reverted-or-already-committed", "layout": saved["layout"]}
+
+    def command(self, verb, value=None):
+        if verb == "boot":
+            self.load(self.saved()["layout"])
+            return {"status": "applied"}
+        if verb == "rollback":
+            return self.rollback()
+        if verb == "preview":
+            if value not in LAYOUTS:
+                raise ValueError("unregistered layout")
+            if self.pending.exists():
+                p = json.loads(self.pending.read_text())
+                if self.clock() < p["deadline"]:
+                    raise ValueError("a preview is already active; confirm or cancel it first")
+                self.rollback()
+            self.saved()  # Validate before changing anything.
+            p = {"token": secrets.token_hex(16), "layout": value, "deadline": self.clock() + 15}
+            atomic_json(self.pending, p)
+            try:
+                # Arm BEFORE touching the console; survives a client/helper crash.
+                self.timer("restart")
+                self.load(value)
+            except Exception:
+                self.rollback()
+                raise
+            return {"token": p["token"], "seconds": max(0, int(p["deadline"] - self.clock()))}
+        if verb not in ("confirm", "cancel"):
+            raise ValueError("unsupported operation")
+        if not self.pending.exists():
+            if verb == "cancel":
+                return {"status": "no-preview", "layout": self.saved()["layout"]}
+            raise ValueError("no keyboard preview is active")
+        p = json.loads(self.pending.read_text())
+        if not isinstance(value, str) or not secrets.compare_digest(value, p["token"]):
+            raise ValueError("invalid preview token")
+        if verb == "cancel" or self.clock() >= p["deadline"]:
+            self.rollback()
+            if verb == "confirm":
+                raise ValueError("preview expired and was reverted")
+            return {"status": "cancelled"}
+        atomic_json(self.config, {"layout": p["layout"], "generation": p["token"], "version": 1})
+        self.pending.unlink()
+        # A failed cancellation cannot change the committed state.
+        try:
+            self.timer("stop")
+        except Exception:
+            pass
+        return {"status": "committed", "layout": p["layout"]}
+
+
+def main():
+    if os.geteuid() != 0:
+        raise PermissionError("use the authorized polkit action; never run Grimoire as root")
+    if not (2 <= len(sys.argv) <= 3):
+        raise ValueError("usage: writingdeck-keyboard preview LAYOUT | confirm TOKEN | cancel TOKEN")
+    verb = sys.argv[1]
+    # Boot and rollback are for root-owned systemd units, not polkit clients.
+    if os.environ.get("PKEXEC_UID") is not None and verb not in ("preview", "confirm", "cancel"):
+        raise PermissionError("this operation is reserved for systemd")
+    if (verb in ("preview", "confirm", "cancel")) != (len(sys.argv) == 3):
+        raise ValueError("wrong argument count")
+    run = Path("/run/writingdeck")
+    run.mkdir(mode=0o755, exist_ok=True)
+    with open(run / "keyboard.lock", "a", encoding="utf8") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        result = KeyboardManager().command(verb, sys.argv[2] if len(sys.argv) == 3 else None)
+    print(json.dumps(result))
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(1)

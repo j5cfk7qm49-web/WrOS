@@ -1,0 +1,68 @@
+{
+  "recorded_date": "2026-10-24",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "3a736d50517f54a79880e1bcc8b22fa264ea7578ab18692b5e566b13427e3e8f",
+    "file_count": 182,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "rust_suites": [
+    {
+      "features": "default",
+      "command": "cargo test --workspace --locked --offline -j 2",
+      "passed": 490,
+      "failed": 0,
+      "ignored": 5,
+      "ignored_tests": [
+        "spell::tests::timings",
+        "shots::demo",
+        "shots::shots",
+        "ui_tests::dump_pomodoro_previews",
+        "voice::piper_reads_every_sentence_in_order"
+      ],
+      "exit_code": 0
+    },
+    {
+      "features": "no-audio",
+      "command": "cargo test --workspace --no-default-features --locked --offline -j 2",
+      "passed": 490,
+      "failed": 0,
+      "ignored": 4,
+      "ignored_tests": [
+        "spell::tests::timings",
+        "shots::demo",
+        "shots::shots",
+        "ui_tests::dump_pomodoro_previews"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "python": {
+    "command": "python3 -m unittest discover -s os/tests -p 'test_*.py' -v",
+    "passed": 21,
+    "failed": 0,
+    "skipped": 0,
+    "scope": "13 rootless keyboard helper, 4 installer planner, 4 compiled headless CLI tests",
+    "exit_code": 0
+  },
+  "checks": [
+    {
+      "command": "cargo fmt --all -- --check",
+      "exit_code": 0
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --locked --offline -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "command": "shellcheck os/scripts/*.sh os/scripts/writingdeck-session",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 tools/check-writingdeck.py",
+      "exit_code": 0
+    }
+  ],
+  "note": "Suites overlap. Ignored developer screenshots/performance/real Piper model tests are not passed. No physical hardware/cloud credentials/destructive disk operations used."
+}

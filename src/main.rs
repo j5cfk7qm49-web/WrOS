@@ -14,6 +14,7 @@ mod ui;
 mod visualizer;
 mod viz_view;
 mod voice;
+mod writingdeck_cli;
 
 #[cfg(test)]
 mod shots;
@@ -45,6 +46,9 @@ const RAINBOW_TICK: Duration = Duration::from_millis(80);
 fn main() -> Result<()> {
     let mut args = std::env::args().skip(1);
     let first = args.next();
+    if first.as_deref() == Some("writingdeck") {
+        return writingdeck_cli::command(args);
+    }
 
     if matches!(first.as_deref(), Some("compile") | Some("index")) {
         let want = first.clone().unwrap();
@@ -119,6 +123,9 @@ fn main() -> Result<()> {
         println!("                              a trim with --trim 6x9, parts with");
         println!("                              --parts 1,3");
         println!("  grimoire --version          which version, and who made it");
+        println!(
+            "  grimoire writingdeck help   appliance status, safe demo and configuration checks"
+        );
         println!("  grimoire music-setup <src>  connect music: youtube-music |");
         println!("                              spotify | jellyfin | plex");
         println!("  grimoire music-auth         re-pair only");
@@ -190,6 +197,10 @@ fn main() -> Result<()> {
 
     let mut terminal = ratatui::try_init()
         .context("this needs a real terminal — grimoire cannot run in a pipe")?;
+
+    // Linux virtual consoles do not provide a real alternate screen. Clear
+    // once so login/splash text cannot survive in cells absent from frame one.
+    terminal.clear().context("clearing the writing console")?;
 
     // Cmd/Super only reaches a TUI when the terminal speaks the Kitty keyboard
     // protocol. Ghostty, Kitty, WezTerm and foot do; Apple Terminal does not.
@@ -544,6 +555,7 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
         app.tick_speller();
         app.tick_pdf();
         app.tick_backup();
+        app.tick_deck();
         app.music.drain();
         // The player shows its own notes; anywhere else, the status bar does.
         if let Some(n) = app.music.take_fresh_note()
@@ -562,7 +574,9 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
         app.tick_reading();
 
         // The spectrum listens only while it's on screen.
-        let spectrum = app.pane_mode == scene::Mode::Visualizer && app.scene_visible;
+        let spectrum = !app.deck.state.low_power
+            && app.pane_mode == scene::Mode::Visualizer
+            && app.scene_visible;
         app.viz.set_active(spectrum);
         if spectrum {
             app.viz.update();
@@ -575,7 +589,9 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
             return Err(e.into());
         }
 
-        let tick = if spectrum || app.reading.is_some() {
+        let tick = if app.deck.state.low_power && !spectrum && app.reading.is_none() {
+            Duration::from_secs(1)
+        } else if spectrum || app.reading.is_some() {
             FAST_TICK
         } else if app.theme.is_rainbow() {
             RAINBOW_TICK
@@ -644,6 +660,89 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
 /// then the focused pane. True when it means leave (everything is saved by
 /// then, or the second Ctrl-Q said to go anyway).
 fn on_key(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
+    use app::writingdeck::Page;
+    use grimoire_core::tutorial::Event as LessonEvent;
+    if matches!(
+        app.overlay,
+        Overlay::Deck(Page::Shortcuts { capture: true, .. })
+    ) {
+        if k.code == KeyCode::Esc {
+            app.on_deck_key(Key::Esc);
+            return false;
+        }
+        let chord = match k.code {
+            KeyCode::F(n @ 10..=12) if k.modifiers.is_empty() => Some(format!("F{n}")),
+            KeyCode::Char(c)
+                if k.modifiers
+                    .contains(KeyModifiers::CONTROL | KeyModifiers::ALT)
+                    && c.is_ascii_alphabetic() =>
+            {
+                Some(format!("Ctrl+Alt+{c}"))
+            }
+            _ => None,
+        };
+        if let Some(chord) = chord {
+            app.add_deck_shortcut(&chord);
+        } else {
+            app.deck.note =
+                "Choose Ctrl+Alt+A-Z or F10-F12; existing bindings are protected.".into();
+        }
+        return false;
+    }
+    if matches!(app.overlay, Overlay::None) {
+        let chord = match k.code {
+            KeyCode::F(n @ 10..=12) if k.modifiers.is_empty() => Some(format!("F{n}")),
+            KeyCode::Char(c)
+                if k.modifiers
+                    .contains(KeyModifiers::CONTROL | KeyModifiers::ALT)
+                    && c.is_ascii_alphabetic() =>
+            {
+                Some(format!("Ctrl+Alt+{c}"))
+            }
+            _ => None,
+        };
+        if let Some(action) = chord.and_then(|c| app.deck.shortcuts.find(&c)) {
+            app.deck_shortcut(action);
+            return false;
+        }
+    }
+    let active = app.deck.progress.active.is_some();
+    let before_open = app.open;
+    let before_goals = (app.project.meta.target_words, app.project.meta.daily_target);
+    let before_sprint = app.sprint.is_some();
+    let before_text = if app.deck.progress.active == Some(4) {
+        Some(app.editor.text())
+    } else {
+        None
+    };
+    let result = on_key_inner(app, k, confirm_quit);
+    if active {
+        if before_open != app.open {
+            app.observe_deck(LessonEvent::SceneOpened);
+        }
+        if before_goals != (app.project.meta.target_words, app.project.meta.daily_target) {
+            app.observe_deck(LessonEvent::GoalsChanged);
+        }
+        if !before_sprint && app.sprint.is_some() {
+            app.observe_deck(LessonEvent::SprintStarted);
+        }
+        if before_text.is_some_and(|before| before != app.editor.text()) {
+            app.observe_deck(LessonEvent::TextEdited);
+        }
+        if matches!(app.overlay, Overlay::Cork { .. }) {
+            app.observe_deck(LessonEvent::CorkboardOpened);
+        }
+        if matches!(app.overlay, Overlay::Spelling { .. }) {
+            app.observe_deck(LessonEvent::SpellingOpened);
+        }
+        if matches!(app.overlay, Overlay::History { .. }) {
+            app.observe_deck(LessonEvent::HistoryOpened);
+        }
+    }
+    result
+}
+
+fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
     // AltGr arrives as Ctrl+Alt on Windows; what it makes (@, €, ł…) is
     // typing, not a shortcut.
     let k = match k.code {

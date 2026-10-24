@@ -18,6 +18,17 @@ plain files you can open with anything, even `cat`.
 
 <img src="assets/readme/rule.svg" width="100%" alt="">
 
+## WritingDeck OS development branch
+
+This branch adds a Debian-based, offline-first writing-appliance foundation.
+Start with [WritingDeck OS](docs/WRITING_DECK_OS.md), [current status](docs/STATUS.md),
+[feature matrix](docs/FEATURE_MATRIX.md) and [safe development/image instructions](docs/INSTALLATION.md).
+The whole-disk UEFI VM prototype boots as a non-root writer without a desktop.
+**It is an insecure VM-only demo, not a production laptop installer.** Later requested
+writing tools, independent editable panes, full challenges/Spark, secure installation,
+lock/update/rollback and verified cloud backup remain incomplete. Existing Grimoire
+manuscript formats and shortcuts are retained.
+
 ## Why it exists
 
 Most novel apps make you pick. Some tuck your manuscript away in a database you

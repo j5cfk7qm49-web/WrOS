@@ -1,0 +1,7 @@
+// Exact narrow helper only. No general sudo, shell, localectl or systemctl grants.
+polkit.addRule(function(action, subject) {
+    if (action.id == "org.writingdeck.keyboard" &&
+        subject.local && subject.active && subject.isInGroup("writingdeck")) {
+        return polkit.Result.YES;
+    }
+});

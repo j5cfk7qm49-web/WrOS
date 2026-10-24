@@ -41,13 +41,22 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         app.scene_visible = false;
         app.music_visible = false;
         main
-    } else {
+    } else if app.deck.state.current().outline {
         draw_left(f, app, main, &t)
+    } else {
+        app.rect_tree = Rect::default();
+        app.create_hits.clear();
+        app.scene_visible = false;
+        app.music_visible = false;
+        if app.focus == Focus::Tree {
+            app.focus = Focus::Editor;
+        }
+        main
     };
 
     // A note, or another scene, opened from the prose sits beside it, when
     // there's room. Only one at a time.
-    app.side_room = edit_area.width >= 70;
+    app.side_room = !app.focus_mode && edit_area.width >= 70;
     app.rect_codex = Rect::default();
     app.rect_beside = Rect::default();
     if app.side_room && (app.codex.is_some() || app.beside.is_some()) {
@@ -122,8 +131,20 @@ pub(crate) fn paint_rainbow(
 
 /// The left column — tree, clearing, music — and what's left for writing.
 fn draw_left(f: &mut Frame, app: &mut App, main: Rect, t: &Theme) -> Rect {
-    let [left, edit_area] =
-        Layout::horizontal([Constraint::Length(LEFT_W), Constraint::Min(24)]).areas(main);
+    let [left, edit_area] = Layout::horizontal([
+        Constraint::Length(if app.deck.state.current().outline_width == LEFT_W {
+            LEFT_W.min(main.width.saturating_sub(30)).max(18)
+        } else {
+            app.deck
+                .state
+                .current()
+                .outline_width
+                .min(main.width.saturating_sub(30))
+                .max(18)
+        }),
+        Constraint::Min(24),
+    ])
+    .areas(main);
 
     // Give up the ornaments before the tree gets unusable. With music switched
     // off there is no music pane at all, and the tree has that room.

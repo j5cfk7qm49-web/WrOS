@@ -35,6 +35,7 @@ impl App {
     /// The topic that explains where you are.
     pub fn help_context(&self) -> &'static str {
         match &self.overlay {
+            Overlay::Deck(_) => "writingdeck",
             // In the menu, the topic for the highlighted row.
             Overlay::Menu { .. } | Overlay::Sub { .. } => self
                 .menu_highlight()
@@ -79,6 +80,7 @@ impl App {
     pub fn question_opens_help(&self) -> bool {
         match &self.overlay {
             Overlay::None => self.focus != Focus::Editor,
+            Overlay::Deck(super::super::writingdeck::Page::KeyboardTest { .. }) => false,
             Overlay::Palette { .. }
             | Overlay::Marks { .. }
             | Overlay::Find { .. }

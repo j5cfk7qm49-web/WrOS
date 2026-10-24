@@ -17,3 +17,9 @@ apps/mobile/src-tauri/target/
 
 # Python bytecode from tools/
 __pycache__/
+
+# Local appliance artifacts (regenerate from os/)
+/build/
+
+# Historical local verification logs; publish curated evidence instead.
+/build-*.log

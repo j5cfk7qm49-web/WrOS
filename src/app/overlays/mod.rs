@@ -58,6 +58,7 @@ impl App {
     fn route_overlay_key(&mut self, key: Key) {
         match self.overlay {
             Overlay::None => {}
+            Overlay::Deck(_) => self.on_deck_key(key),
             Overlay::Marks { .. } => self.on_marks_key(key),
             Overlay::Sprint { .. } => self.on_sprint_key(key),
             Overlay::Palette { .. } => self.on_palette_key(key),
@@ -175,6 +176,7 @@ fn list_nav(key: Key, sel: &mut usize, len: usize, nav: Nav) -> bool {
 pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     match &app.overlay {
         Overlay::None => {}
+        Overlay::Deck(_) => super::writingdeck::draw(f, app, area, t),
         Overlay::Marks { query, sel, rows } => marks::draw_marks(f, area, query, *sel, rows, t),
         Overlay::Sprint {
             words,
