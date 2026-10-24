@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of": "2026-10-24",
-  "release": "0.1.0-dev foundation",
+  "release": "0.1.0-dev foundation + M3b",
   "features": [
     {
       "area": "Baseline",
@@ -145,7 +145,7 @@
       "status": "Tested",
       "verification": "Typed command/unit tests",
       "hardware_verified": false,
-      "detail": "Actual radio/SSID enrollment unverified; nmtui maintenance fallback"
+      "detail": "Actual radio/enrollment unverified; scan truncation still open; nmtui fallback"
     },
     {
       "area": "System",
@@ -191,7 +191,7 @@
       "area": "Keyboard",
       "capability": "15-second preview, token commit and independent rollback",
       "status": "Tested",
-      "verification": "12 rootless helper tests + real VM systemd timer",
+      "verification": "13 rootless helper tests + real VM systemd timer",
       "hardware_verified": false,
       "detail": "Survives client absence; commit generation handles crash boundary"
     },
@@ -217,7 +217,7 @@
       "status": "Tested",
       "verification": "TUI capture/persistence + logical/Unicode tests",
       "hardware_verified": false,
-      "detail": "Only safe aliases for eight actions; not all legacy binding removal/reassignment"
+      "detail": "Nine safe alias actions including Secondary; not all legacy binding removal/reassignment"
     },
     {
       "area": "Keyboard",
@@ -253,11 +253,11 @@
     },
     {
       "area": "Workspaces",
-      "capability": "Five named primary layout slots + custom clones/width/cursors",
+      "capability": "Five named dual-editor workspace slots + custom clones/width/cursors",
       "status": "Tested",
-      "verification": "Workspace JSON and TUI restoration tests",
+      "verification": "Schema-v2 round-trip/v1 migration + dual restart/role-swap UI tests",
       "hardware_verified": false,
-      "detail": "Only Focus differs initially; full pane presets not complete"
+      "detail": "Both selections/free scroll, active role/visibility/ratio; full preset content remains planned"
     },
     {
       "area": "Workspaces",
@@ -265,23 +265,23 @@
       "status": "Tested",
       "verification": "Hidden-pane geometry/focus and persistence tests",
       "hardware_verified": false,
-      "detail": "Retained references reappear; F11 not assigned"
+      "detail": "Strict Primary only; hidden Secondary/reference cannot receive input"
     },
     {
       "area": "Workspaces",
       "capability": "Full editable secondary document, independent undo/autosave/selection",
-      "status": "Planned",
-      "verification": "None",
+      "status": "Tested",
+      "verification": "28 new UI cases + core registry tests + real-binary PTY at four sizes",
       "hardware_verified": false,
-      "detail": "Next application milestone; existing beside remains read-only"
+      "detail": "F11 enabled; existing guarded saves/dual recovery; in-process ownership, not an OS lock"
     },
     {
       "area": "Workspaces",
       "capability": "Sticky sidebar, multi-pane ratios and full content presets",
-      "status": "Planned",
-      "verification": "None",
+      "status": "In progress",
+      "verification": "Two-editor ratio/stacked-wide-resize tests",
       "hardware_verified": false,
-      "detail": "Do not conflate primary layout slots with requested full engine"
+      "detail": "Two-editor ratio implemented; sticky sidebar/cards and full preset content still planned"
     },
     {
       "area": "Notes",
@@ -521,7 +521,7 @@
       "status": "Tested",
       "verification": "Core + actual editor/UI tests",
       "hardware_verified": false,
-      "detail": "15 baseline/foundation lessons wired; 24 explicitly unavailable"
+      "detail": "16 event-capable lessons including actual Secondary edit; 23 explicitly unavailable"
     },
     {
       "area": "Tutorial",

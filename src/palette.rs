@@ -69,6 +69,9 @@ pub enum Action {
     FocusMode,
     /// Pick a scene to show beside the one being written.
     BesidePicker,
+    ToggleSecondary,
+    SecondaryPicker,
+    EditSecondary(std::path::PathBuf),
     Beside(std::path::PathBuf),
     LineWidth,
     Typewriter,
@@ -171,6 +174,12 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
         Entry::new("Workspaces", "", Action::Workspaces),
         Entry::new("Interactive tutorial", "", Action::Tutorial),
         Entry::new("Toggle outline", "F10", Action::ToggleOutline),
+        Entry::new(
+            "Toggle editable secondary pane",
+            "F11",
+            Action::ToggleSecondary,
+        ),
+        Entry::new("Choose secondary document", "", Action::SecondaryPicker),
         Entry::new("Find in this scene", &format!("{m}F"), Action::FindInScene),
         Entry::new("Find in the whole book", "/", Action::FindInBook),
         Entry::new("New scene", "n", Action::NewScene),

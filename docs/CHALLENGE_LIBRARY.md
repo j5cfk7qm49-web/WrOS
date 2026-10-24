@@ -30,3 +30,7 @@ Lipograms, N+7, snowball sentences, restricted vocabulary, viewpoint restriction
 ## Integration and tutorial
 
 Challenge records support manual qualitative completion and measurable objectives separately. Add a result to an existing pin/scratchpad/task/scene or start a sprint only when those subsystems exist. Tutorial lessons 21–24 remain explicitly planned until actual corpus/generator/actions are implemented and tested. They cannot currently be marked complete.
+
+## M3b does not change corpus completeness
+
+The independent editor and safe-demo lesson 13 are now implemented/tested. They add no third-party exercise or plot corpus. Corpus size, edition clearance, compatibility and editorial quality gates above remain open; no test count or tutorial paragraph is counted as a curated Spark option.

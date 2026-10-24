@@ -66,7 +66,7 @@ There is no audited genuine Markdown `[^id]` to OOXML footnote implementation in
 
 ## Input/guard-test contracts
 
-F1 help, F2-F3 timer, F4-F7 music, F8 spelling and F9 themes are established. F10-F12 were unassigned at baseline. WritingDeck uses F10 for the outline and F12 for home; F11 remains free pending the real secondary editor.
+F1 help, F2-F3 timer, F4-F7 music, F8 spelling and F9 themes are established. F10-F12 were unassigned at baseline. WritingDeck now uses F10 for outline, F11 for the tested M3b independent editable secondary buffer, and F12 for home. This is a fork addition, not an upstream capability at the audited base.
 
 The following tests remain authoritative, not obstacles to delete:
 

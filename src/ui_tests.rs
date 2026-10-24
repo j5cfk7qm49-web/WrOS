@@ -2107,6 +2107,7 @@ const EVERY_KEY: &[(&str, &str, &[&str])] = &[
     ("Everywhere", "F8", &[]),
     ("Everywhere", "F9", &[]),
     ("Everywhere", "F10", &[]),
+    ("Everywhere", "F11", &[]),
     ("Everywhere", "F12", &[]),
     ("The outline", "↑", &[]),
     ("The outline", "↓", &["↑"]),
@@ -3359,5 +3360,1106 @@ fn writingdeck_bad_layout_state_is_preserved_while_manuscript_still_saves() {
         fs::read_to_string(first_scene(&d.root))
             .unwrap()
             .contains("Words must still save.")
+    );
+}
+
+// ---- Independent editable documents (WritingDeck M3b) -------------------
+
+fn secondary_book(tag: &str, width: u16, height: u16, many_lines: bool) -> (Desk, PathBuf) {
+    let root = book(tag, true);
+    let primary = first_scene(&root);
+    let body = if many_lines {
+        (0..100)
+            .map(|i| format!("Primary paragraph {i}.\n"))
+            .collect::<String>()
+    } else {
+        "Primary alpha remains here.\n".into()
+    };
+    fs::write(
+        &primary,
+        format!("---\ntitle: Scene One\nkeep: 'raw: value' # unchanged\n---\n\n{body}"),
+    )
+    .unwrap();
+    let note = root.join("research/side-research.md");
+    let body = if many_lines {
+        (0..100)
+            .map(|i| format!("Secondary paragraph {i}.\n"))
+            .collect::<String>()
+    } else {
+        "Secondary beta lives here.\n".into()
+    };
+    fs::write(&note, format!("---\ntitle: Side Research\ncustom:\n  list: [one, two] # retained\nunknown: 'a: b'\n---\n\n{body}")).unwrap();
+    (Desk::open(root, width, height), note)
+}
+
+fn choose_secondary(d: &mut Desk, note: &Path) {
+    d.app
+        .run_action(palette::Action::EditSecondary(note.to_path_buf()));
+    d.draw();
+    assert_eq!(d.app.focus, Focus::Secondary, "{}", d.rows().join("\n"));
+}
+
+#[test]
+fn writingdeck_secondary_works_at_all_four_sizes_and_saves_raw_frontmatter() {
+    use grimoire_core::documents::Pane;
+    for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let (mut d, note) =
+            secondary_book(&format!("secondary-sizes-{width}"), width, height, false);
+        let primary = first_scene(&d.root);
+        let old_primary = fs::read_to_string(&primary).unwrap();
+        let (old_front, _) = project::split_frontmatter(&fs::read_to_string(&note).unwrap());
+        // Foundation v1 alias files omit Secondary: F11 still has its
+        // additive default fallback without migrating the shortcut file.
+        d.app
+            .deck
+            .shortcuts
+            .bindings
+            .retain(|b| b.action != writingdeck_sys::shortcuts::Action::Secondary);
+        d.key(KeyCode::F(11));
+        assert!(matches!(d.app.overlay, Overlay::Palette { .. }));
+        d.typed("Side Research");
+        d.key(KeyCode::Enter);
+        assert_eq!(d.app.focus, Focus::Secondary);
+        assert!(d.shows("Primary alpha"));
+        assert!(d.shows("Secondary beta"));
+        assert!(d.app.view_rect(Pane::Primary).height >= 4);
+        assert!(d.app.view_rect(Pane::Secondary).height >= 4);
+        if width <= 100 {
+            assert!(d.app.view_rect(Pane::Secondary).y > d.app.view_rect(Pane::Primary).y);
+        } else {
+            assert!(d.app.view_rect(Pane::Secondary).x > d.app.view_rect(Pane::Primary).x);
+        }
+        d.press(KeyEvent::new(KeyCode::End, KeyModifiers::CONTROL));
+        d.typed("Café λ — new research.");
+        d.ctrl('s');
+        assert_eq!(fs::read_to_string(&primary).unwrap(), old_primary);
+        let saved = fs::read_to_string(&note).unwrap();
+        assert!(saved.contains("Café λ — new research."));
+        assert_eq!(project::split_frontmatter(&saved).0, old_front);
+        assert_eq!(d.app.project.dirty_count(), 0);
+    }
+}
+
+#[test]
+fn writingdeck_secondary_and_primary_have_independent_undo_selection_and_clipboard() {
+    use grimoire_core::documents::Pane;
+    let (mut d, note) = secondary_book("secondary-independent", 120, 40, false);
+    choose_secondary(&mut d, &note);
+    let primary = d.app.view_editor(Pane::Primary).unwrap().text();
+    let secondary = d.app.editor.text();
+    d.press(KeyEvent::new(KeyCode::End, KeyModifiers::CONTROL));
+    d.app.clip = "SECONDARY Ω".into();
+    d.ctrl('v');
+    d.press(KeyEvent::new(KeyCode::Left, KeyModifiers::SHIFT));
+    assert_eq!(d.app.editor.selected_text().as_deref(), Some("Ω"));
+    d.key(KeyCode::BackTab);
+    assert_eq!(d.app.focus, Focus::Editor);
+    assert_eq!(d.app.editor.text(), primary);
+    assert_eq!(
+        d.app
+            .view_editor(Pane::Secondary)
+            .unwrap()
+            .selected_text()
+            .as_deref(),
+        Some("Ω")
+    );
+    d.press(KeyEvent::new(KeyCode::End, KeyModifiers::CONTROL));
+    d.app.clip = "PRIMARY INSERT".into();
+    d.ctrl('v');
+    let changed_primary = d.app.editor.text();
+    d.ctrl('z');
+    assert_eq!(d.app.editor.text(), primary);
+    d.ctrl('y');
+    assert_eq!(d.app.editor.text(), changed_primary);
+    d.key(KeyCode::Tab);
+    assert_eq!(d.app.focus, Focus::Secondary);
+    assert_eq!(d.app.editor.selected_text().as_deref(), Some("Ω"));
+    d.ctrl('c');
+    assert_eq!(d.app.clip, "Ω");
+    d.ctrl('z');
+    assert_eq!(d.app.editor.text(), secondary);
+    assert_eq!(
+        d.app.view_editor(Pane::Primary).unwrap().text(),
+        changed_primary
+    );
+    d.ctrl('y');
+    assert!(d.app.editor.text().ends_with("SECONDARY Ω"));
+    d.ctrl('a');
+    d.ctrl('x');
+    assert_eq!(d.app.editor.text(), "");
+    d.ctrl('z');
+    assert!(d.app.editor.text().ends_with("SECONDARY Ω"));
+    d.ctrl('s');
+    assert!(
+        fs::read_to_string(first_scene(&d.root))
+            .unwrap()
+            .contains("PRIMARY INSERT")
+    );
+    assert!(fs::read_to_string(note).unwrap().contains("SECONDARY Ω"));
+}
+
+#[test]
+fn writingdeck_secondary_hiding_and_strict_focus_never_discard_or_focus_hidden_text() {
+    use grimoire_core::documents::Pane;
+    let (mut d, note) = secondary_book("secondary-focus", 80, 24, false);
+    choose_secondary(&mut d, &note);
+    d.app.editor.select((0, 0), (0, 9));
+    let selection = d.app.editor.selected_text();
+    d.key(KeyCode::F(11));
+    assert_eq!(
+        d.app.view_rect(Pane::Secondary),
+        ratatui::layout::Rect::default()
+    );
+    assert_eq!(
+        d.app.view_editor(Pane::Secondary).unwrap().selected_text(),
+        selection
+    );
+    for _ in 0..10 {
+        d.key(KeyCode::Tab);
+        assert_ne!(d.app.focus, Focus::Secondary);
+    }
+    d.key(KeyCode::F(11));
+    assert_eq!(d.app.focus, Focus::Secondary);
+    assert_eq!(d.app.editor.selected_text(), selection);
+    d.ctrl('d');
+    assert!(d.app.focus_mode);
+    assert_eq!(d.app.views.active, Pane::Primary);
+    assert_eq!(
+        d.app.view_rect(Pane::Secondary),
+        ratatui::layout::Rect::default()
+    );
+    for _ in 0..5 {
+        d.key(KeyCode::Tab);
+        assert_eq!(d.app.focus, Focus::Editor);
+    }
+    d.key(KeyCode::F(11));
+    assert!(d.app.focus_mode);
+    d.ctrl('d');
+    assert!(d.app.views.secondary_visible);
+    d.key(KeyCode::Tab);
+    assert_eq!(d.app.focus, Focus::Secondary);
+    assert_eq!(d.app.editor.selected_text(), selection);
+    d.key(KeyCode::Esc); // selection first, not a hidden legacy note
+    assert_eq!(d.app.overlay, Overlay::None);
+    assert!(!d.app.editor.has_selection());
+    d.key(KeyCode::Esc);
+    assert!(d.menu_open());
+}
+
+#[test]
+fn writingdeck_secondary_mouse_wheel_and_click_use_each_views_geometry() {
+    use grimoire_core::documents::Pane;
+    let (mut d, note) = secondary_book("secondary-mouse", 100, 30, true);
+    choose_secondary(&mut d, &note);
+    let primary_rect = d.app.view_rect(Pane::Primary);
+    let secondary_rect = d.app.view_rect(Pane::Secondary);
+    let secondary_scroll = d.app.editor.scroll;
+    d.app
+        .on_scroll(primary_rect.x + 4, primary_rect.y + 3, true);
+    d.draw();
+    assert_eq!(d.app.focus, Focus::Secondary);
+    assert!(d.app.view_editor(Pane::Primary).unwrap().scroll > 0);
+    assert_eq!(d.app.editor.scroll, secondary_scroll);
+    d.app.on_click(primary_rect.x + 5, primary_rect.y + 3);
+    d.draw();
+    assert_eq!(d.app.focus, Focus::Editor);
+    let primary_cursor = (d.app.editor.cy, d.app.editor.cx);
+    d.app.on_click(secondary_rect.x + 5, secondary_rect.y + 3);
+    d.draw();
+    assert_eq!(d.app.focus, Focus::Secondary);
+    assert_eq!(
+        (
+            d.app.view_editor(Pane::Primary).unwrap().cy,
+            d.app.view_editor(Pane::Primary).unwrap().cx
+        ),
+        primary_cursor
+    );
+    d.app.on_drag(secondary_rect.x + 12, secondary_rect.y + 3);
+    d.draw();
+    assert!(d.app.editor.has_selection());
+    assert!(!d.app.view_editor(Pane::Primary).unwrap().has_selection());
+}
+
+#[test]
+fn writingdeck_secondary_autosave_also_saves_a_hidden_inactive_dirty_document() {
+    use grimoire_core::documents::Pane;
+    let (mut d, note) = secondary_book("secondary-autosave", 120, 40, false);
+    choose_secondary(&mut d, &note);
+    d.app.clip = "note auto ".into();
+    d.ctrl('v');
+    d.key(KeyCode::F(11));
+    d.app.clip = "primary auto ".into();
+    d.ctrl('v');
+    assert_eq!(d.app.project.dirty_count(), 2);
+    d.app.last_edit = Some(std::time::Instant::now() - std::time::Duration::from_secs(3));
+    d.app.autosave_tick();
+    assert_eq!(d.app.project.dirty_count(), 0);
+    assert!(fs::read_to_string(&note).unwrap().contains("note auto"));
+    assert!(
+        fs::read_to_string(first_scene(&d.root))
+            .unwrap()
+            .contains("primary auto")
+    );
+    assert_eq!(d.app.views.active, Pane::Primary);
+    assert!(!grimoire_core::history::versions(&d.root, &note).is_empty());
+}
+
+#[test]
+fn writingdeck_secondary_find_replace_and_spelling_do_not_touch_primary() {
+    use grimoire_core::documents::Pane;
+    let (mut d, note) = secondary_book("secondary-find-spell", 120, 40, false);
+    choose_secondary(&mut d, &note);
+    let primary = d.app.view_editor(Pane::Primary).unwrap().text();
+    d.ctrl('f');
+    d.typed("beta");
+    assert_eq!(d.app.editor.selected_text().as_deref(), Some("beta"));
+    d.key(KeyCode::Tab);
+    d.typed("gamma");
+    d.key(KeyCode::Enter);
+    d.key(KeyCode::Esc);
+    assert_eq!(d.app.focus, Focus::Secondary);
+    assert!(d.app.editor.text().contains("gamma"));
+    assert!(!d.app.editor.text().contains("beta"));
+    d.ctrl('z');
+    assert!(d.app.editor.text().contains("beta"));
+    d.app.load_speller_now();
+    d.app.editor.place(0, 0);
+    d.app.clip = "definately ".into();
+    d.ctrl('v');
+    d.app.editor.place(0, 4);
+    d.key(KeyCode::F(8));
+    assert!(matches!(d.app.overlay, Overlay::Spelling { .. }));
+    d.key(KeyCode::Esc);
+    assert_eq!(d.app.focus, Focus::Secondary);
+    assert_eq!(d.app.view_editor(Pane::Primary).unwrap().text(), primary);
+}
+
+#[test]
+fn writingdeck_secondary_duplicate_selection_focuses_owner_instead_of_cloning_buffer() {
+    use grimoire_core::documents::Pane;
+    let (mut d, note) = secondary_book("secondary-owner", 120, 40, false);
+    choose_secondary(&mut d, &note);
+    let p = first_scene(&d.root);
+    let before = d.app.editor.text();
+    d.app.editor.select((0, 2), (0, 8));
+    d.app.run_action(palette::Action::EditSecondary(p.clone()));
+    d.draw();
+    assert_eq!(d.app.focus, Focus::Editor);
+    assert_eq!(d.app.view_editor(Pane::Secondary).unwrap().text(), before);
+    d.app.run_action(palette::Action::Open(note.clone()));
+    d.draw();
+    assert_eq!(d.app.focus, Focus::Secondary);
+    assert_eq!(d.app.editor.selected_text().as_deref(), Some("condar"));
+    assert_eq!(
+        d.app.project.nodes[d.app.view_open(Pane::Primary).unwrap()].path,
+        p
+    );
+    d.app.ensure_document_claims().unwrap();
+}
+
+#[test]
+fn writingdeck_secondary_conflict_keeps_external_version_and_local_copy_without_reflush() {
+    use grimoire_core::documents::Pane;
+    let (mut d, note) = secondary_book("secondary-conflict", 120, 40, false);
+    choose_secondary(&mut d, &note);
+    d.app.clip = "Local secondary draft. ".into();
+    d.ctrl('v');
+    d.key(KeyCode::BackTab);
+    d.app.clip = "Local primary draft. ".into();
+    d.ctrl('v');
+    fs::write(
+        &note,
+        "---\ntitle: Side Research\nexternal: retained\n---\n\nExternal secondary revision.\n",
+    )
+    .unwrap();
+    d.ctrl('s');
+    assert!(
+        fs::read_to_string(&note)
+            .unwrap()
+            .contains("External secondary revision.")
+    );
+    let copies = grimoire_core::sync::copies_of(&note);
+    assert_eq!(copies.len(), 1);
+    assert!(
+        fs::read_to_string(&copies[0].0)
+            .unwrap()
+            .contains("Local secondary draft.")
+    );
+    assert!(
+        d.app
+            .view_editor(Pane::Secondary)
+            .unwrap()
+            .text()
+            .contains("External secondary revision.")
+    );
+    assert!(
+        fs::read_to_string(first_scene(&d.root))
+            .unwrap()
+            .contains("Local primary draft.")
+    );
+    d.app.check_documents_now();
+    d.draw();
+    d.ctrl('s');
+    assert_eq!(grimoire_core::sync::copies_of(&note).len(), 1);
+    assert!(
+        d.app
+            .view_editor(Pane::Secondary)
+            .unwrap()
+            .text()
+            .contains("External secondary revision.")
+    );
+}
+
+#[test]
+fn writingdeck_secondary_clean_external_adoption_and_tree_reload_preserve_other_selection() {
+    use grimoire_core::documents::Pane;
+    let (mut d, note) = secondary_book("secondary-external", 120, 40, false);
+    choose_secondary(&mut d, &note);
+    d.key(KeyCode::BackTab);
+    d.app.editor.select((0, 1), (0, 5));
+    let selection = d.app.editor.selected_text();
+    fs::write(
+        &note,
+        "---\ntitle: Side Research\n---\n\nA clean external revision.\n",
+    )
+    .unwrap();
+    d.app.check_documents_now();
+    d.app.check_documents_now();
+    d.draw();
+    assert!(
+        d.app
+            .view_editor(Pane::Secondary)
+            .unwrap()
+            .text()
+            .contains("clean external")
+    );
+    assert_eq!(d.app.editor.selected_text(), selection);
+    let extra = d.root.join("notes/extra.md");
+    fs::write(extra, "An additional note.\n").unwrap();
+    d.app.check_documents_now();
+    d.draw();
+    assert_eq!(d.app.editor.selected_text(), selection);
+    assert!(
+        d.app
+            .view_editor(Pane::Secondary)
+            .unwrap()
+            .text()
+            .contains("clean external")
+    );
+}
+
+#[test]
+fn writingdeck_secondary_failed_save_blocks_replacement_and_retains_both_recovery_copies() {
+    use grimoire_core::documents::Pane;
+    let (mut d, note) = secondary_book("secondary-save-fail", 120, 40, false);
+    choose_secondary(&mut d, &note);
+    d.app.clip = "Unsaved secondary. ".into();
+    d.ctrl('v');
+    d.key(KeyCode::BackTab);
+    d.app.clip = "Unsaved primary. ".into();
+    d.ctrl('v');
+    let secondary_index = d.app.view_open(Pane::Secondary);
+    let backup = note.with_extension("fixture-backup");
+    fs::rename(&note, &backup).unwrap();
+    fs::create_dir(&note).unwrap();
+    d.ctrl('s');
+    assert!(matches!(d.app.save_state, app::SaveState::Failed(_)));
+    let primary = first_scene(&d.root);
+    let kept = recovery::dir(&d.root);
+    assert!(
+        fs::read_to_string(kept.join(primary.strip_prefix(&d.root).unwrap()))
+            .unwrap()
+            .contains("Unsaved primary.")
+    );
+    assert!(
+        fs::read_to_string(kept.join(note.strip_prefix(&d.root).unwrap()))
+            .unwrap()
+            .contains("Unsaved secondary.")
+    );
+    let third = d
+        .app
+        .project
+        .nodes
+        .iter()
+        .position(|n| {
+            n.kind == grimoire_core::project::Kind::Scene && n.path != primary && n.path != note
+        })
+        .unwrap();
+    d.app.open_secondary_node(third);
+    assert_eq!(d.app.view_open(Pane::Secondary), secondary_index);
+    d.ctrl('q');
+    assert!(!d.left);
+    assert!(d.armed);
+    assert!(
+        d.app
+            .view_editor(Pane::Secondary)
+            .unwrap()
+            .text()
+            .contains("Unsaved secondary.")
+    );
+    fs::remove_dir(&note).unwrap();
+    fs::rename(&backup, &note).unwrap();
+    assert!(d.app.commit_saves());
+    assert!(
+        fs::read_to_string(&primary)
+            .unwrap()
+            .contains("Unsaved primary.")
+    );
+    assert!(
+        fs::read_to_string(&note)
+            .unwrap()
+            .contains("Unsaved secondary.")
+    );
+}
+
+#[test]
+fn writingdeck_secondary_workspace_restart_restores_both_selections_free_scroll_size_and_focus() {
+    use grimoire_core::documents::Pane;
+    let (mut d, note) = secondary_book("secondary-restart", 120, 40, true);
+    choose_secondary(&mut d, &note);
+    d.app.with_editor_view(Pane::Primary, |a| {
+        a.editor.select((12, 8), (9, 4));
+    });
+    d.app.editor.select((10, 3), (8, 7));
+    // Scroll deliberately away from both cursors, then save those views.
+    d.app.scroll_editor_view(Pane::Primary, true, 45);
+    d.app.scroll_editor_view(Pane::Secondary, true, 38);
+    d.app.deck.state.current_mut().secondary_percent = 55;
+    d.draw();
+    let primary = d.app.view_position(Pane::Primary).unwrap();
+    let secondary = d.app.view_position(Pane::Secondary).unwrap();
+    assert!(primary.scroll > primary.line);
+    assert!(secondary.scroll > secondary.line);
+    assert!(d.app.try_quit());
+    let mut reopened = Desk::open(d.root.clone(), 120, 40);
+    reopened.app.init_writingdeck(true);
+    reopened.draw();
+    assert_eq!(reopened.app.deck.state.version, 2);
+    assert_eq!(reopened.app.view_position(Pane::Primary).unwrap(), primary);
+    assert_eq!(
+        reopened.app.view_position(Pane::Secondary).unwrap(),
+        secondary
+    );
+    assert_eq!(reopened.app.focus, Focus::Secondary);
+    assert_eq!(reopened.app.deck.state.current().secondary_percent, 55);
+    assert!(reopened.app.views.secondary_visible);
+}
+
+#[test]
+fn writingdeck_secondary_restore_never_overrides_a_newer_primary_resume_record() {
+    use grimoire_core::documents::Pane;
+    let (mut d, note) = secondary_book("secondary-newer-resume", 120, 40, true);
+    choose_secondary(&mut d, &note);
+    d.app
+        .with_editor_view(Pane::Primary, |a| a.editor.place(9, 4));
+    d.app.editor.select((6, 1), (7, 3));
+    let secondary = d.app.view_position(Pane::Secondary).unwrap();
+    d.app.save_deck();
+    let record = grimoire_core::resume::Resume {
+        scene: grimoire_core::resume::relative(&d.root, &first_scene(&d.root)),
+        line: 40,
+        column: 2,
+        machine: "another fixture writer".into(),
+        when: chrono::Local::now(),
+    };
+    grimoire_core::resume::write(&d.root, &record, "Scene One", "").unwrap();
+    let mut reopened = Desk::open(d.root.clone(), 120, 40);
+    reopened.app.init_writingdeck(true);
+    reopened.draw();
+    assert_eq!(reopened.app.view_editor(Pane::Primary).unwrap().cy, 40);
+    assert_eq!(reopened.app.view_editor(Pane::Primary).unwrap().cx, 2);
+    assert_eq!(
+        reopened
+            .app
+            .view_editor(Pane::Primary)
+            .unwrap()
+            .selection_anchor(),
+        None
+    );
+    assert_eq!(
+        reopened.app.view_position(Pane::Secondary).unwrap(),
+        secondary
+    );
+    assert_eq!(reopened.app.focus, Focus::Editor);
+}
+
+#[test]
+fn writingdeck_secondary_workspace_can_swap_roles_without_duplicate_editors_or_lost_undo() {
+    use app::writingdeck::Page;
+    use grimoire_core::{documents::Pane, workspaces::Position};
+    let (mut d, note) = secondary_book("secondary-role-swap", 120, 40, false);
+    choose_secondary(&mut d, &note);
+    let primary = first_scene(&d.root);
+    d.app.clip = "NOTE HISTORY ".into();
+    d.ctrl('v');
+    let note_text = d.app.editor.text();
+    d.key(KeyCode::BackTab);
+    d.app.editor.select((0, 1), (0, 5));
+    let primary_position = d.app.view_position(Pane::Primary).unwrap();
+    let plan = &mut d.app.deck.state.workspaces[1];
+    plan.primary = Position {
+        document: Some(note.strip_prefix(&d.root).unwrap().to_path_buf()),
+        ..Position::default()
+    };
+    plan.secondary = Some(Position {
+        document: Some(primary.strip_prefix(&d.root).unwrap().to_path_buf()),
+        ..Position::default()
+    });
+    plan.secondary_visible = true;
+    plan.secondary_percent = 60;
+    plan.active_editor = Pane::Primary;
+    d.app.overlay = Overlay::Deck(Page::Workspaces { sel: 1 });
+    d.key(KeyCode::Enter);
+    assert_eq!(
+        d.app.project.nodes[d.app.view_open(Pane::Primary).unwrap()].path,
+        note
+    );
+    assert_eq!(
+        d.app.project.nodes[d.app.view_open(Pane::Secondary).unwrap()].path,
+        primary
+    );
+    assert_eq!(d.app.view_editor(Pane::Primary).unwrap().text(), note_text);
+    d.ctrl('z');
+    assert!(!d.app.editor.text().contains("NOTE HISTORY"));
+    d.ctrl('y');
+    assert_eq!(d.app.editor.text(), note_text);
+    d.app.ensure_document_claims().unwrap();
+    d.app.overlay = Overlay::Deck(Page::Workspaces { sel: 0 });
+    d.key(KeyCode::Enter);
+    assert_eq!(
+        d.app.view_position(Pane::Primary).unwrap(),
+        primary_position
+    );
+    assert_eq!(
+        d.app.project.nodes[d.app.view_open(Pane::Secondary).unwrap()].path,
+        note
+    );
+    assert_eq!(
+        d.app.view_editor(Pane::Secondary).unwrap().text(),
+        note_text
+    );
+}
+
+#[test]
+fn writingdeck_secondary_book_wide_replace_and_undo_update_inactive_buffers_too() {
+    use grimoire_core::documents::Pane;
+    let (mut d, note) = secondary_book("secondary-replace-book", 120, 40, false);
+    choose_secondary(&mut d, &note);
+    d.key(KeyCode::BackTab);
+    d.ctrl('f');
+    d.typed("here");
+    d.ctrl('f');
+    assert!(matches!(d.app.overlay, Overlay::FindBook { .. }));
+    d.key(KeyCode::Tab);
+    d.typed("there");
+    d.ctrl('r');
+    d.key(KeyCode::Char('y'));
+    for pane in [Pane::Primary, Pane::Secondary] {
+        assert!(d.app.view_editor(pane).unwrap().text().contains("there."));
+    }
+    d.ctrl('z');
+    for pane in [Pane::Primary, Pane::Secondary] {
+        assert!(!d.app.view_editor(pane).unwrap().text().contains("there."));
+    }
+    d.ctrl('y');
+    for pane in [Pane::Primary, Pane::Secondary] {
+        assert!(d.app.view_editor(pane).unwrap().text().contains("there."));
+    }
+    d.ctrl('s');
+    assert!(fs::read_to_string(note).unwrap().contains("there."));
+}
+
+#[cfg(unix)]
+#[test]
+fn writingdeck_secondary_external_alias_change_pauses_save_and_disk_adoption_without_data_loss() {
+    use grimoire_core::documents::Pane;
+    use std::os::unix::fs::symlink;
+    let (mut d, note) = secondary_book("secondary-alias-change", 120, 40, false);
+    choose_secondary(&mut d, &note);
+    let original_note = fs::read_to_string(&note).unwrap();
+    let primary = first_scene(&d.root);
+    let original_primary = fs::read_to_string(&primary).unwrap();
+    d.app.clip = "Unique secondary changes. ".into();
+    d.ctrl('v');
+    d.key(KeyCode::BackTab);
+    d.app.clip = "Unique primary changes. ".into();
+    d.ctrl('v');
+    let secondary_text = d.app.view_editor(Pane::Secondary).unwrap().text();
+    fs::remove_file(&note).unwrap();
+    symlink(&primary, &note).unwrap();
+    d.app.check_documents_now();
+    d.draw();
+    d.ctrl('s');
+    assert!(matches!(d.app.save_state, app::SaveState::Failed(_)));
+    assert_eq!(
+        d.app.view_editor(Pane::Secondary).unwrap().text(),
+        secondary_text
+    );
+    assert!(d.app.editor.text().contains("Unique primary changes."));
+    assert_eq!(fs::read_to_string(&primary).unwrap(), original_primary);
+    assert!(grimoire_core::sync::copies_of(&note).is_empty());
+    let primary_index = d.app.view_open(Pane::Primary);
+    let third = d
+        .app
+        .project
+        .nodes
+        .iter()
+        .find(|n| {
+            n.kind == grimoire_core::project::Kind::Scene && n.path != primary && n.path != note
+        })
+        .unwrap()
+        .path
+        .clone();
+    d.app.run_action(palette::Action::Open(third));
+    d.draw();
+    assert_eq!(d.app.view_open(Pane::Primary), primary_index);
+    assert!(
+        d.app
+            .view_editor(Pane::Primary)
+            .unwrap()
+            .text()
+            .contains("Unique primary changes.")
+    );
+    fs::remove_file(&note).unwrap();
+    fs::write(&note, original_note).unwrap();
+    assert!(d.app.commit_saves());
+    assert!(
+        fs::read_to_string(&note)
+            .unwrap()
+            .contains("Unique secondary changes.")
+    );
+    assert!(
+        fs::read_to_string(&primary)
+            .unwrap()
+            .contains("Unique primary changes.")
+    );
+}
+
+#[test]
+fn writingdeck_secondary_rename_and_trash_leave_primary_safe_and_keep_undo_recoverable() {
+    use grimoire_core::documents::Pane;
+    let (mut d, note) = secondary_book("secondary-rename-trash", 120, 40, false);
+    choose_secondary(&mut d, &note);
+    d.app.clip = "Keep this note edit. ".into();
+    d.ctrl('v');
+    let primary = first_scene(&d.root);
+    let primary_text = fs::read_to_string(&primary).unwrap();
+    d.app.run_action(palette::Action::Rename);
+    d.draw();
+    d.typed("Renamed research");
+    d.key(KeyCode::Enter);
+    let renamed = d.app.project.nodes[d.app.view_open(Pane::Secondary).unwrap()]
+        .path
+        .clone();
+    assert_ne!(renamed, note);
+    assert!(renamed.is_file());
+    assert!(
+        d.app
+            .view_editor(Pane::Secondary)
+            .unwrap()
+            .text()
+            .contains("Keep this note edit.")
+    );
+    d.app.ensure_document_claims().unwrap();
+    d.app.run_action(palette::Action::Delete);
+    d.draw();
+    d.key(KeyCode::Char('y'));
+    assert_eq!(d.app.view_open(Pane::Secondary), None);
+    assert_eq!(fs::read_to_string(&primary).unwrap(), primary_text);
+    assert!(!renamed.exists());
+    assert!(in_trash(&d.root, "Keep this note edit."));
+    d.ctrl('z');
+    assert!(renamed.is_file());
+    d.app.run_action(palette::Action::EditSecondary(renamed));
+    d.draw();
+    d.ctrl('z');
+    assert!(!d.app.editor.text().contains("Keep this note edit."));
+    assert_eq!(
+        d.app.project.nodes[d.app.view_open(Pane::Primary).unwrap()].path,
+        primary
+    );
+}
+
+#[test]
+fn writingdeck_secondary_resize_never_types_into_a_hidden_view_and_preserves_its_buffer() {
+    use grimoire_core::documents::Pane;
+    let (mut d, note) = secondary_book("secondary-resize", 120, 40, false);
+    choose_secondary(&mut d, &note);
+    d.app.clip = "Survives resize. ".into();
+    d.ctrl('v');
+    d.app.editor.select((0, 1), (0, 6));
+    let text = d.app.editor.text();
+    let selection = d.app.editor.selected_text();
+    d.term = Terminal::new(TestBackend::new(60, 8)).unwrap();
+    d.draw();
+    assert!(!d.app.views.secondary_room);
+    assert_ne!(d.app.focus, Focus::Secondary);
+    assert_eq!(
+        d.app.view_rect(Pane::Secondary),
+        ratatui::layout::Rect::default()
+    );
+    for _ in 0..6 {
+        d.key(KeyCode::Tab);
+        assert_ne!(d.app.focus, Focus::Secondary);
+    }
+    assert_eq!(d.app.view_editor(Pane::Secondary).unwrap().text(), text);
+    d.term = Terminal::new(TestBackend::new(160, 50)).unwrap();
+    d.draw();
+    d.key(KeyCode::F(11));
+    d.key(KeyCode::F(11));
+    assert_eq!(d.app.focus, Focus::Secondary);
+    assert_eq!(d.app.editor.selected_text(), selection);
+    d.ctrl('z');
+    assert!(!d.app.editor.text().contains("Survives resize."));
+}
+
+#[test]
+fn writingdeck_secondary_crash_rescue_and_recovery_restore_both_original_documents() {
+    use grimoire_core::documents::Pane;
+    let (mut d, note) = secondary_book("secondary-crash-recovery", 120, 40, false);
+    choose_secondary(&mut d, &note);
+    d.app.clip = "Recovered secondary text. ".into();
+    d.ctrl('v');
+    d.key(KeyCode::BackTab);
+    d.app.clip = "Recovered primary text. ".into();
+    d.ctrl('v');
+    d.app.save_deck();
+    d.app.rescue();
+    // Simulate the original process going away: a new App reads only files.
+    let mut restarted = Desk::open(d.root.clone(), 120, 40);
+    restarted.app.init_writingdeck(true);
+    restarted.draw();
+    let Overlay::Recover { items, .. } = &restarted.app.overlay else {
+        panic!("both drafts must be offered");
+    };
+    assert_eq!(items.len(), 2);
+    restarted.key(KeyCode::Enter);
+    assert_eq!(restarted.app.overlay, Overlay::None);
+    assert!(
+        restarted
+            .app
+            .view_editor(Pane::Primary)
+            .unwrap()
+            .text()
+            .contains("Recovered primary text.")
+    );
+    assert!(
+        restarted
+            .app
+            .view_editor(Pane::Secondary)
+            .unwrap()
+            .text()
+            .contains("Recovered secondary text.")
+    );
+    assert!(
+        fs::read_to_string(&note)
+            .unwrap()
+            .contains("Recovered secondary text.")
+    );
+    assert!(
+        fs::read_to_string(first_scene(&d.root))
+            .unwrap()
+            .contains("Recovered primary text.")
+    );
+    assert!(recovery::pending(&Project::load(&d.root).unwrap()).is_empty());
+}
+
+#[test]
+fn writingdeck_secondary_tutorial_requires_a_real_demo_edit_not_opening_or_navigation() {
+    let root = std::env::temp_dir().join(format!(
+        "grimoire-secondary-tutorial-{}",
+        std::process::id()
+    ));
+    grimoire_core::tutorial::create_demo(&root).unwrap();
+    let mut d = Desk::open(root, 80, 24);
+    d.app.deck.progress.start(13).unwrap();
+    d.key(KeyCode::F(11));
+    d.typed("Other Door");
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.focus, Focus::Secondary);
+    assert!(!d.app.deck.progress.completed.contains(&13));
+    d.key(KeyCode::Right);
+    assert!(!d.app.deck.progress.completed.contains(&13));
+    d.typed("My secondary sentence. ");
+    assert!(d.app.deck.progress.completed.contains(&13));
+    assert!(
+        grimoire_core::tutorial::Store::load(&d.root)
+            .unwrap()
+            .progress
+            .completed
+            .contains(&13)
+    );
+    d.app.deck.progress.start(13).unwrap();
+    d.app.clip = "A pasted exercise sentence.".into();
+    d.ctrl('v');
+    assert!(d.app.deck.progress.completed.contains(&13));
+}
+
+#[test]
+fn writingdeck_secondary_tutorial_will_not_launch_a_writing_exercise_in_the_real_novel() {
+    use app::writingdeck::Page;
+    let (mut d, note) = secondary_book("secondary-no-real-tutorial", 120, 40, false);
+    let before = fs::read_to_string(first_scene(&d.root)).unwrap();
+    d.app.overlay = Overlay::Deck(Page::Lesson { id: 13 });
+    d.key(KeyCode::Enter);
+    assert!(d.app.deck.note.contains("safe demo"));
+    assert_eq!(d.app.deck.progress.active, None);
+    assert!(!d.app.views.secondary_visible);
+    assert_eq!(fs::read_to_string(first_scene(&d.root)).unwrap(), before);
+    assert!(note.is_file());
+}
+
+#[test]
+fn writingdeck_secondary_external_rename_follows_both_views_and_preserves_clean_selections() {
+    use grimoire_core::documents::Pane;
+    let (mut d, note) = secondary_book("secondary-external-rename", 120, 40, false);
+    choose_secondary(&mut d, &note);
+    d.app.editor.select((0, 2), (0, 7));
+    let selection = d.app.editor.selected_text();
+    let renamed = note.with_file_name("externally-renamed.md");
+    fs::rename(&note, &renamed).unwrap();
+    d.key(KeyCode::BackTab);
+    d.app.check_documents_now();
+    d.draw();
+    assert_eq!(
+        d.app.project.nodes[d.app.view_open(Pane::Secondary).unwrap()].path,
+        renamed
+    );
+    assert_eq!(
+        d.app.view_editor(Pane::Secondary).unwrap().selected_text(),
+        selection
+    );
+    let primary = first_scene(&d.root);
+    let moved = primary.with_file_name("externally-moved.md");
+    fs::rename(primary, &moved).unwrap();
+    d.app.check_documents_now();
+    d.draw();
+    assert_eq!(
+        d.app.project.nodes[d.app.view_open(Pane::Primary).unwrap()].path,
+        moved
+    );
+    assert!(d.app.editor.text().contains("Primary alpha"));
+    d.app.ensure_document_claims().unwrap();
+    d.ctrl('s');
+}
+
+#[test]
+fn writingdeck_secondary_dirty_external_rename_parks_local_words_instead_of_overwriting_moved_file()
+{
+    use grimoire_core::documents::Pane;
+    let (mut d, note) = secondary_book("secondary-dirty-rename", 120, 40, false);
+    choose_secondary(&mut d, &note);
+    let external = fs::read_to_string(&note).unwrap();
+    d.app.clip = "Dirty words before rename. ".into();
+    d.ctrl('v');
+    d.key(KeyCode::BackTab);
+    let moved = note.with_file_name("moved-while-typing.md");
+    fs::rename(&note, &moved).unwrap();
+    d.app.check_documents_now();
+    d.app.check_documents_now();
+    d.draw();
+    assert_eq!(fs::read_to_string(&moved).unwrap(), external);
+    assert!(in_trash(&d.root, "Dirty words before rename."));
+    assert_eq!(
+        d.app.project.nodes[d.app.view_open(Pane::Secondary).unwrap()].path,
+        moved
+    );
+    assert!(
+        !d.app
+            .view_editor(Pane::Secondary)
+            .unwrap()
+            .text()
+            .contains("Dirty words before rename.")
+    );
+    d.ctrl('s');
+    assert_eq!(fs::read_to_string(moved).unwrap(), external);
+}
+
+#[test]
+fn writingdeck_secondary_ambiguous_external_move_never_attaches_to_an_arbitrary_duplicate() {
+    use grimoire_core::documents::Pane;
+    let (mut d, note) = secondary_book("secondary-ambiguous-rename", 120, 40, false);
+    choose_secondary(&mut d, &note);
+    let moved = note.with_file_name("first-copy.md");
+    let duplicate = note.with_file_name("second-copy.md");
+    fs::rename(&note, &moved).unwrap();
+    fs::copy(&moved, &duplicate).unwrap();
+    let before = fs::read(&moved).unwrap();
+    d.app.check_documents_now();
+    d.draw();
+    assert_eq!(d.app.view_open(Pane::Secondary), None);
+    assert_ne!(d.app.focus, Focus::Secondary);
+    d.typed("This cannot silently change a guessed note. ");
+    d.ctrl('s');
+    assert_eq!(fs::read(moved).unwrap(), before);
+    assert_eq!(fs::read(duplicate).unwrap(), before);
+}
+
+#[cfg(unix)]
+#[test]
+fn writingdeck_secondary_existing_symlink_and_hardlink_aliases_focus_the_owner() {
+    use grimoire_core::documents::Pane;
+    use std::os::unix::fs::symlink;
+    let (mut d, note) = secondary_book("secondary-known-aliases", 120, 40, false);
+    choose_secondary(&mut d, &note);
+    let primary = first_scene(&d.root);
+    let symlink_path = d.root.join("notes/primary-symbolic-alias.md");
+    let hardlink_path = d.root.join("notes/primary-hard-alias.md");
+    symlink(&primary, &symlink_path).unwrap();
+    fs::hard_link(&primary, &hardlink_path).unwrap();
+    d.app.check_documents_now();
+    d.draw();
+    for alias in [symlink_path, hardlink_path] {
+        d.app.activate_editor(Pane::Secondary);
+        d.app
+            .run_action(palette::Action::EditSecondary(alias.clone()));
+        d.draw();
+        assert_eq!(d.app.focus, Focus::Editor);
+        d.app.editor.select((0, 2), (0, 7));
+        let position = d.app.view_position(Pane::Primary).unwrap();
+        d.app.run_action(palette::Action::Open(alias));
+        d.draw();
+        assert_eq!(d.app.view_position(Pane::Primary).unwrap(), position);
+        assert_eq!(
+            d.app.project.nodes[d.app.view_open(Pane::Secondary).unwrap()].path,
+            note
+        );
+        assert_eq!(
+            d.app.project.nodes[d.app.view_open(Pane::Primary).unwrap()].path,
+            primary
+        );
+    }
+}
+
+#[test]
+fn writingdeck_secondary_and_primary_refuse_non_utf8_edits_and_never_rewrite_lossy_bytes() {
+    use grimoire_core::documents::Pane;
+    let (mut d, note) = secondary_book("secondary-read-only", 120, 40, false);
+    choose_secondary(&mut d, &note);
+    let primary = first_scene(&d.root);
+    let invalid = b"Not UTF8 \xff raw bytes.\n";
+    fs::write(&primary, invalid).unwrap();
+    d.app.check_documents_now();
+    d.app.check_documents_now();
+    d.draw();
+    d.key(KeyCode::BackTab);
+    d.typed("MUST NOT SAVE");
+    assert!(d.app.msg.contains("UTF-8"));
+    d.ctrl('s');
+    assert_eq!(fs::read(&primary).unwrap(), invalid);
+    d.key(KeyCode::Tab);
+    assert_eq!(d.app.focus, Focus::Secondary);
+    fs::write(&note, invalid).unwrap();
+    d.app.check_documents_now();
+    d.app.check_documents_now();
+    d.draw();
+    d.typed("ALSO MUST NOT SAVE");
+    assert!(d.app.msg.contains("UTF-8"));
+    d.ctrl('s');
+    assert_eq!(fs::read(&note).unwrap(), invalid);
+    let secondary_index = d.app.view_open(Pane::Secondary).unwrap();
+    d.app.run_action(palette::Action::Open(note.clone()));
+    d.draw();
+    assert_eq!(d.app.view_open(Pane::Secondary), Some(secondary_index));
+    assert_eq!(d.app.focus, Focus::Secondary);
+    assert_ne!(d.app.view_open(Pane::Primary), Some(secondary_index));
+    #[cfg(unix)]
+    {
+        let alias = d.root.join("notes/read-only-note-alias.md");
+        fs::hard_link(&note, &alias).unwrap();
+        d.app.check_documents_now();
+        d.draw();
+        let secondary_index = d.app.view_open(Pane::Secondary).unwrap();
+        d.app.run_action(palette::Action::Open(alias.clone()));
+        d.draw();
+        assert_eq!(d.app.focus, Focus::Secondary);
+        assert_ne!(d.app.view_open(Pane::Primary), Some(secondary_index));
+        fs::write(&note, "Now valid UTF-8 text.\n").unwrap();
+        d.app.check_documents_now();
+        d.app.check_documents_now();
+        d.draw();
+        d.app.run_action(palette::Action::Open(alias));
+        d.draw();
+        assert_eq!(d.app.focus, Focus::Secondary);
+        assert_eq!(d.app.view_open(Pane::Secondary), Some(secondary_index));
+        d.typed("Accepted UTF-8 edit. ");
+        d.ctrl('s');
+        assert!(
+            fs::read_to_string(&note)
+                .unwrap()
+                .contains("Accepted UTF-8 edit.")
+        );
+    }
+    assert_eq!(fs::read(primary).unwrap(), invalid);
+}
+
+#[test]
+fn writingdeck_secondary_settling_an_open_conflict_copy_closes_it_before_trashing() {
+    use grimoire_core::documents::Pane;
+    let (root, original, copy) = conflicted("secondary-settle-open-copy");
+    let mut d = Desk::open(root, 140, 42);
+    d.app.run_action(palette::Action::Open(original.clone()));
+    d.draw();
+    choose_secondary(&mut d, &copy);
+    let copy_text = d.app.editor.text();
+    d.app.open_conflicts();
+    d.draw();
+    d.key(KeyCode::Enter);
+    assert!(matches!(d.app.overlay, Overlay::Settle { .. }));
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.view_open(Pane::Secondary), None);
+    assert_ne!(d.app.focus, Focus::Secondary);
+    assert!(!copy.exists());
+    assert!(
+        fs::read_to_string(&original)
+            .unwrap()
+            .contains(copy_text.trim())
+    );
+    d.ctrl('z');
+    assert!(copy.is_file());
+}
+
+#[test]
+fn writingdeck_secondary_history_restore_refuses_non_utf8_and_cannot_replace_the_other_view() {
+    use grimoire_core::documents::Pane;
+    let (mut d, note) = secondary_book("secondary-history-read-only", 120, 40, false);
+    choose_secondary(&mut d, &note);
+    let primary = d.app.view_editor(Pane::Primary).unwrap().text();
+    grimoire_core::history::snapshot(&d.root, &note, "An old valid UTF-8 draft.\n", None).unwrap();
+    let invalid = b"Undecodable \xff note.\n";
+    fs::write(&note, invalid).unwrap();
+    d.app.check_documents_now();
+    d.app.check_documents_now();
+    d.draw();
+    d.app.run_action(palette::Action::History);
+    d.draw();
+    assert!(matches!(d.app.overlay, Overlay::History { .. }));
+    d.key(KeyCode::Enter);
+    assert!(d.app.msg.contains("UTF-8"));
+    assert_eq!(fs::read(note).unwrap(), invalid);
+    assert_eq!(d.app.view_editor(Pane::Primary).unwrap().text(), primary);
+}
+
+#[test]
+fn writingdeck_secondary_recovery_refuses_non_utf8_without_discarding_the_kept_draft() {
+    let (mut d, note) = secondary_book("secondary-recovery-non-utf8", 120, 40, false);
+    choose_secondary(&mut d, &note);
+    recovery::keep(&d.root, &note, "Unique recovered note words.\n").unwrap();
+    let invalid = b"Raw \xff bytes are still here.\n";
+    fs::write(&note, invalid).unwrap();
+    d.app.check_documents_now();
+    d.app.check_documents_now();
+    d.draw();
+    let items = recovery::pending(&d.app.project);
+    assert_eq!(items.len(), 1);
+    let kept = items[0].file.clone();
+    d.app.overlay = Overlay::Recover { items, sel: 0 };
+    d.key(KeyCode::Enter);
+    assert!(d.app.msg.contains("left in recovery"));
+    assert_eq!(fs::read(&note).unwrap(), invalid);
+    assert!(
+        fs::read_to_string(kept)
+            .unwrap()
+            .contains("Unique recovered note words.")
     );
 }

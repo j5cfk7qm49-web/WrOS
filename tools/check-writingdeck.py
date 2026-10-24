@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Offline, read-only structural documentation/content/notice checks. Not legal approval."""
+import argparse
 import hashlib
 from html.parser import HTMLParser
 import json
@@ -36,6 +37,9 @@ class OfflineHTML(HTMLParser):
         check(tag not in ('script', 'iframe'), f'unnecessary active HTML: {tag}')
 
 def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--require-current-evidence', action='store_true', help='also reject stale-source or failed software/VM evidence')
+    args=parser.parse_args()
     for name in REQUIRED + ['STATUS']:
         check((DOCS/(name+'.md')).is_file(), f'missing {name}.md')
     for path in DOCS.glob('*.md'):
@@ -67,7 +71,8 @@ def main():
     for feature in features:
         check(feature.get('status') in allowed, f'invalid feature status: {feature}')
         check(not feature.get('hardware_verified'), 'hardware claims require new identified hardware evidence/review')
-        check(feature['capability'] in (DOCS/'FEATURE_MATRIX.md').read_text(), f'matrix missing {feature["capability"]}')
+        expected='| '+' | '.join(str(feature[k]).replace('|','\\|') for k in ['area','capability','status','verification','detail'])+' |'
+        check(expected in (DOCS/'FEATURE_MATRIX.md').read_text(), f'matrix differs from machine inventory: {feature["capability"]}')
     lessons = json.loads((ROOT/'crates/grimoire-core/assets/writingdeck/tutorial.json').read_text())
     check([l['id'] for l in lessons] == list(range(1,40)), 'tutorial must catalog lessons 1–39 once each')
     reference = DOCS/'keyboard-reference.html'
@@ -76,10 +81,25 @@ def main():
         html = reference.read_text()
         OfflineHTML().feed(html)
         check(digest(ROOT/'assets/help/24-every-key.md') in html, 'printable keys stale; run tools/generate-keyboard-reference.py')
+    if args.require_current_evidence:
+        from writingdeck_source import fingerprint
+        current=fingerprint()
+        results=load('evidence/test-results.json')
+        vm=load('evidence/vm-boot.json')
+        for label,record in [('software',results),('VM',vm)]:
+            check(record.get('source_fingerprint') == current, f'{label} evidence is historical, not current source')
+        check(bool(results.get('rust_suites')), 'missing Rust suite evidence')
+        for suite in results.get('rust_suites',[]):
+            check(suite.get('exit_code') == 0 and suite.get('failed') == 0 and suite.get('passed',0)>0, 'Rust evidence does not pass')
+        python=results.get('python',{})
+        check(python.get('exit_code') == 0 and python.get('failed') == 0 and python.get('skipped') == 0 and python.get('passed',0)>0, 'Python evidence missing, skipped or failing')
+        check(vm.get('passed') is True, 'VM evidence did not pass')
     if ERRORS:
         print('\n'.join('ERROR: '+e for e in ERRORS), file=sys.stderr)
         return 1
     print(f'PASS: {len(REQUIRED)} required docs + STATUS, local links, {len(features)} capability rows, 39 lessons, content/dictionary hashes, notices, offline printable reference')
+    if args.require_current_evidence:
+        print('PASS: software and VM evidence fingerprints match the current source; this is NOT physical hardware verification')
     print(f'RELEASE GATE: {len(software.get("missing_root_notice_files_requiring_review", []))} all-platform Rust packages lack root-level notice files; {len(software.get("selected_build", {}).get("missing_root_notice_files", []))} used by the Linux no-audio build. No legal/hardware/production clearance implied.')
     return 0
 

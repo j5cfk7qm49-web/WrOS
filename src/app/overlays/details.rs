@@ -21,7 +21,7 @@ impl App {
     /// Details for the scene being written, or the scene or note the
     /// outline is on.
     pub fn open_details(&mut self) {
-        let idx = if self.focus == Focus::Editor {
+        let idx = if self.focus.is_editor() {
             self.open
         } else {
             self.visible.get(self.sel).copied()

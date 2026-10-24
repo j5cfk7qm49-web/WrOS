@@ -2,8 +2,8 @@
   "recorded_date": "2026-10-24",
   "source_fingerprint": {
     "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
-    "sha256": "3a736d50517f54a79880e1bcc8b22fa264ea7578ab18692b5e566b13427e3e8f",
-    "file_count": 182,
+    "sha256": "a03f607b9ba589039a4de78584ec024945195c3d0a15175f982aa2c87fc6d5f5",
+    "file_count": 185,
     "scope": "Cargo.toml/lock, src, crates, assets, os scripts/config/systemd/tests; no generated evidence/docs/builds"
   },
   "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
@@ -11,7 +11,7 @@
     {
       "features": "default",
       "command": "cargo test --workspace --locked --offline -j 2",
-      "passed": 490,
+      "passed": 532,
       "failed": 0,
       "ignored": 5,
       "ignored_tests": [
@@ -26,7 +26,7 @@
     {
       "features": "no-audio",
       "command": "cargo test --workspace --no-default-features --locked --offline -j 2",
-      "passed": 490,
+      "passed": 532,
       "failed": 0,
       "ignored": 4,
       "ignored_tests": [
@@ -40,10 +40,10 @@
   ],
   "python": {
     "command": "python3 -m unittest discover -s os/tests -p 'test_*.py' -v",
-    "passed": 21,
+    "passed": 22,
     "failed": 0,
     "skipped": 0,
-    "scope": "13 rootless keyboard helper, 4 installer planner, 4 compiled headless CLI tests",
+    "scope": "13 rootless keyboard helper, 4 installer planner, 4 headless CLI, 1 real-binary unprivileged PTY test with 4 terminal-size subcases",
     "exit_code": 0
   },
   "checks": [
@@ -62,7 +62,52 @@
     {
       "command": "python3 tools/check-writingdeck.py",
       "exit_code": 0
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 tools/check-writingdeck.py --require-current-evidence",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -m py_compile os/tests/*.py tools/*.py os/scripts/install-plan.py os/scripts/writingdeck-keyboard",
+      "exit_code": 0
     }
   ],
-  "note": "Suites overlap. Ignored developer screenshots/performance/real Piper model tests are not passed. No physical hardware/cloud credentials/destructive disk operations used."
+  "note": "Default/no-audio Rust suites overlap. Ignored developer screenshots/performance/real Piper tests are not passed. Real PTY runs as UID 1000 in isolated HOME/new demos only. VM is separately recorded; no physical hardware/cloud credentials/destructive host-disk operations used.",
+  "recorded_at_utc": "2026-10-24T21:53:16.801359+00:00",
+  "milestone": "M3b independent secondary editor",
+  "new_m3b_tests": {
+    "rust": 42,
+    "breakdown": {
+      "core": 12,
+      "tui": 28,
+      "system_shortcuts": 2
+    },
+    "pty_terminal_sizes": [
+      [
+        80,
+        24
+      ],
+      [
+        100,
+        30
+      ],
+      [
+        120,
+        40
+      ],
+      [
+        160,
+        50
+      ]
+    ],
+    "pty_uid": "1000",
+    "scope": "PTY verifies actual event reader, escape parsing, bracketed paste, both disk saves, isolated undo/redo, hide/show, quit and persisted roles. Fixture rescue is not a full VM power-cut test."
+  },
+  "cli_binary_sha256": "405de7cf544b55ba54abc0849350d34f53e020651a5071a2a1cd2715d6359784",
+  "vm_record": "docs/evidence/vm-boot.json",
+  "evidence_guard_negative_check": "Before the fresh VM run, --require-current-evidence correctly rejected the historical foundation VM fingerprint."
 }

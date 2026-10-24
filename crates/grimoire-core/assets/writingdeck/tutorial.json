@@ -60,7 +60,7 @@
     "title": "Managing panes",
     "help_topic": "writingdeck",
     "event": "OutlineToggled",
-    "instructions": "Use F10 to toggle the outline independently. Tab only visits visible panes. This first lesson covers the outline; editable secondary panes are still planned."
+    "instructions": "Use F10 to toggle the outline independently. Tab only visits visible panes. F11 toggles an independent editor, taught in lesson 13; strict focus hides both side panes."
   },
   {
     "id": 10,
@@ -86,9 +86,9 @@
   {
     "id": 13,
     "title": "Editing notes beside the manuscript",
-    "help_topic": "beside",
-    "event": null,
-    "instructions": "Edit a second document with independent undo and autosave. Existing beside views are read-only; this lesson stays unavailable until that guarantee changes."
+    "help_topic": "writingdeck",
+    "event": "SecondaryEdited",
+    "instructions": "In the safe demo, choose The Other Door in the secondary document picker and type an original sentence in that independent editor. Tab changes panes; each keeps its selection and undo. F11 hides without discarding it. Only a real edit in the secondary demo buffer completes this exercise."
   },
   {
     "id": 14,

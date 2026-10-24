@@ -3,7 +3,7 @@
 use super::*;
 use grimoire_core::{
     tutorial,
-    workspaces::{self, Position, State, Widget},
+    workspaces::{self, State, Widget},
 };
 use ratatui::{
     Frame,
@@ -54,7 +54,7 @@ impl Worker {
         Self { tx, rx }
     }
 }
-const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 8] = [
+const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 9] = [
     (ShortcutAction::Dashboard, "WritingDeck dashboard"),
     (ShortcutAction::SystemSettings, "System settings"),
     (ShortcutAction::Tutorial, "Interactive tutorial"),
@@ -63,6 +63,7 @@ const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 8] = [
     (ShortcutAction::Save, "Save"),
     (ShortcutAction::Find, "Find in scene"),
     (ShortcutAction::Palette, "Find anything"),
+    (ShortcutAction::Secondary, "Editable secondary pane"),
 ];
 
 pub struct Deck {
@@ -216,12 +217,12 @@ impl Deck {
 impl App {
     pub fn init_writingdeck(&mut self, launch: bool) {
         if launch {
-            if resume::read(&self.project.root).is_none() {
-                self.restore_deck_position();
-            }
+            self.restore_workspace_views(resume::read(&self.project.root).is_none());
             self.focus_mode = self.deck.state.current().focus && self.open.is_some();
-            if self.focus_mode || !self.deck.state.current().outline {
-                self.focus = Focus::Editor;
+            if self.focus_mode {
+                self.activate_editor(grimoire_core::documents::Pane::Primary);
+            } else if !self.deck.state.current().outline {
+                self.focus = self.editor_focus();
             }
             // Recovered words always take precedence over onboarding/dashboard.
             if self.deck.state.launch_dashboard && matches!(self.overlay, Overlay::None) {
@@ -234,22 +235,21 @@ impl App {
             .observe(event, tutorial::is_demo(&self.project.root));
     }
     pub fn remember_deck(&mut self) {
-        let document = self.open.and_then(|i| {
-            self.project.nodes[i]
-                .path
-                .strip_prefix(&self.project.root)
-                .ok()
-                .map(Path::to_path_buf)
-        });
-        let pos = Position {
-            document,
-            line: self.editor.cy,
-            column: self.editor.cx,
-            scroll: self.editor.scroll,
-        };
+        let primary = self
+            .view_position(grimoire_core::documents::Pane::Primary)
+            .unwrap_or_default();
+        let secondary = self.view_position(grimoire_core::documents::Pane::Secondary);
         let w = self.deck.state.current_mut();
-        if w.primary != pos || w.focus != self.focus_mode {
-            w.primary = pos;
+        if w.primary != primary
+            || w.secondary != secondary
+            || w.secondary_visible != self.views.secondary_visible
+            || w.active_editor != self.views.active
+            || w.focus != self.focus_mode
+        {
+            w.primary = primary;
+            w.secondary = secondary;
+            w.secondary_visible = self.views.secondary_visible;
+            w.active_editor = self.views.active;
             w.focus = self.focus_mode;
             self.deck.dirty = true;
         }
@@ -261,21 +261,7 @@ impl App {
         }
     }
     fn restore_deck_position(&mut self) {
-        let p = self.deck.state.current().primary.clone();
-        if let Some(path) = p.document {
-            let path = self.project.root.join(path);
-            if let Some(i) = self
-                .project
-                .nodes
-                .iter()
-                .position(|n| n.path == path && n.kind == Kind::Scene)
-            {
-                self.open_scene(i);
-                self.reveal(i);
-                self.editor.place(p.line, p.column);
-                self.editor.scroll = p.scroll;
-            }
-        }
+        self.restore_workspace_views(true);
     }
     pub fn open_dashboard(&mut self) {
         self.flush();
@@ -311,10 +297,11 @@ impl App {
         }
     }
     pub fn toggle_outline(&mut self) {
+        let editor_focus = self.editor_focus();
         let w = self.deck.state.current_mut();
         w.outline = !w.outline;
         if !w.outline && self.focus == Focus::Tree {
-            self.focus = Focus::Editor;
+            self.focus = editor_focus;
         }
         self.msg = if w.outline {
             "outline shown"
@@ -332,6 +319,7 @@ impl App {
             ShortcutAction::SystemSettings => self.open_system_settings(),
             ShortcutAction::Tutorial => self.overlay = Overlay::Deck(Page::Tutorial { sel: 0 }),
             ShortcutAction::Outline => self.toggle_outline(),
+            ShortcutAction::Secondary => self.toggle_secondary(),
             ShortcutAction::Focus => self.toggle_focus_mode(),
             ShortcutAction::Save => self.save(),
             ShortcutAction::Find => self.open_find(),
@@ -463,7 +451,7 @@ impl App {
                     Key::Esc | Key::F(12) => {
                         self.overlay = Overlay::None;
                         if self.open.is_some() {
-                            self.focus = Focus::Editor;
+                            self.focus = self.editor_focus();
                         }
                     }
                     Key::Char('w') => self.overlay = Overlay::Deck(Page::Widgets { sel: 0 }),
@@ -531,12 +519,17 @@ impl App {
                 }
                 match key {
                     Key::Enter => {
+                        if !self.commit_saves() {
+                            return;
+                        }
                         self.remember_deck();
                         self.deck.state.selected = sel;
                         self.restore_deck_position();
                         self.focus_mode = self.deck.state.current().focus && self.open.is_some();
-                        if self.focus_mode || !self.deck.state.current().outline {
-                            self.focus = Focus::Editor;
+                        if self.focus_mode {
+                            self.activate_editor(grimoire_core::documents::Pane::Primary);
+                        } else if !self.deck.state.current().outline {
+                            self.focus = self.editor_focus();
                         }
                         self.deck.dirty = true;
                         self.save_deck();
@@ -549,6 +542,16 @@ impl App {
                             (w.outline_width + 2).min(60)
                         } else {
                             w.outline_width.saturating_sub(2).max(18)
+                        };
+                        self.deck.dirty = true;
+                        self.deck.save_layout();
+                    }
+                    Key::Char('<' | '>') => {
+                        let w = &mut self.deck.state.workspaces[sel];
+                        w.secondary_percent = if key == Key::Char('>') {
+                            (w.secondary_percent + 5).min(75)
+                        } else {
+                            w.secondary_percent.saturating_sub(5).max(25)
                         };
                         self.deck.dirty = true;
                         self.deck.save_layout();
@@ -762,7 +765,7 @@ impl App {
             Widget::Resume | Widget::Manuscript => {
                 self.overlay = Overlay::None;
                 if self.open.is_some() {
-                    self.focus = Focus::Editor;
+                    self.focus = self.editor_focus();
                 }
             }
             Widget::DailyGoal | Widget::NovelGoal => self.run_action(Action::Goals),
@@ -801,6 +804,16 @@ impl App {
         }
     }
     fn start_deck_lesson(&mut self, id: u8) {
+        if tutorial::lessons()
+            .iter()
+            .find(|l| l.id == id)
+            .and_then(|l| l.event)
+            .is_some_and(|e| !e.safe_outside_demo())
+            && !tutorial::is_demo(&self.project.root)
+        {
+            self.deck.note = "This exercise needs a safe demo: press d in Interactive tutorial first. Your novel is unchanged.".into();
+            return;
+        }
         if let Err(e) = self.deck.progress.start(id) {
             self.deck.note = e.to_string();
             return;
@@ -811,7 +824,7 @@ impl App {
             2 => self.overlay = Overlay::Deck(Page::Keyboard { sel: 0 }),
             4 => {
                 self.overlay = Overlay::None;
-                self.focus = Focus::Editor;
+                self.focus = self.editor_focus();
             }
             5 => {
                 self.overlay = Overlay::None;
@@ -840,6 +853,10 @@ impl App {
                     sel: 0,
                     capture: false,
                 })
+            }
+            13 => {
+                self.focus_mode = false;
+                self.open_secondary_picker();
             }
             17 => self.run_action(Action::Goals),
             19 => self.run_action(Action::StartSprint),
@@ -971,7 +988,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             hint = "↑↓ choose  Enter toggle  Esc home";
         }
         Page::Workspaces { sel } => {
-            title = "Saved workspaces · primary editor + outline foundation".into();
+            title = "Saved workspaces · two independent editors".into();
             selected = Some(*sel);
             rows = app
                 .deck
@@ -994,7 +1011,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                     )
                 })
                 .collect();
-            hint = "↑↓ choose  Enter restore  +/- outline width  n clone custom  Esc home";
+            hint = "↑↓ choose  Enter restore  +/- outline  < > secondary size  n clone  Esc home";
         }
         Page::System { sel } => {
             title = app

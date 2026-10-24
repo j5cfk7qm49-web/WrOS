@@ -42,7 +42,7 @@ impl App {
             at: from,
             voice: name.clone(),
         });
-        self.focus = Focus::Editor;
+        self.focus = self.editor_focus();
         self.show_sentence(from);
         self.overlay = Overlay::Reading;
         self.msg = format!("reading aloud · {name}");

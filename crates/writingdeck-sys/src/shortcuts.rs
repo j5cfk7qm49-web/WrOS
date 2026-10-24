@@ -10,6 +10,7 @@ pub enum Action {
     SystemSettings,
     Tutorial,
     Outline,
+    Secondary,
     Focus,
     Save,
     Find,
@@ -17,12 +18,14 @@ pub enum Action {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Binding {
     pub chord: String,
     pub action: Action,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Shortcuts {
     pub version: u32,
     pub bindings: Vec<Binding>,
@@ -35,6 +38,10 @@ impl Default for Shortcuts {
                 Binding {
                     chord: "F10".into(),
                     action: Action::Outline,
+                },
+                Binding {
+                    chord: "F11".into(),
+                    action: Action::Secondary,
                 },
                 Binding {
                     chord: "F12".into(),
@@ -98,5 +105,21 @@ mod tests {
         });
         assert!(s.validate().is_err());
         assert_eq!(Shortcuts::default().find("f12"), Some(Action::Dashboard));
+    }
+    #[test]
+    fn original_v1_aliases_without_secondary_still_load() {
+        let s:Shortcuts=serde_json::from_str(r#"{"version":1,"bindings":[{"chord":"F10","action":"outline"},{"chord":"F12","action":"dashboard"}]}"#).unwrap();
+        s.validate().unwrap();
+        assert_eq!(s.find("F10"), Some(Action::Outline));
+        assert_eq!(s.find("F11"), None);
+    }
+    #[test]
+    fn unknown_shortcut_configuration_is_rejected_instead_of_losing_fields() {
+        for text in [
+            r#"{"version":1,"bindings":[],"future_setting":true}"#,
+            r#"{"version":1,"bindings":[{"chord":"F11","action":"secondary","future_setting":true}]}"#,
+        ] {
+            assert!(serde_json::from_str::<Shortcuts>(text).is_err());
+        }
     }
 }

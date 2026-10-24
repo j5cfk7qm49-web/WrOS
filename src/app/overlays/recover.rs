@@ -15,25 +15,34 @@ impl App {
                 let items = std::mem::take(items);
                 self.overlay = Overlay::None;
                 let mut restored = 0;
+                let mut left = 0;
                 for it in &items {
                     let Some(idx) = self.project.nodes.iter().position(|n| n.path == it.scene)
                     else {
                         continue;
                     };
+                    if self.project.nodes[idx].read_only || self.project.nodes[idx].never_read() {
+                        left += 1;
+                        continue;
+                    }
                     let (front, body) = grimoire_core::project::split_frontmatter(&it.text);
                     self.project.nodes[idx].front = front;
-                    if self.open == Some(idx) {
-                        self.editor.set_text(&body);
-                    }
                     self.project.nodes[idx].body = body;
+                    self.update_document_editor(idx);
                     self.mark_changed(idx);
                     restored += 1;
                 }
-                if self.commit_saves() {
-                    self.msg = format!(
-                        "restored {restored} scene{} — the saved version is in its history",
-                        if restored == 1 { "" } else { "s" }
-                    );
+                if self.commit_saves() && self.project.dirty_count() == 0 {
+                    self.msg = if left > 0 {
+                        format!(
+                            "restored {restored}; {left} unreadable/non-UTF-8 draft(s) left in recovery, not overwritten"
+                        )
+                    } else {
+                        format!(
+                            "restored {restored} scene{} — the saved version is in its history",
+                            if restored == 1 { "" } else { "s" }
+                        )
+                    };
                 }
             }
             (Key::Enter, 1) => {

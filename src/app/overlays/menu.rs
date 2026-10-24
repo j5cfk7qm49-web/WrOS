@@ -320,6 +320,14 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
         Action::Workspaces => ("Restores a saved writing layout.", "writingdeck"),
         Action::Tutorial => ("Opens replayable, event-verified lessons.", "writingdeck"),
         Action::ToggleOutline => ("Shows or hides the outline independently.", "writingdeck"),
+        Action::ToggleSecondary => (
+            "Shows or hides an independent editable document; its undo and selection stay intact.",
+            "writingdeck",
+        ),
+        Action::SecondaryPicker | Action::EditSecondary(_) => (
+            "Chooses a scene, note or research document for the independent editor. One buffer owns each file.",
+            "writingdeck",
+        ),
         Action::MenuBack => ("Back to the first menu.", "getting-started"),
         _ => ("", "getting-started"),
     };

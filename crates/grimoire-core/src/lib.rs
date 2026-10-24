@@ -11,6 +11,7 @@ pub mod codex;
 pub mod cork;
 pub mod create;
 pub mod days;
+pub mod documents;
 pub mod editor;
 pub mod export;
 pub mod export_print;

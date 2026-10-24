@@ -24,7 +24,7 @@ The prototype's VM passwords are locked; its recovery/login behavior is not the 
 
 ## Learning and printable reference
 
-[Printable keyboard reference](keyboard-reference.html) is self-contained HTML with all four physical letter layouts generated from the tested maps. Print it from a normal browser, or copy it to another machine; no external fonts/network resources are needed. Interactive tutorial lesson 2 opens the actual safe preview, and lesson 10 uses logical-letter shortcut aliases. All tutorial instructions use arrows/function keys for discovery rather than assuming QWERTY mnemonic positions.
+[Printable keyboard reference](keyboard-reference.html) is self-contained HTML of the actual logical shortcut bindings, including F11. It names supported layouts but does not certify physical ANSI/ISO keyboard diagrams. Print it from a normal browser, or copy it to another machine; no external fonts/network resources are needed. Interactive tutorial lesson 2 opens the actual safe preview, and lesson 10 uses logical-letter shortcut aliases. F11 and arrows/Tab also operate the independent editors without letter remapping. All tutorial instructions use arrows/function keys for discovery rather than assuming QWERTY mnemonic positions.
 
 Colemak Mod-DH reference: <https://github.com/ColemakMods/mod-dh> (CC0-1.0). No repository keymap was copied; the image uses maintained XKB/console-setup and retains their Debian copyright notices. Standard Colemak's Caps Lock behavior comes from that upstream map; verify your physical modifiers before normal writing.
 

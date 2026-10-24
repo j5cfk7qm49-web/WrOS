@@ -44,7 +44,7 @@ def main():
 </style><main><header><span class="badge">WRITINGDECK · OFFLINE REFERENCE · 0.1.0-DEV</span>
 <h1>Your keys, your writing desk.</h1><p>QWERTY · Colemak · Colemak-DH — use the logical key label after Linux layout translation. Print from your browser.</p></header>
 <aside><strong>F12</strong> home &nbsp; <strong>F10</strong> outline &nbsp; <strong>Ctrl-D</strong> strict focus.<br>
-<strong>F11 is not yet an editable second pane.</strong> System → Keyboard layout has a 15-second preview: Enter keeps it, Escape/timeout reverts it. System → Keyboard shortcuts adds safe Ctrl+Alt+A–Z or F10–F12 aliases; legacy keys stay available. Avoid AltGr conflicts. No double remapping.</aside>
+<strong>F11</strong> independent editor: choose a document, then toggle; Tab switches visible editors. Narrow layouts stack. Each keeps its own cursor, selection, scroll and undo. Ctrl-D shows Primary only. System → Keyboard layout has a 15-second preview: Enter keeps it, Escape/timeout reverts it. System → Keyboard shortcuts adds safe Ctrl+Alt+A–Z or F10–F12 aliases; legacy keys stay available. Avoid AltGr conflicts. No double remapping.</aside>
 <div class="keys">BODY</div><footer>Generated from assets/help/24-every-key.md. Plain-text searchable help is built in (F1). Some terminals cannot distinguish Ctrl-I/Tab or Ctrl-M/Enter; use menu/palette alternatives. Optional music needs its own setup; writing never needs a network. This foundation is not a production installation.</footer></main></html>
 '''.replace('HASH',digest).replace('BODY','\n'.join(blocks))
     (ROOT/'docs/keyboard-reference.html').write_text(result)

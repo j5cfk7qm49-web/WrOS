@@ -14,7 +14,7 @@ UEFI / Debian GRUB -> maintained Debian kernel + initramfs -> systemd
   -> non-root writingdeck-session -> grimoire
        |
        + Ratatui + App (existing editor/autosave/history/conflicts)
-       + Deck (home, primary workspaces, tutorial, cached settings)
+       + Deck (home, dual-editor workspaces, tutorial, cached settings)
        |   + bounded request queue -> system worker -> writingdeck-sys::Backend
        |       + Linux: fixed nmcli/brightnessctl/systemctl/pkexec arguments
        |       + Simulated: explicit label, no hardware/network writes
@@ -33,9 +33,9 @@ privileged keyboard helper: fixed layouts only, root-owned files only
 - tty1 session wrapper refuses root; PAM remains the authentication boundary. VM-only autologin is conspicuously marked and networkless acceptance tests use a disposable COW layer.
 - Fixed system request types and backend trait; bounded background command queue, bounded captured command output, subprocess deadline, explicit unsupported/error state.
 - Root-owned console keymap application before tty1 login and an independent systemd preview/revert transaction.
-- Home widgets derived from existing project/session data, hide/reorder configuration, primary-editor workspace slots/cursors and outline width, additive safe shortcut aliases.
+- Home widgets derived from existing project/session data, hide/reorder configuration, dual-editor workspace slots, cursor/selection/free scroll, outline width and secondary proportion, additive safe shortcut aliases.
 - Strict focus hides retained references and removes them from focus traversal.
-- All 39 tutorial lessons cataloged, 15 currently wired to real application events; unavailable lessons are not fake-completable. Writing exercises require a separately created demo project.
+- All 39 tutorial lessons cataloged, 16 currently wired to real application events; unavailable lessons are not fake-completable. Writing exercises require a separately created demo project.
 
 This slice is not the full requested OS. See [FEATURE_MATRIX](FEATURE_MATRIX.md).
 
@@ -45,20 +45,20 @@ This slice is not the full requested OS. See [FEATURE_MATRIX](FEATURE_MATRIX.md)
 |---|---|---|
 | Novel and notes | Existing Markdown + `novel.toml` | Existing core is the source of truth; YAML frontmatter remains raw |
 | Autosave/history/recovery | Existing `.grimoire/` facilities | Unchanged save guards and recoverable copies |
-| Selected primary workspace, pane width/cursor, widgets, launch/low-power preferences | `.grimoire/writingdeck/layout.json` | Schema v1; atomic guarded save; unreadable/future schema preserved |
+| Selected workspace, both document/selection/cursor/scroll states, pane sizes, widgets, launch/low-power preferences | `.grimoire/writingdeck/layout.json` | Schema v2; v1 migrates in memory; atomic guarded save; unknown/unreadable/future schema preserved |
 | Tutorial progress | `.grimoire/writingdeck/tutorial.json` | Schema v1; verified event, skip and replay state; guarded save |
 | Shortcut aliases | `paths::data_dir()/writingdeck/shortcuts.json` | Per-machine v1; conflicts/unreadable files are not overwritten |
 | Committed console layout | `/etc/writingdeck/keyboard.json` | Root-owned; application changes only through helper/polkit |
 | Preview token + monotonic deadline | `/run/writingdeck/keyboard-preview.json` | Root-only, boot-ephemeral; never a manuscript setting |
 | Package/image identity | `/etc/writingdeck/release`, `build/appliance/packages.lock.tsv` | Recipe/profile/base and actual resolved package inventory |
 
-`sync::save_guarded` detects ordinary external state changes. It is not a lock against an unrelated writer racing between check and rename. A future multi-process document manager must enforce one authoritative in-process buffer per canonical path and refuse unsafe concurrent writes. Unknown schema versions must be rejected rather than normalized into older state.
+`sync::save_guarded` detects ordinary external state changes. It is not a lock against an unrelated writer racing between check and rename. The M3b registry enforces exclusive ownership of the open views by project-contained canonical path and Unix device/inode, retaining missing-file leases and refreshing identity after atomic replacement. It is not an OS lock or cross-process compare-and-swap. Unknown schema versions must be rejected rather than normalized into older state.
 
-Workspace restoration deliberately gives the existing newer resume record precedence on startup. Explicitly choosing a workspace restores its own saved primary position. Invalid UI preferences must never prevent manuscript autosave.
+Workspace restoration deliberately gives the existing newer resume record precedence on startup. Explicitly choosing a workspace restores both positions/selections/free scroll, active role, visibility and ratio. Invalid UI preferences must never prevent manuscript autosave.
 
-## Planned domain services, in dependency order
+## Document engine and next domain services
 
-1. **Document/pane registry:** reuse `Editor` and project nodes; one canonical document identity, independent buffers for distinct documents, source fingerprints, undo/selection/cursor, autosave/recovery, dirty/external-change arbitration. Multiple views of the same file share its authoritative document rather than competing saves.
+1. **Document/pane registry — Tested M3b:** `crates/grimoire-core/src/documents.rs` owns file identity; `src/app/documents.rs` moves/swaps complete Editor contexts (never cloned on each frame). `App.editor/open` is the active context; the other keeps geometry, caret/manual-scroll and click state. Pure render/position/save-resume operations borrow a role via a temporary context swap; input activation additionally flushes both and changes focus. Both contexts flush to their original Project nodes, including inactive bulk edits and recovered words. The registry is validated before saves, external adoption and editor replacement; unsafe alias changes keep both buffers and attempt recovery. A duplicate-file selection focuses its current owner. Core source fingerprints remain the existing save guard, not a new unsafe write path. See [WORKSPACES](WORKSPACES.md) for threshold/layout/rename behavior and boundaries.
 2. **Pins/journal/scratchpad/handoff:** pin records reference original Markdown paths; cards store presentation/semantic anchor metadata only. Journal auto metrics are a separate append-only event source from manual reflections. Deletion uses existing recoverable trash semantics.
 3. **Productivity:** monotonic session clock with configurable idle cutoff; edit-operation ledger distinguishes gross/net/deleted words and drafting/revision; civil local-date buckets for goals and challenges. No mandatory streaks.
 4. **Challenge corpus/Story Spark:** locally versioned source-tagged records, meaningful combinatorial constraints, persisted random seed/history/favorites and date assignments. No network generator or inflated template count.

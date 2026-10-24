@@ -48,3 +48,7 @@ The wrapper checks UID and refuses root. Production uses an actual PAM login; th
 - Backup worker: separate opt-in queue, secure credentials, hashes and conflict states; no access through the keyboard helper.
 
 Every new action needs denied/unavailable/timeout tests, a non-root path and a tutorial task before it is called implemented.
+
+## Independent editors do not need privilege
+
+M3b file ownership and both Editor contexts live in portable core/TUI code and use ordinary project files. F11, clipboard routing, workspace state, autosave and recovery do not call the keyboard helper or require a root service. The actual binary/PTY checks refuse root and isolate HOME. The registry is advisory in-process ownership, not a privileged filesystem lock or a promise that another program cannot race a save.

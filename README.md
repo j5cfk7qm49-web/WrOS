@@ -25,9 +25,16 @@ Start with [WritingDeck OS](docs/WRITING_DECK_OS.md), [current status](docs/STAT
 [feature matrix](docs/FEATURE_MATRIX.md) and [safe development/image instructions](docs/INSTALLATION.md).
 The whole-disk UEFI VM prototype boots as a non-root writer without a desktop.
 **It is an insecure VM-only demo, not a production laptop installer.** Later requested
-writing tools, independent editable panes, full challenges/Spark, secure installation,
+writing tools, full challenges/Spark, secure installation,
 lock/update/rollback and verified cloud backup remain incomplete. Existing Grimoire
 manuscript formats and shortcuts are retained.
+
+**M3b is now tested:** F11 opens a genuinely independent second editor with its own
+undo/selection/cursor/free scroll; schema-v2 workspaces retain both documents and
+layout. Existing guarded saves, raw YAML, conflict parking and recovery serve both.
+See [workspace behavior and limits](docs/WORKSPACES.md), including narrow-terminal
+stacking, strict Primary-only focus and in-process alias ownership. This does not
+implement sticky pins, full content presets or cross-process file locking.
 
 ## Why it exists
 

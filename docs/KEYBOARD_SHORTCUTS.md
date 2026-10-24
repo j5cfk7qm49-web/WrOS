@@ -9,10 +9,10 @@ The upstream shortcuts remain functional. `assets/help/24-every-key.md` is the c
 | F4–F7 | Existing music controls (optional, off by default) |
 | F8 / F9 | Spelling suggestions / themes |
 | **F10** | Toggle left outline column |
-| **F11** | Unassigned; reserved for a future genuinely editable secondary pane |
+| **F11** | Choose/show/hide the independent editable secondary pane; menu/palette chooses a replacement |
 | **F12** | WritingDeck home dashboard |
 | **Ctrl-D** | Strict focus; same established shortcut, tightened hiding/focus behavior |
-| Tab / Shift-Tab | Cycle visible panes; never a hidden outline/reference |
+| Tab / Shift-Tab | Cycle visible panes; never a hidden outline/secondary/reference |
 | Ctrl-K | Existing command palette, including new home/system/workspaces/tutorial actions |
 | Ctrl-S / Ctrl-Q | Save / quit with upstream safety behavior |
 | Esc | Existing close/menu behavior; closes dashboard to resume |
@@ -26,12 +26,13 @@ Aliases persist per machine at `paths::data_dir()/writingdeck/shortcuts.json`, u
 ```json
 {"version":1,"bindings":[
   {"chord":"F10","action":"outline"},
+  {"chord":"F11","action":"secondary"},
   {"chord":"F12","action":"dashboard"},
   {"chord":"Ctrl+Alt+G","action":"system-settings"}
 ]}
 ```
 
-Available alias actions: dashboard, system-settings, tutorial, outline, focus, save, find, palette. More complete shortcut customization is planned. F10/F12 remain default fallback actions even if aliases are removed; an explicit alias on one of these keys takes precedence.
+Available alias actions: dashboard, system-settings, tutorial, outline, secondary, focus, save, find, palette. More complete shortcut customization is planned. F10/F11/F12 remain default fallback actions even if aliases are removed; an explicit alias on one of these keys takes precedence.
 
 ## Layout and terminal limits
 
@@ -41,4 +42,4 @@ The terminal may not distinguish Ctrl-I from Tab or Ctrl-M from Enter. Existing 
 
 ## Tutorial and tests
 
-Tutorial lessons 2, 8, 9 and 10 use the actual layout/focus/outline/alias features. TUI tests exercise translated Unicode and logical aliases labeled across QWERTY/Colemak/DH scenarios. Real console DH mapping is a separate VM assertion; physical keyboard verification remains outstanding. No menu-description/help/key guard test was removed to add these features.
+Tutorial lessons 2, 8, 9, 10 and 13 use the actual layout/focus/outline/alias/secondary-edit features. TUI tests exercise translated Unicode and logical aliases labeled across QWERTY/Colemak/DH scenarios. Real console DH mapping is a separate VM assertion; physical keyboard verification remains outstanding. No menu-description/help/key guard test was removed to add these features.

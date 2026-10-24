@@ -66,6 +66,7 @@ impl App {
                 Focus::Tree => "outline",
                 Focus::Editor if self.focus_mode => "focus",
                 Focus::Editor => "writing",
+                Focus::Secondary => "writingdeck",
                 Focus::Codex => "notebook",
                 Focus::Beside => "beside",
                 Focus::Clearing if self.pane_mode == crate::scene::Mode::Visualizer => "visualizer",
@@ -79,7 +80,7 @@ impl App {
     /// typed into something.
     pub fn question_opens_help(&self) -> bool {
         match &self.overlay {
-            Overlay::None => self.focus != Focus::Editor,
+            Overlay::None => !self.focus.is_editor(),
             Overlay::Deck(super::super::writingdeck::Page::KeyboardTest { .. }) => false,
             Overlay::Palette { .. }
             | Overlay::Marks { .. }

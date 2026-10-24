@@ -24,3 +24,7 @@ Save, favorite, dismiss, independent/joint reroll; pin the same result reference
 ## Acceptance / recovery / tutorial
 
 Tests: unique substantive records and licensed provenance; deterministic modes/filters; compatible pairing; recent-repeat avoidance and exhausted pools; favorites/history persistence; daily date rollover and corpus-upgrade behavior; no manuscript mutation until an explicit action; static 80×24 rendering and focus/low-power behavior. Corrupt corpus/history is preserved/reported, not silently regenerated over favorites. Tutorial lessons 22–24 remain planned until the real engine and actions pass these tests.
+
+## Dependency update
+
+M3b supplies tested distinct-document Editor contexts and existing guarded saves. It does not implement the Spark corpus, roulette, filters, favorites, history or insertion/pin actions. Future actions must resolve the intended document/role and apply only on explicit writer request, with stale-source and recovery tests rather than sending generated text to whichever pane happens to be active.

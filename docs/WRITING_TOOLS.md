@@ -41,3 +41,7 @@ Extend existing sentence-level local TTS with a multi-scene/chapter queue, speed
 ## Acceptance and performance gates
 
 Before M7/M8/M9 release: deterministic Unicode/Markdown/dialogue offset fixtures; stale-result/cancellation/dedup tests; once/novel/global ignores and dictionary migration; WordNet sense/antonym fixtures; adequate-material voice profiles; explicit continuity truth examples; annotation relocation; reversible diff/restore; DOCX package XML plus multi-page PDF checks. Benchmark RSS/latency/idle CPU on representative low-power hardware and record Python/spaCy/model costs separately. No model download or manuscript network request may occur during normal offline checking.
+
+## M3b routing boundary
+
+Both editable views now have independent Editor state; spelling, find/replace, clipboard and history commands target the focused document. Bulk book replacement/undo and name fixes update any matching inactive editor before autosave. The document registry is available as a prerequisite, but no revision-tagged analyzer queue, Harper integration or new ignore-scope policy is implemented by this milestone. The shared existing dictionary and clipboard are not duplicated per pane.

@@ -2,11 +2,11 @@
 
 ## Current implementation
 
-The compiled catalog at `crates/grimoire-core/assets/writingdeck/tutorial.json` lists **all 39 requested lessons**. Fifteen have actual application-event hooks; the other 24 are explicitly marked **planned** and cannot be started/completed. This is a continuously developed framework, not a claim of full tutorial completion.
+The compiled catalog at `crates/grimoire-core/assets/writingdeck/tutorial.json` lists **all 39 requested lessons**. Sixteen have actual application-event hooks; the other 23 are explicitly marked **planned** and cannot be started/completed. This is a continuously developed framework, not a claim of full tutorial completion.
 
 Open F12 → Interactive tutorial, or use the menu/command palette. Arrow keys select a lesson; Enter shows its instructions and then starts the real feature; `h` opens linked searchable offline help; `s` skips; Escape returns. Completed lessons can be replayed. Progress is schema-versioned, atomically guarded and stored with the project. There is no fake Next/Done button.
 
-Press `d` to create a **new** safe demonstration project and switch to it after saving the current project. Existing directories are never reused. Demo scenes, Markdown formatting, autosave, goals, corkboard and history use actual Grimoire code. Writing exercises only complete against a project with the safe demo marker. Ordinary novels are not rewritten to satisfy lessons.
+Press `d` to create a **new** safe demonstration project and switch to it after saving the current project. Existing directories are never reused. Demo scenes, Markdown formatting, autosave, goals, corkboard and history use actual Grimoire code. Writing exercises cannot even be launched against an ordinary novel; they require the safe demo marker. Opening or switching panes alone cannot count as a text edit. Ordinary novels are not rewritten to satisfy lessons.
 
 ```sh
 grimoire writingdeck tutorial-demo /parent/NEW-demo
@@ -27,11 +27,11 @@ The demo contains original short text and a deliberate spelling error. Nothing i
 | 6 | Corkboard | Wired: actual corkboard overlay |
 | 7 | Workspaces | Wired: chosen saved workspace applied |
 | 8 | Focus mode | Wired: strict focus entered |
-| 9 | Panes | Wired foundation: outline toggled; secondary editing still planned |
+| 9 | Panes | Wired: actual outline toggled; independent secondary editing is lesson 13 |
 | 10 | Custom shortcuts | Wired: valid alias actually saved |
 | 11 | Sticky pins | Planned |
 | 12 | Sticky scrolling | Planned |
-| 13 | Notes beside manuscript | Planned editable-pane lesson; existing reference is not misrepresented |
+| 13 | Notes beside manuscript | Wired: actual SecondaryEdited event in the safe demo, via typing or paste; a picker/navigation event is insufficient |
 | 14 | Writing journal | Planned |
 | 15 | Scratchpad | Planned |
 | 16 | Session handoff | Planned |
@@ -65,4 +65,4 @@ Instructions use arrows, Enter/Escape and function keys for physical-layout-inde
 
 ## Tests and continuation rule
 
-Core tests verify 39 stable lesson IDs, unavailable lesson rejection, event matching, safe-demo gating, skip/replay, persisted progress and exclusive new-demo creation. TUI tests type through the actual routing/editor and validate persisted completion, plus links to real help topics and required terminal sizes. Add new completion evidence and safe-demo tasks in the same change that implements each future feature. A feature's tutorial must never be marked complete simply because its informational page exists.
+Core tests verify 39 stable lesson IDs, unavailable lesson rejection, event matching, safe-demo gating, skip/replay, persisted progress and exclusive new-demo creation. TUI tests type/paste through the actual secondary routing/editor and validate persisted lesson 13 completion and replay, reject real-novel exercise launch, and prove open/navigation alone cannot complete it. Core tests and retained baseline lessons verify event matching, help topics and required sizes. Add new completion evidence and safe-demo tasks in the same change that implements each future feature. A feature's tutorial must never be marked complete simply because its informational page exists.

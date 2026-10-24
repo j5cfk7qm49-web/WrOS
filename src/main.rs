@@ -708,6 +708,7 @@ fn on_key(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
     }
     let active = app.deck.progress.active.is_some();
     let before_open = app.open;
+    let before_pane = app.views.active;
     let before_goals = (app.project.meta.target_words, app.project.meta.daily_target);
     let before_sprint = app.sprint.is_some();
     let before_text = if app.deck.progress.active == Some(4) {
@@ -726,7 +727,10 @@ fn on_key(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
         if !before_sprint && app.sprint.is_some() {
             app.observe_deck(LessonEvent::SprintStarted);
         }
-        if before_text.is_some_and(|before| before != app.editor.text()) {
+        if before_open == app.open
+            && before_pane == app.views.active
+            && before_text.is_some_and(|before| before != app.editor.text())
+        {
             app.observe_deck(LessonEvent::TextEdited);
         }
         if matches!(app.overlay, Overlay::Cork { .. }) {
@@ -757,7 +761,7 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
     };
     // The page's own moves with Shift, Ctrl and Alt: selecting from the
     // keyboard, and going (or deleting) a word at a time.
-    if matches!(app.overlay, Overlay::None) && app.focus == Focus::Editor && app.open.is_some() {
+    if matches!(app.overlay, Overlay::None) && app.focus.is_editor() && app.open.is_some() {
         let m = k.modifiers;
         let shift = m.contains(KeyModifiers::SHIFT);
         let alt = m.contains(KeyModifiers::ALT);
@@ -900,7 +904,7 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
     if k.modifiers.contains(KeyModifiers::ALT)
         && matches!(k.code, KeyCode::Up | KeyCode::Down)
         && matches!(app.overlay, Overlay::None)
-        && matches!(app.focus, Focus::Tree | Focus::Editor)
+        && matches!(app.focus, Focus::Tree | Focus::Editor | Focus::Secondary)
     {
         app.move_selected(k.code == KeyCode::Up);
         return false;
@@ -980,7 +984,7 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
             };
             app.on_tree_key(key);
         }
-        Focus::Editor => app.on_editor_key(key),
+        Focus::Editor | Focus::Secondary => app.on_editor_key(key),
         Focus::Codex => app.on_codex_key(key),
         Focus::Beside => app.on_beside_key(key),
         Focus::Clearing => app.on_clearing_key(key),

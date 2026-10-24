@@ -136,6 +136,7 @@ impl App {
                 return;
             }
         };
+        self.close_if_trashed(&done.moves);
         self.follow_many(&done.moves);
         let m = self.mod_label();
         let (what, said) = match how {

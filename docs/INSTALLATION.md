@@ -72,3 +72,7 @@ In the disposable VM, passwords are locked, so normal authenticated recovery log
 ## Updates and offline behavior
 
 Use Debian apt/signatures and retain a known-good kernel; no custom package manager. In-app update staging, offline signed bundles and snapshot/rollback automation are **Planned**, not implemented by the image builder. Keep novel data separate from OS snapshots. A failed package download must not affect offline writing. The prototype does not promise automatic rollback or silently run unattended updates while you type.
+
+## M3b application check after a development build
+
+F11 chooses an independent editor; both documents use the existing offline save/history/recovery path. At 80×24 they stack with the outline visible; wider writing areas split horizontally. Ctrl-D always focuses Primary only. Schema-v1 layouts migrate only in memory until an explicit guarded save. See [WORKSPACES](WORKSPACES.md). The Python PTY test launches the real compiled application as the current non-root user in four fresh demo fixtures; it must skip rather than run interactively as root. The separate VM probe remains a boot/system/console-keyboard check, not a claim that its scripted guest exercises F11.

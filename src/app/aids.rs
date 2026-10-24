@@ -6,7 +6,7 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use super::{App, Focus, Overlay};
+use super::{App, Overlay};
 use crate::scene::Phase;
 use grimoire_core::notes::{self, MarkKind};
 use grimoire_core::project::Kind;
@@ -143,7 +143,7 @@ impl App {
         if self.open != Some(i) {
             self.open_scene(i);
         }
-        self.focus = Focus::Editor;
+        self.focus = self.editor_focus();
         let status = self.project.nodes[i]
             .status
             .clone()

@@ -23,3 +23,7 @@ Achievements are disableable, encouraging and optional. Milestones, finished sce
 ## Acceptance and tutorial
 
 Deterministic clocks/seeds/date providers; DST/timezone travel; reboot/no unnecessary regeneration; rerolls/history exhaustion; difficulty and duration; measured versus self-report; idle gaps, revisions/deletions/undo/paste; footnote counts; disabling everything; sprint pause/resume; non-punitive achievement dedup. Tutorial lessons 17 and 19 currently exercise baseline goals/sprints; lessons 18, 20 and 21 remain planned for the advanced subsystem.
+
+## Two-editor accounting boundary
+
+M3b reuses existing project totals: research/character/note text does not suddenly become novel words because its editor is visible. The same source document is not counted twice for two open views; duplicate editable views are refused/focused to their owner. This does not implement gross/deleted/active-time/footnote accounting, local-date challenge persistence or new calendar widgets. The edit-ledger service is still a prerequisite.

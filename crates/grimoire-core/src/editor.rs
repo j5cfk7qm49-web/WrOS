@@ -82,6 +82,12 @@ impl Editor {
         }
     }
 
+    /// Direction-preserving selection anchor for versioned workspace views.
+    /// Restoration still goes through `select`, which clamps stale positions.
+    pub fn selection_anchor(&self) -> Option<(usize, usize)> {
+        self.anchor
+    }
+
     pub fn text(&self) -> String {
         self.lines.join("\n")
     }
@@ -309,6 +315,34 @@ impl Editor {
             return;
         }
         self.remember(Edit::Whole);
+        self.insert_raw(&text);
+    }
+
+    /// Paste/replace a selection as ONE undo step, including an empty or
+    /// multiline replacement. The previous delete-then-paste path took two
+    /// Ctrl-Z presses to recover the original selected words.
+    pub fn replace_selection_with(&mut self, text: &str) {
+        let Some(((l0, c0), (l1, c1))) = self.selection() else {
+            self.insert_str(text);
+            return;
+        };
+        self.remember(Edit::Whole);
+        let head: String = self.lines[l0].chars().take(c0).collect();
+        let tail: String = self.lines[l1].chars().skip(c1).collect();
+        self.lines.splice(l0..=l1, [format!("{head}{tail}")]);
+        self.cy = l0;
+        self.cx = c0;
+        self.anchor = None;
+        self.goal = None;
+        let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
+        if !normalized.is_empty() {
+            self.insert_raw(&normalized);
+        }
+        self.hist.last = Some((Edit::Whole, Instant::now()));
+    }
+
+    /// Already normalized, with undo captured by the caller.
+    fn insert_raw(&mut self, text: &str) {
         let chars = self.line_chars(self.cy);
         let at = self.cx.min(chars.len());
         let head: String = chars[..at].iter().collect();
@@ -1122,5 +1156,36 @@ mod tests {
         e.clear_selection();
         assert!(!e.has_selection());
         assert_eq!(e.selected_text(), None);
+    }
+    #[test]
+    fn replacing_unicode_selection_or_pasting_across_paragraphs_is_one_undo_step() {
+        for backwards in [false, true] {
+            let mut e = ed("Café alpha\nβeta remains");
+            let (a, b) = if backwards {
+                ((1, 4), (0, 5))
+            } else {
+                ((0, 5), (1, 4))
+            };
+            e.select(a, b);
+            e.replace_selection_with("λ\r\nnew");
+            assert_eq!(e.text(), "Café λ\nnew remains");
+            assert!(!e.has_selection());
+            assert!(e.undo());
+            assert_eq!(e.text(), "Café alpha\nβeta remains");
+            assert!(e.redo());
+            assert_eq!(e.text(), "Café λ\nnew remains");
+        }
+    }
+    #[test]
+    fn empty_selection_replacement_deletes_once_and_empty_paste_is_a_noop() {
+        let mut e = ed("one two three");
+        e.select((0, 4), (0, 8));
+        e.replace_selection_with("");
+        assert_eq!(e.text(), "one three");
+        assert!(e.undo());
+        assert_eq!(e.text(), "one two three");
+        assert!(!e.undo());
+        e.replace_selection_with("");
+        assert!(!e.undo());
     }
 }

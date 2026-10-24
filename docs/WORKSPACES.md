@@ -1,39 +1,71 @@
-# Dashboard, workspaces and pane engine
+# Dashboard, workspaces and independent editors
 
-## Implemented foundation
+## Home and workspace slots
 
-F12 opens the home dashboard with data from the existing book: resume/current manuscript, daily net growth and target, novel target, recorded weekly progress, sprint, recent scenes, battery, backup indication and system status. Missing battery/services show unavailable. Local saving/history is not mislabeled off-device backup.
+F12 opens the home dashboard with existing book data: resume/current manuscript, daily net growth and target, novel target, recorded weekly progress, sprint, recent scenes, battery, backup indication and system status. Missing devices/services show unavailable. Local saving/history is not mislabeled off-device backup.
 
-Arrow keys/Enter navigate; `h` hides a selected widget; `J`/`K` reorder it; Configure widgets restores hidden widgets. The screen scrolls to the selection at 80×24 and is tested at 100×30, 120×40 and 160×50. Start-at-dashboard is optional in System settings; conventional development defaults to the existing writing view, appliance first launch to home.
+Arrow keys/Enter navigate; `h` hides a widget; `J`/`K` reorder it; Configure widgets restores hidden widgets. Home scrolls to the selection at 80×24 and is tested at 100×30, 120×40 and 160×50. Start-at-dashboard is optional in System settings; conventional development defaults to writing, appliance first launch to home.
 
-Workspaces provides five named slots (Drafting, Planning, Research, Revision, Focus), `n` to clone a custom slot and `+`/`-` to adjust outline width (18–60 columns, adapted to terminal space). The initial slots currently share the same primary/outline structure except Focus. They are **not yet the full requested planning/research/revision multi-pane presets**.
+Workspaces provides Drafting, Planning, Research, Revision and Focus slots. `n` clones a custom slot; `+`/`-` adjust outline width (18–60 columns); `<`/`>` adjust the secondary proportion by five percentage points (25–75%). Slots initially share the same empty primary/secondary structure except Focus. They are **not yet the full requested planning/research/revision content presets or sticky sidebar engine**.
 
-Each slot persists primary document, logical cursor, visual scroll, outline visibility/width and strict-focus choice. Saved state is versioned JSON under `.grimoire/writingdeck/layout.json`; ordinary Markdown is untouched. Startup gives a newer upstream resume record precedence. Choosing a workspace explicitly restores its own saved position. A corrupt/future/conflicting state file is preserved and does not prevent manuscript saves.
+## M3b: two genuinely editable documents — Tested
 
-F10 hides/shows the left outline column independently of focus mode. Ctrl-D hides outline, scenery/music controls and retained reference panes. Tab/Shift-Tab only visit visible panes. Leaving focus restores the retained reference; Escape in focus opens the menu rather than closing an invisible reference.
+- **F11**, with no secondary assigned, opens Choose secondary document. Type a scene, character, note or research title and press Enter.
+- With a secondary assigned, F11 hides/shows it without discarding its text, cursor, selection, free scroll or in-memory undo history. Use **Writing tools → Choose secondary document**, or the command palette, to replace its document after the existing save/recovery checks.
+- Tab/Shift-Tab and clicks change the focused pane. Typing, bracketed paste, selection, undo/redo, cut/copy, find/replace and spelling act on that pane. Each document has its own complete `Editor`; the clipboard, dictionary, find preferences and project-level operations remain shared.
+- Selecting an already-open document focuses its owner instead of creating a competing buffer. Canonical paths and Unix device/inode identity cover symlink and hard-link aliases. Only project-contained regular files can seed a new editable view; unreadable/non-UTF-8 documents cannot seed a new secondary editor.
+- Both views use **the original Project guarded saves, autosave, history, unavailable-file handling, conflict parking and crash recovery**. Raw YAML frontmatter remains raw. There is no second direct-write path.
 
-## Multi-document engine: next milestone, not implemented
+### Layout and focus
 
-F11 is reserved but **not assigned** until there is a real second editable buffer. Baseline beside/codex panes remain references. A secondary editor needs all of the following before release:
+An editing area at least 72 columns wide splits horizontally. Narrower editing areas stack the editors vertically when at least 12 rows are available, so an ordinary 80×24 terminal with an outline still supports both. Each pane records separate editor/prose geometry, caret tracking and mouse state. Wheel scrolling over the inactive view does not steal focus or snap its scroll back to its cursor.
 
-1. A canonical document registry, with one authoritative in-process document per file path.
-2. Distinct documents with independent `Editor`, undo/redo, selection, cursor and scroll state.
-3. Shared existing project save fingerprints, autosave scheduling, pre-edit/history snapshots and recovery; no separate unsafe `fs::write` path.
-4. Focus switching that routes paste, selection, find, save and modifier keys to the intended buffer.
-5. Dirty/external-file conflicts preserved without silently reloading over text. Opening the same file in two views must share state, not race saves.
-6. Saved pane selections/ratios, minimum widths, narrow-terminal fallback and terminal resize tests.
-7. F11 direct switching, Tab cycling and menu/palette/help coverage plus interactive lesson 13.
+If a very small viewport cannot show both, the secondary is retained but not drawn or focusable. Focus normalizes to Primary; enlarging the terminal reveals the retained view. This is not a permanently closed document.
 
-## Pins and other dashboard widgets: planned
+F10 hides/shows the outline independently. Ctrl-D strict focus always shows **Primary only**, hiding outline, scenery/music controls, Secondary and legacy reference panes. Leave focus with Ctrl-D before using F11. Tab never enters a hidden pane. Escape clears a real selection first, otherwise opens the existing menu; it does not close an invisible reference.
 
-Journal, scratchpad, pinned notes, advanced daily/weekly/NaNoWriMo calendars, challenges, achievements, revision queue, Story Spark and next-session handoff are not implemented widgets. Do not display invented metrics to fill them.
+The legacy `v` beside and Ctrl-O Codex panes remain **read-only references**, not aliases for the new secondary editor. They are retained but not drawn simultaneously with Secondary. Explicitly opening a legacy reference hides the secondary without discarding it. No third editable pane is implemented.
 
-Pinboard design: a pin stores a source Markdown path and presentation metadata only (scope/category/color/order/collapse/card size/selected section/scroll/heading or quote anchor). Full editor, dashboard pin and sticky card use that same source. Scopes: Always, Novel, Chapter, Scene, Dashboard, Hidden. Archive/trash are recoverable. Free-scroll and anchored-excerpt modes keep independent card and sidebar positions. Deleted/changed anchors need a visible fallback, not silent jumps or copied text stores.
+## Persistence and migration
 
-Journal design: immutable automatic session-event facts are separate from user-editable reflections; views can generate/open normal Markdown. Scratchpad supports multiple notes and scene links with recoverable promotion. Handoff is a user-authored ordinary note/reference shown on next boot. All need persistence/external-change/tutorial tests alongside implementation.
+Each workspace stores:
 
-## Acceptance tests
+- primary and optional secondary project-relative document path;
+- independent logical line/character cursor and selection anchor (including selection direction);
+- independent visual-row scroll;
+- secondary visibility, proportion and active editor;
+- outline visibility/width and strict-focus preference.
 
-Current: `writingdeck_dashboard_is_navigable_at_required_terminal_sizes`, `writingdeck_widgets_keep_visibility_and_order_after_reload`, `writingdeck_workspaces_restore_document_cursor_and_width`, `writingdeck_outline_toggles_without_focus_mode_and_persists`, strict-focus tests and `workspaces::tests`.
+State is schema **v2** JSON under `.grimoire/writingdeck/layout.json`. A v1 file migrates in memory; inspecting it with `grimoire writingdeck check-config DIR` does not rewrite it. The next explicit guarded layout save writes v2. Future versions, invalid paths, unknown fields, corruption and external conflicts are preserved rather than overwritten. Bad UI state must not prevent manuscript saves.
 
-Next: two independently dirty buffers, same-file aliasing, concurrent external edits, save failure in either pane, crash recovery of both, pane ratio/cursor/selection restoration and sticky semantic anchors.
+Startup gives the upstream Primary resume record precedence: stale workspace coordinates/selection are not applied to another document or a newer cursor, and focus remains Primary when that resume differs. Explicitly choosing a workspace instead restores that workspace's positions. A workspace can swap which two documents occupy Primary/Secondary without duplicating their editors or losing in-process per-document undo.
+
+Cursor/selection/scroll/layout persist across restart; **the transient undo stack is not serialized**. Dated disk history remains available separately, as upstream. Scroll is currently a visual-row offset, not a semantic heading/quote anchor: wrapping after a resize may change which words occupy that row. Sticky semantic anchors remain M4 work.
+
+## Failure and external-change behavior
+
+An external edit to an open document is adopted only through the existing guarded Project path. A concurrent local version is parked and retained; the matching active or inactive editor is updated so a later flush cannot put stale text back. Bulk book replacement, book undo/redo, notebook-name fixes and recovered-word restoration update the owning editor too.
+
+A clean external rename is followed only when an unambiguous unchanged fingerprint identifies the moved file, excluding trash/parked versions and another view's document. Dirty missing-file text is first parked by the existing disk-check path; a waiting save is not permission to detach it. Ambiguous duplicate contents are not guessed between. Deleting/trashing a file or folder closes every affected editable view and stashes its in-process undo for recoverable tree operations.
+
+If two previously distinct open paths become aliases, saves, reload adoption and editor replacement pause; both buffers remain in memory and recovery copies are attempted. Repair the external path/alias before continuing. A genuine save failure also blocks unsafe replacement, workspace switching and ordinary quit; the existing explicit emergency-quit/recovery behavior remains available. Unreadable/non-UTF-8 recovery targets remain in recovery rather than being falsely reported restored.
+
+**Boundary:** the registry is in-process ownership, not an OS file lock, cross-process transaction or atomic compare-and-swap. The upstream fingerprint check-to-rename race against unrelated writers is not eliminated. Keep independent backups; no power-loss or hardware qualification is implied by these software tests.
+
+## Verification
+
+`src/ui_tests.rs` adds **28 `writingdeck_secondary_*` tests**, retaining the original home/layout/help/menu/key regressions. They cover all four terminal sizes, real editing, independent selection/undo/clipboard routing, hidden/tiny/wide layouts, mouse/free scroll, find/spelling, autosave of an inactive hidden buffer, YAML round-trip, alias ownership/revalidation, clean and dirty external changes/renames, ambiguous moves, book-wide replace/undo, save failure, crash rescue and dual recovery, non-UTF-8 refusal, history restore, trash/settled-conflict closure, workspace role swaps/restart and actual lesson 13 completion.
+
+Core registry tests cover canonical/device-inode ownership, rejected paths, failed claim retention, missing files and atomic replacement. Workspace tests cover v1 migration, both selections/positions and unknown/future/conflicting data preservation. Editor tests verify Unicode/multiline selection replacement as one undo step.
+
+`os/tests/test_secondary_pty.py` additionally drives the **compiled unprivileged application in a real PTY at 80×24, 100×30, 120×40 and 160×50**: actual F11 escape input, bracketed paste, both file saves, isolated undo/redo, hide/show, normal quit and persisted role/path assertions. The tiny PTY shim answers the startup cursor-position query; it is not physical-keyboard or full terminal-emulator certification. The test refuses to launch interactively as root.
+
+See [TESTING](TESTING.md), [STATUS](STATUS.md) and retained [test records](evidence/test-results.json). The whole-VM test separately covers boot/system/console keyboard behavior, not these F11 keystrokes.
+
+## Next: pins, journal, scratchpad and handoff — Planned
+
+Journal, scratchpad, pinned cards, advanced calendar/challenge/achievement/revision widgets and next-session handoff are not implemented widgets. Do not invent metrics to fill them.
+
+A pin will reference a source Markdown document plus presentation metadata only: scope/category/color/order/collapse/card size, selected section, scroll and heading/quote anchor. Editor, dashboard pin and sticky card must use that same source. Scopes: Always, Novel, Chapter, Scene, Dashboard, Hidden. Archive/trash must remain recoverable; changed/deleted anchors need an explicit fallback. Independent card/sidebar positions and safe quick edits need their own tests.
+
+Journal automatic facts must be separate from editable reflections. Scratchpad promotion must preserve the original and use guarded project operations. Handoff is an ordinary user-authored note shown next session. The tested document registry is a dependency for these services, not their implementation.

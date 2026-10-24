@@ -23,24 +23,24 @@ Machine-readable inventory: [feature-status.json](feature-status.json). Details:
 | OS | Secure Boot / legacy BIOS / physical firmware compatibility | Blocked | UEFI without Secure Boot only | Requires signed boot-chain work and identified physical hardware |
 | System | Typed Linux + explicitly simulated backend | Tested | Rust adapter/validation tests + worker UI test | No arbitrary shell or manuscript paths in OS requests |
 | System | Cached/off-thread network/battery/brightness/storage/timezone status | Tested | Missing-device/fixture tests + networkless VM | Physical battery/backlight behavior not verified |
-| System | Wi-Fi radio and scan command interfaces | Tested | Typed command/unit tests | Actual radio/SSID enrollment unverified; nmtui maintenance fallback |
+| System | Wi-Fi radio and scan command interfaces | Tested | Typed command/unit tests | Actual radio/enrollment unverified; scan truncation still open; nmtui fallback |
 | System | In-app new-network credentials / secret agent | Planned | None | Never passwords in argv/logs |
 | System | Brightness request + UI/OS power-saving distinction | Tested | Validation and no-device tests | No physical backlight or battery-savings claim |
 | System | Confirmed power requests after successful manuscript save | Tested | TUI confirmation + command construction tests | Physical suspend/restart/shutdown deliberately not run |
 | System | Clock/timezone changes, sound/volume, updater/restore panels | Planned | None | Read-only status is not full settings coverage |
 | Keyboard | QWERTY/Colemak/DH ANSI/ISO console maps | Tested | Four Unicode map builds; VM QWERTY/DH/Colemak key assertions | Full modifiers/ISO physical keyboard remain unverified |
-| Keyboard | 15-second preview, token commit and independent rollback | Tested | 12 rootless helper tests + real VM systemd timer | Survives client absence; commit generation handles crash boundary |
+| Keyboard | 15-second preview, token commit and independent rollback | Tested | 13 rootless helper tests + real VM systemd timer | Survives client absence; commit generation handles crash boundary |
 | Keyboard | Layout persistence / pre-login reapplication | Tested | Guest config commit and boot-command reapplication | Separate cold reboot/suspend hardware verification outstanding |
 | Keyboard | Installer/first-run layout wizard and custom map registration | Planned | Planner records registered choices only | Arbitrary runtime keymap paths rejected |
-| Keyboard | Safe custom shortcut aliases with legacy compatibility | Tested | TUI capture/persistence + logical/Unicode tests | Only safe aliases for eight actions; not all legacy binding removal/reassignment |
+| Keyboard | Safe custom shortcut aliases with legacy compatibility | Tested | TUI capture/persistence + logical/Unicode tests | Nine safe alias actions including Secondary; not all legacy binding removal/reassignment |
 | Keyboard | Raw physical-position shortcuts through generic tty | Blocked | No reliable scan-code channel | Use logical characters and function/arrow keys; no double mapping |
 | Home | Real existing-data dashboard widgets + hide/reorder/navigation | Tested | 80x24, 100x30, 120x40, 160x50 TUI tests | No fabricated metrics or unimplemented challenge widgets |
 | Home | Optional startup home / direct primary restore | Tested | State tests + VM startup + recovery precedence | Newer upstream resume takes priority at startup |
 | Home | Journal/pins/scratchpad/handoff/challenge/achievement/revision widgets | Planned | None | Depends on actual domain services |
-| Workspaces | Five named primary layout slots + custom clones/width/cursors | Tested | Workspace JSON and TUI restoration tests | Only Focus differs initially; full pane presets not complete |
-| Workspaces | F10 outline toggle and strict Ctrl-D focus | Tested | Hidden-pane geometry/focus and persistence tests | Retained references reappear; F11 not assigned |
-| Workspaces | Full editable secondary document, independent undo/autosave/selection | Planned | None | Next application milestone; existing beside remains read-only |
-| Workspaces | Sticky sidebar, multi-pane ratios and full content presets | Planned | None | Do not conflate primary layout slots with requested full engine |
+| Workspaces | Five named dual-editor workspace slots + custom clones/width/cursors | Tested | Schema-v2 round-trip/v1 migration + dual restart/role-swap UI tests | Both selections/free scroll, active role/visibility/ratio; full preset content remains planned |
+| Workspaces | F10 outline toggle and strict Ctrl-D focus | Tested | Hidden-pane geometry/focus and persistence tests | Strict Primary only; hidden Secondary/reference cannot receive input |
+| Workspaces | Full editable secondary document, independent undo/autosave/selection | Tested | 28 new UI cases + core registry tests + real-binary PTY at four sizes | F11 enabled; existing guarded saves/dual recovery; in-process ownership, not an OS lock |
+| Workspaces | Sticky sidebar, multi-pane ratios and full content presets | In progress | Two-editor ratio/stacked-wide-resize tests | Two-editor ratio implemented; sticky sidebar/cards and full preset content still planned |
 | Notes | Single-source pins/scopes/cards/categories/trash/anchors/scroll | Planned | None | Markdown source references, not copied content stores |
 | Notes | Accurate auto/manual journal, multi-note scratchpad, handoff | Planned | None | Automatic event facts separated from reflections |
 | Productivity | Basic daily/book/scene goals, weekly net pace/forecast | Existing | Upstream/current tests | Net growth, not gross/deleted/active-WPH |
@@ -70,7 +70,7 @@ Machine-readable inventory: [feature-status.json](feature-status.json). Details:
 | Cloud | Opt-in Drive OAuth, private credentials, upload queue, verified backup/restore | Planned | None | Local state/fake-transport infrastructure can be built without credentials |
 | Cloud | Conflict-aware bidirectional sync + safe mobile/Docs evaluation | Planned | Existing generic file conflicts only | Copy/sync/Docs interoperability are separate guarantees |
 | Cloud | Live Google authorization/restore/Docs round-trip acceptance | Blocked | No account enrolled or manuscript transmitted | Requires explicit user credentials and consent at M9 |
-| Tutorial | 39-lesson catalog, safe demo, replay/skip/progress, help links | Tested | Core + actual editor/UI tests | 15 baseline/foundation lessons wired; 24 explicitly unavailable |
+| Tutorial | 39-lesson catalog, safe demo, replay/skip/progress, help links | Tested | Core + actual editor/UI tests | 16 event-capable lessons including actual Secondary edit; 23 explicitly unavailable |
 | Tutorial | All 39 complete interactive exercises across final features | In progress | Continuous foundation only | Must land alongside each later feature, not wait until release |
 | Qualification | Offline whole-VM operation and low-memory initial measurement | Tested | No network devices; guest process RSS in evidence | Does not include Python/spaCy or physical battery benchmark |
 | Qualification | Physical laptop keyboard/Wi-Fi/lock/suspend/battery/update qualification | Blocked | No hardware available in this environment | Record model/firmware before claiming Hardware verified |

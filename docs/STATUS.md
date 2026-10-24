@@ -1,40 +1,45 @@
-# Status — WritingDeck OS 0.1.0-dev
+# Status — WritingDeck OS 0.1.0-dev, through M3b
 
-**As of 2026-10-24: functional, tested appliance foundation. The full requested appliance is not complete or safe for production installation.** All subsequent claims are scoped by the named evidence. No physical machine, Google account or user manuscript has been used for qualification.
+**As of 2026-10-24: tested appliance foundation and independent secondary editor. The full requested appliance is not complete or safe for production installation.** All verification is scoped below. No physical laptop, cloud account or user manuscript was used.
 
-## Latest completed evidence
+## Completed software evidence
 
-- Fresh full offline Rust suites: **490 passed, 5 ignored** with default audio features; **490 passed, 4 ignored** without audio. Includes the 12 WritingDeck UI tests at 80×24, 100×30, 120×40 and 160×50. These are overlapping suites, not 980 distinct tests. Formatting, warning-denying Clippy and shellcheck pass.
-- Fresh Python run: **21 passed** (13 rootless keyboard-helper, four read-only planner, four actual headless CLI tests). Docs/manifests/offline printable-reference checker passes. CLI tests use new temporary fixture projects; no user project is opened.
-- Actual whole-disk boot: [vm-boot.json](evidence/vm-boot.json), [serial assertions](evidence/vm-serial.log), [console screenshot](evidence/vm-dashboard.png). QEMU TCG/q35, OVMF UEFI without Secure Boot, 512 MiB, 2 vCPUs, **no NIC**. Real tty1 application UID 1000, RSS **20,108 KiB**, wall **69.62 s** including timer and shutdown. Rebuilt against the current foundation source, with image/binary/source hashes in the VM record; the screenshot confirms the initial console-clear fix.
-- Guest verified actual dashboard, active-local polkit authorization, physical E key mapping to F under Colemak-DH, independent timeout rollback, committed config and boot-command reapplication. This is not physical hardware or a full cold-reboot/resume guarantee.
-- All four registered keymaps generated from maintained Debian XKB and validated as Unicode binary maps without changing the host layout.
+- Full offline Rust suites: **532 passed, 5 ignored** with default audio features; **532 passed, 4 ignored** without audio. These suites overlap, not 1,064 distinct tests. Core 248, TUI 230, system 10 and retained app/integration tests pass. Formatting and warning-denying workspace/all-target Clippy pass.
+- **42 new Rust tests since the foundation:** 28 dedicated second-editor UI cases, 12 core registry/workspace/editor cases and two shortcut-compatibility cases. Required layouts: 80×24, 100×30, 120×40 and 160×50, plus tiny-viewport fallback.
+- **22 Python tests passed, zero skipped:** 13 rootless keyboard-helper, four read-only installer-plan, four actual headless CLI, and one real-binary **unprivileged PTY** test with all four terminal-size subcases. That last test sends actual F11 escape input, bracketed paste, save/undo/redo in both editors, hide/show and normal quit; it checks both disk files and persisted document roles. HOME/projects are new isolated fixtures. The PTY shim answers the startup cursor query; this is not a physical keyboard or full terminal-emulator certification.
+- Shellcheck, Python syntax, docs/manifests/matrix parity, original tutorial/dictionary hashes, self-contained printable reference and diff checks pass. Ignored screenshot/performance/real-Piper-model tests are not passed.
 
-Machine-readable software results: [test-results.json](evidence/test-results.json). This file is updated only after new commands actually complete. Build logs under ignored `build/` are transient; small verification records under `docs/evidence/` are retained.
+Machine-readable results and source identity: [test-results.json](evidence/test-results.json). Logs under ignored `build/` are transient; small evidence under `docs/evidence/` is retained. `tools/check-writingdeck.py --require-current-evidence` rejects stale-source software/VM records.
 
-## Implemented scope
+## VM evidence
 
-- Preserved Grimoire v0.7.5 base `f3ca1e8f1cb09b714e71046e8ed991051793d33a` and its Markdown/YAML/autosave/history/conflict/recovery conventions.
-- Debian 13.7 amd64/kernel `6.12.113+deb13-amd64` staged VM image, direct non-root console start; no custom kernel, heavy DE or physical disk manipulation.
-- Typed Linux/simulated system interfaces, bounded fixed commands and off-thread/cached UI state; no app as root.
-- QWERTY, Colemak, Colemak-DH ANSI/ISO maps, helper-only privileged preview/commit and independent systemd rollback.
-- F12 dashboard with configurable existing-data widgets; F10 outline, strict Ctrl-D focus; persisted primary positions/widths/five named slots/custom clones; additive safe shortcut aliases.
-- Original 39-lesson catalog, **15 event-capable** baseline/foundation lessons, unavailable lessons explicitly disabled; exclusive safe demo, saved progress, replay/skip and offline help.
-- Read-only disk/account/timezone/encryption/layout planner with **no apply mode**.
-- Required documentation entry points, feature matrix, source/license manifests and self-contained printable reference. Machine inventory is not legal release approval.
+**M3b image rebuilt and actual whole-disk UEFI boot passed.** The new [VM record](evidence/vm-boot.json), [serial assertions](evidence/vm-serial.log) and [actual console screenshot](evidence/vm-dashboard.png) replace the historical foundation evidence. Runtime UID **1000**, process RSS **20,200 KiB**, wall **69.29 seconds** including the intentional rollback wait and shutdown. The screenshot was inspected: no stale login/splash text. Source fingerprint `a03f607b9ba589039a4de78584ec024945195c3d0a15175f982aa2c87fc6d5f5` (185 files) matches the software evidence and checked-out source; image and installed stripped-binary SHA-256 values are retained in the VM record. This is not a physical boot-speed, battery or memory benchmark.
+
+The VM profile is QEMU TCG/q35, OVMF UEFI with Secure Boot disabled, 512 MiB, two vCPUs, no NIC. Its probe checks actual tty1 dashboard/non-root UID, active-local narrow polkit eligibility, Colemak-DH physical E → logical F, independent systemd timeout rollback, committed configuration and boot-command reapplication. It does not send F11 editor keystrokes; that behavior is covered by Rust UI and compiled-binary PTY tests. It is not a full cold-reboot/suspend/hardware qualification.
+
+## Implemented and tested scope
+
+- Preserved upstream Grimoire v0.7.5 base `f3ca1e8f1cb09b714e71046e8ed991051793d33a`, Markdown/YAML, autosave/history/conflict/recovery and existing shortcuts.
+- Debian 13.7 amd64/kernel `6.12.113+deb13-amd64` staged VM image; direct non-root console start, no custom kernel/heavy desktop/physical-disk manipulation.
+- Typed Linux/simulated services, bounded fixed commands and cached off-thread UI state. Four registered QWERTY/Colemak/DH ANSI/ISO console maps with narrow preview/commit helper and independent rollback.
+- Existing-data configurable F12 home, F10 outline, strict Ctrl-D focus, additive aliases for nine actions.
+- **F11 independent editor:** distinct complete Editor contexts, separate cursor/selection/free scroll/undo and geometry; canonical/dev-inode ownership; already-open aliases focus their owner; shared original Project guarded saves and both-buffer recovery. Wide layouts split, narrow layouts stack; tiny/strict-focus layouts cannot focus hidden text.
+- **Schema-v2 dual workspaces:** both paths/positions/selections/scroll, active editor, visibility and ratio; custom clones, outline sizes; read-only v1 migration; unknown/corrupt/future/conflicting state preservation; newer upstream Primary resume precedence.
+- Inactive-buffer updates for whole-book replacement/undo, name fixes, external adoption and recovery; clean/dirty/ambiguous external rename handling; closure of both affected views on trash; failed saves and external identity changes retain buffers rather than silently replacing them. Registry ownership is **not** an OS lock or cross-process CAS.
+- Original 39-lesson catalog, **16 event-capable** lessons including actual demo secondary editing; 23 unavailable lessons remain disabled. Real-novel writing exercises are blocked; switching panes alone cannot satisfy an edit lesson. Saved replay/skip progress and searchable offline help are retained.
+- Read-only installation planner with **no apply mode**; all 17 required docs, feature/content/software inventories, retained notices and printable logical-shortcut reference. Inventory is not legal distribution clearance.
 
 ## Critical outstanding gates
 
-Production installer/LUKS/first-run/authentication/lock-before-suspend; signed boot/update/recovery and rollback; usable authenticated maintenance in a non-demo profile; true independent secondary editor; full pane presets/pins/journal/scratchpad/handoff; detailed edit/time/footnote accounting; November/goals/challenges/achievements; actual 1,000-option licensed Spark corpus; Harper/Nabokov/proselint/WordNet; continuity/annotations/variants; genuine bottom-page DOCX/PDF footnotes; verified off-device backup/Drive restore/mobile/Docs workflows; all 39 feature exercises; physical keyboard/Wi-Fi/suspend/battery and analyzer benchmarks.
+Production installer/LUKS/first-run/authentication/lock-before-suspend; custom layout registration/onboarding and remaining sound/clock/timezone controls; signed boot/update/recovery/rollback and authenticated maintenance; full content presets/sticky sidebar/pins/journal/scratchpad/handoff; detailed gross/net/deleted/time/footnote accounting; November calendar/advanced goals/challenges/achievements; actual 1,000-option licensed Spark corpus; Harper/Nabokov/proselint/WordNet; continuity/annotations/variants; genuine bottom-page DOCX/PDF footnotes; verified off-device/Drive restore/mobile/Docs workflows; all 39 complete feature exercises; physical keyboard/Wi-Fi/suspend/battery, full power-cut and analyzer performance qualification. Wi-Fi scan truncation/presentation and actual network enrollment are not fixed or qualified by M3b.
 
-**VM-only security warning:** tty1 autologin is passwordless, passwords locked, bootloader unsigned and acceptance probe automatically powers the guest off. Never install this demo onto a real laptop or treat it as a recovery-capable production image.
+**VM-only security warning:** tty1 autologin is passwordless, passwords locked, bootloader unsigned and acceptance probe powers the guest off. Never install this demo onto a real laptop or treat it as a recovery-capable production image.
 
 ## Next dependency order
 
-1. Preserve this passing foundation milestone and continue only in tested increments.
-2. Introduce a shared document registry and genuinely independent editable secondary buffer before pins/pane persistence.
-3. Build project-local pin/journal/edit-ledger services with continuous tutorial and safety tests.
-4. Populate licensed, checked corpus; implement local generators/calendar productivity; integrate analyzers; then long-form/export/sync.
-5. Advance production installer/security/update/hardware qualification in parallel without enabling unsafe defaults.
+1. Preserve M3b as a tested local milestone; no push or physical install is needed.
+2. Build M4 single-source Markdown pins and recoverable presentation/anchor state on this registry, then actual cards/sidebar, journal event/manual separation, scratchpad promotion and handoff. Add tutorial, restart, alias and failure tests with each real feature.
+3. Continue corpus/productivity/analyzers/long-form/export/backup in dependency order; do not confuse safe interfaces or research with finished features.
+4. Advance authenticated setup/lock/update/recovery and physical qualification in parallel, without enabling unsafe defaults or requesting credentials before a safe testable workflow exists.
 
-See [feature matrix](FEATURE_MATRIX.md), [roadmap](ROADMAP.md), [testing](TESTING.md) and [risks](RISKS.md). Statuses mean Existing / Planned / In progress / Implemented / Tested / Hardware verified / Blocked; no Hardware verified claim exists.
+See [feature matrix](FEATURE_MATRIX.md), [workspace behavior](WORKSPACES.md), [roadmap](ROADMAP.md), [testing](TESTING.md) and [risks](RISKS.md). Statuses mean Existing / Planned / In progress / Implemented / Tested / Hardware verified / Blocked; no Hardware verified claim exists.

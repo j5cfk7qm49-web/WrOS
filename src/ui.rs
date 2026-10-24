@@ -11,6 +11,7 @@ use crate::music::State as MusicState;
 use crate::scene::{self, Ink, Mode, Phase};
 use crate::theme::Theme;
 use grimoire_core::create::{self, New};
+use grimoire_core::documents::Pane;
 use grimoire_core::project::{Area, Kind};
 
 /// Wide enough that the scene's 28 columns fit inside the border.
@@ -26,6 +27,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     let t = app.theme.clone();
     app.screen = (f.area().width, f.area().height);
     app.check_focus_mode();
+    app.clear_view_rects();
 
     let [main, status] =
         Layout::vertical([Constraint::Min(3), Constraint::Length(1)]).areas(f.area());
@@ -49,27 +51,56 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         app.scene_visible = false;
         app.music_visible = false;
         if app.focus == Focus::Tree {
-            app.focus = Focus::Editor;
+            app.focus = app.editor_focus();
         }
         main
     };
 
-    // A note, or another scene, opened from the prose sits beside it, when
-    // there's room. Only one at a time.
-    app.side_room = !app.focus_mode && edit_area.width >= 70;
+    // Editable documents have independent contexts. Wide terminals put them
+    // side by side; 80x24 remains useful by stacking prose vertically. Hidden
+    // views retain their buffers but never receive Tab or mouse input.
+    let secondary =
+        !app.focus_mode && app.views.secondary_visible && app.view_open(Pane::Secondary).is_some();
+    app.views.secondary_room = secondary && (edit_area.width >= 72 || edit_area.height >= 12);
+    app.side_room = !app.focus_mode && !app.views.secondary_room && edit_area.width >= 70;
     app.rect_codex = Rect::default();
     app.rect_beside = Rect::default();
-    if app.side_room && (app.codex.is_some() || app.beside.is_some()) {
-        let [ed, side] =
-            Layout::horizontal([Constraint::Min(34), Constraint::Percentage(38)]).areas(edit_area);
-        draw_editor(f, app, ed, &t);
-        if app.codex.is_some() {
-            draw_codex(f, app, side, &t);
+    if app.views.secondary_room {
+        let percent = app.deck.state.current().secondary_percent;
+        let parts = if edit_area.width >= 72 {
+            Layout::horizontal([
+                Constraint::Percentage(100 - percent),
+                Constraint::Percentage(percent),
+            ])
+            .areas::<2>(edit_area)
         } else {
-            draw_beside(f, app, side, &t);
-        }
+            Layout::vertical([
+                Constraint::Percentage(100 - percent),
+                Constraint::Percentage(percent),
+            ])
+            .areas::<2>(edit_area)
+        };
+        app.with_editor_view(Pane::Primary, |app| draw_editor(f, app, parts[0], &t));
+        app.with_editor_view(Pane::Secondary, |app| draw_editor(f, app, parts[1], &t));
     } else {
-        draw_editor(f, app, edit_area, &t);
+        if app.focus == Focus::Secondary {
+            app.activate_editor(Pane::Primary);
+        }
+        if app.side_room && (app.codex.is_some() || app.beside.is_some()) {
+            let [ed, side] = Layout::horizontal([Constraint::Min(34), Constraint::Percentage(38)])
+                .areas(edit_area);
+            app.with_editor_view(Pane::Primary, |app| draw_editor(f, app, ed, &t));
+            if app.codex.is_some() {
+                draw_codex(f, app, side, &t);
+            } else {
+                draw_beside(f, app, side, &t);
+            }
+        } else {
+            app.with_editor_view(Pane::Primary, |app| draw_editor(f, app, edit_area, &t));
+        }
+    }
+    if matches!(app.focus, Focus::Codex | Focus::Beside) && !app.side_room {
+        app.activate_editor(Pane::Primary);
     }
     draw_status(f, app, status, &t);
 
@@ -870,8 +901,11 @@ fn draw_music(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
 }
 
 fn draw_editor(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
-    let focused = app.focus == Focus::Editor;
+    let focused = app.view_is_focused();
     let mut title = app.open_title();
+    if app.views.active == Pane::Secondary {
+        title = format!("Secondary · {title}");
+    }
     if let Some((words, target)) = app.scene_target() {
         title = format!("{title} · {} / {}", thousands(words), thousands(target));
     }

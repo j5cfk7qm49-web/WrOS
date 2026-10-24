@@ -49,7 +49,7 @@ impl App {
             Key::Up => self.find_step(&q, false, None),
             Key::Esc => {
                 self.overlay = Overlay::None;
-                self.focus = Focus::Editor;
+                self.focus = self.editor_focus();
             }
             _ => {}
         }

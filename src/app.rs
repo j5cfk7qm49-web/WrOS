@@ -16,6 +16,7 @@ use crate::visualizer::Visualizer;
 use grimoire_core::codex;
 use grimoire_core::cork;
 use grimoire_core::create::{self, New, Plan};
+use grimoire_core::documents::{Assignment, Pane};
 use grimoire_core::editor::{self, Editor};
 use grimoire_core::export;
 use grimoire_core::history;
@@ -29,6 +30,7 @@ use grimoire_core::settings::Settings;
 use grimoire_core::spell;
 
 mod aids;
+pub(crate) mod documents;
 pub(crate) mod overlays;
 pub(crate) mod writingdeck;
 pub use aids::{MarkRow, Sprint, filter_marks as aids_filter};
@@ -68,6 +70,8 @@ pub enum SaveState {
 pub enum Focus {
     Tree,
     Editor,
+    /// Independent editable secondary document.
+    Secondary,
     /// The note open beside the scene.
     Codex,
     /// Another scene, read-only, beside the one being written.
@@ -162,6 +166,7 @@ type PdfJob = (
 
 pub struct App {
     pub deck: writingdeck::Deck,
+    pub views: documents::Views,
     pub project: Project,
     pub visible: Vec<usize>,
     pub parents: Vec<Option<usize>>,
@@ -267,6 +272,8 @@ pub struct App {
     /// Where the cursor was at the last draw, so the view only follows it
     /// when it moves (and a wheel scroll isn't undone).
     last_caret: Option<(usize, usize, usize, usize, usize, bool)>,
+    /// Per-view wheel/restore scrolling stays independent of the caret.
+    manual_scroll: bool,
     /// The last place written to resume.md, so it's only rewritten on a move.
     last_resume: Option<(PathBuf, usize)>,
     /// Session history is on for this book (checked once at launch).
@@ -715,6 +722,7 @@ impl App {
     /// with `background` off no threads started — how the tests build one.
     pub fn with(mut project: Project, setup: Setup) -> Result<Self> {
         let deck = writingdeck::Deck::load(&project.root, setup.background);
+        let views = documents::Views::new(&project.root)?;
         let parents = project.parents();
         // A book no one has opened yet: no day's baseline, nowhere to resume,
         // no words. It opens on the Novel Format guide instead of an empty
@@ -761,6 +769,7 @@ impl App {
 
         Ok(Self {
             deck,
+            views,
             project,
             visible,
             parents,
@@ -822,6 +831,7 @@ impl App {
             rect_prose: Rect::default(),
             side_room: true,
             last_caret: None,
+            manual_scroll: false,
             last_resume: None,
             sessions_on: false,
             backup_rx: None,
@@ -875,6 +885,9 @@ impl App {
             }
             app.resume_where_left();
             app.note_where_it_syncs(setup.background);
+            if let Err(e) = app.ensure_document_claims() {
+                app.msg = format!("document identity warning: {e}; no unsafe save will be attempted");
+            }
             app.init_writingdeck(setup.background);
             // Say what couldn't be read, once, so an empty row isn't a mystery.
             let unreadable = app
@@ -956,6 +969,7 @@ impl App {
             7 => self.open_player(),
             8 => self.spelling(),
             10 => self.toggle_outline(),
+            11 => self.toggle_secondary(),
             12 => self.open_dashboard(),
             _ => {}
         }
@@ -982,11 +996,31 @@ impl App {
 
     /// Push editor contents back into the open node.
     pub fn flush(&mut self) {
+        self.flush_active_editor();
+        if let Some(other) = &self.views.other
+            && let Some(i) = other.open
+        {
+            let text = other.editor.text();
+            if text != self.project.nodes[i].body {
+                self.project.nodes[i].body = text;
+                self.mark_changed(i);
+            }
+        }
+    }
+    fn flush_active_editor(&mut self) {
         if let Some(i) = self.open {
             let text = self.editor.text();
             if text != self.project.nodes[i].body {
                 self.project.nodes[i].body = text;
                 self.mark_changed(i);
+                self.last_caret = None;
+                self.manual_scroll = false;
+                if !self.project.nodes[i].read_only && self.focus.is_editor() {
+                    self.observe_deck(grimoire_core::tutorial::Event::TextEdited);
+                    if self.views.active == Pane::Secondary {
+                        self.observe_deck(grimoire_core::tutorial::Event::SecondaryEdited);
+                    }
+                }
                 // Typed since: Ctrl-Z is about this scene again.
                 self.replace_undoable = false;
                 self.replace_redoable = false;
@@ -1036,6 +1070,47 @@ impl App {
 
     fn open_scene(&mut self, idx: usize) {
         self.flush();
+        if let Err(e) = self.ensure_document_claims() {
+            self.rescue();
+            self.save_state = SaveState::Failed(e.to_string());
+            self.msg = format!("cannot replace either editor: {e}; both buffers kept");
+            return;
+        }
+        let path = self.project.nodes[idx].path.clone();
+        if self.view_open(Pane::Secondary) == Some(idx) {
+            self.views.secondary_visible = true;
+            self.activate_editor(Pane::Secondary);
+            self.msg =
+                "already open in the independent editor · no duplicate buffer created".into();
+            return;
+        }
+        if let Ok(relative) = path.strip_prefix(&self.project.root) {
+            match self.views.registry.owner_for(relative) {
+                Ok(Some(Pane::Primary)) => {
+                    self.activate_editor(Pane::Primary);
+                    self.msg =
+                        "already open in the primary editor · selection and undo retained".into();
+                    return;
+                }
+                Ok(Some(Pane::Secondary)) => {
+                    self.views.secondary_visible = true;
+                    self.activate_editor(Pane::Secondary);
+                    self.msg =
+                        "already open in the independent editor · no duplicate buffer created"
+                            .into();
+                    return;
+                }
+                Err(e)
+                    if !self.project.nodes[idx].read_only
+                        && !self.project.nodes[idx].never_read() =>
+                {
+                    self.msg = format!("can't verify document: {e}");
+                    return;
+                }
+                _ => {}
+            }
+        }
+        self.activate_editor(Pane::Primary);
         // Always the file as it is now: something else may have written it
         // since the book was read.
         match self.project.check_disk(idx, true) {
@@ -1045,6 +1120,27 @@ impl App {
             }
             Ok(change) => self.take_disk_change(idx, change),
             Err(_) => {}
+        }
+        if !self.project.nodes[idx].read_only && !self.project.nodes[idx].never_read() {
+            let relative = path.strip_prefix(&self.project.root).unwrap();
+            match self.views.registry.assign(Pane::Primary, relative) {
+                Ok(Assignment::Assigned) => {}
+                Ok(Assignment::OwnedBy(_)) => {
+                    self.msg = "that file already has an editor".into();
+                    return;
+                }
+                Err(e) => {
+                    self.msg = format!("can't verify document: {e}");
+                    return;
+                }
+            }
+        } else {
+            self.views.registry.release(Pane::Primary);
+            // Read-only viewing remains available even when identity cannot
+            // be verified; no write path is enabled by this best-effort claim.
+            if let Ok(relative) = path.strip_prefix(&self.project.root) {
+                let _ = self.views.registry.assign(Pane::Primary, relative);
+            }
         }
         self.save_resume(false);
         // Park this scene's undo so coming back to it still undoes.
@@ -1057,7 +1153,7 @@ impl App {
             self.editor.set_history(h);
         }
         self.open = Some(idx);
-        self.focus = Focus::Editor;
+        self.focus = self.editor_focus();
         self.msg.clear();
     }
 
@@ -1081,6 +1177,13 @@ impl App {
     pub fn commit_saves(&mut self) -> bool {
         self.flush();
         self.last_attempt = Some(Instant::now());
+        if let Err(e) = self.ensure_document_claims() {
+            self.rescue();
+            self.save_state = SaveState::Failed(e.to_string());
+            self.msg =
+                format!("saving paused: {e}. Both buffers retained; recovery copies attempted.");
+            return false;
+        }
         let root = self.project.root.clone();
         let dirty: Vec<usize> = (0..self.project.nodes.len())
             .filter(|&i| self.project.nodes[i].dirty && self.project.nodes[i].kind == Kind::Scene)
@@ -1278,6 +1381,14 @@ impl App {
         if due {
             self.last_disk_check = Some(Instant::now());
             self.flush();
+            if let Err(e) = self.ensure_document_claims() {
+                self.rescue();
+                self.save_state = SaveState::Failed(e.to_string());
+                self.last_attempt = Some(Instant::now());
+                self.msg =
+                    format!("document identity changed: {e}. Both buffers kept; reloading paused.");
+                return;
+            }
             let mut notes_changed = false;
             for i in 0..self.project.nodes.len() {
                 let before = self.project.total_words();
@@ -1308,7 +1419,8 @@ impl App {
     /// Say what a change on disk meant, and show it if it's the open scene.
     fn take_disk_change(&mut self, i: usize, change: DiskChange) {
         let title = self.project.nodes[i].title.clone();
-        let open = self.open == Some(i);
+        let open =
+            self.open == Some(i) || self.views.other.as_ref().is_some_and(|v| v.open == Some(i));
         let name = |p: &Path| {
             p.file_stem()
                 .map(|s| s.to_string_lossy().to_string())
@@ -1318,8 +1430,7 @@ impl App {
             DiskChange::Same => {}
             DiskChange::Adopted => {
                 if open {
-                    let body = self.project.nodes[i].body.clone();
-                    self.editor.set_text(&body);
+                    self.update_document_editor(i);
                     let m = self.mod_label();
                     self.msg = format!(
                         "{title} was changed outside Grimoire — showing that version ({m}Z goes back)"
@@ -1328,8 +1439,7 @@ impl App {
             }
             DiskChange::Parked(copy) => {
                 if open {
-                    let body = self.project.nodes[i].body.clone();
-                    self.editor.set_text(&body);
+                    self.update_document_editor(i);
                 }
                 self.msg = format!(
                     "{title} was changed elsewhere while you were writing — that version is the scene now, and yours is beside it as “{}”",
@@ -1360,8 +1470,7 @@ impl App {
             }
             DiskChange::Available => {
                 if open {
-                    let body = self.project.nodes[i].body.clone();
-                    self.editor.set_text(&body);
+                    self.update_document_editor(i);
                     self.msg = format!("{title} can be read again");
                 }
             }
@@ -1377,14 +1486,21 @@ impl App {
         if !self.may_retry() || self.reload_failed.is_some_and(|t| t.elapsed() < RETRY) {
             return;
         }
-        if !self.commit_saves() {
+        if !self.commit_saves() || self.project.dirty_count() != 0 {
+            // Waiting is not failure, but it is NOT permission to detach a
+            // dirty missing/unreadable document. A later disk check parks it.
             return;
         }
         self.tree_stale = false;
-        let open_was = self.open.map(|i| {
+        let open_was = [Pane::Primary, Pane::Secondary].map(|pane| {
             (
-                self.project.nodes[i].path.clone(),
-                self.project.nodes[i].seen,
+                pane,
+                self.view_open(pane).map(|i| {
+                    (
+                        self.project.nodes[i].path.clone(),
+                        self.project.nodes[i].seen,
+                    )
+                }),
             )
         });
         if let Err(e) = self.reload_tree() {
@@ -1394,36 +1510,72 @@ impl App {
             return;
         }
         self.reload_failed = None;
-        let Some((path, seen)) = open_was else {
-            return;
-        };
-        if self.open.is_some() {
-            return;
-        }
-        // The open scene went. If the same words turn up somewhere else, it
-        // was moved or renamed there: follow it.
-        let moved = seen.and_then(|fp| {
-            self.project
-                .nodes
-                .iter()
-                .position(|n| n.kind == Kind::Scene && !n.parked && n.seen == Some(fp))
-        });
-        match moved {
-            Some(j) => {
-                self.open = Some(j);
-                self.reveal(j);
+        for (pane, before) in open_was {
+            let Some((path, seen)) = before else {
+                continue;
+            };
+            if self.view_open(pane).is_some() {
+                continue;
+            }
+            // A unique, unchanged fingerprint can follow an external rename.
+            // Never guess between identical copies, use a parked/trash copy,
+            // or attach two views to a document already owned by the other.
+            let matches: Vec<usize> = seen
+                .map(|fp| {
+                    self.project
+                        .nodes
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(j, n)| {
+                            (n.kind == Kind::Scene
+                                && !n.parked
+                                && !self.project.in_trash(j)
+                                && n.seen == Some(fp))
+                            .then_some(j)
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            if let [j] = matches.as_slice()
+                && self.view_open(pane.other()) != Some(*j)
+            {
+                let j = *j;
+                self.with_editor_view(pane, |app| {
+                    app.open = Some(j);
+                    if app.editor.text() != app.project.nodes[j].body {
+                        // Dirty old-path text was already parked by check_disk.
+                        // Adopt the moved disk version, never reflush stale text.
+                        app.editor.set_text(&app.project.nodes[j].body);
+                    }
+                });
+                if self.views.active == pane {
+                    self.reveal(j);
+                }
                 self.msg = format!(
                     "{} was moved outside Grimoire — followed it",
                     self.project.nodes[j].title
                 );
-            }
-            None => {
+            } else {
                 self.undo_stash.remove(&path);
-                self.editor = Editor::from_text("");
-                if self.focus == Focus::Editor {
+                self.with_editor_view(pane, |app| {
+                    app.open = None;
+                    app.editor = Editor::from_text("");
+                });
+                if pane == Pane::Secondary {
+                    self.views.secondary_visible = false;
+                }
+                if self.focus.pane() == Some(pane) {
                     self.focus = Focus::Tree;
                 }
             }
+        }
+        if self.view_open(Pane::Secondary).is_none() {
+            self.swap_editor_context(Pane::Primary);
+        }
+        if let Err(e) = self.ensure_document_claims() {
+            self.rescue();
+            self.save_state = SaveState::Failed(e.to_string());
+            self.msg = format!("reloaded, but saving paused: {e}; both buffers kept");
         }
     }
 
@@ -1462,7 +1614,7 @@ impl App {
     // ---- undo, cut and paste -------------------------------------------
 
     pub fn undo(&mut self) {
-        if self.focus != Focus::Editor || self.open.is_none() || self.replace_undoable {
+        if !self.focus.is_editor() || self.open.is_none() || self.replace_undoable {
             self.tree_step(true);
             return;
         }
@@ -1474,7 +1626,7 @@ impl App {
     }
 
     pub fn redo(&mut self) {
-        if self.focus != Focus::Editor || self.open.is_none() || self.replace_redoable {
+        if !self.focus.is_editor() || self.open.is_none() || self.replace_redoable {
             self.tree_step(false);
             return;
         }
@@ -1486,7 +1638,7 @@ impl App {
     }
 
     pub fn cut(&mut self) {
-        if self.focus != Focus::Editor || self.open.is_none() {
+        if !self.focus.is_editor() || self.open.is_none() {
             return;
         }
         match self.editor.selected_text() {
@@ -1507,7 +1659,7 @@ impl App {
     /// Ctrl-V: what's on the computer's clipboard, or failing that what
     /// was last copied here.
     pub fn paste_clipboard(&mut self) {
-        if self.focus != Focus::Editor || self.open.is_none() {
+        if !self.focus.is_editor() || self.open.is_none() {
             self.msg = "open a scene and click into it to paste".into();
             return;
         }
@@ -1595,7 +1747,7 @@ impl App {
 
     /// Ctrl-A: the whole scene.
     pub fn select_all(&mut self) {
-        if self.focus == Focus::Editor && self.open.is_some() {
+        if self.focus.is_editor() && self.open.is_some() {
             self.editor.select_all();
             let words = self
                 .editor
@@ -1613,7 +1765,7 @@ impl App {
     /// Italics (`*`) or bold (`**`) on the selection or the word at the
     /// cursor, or off again.
     pub fn emphasis(&mut self, mark: &str) {
-        if self.focus != Focus::Editor || self.open.is_none() {
+        if !self.focus.is_editor() || self.open.is_none() {
             self.msg = "open a scene and select some words first".into();
             return;
         }
@@ -1677,11 +1829,10 @@ impl App {
 
     /// Text pasted into the terminal arrives in one piece.
     pub fn paste(&mut self, text: &str) {
-        if self.focus != Focus::Editor || self.open.is_none() {
+        if !self.focus.is_editor() || self.open.is_none() {
             return;
         }
-        self.editor.delete_selection();
-        self.editor.insert_str(text);
+        self.editor.replace_selection_with(text);
         self.flush();
     }
 
@@ -1713,7 +1864,7 @@ impl App {
     /// Tree actions act on the tree's selection. From the editor, that should
     /// be the scene you're writing, not wherever the tree was left.
     fn select_open_scene(&mut self) {
-        if self.focus == Focus::Editor
+        if self.focus.is_editor()
             && let Some(i) = self.open
         {
             self.reveal(i);
@@ -1837,6 +1988,13 @@ impl App {
                 self.overlay = Overlay::Deck(writingdeck::Page::Tutorial { sel: 0 })
             }
             Action::ToggleOutline => self.toggle_outline(),
+            Action::ToggleSecondary => self.toggle_secondary(),
+            Action::SecondaryPicker => self.open_secondary_picker(),
+            Action::EditSecondary(path) => {
+                if let Some(i) = self.project.nodes.iter().position(|n| n.path == path) {
+                    self.open_secondary_node(i);
+                }
+            }
             Action::BesidePicker => self.open_beside_picker(),
             Action::Beside(path) => {
                 if let Some(i) = self.project.nodes.iter().position(|n| n.path == path) {
@@ -1902,7 +2060,7 @@ impl App {
             return;
         };
         self.flush();
-        self.focus = Focus::Editor;
+        self.focus = self.editor_focus();
         let query = self
             .editor
             .selected_text()
@@ -1992,8 +2150,7 @@ impl App {
             search::matches_with(&t, query, self.find_opts) == vec![(0, t.chars().count())]
         });
         if is_match {
-            self.editor.delete_selection();
-            self.editor.insert_str(with);
+            self.editor.replace_selection_with(with);
             self.flush();
         }
         self.find_step(query, true, None);
@@ -2100,7 +2257,7 @@ impl App {
         if self.open != Some(i) {
             self.open_scene(i);
         }
-        self.focus = Focus::Editor;
+        self.focus = self.editor_focus();
         self.editor.select((line, start), (line, end));
     }
 
@@ -2124,10 +2281,8 @@ impl App {
             // Every scene's version from before goes into its history.
             let path = self.project.nodes[i].path.clone();
             let _ = history::snapshot(&root, &path, &self.project.nodes[i].file_text(), None);
-            if self.open == Some(i) {
-                self.editor.set_text(&text);
-            }
             self.project.nodes[i].body = text.clone();
+            self.update_document_editor(i);
             self.mark_changed(i);
             changed.push((path, before, text));
             total += n;
@@ -2218,17 +2373,20 @@ impl App {
                 skipped += 1;
                 continue;
             }
-            if self.open == Some(i) {
-                // The editor holds the replace as a step of its own: step
-                // through it, so its undo and redo stay in order.
-                let stepped = if back {
-                    self.editor.undo()
-                } else {
-                    self.editor.redo()
-                };
-                if !stepped || &self.editor.text() != to {
-                    self.editor.set_text(to);
-                }
+            if let Some(pane) = [Pane::Primary, Pane::Secondary]
+                .into_iter()
+                .find(|&p| self.view_open(p) == Some(i))
+            {
+                self.with_editor_view(pane, |app| {
+                    let stepped = if back {
+                        app.editor.undo()
+                    } else {
+                        app.editor.redo()
+                    };
+                    if !stepped || &app.editor.text() != to {
+                        app.editor.set_text(to);
+                    }
+                });
             }
             self.project.nodes[i].body = to.clone();
             self.mark_changed(i);
@@ -2684,7 +2842,7 @@ impl App {
         self.editor = Editor::from_text(&self.project.nodes[i].body);
         self.open = Some(i);
         self.editor.place(r.line, r.column);
-        self.focus = Focus::Editor;
+        self.focus = self.editor_focus();
         self.last_resume = Some((scene, r.line));
         let place = self.parents[i]
             .map(|p| search::place_of(&self.project, &self.parents, p))
@@ -2714,6 +2872,9 @@ impl App {
     /// Record where the cursor is, if it has moved to another paragraph or
     /// scene since the last time (or always, when leaving).
     fn save_resume(&mut self, force: bool) {
+        self.with_editor_view(Pane::Primary, |app| app.save_primary_resume(force));
+    }
+    fn save_primary_resume(&mut self, force: bool) {
         let Some(i) = self.open else { return };
         let n = &self.project.nodes[i];
         if !n.in_manuscript && !n.front_matter {
@@ -2899,6 +3060,7 @@ impl App {
         // Ctrl-O again, on the same name or on none, puts the note away.
         let showing = self.codex.as_ref().map(|c| c.entry.note.clone());
         if showing.is_some()
+            && self.side_room
             && entry.is_none_or(|i| Some(&self.codex_index[i].note) == showing.as_ref())
         {
             self.close_codex();
@@ -2920,6 +3082,9 @@ impl App {
             appears.len(),
             if appears.len() == 1 { "" } else { "s" }
         );
+        if self.views.secondary_visible {
+            self.hide_secondary();
+        }
         self.close_beside();
         self.codex = Some(CodexPane {
             entry: e,
@@ -2931,7 +3096,7 @@ impl App {
 
     pub fn on_codex_key(&mut self, key: Key) {
         let Some(pane) = &mut self.codex else {
-            self.focus = Focus::Editor;
+            self.focus = self.editor_focus();
             return;
         };
         match key {
@@ -3001,7 +3166,7 @@ impl App {
         let Some(text) = self.editor.lines.get(line) else {
             return Vec::new();
         };
-        let typing = self.focus == Focus::Editor && self.editor.cy == line;
+        let typing = self.view_is_focused() && self.editor.cy == line;
         s.misspellings(text)
             .into_iter()
             .filter(|&(a, b)| !(typing && self.editor.cx >= a && self.editor.cx <= b))
@@ -3019,7 +3184,7 @@ impl App {
             self.msg = "the dictionary is still loading".into();
             return;
         };
-        self.focus = Focus::Editor;
+        self.focus = self.editor_focus();
         let (cy, cx) = (self.editor.cy, self.editor.cx);
         // Notes and TKs are the writer's own shorthand, not prose to correct.
         let marks = grimoire_core::notes::line_spans(&self.editor.lines);
@@ -3164,10 +3329,8 @@ impl App {
             }
             let path = n.path.clone();
             let _ = history::snapshot(&root, &path, &n.file_text(), None);
-            if self.open == Some(i) {
-                self.editor.set_text(&text);
-            }
             self.project.nodes[i].body = text;
+            self.update_document_editor(i);
             self.mark_changed(i);
             total += count;
         }
@@ -3182,7 +3345,7 @@ impl App {
 
     pub fn open_history(&mut self) {
         let idx = match self.focus {
-            Focus::Editor => self.open,
+            Focus::Editor | Focus::Secondary => self.open,
             _ => self.visible.get(self.sel).copied(),
         };
         let Some(idx) = idx.filter(|&i| self.project.nodes[i].kind == Kind::Scene) else {
@@ -3211,18 +3374,32 @@ impl App {
         let Some(idx) = self.project.nodes.iter().position(|n| n.path == scene) else {
             return;
         };
-        // What's there now goes into history first, so restoring is undoable
-        // from the history list as well as with Ctrl-Z.
-        let _ = history::snapshot(&root, scene, &self.project.nodes[idx].file_text(), None);
-        let (front, body) = grimoire_core::project::split_frontmatter(text);
+        self.flush();
+        if self.project.nodes[idx].read_only || self.project.nodes[idx].never_read() {
+            self.refuse_read_only(idx);
+            return;
+        }
         if self.open != Some(idx) {
             self.open_scene(idx);
         }
+        if self.open != Some(idx) {
+            self.msg =
+                "restore cancelled: the intended document could not be opened; no buffer replaced"
+                    .into();
+            return;
+        }
+        if self.project.nodes[idx].read_only || self.project.nodes[idx].never_read() {
+            self.refuse_read_only(idx);
+            return;
+        }
+        // Snapshot only the document that was actually opened and checked.
+        let _ = history::snapshot(&root, scene, &self.project.nodes[idx].file_text(), None);
+        let (front, body) = grimoire_core::project::split_frontmatter(text);
         self.project.nodes[idx].front = front;
         self.editor.set_text(&body);
         self.flush();
         self.mark_changed(idx);
-        self.focus = Focus::Editor;
+        self.focus = self.editor_focus();
         self.msg = "restored — Ctrl-Z undoes it".into();
     }
 
@@ -3441,15 +3618,7 @@ impl App {
             return;
         }
         let root = self.project.root.clone();
-        // Close the editor if what's going is the scene it's showing, or holds it.
-        let open_path = self.open.map(|i| self.project.nodes[i].path.clone());
-        if let Some(open) = open_path.filter(|p| p.starts_with(&path)) {
-            // Its undo goes with it, so Ctrl-Z on the delete brings that back too.
-            self.undo_stash.insert(open, self.editor.take_history());
-            self.open = None;
-            self.editor = Editor::from_text("");
-            self.focus = Focus::Tree;
-        }
+        self.close_document_views_under(&path);
         let done = if permanent {
             project::destroy(&path).map(|_| {
                 self.undo_stash.retain(|p, _| !p.starts_with(&path));
@@ -3571,6 +3740,12 @@ impl App {
             .map(|n| (n.path.clone(), n.expanded))
             .collect();
         let open_path = self.open.map(|i| self.project.nodes[i].path.clone());
+        let other_path = self
+            .views
+            .other
+            .as_ref()
+            .and_then(|v| v.open)
+            .map(|i| self.project.nodes[i].path.clone());
         let root = self.project.root.clone();
         let stranded = project::restore_stranded(&root);
         if !stranded.is_empty() {
@@ -3584,6 +3759,10 @@ impl App {
         }
         self.parents = self.project.parents();
         self.open = open_path.and_then(|p| self.project.nodes.iter().position(|n| n.path == p));
+        if let Some(other) = &mut self.views.other {
+            other.open =
+                other_path.and_then(|p| self.project.nodes.iter().position(|n| n.path == p));
+        }
         for old in unsaved {
             match self.project.nodes.iter().position(|n| n.path == old.path) {
                 Some(i) => {
@@ -3611,9 +3790,16 @@ impl App {
             let body = self.project.nodes[i].body.clone();
             self.editor.set_text(&body);
         }
+        // Unsaved node bodies may have been carried across the reload.
+        if let Some(other) = &mut self.views.other
+            && let Some(i) = other.open
+            && other.editor.text() != self.project.nodes[i].body
+        {
+            other.editor.set_text(&self.project.nodes[i].body);
+        }
         self.refresh_visible();
         self.refresh_names();
-        Ok(())
+        self.ensure_document_claims()
     }
 
     /// Said when [`project::restore_stranded`] brought something back.
@@ -3654,7 +3840,7 @@ impl App {
     pub fn open_cork(&mut self) {
         self.flush();
         let at = match self.focus {
-            Focus::Editor => self.open,
+            Focus::Editor | Focus::Secondary => self.open,
             _ => self.visible.get(self.sel).copied().or(self.open),
         };
         let parts = cork::parts(&self.project);
@@ -3916,16 +4102,10 @@ impl App {
     /// If a move sends the open scene (or what holds it) to the trash, close it.
     fn close_if_trashed(&mut self, batch: &[(PathBuf, PathBuf)]) {
         let bin = project::trash_dir(&self.project.root);
-        let Some(open) = self.open.map(|i| self.project.nodes[i].path.clone()) else {
-            return;
-        };
-        if batch
-            .iter()
-            .any(|(from, to)| to.starts_with(&bin) && open.starts_with(from))
-        {
-            self.open = None;
-            self.editor = Editor::from_text("");
-            self.focus = Focus::Tree;
+        for (from, to) in batch {
+            if to.starts_with(&bin) {
+                self.close_document_views_under(from);
+            }
         }
     }
 
@@ -4246,7 +4426,13 @@ impl App {
         match f {
             // Focus mode hides the tree; Tab mustn't land somewhere unseen.
             Focus::Tree => !self.focus_mode && self.deck.state.current().outline,
-            Focus::Editor => self.open.is_some(),
+            Focus::Editor => self.view_open(Pane::Primary).is_some(),
+            Focus::Secondary => {
+                !self.focus_mode
+                    && self.views.secondary_visible
+                    && self.views.secondary_room
+                    && self.view_open(Pane::Secondary).is_some()
+            }
             Focus::Codex => !self.focus_mode && self.codex.is_some() && self.side_room,
             Focus::Beside => !self.focus_mode && self.beside.is_some() && self.side_room,
             Focus::Clearing => self.scene_visible,
@@ -4256,9 +4442,10 @@ impl App {
 
     /// Tab through every pane that is actually on screen.
     pub fn cycle_focus(&mut self, forward: bool) {
-        const ORDER: [Focus; 6] = [
+        const ORDER: [Focus; 7] = [
             Focus::Tree,
             Focus::Editor,
+            Focus::Secondary,
             Focus::Codex,
             Focus::Beside,
             Focus::Clearing,
@@ -4272,10 +4459,14 @@ impl App {
                 (cur + ORDER.len() - step) % ORDER.len()
             };
             if self.focusable(ORDER[i]) {
-                if self.focus == Focus::Editor {
+                if self.focus.is_editor() {
                     self.flush();
                 }
-                self.focus = ORDER[i];
+                if let Some(pane) = ORDER[i].pane() {
+                    self.activate_editor(pane);
+                } else {
+                    self.focus = ORDER[i];
+                }
                 return;
             }
         }
@@ -4361,6 +4552,9 @@ impl App {
         if !matches!(self.overlay, Overlay::None | Overlay::Spelling { .. }) {
             return;
         }
+        if let Some(pane) = self.editor_at(x, y) {
+            self.activate_editor(pane);
+        }
         let clicked = self
             .create_hits
             .iter()
@@ -4372,19 +4566,19 @@ impl App {
             .find(|(r, _)| hit(*r, x, y))
             .map(|&(_, m)| m);
         if let Some(mode) = view {
-            if self.focus == Focus::Editor {
+            if self.focus.is_editor() {
                 self.flush();
             }
             self.focus = Focus::Clearing;
             self.pane_mode = mode;
         } else if let Some(want) = clicked {
-            if self.focus == Focus::Editor {
+            if self.focus.is_editor() {
                 self.flush();
             }
             self.focus = Focus::Tree;
             self.start_create(want);
         } else if hit(self.rect_tree, x, y) {
-            if self.focus == Focus::Editor {
+            if self.focus.is_editor() {
                 self.flush();
             }
             self.focus = Focus::Tree;
@@ -4423,7 +4617,7 @@ impl App {
         } else if hit(self.rect_prose, x, y) && self.open.is_some() {
             // Anywhere in the pane counts; the margins either side of the
             // column land at the nearest end of the line.
-            self.focus = Focus::Editor;
+            self.focus = self.editor_focus();
             let r = self.rect_editor;
             let cx = x.clamp(r.x, r.x + r.width.saturating_sub(1));
             let cy = y.clamp(r.y, r.y + r.height.saturating_sub(1));
@@ -4456,13 +4650,13 @@ impl App {
             // A misspelt word under the click offers its fixes right there.
             self.offer_spelling_at_caret();
         } else if hit(self.rect_scene, x, y) {
-            if self.focus == Focus::Editor {
+            if self.focus.is_editor() {
                 self.flush();
             }
             self.focus = Focus::Clearing;
             self.pomo.toggle();
         } else if hit(self.rect_music, x, y) {
-            if self.focus == Focus::Editor {
+            if self.focus.is_editor() {
                 self.flush();
             }
             self.focus = Focus::Music;
@@ -4476,7 +4670,7 @@ impl App {
         if matches!(self.overlay, Overlay::Spelling { .. }) {
             self.overlay = Overlay::None;
         }
-        if hit(self.rect_prose, x, y) && self.open.is_some() {
+        if self.editor_at(x, y).is_some() {
             self.on_click(x, y);
         }
     }
@@ -4492,7 +4686,7 @@ impl App {
             self.tree_drag = Some((from, row));
             return;
         }
-        if self.focus != Focus::Editor || self.open.is_none() {
+        if !self.focus.is_editor() || self.open.is_none() {
             return;
         }
         let r = self.rect_editor;
@@ -4542,6 +4736,10 @@ impl App {
             if !matches!(self.overlay, Overlay::Spelling { .. } | Overlay::Reading) {
                 self.on_overlay_key(if down { Key::Down } else { Key::Up });
             }
+            return;
+        }
+        if let Some(pane) = self.editor_at(x, y) {
+            self.scroll_editor_view(pane, down, STEP);
             return;
         }
         if hit(self.rect_tree, x, y) {
@@ -4685,6 +4883,11 @@ impl App {
                 (row("Reset the timer", "(F3)"), Action::TimerReset),
                 ("Read aloud".into(), Action::ReadAloud),
                 (row("Music player…", "(F7)"), Action::MusicPlayer),
+                (
+                    row("Editable secondary pane", "(F11)"),
+                    Action::ToggleSecondary,
+                ),
+                ("Choose secondary document…".into(), Action::SecondaryPicker),
             ],
             Sub::Settings => vec![
                 ("System settings…".into(), Action::SystemSettings),
@@ -4754,11 +4957,11 @@ impl App {
     /// has focus — so a second Esc opens it. Closing the menu leaves you in
     /// the pane you were in.
     pub fn escape(&mut self) {
-        if self.focus == Focus::Editor && self.editor.has_selection() {
+        if self.focus.is_editor() && self.editor.has_selection() {
             self.editor.clear_selection();
-        } else if !self.focus_mode && self.codex.is_some() {
+        } else if !self.focus_mode && self.side_room && self.codex.is_some() {
             self.close_codex();
-        } else if !self.focus_mode && self.beside.is_some() {
+        } else if !self.focus_mode && self.side_room && self.beside.is_some() {
             self.close_beside();
         } else {
             self.open_menu();
@@ -4775,12 +4978,15 @@ impl App {
             self.save_deck();
             return;
         }
+        self.activate_editor(Pane::Primary);
         if self.open.is_none() {
             self.msg = "open a scene first — focus mode is for writing one".into();
             return;
         }
         self.focus_mode = true;
-        self.focus = Focus::Editor;
+        self.manual_scroll = false;
+        self.last_caret = None;
+        self.focus = self.editor_focus();
         self.observe_deck(grimoire_core::tutorial::Event::FocusEntered);
         // Short, so the hint beside it (which names the way out) fits.
         self.msg = "focus mode".into();
@@ -4826,6 +5032,15 @@ impl App {
     }
 
     fn show_beside(&mut self, i: usize) {
+        if self.views.secondary_visible {
+            self.hide_secondary();
+            let outline = if self.deck.state.current().outline {
+                self.deck.state.current().outline_width
+            } else {
+                0
+            };
+            self.side_room = !self.focus_mode && self.screen.0.saturating_sub(outline) >= 70;
+        }
         let node = &self.project.nodes[i];
         if node.kind != Kind::Scene {
             self.msg = "pick a scene to show beside this one".into();
@@ -4868,7 +5083,7 @@ impl App {
 
     pub fn on_beside_key(&mut self, key: Key) {
         let Some(pane) = &mut self.beside else {
-            self.focus = Focus::Editor;
+            self.focus = self.editor_focus();
             return;
         };
         let page = (self.rect_beside.height as usize).saturating_sub(2).max(1);
@@ -4885,7 +5100,7 @@ impl App {
                     self.close_beside();
                     self.reveal(i);
                     self.open_scene(i);
-                    self.focus = Focus::Editor;
+                    self.focus = self.editor_focus();
                 }
             }
             Key::Char('q') => self.close_beside(),
@@ -4937,9 +5152,17 @@ impl App {
             self.focus_mode,
         );
         let moved = self.last_caret != Some(key);
+        let cursor_moved = self
+            .last_caret
+            .is_none_or(|p| (p.0, p.1, p.2) != (key.0, key.1, key.2));
+        if cursor_moved {
+            self.manual_scroll = false;
+        }
         self.last_caret = Some(key);
-        if !moved {
-            self.editor.clamp_scroll(rows, h);
+        if self.manual_scroll || !moved {
+            // Clamp document bounds, NOT the stationary caret. Otherwise a
+            // wheel scroll is undone on the very next frame.
+            self.editor.scroll = self.editor.scroll.min(rows.len().saturating_sub(1));
         } else if self.focus_mode && self.typewriter {
             self.editor.centre_on_cursor(rows, h);
         } else {
@@ -5086,9 +5309,9 @@ impl App {
     pub fn hints(&self) -> String {
         let m = self.mod_label();
         // What Esc does comes first, so a narrow status bar never cuts it.
-        let esc = if self.codex.is_some() {
+        let esc = if self.side_room && self.codex.is_some() {
             "Esc close note"
-        } else if self.beside.is_some() {
+        } else if self.side_room && self.beside.is_some() {
             "Esc close beside"
         } else {
             "Esc menu"
@@ -5127,6 +5350,9 @@ impl App {
                     "{esc}{focus}  Tab pane  {m}K find anything  F8 spelling  {m}F find  {m}T notes  {m}Z undo  F1 help  {m}Q quit "
                 )
             }
+            Focus::Secondary => format!(
+                "{esc}  Tab pane  F11 hide secondary  {m}S save  {m}F find  {m}Z undo  {m}Q quit "
+            ),
             Focus::Beside => "Esc close  Tab pane  ↑↓ PgDn scroll  ↵ write in this one ".into(),
             Focus::Codex => {
                 "Esc close  Tab pane  ↑↓ scenes  ↵ go there  o open the note  PgDn scroll ".into()

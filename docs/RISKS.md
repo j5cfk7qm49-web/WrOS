@@ -4,7 +4,7 @@ All current verification is software/simulation/VM unless explicitly stated othe
 
 | Risk | Severity | Mitigation / acceptance evidence | Remaining gate |
 |---|---|---|---|
-| Manuscript overwrite from two panes or external sync | Critical | Keep existing project save fingerprints, conflict parking, atomic writes and tests; design one canonical document identity before F11 | Secondary editing not yet implemented; check-to-rename race with unrelated programs is not eliminated |
+| Manuscript overwrite from two panes or external sync | Critical | Exclusive open-view canonical/dev-inode registry, pre-save/adoption/replacement validation, existing guarded saves, both-buffer flush/recovery and 28 new UI cases plus actual PTY | In-process ownership is not an OS lock; check-to-rename races with unrelated writers and full kernel power-cut qualification remain open |
 | Disk loss from installer/demo | Critical | Image scripts only write checked regular artifacts in `build/appliance`; installer plan has no formatter; staged installer refuses `/` | Production upstream-installer integration, fixture tests and physical confirmation flow |
 | Unauthenticated lost laptop or suspend | Critical | Development wrapper refuses root; production design uses PAM login + LUKS + upstream console lock | **VM autologin is insecure by design. Do not deploy.** Screen lock/PAM/suspend integration and hardware tests outstanding |
 | Root command injection | Critical | Exact pkexec executable; only layout IDs/tokens; absolute commands/argument arrays; no shell, arbitrary paths or sudo grant; isolated Python helper | Independent security review and malicious-client policy tests beyond current VM eligibility check |

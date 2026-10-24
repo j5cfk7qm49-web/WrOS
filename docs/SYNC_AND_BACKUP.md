@@ -29,3 +29,7 @@ Required round-trip fixture: Unicode, YAML unknown fields/comments, scene metada
 No Google account was enrolled, no manuscript transmitted and no live restore/Docs round trip performed. Live authorization and provider behavior are **Blocked** on explicit credentials/consent when that milestone is reached; the local fake transport/queue/conflict infrastructure can be implemented without credentials. Those new adapters are currently **Planned**, not yet code.
 
 Current tests: upstream mobile/sync conflict, atomic save, deleted/unavailable file behavior and recovery tests. Future tests: fake transport interruption, hashes, replay-safe queue, restore-new-directory, conflict/tombstone handling and network-disabled writing. Tutorial lessons 36/37 remain unavailable until actual safe enrollment/restore/mobile workflows exist.
+
+## M3b local two-buffer safety
+
+Both open documents now share the existing guarded Project path. Tests cover a concurrently changed inactive document (external text adopted, local text parked), hidden-buffer autosave, failed-save replacement refusal, both crash-recovery drafts, canonical/hard-link/symlink ownership and external identity changes that pause saving/adoption without dropping either buffer. Clean external renames follow an unambiguous fingerprint; dirty missing files are parked before detachment. This is local safety, not an OS file lock, cross-process CAS, remote backup or successful restore from another device. See [WORKSPACES](WORKSPACES.md) for precise boundaries.

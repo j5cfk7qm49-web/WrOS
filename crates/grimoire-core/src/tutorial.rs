@@ -18,6 +18,7 @@ pub enum Event {
     DashboardOpened,
     LayoutConfirmed,
     TextEdited,
+    SecondaryEdited,
     SceneOpened,
     CorkboardOpened,
     WorkspaceSelected,
@@ -30,6 +31,21 @@ pub enum Event {
     HistoryOpened,
     SystemOpened,
     RecoveryHelpOpened,
+}
+impl Event {
+    pub fn safe_outside_demo(self) -> bool {
+        matches!(
+            self,
+            Self::DashboardOpened
+                | Self::LayoutConfirmed
+                | Self::OutlineToggled
+                | Self::FocusEntered
+                | Self::WorkspaceSelected
+                | Self::ShortcutAdded
+                | Self::SystemOpened
+                | Self::RecoveryHelpOpened
+        )
+    }
 }
 #[derive(Debug, Clone, Deserialize)]
 pub struct Lesson {
@@ -104,18 +120,7 @@ impl Progress {
             return false;
         };
         // Writing exercises cannot be marked complete against a user's novel.
-        let safe = matches!(
-            event,
-            Event::DashboardOpened
-                | Event::LayoutConfirmed
-                | Event::OutlineToggled
-                | Event::FocusEntered
-                | Event::WorkspaceSelected
-                | Event::ShortcutAdded
-                | Event::SystemOpened
-                | Event::RecoveryHelpOpened
-        );
-        if !demo && !safe {
+        if !demo && !event.safe_outside_demo() {
             return false;
         }
         if lessons()

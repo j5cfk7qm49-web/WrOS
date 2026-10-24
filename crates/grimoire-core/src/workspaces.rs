@@ -1,6 +1,9 @@
 //! Versioned, additive WritingDeck layout state. Manuscript files are untouched.
 //! Unknown or corrupt configuration is an error, never silently overwritten.
-use crate::sync::{Fingerprint, SaveOutcome};
+use crate::{
+    documents::Pane,
+    sync::{Fingerprint, SaveOutcome},
+};
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -51,26 +54,43 @@ impl Widget {
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WidgetConfig {
     pub widget: Widget,
     pub visible: bool,
 }
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Position {
     pub document: Option<PathBuf>,
     pub line: usize,
     pub column: usize,
     pub scroll: usize,
+    #[serde(default)]
+    pub anchor: Option<(usize, usize)>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Workspace {
     pub name: String,
     pub outline: bool,
     pub outline_width: u16,
     pub focus: bool,
     pub primary: Position,
+    #[serde(default)]
+    pub secondary: Option<Position>,
+    #[serde(default)]
+    pub secondary_visible: bool,
+    #[serde(default = "default_secondary_percent")]
+    pub secondary_percent: u16,
+    #[serde(default)]
+    pub active_editor: Pane,
+}
+fn default_secondary_percent() -> u16 {
+    40
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct State {
     pub version: u32,
     pub selected: usize,
@@ -82,7 +102,7 @@ pub struct State {
 impl Default for State {
     fn default() -> Self {
         Self {
-            version: 1,
+            version: 2,
             selected: 0,
             workspaces: ["Drafting", "Planning", "Research", "Revision", "Focus"]
                 .into_iter()
@@ -92,6 +112,10 @@ impl Default for State {
                     outline_width: 30,
                     focus: name == "Focus",
                     primary: Position::default(),
+                    secondary: None,
+                    secondary_visible: false,
+                    secondary_percent: default_secondary_percent(),
+                    active_editor: Pane::Primary,
                 })
                 .collect(),
             dashboard: Widget::ALL
@@ -108,7 +132,7 @@ impl Default for State {
 }
 impl State {
     pub fn validate(&self) -> Result<()> {
-        if self.version != 1 {
+        if self.version != 2 {
             bail!(
                 "unsupported WritingDeck layout version {}; file preserved",
                 self.version
@@ -131,8 +155,13 @@ impl State {
             if !(18..=60).contains(&w.outline_width) {
                 bail!("outline width must be 18..60 columns");
             }
-            if let Some(p) = &w.primary.document {
-                relative(p)?;
+            if !(25..=75).contains(&w.secondary_percent) {
+                bail!("secondary pane proportion must be 25..75 percent");
+            }
+            for position in std::iter::once(&w.primary).chain(w.secondary.iter()) {
+                if let Some(p) = &position.document {
+                    relative(p)?;
+                }
             }
         }
         let mut widgets = vec![];
@@ -174,8 +203,13 @@ impl Store {
                 if text.len() > 1_048_576 {
                     bail!("layout exceeds 1 MiB; preserved without loading");
                 }
-                let state: State = serde_json::from_str(&text)
+                let mut state: State = serde_json::from_str(&text)
                     .context("invalid layout JSON; original preserved")?;
+                // Additive v1 -> v2 migration is in memory only. Read-only
+                // inspection never rewrites the file; explicit save is guarded.
+                if state.version == 1 {
+                    state.version = 2;
+                }
                 state.validate()?;
                 (state, Some(Fingerprint::of(&text)))
             }
@@ -218,7 +252,18 @@ mod tests {
             line: 22,
             column: 6,
             scroll: 17,
+            anchor: Some((21, 4)),
         };
+        s.state.current_mut().secondary = Some(Position {
+            document: Some("notes/character.md".into()),
+            line: 7,
+            column: 9,
+            scroll: 4,
+            anchor: Some((8, 2)),
+        });
+        s.state.current_mut().secondary_visible = true;
+        s.state.current_mut().active_editor = Pane::Secondary;
+        s.state.current_mut().secondary_percent = 55;
         s.state.dashboard.swap(0, 2);
         s.state.dashboard[1].visible = false;
         s.save().unwrap();
@@ -244,6 +289,49 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
     #[test]
+    fn old_layout_migration_is_read_only_until_a_guarded_explicit_save() {
+        let root = root("migration");
+        let mut old = serde_json::to_value(State::default()).unwrap();
+        old["version"] = 1.into();
+        for workspace in old["workspaces"].as_array_mut().unwrap() {
+            for key in [
+                "secondary",
+                "secondary_visible",
+                "secondary_percent",
+                "active_editor",
+            ] {
+                workspace.as_object_mut().unwrap().remove(key);
+            }
+            workspace["primary"]
+                .as_object_mut()
+                .unwrap()
+                .remove("anchor");
+        }
+        let original = serde_json::to_string_pretty(&old).unwrap();
+        fs::create_dir_all(Store::path(&root).parent().unwrap()).unwrap();
+        fs::write(Store::path(&root), &original).unwrap();
+        let mut loaded = Store::load(&root).unwrap();
+        assert_eq!(loaded.state.version, 2);
+        assert_eq!(loaded.state.current().secondary, None);
+        assert_eq!(loaded.state.current().secondary_percent, 40);
+        assert_eq!(fs::read_to_string(Store::path(&root)).unwrap(), original);
+        loaded.save().unwrap();
+        assert_eq!(Store::load(&root).unwrap().state, loaded.state);
+        fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn secondary_traversal_and_unsafe_ratios_are_rejected() {
+        let mut state = State::default();
+        state.current_mut().secondary = Some(Position {
+            document: Some("../escape.md".into()),
+            ..Position::default()
+        });
+        assert!(state.validate().is_err());
+        state.current_mut().secondary = None;
+        state.current_mut().secondary_percent = 99;
+        assert!(state.validate().is_err());
+    }
+    #[test]
     fn traversal_and_duplicate_names_are_rejected() {
         for p in [
             "../outside.md",
@@ -255,5 +343,26 @@ mod tests {
         let mut s = State::default();
         s.workspaces[1].name = s.workspaces[0].name.clone();
         assert!(s.validate().is_err());
+    }
+    #[test]
+    fn unknown_layout_fields_at_every_level_are_preserved_not_silently_dropped() {
+        let root = root("unknown-fields");
+        let path = Store::path(&root);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        for level in 0..4 {
+            let mut value = serde_json::to_value(State::default()).unwrap();
+            let target = match level {
+                0 => &mut value,
+                1 => &mut value["workspaces"][0],
+                2 => &mut value["workspaces"][0]["primary"],
+                _ => &mut value["dashboard"][0],
+            };
+            target["future_setting"] = serde_json::json!({"preserve":"me"});
+            let text = serde_json::to_string_pretty(&value).unwrap();
+            fs::write(&path, &text).unwrap();
+            assert!(Store::load(&root).is_err());
+            assert_eq!(fs::read_to_string(&path).unwrap(), text);
+        }
+        let _ = fs::remove_dir_all(root);
     }
 }

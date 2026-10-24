@@ -33,6 +33,7 @@
 | `F8` | spelling suggestions |
 | `F9` | themes |
 | `F10` | show or hide the outline |
+| `F11` | show or hide an independent editable document |
 | `F12` | WritingDeck dashboard |
 
 ## The outline
