@@ -21,17 +21,44 @@ use writingdeck_sys::{
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Page {
-    Home { sel: usize },
-    Widgets { sel: usize },
-    Workspaces { sel: usize },
-    System { sel: usize },
-    Keyboard { sel: usize },
+    Home {
+        sel: usize,
+    },
+    Widgets {
+        sel: usize,
+    },
+    Workspaces {
+        sel: usize,
+    },
+    WorkspacePins {
+        workspace: usize,
+        sel: usize,
+        ids: Vec<u64>,
+    },
+    System {
+        sel: usize,
+    },
+    Keyboard {
+        sel: usize,
+    },
     KeyboardWait,
-    KeyboardTest { text: String },
-    Power { action: PowerAction, yes: bool },
-    Tutorial { sel: usize },
-    Lesson { id: u8 },
-    Shortcuts { sel: usize, capture: bool },
+    KeyboardTest {
+        text: String,
+    },
+    Power {
+        action: PowerAction,
+        yes: bool,
+    },
+    Tutorial {
+        sel: usize,
+    },
+    Lesson {
+        id: u8,
+    },
+    Shortcuts {
+        sel: usize,
+        capture: bool,
+    },
 }
 struct Worker {
     tx: SyncSender<Request>,
@@ -54,7 +81,7 @@ impl Worker {
         Self { tx, rx }
     }
 }
-const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 13] = [
+const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 15] = [
     (ShortcutAction::Dashboard, "WritingDeck dashboard"),
     (ShortcutAction::SystemSettings, "System settings"),
     (ShortcutAction::Tutorial, "Interactive tutorial"),
@@ -68,6 +95,8 @@ const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 13] = [
     (ShortcutAction::Pins, "Toggle pins sidebar"),
     (ShortcutAction::PinCurrent, "Pin current document"),
     (ShortcutAction::Journal, "Writing journal"),
+    (ShortcutAction::Scratchpad, "Scratchpad"),
+    (ShortcutAction::Handoff, "Session handoff"),
 ];
 
 pub struct Deck {
@@ -112,6 +141,16 @@ impl Deck {
                 widget: Widget::Journal,
                 visible: true,
             });
+        }
+        let mut workflow_widgets_added = false;
+        for widget in [Widget::Scratchpad, Widget::Handoff] {
+            if !state.dashboard.iter().any(|w| w.widget == widget) {
+                state.dashboard.push(workspaces::WidgetConfig {
+                    widget,
+                    visible: true,
+                });
+                workflow_widgets_added = true;
+            }
         }
         if background
             && !workspaces::Store::path(root).exists()
@@ -174,7 +213,7 @@ impl Deck {
             preview: None,
             recent: String::new(),
             weekly: 0,
-            dirty: pins_widget_added || journal_widget_added,
+            dirty: pins_widget_added || journal_widget_added || workflow_widgets_added,
         }
     }
     pub fn observe(&mut self, event: tutorial::Event, demo: bool) {
@@ -346,6 +385,8 @@ impl App {
             ShortcutAction::Pins => self.toggle_pins(),
             ShortcutAction::PinCurrent => self.pin_current(),
             ShortcutAction::Journal => self.open_journal(),
+            ShortcutAction::Scratchpad => self.open_scratchpad(),
+            ShortcutAction::Handoff => self.open_handoff(),
         }
     }
     pub fn add_deck_shortcut(&mut self, chord: &str) {
@@ -478,6 +519,8 @@ impl App {
                     }
                     Key::Char('p') => self.open_pinboard(),
                     Key::Char('j') => self.open_journal(),
+                    Key::Char('s') => self.open_scratchpad(),
+                    Key::Char('o') => self.open_handoff(),
                     Key::Char('w') => self.overlay = Overlay::Deck(Page::Widgets { sel: 0 }),
                     Key::Char('h') if sel < n => {
                         self.deck.state.dashboard[widgets[sel]].visible = false;
@@ -543,7 +586,7 @@ impl App {
                 }
                 match key {
                     Key::Enter => {
-                        if !self.commit_saves() {
+                        if !self.commit_saves() || self.project.dirty_count() != 0 {
                             return;
                         }
                         self.remember_deck();
@@ -580,6 +623,20 @@ impl App {
                         self.deck.dirty = true;
                         self.deck.save_layout();
                     }
+                    Key::Char('b') => self.starter_preset_picker(sel),
+                    Key::Char('p') => {
+                        let ids = self.deck.state.workspaces[sel]
+                            .pin_ids
+                            .clone()
+                            .unwrap_or_else(|| {
+                                self.pins.state().pins.iter().map(|p| p.id).collect()
+                            });
+                        self.overlay = Overlay::Deck(Page::WorkspacePins {
+                            workspace: sel,
+                            sel: 0,
+                            ids,
+                        });
+                    }
                     Key::Char('n') => {
                         if self.deck.state.workspaces.len() < 64 {
                             let mut w = self.deck.state.current().clone();
@@ -600,6 +657,69 @@ impl App {
                         }
                     }
                     Key::Esc => self.open_dashboard(),
+                    _ => {}
+                }
+            }
+            Page::WorkspacePins {
+                workspace,
+                mut sel,
+                mut ids,
+            } => {
+                if nav(key, &mut sel, self.pins.state().pins.len()) {
+                    self.overlay = Overlay::Deck(Page::WorkspacePins {
+                        workspace,
+                        sel,
+                        ids,
+                    });
+                    return;
+                }
+                match key {
+                    Key::Char(' ') => {
+                        if let Some(pin) = self.pins.state().pins.get(sel) {
+                            if ids.contains(&pin.id) {
+                                ids.retain(|id| *id != pin.id);
+                            } else {
+                                ids.push(pin.id);
+                            }
+                        }
+                        self.overlay = Overlay::Deck(Page::WorkspacePins {
+                            workspace,
+                            sel,
+                            ids,
+                        });
+                    }
+                    Key::Char('z') => {
+                        self.overlay = Overlay::Deck(Page::WorkspacePins {
+                            workspace,
+                            sel,
+                            ids: vec![],
+                        })
+                    }
+                    Key::Char('a') => {
+                        self.overlay = Overlay::Deck(Page::WorkspacePins {
+                            workspace,
+                            sel,
+                            ids: self.pins.state().pins.iter().map(|p| p.id).collect(),
+                        })
+                    }
+                    Key::Enter | Key::Char('A') => {
+                        let result = self.save_workspace_pin_set(
+                            workspace,
+                            if key == Key::Char('A') {
+                                None
+                            } else {
+                                Some(ids)
+                            },
+                        );
+                        self.deck.note = match result {
+                            Ok(()) => {
+                                "Workspace pin set saved; global cards/sources unchanged".into()
+                            }
+                            Err(e) => format!("Pin set not saved: {e:#}"),
+                        };
+                        self.overlay = Overlay::Deck(Page::Workspaces { sel: workspace });
+                    }
+                    Key::Esc => self.overlay = Overlay::Deck(Page::Workspaces { sel: workspace }),
                     _ => {}
                 }
             }
@@ -800,6 +920,8 @@ impl App {
             Widget::Backup => self.open_help(Some("sync")),
             Widget::Pins => self.open_pinboard(),
             Widget::Journal => self.open_journal(),
+            Widget::Scratchpad => self.open_scratchpad(),
+            Widget::Handoff => self.open_handoff(),
         }
     }
     fn start_tutorial_demo(&mut self) {
@@ -890,6 +1012,8 @@ impl App {
                 self.journal.review_lesson_start();
                 self.open_journal();
             }
+            15 => self.open_scratchpad(),
+            16 => self.open_handoff(),
             17 => self.run_action(Action::Goals),
             19 => self.run_action(Action::StartSprint),
             26 => self.spelling(),
@@ -967,6 +1091,33 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                         }
                     }
                     Widget::RecentScenes => app.deck.recent.clone(),
+                    Widget::Scratchpad => app
+                        .workflow
+                        .state()
+                        .map(|s| {
+                            format!(
+                                "{} original note references · Enter to open",
+                                s.notes
+                                    .iter()
+                                    .filter(|n| n.life == grimoire_core::pins::Life::Active)
+                                    .count()
+                            )
+                        })
+                        .unwrap_or_else(|| "metadata unavailable; originals preserved".into()),
+                    Widget::Handoff => app
+                        .workflow
+                        .state()
+                        .map(|s| {
+                            if s.handoff.intention.is_some() {
+                                format!(
+                                    "intention left · next-open display {}",
+                                    s.handoff.show_on_open
+                                )
+                            } else {
+                                "not armed · Enter to write an original intention".into()
+                            }
+                        })
+                        .unwrap_or_else(|| "metadata unavailable; original preserved".into()),
                     Widget::Journal => {
                         if !app.journal.pending.is_empty() {
                             format!(
@@ -1018,7 +1169,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                 ]
                 .map(str::to_string),
             );
-            hint = "↑↓ choose  Enter open  h hide widget  J/K reorder  w widgets  p Pinboard  j Journal  Esc resume";
+            hint = "↑↓ choose  Enter open  h hide widget  J/K reorder  w widgets  p Pins  j Journal  s Scratchpad  o Handoff  Esc";
         }
         Page::Widgets { sel } => {
             title = "Dashboard widgets".into();
@@ -1062,7 +1213,38 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                     )
                 })
                 .collect();
-            hint = "↑↓ choose  Enter restore  +/- outline  < > secondary size  n clone  Esc home";
+            hint = "↑↓ choose  Enter restore  +/- outline  < > secondary size  n clone  b starter  p pin set  Esc home";
+        }
+        Page::WorkspacePins {
+            workspace,
+            sel,
+            ids,
+        } => {
+            title = format!("Pin set · {}", app.deck.state.workspaces[*workspace].name);
+            selected = Some(*sel);
+            rows = app
+                .pins
+                .state()
+                .pins
+                .iter()
+                .map(|p| {
+                    format!(
+                        "[{}] #{} {} · {:?}",
+                        if ids.contains(&p.id) { 'x' } else { ' ' },
+                        p.id,
+                        p.source.display(),
+                        p.life
+                    )
+                })
+                .collect();
+            if rows.is_empty() {
+                rows.push(
+                    "No cards; create references in Pinboard first. A follows all future cards."
+                        .into(),
+                );
+            }
+            hint =
+                "↑↓ choose  Space toggle  a all  z none  Enter save set  A follow all  Esc cancel";
         }
         Page::System { sel } => {
             title = app
@@ -1292,4 +1474,147 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         Style::default().fg(t.accent),
     )));
     f.render_widget(Paragraph::new(lines), inner);
+}
+
+impl App {
+    fn save_workspace_state(&mut self, next: workspaces::State) -> Result<()> {
+        next.validate()?;
+        let store = self
+            .deck
+            .layout_store
+            .as_mut()
+            .ok_or_else(|| anyhow::anyhow!("Original layout unavailable; not overwritten"))?;
+        let old = std::mem::replace(&mut store.state, next.clone());
+        if let Err(e) = store.save() {
+            store.state = old;
+            return Err(e);
+        }
+        self.deck.state = next;
+        self.deck.dirty = false;
+        Ok(())
+    }
+    pub fn save_workspace_pin_set(&mut self, slot: usize, ids: Option<Vec<u64>>) -> Result<()> {
+        self.remember_deck();
+        let mut next = self.deck.state.clone();
+        next.workspaces
+            .get_mut(slot)
+            .ok_or_else(|| anyhow::anyhow!("Workspace missing"))?
+            .pin_ids = ids;
+        self.save_workspace_state(next)
+    }
+    pub fn starter_preset_picker(&mut self, slot: usize) {
+        let entries=workspaces::Preset::ALL.into_iter().map(|preset|palette::Entry {label:format!("Apply {} starter",preset.name()),key:String::new(),detail:"Explicit empty original pane note + layout; existing prose is never templated/replaced".into(),action:Action::ApplyPreset(slot,preset)}).collect();
+        self.overlay = Overlay::Palette {
+            query: String::new(),
+            sel: 0,
+            entries,
+        };
+    }
+    pub fn apply_starter_preset(&mut self, slot: usize, preset: workspaces::Preset) {
+        let result = (|| -> Result<()> {
+            self.workflow_prepare()?;
+            let store = self.deck.layout_store.as_ref().ok_or_else(|| {
+                anyhow::anyhow!("Original layout unavailable; no starter sources created")
+            })?;
+            store.verify_current()?;
+            if slot >= self.deck.state.workspaces.len() {
+                anyhow::bail!("Workspace missing");
+            }
+            let valid = |app: &Self, i: usize| {
+                let n = &app.project.nodes[i];
+                n.in_manuscript
+                    && n.kind == Kind::Scene
+                    && !n.read_only
+                    && !n.parked
+                    && !n.clash
+                    && n.disk.unavailable.is_none()
+            };
+            let primary = [
+                grimoire_core::documents::Pane::Primary,
+                grimoire_core::documents::Pane::Secondary,
+            ]
+            .into_iter()
+            .find(|&p| self.view_open(p).is_some_and(|i| valid(self, i)))
+            .and_then(|p| self.view_position(p))
+            .or_else(|| {
+                self.project
+                    .nodes
+                    .iter()
+                    .enumerate()
+                    .find(|(i, _)| valid(self, *i))
+                    .map(|(_, n)| workspaces::Position {
+                        document: n
+                            .path
+                            .strip_prefix(&self.project.root)
+                            .ok()
+                            .map(Path::to_path_buf),
+                        ..Default::default()
+                    })
+            })
+            .ok_or_else(|| anyhow::anyhow!("Choose a readable manuscript scene first"))?;
+            self.remember_deck();
+            let retained_secondary = self.view_position(grimoire_core::documents::Pane::Secondary);
+            let secondary = if let Some((relative, role)) = preset.source() {
+                grimoire_core::workflow::ensure_workspace_note(&self.project.root, preset)?;
+                self.reload_tree()?;
+                self.workflow_original_node(Path::new(relative), role)?;
+                let position = [
+                    grimoire_core::documents::Pane::Primary,
+                    grimoire_core::documents::Pane::Secondary,
+                ]
+                .into_iter()
+                .filter_map(|p| self.view_position(p))
+                .find(|p| p.document.as_deref() == Some(Path::new(relative)))
+                .unwrap_or(workspaces::Position {
+                    document: Some(relative.into()),
+                    ..Default::default()
+                });
+                Some(position)
+            } else {
+                retained_secondary
+            };
+            let mut next = self.deck.state.clone();
+            next.selected = slot;
+            let w = &mut next.workspaces[slot];
+            w.primary = primary;
+            w.secondary = secondary;
+            w.secondary_visible = preset != workspaces::Preset::Focus && w.secondary.is_some();
+            w.focus = preset == workspaces::Preset::Focus;
+            w.outline = !w.focus;
+            w.outline_width = if preset == workspaces::Preset::Planning {
+                36
+            } else {
+                30
+            };
+            w.secondary_percent = if preset == workspaces::Preset::Research {
+                50
+            } else {
+                40
+            };
+            w.active_editor = grimoire_core::documents::Pane::Primary;
+            self.save_workspace_state(next)?;
+            self.restore_deck_position();
+            self.focus_mode = self.deck.state.current().focus && self.open.is_some();
+            self.activate_editor(grimoire_core::documents::Pane::Primary);
+            self.overlay = Overlay::None;
+            self.observe_deck(tutorial::Event::WorkspaceSelected);
+            Ok(())
+        })();
+        match result {
+            Ok(()) => {
+                self.msg = format!(
+                    "{} starter applied; independent original pane source, no existing prose replaced",
+                    preset.name()
+                )
+            }
+            Err(e) => {
+                self.overlay = Overlay::Deck(Page::Workspaces {
+                    sel: slot.min(self.deck.state.workspaces.len() - 1),
+                });
+                self.deck.note = format!(
+                    "Starter not applied: {e:#}; sources/any newly created empty original kept"
+                );
+            }
+        }
+    }
 }

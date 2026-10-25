@@ -1,0 +1,82 @@
+Actual non-root compiled-app PTY, 80x24, isolated newly created demo/HOME.
+Captured 2026-10-25T08:50:38.807603+00:00.
+ANSI cursor/erase/UTF-8 cell reconstruction; not a full terminal emulator.
+No physical keyboard or VM workflow claim. Original-source fixtures only.
+
+ORIGINAL SCRATCHPAD AND INDEPENDENT READY SCENE
+┌ Scratchpad · original Notes ─────────────────────────────────────────────────┐
+│Active references · originals stay in notes/scratchpad                        │
+│› #1 Scratchpad 1                                                             │
+│Scene: manuscript/01-Chapter-One/01-Scene-One.md                              │
+│Promotion: Ready → manuscript/90-Scratchpad-000001.md                         │
+│Original river idea, kept as ordinary Markdown.                               │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│Independent scene snapshot: manuscript/90-Scratchpad-000001.md; original scrat│
+│↑↓ note  n/N new  Enter/e edit  l link  p promote  Tab archive  r reload  Esc │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+SEPARATE-PROCESS NEXT-OPEN ORIGINAL HANDOFF
+┌ Session handoff · original intention ────────────────────────────────────────┐
+│Next-open display: true · no generated prose/time metrics                     │
+│Left 2026-10-25T08:50:39.121691603+00:00                                      │
+│Context: manuscript/01-Chapter-One/01-Scene-One.md                            │
+│Next time, follow the river beyond the brass door.                            │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│Original next-session intention · Enter/e edits · s saves/arms next-open displ│
+│Enter/e edit  s arm next open  g resume  o startup  r reload  Esc             │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+EXPLICIT WORKSPACE PIN-SET EDITOR (DRAFT NONE; ENTER SAVES)
+┌ WRITINGDECK OS · offline first ──────────────────────────────────────────────┐
+│Pin set · Drafting                                                            │
+│▸ No cards; create references in Pinboard first. A follows all future cards.  │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│↑↓ choose  Space toggle  a all  z none  Enter save set  A follow all  Esc c…  │
+└──────────────────────────────────────────────────────────────────────────────┘

@@ -143,7 +143,8 @@ class IndependentEditorsPTY(unittest.TestCase):
                     self.assertEqual(terminal.process.returncode, 0)
                     state = json.loads((project / '.grimoire/writingdeck/layout.json').read_text())
                     workspace = state['workspaces'][state['selected']]
-                    self.assertEqual(state['version'], 2)
+                    self.assertEqual(state['version'], 3)
+                    self.assertIsNone(workspace['pin_ids'])
                     self.assertEqual(project / workspace['primary']['document'], primary)
                     self.assertEqual(project / workspace['secondary']['document'], secondary)
                     self.assertEqual(workspace['active_editor'], 'secondary')

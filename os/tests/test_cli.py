@@ -112,5 +112,24 @@ class HeadlessCLI(unittest.TestCase):
         self.assertIn('1 journal date files', self.run_cli('check-config', demo).stdout)
         self.assertEqual(self.hashes(demo), before)
 
+    def test_workflow_index_validation_is_read_only_and_preserves_future_nested_data(self):
+        demo = self.root/'workflow-demo'
+        self.run_cli('tutorial-demo', demo)
+        path = demo/'.grimoire/writingdeck/workflow.json'
+        before = self.hashes(demo)
+        self.assertIn('Workflow schema 1', self.run_cli('check-config', demo).stdout)
+        self.assertEqual(self.hashes(demo), before)
+        self.assertFalse(path.exists())
+        valid = {'version': 1, 'next_id': 1, 'selected': None, 'notes': [],
+                 'handoff': {'show_on_open': False, 'intention': None}}
+        path.parent.mkdir(parents=True, exist_ok=True)
+        for data in [valid, valid | {'version': 999}, valid | {'handoff': valid['handoff'] | {'future': 'preserve'}}]:
+            path.write_text(json.dumps(data))
+            before = self.hashes(demo)
+            self.run_cli('check-config', demo, ok=(data == valid))
+            self.assertEqual(self.hashes(demo), before)
+        self.assertFalse((demo/'notes/handoff.md').exists())
+        self.assertFalse((demo/'notes/scratchpad').exists())
+
 if __name__ == '__main__':
     unittest.main()

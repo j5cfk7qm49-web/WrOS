@@ -62,6 +62,8 @@ pub const TOPICS: &[Topic] = &[
     topic!("writingdeck", "WritingDeck OS", "28-writingdeck.md"),
     topic!("pins", "Sticky-note pins", "29-pins.md"),
     topic!("journal", "Writing journal", "30-journal.md"),
+    topic!("scratchpad", "Scratchpad", "31-scratchpad.md"),
+    topic!("handoff", "Session handoff", "32-handoff.md"),
 ];
 
 /// Where a topic is in [`TOPICS`]; the first one for an id that isn't there.

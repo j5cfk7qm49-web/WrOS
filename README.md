@@ -30,11 +30,11 @@ lock/update/rollback and verified cloud backup remain incomplete. Existing Grimo
 manuscript formats and shortcuts are retained.
 
 **M3b is now tested:** F11 opens a genuinely independent second editor with its own
-undo/selection/cursor/free scroll; schema-v2 workspaces retain both documents and
+undo/selection/cursor/free scroll; schema-v3 workspaces retain both documents and
 layout. Existing guarded saves, raw YAML, conflict parking and recovery serve both.
 See [workspace behavior and limits](docs/WORKSPACES.md), including narrow-terminal
 stacking, strict Primary-only focus and in-process alias ownership. This does not
-provide full content presets or cross-process file locking.
+provide cross-process file locking. Explicit empty-original starters and card-ID sets are described below.
 
 **M4a adds tested single-source pins:** Pinboard and the optional sidebar read existing
 Markdown sources, with independent card scroll, heading/quote anchors, scope/category/
@@ -43,9 +43,13 @@ No copied note body becomes another writer. See [pin controls and safety](docs/P
 **M4b adds a tested journal:** read-only sampled saved-Project observations are
 separate from original Markdown reflections, with explicit owner-aware editing,
 guarded per-date append/retry, truthful unavailable/net metrics and actual demo
-completion. See [journal controls and guarantees](docs/JOURNAL.md). Scratchpad,
-handoff and richer presets remain unfinished M4 work; gross/active-time
-accounting still requires the edit/idle ledger.
+completion. See [journal controls and guarantees](docs/JOURNAL.md).
+**M4c adds tested original-source scratchpad/handoff:** multiple scene-linked Notes,
+one independent source-preserving promotion, a user-authored next-open intention,
+explicit empty-original workspace starters and per-workspace pin sets. Real compiled
+processes verify save/restart behavior at four sizes. See [workflow guarantees](docs/WORKFLOW.md).
+Gross/active-time accounting still requires the M5 edit/idle ledger; this is not a
+production-appliance, power-loss or large-load qualification.
 
 ## Why it exists
 

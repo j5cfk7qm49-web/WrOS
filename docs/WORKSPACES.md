@@ -6,7 +6,7 @@ F12 opens the home dashboard with existing book data: resume/current manuscript,
 
 Arrow keys/Enter navigate; `h` hides a widget; `J`/`K` reorder it; Configure widgets restores hidden widgets. Home scrolls to the selection at 80×24 and is tested at 100×30, 120×40 and 160×50. Start-at-dashboard is optional in System settings; conventional development defaults to writing, appliance first launch to home.
 
-Workspaces provides Drafting, Planning, Research, Revision and Focus slots. `n` clones a custom slot; `+`/`-` adjust outline width (18–60 columns); `<`/`>` adjust the secondary proportion by five percentage points (25–75%). Slots initially share the same empty primary/secondary structure except Focus. They are **not yet the full requested planning/research/revision content presets**. Pins now have their own tested sidebar, but not per-workspace preset content.
+Workspaces provides Drafting, Planning, Research, Revision and Focus slots. `n` clones a custom slot; `+`/`-` adjust outline width (18–60 columns); `<`/`>` adjust the secondary proportion by five percentage points (25–75%). Slots initially retain a safe empty pane structure except Focus. **M4c adds explicit starter application (`b`) and per-workspace pin sets (`p`)**; neither silently rewrites prose while loading a slot. See below.
 
 ## M3b: two genuinely editable documents — Tested
 
@@ -36,7 +36,7 @@ Each workspace stores:
 - secondary visibility, proportion and active editor;
 - outline visibility/width and strict-focus preference.
 
-State is schema **v2** JSON under `.grimoire/writingdeck/layout.json`. A v1 file migrates in memory; inspecting it with `grimoire writingdeck check-config DIR` does not rewrite it. The next explicit guarded layout save writes v2. Future versions, invalid paths, unknown fields, corruption and external conflicts are preserved rather than overwritten. Bad UI state must not prevent manuscript saves.
+State is schema **v3** JSON under `.grimoire/writingdeck/layout.json`. V1/v2 files migrate in memory; inspecting them with `grimoire writingdeck check-config DIR` does not rewrite them. The next explicit guarded layout save writes v3. V2 pane positions/visibility/ratio remain intact; missing pin sets mean follow all. Future versions, invalid paths, unknown fields, corruption and external conflicts are preserved rather than overwritten. Bad UI state must not prevent manuscript saves.
 
 Startup gives the upstream Primary resume record precedence: stale workspace coordinates/selection are not applied to another document or a newer cursor, and focus remains Primary when that resume differs. Explicitly choosing a workspace instead restores that workspace's positions. A workspace can swap which two documents occupy Primary/Secondary without duplicating their editors or losing in-process per-document undo.
 
@@ -77,3 +77,24 @@ The Writing journal widget and dashboard `j` open a separate reader for sampled 
 Scratchpad, advanced calendar/challenge/achievement/revision widgets and next-session handoff are not implemented widgets. Pins and the initial journal are tested; richer journal/edit-ledger metrics remain separate work. Do not invent metrics to fill them. Full preset content, per-workspace pin sets, category filters, bounded-section excerpts and free-position/dragged cards remain outside M4a.
 
 Journal automatic facts are now separate from editable reflections; they remain sampled cached Project observations, not gross/active-time facts. Scratchpad promotion must preserve the original and use guarded project operations. Handoff is an ordinary user-authored note shown next session. The tested document registry/pins are dependencies, not implementations of those services.
+
+
+## M4c explicit starter content and pin sets
+
+In Workspaces select a destination slot, then **b** and a named starter. This is an explicit operation, not an implicit template on workspace selection/startup. It first requires clean settled original buffers and current guarded layout metadata; an external/future/conflicting layout is neither adopted nor overwritten.
+
+| Starter | Original content/layout |
+|---|---|
+| Drafting | Empty ordinary `notes/workspaces/drafting.md` in Secondary; outline on; 30% Secondary |
+| Planning | Empty ordinary `notes/workspaces/planning.md` in Secondary; outline on; 45% Secondary |
+| Research | Empty ordinary `research/workspace.md` in Secondary; outline on; 45% Secondary |
+| Revision | Empty ordinary `notes/workspaces/revision.md` in Secondary; outline on; 40% Secondary |
+| Focus | Primary-only strict focus; retained Secondary hidden, not discarded; no new source |
+
+Existing originals are opened without replacing their prose, YAML or undo. Creation is exclusive and empty; there is no generated outline, research or intention. A newly created original is deliberately retained if a later layout save fails. Layout rollback/preflight and the final guarded save are not a cross-file transaction or OS lock. The selected slot keeps its name/Primary resume and pin-set choice. Applying a preset can assign Secondary without replacing the original manuscript.
+
+**p** opens a draft pin-set editor: Up/Down select, Space toggles an ID, `a` selects all current cards, `z` selects none, Enter saves the explicit set, **A** follows all current/future cards, Esc cancels. Paste/cut/undo do not execute its letter commands or touch a hidden source. Unknown positive IDs are retained rather than fabricated into cards. IDs must be positive, unique, at most 256.
+
+`pin_ids: null` follows all cards (including future ones); `[]` shows none; an explicit list filters the existing sidebar/dashboard scopes. The global Pinboard, card lifecycle and original bodies are unchanged. These are references to global project cards, not copied note bodies. Selection/commands normalize to cards actually in the visible set, so changing a set cannot edit a hidden old selection.
+
+The layout reader/preflight and save enforce a 1 MiB limit. Invalid/oversized/future/externally replaced layouts remain byte-preserved; source saves remain independent. Four-size real compiled-app PTYs verify actual Research Secondary editing, explicit empty pin-set persistence and refusal to create a Planning original after an external future-layout replacement. Rust UI tests exercise all five starters, existing-source/alias/Waiting/I/O behavior, persistence/migration, sidebar/dashboard filtering and selected-card safety. See [WORKFLOW](WORKFLOW.md) and [TESTING](TESTING.md).

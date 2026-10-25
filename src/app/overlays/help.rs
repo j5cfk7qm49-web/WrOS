@@ -37,6 +37,8 @@ impl App {
         match &self.overlay {
             Overlay::Deck(_) => "writingdeck",
             Overlay::Journal => "journal",
+            Overlay::Scratchpad => "scratchpad",
+            Overlay::Handoff => "handoff",
             // In the menu, the topic for the highlighted row.
             Overlay::Menu { .. } | Overlay::Sub { .. } => self
                 .menu_highlight()

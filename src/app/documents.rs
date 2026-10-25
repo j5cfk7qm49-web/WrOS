@@ -452,7 +452,7 @@ impl App {
             self.activate_editor(Pane::Primary);
         }
     }
-    fn restore_view_position(&mut self, pane: Pane, p: &Position) {
+    pub(super) fn restore_view_position(&mut self, pane: Pane, p: &Position) {
         self.with_editor_view(pane, |app| {
             if let Some(anchor) = p.anchor {
                 app.editor.select(anchor, (p.line, p.column));

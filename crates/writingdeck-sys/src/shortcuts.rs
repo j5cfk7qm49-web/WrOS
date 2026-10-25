@@ -19,6 +19,8 @@ pub enum Action {
     Pins,
     PinCurrent,
     Journal,
+    Scratchpad,
+    Handoff,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -162,4 +164,25 @@ fn journal_alias_is_additive_and_v1_defaults_remain_unchanged() {
     let loaded: Shortcuts = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
     assert_eq!(loaded.bindings[..3], defaults);
     assert_eq!(loaded.find("Ctrl+Alt+J"), Some(Action::Journal));
+}
+
+#[cfg(test)]
+#[test]
+fn scratchpad_and_handoff_aliases_roundtrip_without_default_changes() {
+    let mut s = Shortcuts::default();
+    let defaults = s.bindings.clone();
+    for (chord, action) in [
+        ("Ctrl+Alt+S", Action::Scratchpad),
+        ("Ctrl+Alt+H", Action::Handoff),
+    ] {
+        s.bindings.push(Binding {
+            chord: chord.into(),
+            action,
+        });
+    }
+    s.validate().unwrap();
+    let loaded: Shortcuts = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
+    assert_eq!(loaded.bindings[..defaults.len()], defaults);
+    assert_eq!(loaded.find("Ctrl+Alt+S"), Some(Action::Scratchpad));
+    assert_eq!(loaded.find("Ctrl+Alt+H"), Some(Action::Handoff));
 }

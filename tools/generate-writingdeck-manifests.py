@@ -55,7 +55,7 @@ def main():
                            'copyright_sha256': sha(path) if path.is_file() else None,
                            'license_status': 'See retained Debian package copyright; corresponding-source release obligations remain to be satisfied'})
     inventory = {
-        'schema_version': 1, 'review_date': '2026-10-24', 'distribution_ready': False,
+        'schema_version': 1, 'review_date': '2026-10-25', 'distribution_ready': False,
         'scope': 'Locked Rust dependency graph (all resolved platforms/default features) + actual staged Debian package versions; not a blanket MIT license for the OS',
         'rust_packages': records, 'rust_notice_bundle': str(notice_path.relative_to(ROOT)),
         'missing_root_notice_files_requiring_review': missing,

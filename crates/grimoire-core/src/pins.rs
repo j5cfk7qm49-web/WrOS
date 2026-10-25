@@ -452,7 +452,11 @@ pub fn excerpt(
         resolution,
     };
     let width = width.max(1);
+    let mut fallback = None;
     let mut emit = |row: String| {
+        if height > 0 && out.total_rows < scroll {
+            fallback = Some(row.clone());
+        }
         if out.total_rows >= scroll && out.lines.len() < height {
             out.lines.push(row);
         }
@@ -476,6 +480,12 @@ pub fn excerpt(
             used += w;
         }
         emit(row);
+    }
+    if out.lines.is_empty()
+        && height > 0
+        && let Some(row) = fallback
+    {
+        out.lines.push(row);
     }
     out
 }
@@ -825,4 +835,27 @@ mod tests {
         .unwrap();
         assert!(identify(&f.0, Path::new("notes/alias.md")).is_err());
     }
+}
+
+#[test]
+fn excerpt_reflow_or_shortened_source_never_leaves_an_overscrolled_reader_blank() {
+    let body = "A substantial original paragraph ending with a marker.";
+    let narrow = excerpt(body, 8, None, 0, 0);
+    assert!(narrow.total_rows > 1);
+    let wide = excerpt(body, 100, None, narrow.total_rows - 1, 4);
+    assert_eq!(wide.lines, vec![body]);
+    assert!(excerpt(body, 100, None, 100, 0).lines.is_empty());
+    assert!(
+        excerpt(
+            body,
+            100,
+            Some(&Anchor::Heading {
+                text: "missing".into()
+            }),
+            100,
+            4
+        )
+        .lines
+        .is_empty()
+    );
 }

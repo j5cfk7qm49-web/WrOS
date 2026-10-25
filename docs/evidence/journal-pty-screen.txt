@@ -1,13 +1,14 @@
 Actual non-root compiled-app PTY, 80x24, isolated newly created demo/HOME.
+Captured 2026-10-25T08:50:38.807603+00:00.
 ANSI cursor/erase/UTF-8 cell reconstruction; not a full terminal emulator.
-Device-local dates/offsets, not assumed user timezone. No physical keyboard claim.
+No physical keyboard or VM workflow claim. Original-source fixtures only.
 
 RECORDED FACTS
 ┌ Writing journal · 2026-10-25 · Recorded facts ───────────────────────────────┐
 │AUTOMATIC — sampled saved Project counts (≥10min); c captures current clean co│
-│#1 Saved checkpoint · 06:08:30 +00:00                                         │
+│#1 Saved checkpoint · 08:50:39 +00:00                                         │
 │Book 31 · daily net +6 · since-open delta +6                                  │
-│App opened 2026-10-25 06:08:30 +00:00 · initial 25 words                      │
+│App opened 2026-10-25 08:50:39 +00:00 · initial 25 words                      │
 │                                                                              │
 │                                                                              │
 │                                                                              │
@@ -28,10 +29,10 @@ RECORDED FACTS
 │←→ date  Tab view  ↑↓/Pg scroll  c snapshot  Enter/e edit  r retry  Esc       │
 └──────────────────────────────────────────────────────────────────────────────┘
 
-ORIGINAL REFLECTION PREVIEW
+ORIGINAL REFLECTION (SEPARATE MARKDOWN SOURCE)
 ┌ Writing journal · 2026-10-25 · Reflection source ────────────────────────────┐
 │MANUAL REFLECTION — separate ordinary Markdown; Enter/e explicitly edits its o│
-│An original demo reflection, separate from the recorded facts.                │
+│Original reflection: keep the next sentence concrete.                         │
 │                                                                              │
 │                                                                              │
 │                                                                              │

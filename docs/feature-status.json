@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "as_of": "2026-10-24",
-  "release": "0.1.0-dev foundation + M3b",
+  "as_of": "2026-10-25",
+  "release": "0.1.0-dev foundation + M3b + initial M4",
   "features": [
     {
       "area": "Baseline",
@@ -249,15 +249,15 @@
       "status": "In progress",
       "verification": "Pins and initial journal widget/UI/actual compiled-app PTY tests",
       "hardware_verified": false,
-      "detail": "Pins and sampled-facts/original-reflection journal tested; scratchpad/handoff/challenge/achievement/revision widgets still planned"
+      "detail": "Pins, sampled journal/original reflection, scratchpad and user-authored handoff widgets tested; challenge/achievement/revision widgets remain planned"
     },
     {
       "area": "Workspaces",
       "capability": "Five named dual-editor workspace slots + custom clones/width/cursors",
       "status": "Tested",
-      "verification": "Schema-v2 round-trip/v1 migration + dual restart/role-swap UI tests",
+      "verification": "Schema-v3 round-trip/v1-v2 migration, dual restart/role-swap and guarded starter/pin-set UI tests",
       "hardware_verified": false,
-      "detail": "Both selections/free scroll, active role/visibility/ratio; full preset content remains planned"
+      "detail": "Independent selections/free scroll and role/ratio; explicit empty-original starters and per-workspace card IDs, no implicit prose template"
     },
     {
       "area": "Workspaces",
@@ -277,11 +277,11 @@
     },
     {
       "area": "Workspaces",
-      "capability": "Sticky sidebar, multi-pane ratios and full content presets",
-      "status": "In progress",
-      "verification": "Two-editor ratio and pin sidebar/tiny/strict-focus tests",
+      "capability": "Sticky sidebar, multi-pane ratios and explicit workspace content/pin sets",
+      "status": "Tested",
+      "verification": "Core/UI + four-size compiled-app starter/pin-set/external-layout preservation PTY",
       "hardware_verified": false,
-      "detail": "Ratios and responsive pin sidebar implemented; per-workspace pin sets and full content presets still planned"
+      "detail": "Five explicit starters, existing-source preservation, guarded layout rollback, reference-only pin sets; no cross-file atomicity/large-load claim"
     },
     {
       "area": "Notes",
@@ -293,11 +293,11 @@
     },
     {
       "area": "Notes",
-      "capability": "Accurate auto/manual journal, multi-note scratchpad, handoff",
-      "status": "In progress",
-      "verification": "Journal: 10 core + 23 UI + 1 alias; actual four-size PTY/restart/force; read-only CLI",
+      "capability": "Sampled auto/manual journal, multi-note scratchpad and next-open handoff",
+      "status": "Tested",
+      "verification": "Journal 34 Rust; M4c 45 Rust; actual four-size compiled-app promotion/handoff process restart + read-only CLI",
       "hardware_verified": false,
-      "detail": "Initial sampled saved-Project facts separate from original Markdown reflections; no gross/active-time ledger; scratchpad/handoff planned"
+      "detail": "Original reflections/notes/intention; source-preserving independent scene with Prepared/Ready retry; no generated prose or gross/active-time ledger"
     },
     {
       "area": "Productivity",
@@ -521,7 +521,7 @@
       "status": "Tested",
       "verification": "Core + actual editor/UI tests",
       "hardware_verified": false,
-      "detail": "19 event-capable lessons including original-reflection save after real journal facts review; 20 explicitly unavailable"
+      "detail": "21 event-capable lessons including original reflection, scratch promotion and saved next-context handoff; 18 explicitly unavailable; context event is not OS/process attestation"
     },
     {
       "area": "Tutorial",

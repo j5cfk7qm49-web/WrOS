@@ -8,6 +8,7 @@ use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
+    io::Read,
     path::{Component, Path, PathBuf},
 };
 
@@ -23,12 +24,14 @@ pub enum Widget {
     RecentScenes,
     Pins,
     Journal,
+    Scratchpad,
+    Handoff,
     Battery,
     Backup,
     System,
 }
 impl Widget {
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 14] = [
         Self::Resume,
         Self::Manuscript,
         Self::DailyGoal,
@@ -38,6 +41,8 @@ impl Widget {
         Self::RecentScenes,
         Self::Pins,
         Self::Journal,
+        Self::Scratchpad,
+        Self::Handoff,
         Self::Battery,
         Self::Backup,
         Self::System,
@@ -53,6 +58,8 @@ impl Widget {
             Self::RecentScenes => "Recent scenes",
             Self::Pins => "Dashboard pins",
             Self::Journal => "Writing journal",
+            Self::Scratchpad => "Scratchpad",
+            Self::Handoff => "Session handoff",
             Self::Battery => "Battery",
             Self::Backup => "Backup status",
             Self::System => "System status",
@@ -79,6 +86,9 @@ pub struct Position {
 #[serde(deny_unknown_fields)]
 pub struct Workspace {
     pub name: String,
+    /// None follows all cards (including future cards); Some is an explicit set.
+    #[serde(default)]
+    pub pin_ids: Option<Vec<u64>>,
     pub outline: bool,
     pub outline_width: u16,
     pub focus: bool,
@@ -108,12 +118,13 @@ pub struct State {
 impl Default for State {
     fn default() -> Self {
         Self {
-            version: 2,
+            version: 3,
             selected: 0,
             workspaces: ["Drafting", "Planning", "Research", "Revision", "Focus"]
                 .into_iter()
                 .map(|name| Workspace {
                     name: name.into(),
+                    pin_ids: None,
                     outline: name != "Focus",
                     outline_width: 30,
                     focus: name == "Focus",
@@ -138,7 +149,7 @@ impl Default for State {
 }
 impl State {
     pub fn validate(&self) -> Result<()> {
-        if self.version != 2 {
+        if self.version != 3 {
             bail!(
                 "unsupported WritingDeck layout version {}; file preserved",
                 self.version
@@ -157,6 +168,12 @@ impl State {
                 || !names.insert(w.name.clone())
             {
                 bail!("workspace names must be unique, nonempty and at most 64 characters");
+            }
+            if let Some(ids) = &w.pin_ids {
+                let unique: std::collections::BTreeSet<_> = ids.iter().collect();
+                if ids.len() > 256 || ids.contains(&0) || unique.len() != ids.len() {
+                    bail!("invalid workspace pin set");
+                }
             }
             if !(18..=60).contains(&w.outline_width) {
                 bail!("outline width must be 18..60 columns");
@@ -204,17 +221,19 @@ impl Store {
     }
     pub fn load(root: &Path) -> Result<Self> {
         let path = Self::path(root);
-        let (state, seen) = match fs::read_to_string(&path) {
-            Ok(text) => {
+        let (state, seen) = match fs::File::open(&path) {
+            Ok(file) => {
+                let mut text = String::new();
+                file.take(1_048_577).read_to_string(&mut text)?;
                 if text.len() > 1_048_576 {
                     bail!("layout exceeds 1 MiB; preserved without loading");
                 }
                 let mut state: State = serde_json::from_str(&text)
                     .context("invalid layout JSON; original preserved")?;
-                // Additive v1 -> v2 migration is in memory only. Read-only
+                // Additive v1/v2 -> v3 migration is in memory only. Read-only
                 // inspection never rewrites the file; explicit save is guarded.
-                if state.version == 1 {
-                    state.version = 2;
+                if matches!(state.version, 1 | 2) {
+                    state.version = 3;
                 }
                 state.validate()?;
                 (state, Some(Fingerprint::of(&text)))
@@ -224,9 +243,30 @@ impl Store {
         };
         Ok(Self { state, path, seen })
     }
+    pub fn verify_current(&self) -> Result<()> {
+        let current = match fs::File::open(&self.path) {
+            Ok(file) => {
+                let mut bytes = Vec::new();
+                file.take(1_048_577).read_to_end(&mut bytes)?;
+                if bytes.len() > 1_048_576 {
+                    bail!("layout exceeds 1 MiB; preserved");
+                }
+                Some(Fingerprint::of_bytes(&bytes))
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+            Err(e) => return Err(e.into()),
+        };
+        if current != self.seen {
+            bail!("layout changed externally; not adopted or overwritten");
+        }
+        Ok(())
+    }
     pub fn save(&mut self) -> Result<()> {
         self.state.validate()?;
         let text = serde_json::to_string_pretty(&self.state)? + "\n";
+        if text.len() > 1_048_576 {
+            bail!("layout exceeds 1 MiB; original preserved");
+        }
         fs::create_dir_all(self.path.parent().unwrap())?;
         match crate::sync::save_guarded(&self.path, &text, self.seen)? {
             SaveOutcome::Written => {
@@ -236,6 +276,43 @@ impl Store {
             SaveOutcome::Conflict { .. } => {
                 bail!("workspace state changed outside this instance; not overwritten")
             }
+        }
+    }
+}
+
+/// Explicit starter content, never auto-applied to existing layouts or prose.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Preset {
+    Drafting,
+    Planning,
+    Research,
+    Revision,
+    Focus,
+}
+impl Preset {
+    pub const ALL: [Self; 5] = [
+        Self::Drafting,
+        Self::Planning,
+        Self::Research,
+        Self::Revision,
+        Self::Focus,
+    ];
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Drafting => "Drafting",
+            Self::Planning => "Planning",
+            Self::Research => "Research",
+            Self::Revision => "Revision",
+            Self::Focus => "Focus",
+        }
+    }
+    pub fn source(self) -> Option<(&'static str, &'static str)> {
+        match self {
+            Self::Drafting => Some(("notes/workspaces/drafting.md", "notes")),
+            Self::Planning => Some(("notes/workspaces/planning.md", "notes")),
+            Self::Research => Some(("research/workspace.md", "research")),
+            Self::Revision => Some(("notes/workspaces/revision.md", "notes")),
+            Self::Focus => None,
         }
     }
 }
@@ -317,7 +394,7 @@ mod tests {
         fs::create_dir_all(Store::path(&root).parent().unwrap()).unwrap();
         fs::write(Store::path(&root), &original).unwrap();
         let mut loaded = Store::load(&root).unwrap();
-        assert_eq!(loaded.state.version, 2);
+        assert_eq!(loaded.state.version, 3);
         assert_eq!(loaded.state.current().secondary, None);
         assert_eq!(loaded.state.current().secondary_percent, 40);
         assert_eq!(fs::read_to_string(Store::path(&root)).unwrap(), original);
@@ -370,5 +447,64 @@ mod tests {
             assert_eq!(fs::read_to_string(&path).unwrap(), text);
         }
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn v2_migrates_to_v3_without_rewriting_and_pin_sets_preserve_opaque_ids() {
+        let root = std::env::temp_dir().join(format!("wd-v3-layout-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(Store::path(&root).parent().unwrap()).unwrap();
+        let mut value = serde_json::to_value(State::default()).unwrap();
+        value["version"] = 2.into();
+        for w in value["workspaces"].as_array_mut().unwrap() {
+            w.as_object_mut().unwrap().remove("pin_ids");
+        }
+        let original = value.to_string();
+        fs::write(Store::path(&root), &original).unwrap();
+        let mut store = Store::load(&root).unwrap();
+        assert_eq!(store.state.version, 3);
+        assert!(store.state.current().pin_ids.is_none());
+        assert_eq!(fs::read_to_string(Store::path(&root)).unwrap(), original);
+        store.state.current_mut().pin_ids = Some(vec![17, 900]);
+        store.save().unwrap();
+        assert_eq!(
+            Store::load(&root).unwrap().state.current().pin_ids,
+            Some(vec![17, 900])
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+    #[test]
+    fn workspace_pin_ids_are_positive_unique_bounded_and_presets_are_explicit() {
+        let mut state = State::default();
+        for ids in [vec![0], vec![1, 1], (1..=257).collect()] {
+            state.current_mut().pin_ids = Some(ids);
+            assert!(state.validate().is_err());
+        }
+        state.current_mut().pin_ids = Some(vec![]);
+        assert!(state.validate().is_ok());
+        assert_eq!(Preset::ALL.len(), 5);
+        assert!(Preset::Focus.source().is_none());
+        assert_eq!(
+            Preset::Research.source(),
+            Some(("research/workspace.md", "research"))
+        );
+    }
+    #[test]
+    fn oversized_external_read_preflight_and_local_save_are_bounded_and_preserved() {
+        let r = root("size-bounds");
+        let mut store = Store::load(&r).unwrap();
+        store.save().unwrap();
+        let original = fs::read(&store.path).unwrap();
+        let large = vec![b'x'; 1_048_578];
+        fs::write(&store.path, &large).unwrap();
+        assert!(Store::load(&r).is_err());
+        assert!(store.verify_current().is_err());
+        assert_eq!(fs::read(&store.path).unwrap(), large);
+        fs::write(&store.path, &original).unwrap();
+        store.state.workspaces[0].primary.document =
+            Some(PathBuf::from(format!("{}.md", "x".repeat(1_048_577))));
+        assert!(store.save().is_err());
+        assert_eq!(fs::read(&store.path).unwrap(), original);
+        fs::remove_dir_all(r).unwrap();
     }
 }

@@ -14,7 +14,7 @@ Arrow keys select a row. Enter opens it. On a widget, `h` hides it and `J` or `K
 
 ## Workspaces
 
-Workspaces save both documents, each cursor/selection/scroll position, the active editor, secondary visibility/proportion, outline width and focus setting. Choose Drafting, Planning, Research, Revision or Focus, or press `n` to clone a custom layout. Use `+` and `-` to adjust outline width and `<` or `>` for the secondary proportion (25–75 percent). Single-source sticky cards are now available through Pinboard; richer preset content remains planned. The legacy `v` beside view is still read-only, separate from the new editor.
+Workspaces save both documents, each cursor/selection/scroll position, the active editor, secondary visibility/proportion, outline width and focus setting. Choose Drafting, Planning, Research, Revision or Focus, or press `n` to clone a custom layout. Use `+` and `-` to adjust outline width and `<` or `>` for the secondary proportion (25–75 percent). Single-source sticky cards are now available through Pinboard; explicit starter pane content and workspace-specific pin sets are now available: in Workspaces press b for a starter or p to choose card IDs. Starters create an empty ordinary original note only on explicit application, never while loading/selecting a workspace or replacing existing prose. The legacy `v` beside view is still read-only, separate from the new editor.
 
 ## Toggle editable secondary pane
 
@@ -24,7 +24,7 @@ Only one authoritative editor may own a canonical file. Choosing a document alre
 
 ## Sticky-note pins
 
-Choose Pinboard or Pin current document in Writing tools or Ctrl-K. Dashboard `p` opens Pinboard too. Cards reference existing Markdown sources, keep independent scroll and heading/quote anchors, and never become a competing text store. Enter explicitly edits a source through the existing owner-aware editor. Scopes, category/color/size/order, recoverable card archive/Trash and narrow-screen fallback are explained in the Sticky-note pins help topic. Writing journal now separates sampled saved-Project facts from original Markdown reflections: Ctrl-K or dashboard j opens it. Its help explains source editing, explicit current snapshots and retry. Scratchpad and handoff remain separate planned features.
+Choose Pinboard or Pin current document in Writing tools or Ctrl-K. Dashboard `p` opens Pinboard too. Cards reference existing Markdown sources, keep independent scroll and heading/quote anchors, and never become a competing text store. Enter explicitly edits a source through the existing owner-aware editor. Scopes, category/color/size/order, recoverable card archive/Trash and narrow-screen fallback are explained in the Sticky-note pins help topic. Writing journal now separates sampled saved-Project facts from original Markdown reflections: Ctrl-K or dashboard j opens it. Its help explains source editing, explicit current snapshots and retry. Scratchpad now has multiple original Notes, explicit scene links and original-preserving scene promotion; Session handoff shows an ordinary user-authored next-open intention. Dashboard s/o and their own help topics expose both.
 
 ## System settings
 

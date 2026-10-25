@@ -22,6 +22,8 @@ pub enum Event {
     PinCreated,
     PinAnchorRestored,
     JournalReflectionSaved,
+    ScratchpadPromoted,
+    HandoffReopened,
     SceneOpened,
     CorkboardOpened,
     WorkspaceSelected,

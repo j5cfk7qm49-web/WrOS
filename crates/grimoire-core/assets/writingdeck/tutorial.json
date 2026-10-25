@@ -100,16 +100,16 @@
   {
     "id": 15,
     "title": "Scratchpad",
-    "help_topic": "notes",
-    "event": null,
-    "instructions": "Capture an idea, link it to a scene and promote it safely. Planned."
+    "help_topic": "scratchpad",
+    "event": "ScratchpadPromoted",
+    "instructions": "In the safe demo, open Scratchpad, n to create an original note, write/save an idea, reopen Scratchpad and l to link a manuscript scene. Press p to create one independent scene snapshot. The original note stays intact; a button or blank note cannot complete this lesson."
   },
   {
     "id": 16,
     "title": "Session handoff",
-    "help_topic": "writingdeck",
-    "event": null,
-    "instructions": "Leave a next-session intention and see it after restart. Planned."
+    "help_topic": "handoff",
+    "event": "HandoffReopened",
+    "instructions": "In the safe demo, open Session handoff, Enter to edit its ordinary original note, and write/save your next-session intention. Reopen Session handoff and s to arm next-open display with an optional saved manuscript context. Quit normally and reopen the same demo: seeing the actual saved original intention completes the exercise, not arming it alone."
   },
   {
     "id": 17,

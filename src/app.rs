@@ -34,6 +34,7 @@ pub(crate) mod documents;
 pub(crate) mod journal;
 pub(crate) mod overlays;
 pub(crate) mod pins;
+pub(crate) mod workflow;
 pub(crate) mod writingdeck;
 pub use aids::{MarkRow, Sprint, filter_marks as aids_filter};
 
@@ -171,6 +172,7 @@ pub struct App {
     pub deck: writingdeck::Deck,
     pub pins: pins::Pins,
     pub journal: journal::Journal,
+    pub workflow: workflow::Workflow,
     pub views: documents::Views,
     pub project: Project,
     pub visible: Vec<usize>,
@@ -424,6 +426,8 @@ pub enum Overlay {
     Deck(writingdeck::Page),
     Pins,
     Journal,
+    Scratchpad,
+    Handoff,
     PinCategory {
         id: u64,
         buf: String,
@@ -735,6 +739,7 @@ impl App {
         let deck = writingdeck::Deck::load(&project.root, setup.background);
         let views = documents::Views::new(&project.root)?;
         let pins = pins::Pins::load(&project.root);
+        let workflow = workflow::Workflow::load(&project.root);
         let complete = !project.nodes.iter().any(|n| {
             n.in_manuscript
                 && n.kind == Kind::Scene
@@ -790,6 +795,7 @@ impl App {
             deck,
             pins,
             journal,
+            workflow,
             views,
             project,
             visible,
@@ -912,6 +918,7 @@ impl App {
             app.init_writingdeck(setup.background);
             app.refresh_pin_sources();
             app.refresh_journal_source();
+            app.refresh_workflow_sources();
             // Say what couldn't be read, once, so an empty row isn't a mystery.
             let unreadable = app
                 .project
@@ -927,6 +934,7 @@ impl App {
                     if unreadable == 1 { "" } else { "s" }
                 );
             }
+            app.apply_handoff_startup();
             app
         })
     }
@@ -1434,6 +1442,7 @@ impl App {
             }
             self.refresh_pin_sources();
             self.refresh_journal_source();
+            self.refresh_workflow_sources();
             if notes_changed {
                 // A note's names feed the codex and the spellchecker.
                 self.refresh_names();
@@ -2023,6 +2032,10 @@ impl App {
             }
             Action::ToggleOutline => self.toggle_outline(),
             Action::Journal => self.open_journal(),
+            Action::ApplyPreset(slot, preset) => self.apply_starter_preset(slot, preset),
+            Action::Scratchpad => self.open_scratchpad(),
+            Action::Handoff => self.open_handoff(),
+            Action::LinkScratchpad(id, path) => self.link_scratchpad(id, &path),
             Action::Pinboard => self.open_pinboard(),
             Action::PinCurrent => self.pin_current(),
             Action::TogglePins => self.toggle_pins(),
@@ -3842,6 +3855,7 @@ impl App {
         self.refresh_names();
         self.refresh_pin_sources();
         self.refresh_journal_source();
+        self.refresh_workflow_sources();
         self.ensure_document_claims()
     }
 
@@ -4733,7 +4747,11 @@ impl App {
     pub fn on_drag(&mut self, x: u16, y: u16) {
         if matches!(
             self.overlay,
-            Overlay::Pins | Overlay::PinCategory { .. } | Overlay::Journal
+            Overlay::Pins
+                | Overlay::PinCategory { .. }
+                | Overlay::Journal
+                | Overlay::Scratchpad
+                | Overlay::Handoff
         ) {
             return;
         }
@@ -4951,6 +4969,8 @@ impl App {
                 ),
                 ("Choose secondary document…".into(), Action::SecondaryPicker),
                 ("Writing journal…".into(), Action::Journal),
+                ("Scratchpad…".into(), Action::Scratchpad),
+                ("Session handoff…".into(), Action::Handoff),
                 ("Pinboard…".into(), Action::Pinboard),
                 ("Pin current document".into(), Action::PinCurrent),
                 ("Toggle pins sidebar".into(), Action::TogglePins),

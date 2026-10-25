@@ -60,6 +60,7 @@ impl App {
             Overlay::None => {}
             Overlay::Deck(_) => self.on_deck_key(key),
             Overlay::Journal => self.on_journal_key(key),
+            Overlay::Scratchpad | Overlay::Handoff => self.on_workflow_key(key),
             Overlay::Pins | Overlay::PinCategory { .. } => self.on_pin_key(key),
             Overlay::Marks { .. } => self.on_marks_key(key),
             Overlay::Sprint { .. } => self.on_sprint_key(key),
@@ -180,6 +181,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         Overlay::None => {}
         Overlay::Deck(_) => super::writingdeck::draw(f, app, area, t),
         Overlay::Journal => super::journal::draw(f, app, area, t),
+        Overlay::Scratchpad | Overlay::Handoff => super::workflow::draw(f, app, area, t),
         Overlay::Pins | Overlay::PinCategory { .. } => super::pins::draw_board(f, app, area, t),
         Overlay::Marks { query, sel, rows } => marks::draw_marks(f, area, query, *sel, rows, t),
         Overlay::Sprint {

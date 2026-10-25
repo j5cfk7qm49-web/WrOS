@@ -32,7 +32,7 @@ Aliases persist per machine at `paths::data_dir()/writingdeck/shortcuts.json`, u
 ]}
 ```
 
-Available alias actions: dashboard, system-settings, tutorial, outline, secondary, focus, save, find, palette, pinboard, pins (sidebar toggle), pin-current, journal. More complete shortcut customization is planned. F10/F11/F12 remain default fallback actions even if aliases are removed; an explicit alias on one of these keys takes precedence.
+Available alias actions: dashboard, system-settings, tutorial, outline, secondary, focus, save, find, palette, pinboard, pins (sidebar toggle), pin-current, journal, scratchpad, handoff. More complete shortcut customization is planned. F10/F11/F12 remain default fallback actions even if aliases are removed; an explicit alias on one of these keys takes precedence.
 
 ## Card controls
 
@@ -50,4 +50,8 @@ The terminal may not distinguish Ctrl-I from Tab or Ctrl-M from Enter. Existing 
 
 ## Tutorial and tests
 
-Tutorial lessons 2, 8, 9, 10, 11, 12, 13 and 14 use the actual layout/focus/outline/alias/secondary-edit features. TUI tests exercise translated Unicode and logical aliases labeled across QWERTY/Colemak/DH scenarios. Real console DH mapping is a separate VM assertion; physical keyboard verification remains outstanding. No menu-description/help/key guard test was removed to add these features.
+Tutorial lessons 2, 8, 9, 10, 11, 12, 13, 14, 15 and 16 use the actual layout/focus/outline/alias/secondary-edit features. TUI tests exercise translated Unicode and logical aliases labeled across QWERTY/Colemak/DH scenarios. Real console DH mapping is a separate VM assertion; physical keyboard verification remains outstanding. No menu-description/help/key guard test was removed to add these features.
+
+## Scratchpad, handoff and starter controls
+
+Dashboard s/o or Ctrl-K opens Scratchpad/Session handoff. Ctrl-K works from the read-only Pinboard/Journal/Scratchpad/Handoff too; prose readers suppress paste commands. Scratchpad n/N and Enter/e explicitly edit originals, l links, p promotes, v opens the independent original scene, x cancels only an unwritten preparation, Tab/a/Delete change reference lifecycle. Handoff s arms saved user prose, g resumes context, o toggles next-open display. Workspaces b applies an explicit empty-original starter; p edits its card-ID set (Space, a/z, Enter, A follow all, Esc cancel). Full guarantees: [WORKFLOW](WORKFLOW.md), [WORKSPACES](WORKSPACES.md), and their built-in F1 topics.

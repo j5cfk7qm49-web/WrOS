@@ -2,7 +2,7 @@
 
 ## Current implementation
 
-The compiled catalog at `crates/grimoire-core/assets/writingdeck/tutorial.json` lists **all 39 requested lessons**. Nineteen have actual application-event hooks; the other 20 are explicitly marked **planned** and cannot be started/completed. This is a continuously developed framework, not a claim of full tutorial completion.
+The compiled catalog at `crates/grimoire-core/assets/writingdeck/tutorial.json` lists **all 39 requested lessons**. Twenty-one have actual application-event hooks; the other 18 are explicitly marked **planned** and cannot be started/completed. This is a continuously developed framework, not a claim of full tutorial completion.
 
 Open F12 → Interactive tutorial, or use the menu/command palette. Arrow keys select a lesson; Enter shows its instructions and then starts the real feature; `h` opens linked searchable offline help; `s` skips; Escape returns. Completed lessons can be replayed. Progress is schema-versioned, atomically guarded and stored with the project. There is no fake Next/Done button.
 
@@ -33,8 +33,8 @@ The demo contains original short text and a deliberate spelling error. Nothing i
 | 12 | Sticky scrolling | Wired: capture a unique heading, really scroll in anchored mode, then Home successfully saves a return to that semantic anchor in the safe demo |
 | 13 | Notes beside manuscript | Wired: actual SecondaryEdited event in the safe demo, via typing or paste; a picker/navigation event is insufficient |
 | 14 | Writing journal | Wired: recorded demo manuscript checkpoint reviewed, then a genuinely changed original Markdown reflection successfully saved; opening/navigation alone does not complete it |
-| 15 | Scratchpad | Planned |
-| 16 | Session handoff | Planned |
+| 15 | Scratchpad | Wired: genuine original demo note saved, actual scene link and successful independent promotion; opening/blank notes cannot complete it |
+| 16 | Session handoff | Wired: genuine original intention saved/armed, then shown on a new demo App-context open; not OS/process attestation |
 | 17 | Daily goals | Wired: actual saved target changes in demo |
 | 18 | NaNoWriMo tracking | Planned advanced calendar |
 | 19 | Sprints | Wired: actual baseline sprint starts |
@@ -70,3 +70,5 @@ Instructions use arrows, Enter/Escape and function keys for physical-layout-inde
 ## Tests and continuation rule
 
 Core tests verify 39 stable lesson IDs, unavailable lesson rejection, event matching, safe-demo gating, skip/replay, persisted progress and exclusive new-demo creation. TUI pin tests verify actual source selection/save and anchored scroll-and-return for lessons 11/12; opening a page or pressing Home without prior anchored scrolling is insufficient. TUI tests type/paste through the actual secondary routing/editor and validate persisted lesson 13 completion and replay, reject real-novel exercise launch, and prove open/navigation alone cannot complete it. Core tests and retained baseline lessons verify event matching, help topics and required sizes. Add new completion evidence and safe-demo tasks in the same change that implements each future feature. A feature's tutorial must never be marked complete simply because its informational page exists.
+
+Lessons 15/16 exercise the original-source workflows described in [WORKFLOW](WORKFLOW.md). Lesson 16's event verifies a new App context with the saved source, not a measured reboot or process identity; separate compiled-app PTYs perform actual quit/restart and edit/undo the loaded original. Blank/failed/paste-only navigation and ordinary novels cannot manufacture completion. All 39 full exercises are not yet delivered.

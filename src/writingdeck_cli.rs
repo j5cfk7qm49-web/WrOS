@@ -54,8 +54,10 @@ pub fn command(mut args: impl Iterator<Item = String>) -> Result<()> {
             let tutorial = grimoire_core::tutorial::Store::load(&root)?;
             let pins = grimoire_core::pins::Store::load(&root)?;
             let journal = grimoire_core::journal::validate_existing(&root)?;
+            let workflow = grimoire_core::workflow::Store::load(&root)?;
+            let scratch_count = workflow.state.notes.len();
             println!(
-                "Layout schema {} validated; {} workspaces. Tutorial schema {} validated. Pins schema {} validated; {} references (source availability checked in UI). {journal} journal date files validated (other filenames not interpreted). No files changed.",
+                "Layout schema {} validated; {} workspaces. Tutorial schema {} validated. Pins schema {} validated; {} references (source availability checked in UI). {journal} journal date files validated (other filenames not interpreted). Workflow schema 1 validated; {scratch_count} scratchpad references (sources checked in UI). No files changed.",
                 layout.state.version,
                 layout.state.workspaces.len(),
                 tutorial.progress.version,

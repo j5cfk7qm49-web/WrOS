@@ -194,6 +194,14 @@ impl App {
             .pins
             .iter()
             .filter(|p| p.visible(scene.as_deref(), chapter.as_deref(), dashboard))
+            .filter(|p| {
+                self.deck
+                    .state
+                    .current()
+                    .pin_ids
+                    .as_ref()
+                    .is_none_or(|ids| ids.contains(&p.id))
+            })
             .map(|p| p.id)
             .collect()
     }

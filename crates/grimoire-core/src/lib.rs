@@ -37,4 +37,5 @@ pub mod sync;
 pub mod typeset;
 
 pub mod tutorial;
+pub mod workflow;
 pub mod workspaces;

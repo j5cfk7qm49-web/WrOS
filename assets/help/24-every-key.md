@@ -140,3 +140,23 @@ Open Writing journal in Ctrl-K or Writing tools, or press j on the dashboard. Th
 | Esc | Leave reader |
 
 Bracketed/clipboard paste in the reader is ignored. Known unavailable/non-UTF-8 manuscript totals are not fabricated, and note-only saves are not manuscript-writing events. See Writing journal help for sampled-checkpoint limits and force-exit warnings.
+
+## Scratchpad, handoff and explicit starters (WritingDeck)
+
+Ctrl-K remains reachable from read-only Pinboard, Writing journal, Scratchpad and Session handoff, as well as ordinary writing. Reader prose/clipboard paste never executes letter commands.
+
+| Key | Action |
+| --- | --- |
+| Dashboard s / o | Scratchpad / Session handoff |
+| Scratchpad n / N, Enter / e | New original / edit original in Secondary or Primary |
+| Scratchpad l / g | Link a manuscript scene / open its original |
+| Scratchpad p / v / x | Promote independent saved snapshot / view original scene / cancel unwritten preparation |
+| Scratchpad Tab, a / Delete | Lifecycle views, archive/restore or Trash reference only |
+| Handoff s / g / o | Save and arm next open / resume context / toggle startup display |
+| Readers PgUp / PgDn, Home / End | Independent preview scroll |
+| Readers r / Esc | Explicit reload / leave |
+| Workspaces b / p | Explicit starter preset / per-workspace pin set |
+| Pin set Space, a / z | Toggle card, select all / none (draft until saved) |
+| Pin set Enter / A / Esc | Save explicit IDs / follow all future cards / cancel |
+
+Preset application is explicit, empty-source-only, owner-aware and guarded by clean source saves/current layout metadata. Existing Markdown/YAML is never templated over. Promotion preserves the original note; its new scene is independent, not a live synchronized copy. Handoff is manually authored prose, not generated advice, measured session time or backup.

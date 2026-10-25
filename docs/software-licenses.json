@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "review_date": "2026-10-24",
+  "review_date": "2026-10-25",
   "distribution_ready": false,
   "scope": "Locked Rust dependency graph (all resolved platforms/default features) + actual staged Debian package versions; not a blanket MIT license for the OS",
   "rust_packages": [

@@ -1,6 +1,6 @@
 # M4a: single-source Markdown pins
 
-**Tested initial pin subsystem, not completion of all M4 work.** Initial journal facts/reflections are now tested in [M4b](JOURNAL.md); scratchpad promotion and handoff remain separate planned services. The complete appliance is still not production-ready.
+**Tested initial pin subsystem, not completion of all M4 work.** Initial journal facts/reflections are tested in [M4b](JOURNAL.md); original scratchpad/promotion/handoff and workspace pin sets are now separately tested in [M4c](WORKFLOW.md). The complete appliance is still not production-ready.
 
 ## One source, several readers
 
@@ -69,3 +69,5 @@ This is not an OS file lock, hostile-filesystem-race defense, cross-process comp
 - New headless CLI test validates pin metadata without writes and preserves unknown/future files. The prior independent-editor PTY and all upstream regression suites remain enabled.
 
 These PTYs answer the initial cursor query but do not emulate every terminal feature or certify physical layouts. The separate whole-VM probe covers boot/system/console keyboards, **not pin interaction**. Current aggregate results and source/binary identities are in [STATUS](STATUS.md) and [test-results.json](evidence/test-results.json).
+
+M4c adds per-workspace card-ID filters to sidebar/dashboard only; Pinboard remains global and no body is copied. A bounded last-row fallback keeps an overscrolled/reflowed cached preview readable without rewriting source/scroll from rendering. Its new core test is counted with M4c, not the historical 46-test M4a increment. See [WORKSPACES](WORKSPACES.md).

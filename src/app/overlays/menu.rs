@@ -320,6 +320,14 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
         Action::Workspaces => ("Restores a saved writing layout.", "writingdeck"),
         Action::Tutorial => ("Opens replayable, event-verified lessons.", "writingdeck"),
         Action::ToggleOutline => ("Shows or hides the outline independently.", "writingdeck"),
+        Action::Scratchpad => (
+            "Original Notes linked to scenes; explicit independent promotion keeps the original.",
+            "scratchpad",
+        ),
+        Action::Handoff => (
+            "Original next-session prose and explicit saved manuscript context resume.",
+            "handoff",
+        ),
         Action::Journal => (
             "Recorded saved-manuscript observations, separate from original Markdown reflections. No gross-word or active-time guesses.",
             "journal",

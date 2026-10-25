@@ -1,6 +1,6 @@
 # M4b: saved observations and original reflections
 
-**Tested initial journal, not a complete productivity/edit ledger or completion of M4.** Scratchpad promotion, handoff and richer presets remain separate work. No hardware, power-loss, legal or production-install qualification is implied.
+**Tested initial journal, not a complete productivity/edit ledger.** Original scratchpad promotion, handoff and explicit workspace starters/pin sets are now separately tested in [M4c](WORKFLOW.md). No hardware, power-loss, legal or production-install qualification is implied.
 
 ## Two kinds of material, not two text writers
 

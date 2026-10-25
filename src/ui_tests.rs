@@ -3834,7 +3834,7 @@ fn writingdeck_secondary_workspace_restart_restores_both_selections_free_scroll_
     let mut reopened = Desk::open(d.root.clone(), 120, 40);
     reopened.app.init_writingdeck(true);
     reopened.draw();
-    assert_eq!(reopened.app.deck.state.version, 2);
+    assert_eq!(reopened.app.deck.state.version, 3);
     assert_eq!(reopened.app.view_position(Pane::Primary).unwrap(), primary);
     assert_eq!(
         reopened.app.view_position(Pane::Secondary).unwrap(),
@@ -6155,4 +6155,662 @@ fn writingdeck_journal_unreadable_manuscript_totals_do_not_become_invented_compl
     assert!(o.initial_manuscript_words.is_none());
     assert!(o.delta_since_open().is_none());
     assert!(o.daily_net_words.is_none());
+}
+
+// ---- M4: source-preserving scratchpad, handoff and explicit pane starters ----
+fn workflow_note(d: &mut Desk, body: &str) -> (u64, PathBuf) {
+    d.app.run_action(palette::Action::Scratchpad);
+    d.key(KeyCode::Char('n'));
+    assert_eq!(d.app.overlay, Overlay::None, "{}", d.app.msg);
+    assert_eq!(d.app.focus, Focus::Secondary);
+    let id = d.app.workflow.selected.unwrap();
+    let path = d.root.join(grimoire_core::workflow::scratch_path(id));
+    d.app.paste(body);
+    d.ctrl('s');
+    assert!(fs::read_to_string(&path).unwrap().contains(body));
+    (id, path)
+}
+fn workflow_link(d: &mut Desk, id: u64) {
+    let scene = first_scene(&d.root);
+    d.app.link_scratchpad(id, &scene);
+    assert_eq!(
+        d.app
+            .workflow
+            .state()
+            .unwrap()
+            .note(id)
+            .unwrap()
+            .scene
+            .as_deref(),
+        Some(scene.strip_prefix(&d.root).unwrap())
+    );
+}
+fn workflow_intention(d: &mut Desk, body: &str) {
+    d.app.run_action(palette::Action::Handoff);
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.overlay, Overlay::None, "{}", d.app.msg);
+    d.app.paste(body);
+    d.ctrl('s');
+    d.app.run_action(palette::Action::Handoff);
+    d.key(KeyCode::Char('s'));
+    assert!(
+        d.app.workflow.state().unwrap().handoff.show_on_open,
+        "{}",
+        d.app.msg
+    );
+    assert!(d.app.workflow.state().unwrap().handoff.intention.is_some());
+}
+#[test]
+fn writingdeck_workflow_four_size_multi_note_scene_link_and_original_preserving_promotion() {
+    for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let (mut d, _) = secondary_book(&format!("workflow-sizes-{width}"), width, height, false);
+        let manuscript = fs::read(first_scene(&d.root)).unwrap();
+        let before = d.app.project.total_words();
+        let (id, source) = workflow_note(&mut d, "Original scene-linked scratch idea. ");
+        assert_eq!(d.app.project.total_words(), before);
+        assert!(!journal_path(&d).exists());
+        let original = fs::read(&source).unwrap();
+        workflow_link(&mut d, id);
+        d.key(KeyCode::Char('p'));
+        let target = d.root.join(grimoire_core::workflow::promotion_path(id));
+        assert!(target.is_file(), "{}", d.app.msg);
+        assert_eq!(fs::read(&source).unwrap(), original);
+        assert_eq!(fs::read(first_scene(&d.root)).unwrap(), manuscript);
+        assert!(d.app.project.total_words() > before);
+        assert!(!journal_path(&d).exists());
+        let promoted = fs::read(&target).unwrap();
+        d.key(KeyCode::Char('p'));
+        assert_eq!(fs::read(&target).unwrap(), promoted);
+        let (other, other_path) = workflow_note(&mut d, "Separate second note. ");
+        assert_ne!(id, other);
+        assert_ne!(source, other_path);
+        assert_eq!(fs::read(&source).unwrap(), original);
+        assert_eq!(d.app.workflow.state().unwrap().notes.len(), 2);
+        assert!(d.app.try_quit());
+        let root = d.root.clone();
+        let mut restarted = Desk::open(root, width, height);
+        restarted.app.run_action(palette::Action::Scratchpad);
+        assert_eq!(restarted.app.workflow.state().unwrap().notes.len(), 2);
+        restarted.app.workflow.selected = Some(id);
+        restarted.key(KeyCode::Enter);
+        restarted.app.paste("Loaded original after restart. ");
+        restarted.ctrl('s');
+        assert!(
+            fs::read_to_string(&source)
+                .unwrap()
+                .contains("Loaded original after restart")
+        );
+        assert_eq!(fs::read(target).unwrap(), promoted);
+    }
+}
+#[test]
+fn writingdeck_workflow_existing_owner_raw_yaml_and_undo_remain_original() {
+    use grimoire_core::documents::Pane;
+    let (mut d, _) = secondary_book("workflow-owner", 120, 40, false);
+    let (id, path) = workflow_note(&mut d, "First original. ");
+    d.app.paste("Second original edit. ");
+    d.ctrl('s');
+    let edited = fs::read(&path).unwrap();
+    d.app.run_action(palette::Action::Scratchpad);
+    d.key(KeyCode::Char('e'));
+    assert_eq!(d.app.views.active, Pane::Secondary);
+    assert_eq!(fs::read(&path).unwrap(), edited);
+    d.ctrl('z');
+    d.ctrl('s');
+    assert!(
+        !fs::read_to_string(&path)
+            .unwrap()
+            .contains("Second original edit")
+    );
+    d.ctrl('y');
+    d.ctrl('s');
+    assert_eq!(fs::read(&path).unwrap(), edited);
+    d.app.run_action(palette::Action::Scratchpad);
+    workflow_link(&mut d, id);
+    d.key(KeyCode::Char('p'));
+    d.key(KeyCode::Char('v'));
+    assert_eq!(d.app.views.active, Pane::Primary);
+    assert_eq!(
+        d.app.project.nodes[d.app.open.unwrap()].path,
+        d.root.join(grimoire_core::workflow::promotion_path(id))
+    );
+    assert_eq!(fs::read(path).unwrap(), edited);
+}
+#[test]
+fn writingdeck_workflow_reader_scroll_cut_and_undo_never_follow_or_mutate_either_editor() {
+    use grimoire_core::documents::Pane;
+    let (mut d, _) = secondary_book("workflow-reader", 100, 30, true);
+    let (_, path) = workflow_note(
+        &mut d,
+        &(0..70)
+            .map(|i| format!("Original scratch paragraph {i}.\n"))
+            .collect::<String>(),
+    );
+    let source = fs::read(&path).unwrap();
+    let a = d.app.view_position(Pane::Primary);
+    let b = d.app.view_position(Pane::Secondary);
+    d.app.run_action(palette::Action::Scratchpad);
+    d.key(KeyCode::End);
+    assert!(d.app.workflow.scroll > 0);
+    d.ctrl('z');
+    d.ctrl('x');
+    d.ctrl('v');
+    assert_eq!(d.app.view_position(Pane::Primary), a);
+    assert_eq!(d.app.view_position(Pane::Secondary), b);
+    assert_eq!(fs::read(path).unwrap(), source);
+    d.key(KeyCode::Home);
+    assert_eq!(d.app.workflow.scroll, 0);
+}
+#[test]
+fn writingdeck_workflow_render_is_cache_only_even_when_originals_and_index_disappear() {
+    let (mut d, _) = secondary_book("workflow-cache", 100, 30, false);
+    let (_, path) = workflow_note(&mut d, "Cached original marker. ");
+    d.app.run_action(palette::Action::Scratchpad);
+    fs::remove_file(path).unwrap();
+    let meta = grimoire_core::workflow::Store::path(&d.root);
+    let raw = fs::read(&meta).unwrap();
+    fs::remove_file(&meta).unwrap();
+    d.draw();
+    assert!(d.shows("Cached original marker"));
+    assert!(!meta.exists());
+    fs::write(meta, raw).unwrap();
+}
+#[test]
+fn writingdeck_workflow_missing_original_is_not_recreated_or_promoted() {
+    let (mut d, _) = secondary_book("workflow-missing", 100, 30, false);
+    let (id, path) = workflow_note(&mut d, "Keep missing source words. ");
+    workflow_link(&mut d, id);
+    d.app.overlay = Overlay::None;
+    d.app
+        .activate_editor(grimoire_core::documents::Pane::Primary);
+    d.app.hide_secondary();
+    fs::remove_file(&path).unwrap();
+    d.app.run_action(palette::Action::Scratchpad);
+    d.key(KeyCode::Enter);
+    d.key(KeyCode::Char('p'));
+    assert!(!path.exists());
+    assert!(
+        !d.root
+            .join(grimoire_core::workflow::promotion_path(id))
+            .exists()
+    );
+}
+#[test]
+fn writingdeck_workflow_archive_trash_and_restore_never_delete_original_notes() {
+    let (mut d, _) = secondary_book("workflow-life", 100, 30, false);
+    let (id, path) = workflow_note(&mut d, "Keep original throughout lifecycle. ");
+    let raw = fs::read(&path).unwrap();
+    d.app.run_action(palette::Action::Scratchpad);
+    d.key(KeyCode::Char('a'));
+    assert_eq!(
+        d.app.workflow.state().unwrap().note(id).unwrap().life,
+        grimoire_core::pins::Life::Archived
+    );
+    d.key(KeyCode::Tab);
+    d.key(KeyCode::Delete);
+    assert_eq!(
+        d.app.workflow.state().unwrap().note(id).unwrap().life,
+        grimoire_core::pins::Life::Trashed
+    );
+    d.key(KeyCode::Tab);
+    d.key(KeyCode::Char('a'));
+    assert_eq!(
+        d.app.workflow.state().unwrap().note(id).unwrap().life,
+        grimoire_core::pins::Life::Active
+    );
+    assert_eq!(fs::read(path).unwrap(), raw);
+}
+#[test]
+fn writingdeck_workflow_metadata_conflict_and_index_io_failure_roll_back_before_copying() {
+    let (mut d, _) = secondary_book("workflow-conflict", 100, 30, false);
+    let (id, path) = workflow_note(&mut d, "Do not overwrite in promotion. ");
+    workflow_link(&mut d, id);
+    let original = fs::read(&path).unwrap();
+    let meta = grimoire_core::workflow::Store::path(&d.root);
+    let valid = fs::read(&meta).unwrap();
+    fs::write(&meta, "External incompatible workflow").unwrap();
+    d.key(KeyCode::Char('p'));
+    assert!(
+        !d.root
+            .join(grimoire_core::workflow::promotion_path(id))
+            .exists()
+    );
+    assert_eq!(fs::read(&path).unwrap(), original);
+    assert_eq!(
+        fs::read_to_string(&meta).unwrap(),
+        "External incompatible workflow"
+    );
+    fs::write(&meta, valid).unwrap();
+    d.key(KeyCode::Char('r'));
+    fs::remove_file(&meta).unwrap();
+    fs::create_dir(&meta).unwrap();
+    d.key(KeyCode::Char('p'));
+    assert!(
+        !d.root
+            .join(grimoire_core::workflow::promotion_path(id))
+            .exists()
+    );
+    assert_eq!(fs::read(&path).unwrap(), original);
+}
+#[test]
+fn writingdeck_workflow_unknown_future_state_never_creates_scratch_sources_or_rewrites_metadata() {
+    for raw in [
+        "bad",
+        "{\"version\":999}",
+        "{\"version\":1,\"future\":true}",
+    ] {
+        let root = book(&format!("workflow-invalid-{}", raw.len()), true);
+        let meta = grimoire_core::workflow::Store::path(&root);
+        fs::create_dir_all(meta.parent().unwrap()).unwrap();
+        fs::write(&meta, raw).unwrap();
+        let mut d = Desk::open(root, 80, 24);
+        d.app.run_action(palette::Action::Scratchpad);
+        d.draw();
+        assert!(d.shows("Workflow metadata unavailable"));
+        d.key(KeyCode::Char('n'));
+        assert_eq!(fs::read_to_string(&meta).unwrap(), raw);
+        assert!(!d.root.join("notes/scratchpad").exists());
+        assert_eq!(d.app.overlay, Overlay::Scratchpad);
+    }
+}
+#[test]
+fn writingdeck_workflow_waiting_dirty_source_blocks_new_note_handoff_and_starter_without_lost_buffers()
+ {
+    let (mut d, _) = secondary_book("workflow-waiting", 100, 30, false);
+    d.app
+        .activate_editor(grimoire_core::documents::Pane::Primary);
+    d.app.paste("Unsaved protected primary words. ");
+    let path = first_scene(&d.root);
+    let backup = path.with_extension("backup");
+    fs::rename(&path, &backup).unwrap();
+    fs::create_dir(&path).unwrap();
+    d.app.run_action(palette::Action::Scratchpad);
+    d.key(KeyCode::Char('n'));
+    assert!(!d.root.join("notes/scratchpad").exists());
+    assert!(d.app.editor.text().contains("Unsaved protected"));
+    d.app.run_action(palette::Action::Handoff);
+    d.key(KeyCode::Enter);
+    assert!(!d.root.join("notes/handoff.md").exists());
+    d.app
+        .apply_starter_preset(1, grimoire_core::workspaces::Preset::Planning);
+    assert!(!d.root.join("notes/workspaces/planning.md").exists());
+    assert!(d.app.project.dirty_count() > 0);
+    assert!(d.app.editor.text().contains("Unsaved protected"));
+    let copy = recovery::dir(&d.root).join(path.strip_prefix(&d.root).unwrap());
+    assert!(
+        fs::read_to_string(copy)
+            .unwrap()
+            .contains("Unsaved protected")
+    );
+    fs::remove_dir(&path).unwrap();
+    fs::rename(backup, path).unwrap();
+}
+#[test]
+fn writingdeck_workflow_strict_focus_cannot_create_or_focus_hidden_secondary() {
+    let (mut d, _) = secondary_book("workflow-strict", 100, 30, false);
+    let (_, source) = workflow_note(&mut d, "Owned secondary note. ");
+    d.app
+        .activate_editor(grimoire_core::documents::Pane::Primary);
+    d.ctrl('d');
+    assert!(d.app.focus_mode);
+    d.app.run_action(palette::Action::Scratchpad);
+    let count = d.app.workflow.state().unwrap().notes.len();
+    d.key(KeyCode::Char('n'));
+    assert_eq!(d.app.workflow.state().unwrap().notes.len(), count);
+    d.key(KeyCode::Enter);
+    d.key(KeyCode::Char('e'));
+    assert_eq!(d.app.overlay, Overlay::Scratchpad);
+    d.app.run_action(palette::Action::Handoff);
+    d.key(KeyCode::Enter);
+    assert!(!d.root.join("notes/handoff.md").exists());
+    d.key(KeyCode::Char('e'));
+    assert_eq!(d.app.overlay, Overlay::None);
+    assert_eq!(
+        fs::read_to_string(source)
+            .unwrap()
+            .matches("Owned secondary")
+            .count(),
+        1
+    );
+}
+#[cfg(unix)]
+#[test]
+fn writingdeck_workflow_external_alias_collision_refuses_to_guess_and_rescues_both_original_contexts()
+ {
+    use std::os::unix::fs::symlink;
+    let (mut d, research) = secondary_book("workflow-aliases", 120, 40, false);
+    let (_, note) = workflow_note(&mut d, "Original note source. ");
+    d.app.paste("Unsaved note context. ");
+    d.app.run_action(palette::Action::Open(research.clone()));
+    d.app.paste("Unsaved research context. ");
+    let raw = fs::read(&note).unwrap();
+    fs::remove_file(&research).unwrap();
+    symlink(&note, &research).unwrap();
+    d.app.run_action(palette::Action::Scratchpad);
+    assert!(
+        d.app
+            .scratch_body(d.app.workflow.selected.unwrap())
+            .is_err()
+    );
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.overlay, Overlay::Scratchpad);
+    assert_eq!(fs::read(&note).unwrap(), raw);
+    for (path, text) in [(&note, "Unsaved note"), (&research, "Unsaved research")] {
+        let copy = recovery::dir(&d.root).join(path.strip_prefix(&d.root).unwrap());
+        assert!(fs::read_to_string(copy).unwrap().contains(text));
+    }
+}
+#[test]
+fn writingdeck_workflow_non_utf8_original_cannot_be_promoted_or_replaced() {
+    let (mut d, _) = secondary_book("workflow-utf8", 100, 30, false);
+    let (id, path) = workflow_note(&mut d, "Before external bytes. ");
+    workflow_link(&mut d, id);
+    d.app.hide_secondary();
+    fs::write(&path, b"\xff\xfe external source").unwrap();
+    d.app.check_documents_now();
+    d.app.check_documents_now();
+    d.app.run_action(palette::Action::Scratchpad);
+    assert!(d.app.scratch_body(id).is_err());
+    d.key(KeyCode::Enter);
+    d.key(KeyCode::Char('p'));
+    assert_eq!(fs::read(path).unwrap(), b"\xff\xfe external source");
+    assert!(
+        !d.root
+            .join(grimoire_core::workflow::promotion_path(id))
+            .exists()
+    );
+}
+#[test]
+fn writingdeck_workflow_handoff_four_size_actual_original_reopen_and_context_resume() {
+    use grimoire_core::documents::Pane;
+    for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let (mut d, _) = secondary_book(&format!("handoff-sizes-{width}"), width, height, true);
+        d.app.editor.place(13, 4);
+        d.app.editor.scroll = 7;
+        let manuscript = fs::read(first_scene(&d.root)).unwrap();
+        workflow_intention(&mut d, "Tomorrow, follow the original river scene. ");
+        let path = d.root.join("notes/handoff.md");
+        let original = fs::read(&path).unwrap();
+        assert!(!journal_path(&d).exists());
+        assert!(d.app.try_quit());
+        let root = d.root.clone();
+        let mut reopened = Desk::open(root, width, height);
+        assert_eq!(reopened.app.overlay, Overlay::Handoff);
+        assert!(reopened.shows("Tomorrow, follow the original river scene"));
+        reopened.key(KeyCode::Enter);
+        reopened.app.paste("Real loaded handoff edit. ");
+        reopened.ctrl('s');
+        assert!(
+            fs::read_to_string(&path)
+                .unwrap()
+                .contains("Real loaded handoff")
+        );
+        reopened.ctrl('z');
+        reopened.ctrl('s');
+        assert_eq!(fs::read(&path).unwrap(), original);
+        reopened.app.run_action(palette::Action::Handoff);
+        reopened.key(KeyCode::Char('g'));
+        assert_eq!(reopened.app.overlay, Overlay::None);
+        assert_eq!(reopened.app.views.active, Pane::Primary);
+        assert_eq!(reopened.app.editor.cy, 13);
+        assert_eq!(reopened.app.editor.cx, 4);
+        assert_eq!(fs::read(first_scene(&reopened.root)).unwrap(), manuscript);
+    }
+}
+#[test]
+fn writingdeck_workflow_handoff_requires_nonempty_prose_and_supports_no_manuscript_context() {
+    let (mut d, research) = secondary_book("handoff-no-context", 100, 30, false);
+    d.app.run_action(palette::Action::Handoff);
+    d.key(KeyCode::Char('s'));
+    assert!(d.app.workflow.state().unwrap().handoff.intention.is_none());
+    d.app.run_action(palette::Action::Open(research));
+    workflow_intention(&mut d, "Work on a note next time. ");
+    assert!(
+        d.app
+            .workflow
+            .state()
+            .unwrap()
+            .handoff
+            .intention
+            .as_ref()
+            .unwrap()
+            .position
+            .is_none()
+    );
+    let original = fs::read(d.root.join("notes/handoff.md")).unwrap();
+    d.key(KeyCode::Char('o'));
+    assert!(!d.app.workflow.state().unwrap().handoff.show_on_open);
+    let root = d.root.clone();
+    let reopened = Desk::open(root, 100, 30);
+    assert_ne!(reopened.app.overlay, Overlay::Handoff);
+    assert_eq!(
+        fs::read(reopened.root.join("notes/handoff.md")).unwrap(),
+        original
+    );
+}
+#[test]
+fn writingdeck_workflow_handoff_does_not_override_source_recovery_priority() {
+    let (mut d, _) = secondary_book("handoff-recovery", 100, 30, false);
+    workflow_intention(&mut d, "Recover first, intention later. ");
+    let primary = first_scene(&d.root);
+    let saved = fs::read_to_string(&primary).unwrap();
+    recovery::keep(
+        &d.root,
+        &primary,
+        &format!("{saved}\nRecovered unsaved original.\n"),
+    )
+    .unwrap();
+    let root = d.root.clone();
+    let reopened = Desk::open(root, 100, 30);
+    assert!(matches!(reopened.app.overlay, Overlay::Recover { .. }));
+}
+#[test]
+fn writingdeck_workflow_handoff_missing_source_is_reported_not_recreated_on_startup() {
+    let (mut d, _) = secondary_book("handoff-missing", 100, 30, false);
+    workflow_intention(&mut d, "This original may move externally. ");
+    let path = d.root.join("notes/handoff.md");
+    d.app.hide_secondary();
+    fs::remove_file(&path).unwrap();
+    let root = d.root.clone();
+    let reopened = Desk::open(root, 100, 30);
+    assert_eq!(reopened.app.overlay, Overlay::Handoff);
+    assert!(!path.exists());
+    assert!(reopened.app.handoff_body().is_err());
+}
+#[test]
+fn writingdeck_workflow_book_switch_separates_all_original_notes_and_handoff_metadata() {
+    let (mut d, _) = secondary_book("workflow-first", 100, 30, false);
+    workflow_note(&mut d, "Private first-book scratch. ");
+    workflow_intention(&mut d, "Private first-book intention. ");
+    let other = Desk::open(book("workflow-second", true), 100, 30);
+    assert!(d.app.open_book(&other.root));
+    assert!(d.app.workflow.state().unwrap().notes.is_empty());
+    assert!(d.app.workflow.state().unwrap().handoff.intention.is_none());
+    d.app.run_action(palette::Action::Handoff);
+    assert!(
+        !d.app
+            .handoff_body()
+            .is_ok_and(|b| b.contains("Private first-book"))
+    );
+}
+#[test]
+fn writingdeck_workflow_lessons_require_real_promotion_and_handoff_reopen_in_safe_demo() {
+    use crate::app::writingdeck::Page;
+    let root = std::env::temp_dir().join(format!("wd-workflow-tutorial-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    grimoire_core::tutorial::create_demo(&root).unwrap();
+    let mut d = Desk::open(root, 120, 40);
+    d.app.overlay = Overlay::Deck(Page::Lesson { id: 15 });
+    d.key(KeyCode::Enter);
+    assert!(!d.app.deck.progress.completed.contains(&15));
+    d.key(KeyCode::Char('n'));
+    d.app.paste("Actual safe-demo idea. ");
+    d.ctrl('s');
+    d.app.run_action(palette::Action::Scratchpad);
+    d.key(KeyCode::Char('p'));
+    assert!(!d.app.deck.progress.completed.contains(&15));
+    let id = d.app.workflow.selected.unwrap();
+    let scene = d
+        .app
+        .project
+        .nodes
+        .iter()
+        .find(|n| n.in_manuscript && n.kind == project::Kind::Scene)
+        .unwrap()
+        .path
+        .clone();
+    d.app.link_scratchpad(id, &scene);
+    d.key(KeyCode::Char('p'));
+    assert!(d.app.deck.progress.completed.contains(&15));
+    d.app.overlay = Overlay::Deck(Page::Lesson { id: 16 });
+    d.key(KeyCode::Enter);
+    assert!(!d.app.deck.progress.completed.contains(&16));
+    workflow_intention(&mut d, "An original next-open intention in the demo. ");
+    assert!(!d.app.deck.progress.completed.contains(&16));
+    assert!(d.app.try_quit());
+    let root = d.root.clone();
+    let reopened = Desk::open(root, 120, 40);
+    assert_eq!(reopened.app.overlay, Overlay::Handoff);
+    assert!(reopened.app.deck.progress.completed.contains(&16));
+    assert!(
+        grimoire_core::tutorial::Store::load(&reopened.root)
+            .unwrap()
+            .progress
+            .completed
+            .contains(&16)
+    );
+}
+#[test]
+fn writingdeck_workflow_lessons_never_launch_writing_exercises_on_an_ordinary_novel() {
+    use crate::app::writingdeck::Page;
+    let (mut d, _) = secondary_book("workflow-real", 100, 30, false);
+    let before = fs::read(first_scene(&d.root)).unwrap();
+    for id in [15, 16] {
+        d.app.overlay = Overlay::Deck(Page::Lesson { id });
+        d.key(KeyCode::Enter);
+        assert!(d.app.deck.note.contains("safe demo"));
+        assert!(d.app.deck.progress.active.is_none());
+    }
+    assert_eq!(fs::read(first_scene(&d.root)).unwrap(), before);
+    assert!(!d.root.join("notes/scratchpad").exists());
+    assert!(!d.root.join("notes/handoff.md").exists());
+}
+#[test]
+fn writingdeck_workflow_starters_populate_real_original_panes_without_replacing_existing_prose() {
+    use grimoire_core::{documents::Pane, workspaces::Preset};
+    for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let (mut d, _) = secondary_book(&format!("workflow-starters-{width}"), width, height, true);
+        let primary = fs::read(first_scene(&d.root)).unwrap();
+        for (slot, preset) in Preset::ALL.into_iter().enumerate() {
+            d.app.apply_starter_preset(slot, preset);
+            assert_eq!(d.app.overlay, Overlay::None, "{}", d.app.deck.note);
+            assert_eq!(d.app.deck.state.selected, slot);
+            if let Some((path, _)) = preset.source() {
+                assert_eq!(
+                    d.app.project.nodes[d.app.view_open(Pane::Secondary).unwrap()].path,
+                    d.root.join(path)
+                );
+                d.app.activate_editor(Pane::Secondary);
+                d.app.paste("Keep this original preset note. ");
+                d.ctrl('s');
+                let saved = fs::read(d.root.join(path)).unwrap();
+                d.app.apply_starter_preset(slot, preset);
+                assert_eq!(fs::read(d.root.join(path)).unwrap(), saved);
+            } else {
+                assert!(d.app.focus_mode);
+                assert!(!d.app.views.secondary_visible);
+                assert!(d.app.view_open(Pane::Secondary).is_some());
+            }
+            assert_eq!(fs::read(first_scene(&d.root)).unwrap(), primary);
+        }
+    }
+}
+#[test]
+fn writingdeck_workflow_starter_refuses_unknown_or_concurrently_changed_layout_before_creating_sources()
+ {
+    use grimoire_core::workspaces::{Preset, Store};
+    let (mut d, _) = secondary_book("workflow-preset-conflict", 100, 30, false);
+    let path = Store::path(&d.root);
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(&path, "Future external layout").unwrap();
+    d.app.apply_starter_preset(1, Preset::Planning);
+    assert!(!d.root.join("notes/workspaces/planning.md").exists());
+    assert_eq!(fs::read_to_string(&path).unwrap(), "Future external layout");
+    let mut reopened = Desk::open(d.root.clone(), 100, 30);
+    reopened.app.apply_starter_preset(2, Preset::Research);
+    assert!(!reopened.root.join("research/workspace.md").exists());
+    assert_eq!(fs::read_to_string(path).unwrap(), "Future external layout");
+}
+#[test]
+fn writingdeck_workflow_workspace_pin_sets_filter_without_changing_global_card_lifecycle() {
+    use grimoire_core::pins::Scope;
+    let (mut d, research) = secondary_book("workflow-pinsets", 100, 30, false);
+    d.app.pin_document(&first_scene(&d.root), None);
+    let first = d.app.pins.state().pins[0].id;
+    d.app.pin_document(&research, None);
+    let second = d.app.pins.state().pins[1].id;
+    assert_eq!(d.app.pin_count(false), 2);
+    d.app.save_workspace_pin_set(0, Some(vec![first])).unwrap();
+    d.app.save_workspace_pin_set(1, Some(vec![second])).unwrap();
+    assert_eq!(d.app.pin_ids(false), vec![first]);
+    d.app.deck.state.selected = 1;
+    assert_eq!(d.app.pin_ids(false), vec![second]);
+    assert_eq!(d.app.pins.state().pins.len(), 2);
+    assert!(
+        d.app
+            .pins
+            .state()
+            .pins
+            .iter()
+            .all(|p| p.scope == Scope::Novel && p.life == grimoire_core::pins::Life::Active)
+    );
+    d.app.save_workspace_pin_set(1, None).unwrap();
+    assert_eq!(d.app.pin_count(false), 2);
+    let persisted = grimoire_core::workspaces::Store::load(&d.root).unwrap();
+    assert_eq!(persisted.state.workspaces[0].pin_ids, Some(vec![first]));
+    assert!(persisted.state.workspaces[1].pin_ids.is_none());
+    d.app.save_workspace_pin_set(1, Some(vec![second])).unwrap();
+    d.app.overlay = Overlay::None;
+    d.app.focus = Focus::Pins;
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.project.nodes[d.app.open.unwrap()].path, research);
+}
+#[test]
+fn writingdeck_workflow_workspace_pin_picker_cancel_and_save_are_explicit() {
+    use crate::app::writingdeck::Page;
+    let (mut d, _) = secondary_book("workflow-pin-picker", 80, 24, false);
+    d.app.pin_document(&first_scene(&d.root), None);
+    d.app.overlay = Overlay::Deck(Page::Workspaces { sel: 0 });
+    d.key(KeyCode::Char('p'));
+    d.key(KeyCode::Char('z'));
+    d.key(KeyCode::Esc);
+    assert!(d.app.deck.state.current().pin_ids.is_none());
+    d.key(KeyCode::Char('p'));
+    d.key(KeyCode::Char('z'));
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.deck.state.current().pin_ids, Some(vec![]));
+    assert_eq!(d.app.pin_count(false), 0);
+    d.key(KeyCode::Char('p'));
+    d.key(KeyCode::Char('A'));
+    assert!(d.app.deck.state.current().pin_ids.is_none());
+    assert_eq!(d.app.pin_count(false), 1);
+}
+
+#[test]
+fn writingdeck_workflow_command_palette_remains_reachable_from_read_only_readers() {
+    let (mut d, _) = secondary_book("workflow-modal-palette", 80, 24, false);
+    let before = fs::read(first_scene(&d.root)).unwrap();
+    for overlay in [
+        Overlay::Pins,
+        Overlay::Journal,
+        Overlay::Scratchpad,
+        Overlay::Handoff,
+    ] {
+        d.app.overlay = overlay;
+        d.ctrl('k');
+        assert!(matches!(d.app.overlay, Overlay::Palette { .. }));
+        d.key(KeyCode::Esc);
+    }
+    assert_eq!(fs::read(first_scene(&d.root)).unwrap(), before);
+    assert!(d.app.workflow.state().unwrap().notes.is_empty());
 }

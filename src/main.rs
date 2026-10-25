@@ -619,7 +619,14 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
         };
 
         if let Event::Paste(text) = &ev {
-            if matches!(app.overlay, Overlay::Pins | Overlay::Journal) {
+            if matches!(
+                app.overlay,
+                Overlay::Pins
+                    | Overlay::Journal
+                    | Overlay::Scratchpad
+                    | Overlay::Handoff
+                    | Overlay::Deck(app::writingdeck::Page::WorkspacePins { .. })
+            ) {
                 app.msg = "Read-only preview. Enter explicitly edits the original source; pasted commands ignored.".into();
                 continue;
             }
@@ -857,7 +864,12 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
     if ctrl
         && (matches!(
             app.overlay,
-            Overlay::Pins | Overlay::PinCategory { .. } | Overlay::Journal
+            Overlay::Pins
+                | Overlay::PinCategory { .. }
+                | Overlay::Journal
+                | Overlay::Scratchpad
+                | Overlay::Handoff
+                | Overlay::Deck(app::writingdeck::Page::WorkspacePins { .. })
         ) || (app.overlay == Overlay::None && app.focus == Focus::Pins))
         && !matches!(k.code, KeyCode::Char('s' | 'q' | 'k' | 'd'))
         && !(matches!(app.overlay, Overlay::PinCategory { .. }) && k.code == KeyCode::Char('v'))
@@ -886,7 +898,18 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
             // foot); everywhere, the menu's Writing tools have both.
             KeyCode::Char('b') if matches!(app.overlay, Overlay::None) => app.emphasis("**"),
             KeyCode::Char('i') if matches!(app.overlay, Overlay::None) => app.emphasis("*"),
-            KeyCode::Char('k') if matches!(app.overlay, Overlay::None) => app.open_palette(),
+            KeyCode::Char('k')
+                if matches!(
+                    app.overlay,
+                    Overlay::None
+                        | Overlay::Pins
+                        | Overlay::Journal
+                        | Overlay::Scratchpad
+                        | Overlay::Handoff
+                ) =>
+            {
+                app.open_palette()
+            }
             KeyCode::Char('f') => match &app.overlay {
                 Overlay::None => app.open_find(),
                 // Ctrl-F again widens the search to the whole book.
