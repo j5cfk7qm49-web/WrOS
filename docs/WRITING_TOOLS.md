@@ -4,6 +4,8 @@
 
 Current: spellbook/Hunspell locale spelling, personal/notebook vocabulary, suggestions, notes/TK handling, find/replace, echo/revision aids, scene history and sentence-level local TTS are preserved. Harper, Nabokov, proselint integration, offline WordNet UI, voice profiles and a unified revision dashboard are **Planned**, not included merely because a host package was installed for evaluation.
 
+M4a now also supplies tested source-linked pins with original-source editing, independent card scroll and semantic anchors. See [PINS](PINS.md). This is not a journal, scratchpad, handoff service or new productivity ledger.
+
 ## Evaluated dependencies
 
 | Engine/resource | Evaluated version/license | Runtime and integration decision |

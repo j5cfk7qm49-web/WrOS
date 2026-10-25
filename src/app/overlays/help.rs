@@ -48,6 +48,7 @@ impl App {
             Overlay::Conflicts { .. } | Overlay::Settle { .. } => "sync",
             Overlay::Cork { .. } => "corkboard",
             Overlay::History { .. } | Overlay::Recover { .. } => "history",
+            Overlay::Pins | Overlay::PinCategory { .. } => "pins",
             Overlay::Marks { .. } => "notes",
             Overlay::Sprint { .. } | Overlay::Progress | Overlay::Goals { .. } => "sprints",
             Overlay::Reading | Overlay::Voices { .. } => "revision",
@@ -67,6 +68,7 @@ impl App {
                 Focus::Editor if self.focus_mode => "focus",
                 Focus::Editor => "writing",
                 Focus::Secondary => "writingdeck",
+                Focus::Pins => "pins",
                 Focus::Codex => "notebook",
                 Focus::Beside => "beside",
                 Focus::Clearing if self.pane_mode == crate::scene::Mode::Visualizer => "visualizer",
@@ -83,6 +85,7 @@ impl App {
             Overlay::None => !self.focus.is_editor(),
             Overlay::Deck(super::super::writingdeck::Page::KeyboardTest { .. }) => false,
             Overlay::Palette { .. }
+            | Overlay::PinCategory { .. }
             | Overlay::Marks { .. }
             | Overlay::Find { .. }
             | Overlay::FindBook { .. }

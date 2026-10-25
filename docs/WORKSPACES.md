@@ -6,7 +6,7 @@ F12 opens the home dashboard with existing book data: resume/current manuscript,
 
 Arrow keys/Enter navigate; `h` hides a widget; `J`/`K` reorder it; Configure widgets restores hidden widgets. Home scrolls to the selection at 80×24 and is tested at 100×30, 120×40 and 160×50. Start-at-dashboard is optional in System settings; conventional development defaults to writing, appliance first launch to home.
 
-Workspaces provides Drafting, Planning, Research, Revision and Focus slots. `n` clones a custom slot; `+`/`-` adjust outline width (18–60 columns); `<`/`>` adjust the secondary proportion by five percentage points (25–75%). Slots initially share the same empty primary/secondary structure except Focus. They are **not yet the full requested planning/research/revision content presets or sticky sidebar engine**.
+Workspaces provides Drafting, Planning, Research, Revision and Focus slots. `n` clones a custom slot; `+`/`-` adjust outline width (18–60 columns); `<`/`>` adjust the secondary proportion by five percentage points (25–75%). Slots initially share the same empty primary/secondary structure except Focus. They are **not yet the full requested planning/research/revision content presets**. Pins now have their own tested sidebar, but not per-workspace preset content.
 
 ## M3b: two genuinely editable documents — Tested
 
@@ -40,7 +40,7 @@ State is schema **v2** JSON under `.grimoire/writingdeck/layout.json`. A v1 file
 
 Startup gives the upstream Primary resume record precedence: stale workspace coordinates/selection are not applied to another document or a newer cursor, and focus remains Primary when that resume differs. Explicitly choosing a workspace instead restores that workspace's positions. A workspace can swap which two documents occupy Primary/Secondary without duplicating their editors or losing in-process per-document undo.
 
-Cursor/selection/scroll/layout persist across restart; **the transient undo stack is not serialized**. Dated disk history remains available separately, as upstream. Scroll is currently a visual-row offset, not a semantic heading/quote anchor: wrapping after a resize may change which words occupy that row. Sticky semantic anchors remain M4 work.
+Cursor/selection/scroll/layout persist across restart; **the transient undo stack is not serialized**. Dated disk history remains available separately, as upstream. Scroll is currently a visual-row offset, not a semantic heading/quote anchor: wrapping after a resize may change which words occupy that row. Pin-card semantic anchors are implemented separately in M4a; editor scroll itself remains a visual-row offset.
 
 ## Failure and external-change behavior
 
@@ -62,10 +62,14 @@ Core registry tests cover canonical/device-inode ownership, rejected paths, fail
 
 See [TESTING](TESTING.md), [STATUS](STATUS.md) and retained [test records](evidence/test-results.json). The whole-VM test separately covers boot/system/console keyboard behavior, not these F11 keystrokes.
 
-## Next: pins, journal, scratchpad and handoff — Planned
+## M4a: source-linked pins — Tested
 
-Journal, scratchpad, pinned cards, advanced calendar/challenge/achievement/revision widgets and next-session handoff are not implemented widgets. Do not invent metrics to fill them.
+Pinboard, a responsive writing sidebar and dashboard-scoped cards now reference the same original Project documents. Each card has independent free/semantic-anchor scroll, scope/context, color/category, size/collapse and order; card archive/Trash is recoverable and never deletes its source. Enter explicitly opens/focuses the original through the existing exclusive editor registry. Ambiguous retained editor identities are not guessed. Metadata is guarded, transactional schema-v1 state, separate from layout/text, with unknown/corrupt/future/unwritable/external-conflict preservation.
 
-A pin will reference a source Markdown document plus presentation metadata only: scope/category/color/order/collapse/card size, selected section, scroll and heading/quote anchor. Editor, dashboard pin and sticky card must use that same source. Scopes: Always, Novel, Chapter, Scene, Dashboard, Hidden. Archive/trash must remain recoverable; changed/deleted anchors need an explicit fallback. Independent card/sidebar positions and safe quick edits need their own tests.
+See [PINS](PINS.md) and compiled Sticky-note pins help for controls, exact layout thresholds and limits. The sidebar is hidden in strict/tiny layouts and cannot steal hidden focus. Source cursor/selection/undo do not follow card scrolling. All four required terminal sizes, 31 pin UI cases, 14 core cases, one alias case, actual pin PTY/restart/paste-guard tests and read-only CLI validation supplement the retained M3b tests. Ordinary boot probes do not exercise pins.
 
-Journal automatic facts must be separate from editable reflections. Scratchpad promotion must preserve the original and use guarded project operations. Handoff is an ordinary user-authored note shown next session. The tested document registry is a dependency for these services, not their implementation.
+## Remaining M4 services — Planned
+
+Journal, scratchpad, advanced calendar/challenge/achievement/revision widgets and next-session handoff are not implemented widgets. Do not invent metrics to fill them. Full preset content, per-workspace pin sets, category filters, bounded-section excerpts and free-position/dragged cards remain outside M4a.
+
+Journal automatic facts must be separate from editable reflections. Scratchpad promotion must preserve the original and use guarded project operations. Handoff is an ordinary user-authored note shown next session. The tested document registry/pins are dependencies, not implementations of those services.

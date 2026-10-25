@@ -28,6 +28,9 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     app.screen = (f.area().width, f.area().height);
     app.check_focus_mode();
     app.clear_view_rects();
+    app.pins.dashboard_hits.borrow_mut().clear();
+    app.pins.board_hits.borrow_mut().clear();
+    app.pins.board_preview.set(Rect::default());
 
     let [main, status] =
         Layout::vertical([Constraint::Min(3), Constraint::Length(1)]).areas(f.area());
@@ -55,6 +58,8 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         }
         main
     };
+
+    let edit_area = crate::app::pins::sidebar(f, app, edit_area, &t);
 
     // Editable documents have independent contexts. Wide terminals put them
     // side by side; 80x24 remains useful by stacking prose vertically. Hidden

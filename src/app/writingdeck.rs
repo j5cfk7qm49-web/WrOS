@@ -54,7 +54,7 @@ impl Worker {
         Self { tx, rx }
     }
 }
-const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 9] = [
+const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 12] = [
     (ShortcutAction::Dashboard, "WritingDeck dashboard"),
     (ShortcutAction::SystemSettings, "System settings"),
     (ShortcutAction::Tutorial, "Interactive tutorial"),
@@ -64,6 +64,9 @@ const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 9] = [
     (ShortcutAction::Find, "Find in scene"),
     (ShortcutAction::Palette, "Find anything"),
     (ShortcutAction::Secondary, "Editable secondary pane"),
+    (ShortcutAction::Pinboard, "Pinboard"),
+    (ShortcutAction::Pins, "Toggle pins sidebar"),
+    (ShortcutAction::PinCurrent, "Pin current document"),
 ];
 
 pub struct Deck {
@@ -95,6 +98,13 @@ impl Deck {
             .as_ref()
             .map(|s| s.state.clone())
             .unwrap_or_default();
+        let pins_widget_added = !state.dashboard.iter().any(|w| w.widget == Widget::Pins);
+        if pins_widget_added {
+            state.dashboard.push(workspaces::WidgetConfig {
+                widget: Widget::Pins,
+                visible: true,
+            });
+        }
         if background
             && !workspaces::Store::path(root).exists()
             && std::env::var_os("WRITINGDECK_OS").is_some()
@@ -156,7 +166,7 @@ impl Deck {
             preview: None,
             recent: String::new(),
             weekly: 0,
-            dirty: false,
+            dirty: pins_widget_added,
         }
     }
     pub fn observe(&mut self, event: tutorial::Event, demo: bool) {
@@ -324,6 +334,9 @@ impl App {
             ShortcutAction::Save => self.save(),
             ShortcutAction::Find => self.open_find(),
             ShortcutAction::Palette => self.open_palette(),
+            ShortcutAction::Pinboard => self.open_pinboard(),
+            ShortcutAction::Pins => self.toggle_pins(),
+            ShortcutAction::PinCurrent => self.pin_current(),
         }
     }
     pub fn add_deck_shortcut(&mut self, chord: &str) {
@@ -454,6 +467,7 @@ impl App {
                             self.focus = self.editor_focus();
                         }
                     }
+                    Key::Char('p') => self.open_pinboard(),
                     Key::Char('w') => self.overlay = Overlay::Deck(Page::Widgets { sel: 0 }),
                     Key::Char('h') if sel < n => {
                         self.deck.state.dashboard[widgets[sel]].visible = false;
@@ -774,6 +788,7 @@ impl App {
             Widget::RecentScenes => self.open_palette(),
             Widget::Battery | Widget::System => self.open_system_settings(),
             Widget::Backup => self.open_help(Some("sync")),
+            Widget::Pins => self.open_pinboard(),
         }
     }
     fn start_tutorial_demo(&mut self) {
@@ -854,6 +869,8 @@ impl App {
                     capture: false,
                 })
             }
+            11 => self.pin_picker(None),
+            12 => self.open_pinboard(),
             13 => {
                 self.focus_mode = false;
                 self.open_secondary_picker();
@@ -935,6 +952,9 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                         }
                     }
                     Widget::RecentScenes => app.deck.recent.clone(),
+                    Widget::Pins => {
+                        format!("{} in scope · Enter opens Pinboard", app.pin_count(true))
+                    }
                     Widget::Battery => app
                         .deck
                         .snapshot
@@ -967,7 +987,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                 ]
                 .map(str::to_string),
             );
-            hint = "↑↓ choose  Enter open  h hide widget  J/K reorder  w widgets  Esc resume";
+            hint = "↑↓ choose  Enter open  h hide widget  J/K reorder  w widgets  p Pinboard  Esc resume";
         }
         Page::Widgets { sel } => {
             title = "Dashboard widgets".into();
@@ -1183,6 +1203,26 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             hint = "↑↓ action  Enter add/replace alias  Esc system";
         }
     }
+    let inner = if matches!(page, Page::Home { .. })
+        && app.pin_count(true) > 0
+        && app
+            .deck
+            .state
+            .dashboard
+            .iter()
+            .any(|w| w.widget == Widget::Pins && w.visible)
+        && inner.width >= 70
+    {
+        let [main, cards] = ratatui::layout::Layout::horizontal([
+            ratatui::layout::Constraint::Min(36),
+            ratatui::layout::Constraint::Length(34),
+        ])
+        .areas(inner);
+        super::pins::dashboard(f, app, cards, t);
+        main
+    } else {
+        inner
+    };
     let width = inner.width.saturating_sub(2) as usize;
     let content_height = inner.height.saturating_sub(4) as usize;
     let start = selected.map_or(0, |sel| {

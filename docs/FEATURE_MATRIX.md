@@ -40,8 +40,8 @@ Machine-readable inventory: [feature-status.json](feature-status.json). Details:
 | Workspaces | Five named dual-editor workspace slots + custom clones/width/cursors | Tested | Schema-v2 round-trip/v1 migration + dual restart/role-swap UI tests | Both selections/free scroll, active role/visibility/ratio; full preset content remains planned |
 | Workspaces | F10 outline toggle and strict Ctrl-D focus | Tested | Hidden-pane geometry/focus and persistence tests | Strict Primary only; hidden Secondary/reference cannot receive input |
 | Workspaces | Full editable secondary document, independent undo/autosave/selection | Tested | 28 new UI cases + core registry tests + real-binary PTY at four sizes | F11 enabled; existing guarded saves/dual recovery; in-process ownership, not an OS lock |
-| Workspaces | Sticky sidebar, multi-pane ratios and full content presets | In progress | Two-editor ratio/stacked-wide-resize tests | Two-editor ratio implemented; sticky sidebar/cards and full preset content still planned |
-| Notes | Single-source pins/scopes/cards/categories/trash/anchors/scroll | Planned | None | Markdown source references, not copied content stores |
+| Workspaces | Sticky sidebar, multi-pane ratios and full content presets | In progress | Two-editor ratio and pin sidebar/tiny/strict-focus tests | Ratios and responsive pin sidebar implemented; per-workspace pin sets and full content presets still planned |
+| Notes | Single-source pins/scopes/cards/categories/trash/anchors/scroll | Tested | 14 core + 31 UI + 1 alias; actual binary PTY/restart at four sizes; read-only CLI | Metadata-only project references, explicit guarded source edits, scoped cards/sidebar/dashboard; unknown/failure preservation; no cross-process lock or large-note performance claim |
 | Notes | Accurate auto/manual journal, multi-note scratchpad, handoff | Planned | None | Automatic event facts separated from reflections |
 | Productivity | Basic daily/book/scene goals, weekly net pace/forecast | Existing | Upstream/current tests | Net growth, not gross/deleted/active-WPH |
 | Productivity | Baseline Pomodoro and word/time sprint | Existing | Upstream/current timer/sprint tests | Advanced no-editing/revision variants planned |
@@ -70,7 +70,7 @@ Machine-readable inventory: [feature-status.json](feature-status.json). Details:
 | Cloud | Opt-in Drive OAuth, private credentials, upload queue, verified backup/restore | Planned | None | Local state/fake-transport infrastructure can be built without credentials |
 | Cloud | Conflict-aware bidirectional sync + safe mobile/Docs evaluation | Planned | Existing generic file conflicts only | Copy/sync/Docs interoperability are separate guarantees |
 | Cloud | Live Google authorization/restore/Docs round-trip acceptance | Blocked | No account enrolled or manuscript transmitted | Requires explicit user credentials and consent at M9 |
-| Tutorial | 39-lesson catalog, safe demo, replay/skip/progress, help links | Tested | Core + actual editor/UI tests | 16 event-capable lessons including actual Secondary edit; 23 explicitly unavailable |
+| Tutorial | 39-lesson catalog, safe demo, replay/skip/progress, help links | Tested | Core + actual editor/UI tests | 18 event-capable lessons including actual pin creation/anchored scroll return and Secondary edit; 21 explicitly unavailable |
 | Tutorial | All 39 complete interactive exercises across final features | In progress | Continuous foundation only | Must land alongside each later feature, not wait until release |
 | Qualification | Offline whole-VM operation and low-memory initial measurement | Tested | No network devices; guest process RSS in evidence | Does not include Python/spaCy or physical battery benchmark |
 | Qualification | Physical laptop keyboard/Wi-Fi/lock/suspend/battery/update qualification | Blocked | No hardware available in this environment | Record model/firmware before claiming Hardware verified |

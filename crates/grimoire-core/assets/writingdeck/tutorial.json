@@ -72,16 +72,16 @@
   {
     "id": 11,
     "title": "Sticky-note pins",
-    "help_topic": "notes",
-    "event": null,
-    "instructions": "Pin an existing Markdown note without making a copy. Planned with the pinboard subsystem."
+    "help_topic": "pins",
+    "event": "PinCreated",
+    "instructions": "In the safe demo, n opens the real source picker. Choose the shipped Pin Practice note (or another existing scene or note) and press Enter. The saved card references its original Markdown file; it contains no copied body. Only a successful pin save completes this exercise."
   },
   {
     "id": 12,
     "title": "Scrolling inside sticky notes",
-    "help_topic": "notes",
-    "event": null,
-    "instructions": "Scroll a sticky card and restore its heading anchor. Planned with semantic pin anchors."
+    "help_topic": "pins",
+    "event": "PinAnchorRestored",
+    "instructions": "In the safe demo Pinboard, choose the shipped Pin Practice card, whose The Courtyard heading is ready to use. Press h to capture the heading, PgDn to scroll the card, then Home to return to that unique semantic anchor. Only a real persisted anchored scroll-and-return completes this exercise; missing or duplicate headings are not guessed."
   },
   {
     "id": 13,

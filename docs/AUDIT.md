@@ -83,3 +83,7 @@ No `Sub` variant was added. The Every key list and its test list were extended t
 Upstream has `.deb`/`.rpm` metadata, release workflows and a portable CLI, but no appliance image, login policy, console layout provisioning, authenticated recovery console, OS settings boundary, disk installer, OS updater/snapshots or hardware qualification. An app package is not an OS image.
 
 The added `os/` workflow now creates a VM-testable Debian UEFI GPT image without opening host block devices. Its explicitly passwordless **VM demo** profile is not a hardware installer or secure release. The remaining safety gates are recorded in [RISKS](RISKS.md), [INSTALLATION](INSTALLATION.md) and [ROADMAP](ROADMAP.md).
+
+## M4a addendum (2026-10-24)
+
+The absence of a pinboard described above is a baseline finding, not the current branch state. M4a adds portable metadata-only source references, responsive sidebar/Pinboard/dashboard readers, free/semantic-anchor scrolling, recoverable card lifecycle and explicit source editing through the M3b registry/guarded Project path. No third-party creative text, new text-storage format or second writer was added. There are 46 new Rust tests (14 core, 31 UI, one alias), actual non-root pin PTY/restart/paste-guard coverage and read-only CLI pin validation. Journal/scratchpad/handoff, full content presets and large-note/power-loss qualification are still unfinished. See [PINS](PINS.md) and [STATUS](STATUS.md) for scope and current evidence.

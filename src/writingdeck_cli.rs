@@ -52,11 +52,14 @@ pub fn command(mut args: impl Iterator<Item = String>) -> Result<()> {
             }
             let layout = grimoire_core::workspaces::Store::load(&root)?;
             let tutorial = grimoire_core::tutorial::Store::load(&root)?;
+            let pins = grimoire_core::pins::Store::load(&root)?;
             println!(
-                "Layout schema {} validated; {} workspaces. Tutorial schema {} validated. No files changed.",
+                "Layout schema {} validated; {} workspaces. Tutorial schema {} validated. Pins schema {} validated; {} references (source availability checked in UI). No files changed.",
                 layout.state.version,
                 layout.state.workspaces.len(),
-                tutorial.progress.version
+                tutorial.progress.version,
+                pins.state.version,
+                pins.state.pins.len()
             );
         }
         Some("version") => println!(

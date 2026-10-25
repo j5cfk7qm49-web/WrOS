@@ -19,6 +19,8 @@ pub enum Event {
     LayoutConfirmed,
     TextEdited,
     SecondaryEdited,
+    PinCreated,
+    PinAnchorRestored,
     SceneOpened,
     CorkboardOpened,
     WorkspaceSelected,
@@ -203,6 +205,17 @@ pub fn create_demo(root: &Path) -> Result<()> {
         &scene.path.with_file_name("02-The-Other-Door.md"),
         "---\ntitle: The Other Door\n---\n\nAcross the courtyard, someone extinguished a lamp.\n",
     )?;
+    // Ship an immediately usable semantic-anchor exercise, not just a
+    // synthetic test heading or a request to modify the demo manuscript.
+    let mut practice = String::from(
+        "---\ntitle: Pin Practice\n---\n\n## The Courtyard\n\nA lamp lit the courtyard wall. This note is the single source for the pin exercise.\n\n",
+    );
+    for row in 1..=24 {
+        practice.push_str(&format!(
+            "Observation {row:02}: Mara followed the lamplight along the courtyard wall.\n"
+        ));
+    }
+    crate::atomic::write_text(&root.join("notes/pin-practice.md"), &practice)?;
     Ok(())
 }
 
@@ -239,6 +252,14 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
         create_demo(&root).unwrap();
         assert!(is_demo(&root));
+        let project = project::Project::load(&root).unwrap();
+        let practice = project
+            .nodes
+            .iter()
+            .find(|n| n.path.ends_with("notes/pin-practice.md"))
+            .unwrap();
+        assert_eq!(crate::pins::headings(&practice.body).len(), 1);
+        assert!(practice.body.lines().count() > 24);
         assert!(create_demo(&root).is_err());
         let mut s = Store::load(&root).unwrap();
         s.progress.start(1).unwrap();

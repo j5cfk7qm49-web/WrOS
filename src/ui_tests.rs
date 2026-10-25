@@ -4463,3 +4463,973 @@ fn writingdeck_secondary_recovery_refuses_non_utf8_without_discarding_the_kept_d
             .contains("Unique recovered note words.")
     );
 }
+
+// ---- Metadata-only sticky references (M4a) -------------------------------
+fn pin_document(d: &mut Desk, source: &Path) -> u64 {
+    d.app
+        .run_action(palette::Action::PinDocument(source.to_path_buf()));
+    d.draw();
+    assert_eq!(d.app.overlay, Overlay::Pins, "{}", d.app.msg);
+    d.app.pins.state().selected.unwrap()
+}
+
+#[test]
+fn writingdeck_pins_real_source_edit_save_and_undo_at_all_four_sizes() {
+    use grimoire_core::documents::Pane;
+    for (w, h) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let (mut d, note) = secondary_book(&format!("pins-size-{w}"), w, h, true);
+        let primary = first_scene(&d.root);
+        let primary_before = fs::read(&primary).unwrap();
+        let note_before = fs::read(&note).unwrap();
+        let id = pin_document(&mut d, &note);
+        assert!(d.shows("Secondary paragraph 0."), "{}", d.rows().join("\n"));
+        let position = d.app.view_position(Pane::Primary).unwrap();
+        d.key(KeyCode::PageDown);
+        assert_eq!(d.app.pins.state().pins[0].scroll, 3);
+        assert_eq!(d.app.view_position(Pane::Primary).unwrap(), position);
+        let metadata = fs::read_to_string(grimoire_core::pins::Store::path(&d.root)).unwrap();
+        assert!(!metadata.contains("Secondary paragraph"));
+        assert!(!metadata.contains("unknown: 'a: b'"));
+        assert_eq!(fs::read(&note).unwrap(), note_before);
+        d.key(KeyCode::Enter);
+        assert_eq!(d.app.focus, Focus::Secondary, "{}", d.app.msg);
+        d.app.clip = "Pin source changes here. ".into();
+        d.ctrl('v');
+        d.ctrl('s');
+        assert!(
+            fs::read_to_string(&note)
+                .unwrap()
+                .contains("Pin source changes here.")
+        );
+        assert!(
+            fs::read_to_string(&note)
+                .unwrap()
+                .contains("unknown: 'a: b'")
+        );
+        assert_eq!(fs::read(&primary).unwrap(), primary_before);
+        assert!(
+            d.app
+                .pin_body(id)
+                .unwrap()
+                .contains("Pin source changes here.")
+        );
+        d.ctrl('z');
+        d.ctrl('s');
+        assert_eq!(fs::read(&note).unwrap(), note_before);
+    }
+}
+
+#[test]
+fn writingdeck_pins_duplicate_cards_scroll_independently_and_keep_both_editors_positions() {
+    use grimoire_core::documents::Pane;
+    let (mut d, note) = secondary_book("pins-independent", 160, 50, true);
+    choose_secondary(&mut d, &note);
+    d.app.editor.select((8, 1), (8, 7));
+    d.draw();
+    d.app.activate_editor(Pane::Primary);
+    d.app.editor.select((5, 2), (5, 9));
+    d.draw();
+    let first = pin_document(&mut d, &note);
+    let second = pin_document(&mut d, &note);
+    d.key(KeyCode::Esc);
+    d.draw();
+    assert!(d.app.pins.rect.width > 0);
+    let primary = d.app.view_position(Pane::Primary).unwrap();
+    let secondary = d.app.view_position(Pane::Secondary).unwrap();
+    let focus = d.app.focus;
+    let rect = d
+        .app
+        .pins
+        .hits
+        .iter()
+        .find(|(id, _)| *id == first)
+        .unwrap()
+        .1;
+    d.app.on_scroll(rect.x + 1, rect.y + 2, true);
+    d.draw();
+    assert_eq!(
+        d.app
+            .pins
+            .state()
+            .pins
+            .iter()
+            .find(|p| p.id == first)
+            .unwrap()
+            .scroll,
+        3
+    );
+    assert_eq!(
+        d.app
+            .pins
+            .state()
+            .pins
+            .iter()
+            .find(|p| p.id == second)
+            .unwrap()
+            .scroll,
+        0
+    );
+    assert_eq!(d.app.focus, focus);
+    assert_eq!(d.app.view_position(Pane::Primary).unwrap(), primary);
+    assert_eq!(d.app.view_position(Pane::Secondary).unwrap(), secondary);
+    d.app.on_click(rect.x + 1, rect.y + 1);
+    d.draw();
+    assert_eq!(d.app.focus, Focus::Pins);
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.focus, Focus::Secondary);
+    assert_eq!(d.app.view_position(Pane::Secondary).unwrap(), secondary);
+}
+
+#[test]
+fn writingdeck_pins_narrow_tiny_and_strict_focus_hide_without_losing_cards() {
+    let (mut d, note) = secondary_book("pins-fallback", 160, 50, true);
+    pin_document(&mut d, &note);
+    d.key(KeyCode::Esc);
+    d.draw();
+    let rect = d.app.pins.hits[0].1;
+    d.app.on_click(rect.x + 1, rect.y + 1);
+    d.draw();
+    assert_eq!(d.app.focus, Focus::Pins);
+    let state = d.app.pins.state().clone();
+    d.term = Terminal::new(TestBackend::new(60, 8)).unwrap();
+    d.draw();
+    assert_eq!(d.app.pins.rect, ratatui::layout::Rect::default());
+    assert_ne!(d.app.focus, Focus::Pins);
+    for _ in 0..10 {
+        d.key(KeyCode::Tab);
+        assert_ne!(d.app.focus, Focus::Pins);
+    }
+    assert_eq!(d.app.pins.state(), &state);
+    d.app.run_action(palette::Action::Pinboard);
+    d.draw();
+    assert!(d.shows("PINBOARD"));
+    d.key(KeyCode::Esc);
+    d.term = Terminal::new(TestBackend::new(160, 50)).unwrap();
+    d.draw();
+    d.ctrl('d');
+    assert!(d.app.focus_mode);
+    assert_eq!(d.app.pins.rect, ratatui::layout::Rect::default());
+    for _ in 0..5 {
+        d.key(KeyCode::Tab);
+        assert_ne!(d.app.focus, Focus::Pins);
+    }
+    d.ctrl('d');
+    assert!(d.app.pins.rect.width > 0);
+    assert_eq!(d.app.pins.state(), &state);
+}
+
+#[test]
+fn writingdeck_pins_presentation_order_archive_trash_and_restart_are_metadata_only() {
+    use grimoire_core::pins::{Color, Life, Store};
+    let (mut d, note) = secondary_book("pins-persist", 160, 50, true);
+    let original = fs::read(&note).unwrap();
+    let a = pin_document(&mut d, &note);
+    let b = pin_document(&mut d, &note);
+    d.key(KeyCode::PageDown);
+    d.key(KeyCode::Char('c'));
+    d.key(KeyCode::Char('g'));
+    d.typed("Ideas");
+    d.key(KeyCode::Enter);
+    d.key(KeyCode::Char('+'));
+    d.key(KeyCode::Char(']'));
+    d.key(KeyCode::Char(' '));
+    d.key(KeyCode::Char('K'));
+    let pin = &d.app.pins.state().pins[0];
+    assert_eq!(pin.id, b);
+    assert_eq!(pin.scroll, 3);
+    assert_eq!(pin.category, "Ideas");
+    assert_eq!(pin.color, Color::Amber);
+    assert_eq!(pin.height, 10);
+    assert!(pin.collapsed);
+    assert_eq!(d.app.pins.state().sidebar_width, 32);
+    d.key(KeyCode::Char('a'));
+    assert_eq!(d.app.pins.state().pins[0].life, Life::Archived);
+    d.key(KeyCode::Tab);
+    d.key(KeyCode::Char('d'));
+    assert_eq!(d.app.pins.state().pins[0].life, Life::Trashed);
+    d.key(KeyCode::Tab);
+    d.key(KeyCode::Char('u'));
+    assert_eq!(d.app.pins.state().pins[0].life, Life::Active);
+    assert_eq!(d.app.pins.state().pins[1].id, a);
+    assert_eq!(fs::read(&note).unwrap(), original);
+    let state = d.app.pins.state().clone();
+    assert_eq!(Store::load(&d.root).unwrap().state, state);
+    let reopened = Desk::open(d.root.clone(), 160, 50);
+    assert_eq!(reopened.app.pins.state(), &state);
+}
+
+#[test]
+fn writingdeck_pins_unknown_corrupt_and_future_metadata_are_preserved_not_reset() {
+    use grimoire_core::pins::{State, Store};
+    let (mut d, note) = secondary_book("pins-invalid", 120, 40, false);
+    let path = Store::path(&d.root);
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    let future = State {
+        version: 99,
+        ..State::default()
+    };
+    let mut unknown = serde_json::to_value(State::default()).unwrap();
+    unknown["future"] = true.into();
+    for original in [
+        "not JSON".into(),
+        serde_json::to_string(&future).unwrap(),
+        unknown.to_string(),
+    ] {
+        fs::write(&path, &original).unwrap();
+        d.app.pins = app::pins::Pins::load(&d.root);
+        d.app.run_action(palette::Action::Pinboard);
+        d.draw();
+        assert!(d.app.pins.warning.contains("preserved"));
+        d.app.run_action(palette::Action::PinDocument(note.clone()));
+        d.draw();
+        assert_eq!(d.app.overlay, Overlay::Pins);
+        assert!(d.app.pins.state().pins.is_empty());
+        assert_eq!(fs::read_to_string(&path).unwrap(), original);
+    }
+}
+
+#[test]
+fn writingdeck_pins_external_metadata_conflict_rolls_back_until_explicit_reload() {
+    use grimoire_core::pins::Store;
+    let (mut d, note) = secondary_book("pins-conflict", 120, 40, true);
+    pin_document(&mut d, &note);
+    let old = d.app.pins.state().clone();
+    let path = Store::path(&d.root);
+    let mut external = old.clone();
+    external.pins[0].category = "Other writer".into();
+    let text = serde_json::to_string_pretty(&external).unwrap();
+    fs::write(&path, &text).unwrap();
+    d.key(KeyCode::PageDown);
+    assert_eq!(d.app.pins.state(), &old);
+    assert_eq!(fs::read_to_string(&path).unwrap(), text);
+    assert!(d.app.pins.warning.contains("NOT saved"));
+    d.key(KeyCode::Char('R'));
+    assert_eq!(d.app.pins.state(), &external);
+    assert!(d.app.pins.warning.is_empty());
+    d.key(KeyCode::PageDown);
+    assert_eq!(Store::load(&d.root).unwrap().state.pins[0].scroll, 3);
+}
+
+#[test]
+fn writingdeck_pins_metadata_write_failure_keeps_previous_cards_and_manuscripts() {
+    let (mut d, note) = secondary_book("pins-write-fail", 120, 40, true);
+    pin_document(&mut d, &note);
+    let original = fs::read(&note).unwrap();
+    let old = d.app.pins.state().clone();
+    let dir = d.root.join(".grimoire/writingdeck");
+    let parked = dir.with_extension("kept");
+    fs::rename(&dir, &parked).unwrap();
+    fs::write(&dir, "directory unavailable").unwrap();
+    d.key(KeyCode::PageDown);
+    assert_eq!(d.app.pins.state(), &old);
+    assert!(d.app.pins.warning.contains("NOT saved"));
+    assert_eq!(fs::read(&note).unwrap(), original);
+    fs::remove_file(&dir).unwrap();
+    fs::rename(&parked, &dir).unwrap();
+    d.key(KeyCode::Char('R'));
+    d.key(KeyCode::PageDown);
+    assert_eq!(d.app.pins.state().pins[0].scroll, 3);
+}
+
+#[test]
+fn writingdeck_pins_unique_heading_tracks_insertions_and_missing_or_duplicate_is_explicit() {
+    use grimoire_core::pins::{Mode, Resolution};
+    let (mut d, note) = secondary_book("pins-heading", 120, 40, true);
+    fs::write(
+        &note,
+        format!(
+            "## Plan\n{}",
+            (0..60).map(|i| format!("Step {i}.\n")).collect::<String>()
+        ),
+    )
+    .unwrap();
+    d.app.check_documents_now();
+    d.app.check_documents_now();
+    let id = pin_document(&mut d, &note);
+    d.key(KeyCode::Char('h'));
+    d.key(KeyCode::PageDown);
+    assert_eq!(d.app.pins.state().pins[0].mode, Mode::Anchored);
+    assert_eq!(d.app.pins.state().pins[0].scroll, 3);
+    fs::write(
+        &note,
+        format!("Inserted above.\n\n{}", fs::read_to_string(&note).unwrap()),
+    )
+    .unwrap();
+    d.app.check_documents_now();
+    d.app.check_documents_now();
+    d.key(KeyCode::Home);
+    let pin = &d.app.pins.state().pins[0];
+    assert_eq!(pin.scroll, 0);
+    assert_eq!(
+        grimoire_core::pins::resolve(d.app.pin_body(id).unwrap(), pin.anchor.as_ref()),
+        Resolution::Found(2)
+    );
+    fs::write(&note, "## Plan\nOne\n## Plan\nTwo\n").unwrap();
+    d.app.check_documents_now();
+    d.app.check_documents_now();
+    d.draw();
+    assert!(d.shows("ANCHOR Ambiguous"));
+    let old = d.app.pins.state().clone();
+    d.key(KeyCode::PageDown);
+    assert_eq!(d.app.pins.state(), &old);
+    fs::write(&note, "## Removed\nNew body.\n").unwrap();
+    d.app.check_documents_now();
+    d.app.check_documents_now();
+    d.draw();
+    assert!(d.shows("ANCHOR Missing"));
+    d.key(KeyCode::Char('f'));
+    assert!(d.shows("New body."));
+}
+
+#[test]
+fn writingdeck_pins_quote_capture_uses_original_editor_selection_and_does_not_erase_it() {
+    use grimoire_core::documents::Pane;
+    use grimoire_core::pins::Anchor;
+    let (mut d, note) = secondary_book("pins-quote", 120, 40, true);
+    choose_secondary(&mut d, &note);
+    d.app.editor.select((4, 0), (4, 9));
+    d.draw();
+    let selected = d.app.editor.selected_text().unwrap();
+    let position = d.app.view_position(Pane::Secondary).unwrap();
+    pin_document(&mut d, &note);
+    d.key(KeyCode::Char('q'));
+    assert_eq!(
+        d.app.pins.state().pins[0].anchor,
+        Some(Anchor::Quote { text: selected })
+    );
+    assert_eq!(d.app.view_position(Pane::Secondary).unwrap(), position);
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.view_position(Pane::Secondary).unwrap(), position);
+}
+
+#[test]
+fn writingdeck_pins_known_rename_trash_and_undo_follow_without_source_divergence() {
+    use grimoire_core::documents::Pane;
+    let (mut d, note) = secondary_book("pins-moves", 120, 40, false);
+    let id = pin_document(&mut d, &note);
+    d.key(KeyCode::Enter);
+    d.app.run_action(palette::Action::Rename);
+    d.draw();
+    d.typed("Pin source renamed");
+    d.key(KeyCode::Enter);
+    let renamed = d.app.project.nodes[d.app.view_open(Pane::Secondary).unwrap()]
+        .path
+        .clone();
+    assert_ne!(renamed, note);
+    assert_eq!(d.root.join(&d.app.pins.state().pins[0].source), renamed);
+    assert!(d.app.pin_body(id).is_ok());
+    d.app.run_action(palette::Action::Delete);
+    d.draw();
+    d.key(KeyCode::Char('y'));
+    assert!(!renamed.exists());
+    assert_eq!(d.app.pins.state().pins.len(), 1);
+    assert!(d.app.pin_body(id).is_err());
+    d.ctrl('z');
+    d.app.check_documents_now();
+    d.app.check_documents_now();
+    assert!(renamed.exists());
+    assert!(d.app.pin_body(id).is_ok());
+    assert_eq!(d.root.join(&d.app.pins.state().pins[0].source), renamed);
+}
+
+#[test]
+fn writingdeck_pins_missing_source_keeps_reference_until_explicit_relink() {
+    let (mut d, note) = secondary_book("pins-relink", 120, 40, false);
+    let id = pin_document(&mut d, &note);
+    let original = d.app.pins.state().pins[0].source.clone();
+    fs::remove_file(&note).unwrap();
+    d.app.refresh_pin_sources();
+    d.draw();
+    assert!(d.app.pin_body(id).is_err());
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.overlay, Overlay::Pins);
+    assert_eq!(d.app.pins.state().pins[0].source, original);
+    d.key(KeyCode::Char('b'));
+    assert!(matches!(d.app.overlay, Overlay::Palette { .. }));
+    d.typed("Scene One");
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.pins.state().pins[0].id, id);
+    assert_ne!(d.app.pins.state().pins[0].source, original);
+    assert!(!note.exists());
+    assert!(d.app.pin_body(id).unwrap().contains("Primary alpha"));
+}
+
+#[test]
+fn writingdeck_pins_existing_primary_and_secondary_owners_retain_undo_and_selection() {
+    use grimoire_core::documents::Pane;
+    let (mut d, note) = secondary_book("pins-owner", 160, 50, false);
+    choose_secondary(&mut d, &note);
+    d.typed("Owner draft. ");
+    d.app.editor.select((0, 0), (0, 5));
+    d.draw();
+    let secondary = d.app.view_position(Pane::Secondary).unwrap();
+    pin_document(&mut d, &note);
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.view_position(Pane::Secondary).unwrap(), secondary);
+    assert_eq!(d.app.focus, Focus::Secondary);
+    let primary = first_scene(&d.root);
+    pin_document(&mut d, &primary);
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.focus, Focus::Editor);
+    assert_eq!(d.app.view_position(Pane::Secondary).unwrap(), secondary);
+    d.app.activate_editor(Pane::Secondary);
+    d.ctrl('z');
+    assert!(!d.app.editor.text().contains("Owner draft."));
+}
+
+#[cfg(unix)]
+#[test]
+fn writingdeck_pins_symlink_and_hardlink_aliases_read_the_unsaved_owner_not_a_stale_node() {
+    use grimoire_core::documents::Pane;
+    use std::os::unix::fs::symlink;
+    let (mut d, _) = secondary_book("pins-aliases", 160, 50, false);
+    let primary = first_scene(&d.root);
+    let symbolic = d.root.join("notes/pin-symbolic.md");
+    let hard = d.root.join("notes/pin-hard.md");
+    symlink(&primary, &symbolic).unwrap();
+    fs::hard_link(&primary, &hard).unwrap();
+    d.app.check_documents_now();
+    d.app.check_documents_now();
+    d.app.activate_editor(Pane::Primary);
+    d.typed("Unsaved authoritative words. ");
+    let position = d.app.view_position(Pane::Primary).unwrap();
+    for alias in [symbolic, hard] {
+        let id = pin_document(&mut d, &alias);
+        assert!(
+            d.app
+                .pin_body(id)
+                .unwrap()
+                .contains("Unsaved authoritative words.")
+        );
+        d.key(KeyCode::Enter);
+        assert_eq!(d.app.focus, Focus::Editor);
+        assert_eq!(d.app.view_position(Pane::Primary).unwrap(), position);
+        assert!(d.app.view_open(Pane::Secondary).is_none());
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn writingdeck_pins_outside_project_symlink_and_internal_recovery_source_are_refused() {
+    use std::os::unix::fs::symlink;
+    let (mut d, _) = secondary_book("pins-contained", 120, 40, false);
+    let outside = Desk::open(book("pins-outside", true), 80, 24);
+    let external = first_scene(&outside.root);
+    let alias = d.root.join("research/escape.md");
+    symlink(&external, &alias).unwrap();
+    let original = fs::read(&external).unwrap();
+    d.app.check_documents_now();
+    d.app.check_documents_now();
+    d.app.run_action(palette::Action::PinDocument(alias));
+    assert!(d.app.pins.state().pins.is_empty());
+    assert!(d.app.msg.contains("outside"));
+    assert_eq!(fs::read(&external).unwrap(), original);
+    let internal = d.root.join(".grimoire/recovery/source.md");
+    fs::create_dir_all(internal.parent().unwrap()).unwrap();
+    fs::write(&internal, "Internal recovery words.").unwrap();
+    d.app.run_action(palette::Action::PinDocument(internal));
+    assert!(d.app.pins.state().pins.is_empty());
+}
+
+#[test]
+fn writingdeck_pins_plain_typing_paste_and_editor_undo_shortcuts_cannot_mutate_hidden_source() {
+    let (mut d, note) = secondary_book("pins-read-only", 160, 50, false);
+    d.key(KeyCode::Tab);
+    d.typed("Primary draft. ");
+    let primary = d.app.editor.text();
+    let id = pin_document(&mut d, &note);
+    d.ctrl('z');
+    d.ctrl('y');
+    d.ctrl('x');
+    d.ctrl('v');
+    assert_eq!(d.app.editor.text(), primary);
+    d.app.editor.select((0, 0), (0, 7));
+    let position = d
+        .app
+        .view_position(grimoire_core::documents::Pane::Primary)
+        .unwrap();
+    let rect = d.app.rect_editor;
+    d.app.on_drag(rect.x + 2, rect.y + 2);
+    assert_eq!(
+        d.app
+            .view_position(grimoire_core::documents::Pane::Primary)
+            .unwrap(),
+        position
+    );
+    d.key(KeyCode::Char('g'));
+    d.ctrl('z');
+    d.ctrl('x');
+    d.app.clip = "Safe category".into();
+    d.ctrl('v');
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.pins.state().pins[0].category, "Safe category");
+    assert_eq!(d.app.editor.text(), primary);
+    assert_eq!(
+        d.app
+            .view_position(grimoire_core::documents::Pane::Primary)
+            .unwrap(),
+        position
+    );
+    d.key(KeyCode::Esc);
+    let rect = d.app.pins.hits[0].1;
+    d.app.on_click(rect.x + 1, rect.y + 1);
+    d.draw();
+    d.app.paste("Cannot insert this.");
+    d.ctrl('z');
+    d.ctrl('x');
+    assert_eq!(d.app.editor.text(), primary);
+    assert!(d.app.pin_body(id).unwrap().contains("Secondary beta"));
+}
+
+#[test]
+fn writingdeck_pins_scopes_follow_primary_context_not_the_secondary_note() {
+    use grimoire_core::pins::Scope;
+    let (mut d, note) = secondary_book("pins-scope", 160, 50, false);
+    let id = pin_document(&mut d, &note);
+    assert_eq!(d.app.pin_ids(false), vec![id]);
+    assert!(d.app.pin_ids(true).is_empty());
+    d.key(KeyCode::Char('s'));
+    assert_eq!(d.app.pins.state().pins[0].scope, Scope::Chapter);
+    assert_eq!(d.app.pin_ids(false), vec![id]);
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.focus, Focus::Secondary);
+    assert_eq!(d.app.pin_ids(false), vec![id]);
+    d.app.open_pinboard();
+    d.key(KeyCode::Char('s'));
+    assert_eq!(d.app.pins.state().pins[0].scope, Scope::Scene);
+    assert_eq!(d.app.pin_ids(false), vec![id]);
+    d.key(KeyCode::Char('s'));
+    assert!(d.app.pin_ids(false).is_empty());
+    assert_eq!(d.app.pin_ids(true), vec![id]);
+    d.key(KeyCode::Char('s'));
+    assert!(d.app.pin_ids(false).is_empty());
+    assert!(d.app.pin_ids(true).is_empty());
+    d.key(KeyCode::Char('s'));
+    assert_eq!(d.app.pin_ids(false), vec![id]);
+    assert_eq!(d.app.pin_ids(true), vec![id]);
+}
+
+#[test]
+fn writingdeck_pins_dashboard_cards_are_real_scoped_readers_with_independent_mouse_scroll() {
+    use grimoire_core::pins::Scope;
+    let (mut d, note) = secondary_book("pins-dashboard", 100, 30, true);
+    let id = pin_document(&mut d, &note);
+    d.app
+        .pins
+        .update(|s| {
+            s.pin_mut(id)?.scope = Scope::Dashboard;
+            Ok(())
+        })
+        .unwrap();
+    let position = d.app.editor.text();
+    d.app.open_dashboard();
+    d.draw();
+    assert!(d.shows("Secondary paragraph 0."));
+    assert_eq!(d.app.pins.dashboard_hits.borrow().len(), 1);
+    let rect = d.app.pins.dashboard_hits.borrow()[0].1;
+    d.app.on_scroll(rect.x + 1, rect.y + 2, true);
+    d.draw();
+    assert_eq!(d.app.pins.state().pins[0].scroll, 3);
+    assert_eq!(d.app.editor.text(), position);
+    d.app.on_click(rect.x + 1, rect.y + 1);
+    d.draw();
+    assert_eq!(d.app.overlay, Overlay::Pins);
+    assert_eq!(d.app.pins.state().selected, Some(id));
+}
+
+#[test]
+fn writingdeck_pins_sidebar_list_scroll_is_distinct_from_per_card_scroll() {
+    let (mut d, note) = secondary_book("pins-list-scroll", 160, 24, true);
+    for _ in 0..9 {
+        pin_document(&mut d, &note);
+    }
+    d.key(KeyCode::Esc);
+    d.draw();
+    let rect = d.app.pins.hits[0].1;
+    d.app.on_click(rect.x + 1, rect.y + 1);
+    d.draw();
+    d.key(KeyCode::PageDown);
+    let first = d.app.pins.state().selected.unwrap();
+    for _ in 0..7 {
+        d.key(KeyCode::Down);
+    }
+    assert!(d.app.pins.state().sidebar_scroll > 0);
+    assert_eq!(
+        d.app
+            .pins
+            .state()
+            .pins
+            .iter()
+            .find(|p| p.id == first)
+            .unwrap()
+            .scroll,
+        3
+    );
+    let last = d.app.pins.state().selected.unwrap();
+    assert_ne!(last, first);
+    assert_eq!(
+        d.app
+            .pins
+            .state()
+            .pins
+            .iter()
+            .find(|p| p.id == last)
+            .unwrap()
+            .scroll,
+        0
+    );
+}
+
+#[test]
+fn writingdeck_pins_render_uses_cached_body_and_cannot_recreate_deleted_metadata() {
+    use grimoire_core::pins::Store;
+    let (mut d, note) = secondary_book("pins-cached-render", 120, 40, false);
+    let id = pin_document(&mut d, &note);
+    let before = d.app.pins.state().clone();
+    fs::write(&note, "Disk-only changed words.\n").unwrap();
+    let path = Store::path(&d.root);
+    fs::remove_file(&path).unwrap();
+    d.draw();
+    assert!(d.shows("Secondary beta lives here."));
+    assert!(!path.exists());
+    assert_eq!(d.app.pins.state(), &before);
+    assert!(!d.app.pin_body(id).unwrap().contains("Disk-only"));
+    d.app.check_documents_now();
+    d.app.check_documents_now();
+    d.draw();
+    assert!(d.shows("Disk-only changed words."));
+    assert!(!path.exists());
+}
+
+#[test]
+fn writingdeck_pins_source_shrink_is_visible_and_next_scroll_clamps_without_editing_source() {
+    let (mut d, note) = secondary_book("pins-shrink", 120, 40, true);
+    pin_document(&mut d, &note);
+    for _ in 0..10 {
+        d.key(KeyCode::PageDown);
+    }
+    fs::write(&note, "Short source.\n").unwrap();
+    d.app.check_documents_now();
+    d.app.check_documents_now();
+    d.draw();
+    assert!(d.shows("Source shortened"));
+    d.key(KeyCode::PageUp);
+    assert_eq!(d.app.pins.state().pins[0].scroll, 0);
+    assert!(d.shows("Short source."));
+    assert_eq!(fs::read_to_string(&note).unwrap(), "Short source.\n");
+}
+
+#[test]
+fn writingdeck_pins_failed_manuscript_save_blocks_source_replacement_and_keeps_recovery() {
+    use grimoire_core::documents::Pane;
+    let (mut d, note) = secondary_book("pins-source-save-fail", 120, 40, false);
+    let third = d.root.join("notes/third-pin-source.md");
+    fs::write(&third, "Third source original.\n").unwrap();
+    d.app.check_documents_now();
+    d.app.check_documents_now();
+    choose_secondary(&mut d, &note);
+    d.typed("Keep unsaved owner. ");
+    let owner = d.app.view_open(Pane::Secondary);
+    let backup = note.with_extension("kept");
+    fs::rename(&note, &backup).unwrap();
+    fs::create_dir(&note).unwrap();
+    pin_document(&mut d, &third);
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.view_open(Pane::Secondary), owner);
+    assert!(
+        d.app
+            .view_editor(Pane::Secondary)
+            .unwrap()
+            .text()
+            .contains("Keep unsaved owner.")
+    );
+    assert_eq!(
+        fs::read_to_string(&third).unwrap(),
+        "Third source original.\n"
+    );
+    let kept = recovery::dir(&d.root).join(note.strip_prefix(&d.root).unwrap());
+    assert!(
+        fs::read_to_string(&kept)
+            .unwrap()
+            .contains("Keep unsaved owner.")
+    );
+    let primary = d.app.view_open(Pane::Primary);
+    d.key(KeyCode::Char('e'));
+    assert_eq!(d.app.view_open(Pane::Primary), primary);
+    assert!(
+        fs::read_to_string(&kept)
+            .unwrap()
+            .contains("Keep unsaved owner.")
+    );
+    fs::remove_dir(&note).unwrap();
+    fs::rename(&backup, &note).unwrap();
+    assert!(d.app.commit_saves());
+}
+
+#[test]
+fn writingdeck_pins_lessons_require_actual_demo_pin_save_and_anchored_scroll_return() {
+    use crate::app::writingdeck::Page;
+    let root = std::env::temp_dir().join(format!(
+        "grimoire-ui-pins-shipped-tutorial-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&root);
+    grimoire_core::tutorial::create_demo(&root).unwrap();
+    let note = root.join("notes/pin-practice.md");
+    let original = fs::read(&note).unwrap();
+    let mut d = Desk::open(root, 120, 40);
+    d.app.overlay = Overlay::Deck(Page::Lesson { id: 11 });
+    d.key(KeyCode::Enter);
+    assert!(matches!(d.app.overlay, Overlay::Palette { .. }));
+    assert!(!d.app.deck.progress.completed.contains(&11));
+    d.typed("Pin Practice");
+    d.key(KeyCode::Enter);
+    assert!(d.app.deck.progress.completed.contains(&11));
+    d.app.overlay = Overlay::Deck(Page::Lesson { id: 12 });
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.overlay, Overlay::Pins);
+    d.key(KeyCode::Home);
+    assert!(!d.app.deck.progress.completed.contains(&12));
+    d.key(KeyCode::Char('h'));
+    d.key(KeyCode::Home);
+    assert!(!d.app.deck.progress.completed.contains(&12));
+    d.key(KeyCode::PageDown);
+    d.key(KeyCode::Home);
+    assert!(d.app.deck.progress.completed.contains(&12));
+    let progress = grimoire_core::tutorial::Store::load(&d.root)
+        .unwrap()
+        .progress;
+    assert!(progress.completed.contains(&11));
+    assert!(progress.completed.contains(&12));
+    assert_eq!(fs::read(&note).unwrap(), original);
+    assert_eq!(
+        d.app.pins.state().pins[0].source,
+        PathBuf::from("notes/pin-practice.md")
+    );
+}
+
+#[test]
+fn writingdeck_pins_tutorial_never_uses_a_real_novel_as_an_exercise() {
+    use crate::app::writingdeck::Page;
+    let (mut d, note) = secondary_book("pins-tutorial-real", 120, 40, true);
+    let original = fs::read(&note).unwrap();
+    for id in [11, 12] {
+        d.app.overlay = Overlay::Deck(Page::Lesson { id });
+        d.key(KeyCode::Enter);
+        assert!(d.app.deck.note.contains("safe demo"));
+        assert!(!d.app.deck.progress.completed.contains(&id));
+        assert!(d.app.deck.progress.active.is_none());
+    }
+    assert!(d.app.pins.state().pins.is_empty());
+    assert_eq!(fs::read(&note).unwrap(), original);
+}
+
+#[test]
+fn writingdeck_pins_old_layouts_gain_only_the_additive_dashboard_widget() {
+    use grimoire_core::workspaces::{Store, Widget};
+    let root = book("pins-old-layout", true);
+    let mut store = Store::load(&root).unwrap();
+    store.state.dashboard.retain(|w| w.widget != Widget::Pins);
+    store.state.dashboard[0].visible = false;
+    let old = store.state.workspaces.clone();
+    store.save().unwrap();
+    let d = Desk::open(root, 120, 40);
+    assert_eq!(d.app.deck.state.workspaces, old);
+    assert!(!d.app.deck.state.dashboard[0].visible);
+    assert_eq!(
+        d.app
+            .deck
+            .state
+            .dashboard
+            .iter()
+            .filter(|w| w.widget == Widget::Pins)
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn writingdeck_pins_custom_alias_opens_board_without_typing_into_prose() {
+    use crate::app::writingdeck::Page;
+    let (mut d, _) = secondary_book("pins-shortcut", 120, 40, false);
+    let original = d.app.editor.text();
+    d.app.overlay = Overlay::Deck(Page::Shortcuts {
+        sel: 9,
+        capture: true,
+    });
+    d.app.add_deck_shortcut("Ctrl+Alt+P");
+    d.app.overlay = Overlay::None;
+    d.press(KeyEvent::new(
+        KeyCode::Char('p'),
+        KeyModifiers::CONTROL | KeyModifiers::ALT,
+    ));
+    assert_eq!(d.app.overlay, Overlay::Pins);
+    assert_eq!(d.app.editor.text(), original);
+    d.key(KeyCode::F(1));
+    assert!(matches!(d.app.overlay, Overlay::Help { .. }));
+    assert!(d.shows("Sticky-note pins"));
+}
+
+#[test]
+fn writingdeck_pins_tab_reveals_the_selected_card_instead_of_focusing_offscreen_content() {
+    let (mut d, note) = secondary_book("pins-focus-reveal", 160, 24, true);
+    for _ in 0..9 {
+        pin_document(&mut d, &note);
+    }
+    let id = d.app.pins.state().selected.unwrap();
+    d.key(KeyCode::Esc);
+    assert_eq!(d.app.focus, Focus::Editor);
+    d.key(KeyCode::Tab);
+    assert_eq!(d.app.focus, Focus::Pins);
+    assert!(d.app.pins.hits.iter().any(|(shown, _)| *shown == id));
+    d.key(KeyCode::PageDown);
+    assert_eq!(
+        d.app
+            .pins
+            .state()
+            .pins
+            .iter()
+            .find(|p| p.id == id)
+            .unwrap()
+            .scroll,
+        3
+    );
+}
+
+#[test]
+fn writingdeck_pins_order_skips_archived_cards_and_empty_collection_wheel_is_inert() {
+    use grimoire_core::pins::Life;
+    let (mut d, note) = secondary_book("pins-filter-order", 120, 40, true);
+    let a = pin_document(&mut d, &note);
+    let b = pin_document(&mut d, &note);
+    let c = pin_document(&mut d, &note);
+    d.app
+        .pins
+        .update(|s| {
+            s.set_life(b, Life::Archived)?;
+            s.selected = Some(a);
+            Ok(())
+        })
+        .unwrap();
+    d.key(KeyCode::Char('J'));
+    assert_eq!(
+        d.app
+            .pins
+            .state()
+            .pins
+            .iter()
+            .filter(|p| p.life == Life::Active)
+            .map(|p| p.id)
+            .collect::<Vec<_>>(),
+        vec![c, a]
+    );
+    d.key(KeyCode::Tab);
+    d.key(KeyCode::Char('u'));
+    assert_eq!(d.app.pins.board_life, Life::Archived);
+    let state = d.app.pins.state().clone();
+    let rect = d.app.pins.board_preview.get();
+    d.app.on_scroll(rect.x + 1, rect.y + 1, true);
+    d.draw();
+    assert_eq!(d.app.pins.state(), &state);
+}
+
+#[test]
+fn writingdeck_pins_external_source_conflict_stays_on_original_while_local_words_are_parked() {
+    let (mut d, note) = secondary_book("pins-source-conflict", 120, 40, false);
+    let id = pin_document(&mut d, &note);
+    d.key(KeyCode::Enter);
+    d.app.clip = "Local conflicting source words. ".into();
+    d.ctrl('v');
+    fs::write(&note, "External source version wins on disk.\n").unwrap();
+    d.app.check_documents_now();
+    d.app.check_documents_now();
+    d.draw();
+    assert_eq!(
+        fs::read_to_string(&note).unwrap(),
+        "External source version wins on disk.\n"
+    );
+    assert!(
+        d.app
+            .pin_body(id)
+            .unwrap()
+            .contains("External source version")
+    );
+    assert!(!d.app.pin_body(id).unwrap().contains("Local conflicting"));
+    assert!(
+        d.app
+            .project
+            .nodes
+            .iter()
+            .any(|n| n.parked && n.body.contains("Local conflicting source words"))
+    );
+    assert_eq!(d.root.join(&d.app.pins.state().pins[0].source), note);
+}
+
+#[test]
+fn writingdeck_pins_non_utf8_source_stays_unavailable_without_destroying_its_bytes() {
+    let (mut d, note) = secondary_book("pins-source-nonutf8", 120, 40, false);
+    let id = pin_document(&mut d, &note);
+    let bytes = b"Raw \xff words remain.\n";
+    fs::write(&note, bytes).unwrap();
+    d.app.check_documents_now();
+    d.app.check_documents_now();
+    d.draw();
+    assert!(d.app.pin_body(id).is_err());
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.overlay, Overlay::Pins);
+    assert_eq!(fs::read(&note).unwrap(), bytes);
+    assert_eq!(d.app.pins.state().pins.len(), 1);
+}
+
+#[test]
+fn writingdeck_pins_strict_focus_does_not_focus_a_hidden_secondary_source_owner() {
+    use grimoire_core::documents::Pane;
+    let (mut d, note) = secondary_book("pins-focus-owner", 160, 50, false);
+    choose_secondary(&mut d, &note);
+    let selected = d.app.view_position(Pane::Secondary).unwrap();
+    pin_document(&mut d, &note);
+    d.key(KeyCode::Esc);
+    d.ctrl('d');
+    assert!(d.app.focus_mode);
+    d.app.open_pinboard();
+    d.key(KeyCode::Char('e'));
+    assert_eq!(d.app.overlay, Overlay::Pins);
+    assert_eq!(d.app.focus, Focus::Editor);
+    assert_eq!(d.app.view_position(Pane::Secondary).unwrap(), selected);
+    assert!(d.app.msg.contains("strict focus"));
+}
+
+#[cfg(unix)]
+#[test]
+fn writingdeck_pins_ambiguous_retained_editor_ownership_refuses_to_guess_a_body() {
+    use grimoire_core::documents::Pane;
+    use std::os::unix::fs::symlink;
+    let (mut d, note) = secondary_book("pins-ambiguous-owner", 160, 50, false);
+    choose_secondary(&mut d, &note);
+    d.typed("Unique retained local note. ");
+    let id = pin_document(&mut d, &note);
+    let primary = first_scene(&d.root);
+    let original = fs::read(&primary).unwrap();
+    let primary_pos = d.app.view_position(Pane::Primary).unwrap();
+    let secondary_pos = d.app.view_position(Pane::Secondary).unwrap();
+    fs::remove_file(&note).unwrap();
+    symlink(&primary, &note).unwrap();
+    d.app.refresh_pin_sources();
+    assert!(
+        d.app
+            .pin_body(id)
+            .unwrap_err()
+            .contains("two retained editor")
+    );
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.overlay, Overlay::Pins);
+    assert_eq!(d.app.view_position(Pane::Primary).unwrap(), primary_pos);
+    assert_eq!(d.app.view_position(Pane::Secondary).unwrap(), secondary_pos);
+    assert_eq!(fs::read(&primary).unwrap(), original);
+    let kept = recovery::dir(&d.root).join(note.strip_prefix(&d.root).unwrap());
+    assert!(
+        fs::read_to_string(kept)
+            .unwrap()
+            .contains("Unique retained local note.")
+    );
+}

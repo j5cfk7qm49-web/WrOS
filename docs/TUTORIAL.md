@@ -2,7 +2,7 @@
 
 ## Current implementation
 
-The compiled catalog at `crates/grimoire-core/assets/writingdeck/tutorial.json` lists **all 39 requested lessons**. Sixteen have actual application-event hooks; the other 23 are explicitly marked **planned** and cannot be started/completed. This is a continuously developed framework, not a claim of full tutorial completion.
+The compiled catalog at `crates/grimoire-core/assets/writingdeck/tutorial.json` lists **all 39 requested lessons**. Eighteen have actual application-event hooks; the other 21 are explicitly marked **planned** and cannot be started/completed. This is a continuously developed framework, not a claim of full tutorial completion.
 
 Open F12 → Interactive tutorial, or use the menu/command palette. Arrow keys select a lesson; Enter shows its instructions and then starts the real feature; `h` opens linked searchable offline help; `s` skips; Escape returns. Completed lessons can be replayed. Progress is schema-versioned, atomically guarded and stored with the project. There is no fake Next/Done button.
 
@@ -29,8 +29,8 @@ The demo contains original short text and a deliberate spelling error. Nothing i
 | 8 | Focus mode | Wired: strict focus entered |
 | 9 | Panes | Wired: actual outline toggled; independent secondary editing is lesson 13 |
 | 10 | Custom shortcuts | Wired: valid alias actually saved |
-| 11 | Sticky pins | Planned |
-| 12 | Sticky scrolling | Planned |
+| 11 | Sticky pins | Wired: an actual metadata-only reference successfully saved in the safe demo, not merely opening the picker |
+| 12 | Sticky scrolling | Wired: capture a unique heading, really scroll in anchored mode, then Home successfully saves a return to that semantic anchor in the safe demo |
 | 13 | Notes beside manuscript | Wired: actual SecondaryEdited event in the safe demo, via typing or paste; a picker/navigation event is insufficient |
 | 14 | Writing journal | Planned |
 | 15 | Scratchpad | Planned |
@@ -59,10 +59,12 @@ The demo contains original short text and a deliberate spelling error. Nothing i
 | 38 | Wi-Fi/system settings | Wired: actual settings screen; hardware changes separately verified |
 | 39 | Recovery/troubleshooting | Wired: actual offline recovery manual; not a destructive crash simulation |
 
+The newly created demo ships a Pin Practice note with a unique The Courtyard heading and enough source rows to actually scroll. Lessons 11/12 use it directly, without asking the user to manufacture a heading first; another source with a unique ATX heading also works. It does not rewrite a real manuscript or silently manufacture completion. Missing/ambiguous anchors and failed metadata saves cannot complete it.
+
 ## Colemak and accessibility
 
 Instructions use arrows, Enter/Escape and function keys for physical-layout-independent discovery. Aliases use logical letters after OS translation. The layout lesson opens the real safe preview, not an application remapping game. Planned lessons remain searchable so coverage is visible, but are disabled until their feature is real.
 
 ## Tests and continuation rule
 
-Core tests verify 39 stable lesson IDs, unavailable lesson rejection, event matching, safe-demo gating, skip/replay, persisted progress and exclusive new-demo creation. TUI tests type/paste through the actual secondary routing/editor and validate persisted lesson 13 completion and replay, reject real-novel exercise launch, and prove open/navigation alone cannot complete it. Core tests and retained baseline lessons verify event matching, help topics and required sizes. Add new completion evidence and safe-demo tasks in the same change that implements each future feature. A feature's tutorial must never be marked complete simply because its informational page exists.
+Core tests verify 39 stable lesson IDs, unavailable lesson rejection, event matching, safe-demo gating, skip/replay, persisted progress and exclusive new-demo creation. TUI pin tests verify actual source selection/save and anchored scroll-and-return for lessons 11/12; opening a page or pressing Home without prior anchored scrolling is insufficient. TUI tests type/paste through the actual secondary routing/editor and validate persisted lesson 13 completion and replay, reject real-novel exercise launch, and prove open/navigation alone cannot complete it. Core tests and retained baseline lessons verify event matching, help topics and required sizes. Add new completion evidence and safe-demo tasks in the same change that implements each future feature. A feature's tutorial must never be marked complete simply because its informational page exists.

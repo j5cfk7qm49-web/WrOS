@@ -10,6 +10,8 @@
 
 Current cloud-related code detects known synced folders and preserves external edits/conflict copies. `grimoire-app` has stamp-checked mobile save APIs and the Android Tauri prototype uses them. There is no completed Google OAuth/Drive queue, iPhone client or safe Docs round trip in WritingDeck.
 
+Pin metadata is now project-local alongside layout state. Include it in a consistent project backup, but it never substitutes for the source Markdown files. Guarded pin-state conflicts are reported and require explicit metadata reload/relink; cards do not create a second source text to synchronize. See [PINS](PINS.md).
+
 ## Planned Drive backup (M9)
 
 Prefer maintained rclone for explicit terminal OAuth enrollment rather than hardcoded client secrets. Verify the provider's supported current authorization flow; a browser on a trusted second device may be needed. Never ask users to paste access tokens into a manuscript or publish credentials. Keep rclone/account configuration private (0600), outside a synced project, with an optional secret store and revocation instructions.

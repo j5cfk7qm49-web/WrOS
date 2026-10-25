@@ -22,6 +22,7 @@ pub mod names;
 pub mod notes;
 pub mod paths;
 pub mod pdf;
+pub mod pins;
 pub mod project;
 pub mod recovery;
 pub mod resume;

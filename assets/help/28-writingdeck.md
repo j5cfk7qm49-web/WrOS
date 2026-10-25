@@ -14,13 +14,17 @@ Arrow keys select a row. Enter opens it. On a widget, `h` hides it and `J` or `K
 
 ## Workspaces
 
-Workspaces save both documents, each cursor/selection/scroll position, the active editor, secondary visibility/proportion, outline width and focus setting. Choose Drafting, Planning, Research, Revision or Focus, or press `n` to clone a custom layout. Use `+` and `-` to adjust outline width and `<` or `>` for the secondary proportion (25–75 percent). Sticky cards and richer preset content remain planned. The legacy `v` beside view is still read-only, separate from the new editor.
+Workspaces save both documents, each cursor/selection/scroll position, the active editor, secondary visibility/proportion, outline width and focus setting. Choose Drafting, Planning, Research, Revision or Focus, or press `n` to clone a custom layout. Use `+` and `-` to adjust outline width and `<` or `>` for the secondary proportion (25–75 percent). Single-source sticky cards are now available through Pinboard; richer preset content remains planned. The legacy `v` beside view is still read-only, separate from the new editor.
 
 ## Toggle editable secondary pane
 
 Press `F11` to show or hide the independent editor. The first press opens Choose secondary document: type a scene, character, note or research title and press Enter. The same action in Writing tools or Ctrl-K replaces its document safely. Both panes are fully editable, each with its own undo/redo, cursor, selection and scroll. Clipboard, find/replace and spelling commands target the focused buffer; the clipboard and dictionary are shared. Tab or a click changes the focused editor; commands act on that buffer. Hiding never discards it. At 80×24 the two editors stack; wider writing areas put them side by side.
 
 Only one authoritative editor may own a canonical file. Choosing a document already open focuses its existing pane, including symlink/hard-link aliases on Linux. Both buffers use the existing autosave/history/conflict/recovery path and raw YAML frontmatter. Strict focus hides the secondary; leave with Ctrl-D before using F11. A secondary and an old read-only reference are retained but not drawn simultaneously. No file is copied merely to open another view.
+
+## Sticky-note pins
+
+Choose Pinboard or Pin current document in Writing tools or Ctrl-K. Dashboard `p` opens Pinboard too. Cards reference existing Markdown sources, keep independent scroll and heading/quote anchors, and never become a competing text store. Enter explicitly edits a source through the existing owner-aware editor. Scopes, category/color/size/order, recoverable card archive/Trash and narrow-screen fallback are explained in the Sticky-note pins help topic. Journal, scratchpad and handoff remain separate planned features.
 
 ## System settings
 

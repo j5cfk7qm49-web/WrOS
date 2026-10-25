@@ -49,6 +49,9 @@ class HeadlessCLI(unittest.TestCase):
         self.run_cli('tutorial-demo', demo)
         before = self.hashes(demo)
         self.assertTrue(any(p.startswith('manuscript/') for p in before))
+        practice = (demo/'notes/pin-practice.md').read_text()
+        self.assertIn('## The Courtyard', practice)
+        self.assertGreater(len(practice.splitlines()), 24)
         self.assertIn('No files changed', self.run_cli('check-config', demo).stdout)
         self.assertEqual(self.hashes(demo), before)
         self.run_cli('tutorial-demo', demo, ok=False)
@@ -68,6 +71,23 @@ class HeadlessCLI(unittest.TestCase):
         result = self.run_cli('check-config', demo, ok=False)
         self.assertIn('unsupported WritingDeck', result.stderr)
         self.assertEqual(self.hashes(demo), before)
+
+    def test_pin_metadata_validation_is_read_only_and_future_or_unknown_data_survives(self):
+        demo = self.root/'pins-demo'
+        self.run_cli('tutorial-demo', demo)
+        path = demo/'.grimoire/writingdeck/pins.json'
+        valid = {'version':1, 'next_id':1, 'pins':[], 'selected':None,
+                 'sidebar_visible':False, 'sidebar_width':30, 'sidebar_scroll':0, 'board_scroll':0}
+        self.assertIn('Pins schema 1', self.run_cli('check-config', demo).stdout)
+        self.assertFalse(path.exists())
+        path.parent.mkdir(parents=True, exist_ok=True)
+        for data in [valid, valid | {'version':999}, valid | {'future':'retain me'}]:
+            path.write_text(json.dumps(data))
+            before = self.hashes(demo)
+            result = self.run_cli('check-config', demo, ok=(data == valid))
+            if data.get('version') == 999:
+                self.assertIn('unsupported pins version', result.stderr)
+            self.assertEqual(self.hashes(demo), before)
 
 if __name__ == '__main__':
     unittest.main()

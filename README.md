@@ -34,7 +34,13 @@ undo/selection/cursor/free scroll; schema-v2 workspaces retain both documents an
 layout. Existing guarded saves, raw YAML, conflict parking and recovery serve both.
 See [workspace behavior and limits](docs/WORKSPACES.md), including narrow-terminal
 stacking, strict Primary-only focus and in-process alias ownership. This does not
-implement sticky pins, full content presets or cross-process file locking.
+provide full content presets or cross-process file locking.
+
+**M4a adds tested single-source pins:** Pinboard and the optional sidebar read existing
+Markdown sources, with independent card scroll, heading/quote anchors, scope/category/
+color/order/size, recoverable archive/Trash and explicit owner-aware source editing.
+No copied note body becomes another writer. See [pin controls and safety](docs/PINS.md).
+Journal, scratchpad and handoff remain unfinished M4 work.
 
 ## Why it exists
 

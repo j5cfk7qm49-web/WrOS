@@ -32,6 +32,7 @@ use grimoire_core::spell;
 mod aids;
 pub(crate) mod documents;
 pub(crate) mod overlays;
+pub(crate) mod pins;
 pub(crate) mod writingdeck;
 pub use aids::{MarkRow, Sprint, filter_marks as aids_filter};
 
@@ -72,6 +73,7 @@ pub enum Focus {
     Editor,
     /// Independent editable secondary document.
     Secondary,
+    Pins,
     /// The note open beside the scene.
     Codex,
     /// Another scene, read-only, beside the one being written.
@@ -166,6 +168,7 @@ type PdfJob = (
 
 pub struct App {
     pub deck: writingdeck::Deck,
+    pub pins: pins::Pins,
     pub views: documents::Views,
     pub project: Project,
     pub visible: Vec<usize>,
@@ -417,6 +420,11 @@ pub fn sample_scope((kind, text): &(usize, String)) -> Result<export::Scope, Str
 pub enum Overlay {
     None,
     Deck(writingdeck::Page),
+    Pins,
+    PinCategory {
+        id: u64,
+        buf: String,
+    },
     /// The main menu — the discoverable way to reach everything.
     Menu {
         sel: usize,
@@ -723,6 +731,7 @@ impl App {
     pub fn with(mut project: Project, setup: Setup) -> Result<Self> {
         let deck = writingdeck::Deck::load(&project.root, setup.background);
         let views = documents::Views::new(&project.root)?;
+        let pins = pins::Pins::load(&project.root);
         let parents = project.parents();
         // A book no one has opened yet: no day's baseline, nowhere to resume,
         // no words. It opens on the Novel Format guide instead of an empty
@@ -769,6 +778,7 @@ impl App {
 
         Ok(Self {
             deck,
+            pins,
             views,
             project,
             visible,
@@ -889,6 +899,7 @@ impl App {
                 app.msg = format!("document identity warning: {e}; no unsafe save will be attempted");
             }
             app.init_writingdeck(setup.background);
+            app.refresh_pin_sources();
             // Say what couldn't be read, once, so an empty row isn't a mystery.
             let unreadable = app
                 .project
@@ -1403,6 +1414,7 @@ impl App {
                     self.take_disk_change(i, change);
                 }
             }
+            self.refresh_pin_sources();
             if notes_changed {
                 // A note's names feed the codex and the spellchecker.
                 self.refresh_names();
@@ -1988,6 +2000,11 @@ impl App {
                 self.overlay = Overlay::Deck(writingdeck::Page::Tutorial { sel: 0 })
             }
             Action::ToggleOutline => self.toggle_outline(),
+            Action::Pinboard => self.open_pinboard(),
+            Action::PinCurrent => self.pin_current(),
+            Action::TogglePins => self.toggle_pins(),
+            Action::PinDocument(path) => self.pin_document(&path, None),
+            Action::RelinkPin(id, path) => self.pin_document(&path, Some(id)),
             Action::ToggleSecondary => self.toggle_secondary(),
             Action::SecondaryPicker => self.open_secondary_picker(),
             Action::EditSecondary(path) => {
@@ -3683,6 +3700,7 @@ impl App {
     /// something twice.
     fn follow_many(&mut self, renames: &[(PathBuf, PathBuf)]) {
         let root = self.project.root.clone();
+        self.pin_follow_many(renames);
         history::follow_all(&root, renames);
         let moved = |p: &PathBuf| {
             renames.iter().find_map(|(from, to)| {
@@ -3799,6 +3817,7 @@ impl App {
         }
         self.refresh_visible();
         self.refresh_names();
+        self.refresh_pin_sources();
         self.ensure_document_claims()
     }
 
@@ -4433,6 +4452,9 @@ impl App {
                     && self.views.secondary_room
                     && self.view_open(Pane::Secondary).is_some()
             }
+            Focus::Pins => {
+                !self.focus_mode && self.pins.rect.width > 0 && self.pin_count(false) > 0
+            }
             Focus::Codex => !self.focus_mode && self.codex.is_some() && self.side_room,
             Focus::Beside => !self.focus_mode && self.beside.is_some() && self.side_room,
             Focus::Clearing => self.scene_visible,
@@ -4442,10 +4464,11 @@ impl App {
 
     /// Tab through every pane that is actually on screen.
     pub fn cycle_focus(&mut self, forward: bool) {
-        const ORDER: [Focus; 7] = [
+        const ORDER: [Focus; 8] = [
             Focus::Tree,
             Focus::Editor,
             Focus::Secondary,
+            Focus::Pins,
             Focus::Codex,
             Focus::Beside,
             Focus::Clearing,
@@ -4466,6 +4489,9 @@ impl App {
                     self.activate_editor(pane);
                 } else {
                     self.focus = ORDER[i];
+                    if self.focus == Focus::Pins {
+                        self.prepare_pin_focus();
+                    }
                 }
                 return;
             }
@@ -4519,6 +4545,9 @@ impl App {
 
     /// A left click focuses the pane under the pointer and acts on it.
     pub fn on_click(&mut self, x: u16, y: u16) {
+        if self.pin_click(x, y) {
+            return;
+        }
         // The About box's link opens the studio's site; the Donate box's,
         // the Ko-fi page.
         if matches!(self.overlay, Overlay::About | Overlay::Donate) {
@@ -4678,6 +4707,9 @@ impl App {
     /// Extend the editor selection while the left button is held — or, in the
     /// tree, track where a dragged row would land.
     pub fn on_drag(&mut self, x: u16, y: u16) {
+        if matches!(self.overlay, Overlay::Pins | Overlay::PinCategory { .. }) {
+            return;
+        }
         if let Some((from, _)) = self.tree_drag {
             let r = self.rect_tree;
             let cy = y.clamp(r.y, r.y + r.height.saturating_sub(1));
@@ -4727,6 +4759,9 @@ impl App {
     /// Wheel scrolls whichever pane is under the pointer, without stealing focus.
     pub fn on_scroll(&mut self, x: u16, y: u16, down: bool) {
         const STEP: usize = 3;
+        if self.pin_wheel(x, y, down) {
+            return;
+        }
         if self.help_wheel(down, STEP) {
             return;
         }
@@ -4888,6 +4923,9 @@ impl App {
                     Action::ToggleSecondary,
                 ),
                 ("Choose secondary document…".into(), Action::SecondaryPicker),
+                ("Pinboard…".into(), Action::Pinboard),
+                ("Pin current document".into(), Action::PinCurrent),
+                ("Toggle pins sidebar".into(), Action::TogglePins),
             ],
             Sub::Settings => vec![
                 ("System settings…".into(), Action::SystemSettings),
@@ -5353,6 +5391,7 @@ impl App {
             Focus::Secondary => format!(
                 "{esc}  Tab pane  F11 hide secondary  {m}S save  {m}F find  {m}Z undo  {m}Q quit "
             ),
+            Focus::Pins => "↑↓ card  PgUp/PgDn scroll  Enter edit source  h heading  Home anchor  ? help  Tab pane ".into(),
             Focus::Beside => "Esc close  Tab pane  ↑↓ PgDn scroll  ↵ write in this one ".into(),
             Focus::Codex => {
                 "Esc close  Tab pane  ↑↓ scenes  ↵ go there  o open the note  PgDn scroll ".into()

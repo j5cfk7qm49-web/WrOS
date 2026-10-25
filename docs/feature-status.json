@@ -279,17 +279,17 @@
       "area": "Workspaces",
       "capability": "Sticky sidebar, multi-pane ratios and full content presets",
       "status": "In progress",
-      "verification": "Two-editor ratio/stacked-wide-resize tests",
+      "verification": "Two-editor ratio and pin sidebar/tiny/strict-focus tests",
       "hardware_verified": false,
-      "detail": "Two-editor ratio implemented; sticky sidebar/cards and full preset content still planned"
+      "detail": "Ratios and responsive pin sidebar implemented; per-workspace pin sets and full content presets still planned"
     },
     {
       "area": "Notes",
       "capability": "Single-source pins/scopes/cards/categories/trash/anchors/scroll",
-      "status": "Planned",
-      "verification": "None",
+      "status": "Tested",
+      "verification": "14 core + 31 UI + 1 alias; actual binary PTY/restart at four sizes; read-only CLI",
       "hardware_verified": false,
-      "detail": "Markdown source references, not copied content stores"
+      "detail": "Metadata-only project references, explicit guarded source edits, scoped cards/sidebar/dashboard; unknown/failure preservation; no cross-process lock or large-note performance claim"
     },
     {
       "area": "Notes",
@@ -521,7 +521,7 @@
       "status": "Tested",
       "verification": "Core + actual editor/UI tests",
       "hardware_verified": false,
-      "detail": "16 event-capable lessons including actual Secondary edit; 23 explicitly unavailable"
+      "detail": "18 event-capable lessons including actual pin creation/anchored scroll return and Secondary edit; 21 explicitly unavailable"
     },
     {
       "area": "Tutorial",

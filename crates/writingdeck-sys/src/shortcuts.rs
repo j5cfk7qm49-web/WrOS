@@ -15,6 +15,9 @@ pub enum Action {
     Save,
     Find,
     Palette,
+    Pinboard,
+    Pins,
+    PinCurrent,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -121,5 +124,26 @@ mod tests {
         ] {
             assert!(serde_json::from_str::<Shortcuts>(text).is_err());
         }
+    }
+
+    #[test]
+    fn pin_actions_are_optional_v1_aliases_without_changing_existing_defaults() {
+        let mut shortcuts = Shortcuts::default();
+        let defaults = shortcuts.bindings.clone();
+        for (chord, action) in [
+            ("Ctrl+Alt+P", Action::Pinboard),
+            ("Ctrl+Alt+I", Action::Pins),
+            ("Ctrl+Alt+N", Action::PinCurrent),
+        ] {
+            shortcuts.bindings.push(Binding {
+                chord: chord.into(),
+                action,
+            });
+        }
+        shortcuts.validate().unwrap();
+        let loaded: Shortcuts =
+            serde_json::from_str(&serde_json::to_string(&shortcuts).unwrap()).unwrap();
+        assert_eq!(loaded.bindings[..3], defaults);
+        assert_eq!(loaded.find("Ctrl+Alt+P"), Some(Action::Pinboard));
     }
 }

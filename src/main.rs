@@ -619,6 +619,10 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
         };
 
         if let Event::Paste(text) = &ev {
+            if matches!(app.overlay, Overlay::Pins) {
+                app.msg = "Cards are read-only previews. Enter edits the original source.".into();
+                continue;
+            }
             if matches!(app.overlay, Overlay::None) {
                 app.paste(text);
             } else {
@@ -848,6 +852,16 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
         }
     }
 
+    // Modal/read-only cards must not route cut/undo to a hidden editor.
+    // Category paste is text input; Pinboard paste is never card commands.
+    if ctrl
+        && (matches!(app.overlay, Overlay::Pins | Overlay::PinCategory { .. })
+            || (app.overlay == Overlay::None && app.focus == Focus::Pins))
+        && !matches!(k.code, KeyCode::Char('s' | 'q' | 'k' | 'd'))
+        && !(matches!(app.overlay, Overlay::PinCategory { .. }) && k.code == KeyCode::Char('v'))
+    {
+        return false;
+    }
     if ctrl {
         let shift = k.modifiers.contains(KeyModifiers::SHIFT);
         match k.code {
@@ -985,6 +999,7 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
             app.on_tree_key(key);
         }
         Focus::Editor | Focus::Secondary => app.on_editor_key(key),
+        Focus::Pins => app.on_pin_key(key),
         Focus::Codex => app.on_codex_key(key),
         Focus::Beside => app.on_beside_key(key),
         Focus::Clearing => app.on_clearing_key(key),

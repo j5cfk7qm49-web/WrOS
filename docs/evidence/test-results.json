@@ -1,113 +1,134 @@
 {
-  "recorded_date": "2026-10-24",
+  "recorded_at_utc": "2026-10-25T05:02:11.318138+00:00",
+  "milestone": "M4a single-source Markdown pins; not complete M4 or production release",
+  "previous_milestone": {
+    "commit": "8de14da",
+    "name": "M3b independent dual editors",
+    "rust_each_configuration": 532,
+    "python": 22,
+    "new_rust_tests": 42,
+    "historical_source_sha256": "a03f607b9ba589039a4de78584ec024945195c3d0a15175f982aa2c87fc6d5f5"
+  },
   "source_fingerprint": {
     "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
-    "sha256": "a03f607b9ba589039a4de78584ec024945195c3d0a15175f982aa2c87fc6d5f5",
-    "file_count": 185,
+    "sha256": "9256f2b1a75f29de7aee18f02a31440c80ea82c0787b1f8848a018eb04e758e8",
+    "file_count": 189,
     "scope": "Cargo.toml/lock, src, crates, assets, os scripts/config/systemd/tests; no generated evidence/docs/builds"
   },
-  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "toolchain": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
   "rust_suites": [
     {
-      "features": "default",
-      "command": "cargo test --workspace --locked --offline -j 2",
-      "passed": 532,
+      "configuration": "default audio features",
+      "passed": 578,
       "failed": 0,
       "ignored": 5,
-      "ignored_tests": [
-        "spell::tests::timings",
-        "shots::demo",
-        "shots::shots",
-        "ui_tests::dump_pomodoro_previews",
-        "voice::piper_reads_every_sentence_in_order"
-      ],
-      "exit_code": 0
+      "exit_code": 0,
+      "log": "build/tests-default.log"
     },
     {
-      "features": "no-audio",
-      "command": "cargo test --workspace --no-default-features --locked --offline -j 2",
-      "passed": 532,
+      "configuration": "--no-default-features",
+      "passed": 578,
       "failed": 0,
       "ignored": 4,
-      "ignored_tests": [
-        "spell::tests::timings",
-        "shots::demo",
-        "shots::shots",
-        "ui_tests::dump_pomodoro_previews"
-      ],
-      "exit_code": 0
+      "exit_code": 0,
+      "log": "build/tests-no-audio.log"
     }
   ],
+  "new_m4a_tests": {
+    "core_pins": 14,
+    "tui_pins": 31,
+    "system_shortcuts": 1,
+    "total_rust": 46,
+    "note": "Beyond M3b; overlapping feature configurations are not counted twice"
+  },
   "python": {
-    "command": "python3 -m unittest discover -s os/tests -p 'test_*.py' -v",
-    "passed": 22,
+    "passed": 25,
     "failed": 0,
     "skipped": 0,
-    "scope": "13 rootless keyboard helper, 4 installer planner, 4 headless CLI, 1 real-binary unprivileged PTY test with 4 terminal-size subcases",
-    "exit_code": 0
+    "exit_code": 0,
+    "command": "python3 -m unittest discover -s os/tests -p 'test_*.py' -v",
+    "groups": {
+      "keyboard_helper": 13,
+      "installer_plan": 4,
+      "compiled_headless_cli": 5,
+      "compiled_app_pty": 3
+    },
+    "note": "PTYs are non-root, isolated HOME/project, real event reader; four sizes/restart/source custody/paste guard; not physical keyboard certification"
   },
+  "compiled_cli_binary_sha256": "e3aa7c1f70eaa6770f4c979e6caef8d760ff40b0573463d8cdaf808b96463644",
   "checks": [
     {
-      "command": "cargo fmt --all -- --check",
-      "exit_code": 0
+      "name": "format",
+      "exit_code": 0,
+      "log": "build/fmt.log"
     },
     {
-      "command": "cargo clippy --workspace --all-targets --locked --offline -- -D warnings",
-      "exit_code": 0
+      "name": "all-target warning-denying Clippy",
+      "exit_code": 0,
+      "log": "build/clippy.log"
     },
     {
-      "command": "shellcheck os/scripts/*.sh os/scripts/writingdeck-session",
-      "exit_code": 0
+      "name": "normal no-audio binary build",
+      "exit_code": 0,
+      "log": "build/build-no-audio.log"
     },
     {
-      "command": "python3 tools/check-writingdeck.py",
-      "exit_code": 0
+      "name": "shellcheck",
+      "exit_code": 0,
+      "log": "build/shellcheck.log"
     },
     {
-      "command": "git diff --check",
-      "exit_code": 0
+      "name": "license/content manifest generation",
+      "exit_code": 0,
+      "log": "build/manifests.log"
     },
     {
-      "command": "python3 tools/check-writingdeck.py --require-current-evidence",
-      "exit_code": 0
+      "name": "printable keyboard reference generation",
+      "exit_code": 0,
+      "log": "build/reference.log"
     },
     {
-      "command": "python3 -m py_compile os/tests/*.py tools/*.py os/scripts/install-plan.py os/scripts/writingdeck-keyboard",
-      "exit_code": 0
+      "name": "docs matrix/content/licenses/local links",
+      "exit_code": 0,
+      "log": "build/docs-check.log"
+    },
+    {
+      "name": "diff whitespace",
+      "exit_code": 0,
+      "log": "build/diff-check.log"
     }
   ],
-  "note": "Default/no-audio Rust suites overlap. Ignored developer screenshots/performance/real Piper tests are not passed. Real PTY runs as UID 1000 in isolated HOME/new demos only. VM is separately recorded; no physical hardware/cloud credentials/destructive host-disk operations used.",
-  "recorded_at_utc": "2026-10-24T21:53:16.801359+00:00",
-  "milestone": "M3b independent secondary editor",
-  "new_m3b_tests": {
-    "rust": 42,
-    "breakdown": {
-      "core": 12,
-      "tui": 28,
-      "system_shortcuts": 2
-    },
-    "pty_terminal_sizes": [
-      [
-        80,
-        24
-      ],
-      [
-        100,
-        30
-      ],
-      [
-        120,
-        40
-      ],
-      [
-        160,
-        50
-      ]
-    ],
-    "pty_uid": "1000",
-    "scope": "PTY verifies actual event reader, escape parsing, bracketed paste, both disk saves, isolated undo/redo, hide/show, quit and persisted roles. Fixture rescue is not a full VM power-cut test."
+  "syntax_check": {
+    "exit_code": 0,
+    "command": "python3 -m py_compile os/tests/*.py tools/*.py os/scripts/install-plan.py os/scripts/writingdeck-keyboard"
   },
-  "cli_binary_sha256": "405de7cf544b55ba54abc0849350d34f53e020651a5071a2a1cd2715d6359784",
-  "vm_record": "docs/evidence/vm-boot.json",
-  "evidence_guard_negative_check": "Before the fresh VM run, --require-current-evidence correctly rejected the historical foundation VM fingerprint."
+  "limitations": [
+    "Ignored screenshots/performance/real-model tests are not passed.",
+    "VM is independent boot/system/console integration evidence, not pin/F11 interaction proof.",
+    "No physical hardware, power-cut, release/legal clearance or large-note/card-count CPU/flash-write qualification.",
+    "Journal/scratchpad/handoff and complete presets remain planned."
+  ],
+  "stale_evidence_negative_check": {
+    "exit_code": 1,
+    "expected_failure": "VM evidence is historical, not current source",
+    "note": "Current software evidence plus historical M3b VM; run before fresh assembly/boot"
+  },
+  "strict_current_evidence_check": {
+    "exit_code": 0,
+    "command": "python3 tools/check-writingdeck.py --require-current-evidence",
+    "note": "Run after fresh actual VM boot; source fingerprints match"
+  },
+  "vm_screenshot_review": {
+    "file": "docs/evidence/vm-dashboard.png",
+    "pixels": [
+      1280,
+      800
+    ],
+    "terminal_columns_rows": [
+      160,
+      50
+    ],
+    "inspected": true,
+    "observation": "Readable dashboard; Dashboard pins in-scope count and p Pinboard footer present; no pin-interaction or loaded-pin stress claim"
+  }
 }

@@ -320,6 +320,14 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
         Action::Workspaces => ("Restores a saved writing layout.", "writingdeck"),
         Action::Tutorial => ("Opens replayable, event-verified lessons.", "writingdeck"),
         Action::ToggleOutline => ("Shows or hides the outline independently.", "writingdeck"),
+        Action::Pinboard
+        | Action::PinCurrent
+        | Action::TogglePins
+        | Action::PinDocument(_)
+        | Action::RelinkPin(_, _) => (
+            "Persistent project Markdown references, independent card scroll, explicit guarded source editing; no copied bodies.",
+            "pins",
+        ),
         Action::ToggleSecondary => (
             "Shows or hides an independent editable document; its undo and selection stay intact.",
             "writingdeck",

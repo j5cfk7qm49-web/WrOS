@@ -13,7 +13,7 @@ The upstream shortcuts remain functional. `assets/help/24-every-key.md` is the c
 | **F12** | WritingDeck home dashboard |
 | **Ctrl-D** | Strict focus; same established shortcut, tightened hiding/focus behavior |
 | Tab / Shift-Tab | Cycle visible panes; never a hidden outline/secondary/reference |
-| Ctrl-K | Existing command palette, including new home/system/workspaces/tutorial actions |
+| Ctrl-K | Existing command palette, including home/system/workspaces/tutorial/Pinboard actions |
 | Ctrl-S / Ctrl-Q | Save / quit with upstream safety behavior |
 | Esc | Existing close/menu behavior; closes dashboard to resume |
 
@@ -32,7 +32,11 @@ Aliases persist per machine at `paths::data_dir()/writingdeck/shortcuts.json`, u
 ]}
 ```
 
-Available alias actions: dashboard, system-settings, tutorial, outline, secondary, focus, save, find, palette. More complete shortcut customization is planned. F10/F11/F12 remain default fallback actions even if aliases are removed; an explicit alias on one of these keys takes precedence.
+Available alias actions: dashboard, system-settings, tutorial, outline, secondary, focus, save, find, palette, pinboard, pins (sidebar toggle), pin-current. More complete shortcut customization is planned. F10/F11/F12 remain default fallback actions even if aliases are removed; an explicit alias on one of these keys takes precedence.
+
+## Card controls
+
+Pinboard (`p` on home or Ctrl-K) uses Up/Down for card/list selection, PgUp/PgDn for independent card scrolling, h/q for heading/selected-quote capture, Home for the unique semantic anchor, and Enter/e for explicit original-source editing. v toggles the responsive sidebar. Category input is text, not prose-edit commands. Card controls never remap ordinary editor letters. Full controls and persistence limits: [PINS](PINS.md) or F1 → Sticky-note pins.
 
 ## Layout and terminal limits
 
@@ -42,4 +46,4 @@ The terminal may not distinguish Ctrl-I from Tab or Ctrl-M from Enter. Existing 
 
 ## Tutorial and tests
 
-Tutorial lessons 2, 8, 9, 10 and 13 use the actual layout/focus/outline/alias/secondary-edit features. TUI tests exercise translated Unicode and logical aliases labeled across QWERTY/Colemak/DH scenarios. Real console DH mapping is a separate VM assertion; physical keyboard verification remains outstanding. No menu-description/help/key guard test was removed to add these features.
+Tutorial lessons 2, 8, 9, 10, 11, 12 and 13 use the actual layout/focus/outline/alias/secondary-edit features. TUI tests exercise translated Unicode and logical aliases labeled across QWERTY/Colemak/DH scenarios. Real console DH mapping is a separate VM assertion; physical keyboard verification remains outstanding. No menu-description/help/key guard test was removed to add these features.
