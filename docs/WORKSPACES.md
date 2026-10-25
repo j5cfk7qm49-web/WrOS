@@ -68,8 +68,12 @@ Pinboard, a responsive writing sidebar and dashboard-scoped cards now reference 
 
 See [PINS](PINS.md) and compiled Sticky-note pins help for controls, exact layout thresholds and limits. The sidebar is hidden in strict/tiny layouts and cannot steal hidden focus. Source cursor/selection/undo do not follow card scrolling. All four required terminal sizes, 31 pin UI cases, 14 core cases, one alias case, actual pin PTY/restart/paste-guard tests and read-only CLI validation supplement the retained M3b tests. Ordinary boot probes do not exercise pins.
 
+## M4b: journal — Tested initial slice
+
+The Writing journal widget and dashboard `j` open a separate reader for sampled saved-Project facts and an ordinary date-path reflection. Automatic immutable observations and editable reflection text never share a generated prose body. Enter/e uses the same exclusive editors; note-only/view operations invent no writing events. Known incomplete totals stay unavailable, not zero-filled. Guarded per-date metadata handles conflicts/future data/pending retry; all four required sizes, actual-binary PTY/restart/force-exit and real lesson 14 are covered. See [JOURNAL](JOURNAL.md). No gross-word/time ledger is implemented.
+
 ## Remaining M4 services — Planned
 
-Journal, scratchpad, advanced calendar/challenge/achievement/revision widgets and next-session handoff are not implemented widgets. Do not invent metrics to fill them. Full preset content, per-workspace pin sets, category filters, bounded-section excerpts and free-position/dragged cards remain outside M4a.
+Scratchpad, advanced calendar/challenge/achievement/revision widgets and next-session handoff are not implemented widgets. Pins and the initial journal are tested; richer journal/edit-ledger metrics remain separate work. Do not invent metrics to fill them. Full preset content, per-workspace pin sets, category filters, bounded-section excerpts and free-position/dragged cards remain outside M4a.
 
-Journal automatic facts must be separate from editable reflections. Scratchpad promotion must preserve the original and use guarded project operations. Handoff is an ordinary user-authored note shown next session. The tested document registry/pins are dependencies, not implementations of those services.
+Journal automatic facts are now separate from editable reflections; they remain sampled cached Project observations, not gross/active-time facts. Scratchpad promotion must preserve the original and use guarded project operations. Handoff is an ordinary user-authored note shown next session. The tested document registry/pins are dependencies, not implementations of those services.

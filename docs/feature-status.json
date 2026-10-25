@@ -246,10 +246,10 @@
     {
       "area": "Home",
       "capability": "Journal/pins/scratchpad/handoff/challenge/achievement/revision widgets",
-      "status": "Planned",
-      "verification": "None",
+      "status": "In progress",
+      "verification": "Pins and initial journal widget/UI/actual compiled-app PTY tests",
       "hardware_verified": false,
-      "detail": "Depends on actual domain services"
+      "detail": "Pins and sampled-facts/original-reflection journal tested; scratchpad/handoff/challenge/achievement/revision widgets still planned"
     },
     {
       "area": "Workspaces",
@@ -294,10 +294,10 @@
     {
       "area": "Notes",
       "capability": "Accurate auto/manual journal, multi-note scratchpad, handoff",
-      "status": "Planned",
-      "verification": "None",
+      "status": "In progress",
+      "verification": "Journal: 10 core + 23 UI + 1 alias; actual four-size PTY/restart/force; read-only CLI",
       "hardware_verified": false,
-      "detail": "Automatic event facts separated from reflections"
+      "detail": "Initial sampled saved-Project facts separate from original Markdown reflections; no gross/active-time ledger; scratchpad/handoff planned"
     },
     {
       "area": "Productivity",
@@ -521,7 +521,7 @@
       "status": "Tested",
       "verification": "Core + actual editor/UI tests",
       "hardware_verified": false,
-      "detail": "18 event-capable lessons including actual pin creation/anchored scroll return and Secondary edit; 21 explicitly unavailable"
+      "detail": "19 event-capable lessons including original-reflection save after real journal facts review; 20 explicitly unavailable"
     },
     {
       "area": "Tutorial",

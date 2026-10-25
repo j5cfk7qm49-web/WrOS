@@ -18,6 +18,7 @@ pub enum Action {
     Pinboard,
     Pins,
     PinCurrent,
+    Journal,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -146,4 +147,19 @@ mod tests {
         assert_eq!(loaded.bindings[..3], defaults);
         assert_eq!(loaded.find("Ctrl+Alt+P"), Some(Action::Pinboard));
     }
+}
+
+#[cfg(test)]
+#[test]
+fn journal_alias_is_additive_and_v1_defaults_remain_unchanged() {
+    let mut s = Shortcuts::default();
+    let defaults = s.bindings.clone();
+    s.bindings.push(Binding {
+        chord: "Ctrl+Alt+J".into(),
+        action: Action::Journal,
+    });
+    s.validate().unwrap();
+    let loaded: Shortcuts = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
+    assert_eq!(loaded.bindings[..3], defaults);
+    assert_eq!(loaded.find("Ctrl+Alt+J"), Some(Action::Journal));
 }

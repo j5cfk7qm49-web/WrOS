@@ -89,5 +89,28 @@ class HeadlessCLI(unittest.TestCase):
                 self.assertIn('unsupported pins version', result.stderr)
             self.assertEqual(self.hashes(demo), before)
 
+    def test_journal_date_validation_is_read_only_and_unknown_or_future_facts_survive(self):
+        demo = self.root/'journal-demo'
+        self.run_cli('tutorial-demo', demo)
+        folder = demo/'.grimoire/writingdeck/journal'
+        self.assertIn('0 journal date files', self.run_cli('check-config', demo).stdout)
+        self.assertFalse(folder.exists())
+        folder.mkdir(parents=True)
+        path = folder/'2026-10-24.json'
+        valid = {'version': 1, 'date': '2026-10-24', 'next_id': 1, 'facts': []}
+        for data in [valid, valid | {'version': 999}, valid | {'future': 'retain me'}]:
+            path.write_text(json.dumps(data))
+            before = self.hashes(demo)
+            result = self.run_cli('check-config', demo, ok=(data == valid))
+            if data['version'] == 999:
+                self.assertIn('unsupported journal version', result.stderr)
+            self.assertEqual(self.hashes(demo), before)
+        path.write_text(json.dumps(valid))
+        unknown = folder/'future-index.json'
+        unknown.write_bytes(b'Future unknown index must never be interpreted or rewritten.')
+        before = self.hashes(demo)
+        self.assertIn('1 journal date files', self.run_cli('check-config', demo).stdout)
+        self.assertEqual(self.hashes(demo), before)
+
 if __name__ == '__main__':
     unittest.main()

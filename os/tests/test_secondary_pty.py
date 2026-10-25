@@ -18,6 +18,8 @@ import termios
 import time
 import unittest
 
+from terminal_screen import Screen
+
 ROOT = Path(__file__).resolve().parents[2]
 BINARY = Path(os.environ.get('GRIMOIRE_BINARY', ROOT / 'target/debug/grimoire'))
 
@@ -28,6 +30,7 @@ class TerminalProcess:
         fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', height, width, 0, 0))
         self.output = b''
         self.query_tail = b''
+        self.screen = Screen(width, height)
         env = os.environ | {
             'HOME': str(home), 'XDG_DATA_HOME': str(home / 'data'),
             'XDG_CONFIG_HOME': str(home / 'config'), 'TERM': 'xterm-256color',
@@ -83,9 +86,13 @@ class TerminalProcess:
                     _, queries = queries.split(b'\x1b[6n', 1)
                     self.send(b'\x1b[1;1R')
                 self.query_tail = queries[-3:]
+                self.screen.feed(chunk)
                 self.output = (self.output + chunk)[-262144:]
                 if not chunk and self.process.poll() is not None and not condition():
                     raise AssertionError('application exited before ' + description + '\n' + repr(self.output[-2500:]))
+
+    def screen_shows(self, text):
+        self.until(lambda: text in self.screen.text, 'terminal screen did not show ' + repr(text))
 
     def shows(self, text):
         needle = text.encode()

@@ -93,9 +93,9 @@
   {
     "id": 14,
     "title": "Writing journal",
-    "help_topic": "writingdeck",
-    "event": null,
-    "instructions": "Review automatic session metrics separately from a freeform reflection. Planned."
+    "help_topic": "journal",
+    "event": "JournalReflectionSaved",
+    "instructions": "In the safe demo, first type an original sentence in the manuscript and save it to produce a real automatic checkpoint. Open Writing journal from Ctrl-K or dashboard j. Review its recorded facts, Tab to the separate reflection, Enter to edit its original, and write/save a personal reflection. Only an actual saved reflection after reviewing recorded facts completes this exercise; no gross-word or active-time estimates are invented."
   },
   {
     "id": 15,

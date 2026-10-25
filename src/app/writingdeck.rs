@@ -54,7 +54,7 @@ impl Worker {
         Self { tx, rx }
     }
 }
-const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 12] = [
+const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 13] = [
     (ShortcutAction::Dashboard, "WritingDeck dashboard"),
     (ShortcutAction::SystemSettings, "System settings"),
     (ShortcutAction::Tutorial, "Interactive tutorial"),
@@ -67,6 +67,7 @@ const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 12] = [
     (ShortcutAction::Pinboard, "Pinboard"),
     (ShortcutAction::Pins, "Toggle pins sidebar"),
     (ShortcutAction::PinCurrent, "Pin current document"),
+    (ShortcutAction::Journal, "Writing journal"),
 ];
 
 pub struct Deck {
@@ -102,6 +103,13 @@ impl Deck {
         if pins_widget_added {
             state.dashboard.push(workspaces::WidgetConfig {
                 widget: Widget::Pins,
+                visible: true,
+            });
+        }
+        let journal_widget_added = !state.dashboard.iter().any(|w| w.widget == Widget::Journal);
+        if journal_widget_added {
+            state.dashboard.push(workspaces::WidgetConfig {
+                widget: Widget::Journal,
                 visible: true,
             });
         }
@@ -166,7 +174,7 @@ impl Deck {
             preview: None,
             recent: String::new(),
             weekly: 0,
-            dirty: pins_widget_added,
+            dirty: pins_widget_added || journal_widget_added,
         }
     }
     pub fn observe(&mut self, event: tutorial::Event, demo: bool) {
@@ -337,6 +345,7 @@ impl App {
             ShortcutAction::Pinboard => self.open_pinboard(),
             ShortcutAction::Pins => self.toggle_pins(),
             ShortcutAction::PinCurrent => self.pin_current(),
+            ShortcutAction::Journal => self.open_journal(),
         }
     }
     pub fn add_deck_shortcut(&mut self, chord: &str) {
@@ -468,6 +477,7 @@ impl App {
                         }
                     }
                     Key::Char('p') => self.open_pinboard(),
+                    Key::Char('j') => self.open_journal(),
                     Key::Char('w') => self.overlay = Overlay::Deck(Page::Widgets { sel: 0 }),
                     Key::Char('h') if sel < n => {
                         self.deck.state.dashboard[widgets[sel]].visible = false;
@@ -789,6 +799,7 @@ impl App {
             Widget::Battery | Widget::System => self.open_system_settings(),
             Widget::Backup => self.open_help(Some("sync")),
             Widget::Pins => self.open_pinboard(),
+            Widget::Journal => self.open_journal(),
         }
     }
     fn start_tutorial_demo(&mut self) {
@@ -875,6 +886,10 @@ impl App {
                 self.focus_mode = false;
                 self.open_secondary_picker();
             }
+            14 => {
+                self.journal.review_lesson_start();
+                self.open_journal();
+            }
             17 => self.run_action(Action::Goals),
             19 => self.run_action(Action::StartSprint),
             26 => self.spelling(),
@@ -952,6 +967,22 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                         }
                     }
                     Widget::RecentScenes => app.deck.recent.clone(),
+                    Widget::Journal => {
+                        if !app.journal.pending.is_empty() {
+                            format!(
+                                "{} pending · Enter to review/retry",
+                                app.journal.pending.len()
+                            )
+                        } else if !app.journal.warning.is_empty() {
+                            "unavailable; Enter to review".into()
+                        } else {
+                            format!(
+                                "{}: {} saved observations",
+                                app.journal.date,
+                                app.journal.fact_count()
+                            )
+                        }
+                    }
                     Widget::Pins => {
                         format!("{} in scope · Enter opens Pinboard", app.pin_count(true))
                     }
@@ -987,7 +1018,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                 ]
                 .map(str::to_string),
             );
-            hint = "↑↓ choose  Enter open  h hide widget  J/K reorder  w widgets  p Pinboard  Esc resume";
+            hint = "↑↓ choose  Enter open  h hide widget  J/K reorder  w widgets  p Pinboard  j Journal  Esc resume";
         }
         Page::Widgets { sel } => {
             title = "Dashboard widgets".into();

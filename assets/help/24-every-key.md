@@ -124,3 +124,19 @@ Click to place the cursor, drag to select, and click or right-click an underline
 | `F1` | close the help |
 
 Type to search every topic. `Esc` clears the search, then closes the help. In a narrow window the article has the whole box, and `Esc` steps back from it to the topics first.
+
+## Writing journal (WritingDeck)
+
+Open Writing journal in Ctrl-K or Writing tools, or press j on the dashboard. These are modal reader controls, never ordinary editor letter remappings.
+
+| Key | Action |
+| --- | --- |
+| Left / Right, t | Previous / next local date, today |
+| Tab | Recorded facts / original reflection preview |
+| Up / Down, PgUp / PgDn, Home / End | Scroll reader only |
+| c | Current clean saved snapshot after real manuscript work; not a gross/time estimate |
+| Enter / e | Explicit original reflection editor in Secondary / Primary |
+| r | Explicitly reload/retry pending facts without replacing recorded observations |
+| Esc | Leave reader |
+
+Bracketed/clipboard paste in the reader is ignored. Known unavailable/non-UTF-8 manuscript totals are not fabricated, and note-only saves are not manuscript-writing events. See Writing journal help for sampled-checkpoint limits and force-exit warnings.

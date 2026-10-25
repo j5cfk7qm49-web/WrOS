@@ -12,6 +12,8 @@ Current cloud-related code detects known synced folders and preserves external e
 
 Pin metadata is now project-local alongside layout state. Include it in a consistent project backup, but it never substitutes for the source Markdown files. Guarded pin-state conflicts are reported and require explicit metadata reload/relink; cards do not create a second source text to synchronize. See [PINS](PINS.md).
 
+Journal facts are bounded daily metadata; reflections remain ordinary source Markdown in Notes. Include both in consistent project backups. Facts are sampled model observations, not an edit ledger, immutable OS audit log or backup; pending observations are memory-only until retry and can be lost on crash/explicit forced exit. Guarded conflicts never replace existing facts. See [JOURNAL](JOURNAL.md).
+
 ## Planned Drive backup (M9)
 
 Prefer maintained rclone for explicit terminal OAuth enrollment rather than hardcoded client secrets. Verify the provider's supported current authorization flow; a browser on a trusted second device may be needed. Never ask users to paste access tokens into a manuscript or publish credentials. Keep rclone/account configuration private (0600), outside a synced project, with an optional secret store and revocation instructions.

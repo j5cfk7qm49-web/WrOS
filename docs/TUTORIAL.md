@@ -2,7 +2,7 @@
 
 ## Current implementation
 
-The compiled catalog at `crates/grimoire-core/assets/writingdeck/tutorial.json` lists **all 39 requested lessons**. Eighteen have actual application-event hooks; the other 21 are explicitly marked **planned** and cannot be started/completed. This is a continuously developed framework, not a claim of full tutorial completion.
+The compiled catalog at `crates/grimoire-core/assets/writingdeck/tutorial.json` lists **all 39 requested lessons**. Nineteen have actual application-event hooks; the other 20 are explicitly marked **planned** and cannot be started/completed. This is a continuously developed framework, not a claim of full tutorial completion.
 
 Open F12 → Interactive tutorial, or use the menu/command palette. Arrow keys select a lesson; Enter shows its instructions and then starts the real feature; `h` opens linked searchable offline help; `s` skips; Escape returns. Completed lessons can be replayed. Progress is schema-versioned, atomically guarded and stored with the project. There is no fake Next/Done button.
 
@@ -32,7 +32,7 @@ The demo contains original short text and a deliberate spelling error. Nothing i
 | 11 | Sticky pins | Wired: an actual metadata-only reference successfully saved in the safe demo, not merely opening the picker |
 | 12 | Sticky scrolling | Wired: capture a unique heading, really scroll in anchored mode, then Home successfully saves a return to that semantic anchor in the safe demo |
 | 13 | Notes beside manuscript | Wired: actual SecondaryEdited event in the safe demo, via typing or paste; a picker/navigation event is insufficient |
-| 14 | Writing journal | Planned |
+| 14 | Writing journal | Wired: recorded demo manuscript checkpoint reviewed, then a genuinely changed original Markdown reflection successfully saved; opening/navigation alone does not complete it |
 | 15 | Scratchpad | Planned |
 | 16 | Session handoff | Planned |
 | 17 | Daily goals | Wired: actual saved target changes in demo |
@@ -58,6 +58,8 @@ The demo contains original short text and a deliberate spelling error. Nothing i
 | 37 | Mobile access | Planned |
 | 38 | Wi-Fi/system settings | Wired: actual settings screen; hardware changes separately verified |
 | 39 | Recovery/troubleshooting | Wired: actual offline recovery manual; not a destructive crash simulation |
+
+Lesson 14 uses real saved manuscript observations, not fabricated session metrics: save a sentence in the demo manuscript, open Writing journal, Tab after reviewing facts, explicitly edit the original reflection and save genuine prose. Gross/active-time accounting is not claimed. A note-only save or reading the page cannot complete it.
 
 The newly created demo ships a Pin Practice note with a unique The Courtyard heading and enough source rows to actually scroll. Lessons 11/12 use it directly, without asking the user to manufacture a heading first; another source with a unique ATX heading also works. It does not rewrite a real manuscript or silently manufacture completion. Missing/ambiguous anchors and failed metadata saves cannot complete it.
 

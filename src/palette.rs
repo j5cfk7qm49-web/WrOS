@@ -70,6 +70,7 @@ pub enum Action {
     /// Pick a scene to show beside the one being written.
     BesidePicker,
     Pinboard,
+    Journal,
     PinCurrent,
     TogglePins,
     PinDocument(std::path::PathBuf),
@@ -185,6 +186,7 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
             Action::ToggleSecondary,
         ),
         Entry::new("Choose secondary document", "", Action::SecondaryPicker),
+        Entry::new("Writing journal", "", Action::Journal),
         Entry::new("Pinboard — sticky references", "", Action::Pinboard),
         Entry::new("Pin current document", "", Action::PinCurrent),
         Entry::new("Toggle pins sidebar", "", Action::TogglePins),

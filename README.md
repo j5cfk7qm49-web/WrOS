@@ -40,7 +40,12 @@ provide full content presets or cross-process file locking.
 Markdown sources, with independent card scroll, heading/quote anchors, scope/category/
 color/order/size, recoverable archive/Trash and explicit owner-aware source editing.
 No copied note body becomes another writer. See [pin controls and safety](docs/PINS.md).
-Journal, scratchpad and handoff remain unfinished M4 work.
+**M4b adds a tested journal:** read-only sampled saved-Project observations are
+separate from original Markdown reflections, with explicit owner-aware editing,
+guarded per-date append/retry, truthful unavailable/net metrics and actual demo
+completion. See [journal controls and guarantees](docs/JOURNAL.md). Scratchpad,
+handoff and richer presets remain unfinished M4 work; gross/active-time
+accounting still requires the edit/idle ledger.
 
 ## Why it exists
 

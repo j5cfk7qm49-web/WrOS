@@ -5433,3 +5433,726 @@ fn writingdeck_pins_ambiguous_retained_editor_ownership_refuses_to_guess_a_body(
             .contains("Unique retained local note.")
     );
 }
+
+fn journal_day(d: &Desk) -> grimoire_core::journal::Day {
+    grimoire_core::journal::Store::load(&d.root, &d.app.journal.date)
+        .unwrap()
+        .day()
+        .clone()
+}
+fn journal_path(d: &Desk) -> PathBuf {
+    grimoire_core::journal::Store::path(&d.root, &d.app.journal.date).unwrap()
+}
+fn reflection_path(d: &Desk) -> PathBuf {
+    grimoire_core::journal::reflection_path(&d.root, &d.app.journal.date).unwrap()
+}
+fn journal_manuscript_save(d: &mut Desk, text: &str) {
+    d.app.overlay = Overlay::None;
+    d.app
+        .run_action(palette::Action::Open(first_scene(&d.root)));
+    d.app.paste(text);
+    d.ctrl('s');
+    d.draw();
+}
+
+#[test]
+fn writingdeck_journal_saved_facts_and_original_reflection_work_at_four_sizes_and_restart() {
+    use grimoire_core::documents::Pane;
+    use grimoire_core::journal::Kind as FactKind;
+    for (w, h) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let (mut d, _) = secondary_book(&format!("journal-flow-{w}"), w, h, false);
+        let initial = d.app.project.total_words();
+        journal_manuscript_save(&mut d, "Measured manuscript words. ");
+        let total = d.app.project.total_words();
+        let facts = journal_day(&d);
+        assert_eq!(facts.facts.len(), 1);
+        let o = &facts.facts[0].observation;
+        assert_eq!(o.manuscript_words, total as u64);
+        assert_eq!(o.initial_manuscript_words, Some(initial as u64));
+        assert_eq!(o.delta_since_open(), Some(total as i64 - initial as i64));
+        let source = first_scene(&d.root);
+        let manuscript = fs::read(&source).unwrap();
+        let recorded = fs::read(journal_path(&d)).unwrap();
+        d.app.run_action(palette::Action::Journal);
+        d.draw();
+        assert!(d.shows("Writing journal"));
+        d.key(KeyCode::Tab);
+        assert!(d.app.journal.reflection);
+        let note = reflection_path(&d);
+        assert!(!note.exists());
+        d.key(KeyCode::Enter);
+        assert_eq!(d.app.focus, Focus::Secondary);
+        assert_eq!(
+            d.app.project.nodes[d.app.view_open(Pane::Secondary).unwrap()].path,
+            note
+        );
+        d.app.paste("I discovered a quieter ending. ");
+        d.ctrl('s');
+        assert!(
+            fs::read_to_string(&note)
+                .unwrap()
+                .contains("quieter ending")
+        );
+        assert_eq!(fs::read(&source).unwrap(), manuscript);
+        assert_eq!(fs::read(journal_path(&d)).unwrap(), recorded);
+        d.app.run_action(palette::Action::Journal);
+        d.key(KeyCode::Tab);
+        assert!(d.shows("quieter ending"));
+        assert!(d.app.try_quit());
+        assert_eq!(
+            journal_day(&d).facts.last().unwrap().kind,
+            FactKind::ExitRequested
+        );
+        let final_facts = fs::read(journal_path(&d)).unwrap();
+        let note_bytes = fs::read(&note).unwrap();
+        let mut restarted = Desk::open(d.root.clone(), w, h);
+        restarted.app.run_action(palette::Action::Journal);
+        assert_eq!(journal_day(&restarted).facts.len(), 2);
+        restarted.key(KeyCode::Tab);
+        assert!(
+            restarted
+                .app
+                .journal_body()
+                .unwrap()
+                .contains("quieter ending")
+        );
+        assert!(restarted.app.try_quit());
+        assert_eq!(fs::read(journal_path(&restarted)).unwrap(), final_facts);
+        assert_eq!(fs::read(&note).unwrap(), note_bytes);
+    }
+}
+#[test]
+fn writingdeck_journal_view_navigation_and_note_only_saves_never_invent_writing_facts() {
+    let (mut d, _) = secondary_book("journal-no-phantoms", 100, 30, false);
+    let file = journal_path(&d);
+    d.app.run_action(palette::Action::Journal);
+    for key in [
+        KeyCode::Right,
+        KeyCode::Left,
+        KeyCode::Char('t'),
+        KeyCode::Tab,
+        KeyCode::Home,
+        KeyCode::Char('r'),
+    ] {
+        d.key(key);
+    }
+    assert!(!file.exists());
+    d.key(KeyCode::Enter);
+    d.app
+        .paste("A self-reported reflection, not manuscript writing. ");
+    d.ctrl('s');
+    assert!(!file.exists());
+    assert!(d.app.try_quit());
+    assert!(!file.exists());
+    assert_eq!(d.app.journal.fact_count(), 0);
+}
+#[test]
+fn writingdeck_journal_negative_net_is_not_gross_deleted_or_active_time() {
+    let (mut d, _) = secondary_book("journal-negative", 100, 30, false);
+    let total = d.app.project.total_words();
+    d.app
+        .activate_editor(grimoire_core::documents::Pane::Primary);
+    d.ctrl('a');
+    d.ctrl('x');
+    d.ctrl('s');
+    let day = journal_day(&d);
+    let o = &day.facts[0].observation;
+    assert!(o.delta_since_open().unwrap() < 0);
+    assert_eq!(
+        o.delta_since_open(),
+        Some(d.app.project.total_words() as i64 - total as i64)
+    );
+    assert!(o.daily_net_words.unwrap() < 0);
+    let text = fs::read_to_string(journal_path(&d)).unwrap();
+    for invented in ["active_seconds", "gross_words", "deleted_words", "duration"] {
+        assert!(!text.contains(invented));
+    }
+}
+#[test]
+fn writingdeck_journal_checkpoints_are_throttled_and_exit_request_is_idempotent() {
+    let (mut d, _) = secondary_book("journal-throttle", 100, 30, false);
+    journal_manuscript_save(&mut d, "First real save. ");
+    assert_eq!(journal_day(&d).facts.len(), 1);
+    journal_manuscript_save(&mut d, "Another real save. ");
+    assert_eq!(journal_day(&d).facts.len(), 1);
+    d.app.journal.expire_checkpoint_for_test();
+    journal_manuscript_save(&mut d, "After the monotonic interval. ");
+    assert_eq!(journal_day(&d).facts.len(), 2);
+    assert!(d.app.try_quit());
+    let bytes = fs::read(journal_path(&d)).unwrap();
+    assert!(d.app.try_quit());
+    assert_eq!(fs::read(journal_path(&d)).unwrap(), bytes);
+    assert_eq!(journal_day(&d).facts.len(), 3);
+}
+#[test]
+fn writingdeck_journal_existing_source_yaml_undo_and_primary_ownership_are_preserved() {
+    use grimoire_core::documents::Pane;
+    let (mut d, research) = secondary_book("journal-owner", 160, 50, false);
+    let path = reflection_path(&d);
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    let original = "---\ntitle: My own reflection\ncustom:\n  values: [one, two] # untouched\n---\n\nOriginal reflection.\n";
+    fs::write(&path, original).unwrap();
+    d.app.reload_for_shots();
+    choose_secondary(&mut d, &research);
+    d.app.run_action(palette::Action::Open(path.clone()));
+    d.app.paste("Unique unsaved reflection. ");
+    let body = d.app.editor.text();
+    let position = d.app.view_position(Pane::Primary).unwrap();
+    let second = d.app.view_position(Pane::Secondary).unwrap();
+    d.app.run_action(palette::Action::Journal);
+    assert!(d.app.journal_body().unwrap().contains("Unique unsaved"));
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.focus, Focus::Editor);
+    assert_eq!(d.app.view_position(Pane::Primary).unwrap(), position);
+    assert_eq!(d.app.view_position(Pane::Secondary).unwrap(), second);
+    assert_eq!(d.app.editor.text(), body);
+    assert_eq!(fs::read_to_string(&path).unwrap(), original);
+    d.ctrl('s');
+    let (front, _) = project::split_frontmatter(&fs::read_to_string(&path).unwrap());
+    let (expected, _) = project::split_frontmatter(original);
+    assert_eq!(front, expected);
+    d.ctrl('z');
+    assert!(!d.app.editor.text().contains("Unique unsaved"));
+    d.ctrl('y');
+    assert!(d.app.editor.text().contains("Unique unsaved"));
+}
+#[test]
+fn writingdeck_journal_readonly_controls_cut_undo_paste_and_drag_cannot_mutate_hidden_editors() {
+    use grimoire_core::documents::Pane;
+    let (mut d, _) = secondary_book("journal-readonly", 120, 40, true);
+    d.app.activate_editor(Pane::Primary);
+    d.app.paste("Do not undo this while reading. ");
+    d.app.editor.select((0, 0), (0, 10));
+    let body = d.app.editor.text();
+    let position = d.app.view_position(Pane::Primary).unwrap();
+    d.app.run_action(palette::Action::Journal);
+    d.app.clip = "eettrr".into();
+    for key in ['z', 'y', 'x', 'a', 'v'] {
+        d.ctrl(key);
+    }
+    d.typed("ZZZZ");
+    let r = d.app.rect_editor;
+    d.app.on_drag(r.x + 3, r.y + 3);
+    assert_eq!(d.app.editor.text(), body);
+    assert_eq!(d.app.view_position(Pane::Primary).unwrap(), position);
+    assert!(!reflection_path(&d).exists());
+    assert_eq!(d.app.overlay, Overlay::Journal);
+}
+#[test]
+fn writingdeck_journal_cached_drawing_performs_no_source_reads_or_metadata_writes() {
+    let (mut d, _) = secondary_book("journal-cache", 100, 30, false);
+    journal_manuscript_save(&mut d, "Saved. ");
+    d.app.run_action(palette::Action::Journal);
+    d.key(KeyCode::Enter);
+    d.app.paste("Cached reflection survives a missing file. ");
+    d.ctrl('s');
+    d.app.run_action(palette::Action::Journal);
+    d.key(KeyCode::Tab);
+    let facts = journal_path(&d);
+    let note = reflection_path(&d);
+    fs::remove_file(&facts).unwrap();
+    fs::remove_file(&note).unwrap();
+    for _ in 0..3 {
+        d.draw();
+        assert!(d.shows("Cached reflection"));
+    }
+    assert!(!facts.exists());
+    assert!(!note.exists());
+    d.app.refresh_journal_source();
+    assert!(d.app.journal_body().is_err());
+}
+#[test]
+fn writingdeck_journal_fact_and_reflection_reader_scrolls_preserve_both_editor_positions() {
+    use grimoire_core::documents::Pane;
+    use grimoire_core::journal::{Kind as FactKind, Observation, Store};
+    for (w, h) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let (mut d, research) = secondary_book(&format!("journal-scroll-{w}"), w, h, true);
+        let date = d.app.journal.date.clone();
+        let mut store = Store::load(&d.root, &date).unwrap();
+        for n in 0..24 {
+            let at = chrono::DateTime::parse_from_rfc3339(&format!("{date}T10:{n:02}:00+00:00"))
+                .unwrap();
+            store
+                .append(
+                    FactKind::SavedCheckpoint,
+                    Observation::new(at, at, Some(10), 10 + n, Some(n as i64)).unwrap(),
+                )
+                .unwrap();
+        }
+        let path = reflection_path(&d);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(
+            &path,
+            (0..80)
+                .map(|n| format!("Reflection row {n:02}.\n"))
+                .collect::<String>(),
+        )
+        .unwrap();
+        d.app.reload_for_shots();
+        choose_secondary(&mut d, &research);
+        d.app.editor.select((2, 2), (4, 5));
+        let secondary = d.app.view_position(Pane::Secondary).unwrap();
+        let primary = d.app.view_position(Pane::Primary).unwrap();
+        d.app.run_action(palette::Action::Journal);
+        d.key(KeyCode::PageDown);
+        assert_eq!(d.app.journal.scroll, 10);
+        d.key(KeyCode::Tab);
+        assert_eq!(d.app.journal.scroll, 0);
+        d.key(KeyCode::PageDown);
+        assert_eq!(d.app.journal.scroll, 10);
+        assert!(d.shows("Reflection row 10"));
+        d.key(KeyCode::End);
+        d.key(KeyCode::Home);
+        assert_eq!(d.app.view_position(Pane::Primary).unwrap(), primary);
+        assert_eq!(d.app.view_position(Pane::Secondary).unwrap(), secondary);
+    }
+}
+#[test]
+fn writingdeck_journal_unknown_future_and_corrupt_facts_preserve_bytes_and_block_unrecorded_quit() {
+    use grimoire_core::journal::{Day, Store};
+    for (tag, text) in [
+        ("broken", "{ broken".into()),
+        ("future", {
+            let mut d = Day::empty(&chrono::Local::now().format("%Y-%m-%d").to_string()).unwrap();
+            d.version = 999;
+            serde_json::to_string(&d).unwrap()
+        }),
+        (
+            "unknown",
+            format!(
+                "{{\"version\":1,\"date\":\"{}\",\"next_id\":1,\"facts\":[],\"future\":true}}",
+                chrono::Local::now().format("%Y-%m-%d")
+            ),
+        ),
+    ] {
+        let root = book(&format!("journal-{tag}"), true);
+        let date = chrono::Local::now().format("%Y-%m-%d").to_string();
+        let file = Store::path(&root, &date).unwrap();
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::write(&file, &text).unwrap();
+        let mut d = Desk::open(root, 100, 30);
+        journal_manuscript_save(&mut d, "The manuscript must still save. ");
+        assert!(
+            fs::read_to_string(first_scene(&d.root))
+                .unwrap()
+                .contains("manuscript must still save")
+        );
+        assert_eq!(d.app.journal.pending.len(), 1);
+        assert_eq!(fs::read_to_string(&file).unwrap(), text);
+        assert!(!d.app.try_quit());
+        assert_eq!(d.app.journal.pending.len(), 2);
+        d.app.run_action(palette::Action::Journal);
+        d.draw();
+        assert!(d.shows("Recorded observations unavailable"));
+        d.key(KeyCode::Char('r'));
+        assert_eq!(fs::read_to_string(&file).unwrap(), text);
+        assert_eq!(d.app.journal.fact_count(), 0);
+        assert!(!d.app.journal.pending.is_empty());
+    }
+}
+#[test]
+fn writingdeck_journal_external_append_requires_explicit_reload_before_merging_pending_facts() {
+    use grimoire_core::journal::{Kind as FactKind, Observation, Store};
+    let (mut d, _) = secondary_book("journal-external", 100, 30, false);
+    let date = d.app.journal.date.clone();
+    let mut external = Store::load(&d.root, &date).unwrap();
+    let at = chrono::Local::now().fixed_offset();
+    external
+        .append(
+            FactKind::SavedCheckpoint,
+            Observation::new(at, at, Some(13), 17, Some(4)).unwrap(),
+        )
+        .unwrap();
+    let bytes = fs::read(journal_path(&d)).unwrap();
+    journal_manuscript_save(&mut d, "Own saved checkpoint. ");
+    assert_eq!(d.app.journal.pending.len(), 1);
+    assert_eq!(fs::read(journal_path(&d)).unwrap(), bytes);
+    d.app.run_action(palette::Action::Journal);
+    assert_eq!(d.app.journal.fact_count(), 1);
+    assert_eq!(d.app.journal.pending.len(), 1);
+    d.key(KeyCode::Char('r'));
+    assert!(d.app.journal.pending.is_empty());
+    let day = journal_day(&d);
+    assert_eq!(day.facts.len(), 2);
+    assert_eq!(day.facts[0], external.day().facts[0]);
+    assert!(d.app.try_quit());
+    assert_eq!(journal_day(&d).facts.len(), 3);
+}
+#[test]
+fn writingdeck_journal_io_failure_keeps_pending_observation_until_explicit_retry() {
+    let (mut d, _) = secondary_book("journal-io", 100, 30, false);
+    let file = journal_path(&d);
+    fs::create_dir_all(&file).unwrap();
+    journal_manuscript_save(&mut d, "Save prose despite journal failure. ");
+    assert_eq!(d.app.journal.pending.len(), 1);
+    assert_eq!(d.app.journal.fact_count(), 0);
+    let source = fs::read(first_scene(&d.root)).unwrap();
+    fs::remove_dir(&file).unwrap();
+    d.app.run_action(palette::Action::Journal);
+    d.key(KeyCode::Char('r'));
+    assert!(d.app.journal.pending.is_empty());
+    assert_eq!(journal_day(&d).facts.len(), 1);
+    assert_eq!(fs::read(first_scene(&d.root)).unwrap(), source);
+}
+#[test]
+fn writingdeck_journal_waiting_source_save_cannot_create_reflection_or_record_clean_facts_or_quit()
+{
+    let (mut d, _) = secondary_book("journal-waiting", 100, 30, false);
+    d.app
+        .activate_editor(grimoire_core::documents::Pane::Primary);
+    d.app.paste("Keep these unsaved manuscript words. ");
+    let file = first_scene(&d.root);
+    let backup = file.with_extension("kept");
+    fs::rename(&file, &backup).unwrap();
+    fs::create_dir(&file).unwrap();
+    d.ctrl('s');
+    assert!(d.app.project.dirty_count() > 0);
+    assert!(!journal_path(&d).exists());
+    d.app.run_action(palette::Action::Journal);
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.overlay, Overlay::Journal);
+    assert!(!reflection_path(&d).exists());
+    assert!(!d.app.try_quit());
+    assert!(d.app.editor.text().contains("unsaved manuscript"));
+    let copy = recovery::dir(&d.root).join(file.strip_prefix(&d.root).unwrap());
+    assert!(
+        fs::read_to_string(copy)
+            .unwrap()
+            .contains("unsaved manuscript")
+    );
+    fs::remove_dir(&file).unwrap();
+    fs::rename(&backup, &file).unwrap();
+}
+#[cfg(unix)]
+#[test]
+fn writingdeck_journal_reflection_outside_and_manuscript_aliases_are_not_used_as_manual_sources() {
+    use std::os::unix::fs::symlink;
+    let (mut d, _) = secondary_book("journal-source-containment", 100, 30, false);
+    let file = reflection_path(&d);
+    fs::create_dir_all(file.parent().unwrap()).unwrap();
+    let outside = d
+        .root
+        .parent()
+        .unwrap()
+        .join(format!("wd-journal-outside-{}", std::process::id()));
+    fs::write(&outside, "Outside text must not be displayed or changed.").unwrap();
+    symlink(&outside, &file).unwrap();
+    d.app.reload_for_shots();
+    d.app.run_action(palette::Action::Journal);
+    d.key(KeyCode::Tab);
+    assert!(d.app.journal_body().is_err());
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.overlay, Overlay::Journal);
+    assert_eq!(
+        fs::read_to_string(&outside).unwrap(),
+        "Outside text must not be displayed or changed."
+    );
+    fs::remove_file(&file).unwrap();
+    let manuscript = first_scene(&d.root);
+    let bytes = fs::read(&manuscript).unwrap();
+    symlink(&manuscript, &file).unwrap();
+    d.app.refresh_journal_source();
+    assert!(d.app.journal_body().unwrap_err().contains("manuscript"));
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.overlay, Overlay::Journal);
+    assert_eq!(fs::read(&manuscript).unwrap(), bytes);
+    fs::remove_file(outside).unwrap();
+}
+#[cfg(unix)]
+#[test]
+fn writingdeck_journal_non_utf8_reflection_is_unavailable_and_never_replaced() {
+    let (mut d, _) = secondary_book("journal-nonutf8", 100, 30, false);
+    let file = reflection_path(&d);
+    fs::create_dir_all(file.parent().unwrap()).unwrap();
+    let bytes = b"\xff\xfe original bytes";
+    fs::write(&file, bytes).unwrap();
+    d.app.reload_for_shots();
+    d.app.run_action(palette::Action::Journal);
+    d.key(KeyCode::Tab);
+    assert!(d.app.journal_body().is_err());
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.overlay, Overlay::Journal);
+    assert_eq!(fs::read(file).unwrap(), bytes);
+}
+#[test]
+fn writingdeck_journal_strict_focus_cannot_create_or_focus_a_hidden_secondary_reflection() {
+    use grimoire_core::documents::Pane;
+    let (mut d, _) = secondary_book("journal-strict", 120, 40, false);
+    d.app.activate_editor(Pane::Primary);
+    d.ctrl('d');
+    assert!(d.app.focus_mode);
+    d.app.run_action(palette::Action::Journal);
+    d.key(KeyCode::Enter);
+    assert!(!reflection_path(&d).exists());
+    assert_eq!(d.app.overlay, Overlay::Journal);
+    d.key(KeyCode::Esc);
+    d.ctrl('d');
+    d.app.run_action(palette::Action::Journal);
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.focus, Focus::Secondary);
+    d.app.activate_editor(Pane::Primary);
+    d.ctrl('d');
+    let primary = d.app.view_position(Pane::Primary).unwrap();
+    d.app.run_action(palette::Action::Journal);
+    d.key(KeyCode::Char('e'));
+    assert_eq!(d.app.overlay, Overlay::Journal);
+    assert_eq!(d.app.view_position(Pane::Primary).unwrap(), primary);
+    assert_eq!(d.app.views.active, Pane::Primary);
+}
+#[test]
+fn writingdeck_journal_tutorial_requires_recorded_facts_review_and_actual_saved_reflection() {
+    use crate::app::writingdeck::Page;
+    let root = std::env::temp_dir().join(format!(
+        "grimoire-ui-journal-shipped-demo-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&root);
+    grimoire_core::tutorial::create_demo(&root).unwrap();
+    let mut d = Desk::open(root, 120, 40);
+    d.app.overlay = Overlay::Deck(Page::Lesson { id: 14 });
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.overlay, Overlay::Journal);
+    assert!(!d.app.deck.progress.completed.contains(&14));
+    d.key(KeyCode::Tab);
+    d.key(KeyCode::Enter);
+    d.app
+        .paste("Reflection without a reviewed recorded checkpoint. ");
+    d.ctrl('s');
+    assert!(!d.app.deck.progress.completed.contains(&14));
+    let first = d
+        .app
+        .project
+        .nodes
+        .iter()
+        .find(|n| n.in_manuscript && n.kind == project::Kind::Scene)
+        .unwrap()
+        .path
+        .clone();
+    d.app.run_action(palette::Action::Open(first));
+    d.app.paste("Real manuscript work in the safe demo. ");
+    d.ctrl('s');
+    d.app.run_action(palette::Action::Journal);
+    assert!(!d.app.journal.day.facts.is_empty());
+    d.key(KeyCode::Tab);
+    d.key(KeyCode::Enter);
+    assert!(!d.app.deck.progress.completed.contains(&14));
+    d.app.paste("I reflected after seeing the saved facts. ");
+    assert!(!d.app.deck.progress.completed.contains(&14));
+    d.ctrl('s');
+    assert!(d.app.deck.progress.completed.contains(&14));
+    assert!(
+        grimoire_core::tutorial::Store::load(&d.root)
+            .unwrap()
+            .progress
+            .completed
+            .contains(&14)
+    );
+}
+#[test]
+fn writingdeck_journal_lesson_never_uses_an_ordinary_novel_for_its_exercise() {
+    use crate::app::writingdeck::Page;
+    let (mut d, _) = secondary_book("journal-real-novel", 100, 30, false);
+    let before = fs::read(first_scene(&d.root)).unwrap();
+    d.app.overlay = Overlay::Deck(Page::Lesson { id: 14 });
+    d.key(KeyCode::Enter);
+    assert!(d.app.deck.note.contains("safe demo"));
+    assert!(d.app.deck.progress.active.is_none());
+    assert!(!journal_path(&d).exists());
+    assert!(!reflection_path(&d).exists());
+    assert_eq!(fs::read(first_scene(&d.root)).unwrap(), before);
+}
+#[test]
+fn writingdeck_journal_widget_alias_help_and_old_layouts_are_additive_without_default_rebinding() {
+    use crate::app::writingdeck::Page;
+    use grimoire_core::workspaces::{Store, Widget};
+    let root = book("journal-layout-alias", true);
+    let mut store = Store::load(&root).unwrap();
+    store
+        .state
+        .dashboard
+        .retain(|w| w.widget != Widget::Journal);
+    store.state.dashboard[0].visible = false;
+    let old = store.state.workspaces.clone();
+    let old_widgets = store.state.dashboard.clone();
+    store.save().unwrap();
+    let mut d = Desk::open(root, 120, 40);
+    assert_eq!(d.app.deck.state.workspaces, old);
+    assert_eq!(d.app.deck.state.dashboard[..old_widgets.len()], old_widgets);
+    assert_eq!(
+        d.app.deck.state.dashboard.last().unwrap().widget,
+        Widget::Journal
+    );
+    let before = d.app.editor.text();
+    d.app.overlay = Overlay::Deck(Page::Shortcuts {
+        sel: 12,
+        capture: true,
+    });
+    d.app.add_deck_shortcut("Ctrl+Alt+J");
+    d.app.overlay = Overlay::None;
+    d.press(KeyEvent::new(
+        KeyCode::Char('j'),
+        KeyModifiers::CONTROL | KeyModifiers::ALT,
+    ));
+    assert_eq!(d.app.overlay, Overlay::Journal);
+    assert_eq!(d.app.editor.text(), before);
+    d.key(KeyCode::F(1));
+    assert!(matches!(d.app.overlay, Overlay::Help { .. }));
+    assert!(d.shows("Writing journal"));
+    d.key(KeyCode::Esc);
+    d.app.open_dashboard();
+    d.key(KeyCode::Char('j'));
+    assert_eq!(d.app.overlay, Overlay::Journal);
+}
+#[test]
+fn writingdeck_journal_selected_date_controls_only_its_own_reflection_source() {
+    let (mut d, _) = secondary_book("journal-date", 100, 30, false);
+    let today = d.app.journal.date.clone();
+    d.app.run_action(palette::Action::Journal);
+    d.key(KeyCode::Left);
+    let previous = d.app.journal.date.clone();
+    assert_ne!(previous, today);
+    d.key(KeyCode::Enter);
+    d.app.paste("A reflection for yesterday. ");
+    d.ctrl('s');
+    let old = grimoire_core::journal::reflection_path(&d.root, &previous).unwrap();
+    assert!(fs::read_to_string(old).unwrap().contains("for yesterday"));
+    assert!(
+        !grimoire_core::journal::reflection_path(&d.root, &today)
+            .unwrap()
+            .exists()
+    );
+    assert!(!journal_path(&d).exists());
+    d.app.run_action(palette::Action::Journal);
+    assert_eq!(d.app.journal.date, today);
+    d.key(KeyCode::Tab);
+    assert!(d.app.journal_body().is_err());
+}
+#[test]
+fn writingdeck_journal_book_switch_resets_observation_baseline_and_never_leaks_other_reflections() {
+    let (mut d, _) = secondary_book("journal-book-a", 100, 30, false);
+    journal_manuscript_save(&mut d, "A book private writing. ");
+    d.app.run_action(palette::Action::Journal);
+    d.key(KeyCode::Enter);
+    d.app.paste("Private reflection in book A. ");
+    d.ctrl('s');
+    let other = Desk::open(book("journal-book-b", true), 100, 30);
+    let initial = other.app.project.total_words();
+    assert!(d.app.open_book(&other.root));
+    assert_eq!(d.app.journal.fact_count(), 0);
+    d.app.run_action(palette::Action::Journal);
+    d.key(KeyCode::Tab);
+    assert!(
+        !d.app
+            .journal_body()
+            .is_ok_and(|b| b.contains("Private reflection"))
+    );
+    d.app.overlay = Overlay::None;
+    let first = first_scene(&other.root);
+    d.app.run_action(palette::Action::Open(first));
+    d.app.paste("Different book words. ");
+    d.ctrl('s');
+    let day = grimoire_core::journal::Store::load(&other.root, &d.app.journal.date).unwrap();
+    assert_eq!(
+        day.day().facts[0].observation.initial_manuscript_words,
+        Some(initial as u64)
+    );
+}
+#[cfg(unix)]
+#[test]
+fn writingdeck_journal_ambiguous_retained_editor_aliases_refuse_to_guess_and_rescue_both_bodies() {
+    use grimoire_core::documents::Pane;
+    use std::os::unix::fs::symlink;
+    let (mut d, research) = secondary_book("journal-ambiguous", 160, 50, false);
+    let note = grimoire_core::journal::ensure_reflection(&d.root, &d.app.journal.date).unwrap();
+    d.app.reload_for_shots();
+    choose_secondary(&mut d, &research);
+    d.app.run_action(palette::Action::Open(note.clone()));
+    d.app.paste("Unique unsaved reflection context. ");
+    d.app.activate_editor(Pane::Secondary);
+    d.app.paste("Unique unsaved research context. ");
+    let original = fs::read(&note).unwrap();
+    fs::remove_file(&research).unwrap();
+    symlink(&note, &research).unwrap();
+    d.app.run_action(palette::Action::Journal);
+    assert!(d.app.journal_body().unwrap_err().contains("two retained"));
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.overlay, Overlay::Journal);
+    assert_eq!(fs::read(&note).unwrap(), original);
+    for (path, words) in [
+        (&note, "unsaved reflection"),
+        (&research, "unsaved research"),
+    ] {
+        let copy = recovery::dir(&d.root).join(path.strip_prefix(&d.root).unwrap());
+        assert!(fs::read_to_string(copy).unwrap().contains(words));
+    }
+}
+
+#[test]
+fn writingdeck_journal_explicit_snapshot_requires_real_saved_work_and_never_duplicates_unchanged_counts()
+ {
+    let (mut d, _) = secondary_book("journal-explicit", 100, 30, false);
+    d.app.run_action(palette::Action::Journal);
+    d.key(KeyCode::Char('c'));
+    assert!(!journal_path(&d).exists());
+    journal_manuscript_save(&mut d, "First checkpoint. ");
+    journal_manuscript_save(&mut d, "Updated saved project counts. ");
+    assert_eq!(journal_day(&d).facts.len(), 1);
+    d.app.run_action(palette::Action::Journal);
+    d.key(KeyCode::Char('c'));
+    assert_eq!(journal_day(&d).facts.len(), 2);
+    d.key(KeyCode::Char('c'));
+    assert_eq!(journal_day(&d).facts.len(), 2);
+    d.key(KeyCode::Esc);
+    d.app.paste("Not saved yet. ");
+    d.app.run_action(palette::Action::Journal);
+    d.key(KeyCode::Char('c'));
+    assert_eq!(journal_day(&d).facts.len(), 2);
+    assert!(d.app.msg.contains("Save both"));
+}
+
+#[test]
+fn writingdeck_journal_unreadable_manuscript_totals_do_not_become_invented_complete_counts() {
+    let root = book("journal-incomplete", true);
+    let source = first_scene(&root);
+    let unknown = source.with_file_name("02-Unreadable.md");
+    fs::write(&unknown, b"\xff\xfe must not become zero words").unwrap();
+    let mut d = Desk::open(root, 100, 30);
+    assert!(
+        d.app
+            .project
+            .nodes
+            .iter()
+            .any(|n| n.in_manuscript && n.read_only)
+    );
+    journal_manuscript_save(&mut d, "Known source writing still saves. ");
+    assert!(
+        fs::read_to_string(&source)
+            .unwrap()
+            .contains("Known source writing")
+    );
+    assert!(!journal_path(&d).exists());
+    assert!(d.app.journal.warning.contains("total unavailable"));
+    assert!(!d.app.try_quit());
+    assert!(d.app.journal.pending.is_empty());
+    d.app.overlay = Overlay::Journal;
+    d.app.msg = "Ctrl-Q again to quit anyway · Journal exit observation unavailable".into();
+    d.draw();
+    assert!(d.shows("Q again to quit anyway"));
+    d.app.overlay = Overlay::None;
+    assert!(!journal_path(&d).exists());
+    assert_eq!(
+        fs::read(&unknown).unwrap(),
+        b"\xff\xfe must not become zero words"
+    );
+    fs::write(&unknown, "Repaired external source.\n").unwrap();
+    d.app.check_documents_now();
+    d.app.check_documents_now();
+    journal_manuscript_save(&mut d, "After repair. ");
+    let day = journal_day(&d);
+    assert_eq!(day.facts.len(), 1);
+    let o = &day.facts[0].observation;
+    assert_eq!(o.manuscript_words, d.app.project.total_words() as u64);
+    assert!(o.initial_manuscript_words.is_none());
+    assert!(o.delta_since_open().is_none());
+    assert!(o.daily_net_words.is_none());
+}

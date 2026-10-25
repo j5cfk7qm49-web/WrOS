@@ -619,8 +619,8 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
         };
 
         if let Event::Paste(text) = &ev {
-            if matches!(app.overlay, Overlay::Pins) {
-                app.msg = "Cards are read-only previews. Enter edits the original source.".into();
+            if matches!(app.overlay, Overlay::Pins | Overlay::Journal) {
+                app.msg = "Read-only preview. Enter explicitly edits the original source; pasted commands ignored.".into();
                 continue;
             }
             if matches!(app.overlay, Overlay::None) {
@@ -855,8 +855,10 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
     // Modal/read-only cards must not route cut/undo to a hidden editor.
     // Category paste is text input; Pinboard paste is never card commands.
     if ctrl
-        && (matches!(app.overlay, Overlay::Pins | Overlay::PinCategory { .. })
-            || (app.overlay == Overlay::None && app.focus == Focus::Pins))
+        && (matches!(
+            app.overlay,
+            Overlay::Pins | Overlay::PinCategory { .. } | Overlay::Journal
+        ) || (app.overlay == Overlay::None && app.focus == Focus::Pins))
         && !matches!(k.code, KeyCode::Char('s' | 'q' | 'k' | 'd'))
         && !(matches!(app.overlay, Overlay::PinCategory { .. }) && k.code == KeyCode::Char('v'))
     {
@@ -1021,7 +1023,8 @@ fn quit_or_arm(app: &mut App, armed: &mut bool) -> bool {
     }
     *armed = true;
     let m = app.mod_label();
-    app.msg = format!("{} · {m}Q again to quit anyway", app.msg);
+    // Keep the force-exit warning visible even at 80 columns.
+    app.msg = format!("{m}Q again to quit anyway · {}", app.msg);
     false
 }
 

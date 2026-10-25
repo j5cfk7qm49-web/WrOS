@@ -22,12 +22,13 @@ pub enum Widget {
     Sprint,
     RecentScenes,
     Pins,
+    Journal,
     Battery,
     Backup,
     System,
 }
 impl Widget {
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 12] = [
         Self::Resume,
         Self::Manuscript,
         Self::DailyGoal,
@@ -36,6 +37,7 @@ impl Widget {
         Self::Sprint,
         Self::RecentScenes,
         Self::Pins,
+        Self::Journal,
         Self::Battery,
         Self::Backup,
         Self::System,
@@ -50,6 +52,7 @@ impl Widget {
             Self::Sprint => "Writing sprint",
             Self::RecentScenes => "Recent scenes",
             Self::Pins => "Dashboard pins",
+            Self::Journal => "Writing journal",
             Self::Battery => "Battery",
             Self::Backup => "Backup status",
             Self::System => "System status",

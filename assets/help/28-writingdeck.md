@@ -24,7 +24,7 @@ Only one authoritative editor may own a canonical file. Choosing a document alre
 
 ## Sticky-note pins
 
-Choose Pinboard or Pin current document in Writing tools or Ctrl-K. Dashboard `p` opens Pinboard too. Cards reference existing Markdown sources, keep independent scroll and heading/quote anchors, and never become a competing text store. Enter explicitly edits a source through the existing owner-aware editor. Scopes, category/color/size/order, recoverable card archive/Trash and narrow-screen fallback are explained in the Sticky-note pins help topic. Journal, scratchpad and handoff remain separate planned features.
+Choose Pinboard or Pin current document in Writing tools or Ctrl-K. Dashboard `p` opens Pinboard too. Cards reference existing Markdown sources, keep independent scroll and heading/quote anchors, and never become a competing text store. Enter explicitly edits a source through the existing owner-aware editor. Scopes, category/color/size/order, recoverable card archive/Trash and narrow-screen fallback are explained in the Sticky-note pins help topic. Writing journal now separates sampled saved-Project facts from original Markdown reflections: Ctrl-K or dashboard j opens it. Its help explains source editing, explicit current snapshots and retry. Scratchpad and handoff remain separate planned features.
 
 ## System settings
 

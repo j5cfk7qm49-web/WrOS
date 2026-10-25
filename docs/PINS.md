@@ -1,6 +1,6 @@
 # M4a: single-source Markdown pins
 
-**Tested initial pin subsystem, not completion of all M4 work.** Journal facts/reflections, scratchpad promotion and handoff remain separate planned services. The complete appliance is still not production-ready.
+**Tested initial pin subsystem, not completion of all M4 work.** Initial journal facts/reflections are now tested in [M4b](JOURNAL.md); scratchpad promotion and handoff remain separate planned services. The complete appliance is still not production-ready.
 
 ## One source, several readers
 

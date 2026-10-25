@@ -36,6 +36,7 @@ impl App {
     pub fn help_context(&self) -> &'static str {
         match &self.overlay {
             Overlay::Deck(_) => "writingdeck",
+            Overlay::Journal => "journal",
             // In the menu, the topic for the highlighted row.
             Overlay::Menu { .. } | Overlay::Sub { .. } => self
                 .menu_highlight()

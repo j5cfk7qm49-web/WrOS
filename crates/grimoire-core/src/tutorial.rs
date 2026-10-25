@@ -21,6 +21,7 @@ pub enum Event {
     SecondaryEdited,
     PinCreated,
     PinAnchorRestored,
+    JournalReflectionSaved,
     SceneOpened,
     CorkboardOpened,
     WorkspaceSelected,

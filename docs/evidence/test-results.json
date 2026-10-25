@@ -1,25 +1,25 @@
 {
-  "recorded_at_utc": "2026-10-25T05:02:11.318138+00:00",
-  "milestone": "M4a single-source Markdown pins; not complete M4 or production release",
+  "recorded_at_utc": "2026-10-25T06:08:30.369271+00:00",
+  "milestone": "M4b initial saved-observation/original-reflection journal; not complete M4 or production release",
   "previous_milestone": {
-    "commit": "8de14da",
-    "name": "M3b independent dual editors",
-    "rust_each_configuration": 532,
-    "python": 22,
-    "new_rust_tests": 42,
-    "historical_source_sha256": "a03f607b9ba589039a4de78584ec024945195c3d0a15175f982aa2c87fc6d5f5"
+    "commit": "f2b03a6",
+    "name": "M4a single-source pins",
+    "rust_each_configuration": 578,
+    "python": 25,
+    "new_rust_tests": 46,
+    "historical_source_sha256": "9256f2b1a75f29de7aee18f02a31440c80ea82c0787b1f8848a018eb04e758e8"
   },
   "source_fingerprint": {
     "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
-    "sha256": "9256f2b1a75f29de7aee18f02a31440c80ea82c0787b1f8848a018eb04e758e8",
-    "file_count": 189,
+    "sha256": "68e1bc3e56dfbdc20dc656d3312c007fdbfd55fc80984d7bc58a4dfb3e798645",
+    "file_count": 195,
     "scope": "Cargo.toml/lock, src, crates, assets, os scripts/config/systemd/tests; no generated evidence/docs/builds"
   },
   "toolchain": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
   "rust_suites": [
     {
       "configuration": "default audio features",
-      "passed": 578,
+      "passed": 612,
       "failed": 0,
       "ignored": 5,
       "exit_code": 0,
@@ -27,22 +27,22 @@
     },
     {
       "configuration": "--no-default-features",
-      "passed": 578,
+      "passed": 612,
       "failed": 0,
       "ignored": 4,
       "exit_code": 0,
       "log": "build/tests-no-audio.log"
     }
   ],
-  "new_m4a_tests": {
-    "core_pins": 14,
-    "tui_pins": 31,
+  "new_m4b_tests": {
+    "core_journal": 10,
+    "tui_journal": 23,
     "system_shortcuts": 1,
-    "total_rust": 46,
-    "note": "Beyond M3b; overlapping feature configurations are not counted twice"
+    "total_rust": 34,
+    "note": "Beyond M4a; overlapping feature configurations are not counted twice"
   },
   "python": {
-    "passed": 25,
+    "passed": 30,
     "failed": 0,
     "skipped": 0,
     "exit_code": 0,
@@ -50,12 +50,14 @@
     "groups": {
       "keyboard_helper": 13,
       "installer_plan": 4,
-      "compiled_headless_cli": 5,
-      "compiled_app_pty": 3
+      "compiled_headless_cli": 6,
+      "compiled_app_pty": 5,
+      "small_ansi_screen_tracker": 2
     },
-    "note": "PTYs are non-root, isolated HOME/project, real event reader; four sizes/restart/source custody/paste guard; not physical keyboard certification"
+    "note": "Non-root isolated actual binary. Journal four-size original-source save/undo/restart/paste guard; future-log and unavailable-total preservation/first-quit refusal/visible explicit force. Unavailable-total source is saved while reader open, with no constructible pending fact. Retained pin/dual-editor tests; basic tracker is not full terminal/physical-keyboard emulation.",
+    "wall_seconds_reported": 3.808
   },
-  "compiled_cli_binary_sha256": "e3aa7c1f70eaa6770f4c979e6caef8d760ff40b0573463d8cdaf808b96463644",
+  "compiled_cli_binary_sha256": "9cc2a2ce96e3af360837dad99db0c030d863f39dc5b45c8cc6c0d120e0173008",
   "checks": [
     {
       "name": "format",
@@ -102,33 +104,28 @@
     "exit_code": 0,
     "command": "python3 -m py_compile os/tests/*.py tools/*.py os/scripts/install-plan.py os/scripts/writingdeck-keyboard"
   },
-  "limitations": [
-    "Ignored screenshots/performance/real-model tests are not passed.",
-    "VM is independent boot/system/console integration evidence, not pin/F11 interaction proof.",
-    "No physical hardware, power-cut, release/legal clearance or large-note/card-count CPU/flash-write qualification.",
-    "Journal/scratchpad/handoff and complete presets remain planned."
-  ],
-  "stale_evidence_negative_check": {
-    "exit_code": 1,
-    "expected_failure": "VM evidence is historical, not current source",
-    "note": "Current software evidence plus historical M3b VM; run before fresh assembly/boot"
-  },
-  "strict_current_evidence_check": {
-    "exit_code": 0,
-    "command": "python3 tools/check-writingdeck.py --require-current-evidence",
-    "note": "Run after fresh actual VM boot; source fingerprints match"
-  },
-  "vm_screenshot_review": {
-    "file": "docs/evidence/vm-dashboard.png",
-    "pixels": [
-      1280,
-      800
-    ],
+  "journal_screen_review": {
+    "file": "docs/evidence/journal-pty-screen.txt",
+    "sha256": "afc06ec338864c2f1d12bd9453be30dfb6d7932851772771d915f38d6ff9809d",
     "terminal_columns_rows": [
-      160,
-      50
+      80,
+      24
     ],
     "inspected": true,
-    "observation": "Readable dashboard; Dashboard pins in-scope count and p Pinboard footer present; no pin-interaction or loaded-pin stress claim"
+    "note": "Actual compiled-app demo/HOME, both fully cleared facts/reflection frames and footer; cursor/erase/UTF-8 reconstruction. Device-local time/offset, not assumed user timezone. No physical-keyboard or full terminal claim."
+  },
+  "limitations": [
+    "Ignored screenshots/performance/real-model tests are not passed.",
+    "Journal facts are sampled saved Project cache observations, not gross/deleted/active/idle time or a durable per-edit ledger; known unknown totals/baselines are unavailable, not invented.",
+    "Pending automatic observations are memory-only; crash or explicit forced exit can lose them.",
+    "VM is independent boot/system/console evidence, not journal/pin/F11 interaction or loaded-log stress proof.",
+    "No physical hardware, power-cut, release/legal or large-note/card/log performance clearance.",
+    "Scratchpad/handoff, richer presets and detailed M5 ledger remain planned."
+  ],
+  "failure_regression": {
+    "original_binary_source_sha256": "bdd426b410a04b8a5770e331b6d00650ab70ec8b0f836a0de198b981229c9d9c",
+    "result_before_fix": "Expanded real PTY reproduced missing force instruction after saving from reader with unavailable total and no pending fact.",
+    "fix": "Force instruction outranks journal warnings, with existing Rust completeness case and expanded real PTY green.",
+    "negative_log": "build/force-warning-regression-before.log"
   }
 }

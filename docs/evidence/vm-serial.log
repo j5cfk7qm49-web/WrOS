@@ -23,9 +23,9 @@ BdsDxe: starting Boot0001 "UEFI Misc Device" from PciRoot(0x0)/Pci(0x2,0x0)
 
 WritingDeck OS development appliance
 Debian 13 / trixie; VM demo only
-writingdeck-vm login: WRITINGDECK_VM_UI_PASS uid=1000 rss_kib=20392
+writingdeck-vm login: WRITINGDECK_VM_UI_PASS uid=1000 rss_kib=20968
 WRITINGDECK_VM_POLKIT_PASS
 WRITINGDECK_VM_KEYBOARD_ROLLBACK_PASS
 WRITINGDECK_VM_KEYBOARD_COMMIT_PASS
 WRITINGDECK_VM_PASS
-[!p]104[?7h[6n[32766;32766H[6n[   53.034957] reboot: Power down
+[!p]104[?7h[6n[32766;32766H[6n[   53.013891] reboot: Power down

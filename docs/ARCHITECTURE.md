@@ -16,6 +16,7 @@ UEFI / Debian GRUB -> maintained Debian kernel + initramfs -> systemd
        + Ratatui + App (existing editor/autosave/history/conflicts)
        + Deck (home, dual-editor workspaces, tutorial, cached settings)
        + Pins (metadata-only references, cached Project readers, explicit source editing)
+       + Journal (append-only observation API, separate original reflection sources)
        |   + bounded request queue -> system worker -> writingdeck-sys::Backend
        |       + Linux: fixed nmcli/brightnessctl/systemctl/pkexec arguments
        |       + Simulated: explicit label, no hardware/network writes
@@ -36,7 +37,7 @@ privileged keyboard helper: fixed layouts only, root-owned files only
 - Root-owned console keymap application before tty1 login and an independent systemd preview/revert transaction.
 - Home widgets derived from existing project/session data, hide/reorder configuration, dual-editor workspace slots, cursor/selection/free scroll, outline width and secondary proportion, additive safe shortcut aliases.
 - Strict focus hides retained references and removes them from focus traversal.
-- All 39 tutorial lessons cataloged, 18 currently wired to real application events; unavailable lessons are not fake-completable. Writing exercises require a separately created demo project.
+- All 39 tutorial lessons cataloged, 19 currently wired to real application events; unavailable lessons are not fake-completable. Writing exercises require a separately created demo project.
 
 This slice is not the full requested OS. See [FEATURE_MATRIX](FEATURE_MATRIX.md).
 
@@ -48,6 +49,7 @@ This slice is not the full requested OS. See [FEATURE_MATRIX](FEATURE_MATRIX.md)
 | Autosave/history/recovery | Existing `.grimoire/` facilities | Unchanged save guards and recoverable copies |
 | Selected workspace, both document/selection/cursor/scroll states, pane sizes, widgets, launch/low-power preferences | `.grimoire/writingdeck/layout.json` | Schema v2; v1 migrates in memory; atomic guarded save; unknown/unreadable/future schema preserved |
 | Pin references/presentation | `.grimoire/writingdeck/pins.json` | Schema v1; no copied bodies, bounded quote anchors; guarded clone/validate/save transactions; containment/alias checks on input/tick, no render I/O |
+| Journal facts / reflections | `.grimoire/writingdeck/journal/YYYY-MM-DD.json` / `notes/journal/YYYY-MM-DD.md` | Bounded schema-v1 guarded per-date append; sampled saved Project counts, explicit unavailable metrics; manual original source through existing owners; no draw I/O |
 | Tutorial progress | `.grimoire/writingdeck/tutorial.json` | Schema v1; verified event, skip and replay state; guarded save |
 | Shortcut aliases | `paths::data_dir()/writingdeck/shortcuts.json` | Per-machine v1; conflicts/unreadable files are not overwritten |
 | Committed console layout | `/etc/writingdeck/keyboard.json` | Root-owned; application changes only through helper/polkit |
@@ -61,7 +63,7 @@ Workspace restoration deliberately gives the existing newer resume record preced
 ## Document engine and next domain services
 
 1. **Document/pane registry — Tested M3b:** `crates/grimoire-core/src/documents.rs` owns file identity; `src/app/documents.rs` moves/swaps complete Editor contexts (never cloned on each frame). `App.editor/open` is the active context; the other keeps geometry, caret/manual-scroll and click state. Pure render/position/save-resume operations borrow a role via a temporary context swap; input activation additionally flushes both and changes focus. Both contexts flush to their original Project nodes, including inactive bulk edits and recovered words. The registry is validated before saves, external adoption and editor replacement; unsafe alias changes keep both buffers and attempt recovery. A duplicate-file selection focuses its current owner. Core source fingerprints remain the existing save guard, not a new unsafe write path. See [WORKSPACES](WORKSPACES.md) for threshold/layout/rename behavior and boundaries.
-2. **Pins — Tested M4a:** portable `pins.rs` metadata store, case-sensitive semantic heading/quote resolution and bounded retained preview rows; TUI cache maps canonical identities to authoritative Project nodes. Card/sidebar/dashboard reads never create writers. Explicit source editing reuses document ownership/save/recovery, including refusal to guess between two externally aliased retained editors. Card lifecycle is metadata-only recoverable archive/Trash, never source deletion. See [PINS](PINS.md). **Journal/scratchpad/handoff remain Planned**: journal event facts must be separate from reflections; scratchpad promotion must preserve the original.
+2. **Pins — Tested M4a:** portable `pins.rs` metadata store, case-sensitive semantic heading/quote resolution and bounded retained preview rows; TUI cache maps canonical identities to authoritative Project nodes. Card/sidebar/dashboard reads never create writers. Explicit source editing reuses document ownership/save/recovery, including refusal to guess between two externally aliased retained editors. Card lifecycle is metadata-only recoverable archive/Trash, never source deletion. See [PINS](PINS.md). **Journal — Tested initial M4b**: portable daily append API records actual sampled saved Project counts, offsets/request boundaries and unknown metrics; reflections are separate ordinary Notes Markdown. Cache/input adapter reuses exclusive editor ownership/save/recovery and read-only modal/paste guards. See [JOURNAL](JOURNAL.md). **Scratchpad/handoff remain Planned**; promotion must preserve the original. Gross/active-time journal facts still require the real edit ledger.
 3. **Productivity:** monotonic session clock with configurable idle cutoff; edit-operation ledger distinguishes gross/net/deleted words and drafting/revision; civil local-date buckets for goals and challenges. No mandatory streaks.
 4. **Challenge corpus/Story Spark:** locally versioned source-tagged records, meaningful combinatorial constraints, persisted random seed/history/favorites and date assignments. No network generator or inflated template count.
 5. **Diagnostics:** revision-tagged jobs, source maps and common UTF-8 byte ranges; Harper in process, optional Nabokov/proselint workers, cancellation/stale-result discard, deduplication and explicit user-only application of suggestions. Dialogue and narration policies differ.

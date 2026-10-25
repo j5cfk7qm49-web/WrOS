@@ -1,0 +1,55 @@
+Actual non-root compiled-app PTY, 80x24, isolated newly created demo/HOME.
+ANSI cursor/erase/UTF-8 cell reconstruction; not a full terminal emulator.
+Device-local dates/offsets, not assumed user timezone. No physical keyboard claim.
+
+RECORDED FACTS
+┌ Writing journal · 2026-10-25 · Recorded facts ───────────────────────────────┐
+│AUTOMATIC — sampled saved Project counts (≥10min); c captures current clean co│
+│#1 Saved checkpoint · 06:08:30 +00:00                                         │
+│Book 31 · daily net +6 · since-open delta +6                                  │
+│App opened 2026-10-25 06:08:30 +00:00 · initial 25 words                      │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│Read-only saved observations; Tab views a separate original reflection; no act│
+│←→ date  Tab view  ↑↓/Pg scroll  c snapshot  Enter/e edit  r retry  Esc       │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+ORIGINAL REFLECTION PREVIEW
+┌ Writing journal · 2026-10-25 · Reflection source ────────────────────────────┐
+│MANUAL REFLECTION — separate ordinary Markdown; Enter/e explicitly edits its o│
+│An original demo reflection, separate from the recorded facts.                │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│Read-only saved observations; Tab views a separate original reflection; no act│
+│←→ date  Tab view  ↑↓/Pg scroll  c snapshot  Enter/e edit  r retry  Esc       │
+└──────────────────────────────────────────────────────────────────────────────┘

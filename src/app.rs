@@ -31,6 +31,7 @@ use grimoire_core::spell;
 
 mod aids;
 pub(crate) mod documents;
+pub(crate) mod journal;
 pub(crate) mod overlays;
 pub(crate) mod pins;
 pub(crate) mod writingdeck;
@@ -169,6 +170,7 @@ type PdfJob = (
 pub struct App {
     pub deck: writingdeck::Deck,
     pub pins: pins::Pins,
+    pub journal: journal::Journal,
     pub views: documents::Views,
     pub project: Project,
     pub visible: Vec<usize>,
@@ -421,6 +423,7 @@ pub enum Overlay {
     None,
     Deck(writingdeck::Page),
     Pins,
+    Journal,
     PinCategory {
         id: u64,
         buf: String,
@@ -732,6 +735,13 @@ impl App {
         let deck = writingdeck::Deck::load(&project.root, setup.background);
         let views = documents::Views::new(&project.root)?;
         let pins = pins::Pins::load(&project.root);
+        let complete = !project.nodes.iter().any(|n| {
+            n.in_manuscript
+                && n.kind == Kind::Scene
+                && (n.read_only || n.disk.unavailable.is_some())
+        });
+        let journal =
+            journal::Journal::load(&project.root, complete.then(|| project.total_words()));
         let parents = project.parents();
         // A book no one has opened yet: no day's baseline, nowhere to resume,
         // no words. It opens on the Novel Format guide instead of an empty
@@ -779,6 +789,7 @@ impl App {
         Ok(Self {
             deck,
             pins,
+            journal,
             views,
             project,
             visible,
@@ -900,6 +911,7 @@ impl App {
             }
             app.init_writingdeck(setup.background);
             app.refresh_pin_sources();
+            app.refresh_journal_source();
             // Say what couldn't be read, once, so an empty row isn't a mystery.
             let unreadable = app
                 .project
@@ -1179,6 +1191,9 @@ impl App {
                 1 => "saved".into(),
                 n => format!("saved {n} scenes"),
             };
+            if !self.journal.warning.is_empty() {
+                self.msg.push_str(&format!("; {}", self.journal.warning));
+            }
         }
     }
 
@@ -1261,6 +1276,9 @@ impl App {
                 return true;
             }
             self.save_state = SaveState::Saved(Instant::now());
+            if self.project.dirty_count() == 0 {
+                self.journal_saved(&report.saved);
+            }
             self.unsaved_since = None;
             self.save_resume(false);
             return true;
@@ -1415,6 +1433,7 @@ impl App {
                 }
             }
             self.refresh_pin_sources();
+            self.refresh_journal_source();
             if notes_changed {
                 // A note's names feed the codex and the spellchecker.
                 self.refresh_names();
@@ -1595,12 +1614,15 @@ impl App {
     /// if session history is on. False (with a message) if something couldn't
     /// be saved; its words are in recovery either way.
     pub fn try_quit(&mut self) -> bool {
-        if !self.commit_saves() {
+        if !self.commit_saves() || self.project.dirty_count() != 0 {
             return false;
         }
         self.save_resume(true);
         self.save_deck();
         self.note_day(true);
+        if !self.journal_exit_checkpoint() {
+            return false;
+        }
         if self.sessions_on && sessions::has_writing(&self.project.root) {
             // Local and quick; backing up happens next launch.
             let _ = sessions::commit_session(&self.project.root, chrono::Local::now());
@@ -2000,6 +2022,7 @@ impl App {
                 self.overlay = Overlay::Deck(writingdeck::Page::Tutorial { sel: 0 })
             }
             Action::ToggleOutline => self.toggle_outline(),
+            Action::Journal => self.open_journal(),
             Action::Pinboard => self.open_pinboard(),
             Action::PinCurrent => self.pin_current(),
             Action::TogglePins => self.toggle_pins(),
@@ -3818,6 +3841,7 @@ impl App {
         self.refresh_visible();
         self.refresh_names();
         self.refresh_pin_sources();
+        self.refresh_journal_source();
         self.ensure_document_claims()
     }
 
@@ -4707,7 +4731,10 @@ impl App {
     /// Extend the editor selection while the left button is held — or, in the
     /// tree, track where a dragged row would land.
     pub fn on_drag(&mut self, x: u16, y: u16) {
-        if matches!(self.overlay, Overlay::Pins | Overlay::PinCategory { .. }) {
+        if matches!(
+            self.overlay,
+            Overlay::Pins | Overlay::PinCategory { .. } | Overlay::Journal
+        ) {
             return;
         }
         if let Some((from, _)) = self.tree_drag {
@@ -4923,6 +4950,7 @@ impl App {
                     Action::ToggleSecondary,
                 ),
                 ("Choose secondary document…".into(), Action::SecondaryPicker),
+                ("Writing journal…".into(), Action::Journal),
                 ("Pinboard…".into(), Action::Pinboard),
                 ("Pin current document".into(), Action::PinCurrent),
                 ("Toggle pins sidebar".into(), Action::TogglePins),

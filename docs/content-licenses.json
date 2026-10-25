@@ -13,7 +13,7 @@
       "license": "MIT",
       "edition": "0.1.0-dev",
       "file": "crates/grimoire-core/assets/writingdeck/tutorial.json",
-      "sha256": "a8702ccc27afe50d41cdcd0620fff52431251bf9bb9ece7bb268cb5b7c639e1b",
+      "sha256": "bdbcf90ca60f997c09d0dd875d306239c9b48fd0aaf28986b61b3671cf270cad",
       "item_count": 39,
       "license_notice": "LICENSE",
       "modifications": "Original instructions; no third-party exercise text"
@@ -27,7 +27,7 @@
       "license": "MIT",
       "edition": "0.1.0-dev",
       "file": "crates/grimoire-core/src/tutorial.rs",
-      "sha256": "bb634593dfd11e2c445535f3119bf1155686c99d15d3571a7910532a20bc7699",
+      "sha256": "53a5810dd46cb05a17791f7112bdea6f7f21c5ff61a2ebff586bdc226cfa4003",
       "item_count": 2,
       "license_notice": "LICENSE",
       "modifications": "Original demo scene strings embedded in the creation function"
