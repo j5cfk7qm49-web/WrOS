@@ -6115,7 +6115,8 @@ fn writingdeck_journal_sources_and_book_switch_work_through_a_symlinked_root() {
     use grimoire_core::documents::Pane;
     use std::os::unix::fs::symlink;
     let root = book("journal-root-alias", true);
-    let alias = root.join("root-alias");
+    let aliases = book("journal-root-alias-links", false);
+    let alias = aliases.join("linked-book");
     symlink(&root, &alias).unwrap();
     let mut d = Desk::open(alias.clone(), 100, 30);
     let reflection =
@@ -6138,7 +6139,7 @@ fn writingdeck_journal_sources_and_book_switch_work_through_a_symlinked_root() {
     );
 
     let other = book("journal-switch-alias", true);
-    let other_alias = other.join("root-alias");
+    let other_alias = aliases.join("linked-other");
     symlink(&other, &other_alias).unwrap();
     assert!(d.app.open_book(&other_alias));
     let initial = d.app.project.total_words();
@@ -6179,8 +6180,11 @@ fn writingdeck_journal_ambiguous_retained_editor_aliases_refuse_to_guess_and_res
     d.key(KeyCode::Enter);
     assert_eq!(d.app.overlay, Overlay::Journal);
     assert_eq!(fs::read(&note).unwrap(), original);
+    // The helper may return a canonical root while Project retains the
+    // original spelling. Recovery copies use the loaded node's relative path.
+    let reflection = reflection_path(&d);
     for (path, words) in [
-        (&note, "unsaved reflection"),
+        (&reflection, "unsaved reflection"),
         (&research, "unsaved research"),
     ] {
         let copy = recovery::dir(&d.root).join(path.strip_prefix(&d.root).unwrap());
