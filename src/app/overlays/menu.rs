@@ -448,10 +448,10 @@ pub(super) fn draw_menu(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     let inner = block.inner(box_area);
     f.render_widget(block, box_area);
 
-    // A short terminal gives up the explanation before any rows, and shows
-    // the rows around the highlight rather than cutting off the end.
-    let spare = (inner.height as usize).saturating_sub(rows.len() + 2);
-    let about_room = spare.saturating_sub(1).min(ABOUT_LINES);
+    // Scroll long menus around the selection while retaining its explanation.
+    // Reserve one row, an explanation gap, and the two-line navigation footer
+    // before allocating explanatory text, even when all actions cannot fit.
+    let about_room = (inner.height as usize).saturating_sub(4).min(ABOUT_LINES);
     let room = (inner.height as usize)
         .saturating_sub(2 + if about_room > 0 { about_room + 1 } else { 0 })
         .max(1);
