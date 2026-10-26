@@ -1,4 +1,4 @@
-# WritingDeck OS architecture
+# WrOS (Writer’s OS) architecture
 
 ## Scope and non-negotiable boundaries
 

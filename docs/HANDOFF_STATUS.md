@@ -1,4 +1,7 @@
-# Interrupted snapshot qualification status
+# WrOS — Writer’s OS: recovered handoff qualification
+
+Official branding update only; existing source and historical Git identifiers have not been changed or reverified. See [naming migration](NAMING_MIGRATION.md).
+
 
 - M7a commit `3360ec5` has recorded historical verification; **not rerun for this handoff**.
 - The recovered M7b source was **not** fully built or qualified during handoff; this commit only records it so it cannot be lost.

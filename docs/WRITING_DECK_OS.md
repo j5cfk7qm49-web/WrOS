@@ -1,8 +1,10 @@
-# WritingDeck OS
+# WrOS — Writer’s OS (historical document location)
 
 **0.1.0-dev: tested appliance foundation + M3b independent editors + M4a source-linked pins + M4b initial journal, not a production-ready complete OS.**
 
-WritingDeck is an offline-first, keyboard-oriented Linux writing appliance built around GrimoireTUI. It uses Debian 13 Stable, not a custom kernel, and does not require a conventional desktop. It is independent of NaNoWriMo and other organizations.
+WrOS is an offline-first, keyboard-oriented Linux writing appliance built around GrimoireTUI. It uses Debian 13 Stable, not a custom kernel, and does not require a conventional desktop. It is independent of NaNoWriMo and other organizations.
+
+> **Name update:** The official product name is **WrOS — Writer’s OS**. This document retains its previous filename for compatibility; new entry point: [WROS.md](WROS.md). For current qualification, read [STATUS.md](STATUS.md), not this historical overview.
 
 ## Start here
 

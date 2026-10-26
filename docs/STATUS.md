@@ -1,4 +1,4 @@
-# Status — WritingDeck OS 0.1.0-dev, through M7a software
+# Status — WrOS (Writer’s OS) 0.1.0-dev, through M7a software
 
 **As of 2026-10-25: initial M5 recorded productivity, M6 original offline Story Spark and M7a opt-in source-safe grammar are implemented, preserving the original-source M4 workflows. The full requested OS is not complete or safe for production installation.** No physical laptop/disk installation, user manuscript, credential enrollment or Git push. M6 content is AI-assisted original drafting and agent authoring/editorial review, not independent human/legal qualification.
 

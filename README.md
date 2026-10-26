@@ -1,3 +1,13 @@
+# WrOS — Writer’s OS
+
+**WrOS is an experimental offline-first Linux writing operating system**, built around the Grimoire novel-writing editor. This recovered development snapshot is not a finished or safe-to-install production OS. The official project remote is [WrOS on GitHub](https://github.com/j5cfk7qm49-web/WrOS); follow the [source-import handoff](CODEX_PROMPT.md), [WrOS overview](docs/WROS.md), [current status](docs/STATUS.md), and [open issues](https://github.com/j5cfk7qm49-web/WrOS/issues).
+
+The previous working title was “WritingDeck OS.” Legacy code identifiers, CLI aliases, historical branches and existing saved-data formats temporarily retain `writingdeck` names for compatibility. See [naming migration](docs/NAMING_MIGRATION.md). **Grimoire and its upstream authors retain their original names and attribution.**
+
+---
+
+## Grimoire — core manuscript editor
+
 <img src="assets/readme/banner.svg" alt="grimoire — a terminal writing desk for novels" width="100%">
 
 **[grimoiretui.com](https://grimoiretui.com)** · [free classroom curriculum](https://grimoiretui.com/learn/) · Rust + [Ratatui](https://ratatui.rs) · MIT · macOS, Linux and Windows · made by [Catfinity Studios](https://catfinity.com), makers of [Catfinity](https://catfinity.com/catfinity/)
@@ -18,10 +28,10 @@ plain files you can open with anything, even `cat`.
 
 <img src="assets/readme/rule.svg" width="100%" alt="">
 
-## WritingDeck OS development branch
+## WrOS (Writer’s OS) development branch
 
 This branch adds a Debian-based, offline-first writing-appliance foundation.
-Start with [WritingDeck OS](docs/WRITING_DECK_OS.md), [current status](docs/STATUS.md),
+Start with [WrOS — Writer’s OS](docs/WROS.md), [current status](docs/STATUS.md),
 [feature matrix](docs/FEATURE_MATRIX.md) and [safe development/image instructions](docs/INSTALLATION.md).
 The whole-disk UEFI VM prototype boots as a non-root writer without a desktop.
 **It is an insecure VM-only demo, not a production laptop installer.** Later requested

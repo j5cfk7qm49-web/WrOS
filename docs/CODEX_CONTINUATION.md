@@ -1,44 +1,89 @@
-# WrOS / WritingDeck OS — Codex continuation handoff
+# Codex / ChatGPT Work — Resume and Complete WrOS (Writer’s OS)
 
+**Official product:** **WrOS — Writer’s OS**
+**Core writing environment:** **Grimoire**, based on the existing GrimoireTUI codebase
 **GitHub:** https://github.com/j5cfk7qm49-web/WrOS
+**Issue tracker:** https://github.com/j5cfk7qm49-web/WrOS/issues
+**Source attachment:** `WrOS_GitReady_CodeX_Handoff.zip`
 
-**Origin:** recovered incomplete Arena.ai development workspace, preserved here with full Git history. **This archive is not the GitHub remote and is not a production OS release.**
+> **Branding:** “WritingDeck OS” was the former working title. The official name is now **WrOS — Writer’s OS**. Preserve `writingdeck/*` Git branch names, historical commits, existing internal paths, metadata formats, command aliases and migration compatibility until a tested change is ready. Do not globally search-and-replace identifiers. See [issue #14](https://github.com/j5cfk7qm49-web/WrOS/issues/14).
 
-## Current verified boundary
+## Mission
 
-- The last milestone with recorded full Rust/PTY and networkless QEMU test evidence is M7a, commit `3360ec5` on branch `writingdeck/foundation`. Verify historical evidence against the exact source; never treat it as fresh verification.
-- M7b additions were found in the recovered working tree, not fully qualified: Nabokov + standalone proselint adapters, WordNet lexicon, author-voice, revision dashboard, Python runtime provisioning, new tests, data/license manifests.
-- This handoff checkpoints the recovered WIP without modifying the verified M7a branch. Read `docs/STATUS.md`, `docs/ROADMAP.md`, `docs/FEATURE_MATRIX.md`, `docs/RISKS.md` and `docs/WRITING_CHECKS.md` before edits.
-- Previous independent local check: Python syntax and 23 targeted story-corpus/installer/keyboard Python tests passed. Current sandbox lacks Cargo/Rust and the exact pinned M7b Python runtime; **fresh M7b Rust/PTY/VM qualification has not been done**.
-- No physical-laptop install, hardware battery, production authentication, signed upgrade, verified Google Drive backup, live OAuth or complete independent content rights clearance has been demonstrated.
+Continue the **actual recovered implementation**, not a new application or speculative architecture exercise. WrOS is a complete, offline-first, Debian-based **writing operating system** for low-powered laptops, not just a terminal editor. Its primary interface is Grimoire, but the deliverables include a bootable/maintainable OS image, safe installation, user authentication, OS-level Colemak and Colemak-DH, system settings, recovery, a complete fiction-writing workflow, a guided tutorial and optional safe off-device backup.
 
-## Step zero — publish code safely
+**Do not present the prototype as a production-safe OS.** Preserve original Grimoire licensing, credits, portable Markdown manuscript files, atomic saves, external-change safeguards and user work. The original Grimoire remains the editor, not the name of the entire operating system.
 
-1. Before publishing, scan the entire Git history and the WIP changes for keys, credentials, private novel manuscripts, copyrighted assets and oversized files. This repository is **public**.
-2. Verify `git fsck --full` and inspect `git log --oneline --all --decorate`, `git status`, and branch ancestry. Preserving dangling pre-recovery objects is optional, but do not alter referenced Git history.
-3. The source has two branches: **verified milestone source** `writingdeck/foundation` at `3360ec5` and **unverified snapshot** `writingdeck/m7b-wip`.
-4. Push both branches to `https://github.com/j5cfk7qm49-web/WrOS.git` with `bash tools/push-writingdeck-to-wros.sh` after obtaining authorized credentials/network. **Never force-push** or overwrite the preexisting placeholder `main`.
-5. Verify GitHub now has expected source files and history, then make the appropriate verified branch the default through repository settings, or integrate unrelated placeholder history explicitly.
-6. Close [GitHub Issue #1](https://github.com/j5cfk7qm49-web/WrOS/issues/1) only after verifying remote import. The GitHub remote currently has a separate small placeholder history.
+### What is already present (verify, do not assume)
 
-## Next engineering steps
+Historical M7a code and test evidence cover a QEMU/OVMF boot-to-Grimoire prototype, console layout switching, writing dashboard/workspaces, two independently editable documents, contextual pinned notes with independent scroll restoration, writing journal/scratchpad/session handoff, measured goals/sprints/achievements/daily challenges, offline Story Spark (1,047 plot situations, 84 creative exercises, 30 daily exercises), interactive tutorial foundations and opt-in Harper grammar. The interrupted M7b tree adds substantial **unqualified** WordNet lexicon, Nabokov/proselint prose analysis, author-voice profiling and revision-dashboard code.
 
-1. Checkout `writingdeck/m7b-wip` as a development branch. Read [Issue #2](https://github.com/j5cfk7qm49-web/WrOS/issues/2). Audit/execute full Rust tests, warning-denying Clippy, both audio/no-audio builds, Python, linter/model lock integrity, WordNet, active PTY and networkless VM. Repair actual failures and checkpoint qualified changes on a new reviewable branch or PR. Verify precise Unicode offsets, quotations/dialogue behavior, stale results, consent, resource ceilings and no automatic rewriting.
-2. After qualification, use small PRs to merge M7b into the verified default. Do not weaken tests or change manifest checks to make broken builds pass.
-3. Security/release P0: [#3 installer](https://github.com/j5cfk7qm49-web/WrOS/issues/3), [#4 input-safe lock](https://github.com/j5cfk7qm49-web/WrOS/issues/4), [#5 updates/recovery](https://github.com/j5cfk7qm49-web/WrOS/issues/5), followed by [#13 CI and qualification](https://github.com/j5cfk7qm49-web/WrOS/issues/13).
-4. Long-form milestones M8: [#6 continuity](https://github.com/j5cfk7qm49-web/WrOS/issues/6), [#7 annotations/variants](https://github.com/j5cfk7qm49-web/WrOS/issues/7), [#8 read-through](https://github.com/j5cfk7qm49-web/WrOS/issues/8).
-5. Publishing/cloud M9: [#9 real page footnotes](https://github.com/j5cfk7qm49-web/WrOS/issues/9), [#10 Drive backup and conflict-safe sync](https://github.com/j5cfk7qm49-web/WrOS/issues/10).
-6. Finish [#11 full tutorial](https://github.com/j5cfk7qm49-web/WrOS/issues/11), [#12 editorial/licensing review](https://github.com/j5cfk7qm49-web/WrOS/issues/12), and release/hardware qualification.
+Recorded tests and archived VM evidence are **historical claims for the exact prior source versions**, not fresh proof that this archive builds, that M7b works, or that a physical laptop is ready. Verify every claim against code and test records.
 
-## Product requirements that must not be lost
+## Step 1 — Import the recovered source into GitHub, safely
 
-- WritingDeck is a complete **offline-first, bootable Linux writing appliance** (NaNoWriMo-oriented), not just a terminal app. Main interface remains Grimoire; OS installs, system settings, recovery, secure boot path, keyboards and backup are product requirements.
-- QWERTY, Colemak and Colemak-DH must be supported at the OS console level, with tested rollback; no insecure passwordless production boot.
-- Preserve single-source Markdown, in-editor secondary notes, scroll/heading anchoring, source-safe history, existing Grimoire behavior, and the 1047 plot/84 exercise Story Spark corpus. Four modes: plot, creative challenge, combined, daily; independently reroll, pin, sprint and save. All content must pass independent licensing/editorial review before public distribution.
-- Fully offline writing: daily challenges, sprints, goals, achievements, dictionary, Harper, Nabokov, standalone proselint, revision queue, true focus mode and guided tutorial.
-- Implement continuity, anchored annotations, alternate drafts, genuine bottom-page DOCX/PDF footnotes, import/export validation, optional verified remote backup and safe mobile workflow.
-- Keep all features optional where distracting, and never confuse simulated progress, self-reported creative completion, historical test records or VM operation with independently verified production behavior.
+**The public GitHub WrOS repository has a short placeholder `main` history and issue tracker, but may not yet contain the recovered project source. Inspect the remote before acting.**
 
-## Working agreement
+1. Extract the attached ZIP preserving `.git`, file permissions, symlinks where legitimate, and all source. Check for unsafe ZIP entries. Read `README.md`, `docs/CODEX_CONTINUATION.md`, `docs/HANDOFF_STATUS.md`, `docs/STATUS.md`, `docs/ROADMAP.md`, `docs/FEATURE_MATRIX.md`, `docs/RISKS.md`, `docs/NAMING_MIGRATION.md` and `docs/TESTING.md`.
+2. Run `git fsck --full`, examine `git log --all --graph --oneline`, compare branch heads and inspect `git status`. **Run a full history and working tree scan for credentials, tokens, personal manuscripts, private data and inappropriately licensed assets before publishing**; WrOS is public.
+3. The branch `writingdeck/foundation` must remain at historical last-qualified M7a commit `3360ec5`. The recovered `writingdeck/m7b-wip` branch contains the interrupted and **unverified** M7b checkpoint followed by a documentation-only WrOS naming handoff. The latter must not be confused with qualified M7b functionality. Inspect the actual latest SHA rather than relying on an old hash.
+4. Use `bash tools/push-wros-source.sh` (or equivalent authenticated Git) to push **both branches without force**. Do not overwrite, reset or delete the GitHub `main` branch. Preserve ancestry. Verify branch heads, files, licensing and commit history directly on GitHub.
+5. Reconcile the unrelated placeholder branch responsibly: select the last verified source branch as default via supported repository settings, or explicitly integrate the placeholder changes without losing history. Do not merge the unverified M7b branch merely to make it the default.
+6. Close [#1 — remote source import](https://github.com/j5cfk7qm49-web/WrOS/issues/1) **only after the source is actually visible in GitHub**. Make reviewable PRs for subsequent work.
 
-Work incrementally. Keep source-data migrations backward compatible, tests deterministic, tutorial exercises honest, manuscript writes atomic, network operations opt-in, and privileged operations narrow. Track each issue with a concrete test record, reviewable PR and clear actual/blocked status. Do not stop with a high-level design; implement code and test what the environment permits. If work is too large for one session, end with an explicit resumable checklist and commits, rather than promising asynchronous completion.
+## Step 2 — Technical audit and issue triage
+
+Do not start over from the original prompt. Audit real implementation and feature status. Examine Rust crates, TUI routing, source-preserving Markdown buffer ownership, editor history, portable metadata, Python workers, OS image build scripts, Debian packaging, keyboard recovery, suite fixtures and actual test outputs.
+
+Review [all open issues](https://github.com/j5cfk7qm49-web/WrOS/issues), beginning with P0 priorities. For each, record current code state, correctness/security gaps, prerequisites, test plan and acceptance gates. Create or update GitHub issues if you discover reproducible defects. Do not close issues for passing mocks alone when real integration was required. Keep `docs/STATUS.md`, `docs/ROADMAP.md` and `docs/FEATURE_MATRIX.md` aligned with code.
+
+## Step 3 — First code priority: qualify the unfinished M7b ([#2](https://github.com/j5cfk7qm49-web/WrOS/issues/2))
+
+The WIP already adds:
+
+- Offline WordNet senses, synonyms/antonyms and UI.
+- Nabokov prose analysis and standalone proselint adapters (Vale not required).
+- Fiction-sensitive sentence readability, passive voice, adverbs, wordiness and cliché findings.
+- Revision dashboard, diagnostic queue and author-voice profiling.
+- Versioned Python/spaCy/NLP resource provisioning, manifests, and new Rust/Python/PTY tests.
+
+**Build and inspect before rewriting.** Validate library versions, licenses, source provenance, model/dictionary archives, exact hashes, optional offline installs, worker lifetime/cancellation, UTF-8/Markdown span mapping, dialogue/narration policy, suppressions, deduplicated diagnostics, application of suggestions only with explicit consent, undo/redo, stale-result handling and offline behavior.
+
+Run Rust `cargo fmt --check`, normal and no-audio workspaces/tests, Clippy (warnings denied where appropriate), Python unit/integration tests, real CLI/PTy tests, simulated no-network use, and reproducible QEMU smoke tests when tools permit. Benchmark cold/warm NLP CPU/RAM and typing latency on constrained hardware/VM; distinguish emulated performance from physical device performance. Do not delete, weaken or falsely mark tests passed. Commit corrections and merge only once acceptance criteria are met.
+
+## Step 4 — Complete the entire WrOS backlog
+
+Prioritize data safety and OS security alongside writing features. Work incrementally by dependency, keep useful verified milestones remotely, and continue as far as the runtime permits.
+
+### Operating-system and release foundations
+
+- [#3](https://github.com/j5cfk7qm49-web/WrOS/issues/3): production installer with guarded disk selection, authenticated first boot, optional LUKS, firmware/UEFI checks, Wi-Fi/timezone/layout onboarding. **No actual disk writes without explicit authorization.**
+- [#4](https://github.com/j5cfk7qm49-web/WrOS/issues/4): secure lock-before-suspend/input-reader handshake; never let password keystrokes reach manuscript buffers.
+- [#5](https://github.com/j5cfk7qm49-web/WrOS/issues/5): signed update strategy, recovery boot and rollback; preserve manuscripts.
+- [#13](https://github.com/j5cfk7qm49-web/WrOS/issues/13): CI, reproducible images, complete dependency/license notices, VM and later authorized physical-hardware qualification.
+- [#14](https://github.com/j5cfk7qm49-web/WrOS/issues/14): **WrOS — Writer’s OS** naming everywhere user-facing. Migrate old filenames/CLI/config/service identifiers only through explicit backward-compatible changes and tests. Don't rewrite Git history, break existing `grimoire writingdeck ...` aliases, or erase Grimoire upstream attribution.
+
+### Fiction and manuscript workflow
+
+- [#6](https://github.com/j5cfk7qm49-web/WrOS/issues/6): continuity tracker for explicit source-linked facts, scene chronology, character knowledge, locations, objects and unresolved plot threads; don't hallucinate contradictions.
+- [#7](https://github.com/j5cfk7qm49-web/WrOS/issues/7): robust inline anchored annotations/revision tasks, named draft milestones and reversible alternative scene versions, integrated with existing history.
+- [#8](https://github.com/j5cfk7qm49-web/WrOS/issues/8): offline chapter/multi-scene read-aloud with live sentence highlighting and revision annotation.
+- [#9](https://github.com/j5cfk7qm49-web/WrOS/issues/9): Markdown-linked contextual footnotes, true OOXML DOCX bottom-of-page footnotes and **verified** page-level PDF rendering; never silently substitute endnotes.
+- [#10](https://github.com/j5cfk7qm49-web/WrOS/issues/10): opt-in Google Drive **versioned backup with verified restore**, distinct from conflict-safe sync and experimental iPhone/Google Docs interoperability. No user credential or manuscript upload without approval.
+- [#11](https://github.com/j5cfk7qm49-web/WrOS/issues/11): complete hands-on, safe-demo interactive tutorials across existing and new OS/writing features, plus context-aware F1 help and Colemak/QWERTY lesson support.
+- [#12](https://github.com/j5cfk7qm49-web/WrOS/issues/12): independent originality/editorial and licensing review of Story Spark’s 1,047 plots, 84 exercises, and 30 daily challenges. Hash uniqueness and AI-agent review are not independent legal/content clearance.
+
+### Experience constraints that apply to every issue
+
+WrOS must be a **coherent writing OS**, not a branded collection of scripts. Preserve local-first plain Markdown, reference-only pinned notes, independently editable panes and independent scroll/heading anchors, focus mode with no unsolicited achievement popups, scene/novel goals, NaNoWriMo-style progress, daily challenges, Story Spark's **random plot, random challenge, combined plot+challenge and daily** modes, individual rerolls, Challenge Roulette, favorites, safe source actions, offline dictionary, Harper grammar and advisory Hemingway-like Nabokov/proselint analysis. Preserve QWERTY/Colemak/Colemak-DH **at Linux console level** with recovery, low CPU/RAM use, screen/battery/network/power controls, a working interactive tutorial and safe import/export. Never require subscription or cloud AI for the core workflow.
+
+## Working rules and completion criteria
+
+- Use PRs, issues, tests, actual test logs and narrowly scoped commits; keep backward compatibility with Grimoire manuscripts, metadata, settings, keybindings and scripts. Write migrations when needed.
+- Preserve legal notices and any copyleft/data-license obligations; separate optional distribution packs where necessary.
+- Build OS/VM qualification early; do not defer all installer, authentication, recovery or release testing until the end.
+- Never conflate an app running in QEMU with a production installer or secure laptop. Do not claim validated batteries, power consumption, real devices, credentials, OAuth, cloud sync or PDF layout without relevant tests.
+- Close tracker issues only when their documented acceptance criteria pass. Mark test gaps and blockers clearly.
+- If work must stop, push verified increments and create a precise continuation record of changed files, branches, exact test commands/results, unresolved blockers and next actions. Don't promise background completion outside the active execution.
+
+**Start with safe import of the attached Git repository into `j5cfk7qm49-web/WrOS`; verify its visibility on GitHub, audit current code, and then finish M7b before advancing to the remaining issues. Use the official product name WrOS — Writer’s OS everywhere new user-facing content is created.**

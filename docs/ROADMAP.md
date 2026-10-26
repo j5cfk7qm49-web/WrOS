@@ -1,6 +1,6 @@
-# WritingDeck OS implementation roadmap
+# WrOS (Writer’s OS) implementation roadmap
 
-Working branch: `writingdeck/foundation`. Upstream base: Grimoire v0.7.5 / `f3ca1e8`. Current release designation: **0.1.0-dev foundation + M3b + M4 + initial M5 + M6 software (original offline Story Spark) + M7a software (opt-in grammar)**, not a complete production OS. Read [STATUS](STATUS.md) for the latest run evidence and exact remaining work.
+Historical M7a verified branch: `writingdeck/foundation`; unqualified M7b and this brand-only documentation handoff are preserved on `writingdeck/m7b-wip`. Upstream base: Grimoire v0.7.5 / `f3ca1e8`. Current release designation: **0.1.0-dev foundation + M3b + M4 + initial M5 + M6 software (original offline Story Spark) + M7a software (opt-in grammar)**, not a complete production OS. Read [STATUS](STATUS.md) for the latest run evidence and exact remaining work.
 
 ## Working rules
 
