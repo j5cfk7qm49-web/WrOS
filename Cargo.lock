@@ -2591,6 +2591,7 @@ dependencies = [
  "harper-brill",
  "harper-core",
  "harper-pos-utils",
+ "libc",
  "pulldown-cmark",
  "roxmltree",
  "serde",
