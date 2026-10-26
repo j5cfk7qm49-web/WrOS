@@ -6111,6 +6111,55 @@ fn writingdeck_journal_book_switch_resets_observation_baseline_and_never_leaks_o
 }
 #[cfg(unix)]
 #[test]
+fn writingdeck_journal_sources_and_book_switch_work_through_a_symlinked_root() {
+    use grimoire_core::documents::Pane;
+    use std::os::unix::fs::symlink;
+    let root = book("journal-root-alias", true);
+    let alias = root.join("root-alias");
+    symlink(&root, &alias).unwrap();
+    let mut d = Desk::open(alias.clone(), 100, 30);
+    let reflection =
+        grimoire_core::journal::ensure_reflection(&alias, &d.app.journal.date).unwrap();
+    assert_ne!(reflection, reflection_path(&d));
+    d.app.reload_for_shots();
+    d.app.run_action(palette::Action::Open(reflection.clone()));
+    assert_eq!(
+        d.app.project.nodes[d.app.open.unwrap()].path,
+        reflection_path(&d)
+    );
+    assert_eq!(d.app.views.active, Pane::Primary);
+    d.app
+        .paste("Original reflection through a canonical helper path. ");
+    d.ctrl('s');
+    assert!(
+        fs::read_to_string(reflection)
+            .unwrap()
+            .contains("Original reflection")
+    );
+
+    let other = book("journal-switch-alias", true);
+    let other_alias = other.join("root-alias");
+    symlink(&other, &other_alias).unwrap();
+    assert!(d.app.open_book(&other_alias));
+    let initial = d.app.project.total_words();
+    d.app
+        .run_action(palette::Action::Open(first_scene(&other_alias)));
+    d.app.paste("A genuinely saved manuscript observation. ");
+    d.ctrl('s');
+    let day = grimoire_core::journal::Store::load(&other_alias, &d.app.journal.date).unwrap();
+    assert_eq!(day.day().facts.len(), 1);
+    assert_eq!(
+        day.day().facts[0].observation.initial_manuscript_words,
+        Some(initial as u64)
+    );
+
+    let before = d.app.editor.text();
+    d.app.run_action(palette::Action::Open(first_scene(&alias)));
+    assert_eq!(d.app.editor.text(), before);
+    assert!(d.app.msg.contains("not loaded in this book"));
+}
+#[cfg(unix)]
+#[test]
 fn writingdeck_journal_ambiguous_retained_editor_aliases_refuse_to_guess_and_rescue_both_bodies() {
     use grimoire_core::documents::Pane;
     use std::os::unix::fs::symlink;
