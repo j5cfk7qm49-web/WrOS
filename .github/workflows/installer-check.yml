@@ -18,8 +18,9 @@ jobs:
   windows:
     # Tag pushes only: the Release workflow also runs a plan-only pass on PRs.
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+      github.repository == 'kelsierbot/GrimoireTUI' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'))
     strategy:
       fail-fast: false
       matrix:
@@ -77,8 +78,9 @@ jobs:
 
   unix:
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+      github.repository == 'kelsierbot/GrimoireTUI' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'))
     strategy:
       fail-fast: false
       matrix:

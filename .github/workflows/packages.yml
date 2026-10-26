@@ -26,8 +26,9 @@ permissions:
 jobs:
   linux:
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+      github.repository == 'kelsierbot/GrimoireTUI' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'))
     strategy:
       fail-fast: false
       matrix:
