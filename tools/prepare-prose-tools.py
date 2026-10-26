@@ -30,6 +30,7 @@ ROOT = Path(__file__).resolve().parents[1]
 LOCK = ROOT / 'docs/python-tools-lock.json'
 REQUIREMENTS = ROOT / 'os/python-tools/requirements.lock'
 MARKER = '.writingdeck-runtime.json'
+RUNTIME_SCHEMA = 2
 MAX_ARTIFACT_BYTES = 128 * 1024 * 1024
 
 
@@ -164,7 +165,8 @@ def payload_files(root):
             files.append({'path': name, 'symlink': os.readlink(p)})
         elif p.is_file():
             files.append({'path': name, 'sha256': digest(p), 'bytes': p.stat().st_size})
-    return files
+    # Sort portable names, not Path components: `a-b/x` sorts before `a/x`.
+    return sorted(files, key=lambda item: item['path'])
 
 
 def installed_payload(package, wheelhouse):
@@ -179,7 +181,9 @@ def installed_payload(package, wheelhouse):
         raise ValueError('expected exact locked wheel: '+package['filename'])
     expected = {}
     with zipfile.ZipFile(wheel) as z:
-        records = [n for n in z.namelist() if n.endswith('.dist-info/RECORD')]
+        # Vendored distributions (notably setuptools) retain their own RECORD
+        # files. Only the wheel's top-level dist-info describes this install.
+        records = [n for n in z.namelist() if n.count('/') == 1 and n.endswith('.dist-info/RECORD')]
         if len(records) != 1:
             raise ValueError('ambiguous wheel RECORD')
         record_name = records[0]
@@ -211,9 +215,9 @@ def verify_runtime(root, wheelhouse=None):
     manifest = locked_manifest()
     if root.is_symlink() or not root.is_dir():
         raise ValueError('runtime must be a real directory')
-    wheelhouse = wheelhouse or (ROOT/'build/prose-runtime/wheels')
+    wheelhouse = wheelhouse or (root.parent/'wheels')
     record = json.loads((root / MARKER).read_text())
-    if record['schema_version'] != 2 or record['lock_sha256'] != digest(LOCK):
+    if record['schema_version'] != RUNTIME_SCHEMA or record['lock_sha256'] != digest(LOCK):
         raise ValueError('runtime belongs to another/unknown lock or materialization schema; retained, not overwritten')
     if not re.fullmatch(r'3\.13\.\d+', record['python']):
         raise ValueError('unexpected runtime Python ABI')
@@ -235,7 +239,11 @@ def verify_runtime(root, wheelhouse=None):
     expected['pyvenv.cfg'] = {'path': 'pyvenv.cfg', 'sha256': hashlib.sha256(cfg).hexdigest(), 'bytes': len(cfg)}
     actual = payload_files(root)
     if actual != record['files'] or actual != sorted(expected.values(), key=lambda f: f['path']):
-        raise ValueError('runtime differs from exact locked wheel payload (including unexpected files/bytecode); retained, not overwritten')
+        actual_by_path = {item['path']: item for item in actual}
+        changed = sorted(name for name in expected.keys() | actual_by_path.keys()
+                         if expected.get(name) != actual_by_path.get(name))
+        raise ValueError('runtime differs from exact locked wheel payload (including unexpected files/bytecode); retained, not overwritten; '
+                         f'{len(changed)} mismatched paths: {changed[:8]}')
     return record
 
 
@@ -268,6 +276,9 @@ def install_runtime(output, manifest, python):
         ], text=True))
         if actual != {p['name']: p['version'] for p in manifest['packages']}:
             raise ValueError('installed package set differs from complete lock')
+        # Python 3.13 venv creates this development-only file. It is not part
+        # of the installed product payload derived from the locked wheels.
+        (temporary / '.gitignore').unlink(missing_ok=True)
         # The product invokes the interpreter directly, not upstream CLI
         # scripts carrying a temporary build-host shebang. Do not ship dead
         # launchers or a pip/downloader in the runtime.
@@ -282,6 +293,14 @@ def install_runtime(output, manifest, python):
             p.symlink_to('python3')
         version = subprocess.check_output([str(python), '--version'], text=True).strip().split()[-1]
         (temporary / 'pyvenv.cfg').write_text(f'home = /usr/bin\ninclude-system-site-packages = false\nversion = {version}\nexecutable = /usr/bin/python3\n')
+        # pip's RECORD contains temporary launcher paths and hashes. Replace
+        # only generated metadata with the canonical data derived from the
+        # locked wheel bytes; verify every installed library file below.
+        site = temporary / 'lib/python3.13/site-packages'
+        for package in manifest['packages']:
+            _, generated = installed_payload(package, output / 'wheels')
+            for name, data in generated.items():
+                (site / name).write_bytes(data)
         for p in temporary.rglob('*'):
             if p.is_file() and not p.is_symlink():
                 p.chmod(0o644)
@@ -298,7 +317,7 @@ def install_runtime(output, manifest, python):
             bytecode.unlink()
         files = payload_files(temporary)
         record = {
-            'schema_version': 1, 'lock_sha256': digest(LOCK),
+            'schema_version': RUNTIME_SCHEMA, 'lock_sha256': digest(LOCK),
             'platform': manifest['platform'], 'python': version,
             'source': 'Exact offline wheels; no dependency resolution. CPython/stdlib supplied by separately inventoried Debian image.',
             'runtime_installation_path': '/opt/writingdeck/python',
@@ -306,9 +325,10 @@ def install_runtime(output, manifest, python):
             'files': files,
         }
         (temporary / MARKER).write_text(json.dumps(record, indent=2) + '\n')
+        # A failed build must never become the reusable/publishable runtime.
+        verify_runtime(temporary, output / 'wheels')
         temporary.rename(root)
         temporary = None
-        verify_runtime(root)
         print('prepared verified relocatable runtime', root, len(files), 'files', flush=True)
     finally:
         if temporary is not None:

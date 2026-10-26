@@ -11,12 +11,13 @@ for f in "$base/disk.img" "$base/root.ext4" "$base/efi.fat"; do
     [[ ! -L $f && ( ! -e $f || -f $f ) ]] || { echo "Refusing non-regular artifact: $f" >&2; exit 2; }
 done
 "$repo/os/scripts/install-files.sh" "$root" "$binary"
+python3 "$repo/tools/audit-wifi-image.py" "$root" > "$base/wifi-payload.json"
 install -m 755 "$repo/os/tests/guest-boot-probe.py" "$root/usr/libexec/writingdeck-boot-probe"
 install -m 644 "$repo/os/tests/writingdeck-boot-probe.service" "$root/etc/systemd/system/"
 # These fixtures run only under the explicit VM-DEMO-ONLY profile. The probe
 # invokes their application child as writer, never root. No host shares/NICs.
 mkdir -p "$root/usr/libexec/writingdeck-vm-fixtures"
-for fixture in guest-checks-probe.py test_checks_pty.py test_secondary_pty.py test_journal_pty.py test_productivity_pty.py terminal_screen.py; do
+for fixture in guest-checks-probe.py guest-prose-probe.py test_checks_pty.py test_secondary_pty.py test_journal_pty.py test_productivity_pty.py terminal_screen.py; do
     install -m 644 "$repo/os/tests/$fixture" "$root/usr/libexec/writingdeck-vm-fixtures/"
 done
 ln -sf ../writingdeck-boot-probe.service "$root/etc/systemd/system/multi-user.target.wants/writingdeck-boot-probe.service"

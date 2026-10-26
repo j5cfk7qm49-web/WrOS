@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import sys
 import tempfile
 import time
 
@@ -29,7 +30,7 @@ def main():
             terminal.send(b'r'); terminal.screen_shows('explicit permission')
             start = time.monotonic(); terminal.send(b'y')
             terminal.until(lambda: '1 current suggestions' in terminal.screen.text
-                           and 'AnA' in terminal.screen.text, 'real offline Harper in the 512-MiB guest', timeout=100)
+                           and 'AnA' in terminal.screen.text, 'real offline Harper in the 512-MiB guest', timeout=180)
             cold_ms = round((time.monotonic()-start)*1000, 2)
             frame = terminal.screen.text
             status = Path(f'/proc/{terminal.process.pid}/status').read_text()
@@ -50,6 +51,9 @@ def main():
                 'checks':['explicit model permission','real AnA grammar/Dialogue','no analysis typing credit',
                           'once permission not persisted','exact source replacement','byte-identical native undo'],
                 'limits':'Virtual CPU/debug binary/single small fixture only; not physical, production or long-load qualification.'}))
+        except Exception:
+            print('Synthetic guest terminal at failure:\n'+terminal.screen.text, file=sys.stderr)
+            raise
         finally:
             terminal.close()
 

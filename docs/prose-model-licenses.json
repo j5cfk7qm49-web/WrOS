@@ -3,6 +3,11 @@
   "package": "en_core_web_sm",
   "version": "3.8.0",
   "default_enabled": false,
+  "runtime_cpu_baseline": {
+    "required": "x86-64-v2",
+    "basis": "Pinned NumPy 2.5.4 reports numpy._core._multiarray_umath.__cpu_baseline__ == ['X86_V2']",
+    "scope": "Optional Python Nabokov/spaCy runtime; native editing/spelling independent"
+  },
   "permission": "Separate explicit one-run source/configuration-bound consent; no detector/authorship rules.",
   "network": "No runtime downloads or manuscript transmission by this service.",
   "declared_license": "MIT",

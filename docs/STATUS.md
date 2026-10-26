@@ -1,4 +1,54 @@
-# Status — WrOS (Writer’s OS) 0.1.0-dev, through M7a software
+# Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
+
+## Qualified M7b software — 2026-10-26
+
+Source import #1 is complete. The historical foundation remains at `3360ec5`;
+M7b development is in PR #15 on `codex/m7b-qualification`. This is an experimental
+writing OS, with production installation, authentication/locking, signed updates,
+recovery and hardware qualification still open. See [M7b scope](M7B.md),
+[continuation](CONTINUATION_2026-10-26.md) and [import evidence](evidence/recovery-import-2026-10-26.md).
+
+- **910 Rust tests passed per overlapping configuration**, default **5 ignored**,
+  no-audio **4 ignored**; ignored cases are not passed. Both warning-denying
+  workspace/all-target Clippys passed. **70 Python methods passed, zero skipped**,
+  including actual Unicode/UI/PTY/permission/restart/undo, kernel denials,
+  parent-death cleanup, exact source repacks, runtime materialization/tampering,
+  staged-runtime safety and Wi-Fi packaging tests.
+- [Software evidence](evidence/test-results.json) passed **17 software gates**.
+  The independent [actual Wi-Fi image payload audit](evidence/wifi-image-payload.json)
+  passed too. Source identity is
+  `b23ed164a65904fe2aaf85a2534bac08c2e1bc5bffa21972690c7021f98775f5`
+  across **263 source files**; verifier/tool hashes and binary/runtime identities
+  are retained. The extra legacy publishing-workflow guards are independently
+  recorded in [static workflow review](evidence/workflow-policy.json); actual
+  GitHub CI remains a separate gate until runs exist.
+- [Fresh VM evidence](evidence/vm-boot.json): **512 MiB / 2 vCPUs / zero NICs**,
+  TCG Nehalem (x86-64-v2, no AVX), **223.45 s** including firmware, deliberate
+  keyboard waits and shutdown. Actual non-root UI, polkit, keyboard rollback and
+  commit, Harper original-source apply/undo, native prose, proselint and WordNet
+  passed. Harper's tiny fixture took **93.1 s** / **187,144 KiB** peak under
+  emulation. These are debug/emulator costs, not laptop latency or battery claims.
+- **Nabokov did not complete inside that VM**: its existing 30-second kernel CPU
+  guard returned an explicit `timed-out` result after **31.109 s**, zero findings,
+  unchanged original bytes and no automatic retry. The VM verifies that bounded
+  denial, not a clean analysis. Actual positive trained analysis passes in the
+  native offline Rust/UI/PTY suite. CPU/wall limits were not raised to obtain a
+  successful model result.
+- [Synthetic host measurements](evidence/m7b-prose-resources.json) separate native,
+  proselint and trained-worker costs. The 4,200-word repeated fixture is about
+  **40 ms / 0.2 s / 2.6 s**, respectively; Python worker peaks about **29 MiB /
+  224–225 MiB**. Its bounded Nabokov queue explicitly reports 144 omitted findings.
+  Two fresh processes per engine are not persistent warm-model measurements.
+- The image contains verified **49-package / 4,410-file** Python payloads, 94
+  retained Python notices, WordNet data and common laptop Wi-Fi firmware with
+  NetworkManager/nmtui. Physical adapter tests and production installer-media
+  acceptance are pending. The inventory records **685 Rust / 212 staged Debian
+  packages**, with **71 all-platform root-notice omissions / zero selected
+  Linux-no-audio omissions**; release/corresponding-source/independent rights
+  review remains open.
+
+The following M7a and earlier evidence is historical. It does not certify the
+remaining installer, lock, update/recovery, M8/M9, tutorial or hardware work.
 
 **As of 2026-10-25: initial M5 recorded productivity, M6 original offline Story Spark and M7a opt-in source-safe grammar are implemented, preserving the original-source M4 workflows. The full requested OS is not complete or safe for production installation.** No physical laptop/disk installation, user manuscript, credential enrollment or Git push. M6 content is AI-assisted original drafting and agent authoring/editorial review, not independent human/legal qualification.
 

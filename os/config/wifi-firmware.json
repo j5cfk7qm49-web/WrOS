@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "distribution": "Debian 13 trixie amd64",
+  "apt_components": ["main", "non-free-firmware"],
+  "kernel_package": "linux-image-amd64",
+  "connection_packages": ["network-manager", "wpasupplicant", "wireless-regdb", "rfkill", "iw"],
+  "firmware": [
+    {"vendor": "Intel", "package": "firmware-iwlwifi"},
+    {"vendor": "Realtek", "package": "firmware-realtek"},
+    {"vendor": "Qualcomm/Atheros", "package": "firmware-atheros"},
+    {"vendor": "Atheros USB", "package": "firmware-ath9k-htc"},
+    {"vendor": "Broadcom/Cypress (brcmsmac/brcmfmac)", "package": "firmware-brcm80211"},
+    {"vendor": "MediaTek", "package": "firmware-mediatek"}
+  ],
+  "offline_media_required": true,
+  "physical_adapters_verified": [],
+  "limitations": [
+    "Firmware supplies data for supported kernel drivers; it does not add support for every chipset.",
+    "Some Broadcom adapters require additional restricted drivers/firmware; they are not covered by brcm80211.",
+    "Newer adapters may require a newer supported kernel/firmware combination.",
+    "Installer media must carry the same package set; a network-only bootstrap does not satisfy this requirement."
+  ],
+  "sources": [
+    "https://wiki.debian.org/Firmware",
+    "https://packages.debian.org/trixie/firmware-iwlwifi",
+    "https://packages.debian.org/trixie/firmware-realtek",
+    "https://packages.debian.org/trixie/firmware-atheros",
+    "https://packages.debian.org/trixie/firmware-ath9k-htc",
+    "https://packages.debian.org/trixie/firmware-brcm80211",
+    "https://packages.debian.org/trixie/firmware-mediatek"
+  ]
+}

@@ -1429,18 +1429,23 @@ impl Git {
 /// Kill a git process and everything it started.
 fn kill_tree(pid: u32) {
     #[cfg(unix)]
-    let mut cmd = {
-        let mut c = Command::new("kill");
-        c.args(["-s", "KILL", "--", &format!("-{pid}")]);
-        c
-    };
+    if let Ok(group) = i32::try_from(pid)
+        && group > 0
+    {
+        // Git was spawned with process_group(0), making its PID the group ID.
+        // Signal that group directly: minimal appliances need not install an
+        // external `kill` executable, and PATH must not decide timeout cleanup.
+        // SAFETY: killpg takes integer identifiers only; positive group IDs
+        // avoid the special zero/negative process-selection semantics.
+        unsafe { libc::killpg(group, libc::SIGKILL) };
+    }
     #[cfg(windows)]
     let mut cmd = {
         let mut c = Command::new("taskkill");
         c.args(["/F", "/T", "/PID", &pid.to_string()]);
         c
     };
-    #[cfg(any(unix, windows))]
+    #[cfg(windows)]
     let _ = cmd
         .stdin(Stdio::null())
         .stdout(Stdio::null())

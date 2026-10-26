@@ -14,6 +14,8 @@ mkdir -p "$dest/usr/bin" "$dest/usr/libexec" "$dest/etc/profile.d" "$dest/etc/wr
     "$dest/usr/share/doc/writingdeck" "$dest/usr/share/writingdeck/keymaps" "$dest/etc/systemd/system"
 install -m 755 "$binary" "$dest/usr/bin/grimoire"
 strip "$dest/usr/bin/grimoire"
+runtime=${WRITINGDECK_PROSE_RUNTIME:-$repo/build/prose-runtime/runtime}
+python3 "$repo/tools/stage-prose-runtime.py" "$dest" "$runtime"
 install -m 755 "$repo/os/scripts/writingdeck-keyboard" "$repo/os/scripts/writingdeck-session" "$dest/usr/libexec/"
 install -m 644 "$repo/os/config/writingdeck-profile.sh" "$dest/etc/profile.d/writingdeck.sh"
 # Reassembly/upgrades must not reset a committed layout.
@@ -35,6 +37,10 @@ done
 mkdir -p "$dest/usr/share/doc/writingdeck/upstream"
 install -m 644 "$repo"/os/licenses/upstream/*.txt "$dest/usr/share/doc/writingdeck/upstream/"
 install -m 644 "$repo/docs/upstream-notice-sources.json" "$dest/usr/share/doc/writingdeck/"
+# Retain every pinned Python notice and its machine-readable source inventory.
+cp -a "$repo/os/licenses/python" "$dest/usr/share/doc/writingdeck/"
+install -m 644 "$repo/docs/python-tools-lock.json" "$repo/docs/python-tool-notices.json" \
+    "$dest/usr/share/doc/writingdeck/"
 printf 'WRITINGDECK_VERSION=0.1.0-dev\nGRIMOIRE_BASE=0.7.5\nBASE_COMMIT=f3ca1e8\nIMAGE_PROFILE=vm-demo\n' > "$dest/etc/writingdeck/release"
 mkdir -p "$dest/etc/systemd/system/multi-user.target.wants"
 ln -sf ../writingdeck-keyboard.service "$dest/etc/systemd/system/multi-user.target.wants/writingdeck-keyboard.service"

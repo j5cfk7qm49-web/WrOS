@@ -2,13 +2,13 @@
 │  Status: Spark save · notes/sparks/r-0000000000000006.md · original scene preserved                                  │
 │  1047 original plots / 84 exercises · static offline selection                                                       │
 │  r-0000000000000006 · Combined · 2026-10-26 · Etc/UTC                                                                │
-│  PLOT [wd-p-0387] · route · level 2 · suggested 20 min                                                               │
-│  A delivery pilot follows an emergency landing strip's lights to a field that has been freshly plowed. The original  │
-│  strip is nearby, but someone moved the battery-powered lights to stop a landing on a surface concealing something   │
-│  else.                                                                                                               │
-│  EXERCISE [wd-x-0039] · senses · level 2 · suggested 20 min                                                          │
-│  Use temperature to reveal a practical fact a character has overlooked. Connect the sensation to a cause they can    │
-│  investigate. Avoid treating cold or warmth as an automatic synonym for fear, comfort, or moral character.           │
+│  PLOT [wd-p-0853] · coordination · level 1 · suggested 20 min                                                        │
+│  A town elects a dog as honorary mayor to avoid political arguments. Its owner receives conflicting invitations, and │
+│  choosing which ceremony the dog attends becomes the most divisive decision of the year.                             │
+│  EXERCISE [wd-x-0064] · subtext · level 3 · suggested 25 min                                                         │
+│  Write a sincere compliment that assigns its recipient a role they no longer want. Let the recipient answer without  │
+│  rejecting the affection. Make the response open a practical possibility rather than merely reveal discomfort to the │
+│  reader.                                                                                                             │
 │  Work mode: Drafting · creative completion is self-reported, not automatically scored.                               │
 │  ★ Favorited; retained separately from history.                                                                      │
 │  6 history / 128 · 1 favorites / 64 · 0 dismissals / 128 · 12-result recent window                                   │

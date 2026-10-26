@@ -1,36 +1,40 @@
 {
   "kind": "QEMU virtual hardware, NOT physical hardware verification",
-  "recorded_at_utc": "2026-10-26T06:43:54.504148+00:00",
+  "recorded_at_utc": "2026-10-26T21:27:33.456689+00:00",
   "source_fingerprint": {
     "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
-    "sha256": "25aaf5a6c43f6b67e81d8d774c28e224ffd650465b8da64a80641c117e3fb41f",
-    "file_count": 244,
+    "sha256": "b23ed164a65904fe2aaf85a2534bac08c2e1bc5bffa21972690c7021f98775f5",
+    "file_count": 263,
     "scope": "Cargo.toml/lock, src, crates, assets, os scripts/config/systemd/tests; no generated evidence/docs/builds"
   },
-  "image_sha256": "ea65d30b9e7e7928aa1952fb4403b6cfe29122fe4cd726d788b8d99d00f02eee",
-  "installed_stripped_binary_sha256": "e5fed51ab1aa789ead266e492890923a8753d2d1c7a2434fbdc749dc6192533a",
+  "image_sha256": "cdc3b6cddd90b32b5a73c5f7e324c91ba34b3d6a93306e29375b5a7fa5eda74d",
+  "installed_stripped_binary_sha256": "610c2cdcea4f8fe60f117ac93f2f41f1d7b5a2eb08aa14b7adbfe1fcb7fb8d7a",
   "firmware": "OVMF UEFI, Secure Boot disabled",
   "acceleration": "TCG",
+  "cpu_model": "Nehalem (x86-64-v2, no AVX)",
   "memory_mib": 512,
   "vcpus": 2,
   "network_devices": 0,
-  "wall_seconds": 163.52,
+  "wall_seconds": 223.45,
   "markers": [
-    "writingdeck-vm login: WRITINGDECK_VM_UI_PASS uid=1000 rss_kib=35552",
+    "writingdeck-vm login: WRITINGDECK_VM_UI_PASS uid=1000 rss_kib=33104",
     "WRITINGDECK_VM_POLKIT_PASS",
     "WRITINGDECK_VM_KEYBOARD_ROLLBACK_PASS",
     "WRITINGDECK_VM_KEYBOARD_COMMIT_PASS",
-    "WRITINGDECK_VM_GRAMMAR_RESULT {\"uid\": 1000, \"cold_wall_ms\": 88252.04, \"kernel_peak_rss_kib\": 189448, \"source_body_bytes\": 86, \"frame\": \"\\u250c Writing checks \\u00b7 optional local analysis \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2510\\n\\u2502 Harper 2.13.0 \\u00b7 live OFF \\u00b7 local only \\u00b7 no automatic changes                 \\u2502\\n\\u2502 Source: manuscript/01-Chapter-One/01-Scene-One.md \\u00b7 editor-body UTF-8 bytes; \\u2502\\n\\u2502 logical scalar columns                                                       \\u2502\\n\\u2502 1 current suggestions \\u00b7 88118 ms \\u00b7 0 unmappable omitted                      \\u2502\\n\\u2502 \\u203a 1:20 \\u00b7 AnA \\u00b7 Grammar/Dialogue \\u00b7 a                                          \\u2502\\n\\u2502 Review: Incorrect indefinite article.                                        \\u2502\\n\\u2502 Alternative 1/1: an \\u00b7 a explicitly applies; Ctrl-Z undoes                    \\u2502\\n\\u2502                                                                              \\u2502\\n\\u2502                                                                              \\u2502\\n\\u2502                                                                              \\u2502\\n\\u2502                                                                              \\u2502\\n\\u2502                                                                              \\u2502\\n\\u2502                                                                              \\u2502\\n\\u2502                                                                              \\u2502\\n\\u2502                                                                              \\u2502\\n\\u2502                                                                              \\u2502\\n\\u2502                                                                              \\u2502\\n\\u2502Local check requested; no prose or result is saved as metadata.               \\u2502\\n\\u2502\\u2191\\u2193 choose \\u00b7 Tab alternative \\u00b7 Enter source \\u00b7 a apply explicitly               \\u2502\\n\\u2502i ignore this pass \\u00b7 n mute novel rule \\u00b7 G personal rule (confirm)            \\u2502\\n\\u2502r run once \\u00b7 l live on/off \\u00b7 s settings \\u00b7 c pause/clear \\u00b7 u reload \\u00b7 Esc      \\u2502\\n\\u2502                                                                              \\u2502\\n\\u2514\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2518\", \"checks\": [\"explicit model permission\", \"real AnA grammar/Dialogue\", \"no analysis typing credit\", \"once permission not persisted\", \"exact source replacement\", \"byte-identical native undo\"], \"limits\": \"Virtual CPU/debug binary/single small fixture only; not physical, production or long-load qualification.\"}",
-    "WRITINGDECK_VM_GRAMMAR_PASS uid=1000 peak_rss_kib=189448",
+    "WRITINGDECK_VM_GRAMMAR_RESULT {\"uid\": 1000, \"cold_wall_ms\": 93105.5, \"kernel_peak_rss_kib\": 187144, \"source_body_bytes\": 86, \"frame\": \"\\u250c Writing checks \\u00b7 optional local analysis \\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2510\\n\\u2502 Harper 2.13.0 \\u00b7 live OFF \\u00b7 local only \\u00b7 no automatic changes                 \\u2502\\n\\u2502 Source: manuscript/01-Chapter-One/01-Scene-One.md \\u00b7 editor-body UTF-8 bytes; \\u2502\\n\\u2502 logical scalar columns                                                       \\u2502\\n\\u2502 1 current suggestions \\u00b7 92772 ms \\u00b7 0 unmappable omitted                      \\u2502\\n\\u2502 \\u203a 1:20 \\u00b7 AnA \\u00b7 Grammar/Dialogue \\u00b7 a                                          \\u2502\\n\\u2502 Review: Incorrect indefinite article.                                        \\u2502\\n\\u2502 Alternative 1/1: an \\u00b7 a explicitly applies; Ctrl-Z undoes                    \\u2502\\n\\u2502                                                                              \\u2502\\n\\u2502                                                                              \\u2502\\n\\u2502                                                                              \\u2502\\n\\u2502                                                                              \\u2502\\n\\u2502                                                                              \\u2502\\n\\u2502                                                                              \\u2502\\n\\u2502                                                                              \\u2502\\n\\u2502                                                                              \\u2502\\n\\u2502                                                                              \\u2502\\n\\u2502                                                                              \\u2502\\n\\u2502Local check requested; no prose or result is saved as metadata.               \\u2502\\n\\u2502\\u2191\\u2193 choose \\u00b7 Tab alternative \\u00b7 Enter source \\u00b7 a apply explicitly               \\u2502\\n\\u2502i ignore this pass \\u00b7 n mute novel rule \\u00b7 G personal rule (confirm)            \\u2502\\n\\u2502r run once \\u00b7 l live on/off \\u00b7 s settings \\u00b7 c pause/clear \\u00b7 u reload \\u00b7 Esc      \\u2502\\n\\u2502                                                                              \\u2502\\n\\u2514\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2518\", \"checks\": [\"explicit model permission\", \"real AnA grammar/Dialogue\", \"no analysis typing credit\", \"once permission not persisted\", \"exact source replacement\", \"byte-identical native undo\"], \"limits\": \"Virtual CPU/debug binary/single small fixture only; not physical, production or long-load qualification.\"}",
+    "WRITINGDECK_VM_GRAMMAR_PASS uid=1000 peak_rss_kib=187144",
+    "WRITINGDECK_VM_PROSE_RESULT {\"uid\": 1000, \"runtime_packages\": 49, \"runtime_marker_sha256\": \"6200a7a2fc15e900d5a53f0fd5326f4d0615129d234e30dff87c2615525d5e37\", \"engines\": [{\"engine\": \"native\", \"wall_seconds\": 0.121, \"status\": \"complete\", \"notice\": \"Local native advisory analysis; no automatic changes\", \"worker_peak_rss_kib\": null, \"findings\": 1}, {\"engine\": \"proselint\", \"wall_seconds\": 3.557, \"status\": \"complete\", \"notice\": \"complete local advisory report\", \"worker_peak_rss_kib\": 29072, \"findings\": 1}, {\"engine\": \"nabokov\", \"wall_seconds\": 31.109, \"status\": \"timed-out\", \"notice\": \"offline child reached the kernel CPU budget; no findings applied\", \"worker_peak_rss_kib\": null, \"findings\": 0}], \"wordnet_senses\": 21, \"budget_limited_engines\": [\"nabokov\"], \"checks\": [\"explicit Nabokov model permission\", \"actual installed native/proselint; Nabokov completion or explicit kernel CPU denial\", \"Unicode original unchanged\", \"no advisory automatic rewriting\", \"real WordNet senses and antonyms\", \"no runtime downloads or state files\"], \"limits\": \"Small synthetic fixture in networkless TCG VM; not physical, production, or whole-book qualification.\"}",
+    "WRITINGDECK_VM_PROSE_CPU_LIMIT nabokov",
+    "WRITINGDECK_VM_PROSE_PASS uid=1000",
     "WRITINGDECK_VM_PASS"
   ],
   "passed": true,
   "grammar": {
     "uid": 1000,
-    "cold_wall_ms": 88252.04,
-    "kernel_peak_rss_kib": 189448,
+    "cold_wall_ms": 93105.5,
+    "kernel_peak_rss_kib": 187144,
     "source_body_bytes": 86,
-    "frame": "\u250c Writing checks \u00b7 optional local analysis \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502 Harper 2.13.0 \u00b7 live OFF \u00b7 local only \u00b7 no automatic changes                 \u2502\n\u2502 Source: manuscript/01-Chapter-One/01-Scene-One.md \u00b7 editor-body UTF-8 bytes; \u2502\n\u2502 logical scalar columns                                                       \u2502\n\u2502 1 current suggestions \u00b7 88118 ms \u00b7 0 unmappable omitted                      \u2502\n\u2502 \u203a 1:20 \u00b7 AnA \u00b7 Grammar/Dialogue \u00b7 a                                          \u2502\n\u2502 Review: Incorrect indefinite article.                                        \u2502\n\u2502 Alternative 1/1: an \u00b7 a explicitly applies; Ctrl-Z undoes                    \u2502\n\u2502                                                                              \u2502\n\u2502                                                                              \u2502\n\u2502                                                                              \u2502\n\u2502                                                                              \u2502\n\u2502                                                                              \u2502\n\u2502                                                                              \u2502\n\u2502                                                                              \u2502\n\u2502                                                                              \u2502\n\u2502                                                                              \u2502\n\u2502                                                                              \u2502\n\u2502Local check requested; no prose or result is saved as metadata.               \u2502\n\u2502\u2191\u2193 choose \u00b7 Tab alternative \u00b7 Enter source \u00b7 a apply explicitly               \u2502\n\u2502i ignore this pass \u00b7 n mute novel rule \u00b7 G personal rule (confirm)            \u2502\n\u2502r run once \u00b7 l live on/off \u00b7 s settings \u00b7 c pause/clear \u00b7 u reload \u00b7 Esc      \u2502\n\u2502                                                                              \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518",
+    "frame": "\u250c Writing checks \u00b7 optional local analysis \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502 Harper 2.13.0 \u00b7 live OFF \u00b7 local only \u00b7 no automatic changes                 \u2502\n\u2502 Source: manuscript/01-Chapter-One/01-Scene-One.md \u00b7 editor-body UTF-8 bytes; \u2502\n\u2502 logical scalar columns                                                       \u2502\n\u2502 1 current suggestions \u00b7 92772 ms \u00b7 0 unmappable omitted                      \u2502\n\u2502 \u203a 1:20 \u00b7 AnA \u00b7 Grammar/Dialogue \u00b7 a                                          \u2502\n\u2502 Review: Incorrect indefinite article.                                        \u2502\n\u2502 Alternative 1/1: an \u00b7 a explicitly applies; Ctrl-Z undoes                    \u2502\n\u2502                                                                              \u2502\n\u2502                                                                              \u2502\n\u2502                                                                              \u2502\n\u2502                                                                              \u2502\n\u2502                                                                              \u2502\n\u2502                                                                              \u2502\n\u2502                                                                              \u2502\n\u2502                                                                              \u2502\n\u2502                                                                              \u2502\n\u2502                                                                              \u2502\n\u2502Local check requested; no prose or result is saved as metadata.               \u2502\n\u2502\u2191\u2193 choose \u00b7 Tab alternative \u00b7 Enter source \u00b7 a apply explicitly               \u2502\n\u2502i ignore this pass \u00b7 n mute novel rule \u00b7 G personal rule (confirm)            \u2502\n\u2502r run once \u00b7 l live on/off \u00b7 s settings \u00b7 c pause/clear \u00b7 u reload \u00b7 Esc      \u2502\n\u2502                                                                              \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518",
     "checks": [
       "explicit model permission",
       "real AnA grammar/Dialogue",
@@ -40,5 +44,49 @@
       "byte-identical native undo"
     ],
     "limits": "Virtual CPU/debug binary/single small fixture only; not physical, production or long-load qualification."
+  },
+  "prose": {
+    "uid": 1000,
+    "runtime_packages": 49,
+    "runtime_marker_sha256": "6200a7a2fc15e900d5a53f0fd5326f4d0615129d234e30dff87c2615525d5e37",
+    "engines": [
+      {
+        "engine": "native",
+        "wall_seconds": 0.121,
+        "status": "complete",
+        "notice": "Local native advisory analysis; no automatic changes",
+        "worker_peak_rss_kib": null,
+        "findings": 1
+      },
+      {
+        "engine": "proselint",
+        "wall_seconds": 3.557,
+        "status": "complete",
+        "notice": "complete local advisory report",
+        "worker_peak_rss_kib": 29072,
+        "findings": 1
+      },
+      {
+        "engine": "nabokov",
+        "wall_seconds": 31.109,
+        "status": "timed-out",
+        "notice": "offline child reached the kernel CPU budget; no findings applied",
+        "worker_peak_rss_kib": null,
+        "findings": 0
+      }
+    ],
+    "wordnet_senses": 21,
+    "budget_limited_engines": [
+      "nabokov"
+    ],
+    "checks": [
+      "explicit Nabokov model permission",
+      "actual installed native/proselint; Nabokov completion or explicit kernel CPU denial",
+      "Unicode original unchanged",
+      "no advisory automatic rewriting",
+      "real WordNet senses and antonyms",
+      "no runtime downloads or state files"
+    ],
+    "limits": "Small synthetic fixture in networkless TCG VM; not physical, production, or whole-book qualification."
   }
 }

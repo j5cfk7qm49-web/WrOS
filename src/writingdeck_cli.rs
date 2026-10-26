@@ -186,7 +186,7 @@ fn prose_command(mut args: impl Iterator<Item = String>) -> Result<()> {
         1,
         text,
     )?;
-    let (status, findings, metrics, omitted, elapsed, peak) = if engine == "native" {
+    let (status, findings, metrics, omitted, elapsed, peak, notice) = if engine == "native" {
         let report = prose::analyze(source.clone(), options)?;
         (
             format!("{:?}", report.status).to_lowercase(),
@@ -195,6 +195,7 @@ fn prose_command(mut args: impl Iterator<Item = String>) -> Result<()> {
             report.omitted,
             report.elapsed_ms,
             0,
+            "Local native advisory analysis; no automatic changes".to_owned(),
         )
     } else {
         let which = if engine == "nabokov" {
@@ -222,13 +223,14 @@ fn prose_command(mut args: impl Iterator<Item = String>) -> Result<()> {
             report.omitted,
             report.elapsed_ms,
             report.peak_rss_kib,
+            report.notice,
         )
     };
     let rows:Vec<_>=findings.iter().map(|d|serde_json::json!({"engine":d.rule.engine,"version":d.rule.version,"rule":d.rule.rule,"category":d.category,"severity":d.severity,"context":d.context,"utf8_bytes":d.span,"scalar_start":source.point(d.span.start),"scalar_end":source.point(d.span.end),"expected":d.expected,"message":d.message,"alternatives":d.replacements.iter().map(|r|serde_json::json!({"text":r.text,"source_safe":r.source_safe})).collect::<Vec<_>>()})).collect();
     println!(
         "{}",
         serde_json::to_string_pretty(
-            &serde_json::json!({"schema":1,"engine":engine,"source_unit":"markdown-file","source_sha256":source.stamp.sha256,"status":status,"metrics":metrics,"findings":rows,"omitted":omitted,"elapsed_ms":elapsed,"child_peak_rss_kib":peak,"interpretation":"Local advisory patterns only. Analysis words are not ledger word units; readability is approximate English, not literary quality or authorship evidence."})
+            &serde_json::json!({"schema":1,"engine":engine,"source_unit":"markdown-file","source_sha256":source.stamp.sha256,"status":status,"notice":notice,"metrics":metrics,"findings":rows,"omitted":omitted,"elapsed_ms":elapsed,"child_peak_rss_kib":peak,"interpretation":"Local advisory patterns only. Analysis words are not ledger word units; readability is approximate English, not literary quality or authorship evidence."})
         )?
     );
     if status != "complete" {

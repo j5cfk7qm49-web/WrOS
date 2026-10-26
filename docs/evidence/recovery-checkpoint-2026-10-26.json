@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "scope": "Focused recovered M7b runtime and menu fixes; full milestone qualification incomplete",
+  "environment": "Debian 13 amd64 chroot under WSL2, CPython 3.13.5, Rust 1.99.1, non-root UID 1000, external networking disabled",
+  "runtime_materialization": {"passed": true, "packages": 49, "payload_files": 4410},
+  "offline_asset_audit": {"passed": true, "notices": 94, "source_repacks": 2, "critical_package_trees": 3, "wordnet_files": 12},
+  "focused_runtime_tests": {"passed": 5, "failed": 0, "skipped": 0, "seconds": 74.698, "log": "build/verification/checkpoint-runtime-tests.log"},
+  "focused_runtime_contracts": [
+    "Exact Git source repacks reproduce locked wheels and runtime payload",
+    "Two genuine materializations are identical; forged manifests and failed final audit are refused",
+    "Kernel denies libc socket, exec, clone3, io_uring and x32 bypass probes",
+    "Real CLI requires separate model permission, preserves original bytes and reports unavailable runtime",
+    "SIGKILL of the owning Rust fixture does not leave its bound Python worker running"
+  ],
+  "focused_menu_and_tutorial_tests": {"passed": 3, "failed": 0, "ignored": 0, "log": "build/verification/recovery-menu-targeted.log"},
+  "python_syntax": "passed for changed provisioner, runtime tests and benchmark tool",
+  "shellcheck": "passed for tools/test-m7b.sh",
+  "full_default_attempt": {"passed": false, "core_passed": 452, "core_failed": 1, "core_ignored": 1, "failure": "sessions::tests::a_remote_that_never_answers_is_given_up_on", "log": "build/verification/m7b/default.log"},
+  "uncompleted": ["Full final Rust configurations", "Final warning-denying Clippys", "Complete Python/PTY suite", "Benchmarks", "CI qualification", "New VM build/boot", "Physical hardware and release qualification"]
+}

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "as_of": "2026-10-25",
-  "release": "0.1.0-dev foundation + M3b + M4 + initial M5 + M6 software + M7a software",
+  "as_of": "2026-10-26",
+  "release": "0.1.0-dev foundation + M3b + M4 + M5 + M6 + M7a + M7b software",
   "features": [
     {
       "area": "Baseline",
@@ -382,42 +382,42 @@
     {
       "area": "Writing tools",
       "capability": "Nabokov fiction-aware profiles + native lightweight analysis",
-      "status": "Planned",
-      "verification": "Source/runtime/license evaluated only",
+      "status": "Tested",
+      "verification": "Real pinned host Rust/UI/PTY positives; VM native success and explicit trained-worker CPU-denial contract",
       "hardware_verified": false,
-      "detail": "Optional Python/model costs not benchmarked"
+      "detail": "Bounded native readability/patterns; opt-in pinned Nabokov/spaCy; x86-64-v2 and 30s CPU/60s wall bounds; advisory only; see M7B.md"
     },
     {
       "area": "Writing tools",
       "capability": "Standalone proselint versioned structured-output integration",
-      "status": "Planned",
-      "verification": "0.14/0.16 CLI differences evaluated",
+      "status": "Tested",
+      "verification": "Exact runtime/model/notice audit plus real host/UI/PTY and installed VM CLI",
       "hardware_verified": false,
-      "detail": "No Vale dependency; adapter not implemented"
+      "detail": "Standalone pinned 0.16.0 source adapter, no Vale; Unicode source validation, kernel network denial and no runtime downloads"
     },
     {
       "area": "Writing tools",
       "capability": "Unified deduped stale-safe diagnostics + revision dashboard",
-      "status": "Planned",
-      "verification": "None",
+      "status": "Tested",
+      "verification": "Core/current-source tests and real four-size UI/PTY, review/ignore/restart/undo contracts",
       "hardware_verified": false,
-      "detail": "No automatic rewrite/quality score"
+      "detail": "Source/configuration-bound queue, equivalent-rule provenance, review receipts and filters; explicit source navigation/replacement only; M8 annotations remain separate"
     },
     {
       "area": "Writing tools",
       "capability": "Offline WordNet definitions/senses/synonyms/antonyms UI",
-      "status": "Planned",
-      "verification": "Host package evaluated only",
+      "status": "Tested",
+      "verification": "12 exact data hashes, real CLI/UI/PTY and installed VM sense/antonym checks",
       "hardware_verified": false,
-      "detail": "Not in minimal VM or current UI"
+      "detail": "WordNet 3.0 senses, morphology and sense-specific antonyms; read-only/copy interface; data bundled in image"
     },
     {
       "area": "Writing tools",
       "capability": "Author voice profiles with sufficient-material safeguards",
-      "status": "Planned",
-      "verification": "None",
+      "status": "Tested",
+      "verification": "Actual core/UI/PTY prepare/save/restart/compare/delete and lesson-30 contracts",
       "hardware_verified": false,
-      "detail": "Informational deviations only"
+      "detail": "Explicit references; 5000 words/40 segments/150 distinct words; metadata-only profiles, minimum comparison material and informational deviations"
     },
     {
       "area": "Long-form",
@@ -521,7 +521,7 @@
       "status": "Tested",
       "verification": "Core + actual editor/UI tests",
       "hardware_verified": false,
-      "detail": "Original 39 IDs retained plus supplemental 40; 28 event-capable / 12 unavailable. Historic spelling 26 is not grammar evidence; 40 requires real optional-model/current-original fix. No fake Next/Done."
+      "detail": "Original 39 IDs plus supplemental 40 retained; 33 event-capable / 7 unavailable. Historic spelling 26 remains distinct from real grammar 40; dictionary/prose/voice require actual review/comparison events."
     },
     {
       "area": "Tutorial",
@@ -554,6 +554,14 @@
       "verification": "Unicode/Markdown/UTF-16/native-source tests; controlled faults/queues plus genuine worker/apply/undo and lesson-40 UI/PTY",
       "hardware_verified": false,
       "detail": "EditorBody vs MarkdownFile explicit; fresh source/policy/owner/backing guards; original 26 unchanged; native cancellation is nonpreemptive; physical/Python/full-OS gates separate"
+    },
+    {
+      "area": "System",
+      "capability": "Offline common-laptop Wi-Fi drivers and firmware",
+      "status": "Tested",
+      "verification": "Actual staged-image package/firmware/notice/module/nmtui audit plus missing-payload policy tests",
+      "hardware_verified": false,
+      "detail": "Intel, Realtek, Qualcomm/Atheros, Broadcom/Cypress brcm80211 and MediaTek packaged for supported kernel drivers; production installer media must retain this set; physical radio acceptance pending"
     }
   ]
 }

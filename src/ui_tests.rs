@@ -334,6 +334,37 @@ fn the_highlighted_row_explains_itself_and_question_mark_opens_its_page() {
 }
 
 #[test]
+fn writing_menu_keeps_selected_action_explanation_and_help_at_all_supported_sizes() {
+    for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let mut d = Desk::open(book("menu-scroll-about", true), width, height);
+        d.key(KeyCode::Esc);
+        d.choose("Writing tools");
+        let rows = d.app.menu_rows();
+        for (label, action) in rows {
+            assert!(
+                d.shows(&format!("▸ {label}")),
+                "selected {label} at {width}x{height}"
+            );
+            let (says, topic) = crate::app::overlays::about_row(&action, "part");
+            let beginning = says
+                .split_whitespace()
+                .take(2)
+                .collect::<Vec<_>>()
+                .join(" ");
+            assert!(
+                d.shows(&beginning),
+                "{label} explanation at {width}x{height}"
+            );
+            assert!(d.shows("? more   esc back"), "footer at {width}x{height}");
+            d.key(KeyCode::Char('?'));
+            assert_eq!(help_topic(&d), Some(topic));
+            d.key(KeyCode::Esc);
+            d.key(KeyCode::Down);
+        }
+    }
+}
+
+#[test]
 fn settings_and_back_again() {
     let mut d = Desk::open(book("settings", true), 120, 35);
     d.key(KeyCode::Esc);
@@ -3315,9 +3346,12 @@ fn writingdeck_tutorial_uses_actual_editor_and_persists_verified_progress() {
     d.app.deck.progress.start(4).unwrap();
     assert_eq!(d.app.deck.progress.active, Some(4));
     assert!(
-        d.app.deck.progress.start(25).is_err(),
-        "The lexicon remains planned, not faked"
+        d.app.deck.progress.start(31).is_err(),
+        "Continuity remains unavailable until its actual interaction exists"
     );
+    d.app.deck.progress.start(25).unwrap();
+    assert_eq!(d.app.deck.progress.active, Some(25));
+    assert!(!d.app.deck.progress.completed.contains(&25));
 }
 
 #[test]
@@ -7907,7 +7941,9 @@ mod spark_ui_tests;
 mod checks_ui_tests;
 
 #[path = "lexicon_ui_tests.rs"]
+#[cfg(target_os = "linux")]
 mod lexicon_ui_tests;
 
 #[path = "prose_ui_tests.rs"]
+#[cfg(target_os = "linux")]
 mod prose_ui_tests;

@@ -1,22 +1,60 @@
 name: ci
 
-# The machines Grimoire is actually written on — Linux and macOS — build it,
-# run every test in the workspace, and hold the line on clippy and rustfmt.
-# (Windows has its own job in windows.yml.)
+# WrOS's real prose runtime targets Debian 13 amd64 / CPython 3.13.
+# Keep the upstream macOS and Windows editor checks separately scoped.
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'writingdeck/m7b-wip']
   pull_request:
   workflow_dispatch:
 
 jobs:
-  test:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+  linux:
+    runs-on: ubuntu-latest
+    container: debian:13-slim
+    timeout-minutes: 45
+    env:
+      CARGO_HOME: /opt/cargo
+      RUSTUP_HOME: /opt/rustup
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - name: Debian prerequisites
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends build-essential pkg-config libasound2-dev libssl-dev python3 python3-venv wordnet-base ca-certificates curl git shellcheck
+          useradd -m -s /bin/bash builder
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Pinned Rust toolchain
+        shell: bash
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+          sh /tmp/rustup-init.sh -y --no-modify-path --profile minimal --default-toolchain 1.99.1 --component clippy,rustfmt
+          chown -R builder:builder /opt/cargo /opt/rustup "$GITHUB_WORKSPACE"
+      - name: Fetch and verify locked build inputs
+        shell: bash
+        run: |
+          runuser -u builder -- env PATH="/opt/cargo/bin:$PATH" bash -c 'cargo fetch --locked && python3 tools/prepare-prose-tools.py --include-sources'
+      - name: Non-root software qualification
+        shell: bash
+        run: runuser -u builder -- env PATH="/opt/cargo/bin:$PATH" bash tools/test-m7b.sh
+      - name: Retain results for this commit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: m7b-software-${{ github.sha }}
+          path: |
+            build/verification/*.log
+            build/verification/partial-results.json
+            docs/evidence/test-results.json
+          if-no-files-found: warn
+
+  macos:
+    runs-on: macos-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -26,10 +64,6 @@ jobs:
           rustup toolchain install stable --profile minimal --component clippy,rustfmt
           rustup default stable
           rustc --version
-
-      - name: ALSA headers (audio feature)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
 
       - name: Format
         run: cargo fmt --all --check

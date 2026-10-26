@@ -1,5 +1,10 @@
 # WrOS — Writer’s OS
 
+**Source imported on 2026-10-26:** the preserved `writingdeck/foundation` branch
+contains historical M7a; `writingdeck/m7b-wip` contains the unverified M7b
+checkpoint. Both retain their complete ancestry. New qualification work is on
+`codex/m7b-qualification`. See the [verified import record](docs/evidence/recovery-import-2026-10-26.md).
+
 **WrOS is an experimental offline-first Linux writing operating system**, built around the Grimoire novel-writing editor. This recovered development snapshot is not a finished or safe-to-install production OS. The official project remote is [WrOS on GitHub](https://github.com/j5cfk7qm49-web/WrOS); follow the [source-import handoff](CODEX_PROMPT.md), [WrOS overview](docs/WROS.md), [current status](docs/STATUS.md), and [open issues](https://github.com/j5cfk7qm49-web/WrOS/issues).
 
 The previous working title was “WritingDeck OS.” Legacy code identifiers, CLI aliases, historical branches and existing saved-data formats temporarily retain `writingdeck` names for compatibility. See [naming migration](docs/NAMING_MIGRATION.md). **Grimoire and its upstream authors retain their original names and attribution.**

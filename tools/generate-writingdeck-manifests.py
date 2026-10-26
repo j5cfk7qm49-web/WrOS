@@ -68,7 +68,7 @@ def main():
                            'copyright_sha256': sha(path) if path.is_file() else None,
                            'license_status': 'See retained Debian package copyright; corresponding-source release obligations remain to be satisfied'})
     inventory = {
-        'schema_version': 1, 'review_date': '2026-10-25', 'distribution_ready': False,
+        'schema_version': 1, 'review_date': '2026-10-26', 'distribution_ready': False,
         'scope': 'Locked Rust dependency graph (all resolved platforms/default features) + actual staged Debian package versions; not a blanket MIT license for the OS',
         'rust_packages': records, 'rust_notice_bundle': str(notice_path.relative_to(ROOT)),
         'missing_root_notice_files_requiring_review': missing,
@@ -77,10 +77,6 @@ def main():
                                   'files': [{'file': str(p.relative_to(ROOT)), 'sha256': sha(p)} for p in sorted((ROOT/'assets/dict').iterdir()) if p.is_file()]},
         'debian_packages': debian,
         'evaluated_not_integrated': [
-            {'name':'nabokov','version':'26.7.10 source metadata','license':'MIT','source':'https://github.com/viewflow/nabokov','bundled':False},
-            {'name':'proselint','version':'0.16.0 upstream / 0.14.0 Debian evaluated','license':'BSD-3-Clause','source':'https://github.com/amperser/proselint','bundled':False},
-            {'name':'spaCy + en_core_web_sm model','version':'runtime/model not pinned','license':'spaCy MIT; exact model/data attribution review pending','source':'https://github.com/explosion/spacy-models','bundled':False},
-            {'name':'Princeton WordNet','version':'3.0 Debian evaluated','license':'LicenseRef-WordNet','source':'https://wordnet.princeton.edu/license-and-commercial-use','bundled':False},
             {'name':'Open English WordNet','version':'not selected','license':'CC-BY-4.0 with Princeton attribution','source':'https://github.com/globalwordnet/english-wordnet','bundled':False},
             {'name':'Colemak Mod-DH repository','version':'not vendored','license':'CC0-1.0','source':'https://github.com/ColemakMods/mod-dh','bundled':False,'note':'Actual keymaps are generated from Debian xkb-data and console-setup, whose notices remain in the guest'},
             {'name':'Piper engine/voices','version':'implementation and voice not selected','license':'Must review exact engine fork/version and each voice separately','bundled':False},
@@ -120,6 +116,26 @@ def main():
     inventory['bundled_analyzers'] = [{'name':'harper-core','version':'2.13.0','default_enabled':False,
         'model_and_data_manifest':'docs/model-licenses.json','runtime':models['runtime'],
         'spelling':'Existing Spellbook is independent; Harper SpellCheck is disabled.'}]
+    python_lock = json.loads((ROOT/'docs/python-tools-lock.json').read_text())
+    inventory['python_runtime'] = {
+        'platform': python_lock['platform'], 'default_enabled': False,
+        'lock_manifest': 'docs/python-tools-lock.json',
+        'notice_manifest': 'docs/python-tool-notices.json',
+        'packages': [{'name': p['name'], 'version': p['version'], 'wheel_sha256': p['sha256'],
+                      'declared_license': p['declared_license'], 'notices': p['notices']}
+                     for p in python_lock['packages']],
+        'model_manifest': 'docs/prose-model-licenses.json',
+        'independent_legal_clearance': False,
+    }
+    inventory['bundled_analyzers'].extend([
+        {'name': 'nabokov', 'version': '26.7.10', 'default_enabled': False,
+         'lock_manifest': 'docs/python-tools-lock.json', 'model_manifest': 'docs/prose-model-licenses.json'},
+        {'name': 'proselint', 'version': '0.16.0', 'default_enabled': False,
+         'lock_manifest': 'docs/python-tools-lock.json', 'uses_model': False},
+    ])
+    inventory['bundled_reference_data'] = [
+        {'name': 'Princeton WordNet', 'version': '3.0', 'manifest': 'docs/lexicon-licenses.json'}]
+    inventory['wifi_firmware_policy'] = 'os/config/wifi-firmware.json'
     (ROOT/'docs/software-licenses.json').write_text(json.dumps(inventory,indent=2)+'\n')
     content_path = ROOT/'docs/content-licenses.json'
     if content_path.exists():
@@ -127,6 +143,9 @@ def main():
         for entry in content['bundled']:
             if entry['id'] in ('writingdeck-original-tutorial', 'writingdeck-original-demo', 'writingdeck-original-productivity') and entry['license'] == 'MIT':
                 entry['sha256'] = sha(ROOT/entry['file'])
+            if entry['id'] == 'writingdeck-original-tutorial':
+                entry['item_count'] = len(json.loads((ROOT/entry['file']).read_text()))
+                entry['modifications'] = 'Original 39 lessons plus supplemental grammar lesson 40; M7b enables real dictionary/prose/voice review events. No third-party exercise text.'
         content_path.write_text(json.dumps(content, indent=2, ensure_ascii=False)+'\n')
     print(f'{len(records)} Rust packages, {len(debian)} staged Debian packages, {len(missing)} missing root notice files to review; {len(missing_selected)} used by the Linux no-audio build')
 

@@ -9,7 +9,8 @@ fn tools_runtime() -> PathBuf {
     let path = std::env::var_os("WRITINGDECK_TOOLS_PYTHON")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("build/prose-runtime/runtime/bin/python3")
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("build/prose-runtime/runtime/bin/python3")
         });
     assert!(
         path.is_file(),

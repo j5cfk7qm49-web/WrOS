@@ -13,10 +13,10 @@
       "license": "MIT",
       "edition": "0.1.0-dev",
       "file": "crates/grimoire-core/assets/writingdeck/tutorial.json",
-      "sha256": "17e4dd06da5ca6410806d6230a1bd6c24ac01111de3e0b83efbd9d971a6aedbd",
-      "item_count": 39,
+      "sha256": "33aa5db51f56eb005dc448ff8c82e88fa6a19ce1f9113bd704f40f6989068038",
+      "item_count": 40,
       "license_notice": "LICENSE",
-      "modifications": "Original instructions; no third-party exercise text"
+      "modifications": "Original 39 lessons plus supplemental grammar lesson 40; M7b enables real dictionary/prose/voice review events. No third-party exercise text."
     },
     {
       "id": "writingdeck-original-demo",
@@ -27,7 +27,7 @@
       "license": "MIT",
       "edition": "0.1.0-dev",
       "file": "crates/grimoire-core/src/tutorial.rs",
-      "sha256": "ba62fad93e93d986f5b20f20337ebc45358f68234ba184c14a44fa24735033de",
+      "sha256": "7663e1847a9a41fe67ed583b462052e9debeb464b59cae43d04949c5e415f4f2",
       "item_count": 2,
       "license_notice": "LICENSE",
       "modifications": "Original demo scene strings embedded in the creation function"

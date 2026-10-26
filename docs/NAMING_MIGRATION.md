@@ -8,7 +8,7 @@
 - The package README, current status/roadmap/architecture headings and the canonical `docs/WROS.md` identify WrOS correctly.
 - The existing `docs/WRITING_DECK_OS.md` remains accessible because prior references may depend on its path.
 - Safe source-import tooling is exposed as `tools/push-wros-source.sh`, with an old-path compatibility wrapper.
-- The last historically qualified `writingdeck/foundation` branch and all pre-existing Git commit contents remain unchanged. Unverified M7b source remains unqualified. This docs-only handoff does not claim any new Rust/UI/VM tests.
+- The last historically qualified `writingdeck/foundation` branch and all pre-existing Git commit contents remain unchanged. The original handoff was docs-only; subsequent M7b software qualification is recorded separately in [STATUS](STATUS.md) and does not complete the remaining user-facing brand migration.
 
 ## Still requires implementation — GitHub #14
 

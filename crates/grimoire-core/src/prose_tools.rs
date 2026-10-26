@@ -254,37 +254,60 @@ pub fn analyze(
             .read_to_end(&mut bytes)
             .map(|_| bytes)
     });
-    let terminal = loop {
+    let (terminal, terminal_notice) = loop {
         if cancel.load(Ordering::Acquire) {
             let _ = child.kill();
             let _ = child.wait();
-            break Status::Cancelled;
+            break (
+                Status::Cancelled,
+                "offline child cancelled; no findings applied".to_owned(),
+            );
         }
         if started.elapsed().as_millis() >= runtime.wall_ms as u128 {
             let _ = child.kill();
             let _ = child.wait();
-            break Status::TimedOut;
+            break (
+                Status::TimedOut,
+                "offline child reached its wall-time budget; no findings applied".to_owned(),
+            );
         }
         match child.try_wait() {
             Ok(Some(exit)) => {
-                break if exit.success() {
-                    Status::Complete
-                } else {
-                    Status::Failed
-                };
+                #[cfg(unix)]
+                {
+                    use std::os::unix::process::ExitStatusExt;
+                    if exit.signal() == Some(libc::SIGXCPU) {
+                        break (
+                            Status::TimedOut,
+                            "offline child reached the kernel CPU budget; no findings applied"
+                                .to_owned(),
+                        );
+                    }
+                }
+                break (
+                    if exit.success() {
+                        Status::Complete
+                    } else {
+                        Status::Failed
+                    },
+                    format!("offline child exited with {exit}; no findings applied"),
+                );
             }
             Ok(None) => thread::sleep(Duration::from_millis(10)),
             Err(_) => {
                 let _ = child.kill();
                 let _ = child.wait();
-                break Status::Failed;
+                break (
+                    Status::Failed,
+                    "offline child status unavailable; no findings applied".to_owned(),
+                );
             }
         }
     };
     let wrote = writer.join().ok().is_some_and(|r| r.is_ok());
     let bytes = reader.join().ok().and_then(Result::ok);
     if terminal != Status::Complete || !wrote {
-        return Ok(empty(
+        let mut report = empty(
             engine,
             snapshot,
             options,
@@ -293,8 +316,10 @@ pub fn analyze(
             } else {
                 terminal
             },
-            "offline child did not complete; no clean report or automatic retry",
-        ));
+            &terminal_notice,
+        );
+        report.elapsed_ms = started.elapsed().as_millis().min(u64::MAX as u128) as u64;
+        return Ok(report);
     }
     let Some(bytes) = bytes.filter(|b| b.len() <= MAX_STDOUT) else {
         return Ok(empty(
@@ -648,5 +673,41 @@ mod tests {
         )
         .unwrap();
         assert_eq!(result.status, Status::Cancelled);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn controlled_child_cpu_limit_and_exit_failure_are_visible_without_findings_or_stderr() {
+        use std::os::unix::fs::PermissionsExt;
+        let path =
+            std::env::temp_dir().join(format!("wd-prose-exit-fixture-{}", std::process::id()));
+        for (body, status, notice) in [
+            ("kill -XCPU $$", Status::TimedOut, "kernel CPU budget"),
+            ("exit 70", Status::Failed, "exit status: 70"),
+        ] {
+            std::fs::write(
+                &path,
+                format!("#!/bin/sh\necho 'synthetic stderr must not be forwarded' >&2\n{body}\n"),
+            )
+            .unwrap();
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
+            let report = analyze(
+                source("in order to see."),
+                &revision(),
+                Engine::Proselint,
+                &Runtime {
+                    python: path.clone(),
+                    wall_ms: 2000,
+                },
+                None,
+                Arc::new(AtomicBool::new(false)),
+            )
+            .unwrap();
+            assert_eq!(report.status, status);
+            assert!(report.findings.is_empty());
+            assert!(report.notice.contains(notice), "{}", report.notice);
+            assert!(!report.notice.contains("synthetic stderr"));
+        }
+        std::fs::remove_file(path).unwrap();
     }
 }

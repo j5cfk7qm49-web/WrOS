@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "scope": "Static YAML parse and legacy publication-owner guard review; not GitHub execution",
+  "workflows_parsed": 5,
+  "legacy_publication_guard": "github.repository == 'kelsierbot/GrimoireTUI'",
+  "file_sha256": {
+    ".github/workflows/ci.yml": "52be8817ee9e08e6cf27e797f058d2595cfafa7e8615d0ec75dc772c8902d1a6",
+    ".github/workflows/installer-check.yml": "b5d8cd7f44ea841b262b2ec93670c4cfca1ae42959e3433502882da06fc658a6",
+    ".github/workflows/packages.yml": "a7474649734d228a533383a851af6dddb8219905b2c2220339153217e3e58ae9",
+    ".github/workflows/release.yml": "6bcb629ffb36acd4c345e699cc9ea5435da65260f6d96787a256ffc8e1ca5a97",
+    ".github/workflows/windows.yml": "2d81bca8833d52cffdd0e3eed5ef19e7dd994093ec6581fcd989e1902f4c09b3"
+  }
+}

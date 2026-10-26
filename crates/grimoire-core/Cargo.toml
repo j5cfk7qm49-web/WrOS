@@ -34,3 +34,6 @@ pulldown-cmark = { version = "=0.13.3", default-features = false }
 # These are also reached transitively by harper-core.
 harper-brill = "=2.13.0"
 harper-pos-utils = { version = "=2.13.0", default-features = false }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
