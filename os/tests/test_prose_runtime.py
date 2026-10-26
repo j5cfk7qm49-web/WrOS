@@ -16,6 +16,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 
 from test_secondary_pty import BINARY, ROOT
 from test_prose_pty import RUNTIME
@@ -65,6 +66,36 @@ class ProseRuntime(unittest.TestCase):
                 p.artifact({'sha256': '0'*64}, unknown, [], True)
             self.assertEqual(unknown.read_bytes(), b'opaque original must survive')
         self.assertFalse((RUNTIME.parent/'pip').exists(), 'no downloader CLI in the runtime')
+
+    def test_fresh_materialization_is_reproducible_and_forged_or_failed_outputs_are_not_trusted(self):
+        p = provisioner()
+        manifest = p.locked_manifest()
+        with tempfile.TemporaryDirectory(prefix='wd-real-materialization-') as tmp:
+            outputs = [Path(tmp)/name for name in ('first', 'second', 'failed')]
+            for output in outputs:
+                output.mkdir()
+                (output/'wheels').symlink_to(ROOT/'build/prose-runtime/wheels')
+            for output in outputs[:2]:
+                p.install_runtime(output, manifest, Path('/usr/bin/python3'))
+            first, second = [p.verify_runtime(out/'runtime') for out in outputs[:2]]
+            self.assertEqual(first, second, 'temporary build paths must not affect payloads')
+            # Reuse validates, rather than overwriting or trusting the marker.
+            p.install_runtime(outputs[0], manifest, Path('/usr/bin/python3'))
+            root = outputs[0]/'runtime'
+            victim = root/'lib/python3.13/site-packages/proselint/__init__.py'
+            victim.write_bytes(victim.read_bytes()+b'\n# altered fixture\n')
+            forged = first | {'files': p.payload_files(root)}
+            marker = root/p.MARKER
+            marker.write_text(json.dumps(forged))
+            before = marker.read_bytes()
+            with self.assertRaisesRegex(ValueError, 'exact locked wheel payload'):
+                p.install_runtime(outputs[0], manifest, Path('/usr/bin/python3'))
+            self.assertEqual(marker.read_bytes(), before)
+            with patch.object(p, 'verify_runtime', side_effect=ValueError('injected final audit failure')):
+                with self.assertRaisesRegex(ValueError, 'injected final audit failure'):
+                    p.install_runtime(outputs[2], manifest, Path('/usr/bin/python3'))
+            self.assertFalse((outputs[2]/'runtime').exists(), 'unverified output must not be published')
+            self.assertEqual([f.name for f in outputs[2].iterdir()], ['wheels'])
 
     def test_kernel_blocks_libc_socket_exec_clone_io_uring_and_x32_not_merely_python_monkeypatches(self):
         # Establish that socket creation itself is permitted in the outer
