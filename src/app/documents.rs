@@ -66,6 +66,24 @@ impl Focus {
     }
 }
 impl App {
+    /// Preserve the loaded node's path spelling when an internal source helper
+    /// returns a canonical path, or a book switch canonicalizes a symlinked
+    /// ancestor (for example /var -> /private/var on macOS). Only an existing
+    /// project node may be opened; normal ownership/save checks still apply.
+    pub(super) fn source_node_at(&self, path: &Path) -> Option<usize> {
+        if let Some(i) = self.project.nodes.iter().position(|n| n.path == path) {
+            return Some(i);
+        }
+        let root = fs::canonicalize(&self.project.root).ok()?;
+        let source = fs::canonicalize(path).ok()?;
+        let relative = source.strip_prefix(root).ok()?;
+        let loaded_path = self.project.root.join(relative);
+        self.project
+            .nodes
+            .iter()
+            .position(|n| n.path == loaded_path)
+    }
+
     pub fn editor_focus(&self) -> Focus {
         if self.views.active == Pane::Primary {
             Focus::Editor

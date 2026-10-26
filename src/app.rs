@@ -2095,9 +2095,11 @@ impl App {
                 let _ = self.open_book(&root);
             }
             Action::Open(path) => {
-                if let Some(i) = self.project.nodes.iter().position(|n| n.path == path) {
+                if let Some(i) = self.source_node_at(&path) {
                     self.reveal(i);
                     self.open_scene(i);
+                } else {
+                    self.msg = "Source is not loaded in this book; current editor kept".into();
                 }
             }
             Action::FocusMode => self.toggle_focus_mode(),
