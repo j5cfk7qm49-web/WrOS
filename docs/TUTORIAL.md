@@ -2,7 +2,7 @@
 
 ## Current implementation
 
-The compiled catalog at `crates/grimoire-core/assets/writingdeck/tutorial.json` lists **all 39 requested lessons**. Twenty-seven have actual application-event hooks; the other 12 are explicitly marked **planned** and cannot be started/completed. This is a continuously developed framework, not a claim of full tutorial completion.
+The compiled catalog at `crates/grimoire-core/assets/writingdeck/tutorial.json` retains **all 39 requested lesson IDs plus supplemental grammar lesson 40**. Thirty-three have actual application-event hooks; seven remain explicitly unavailable. M7b adds real dictionary, prose and voice-review events. Full tutorial completion remains tracked separately in issue #11.
 
 Open F12 → Interactive tutorial, or use the menu/command palette. Arrow keys select a lesson; Enter shows its instructions and then starts the real feature; `h` opens linked searchable offline help; `s` skips; Escape returns. Completed lessons can be replayed. Progress is schema-versioned, atomically guarded and stored with the project. There is no fake Next/Done button.
 
@@ -45,12 +45,12 @@ The demo contains original short text and a deliberate spelling error. Nothing i
 | 22 | Story Spark plot | Wired: real plot-only result publication to an original saved Markdown note; generation/ready-source retries alone are insufficient |
 | 23 | Random writing challenge | Wired: independently usable exercise-only generation and successfully persisted exact favorite |
 | 24 | Combined roulette | Wired: compatible combined ancestor chain proves independent plot/exercise + joint rerolls, retained favorite and newly ready independent experimental scene; animation optional |
-| 25 | Dictionary/thesaurus | Planned |
+| 25 | Dictionary/thesaurus | Wired: review a real installed WordNet sense; opening/querying alone is insufficient |
 | 26 | Grammar/spelling | Historic baseline spelling event retained unchanged; it is not reinterpreted as Harper completion; see additional 40 |
-| 27 | Hemingway-style analysis | Planned |
-| 28 | Nabokov | Planned |
-| 29 | Proselint | Planned |
-| 30 | Author voice | Planned |
+| 27 | Hemingway-style analysis | Wired: review actual current-source native statistics; unavailable/empty work cannot complete it |
+| 28 | Nabokov | Wired: separate single-run model permission and review of an actual returned finding; permission or denial alone is insufficient |
+| 29 | Proselint | Wired: review a real pinned-engine finding and its queue provenance |
+| 30 | Author voice | Wired: actual sufficient-material baseline comparison; preparing/saving/selecting alone is insufficient |
 | 31 | Continuity | Planned |
 | 32 | Inline revision notes | Planned |
 | 33 | Draft comparisons | Wired baseline history view; named variants/diff extension planned |

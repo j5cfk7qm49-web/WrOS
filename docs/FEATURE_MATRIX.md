@@ -1,6 +1,6 @@
 # Feature status matrix
 
-As of 2026-10-25 — 0.1.0-dev foundation + M3b + M4 + initial M5 + M6 software. **No hardware-verified claims.**
+As of 2026-10-26 — 0.1.0-dev through M7b software; VM constraints remain explicit. **No hardware-verified claims.**
 
 Existing means audited baseline; Tested identifies automated/VM evidence, not production qualification. See [STATUS](STATUS.md) and [ROADMAP](ROADMAP.md).
 
@@ -24,6 +24,7 @@ Existing means audited baseline; Tested identifies automated/VM evidence, not pr
 | System | Typed Linux + explicitly simulated backend | Tested | Rust adapter/validation tests + worker UI test | No arbitrary shell or manuscript paths in OS requests |
 | System | Cached/off-thread network/battery/brightness/storage/timezone status | Tested | Missing-device/fixture tests + networkless VM | Physical battery/backlight behavior not verified |
 | System | Wi-Fi radio and scan command interfaces | Tested | Typed command/unit tests | Actual radio/enrollment unverified; scan truncation still open; nmtui fallback |
+| System | Offline common-laptop Wi-Fi drivers and firmware | Tested | Actual staged-image package/firmware/notice/module/nmtui audit plus missing-payload policy tests | Intel, Realtek, Qualcomm/Atheros, Broadcom/Cypress brcm80211 and MediaTek packaged for supported kernel drivers; production installer media must retain this set; physical radio acceptance pending |
 | System | In-app new-network credentials / secret agent | Planned | None | Never passwords in argv/logs |
 | System | Brightness request + UI/OS power-saving distinction | Tested | Validation and no-device tests | No physical backlight or battery-savings claim |
 | System | Confirmed power requests after successful manuscript save | Tested | TUI confirmation + command construction tests | Physical suspend/restart/shutdown deliberately not run |
@@ -53,11 +54,11 @@ Existing means audited baseline; Tested identifies automated/VM evidence, not pr
 | Story Spark | 1,000+ substantive curated plot options + exercise corpus | Tested | Offline compiler/--check, core exact-ID/hash/provenance tests and six Python corpus contracts | 1047 accepted independently worded plots / 84 exercises; 1051 literal drafts, four substantive-overlap holds. AI-assisted authoring/agent editorial review, not independent human/legal or semantic certification |
 | Story Spark | Four modes, compatible combinations, roulette/static, history/favorites/actions | Tested | 28 Spark core + 28 real UI + adoption tests; four compiled PTY methods/four-size loaded restart | Offline non-AI; exact rerolls, civil-date daily, bounded references, real Markdown/pin/scratch/scene/timed sprint and optional SELF-REPORTED assignment; no M8 structured-task fiction |
 | Writing tools | Harper grammar + dialogue/novel/global policy | Tested | Genuine core/15-controller cases + five compiled PTY methods, four sizes/restart; full run linked in STATUS | Opt-in pinned 2.13 POS/neural runtime; once/novel/personal rule scopes, personal location consent, dialogue grammar retained; no automatic replacements or literary-quality score |
-| Writing tools | Nabokov fiction-aware profiles + native lightweight analysis | Planned | Source/runtime/license evaluated only | Optional Python/model costs not benchmarked |
-| Writing tools | Standalone proselint versioned structured-output integration | Planned | 0.14/0.16 CLI differences evaluated | No Vale dependency; adapter not implemented |
-| Writing tools | Unified deduped stale-safe diagnostics + revision dashboard | Planned | None | No automatic rewrite/quality score |
-| Writing tools | Offline WordNet definitions/senses/synonyms/antonyms UI | Planned | Host package evaluated only | Not in minimal VM or current UI |
-| Writing tools | Author voice profiles with sufficient-material safeguards | Planned | None | Informational deviations only |
+| Writing tools | Nabokov fiction-aware profiles + native lightweight analysis | Tested | Real pinned host Rust/UI/PTY positives; VM native success and explicit trained-worker CPU-denial contract | Bounded native readability/patterns; opt-in pinned Nabokov/spaCy; x86-64-v2 and 30s CPU/60s wall bounds; advisory only; see M7B.md |
+| Writing tools | Standalone proselint versioned structured-output integration | Tested | Exact runtime/model/notice audit plus real host/UI/PTY and installed VM CLI | Standalone pinned 0.16.0 source adapter, no Vale; Unicode source validation, kernel network denial and no runtime downloads |
+| Writing tools | Unified deduped stale-safe diagnostics + revision dashboard | Tested | Core/current-source tests and real four-size UI/PTY, review/ignore/restart/undo contracts | Source/configuration-bound queue, equivalent-rule provenance, review receipts and filters; explicit source navigation/replacement only; M8 annotations remain separate |
+| Writing tools | Offline WordNet definitions/senses/synonyms/antonyms UI | Tested | 12 exact data hashes, real CLI/UI/PTY and installed VM sense/antonym checks | WordNet 3.0 senses, morphology and sense-specific antonyms; read-only/copy interface; data bundled in image |
+| Writing tools | Author voice profiles with sufficient-material safeguards | Tested | Actual core/UI/PTY prepare/save/restart/compare/delete and lesson-30 contracts | Explicit references; 5000 words/40 segments/150 distinct words; metadata-only profiles, minimum comparison material and informational deviations |
 | Long-form | Structured explicit continuity/timeline/knowledge/thread tracker | Planned | None | Definite contradictions require explicit facts |
 | Long-form | Text-anchored annotations and revision queue | Planned | None | Separate from published manuscript |
 | Long-form | Named milestones/experimental variants/diff/selective restore | Planned | Existing dated history reused later | No competing version store rewrite |
@@ -70,7 +71,7 @@ Existing means audited baseline; Tested identifies automated/VM evidence, not pr
 | Cloud | Opt-in Drive OAuth, private credentials, upload queue, verified backup/restore | Planned | None | Local state/fake-transport infrastructure can be built without credentials |
 | Cloud | Conflict-aware bidirectional sync + safe mobile/Docs evaluation | Planned | Existing generic file conflicts only | Copy/sync/Docs interoperability are separate guarantees |
 | Cloud | Live Google authorization/restore/Docs round-trip acceptance | Blocked | No account enrolled or manuscript transmitted | Requires explicit user credentials and consent at M9 |
-| Tutorial | 39-lesson catalog, safe demo, replay/skip/progress, help links | Tested | Core + actual editor/UI tests | Original 39 IDs retained plus supplemental 40; 28 event-capable / 12 unavailable. Historic spelling 26 is not grammar evidence; 40 requires real optional-model/current-original fix. No fake Next/Done. |
+| Tutorial | 39-lesson catalog, safe demo, replay/skip/progress, help links | Tested | Core + actual editor/UI tests | Original 39 IDs plus supplemental 40 retained; 33 event-capable / 7 unavailable. Historic spelling 26 remains distinct from real grammar 40; dictionary/prose/voice require actual review/comparison events. |
 | Tutorial | All 39 complete interactive exercises across final features | In progress | Continuous foundation only | All original 39 plus supplemental 40 must land alongside actual features; no retroactive reinterpretation of historic progress |
 | Qualification | Offline whole-VM operation and low-memory initial measurement | Tested | No network devices; guest process RSS in evidence | Does not include Python/spaCy or physical battery benchmark |
 | Qualification | Physical laptop keyboard/Wi-Fi/lock/suspend/battery/update qualification | Blocked | No hardware available in this environment | Record model/firmware before claiming Hardware verified |

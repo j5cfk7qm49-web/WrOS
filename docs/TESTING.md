@@ -1,5 +1,19 @@
 # Testing and verification
 
+## Current M7b qualification
+
+Use `bash tools/test-m7b.sh` after provisioning the exact runtime described in
+[M7B](M7B.md). The unified verifier records source/tool hashes, the tested binary
+and runtime marker, exact overlapping Rust counts, ignored cases and real Python
+coverage; it refuses skipped Python methods or changed source. Custom output
+paths use `GRIMOIRE_BINARY`, `CARGO_TARGET_DIR` and `WRITINGDECK_TOOLS_PYTHON`.
+Current software results are 910 passed per Rust configuration and 70 Python
+methods without skips. The independent image audit verifies Wi-Fi payloads.
+The 512-MiB zero-NIC TCG VM records successful native/proselint/WordNet/Harper
+checks and a real Nabokov kernel CPU-budget denial; positive trained analysis
+is required and passes in native offline UI/PTY tests. See [STATUS](STATUS.md)
+for source identity, measured costs and remaining release gates.
+
 ## Evidence levels
 
 - **Unit/integration:** deterministic temporary files, fake clocks/runners and Ratatui TestBackend.
