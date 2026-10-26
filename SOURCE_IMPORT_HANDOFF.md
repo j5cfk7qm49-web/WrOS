@@ -1,24 +1,29 @@
-# WrOS source-import handoff
+# WrOS — Writer’s OS: source-import handoff
 
-**Status:** This GitHub repository is the designated remote for WritingDeck OS, but the recovered development snapshot has **not yet been pushed** here. The initial `main` branch contains the placeholder README and this handoff.
+**Product name:** WrOS — Writer’s OS. The former working title “WritingDeck OS” is historical. Grimoire is the underlying novel editor and retains upstream attribution.
 
-## Recovered source
+**Current GitHub state:** This repository is the designated remote, but the recovered development source has **not yet been pushed** to GitHub. `main` contains coordination documentation; it is not a bootable OS or the development source.
 
-The recoverable Arena workspace has a complete local Git history. The last qualified implementation checkpoint is commit `3360ec5` on `writingdeck/foundation` (M7a: opt-in Harper grammar). The interrupted M7b prose/WordNet/voice/revision integration exists as **unverified working-tree modifications and untracked source**, not as a qualified release.
+## Recovered project archive
 
-The recovered ZIP archive is available as a conversation attachment from the ChatGPT evaluation session. To continue in Codex/Work, attach the restored archive and use [Issue #1](https://github.com/j5cfk7qm49-web/WrOS/issues/1) to import the actual files and historical commits. This repository alone does **not** yet contain that source.
+The Git-ready handoff archive is supplied separately in the ChatGPT project conversation under the name **`WrOS_Writers_OS_Codex_Handoff.zip`**. It contains the full original Git history and the interrupted development source, including:
 
-## Safe import
+- `writingdeck/foundation` at **`3360ec5`** — last historically qualified M7a branch. Do not change or re-label M7a results as fresh.
+- `writingdeck/m7b-wip` at **`461bb64`** — the unverified M7b prose/WordNet/author-voice/revision work (`f253521`) followed by a **documentation-only WrOS branding handoff**. M7b still needs a full build and tests.
+- `CODEX_PROMPT.md`, `docs/CODEX_CONTINUATION.md` — full Codex continuation prompt.
+- `docs/WROS.md`, `docs/NAMING_MIGRATION.md` — official identity, roadmap entry, and compatibility notes.
+- `tools/push-wros-source.sh` — non-force Git source-branch push script; the old script name remains as a compatibility wrapper.
 
-1. On a developer computer or in a Work/Codex environment with the recovered workspace and GitHub authentication, validate `git fsck --full`, `git status`, `.gitignore`, and secrets before publishing.
-2. Preserve `writingdeck/foundation` at `3360ec5`, and separately checkpoint the interrupted M7b working tree as explicitly `WIP`/unverified.
-3. Add `https://github.com/j5cfk7qm49-web/WrOS.git` as the remote and push the two branches **without force**. Do not overwrite `main` or erase the preexisting history.
-4. Make the verified source branch the default using GitHub repository settings, or safely integrate the placeholder commit without discarding either history.
-5. Verify the upload from GitHub: files, branches, LICENSE, commit ancestry, tests, and manifests.
-6. Close Issue #1 only after the import succeeds; proceed to [Issue #2](https://github.com/j5cfk7qm49-web/WrOS/issues/2) to qualify M7b.
+The recovered archive was ZIP-integrity checked and extracted; the Git history passed `git fsck --full`, and the local working tree was clean. These checks do **not** qualify the unverified M7b implementation or the OS for installation.
 
-## Development tracking
+## Import procedure
 
-See the [13 open issues](https://github.com/j5cfk7qm49-web/WrOS/issues) for the implementation backlog. All original-user manuscript data and any credentials must remain outside the public repository. The project is an incomplete development prototype, **not production-ready Linux installation media**.
+1. Provide the above ZIP to a Codex/Work environment with Git and authenticated access to this repository. Check for secrets, personal manuscripts, proprietary files and license compliance **before pushing to this public repository**.
+2. Verify the archive's `.git` directory, branches, commit heads, and clean worktree (`git fsck --full`, `git status`, `git log --all`).
+3. Run `bash tools/push-wros-source.sh` or equivalent Git transport. **Push both source branches without force** and do not overwrite the unrelated placeholder `main` history.
+4. Verify source trees and exact branch heads in GitHub. Then safely choose the verified branch as default using supported repository controls, or reconcile the placeholder history without erasure.
+5. Close [issue #1](https://github.com/j5cfk7qm49-web/WrOS/issues/1) **only after the source is remotely present**. Advance to [issue #2](https://github.com/j5cfk7qm49-web/WrOS/issues/2) to qualify M7b. See [issue #14](https://github.com/j5cfk7qm49-web/WrOS/issues/14) for the *tested* user-visible renaming across the app and OS.
 
-Do not equate historical M7a test reports, archived ZIP integrity, or QEMU boot records with fresh M7b verification or physical-hardware certification.
+The full [14-issue tracker](https://github.com/j5cfk7qm49-web/WrOS/issues) covers installation/authentication, locking, recovery/updates, long-form fiction workflows, verified footnotes, backups, tutorials, content licensing, CI and the naming migration.
+
+**No real disk writes, credential enrollment, or manuscript uploads are authorized by this handoff.** The current project is not production-ready Linux installation media.
