@@ -555,6 +555,7 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
         app.sync_tick();
         app.tick_today();
         app.tick_speller();
+        app.tick_checks();
         app.tick_pdf();
         app.tick_backup();
         app.tick_deck();
@@ -628,6 +629,7 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
                     | Overlay::Scratchpad
                     | Overlay::Handoff
                     | Overlay::Spark { .. }
+                    | Overlay::Checks { .. }
                     | Overlay::Productivity { .. }
                     | Overlay::Deck(app::writingdeck::Page::WorkspacePins { .. })
             ) {
@@ -883,6 +885,7 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
                 | Overlay::Scratchpad
                 | Overlay::Handoff
                 | Overlay::Spark { .. }
+                | Overlay::Checks { .. }
                 | Overlay::Productivity { .. }
                 | Overlay::ProductivityInput { .. }
                 | Overlay::Deck(app::writingdeck::Page::WorkspacePins { .. })
@@ -923,6 +926,7 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
                         | Overlay::Scratchpad
                         | Overlay::Handoff
                         | Overlay::Spark { .. }
+                        | Overlay::Checks { .. }
                         | Overlay::Productivity { .. }
                 ) =>
             {

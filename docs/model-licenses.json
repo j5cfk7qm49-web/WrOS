@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "distribution_ready": false,
+  "independent_legal_clearance": false,
+  "runtime": "harper-core-2.13.0/brill-2.13.0/pos-2.13.0",
+  "default_enabled": false,
+  "permission": "Explicit once-only process permission, or matching personal per-project canonical-root/runtime binding + novel persisted runtime permission. A copied novel at a new location cannot opt even a previously-consented profile into live work.",
+  "network": "No runtime model download, remote analysis, telemetry or manuscript transmission by this service.",
+  "assets": [
+    {
+      "package": "harper-core",
+      "version": "2.13.0",
+      "file_in_crate": "dictionary.dict",
+      "bytes": 789666,
+      "sha256": "4e71a878efbcce074546179185e202bbd70fd5acfbdf9063e8369427961006d2",
+      "package_vcs_commit": "f4ebc61d77df1fc00b6aa8bc604e91af3534dad1",
+      "crate_archive_sha256": "1d88acd51ecd32aa6a7fcf1fd9f858bbbe507a935bcf31ddd833b454ae804a69",
+      "source_archive": "https://crates.io/api/v1/crates/harper-core/2.13.0/download",
+      "declared_package_license": "Apache-2.0",
+      "retained_notice": "os/licenses/upstream/harper-LICENSE.txt"
+    },
+    {
+      "package": "harper-core",
+      "version": "2.13.0",
+      "file_in_crate": "annotations.json",
+      "bytes": 17456,
+      "sha256": "e8d7bd5ca18e666b91f24b21a00b43e271c49e01e0cd27c503c39ee478b2205d",
+      "package_vcs_commit": "f4ebc61d77df1fc00b6aa8bc604e91af3534dad1",
+      "crate_archive_sha256": "1d88acd51ecd32aa6a7fcf1fd9f858bbbe507a935bcf31ddd833b454ae804a69",
+      "source_archive": "https://crates.io/api/v1/crates/harper-core/2.13.0/download",
+      "declared_package_license": "Apache-2.0",
+      "retained_notice": "os/licenses/upstream/harper-LICENSE.txt"
+    },
+    {
+      "package": "harper-core",
+      "version": "2.13.0",
+      "file_in_crate": "proper_noun_rules.json",
+      "bytes": 14067,
+      "sha256": "09016c3304440139096582c6f42a5184bfb833dfd8c507a95a393b2cb0c1b68d",
+      "package_vcs_commit": "f4ebc61d77df1fc00b6aa8bc604e91af3534dad1",
+      "crate_archive_sha256": "1d88acd51ecd32aa6a7fcf1fd9f858bbbe507a935bcf31ddd833b454ae804a69",
+      "source_archive": "https://crates.io/api/v1/crates/harper-core/2.13.0/download",
+      "declared_package_license": "Apache-2.0",
+      "retained_notice": "os/licenses/upstream/harper-LICENSE.txt"
+    },
+    {
+      "package": "harper-core",
+      "version": "2.13.0",
+      "file_in_crate": "irregular_nouns.json",
+      "bytes": 5063,
+      "sha256": "a95fac8f714c8e77f70bdfc259719f4c7b4ed2869a365f363178b642e179d04d",
+      "package_vcs_commit": "f4ebc61d77df1fc00b6aa8bc604e91af3534dad1",
+      "crate_archive_sha256": "1d88acd51ecd32aa6a7fcf1fd9f858bbbe507a935bcf31ddd833b454ae804a69",
+      "source_archive": "https://crates.io/api/v1/crates/harper-core/2.13.0/download",
+      "declared_package_license": "Apache-2.0",
+      "retained_notice": "os/licenses/upstream/harper-LICENSE.txt"
+    },
+    {
+      "package": "harper-core",
+      "version": "2.13.0",
+      "file_in_crate": "irregular_verbs.json",
+      "bytes": 4421,
+      "sha256": "e41074ce4198a6b10cd7708ceaf6ab77416527cfb62678319665ef15bab74d50",
+      "package_vcs_commit": "f4ebc61d77df1fc00b6aa8bc604e91af3534dad1",
+      "crate_archive_sha256": "1d88acd51ecd32aa6a7fcf1fd9f858bbbe507a935bcf31ddd833b454ae804a69",
+      "source_archive": "https://crates.io/api/v1/crates/harper-core/2.13.0/download",
+      "declared_package_license": "Apache-2.0",
+      "retained_notice": "os/licenses/upstream/harper-LICENSE.txt"
+    },
+    {
+      "package": "harper-brill",
+      "version": "2.13.0",
+      "file_in_crate": "trained_tagger_model.json",
+      "bytes": 659686,
+      "sha256": "21b1d58967aaa40e6ab29444207de8e6f1ce3d2de335796b3ec9b90bafe3f0b4",
+      "package_vcs_commit": "f4ebc61d77df1fc00b6aa8bc604e91af3534dad1",
+      "crate_archive_sha256": "96edf04b3f466f4bced8efaf5c05654b6e0eb021bf6931c7b7388716d05ea65d",
+      "source_archive": "https://crates.io/api/v1/crates/harper-brill/2.13.0/download",
+      "declared_package_license": "Apache-2.0",
+      "retained_notice": "os/licenses/upstream/harper-LICENSE.txt"
+    },
+    {
+      "package": "harper-brill",
+      "version": "2.13.0",
+      "file_in_crate": "trained_chunker_model.json",
+      "bytes": 52717,
+      "sha256": "3668f3a875d853b9a518848a52f3638beeb72d0c0dcf8259865a0aa4e77e43a3",
+      "package_vcs_commit": "f4ebc61d77df1fc00b6aa8bc604e91af3534dad1",
+      "crate_archive_sha256": "96edf04b3f466f4bced8efaf5c05654b6e0eb021bf6931c7b7388716d05ea65d",
+      "source_archive": "https://crates.io/api/v1/crates/harper-brill/2.13.0/download",
+      "declared_package_license": "Apache-2.0",
+      "retained_notice": "os/licenses/upstream/harper-LICENSE.txt"
+    },
+    {
+      "package": "harper-brill",
+      "version": "2.13.0",
+      "file_in_crate": "finished_chunker/vocab.json",
+      "bytes": 627993,
+      "sha256": "aa91405ad238f0409bf625fb39067406c006cbf92e09cf2cb29f92fce9d00e5e",
+      "package_vcs_commit": "f4ebc61d77df1fc00b6aa8bc604e91af3534dad1",
+      "crate_archive_sha256": "96edf04b3f466f4bced8efaf5c05654b6e0eb021bf6931c7b7388716d05ea65d",
+      "source_archive": "https://crates.io/api/v1/crates/harper-brill/2.13.0/download",
+      "declared_package_license": "Apache-2.0",
+      "retained_notice": "os/licenses/upstream/harper-LICENSE.txt"
+    },
+    {
+      "package": "harper-brill",
+      "version": "2.13.0",
+      "file_in_crate": "finished_chunker/model.mpk",
+      "bytes": 806312,
+      "sha256": "4cf349bd091f12e2f8904f6c13036e8e054238854ed5471650e666ae1f3d1cc1",
+      "package_vcs_commit": "f4ebc61d77df1fc00b6aa8bc604e91af3534dad1",
+      "crate_archive_sha256": "96edf04b3f466f4bced8efaf5c05654b6e0eb021bf6931c7b7388716d05ea65d",
+      "source_archive": "https://crates.io/api/v1/crates/harper-brill/2.13.0/download",
+      "declared_package_license": "Apache-2.0",
+      "retained_notice": "os/licenses/upstream/harper-LICENSE.txt"
+    }
+  ],
+  "license_basis": "Upstream crate declares Apache-2.0 for packaged assets; exact repository-root text and archive/file hashes retained. This is upstream-declaration/integrity review, not an independent training-data or legal attestation.",
+  "limits": [
+    "POS/tagger/chunker includes bundled model inference; NOT a non-AI grammar engine.",
+    "Training-data provenance, inherited dictionary provenance, corresponding source and distribution obligations remain release-review items.",
+    "Runtime/source hashes are integrity identifiers, not authentication or literary-quality certification."
+  ]
+}

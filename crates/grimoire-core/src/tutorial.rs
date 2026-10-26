@@ -1,5 +1,5 @@
 //! Replayable, event-verified lessons. No mock editor and no manual "done" bit.
-//! All 39 required lessons are cataloged; unsupported ones remain unavailable.
+//! Original 39 required lessons plus supplemental opt-in model grammar; unsupported ones remain unavailable.
 use crate::{
     project,
     sync::{Fingerprint, SaveOutcome},
@@ -39,6 +39,7 @@ pub enum Event {
     SparkExerciseFavorited,
     SparkCombinedCaptured,
     SpellingOpened,
+    GrammarApplied,
     HistoryOpened,
     SystemOpened,
     RecoveryHelpOpened,
@@ -100,7 +101,7 @@ impl Progress {
             .iter()
             .chain(&self.skipped)
             .chain(self.active.iter())
-            .any(|id| !(1..=39).contains(id))
+            .any(|id| !lessons().iter().any(|lesson| lesson.id == *id))
         {
             bail!("invalid tutorial lesson id");
         }
@@ -119,7 +120,7 @@ impl Progress {
         Ok(())
     }
     pub fn skip(&mut self, id: u8) {
-        if (1..=39).contains(&id) {
+        if lessons().iter().any(|lesson| lesson.id == id) {
             self.skipped.insert(id);
             if self.active == Some(id) {
                 self.active = None;
@@ -233,7 +234,7 @@ mod tests {
     use super::*;
     #[test]
     fn all_required_lessons_are_present_and_unavailable_is_honest() {
-        assert_eq!(lessons().len(), 39);
+        assert_eq!(lessons().len(), 40);
         for (i, l) in lessons().iter().enumerate() {
             assert_eq!(l.id as usize, i + 1);
             assert!(!l.instructions.is_empty());
@@ -276,5 +277,26 @@ mod tests {
         s.save().unwrap();
         assert_eq!(Store::load(&root).unwrap().progress, s.progress);
         fs::remove_dir_all(root).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod supplemental_grammar_tests {
+    use super::*;
+    #[test]
+    fn spelling_history_does_not_grant_new_grammar_completion_and_progress_is_bounded_by_catalog() {
+        let mut p = Progress::default();
+        p.start(26).unwrap();
+        assert!(p.observe(Event::SpellingOpened, true));
+        p.start(40).unwrap();
+        assert!(!p.observe(Event::SpellingOpened, true));
+        assert!(!p.observe(Event::GrammarApplied, false));
+        assert!(p.completed.contains(&26) && !p.completed.contains(&40));
+        assert!(p.observe(Event::GrammarApplied, true));
+        p.validate().unwrap();
+        p.skip(40);
+        assert!(p.skipped.contains(&40));
+        p.completed.insert(41);
+        assert!(p.validate().is_err());
     }
 }

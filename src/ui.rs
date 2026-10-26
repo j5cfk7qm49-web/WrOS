@@ -951,6 +951,7 @@ fn draw_editor(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
         Overlay::Find { query, .. } if !query.is_empty() => Some(query.as_str()),
         _ => None,
     };
+    let check_spans = app.check_line_spans();
     let match_bg = blend(t.border, t.sun, 0.45);
     let mut line_matches: std::collections::HashMap<usize, Vec<(usize, usize)>> =
         std::collections::HashMap::new();
@@ -1012,6 +1013,17 @@ fn draw_editor(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
                 });
                 for &(s, e) in hits.iter() {
                     paint(s, e, &|st| st.bg(match_bg));
+                }
+            }
+            // Current-revision grammar is a separate, quieter underline.
+            // Scalar columns came from checked original body byte spans once
+            // per prose view. Spelling retains its own layer and dictionary.
+            if let Some(spans) = check_spans.get(&r.line) {
+                for &(s, e) in spans {
+                    paint(s, e, &|st| {
+                        st.underline_color(t.moon)
+                            .add_modifier(Modifier::UNDERLINED)
+                    });
                 }
             }
             // Misspellings: a warn-coloured underline, never on the word being typed.

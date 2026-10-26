@@ -30,6 +30,7 @@ use grimoire_core::settings::Settings;
 use grimoire_core::spell;
 
 mod aids;
+pub(crate) mod checks;
 pub(crate) mod documents;
 pub(crate) mod journal;
 pub(crate) mod overlays;
@@ -174,6 +175,7 @@ type PdfJob = (
 pub struct App {
     pub productivity: productivity::Productivity,
     pub spark: spark::Spark,
+    pub checks: checks::Checks,
     pub deck: writingdeck::Deck,
     pub pins: pins::Pins,
     pub journal: journal::Journal,
@@ -433,6 +435,9 @@ pub enum Overlay {
     Journal,
     Scratchpad,
     Handoff,
+    Checks {
+        page: checks::Page,
+    },
     Spark {
         page: spark::Page,
         sel: usize,
@@ -761,6 +766,11 @@ impl App {
         let pins = pins::Pins::load(&project.root);
         let productivity = productivity::Productivity::load(&project.root);
         let spark = spark::Spark::load(&project.root);
+        let personal_root = setup
+            .background
+            .then(|| std::env::var_os("HOME").map(PathBuf::from))
+            .flatten();
+        let checks = checks::Checks::load(&project.root, personal_root);
         let workflow = workflow::Workflow::load(&project.root);
         let complete = !project.nodes.iter().any(|n| {
             n.in_manuscript
@@ -816,6 +826,7 @@ impl App {
         Ok(Self {
             productivity,
             spark,
+            checks,
             deck,
             pins,
             journal,
@@ -1911,6 +1922,10 @@ impl App {
 
     /// Text pasted into the terminal arrives in one piece.
     pub fn paste(&mut self, text: &str) {
+        if matches!(self.overlay, Overlay::Checks { .. }) {
+            self.msg = "Writing checks is a reader; pasted commands ignored.".into();
+            return;
+        }
         if !self.focus.is_editor() || self.open.is_none() {
             return;
         }
@@ -2071,6 +2086,7 @@ impl App {
             }
             Action::ToggleOutline => self.toggle_outline(),
             Action::StorySpark => self.open_spark(),
+            Action::WritingChecks => self.open_checks(),
             Action::Productivity => self.open_productivity(productivity::Page::Overview),
             Action::MeasuredGoals => self.open_productivity(productivity::Page::Goals),
             Action::Calendar => self.open_productivity(productivity::Page::Calendar),
@@ -4842,6 +4858,7 @@ impl App {
                 | Overlay::Scratchpad
                 | Overlay::Handoff
                 | Overlay::Spark { .. }
+                | Overlay::Checks { .. }
                 | Overlay::Productivity { .. }
                 | Overlay::ProductivityInput { .. }
         ) {
@@ -5035,6 +5052,7 @@ impl App {
                 (row("Next scene still in draft", ""), Action::NextDraft),
                 (on_off(self.echo_on, "echo words"), Action::EchoWords),
                 ("Check names…".into(), Action::CheckNames),
+                ("Writing checks…".into(), Action::WritingChecks),
                 if self.sprint.is_some() {
                     ("Stop the sprint".into(), Action::EndSprint)
                 } else {

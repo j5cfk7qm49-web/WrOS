@@ -3,22 +3,22 @@
 │  preserved                                                                   │
 │  1047 original plots / 84 exercises · static offline selection               │
 │  r-0000000000000006 · Combined · 2026-10-26 · Etc/UTC                        │
-│  PLOT [wd-p-0237] · substitution · level 2 · suggested 20 min                │
-│  A race official discovers that a runner has completed a dangerous course    │
-│  while using another entrant's registration. The substitute was carrying     │
-│  medicine along the only open route, but awarding the finish would erase the │
-│  original entrant's recorded decision to withdraw.                           │
-│  EXERCISE [wd-x-0011] · description · level 1 · suggested 15 min             │
-│  Describe a familiar public place on a day when one regular visitor is       │
-│  absent. Use no dialogue and do not name the absence directly. Show which    │
-│  ordinary activities no longer happen or must be performed by someone else.  │
-│  Narrative conditions: narration-only                                        │
+│  PLOT [wd-p-0137] · permission · level 2 · suggested 20 min                  │
+│  An adult asks to read the letters his late mother wrote to a close friend.  │
+│  The friend offers the letters only if he also reads her replies, which      │
+│  reveal that his mother repeatedly defended choices he has spent years       │
+│  blaming the friend for encouraging.                                         │
+│  EXERCISE [wd-x-0055] · conflict · level 1 · suggested 15 min                │
+│  Give two people legitimate plans for the same object. Make neither plan     │
+│  merely symbolic. Let an attempted compromise expose a property of the object│
+│  or a timing condition that changes what sharing would actually require.     │
 │  Work mode: Drafting · creative completion is self-reported, not             │
 │  automatically scored.                                                       │
+│  ★ Favorited; retained separately from history.                              │
 │1 plot  2 exercise  3 combined  4 daily · p/e/r reroll plot/exercise/both     │
 │f favorite · x dismiss · s save · a actions · h history · F favorites · o     │
 │filters                                                                       │
-│PgUp/PgDn 0/4 · u reload · v source · t optional · Esc · F1 help              │
+│PgUp/PgDn 0/3 · u reload · v source · t optional · Esc · F1 help              │
 │Spark save · notes/sparks/r-0000000000000006.md · original scene preserved    │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘

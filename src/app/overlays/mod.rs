@@ -60,6 +60,7 @@ impl App {
             Overlay::None => {}
             Overlay::Deck(_) => self.on_deck_key(key),
             Overlay::Spark { .. } => self.on_spark_key(key),
+            Overlay::Checks { .. } => self.on_checks_key(key),
             Overlay::Productivity { .. } | Overlay::ProductivityInput { .. } => {
                 self.on_productivity_key(key)
             }
@@ -185,6 +186,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         Overlay::None => {}
         Overlay::Deck(_) => super::writingdeck::draw(f, app, area, t),
         Overlay::Spark { .. } => super::spark::draw(f, app, area, t),
+        Overlay::Checks { .. } => super::checks::draw(f, app, area, t),
         Overlay::Productivity { .. } | Overlay::ProductivityInput { .. } => {
             super::productivity::draw(f, app, area, t)
         }

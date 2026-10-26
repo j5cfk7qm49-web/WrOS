@@ -69,6 +69,7 @@ def main():
 
     run('format', ['cargo', 'fmt', '--all', '--', '--check'])
     run('spark-corpus', ['python3', 'tools/build-spark-corpus.py', '--check'])
+    run('diagnostic-assets', ['python3', 'tools/audit-writing-checks-assets.py'])
     for name, flags in [('default', []), ('no-audio', ['--no-default-features'])]:
         check, text = run('tests-'+name, ['cargo', 'test', '--workspace', *flags, '--locked', '--offline', '-j2'])
         totals = re.findall(r'test result: ok\. (\d+) passed; (\d+) failed; (\d+) ignored;', text)

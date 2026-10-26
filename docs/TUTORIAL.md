@@ -13,6 +13,8 @@ grimoire writingdeck tutorial-demo /parent/NEW-demo
 grimoire /parent/NEW-demo
 ```
 
+The catalog retains original IDs 1–39 and adds optional 40; a historic `SpellingOpened` completion of 26 never grants 40. Lesson 40 inserts no prose or model consent, is safe-demo-only, requires a genuine grammar edit and can be skipped without penalty.
+
 The demo contains original short text and a deliberate spelling error. Nothing is copied from an unreviewed exercise source. To return, use Open another book; your saved novel remains an ordinary separate folder. No routine deletes a previous demo to make room for a new one.
 
 ## Coverage inventory
@@ -44,7 +46,7 @@ The demo contains original short text and a deliberate spelling error. Nothing i
 | 23 | Random writing challenge | Wired: independently usable exercise-only generation and successfully persisted exact favorite |
 | 24 | Combined roulette | Wired: compatible combined ancestor chain proves independent plot/exercise + joint rerolls, retained favorite and newly ready independent experimental scene; animation optional |
 | 25 | Dictionary/thesaurus | Planned |
-| 26 | Grammar/spelling | Wired baseline spelling suggestions; grammar part planned |
+| 26 | Grammar/spelling | Historic baseline spelling event retained unchanged; it is not reinterpreted as Harper completion; see additional 40 |
 | 27 | Hemingway-style analysis | Planned |
 | 28 | Nabokov | Planned |
 | 29 | Proselint | Planned |
@@ -58,6 +60,7 @@ The demo contains original short text and a deliberate spelling error. Nothing i
 | 37 | Mobile access | Planned |
 | 38 | Wi-Fi/system settings | Wired: actual settings screen; hardware changes separately verified |
 | 39 | Recovery/troubleshooting | Wired: actual offline recovery manual; not a destructive crash simulation |
+| 40 | Optional local grammar: guarded review (supplemental) | Wired: explicit model permission, real completed grammar finding and actual current original-demo manuscript replacement; opening/navigation alone insufficient |
 
 Lesson 14 uses real saved manuscript observations, not fabricated session metrics: save a sentence in the demo manuscript, open Writing journal, Tab after reviewing facts, explicitly edit the original reflection and save genuine prose. Gross/active-time accounting is not claimed. A note-only save or reading the page cannot complete it.
 

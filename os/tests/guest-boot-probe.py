@@ -67,6 +67,12 @@ def main():
     command('/usr/libexec/writingdeck-keyboard', 'boot')
     assert primary_symbol(18) == ord('f'), 'committed layout must apply again at boot'
     marker('WRITINGDECK_VM_KEYBOARD_COMMIT_PASS')
+    grammar = json.loads(subprocess.check_output([
+        '/usr/sbin/runuser', '-u', 'writer', '--', '/usr/bin/python3',
+        '/usr/libexec/writingdeck-vm-fixtures/guest-checks-probe.py'], text=True, stderr=subprocess.STDOUT, timeout=120))
+    assert grammar['uid'] != 0 and len(grammar['checks']) == 6
+    marker('WRITINGDECK_VM_GRAMMAR_RESULT ' + json.dumps(grammar))
+    marker('WRITINGDECK_VM_GRAMMAR_PASS uid=' + str(grammar['uid']) + ' peak_rss_kib=' + str(grammar['kernel_peak_rss_kib']) )
     marker('WRITINGDECK_VM_PASS')
     time.sleep(4)  # Host captures an actual QEMU display screenshot via QMP.
 

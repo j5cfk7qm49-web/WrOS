@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "independent_legal_clearance": false,
+  "packages": [
+    {
+      "name": "harper-core",
+      "version": "2.13.0",
+      "package_vcs_commit": "f4ebc61d77df1fc00b6aa8bc604e91af3534dad1",
+      "reason": "Crate archive omits repository-root license; retained verbatim from packaged VCS revision, not inferred from SPDX alone.",
+      "files": [
+        {
+          "file": "os/licenses/upstream/harper-LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/Automattic/harper/f4ebc61d77df1fc00b6aa8bc604e91af3534dad1/LICENSE",
+          "sha256": "fbc8f1bffe04ab962340fabb1324d57d8b875070f67759d606516144ee53ac19"
+        }
+      ]
+    },
+    {
+      "name": "harper-brill",
+      "version": "2.13.0",
+      "package_vcs_commit": "f4ebc61d77df1fc00b6aa8bc604e91af3534dad1",
+      "reason": "Crate archive omits repository-root license; retained verbatim from packaged VCS revision, not inferred from SPDX alone.",
+      "files": [
+        {
+          "file": "os/licenses/upstream/harper-LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/Automattic/harper/f4ebc61d77df1fc00b6aa8bc604e91af3534dad1/LICENSE",
+          "sha256": "fbc8f1bffe04ab962340fabb1324d57d8b875070f67759d606516144ee53ac19"
+        }
+      ]
+    },
+    {
+      "name": "harper-pos-utils",
+      "version": "2.13.0",
+      "package_vcs_commit": "f4ebc61d77df1fc00b6aa8bc604e91af3534dad1",
+      "reason": "Crate archive omits repository-root license; retained verbatim from packaged VCS revision, not inferred from SPDX alone.",
+      "files": [
+        {
+          "file": "os/licenses/upstream/harper-LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/Automattic/harper/f4ebc61d77df1fc00b6aa8bc604e91af3534dad1/LICENSE",
+          "sha256": "fbc8f1bffe04ab962340fabb1324d57d8b875070f67759d606516144ee53ac19"
+        }
+      ]
+    },
+    {
+      "name": "burn-ir",
+      "version": "0.19.1",
+      "package_vcs_commit": "a6da424feacf6d82d6a0e81db197310796267c2b",
+      "reason": "Crate archive omits repository-root license; retained verbatim from packaged VCS revision, not inferred from SPDX alone.",
+      "files": [
+        {
+          "file": "os/licenses/upstream/burn-LICENSE-MIT.txt",
+          "url": "https://raw.githubusercontent.com/tracel-ai/burn/a6da424feacf6d82d6a0e81db197310796267c2b/LICENSE-MIT",
+          "sha256": "ef31f0b689aa7e2edb5883c7617361de37b05030389e876d91be6c2f2306bb35"
+        },
+        {
+          "file": "os/licenses/upstream/burn-LICENSE-APACHE.txt",
+          "url": "https://raw.githubusercontent.com/tracel-ai/burn/a6da424feacf6d82d6a0e81db197310796267c2b/LICENSE-APACHE",
+          "sha256": "a9cfa8a88b2c2b7c9a5f2ef159522b706ea8aaa76448438d98c89c3217e90378"
+        }
+      ]
+    },
+    {
+      "name": "burn-nn",
+      "version": "0.19.1",
+      "package_vcs_commit": "a6da424feacf6d82d6a0e81db197310796267c2b",
+      "reason": "Crate archive omits repository-root license; retained verbatim from packaged VCS revision, not inferred from SPDX alone.",
+      "files": [
+        {
+          "file": "os/licenses/upstream/burn-LICENSE-MIT.txt",
+          "url": "https://raw.githubusercontent.com/tracel-ai/burn/a6da424feacf6d82d6a0e81db197310796267c2b/LICENSE-MIT",
+          "sha256": "ef31f0b689aa7e2edb5883c7617361de37b05030389e876d91be6c2f2306bb35"
+        },
+        {
+          "file": "os/licenses/upstream/burn-LICENSE-APACHE.txt",
+          "url": "https://raw.githubusercontent.com/tracel-ai/burn/a6da424feacf6d82d6a0e81db197310796267c2b/LICENSE-APACHE",
+          "sha256": "a9cfa8a88b2c2b7c9a5f2ef159522b706ea8aaa76448438d98c89c3217e90378"
+        }
+      ]
+    },
+    {
+      "name": "burn-optim",
+      "version": "0.19.1",
+      "package_vcs_commit": "a6da424feacf6d82d6a0e81db197310796267c2b",
+      "reason": "Crate archive omits repository-root license; retained verbatim from packaged VCS revision, not inferred from SPDX alone.",
+      "files": [
+        {
+          "file": "os/licenses/upstream/burn-LICENSE-MIT.txt",
+          "url": "https://raw.githubusercontent.com/tracel-ai/burn/a6da424feacf6d82d6a0e81db197310796267c2b/LICENSE-MIT",
+          "sha256": "ef31f0b689aa7e2edb5883c7617361de37b05030389e876d91be6c2f2306bb35"
+        },
+        {
+          "file": "os/licenses/upstream/burn-LICENSE-APACHE.txt",
+          "url": "https://raw.githubusercontent.com/tracel-ai/burn/a6da424feacf6d82d6a0e81db197310796267c2b/LICENSE-APACHE",
+          "sha256": "a9cfa8a88b2c2b7c9a5f2ef159522b706ea8aaa76448438d98c89c3217e90378"
+        }
+      ]
+    },
+    {
+      "name": "cubecl-quant",
+      "version": "0.8.1",
+      "package_vcs_commit": "0e2ba072b1ebba595d65a90804e616e1b799ef16",
+      "reason": "Crate archive omits repository-root license; retained verbatim from packaged VCS revision, not inferred from SPDX alone.",
+      "files": [
+        {
+          "file": "os/licenses/upstream/cubecl-LICENSE-MIT.txt",
+          "url": "https://raw.githubusercontent.com/tracel-ai/cubecl/0e2ba072b1ebba595d65a90804e616e1b799ef16/LICENSE-MIT",
+          "sha256": "b3b77503e5498c5fb0a1a0b102d748d7baed9cae9f502086a3cfedad62d503a4"
+        },
+        {
+          "file": "os/licenses/upstream/cubecl-LICENSE-APACHE.txt",
+          "url": "https://raw.githubusercontent.com/tracel-ai/cubecl/0e2ba072b1ebba595d65a90804e616e1b799ef16/LICENSE-APACHE",
+          "sha256": "bdd26d197850a30393da963f01e97c78e91d69245089c543903f96a5dab95930"
+        }
+      ]
+    },
+    {
+      "name": "embassy-futures",
+      "version": "0.1.2",
+      "package_vcs_commit": "3e8d8fec15286eb25b8bba7d103c8fc279544551",
+      "reason": "Crate archive omits repository-root license; retained verbatim from packaged VCS revision, not inferred from SPDX alone.",
+      "files": [
+        {
+          "file": "os/licenses/upstream/embassy-LICENSE-MIT.txt",
+          "url": "https://raw.githubusercontent.com/embassy-rs/embassy/3e8d8fec15286eb25b8bba7d103c8fc279544551/LICENSE-MIT",
+          "sha256": "83d04e56c5beb631d65d6bd7b78c9350083084acc19753a3e6e1b68806a607f5"
+        },
+        {
+          "file": "os/licenses/upstream/embassy-LICENSE-APACHE.txt",
+          "url": "https://raw.githubusercontent.com/embassy-rs/embassy/3e8d8fec15286eb25b8bba7d103c8fc279544551/LICENSE-APACHE",
+          "sha256": "64853d2f346cf20ad5a133c441e792d4b99b45adb2ef3acfa2b890d713e4ed0b"
+        }
+      ]
+    }
+  ]
+}

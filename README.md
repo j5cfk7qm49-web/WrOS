@@ -65,7 +65,13 @@ The wording is AI-assisted original drafting and agent editorial review, MIT to
 the extent rights subsist—not independent human/legal clearance. Runtime is
 non-AI and needs no network. See [corpus provenance/review limits](docs/CHALLENGE_LIBRARY.md)
 and [Spark controls/recovery](docs/STORY_SPARK.md). Genuine safe-demo lessons
-22–24 join the catalog. M2b/M7–M10 and production/power-loss/large-load/physical
+22–24 join the catalog.
+**M7a adds opt-in local grammar:** actual Harper/Brill/POS 2.13 with disclosed
+POS/neural inference, explicit once/live permission and personal location binding,
+byte-accurate original-source highlights and explicit undoable fixes alongside
+independent spelling. Genuine additional lesson 40 does not reinterpret historic
+spelling completion 26. See [controls, models and limitations](docs/WRITING_CHECKS.md).
+M2b/M7b–M10 and production/power-loss/large-load/physical
 qualification remain incomplete; this is not the completed full OS request.
 
 ## Why it exists

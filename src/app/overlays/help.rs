@@ -37,6 +37,7 @@ impl App {
         match &self.overlay {
             Overlay::Deck(_) => "writingdeck",
             Overlay::Spark { .. } => "story-spark",
+            Overlay::Checks { .. } => "writing-checks",
             Overlay::Productivity { .. } | Overlay::ProductivityInput { .. } => "productivity",
             Overlay::Journal => "journal",
             Overlay::Scratchpad => "scratchpad",

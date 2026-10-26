@@ -1,0 +1,4 @@
+
+# Third-party license text must remain verbatim, including upstream whitespace.
+os/licenses/*.txt -whitespace
+os/licenses/upstream/*.txt -whitespace

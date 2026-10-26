@@ -31,6 +31,10 @@ for f in "$repo"/docs/*.md "$repo"/docs/*licenses.json "$repo"/docs/feature-stat
     "$repo"/docs/keyboard-reference.html "$repo"/os/licenses/*.txt; do
     [[ ! -f $f ]] || install -m 644 "$f" "$dest/usr/share/doc/writingdeck/"
 done
+# Retain exact omitted upstream notices as well as the combined notice bundle.
+mkdir -p "$dest/usr/share/doc/writingdeck/upstream"
+install -m 644 "$repo"/os/licenses/upstream/*.txt "$dest/usr/share/doc/writingdeck/upstream/"
+install -m 644 "$repo/docs/upstream-notice-sources.json" "$dest/usr/share/doc/writingdeck/"
 printf 'WRITINGDECK_VERSION=0.1.0-dev\nGRIMOIRE_BASE=0.7.5\nBASE_COMMIT=f3ca1e8\nIMAGE_PROFILE=vm-demo\n' > "$dest/etc/writingdeck/release"
 mkdir -p "$dest/etc/systemd/system/multi-user.target.wants"
 ln -sf ../writingdeck-keyboard.service "$dest/etc/systemd/system/multi-user.target.wants/writingdeck-keyboard.service"

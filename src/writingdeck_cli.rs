@@ -69,10 +69,17 @@ pub fn command(mut args: impl Iterator<Item = String>) -> Result<()> {
             }
             let challenge_days = grimoire_core::challenges::validate_existing(&root)?;
             let (spark_days, spark_assignments) = grimoire_core::spark::validate_existing(&root)?;
+            let _checks = grimoire_core::diagnostics::preferences::NovelPreferences::load(&root)?;
+            let _personal_checks = std::env::var_os("HOME")
+                .map(PathBuf::from)
+                .map(|home| {
+                    grimoire_core::diagnostics::preferences::PersonalPreferences::load(&home)
+                })
+                .transpose()?;
             let groups = ledger.known.len();
             let scratch_count = workflow.state.notes.len();
             println!(
-                "Layout schema {} validated; {} workspaces. Tutorial schema {} validated. Pins schema {} validated; {} references (source availability checked in UI). {journal} journal date files validated (other filenames not interpreted). Workflow schema 1 validated; {scratch_count} scratchpad references (sources checked in UI). Productivity schema 1 validated; {groups} recorded operation groups; {challenge_days} challenge date files validated (other filenames not interpreted). Spark schema 1 validated; {spark_days} fixed daily / {spark_assignments} optional assignment files. No files changed.",
+                "Layout schema {} validated; {} workspaces. Tutorial schema {} validated. Pins schema {} validated; {} references (source availability checked in UI). {journal} journal date files validated (other filenames not interpreted). Workflow schema 1 validated; {scratch_count} scratchpad references (sources checked in UI). Productivity schema 1 validated; {groups} recorded operation groups; {challenge_days} challenge date files validated (other filenames not interpreted). Spark schema 1 validated; {spark_days} fixed daily / {spark_assignments} optional assignment files. Diagnostic schema 1 validated (including personal profile when HOME is set); no analyzer started. No files changed.",
                 layout.state.version,
                 layout.state.workspaces.len(),
                 tutorial.progress.version,

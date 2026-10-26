@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of": "2026-10-25",
-  "release": "0.1.0-dev foundation + M3b + M4 + initial M5 + M6 software",
+  "release": "0.1.0-dev foundation + M3b + M4 + initial M5 + M6 software + M7a software",
   "features": [
     {
       "area": "Baseline",
@@ -41,7 +41,7 @@
       "status": "Existing",
       "verification": "Upstream/current spelling tests",
       "hardware_verified": false,
-      "detail": "Harper grammar not yet integrated"
+      "detail": "Preserved independently; optional Harper grammar does not replace Spellbook"
     },
     {
       "area": "OS",
@@ -374,10 +374,10 @@
     {
       "area": "Writing tools",
       "capability": "Harper grammar + dialogue/novel/global policy",
-      "status": "Planned",
-      "verification": "Crate API/license evaluated only",
+      "status": "Tested",
+      "verification": "Genuine core/15-controller cases + five compiled PTY methods, four sizes/restart; full run linked in STATUS",
       "hardware_verified": false,
-      "detail": "harper-core 2.13.0 not linked into application"
+      "detail": "Opt-in pinned 2.13 POS/neural runtime; once/novel/personal rule scopes, personal location consent, dialogue grammar retained; no automatic replacements or literary-quality score"
     },
     {
       "area": "Writing tools",
@@ -521,7 +521,7 @@
       "status": "Tested",
       "verification": "Core + actual editor/UI tests",
       "hardware_verified": false,
-      "detail": "27 event-capable / 12 unavailable; M6 22–24 require real saved plot, exercise favorite and reroll/favorite/new scene chain. Context events are not OS/process or creative-completion attestation"
+      "detail": "Original 39 IDs retained plus supplemental 40; 28 event-capable / 12 unavailable. Historic spelling 26 is not grammar evidence; 40 requires real optional-model/current-original fix. No fake Next/Done."
     },
     {
       "area": "Tutorial",
@@ -529,7 +529,7 @@
       "status": "In progress",
       "verification": "Continuous foundation only",
       "hardware_verified": false,
-      "detail": "Must land alongside each later feature, not wait until release"
+      "detail": "All original 39 plus supplemental 40 must land alongside actual features; no retroactive reinterpretation of historic progress"
     },
     {
       "area": "Qualification",
@@ -546,6 +546,14 @@
       "verification": "No hardware available in this environment",
       "hardware_verified": false,
       "detail": "Record model/firmware before claiming Hardware verified"
+    },
+    {
+      "area": "Writing tools",
+      "capability": "Common byte-source diagnostics, bounded worker and supplemental grammar lesson",
+      "status": "Tested",
+      "verification": "Unicode/Markdown/UTF-16/native-source tests; controlled faults/queues plus genuine worker/apply/undo and lesson-40 UI/PTY",
+      "hardware_verified": false,
+      "detail": "EditorBody vs MarkdownFile explicit; fresh source/policy/owner/backing guards; original 26 unchanged; native cancellation is nonpreemptive; physical/Python/full-OS gates separate"
     }
   ]
 }

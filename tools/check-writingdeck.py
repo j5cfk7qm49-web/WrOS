@@ -11,7 +11,7 @@ from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT/'docs'
-REQUIRED = 'ROADMAP FEATURE_MATRIX ARCHITECTURE WRITING_DECK_OS INSTALLATION LINUX_SYSTEM_INTEGRATION COLEMAK WORKSPACES KEYBOARD_SHORTCUTS WRITING_TOOLS CHALLENGE_LIBRARY CONTENT_LICENSES STORY_SPARK DAILY_CHALLENGES SYNC_AND_BACKUP TUTORIAL TESTING'.split()
+REQUIRED = 'ROADMAP FEATURE_MATRIX ARCHITECTURE WRITING_DECK_OS INSTALLATION LINUX_SYSTEM_INTEGRATION COLEMAK WORKSPACES KEYBOARD_SHORTCUTS WRITING_TOOLS CHALLENGE_LIBRARY CONTENT_LICENSES STORY_SPARK DAILY_CHALLENGES WRITING_CHECKS SYNC_AND_BACKUP TUTORIAL TESTING'.split()
 ERRORS = []
 
 def check(ok, message):
@@ -74,7 +74,8 @@ def main():
         expected='| '+' | '.join(str(feature[k]).replace('|','\\|') for k in ['area','capability','status','verification','detail'])+' |'
         check(expected in (DOCS/'FEATURE_MATRIX.md').read_text(), f'matrix differs from machine inventory: {feature["capability"]}')
     lessons = json.loads((ROOT/'crates/grimoire-core/assets/writingdeck/tutorial.json').read_text())
-    check([l['id'] for l in lessons] == list(range(1,40)), 'tutorial must catalog lessons 1–39 once each')
+    check([l['id'] for l in lessons] == list(range(1,41)), 'tutorial must retain IDs 1–39 plus supplemental 40 once each')
+    check(lessons[25]['event'] == 'SpellingOpened' and lessons[39]['event'] == 'GrammarApplied', 'historic spelling cannot be reinterpreted as new grammar evidence')
     reference = DOCS/'keyboard-reference.html'
     check(reference.is_file(), 'printable reference missing')
     if reference.is_file():
@@ -97,7 +98,7 @@ def main():
     if ERRORS:
         print('\n'.join('ERROR: '+e for e in ERRORS), file=sys.stderr)
         return 1
-    print(f'PASS: {len(REQUIRED)} required docs + STATUS, local links, {len(features)} capability rows, 39 lessons, content/dictionary hashes, notices, offline printable reference')
+    print(f'PASS: {len(REQUIRED)} required docs + STATUS, local links, {len(features)} capability rows, {len(lessons)} lessons, content/dictionary hashes, notices, offline printable reference')
     if args.require_current_evidence:
         print('PASS: software and VM evidence fingerprints match the current source; this is NOT physical hardware verification')
     print(f'RELEASE GATE: {len(software.get("missing_root_notice_files_requiring_review", []))} all-platform Rust packages lack root-level notice files; {len(software.get("selected_build", {}).get("missing_root_notice_files", []))} used by the Linux no-audio build. No legal/hardware/production clearance implied.')

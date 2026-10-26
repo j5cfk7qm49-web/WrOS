@@ -2,12 +2,12 @@
 │  Status: Spark save · notes/sparks/r-0000000000000006.md · original scene preserved                                                                          │
 │  1047 original plots / 84 exercises · static offline selection                                                                                               │
 │  r-0000000000000006 · Combined · 2026-10-26 · Etc/UTC                                                                                                        │
-│  PLOT [wd-p-0439] · recognition · level 1 · suggested 20 min                                                                                                 │
-│  A grandmother's practical instructions become an online sensation after a grandchild posts them as jokes. She welcomes the audience but wants the next post │
-│  to explain the circumstances that made the advice necessary.                                                                                                │
-│  EXERCISE [wd-x-0053] · setting · level 1 · suggested 10 min                                                                                                 │
-│  Describe someone finding an entrance not shown in the official directions. Give it a practical history through use and wear. Let choosing it change who the │
-│  character meets or what obligation they appear to accept.                                                                                                   │
+│  PLOT [wd-p-0925] · trust · level 1 · suggested 20 min                                                                                                       │
+│  A town places a trust-based payment box beside public equipment. The box fills with notes explaining why people owe nothing, and the caretaker must         │
+│  distinguish honest exceptions from a system that no longer funds repairs.                                                                                   │
+│  EXERCISE [wd-x-0073] · formal · level 1 · suggested 15 min                                                                                                  │
+│  Choose one letter to avoid and write a short account of an ordinary task without it. Keep an actual choice or obstacle understandable. Review the constraint│
+│  yourself, and note where it led to a useful new expression rather than claiming the restriction improves all prose.                                         │
 │  Work mode: Drafting · creative completion is self-reported, not automatically scored.                                                                       │
 │  ★ Favorited; retained separately from history.                                                                                                              │
 │  6 history / 128 · 1 favorites / 64 · 0 dismissals / 128 · 12-result recent window                                                                           │

@@ -1052,6 +1052,11 @@ impl App {
             20 => self.open_productivity(super::productivity::Page::Achievements),
             21 => self.open_productivity(super::productivity::Page::Challenges),
             26 => self.spelling(),
+            40 => {
+                self.overlay = Overlay::None;
+                self.focus = self.editor_focus();
+                self.msg = "Optional exercise: type an article mistake in this demo manuscript, then open Writing checks and read its model disclosure. No permission or text has been inserted.".into();
+            }
             33 => self.open_history(),
             38 => self.open_system_settings(),
             39 => {
@@ -1432,8 +1437,9 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         }
         Page::Tutorial { sel } => {
             title = format!(
-                "Interactive tutorial · {} / 39 completed{}",
+                "Interactive tutorial · {} / {} completed{}",
                 app.deck.progress.completed.len(),
+                tutorial::lessons().len(),
                 if tutorial::is_demo(&app.project.root) {
                     " · SAFE DEMO"
                 } else {

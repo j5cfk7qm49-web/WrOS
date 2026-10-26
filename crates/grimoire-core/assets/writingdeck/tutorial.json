@@ -179,7 +179,7 @@
     "title": "Grammar and spelling",
     "help_topic": "spelling",
     "event": "SpellingOpened",
-    "instructions": "Open the existing spellcheck suggestions for a misspelled word in the demo. Harper grammar and novel/global ignore scopes remain planned."
+    "instructions": "Open the existing spellcheck suggestions for a misspelled word in the demo. Harper grammar and novel/global ignore scopes remain planned. This historic completion records spelling, not grammar. Optional model-based grammar has a separate, genuinely applied-fix exercise in lesson 40."
   },
   {
     "id": 27,
@@ -271,5 +271,12 @@
     "help_topic": "history",
     "event": "RecoveryHelpOpened",
     "instructions": "Open the offline History and recovery manual. Learn Ctrl+Alt+F2 for an authenticated maintenance console and the difference between autosave, recovery and backup. Destructive crash exercises are not run on your manuscript."
+  },
+  {
+    "id": 40,
+    "title": "Optional local grammar: guarded review",
+    "help_topic": "writing-checks",
+    "event": "GrammarApplied",
+    "instructions": "Use this safe demo only. In its manuscript, type a deliberate article mistake such as I have a apple. Open Writing checks from the palette. Read the bundled-model disclosure; permission is optional, and declining leaves editing and spelling available. To perform this exercise, explicitly permit a single local check, wait for the AnA Grammar finding, inspect its original-source location, then press a to apply that exact current suggestion. Merely opening, consenting, navigating, ignoring or enabling live work is insufficient. A genuine grammar replacement in the original demo manuscript completes this additional lesson; Undo remains available. No preset text or consent is inserted by the lesson. You may skip it without penalty."
   }
 ]

@@ -13,6 +13,12 @@ done
 "$repo/os/scripts/install-files.sh" "$root" "$binary"
 install -m 755 "$repo/os/tests/guest-boot-probe.py" "$root/usr/libexec/writingdeck-boot-probe"
 install -m 644 "$repo/os/tests/writingdeck-boot-probe.service" "$root/etc/systemd/system/"
+# These fixtures run only under the explicit VM-DEMO-ONLY profile. The probe
+# invokes their application child as writer, never root. No host shares/NICs.
+mkdir -p "$root/usr/libexec/writingdeck-vm-fixtures"
+for fixture in guest-checks-probe.py test_checks_pty.py test_secondary_pty.py test_journal_pty.py test_productivity_pty.py terminal_screen.py; do
+    install -m 644 "$repo/os/tests/$fixture" "$root/usr/libexec/writingdeck-vm-fixtures/"
+done
 ln -sf ../writingdeck-boot-probe.service "$root/etc/systemd/system/multi-user.target.wants/writingdeck-boot-probe.service"
 # Use UUIDs rather than guessed /dev/sdX names; no dependency on disk ordering.
 uuid=3224a43a-692d-4cd6-a526-96b9a630fa24

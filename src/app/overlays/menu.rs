@@ -344,6 +344,10 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "Original next-session prose and explicit saved manuscript context resume.",
             "handoff",
         ),
+        Action::WritingChecks => (
+            "Opt-in local Harper grammar, original-source highlights and explicit undoable review; no automatic prose edits or mandatory model use.",
+            "writing-checks",
+        ),
         Action::StorySpark => (
             "Offline original plots/exercises, compatible combinations, saved civil-date daily results, reference-only history and explicit source-safe actions.",
             "story-spark",

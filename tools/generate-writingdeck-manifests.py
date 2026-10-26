@@ -8,6 +8,7 @@ import hashlib
 import json
 from pathlib import Path
 import subprocess
+import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -18,6 +19,8 @@ def main():
     metadata = json.loads(subprocess.check_output(['cargo', 'metadata', '--format-version=1', '--locked', '--offline'], cwd=ROOT))
     tree = subprocess.check_output(['cargo', 'tree', '--locked', '--offline', '--no-default-features', '-p', 'grimoire-tui', '--target', 'x86_64-unknown-linux-gnu', '--edges', 'normal,build', '--prefix', 'none', '--format', '{p}'], cwd=ROOT, text=True)
     used = {tuple(line.split()[:2]) for line in tree.splitlines()}
+    manual = json.loads((ROOT/'docs/upstream-notice-sources.json').read_text())
+    retained = {(p['name'], p['version']): p for p in manual['packages']}
     records, notices, missing, missing_selected = [], [], [], []
     for package in sorted(metadata['packages'], key=lambda p: (p['name'], p['version'])):
         base = Path(package['manifest_path']).parent
@@ -28,6 +31,16 @@ def main():
             p = base / package['license_file']
             if p.is_file() and p not in candidates:
                 candidates.append(p)
+        retained_record = retained.get((package['name'], package['version']))
+        if not candidates and retained_record:
+            vcs = json.loads((base/'.cargo_vcs_info.json').read_text())['git']['sha1']
+            if vcs != retained_record['package_vcs_commit']:
+                raise SystemExit('Retained license VCS mismatch for '+package['name'])
+            for item in retained_record['files']:
+                path = ROOT/item['file']
+                if not path.is_file() or sha(path) != item['sha256']:
+                    raise SystemExit('Retained upstream notice changed: '+str(path))
+                candidates.append(path)
         texts = []
         for path in sorted(candidates):
             texts.append({'file': path.name, 'sha256': sha(path)})
@@ -39,7 +52,7 @@ def main():
                 missing_selected.append(package['name'] + '@' + package['version'])
         records.append({'name': package['name'], 'version': package['version'], 'declared_license': package.get('license'),
                         'repository': package.get('repository'), 'used_in_linux_no_audio_build': selected, 'source': package.get('source') or 'WritingDeck workspace',
-                        'notice_files': texts})
+                        'notice_files': texts, 'retained_upstream_notice_source': retained_record})
     notice_path = ROOT / 'os/licenses/RUST-THIRD-PARTY-NOTICES.txt'
     notice_path.parent.mkdir(exist_ok=True, parents=True)
     notice_path.write_text('Rust dependency notices retained from the locked Cargo dependency graph.\nIncludes a superset of platform/default-feature dependencies, not just the no-audio Linux binary.\nOwn modifications remain under the repository MIT terms.\n\n' + '\n'.join(notices))
@@ -64,7 +77,6 @@ def main():
                                   'files': [{'file': str(p.relative_to(ROOT)), 'sha256': sha(p)} for p in sorted((ROOT/'assets/dict').iterdir()) if p.is_file()]},
         'debian_packages': debian,
         'evaluated_not_integrated': [
-            {'name':'harper-core','version':'2.13.0','license':'Apache-2.0','source':'https://github.com/Automattic/harper','bundled':False},
             {'name':'nabokov','version':'26.7.10 source metadata','license':'MIT','source':'https://github.com/viewflow/nabokov','bundled':False},
             {'name':'proselint','version':'0.16.0 upstream / 0.14.0 Debian evaluated','license':'BSD-3-Clause','source':'https://github.com/amperser/proselint','bundled':False},
             {'name':'spaCy + en_core_web_sm model','version':'runtime/model not pinned','license':'spaCy MIT; exact model/data attribution review pending','source':'https://github.com/explosion/spacy-models','bundled':False},
@@ -76,6 +88,38 @@ def main():
         'release_gates': ['Review missing notice files and all license expressions.', 'Distribute required notices and corresponding source for GPL/other OS components.',
                           'Pin/check model, corpus, firmware and voice licenses before adding them.', 'This inventory is not legal clearance.'],
     }
+    by_name = {p['name']: p for p in metadata['packages'] if p['name'] in ('harper-core','harper-brill','harper-pos-utils')}
+    locked = {(p['name'],p['version']):p for p in tomllib.loads((ROOT/'Cargo.lock').read_text())['package']}
+    assets = []
+    for name, files in [
+        ('harper-core', ['dictionary.dict','annotations.json','proper_noun_rules.json','irregular_nouns.json','irregular_verbs.json']),
+        ('harper-brill', ['trained_tagger_model.json','trained_chunker_model.json','finished_chunker/vocab.json','finished_chunker/model.mpk']),
+    ]:
+        package = by_name[name]
+        if package['version'] != '2.13.0':
+            raise SystemExit('Review model/runtime consent before changing '+name)
+        base = Path(package['manifest_path']).parent
+        vcs = json.loads((base/'.cargo_vcs_info.json').read_text())['git']['sha1']
+        for relative in files:
+            file = base/relative
+            assets.append({'package':name,'version':package['version'],'file_in_crate':relative,
+                'bytes':file.stat().st_size,'sha256':sha(file),'package_vcs_commit':vcs,
+                'crate_archive_sha256':locked[(name,package['version'])]['checksum'],
+                'source_archive':f'https://crates.io/api/v1/crates/{name}/{package["version"]}/download',
+                'declared_package_license':package['license'], 'retained_notice':'os/licenses/upstream/harper-LICENSE.txt'})
+    models = {'schema_version':1, 'distribution_ready':False, 'independent_legal_clearance':False,
+        'runtime':'harper-core-2.13.0/brill-2.13.0/pos-2.13.0', 'default_enabled':False,
+        'permission':'Explicit once-only process permission, or matching personal per-project canonical-root/runtime binding + novel persisted runtime permission. A copied novel at a new location cannot opt even a previously-consented profile into live work.',
+        'network':'No runtime model download, remote analysis, telemetry or manuscript transmission by this service.',
+        'assets':assets,
+        'license_basis':'Upstream crate declares Apache-2.0 for packaged assets; exact repository-root text and archive/file hashes retained. This is upstream-declaration/integrity review, not an independent training-data or legal attestation.',
+        'limits':['POS/tagger/chunker includes bundled model inference; NOT a non-AI grammar engine.',
+                  'Training-data provenance, inherited dictionary provenance, corresponding source and distribution obligations remain release-review items.',
+                  'Runtime/source hashes are integrity identifiers, not authentication or literary-quality certification.']}
+    (ROOT/'docs/model-licenses.json').write_text(json.dumps(models,indent=2)+'\n')
+    inventory['bundled_analyzers'] = [{'name':'harper-core','version':'2.13.0','default_enabled':False,
+        'model_and_data_manifest':'docs/model-licenses.json','runtime':models['runtime'],
+        'spelling':'Existing Spellbook is independent; Harper SpellCheck is disabled.'}]
     (ROOT/'docs/software-licenses.json').write_text(json.dumps(inventory,indent=2)+'\n')
     content_path = ROOT/'docs/content-licenses.json'
     if content_path.exists():

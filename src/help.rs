@@ -36,6 +36,7 @@ pub const TOPICS: &[Topic] = &[
     topic!("focus", "Focus mode & typewriter", "04-focus-mode.md"),
     topic!("notes", "Notes & TKs", "05-notes-and-tks.md"),
     topic!("spelling", "Spelling", "06-spelling.md"),
+    topic!("writing-checks", "Writing checks", "35-writing-checks.md"),
     topic!("find", "Find & replace", "07-find-and-replace.md"),
     topic!("notebook", "The notebook & names", "08-the-notebook.md"),
     topic!("beside", "A scene beside", "09-a-scene-beside.md"),
