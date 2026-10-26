@@ -54,6 +54,9 @@ def main():
     serial.write_text('')
     args = [
         'qemu-system-x86_64', '-accel', 'tcg,thread=multi', '-machine', 'q35',
+        # The locked NumPy wheel declares X86_V2. Exercise that baseline,
+        # without silently inheriting host AVX/AVX2 through a maximal CPU.
+        '-cpu', 'Nehalem',
         '-m', '512', '-smp', '2', '-nic', 'none', '-display', 'none', '-no-reboot',
         '-drive', 'if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd',
         '-drive', 'if=pflash,format=raw,file=' + str(vars_path),
@@ -92,6 +95,7 @@ def main():
         'image_sha256': (BASE/'SHA256SUMS').read_text().split()[0],
         'installed_stripped_binary_sha256': hashlib.sha256((BASE/'rootfs/usr/bin/grimoire').read_bytes()).hexdigest(),
         'firmware': 'OVMF UEFI, Secure Boot disabled', 'acceleration': 'TCG',
+        'cpu_model': 'Nehalem (x86-64-v2, no AVX)',
         'memory_mib': 512, 'vcpus': 2, 'network_devices': 0,
         'wall_seconds': round(time.monotonic() - start, 2), 'markers': markers,
         'passed': all(s in content for s in [

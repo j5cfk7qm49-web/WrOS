@@ -8,8 +8,8 @@ import subprocess
 import tempfile
 import time
 
-BINARY = '/usr/bin/grimoire'
-RUNTIME = Path('/opt/writingdeck/python')
+BINARY = os.environ.get('GRIMOIRE_BINARY', '/usr/bin/grimoire')
+RUNTIME = Path(os.environ.get('WRITINGDECK_TOOLS_PYTHON', '/opt/writingdeck/python/bin/python3')).parent.parent
 TEXT = '---\ntitle: Unicode fixture\n---\n\nCafé 🦊 e\u0301. We waited in order to see. He could of gone. The gate was opened by Mara.\n'
 
 

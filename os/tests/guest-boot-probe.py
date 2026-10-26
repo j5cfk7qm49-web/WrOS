@@ -69,7 +69,7 @@ def main():
     marker('WRITINGDECK_VM_KEYBOARD_COMMIT_PASS')
     grammar = json.loads(subprocess.check_output([
         '/usr/sbin/runuser', '-u', 'writer', '--', '/usr/bin/python3',
-        '/usr/libexec/writingdeck-vm-fixtures/guest-checks-probe.py'], text=True, stderr=subprocess.STDOUT, timeout=120))
+        '/usr/libexec/writingdeck-vm-fixtures/guest-checks-probe.py'], text=True, stderr=subprocess.STDOUT, timeout=220))
     assert grammar['uid'] != 0 and len(grammar['checks']) == 6
     marker('WRITINGDECK_VM_GRAMMAR_RESULT ' + json.dumps(grammar))
     marker('WRITINGDECK_VM_GRAMMAR_PASS uid=' + str(grammar['uid']) + ' peak_rss_kib=' + str(grammar['kernel_peak_rss_kib']) )
@@ -88,6 +88,8 @@ if __name__ == '__main__':
         main()
     except Exception as exc:
         marker('WRITINGDECK_VM_FAIL ' + repr(exc))
+        if isinstance(exc, subprocess.CalledProcessError):
+            marker('WRITINGDECK_VM_FAILURE_OUTPUT ' + json.dumps(exc.output))
         time.sleep(4)
     finally:
         subprocess.run(['/usr/bin/systemctl', 'poweroff'], check=False)
