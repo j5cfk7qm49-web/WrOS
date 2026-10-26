@@ -17,10 +17,10 @@ mirror=${DEBIAN_MIRROR:-https://deb.debian.org/debian}
 packages=$(paste -sd, "$repo/os/config/packages.txt")
 # Optional pinned snapshot mirror can be supplied; record the actual resolved
 # packages below. Default includes current trixie security packages.
-sources="deb $mirror trixie main"
+sources="deb $mirror trixie main non-free-firmware"
 if [[ $mirror == https://deb.debian.org/debian ]]; then
-    sources+=$'\ndeb https://security.debian.org/debian-security trixie-security main'
-    sources+=$'\ndeb https://deb.debian.org/debian trixie-updates main'
+    sources+=$'\ndeb https://security.debian.org/debian-security trixie-security main non-free-firmware'
+    sources+=$'\ndeb https://deb.debian.org/debian trixie-updates main non-free-firmware'
 fi
 mmdebstrap --mode=root --variant=minbase --architectures=amd64 \
     --include="$packages" --aptopt='Acquire::Retries "3"' trixie "$root" "$sources"

@@ -50,6 +50,26 @@ Generated artifacts are intentionally ignored/excluded from source snapshots. Th
 
 ## Physical laptop path (manual upstream installation; not executed here)
 
+The WrOS image recipe includes Debian's kernel wireless modules and firmware for
+Intel, Realtek, Qualcomm/Atheros (including ath9k USB), Broadcom/Cypress using
+brcm80211, and MediaTek. `main non-free-firmware` stays enabled for installed
+security/firmware updates. NetworkManager, `wpasupplicant`, regulatory data,
+`rfkill`, `iw` and the `nmtui` connection interface are installed; connecting must
+not depend on first downloading a Wi-Fi firmware package. The assembler rejects
+images missing these installed packages, firmware payloads, notices, wireless
+modules or `nmtui` and records `wifi-payload.json`.
+
+The future production installer media must carry the same firmware package set,
+including when installation has no Internet. Use Debian's firmware-inclusive
+installer rather than a network-only image. Debian documents the inclusion and
+installed-system handling in its [firmware guidance](https://wiki.debian.org/Firmware).
+The policy is tracked in `os/config/wifi-firmware.json`.
+
+Firmware supports particular kernel drivers; some Broadcom and very new adapters
+need additional drivers or a newer supported kernel. Physical acceptance must
+record chipset/PCI or USB ID, firmware, connection, reboot and suspend/resume.
+Bundling packages is not a claim that every laptop adapter has been tested.
+
 Until a WritingDeck installer is implemented and qualified, use Debian's maintained installer for storage, firmware, LUKS, accounts and bootloader. Back up independently and verify restoration first. Select the intended disk only after reviewing its model/serial/partitions. Use the installer's explicit destructive confirmation; this planner cannot provide permission.
 
 Recommended production decisions, still requiring integration tests:

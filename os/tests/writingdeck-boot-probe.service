@@ -6,7 +6,7 @@ ConditionPathExists=/etc/writingdeck/VM-DEMO-ONLY
 [Service]
 Type=oneshot
 ExecStart=/usr/libexec/writingdeck-boot-probe
-TimeoutStartSec=240
+TimeoutStartSec=600
 
 [Install]
 WantedBy=multi-user.target
