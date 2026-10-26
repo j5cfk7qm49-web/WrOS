@@ -1,0 +1,2 @@
+[console_scripts]
+nabokov = nabokov.cli:main

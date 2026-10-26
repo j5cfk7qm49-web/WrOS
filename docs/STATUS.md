@@ -2,6 +2,10 @@
 
 **As of 2026-10-25: initial M5 recorded productivity, M6 original offline Story Spark and M7a opt-in source-safe grammar are implemented, preserving the original-source M4 workflows. The full requested OS is not complete or safe for production installation.** No physical laptop/disk installation, user manuscript, credential enrollment or Git push. M6 content is AI-assisted original drafting and agent authoring/editorial review, not independent human/legal qualification.
 
+## M7b work in progress
+
+After committed M7a `3360ec5`, prose/lexicon/voice/revision work is now in progress. The executed records below qualify **M7a**, not new unqualified M7b changes. Preserved records: [M7a software](evidence/history/m7a-test-results.json), [M7a VM](evidence/history/m7a-vm-boot.json), [M7a resources](evidence/history/m7a-writing-checks-resources.json). No full M7b verification or release qualification has run. Native/offline optional-tool boundaries and current spelling remain preserved.
+
 ## Executed M7a software and networkless VM evidence
 
 The common source-map/worker and optional disclosed **Harper/Brill/POS 2.13.0** slice is now tested. See [Writing checks](WRITING_CHECKS.md) for exact source spaces, consent/location binding, three ignore scopes, dialogue policy, explicit native replacement/undo and failure/cancellation bounds. It includes neural inference and is **not described as non-AI**. Native spelling remains independent; nothing starts merely by opening the reader. Additional demo-only lesson 40 requires a real current grammar replacement; original spelling lesson 26 and all other original IDs retain their meanings.

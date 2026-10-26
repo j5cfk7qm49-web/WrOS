@@ -33,6 +33,7 @@ pub enum Page {
     RevokeModel,
 }
 struct Slot {
+    editor_epoch: (u64, u64),
     snapshot: model::Snapshot,
     configuration: String,
     changed_ms: u64,
@@ -129,7 +130,7 @@ impl Checks {
         self.generation = self.generation.saturating_add(1);
         self.generation
     }
-    fn invalidate(&mut self) {
+    pub(super) fn invalidate(&mut self) {
         if let Some(worker) = &self.worker {
             worker.clear();
         }
@@ -153,7 +154,7 @@ impl Checks {
     }
 }
 impl App {
-    fn check_role(&self, i: usize) -> SourceRole {
+    pub(super) fn check_role(&self, i: usize) -> SourceRole {
         let n = &self.project.nodes[i];
         if n.in_manuscript && !self.project.in_trash(i) {
             SourceRole::Manuscript
@@ -167,7 +168,7 @@ impl App {
             SourceRole::Note
         }
     }
-    fn check_document(&self, pane: Pane) -> Result<(usize, String)> {
+    pub(super) fn check_document(&self, pane: Pane) -> Result<(usize, String)> {
         if pane == Pane::Secondary && (!self.views.secondary_visible || !self.views.secondary_room)
         {
             bail!("secondary source is hidden; no check or edit routed there");
@@ -196,7 +197,7 @@ impl App {
             .to_owned();
         Ok((i, document))
     }
-    fn check_snapshot(&self, pane: Pane, generation: u64) -> Result<model::Snapshot> {
+    pub(super) fn check_snapshot(&self, pane: Pane, generation: u64) -> Result<model::Snapshot> {
         let (i, document) = self.check_document(pane)?;
         let editor = self
             .view_editor(pane)
@@ -282,6 +283,7 @@ impl App {
                 if size > model::MAX_SOURCE_BYTES {
                     continue;
                 }
+                let editor_epoch = editor.revision_stamp();
                 let text = editor.text();
                 let hash = model::hex_digest(text.as_bytes());
                 let role = self.check_role(i);
@@ -293,7 +295,8 @@ impl App {
                     .position(|s| s.snapshot.stamp.document == document);
                 if let Some(index) = index {
                     let slot = &self.checks.slots[index];
-                    if slot.snapshot.stamp.sha256 == hash
+                    if slot.editor_epoch == editor_epoch
+                        && slot.snapshot.stamp.sha256 == hash
                         && slot.snapshot.stamp.role == role
                         && slot.configuration == configuration
                     {
@@ -311,6 +314,7 @@ impl App {
                         text,
                     ) {
                         self.checks.slots[index] = Slot {
+                            editor_epoch,
                             snapshot,
                             configuration: configuration.clone(),
                             changed_ms: now,
@@ -329,6 +333,7 @@ impl App {
                         text,
                     ) {
                         self.checks.slots.push(Slot {
+                            editor_epoch,
                             snapshot,
                             configuration: configuration.clone(),
                             changed_ms: now,
@@ -464,6 +469,7 @@ impl App {
         assert_eq!(report.options, self.checks.options());
         self.checks.generation = self.checks.generation.max(report.snapshot.stamp.generation);
         self.checks.slots = vec![Slot {
+            editor_epoch: self.editor.revision_stamp(),
             snapshot: report.snapshot.clone(),
             configuration: report.options.digest(),
             changed_ms: 0,
@@ -497,6 +503,7 @@ impl App {
             s.snapshot.stamp.document != document && visible.contains(&s.snapshot.stamp.document)
         });
         self.checks.slots.push(Slot {
+            editor_epoch: self.editor.revision_stamp(),
             snapshot,
             configuration,
             changed_ms: now,
@@ -515,7 +522,7 @@ impl App {
     }
     /// Validation here also runs immediately during draw/actions, not just on
     /// the 100 ms reconciliation tick. A changed buffer never flashes old marks.
-    fn current_check_report(&self) -> Option<&Report> {
+    pub(super) fn current_check_report(&self) -> Option<&Report> {
         let (i, document) = self.check_document(self.views.active).ok()?;
         let slot = self
             .checks
@@ -523,7 +530,8 @@ impl App {
             .iter()
             .find(|s| s.snapshot.stamp.document == document)?;
         let report = slot.report.as_ref()?;
-        if report.snapshot.stamp != slot.snapshot.stamp
+        if self.editor.revision_stamp() != slot.editor_epoch
+            || report.snapshot.stamp != slot.snapshot.stamp
             || report.options != self.checks.options()
             || report.snapshot.stamp.unit != SourceUnit::EditorBody
             || report.snapshot.stamp.role != self.check_role(i)
@@ -574,6 +582,16 @@ impl App {
             .snapshot
             .stamp
             .generation;
+        let slot = self
+            .checks
+            .slots
+            .iter()
+            .find(|s| s.snapshot.stamp.document == document)
+            .ok_or_else(|| anyhow::anyhow!("check owner disappeared"))?;
+        ensure!(
+            self.editor.revision_stamp() == slot.editor_epoch,
+            "editor changed, even if Undo restored identical bytes; check again"
+        );
         let current = self.check_snapshot(self.views.active, generation)?;
         let options = self.checks.options();
         let (span, replacement) = finding.checked_replacement(&current, &options, alternative)?;
@@ -635,7 +653,7 @@ impl App {
     /// Existing render layers use scalar columns, never UTF-8 bytes/display
     /// cells. This is computed once per prose view, not once per painted row.
     pub fn check_line_spans(&self) -> BTreeMap<usize, Vec<(usize, usize)>> {
-        let mut out: BTreeMap<usize, Vec<(usize, usize)>> = BTreeMap::new();
+        let mut out = self.prose_line_spans();
         let Some(report) = self.current_check_report() else {
             return out;
         };
@@ -666,7 +684,10 @@ impl App {
         }
         out
     }
-    fn save_check_options(&mut self, f: impl FnOnce(&mut AnalysisOptions)) -> Result<()> {
+    pub(super) fn save_check_options(
+        &mut self,
+        f: impl FnOnce(&mut AnalysisOptions),
+    ) -> Result<()> {
         self.checks
             .novel
             .as_mut()

@@ -33,9 +33,11 @@ mod aids;
 pub(crate) mod checks;
 pub(crate) mod documents;
 pub(crate) mod journal;
+pub(crate) mod lexicon;
 pub(crate) mod overlays;
 pub(crate) mod pins;
 pub(crate) mod productivity;
+pub(crate) mod prose_dashboard;
 pub(crate) mod spark;
 pub(crate) mod workflow;
 pub(crate) mod writingdeck;
@@ -176,6 +178,8 @@ pub struct App {
     pub productivity: productivity::Productivity,
     pub spark: spark::Spark,
     pub checks: checks::Checks,
+    pub lexicon: lexicon::Lexicon,
+    pub prose_dashboard: prose_dashboard::Dashboard,
     pub deck: writingdeck::Deck,
     pub pins: pins::Pins,
     pub journal: journal::Journal,
@@ -435,6 +439,8 @@ pub enum Overlay {
     Journal,
     Scratchpad,
     Handoff,
+    Lexicon,
+    ProseDashboard,
     Checks {
         page: checks::Page,
     },
@@ -771,6 +777,7 @@ impl App {
             .then(|| std::env::var_os("HOME").map(PathBuf::from))
             .flatten();
         let checks = checks::Checks::load(&project.root, personal_root);
+        let prose_dashboard = prose_dashboard::Dashboard::load(&project.root);
         let workflow = workflow::Workflow::load(&project.root);
         let complete = !project.nodes.iter().any(|n| {
             n.in_manuscript
@@ -827,6 +834,8 @@ impl App {
             productivity,
             spark,
             checks,
+            lexicon: lexicon::Lexicon::default(),
+            prose_dashboard,
             deck,
             pins,
             journal,
@@ -1752,6 +1761,16 @@ impl App {
     /// Ctrl-V: what's on the computer's clipboard, or failing that what
     /// was last copied here.
     pub fn paste_clipboard(&mut self) {
+        if self.overlay == Overlay::ProseDashboard {
+            let text = self.clipboard_text();
+            self.paste_prose_dashboard(&text);
+            return;
+        }
+        if self.overlay == Overlay::Lexicon && self.lexicon.page == lexicon::Page::Query {
+            let text = self.clipboard_text();
+            self.paste_lexicon(&text);
+            return;
+        }
         if !self.focus.is_editor() || self.open.is_none() {
             self.msg = "open a scene and click into it to paste".into();
             return;
@@ -1922,6 +1941,14 @@ impl App {
 
     /// Text pasted into the terminal arrives in one piece.
     pub fn paste(&mut self, text: &str) {
+        if self.overlay == Overlay::ProseDashboard {
+            self.paste_prose_dashboard(text);
+            return;
+        }
+        if self.overlay == Overlay::Lexicon {
+            self.paste_lexicon(text);
+            return;
+        }
         if matches!(self.overlay, Overlay::Checks { .. }) {
             self.msg = "Writing checks is a reader; pasted commands ignored.".into();
             return;
@@ -2087,6 +2114,8 @@ impl App {
             Action::ToggleOutline => self.toggle_outline(),
             Action::StorySpark => self.open_spark(),
             Action::WritingChecks => self.open_checks(),
+            Action::Lexicon => self.open_lexicon(),
+            Action::ProseDashboard => self.open_prose_dashboard(),
             Action::Productivity => self.open_productivity(productivity::Page::Overview),
             Action::MeasuredGoals => self.open_productivity(productivity::Page::Goals),
             Action::Calendar => self.open_productivity(productivity::Page::Calendar),
@@ -4859,6 +4888,8 @@ impl App {
                 | Overlay::Handoff
                 | Overlay::Spark { .. }
                 | Overlay::Checks { .. }
+                | Overlay::Lexicon
+                | Overlay::ProseDashboard
                 | Overlay::Productivity { .. }
                 | Overlay::ProductivityInput { .. }
         ) {
@@ -5053,6 +5084,11 @@ impl App {
                 (on_off(self.echo_on, "echo words"), Action::EchoWords),
                 ("Check names…".into(), Action::CheckNames),
                 ("Writing checks…".into(), Action::WritingChecks),
+                ("Dictionary and thesaurus…".into(), Action::Lexicon),
+                (
+                    "Prose and revision dashboard…".into(),
+                    Action::ProseDashboard,
+                ),
                 if self.sprint.is_some() {
                     ("Stop the sprint".into(), Action::EndSprint)
                 } else {

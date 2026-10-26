@@ -1,0 +1,5 @@
+[console_scripts]
+proselint = proselint.command_line:main
+
+[gui_scripts]
+

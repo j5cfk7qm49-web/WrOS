@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "package": "en_core_web_sm",
+  "version": "3.8.0",
+  "default_enabled": false,
+  "permission": "Separate explicit one-run source/configuration-bound consent; no detector/authorship rules.",
+  "network": "No runtime downloads or manuscript transmission by this service.",
+  "declared_license": "MIT",
+  "upstream_model_card": {
+    "file": "os/python-tools/en_core_web_sm-3.8.0-meta.json",
+    "sha256": "7456349002fa8cf31111051bd37fdbea67a1b7f7a0a60ce235466f98a6758125",
+    "bytes": 10106
+  },
+  "upstream_sources": [
+    {
+      "name": "OntoNotes 5",
+      "url": "https://catalog.ldc.upenn.edu/LDC2013T19",
+      "license": "commercial (licensed by Explosion)",
+      "author": "Ralph Weischedel, Martha Palmer, Mitchell Marcus, Eduard Hovy, Sameer Pradhan, Lance Ramshaw, Nianwen Xue, Ann Taylor, Jeff Kaufman, Michelle Franchini, Mohammed El-Bachouti, Robert Belvin, Ann Houston"
+    },
+    {
+      "name": "ClearNLP Constituent-to-Dependency Conversion",
+      "url": "https://github.com/clir/clearnlp-guidelines/blob/master/md/components/dependency_conversion.md",
+      "license": "Citation provided for reference, no code packaged with model",
+      "author": "Emory University"
+    },
+    {
+      "name": "WordNet 3.0",
+      "url": "https://wordnet.princeton.edu/",
+      "author": "Princeton University",
+      "license": "WordNet 3.0 License"
+    }
+  ],
+  "wheel": {
+    "filename": "en_core_web_sm-3.8.0-py3-none-any.whl",
+    "bytes": 12806118,
+    "sha256": "1932429db727d4bff3deed6b34cfc05df17794f4a52eeb26cf8928f7c1a0fb85",
+    "url": "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl"
+  },
+  "notices": [
+    {
+      "file": "os/licenses/python/en-core-web-sm/en_core_web_sm/en_core_web_sm-3.8.0/LICENSE",
+      "sha256": "3933c176979b68bc6d0bcc902c7d6c130f1d127f476f17ba5cdba8d99cfd0012",
+      "bytes": 1056,
+      "wheel_file": "en_core_web_sm/en_core_web_sm-3.8.0/LICENSE"
+    },
+    {
+      "file": "os/licenses/python/en-core-web-sm/en_core_web_sm/en_core_web_sm-3.8.0/LICENSES_SOURCES",
+      "sha256": "20d9dfacd215112251f15341edd1a47b1f98bf393a212f10f194ffdc7ee98a90",
+      "bytes": 2347,
+      "wheel_file": "en_core_web_sm/en_core_web_sm-3.8.0/LICENSES_SOURCES"
+    },
+    {
+      "file": "os/licenses/python/en-core-web-sm/en_core_web_sm-3.8.0.dist-info/LICENSE",
+      "sha256": "3933c176979b68bc6d0bcc902c7d6c130f1d127f476f17ba5cdba8d99cfd0012",
+      "bytes": 1056,
+      "wheel_file": "en_core_web_sm-3.8.0.dist-info/LICENSE"
+    },
+    {
+      "file": "os/licenses/python/en-core-web-sm/en_core_web_sm-3.8.0.dist-info/LICENSES_SOURCES",
+      "sha256": "20d9dfacd215112251f15341edd1a47b1f98bf393a212f10f194ffdc7ee98a90",
+      "bytes": 2347,
+      "wheel_file": "en_core_web_sm-3.8.0.dist-info/LICENSES_SOURCES"
+    }
+  ],
+  "distribution_ready": false,
+  "independent_legal_clearance": false,
+  "limits": "Upstream model card and source declarations are retained, not independent training-data, representativeness, rights, authorship or literary-quality certification."
+}

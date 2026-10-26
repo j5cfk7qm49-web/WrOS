@@ -1051,6 +1051,12 @@ impl App {
             19 => self.run_action(Action::StartSprint),
             20 => self.open_productivity(super::productivity::Page::Achievements),
             21 => self.open_productivity(super::productivity::Page::Challenges),
+            25 => self.open_lexicon(),
+            27..=29 => self.open_prose_dashboard(),
+            30 => {
+                self.open_prose_dashboard();
+                self.prose_dashboard.page = super::prose_dashboard::Page::Voice;
+            }
             26 => self.spelling(),
             40 => {
                 self.overlay = Overlay::None;

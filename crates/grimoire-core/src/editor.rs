@@ -68,6 +68,8 @@ pub struct Editor {
     hist: History,
     measuring: bool,
     mutations: Vec<Mutation>,
+    instance: u64,
+    revision: u64,
 }
 
 impl Editor {
@@ -86,6 +88,11 @@ impl Editor {
             hist: History::default(),
             measuring: false,
             mutations: Vec::new(),
+            instance: {
+                static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+                NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            },
+            revision: 0,
         }
     }
 
@@ -100,6 +107,11 @@ impl Editor {
         if !enabled {
             self.mutations.clear();
         }
+    }
+    /// In-memory buffer identity/version, not typing or saved-file evidence.
+    /// Undo restores bytes, never this version. Reopening creates a new owner.
+    pub fn revision_stamp(&self) -> (u64, u64) {
+        (self.instance, self.revision)
     }
     pub fn take_mutations(&mut self) -> Vec<Mutation> {
         std::mem::take(&mut self.mutations)
@@ -207,6 +219,7 @@ impl Editor {
     }
 
     fn restore(&mut self, s: Snap) {
+        self.revision = self.revision.saturating_add(1);
         self.lines = s.lines;
         self.cy = s.cy.min(self.lines.len().saturating_sub(1));
         self.cx = s.cx.min(self.line_len(self.cy));
@@ -219,6 +232,7 @@ impl Editor {
     /// are one step; a pause, a change from typing to deleting, a new
     /// paragraph or a paste each start another.
     fn remember(&mut self, kind: Edit) {
+        self.revision = self.revision.saturating_add(1);
         let now = Instant::now();
         let fresh = match self.hist.last {
             None => true,
@@ -441,8 +455,9 @@ impl Editor {
         self.select((0, 0), (last, end));
     }
 
-    /// The word the cursor is in or touching, as (line, start, end).
-    fn word_at_cursor(&self) -> Option<(usize, usize, usize)> {
+    /// The word touched by the cursor as (logical line, scalar start, scalar end),
+    /// without changing selection.
+    pub fn word_at_cursor(&self) -> Option<(usize, usize, usize)> {
         let chars: Vec<char> = self.lines.get(self.cy)?.chars().collect();
         let is_word = is_word_char;
         let mut start = self.cx.min(chars.len());
@@ -1594,5 +1609,28 @@ mod batch_tests {
         assert_eq!(e.take_mutations()[0].counts, receipt.inverse());
         e.redo();
         assert_eq!(e.take_mutations()[0].counts, receipt);
+    }
+}
+
+#[cfg(test)]
+mod revision_stamp_tests {
+    use super::*;
+    #[test]
+    fn source_versions_do_not_rollback_on_undo_or_transfer_to_a_reopened_buffer() {
+        let mut editor = Editor::from_text("Café 🦊.");
+        let original = editor.text();
+        let before = editor.revision_stamp();
+        editor.right();
+        assert_eq!(editor.revision_stamp(), before);
+        editor.insert('x');
+        assert_ne!(editor.revision_stamp(), before);
+        assert!(editor.undo());
+        assert_eq!(editor.text(), original);
+        assert_ne!(editor.revision_stamp(), before);
+        assert_ne!(Editor::from_text(&original).revision_stamp(), before);
+        assert!(
+            editor.take_mutations().is_empty(),
+            "version metadata is never fabricated editing credit"
+        );
     }
 }

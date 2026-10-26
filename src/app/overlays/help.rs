@@ -38,6 +38,8 @@ impl App {
             Overlay::Deck(_) => "writingdeck",
             Overlay::Spark { .. } => "story-spark",
             Overlay::Checks { .. } => "writing-checks",
+            Overlay::Lexicon => "lexicon",
+            Overlay::ProseDashboard => "prose-dashboard",
             Overlay::Productivity { .. } | Overlay::ProductivityInput { .. } => "productivity",
             Overlay::Journal => "journal",
             Overlay::Scratchpad => "scratchpad",
@@ -88,6 +90,9 @@ impl App {
     /// typed into something.
     pub fn question_opens_help(&self) -> bool {
         match &self.overlay {
+            Overlay::ProseDashboard => {
+                self.prose_dashboard.page != super::super::prose_dashboard::Page::VoiceName
+            }
             Overlay::None => !self.focus.is_editor(),
             Overlay::Deck(super::super::writingdeck::Page::KeyboardTest { .. }) => false,
             Overlay::Palette { .. }

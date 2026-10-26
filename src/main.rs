@@ -556,6 +556,8 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
         app.tick_today();
         app.tick_speller();
         app.tick_checks();
+        app.tick_lexicon();
+        app.tick_prose_dashboard();
         app.tick_pdf();
         app.tick_backup();
         app.tick_deck();
@@ -622,6 +624,14 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
         };
 
         if let Event::Paste(text) = &ev {
+            if app.overlay == Overlay::ProseDashboard {
+                app.paste_prose_dashboard(text);
+                continue;
+            }
+            if app.overlay == Overlay::Lexicon {
+                app.paste_lexicon(text);
+                continue;
+            }
             if matches!(
                 app.overlay,
                 Overlay::Pins
@@ -630,6 +640,8 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
                     | Overlay::Handoff
                     | Overlay::Spark { .. }
                     | Overlay::Checks { .. }
+                    | Overlay::Lexicon
+                    | Overlay::ProseDashboard
                     | Overlay::Productivity { .. }
                     | Overlay::Deck(app::writingdeck::Page::WorkspacePins { .. })
             ) {
@@ -886,12 +898,20 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
                 | Overlay::Handoff
                 | Overlay::Spark { .. }
                 | Overlay::Checks { .. }
+                | Overlay::Lexicon
+                | Overlay::ProseDashboard
                 | Overlay::Productivity { .. }
                 | Overlay::ProductivityInput { .. }
                 | Overlay::Deck(app::writingdeck::Page::WorkspacePins { .. })
         ) || (app.overlay == Overlay::None && app.focus == Focus::Pins))
         && !matches!(k.code, KeyCode::Char('s' | 'q' | 'k' | 'd'))
         && !(matches!(app.overlay, Overlay::PinCategory { .. }) && k.code == KeyCode::Char('v'))
+        && !(app.overlay == Overlay::ProseDashboard
+            && app.prose_dashboard.page == app::prose_dashboard::Page::VoiceName
+            && k.code == KeyCode::Char('v'))
+        && !(app.overlay == Overlay::Lexicon
+            && app.lexicon.page == app::lexicon::Page::Query
+            && k.code == KeyCode::Char('v'))
     {
         return false;
     }
@@ -927,6 +947,8 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
                         | Overlay::Handoff
                         | Overlay::Spark { .. }
                         | Overlay::Checks { .. }
+                        | Overlay::Lexicon
+                        | Overlay::ProseDashboard
                         | Overlay::Productivity { .. }
                 ) =>
             {

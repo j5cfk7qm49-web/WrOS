@@ -24,3 +24,4 @@ libgcc-s1
 git
 less
 nano
+wordnet-base

@@ -170,44 +170,44 @@
   {
     "id": 25,
     "title": "Dictionary and thesaurus",
-    "help_topic": "writingdeck",
-    "event": null,
-    "instructions": "Look up senses and choose a context-appropriate synonym without automatic replacement. Planned."
+    "help_topic": "lexicon",
+    "event": "DictionarySenseReviewed",
+    "instructions": "Open Dictionary and thesaurus from Writing tools or the palette. In the query field enter bank or hot, then press Enter to use the installed local WordNet 3.0 data. Wait for actual senses, choose a specific part-of-speech/sense and press Enter to read its real definition. That explicit sense review completes this lesson, not merely opening or typing a query. Tab switches synonyms and explicitly linked antonyms; a missing antonym is not invented. Copy is optional and never edits the manuscript; return through Escape to use normal selection/paste/undo if desired. Missing data is reported and never downloaded at runtime. This read-only exercise may be performed outside the demo."
   },
   {
     "id": 26,
     "title": "Grammar and spelling",
     "help_topic": "spelling",
     "event": "SpellingOpened",
-    "instructions": "Open the existing spellcheck suggestions for a misspelled word in the demo. Harper grammar and novel/global ignore scopes remain planned. This historic completion records spelling, not grammar. Optional model-based grammar has a separate, genuinely applied-fix exercise in lesson 40."
+    "instructions": "Open the existing spellcheck suggestions for a misspelled word in the demo. This historic completion records spelling, not grammar. Optional model-based Harper grammar and its ignore scopes are separate; lesson 40 requires a genuinely applied current original-demo grammar fix."
   },
   {
     "id": 27,
     "title": "Hemingway-style highlighting",
-    "help_topic": "writingdeck",
-    "event": null,
-    "instructions": "Compare drafting, revision and deep-analysis profiles. Planned; readability is not literary quality."
+    "help_topic": "prose-dashboard",
+    "event": "ProseStatsReviewed",
+    "instructions": "Run Prose and revision dashboard on original prose with r. p cycles the persisted Drafting, Revision and DeepReview profiles; f selects General, Accessible or Experimental fiction guidance. Read actual analysis-word/sentence/rhythm statistics, then press Enter to review them and open the queue. Opening, missing data and an empty/oversized source do not complete the exercise. The English readability approximation is not literary quality, native goal word units or authorship evidence."
   },
   {
     "id": 28,
     "title": "Nabokov analysis",
-    "help_topic": "writingdeck",
-    "event": null,
-    "instructions": "Run the optional offline Python analyzer and inspect dialogue-aware results. Planned."
+    "help_topic": "prose-dashboard",
+    "event": "NabokovFindingReviewed",
+    "instructions": "Use the Prose and revision dashboard. In your demo, a sentence such as The gate was opened by Mara. can demonstrate the passive pattern. Save it; choose Revision or DeepReview with p. d discloses the trained local spaCy pipeline; y permits ONE exact source/configuration run. No runtime downloads, detector rules or live opt-in. Review an actual returned Nabokov finding in the queue with Enter. A rewrite direction is never a literal replacement. Missing model/failed work/consent alone cannot complete this lesson. l explicitly controls dialogue-style relaxation."
   },
   {
     "id": 29,
     "title": "Proselint",
-    "help_topic": "writingdeck",
-    "event": null,
-    "instructions": "Run standalone proselint and inspect deduplicated editorial findings. Planned."
+    "help_topic": "prose-dashboard",
+    "event": "ProselintFindingReviewed",
+    "instructions": "Run the pinned standalone non-model proselint adapter through r in Prose and revision dashboard. In the demo, He could of gone. can demonstrate a specialized usage finding. Inspect a real returned proselint finding in the queue with Enter, including equivalent-rule provenance. Merely running an empty/missing engine does not complete the lesson; quoted fictional dialogue is still prose. Corrections are optional and always explicit native Replace/Undo."
   },
   {
     "id": 30,
     "title": "Author-style preservation",
-    "help_topic": "writingdeck",
-    "event": null,
-    "instructions": "Build a profile from enough of your own writing and review informational deviations. Planned."
+    "help_topic": "prose-dashboard",
+    "event": "VoiceProfileCompared",
+    "instructions": "In Prose and revision dashboard choose v then n. Explicitly select your own saved original manuscript sources, not research or a repeated copy. Prepare and save a frozen numeric/reference baseline using at least 5,000 analysis words, 40 segments and one source with 150 distinct normalized words. A short demo is intentionally insufficient. Analyze at least 300 current words/five segments; return to v and press c to review the actual reference comparison. Saving, selecting or opening alone does not finish this exercise. Differences describe narrator/form/genre/intent, not literary quality or human authorship. No live rebase or manuscript copy is stored."
   },
   {
     "id": 31,

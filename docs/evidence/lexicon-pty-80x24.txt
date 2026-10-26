@@ -1,0 +1,24 @@
+┌ Dictionary and thesaurus · local WordNet 3.0 ────────────────────────────────┐
+│WordNet 3.0 · no model / network / automatic replacement                      │
+│Copied "cold" for Ctrl-V here. No source change; Esc through senses/query retu│
+│hot · adjective sense 1 · synset byte 1247240                                 │
+│used of physical heat; having a high or higher than desirable temperature or  │
+│giving off heat or feeling or causing a sensation of heat or burning; "hot    │
+│stove"; "hot water"; "a hot August day"; "a hot stuffy room"; "she's hot and  │
+│tired"; "a hot forehead"                                                      │
+│EXPLICIT ANTONYM POINTERS (Tab changes to synonyms)                           │
+│› cold                                                                        │
+│having a low or inadequate temperature or feeling a sensation of coldness or  │
+│having been made cold by e.g. ice or refrigeration; "a cold climate"; "a      │
+│cold room"; "dinner has gotten cold"; "cold fingers"; "if you are cold, turn  │
+│up the heat"; "a cold beer"                                                   │
+│Copy is explicit. It does not replace a source word; return to the original   │
+│editor and use ordinary selection/paste if desired.                           │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│↑↓ choose word · Tab synonyms/antonyms · c explicit copy · Esc senses         │
+│PgUp/PgDn scroll · F1 help · no automatic insertion or literary-quality score │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘

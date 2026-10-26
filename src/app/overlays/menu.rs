@@ -344,6 +344,14 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "Original next-session prose and explicit saved manuscript context resume.",
             "handoff",
         ),
+        Action::ProseDashboard => (
+            "Local advisory prose statistics, pinned offline tools, source-safe ranked review and selected-reference voice profiles",
+            "prose-dashboard",
+        ),
+        Action::Lexicon => (
+            "Read-only offline WordNet senses, definitions, synonyms and explicit sense-specific antonyms; no generated definitions or automatic manuscript edits.",
+            "lexicon",
+        ),
         Action::WritingChecks => (
             "Opt-in local Harper grammar, original-source highlights and explicit undoable review; no automatic prose edits or mandatory model use.",
             "writing-checks",

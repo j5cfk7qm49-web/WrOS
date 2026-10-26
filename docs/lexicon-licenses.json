@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "resource": "Princeton WordNet 3.0",
+  "debian_package": "wordnet-base",
+  "debian_version": "1:3.0-39",
+  "binary_archive_sha256": "f4f96d4d5d19061916c66cbb889a0119e6a46f9655051f5fd42b7317e46ce4db",
+  "source": "https://deb.debian.org/debian/pool/main/w/wordnet/wordnet-base_3.0-39_all.deb",
+  "declared_data_license": "WordNet-3.0",
+  "retained_notice": "os/licenses/WORDNET-3.0-NOTICE.txt",
+  "retained_notice_sha256": "f461bac9a5a1810c4fe1e3cec0a980f79406e3a8c1c147f3874979fb00e2cc0e",
+  "default_data_path": "/usr/share/wordnet",
+  "runtime_downloads": false,
+  "data_files": [
+    {
+      "file": "adj.exc",
+      "bytes": 23019,
+      "sha256": "8824cc24bbedd797b9702316b27f07cd4c2b76b629539f0a1276f03926758016"
+    },
+    {
+      "file": "adv.exc",
+      "bytes": 85,
+      "sha256": "e7291461b629abfe63301bbe1998cee09fd575ed7107abd7ea9763adb05bf0a8"
+    },
+    {
+      "file": "data.adj",
+      "bytes": 3155427,
+      "sha256": "c89120dfc1f046ddff4a631bf9b7e9fa1a36b5e86565a23bf82dbe14f30b88a7"
+    },
+    {
+      "file": "data.adv",
+      "bytes": 516696,
+      "sha256": "444a63bf3955080ab7524f5079cfc07ff9bc682cb98bdb1db73b0fb9829f1139"
+    },
+    {
+      "file": "data.noun",
+      "bytes": 15300280,
+      "sha256": "fea17d2f9656611334eac790e5d69e47645fa180c4aa481fb4cd9b3520754ca2"
+    },
+    {
+      "file": "data.verb",
+      "bytes": 2772517,
+      "sha256": "adcf43e35b581e8036d8b5a52d63d9cd3d3b4870b2720d3c03c799df44777bc2"
+    },
+    {
+      "file": "index.adj",
+      "bytes": 824127,
+      "sha256": "c9865d7b4d1f805bdef82ccdcea5282436e23083e6f6f1b33e716327c4eda810"
+    },
+    {
+      "file": "index.adv",
+      "bytes": 162816,
+      "sha256": "6f5465ed5758fe9c8a2f7ec17b1300f3aa875756c70ff7cba162f7e71bcf88ea"
+    },
+    {
+      "file": "index.noun",
+      "bytes": 4786655,
+      "sha256": "a490d99d93d017bf4822fe2f0ffa51fd73911ce271dc7535fade21f8814b5a04"
+    },
+    {
+      "file": "index.verb",
+      "bytes": 523980,
+      "sha256": "e2ac24816c3a8289dcb72aaa9cf8db81fdf25ec34d792bfc96ac5b7a20c8b4ae"
+    },
+    {
+      "file": "noun.exc",
+      "bytes": 38301,
+      "sha256": "2b5d675c380b39ecf595af9fa9d4e7feb1d58c643b0bff08c40ed5bfe41fab7a"
+    },
+    {
+      "file": "verb.exc",
+      "bytes": 38033,
+      "sha256": "dbbcf9a601b2d77e934e413b91d90e88ec7f933a8b77cfc00602a923b891b42c"
+    }
+  ],
+  "limits": "Archive/file integrity plus upstream notice review, not complete OS corresponding-source/legal/release clearance. Custom local data roots are format-checked, not authenticated by this record."
+}

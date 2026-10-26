@@ -40,6 +40,11 @@ pub enum Event {
     SparkCombinedCaptured,
     SpellingOpened,
     GrammarApplied,
+    DictionarySenseReviewed,
+    ProseStatsReviewed,
+    NabokovFindingReviewed,
+    ProselintFindingReviewed,
+    VoiceProfileCompared,
     HistoryOpened,
     SystemOpened,
     RecoveryHelpOpened,
@@ -48,7 +53,12 @@ impl Event {
     pub fn safe_outside_demo(self) -> bool {
         matches!(
             self,
-            Self::DashboardOpened
+            Self::DictionarySenseReviewed
+                | Self::ProseStatsReviewed
+                | Self::NabokovFindingReviewed
+                | Self::ProselintFindingReviewed
+                | Self::VoiceProfileCompared
+                | Self::DashboardOpened
                 | Self::LayoutConfirmed
                 | Self::OutlineToggled
                 | Self::FocusEntered
@@ -240,7 +250,7 @@ mod tests {
             assert!(!l.instructions.is_empty());
         }
         let mut p = Progress::default();
-        assert!(p.start(25).is_err());
+        assert!(p.start(31).is_err());
         assert!(p.completed.is_empty());
     }
     #[test]

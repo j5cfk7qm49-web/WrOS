@@ -21,6 +21,7 @@ pub mod export_print;
 pub mod history;
 pub mod import;
 pub mod journal;
+pub mod lexicon;
 pub mod manuscript;
 pub mod measure;
 pub mod names;
@@ -30,6 +31,8 @@ pub mod pdf;
 pub mod pins;
 pub mod productivity;
 pub mod project;
+pub mod prose;
+pub mod prose_tools;
 pub mod recovery;
 pub mod resume;
 pub mod revision;
@@ -46,3 +49,7 @@ pub mod typeset;
 pub mod tutorial;
 pub mod workflow;
 pub mod workspaces;
+
+pub mod voice_profile;
+
+pub mod review_queue;

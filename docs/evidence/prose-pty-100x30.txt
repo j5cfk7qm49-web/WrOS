@@ -1,0 +1,30 @@
+┌ Prose and revision dashboard · local, advisory ──────────────────────────────────────────────────┐
+│Revision · General fiction · relaxed dialogue true · footnotes false                              │
+│Current source results ready. Coverage/status is explicit; missing engines are not a clean check. │
+│                                                                                                  │
+│Style · writingdeck-native / 1 / wordy-phrase · Narration                                         │
+│Original-source UTF-8 bytes 26..37; None                                                          │
+│Source selection preview: "in order to"                                                           │
+│Possible wordy phrase: "in order to". The shorter alternative may change rhythm/register; retain  │
+│it deliberately if intended.                                                                      │
+│Provenance: writingdeck-native:1/wordy-phrase                                                     │
+│› Literal alternative: "to" · a explicitly applies ONE native Replace; Undo remains yours         │
+│i ignores this occurrence for this run; m mutes the primary rul                                   │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│r run · d model once? · p profile · f fiction · l dialogue · o footnotes · v voice                │
+│Enter inspect · Tab filter · a apply one · g original/Harper · w reviewed · x dismiss             │
+│↑↓ select · PgUp/PgDn scroll · Esc back/close · F1 offline help                                   │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘

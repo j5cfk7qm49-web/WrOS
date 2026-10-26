@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-10-26T06:40:51.743780+00:00",
+  "scope": "Sandbox Linux actual non-root no-audio DEBUG binary; isolated demo/HOME, 100x30 PTY, two specified synthetic fixtures. NOT physical or production/battery qualification.",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "25aaf5a6c43f6b67e81d8d774c28e224ffd650465b8da64a80641c117e3fb41f",
+    "file_count": 244,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "binary_sha256": "a8061d3feb725ca833f069da5429632411549f080b66a9bc9c47286f79f4a3dd",
+  "runtime": "harper-core-2.13.0/brill-2.13.0/pos-2.13.0",
+  "measurements": [
+    {
+      "fixture": "small-unicode-dialogue",
+      "source_body_bytes": 86,
+      "fixture_sha256": "ea9f3a39444dd439e7fb27508377165d5ae5ec617b093254781e0a10f96d4d84",
+      "baseline": {
+        "VmHWM": 35512,
+        "VmRSS": 35512,
+        "Threads": 3,
+        "cpu_seconds": 0.2
+      },
+      "cold": {
+        "wall_ms": 4884.04,
+        "engine_reported_ms": 4821,
+        "cpu_seconds_delta": 4.91,
+        "max_sampled_rss_kib": 186312,
+        "kernel_peak_rss_kib": 186312,
+        "after": {
+          "VmHWM": 186312,
+          "VmRSS": 186312,
+          "Threads": 5,
+          "cpu_seconds": 5.24
+        }
+      },
+      "hot": {
+        "wall_ms": 258.32,
+        "engine_reported_ms": 8,
+        "cpu_seconds_delta": 0.02,
+        "max_sampled_rss_kib": 186312,
+        "kernel_peak_rss_kib": 186312,
+        "after": {
+          "VmHWM": 186312,
+          "VmRSS": 186312,
+          "Threads": 5,
+          "cpu_seconds": 5.26
+        }
+      },
+      "after_pause": {
+        "VmHWM": 186312,
+        "VmRSS": 186312,
+        "Threads": 5,
+        "cpu_seconds": 5.26
+      }
+    },
+    {
+      "fixture": "synthetic-2340-words",
+      "source_body_bytes": 12740,
+      "fixture_sha256": "5ad1e8bfc7d8cb5c12ed9b47576a24eed05c2606c89d359b4819f374a5bc9af9",
+      "baseline": {
+        "VmHWM": 35352,
+        "VmRSS": 35348,
+        "Threads": 2,
+        "cpu_seconds": 0.39
+      },
+      "cold": {
+        "wall_ms": 5330.83,
+        "engine_reported_ms": 5221,
+        "cpu_seconds_delta": 5.5,
+        "max_sampled_rss_kib": 187544,
+        "kernel_peak_rss_kib": 187544,
+        "after": {
+          "VmHWM": 187544,
+          "VmRSS": 187544,
+          "Threads": 5,
+          "cpu_seconds": 6.05
+        }
+      },
+      "hot": {
+        "wall_ms": 831.4,
+        "engine_reported_ms": 593,
+        "cpu_seconds_delta": 0.66,
+        "max_sampled_rss_kib": 191288,
+        "kernel_peak_rss_kib": 191288,
+        "after": {
+          "VmHWM": 191288,
+          "VmRSS": 191288,
+          "Threads": 5,
+          "cpu_seconds": 6.71
+        }
+      },
+      "after_pause": {
+        "VmHWM": 191324,
+        "VmRSS": 190912,
+        "Threads": 4,
+        "cpu_seconds": 6.73
+      }
+    }
+  ],
+  "limits": [
+    "End-to-end includes polling/render timing; kernel VmHWM catches peaks between RSS samples.",
+    "Pause drops the receiver/worker reference; active native parsing is not preempted. Shared dictionary and allocator memory can remain.",
+    "No latency/RSS claim for Python/spaCy, physical low-power CPUs or arbitrary long prose. 65,536-byte service cap remains explicit."
+  ]
+}

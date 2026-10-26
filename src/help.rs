@@ -37,6 +37,12 @@ pub const TOPICS: &[Topic] = &[
     topic!("notes", "Notes & TKs", "05-notes-and-tks.md"),
     topic!("spelling", "Spelling", "06-spelling.md"),
     topic!("writing-checks", "Writing checks", "35-writing-checks.md"),
+    topic!("lexicon", "Dictionary and thesaurus", "36-lexicon.md"),
+    topic!(
+        "prose-dashboard",
+        "Prose and revision dashboard",
+        "37-prose-dashboard.md"
+    ),
     topic!("find", "Find & replace", "07-find-and-replace.md"),
     topic!("notebook", "The notebook & names", "08-the-notebook.md"),
     topic!("beside", "A scene beside", "09-a-scene-beside.md"),
