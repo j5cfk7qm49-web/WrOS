@@ -78,6 +78,8 @@ def main():
         '/usr/libexec/writingdeck-vm-fixtures/guest-prose-probe.py'], text=True, stderr=subprocess.STDOUT, timeout=250))
     assert prose['uid'] != 0 and len(prose['engines']) == 3 and prose['wordnet_senses'] == 21
     marker('WRITINGDECK_VM_PROSE_RESULT ' + json.dumps(prose))
+    if prose['budget_limited_engines']:
+        marker('WRITINGDECK_VM_PROSE_CPU_LIMIT ' + ','.join(prose['budget_limited_engines']))
     marker('WRITINGDECK_VM_PROSE_PASS uid=' + str(prose['uid']))
     marker('WRITINGDECK_VM_PASS')
     time.sleep(4)  # Host captures an actual QEMU display screenshot via QMP.

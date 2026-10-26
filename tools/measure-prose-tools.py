@@ -34,7 +34,7 @@ def main():
     measurements = []
     fixtures = [
         ('unicode-dialogue', 'Café 🦊 e\u0301. “He could of gone,” Mara said. The gate was opened by Mara. We waited in order to see.\n'),
-        ('repetitive-4800-words', ('The courier waited in order to see the gate. It was opened by Mara. She carried a lantern through the rain.\n\n')*200),
+        ('synthetic-repeated-prose', ('The courier waited in order to see the gate. It was opened by Mara. She carried a lantern through the rain.\n\n')*200),
     ]
     with tempfile.TemporaryDirectory(prefix='wros-prose-measure-') as tmp:
         base = Path(tmp)

@@ -47,7 +47,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: m7b-software-${{ github.sha }}
-          path: build/verification/m7b/*.log
+          path: |
+            build/verification/*.log
+            build/verification/partial-results.json
+            docs/evidence/test-results.json
           if-no-files-found: warn
 
   macos:
