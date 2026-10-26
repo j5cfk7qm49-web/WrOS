@@ -59,6 +59,7 @@ impl App {
         match self.overlay {
             Overlay::None => {}
             Overlay::Deck(_) => self.on_deck_key(key),
+            Overlay::Spark { .. } => self.on_spark_key(key),
             Overlay::Productivity { .. } | Overlay::ProductivityInput { .. } => {
                 self.on_productivity_key(key)
             }
@@ -183,6 +184,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     match &app.overlay {
         Overlay::None => {}
         Overlay::Deck(_) => super::writingdeck::draw(f, app, area, t),
+        Overlay::Spark { .. } => super::spark::draw(f, app, area, t),
         Overlay::Productivity { .. } | Overlay::ProductivityInput { .. } => {
             super::productivity::draw(f, app, area, t)
         }

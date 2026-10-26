@@ -36,6 +36,7 @@ impl App {
     pub fn help_context(&self) -> &'static str {
         match &self.overlay {
             Overlay::Deck(_) => "writingdeck",
+            Overlay::Spark { .. } => "story-spark",
             Overlay::Productivity { .. } | Overlay::ProductivityInput { .. } => "productivity",
             Overlay::Journal => "journal",
             Overlay::Scratchpad => "scratchpad",

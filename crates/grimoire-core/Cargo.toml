@@ -17,6 +17,7 @@ spellbook = "0.4.2"
 toml = "1.1.6"
 unicode-width = "0.2.2"
 similar = "2"
+sha2 = "=0.10.9"
 zip = { version = "8.6", default-features = false, features = ["deflate-flate2"] }
 flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
 unicode-normalization = "0.1"

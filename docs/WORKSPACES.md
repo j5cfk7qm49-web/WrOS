@@ -101,4 +101,8 @@ The layout reader/preflight and save enforce a 1 MiB limit. Invalid/oversized/fu
 
 ## M5 additive dashboard tools
 
-Six appended optional widgets expose recorded edits, advanced goals, calendar/rest days, advanced sprints, milestone collection and daily challenges. There are 20 widget kinds and 21 alias actions; legacy order/visibility/chord ownership remain intact and old layouts gain the missing widgets additively. Counts are cached checkpointed observations, not an inference from a visible editor. The accounting summary has an explicit civil date and one pending-group label; word gaps are unavailable.
+Six appended optional widgets expose recorded edits, advanced goals, calendar/rest days, advanced sprints, milestone collection and daily challenges. At initial M5 there were 20 widget kinds and 21 alias actions (M6 appends one of each); legacy order/visibility/chord ownership remain intact and old layouts gain the missing widgets additively. Counts are cached checkpointed observations, not an inference from a visible editor. The accounting summary has an explicit civil date and one pending-group label; word gaps are unavailable.
+
+## M6 additive Spark reader
+
+Story Spark adds a 21st optional widget and 22nd alias target without a new default chord, schema reset or replacement of saved widget order/visibility. Its cached summary never generates a result during draw. It is reachable through the nested Productivity menu/palette even when the widget is hidden. Read-only Spark overlay paste/cut/undo/mouse paths cannot target a hidden manuscript. Focus and low-power suppress optional roulette. New scratch/scene actions use the real original-source services and owner registry; source-safe pin retries reuse the same active card without changing the generic pinboard's independent duplicate-card behavior. See [STORY_SPARK](STORY_SPARK.md).

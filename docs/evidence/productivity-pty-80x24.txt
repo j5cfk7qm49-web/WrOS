@@ -16,9 +16,9 @@
 │                                                                              │
 │                                                                              │
 │                                                                              │
-│                                                                              │
-│                                                                              │
-│a accept · c check measured · x self-report · R reroll · f filters · ←→ date  │
+│a accept · c check measured · x self-report · R reroll · f filters · S        │
+│optional Spark · ←→ date                                                      │
 │r reload/retry · Tab page · PgUp/PgDn scroll · Esc back · F1 policy           │
+│Challenge completion recorded: Measured; no quality/reading proof inferred    │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘

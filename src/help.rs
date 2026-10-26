@@ -61,6 +61,7 @@ pub const TOPICS: &[Topic] = &[
     topic!("license", "License", "25-license.md"),
     topic!("writingdeck", "WritingDeck OS", "28-writingdeck.md"),
     topic!("pins", "Sticky-note pins", "29-pins.md"),
+    topic!("story-spark", "Offline Story Spark", "34-story-spark.md"),
     topic!("journal", "Writing journal", "30-journal.md"),
     topic!("scratchpad", "Scratchpad", "31-scratchpad.md"),
     topic!("handoff", "Session handoff", "32-handoff.md"),

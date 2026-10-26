@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of": "2026-10-25",
-  "release": "0.1.0-dev foundation + M3b + initial M4",
+  "release": "0.1.0-dev foundation + M3b + M4 + initial M5 + M6 software",
   "features": [
     {
       "area": "Baseline",
@@ -351,25 +351,25 @@
       "area": "Story Spark",
       "capability": "Specific source/license research and exclusion manifest",
       "status": "Tested",
-      "verification": "Manifest/source review",
+      "verification": "Pinned original source/artifact registry + six Python provenance contracts",
       "hardware_verified": false,
-      "detail": "No third-party challenge corpus bundled yet"
+      "detail": "Historical OCR/modern cleanup and all third-party candidates unbundled; original AI-assisted M6 bundle has explicit review/rights limits"
     },
     {
       "area": "Story Spark",
       "capability": "1,000+ substantive curated plot options + exercise corpus",
-      "status": "Planned",
-      "verification": "None",
+      "status": "Tested",
+      "verification": "Offline compiler/--check, core exact-ID/hash/provenance tests and six Python corpus contracts",
       "hardware_verified": false,
-      "detail": "No inflated record-count completeness claim"
+      "detail": "1047 accepted independently worded plots / 84 exercises; 1051 literal drafts, four substantive-overlap holds. AI-assisted authoring/agent editorial review, not independent human/legal or semantic certification"
     },
     {
       "area": "Story Spark",
       "capability": "Four modes, compatible combinations, roulette/static, history/favorites/actions",
-      "status": "Planned",
-      "verification": "None",
+      "status": "Tested",
+      "verification": "28 Spark core + 28 real UI + adoption tests; four compiled PTY methods/four-size loaded restart",
       "hardware_verified": false,
-      "detail": "Offline non-AI design; tutorial lessons disabled until real"
+      "detail": "Offline non-AI; exact rerolls, civil-date daily, bounded references, real Markdown/pin/scratch/scene/timed sprint and optional SELF-REPORTED assignment; no M8 structured-task fiction"
     },
     {
       "area": "Writing tools",
@@ -521,7 +521,7 @@
       "status": "Tested",
       "verification": "Core + actual editor/UI tests",
       "hardware_verified": false,
-      "detail": "24 event-capable lessons including genuine calendar/rest choice, nonempty collection review and accepted measured challenge completion; 15 explicitly unavailable; context event is not OS/process attestation"
+      "detail": "27 event-capable / 12 unavailable; M6 22–24 require real saved plot, exercise favorite and reroll/favorite/new scene chain. Context events are not OS/process or creative-completion attestation"
     },
     {
       "area": "Tutorial",

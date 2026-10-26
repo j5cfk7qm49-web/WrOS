@@ -42,10 +42,13 @@ Milestones are optional, deduplicated and non-punitive. Keyboard additions and r
 
 ## Daily challenges and persistence
 
-The bundled bank contains 30 original MIT exercises across all ten categories. It is a small usable exercise bank, **not** the later licensed 1,000-option plot corpus or completed Story Spark.
+The bundled bank contains 30 original MIT exercises across all ten categories. It is a small usable exercise bank, separate from M6 Story Spark’s 1,047 agent-accepted original plots and 84 exercises; see Story Spark help for its original-content review limits.
 
 Assignments persist by local civil date with creation timezone, stable record references, source stamps, seed, bank version, filters and lifecycle history. A reboot does not reroll; a repeated date retrieves its existing assignment, including after timezone travel or DST. The initial set prefers recent-unseen exercises; explicit rerolls refuse a hidden repeat when their eligible pool is exhausted. Filters do not silently replace today's tasks. No assignment is fabricated for a past missing date.
 
 Accept a measured task before working, use its stated Drafting/Revision mode, then checkpoint real edits with Ctrl-S and press c. Work before acceptance is excluded. Subjective creative/reading tasks use x and stay **SelfReported**, never automatic prose/reading verification. Disabling challenges generates no new assignments and sends no challenge notice.
 
 Metadata uses bounded, checked, guarded files under `.grimoire/writingdeck/`. Future/unknown/corrupt/conflicting files are preserved, not overwritten as defaults. Pending operation groups remain in memory on write failure. Normal quit/book switch requests a checkpoint; explicit force quit can lose uncheckpointed metrics or timer intervals, never an excuse to claim they were recorded. This is controlled failure handling, not power-loss, locking/CAS or hostile-filesystem certification.
+
+
+Capital S on Daily challenges opens the separate optional Story Spark assignment. Its completion is explicitly self-reported, not a measured M5 criterion. Timed sprint targets are minutes; Spark timer completion does not prove creative completion.

@@ -4,7 +4,7 @@ This is an engineering rights inventory, **not a legal opinion or worldwide publ
 
 ## Actually bundled creative/tutorial content
 
-The 39 tutorial instructions and the two short demo scenes are original WritingDeck project text under the repository's MIT terms. No third-party creative exercise, historical book body or modern prompt list has yet been added to the challenge corpus. Existing Hunspell dictionaries have their retained SCOWL/Ispell notices; they are software/reference data, not a creative prompt license shortcut.
+The 39 tutorial instructions, two short demo scenes, thirty M5 exercises and M6 original Spark bundle are under repository MIT terms to the extent rights subsist. M6 contains 1,047 accepted original plots and 84 exercises with AI-assisted drafting and agent authoring/editorial review; four additional held plot drafts remain in source, not the runtime count. Every accepted record pins edition/section/file/line/file SHA-256/text SHA-256 and adaptation/attribution. No independent human/legal or exclusive-copyright claim is made. No third-party creative exercise, historical book body or modern prompt list is bundled or counted. Existing Hunspell dictionaries have their retained SCOWL/Ispell notices; they are software/reference data, not a creative prompt license shortcut.
 
 ## Evaluated candidates (not bundled)
 
@@ -29,8 +29,14 @@ A full OS also contains GPL and other independently licensed packages. The repos
 
 ## Software inventory generation
 
-`python3 tools/generate-writingdeck-manifests.py` uses cached `cargo metadata --locked --offline`, retains Rust package notices in `os/licenses/RUST-THIRD-PARTY-NOTICES.txt`, hashes bundled original/dictionary files, and inventories the **staged guest** Debian packages (not host packages). It marks which resolved crates belong to the Linux no-audio build. Of 346 all-platform/default-feature Rust records, 31 published archives lack root-level notice files and remain review items; **none of these is used by the current Linux no-audio image**. The all-platform inventory is a superset, not a claim every crate is linked. Full OS corresponding-source/release review remains open. Regenerate after dependency/content changes and review the diff; do not use a generator to override unclear third-party rights.
+`python3 tools/generate-writingdeck-manifests.py` uses cached `cargo metadata --locked --offline`, retains Rust package notices in `os/licenses/RUST-THIRD-PARTY-NOTICES.txt`, hashes bundled original/dictionary files, and inventories the **staged guest** Debian packages (not host packages). It marks which resolved crates belong to the Linux no-audio build. The current generated all-platform/default-feature Rust inventory lists the actual resolved records; 31 published archives lack root-level notice files and remain review items; **none of these is used by the current Linux no-audio image**. The all-platform inventory is a superset, not a claim every crate is linked. Full OS corresponding-source/release review remains open. Regenerate after dependency/content changes and review the diff; do not use a generator to override unclear third-party rights.
 
 ## M3b content review
 
 Lesson 13 now instructs an actual safe-demo secondary edit; its wording is original MIT project text, as are the unchanged two demo scenes. Regenerate the bundled tutorial/demo hashes after reviewing this catalog change. No evaluated third-party candidate has been promoted to bundled status by adding the document engine or these tests.
+
+## M6 original content decision
+
+[CHALLENGE_LIBRARY](CHALLENGE_LIBRARY.md) and [spark-corpus-manifest.json](spark-corpus-manifest.json) distinguish all 1,051 literal plot drafts from 1,047 accepted situations; holds 0544/0679/0922/0986 are substantive-overlap decisions, not renumbered slots. The compiler validates stable IDs, normalized duplicates and exact provenance and publishes fixed editorial/lexical samples; none of that is independent human/legal attestation. `legal_clearance` and distribution readiness remain false.
+
+Cook's exact 1928 Archive OCR/XML research is recorded but not ingested into runtime. Sampled extraction defects and territory/narrative-span gaps led to independently worded originals instead. A modern cleaned transcript's absent license was not inferred from US public-domain status. All evaluated third-party candidates remain unbundled. No CC BY-SA content was relabeled MIT. Lessons 22–24 instructions are new original project wording, and the license registry pins their current catalog hash.

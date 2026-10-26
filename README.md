@@ -25,7 +25,7 @@ Start with [WritingDeck OS](docs/WRITING_DECK_OS.md), [current status](docs/STAT
 [feature matrix](docs/FEATURE_MATRIX.md) and [safe development/image instructions](docs/INSTALLATION.md).
 The whole-disk UEFI VM prototype boots as a non-root writer without a desktop.
 **It is an insecure VM-only demo, not a production laptop installer.** Later requested
-writing tools, full challenges/Spark, secure installation,
+writing tools, secure installation,
 lock/update/rollback and verified cloud backup remain incomplete. Existing Grimoire
 manuscript formats and shortcuts are retained.
 
@@ -51,13 +51,22 @@ processes verify save/restart behavior at four sizes. See [workflow guarantees](
 **Initial M5 adds tested recorded productivity:** actual-range keyboard/paste/replay
 receipts, conservative observed inter-edit clocks, native/measured goals, a November
 calendar/rest days, five sprint variants, optional milestones and 30 original daily
-exercises with persisted local-date assignments. There are 768 passing Rust tests
-per overlapping configuration, 37 Python methods and a fresh networkless VM boot.
+exercises with persisted local-date assignments. Executed suite counts and the
+source-aligned networkless VM evidence are recorded in current status.
 Source word units are not full rendered/native counts; keyboard-pair time is not
 exclusive-human-typing proof, and checkpoint crash tails are explicitly unclaimed.
 See [measurement policy and limits](docs/DAILY_CHALLENGES.md) and
-[current evidence](docs/STATUS.md). The 1,000-option corpus/Spark, later roadmap and
-production/power-loss/large-load/physical qualification remain incomplete.
+[current evidence](docs/STATUS.md).
+**M6 adds real offline Story Spark:** 1,047 agent-accepted original plot situations,
+84 independently useful exercises, four modes, compatible independent/joint
+rerolls, fixed local-date daily results, reference-only history/favorites, filters
+and actual source-safe save/pin/scratch/outline/task/empty-scene/sprint actions.
+The wording is AI-assisted original drafting and agent editorial review, MIT to
+the extent rights subsist—not independent human/legal clearance. Runtime is
+non-AI and needs no network. See [corpus provenance/review limits](docs/CHALLENGE_LIBRARY.md)
+and [Spark controls/recovery](docs/STORY_SPARK.md). Genuine safe-demo lessons
+22–24 join the catalog. M2b/M7–M10 and production/power-loss/large-load/physical
+qualification remain incomplete; this is not the completed full OS request.
 
 ## Why it exists
 

@@ -51,3 +51,7 @@ Both editable views now have independent Editor state; spelling, find/replace, c
 ## Recorded M5 productivity
 
 Advanced goals/calendar/rest days, five sprint variants/retained breaks, optional collection and frozen daily exercises now use actual source-range operations and conservative injected-clock spans, not old net baselines. This is 30 original exercises, not the 1,000-plot M6 corpus. Native words and bounded source word units are distinguished; keyboard-pair time is not exclusive-human-typing proof. Full implemented behavior, controls, tests and limits: [DAILY_CHALLENGES](DAILY_CHALLENGES.md).
+
+## M6 original Story Spark
+
+The separate [Story Spark](STORY_SPARK.md) now supplies 1,047 agent-accepted original plots and 84 usable exercises, real offline selection/rerolls/daily/history/favorites and original-source actions. See [corpus provenance/review limits](CHALLENGE_LIBRARY.md). This does not implement Harper, Python analyzers, WordNet, voice, M8 structured facts or genuine publishing footnotes. Task/outline captures remain honest Markdown source notes; qualitative completion is self-reported.

@@ -1,0 +1,24 @@
+┌ Story Spark · offline, non-AI ───────────────────────────────────────────────┐
+│  Status: Spark save · notes/sparks/r-0000000000000006.md · original scene    │
+│  preserved                                                                   │
+│  1047 original plots / 84 exercises · static offline selection               │
+│  r-0000000000000006 · Combined · 2026-10-26 · Etc/UTC                        │
+│  PLOT [wd-p-0237] · substitution · level 2 · suggested 20 min                │
+│  A race official discovers that a runner has completed a dangerous course    │
+│  while using another entrant's registration. The substitute was carrying     │
+│  medicine along the only open route, but awarding the finish would erase the │
+│  original entrant's recorded decision to withdraw.                           │
+│  EXERCISE [wd-x-0011] · description · level 1 · suggested 15 min             │
+│  Describe a familiar public place on a day when one regular visitor is       │
+│  absent. Use no dialogue and do not name the absence directly. Show which    │
+│  ordinary activities no longer happen or must be performed by someone else.  │
+│  Narrative conditions: narration-only                                        │
+│  Work mode: Drafting · creative completion is self-reported, not             │
+│  automatically scored.                                                       │
+│1 plot  2 exercise  3 combined  4 daily · p/e/r reroll plot/exercise/both     │
+│f favorite · x dismiss · s save · a actions · h history · F favorites · o     │
+│filters                                                                       │
+│PgUp/PgDn 0/4 · u reload · v source · t optional · Esc · F1 help              │
+│Spark save · notes/sparks/r-0000000000000006.md · original scene preserved    │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘

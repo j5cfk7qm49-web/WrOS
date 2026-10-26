@@ -35,6 +35,9 @@ pub enum Event {
     AchievementReviewed,
     DailyChallengeCompleted,
     SprintStarted,
+    SparkPlotSaved,
+    SparkExerciseFavorited,
+    SparkCombinedCaptured,
     SpellingOpened,
     HistoryOpened,
     SystemOpened,
@@ -236,7 +239,7 @@ mod tests {
             assert!(!l.instructions.is_empty());
         }
         let mut p = Progress::default();
-        assert!(p.start(22).is_err());
+        assert!(p.start(25).is_err());
         assert!(p.completed.is_empty());
     }
     #[test]

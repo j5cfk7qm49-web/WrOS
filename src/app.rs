@@ -35,6 +35,7 @@ pub(crate) mod journal;
 pub(crate) mod overlays;
 pub(crate) mod pins;
 pub(crate) mod productivity;
+pub(crate) mod spark;
 pub(crate) mod workflow;
 pub(crate) mod writingdeck;
 pub use aids::{MarkRow, Sprint, filter_marks as aids_filter};
@@ -172,6 +173,7 @@ type PdfJob = (
 
 pub struct App {
     pub productivity: productivity::Productivity,
+    pub spark: spark::Spark,
     pub deck: writingdeck::Deck,
     pub pins: pins::Pins,
     pub journal: journal::Journal,
@@ -431,6 +433,11 @@ pub enum Overlay {
     Journal,
     Scratchpad,
     Handoff,
+    Spark {
+        page: spark::Page,
+        sel: usize,
+        scroll: Option<usize>,
+    },
     Productivity {
         page: productivity::Page,
         sel: usize,
@@ -753,6 +760,7 @@ impl App {
         let views = documents::Views::new(&project.root)?;
         let pins = pins::Pins::load(&project.root);
         let productivity = productivity::Productivity::load(&project.root);
+        let spark = spark::Spark::load(&project.root);
         let workflow = workflow::Workflow::load(&project.root);
         let complete = !project.nodes.iter().any(|n| {
             n.in_manuscript
@@ -807,6 +815,7 @@ impl App {
 
         Ok(Self {
             productivity,
+            spark,
             deck,
             pins,
             journal,
@@ -2061,6 +2070,7 @@ impl App {
                 self.overlay = Overlay::Deck(writingdeck::Page::Tutorial { sel: 0 })
             }
             Action::ToggleOutline => self.toggle_outline(),
+            Action::StorySpark => self.open_spark(),
             Action::Productivity => self.open_productivity(productivity::Page::Overview),
             Action::MeasuredGoals => self.open_productivity(productivity::Page::Goals),
             Action::Calendar => self.open_productivity(productivity::Page::Calendar),
@@ -4831,6 +4841,7 @@ impl App {
                 | Overlay::Journal
                 | Overlay::Scratchpad
                 | Overlay::Handoff
+                | Overlay::Spark { .. }
                 | Overlay::Productivity { .. }
                 | Overlay::ProductivityInput { .. }
         ) {
@@ -5061,6 +5072,7 @@ impl App {
                 ("Toggle pins sidebar".into(), Action::TogglePins),
             ],
             Sub::Productivity => vec![
+                ("Story Spark…".into(), Action::StorySpark),
                 ("Recorded edit ledger…".into(), Action::Productivity),
                 ("Advanced goals…".into(), Action::MeasuredGoals),
                 ("Calendar and rest days…".into(), Action::Calendar),

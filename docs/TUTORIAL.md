@@ -2,7 +2,7 @@
 
 ## Current implementation
 
-The compiled catalog at `crates/grimoire-core/assets/writingdeck/tutorial.json` lists **all 39 requested lessons**. Twenty-one have actual application-event hooks; the other 18 are explicitly marked **planned** and cannot be started/completed. This is a continuously developed framework, not a claim of full tutorial completion.
+The compiled catalog at `crates/grimoire-core/assets/writingdeck/tutorial.json` lists **all 39 requested lessons**. Twenty-seven have actual application-event hooks; the other 12 are explicitly marked **planned** and cannot be started/completed. This is a continuously developed framework, not a claim of full tutorial completion.
 
 Open F12 → Interactive tutorial, or use the menu/command palette. Arrow keys select a lesson; Enter shows its instructions and then starts the real feature; `h` opens linked searchable offline help; `s` skips; Escape returns. Completed lessons can be replayed. Progress is schema-versioned, atomically guarded and stored with the project. There is no fake Next/Done button.
 
@@ -40,9 +40,9 @@ The demo contains original short text and a deliberate spelling error. Nothing i
 | 19 | Sprints | Wired: actual baseline sprint starts |
 | 20 | Achievements | Wired: review an actual nonempty milestone collection; an empty page is insufficient |
 | 21 | Daily challenges | Wired: accepted, persisted measured completion after genuine demo manuscript work; subjective self-report is insufficient |
-| 22 | Story Spark plot | Planned |
-| 23 | Random writing challenge | Planned |
-| 24 | Combined roulette | Planned |
+| 22 | Story Spark plot | Wired: real plot-only result publication to an original saved Markdown note; generation/ready-source retries alone are insufficient |
+| 23 | Random writing challenge | Wired: independently usable exercise-only generation and successfully persisted exact favorite |
+| 24 | Combined roulette | Wired: compatible combined ancestor chain proves independent plot/exercise + joint rerolls, retained favorite and newly ready independent experimental scene; animation optional |
 | 25 | Dictionary/thesaurus | Planned |
 | 26 | Grammar/spelling | Wired baseline spelling suggestions; grammar part planned |
 | 27 | Hemingway-style analysis | Planned |
@@ -73,4 +73,6 @@ Core tests verify 39 stable lesson IDs, unavailable lesson rejection, event matc
 
 Lessons 15/16 exercise the original-source workflows described in [WORKFLOW](WORKFLOW.md). Lesson 16's event verifies a new App context with the saved source, not a measured reboot or process identity; separate compiled-app PTYs perform actual quit/restart and edit/undo the loaded original. Blank/failed/paste-only navigation and ordinary novels cannot manufacture completion. All 39 full exercises are not yet delivered.
 
-M5 adds real exercises 18/20/21, with controller tests for completion and noncompletion. There are 24 event-capable lessons and 15 unavailable ones, not 39 completed exercises. Lessons 17/19 retain baseline goals/sprints. See [DAILY_CHALLENGES](DAILY_CHALLENGES.md) for the precise observed/source-word measurement policy and restart limits.
+M5 adds real exercises 18/20/21, with controller tests for completion and noncompletion. Initial M5 had 24 event-capable lessons and 15 unavailable ones; M6 now has 27 and 12, not 39 completed exercises. Lessons 17/19 retain baseline goals/sprints. See [DAILY_CHALLENGES](DAILY_CHALLENGES.md) for the precise observed/source-word measurement policy and restart limits.
+
+M6 lessons 22–24 have real source/reference postconditions, ordinary-novel gating and completion/noncompletion tests in `src/spark_ui_tests.rs`. Lesson 24 reads the persisted ancestor chain, not a presentation-only spin count. A previously ready source retry is not a new save/scene publication. All content is optional and offline; these tutorial events are not evidence that a person performed a creative exercise. See [STORY_SPARK](STORY_SPARK.md).

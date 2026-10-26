@@ -27,6 +27,7 @@ pub enum Action {
     AdvancedSprints,
     Achievements,
     DailyChallenges,
+    StorySpark,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

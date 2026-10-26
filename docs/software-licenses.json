@@ -315,7 +315,7 @@
       "version": "0.10.4",
       "declared_license": "MIT OR Apache-2.0",
       "repository": "https://github.com/RustCrypto/utils",
-      "used_in_linux_no_audio_build": false,
+      "used_in_linux_no_audio_build": true,
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "notice_files": [
         {
@@ -670,7 +670,7 @@
       "version": "0.2.17",
       "declared_license": "MIT OR Apache-2.0",
       "repository": "https://github.com/RustCrypto/utils",
-      "used_in_linux_no_audio_build": false,
+      "used_in_linux_no_audio_build": true,
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "notice_files": [
         {
@@ -752,7 +752,7 @@
       "version": "0.1.7",
       "declared_license": "MIT OR Apache-2.0",
       "repository": "https://github.com/RustCrypto/traits",
-      "used_in_linux_no_audio_build": false,
+      "used_in_linux_no_audio_build": true,
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "notice_files": [
         {
@@ -899,7 +899,7 @@
       "version": "0.10.7",
       "declared_license": "MIT OR Apache-2.0",
       "repository": "https://github.com/RustCrypto/traits",
-      "used_in_linux_no_audio_build": false,
+      "used_in_linux_no_audio_build": true,
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "notice_files": [
         {
@@ -1286,7 +1286,7 @@
       "version": "0.14.7",
       "declared_license": "MIT",
       "repository": "https://github.com/fizyk20/generic-array.git",
-      "used_in_linux_no_audio_build": false,
+      "used_in_linux_no_audio_build": true,
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "notice_files": [
         {
@@ -3587,7 +3587,7 @@
       "version": "0.10.9",
       "declared_license": "MIT OR Apache-2.0",
       "repository": "https://github.com/RustCrypto/hashes",
-      "used_in_linux_no_audio_build": false,
+      "used_in_linux_no_audio_build": true,
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "notice_files": [
         {
@@ -4354,7 +4354,7 @@
       "version": "1.20.1",
       "declared_license": "MIT OR Apache-2.0",
       "repository": "https://github.com/paholg/typenum",
-      "used_in_linux_no_audio_build": false,
+      "used_in_linux_no_audio_build": true,
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "notice_files": [
         {
@@ -4648,7 +4648,7 @@
       "version": "0.9.5",
       "declared_license": "MIT/Apache-2.0",
       "repository": "https://github.com/SergioBenitez/version_check",
-      "used_in_linux_no_audio_build": false,
+      "used_in_linux_no_audio_build": true,
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "notice_files": [
         {

@@ -384,6 +384,7 @@ pub struct Sprint {
     pub metrics_incomplete: bool,
     pub deletion_observed: bool,
     pub challenge: Option<(String, String)>,
+    pub spark: Option<crate::spark::ResultRef>,
     pub break_timer: Option<Box<Sprint>>,
     pub breaks: Vec<Sprint>,
     #[serde(skip)]
@@ -425,6 +426,7 @@ impl Sprint {
             metrics_incomplete: false,
             deletion_observed: false,
             challenge: None,
+            spark: None,
             break_timer: None,
             breaks: vec![],
             anchor_ms: Some(at.mono_ms),
@@ -632,6 +634,9 @@ impl Validate for Sprint {
         }
         chrono::DateTime::parse_from_rfc3339(&self.started_at)?;
         chrono::DateTime::parse_from_rfc3339(&self.last_checkpoint)?;
+        if let Some(spark) = &self.spark {
+            spark.validate()?;
+        }
         if let Some((day, id)) = &self.challenge {
             crate::journal::date(day)?;
             if id.is_empty() || id.len() > 80 {

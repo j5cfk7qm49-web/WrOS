@@ -276,6 +276,9 @@ impl App {
         self.pin_document(&path, None);
     }
     pub fn pin_document(&mut self, path: &Path, relink: Option<u64>) {
+        let _ = self.try_pin_document(path, relink);
+    }
+    pub(super) fn try_pin_document(&mut self, path: &Path, relink: Option<u64>) -> Result<u64> {
         self.flush();
         let result = (|| -> Result<u64> {
             let source = path.strip_prefix(&self.project.root)?.to_path_buf();
@@ -304,7 +307,7 @@ impl App {
             })
         })();
         match result {
-            Ok(_) => {
+            Ok(id) => {
                 self.pins.board_life = relink
                     .and_then(|id| {
                         self.pins
@@ -327,6 +330,7 @@ impl App {
                 if relink.is_none() {
                     self.observe_deck(grimoire_core::tutorial::Event::PinCreated);
                 }
+                Ok(id)
             }
             Err(e) => {
                 // A failed pin/relink must not unexpectedly return typing to
@@ -334,6 +338,7 @@ impl App {
                 self.overlay = Overlay::Pins;
                 self.tree_drag = None;
                 self.msg = format!("Pin not saved: {e:#}; sources untouched");
+                Err(e)
             }
         }
     }

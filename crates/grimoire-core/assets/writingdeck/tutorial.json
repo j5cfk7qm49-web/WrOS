@@ -149,23 +149,23 @@
   {
     "id": 22,
     "title": "Story Spark plot generation",
-    "help_topic": "writingdeck",
-    "event": null,
-    "instructions": "Generate and save an offline plot situation. Planned; no unreviewed modern prompt lists are bundled."
+    "help_topic": "story-spark",
+    "event": "SparkPlotSaved",
+    "instructions": "In the safe demo, open Story Spark through Productivity tools or the palette. Press 1 for plot-only, inspect the complete situation and v provenance, then s to create a saved Markdown note. Opening the view or generating alone is not completion; the lesson requires a real saved original source. No active scene is replaced."
   },
   {
     "id": 23,
     "title": "Random writing challenges",
-    "help_topic": "writingdeck",
-    "event": null,
-    "instructions": "Choose a creative constraint from the licensed library. Planned."
+    "help_topic": "story-spark",
+    "event": "SparkExerciseFavorited",
+    "instructions": "In the safe demo, open Story Spark, press 2 for an independently usable exercise, and read its work mode. o edits future filters; Esc cancels without saving. Press f to favorite the exact exercise-only reference. The lesson requires a successfully persisted favorite, not opening a list or checking a fake completion button."
   },
   {
     "id": 24,
     "title": "Combined plot-and-challenge roulette",
-    "help_topic": "writingdeck",
-    "event": null,
-    "instructions": "Reroll plot and constraint independently or together, with a static accessible view. Planned."
+    "help_topic": "story-spark",
+    "event": "SparkCombinedCaptured",
+    "instructions": "In the safe demo, open Story Spark and press 3 for a compatible combined result. f favorites it; p changes only plot, e only exercise, and r changes both. Then a opens real result actions: create and open a NEW empty experimental scene. The source prompt is saved once in Notes; the new scene references it and is excluded from compile. Completion checks the persisted reroll chain, retained favorite, and successful independent scene creation. Static output works in focus/low-power; l is optional presentation-only roulette."
   },
   {
     "id": 25,

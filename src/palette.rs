@@ -78,6 +78,7 @@ pub enum Action {
     AdvancedSprints,
     Achievements,
     DailyChallenges,
+    StorySpark,
     Scratchpad,
     Handoff,
     LinkScratchpad(u64, std::path::PathBuf),
@@ -423,6 +424,7 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
         Entry::new("Advanced sprints", "", Action::AdvancedSprints),
         Entry::new("Milestone collection", "", Action::Achievements),
         Entry::new("Daily challenges", "", Action::DailyChallenges),
+        Entry::new("Story Spark", "", Action::StorySpark),
     ]);
     // Every help topic, so "help sync" goes straight to it.
     for t in crate::help::TOPICS {

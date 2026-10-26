@@ -72,7 +72,7 @@ impl Page {
                 "a enable/disable · n quiet notices · no streak penalties or quality scores"
             }
             Self::Challenges => {
-                "a accept · c check measured · x self-report · R reroll · f filters · ←→ date"
+                "a accept · c check measured · x self-report · R reroll · f filters · S optional Spark · ←→ date"
             }
             Self::GoalTypes | Self::SprintTypes => {
                 "↑↓ choose · Enter set target · Esc back · no manuscript changed"
@@ -1008,12 +1008,18 @@ impl App {
                             }
                         },
                         s.elapsed_ms as f64 / 60_000.,
-                        if s.metrics_incomplete {
+                        if s.kind == SprintKind::Timed {
+                            format!("{:.1} min elapsed", s.elapsed_ms as f64 / 60_000.)
+                        } else if s.metrics_incomplete {
                             "unavailable".into()
                         } else {
                             s.progress.to_string()
                         },
-                        s.target,
+                        if s.kind == SprintKind::Timed {
+                            format!("{} min timer", s.target)
+                        } else {
+                            s.target.to_string()
+                        },
                         if s.deletion_observed {
                             " · deletion observed; text retained"
                         } else {
@@ -1025,6 +1031,9 @@ impl App {
                             ""
                         }
                     ));
+                    if let Some(spark) = &s.spark {
+                        rows.push(format!("Spark source {} · {} · exact component references; timed completion is not creative completion", spark.id, spark.corpus_version));
+                    }
                     rows.push(format!(
                         "Policy: {} · mode {:?} · footnotes {} · checkpoint {}",
                         s.metric().label(),
@@ -1051,12 +1060,18 @@ impl App {
                         s.kind,
                         s.status,
                         s.elapsed_ms as f64 / 60_000.,
-                        if s.metrics_incomplete {
+                        if s.kind == SprintKind::Timed {
+                            format!("{:.1} min elapsed", s.elapsed_ms as f64 / 60_000.)
+                        } else if s.metrics_incomplete {
                             "unavailable".into()
                         } else {
                             s.progress.to_string()
                         },
-                        s.target,
+                        if s.kind == SprintKind::Timed {
+                            format!("{} min timer", s.target)
+                        } else {
+                            s.target.to_string()
+                        },
                         if s.deletion_observed {
                             " · deletions retained"
                         } else {
@@ -1238,6 +1253,14 @@ impl App {
         Ok(())
     }
     fn new_advanced_sprint(&mut self, kind: SprintKind, target: u64) -> Result<()> {
+        self.new_advanced_sprint_with_spark(kind, target, None)
+    }
+    pub(super) fn new_advanced_sprint_with_spark(
+        &mut self,
+        kind: SprintKind,
+        target: u64,
+        spark: Option<grimoire_core::spark::ResultRef>,
+    ) -> Result<()> {
         if kind == SprintKind::Break
             && self.productivity.sprint.as_ref().is_some_and(|s| {
                 !matches!(s.status, SprintStatus::Completed | SprintStatus::Stopped)
@@ -1331,6 +1354,7 @@ impl App {
             sprint.mode = mode;
             sprint.criterion = criterion;
             sprint.challenge = link;
+            sprint.spark = spark;
             s.sprint = Some(sprint);
             Ok(())
         })?;
@@ -1339,6 +1363,19 @@ impl App {
 }
 impl App {
     pub fn on_productivity_key(&mut self, key: Key) {
+        if matches!(
+            self.overlay,
+            Overlay::Productivity {
+                page: Page::Challenges,
+                ..
+            }
+        ) && key == Key::Char('S')
+        {
+            self.open_spark();
+            self.refresh_spark_assignment();
+            self.spark_page(super::spark::Page::Assignment, 0);
+            return;
+        }
         if matches!(self.overlay, Overlay::ProductivityInput { .. }) {
             self.on_productivity_input(key);
             return;
@@ -1935,6 +1972,14 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             .wrap(Wrap { trim: false }),
             inside,
         );
+        if inside.height >= 8 {
+            f.render_widget(
+                Paragraph::new(app.msg.as_str())
+                    .style(Style::default().fg(t.accent))
+                    .wrap(Wrap { trim: false }),
+                Rect::new(inside.x, inside.y + inside.height - 2, inside.width, 2),
+            );
+        }
         return;
     }
     let Overlay::Productivity { page, scroll, .. } = app.overlay else {
@@ -1954,7 +1999,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             .style(Style::default().fg(t.dim)),
         header,
     );
-    let footer_h = 3.min(inside.height.saturating_sub(2));
+    let footer_h = 5.min(inside.height.saturating_sub(2));
     let body = Rect::new(
         inside.x,
         inside.y + 1,
@@ -2002,6 +2047,22 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         ))
         .style(Style::default().fg(t.dim))
         .wrap(Wrap { trim: false }),
-        footer,
+        Rect::new(
+            footer.x,
+            footer.y,
+            footer.width,
+            footer.height.saturating_sub(2),
+        ),
+    );
+    f.render_widget(
+        Paragraph::new(app.msg.as_str())
+            .style(Style::default().fg(t.accent))
+            .wrap(Wrap { trim: false }),
+        Rect::new(
+            footer.x,
+            footer.y + footer.height.saturating_sub(2),
+            footer.width,
+            2,
+        ),
     );
 }

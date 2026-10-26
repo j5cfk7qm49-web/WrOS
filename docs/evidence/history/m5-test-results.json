@@ -1,0 +1,177 @@
+{
+  "recorded_at_utc": "2026-10-26T00:05:01.084166+00:00",
+  "verification_started_at_utc": "2026-10-26T00:05:01.084187+00:00",
+  "milestone": "Initial M5: observed source-range operations/civil-day goals/calendar/sprints/optional milestones/30 original daily exercises, preserving M4 originals; not full production OS",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "7d8bd8155ec6a15068e8c2fd0468f8d1df28574555cb25a17eb27a8091f2c3dd",
+    "file_count": 210,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "previous_evidence": {
+    "milestone": "M4c original multi-note scratchpad/promotion, user-authored next-open handoff, explicit workspace starters and per-workspace pin sets; initial M4, not full production appliance",
+    "source_fingerprint": {
+      "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+      "sha256": "c4e74cea0b899a75e7205c6f4f4aa593e6d386c6e70b092f1916c47b38ece23f",
+      "file_count": 200,
+      "scope": "Cargo.toml/lock, src, crates, assets, os scripts/config/systemd/tests; no generated evidence/docs/builds"
+    }
+  },
+  "toolchain": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "rust_suites": [
+    {
+      "name": "tests-default",
+      "command": "cargo test --workspace --locked --offline -j2",
+      "exit_code": 0,
+      "seconds": 42.768,
+      "log": "build/verification/tests-default.log",
+      "configuration": "default",
+      "passed": 768,
+      "failed": 0,
+      "ignored": 5,
+      "ignored_tests": [
+        "test spell::tests::timings ... ignored",
+        "test shots::demo ... ignored",
+        "test shots::shots ... ignored",
+        "test ui_tests::dump_pomodoro_previews ... ignored",
+        "test voice::piper_reads_every_sentence_in_order ... ignored"
+      ]
+    },
+    {
+      "name": "tests-no-audio",
+      "command": "cargo test --workspace --no-default-features --locked --offline -j2",
+      "exit_code": 0,
+      "seconds": 41.009,
+      "log": "build/verification/tests-no-audio.log",
+      "configuration": "no-audio",
+      "passed": 768,
+      "failed": 0,
+      "ignored": 4,
+      "ignored_tests": [
+        "test spell::tests::timings ... ignored",
+        "test shots::demo ... ignored",
+        "test shots::shots ... ignored",
+        "test ui_tests::dump_pomodoro_previews ... ignored"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "name": "format",
+      "command": "cargo fmt --all -- --check",
+      "exit_code": 0,
+      "seconds": 0.918,
+      "log": "build/verification/format.log"
+    },
+    {
+      "name": "tests-default",
+      "command": "cargo test --workspace --locked --offline -j2",
+      "exit_code": 0,
+      "seconds": 42.768,
+      "log": "build/verification/tests-default.log"
+    },
+    {
+      "name": "clippy-default",
+      "command": "cargo clippy --workspace --all-targets --locked --offline -j2 -- -D warnings",
+      "exit_code": 0,
+      "seconds": 0.333,
+      "log": "build/verification/clippy-default.log"
+    },
+    {
+      "name": "tests-no-audio",
+      "command": "cargo test --workspace --no-default-features --locked --offline -j2",
+      "exit_code": 0,
+      "seconds": 41.009,
+      "log": "build/verification/tests-no-audio.log"
+    },
+    {
+      "name": "clippy-no-audio",
+      "command": "cargo clippy --workspace --all-targets --no-default-features --locked --offline -j2 -- -D warnings",
+      "exit_code": 0,
+      "seconds": 0.294,
+      "log": "build/verification/clippy-no-audio.log"
+    },
+    {
+      "name": "build-no-audio",
+      "command": "cargo build --workspace --no-default-features --locked --offline -j2",
+      "exit_code": 0,
+      "seconds": 0.181,
+      "log": "build/verification/build-no-audio.log"
+    },
+    {
+      "name": "python",
+      "command": "python3 -m unittest discover -s os/tests -p test_*.py -v",
+      "exit_code": 0,
+      "seconds": 13.616,
+      "log": "build/verification/python.log"
+    },
+    {
+      "name": "terminal-capture",
+      "command": "python3 tools/capture-writingdeck-screens.py",
+      "exit_code": 0,
+      "seconds": 0.895,
+      "log": "build/verification/terminal-capture.log"
+    },
+    {
+      "name": "shellcheck",
+      "command": "shellcheck os/scripts/assemble-image.sh os/scripts/bootstrap-rootfs.sh os/scripts/generate-keymaps.sh os/scripts/install-files.sh os/scripts/writingdeck-session",
+      "exit_code": 0,
+      "seconds": 0.303,
+      "log": "build/verification/shellcheck.log"
+    },
+    {
+      "name": "python-syntax",
+      "command": "python3 -m py_compile os/tests/boot_vm.py os/tests/guest-boot-probe.py os/tests/terminal_screen.py os/tests/test_cli.py os/tests/test_install_plan.py os/tests/test_journal_pty.py os/tests/test_keyboard.py os/tests/test_pins_pty.py os/tests/test_productivity_pty.py os/tests/test_secondary_pty.py os/tests/test_terminal_screen.py os/tests/test_workflow_pty.py tools/capture-writingdeck-screens.py tools/check-writingdeck.py tools/demo.py tools/generate-keyboard-reference.py tools/generate-writingdeck-manifests.py tools/screenshots.py tools/site_themes.py tools/verify-writingdeck.py tools/winget.py tools/writingdeck_source.py os/scripts/install-plan.py os/scripts/writingdeck-keyboard",
+      "exit_code": 0,
+      "seconds": 0.082,
+      "log": "build/verification/python-syntax.log"
+    },
+    {
+      "name": "inventories",
+      "command": "python3 tools/generate-writingdeck-manifests.py",
+      "exit_code": 0,
+      "seconds": 0.691,
+      "log": "build/verification/inventories.log"
+    },
+    {
+      "name": "printable-reference",
+      "command": "python3 tools/generate-keyboard-reference.py",
+      "exit_code": 0,
+      "seconds": 0.036,
+      "log": "build/verification/printable-reference.log"
+    },
+    {
+      "name": "documentation",
+      "command": "python3 tools/check-writingdeck.py",
+      "exit_code": 0,
+      "seconds": 0.071,
+      "log": "build/verification/documentation.log"
+    },
+    {
+      "name": "diff-whitespace",
+      "command": "git diff --check",
+      "exit_code": 0,
+      "seconds": 0.123,
+      "log": "build/verification/diff-whitespace.log"
+    }
+  ],
+  "limitations": [
+    "Overlapping configurations are not distinct-test counts; ignored external/performance/model tests are not passed.",
+    "Temporary fixtures and compiled PTYs are not physical keyboard, laptop, power-cut, signed release or provider qualification.",
+    "Recorded edit totals do not certify complete all-day/crash-tail coverage or exclusive human typing.",
+    "No host disk installation, credentials, cloud enrollment, user manuscript or Git push performed."
+  ],
+  "tested_no_audio_binary_sha256": "99427c3c82644950a38322deb96dbc0ccaeb7ba197a60eaca83ab90ed2600fd9",
+  "python": {
+    "name": "python",
+    "command": "python3 -m unittest discover -s os/tests -p test_*.py -v",
+    "exit_code": 0,
+    "seconds": 13.616,
+    "log": "build/verification/python.log",
+    "passed": 37,
+    "failed": 0,
+    "skipped": 0,
+    "pty_scope": "Actual non-root compiled app, new demo/HOME only; original edit/save/undo/restart, four terminal sizes, metadata failures/retry. Not a full emulator or physical certificate."
+  },
+  "verification_finished_at_utc": "2026-10-26T00:06:42.680436+00:00"
+}

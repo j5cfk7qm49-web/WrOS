@@ -3315,8 +3315,8 @@ fn writingdeck_tutorial_uses_actual_editor_and_persists_verified_progress() {
     d.app.deck.progress.start(4).unwrap();
     assert_eq!(d.app.deck.progress.active, Some(4));
     assert!(
-        d.app.deck.progress.start(22).is_err(),
-        "Story Spark is planned, not faked"
+        d.app.deck.progress.start(25).is_err(),
+        "The lexicon remains planned, not faked"
     );
 }
 
@@ -7899,3 +7899,6 @@ fn writingdeck_productivity_empty_collection_and_subjective_challenge_do_not_com
     );
     assert!(!d.app.deck.progress.completed.contains(&21));
 }
+
+#[path = "spark_ui_tests.rs"]
+mod spark_ui_tests;

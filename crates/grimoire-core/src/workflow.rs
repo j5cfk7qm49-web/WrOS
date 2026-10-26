@@ -357,6 +357,58 @@ impl Store {
         create_new(&path,&format!("---\ntitle: Scratchpad {id}\n---\n\n")).context("reference reserved but source creation failed; restore original or create another note")?;
         Ok(id)
     }
+    /// Adopt an explicitly exported, exclusively created scratchpad original.
+    /// This is not import-by-preview: the file and exact expected fingerprint
+    /// must already exist. A failed metadata publication can be retried without
+    /// overwriting or copying the source. Existing adopted notes retain edits.
+    pub fn adopt_created_note(&mut self, id: u64, expected: Fingerprint) -> Result<()> {
+        let meta = checked(&self.root, Path::new(".grimoire/writingdeck/workflow.json"))?;
+        let current = match read(&meta, MAX_BYTES) {
+            Ok(text) => Some(Fingerprint::of(&text)),
+            Err(e)
+                if e.downcast_ref::<std::io::Error>()
+                    .is_some_and(|e| e.kind() == std::io::ErrorKind::NotFound) =>
+            {
+                None
+            }
+            Err(e) => return Err(e),
+        };
+        if current != self.seen {
+            bail!("workflow metadata changed externally; original preserved; reload explicitly");
+        }
+        let relative = scratch_path(id);
+        let path = source_path(&self.root, &relative, "notes")?;
+        pins::identify(&self.root, &relative)?;
+        if self
+            .state
+            .notes
+            .iter()
+            .any(|n| n.id == id && n.source == relative)
+        {
+            return Ok(());
+        }
+        if id != self.state.next_id || self.state.notes.len() >= 256 {
+            bail!("Scratchpad ID already reserved or limit reached; exported original kept");
+        }
+        if Fingerprint::of(&read(&path, MAX_SOURCE)?) != expected {
+            bail!("Exported scratchpad changed before adoption; original kept, no guessed copy");
+        }
+        self.update(|s| {
+            s.next_id = s
+                .next_id
+                .checked_add(1)
+                .context("scratchpad IDs exhausted")?;
+            s.notes.push(Scratch {
+                id,
+                source: relative,
+                scene: None,
+                life: pins::Life::Active,
+                promotion: None,
+            });
+            s.selected = Some(id);
+            Ok(())
+        })
+    }
     /// One intentional scene per note. The durable prepared receipt precedes
     /// creation. Retry recognizes its exact target; never truncates/re-copies it.
     pub fn promote(&mut self, id: u64, expected: Fingerprint) -> Result<PathBuf> {
@@ -923,6 +975,60 @@ mod tests {
         assert_eq!(fs::read(source).unwrap(), original);
         assert_eq!(fs::read(target).unwrap(), scene);
         assert_eq!(fs::read_dir(r.join("manuscript")).unwrap().count(), 2);
+        fs::remove_dir_all(r).unwrap();
+    }
+
+    #[test]
+    fn adopt_exported_note_requires_exact_fingerprint_then_preserves_writer_edits() {
+        let r = root("adopt-verified");
+        let mut store = Store::load(&r).unwrap();
+        let path = r.join(scratch_path(1));
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let text = "---\ncompile: false\n---\n\nExact exported original.\n";
+        fs::write(&path, text).unwrap();
+        assert!(
+            store
+                .adopt_created_note(1, Fingerprint::of("wrong"))
+                .is_err()
+        );
+        assert_eq!(fs::read_to_string(&path).unwrap(), text);
+        assert!(!Store::path(&r).exists());
+        store.adopt_created_note(1, Fingerprint::of(text)).unwrap();
+        assert_eq!(store.state.next_id, 2);
+        assert_eq!(store.state.notes.len(), 1);
+        fs::write(&path, "Writer's later edit.\n").unwrap();
+        store.adopt_created_note(1, Fingerprint::of(text)).unwrap();
+        assert_eq!(store.state.notes.len(), 1);
+        assert_eq!(fs::read_to_string(&path).unwrap(), "Writer's later edit.\n");
+        fs::remove_dir_all(r).unwrap();
+    }
+    #[test]
+    fn adoption_refuses_external_future_state_even_for_already_registered_original() {
+        let r = root("adopt-future");
+        let mut store = Store::load(&r).unwrap();
+        let (id, path, fp) = written(&mut store);
+        let before = fs::read(&path).unwrap();
+        let future = b"{\"version\":99,\"opaque\":true}";
+        fs::write(Store::path(&r), future).unwrap();
+        assert!(store.adopt_created_note(id, fp).is_err());
+        assert_eq!(fs::read(Store::path(&r)).unwrap(), future);
+        assert_eq!(fs::read(path).unwrap(), before);
+        fs::remove_dir_all(r).unwrap();
+    }
+    #[test]
+    fn adoption_never_claims_a_reserved_or_out_of_sequence_id() {
+        let r = root("adopt-id");
+        let mut store = Store::load(&r).unwrap();
+        let path = r.join(scratch_path(2));
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, "Original.\n").unwrap();
+        assert!(
+            store
+                .adopt_created_note(2, Fingerprint::of("Original.\n"))
+                .is_err()
+        );
+        assert!(store.state.notes.is_empty());
+        assert_eq!(fs::read_to_string(path).unwrap(), "Original.\n");
         fs::remove_dir_all(r).unwrap();
     }
 }

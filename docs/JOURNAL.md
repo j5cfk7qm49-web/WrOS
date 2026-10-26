@@ -59,3 +59,7 @@ The independent whole-VM probe checks boot/system/console integration, **not jou
 ## Separate M5 operation ledger
 
 M5 now supplies real source-range operation receipts and conservative observed inter-edit accounting through separate readers/widgets and metadata parts. It does not retroactively upgrade this sampled journal, its historical baselines or manual reflections into gross/active/exclusive-typing facts. See [DAILY_CHALLENGES](DAILY_CHALLENGES.md) for origins, word-unit policy, unavailable gaps, clock/civil-date behavior, checkpoint tail and limits.
+
+## M6 source captures are not writing-time evidence
+
+Spark save/pin/scratch/outline/task/independent-scene actions are explicit original-source operations, not observed human typing or automatic qualitative-completion proof. A new experiment is initially empty, compile-excluded and references a separate prompt note; opening/generating it cannot manufacture manuscript prose or exclusive typing time in the M5 ledger. Existing sampled journal/hand-authored reflection behavior is retained. See [STORY_SPARK](STORY_SPARK.md).

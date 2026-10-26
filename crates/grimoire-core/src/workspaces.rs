@@ -35,9 +35,10 @@ pub enum Widget {
     AdvancedSprints,
     Achievements,
     DailyChallenges,
+    StorySpark,
 }
 impl Widget {
-    pub const ALL: [Self; 20] = [
+    pub const ALL: [Self; 21] = [
         Self::Resume,
         Self::Manuscript,
         Self::DailyGoal,
@@ -58,6 +59,7 @@ impl Widget {
         Self::AdvancedSprints,
         Self::Achievements,
         Self::DailyChallenges,
+        Self::StorySpark,
     ];
     pub fn name(self) -> &'static str {
         match self {
@@ -81,6 +83,7 @@ impl Widget {
             Self::AdvancedSprints => "Advanced sprints",
             Self::Achievements => "Milestone collection",
             Self::DailyChallenges => "Daily challenges",
+            Self::StorySpark => "Story Spark",
         }
     }
 }

@@ -344,6 +344,10 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "Original next-session prose and explicit saved manuscript context resume.",
             "handoff",
         ),
+        Action::StorySpark => (
+            "Offline original plots/exercises, compatible combinations, saved civil-date daily results, reference-only history and explicit source-safe actions.",
+            "story-spark",
+        ),
         Action::Productivity
         | Action::MeasuredGoals
         | Action::Calendar

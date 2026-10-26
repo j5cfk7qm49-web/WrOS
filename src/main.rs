@@ -627,6 +627,7 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
                     | Overlay::Journal
                     | Overlay::Scratchpad
                     | Overlay::Handoff
+                    | Overlay::Spark { .. }
                     | Overlay::Productivity { .. }
                     | Overlay::Deck(app::writingdeck::Page::WorkspacePins { .. })
             ) {
@@ -881,6 +882,7 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
                 | Overlay::Journal
                 | Overlay::Scratchpad
                 | Overlay::Handoff
+                | Overlay::Spark { .. }
                 | Overlay::Productivity { .. }
                 | Overlay::ProductivityInput { .. }
                 | Overlay::Deck(app::writingdeck::Page::WorkspacePins { .. })
@@ -920,6 +922,7 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
                         | Overlay::Journal
                         | Overlay::Scratchpad
                         | Overlay::Handoff
+                        | Overlay::Spark { .. }
                         | Overlay::Productivity { .. }
                 ) =>
             {

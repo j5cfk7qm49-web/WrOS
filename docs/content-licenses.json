@@ -13,7 +13,7 @@
       "license": "MIT",
       "edition": "0.1.0-dev",
       "file": "crates/grimoire-core/assets/writingdeck/tutorial.json",
-      "sha256": "fca726e9cae2ecd1cccb1a429453d4b6d70d04b95ec32dffbf522a203c5d6c94",
+      "sha256": "948dbdcc71826094d9f1706e109646c8e6b976075f0a31632591fe74f844835a",
       "item_count": 39,
       "license_notice": "LICENSE",
       "modifications": "Original instructions; no third-party exercise text"
@@ -27,7 +27,7 @@
       "license": "MIT",
       "edition": "0.1.0-dev",
       "file": "crates/grimoire-core/src/tutorial.rs",
-      "sha256": "799d7b93057259e8cc31e535ce366c28e8bfa051c4eca4b00e4c10f055580315",
+      "sha256": "2113da014728a8020b1e92dc13eb0cc730b5ab074de0365c46bf02f0b07efc44",
       "item_count": 2,
       "license_notice": "LICENSE",
       "modifications": "Original demo scene strings embedded in the creation function"
@@ -45,6 +45,20 @@
       "item_count": 30,
       "license_notice": "LICENSE",
       "modifications": "Original instructions in ten categories; no third-party exercise text; not the M6 1000-plot corpus"
+    },
+    {
+      "id": "writingdeck-original-m6",
+      "title": "WritingDeck original Story Spark plots and exercises",
+      "creators": [
+        "WritingDeck contributors (AI-assisted original drafting and agent editorial review)"
+      ],
+      "license": "MIT",
+      "edition": "writingdeck-original-1",
+      "file": "crates/grimoire-core/assets/writingdeck/spark-corpus.json",
+      "sha256": "129d60922e14058557d49a8f1599ecd3ce1efec2e1c71a03f200911537147854",
+      "item_count": 1131,
+      "license_notice": "LICENSE",
+      "modifications": "1047 accepted independently worded plot situations and 84 new exercises; 1051 literal plot draft IDs retained, four held for substantive overlap. Original AI-assisted wording, MIT to extent rights subsist. No exclusive copyright, independent human editorial review, or legal attestation claimed. Source file/line/hash provenance in each record and docs/spark-corpus-manifest.json."
     }
   ],
   "evaluated_sources": [
@@ -55,17 +69,19 @@
         "William Wallace Cook"
       ],
       "edition": "Ellis Publishing Co., 1928 original",
-      "source_url": "https://archive.org/search?query=title%3Aplotto%20AND%20year%3A1928",
+      "source_url": "https://archive.org/details/plottonewmethodo00cook",
       "rights_finding": "US public-domain candidate; no worldwide clearance",
       "bundled": false,
       "exact_ingested_file_sha256": null,
-      "decision": "Excluded pending exact scan/territory review; never import Tin House 2011 additions",
+      "decision": "Not bundled or counted. Original 1928 Archive OCR research and attempted geometry extraction were rejected for narrative-span/quality and territorial gaps. Modern GaryKac cleanup/additions lack an assumed redistribution license. M6 instead uses independently worded originals.",
       "obligations_before_bundling": [
         "Pin original scan/transcription and hash",
         "Review territorial rights",
         "Exclude modern foreword, introduction and artwork",
         "Retain edition, source and modification attribution"
-      ]
+      ],
+      "research_only_original_ocr_sha256": "c004c5e10bf41da1d2f7c04fc1165b454e81e80cce1803a08bca4303e8195b28",
+      "research_only_original_xml_sha256": "f713085b2b7cfc80c963f1da2e66b3f3c374ade05095e87ccf343568844ac4e4"
     },
     {
       "id": "polti-ray-1916",
@@ -208,6 +224,7 @@
   "notes": [
     "Software/dictionary notices are separately inventoried in software-licenses.json.",
     "No third-party historical book, exercise or modern prompt list is yet redistributed.",
-    "A corpus ingestion gate must validate exact edition, checksum, rights, changes and retained offline attribution."
+    "A corpus ingestion gate must validate exact edition, checksum, rights, changes and retained offline attribution.",
+    "M6 bundle is original AI-assisted drafting with agent authoring/editorial review, exact source provenance, four substantive-overlap holds, normalized duplicate checks and published fixed editorial/lexical samples. These are not independent human/legal or worldwide release clearance. No third-party creative text is bundled."
   ]
 }

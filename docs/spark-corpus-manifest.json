@@ -1,0 +1,94 @@
+{
+  "accepted_exercises": 84,
+  "accepted_plots": 1047,
+  "attribution": "WritingDeck contributors. Original AI-assisted drafting and agent editorial review; MIT to the extent rights subsist. No exclusive-copyright or independent-human-review claim.",
+  "corpus_file": "crates/grimoire-core/assets/writingdeck/spark-corpus.json",
+  "corpus_sha256": "129d60922e14058557d49a8f1599ecd3ce1efec2e1c71a03f200911537147854",
+  "editorial_decisions_sha256": "b2885e9229957da45cb03e6a57311070a11d48f8c85df2a9489cd3f28841bcf0",
+  "excluded_source_ids": [
+    "plotto-1928",
+    "garykac-modern-cleanup",
+    "modern-third-party-prompt-lists"
+  ],
+  "files": [
+    {
+      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-exercises.tsv",
+      "records": 84,
+      "sha256": "03e764440b8a83714d120d069e3f5d99c71598675423dd0231011c25737cb83f"
+    },
+    {
+      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-01.tsv",
+      "records": 100,
+      "sha256": "30bdc91fb3066b93cb171fd1b71f0bea9312519cd5d686c596d304a10acd9ee0"
+    },
+    {
+      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-02.tsv",
+      "records": 101,
+      "sha256": "0fe9d2e8e478cbd9f4ab913edd7f86cacfa09c6ea103536fe19a82f8c8b6b072"
+    },
+    {
+      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-03.tsv",
+      "records": 50,
+      "sha256": "b639ffe6de6674af1d86137730e914f0fa2931eda1a08796319bca1c4f28badf"
+    },
+    {
+      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-04.tsv",
+      "records": 75,
+      "sha256": "b843ebb57b13e5405304dc2a34ce22a7d3aaf94c02e9021949d15a4bc189e00c"
+    },
+    {
+      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-05.tsv",
+      "records": 75,
+      "sha256": "2e0882c098e3de375baf35212e59c238a4ab4adc5eaf6561bc1328d3fc939017"
+    },
+    {
+      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-06.tsv",
+      "records": 75,
+      "sha256": "14543950a5b2d344286e78714beb386937a257cc3dc3a63744de17c72a99e44c"
+    },
+    {
+      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-07.tsv",
+      "records": 75,
+      "sha256": "19216f4712fa20a5f4679cd12a84f65174e6586cf1ad68962392563282004da4"
+    },
+    {
+      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-08.tsv",
+      "records": 75,
+      "sha256": "65e12e43a7043910a4aa3222c1f48f68595ff3c40c1289782f11cf41415e0799"
+    },
+    {
+      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-09.tsv",
+      "records": 75,
+      "sha256": "1c7290760257bf6d0eabc558664ca42785122179e13c41db6c8331c87a93a281"
+    },
+    {
+      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-10.tsv",
+      "records": 75,
+      "sha256": "11dce263be7adaedaf92ce38bea2fe37c29699477d26ad532b1edabc772b6884"
+    },
+    {
+      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-11.tsv",
+      "records": 75,
+      "sha256": "4d876a36f4ab2f8e370c1baee78a2e79ddbb7b741954ddd3fdb0a6c35b36ca56"
+    },
+    {
+      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-12.tsv",
+      "records": 75,
+      "sha256": "a956baefc4deb4568b7f23db44b3723fc64eb40d5f3b0316ae1f3886d4cd33e8"
+    },
+    {
+      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-13.tsv",
+      "records": 75,
+      "sha256": "72d06eb12405a3601c1aff2f3941a9d91995cb0e7ef64fc00682d087b24ba98d"
+    },
+    {
+      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-14.tsv",
+      "records": 50,
+      "sha256": "08446ff63bc859fa63b11869f066c955bd8d0fe6087306c986115189c00ae6ce"
+    }
+  ],
+  "license": "MIT",
+  "notice": "LICENSE; original wording, MIT to extent rights subsist; no exclusive copyright claim",
+  "schema_version": 1,
+  "version": "writingdeck-original-1"
+}

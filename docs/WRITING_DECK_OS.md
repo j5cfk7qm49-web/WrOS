@@ -28,6 +28,6 @@ No network device was present during the VM acceptance run. Existing manuscripts
 
 ## Important limits
 
-The VM-only profile uses passwordless tty1 autologin with locked passwords. It is **not safe for a physical laptop**. Its bootloader is unsigned. The production disk installer, lock-before-suspend, automatic updater/rollback, full multi-pane content presets/scratchpad/handoff and complete journal/edit-ledger metrics, advanced metrics/challenges/Story Spark, grammar/prose/lexicon integration, continuity, genuine footnotes and Google Drive enrollment are not complete. Optional external runtime tools are not all installed in the minimal image.
+The VM-only profile uses passwordless tty1 autologin with locked passwords. It is **not safe for a physical laptop**. Its bootloader is unsigned. Production disk installation, lock-before-suspend, automatic updater/rollback, full journal/crash-tail/archival qualification, grammar/prose/lexicon integration, continuity, genuine footnotes and Google Drive enrollment remain incomplete. M4 original-source workflows, initial M5 recorded productivity and M6 original offline Story Spark are implemented/software-tested within their documented limits; they do not complete the full OS. Optional external runtime tools are not all installed in the minimal image.
 
 The reproducible scripts and small evidence are retained. Large generated images live under ignored `build/`; regenerate them from the recipe rather than treating an ephemeral build artifact as a signed release.

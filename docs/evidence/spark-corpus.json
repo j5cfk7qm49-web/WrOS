@@ -1,0 +1,687 @@
+{
+  "accepted_exercises": 84,
+  "accepted_plots": 1047,
+  "closest_pairs": [
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.2,
+      "left": "wd-p-0322",
+      "left_sha256": "b650674d48a99b35aea35b5a61c5cb3ac4ead23b1c5abf0018b5d6ff0a160395",
+      "right": "wd-p-0932",
+      "right_sha256": "61ef5bdad5c375fdb73584b6ab1c402531e9392d87af3403a94d842b45937bb9"
+    },
+    {
+      "decision": "held-out",
+      "jaccard": 0.194444,
+      "left": "wd-p-0643",
+      "left_sha256": "2bcd1b2fcf75f271de7e14547eff67a465ab60ace5a97fd95e898d8e711dbf96",
+      "right": "wd-p-0679",
+      "right_sha256": "5c941b31663e9205fed615508af3ed06ca699aad10d6315097a1a965a8bdb50d"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.1875,
+      "left": "wd-p-0370",
+      "left_sha256": "3a9723aaa9e4a0b8fee29e2db2184c1de48f97795e95298eed8c24df46b7b876",
+      "right": "wd-p-0662",
+      "right_sha256": "b4b6751cc2e4aca8eb51c9f311db9049b53cbdb78a66fa8f98172244a96142db"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.171429,
+      "left": "wd-p-0673",
+      "left_sha256": "14b90e0b117f8404e758a3f97a306020bc31c4473fd79d77dde267d7a4c4bed2",
+      "right": "wd-p-0935",
+      "right_sha256": "e9739d1dd63af5c623146a0b1f3a2d8b80fbb9c359e80704a9d709c463b1d7ba"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.166667,
+      "left": "wd-p-0258",
+      "left_sha256": "ea8ebe77dbc88ed4a91fa7aeac059eb4415d493e6d46aa1e3c894dd3b78deee4",
+      "right": "wd-p-0840",
+      "right_sha256": "7faf0fc8ff0b5eb17c439789c17e6e1ea28d14fb52999f154dcbeefb91984761"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.166667,
+      "left": "wd-p-0046",
+      "left_sha256": "c7641cb9949edda4040b9d64d5bf9eeec8af64fc135a7821ef8eabe3aacd75f2",
+      "right": "wd-p-0687",
+      "right_sha256": "7e7c0f0e647a9ec2f28d026b53a5f9d468cf3250d5986400e87de7e385d2b830"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.162162,
+      "left": "wd-p-0054",
+      "left_sha256": "09db002da7584c304dbfcc84721fa9ab735b94c57c1db13efe252f974b8a9644",
+      "right": "wd-p-1017",
+      "right_sha256": "bae85cd8fe72549bbe480427ce976d7e435842d03c640c109a6eef1f54ff7923"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.153846,
+      "left": "wd-p-0246",
+      "left_sha256": "b038d195e11e930fd71329de1bb08b4d433710a5e06c65bbc25e1f42876c1709",
+      "right": "wd-p-0726",
+      "right_sha256": "61540790055645252123062591e935b6ea4679787500640ee72dd2895fe82094"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.153846,
+      "left": "wd-p-0095",
+      "left_sha256": "aed2cbc40fa8a6e524472f3751c8e61ad4de0f5f80bb7a275d6e211412c1ea8a",
+      "right": "wd-p-0641",
+      "right_sha256": "3cbe9ee500a04b2b81477df1c02b2425464b396fac379f985b61081e87105f04"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.151515,
+      "left": "wd-p-0835",
+      "left_sha256": "3053064b75d2de6d510db3b68f71bc1af5936b54f86be13b44c5384bcfe16cff",
+      "right": "wd-p-0857",
+      "right_sha256": "f6ae255520786c907b86b909afc6ebcba56956c59e2b8db798826dc81978590a"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.151515,
+      "left": "wd-p-0826",
+      "left_sha256": "4d39b2033ae84684d58cff3cbcad2727f0dc9e98375f1298efaaca3b56b9b13e",
+      "right": "wd-p-1025",
+      "right_sha256": "1fbaf7a0722094b6b27fee9324a5713383dbeb2f8d416b7b5baec304e116a940"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.151515,
+      "left": "wd-p-0779",
+      "left_sha256": "b797774c0288f7b284f0c53d58bbe40cbe55bc9863ee58d13a58da9a714b7362",
+      "right": "wd-p-0799",
+      "right_sha256": "5923447e724d4c2714deec2e7872b567c4ca372d2b531fb80992abf6b9141e3b"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.151515,
+      "left": "wd-p-0629",
+      "left_sha256": "61b29114923367636d2414bda4ee8093d42420377cd3d21176031381c57660a5",
+      "right": "wd-p-0693",
+      "right_sha256": "5763bf8a71c175a9bca82d81bf4b2e8795d26bc294a8c5eb3221ab6f66d8d941"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.151515,
+      "left": "wd-p-0360",
+      "left_sha256": "6abb2ca83add4b5dead4f0cf74acdefa16ffefc14bef018ed068d2842a9cb114",
+      "right": "wd-p-0662",
+      "right_sha256": "b4b6751cc2e4aca8eb51c9f311db9049b53cbdb78a66fa8f98172244a96142db"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.151515,
+      "left": "wd-p-0279",
+      "left_sha256": "5d5b1e0323f5f5cbd059ba49d7f5b46c447a3a6d91ada36def607770bb563339",
+      "right": "wd-p-0628",
+      "right_sha256": "ccb6bddc65bed046a95c9efd9a4a61fc7b078ade3bb5696383dde0890525e2e5"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.15,
+      "left": "wd-p-0177",
+      "left_sha256": "ce8ea116e2cc51838c77d3bd7f94822093a8d6a451972e81bfd9a2e36869148b",
+      "right": "wd-p-0392",
+      "right_sha256": "74ea53c027981182acf667f81a22540334e50a6c3297700701406cf1f3e69038"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.15,
+      "left": "wd-p-0142",
+      "left_sha256": "3380923a211c0981fe4a90d8bf9992c29e127449864e5a7f82c523aea5d64472",
+      "right": "wd-p-0971",
+      "right_sha256": "5f8a33400dff3e7a520292020fab54af1e0e634f3d75e8eb38e5a0533993344b"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.147059,
+      "left": "wd-p-0453",
+      "left_sha256": "9cb79edab8d54da2e485cbf8255e9f25eec8e9effea3f659e283adda31bd2a89",
+      "right": "wd-p-1000",
+      "right_sha256": "d37dd74e2f264c91f3dacadeafad82c8fea701f09f51930f865b0e334a2b4556"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.147059,
+      "left": "wd-p-0422",
+      "left_sha256": "dc2eb2d990d787ca4230146ef458412d893643e01b45976f42515a6500f5a0f7",
+      "right": "wd-p-1000",
+      "right_sha256": "d37dd74e2f264c91f3dacadeafad82c8fea701f09f51930f865b0e334a2b4556"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.147059,
+      "left": "wd-p-0300",
+      "left_sha256": "9f66cd57e7348bdeda6fe5c42eef01bd3edb9e404d6b052749f173ec204e916f",
+      "right": "wd-p-0377",
+      "right_sha256": "c76671f627565fd5d4f2acdd6e403c332c7870c571f6ab8cae99a943ff75d554"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.147059,
+      "left": "wd-p-0154",
+      "left_sha256": "1df260a90cc36b4e2b2a5e924d7537e24c00ec6bad0e84840ec42fe164f82c48",
+      "right": "wd-p-0455",
+      "right_sha256": "b2881fc1d449a1a44d9ea74dd9ba9603c3052bfdbf24c3756bfdd2e852a61f8f"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.147059,
+      "left": "wd-p-0128",
+      "left_sha256": "24184129c3c7b1656e38576cb00142803fb3b6d84e3e95cf31d5ef92fa2f36f7",
+      "right": "wd-p-0678",
+      "right_sha256": "e3825c1e54b41712c817289796c2ccd0c5493b8fc4712512576041376ca4a268"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.147059,
+      "left": "wd-p-0057",
+      "left_sha256": "8e5e1ff3bac27fd69533f026ebb373a8933fd68655358fae7da956cc6f62c763",
+      "right": "wd-p-0490",
+      "right_sha256": "47ee8f1b5bd5cc9b0bd0d5865dab36d73f002a44321a89772ff18ca952a641f0"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.146341,
+      "left": "wd-p-0636",
+      "left_sha256": "915aecbe7b305454d87bc3644b9577e67dcb9742eb04768fd14aaea59aea894d",
+      "right": "wd-p-0840",
+      "right_sha256": "7faf0fc8ff0b5eb17c439789c17e6e1ea28d14fb52999f154dcbeefb91984761"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.142857,
+      "left": "wd-p-0702",
+      "left_sha256": "9cdd1886e8647d9ae25b860f76018b514b81cee14e61a76d4cfe642aea2a2426",
+      "right": "wd-p-0997",
+      "right_sha256": "bfeb7652d7fb44a2d6139b80b3d1afacb9cec37cba2568ea2ebed7e508121c36"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.142857,
+      "left": "wd-p-0629",
+      "left_sha256": "61b29114923367636d2414bda4ee8093d42420377cd3d21176031381c57660a5",
+      "right": "wd-p-1000",
+      "right_sha256": "d37dd74e2f264c91f3dacadeafad82c8fea701f09f51930f865b0e334a2b4556"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.142857,
+      "left": "wd-p-0377",
+      "left_sha256": "c76671f627565fd5d4f2acdd6e403c332c7870c571f6ab8cae99a943ff75d554",
+      "right": "wd-p-0420",
+      "right_sha256": "38fdf4666be1d47b3a6430505f54833f554aa9ef4ca3d7e347390df2617291f0"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.142857,
+      "left": "wd-p-0114",
+      "left_sha256": "4bcd487e57498e7601b700d94e0db61b7af8e0d016ce89ffb95f3fee2b6a5890",
+      "right": "wd-p-0776",
+      "right_sha256": "7c14c685facf9c5cd907fbba66f3b4f4ef98556509762b54e03be6a2cfdaaf75"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.142857,
+      "left": "wd-p-0054",
+      "left_sha256": "09db002da7584c304dbfcc84721fa9ab735b94c57c1db13efe252f974b8a9644",
+      "right": "wd-p-0776",
+      "right_sha256": "7c14c685facf9c5cd907fbba66f3b4f4ef98556509762b54e03be6a2cfdaaf75"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.142857,
+      "left": "wd-p-0012",
+      "left_sha256": "3ff1347303f87668b87488b56556c03e9e59fd49228cdde1059f360e396fff6d",
+      "right": "wd-p-0687",
+      "right_sha256": "7e7c0f0e647a9ec2f28d026b53a5f9d468cf3250d5986400e87de7e385d2b830"
+    },
+    {
+      "decision": "held-out",
+      "jaccard": 0.138889,
+      "left": "wd-p-0935",
+      "left_sha256": "e9739d1dd63af5c623146a0b1f3a2d8b80fbb9c359e80704a9d709c463b1d7ba",
+      "right": "wd-p-0986",
+      "right_sha256": "389d007a76a6464a69c1fec2d3576be0b4f88a1ffc440a8051348a5bb4e5006f"
+    },
+    {
+      "decision": "distinct concrete mechanism/obstacle/stakes on agent review",
+      "jaccard": 0.138889,
+      "left": "wd-p-0873",
+      "left_sha256": "12a781a2969b9a6cf2a520ae2159e10b001186c774f4804f59e271e9242db4cc",
+      "right": "wd-p-0895",
+      "right_sha256": "b0a8d1c2189f369c223a9ac9823b8c6923e7d433e48441dee42e90ca283c004b"
+    }
+  ],
+  "corpus_sha256": "129d60922e14058557d49a8f1599ecd3ce1efec2e1c71a03f200911537147854",
+  "draft_plots": 1051,
+  "editorial_resample": [
+    {
+      "id": "wd-p-0001",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "ce49430da599e75349077be9e621ae63c73942ea3626d377c9cabb9d9108e93f",
+      "text": "A court interpreter discovers that the defendant's apparent confession was produced by her own mistranslation years earlier. Correcting the record would free him, but would also invalidate the testimony that gave her sister custody of a child."
+    },
+    {
+      "id": "wd-p-0018",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "46fea267dcadfa8665643f4f513a1a434e5ae1229b1f84077467b37fede0571c",
+      "text": "A village votes to shrink itself so its remaining food will last the winter. The technician can reverse the process only once, and a neighboring community asks to join after the village has calculated its rations without them."
+    },
+    {
+      "id": "wd-p-0035",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "5dbfd954e85718f170919f8c2a0e156b9cc80f22ea2774bce64dd64a067555ff",
+      "text": "A woman's name disappears from a town's records after a clerical correction made at her own request. Years later, she must prove that she lived there to claim compensation for a disaster she escaped, without undoing the protection the correction gave someone else."
+    },
+    {
+      "id": "wd-p-0052",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "68401fcc7e7773e19567ec861b897b5d2d5a44240d840daffb2cfa9fd2c58155",
+      "text": "An apprentice baker wins a contract using a recipe developed with a former partner who now refuses credit. The partner will permit its use only if the apprentice stops describing the business as a story of individual perseverance."
+    },
+    {
+      "id": "wd-p-0069",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "9e64c116dadfeae3f1aaed539db5097d9a798fcca4ad6d1c90b70eb706e1fb78",
+      "text": "A fraud investigator finds that a supposedly nonexistent charity has quietly delivered every service in its publicity. Its director falsified only the donors' identities, and the investigator's own employer appears among the invented names."
+    },
+    {
+      "id": "wd-p-0086",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "7234695f1abfe81b68c163412fbabd737ab7bcdb329662a8fa3adc03b12f42d2",
+      "text": "A locksmith is asked to replace the lock on a room in the home she shares with her partner. The request is anonymous and legitimate, but the key provided with it fits a door the partner insists has always been decorative."
+    },
+    {
+      "id": "wd-p-0103",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "71fdd59f7abb94d810aa287a2f767e9d8f750d33eb3d9647264def51add48c4d",
+      "text": "Two friends promise to tell each other before accepting jobs that would separate them. One receives an offer to replace the other, who has secretly recommended her while preparing to leave a profession neither has admitted wanting to escape."
+    },
+    {
+      "id": "wd-p-0120",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "79322f591cbb21de3e3cc9f0d989eb66bfdc28f65659ddb45fb86762f1ea008d",
+      "text": "A field scientist loses the label identifying which of two soil samples contains a dangerous contaminant. Retesting is possible only by returning to a site now occupied by families whose evacuation depends on the result."
+    },
+    {
+      "id": "wd-p-0137",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "b3d127ee848dd73ffa58b1e0d7c91bf71813ab76accbf1aae3b534965ba99a58",
+      "text": "An adult asks to read the letters his late mother wrote to a close friend. The friend offers the letters only if he also reads her replies, which reveal that his mother repeatedly defended choices he has spent years blaming the friend for encouraging."
+    },
+    {
+      "id": "wd-p-0154",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "1df260a90cc36b4e2b2a5e924d7537e24c00ec6bad0e84840ec42fe164f82c48",
+      "text": "A parent promises a child that they will never move again, then is offered housing that would make the family's daily life safer. The child agrees to the move only if the parent explains why the earlier promise was made when it could not be guaranteed."
+    },
+    {
+      "id": "wd-p-0171",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "1ce2fb9fe729a44afdc2ba993e2cc83a0a6f7d95efb262f0f327928c39beb499",
+      "text": "A dispatcher notices that emergency calls from one block always arrive through a caller on another street. The caller has been bridging a service gap without permission, and an investigation would shut the workaround before a replacement can be installed."
+    },
+    {
+      "id": "wd-p-0188",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "a94c6baa89703fdfd8224b13bd97df286d7a491d90515181c6d678afbdd702e0",
+      "text": "A woman receives payment for a service she has never offered, with instructions to pass half to a stranger. Refunding it reveals that the money came from a trust established to repay a debt nobody wants recorded as charity."
+    },
+    {
+      "id": "wd-p-0205",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "1f24ec2ddb860a80f06ea2bf02599fb8ef087e07bcac5b9d60f16ad208cb98c1",
+      "text": "Two people meet while returning wrongly delivered parcels and begin using the mix-up to see each other. When one parcel contains a notice that would end the other's tenancy, continuing the harmless ritual becomes a decision about withholding urgent information."
+    },
+    {
+      "id": "wd-p-0222",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "56d97034f59bf7221326bd9dc3cd30a5e128be07d45f1fb5ce62a1a5896d723f",
+      "text": "A video editor finds that the raw footage of a celebrated rescue has correct timestamps but an impossible sequence of shadows. The discrepancy points not to a staged rescue, but to a second intervention the credited rescuer has been paid to omit."
+    },
+    {
+      "id": "wd-p-0239",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "6993e8e927c64f6cd857dcaab55996402e059ceee15c34f5e60791fbbe680a37",
+      "text": "A station receives emergency instructions in reverse order, with each message arriving only after the previous step is completed. The engineer finds that the first required action will destroy the instrument needed to verify whether later messages came from a trustworthy source."
+    },
+    {
+      "id": "wd-p-0256",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "27c21272a639a1db7593dbc9090f0cff3332522fb86f4f5e2b2c7b5e1d966399",
+      "text": "A habitat's backup generator will start only after its main system stops. The engineer must diagnose a fault without the simultaneous power needed to compare their readings."
+    },
+    {
+      "id": "wd-p-0273",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "3be132a5533f082615161520383fd28c8a65965ec844d9d822d400f8c5237a80",
+      "text": "A household's artificial gravity fails only in the room used by its youngest resident. The child has been redirecting power to support a neighbor's failing medical equipment through an undocumented cable."
+    },
+    {
+      "id": "wd-p-0290",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "3fc249bdfe07c4ac65d8de7a50b525583bf74b9c72d6fca70b465e3e3a32760f",
+      "text": "A statistician sees that a sequence of improbably fair coin tosses is more suspicious than a biased run. Demonstrating the fraud would require revealing that the same test cleared her earlier published experiment."
+    },
+    {
+      "id": "wd-p-0307",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "2dd90e26066ef9d8cd53211cbb5d75b126498332eb2628ccc894ace05323d200",
+      "text": "A forensic accountant finds that a suspect could not have made a payment attributed to her. The payment came from a refund system she designed, and correcting the accusation would reveal whom that system had accidentally excluded."
+    },
+    {
+      "id": "wd-p-0324",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "b0861e283b329e075bb938d59fe469ef54039098d77031efd46f2586ff07310d",
+      "text": "A laboratory alarm activates during experiments conducted with no hazardous material. The investigator finds that a mislabeled control sample has been quietly preventing the reaction everyone expected the alarm to detect."
+    },
+    {
+      "id": "wd-p-0341",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "e01f61e1bc8a0c78319d8495b8c2befe7755b29a8be2f856d65c0282ee89e4ff",
+      "text": "A woman sees her partner in a restored newsreel filmed decades before his birth. The resemblance is explainable, but he recognizes a person just outside the frame whom the restoration has not yet revealed."
+    },
+    {
+      "id": "wd-p-0358",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "c9fc11ab4c916ceee497f153f8c6327cec598e41b4b4e37b2233741c387ddb6d",
+      "text": "A projectionist notices a single unfamiliar frame in each reel of an old film. Together they show the cinema's own interior at different stages of a renovation its records say never occurred."
+    },
+    {
+      "id": "wd-p-0375",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "9cb1b571bf077ddce16f868ed146dd30e550e1aeeb362e3b8512c448cb06ce11",
+      "text": "A public hearing's recording begins with applause for a proposal that was later rejected. The audience was responding to an earlier version, and the official edit has attached that approval to the amendment residents opposed."
+    },
+    {
+      "id": "wd-p-0392",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "74ea53c027981182acf667f81a22540334e50a6c3297700701406cf1f3e69038",
+      "text": "A restoration architect finds that an old house has more staircase than height. The extra steps were fitted to conceal a lowered floor, and the room below is still receiving deliveries under the building's former address."
+    },
+    {
+      "id": "wd-p-0409",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "a7acbcb457d942012684c50115f98f6b850dd4aab5ae409f0ea88a4b58e85d77",
+      "text": "A man adopts his late friend's dog and discovers that its daily route ends at the home of someone the friend stopped speaking to. Changing the walk avoids an awkward meeting but unsettles the animal he promised to care for."
+    },
+    {
+      "id": "wd-p-0426",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "603070ddfd24572df811ec29e894c88f7d28e54a42f898c9e373cc703706df0a",
+      "text": "A father attends an exhibition of his child's work and recognizes a room he believed the child had forgotten. His explanation of the room's importance conflicts with the artist's account printed beside the painting."
+    },
+    {
+      "id": "wd-p-0443",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "7dbb706f6b4eadd8c762a2dd1af2f41ea3f2fa41054fdd648fcdcd96168d519c",
+      "text": "A teenager tries to repair a broken family dish without telling anyone. A parent recognizes the imperfect repair as the same method used to hide an older break for which another relative has long been blamed."
+    },
+    {
+      "id": "wd-p-0460",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "e4e039f2d49e79f6768beda0001937a7e35073e4b98bb2683049c1e1e72e91f1",
+      "text": "A couple decides to replace broken household objects only with things both choose. A failing kettle becomes the first test, and their inability to agree reveals that one is choosing for a future home the other has not committed to sharing."
+    },
+    {
+      "id": "wd-p-0477",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "3c5fcaa89ae4d5518cb256b6999201ef2651e0a7d92156435f10d2e55610596b",
+      "text": "A city opens an apology office that can acknowledge harm but authorize no compensation. Its clerk receives a claim asking only for an acknowledgment that would automatically trigger compensation under a different department's rules."
+    },
+    {
+      "id": "wd-p-0494",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "8bf1061188aaa3216e4a2b317e7091956ac275752bd79d1054272c8d34ba636c",
+      "text": "A city releases anonymized service records to demonstrate fairness. A local researcher recognizes herself from a unique sequence of appointments and must expose the privacy failure without exposing the other residents she can also identify."
+    },
+    {
+      "id": "wd-p-0511",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "a7a63aa2408c363773e14ffe5293ba1df93b82125afcbf7a46c0099e3f83930f",
+      "text": "A school obtains blanket permission for educational photographs. A parent discovers that a child's image is being used to advertise a policy the family has challenged, and the school treats removal as withdrawing the child from ordinary classroom activities."
+    },
+    {
+      "id": "wd-p-0528",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "583b7d67f1bf79747e1ea8de7961a624d39557048a6658eb2da5d48673220732",
+      "text": "An office introduces flexible seating but requires every employee to list a fixed desk for emergency planning. The administrator assigns fictional desks, which the evacuation drill then treats as occupied locations requiring search."
+    },
+    {
+      "id": "wd-p-0546",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "722c12e9b8ebd9a7d8b84edc72fe2cf85f208ab78278713ca89ce5b5505f9779",
+      "text": "A manager asks the office's informal mentor to document all her advice before retirement. Reading the draft reveals that many solutions require quietly ignoring policies the manager claims are essential to the office's success."
+    },
+    {
+      "id": "wd-p-0563",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "76a6d304b7a00c896b0fd6725331dcd9cac91f8d9ef96c1241f9f88c2ec2b499",
+      "text": "A town appoints its tallest building as ceremonial mayor. When a wealthy resident adds a tower, the old mayor's caretaker finds a forgotten clause making height depend on the public stairs actually usable by residents."
+    },
+    {
+      "id": "wd-p-0580",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "4fef1ed69b2b386a4b7e06d8dbbd7cc714d016eb03241069d36d80bede147ea0",
+      "text": "A fleet sails on a sea that solidifies whenever captains agree on the weather. Escaping a storm requires preserving enough disagreement to keep moving without losing the common information needed to navigate."
+    },
+    {
+      "id": "wd-p-0597",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "3fb01c69652aaa64764964110c9aca77e0782fb4520fa0664571ab4c86bafc07",
+      "text": "A town stores courage in public lamps for emergencies. A new leader uses the reserve to make routine work feel effortless, leaving residents unable to refuse a dangerous task when the lamps finally dim."
+    },
+    {
+      "id": "wd-p-0614",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "f67cd18cea5aec4432c060b630deeed16bf5fbb569d5db89e343500ad9dfbcb6",
+      "text": "A gate admits people whose names appear in an ancient guestbook. A scholar finds a blank line that accepts anyone's signature, but each new entry removes the name immediately above it."
+    },
+    {
+      "id": "wd-p-0631",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "f0e9ab810d0fe2e7bd42b2c96334c4cb8375a22242c16d441fd4368237882db8",
+      "text": "A railway engineer can restart a stalled train by coupling it to a service engine behind it. The coupling maneuver would push the last carriage onto a section of track the inspection crew has not cleared."
+    },
+    {
+      "id": "wd-p-0648",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "2c4f2354dd991c9cbc013f2bbfedc7d32d63d38a6e7676ea20cf531090aabd63",
+      "text": "A flood evacuation bus can clear a low bridge only while empty. Its driver must find somewhere safe to leave passengers while repositioning, although the shelters on either side report that they are full."
+    },
+    {
+      "id": "wd-p-0665",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "12063e94aeffd3986d9524359d9d737c5eb93a712ea2699b18789ee9146ac24a",
+      "text": "Two rescue teams approach a damaged habitat from opposite directions. Each must use the same narrow docking arm to stabilize it, and the automatic system mistakes their combined approach for a collision to avoid."
+    },
+    {
+      "id": "wd-p-0683",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "1c832851ea3876142d17ca3ab8370af50fee4cc3016b6b405f260ddcdb2d9160",
+      "text": "A river rescue team hears a whistle pattern meaning both stop and come closer under two training standards. The person in danger was trained under one, and the rescuer approaching her knows only the other."
+    },
+    {
+      "id": "wd-p-0700",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "b6ce5653a55c83b7757ef168aea3ef4eefdba46bf5f567a6b9f49050d6d24be2",
+      "text": "A rescue team reaches survivors with supplies sized for the original passenger list. One passenger has taken in a stranger since the accident, and admitting the extra person changes which evacuation plan is physically possible."
+    },
+    {
+      "id": "wd-p-0717",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "c44671672555becc505cd2e233d1a1440baa227ac6e92ccff7a7be965c412ae9",
+      "text": "One partner plans a perfect birthday using years of saved messages. The other discovers that an old wish has been honored after it ceased to fit, making the celebration a test of being remembered versus being known now."
+    },
+    {
+      "id": "wd-p-0734",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "5b86c7054f638926c63e0bdb269b5b5d42a74018992d74a5e7cdef53f5e59601",
+      "text": "A couple receives an anniversary portrait showing them in the roles friends expect them to occupy. One loves being recognized; the other sees a role they have been trying to leave, and the artist asks for permission to exhibit it."
+    },
+    {
+      "id": "wd-p-0751",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "77e56a4217c0f80f283c13601284bcdae08a4ec1dd16697bc72952fc590d6524",
+      "text": "A partner begins checking weather and travel conditions for the other's commute. Helpful warnings become a daily expectation, and the first missed message is interpreted as withdrawal rather than the limit of a voluntary act."
+    },
+    {
+      "id": "wd-p-0768",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "0d9a225670f2ad1dda8480d68f3392650dc5e1af65edcdc684613a9ad4f7af92",
+      "text": "A partner offers to handle a difficult conversation with a landlord. Success improves the household's situation but leaves the other feeling excluded from a decision made using information they had asked to keep private."
+    },
+    {
+      "id": "wd-p-0785",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "4ac53da34ca3d49beb17df20491ee278d68a3a4307608019d84486979e4f2a57",
+      "text": "A village orders a grand sign announcing its new market status. The sign painter discovers that the title grants rights only when the sign includes a fee schedule the council wants omitted for elegance."
+    },
+    {
+      "id": "wd-p-0802",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "496b169ae8d6314ef587aa0d6f6a9f84a6dd956b28e2066226be9baa719747d3",
+      "text": "A jeweler finds a repair hidden beneath a newly added hallmark. The repair proves the object predates the workshop claiming it, but the original maker taught the technique to a rival he publicly accused of theft."
+    },
+    {
+      "id": "wd-p-0819",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "688eaaf93992f80a0faf12c8402886f85303bc3ae85c44bd1251454dfa84f7e5",
+      "text": "A clerk records workers' names on a relief list that will also be used to enforce old debts. Separating the lists would preserve access to food while violating the official condition under which aid was funded."
+    },
+    {
+      "id": "wd-p-0836",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "fceb5149c88c596c1d178a46801187dd00f65735bcab2bfd7f2b507c8e3c611f",
+      "text": "An adult offered a teaching post must supply a character reference from someone who disapproved of the relationship that made the work possible. Asking the reference forces both people to revisit an unresolved judgment without making affection an application credential."
+    },
+    {
+      "id": "wd-p-0853",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "37ac937ac0165842347f4a5b6c1ace4628f7c4ddc007065d93332c117537f221",
+      "text": "A town elects a dog as honorary mayor to avoid political arguments. Its owner receives conflicting invitations, and choosing which ceremony the dog attends becomes the most divisive decision of the year."
+    },
+    {
+      "id": "wd-p-0870",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "904746dc9f94ea75ea349ff00043836b4b4ac562ef823f27013b04868ce29d66",
+      "text": "A guest invents expertise in a harmless hobby to keep a conversation moving. The host organizes a public demonstration as a surprise thank-you, and the guest's only possible teacher is the person whose work they casually criticized."
+    },
+    {
+      "id": "wd-p-0887",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "02f2be232caf3ab975d2c5d0d108959d4ebf215e13e462a8b9b22cca26029e3a",
+      "text": "A café allows regulars to name a new drink by consensus. They agree on a name nobody likes because each thinks someone else proposed it, and the server discovers the misunderstanding after the menu is printed."
+    },
+    {
+      "id": "wd-p-0904",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "03b0b4c0901ca7a27ccec45e36b8a2ae160f619930c3f71e671a8f461e88bc9a",
+      "text": "A town declares one bench everyone's property. Residents begin making improvements without consultation until the bench can no longer be sat on, and removing any addition is treated as disrespecting its donor."
+    },
+    {
+      "id": "wd-p-0921",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "9f7c8ce79245da80c9a84a6bc903eb6266492929b78e1ef1405d7cdfce1ab6ec",
+      "text": "A family agrees that anyone may propose a new tradition. The first proposal is to stop calling activities traditions before anyone has enjoyed them twice, and the debate becomes the gathering's most repeated activity."
+    },
+    {
+      "id": "wd-p-0939",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "4b65de0925f0ed026e94c4653f806e4aebd6692b07c2766b1c4246bd16974411",
+      "text": "A rescue team enters a habitat where every opened door seals the previous one. The route remains safe until a stretcher cannot turn through the final angle and returning would require reopening a door behind them."
+    },
+    {
+      "id": "wd-p-0956",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "b528862e794f4acbcecb6477c50a0efb64dab293c590b9ee6a31632a63629466",
+      "text": "A town labels a neglected green space wild to avoid maintaining it. When volunteers document its valuable habitat, officials seek an award for deliberate ecological management and ask the volunteers to endorse the description."
+    },
+    {
+      "id": "wd-p-0973",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "26a155a2c4dbd91b6ad1d99f598481377dc1146d39aa24b934b4d246088bc507",
+      "text": "A garden lets each partner grow one scene from a possible shared future. The scenes look incompatible until they realize that both selected what they thought the other wanted rather than what they hoped for themselves."
+    },
+    {
+      "id": "wd-p-0991",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "656c5ec4ac4e11f3f517891e12cb92e4339a347c3017f8140aa205ce772a3408",
+      "text": "A weather vane points toward the person who last changed a local forecast. It repeatedly indicates an ordinary gardener whose small irrigation choices alter the conditions used by the town's official prediction system."
+    },
+    {
+      "id": "wd-p-1008",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "eb4861a6385d7f1d0525ec37c886d0408400a6b645913fa37c23a220e91a597c",
+      "text": "During one formal photograph, an adult child realizes that an estranged parent has been placed outside the frame. Everyone has been told to stay still, and correcting the arrangement would require acknowledging the exclusion before the shutter opens."
+    },
+    {
+      "id": "wd-p-1025",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "1fbaf7a0722094b6b27fee9324a5713383dbeb2f8d416b7b5baec304e116a940",
+      "text": "A child gives every adult at a gathering a drawing of a different helpful act. One adult receives a blank page and discovers it is an invitation to choose what they want to be remembered for next."
+    },
+    {
+      "id": "wd-p-1042",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "c46428d247fd5621a96f37c2921e3e3251934a6d24d57ab3c998e7fee4008c96",
+      "text": "A town offers a prize for the most welcoming house, judged by surprise visits. The finalist who asks judges to make an appointment is praised for honesty but told that boundaries conflict with the competition's definition of welcome."
+    },
+    {
+      "id": "wd-p-1051",
+      "result": "concrete actionable conflict, mystery or consequential choice; no mere trait/name variant",
+      "sha256": "1f3c11d4527ca619095c5f792b25b8d5428483e84fce29b35e7785f80b5557e7",
+      "text": "Two people agree to revisit a difficult decision only when both feel ready. Each later says they have been waiting for the other to ask, revealing that the considerate rule has allowed the decision to remain untouched indefinitely."
+    }
+  ],
+  "excluded": {
+    "wd-p-0544": "Reclassifying inconvenient feedback overlaps the causal mechanism of wd-p-0534; conservative holdout despite different institutional setting.",
+    "wd-p-0679": "Removing a fallen tree would destabilize a refuge, overlapping wd-p-0643; changing route versus antenna is not counted as a new option.",
+    "wd-p-0922": "Announcements that defeat an intended silence overlap the silent-auction microphone situation; conservative holdout.",
+    "wd-p-0986": "Cooling samples competes with a person's essential supply, overlapping wd-p-0935; concealed medical need does not earn an extra count here."
+  },
+  "exercise_categories": [
+    "conflict",
+    "description",
+    "dialogue",
+    "formal",
+    "motivation",
+    "pacing",
+    "point-of-view",
+    "read-through",
+    "revision",
+    "senses",
+    "setting",
+    "structure",
+    "subtext",
+    "voice"
+  ],
+  "genre_counts": {
+    "adventure": 206,
+    "family": 171,
+    "historical": 75,
+    "mystery": 217,
+    "political": 164,
+    "realist": 669,
+    "romance": 183,
+    "satire": 161,
+    "speculative": 248
+  },
+  "limits": [
+    "Lexical similarity is a review aid, not semantic uniqueness proof.",
+    "No independent human editorial or legal attestation is claimed.",
+    "Historical research drafts and M5 exercises are not counted.",
+    "Difficulty is an editorial starting-burden estimate, not a quality ranking.",
+    "All runtime selection is offline and non-AI."
+  ],
+  "review_scope": "AI-assisted drafting and agent editorial review; not an independent human or legal attestation",
+  "schema_version": 1,
+  "version": "writingdeck-original-1"
+}

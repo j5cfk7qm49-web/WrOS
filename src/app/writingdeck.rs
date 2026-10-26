@@ -81,7 +81,7 @@ impl Worker {
         Self { tx, rx }
     }
 }
-const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 21] = [
+const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 22] = [
     (ShortcutAction::Dashboard, "WritingDeck dashboard"),
     (ShortcutAction::SystemSettings, "System settings"),
     (ShortcutAction::Tutorial, "Interactive tutorial"),
@@ -103,6 +103,7 @@ const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 21] = [
     (ShortcutAction::AdvancedSprints, "Advanced sprints"),
     (ShortcutAction::Achievements, "Milestone collection"),
     (ShortcutAction::DailyChallenges, "Daily challenges"),
+    (ShortcutAction::StorySpark, "Story Spark"),
 ];
 
 pub struct Deck {
@@ -158,6 +159,7 @@ impl Deck {
             Widget::AdvancedSprints,
             Widget::Achievements,
             Widget::DailyChallenges,
+            Widget::StorySpark,
         ] {
             if !state.dashboard.iter().any(|w| w.widget == widget) {
                 state.dashboard.push(workspaces::WidgetConfig {
@@ -408,6 +410,7 @@ impl App {
             ShortcutAction::AdvancedSprints => self.run_action(Action::AdvancedSprints),
             ShortcutAction::Achievements => self.run_action(Action::Achievements),
             ShortcutAction::DailyChallenges => self.run_action(Action::DailyChallenges),
+            ShortcutAction::StorySpark => self.run_action(Action::StorySpark),
         }
     }
     pub fn add_deck_shortcut(&mut self, chord: &str) {
@@ -950,6 +953,7 @@ impl App {
             Widget::AdvancedSprints => self.run_action(Action::AdvancedSprints),
             Widget::Achievements => self.run_action(Action::Achievements),
             Widget::DailyChallenges => self.run_action(Action::DailyChallenges),
+            Widget::StorySpark => self.open_spark(),
         }
     }
     fn start_tutorial_demo(&mut self) {
@@ -1172,6 +1176,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                             )
                         }
                     }
+                    Widget::StorySpark => app.spark.summary.clone(),
                     Widget::RecentScenes => app.deck.recent.clone(),
                     Widget::Scratchpad => app
                         .workflow

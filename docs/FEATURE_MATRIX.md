@@ -1,6 +1,6 @@
 # Feature status matrix
 
-As of 2026-10-25 — 0.1.0-dev foundation + M3b + M4 + initial M5. **No hardware-verified claims.**
+As of 2026-10-25 — 0.1.0-dev foundation + M3b + M4 + initial M5 + M6 software. **No hardware-verified claims.**
 
 Existing means audited baseline; Tested identifies automated/VM evidence, not production qualification. See [STATUS](STATUS.md) and [ROADMAP](ROADMAP.md).
 
@@ -49,9 +49,9 @@ Existing means audited baseline; Tested identifies automated/VM evidence, not pr
 | Productivity | Advanced goals/deadlines + offline 50k November calendar/rest days | Tested | Goal/calendar/forecast core + real four-size UI/PTY and persisted restart | Nine explicit native/measured goal choices; civil windows, rest days, required pace; forecast uses recorded work dates, not missing zeroes |
 | Productivity | Optional non-punitive achievements and advanced sprints | Tested | Sprint/break/collection core + real UI/PTY/restart/failure tests | Five variants, pause/resume/retained breaks; source-status and actual learning awards; badge failure is optional, runtime checkpoints are not |
 | Productivity | Persisted daily challenges across ten categories | Tested | Deterministic core DST/travel/filter/reroll tests + genuine measured UI/PTY/restart | 30 original MIT exercises; frozen date/profile/source/acceptance/reroll history; explicit measured versus subjective evidence; NOT the M6 plot corpus |
-| Story Spark | Specific source/license research and exclusion manifest | Tested | Manifest/source review | No third-party challenge corpus bundled yet |
-| Story Spark | 1,000+ substantive curated plot options + exercise corpus | Planned | None | No inflated record-count completeness claim |
-| Story Spark | Four modes, compatible combinations, roulette/static, history/favorites/actions | Planned | None | Offline non-AI design; tutorial lessons disabled until real |
+| Story Spark | Specific source/license research and exclusion manifest | Tested | Pinned original source/artifact registry + six Python provenance contracts | Historical OCR/modern cleanup and all third-party candidates unbundled; original AI-assisted M6 bundle has explicit review/rights limits |
+| Story Spark | 1,000+ substantive curated plot options + exercise corpus | Tested | Offline compiler/--check, core exact-ID/hash/provenance tests and six Python corpus contracts | 1047 accepted independently worded plots / 84 exercises; 1051 literal drafts, four substantive-overlap holds. AI-assisted authoring/agent editorial review, not independent human/legal or semantic certification |
+| Story Spark | Four modes, compatible combinations, roulette/static, history/favorites/actions | Tested | 28 Spark core + 28 real UI + adoption tests; four compiled PTY methods/four-size loaded restart | Offline non-AI; exact rerolls, civil-date daily, bounded references, real Markdown/pin/scratch/scene/timed sprint and optional SELF-REPORTED assignment; no M8 structured-task fiction |
 | Writing tools | Harper grammar + dialogue/novel/global policy | Planned | Crate API/license evaluated only | harper-core 2.13.0 not linked into application |
 | Writing tools | Nabokov fiction-aware profiles + native lightweight analysis | Planned | Source/runtime/license evaluated only | Optional Python/model costs not benchmarked |
 | Writing tools | Standalone proselint versioned structured-output integration | Planned | 0.14/0.16 CLI differences evaluated | No Vale dependency; adapter not implemented |
@@ -70,7 +70,7 @@ Existing means audited baseline; Tested identifies automated/VM evidence, not pr
 | Cloud | Opt-in Drive OAuth, private credentials, upload queue, verified backup/restore | Planned | None | Local state/fake-transport infrastructure can be built without credentials |
 | Cloud | Conflict-aware bidirectional sync + safe mobile/Docs evaluation | Planned | Existing generic file conflicts only | Copy/sync/Docs interoperability are separate guarantees |
 | Cloud | Live Google authorization/restore/Docs round-trip acceptance | Blocked | No account enrolled or manuscript transmitted | Requires explicit user credentials and consent at M9 |
-| Tutorial | 39-lesson catalog, safe demo, replay/skip/progress, help links | Tested | Core + actual editor/UI tests | 24 event-capable lessons including genuine calendar/rest choice, nonempty collection review and accepted measured challenge completion; 15 explicitly unavailable; context event is not OS/process attestation |
+| Tutorial | 39-lesson catalog, safe demo, replay/skip/progress, help links | Tested | Core + actual editor/UI tests | 27 event-capable / 12 unavailable; M6 22–24 require real saved plot, exercise favorite and reroll/favorite/new scene chain. Context events are not OS/process or creative-completion attestation |
 | Tutorial | All 39 complete interactive exercises across final features | In progress | Continuous foundation only | Must land alongside each later feature, not wait until release |
 | Qualification | Offline whole-VM operation and low-memory initial measurement | Tested | No network devices; guest process RSS in evidence | Does not include Python/spaCy or physical battery benchmark |
 | Qualification | Physical laptop keyboard/Wi-Fi/lock/suspend/battery/update qualification | Blocked | No hardware available in this environment | Record model/firmware before claiming Hardware verified |
