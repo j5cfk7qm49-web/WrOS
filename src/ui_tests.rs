@@ -265,7 +265,13 @@ fn the_first_menu_is_short_and_the_rest_is_one_step_down() {
         !writing.iter().any(|l| l.contains("Music player")),
         "music is off"
     );
-    for sub in [Sub::Book, Sub::Writing, Sub::Settings, Sub::Help] {
+    for sub in [
+        Sub::Book,
+        Sub::Writing,
+        Sub::Productivity,
+        Sub::Settings,
+        Sub::Help,
+    ] {
         assert_eq!(labels(d.app.submenu(sub)).last().unwrap(), "Back");
     }
 }
@@ -274,7 +280,13 @@ fn the_first_menu_is_short_and_the_rest_is_one_step_down() {
 fn every_menu_row_says_what_it_does_and_has_a_help_topic() {
     let d = Desk::open(book("menu-about", true), 120, 35);
     let mut rows = d.app.menu();
-    for sub in [Sub::Book, Sub::Writing, Sub::Settings, Sub::Help] {
+    for sub in [
+        Sub::Book,
+        Sub::Writing,
+        Sub::Productivity,
+        Sub::Settings,
+        Sub::Help,
+    ] {
         rows.extend(d.app.submenu(sub));
     }
     for (label, action) in rows {
@@ -3090,7 +3102,13 @@ fn nothing_in_ctrl_k_is_missing_from_the_menu() {
     let mut d = Desk::open(book("ctrlk-menu", true), 120, 40);
     d.key(KeyCode::Tab); // writing, so the writing tools are all offered
     let mut menu: Vec<A> = d.app.menu().into_iter().map(|(_, a)| a).collect();
-    for sub in [Sub::Book, Sub::Writing, Sub::Settings, Sub::Help] {
+    for sub in [
+        Sub::Book,
+        Sub::Writing,
+        Sub::Productivity,
+        Sub::Settings,
+        Sub::Help,
+    ] {
         menu.extend(d.app.submenu(sub).into_iter().map(|(_, a)| a));
     }
     let missing: Vec<String> = palette::entries(&d.app)
@@ -6813,4 +6831,1071 @@ fn writingdeck_workflow_command_palette_remains_reachable_from_read_only_readers
     }
     assert_eq!(fs::read(first_scene(&d.root)).unwrap(), before);
     assert!(d.app.workflow.state().unwrap().notes.is_empty());
+}
+
+// ---- real M5 operation ledger, goals, calendars, sprints and challenges ----
+#[derive(Clone)]
+struct MetricClock(std::sync::Arc<std::sync::Mutex<grimoire_core::accounting::Moment>>);
+impl grimoire_core::accounting::Clock for MetricClock {
+    fn now(&self) -> grimoire_core::accounting::Moment {
+        self.0.lock().unwrap().clone()
+    }
+}
+fn metric_clock(d: &mut Desk) -> MetricClock {
+    let clock = MetricClock(std::sync::Arc::new(std::sync::Mutex::new(
+        grimoire_core::accounting::Moment {
+            mono_ms: 0,
+            wall: chrono::DateTime::parse_from_rfc3339("2026-10-25T12:00:00+00:00").unwrap(),
+            zone: Some("UTC".into()),
+        },
+    )));
+    d.app.productivity.clock = Box::new(clock.clone());
+    d.app.refresh_productivity_snapshot();
+    clock
+}
+fn metric_advance(clock: &MetricClock, ms: u64) {
+    let mut t = clock.0.lock().unwrap();
+    t.mono_ms += ms;
+    t.wall += chrono::Duration::milliseconds(ms as i64);
+}
+fn metric_totals(
+    d: &Desk,
+    role: grimoire_core::accounting::Role,
+) -> grimoire_core::accounting::Totals {
+    grimoire_core::accounting::Totals::collect(
+        d.app.productivity.ledger.known.iter(),
+        "0001-01-01",
+        "9999-12-31",
+        role,
+    )
+}
+fn metric_writer(tag: &str, w: u16, h: u16) -> Desk {
+    let mut d = Desk::open(book(tag, true), w, h);
+    d.app.overlay = Overlay::None;
+    d.app.focus = d.app.editor_focus();
+    d.app.editor.scene_end();
+    d
+}
+fn metric_value(d: &Desk, metric: grimoire_core::productivity::Metric) -> Option<i128> {
+    d.app.productivity.snapshot.lifetime(metric, None, false)
+}
+fn metric_field(d: &mut Desk, text: &str) {
+    let old = match &d.app.overlay {
+        Overlay::ProductivityInput { buf, .. } => buf.len(),
+        _ => panic!("expected target/date input"),
+    };
+    for _ in 0..old {
+        d.key(KeyCode::Backspace);
+    }
+    d.typed(text);
+    d.key(KeyCode::Enter);
+}
+fn metric_new_sprint(d: &mut Desk, index: usize, target: &str) {
+    d.app.run_action(palette::Action::AdvancedSprints);
+    d.key(KeyCode::Char('n'));
+    for _ in 0..index {
+        d.key(KeyCode::Down);
+    }
+    d.key(KeyCode::Enter);
+    metric_field(d, target);
+    assert!(d.app.productivity.sprint.is_some(), "{}", d.app.msg);
+}
+
+#[test]
+fn writingdeck_productivity_keyboard_paste_undo_are_actual_source_operations_not_net_baselines() {
+    use grimoire_core::accounting::Role;
+    let mut d = metric_writer("metrics-origins", 100, 30);
+    metric_clock(&mut d);
+    d.typed("alpha beta ");
+    d.app.paste("gamma delta ");
+    d.ctrl('z');
+    d.ctrl('s');
+    let t = metric_totals(&d, Role::Manuscript);
+    assert_eq!(
+        (
+            t.typed.added,
+            t.pasted.added,
+            t.replay.removed,
+            t.net(false)
+        ),
+        (2, 2, 2, 2)
+    );
+    assert_eq!(d.app.productivity.ledger.pending_count(), 0);
+    for part in fs::read_dir(d.root.join(".grimoire/writingdeck/ledger/2026-10-25")).unwrap() {
+        let text = fs::read_to_string(part.unwrap().path()).unwrap();
+        assert!(
+            !text.contains("alpha")
+                && !text.contains("beta")
+                && !text.contains("gamma")
+                && !text.contains("delta"),
+            "metadata must not copy source prose"
+        );
+    }
+    d.app.run_action(palette::Action::Productivity);
+    d.draw();
+    assert!(d.shows("Productivity"));
+    assert!(
+        d.shows("Keyboard-pair")
+            || d.app
+                .productivity
+                .rows
+                .iter()
+                .any(|r| r.contains("NOT a claim of proven exclusive"))
+    );
+}
+#[test]
+fn writingdeck_productivity_both_editor_sources_are_attributed_and_hidden_notes_never_become_manuscript_words()
+ {
+    use grimoire_core::accounting::Role;
+    let (mut d, note) = secondary_book("metrics-two-panes", 120, 40, false);
+    metric_clock(&mut d);
+    d.app.focus = d.app.editor_focus();
+    d.app.editor.scene_end();
+    d.typed(" primaryAdded ");
+    choose_secondary(&mut d, &note);
+    d.app.editor.scene_end();
+    d.typed(" sideAdded ");
+    d.app.hide_secondary();
+    d.ctrl('s');
+    assert_eq!(metric_totals(&d, Role::Manuscript).typed.added, 1);
+    assert_eq!(metric_totals(&d, Role::Research).typed.added, 1);
+    assert!(fs::read_to_string(note).unwrap().contains("sideAdded"));
+    let entries = &d.app.productivity.ledger.known;
+    assert!(
+        entries
+            .iter()
+            .any(|e| e.source.path.starts_with("research"))
+    );
+    assert!(
+        entries
+            .iter()
+            .any(|e| e.source.path.starts_with("manuscript"))
+    );
+}
+#[test]
+fn writingdeck_productivity_formatting_find_and_book_undo_do_not_reauthor_untouched_words() {
+    use grimoire_core::accounting::Role;
+    let mut d = metric_writer("metrics-replace", 120, 40);
+    metric_clock(&mut d);
+    d.app.paste("cat unchanged other words cat");
+    d.ctrl('s');
+    d.app.editor.place(0, 1);
+    d.ctrl('b');
+    d.ctrl('s');
+    let t = metric_totals(&d, Role::Manuscript);
+    assert_eq!(t.input.added, 5, "format markers cannot add existing words");
+    d.app.overlay = Overlay::None;
+    d.app.open_find_book("cat".into());
+    if let Overlay::FindBook { with, .. } = &mut d.app.overlay {
+        *with = Some("dog".into());
+    }
+    d.app.replace_all_key();
+    d.app.on_overlay_key(app::Key::Char('y'));
+    d.app.save();
+    let t = metric_totals(&d, Role::Manuscript);
+    assert_eq!((t.input.added, t.input.removed), (7, 2));
+    d.app.overlay = Overlay::None;
+    d.ctrl('z');
+    d.ctrl('s');
+    let t = metric_totals(&d, Role::Manuscript);
+    assert_eq!(t.replay.net(false), 0);
+    assert_eq!((t.replay.added, t.replay.removed), (2, 2));
+    assert_eq!(t.input.gaps + t.replay.gaps, 0);
+}
+#[test]
+fn writingdeck_productivity_idle_cutoff_pause_and_revision_mode_use_injected_monotonic_events() {
+    use grimoire_core::accounting::Role;
+    let mut d = metric_writer("metrics-clock", 100, 30);
+    let clock = metric_clock(&mut d);
+    d.typed("a");
+    metric_advance(&clock, 500);
+    d.typed("b");
+    metric_advance(&clock, 61000);
+    d.typed("c");
+    d.ctrl('s');
+    assert_eq!(metric_totals(&d, Role::Manuscript).active_ms, 500);
+    d.app.run_action(palette::Action::Productivity);
+    d.key(KeyCode::Char('m'));
+    assert_eq!(
+        d.app.productivity.config.mode,
+        grimoire_core::accounting::Mode::Revision
+    );
+    d.key(KeyCode::Esc);
+    metric_advance(&clock, 1000);
+    d.typed("d");
+    d.ctrl('s');
+    assert_eq!(metric_totals(&d, Role::Manuscript).revision_operations, 1);
+    assert_eq!(metric_totals(&d, Role::Manuscript).active_ms, 500);
+}
+#[test]
+fn writingdeck_productivity_calendar_goal_and_all_six_pages_are_real_at_four_sizes() {
+    use crate::app::productivity::Page;
+    for (w, h) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let mut d = metric_writer(&format!("metrics-pages-{w}"), w, h);
+        metric_clock(&mut d);
+        let before = d.app.editor.text();
+        d.ctrl('k');
+        d.typed("calendar and rest days");
+        d.key(KeyCode::Enter);
+        assert!(matches!(
+            d.app.overlay,
+            Overlay::Productivity {
+                page: Page::Calendar,
+                ..
+            }
+        ));
+        d.key(KeyCode::Char('n'));
+        assert_eq!(
+            d.app.productivity.config.schedule.as_ref().unwrap().target,
+            50000
+        );
+        d.key(KeyCode::Char(' '));
+        assert!(
+            d.app
+                .productivity
+                .config
+                .schedule
+                .as_ref()
+                .unwrap()
+                .rest_days
+                .contains("2026-11-01")
+        );
+        assert!(d.shows("Calendar"));
+        d.key(KeyCode::Char('2'));
+        d.key(KeyCode::Char('n'));
+        d.key(KeyCode::Enter);
+        metric_field(&mut d, "25");
+        assert_eq!(d.app.productivity.config.goals[0].target, 25);
+        for key in ['1', '2', '3', '4', '5', '6'] {
+            d.key(KeyCode::Char(key));
+            assert!(matches!(d.app.overlay, Overlay::Productivity { .. }));
+            assert!(!d.rows().iter().all(|r| r.trim().is_empty()));
+        }
+        assert_eq!(d.app.editor.text(), before);
+        assert!(d.app.try_quit());
+        let reopened = Desk::open(d.root.clone(), w, h);
+        assert_eq!(reopened.app.productivity.config.goals[0].target, 25);
+        assert!(
+            reopened
+                .app
+                .productivity
+                .config
+                .schedule
+                .as_ref()
+                .unwrap()
+                .rest_days
+                .contains("2026-11-01")
+        );
+    }
+}
+#[test]
+fn writingdeck_productivity_calendar_replacement_keeps_prior_rest_day_configuration() {
+    let mut d = metric_writer("metrics-cal-history", 100, 30);
+    metric_clock(&mut d);
+    d.app.run_action(palette::Action::Calendar);
+    d.key(KeyCode::Char('n'));
+    d.key(KeyCode::Char(' '));
+    d.key(KeyCode::Char('n'));
+    assert_eq!(d.app.productivity.config.schedule_history.len(), 1);
+    assert!(
+        d.app.productivity.config.schedule_history[0]
+            .rest_days
+            .contains("2026-11-01")
+    );
+    assert!(
+        d.app
+            .productivity
+            .config
+            .schedule
+            .as_ref()
+            .unwrap()
+            .rest_days
+            .is_empty()
+    );
+}
+#[test]
+fn writingdeck_productivity_invalid_target_or_date_keeps_original_settings_and_field() {
+    let mut d = metric_writer("metrics-bad-input", 100, 30);
+    metric_clock(&mut d);
+    d.app.run_action(palette::Action::Calendar);
+    d.key(KeyCode::Char('n'));
+    let old = fs::read(d.root.join(".grimoire/writingdeck/productivity.json")).unwrap();
+    d.key(KeyCode::Char('e'));
+    metric_field(&mut d, "2026-02-30");
+    assert!(matches!(d.app.overlay, Overlay::ProductivityInput { .. }));
+    assert_eq!(
+        fs::read(d.root.join(".grimoire/writingdeck/productivity.json")).unwrap(),
+        old
+    );
+    d.key(KeyCode::Esc);
+    d.key(KeyCode::Char('2'));
+    d.key(KeyCode::Char('n'));
+    d.key(KeyCode::Enter);
+    metric_field(&mut d, "0");
+    assert!(d.app.productivity.config.goals.is_empty());
+    assert!(matches!(d.app.overlay, Overlay::ProductivityInput { .. }));
+}
+#[test]
+fn writingdeck_productivity_measured_daily_completion_needs_accepted_subsequent_manuscript_work() {
+    use grimoire_core::challenges::{Evidence, Status};
+    let mut d = metric_writer("metrics-challenge", 120, 40);
+    metric_clock(&mut d);
+    d.app.run_action(palette::Action::DailyChallenges);
+    assert_eq!(
+        d.app.productivity.day.as_ref().unwrap().value.assignments[0].record_id,
+        "productivity-01"
+    );
+    d.key(KeyCode::Char('c'));
+    assert_eq!(
+        d.app.productivity.day.as_ref().unwrap().value.assignments[0].status,
+        Status::Assigned
+    );
+    d.key(KeyCode::Char('a'));
+    d.key(KeyCode::Char('c'));
+    assert_eq!(
+        d.app.productivity.day.as_ref().unwrap().value.assignments[0].status,
+        Status::Accepted
+    );
+    d.key(KeyCode::Esc);
+    d.app.paste(&"word ".repeat(50));
+    d.ctrl('s');
+    d.app.run_action(palette::Action::DailyChallenges);
+    d.key(KeyCode::Char('c'));
+    let a = &d.app.productivity.day.as_ref().unwrap().value.assignments[0];
+    assert_eq!(a.status, Status::Completed, "{}", d.app.msg);
+    assert_eq!(a.evidence, Some(Evidence::Measured));
+    let awards = d.app.productivity.config.awards.len();
+    d.key(KeyCode::Char('c'));
+    assert_eq!(d.app.productivity.config.awards.len(), awards);
+    let before = fs::read(
+        d.root
+            .join(".grimoire/writingdeck/challenges/2026-10-25.json"),
+    )
+    .unwrap();
+    let mut restarted = Desk::open(d.root.clone(), 120, 40);
+    metric_clock(&mut restarted);
+    restarted.app.run_action(palette::Action::DailyChallenges);
+    assert_eq!(
+        fs::read(
+            d.root
+                .join(".grimoire/writingdeck/challenges/2026-10-25.json")
+        )
+        .unwrap(),
+        before
+    );
+    assert_eq!(
+        restarted
+            .app
+            .productivity
+            .day
+            .as_ref()
+            .unwrap()
+            .value
+            .assignments[0]
+            .evidence,
+        Some(Evidence::Measured)
+    );
+}
+#[test]
+fn writingdeck_productivity_creative_completion_stays_explicitly_self_reported() {
+    use grimoire_core::challenges::{Category, Evidence, Status};
+    let mut d = metric_writer("metrics-selfreport", 100, 30);
+    metric_clock(&mut d);
+    d.app
+        .productivity
+        .update(|s| {
+            s.challenge_profile.categories = [Category::Creative].into_iter().collect();
+            s.challenge_profile.difficulty = 1;
+            Ok(())
+        })
+        .unwrap();
+    d.app.run_action(palette::Action::DailyChallenges);
+    d.key(KeyCode::Char('a'));
+    d.key(KeyCode::Char('c'));
+    assert_eq!(
+        d.app.productivity.day.as_ref().unwrap().value.assignments[0].status,
+        Status::Accepted
+    );
+    d.key(KeyCode::Char('x'));
+    assert_eq!(
+        d.app.productivity.day.as_ref().unwrap().value.assignments[0].evidence,
+        Some(Evidence::SelfReported)
+    );
+    assert_eq!(
+        metric_value(&d, grimoire_core::productivity::Metric::InputAdded),
+        Some(0)
+    );
+}
+#[test]
+fn writingdeck_productivity_reroll_is_explicit_preserves_acceptance_and_pasted_commands_are_ignored()
+ {
+    let mut d = metric_writer("metrics-reroll", 100, 30);
+    metric_clock(&mut d);
+    d.app.run_action(palette::Action::DailyChallenges);
+    d.key(KeyCode::Char('a'));
+    let old = d.app.productivity.day.as_ref().unwrap().value.assignments[0].clone();
+    d.key(KeyCode::Char('R'));
+    let day = &d.app.productivity.day.as_ref().unwrap().value;
+    assert_ne!(day.assignments[0].record_id, old.record_id);
+    assert_eq!(day.rerolls[0].old_assignment, old);
+    let source = d.app.editor.text();
+    let count = day.rerolls.len();
+    let selected = d.app.editor.selection();
+    d.ctrl('x');
+    d.ctrl('v');
+    d.ctrl('z');
+    d.ctrl('r');
+    d.app.on_drag(50, 10);
+    assert_eq!(d.app.editor.text(), source);
+    assert_eq!(d.app.editor.selection(), selected);
+    assert_eq!(
+        d.app.productivity.day.as_ref().unwrap().value.rerolls.len(),
+        count
+    );
+}
+#[test]
+fn writingdeck_productivity_filter_draft_cancellation_and_explicit_save_do_not_regenerate_today() {
+    let mut d = metric_writer("metrics-filters", 100, 30);
+    metric_clock(&mut d);
+    d.app.run_action(palette::Action::DailyChallenges);
+    let old = d.app.productivity.day.as_ref().unwrap().value.clone();
+    d.key(KeyCode::Char('f'));
+    d.key(KeyCode::Char(' '));
+    d.key(KeyCode::Esc);
+    assert_eq!(
+        d.app.productivity.config.challenge_profile.categories.len(),
+        10
+    );
+    d.key(KeyCode::Char('f'));
+    d.key(KeyCode::Char(' '));
+    d.key(KeyCode::Enter);
+    assert_eq!(
+        d.app.productivity.config.challenge_profile.categories.len(),
+        9
+    );
+    assert_eq!(d.app.productivity.day.as_ref().unwrap().value, old);
+}
+#[test]
+fn writingdeck_productivity_word_sprint_pause_resume_and_breaks_preserve_edits_and_real_time() {
+    use grimoire_core::productivity::SprintStatus;
+    let mut d = metric_writer("metrics-sprint", 100, 30);
+    let clock = metric_clock(&mut d);
+    metric_new_sprint(&mut d, 1, "3");
+    d.key(KeyCode::Esc);
+    d.app.paste("one ");
+    d.ctrl('s');
+    d.app.run_action(palette::Action::AdvancedSprints);
+    metric_advance(&clock, 1000);
+    d.key(KeyCode::Char('p'));
+    assert_eq!(
+        d.app.productivity.sprint.as_ref().unwrap().status,
+        SprintStatus::Paused
+    );
+    d.key(KeyCode::Esc);
+    d.app.paste("excluded ");
+    d.ctrl('s');
+    d.app.run_action(palette::Action::AdvancedSprints);
+    metric_advance(&clock, 1000);
+    d.key(KeyCode::Char('p'));
+    d.key(KeyCode::Char('b'));
+    metric_field(&mut d, "1");
+    assert!(
+        d.app
+            .productivity
+            .sprint
+            .as_ref()
+            .unwrap()
+            .break_timer
+            .is_some()
+    );
+    metric_advance(&clock, 60_000);
+    assert!(d.app.checkpoint_productivity(true));
+    assert_eq!(d.app.productivity.sprint.as_ref().unwrap().breaks.len(), 1);
+    assert!(
+        d.app
+            .productivity
+            .sprint
+            .as_ref()
+            .unwrap()
+            .effective_paused()
+    );
+    d.key(KeyCode::Char('p'));
+    d.key(KeyCode::Esc);
+    d.app.paste("two three ");
+    d.ctrl('s');
+    let s = d.app.productivity.sprint.as_ref().unwrap();
+    assert_eq!(s.status, SprintStatus::Completed);
+    assert_eq!(s.progress, 3);
+    assert_eq!(s.elapsed_ms, 1000);
+    assert!(d.app.editor.text().contains("excluded"));
+}
+#[test]
+fn writingdeck_productivity_no_editing_experiment_reports_deletions_without_blocking_or_losing_them()
+ {
+    let mut d = metric_writer("metrics-noedit", 100, 30);
+    let clock = metric_clock(&mut d);
+    d.app.paste("existing words");
+    d.ctrl('s');
+    metric_new_sprint(&mut d, 3, "1");
+    d.key(KeyCode::Esc);
+    d.app.editor.scene_end();
+    d.key(KeyCode::Backspace);
+    d.ctrl('s');
+    assert!(
+        d.app
+            .productivity
+            .sprint
+            .as_ref()
+            .unwrap()
+            .deletion_observed
+    );
+    assert!(!d.app.editor.text().ends_with("words"));
+    metric_advance(&clock, 60_000);
+    d.app.checkpoint_productivity(true);
+    let s = d.app.productivity.sprint.as_ref().unwrap();
+    assert_eq!(
+        s.status,
+        grimoire_core::productivity::SprintStatus::Completed
+    );
+    assert!(
+        !d.app
+            .productivity
+            .config
+            .awards
+            .iter()
+            .any(|a| a.id == format!("sprint-{}", s.id))
+    );
+    d.ctrl('z');
+    assert!(d.app.editor.text().ends_with("words"));
+}
+#[test]
+fn writingdeck_productivity_sprint_restart_requires_resume_and_never_adds_offline_time() {
+    let mut d = metric_writer("metrics-sprint-restart", 100, 30);
+    let clock = metric_clock(&mut d);
+    metric_new_sprint(&mut d, 0, "1");
+    metric_advance(&clock, 5000);
+    d.app.checkpoint_productivity(true);
+    assert!(d.app.try_quit());
+    let mut restarted = Desk::open(d.root.clone(), 100, 30);
+    let clock = metric_clock(&mut restarted);
+    metric_advance(&clock, 3_600_000);
+    restarted.app.checkpoint_productivity(true);
+    let s = restarted.app.productivity.sprint.as_ref().unwrap();
+    assert!(s.effective_paused());
+    assert_eq!(s.elapsed_ms, 5000);
+    restarted.app.run_action(palette::Action::AdvancedSprints);
+    restarted.key(KeyCode::Char('p'));
+    metric_advance(&clock, 55000);
+    restarted.app.checkpoint_productivity(true);
+    assert_eq!(
+        restarted
+            .app
+            .productivity
+            .sprint
+            .as_ref()
+            .unwrap()
+            .elapsed_ms,
+        60000
+    );
+}
+#[test]
+fn writingdeck_productivity_failed_ledger_write_keeps_pending_records_blocks_normal_quit_and_retry_is_idempotent()
+ {
+    let mut d = metric_writer("metrics-ledger-fail", 100, 30);
+    metric_clock(&mut d);
+    d.typed("first ");
+    d.ctrl('s');
+    let directory = d.root.join(".grimoire/writingdeck/ledger/2026-10-25");
+    let file = fs::read_dir(&directory)
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    let old = fs::read(&file).unwrap();
+    let future = b"{\"version\":999,\"retain\":true}";
+    fs::write(&file, future).unwrap();
+    d.typed("second ");
+    d.ctrl('s');
+    assert!(
+        fs::read_to_string(first_scene(&d.root))
+            .unwrap()
+            .contains("second")
+    );
+    assert!(d.app.productivity.ledger.pending_count() > 0);
+    assert!(!d.app.try_quit());
+    assert_eq!(fs::read(&file).unwrap(), future);
+    fs::write(&file, old).unwrap();
+    d.app.reload_productivity();
+    assert_eq!(d.app.productivity.ledger.pending_count(), 0);
+    assert_eq!(
+        metric_totals(&d, grimoire_core::accounting::Role::Manuscript)
+            .typed
+            .added,
+        2
+    );
+    assert!(d.app.try_quit());
+    assert_eq!(
+        grimoire_core::accounting::Ledger::load(&d.root).known.len(),
+        2
+    );
+}
+#[test]
+fn writingdeck_productivity_unknown_settings_are_preserved_and_never_stop_original_markdown_saving()
+{
+    let root = book("metrics-future-settings", true);
+    fs::create_dir_all(root.join(".grimoire/writingdeck")).unwrap();
+    let future = b"{\"version\":999,\"future\":{\"retain\":true}}";
+    fs::write(root.join(".grimoire/writingdeck/productivity.json"), future).unwrap();
+    let mut d = Desk::open(root, 100, 30);
+    d.app.focus = d.app.editor_focus();
+    d.typed("original safe words");
+    d.ctrl('s');
+    assert!(d.app.productivity.store.is_none());
+    assert!(d.app.try_quit());
+    assert_eq!(
+        fs::read(d.root.join(".grimoire/writingdeck/productivity.json")).unwrap(),
+        future
+    );
+    assert!(
+        fs::read_to_string(first_scene(&d.root))
+            .unwrap()
+            .contains("original safe words")
+    );
+    assert!(d.app.productivity.ledger.known.is_empty());
+}
+#[test]
+fn writingdeck_productivity_optional_badge_write_failure_does_not_punish_or_block_saved_prose_and_ledger()
+ {
+    let mut d = metric_writer("metrics-optional-fail", 100, 30);
+    metric_clock(&mut d);
+    let file = d.root.join(".grimoire/writingdeck/productivity.json");
+    fs::create_dir_all(file.parent().unwrap()).unwrap();
+    let future = b"{\"version\":999,\"keep\":true}";
+    fs::write(&file, future).unwrap();
+    d.typed("genuine word");
+    d.ctrl('s');
+    assert_eq!(d.app.productivity.ledger.pending_count(), 0);
+    assert!(d.app.try_quit(), "{}", d.app.msg);
+    assert_eq!(fs::read(file).unwrap(), future);
+    assert!(
+        fs::read_to_string(first_scene(&d.root))
+            .unwrap()
+            .contains("genuine word")
+    );
+}
+#[test]
+fn writingdeck_productivity_disable_everything_keeps_source_typing_and_existing_collection() {
+    let mut d = metric_writer("metrics-disabled", 100, 30);
+    metric_clock(&mut d);
+    d.typed("first ");
+    d.ctrl('s');
+    let earned = d.app.productivity.config.awards.len();
+    assert!(earned > 0);
+    let known = d.app.productivity.ledger.known.len();
+    d.app.run_action(palette::Action::Productivity);
+    for key in ['t', 'a', 'd'] {
+        d.key(KeyCode::Char(key));
+    }
+    assert!(
+        !d.app.productivity.config.tracking
+            && !d.app.productivity.config.achievements
+            && !d.app.productivity.config.challenges
+    );
+    d.key(KeyCode::Esc);
+    d.typed("more source words ");
+    d.ctrl('s');
+    assert_eq!(d.app.productivity.ledger.known.len(), known);
+    assert_eq!(d.app.productivity.config.awards.len(), earned);
+    d.app.run_action(palette::Action::DailyChallenges);
+    assert!(d.app.productivity.day.is_none());
+    assert!(
+        !d.root
+            .join(".grimoire/writingdeck/challenges/2026-10-25.json")
+            .exists()
+    );
+}
+#[test]
+fn writingdeck_productivity_draw_is_cached_and_does_not_create_events_or_assignments() {
+    let mut d = metric_writer("metrics-pure-draw", 80, 24);
+    metric_clock(&mut d);
+    let n = d.app.productivity.ledger.known.len();
+    for _ in 0..12 {
+        d.draw();
+    }
+    assert_eq!(d.app.productivity.ledger.known.len(), n);
+    assert_eq!(d.app.productivity.ledger.pending_count(), 0);
+    assert!(!d.root.join(".grimoire/writingdeck/challenges").exists());
+    assert!(!d.root.join(".grimoire/writingdeck/ledger").exists());
+}
+#[test]
+fn writingdeck_productivity_current_goals_never_derive_gross_or_time_from_existing_source() {
+    let root = book("metrics-native-only", true);
+    let scene = first_scene(&root);
+    fs::write(
+        &scene,
+        "---\ntitle: Existing\n---\n\nExisting source has five words.\n",
+    )
+    .unwrap();
+    let mut d = Desk::open(root, 100, 30);
+    metric_clock(&mut d);
+    d.app.run_action(palette::Action::Productivity);
+    assert_eq!(
+        metric_value(&d, grimoire_core::productivity::Metric::TypedAdded),
+        Some(0)
+    );
+    assert_eq!(
+        metric_value(&d, grimoire_core::productivity::Metric::ActiveMinutes),
+        Some(0)
+    );
+    assert_eq!(
+        metric_value(&d, grimoire_core::productivity::Metric::ManuscriptWords),
+        Some(5)
+    );
+    assert!(d.app.productivity.ledger.known.is_empty());
+}
+#[test]
+fn writingdeck_productivity_tutorial_18_20_21_require_real_persisted_actions_and_never_a_next_button()
+ {
+    use crate::app::writingdeck::Page;
+    let root = std::env::temp_dir().join(format!("wd-metrics-tutorial-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    grimoire_core::tutorial::create_demo(&root).unwrap();
+    let mut d = Desk::open(root, 120, 40);
+    metric_clock(&mut d);
+    d.app.overlay = Overlay::Deck(Page::Lesson { id: 18 });
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.deck.progress.active, Some(18));
+    d.key(KeyCode::Char('n'));
+    assert!(!d.app.deck.progress.completed.contains(&18));
+    d.key(KeyCode::Char(' '));
+    assert!(d.app.deck.progress.completed.contains(&18));
+    d.app.overlay = Overlay::Deck(Page::Lesson { id: 20 });
+    d.key(KeyCode::Enter);
+    if !d.app.deck.progress.completed.contains(&20) {
+        d.key(KeyCode::Esc);
+        d.app.focus = d.app.editor_focus();
+        d.app.editor.scene_end();
+        d.typed(" lessonWord ");
+        d.ctrl('s');
+        d.app.run_action(palette::Action::Achievements);
+    }
+    assert!(d.app.deck.progress.completed.contains(&20));
+    assert!(!d.app.productivity.config.awards.is_empty());
+    d.app.overlay = Overlay::Deck(Page::Lesson { id: 21 });
+    d.key(KeyCode::Enter);
+    assert!(!d.app.deck.progress.completed.contains(&21));
+    d.key(KeyCode::Char('a'));
+    d.key(KeyCode::Esc);
+    d.app.focus = d.app.editor_focus();
+    d.app.editor.scene_end();
+    d.app.paste(&format!(" {}", "exercise ".repeat(50)));
+    d.ctrl('s');
+    d.app.run_action(palette::Action::DailyChallenges);
+    d.key(KeyCode::Char('c'));
+    assert!(d.app.deck.progress.completed.contains(&21), "{}", d.app.msg);
+    let saved = grimoire_core::tutorial::Store::load(&d.root).unwrap();
+    assert!(
+        [18, 20, 21]
+            .iter()
+            .all(|id| saved.progress.completed.contains(id))
+    );
+}
+#[test]
+fn writingdeck_productivity_discoverable_short_menu_has_every_tool_and_correct_nested_back() {
+    for (w, h) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let mut d = metric_writer(&format!("metrics-menu-{w}"), w, h);
+        d.key(KeyCode::Esc);
+        d.choose("Writing tools");
+        d.choose("Productivity tools");
+        assert!(matches!(
+            d.app.overlay,
+            Overlay::Sub {
+                sub: Sub::Productivity,
+                ..
+            }
+        ));
+        for i in 0..6 {
+            let rows = d.app.menu_rows();
+            let label = rows[i].0.clone();
+            if let Overlay::Sub { sel, .. } = &mut d.app.overlay {
+                *sel = i;
+            }
+            assert!(d.shows(&label), "{label} at {w}x{h}");
+        }
+        d.key(KeyCode::Esc);
+        assert!(matches!(
+            d.app.overlay,
+            Overlay::Sub {
+                sub: Sub::Writing,
+                ..
+            }
+        ));
+        d.key(KeyCode::Esc);
+        assert!(matches!(d.app.overlay, Overlay::Menu { .. }));
+        assert!(d.app.menu_rows().len() <= 10);
+    }
+}
+#[test]
+fn writingdeck_productivity_tick_finalizes_due_timer_after_flushing_actual_pending_input() {
+    let mut d = metric_writer("metrics-due-pending", 100, 30);
+    let clock = metric_clock(&mut d);
+    metric_new_sprint(&mut d, 0, "1");
+    d.key(KeyCode::Esc);
+    d.app.paste("pending actual words ");
+    assert_eq!(d.app.productivity.ledger.pending_count(), 1);
+    metric_advance(&clock, 60000);
+    d.app.tick_productivity();
+    assert_eq!(d.app.productivity.ledger.pending_count(), 0);
+    let s = d.app.productivity.sprint.as_ref().unwrap();
+    assert_eq!(
+        s.status,
+        grimoire_core::productivity::SprintStatus::Completed
+    );
+    assert_eq!(s.progress, 3);
+    assert_eq!(s.elapsed_ms, 60000);
+    assert!(
+        d.app
+            .productivity
+            .config
+            .awards
+            .iter()
+            .any(|a| a.id == format!("sprint-{}", s.id))
+    );
+}
+#[test]
+fn writingdeck_productivity_reload_detects_un_ticked_timer_conflict_and_keeps_external_and_local_states()
+ {
+    let mut d = metric_writer("metrics-live-conflict", 100, 30);
+    let clock = metric_clock(&mut d);
+    metric_new_sprint(&mut d, 0, "2");
+    let file = d.root.join(".grimoire/writingdeck/productivity.json");
+    let mut external = d.app.productivity.config.clone();
+    external.sprint.as_mut().unwrap().status = grimoire_core::productivity::SprintStatus::Stopped;
+    let bytes = serde_json::to_vec_pretty(&external).unwrap();
+    fs::write(&file, &bytes).unwrap();
+    metric_advance(&clock, 5000);
+    d.app.reload_productivity();
+    assert_eq!(d.app.productivity.sprint.as_ref().unwrap().elapsed_ms, 5000);
+    assert_eq!(
+        d.app.productivity.sprint.as_ref().unwrap().status,
+        grimoire_core::productivity::SprintStatus::Running
+    );
+    assert!(d.app.productivity.warning.contains("Conflicting"));
+    assert_eq!(fs::read(&file).unwrap(), bytes);
+    assert!(!d.app.try_quit());
+    assert_eq!(fs::read(&file).unwrap(), bytes);
+}
+#[test]
+fn writingdeck_productivity_midnight_cache_and_repeated_day_retrieve_frozen_assignments_without_guessing_history()
+ {
+    let mut d = metric_writer("metrics-civil-days", 100, 30);
+    let clock = metric_clock(&mut d);
+    d.app.run_action(palette::Action::DailyChallenges);
+    let first = d.app.productivity.day.as_ref().unwrap().value.clone();
+    metric_advance(&clock, 86_400_000);
+    d.app.tick_productivity();
+    assert_eq!(d.app.productivity.stats_date, "2026-10-26");
+    assert!(d.app.productivity.summary.starts_with("2026-10-26"));
+    d.app.run_action(palette::Action::DailyChallenges);
+    assert_eq!(
+        d.app.productivity.day.as_ref().unwrap().value.date,
+        "2026-10-26"
+    );
+    d.key(KeyCode::Left);
+    assert_eq!(d.app.productivity.day.as_ref().unwrap().value, first);
+    d.key(KeyCode::Left);
+    assert!(d.app.productivity.day.is_none());
+    assert!(
+        !d.root
+            .join(".grimoire/writingdeck/challenges/2026-10-24.json")
+            .exists()
+    );
+}
+#[test]
+fn writingdeck_productivity_challenge_sprint_uses_remaining_target_and_frozen_accepted_mode_and_footnote_policy()
+ {
+    use grimoire_core::{accounting::Mode, productivity::SprintStatus};
+    let mut d = metric_writer("metrics-challenge-sprint", 100, 30);
+    metric_clock(&mut d);
+    d.app.run_action(palette::Action::DailyChallenges);
+    d.key(KeyCode::Char('a'));
+    d.key(KeyCode::Esc);
+    d.app.paste(&"word ".repeat(20));
+    d.ctrl('s');
+    d.app.run_action(palette::Action::Productivity);
+    d.key(KeyCode::Char('f'));
+    d.key(KeyCode::Char('m'));
+    assert_eq!(d.app.productivity.config.mode, Mode::Revision);
+    metric_new_sprint(&mut d, 4, "99");
+    let s = d.app.productivity.sprint.as_ref().unwrap();
+    assert_eq!(s.target, 30);
+    assert_eq!(s.mode, Some(Mode::Drafting));
+    assert!(!s.include_footnotes);
+    assert_eq!(s.challenge.as_ref().unwrap().0, "2026-10-25");
+    d.key(KeyCode::Esc);
+    d.app.paste(&"revision ".repeat(50));
+    d.ctrl('s');
+    assert_ne!(
+        d.app.productivity.sprint.as_ref().unwrap().status,
+        SprintStatus::Completed
+    );
+    d.app.run_action(palette::Action::Productivity);
+    d.key(KeyCode::Char('m'));
+    d.key(KeyCode::Char('m'));
+    d.key(KeyCode::Esc);
+    d.app.paste(&"draft ".repeat(30));
+    d.ctrl('s');
+    assert_eq!(
+        d.app.productivity.sprint.as_ref().unwrap().status,
+        SprintStatus::Completed
+    );
+    d.app.run_action(palette::Action::DailyChallenges);
+    d.key(KeyCode::Char('c'));
+    assert_eq!(
+        d.app.productivity.day.as_ref().unwrap().value.assignments[0].evidence,
+        Some(grimoire_core::challenges::Evidence::Measured)
+    );
+}
+#[test]
+fn writingdeck_productivity_unknown_challenge_day_is_preserved_while_original_prose_and_metrics_save()
+ {
+    let mut d = metric_writer("metrics-future-day", 100, 30);
+    metric_clock(&mut d);
+    let file = d
+        .root
+        .join(".grimoire/writingdeck/challenges/2026-10-25.json");
+    fs::create_dir_all(file.parent().unwrap()).unwrap();
+    let bytes = b"{\"version\":999,\"future_assignment\":\"retain\"}";
+    fs::write(&file, bytes).unwrap();
+    d.app.run_action(palette::Action::DailyChallenges);
+    assert!(d.app.productivity.day.is_none());
+    d.key(KeyCode::Char('R'));
+    assert_eq!(fs::read(&file).unwrap(), bytes);
+    d.key(KeyCode::Esc);
+    d.typed("source safe ");
+    d.ctrl('s');
+    assert_eq!(
+        metric_totals(&d, grimoire_core::accounting::Role::Manuscript)
+            .typed
+            .added,
+        2
+    );
+    assert!(d.app.try_quit());
+    assert_eq!(fs::read(&file).unwrap(), bytes);
+}
+#[test]
+fn writingdeck_productivity_oversize_word_gap_is_unavailable_not_a_fake_zero_or_complete_word_sprint()
+ {
+    let mut d = metric_writer("metrics-word-gap", 100, 30);
+    metric_clock(&mut d);
+    d.app.paste(&"word ".repeat(52_500));
+    d.ctrl('s');
+    assert_eq!(
+        metric_value(&d, grimoire_core::productivity::Metric::InputAdded),
+        None
+    );
+    assert!(d.app.productivity.summary.contains("unavailable"));
+    metric_new_sprint(&mut d, 0, "1");
+    d.key(KeyCode::Char('x'));
+    d.key(KeyCode::Char('n'));
+    d.key(KeyCode::Down);
+    d.key(KeyCode::Enter);
+    metric_field(&mut d, "3");
+    assert_ne!(
+        d.app.productivity.sprint.as_ref().unwrap().kind,
+        grimoire_core::productivity::SprintKind::Words
+    );
+    assert!(
+        d.app.msg.contains("requires complete recorded metrics"),
+        "{}",
+        d.app.msg
+    );
+}
+#[test]
+fn writingdeck_productivity_real_saved_finished_statuses_award_scene_and_chapter_references_without_copying_prose()
+ {
+    let mut d = metric_writer("metrics-finished-status", 100, 30);
+    metric_clock(&mut d);
+    let scenes: Vec<_> = d
+        .app
+        .project
+        .nodes
+        .iter()
+        .enumerate()
+        .filter(|(_, n)| n.kind == grimoire_core::project::Kind::Scene && n.in_manuscript)
+        .map(|(i, _)| i)
+        .collect();
+    for i in &scenes {
+        d.app
+            .run_action(palette::Action::Open(d.app.project.nodes[*i].path.clone()));
+        d.app.run_action(palette::Action::Details);
+        for _ in 0..3 {
+            d.key(KeyCode::Right);
+        }
+        d.key(KeyCode::Enter);
+        d.app.commit_saves();
+        assert_eq!(
+            d.app.project.nodes[*i].meta("status").as_deref(),
+            Some("done")
+        );
+    }
+    let awards: Vec<_> = d
+        .app
+        .productivity
+        .config
+        .awards
+        .iter()
+        .filter(|a| a.source.is_some())
+        .collect();
+    assert!(awards.len() > scenes.len());
+    assert!(
+        awards
+            .iter()
+            .all(|a| !a.measured && a.source.as_ref().unwrap().starts_with("manuscript"))
+    );
+    let count = awards.len();
+    d.app.save();
+    assert_eq!(
+        d.app
+            .productivity
+            .config
+            .awards
+            .iter()
+            .filter(|a| a.source.is_some())
+            .count(),
+        count
+    );
+}
+#[test]
+fn writingdeck_productivity_empty_collection_and_subjective_challenge_do_not_complete_lessons_20_or_21()
+ {
+    use crate::app::writingdeck::Page;
+    let root = std::env::temp_dir().join(format!("wd-metrics-notutorial-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    grimoire_core::tutorial::create_demo(&root).unwrap();
+    let mut d = Desk::open(root, 100, 30);
+    metric_clock(&mut d);
+    d.app.overlay = Overlay::Deck(Page::Lesson { id: 20 });
+    d.key(KeyCode::Enter);
+    assert!(d.app.productivity.config.awards.is_empty());
+    assert!(!d.app.deck.progress.completed.contains(&20));
+    d.app
+        .productivity
+        .update(|s| {
+            s.challenge_profile.categories = [grimoire_core::challenges::Category::Creative]
+                .into_iter()
+                .collect();
+            Ok(())
+        })
+        .unwrap();
+    d.app.overlay = Overlay::Deck(Page::Lesson { id: 21 });
+    d.key(KeyCode::Enter);
+    d.key(KeyCode::Char('a'));
+    d.key(KeyCode::Char('x'));
+    assert_eq!(
+        d.app.productivity.day.as_ref().unwrap().value.assignments[0].evidence,
+        Some(grimoire_core::challenges::Evidence::SelfReported)
+    );
+    assert!(!d.app.deck.progress.completed.contains(&21));
 }

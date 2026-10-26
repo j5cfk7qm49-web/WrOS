@@ -131,5 +131,27 @@ class HeadlessCLI(unittest.TestCase):
         self.assertFalse((demo/'notes/handoff.md').exists())
         self.assertFalse((demo/'notes/scratchpad').exists())
 
+    def test_productivity_ledger_and_challenge_validation_never_rewrite_or_generate_dates(self):
+        demo=self.root/'productivity-demo'
+        self.run_cli('tutorial-demo',demo)
+        before=self.hashes(demo)
+        self.assertIn('Productivity schema 1',self.run_cli('check-config',demo).stdout)
+        self.assertEqual(self.hashes(demo),before)
+        base=demo/'.grimoire/writingdeck'
+        for relative in ['productivity.json','ledger/2026-10-25/session-000001.json','challenges/2026-10-25.json']:
+            path=base/relative
+            path.parent.mkdir(parents=True,exist_ok=True)
+            for content in [b'{"version":999,"future":"retain"}',b'corrupt original bytes']:
+                path.write_bytes(content)
+                before=self.hashes(demo)
+                self.run_cli('check-config',demo,ok=False)
+                self.assertEqual(self.hashes(demo),before)
+            path.unlink()
+        unknown=base/'challenges/future-index.json'
+        unknown.write_bytes(b'Not a known civil-date file; never interpret or overwrite.')
+        before=self.hashes(demo)
+        self.assertIn('0 challenge date files',self.run_cli('check-config',demo).stdout)
+        self.assertEqual(self.hashes(demo),before)
+
 if __name__ == '__main__':
     unittest.main()

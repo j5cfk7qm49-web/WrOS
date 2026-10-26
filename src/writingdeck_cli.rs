@@ -55,9 +55,23 @@ pub fn command(mut args: impl Iterator<Item = String>) -> Result<()> {
             let pins = grimoire_core::pins::Store::load(&root)?;
             let journal = grimoire_core::journal::validate_existing(&root)?;
             let workflow = grimoire_core::workflow::Store::load(&root)?;
+            let _productivity = grimoire_core::statefile::Store::load(
+                &root,
+                std::path::Path::new(".grimoire/writingdeck/productivity.json"),
+                grimoire_core::productivity::Settings::default(),
+            )?;
+            let ledger = grimoire_core::accounting::Ledger::load(&root);
+            if !ledger.complete {
+                bail!(
+                    "operation ledger unavailable/incomplete: {}; originals retained",
+                    ledger.warning
+                );
+            }
+            let challenge_days = grimoire_core::challenges::validate_existing(&root)?;
+            let groups = ledger.known.len();
             let scratch_count = workflow.state.notes.len();
             println!(
-                "Layout schema {} validated; {} workspaces. Tutorial schema {} validated. Pins schema {} validated; {} references (source availability checked in UI). {journal} journal date files validated (other filenames not interpreted). Workflow schema 1 validated; {scratch_count} scratchpad references (sources checked in UI). No files changed.",
+                "Layout schema {} validated; {} workspaces. Tutorial schema {} validated. Pins schema {} validated; {} references (source availability checked in UI). {journal} journal date files validated (other filenames not interpreted). Workflow schema 1 validated; {scratch_count} scratchpad references (sources checked in UI). Productivity schema 1 validated; {groups} recorded operation groups; {challenge_days} challenge date files validated (other filenames not interpreted). No files changed.",
                 layout.state.version,
                 layout.state.workspaces.len(),
                 tutorial.progress.version,

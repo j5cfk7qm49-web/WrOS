@@ -64,6 +64,11 @@ pub const TOPICS: &[Topic] = &[
     topic!("journal", "Writing journal", "30-journal.md"),
     topic!("scratchpad", "Scratchpad", "31-scratchpad.md"),
     topic!("handoff", "Session handoff", "32-handoff.md"),
+    topic!(
+        "productivity",
+        "Recorded edits, goals and daily challenges",
+        "33-productivity.md"
+    ),
 ];
 
 /// Where a topic is in [`TOPICS`]; the first one for an id that isn't there.

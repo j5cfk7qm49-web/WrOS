@@ -1,0 +1,52 @@
+{
+  "all_measurement_calls_and_editor_events_executed": true,
+  "editor_50kb_30_insertions_us": 95120,
+  "kind": "synthetic fixture microbenchmark, shared sandbox x86-64; not physical or end-to-end input/power qualification",
+  "ledger_1024_synthetic_groups_flush_us": 16680,
+  "ledger_1024_synthetic_groups_load_us": 3651,
+  "range_measurement": [
+    {
+      "median_us": 640,
+      "p95_us": 775,
+      "samples": 30,
+      "source_bytes": 10000,
+      "word_gaps": 0
+    },
+    {
+      "median_us": 2974,
+      "p95_us": 3713,
+      "samples": 30,
+      "source_bytes": 50000,
+      "word_gaps": 0
+    },
+    {
+      "median_us": 13129,
+      "p95_us": 15236,
+      "samples": 30,
+      "source_bytes": 200000,
+      "word_gaps": 0
+    },
+    {
+      "median_us": 19583,
+      "p95_us": 20180,
+      "samples": 30,
+      "source_bytes": 260000,
+      "word_gaps": 0
+    },
+    {
+      "median_us": 0,
+      "p95_us": 0,
+      "samples": 30,
+      "source_bytes": 300000,
+      "word_gaps": 30
+    }
+  ],
+  "recorded_at_utc": "2026-10-26T00:03:38.284403+00:00",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "7d8bd8155ec6a15068e8c2fd0468f8d1df28574555cb25a17eb27a8091f2c3dd",
+    "file_count": 210,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "command": "cargo run -p grimoire-core --no-default-features --example accounting_probe --release --locked --offline -j2 -- build/accounting-probe"
+}

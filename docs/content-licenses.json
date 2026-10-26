@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "review_date": "2026-10-24",
+  "review_date": "2026-10-25",
   "legal_clearance": false,
   "distribution_territory": "Not decided; US PD findings are not worldwide permission",
   "bundled": [
@@ -13,7 +13,7 @@
       "license": "MIT",
       "edition": "0.1.0-dev",
       "file": "crates/grimoire-core/assets/writingdeck/tutorial.json",
-      "sha256": "ee7b9220ea931f597d69c459c38617015cc954bd519dba46ed7c2f0e542336fa",
+      "sha256": "fca726e9cae2ecd1cccb1a429453d4b6d70d04b95ec32dffbf522a203c5d6c94",
       "item_count": 39,
       "license_notice": "LICENSE",
       "modifications": "Original instructions; no third-party exercise text"
@@ -27,10 +27,24 @@
       "license": "MIT",
       "edition": "0.1.0-dev",
       "file": "crates/grimoire-core/src/tutorial.rs",
-      "sha256": "46edb94a150e8207518a6cef276d5d0efd6b2f9ee087fb0c89ad8cbc957599d0",
+      "sha256": "799d7b93057259e8cc31e535ce366c28e8bfa051c4eca4b00e4c10f055580315",
       "item_count": 2,
       "license_notice": "LICENSE",
       "modifications": "Original demo scene strings embedded in the creation function"
+    },
+    {
+      "id": "writingdeck-original-productivity",
+      "title": "Thirty original M5 productivity and fiction exercises",
+      "creators": [
+        "WritingDeck contributors"
+      ],
+      "license": "MIT",
+      "edition": "M5 bank v1, 2026-10-25",
+      "file": "crates/grimoire-core/assets/writingdeck/productivity-challenges.json",
+      "sha256": "d9e7c321a82f8652fba3e0f8c71829386fa070fd83c91c18f879b2dfb81a3ece",
+      "item_count": 30,
+      "license_notice": "LICENSE",
+      "modifications": "Original instructions in ten categories; no third-party exercise text; not the M6 1000-plot corpus"
     }
   ],
   "evaluated_sources": [

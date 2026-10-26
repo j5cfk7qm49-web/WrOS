@@ -506,6 +506,20 @@
       ]
     },
     {
+      "name": "chrono-tz",
+      "version": "0.10.4",
+      "declared_license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/chronotope/chrono-tz",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "4789210f4df8abc03fce1cddd9c2ba517f184840687f2815d741de282c1aa93a"
+        }
+      ]
+    },
+    {
       "name": "combine",
       "version": "4.6.8",
       "declared_license": "MIT",
@@ -2782,6 +2796,20 @@
       ]
     },
     {
+      "name": "phf",
+      "version": "0.12.1",
+      "declared_license": "MIT",
+      "repository": "https://github.com/rust-phf/rust-phf",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "0ab4d106b6faac07fb6a051815fd1b4d862d730895e2d7d7358c2f13565e7a38"
+        }
+      ]
+    },
+    {
       "name": "phf_codegen",
       "version": "0.11.3",
       "declared_license": "MIT",
@@ -2829,6 +2857,20 @@
       "declared_license": "MIT",
       "repository": "https://github.com/rust-phf/rust-phf",
       "used_in_linux_no_audio_build": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "0ab4d106b6faac07fb6a051815fd1b4d862d730895e2d7d7358c2f13565e7a38"
+        }
+      ]
+    },
+    {
+      "name": "phf_shared",
+      "version": "0.12.1",
+      "declared_license": "MIT",
+      "repository": "https://github.com/rust-phf/rust-phf",
+      "used_in_linux_no_audio_build": true,
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "notice_files": [
         {
@@ -3681,7 +3723,7 @@
       "version": "1.0.3",
       "declared_license": "MIT/Apache-2.0",
       "repository": "https://github.com/jedisct1/rust-siphash",
-      "used_in_linux_no_audio_build": false,
+      "used_in_linux_no_audio_build": true,
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "notice_files": [
         {

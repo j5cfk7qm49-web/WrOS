@@ -81,7 +81,7 @@ impl Worker {
         Self { tx, rx }
     }
 }
-const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 15] = [
+const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 21] = [
     (ShortcutAction::Dashboard, "WritingDeck dashboard"),
     (ShortcutAction::SystemSettings, "System settings"),
     (ShortcutAction::Tutorial, "Interactive tutorial"),
@@ -97,6 +97,12 @@ const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 15] = [
     (ShortcutAction::Journal, "Writing journal"),
     (ShortcutAction::Scratchpad, "Scratchpad"),
     (ShortcutAction::Handoff, "Session handoff"),
+    (ShortcutAction::Productivity, "Productivity ledger"),
+    (ShortcutAction::MeasuredGoals, "Advanced goals"),
+    (ShortcutAction::Calendar, "Calendar and rest days"),
+    (ShortcutAction::AdvancedSprints, "Advanced sprints"),
+    (ShortcutAction::Achievements, "Milestone collection"),
+    (ShortcutAction::DailyChallenges, "Daily challenges"),
 ];
 
 pub struct Deck {
@@ -143,7 +149,16 @@ impl Deck {
             });
         }
         let mut workflow_widgets_added = false;
-        for widget in [Widget::Scratchpad, Widget::Handoff] {
+        for widget in [
+            Widget::Scratchpad,
+            Widget::Handoff,
+            Widget::Accounting,
+            Widget::AdvancedGoals,
+            Widget::Calendar,
+            Widget::AdvancedSprints,
+            Widget::Achievements,
+            Widget::DailyChallenges,
+        ] {
             if !state.dashboard.iter().any(|w| w.widget == widget) {
                 state.dashboard.push(workspaces::WidgetConfig {
                     widget,
@@ -387,6 +402,12 @@ impl App {
             ShortcutAction::Journal => self.open_journal(),
             ShortcutAction::Scratchpad => self.open_scratchpad(),
             ShortcutAction::Handoff => self.open_handoff(),
+            ShortcutAction::Productivity => self.run_action(Action::Productivity),
+            ShortcutAction::MeasuredGoals => self.run_action(Action::MeasuredGoals),
+            ShortcutAction::Calendar => self.run_action(Action::Calendar),
+            ShortcutAction::AdvancedSprints => self.run_action(Action::AdvancedSprints),
+            ShortcutAction::Achievements => self.run_action(Action::Achievements),
+            ShortcutAction::DailyChallenges => self.run_action(Action::DailyChallenges),
         }
     }
     pub fn add_deck_shortcut(&mut self, chord: &str) {
@@ -432,6 +453,7 @@ impl App {
         }
     }
     pub fn tick_deck(&mut self) {
+        self.tick_productivity();
         let result = self.deck.worker.as_ref().and_then(|w| w.rx.try_recv().ok());
         if let Some((request, result)) = result {
             self.deck.busy = false;
@@ -922,6 +944,12 @@ impl App {
             Widget::Journal => self.open_journal(),
             Widget::Scratchpad => self.open_scratchpad(),
             Widget::Handoff => self.open_handoff(),
+            Widget::Accounting => self.run_action(Action::Productivity),
+            Widget::AdvancedGoals => self.run_action(Action::MeasuredGoals),
+            Widget::Calendar => self.run_action(Action::Calendar),
+            Widget::AdvancedSprints => self.run_action(Action::AdvancedSprints),
+            Widget::Achievements => self.run_action(Action::Achievements),
+            Widget::DailyChallenges => self.run_action(Action::DailyChallenges),
         }
     }
     fn start_tutorial_demo(&mut self) {
@@ -1015,7 +1043,10 @@ impl App {
             15 => self.open_scratchpad(),
             16 => self.open_handoff(),
             17 => self.run_action(Action::Goals),
+            18 => self.open_productivity(super::productivity::Page::Calendar),
             19 => self.run_action(Action::StartSprint),
+            20 => self.open_productivity(super::productivity::Page::Achievements),
+            21 => self.open_productivity(super::productivity::Page::Challenges),
             26 => self.spelling(),
             33 => self.open_history(),
             38 => self.open_system_settings(),
@@ -1088,6 +1119,57 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                             "active · F2 pause/resume".into()
                         } else {
                             "none · Enter to start".into()
+                        }
+                    }
+                    Widget::Accounting => format!(
+                        "{} · {} pending",
+                        app.productivity.summary,
+                        app.productivity.ledger.pending_count()
+                    ),
+                    Widget::AdvancedGoals => app.productivity.goal_summary.clone(),
+                    Widget::Calendar => app.productivity.calendar_summary.clone(),
+                    Widget::AdvancedSprints => app.productivity.sprint.as_ref().map_or(
+                        "none · Enter to start".into(),
+                        |s| {
+                            format!(
+                                "{:?} {:?} {:.1} min{}",
+                                s.kind,
+                                s.status,
+                                s.elapsed_ms as f64 / 60000.,
+                                if s.effective_paused() {
+                                    " · resume explicitly"
+                                } else {
+                                    ""
+                                }
+                            )
+                        },
+                    ),
+                    Widget::Achievements => format!(
+                        "{} recorded · enabled {} · quiet notices {}",
+                        app.productivity.config.awards.len(),
+                        app.productivity.config.achievements,
+                        !app.productivity.config.notifications
+                    ),
+                    Widget::DailyChallenges => {
+                        if !app.productivity.config.challenges {
+                            "disabled; no task generated".into()
+                        } else {
+                            app.productivity.day.as_ref().map_or(
+                                "not assigned · Enter opens today's selection".into(),
+                                |d| {
+                                    format!(
+                                        "{} · {} completed / {} assigned",
+                                        d.value.date,
+                                        d.value
+                                            .assignments
+                                            .iter()
+                                            .filter(|a| a.status
+                                                == grimoire_core::challenges::Status::Completed)
+                                            .count(),
+                                        d.value.assignments.len()
+                                    )
+                                },
+                            )
                         }
                     }
                     Widget::RecentScenes => app.deck.recent.clone(),

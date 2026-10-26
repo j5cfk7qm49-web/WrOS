@@ -121,9 +121,9 @@
   {
     "id": 18,
     "title": "NaNoWriMo tracking",
-    "help_topic": "writingdeck",
-    "event": null,
-    "instructions": "Try the offline 50,000-word November preset with rest days. No affiliation or account is implied. Planned."
+    "help_topic": "productivity",
+    "event": "CalendarConfigured",
+    "instructions": "In the safe demo, open Calendar and rest days, press n for the explicit November 50k preset, then Space on a chosen date to record a real rest-day choice. Start/end, target, remaining-day pace and forecast assumptions are shown. Opening the page or pressing a Next button is not completion."
   },
   {
     "id": 19,
@@ -135,16 +135,16 @@
   {
     "id": 20,
     "title": "Achievements",
-    "help_topic": "writingdeck",
-    "event": null,
-    "instructions": "Explore optional, non-punitive achievements and turn them off. Planned."
+    "help_topic": "productivity",
+    "event": "AchievementReviewed",
+    "instructions": "In the safe demo, review the real optional milestone collection. If it is empty, return to a manuscript scene, type an original word with the keyboard and Ctrl-S to checkpoint the actual operation, then reopen Milestone collection. Only a nonempty recorded collection completes this review; no badge is fabricated by the lesson."
   },
   {
     "id": 21,
     "title": "Daily challenges",
-    "help_topic": "writingdeck",
-    "event": null,
-    "instructions": "Accept a locally persisted daily challenge and distinguish measured progress from self-report. Planned."
+    "help_topic": "productivity",
+    "event": "DailyChallengeCompleted",
+    "instructions": "In the safe demo, open Daily challenges and press a to accept the measured fifty-word drafting exercise before writing. Return to an actual manuscript scene in Drafting mode; add fifty source word units (typing or deliberate paste counts), Ctrl-S, reopen Daily challenges and press c. The lesson requires a persisted measured completion, not opening/rerolling a prompt or self-reporting a subjective task. Assignments survive restart and repeated local dates."
   },
   {
     "id": 22,

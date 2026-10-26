@@ -55,3 +55,7 @@ Read-only `grimoire writingdeck check-config DIR` audits known date JSON files w
 [STATUS](STATUS.md), [software evidence](evidence/test-results.json) and the [actual compiled-app journal screens](evidence/journal-pty-screen.txt) report current totals, source identity and the separate facts/reflection views. The reader viewport is ephemeral; resize-driven scroll clamping is not implemented/qualified, so Home resets an out-of-range reader after reflow.
 
 The independent whole-VM probe checks boot/system/console integration, **not journal controls**. Large reflection/log performance, flash-write budget and full power-cut behavior remain unqualified.
+
+## Separate M5 operation ledger
+
+M5 now supplies real source-range operation receipts and conservative observed inter-edit accounting through separate readers/widgets and metadata parts. It does not retroactively upgrade this sampled journal, its historical baselines or manual reflections into gross/active/exclusive-typing facts. See [DAILY_CHALLENGES](DAILY_CHALLENGES.md) for origins, word-unit policy, unavailable gaps, clock/civil-date behavior, checkpoint tail and limits.

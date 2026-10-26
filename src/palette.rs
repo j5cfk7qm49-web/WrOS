@@ -72,6 +72,12 @@ pub enum Action {
     Pinboard,
     Journal,
     ApplyPreset(usize, grimoire_core::workspaces::Preset),
+    Productivity,
+    MeasuredGoals,
+    Calendar,
+    AdvancedSprints,
+    Achievements,
+    DailyChallenges,
     Scratchpad,
     Handoff,
     LinkScratchpad(u64, std::path::PathBuf),
@@ -130,6 +136,8 @@ pub enum Sub {
     Book,
     /// Focus mode, sprints, notes and the rest of what helps mid-scene.
     Writing,
+    /// Recorded metrics and optional productivity tools.
+    Productivity,
     Settings,
     /// The help, About, the license and Donate.
     Help,
@@ -407,6 +415,14 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
         Entry::new("Donate (Ko-fi)", "", Action::Donate),
         Entry::new("License", "", Action::License),
         Entry::new("Quit", &format!("{m}Q"), Action::Quit),
+    ]);
+    v.extend([
+        Entry::new("Productivity ledger", "", Action::Productivity),
+        Entry::new("Advanced goals", "", Action::MeasuredGoals),
+        Entry::new("Calendar and rest days", "", Action::Calendar),
+        Entry::new("Advanced sprints", "", Action::AdvancedSprints),
+        Entry::new("Milestone collection", "", Action::Achievements),
+        Entry::new("Daily challenges", "", Action::DailyChallenges),
     ]);
     // Every help topic, so "help sync" goes straight to it.
     for t in crate::help::TOPICS {

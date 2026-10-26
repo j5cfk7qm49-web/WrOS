@@ -23,9 +23,10 @@ mod ui_tests;
 
 use anyhow::{Context, Result};
 use ratatui::crossterm::event::{
-    self, DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
-    Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, KeyboardEnhancementFlags, MouseButton,
-    MouseEventKind, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
+    self, DisableBracketedPaste, DisableFocusChange, DisableMouseCapture, EnableBracketedPaste,
+    EnableFocusChange, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers,
+    KeyboardEnhancementFlags, MouseButton, MouseEventKind, PopKeyboardEnhancementFlags,
+    PushKeyboardEnhancementFlags,
 };
 use ratatui::crossterm::execute;
 use std::path::{Path, PathBuf};
@@ -217,7 +218,7 @@ fn main() -> Result<()> {
     let _ = execute!(std::io::stdout(), EnableMouseCapture);
     // A paste arrives as one piece instead of a burst of keystrokes, so it
     // lands as one undo step. Windows' legacy console refuses this; that's fine.
-    let _ = execute!(std::io::stdout(), EnableBracketedPaste);
+    let _ = execute!(std::io::stdout(), EnableBracketedPaste, EnableFocusChange);
     let _ = execute!(
         std::io::stdout(),
         PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES),
@@ -237,7 +238,8 @@ fn main() -> Result<()> {
             let _ = execute!(
                 std::io::stdout(),
                 DisableBracketedPaste,
-                DisableMouseCapture
+                DisableMouseCapture,
+                DisableFocusChange
             );
             ratatui::restore();
             eprintln!("\nGrimoire hit a bug and closed. Anything unsaved was kept, and will be");
@@ -246,7 +248,7 @@ fn main() -> Result<()> {
         }
     };
 
-    let _ = execute!(std::io::stdout(), DisableBracketedPaste);
+    let _ = execute!(std::io::stdout(), DisableBracketedPaste, DisableFocusChange);
     let _ = execute!(std::io::stdout(), DisableMouseCapture);
     let _ = execute!(std::io::stdout(), PopKeyboardEnhancementFlags);
     ratatui::restore();
@@ -625,6 +627,7 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
                     | Overlay::Journal
                     | Overlay::Scratchpad
                     | Overlay::Handoff
+                    | Overlay::Productivity { .. }
                     | Overlay::Deck(app::writingdeck::Page::WorkspacePins { .. })
             ) {
                 app.msg = "Read-only preview. Enter explicitly edits the original source; pasted commands ignored.".into();
@@ -653,6 +656,10 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
             continue;
         }
 
+        if matches!(ev, Event::FocusLost) {
+            app.pause_productivity_activity();
+            continue;
+        }
         let Event::Key(k) = ev else {
             continue;
         };
@@ -671,6 +678,11 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
 /// then the focused pane. True when it means leave (everything is saved by
 /// then, or the second Ctrl-Q said to go anyway).
 fn on_key(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
+    let leave = route_key(app, k, confirm_quit);
+    app.capture_productivity();
+    leave
+}
+fn route_key(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
     use app::writingdeck::Page;
     use grimoire_core::tutorial::Event as LessonEvent;
     if matches!(
@@ -869,6 +881,8 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
                 | Overlay::Journal
                 | Overlay::Scratchpad
                 | Overlay::Handoff
+                | Overlay::Productivity { .. }
+                | Overlay::ProductivityInput { .. }
                 | Overlay::Deck(app::writingdeck::Page::WorkspacePins { .. })
         ) || (app.overlay == Overlay::None && app.focus == Focus::Pins))
         && !matches!(k.code, KeyCode::Char('s' | 'q' | 'k' | 'd'))
@@ -906,6 +920,7 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
                         | Overlay::Journal
                         | Overlay::Scratchpad
                         | Overlay::Handoff
+                        | Overlay::Productivity { .. }
                 ) =>
             {
                 app.open_palette()

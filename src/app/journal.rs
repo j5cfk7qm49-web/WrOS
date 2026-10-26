@@ -155,6 +155,7 @@ impl App {
     }
     /// Called only after a completely clean, successful manuscript save.
     pub fn journal_saved(&mut self, saved: &[usize]) {
+        self.productivity_saved_sources(saved);
         let manuscript = saved.iter().any(|&i| self.project.nodes[i].in_manuscript);
         if manuscript {
             self.journal.had_manuscript_save = true;

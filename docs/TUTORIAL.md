@@ -36,10 +36,10 @@ The demo contains original short text and a deliberate spelling error. Nothing i
 | 15 | Scratchpad | Wired: genuine original demo note saved, actual scene link and successful independent promotion; opening/blank notes cannot complete it |
 | 16 | Session handoff | Wired: genuine original intention saved/armed, then shown on a new demo App-context open; not OS/process attestation |
 | 17 | Daily goals | Wired: actual saved target changes in demo |
-| 18 | NaNoWriMo tracking | Planned advanced calendar |
+| 18 | NaNoWriMo tracking | Wired: persist a calendar and make an actual saved rest-day choice in the safe demo |
 | 19 | Sprints | Wired: actual baseline sprint starts |
-| 20 | Achievements | Planned |
-| 21 | Daily challenges | Planned |
+| 20 | Achievements | Wired: review an actual nonempty milestone collection; an empty page is insufficient |
+| 21 | Daily challenges | Wired: accepted, persisted measured completion after genuine demo manuscript work; subjective self-report is insufficient |
 | 22 | Story Spark plot | Planned |
 | 23 | Random writing challenge | Planned |
 | 24 | Combined roulette | Planned |
@@ -72,3 +72,5 @@ Instructions use arrows, Enter/Escape and function keys for physical-layout-inde
 Core tests verify 39 stable lesson IDs, unavailable lesson rejection, event matching, safe-demo gating, skip/replay, persisted progress and exclusive new-demo creation. TUI pin tests verify actual source selection/save and anchored scroll-and-return for lessons 11/12; opening a page or pressing Home without prior anchored scrolling is insufficient. TUI tests type/paste through the actual secondary routing/editor and validate persisted lesson 13 completion and replay, reject real-novel exercise launch, and prove open/navigation alone cannot complete it. Core tests and retained baseline lessons verify event matching, help topics and required sizes. Add new completion evidence and safe-demo tasks in the same change that implements each future feature. A feature's tutorial must never be marked complete simply because its informational page exists.
 
 Lessons 15/16 exercise the original-source workflows described in [WORKFLOW](WORKFLOW.md). Lesson 16's event verifies a new App context with the saved source, not a measured reboot or process identity; separate compiled-app PTYs perform actual quit/restart and edit/undo the loaded original. Blank/failed/paste-only navigation and ordinary novels cannot manufacture completion. All 39 full exercises are not yet delivered.
+
+M5 adds real exercises 18/20/21, with controller tests for completion and noncompletion. There are 24 event-capable lessons and 15 unavailable ones, not 39 completed exercises. Lessons 17/19 retain baseline goals/sprints. See [DAILY_CHALLENGES](DAILY_CHALLENGES.md) for the precise observed/source-word measurement policy and restart limits.

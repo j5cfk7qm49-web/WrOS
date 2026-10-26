@@ -5,6 +5,7 @@
 //! visual — pressing Down inside a wrapped paragraph moves one screen row, not
 //! one paragraph, which is the only behaviour that feels right for prose.
 
+use crate::measure::{self, Counts, Mutation, Origin};
 use std::time::{Duration, Instant};
 use unicode_width::UnicodeWidthStr;
 
@@ -30,6 +31,8 @@ struct Snap {
     lines: Vec<String>,
     cy: usize,
     cx: usize,
+    counts: Counts,
+    measured: bool,
 }
 
 /// A scene's undo and redo, kept when you switch to another scene so coming
@@ -63,6 +66,8 @@ pub struct Editor {
     /// cursor, in whichever order they happen to be.
     anchor: Option<(usize, usize)>,
     hist: History,
+    measuring: bool,
+    mutations: Vec<Mutation>,
 }
 
 impl Editor {
@@ -79,9 +84,98 @@ impl Editor {
             goal: None,
             anchor: None,
             hist: History::default(),
+            measuring: false,
+            mutations: Vec::new(),
         }
     }
 
+    /// Opt-in metadata-only operation measurement. Reading/loading/drawing a
+    /// buffer cannot become a typing event. There are at most eight pending
+    /// origin aggregates, never copied prose or an unbounded keystroke log.
+    pub fn measure_operations(&mut self, enabled: bool) {
+        if self.measuring != enabled {
+            self.hist.last = None;
+        }
+        self.measuring = enabled;
+        if !enabled {
+            self.mutations.clear();
+        }
+    }
+    pub fn take_mutations(&mut self) -> Vec<Mutation> {
+        std::mem::take(&mut self.mutations)
+    }
+    fn enqueue(&mut self, origin: Origin, counts: Counts) {
+        if !counts.input() {
+            return;
+        }
+        if let Some(m) = self.mutations.iter_mut().find(|m| m.origin == origin) {
+            m.counts.plus(counts);
+        } else {
+            self.mutations.push(Mutation { origin, counts });
+        }
+    }
+    fn byte_position(&self, p: (usize, usize)) -> usize {
+        self.lines
+            .iter()
+            .take(p.0)
+            .map(|l| l.len() + 1)
+            .sum::<usize>()
+            + self.lines[p.0]
+                .char_indices()
+                .nth(p.1)
+                .map_or(self.lines[p.0].len(), |(i, _)| i)
+    }
+    fn measure_range(
+        &mut self,
+        start: (usize, usize),
+        end: (usize, usize),
+        insert: &str,
+        origin: Origin,
+    ) {
+        if !self.measuring {
+            return;
+        }
+        let a = self.byte_position(start);
+        let b = self.byte_position(end);
+        if origin == Origin::Programmatic {
+            if let Some(s) = self.hist.undo.last_mut() {
+                s.measured = false;
+            }
+            return;
+        }
+        let size =
+            self.lines.iter().map(String::len).sum::<usize>() + self.lines.len().saturating_sub(1);
+        let counts = if size > measure::MAX_MEASURE_BYTES {
+            let removed = self.lines[start.0..=end.0]
+                .iter()
+                .enumerate()
+                .map(|(i, l)| {
+                    let from = if i == 0 { start.1 } else { 0 };
+                    let to = if i + start.0 == end.0 {
+                        end.1
+                    } else {
+                        l.chars().count()
+                    };
+                    to.saturating_sub(from)
+                })
+                .sum::<usize>()
+                + end.0
+                - start.0;
+            Counts {
+                gaps: 1,
+                operations: 1,
+                inserted_chars: insert.chars().count() as u64,
+                deleted_chars: removed as u64,
+                ..Counts::default()
+            }
+        } else {
+            measure::replacement(&self.text(), a..b, insert)
+        };
+        if let Some(step) = self.hist.undo.last_mut() {
+            step.counts.plus(counts);
+        }
+        self.enqueue(origin, counts);
+    }
     /// Direction-preserving selection anchor for versioned workspace views.
     /// Restoration still goes through `select`, which clamps stale positions.
     pub fn selection_anchor(&self) -> Option<(usize, usize)> {
@@ -107,6 +201,8 @@ impl Editor {
             lines: self.lines.clone(),
             cy: self.cy,
             cx: self.cx,
+            counts: Counts::default(),
+            measured: self.measuring,
         }
     }
 
@@ -150,7 +246,23 @@ impl Editor {
         let Some(s) = self.hist.undo.pop() else {
             return false;
         };
-        let cur = self.snap();
+        let mut cur = self.snap();
+        cur.counts = s.counts;
+        cur.measured = s.measured;
+        if self.measuring {
+            self.enqueue(
+                Origin::Undo,
+                if s.measured {
+                    s.counts.inverse()
+                } else {
+                    Counts {
+                        gaps: 1,
+                        operations: 1,
+                        ..Counts::default()
+                    }
+                },
+            );
+        }
         self.hist.redo.push(cur);
         self.restore(s);
         self.hist.last = None;
@@ -161,7 +273,23 @@ impl Editor {
         let Some(s) = self.hist.redo.pop() else {
             return false;
         };
-        let cur = self.snap();
+        let mut cur = self.snap();
+        cur.counts = s.counts;
+        cur.measured = s.measured;
+        if self.measuring {
+            self.enqueue(
+                Origin::Redo,
+                if s.measured {
+                    s.counts
+                } else {
+                    Counts {
+                        gaps: 1,
+                        operations: 1,
+                        ..Counts::default()
+                    }
+                },
+            );
+        }
         self.hist.undo.push(cur);
         self.restore(s);
         self.hist.last = None;
@@ -171,7 +299,13 @@ impl Editor {
     /// Replace the whole text as one undoable step — restoring a version,
     /// replacing across the scene. The cursor stays near where it was.
     pub fn set_text(&mut self, text: &str) {
+        self.set_text_as(text, Origin::Programmatic);
+    }
+    /// Explicit whole-source restoration is distinct from typing or pasting.
+    pub fn set_text_as(&mut self, text: &str, origin: Origin) {
         self.remember(Edit::Whole);
+        let last = self.lines.len() - 1;
+        self.measure_range((0, 0), (last, self.line_len(last)), text, origin);
         self.lines = text.split('\n').map(|l| l.to_string()).collect();
         if self.lines.is_empty() {
             self.lines.push(String::new());
@@ -181,6 +315,51 @@ impl Editor {
         self.goal = None;
         self.anchor = None;
         self.hist.last = Some((Edit::Whole, Instant::now()));
+    }
+
+    /// Adopt a result whose counts came from actual replacement ranges (or
+    /// their verified undo receipt). Never pass counts inferred from a diff.
+    /// This keeps a book-wide operation and its per-document undo measured.
+    pub fn set_text_from_measured_operation(&mut self, text: &str, origin: Origin, counts: Counts) {
+        self.set_text(text);
+        if self.measuring {
+            if let Some(step) = self.hist.undo.last_mut() {
+                step.counts = counts;
+                step.measured = true;
+            }
+            self.enqueue(origin, counts);
+        }
+    }
+
+    /// Replace actual find ranges, in reverse source order, as one undo step.
+    /// Unchanged paragraphs/words are not represented as replacement input.
+    pub fn replace_matches(&mut self, query: &str, with: &str, opts: crate::search::Opts) -> usize {
+        let hits: Vec<_> = self
+            .lines
+            .iter()
+            .enumerate()
+            .flat_map(|(line, text)| {
+                crate::search::matches_with(text, query, opts)
+                    .into_iter()
+                    .map(move |(a, b)| (line, a, b))
+            })
+            .collect();
+        if hits.is_empty() {
+            return 0;
+        }
+        let old = (self.cy, self.cx);
+        self.remember(Edit::Whole);
+        for &(line, a, b) in hits.iter().rev() {
+            self.measure_range((line, a), (line, b), with, Origin::Replace);
+            let chars: Vec<char> = self.lines[line].chars().collect();
+            self.lines[line] = chars[..a].iter().chain(chars[b..].iter()).collect();
+            self.cy = line;
+            self.cx = a;
+            self.insert_raw(with);
+        }
+        self.place(old.0, old.1);
+        self.hist.last = Some((Edit::Whole, Instant::now()));
+        hits.len()
     }
 
     /// Put the cursor at (line, char), clamped, with nothing selected.
@@ -206,6 +385,7 @@ impl Editor {
             return false;
         };
         self.remember(Edit::Whole);
+        self.measure_range((l0, c0), (l1, c1), "", Origin::Typing);
         let head: String = self.lines[l0].chars().take(c0).collect();
         let tail: String = self.lines[l1].chars().skip(c1).collect();
         self.lines.splice(l0..=l1, [format!("{head}{tail}")]);
@@ -221,6 +401,16 @@ impl Editor {
     /// Replace chars `start..end` of paragraph `line` with `with` — a
     /// spelling fix — as one undo step. The cursor lands after the new word.
     pub fn replace_in_line(&mut self, line: usize, start: usize, end: usize, with: &str) {
+        self.replace_in_line_as(line, start, end, with, Origin::Replace);
+    }
+    fn replace_in_line_as(
+        &mut self,
+        line: usize,
+        start: usize,
+        end: usize,
+        with: &str,
+        origin: Origin,
+    ) {
         let Some(chars) = self
             .lines
             .get(line)
@@ -233,6 +423,7 @@ impl Editor {
             return;
         }
         self.remember(Edit::Whole);
+        self.measure_range((line, start), (line, end), with, origin);
         let head: String = chars[..start].iter().collect();
         let tail: String = chars[end..].iter().collect();
         self.lines[line] = format!("{head}{with}{tail}");
@@ -293,28 +484,50 @@ impl Editor {
             && chars[b - n..b] == m[..]
             && !(n == 1
                 && (chars.get(a + 1) == Some(&'*') || chars.get(b.wrapping_sub(2)) == Some(&'*')));
-        let (start, end, with, sel) = if around {
-            let inner: String = chars[a..b].iter().collect();
-            (a - n, b + n, inner, (a - n, b - n))
+        let (left_start, left_end, right_start, right_end, insert, sel) = if around {
+            (a - n, a, b, b + n, "", (a - n, b - n))
         } else if inside {
-            let inner: String = chars[a + n..b - n].iter().collect();
-            (a, b, inner, (a, b - 2 * n))
+            (a, a + n, b - n, b, "", (a, b - 2 * n))
         } else {
-            let inner: String = chars[a..b].iter().collect();
-            (a, b, format!("{mark}{inner}{mark}"), (a + n, b + n))
+            (a, a, b, b, mark, (a + n, b + n))
         };
-        self.replace_in_line(line, start, end, &with);
+        self.remember(Edit::Whole);
+        // The command really changes two marker ranges. Do not pretend the
+        // surviving inner prose was removed/re-authored by a formatting key.
+        self.measure_range(
+            (line, right_start),
+            (line, right_end),
+            insert,
+            Origin::Formatting,
+        );
+        let mut chars: Vec<char> = self.lines[line].chars().collect();
+        chars.splice(right_start..right_end, insert.chars());
+        self.lines[line] = chars.into_iter().collect();
+        self.measure_range(
+            (line, left_start),
+            (line, left_end),
+            insert,
+            Origin::Formatting,
+        );
+        let mut chars: Vec<char> = self.lines[line].chars().collect();
+        chars.splice(left_start..left_end, insert.chars());
+        self.lines[line] = chars.into_iter().collect();
+        self.hist.last = Some((Edit::Whole, Instant::now()));
         self.select((line, sel.0), (line, sel.1));
         true
     }
 
     /// Insert text that may span paragraphs, as one undo step.
     pub fn insert_str(&mut self, text: &str) {
+        self.insert_str_as(text, Origin::Paste);
+    }
+    pub fn insert_str_as(&mut self, text: &str, origin: Origin) {
         let text = text.replace("\r\n", "\n").replace('\r', "\n");
         if text.is_empty() {
             return;
         }
         self.remember(Edit::Whole);
+        self.measure_range((self.cy, self.cx), (self.cy, self.cx), &text, origin);
         self.insert_raw(&text);
     }
 
@@ -322,11 +535,16 @@ impl Editor {
     /// multiline replacement. The previous delete-then-paste path took two
     /// Ctrl-Z presses to recover the original selected words.
     pub fn replace_selection_with(&mut self, text: &str) {
+        self.replace_selection_with_as(text, Origin::Paste);
+    }
+    pub fn replace_selection_with_as(&mut self, text: &str, origin: Origin) {
         let Some(((l0, c0), (l1, c1))) = self.selection() else {
-            self.insert_str(text);
+            self.insert_str_as(text, origin);
             return;
         };
         self.remember(Edit::Whole);
+        let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
+        self.measure_range((l0, c0), (l1, c1), &normalized, origin);
         let head: String = self.lines[l0].chars().take(c0).collect();
         let tail: String = self.lines[l1].chars().skip(c1).collect();
         self.lines.splice(l0..=l1, [format!("{head}{tail}")]);
@@ -334,7 +552,7 @@ impl Editor {
         self.cx = c0;
         self.anchor = None;
         self.goal = None;
-        let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
+
         if !normalized.is_empty() {
             self.insert_raw(&normalized);
         }
@@ -472,6 +690,12 @@ impl Editor {
         } else {
             Edit::Letter
         });
+        self.measure_range(
+            (self.cy, self.cx),
+            (self.cy, self.cx),
+            &ch.to_string(),
+            Origin::Typing,
+        );
         let mut chars = self.line_chars(self.cy);
         let at = self.cx.min(chars.len());
         chars.insert(at, ch);
@@ -482,6 +706,7 @@ impl Editor {
 
     pub fn newline(&mut self) {
         self.remember(Edit::Whole);
+        self.measure_range((self.cy, self.cx), (self.cy, self.cx), "\n", Origin::Typing);
         let chars = self.line_chars(self.cy);
         let at = self.cx.min(chars.len());
         let rest: String = chars[at..].iter().collect();
@@ -498,6 +723,12 @@ impl Editor {
             return;
         }
         self.remember(Edit::Delete);
+        let start = if self.cx > 0 {
+            (self.cy, self.cx - 1)
+        } else {
+            (self.cy - 1, self.line_len(self.cy - 1))
+        };
+        self.measure_range(start, (self.cy, self.cx), "", Origin::Typing);
         if self.cx > 0 {
             let mut chars = self.line_chars(self.cy);
             chars.remove(self.cx - 1);
@@ -518,6 +749,12 @@ impl Editor {
             return;
         }
         self.remember(Edit::Delete);
+        let end = if self.cx < len {
+            (self.cy, self.cx + 1)
+        } else {
+            (self.cy + 1, 0)
+        };
+        self.measure_range((self.cy, self.cx), end, "", Origin::Typing);
         if self.cx < len {
             let mut chars = self.line_chars(self.cy);
             chars.remove(self.cx);
@@ -1187,5 +1424,175 @@ mod tests {
         assert!(!e.undo());
         e.replace_selection_with("");
         assert!(!e.undo());
+    }
+}
+
+#[cfg(test)]
+mod operation_tests {
+    use super::*;
+    fn editor(s: &str) -> Editor {
+        let mut e = Editor::from_text(s);
+        e.measure_operations(true);
+        e
+    }
+    fn counts(e: &mut Editor, origin: Origin) -> Counts {
+        e.take_mutations()
+            .into_iter()
+            .filter(|m| m.origin == origin)
+            .fold(Counts::default(), |mut a, m| {
+                a.plus(m.counts);
+                a
+            })
+    }
+    #[test]
+    fn every_real_keyboard_operation_is_observable_before_flush() {
+        let mut e = editor("");
+        for c in "hello world".chars() {
+            e.insert(c);
+        }
+        let c = counts(&mut e, Origin::Typing);
+        assert_eq!((c.added, c.removed, c.inserted_chars), (2, 0, 11));
+        assert!(e.take_mutations().is_empty());
+    }
+    #[test]
+    fn undo_and_redo_replay_the_group_not_the_whole_scene() {
+        let mut e = editor("existing prose ");
+        e.scene_end();
+        e.insert_str("new words");
+        let c = counts(&mut e, Origin::Paste);
+        assert_eq!(c.added, 2);
+        e.undo();
+        let c = counts(&mut e, Origin::Undo);
+        assert_eq!((c.added, c.removed), (0, 2));
+        e.redo();
+        let c = counts(&mut e, Origin::Redo);
+        assert_eq!((c.added, c.removed), (2, 0));
+    }
+    #[test]
+    fn replacing_selection_and_word_deletion_are_real_operations() {
+        let mut e = editor("cat here");
+        e.select((0, 0), (0, 3));
+        e.replace_selection_with("dog");
+        let c = counts(&mut e, Origin::Paste);
+        assert_eq!((c.added, c.removed), (1, 1));
+        e.scene_end();
+        e.delete_word_back();
+        assert_eq!(counts(&mut e, Origin::Typing).removed, 1);
+    }
+    #[test]
+    fn formatting_does_not_become_new_words() {
+        let mut e = editor("hello");
+        e.place(0, 2);
+        assert!(e.toggle_wrap("**"));
+        let c = counts(&mut e, Origin::Formatting);
+        assert_eq!((c.added, c.removed), (0, 0));
+    }
+    #[test]
+    fn programmatic_adoption_is_not_input_and_old_undo_is_unknown() {
+        let mut e = editor("before");
+        e.set_text("externally changed text");
+        assert!(e.take_mutations().is_empty());
+        e.undo();
+        assert_eq!(counts(&mut e, Origin::Undo).gaps, 1);
+    }
+    #[test]
+    fn disabled_measurement_does_not_collect_history_or_copied_text() {
+        let mut e = Editor::from_text("");
+        e.insert_str("unmeasured");
+        assert!(e.take_mutations().is_empty());
+        e.measure_operations(true);
+        e.undo();
+        assert_eq!(counts(&mut e, Origin::Undo).gaps, 1);
+    }
+    #[test]
+    fn deletion_and_newline_merge_boundary_units_are_conserved() {
+        let mut e = editor("one\ntwo");
+        e.place(1, 0);
+        e.backspace();
+        let c = counts(&mut e, Origin::Typing);
+        assert_eq!(c.removed, 1);
+        e.place(0, 3);
+        e.newline();
+        let c = counts(&mut e, Origin::Typing);
+        assert_eq!(c.added, 1);
+    }
+    #[test]
+    fn independent_editors_keep_independent_operation_queues() {
+        let mut a = editor("");
+        let mut b = editor("");
+        a.insert_str("one two");
+        b.insert_str("three");
+        assert_eq!(counts(&mut a, Origin::Paste).added, 2);
+        assert_eq!(counts(&mut b, Origin::Paste).added, 1);
+    }
+}
+
+#[cfg(test)]
+mod batch_tests {
+    use super::*;
+    #[test]
+    fn find_ranges_do_not_replace_unchanged_scene_words() {
+        let mut e = Editor::from_text("cat beside a cat\nunchanged words");
+        e.measure_operations(true);
+        assert_eq!(
+            e.replace_matches("cat", "dog", crate::search::Opts::default()),
+            2
+        );
+        assert_eq!(e.text(), "dog beside a dog\nunchanged words");
+        let c = e.take_mutations()[0];
+        assert_eq!(c.origin, Origin::Replace);
+        assert_eq!((c.counts.added, c.counts.removed), (2, 2));
+        e.undo();
+        let c = e.take_mutations()[0];
+        assert_eq!(c.origin, Origin::Undo);
+        assert_eq!((c.counts.added, c.counts.removed), (2, 2));
+    }
+    #[test]
+    fn multiline_unicode_replacements_keep_original_range_identity() {
+        let mut e = Editor::from_text("猫 cat\ncat later");
+        e.measure_operations(true);
+        assert_eq!(
+            e.replace_matches("cat", "dog\nnew", crate::search::Opts::default()),
+            2
+        );
+        assert_eq!(e.text(), "猫 dog\nnew\ndog\nnew later");
+        let c = e.take_mutations()[0].counts;
+        assert_eq!((c.added, c.removed), (4, 2));
+        e.undo();
+        assert_eq!(e.text(), "猫 cat\ncat later");
+    }
+    #[test]
+    fn toggling_instrumentation_cannot_mix_measured_and_unmeasured_history() {
+        let mut e = Editor::from_text("");
+        e.measure_operations(true);
+        e.insert('a');
+        e.take_mutations();
+        e.measure_operations(false);
+        e.insert('b');
+        e.measure_operations(true);
+        e.undo();
+        assert_eq!(e.text(), "a");
+        assert_eq!(e.take_mutations()[0].counts.gaps, 1);
+        e.undo();
+        assert_eq!(e.take_mutations()[0].counts.removed, 1);
+    }
+    #[test]
+    fn verified_batch_receipt_is_reversible_without_recounting_untouched_words() {
+        let mut e = Editor::from_text("old beside unchanged words");
+        e.measure_operations(true);
+        let receipt = Counts {
+            added: 1,
+            removed: 1,
+            inserted_chars: 3,
+            deleted_chars: 3,
+            operations: 1,
+            ..Counts::default()
+        };
+        e.set_text_from_measured_operation("new beside unchanged words", Origin::Replace, receipt);
+        assert_eq!(e.take_mutations()[0].counts, receipt);
+        e.undo();
+        assert_eq!(e.take_mutations()[0].counts, receipt.inverse());
+        e.redo();
+        assert_eq!(e.take_mutations()[0].counts, receipt);
     }
 }

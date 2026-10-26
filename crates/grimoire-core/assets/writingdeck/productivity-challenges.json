@@ -1,0 +1,319 @@
+{
+  "version": 1,
+  "source": "WritingDeck original exercises",
+  "license": "MIT",
+  "exercises": [
+    {
+      "id": "productivity-01",
+      "category": "productivity",
+      "title": "A small beginning",
+      "instructions": "Add fifty source word units to the manuscript in Drafting mode. Typing and deliberate paste count; historical restoration is recorded separately. The measured criterion is quantity, not literary quality.",
+      "mode": "drafting",
+      "difficulty": 1,
+      "minutes": 5,
+      "measured": {
+        "metric": "input-added",
+        "target": 50
+      }
+    },
+    {
+      "id": "productivity-02",
+      "category": "productivity",
+      "title": "Keyboard-only warm-up",
+      "instructions": "Build one hundred word units with the keyboard in Drafting mode. Pasted words and undo/redo do not satisfy this keyboard-addition target. Rewriting is welcome; no deletion penalty is imposed.",
+      "mode": "drafting",
+      "difficulty": 2,
+      "minutes": 15,
+      "measured": {
+        "metric": "typed-added",
+        "target": 100
+      }
+    },
+    {
+      "id": "productivity-03",
+      "category": "productivity",
+      "title": "A longer opening",
+      "instructions": "Add three hundred source word units in Drafting mode. Use a scene you genuinely want to explore. You may stop or reroll without a streak penalty; this is a measured input target, not an assessment of the scene.",
+      "mode": "drafting",
+      "difficulty": 3,
+      "minutes": 25,
+      "measured": {
+        "metric": "input-added",
+        "target": 300
+      }
+    },
+    {
+      "id": "creative-01",
+      "category": "creative",
+      "title": "The wrong delivery",
+      "instructions": "Write a short scene in which a harmless parcel reaches the only person who cannot safely open it. Let the misunderstanding change what the recipient does next. Mark completion yourself after trying it.",
+      "mode": "drafting",
+      "difficulty": 1,
+      "minutes": 5,
+      "measured": null
+    },
+    {
+      "id": "creative-02",
+      "category": "creative",
+      "title": "The promise with a price",
+      "instructions": "Draft a moment when keeping a kind promise would hurt someone uninvolved. Give the viewpoint character a concrete choice rather than explaining the moral in narration. Completion is self-reported.",
+      "mode": "drafting",
+      "difficulty": 2,
+      "minutes": 15,
+      "measured": null
+    },
+    {
+      "id": "creative-03",
+      "category": "creative",
+      "title": "A useful failure",
+      "instructions": "Let a character fail at a practical task and discover a reason to welcome that failure. Connect the changed attitude to a later action, not a speech about lessons learned. Judge the attempt yourself.",
+      "mode": "drafting",
+      "difficulty": 3,
+      "minutes": 25,
+      "measured": null
+    },
+    {
+      "id": "character-01",
+      "category": "character",
+      "title": "The borrowed habit",
+      "instructions": "Show a character unconsciously using a habit learned from someone they now avoid. Choose a physical action small enough to fit into an ordinary encounter. Self-report when you have explored it.",
+      "mode": "drafting",
+      "difficulty": 1,
+      "minutes": 5,
+      "measured": null
+    },
+    {
+      "id": "character-02",
+      "category": "character",
+      "title": "A boundary under pressure",
+      "instructions": "Give a character a boundary they can state easily but struggle to maintain with a particular person. Put both people in a situation that makes the boundary inconvenient. Self-report the experiment.",
+      "mode": "drafting",
+      "difficulty": 2,
+      "minutes": 15,
+      "measured": null
+    },
+    {
+      "id": "character-03",
+      "category": "character",
+      "title": "A rival acts generously",
+      "instructions": "Have a rival perform a genuinely generous act that complicates the protagonist's account of them. Preserve a real disagreement; generosity need not erase conflict. Completion is your judgment.",
+      "mode": "drafting",
+      "difficulty": 3,
+      "minutes": 25,
+      "measured": null
+    },
+    {
+      "id": "plot-01",
+      "category": "plot",
+      "title": "An expired opportunity",
+      "instructions": "Turn a routine discovery into an opportunity with a visible expiration time. Decide what the character must give up to act before that deadline. Self-report after outlining or drafting the turn.",
+      "mode": "drafting",
+      "difficulty": 1,
+      "minutes": 5,
+      "measured": null
+    },
+    {
+      "id": "plot-02",
+      "category": "plot",
+      "title": "The consequence arrives early",
+      "instructions": "Move a consequence the protagonist expected much later into the next scene. Change the available choices rather than merely increasing the amount of danger. Completion is self-reported.",
+      "mode": "drafting",
+      "difficulty": 2,
+      "minutes": 15,
+      "measured": null
+    },
+    {
+      "id": "plot-03",
+      "category": "plot",
+      "title": "Two reasonable plans collide",
+      "instructions": "Build a reversal caused by two people following reasonable but incompatible plans. Trace the causal chain without relying on a random accident. Self-report once the chain can be explained.",
+      "mode": "drafting",
+      "difficulty": 3,
+      "minutes": 25,
+      "measured": null
+    },
+    {
+      "id": "dialogue-01",
+      "category": "dialogue",
+      "title": "An answer made of objects",
+      "instructions": "Write an exchange in which one speaker answers a difficult question by handling nearby objects. Let the other speaker notice or misread the gesture. Self-report the attempt; no automatic style score is used.",
+      "mode": "drafting",
+      "difficulty": 1,
+      "minutes": 5,
+      "measured": null
+    },
+    {
+      "id": "dialogue-02",
+      "category": "dialogue",
+      "title": "The safe subject",
+      "instructions": "Give two speakers an important shared problem they discuss through an apparently safe topic. Make their different goals legible without spelling out every implication. Completion is self-reported.",
+      "mode": "drafting",
+      "difficulty": 2,
+      "minutes": 15,
+      "measured": null
+    },
+    {
+      "id": "dialogue-03",
+      "category": "dialogue",
+      "title": "A third listener",
+      "instructions": "Rework a conversation when an unexpected third person begins listening. Let each original speaker adapt differently, changing what can safely be said. Judge completion yourself.",
+      "mode": "drafting",
+      "difficulty": 3,
+      "minutes": 25,
+      "measured": null
+    },
+    {
+      "id": "description-01",
+      "category": "description",
+      "title": "Evidence of the absent",
+      "instructions": "Describe a room through evidence of a person who has just left it. Avoid summarizing that person's entire biography; select details relevant to the observer. Self-report when the exercise is attempted.",
+      "mode": "drafting",
+      "difficulty": 1,
+      "minutes": 5,
+      "measured": null
+    },
+    {
+      "id": "description-02",
+      "category": "description",
+      "title": "A place changes function",
+      "instructions": "Describe the same public place before and after it is repurposed for an emergency. Keep its geography consistent while changing what details matter. Completion is self-reported.",
+      "mode": "drafting",
+      "difficulty": 2,
+      "minutes": 15,
+      "measured": null
+    },
+    {
+      "id": "description-03",
+      "category": "description",
+      "title": "An unreliable sense",
+      "instructions": "Build a setting description around one sense that cannot currently be trusted. Give the character a practical way to test an assumption about the place. Self-report the exploration.",
+      "mode": "drafting",
+      "difficulty": 3,
+      "minutes": 25,
+      "measured": null
+    },
+    {
+      "id": "point-of-view-01",
+      "category": "point-of-view",
+      "title": "A different witness",
+      "instructions": "Retell a brief event from a witness who misses its most important action. Let their limited information create a different but internally coherent account. Self-report the experiment.",
+      "mode": "drafting",
+      "difficulty": 1,
+      "minutes": 5,
+      "measured": null
+    },
+    {
+      "id": "point-of-view-02",
+      "category": "point-of-view",
+      "title": "Distance without explanation",
+      "instructions": "Draft one paragraph close to a character's immediate perception and another at a greater narrative distance. Keep the event unchanged; compare the effects yourself. Completion is self-reported.",
+      "mode": "drafting",
+      "difficulty": 2,
+      "minutes": 15,
+      "measured": null
+    },
+    {
+      "id": "point-of-view-03",
+      "category": "point-of-view",
+      "title": "Knowledge withheld fairly",
+      "instructions": "Write a scene where the viewpoint character knows a fact the reader does not yet know. Avoid false statements inside their thoughts; decide how to reveal the fact fairly. Self-report your attempt.",
+      "mode": "drafting",
+      "difficulty": 3,
+      "minutes": 25,
+      "measured": null
+    },
+    {
+      "id": "revision-01",
+      "category": "revision",
+      "title": "Five deliberate editor changes",
+      "instructions": "Switch to Revision mode and make five actual text-changing editor operations in a manuscript source. Quantity is measured; usefulness is not. Your normal undo and original-source save safeguards remain available.",
+      "mode": "revision",
+      "difficulty": 1,
+      "minutes": 5,
+      "measured": {
+        "metric": "revision-operations",
+        "target": 5
+      }
+    },
+    {
+      "id": "revision-02",
+      "category": "revision",
+      "title": "Repair a causal hinge",
+      "instructions": "Find a passage where an action appears without a sufficient reason. Revise its setup or its consequence so the causal hinge is readable. Use a checkpoint if desired; completion is self-reported.",
+      "mode": "revision",
+      "difficulty": 2,
+      "minutes": 15,
+      "measured": null
+    },
+    {
+      "id": "revision-03",
+      "category": "revision",
+      "title": "Remove an explanation safely",
+      "instructions": "Keep a checkpoint, then remove an explanation and strengthen the observable evidence that replaces it. Compare both versions before deciding which to keep. Self-report completion; no automatic quality ranking is claimed.",
+      "mode": "revision",
+      "difficulty": 3,
+      "minutes": 25,
+      "measured": null
+    },
+    {
+      "id": "read-through-01",
+      "category": "read-through",
+      "title": "Read for a missing question",
+      "instructions": "Read a short passage without editing. Note one question a reader might reasonably have at its end, in an ordinary note of your choice. Completion is self-reported, not inferred from leaving the app open.",
+      "mode": "read-through",
+      "difficulty": 1,
+      "minutes": 5,
+      "measured": null
+    },
+    {
+      "id": "read-through-02",
+      "category": "read-through",
+      "title": "Follow a physical object",
+      "instructions": "Read several scenes and trace one object's location and custody. Record any uncertainty without silently correcting the manuscript. Self-report after following the trail.",
+      "mode": "read-through",
+      "difficulty": 2,
+      "minutes": 15,
+      "measured": null
+    },
+    {
+      "id": "read-through-03",
+      "category": "read-through",
+      "title": "Listen for a change in intention",
+      "instructions": "Read a chapter and identify where the viewpoint character's intention changes. Distinguish an explicit change from your interpretation. Completion is self-reported; elapsed timer time is not proof of reading.",
+      "mode": "read-through",
+      "difficulty": 3,
+      "minutes": 25,
+      "measured": null
+    },
+    {
+      "id": "spark-combination-01",
+      "category": "spark-combination",
+      "title": "A map and an apology",
+      "instructions": "Premise: a corrected map would invalidate a public apology. Exercise: draft a conversation in which someone asks for the correction while wanting to preserve the apology. Self-report the attempt. This is one original combined prompt, not a 1,000-item plot corpus.",
+      "mode": "drafting",
+      "difficulty": 1,
+      "minutes": 5,
+      "measured": null
+    },
+    {
+      "id": "spark-combination-02",
+      "category": "spark-combination",
+      "title": "The borrowed authority",
+      "instructions": "Premise: an ordinary person temporarily inherits the power to settle a neighborhood dispute. Exercise: show their first decision through someone who distrusts that authority. Completion is self-reported.",
+      "mode": "drafting",
+      "difficulty": 2,
+      "minutes": 15,
+      "measured": null
+    },
+    {
+      "id": "spark-combination-03",
+      "category": "spark-combination",
+      "title": "A rescue with incompatible endings",
+      "instructions": "Premise: two groups agree that a missing person must be rescued but disagree about where safety lies. Exercise: plot a scene in which the rescued person changes both groups' plans. Self-report the experiment.",
+      "mode": "drafting",
+      "difficulty": 3,
+      "minutes": 25,
+      "measured": null
+    }
+  ]
+}

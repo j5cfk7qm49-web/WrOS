@@ -48,8 +48,16 @@ completion. See [journal controls and guarantees](docs/JOURNAL.md).
 one independent source-preserving promotion, a user-authored next-open intention,
 explicit empty-original workspace starters and per-workspace pin sets. Real compiled
 processes verify save/restart behavior at four sizes. See [workflow guarantees](docs/WORKFLOW.md).
-Gross/active-time accounting still requires the M5 edit/idle ledger; this is not a
-production-appliance, power-loss or large-load qualification.
+**Initial M5 adds tested recorded productivity:** actual-range keyboard/paste/replay
+receipts, conservative observed inter-edit clocks, native/measured goals, a November
+calendar/rest days, five sprint variants, optional milestones and 30 original daily
+exercises with persisted local-date assignments. There are 768 passing Rust tests
+per overlapping configuration, 37 Python methods and a fresh networkless VM boot.
+Source word units are not full rendered/native counts; keyboard-pair time is not
+exclusive-human-typing proof, and checkpoint crash tails are explicitly unclaimed.
+See [measurement policy and limits](docs/DAILY_CHALLENGES.md) and
+[current evidence](docs/STATUS.md). The 1,000-option corpus/Spark, later roadmap and
+production/power-loss/large-load/physical qualification remain incomplete.
 
 ## Why it exists
 

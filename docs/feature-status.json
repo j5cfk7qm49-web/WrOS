@@ -247,9 +247,9 @@
       "area": "Home",
       "capability": "Journal/pins/scratchpad/handoff/challenge/achievement/revision widgets",
       "status": "In progress",
-      "verification": "Pins and initial journal widget/UI/actual compiled-app PTY tests",
+      "verification": "Original-source UI/PTY + six M5 tool routes and cached date summaries",
       "hardware_verified": false,
-      "detail": "Pins, sampled journal/original reflection, scratchpad and user-authored handoff widgets tested; challenge/achievement/revision widgets remain planned"
+      "detail": "Pins/journal/scratchpad/handoff plus recorded edits/goals/calendar/sprints/collection/challenges implemented; advanced revision diagnostics remain M7"
     },
     {
       "area": "Workspaces",
@@ -313,39 +313,39 @@
       "status": "Existing",
       "verification": "Upstream/current timer/sprint tests",
       "hardware_verified": false,
-      "detail": "Advanced no-editing/revision variants planned"
+      "detail": "Existing baseline retained; M5 variants are separate recorded-metric tools"
     },
     {
       "area": "Productivity",
       "capability": "Gross/net/deleted, idle-aware time, revision/footnote accounting",
-      "status": "Planned",
-      "verification": "None",
+      "status": "Tested",
+      "verification": "Actual-range/source-class core tests + injected clocks; 30 controller cases; compiled four-size edit/paste/replay/restart/retry PTY",
       "hardware_verified": false,
-      "detail": "Requires edit ledger and injected monotonic clock"
+      "detail": "Bounded source units, not native/rendered counts; observed inter-edit/keyboard-pair time, NOT exclusive human typing; checkpoint crash tail explicitly unclaimed"
     },
     {
       "area": "Productivity",
       "capability": "Advanced goals/deadlines + offline 50k November calendar/rest days",
-      "status": "Planned",
-      "verification": "None",
+      "status": "Tested",
+      "verification": "Goal/calendar/forecast core + real four-size UI/PTY and persisted restart",
       "hardware_verified": false,
-      "detail": "No external account/endorsement"
+      "detail": "Nine explicit native/measured goal choices; civil windows, rest days, required pace; forecast uses recorded work dates, not missing zeroes"
     },
     {
       "area": "Productivity",
       "capability": "Optional non-punitive achievements and advanced sprints",
-      "status": "Planned",
-      "verification": "None",
+      "status": "Tested",
+      "verification": "Sprint/break/collection core + real UI/PTY/restart/failure tests",
       "hardware_verified": false,
-      "detail": "Fully disableable, no required streaks"
+      "detail": "Five variants, pause/resume/retained breaks; source-status and actual learning awards; badge failure is optional, runtime checkpoints are not"
     },
     {
       "area": "Productivity",
       "capability": "Persisted daily challenges across ten categories",
-      "status": "Planned",
-      "verification": "None",
+      "status": "Tested",
+      "verification": "Deterministic core DST/travel/filter/reroll tests + genuine measured UI/PTY/restart",
       "hardware_verified": false,
-      "detail": "Civil-date/DST/timezone/reroll tests required"
+      "detail": "30 original MIT exercises; frozen date/profile/source/acceptance/reroll history; explicit measured versus subjective evidence; NOT the M6 plot corpus"
     },
     {
       "area": "Story Spark",
@@ -521,7 +521,7 @@
       "status": "Tested",
       "verification": "Core + actual editor/UI tests",
       "hardware_verified": false,
-      "detail": "21 event-capable lessons including original reflection, scratch promotion and saved next-context handoff; 18 explicitly unavailable; context event is not OS/process attestation"
+      "detail": "24 event-capable lessons including genuine calendar/rest choice, nonempty collection review and accepted measured challenge completion; 15 explicitly unavailable; context event is not OS/process attestation"
     },
     {
       "area": "Tutorial",

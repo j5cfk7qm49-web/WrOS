@@ -55,3 +55,7 @@ Tutorial lessons 2, 8, 9, 10, 11, 12, 13, 14, 15 and 16 use the actual layout/fo
 ## Scratchpad, handoff and starter controls
 
 Dashboard s/o or Ctrl-K opens Scratchpad/Session handoff. Ctrl-K works from the read-only Pinboard/Journal/Scratchpad/Handoff too; prose readers suppress paste commands. Scratchpad n/N and Enter/e explicitly edit originals, l links, p promotes, v opens the independent original scene, x cancels only an unwritten preparation, Tab/a/Delete change reference lifecycle. Handoff s arms saved user prose, g resumes context, o toggles next-open display. Workspaces b applies an explicit empty-original starter; p edits its card-ID set (Space, a/z, Enter, A follow all, Esc cancel). Full guarantees: [WORKFLOW](WORKFLOW.md), [WORKSPACES](WORKSPACES.md), and their built-in F1 topics.
+
+## Recorded productivity tools
+
+Esc → Writing tools → Productivity tools and Ctrl-K expose all six M5 pages. The six additive alias targets have no forced new default chord. In the reader: 1–6/Tab choose pages, arrows choose, PgUp/PgDn scroll, r reloads/retries metadata, F1 gives policy, Esc returns. Each page labels its explicit create/accept/pause/rest-day/filter/disable controls. Numeric/date fields retain invalid input and original settings. Read-only pages suppress paste/cut/undo/drag commands rather than passing them to a hidden source editor. Lessons 18/20/21 use actual persisted actions, not opening a page. Full controls and limits: [DAILY_CHALLENGES](DAILY_CHALLENGES.md).

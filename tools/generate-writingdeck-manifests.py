@@ -81,7 +81,7 @@ def main():
     if content_path.exists():
         content = json.loads(content_path.read_text())
         for entry in content['bundled']:
-            if entry['id'] in ('writingdeck-original-tutorial', 'writingdeck-original-demo') and entry['license'] == 'MIT':
+            if entry['id'] in ('writingdeck-original-tutorial', 'writingdeck-original-demo', 'writingdeck-original-productivity') and entry['license'] == 'MIT':
                 entry['sha256'] = sha(ROOT/entry['file'])
         content_path.write_text(json.dumps(content, indent=2, ensure_ascii=False)+'\n')
     print(f'{len(records)} Rust packages, {len(debian)} staged Debian packages, {len(missing)} missing root notice files to review; {len(missing_selected)} used by the Linux no-audio build')

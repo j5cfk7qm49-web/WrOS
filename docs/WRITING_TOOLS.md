@@ -47,3 +47,7 @@ Before M7/M8/M9 release: deterministic Unicode/Markdown/dialogue offset fixtures
 ## M3b routing boundary
 
 Both editable views now have independent Editor state; spelling, find/replace, clipboard and history commands target the focused document. Bulk book replacement/undo and name fixes update any matching inactive editor before autosave. The document registry is available as a prerequisite, but no revision-tagged analyzer queue, Harper integration or new ignore-scope policy is implemented by this milestone. The shared existing dictionary and clipboard are not duplicated per pane.
+
+## Recorded M5 productivity
+
+Advanced goals/calendar/rest days, five sprint variants/retained breaks, optional collection and frozen daily exercises now use actual source-range operations and conservative injected-clock spans, not old net baselines. This is 30 original exercises, not the 1,000-plot M6 corpus. Native words and bounded source word units are distinguished; keyboard-pair time is not exclusive-human-typing proof. Full implemented behavior, controls, tests and limits: [DAILY_CHALLENGES](DAILY_CHALLENGES.md).

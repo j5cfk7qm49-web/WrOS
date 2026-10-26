@@ -1,6 +1,6 @@
 # Feature status matrix
 
-As of 2026-10-25 — 0.1.0-dev foundation + M3b + initial M4. **No hardware-verified claims.**
+As of 2026-10-25 — 0.1.0-dev foundation + M3b + M4 + initial M5. **No hardware-verified claims.**
 
 Existing means audited baseline; Tested identifies automated/VM evidence, not production qualification. See [STATUS](STATUS.md) and [ROADMAP](ROADMAP.md).
 
@@ -36,7 +36,7 @@ Existing means audited baseline; Tested identifies automated/VM evidence, not pr
 | Keyboard | Raw physical-position shortcuts through generic tty | Blocked | No reliable scan-code channel | Use logical characters and function/arrow keys; no double mapping |
 | Home | Real existing-data dashboard widgets + hide/reorder/navigation | Tested | 80x24, 100x30, 120x40, 160x50 TUI tests | No fabricated metrics or unimplemented challenge widgets |
 | Home | Optional startup home / direct primary restore | Tested | State tests + VM startup + recovery precedence | Newer upstream resume takes priority at startup |
-| Home | Journal/pins/scratchpad/handoff/challenge/achievement/revision widgets | In progress | Pins and initial journal widget/UI/actual compiled-app PTY tests | Pins, sampled journal/original reflection, scratchpad and user-authored handoff widgets tested; challenge/achievement/revision widgets remain planned |
+| Home | Journal/pins/scratchpad/handoff/challenge/achievement/revision widgets | In progress | Original-source UI/PTY + six M5 tool routes and cached date summaries | Pins/journal/scratchpad/handoff plus recorded edits/goals/calendar/sprints/collection/challenges implemented; advanced revision diagnostics remain M7 |
 | Workspaces | Five named dual-editor workspace slots + custom clones/width/cursors | Tested | Schema-v3 round-trip/v1-v2 migration, dual restart/role-swap and guarded starter/pin-set UI tests | Independent selections/free scroll and role/ratio; explicit empty-original starters and per-workspace card IDs, no implicit prose template |
 | Workspaces | F10 outline toggle and strict Ctrl-D focus | Tested | Hidden-pane geometry/focus and persistence tests | Strict Primary only; hidden Secondary/reference cannot receive input |
 | Workspaces | Full editable secondary document, independent undo/autosave/selection | Tested | 28 new UI cases + core registry tests + real-binary PTY at four sizes | F11 enabled; existing guarded saves/dual recovery; in-process ownership, not an OS lock |
@@ -44,11 +44,11 @@ Existing means audited baseline; Tested identifies automated/VM evidence, not pr
 | Notes | Single-source pins/scopes/cards/categories/trash/anchors/scroll | Tested | 14 core + 31 UI + 1 alias; actual binary PTY/restart at four sizes; read-only CLI | Metadata-only project references, explicit guarded source edits, scoped cards/sidebar/dashboard; unknown/failure preservation; no cross-process lock or large-note performance claim |
 | Notes | Sampled auto/manual journal, multi-note scratchpad and next-open handoff | Tested | Journal 34 Rust; M4c 45 Rust; actual four-size compiled-app promotion/handoff process restart + read-only CLI | Original reflections/notes/intention; source-preserving independent scene with Prepared/Ready retry; no generated prose or gross/active-time ledger |
 | Productivity | Basic daily/book/scene goals, weekly net pace/forecast | Existing | Upstream/current tests | Net growth, not gross/deleted/active-WPH |
-| Productivity | Baseline Pomodoro and word/time sprint | Existing | Upstream/current timer/sprint tests | Advanced no-editing/revision variants planned |
-| Productivity | Gross/net/deleted, idle-aware time, revision/footnote accounting | Planned | None | Requires edit ledger and injected monotonic clock |
-| Productivity | Advanced goals/deadlines + offline 50k November calendar/rest days | Planned | None | No external account/endorsement |
-| Productivity | Optional non-punitive achievements and advanced sprints | Planned | None | Fully disableable, no required streaks |
-| Productivity | Persisted daily challenges across ten categories | Planned | None | Civil-date/DST/timezone/reroll tests required |
+| Productivity | Baseline Pomodoro and word/time sprint | Existing | Upstream/current timer/sprint tests | Existing baseline retained; M5 variants are separate recorded-metric tools |
+| Productivity | Gross/net/deleted, idle-aware time, revision/footnote accounting | Tested | Actual-range/source-class core tests + injected clocks; 30 controller cases; compiled four-size edit/paste/replay/restart/retry PTY | Bounded source units, not native/rendered counts; observed inter-edit/keyboard-pair time, NOT exclusive human typing; checkpoint crash tail explicitly unclaimed |
+| Productivity | Advanced goals/deadlines + offline 50k November calendar/rest days | Tested | Goal/calendar/forecast core + real four-size UI/PTY and persisted restart | Nine explicit native/measured goal choices; civil windows, rest days, required pace; forecast uses recorded work dates, not missing zeroes |
+| Productivity | Optional non-punitive achievements and advanced sprints | Tested | Sprint/break/collection core + real UI/PTY/restart/failure tests | Five variants, pause/resume/retained breaks; source-status and actual learning awards; badge failure is optional, runtime checkpoints are not |
+| Productivity | Persisted daily challenges across ten categories | Tested | Deterministic core DST/travel/filter/reroll tests + genuine measured UI/PTY/restart | 30 original MIT exercises; frozen date/profile/source/acceptance/reroll history; explicit measured versus subjective evidence; NOT the M6 plot corpus |
 | Story Spark | Specific source/license research and exclusion manifest | Tested | Manifest/source review | No third-party challenge corpus bundled yet |
 | Story Spark | 1,000+ substantive curated plot options + exercise corpus | Planned | None | No inflated record-count completeness claim |
 | Story Spark | Four modes, compatible combinations, roulette/static, history/favorites/actions | Planned | None | Offline non-AI design; tutorial lessons disabled until real |
@@ -70,7 +70,7 @@ Existing means audited baseline; Tested identifies automated/VM evidence, not pr
 | Cloud | Opt-in Drive OAuth, private credentials, upload queue, verified backup/restore | Planned | None | Local state/fake-transport infrastructure can be built without credentials |
 | Cloud | Conflict-aware bidirectional sync + safe mobile/Docs evaluation | Planned | Existing generic file conflicts only | Copy/sync/Docs interoperability are separate guarantees |
 | Cloud | Live Google authorization/restore/Docs round-trip acceptance | Blocked | No account enrolled or manuscript transmitted | Requires explicit user credentials and consent at M9 |
-| Tutorial | 39-lesson catalog, safe demo, replay/skip/progress, help links | Tested | Core + actual editor/UI tests | 21 event-capable lessons including original reflection, scratch promotion and saved next-context handoff; 18 explicitly unavailable; context event is not OS/process attestation |
+| Tutorial | 39-lesson catalog, safe demo, replay/skip/progress, help links | Tested | Core + actual editor/UI tests | 24 event-capable lessons including genuine calendar/rest choice, nonempty collection review and accepted measured challenge completion; 15 explicitly unavailable; context event is not OS/process attestation |
 | Tutorial | All 39 complete interactive exercises across final features | In progress | Continuous foundation only | Must land alongside each later feature, not wait until release |
 | Qualification | Offline whole-VM operation and low-memory initial measurement | Tested | No network devices; guest process RSS in evidence | Does not include Python/spaCy or physical battery benchmark |
 | Qualification | Physical laptop keyboard/Wi-Fi/lock/suspend/battery/update qualification | Blocked | No hardware available in this environment | Record model/firmware before claiming Hardware verified |

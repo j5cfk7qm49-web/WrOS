@@ -1,223 +1,177 @@
 {
-  "recorded_at_utc": "2026-10-25T08:45:29.622598+00:00",
-  "milestone": "M4c original multi-note scratchpad/promotion, user-authored next-open handoff, explicit workspace starters and per-workspace pin sets; initial M4, not full production appliance",
-  "previous_milestone": {
-    "commit": "cfca09e",
-    "name": "M4b sampled journal and original-source reflections",
-    "rust_each_configuration": 612,
-    "python": 30,
-    "historical_source_sha256": "68e1bc3e56dfbdc20dc656d3312c007fdbfd55fc80984d7bc58a4dfb3e798645"
-  },
+  "recorded_at_utc": "2026-10-26T00:05:01.084166+00:00",
+  "verification_started_at_utc": "2026-10-26T00:05:01.084187+00:00",
+  "milestone": "Initial M5: observed source-range operations/civil-day goals/calendar/sprints/optional milestones/30 original daily exercises, preserving M4 originals; not full production OS",
   "source_fingerprint": {
     "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
-    "sha256": "c4e74cea0b899a75e7205c6f4f4aa593e6d386c6e70b092f1916c47b38ece23f",
-    "file_count": 200,
+    "sha256": "7d8bd8155ec6a15068e8c2fd0468f8d1df28574555cb25a17eb27a8091f2c3dd",
+    "file_count": 210,
     "scope": "Cargo.toml/lock, src, crates, assets, os scripts/config/systemd/tests; no generated evidence/docs/builds"
   },
+  "previous_evidence": {
+    "milestone": "M4c original multi-note scratchpad/promotion, user-authored next-open handoff, explicit workspace starters and per-workspace pin sets; initial M4, not full production appliance",
+    "source_fingerprint": {
+      "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+      "sha256": "c4e74cea0b899a75e7205c6f4f4aa593e6d386c6e70b092f1916c47b38ece23f",
+      "file_count": 200,
+      "scope": "Cargo.toml/lock, src, crates, assets, os scripts/config/systemd/tests; no generated evidence/docs/builds"
+    }
+  },
   "toolchain": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
-  "tested_no_audio_binary_sha256": "ab402f599705a24d58696ac4914c16b38234b570d3f62100840f47c0787bae7b",
-  "verification_started_at_utc": "2026-10-25T08:40:47.856391+00:00",
-  "verification_finished_at_utc": "2026-10-25T08:41:42.679030+00:00",
   "rust_suites": [
     {
+      "name": "tests-default",
       "command": "cargo test --workspace --locked --offline -j2",
-      "passed": 657,
+      "exit_code": 0,
+      "seconds": 42.768,
+      "log": "build/verification/tests-default.log",
+      "configuration": "default",
+      "passed": 768,
       "failed": 0,
       "ignored": 5,
-      "exit_code": 0,
-      "seconds": 22.57,
-      "log": "build/tests-default.log",
-      "configuration": "default audio features"
+      "ignored_tests": [
+        "test spell::tests::timings ... ignored",
+        "test shots::demo ... ignored",
+        "test shots::shots ... ignored",
+        "test ui_tests::dump_pomodoro_previews ... ignored",
+        "test voice::piper_reads_every_sentence_in_order ... ignored"
+      ]
     },
     {
+      "name": "tests-no-audio",
       "command": "cargo test --workspace --no-default-features --locked --offline -j2",
-      "passed": 657,
+      "exit_code": 0,
+      "seconds": 41.009,
+      "log": "build/verification/tests-no-audio.log",
+      "configuration": "no-audio",
+      "passed": 768,
       "failed": 0,
       "ignored": 4,
-      "exit_code": 0,
-      "seconds": 22.322,
-      "log": "build/tests-no-audio.log",
-      "configuration": "--no-default-features"
+      "ignored_tests": [
+        "test spell::tests::timings ... ignored",
+        "test shots::demo ... ignored",
+        "test shots::shots ... ignored",
+        "test ui_tests::dump_pomodoro_previews ... ignored"
+      ]
     }
   ],
-  "new_m4c_tests": {
-    "core_workflow": 16,
-    "core_workspaces": 3,
-    "core_pin_preview": 1,
-    "tui_workflow": 24,
-    "system_shortcuts": 1,
-    "total_rust": 45,
-    "note": "Beyond M4b, not another count of each overlapping full configuration."
-  },
-  "python": {
-    "command": "python3 -m unittest discover -s os/tests -p 'test_*.py' -v",
-    "passed": 34,
-    "failed": 0,
-    "skipped": 0,
-    "exit_code": 0,
-    "seconds": 7.413,
-    "log": "build/python-tests.log",
-    "breakdown": {
-      "keyboard_helper": 13,
-      "read_only_installer": 4,
-      "headless_cli": 7,
-      "actual_compiled_app_pty": 8,
-      "ansi_screen_tracker": 2
-    },
-    "new_methods": {
-      "workflow_pty": 3,
-      "read_only_workflow_cli": 1
-    },
-    "pty_scope": "New four-size original scratch save/link/single-scene promotion/source preservation and original handoff arm, separate-process restart/read/resume/loaded-original edit and isolated undo. Four-size actual Research Secondary + explicit pin set + external future-layout preservation. Future workflow refuses index mutation/false arm but permits explicit original intention editing. Retained independent editor/pin/journal controls, source undo, restart and failure/force-exit tests pass. Only new demo/HOME; no host keymaps/services or private manuscripts."
-  },
   "checks": [
     {
       "name": "format",
       "command": "cargo fmt --all -- --check",
       "exit_code": 0,
-      "seconds": 0.858,
-      "log": "build/fmt.log"
+      "seconds": 0.918,
+      "log": "build/verification/format.log"
     },
     {
-      "name": "warning-denying Clippy",
-      "command": "cargo clippy --workspace --all-targets --locked --offline -- -D warnings",
+      "name": "tests-default",
+      "command": "cargo test --workspace --locked --offline -j2",
       "exit_code": 0,
-      "seconds": 0.203,
-      "log": "build/clippy.log"
+      "seconds": 42.768,
+      "log": "build/verification/tests-default.log"
     },
     {
-      "name": "no-audio binary",
-      "command": "cargo build --no-default-features --locked --offline -j2",
+      "name": "clippy-default",
+      "command": "cargo clippy --workspace --all-targets --locked --offline -j2 -- -D warnings",
       "exit_code": 0,
-      "seconds": 0.167,
-      "log": "build/build-no-audio.log"
+      "seconds": 0.333,
+      "log": "build/verification/clippy-default.log"
+    },
+    {
+      "name": "tests-no-audio",
+      "command": "cargo test --workspace --no-default-features --locked --offline -j2",
+      "exit_code": 0,
+      "seconds": 41.009,
+      "log": "build/verification/tests-no-audio.log"
+    },
+    {
+      "name": "clippy-no-audio",
+      "command": "cargo clippy --workspace --all-targets --no-default-features --locked --offline -j2 -- -D warnings",
+      "exit_code": 0,
+      "seconds": 0.294,
+      "log": "build/verification/clippy-no-audio.log"
+    },
+    {
+      "name": "build-no-audio",
+      "command": "cargo build --workspace --no-default-features --locked --offline -j2",
+      "exit_code": 0,
+      "seconds": 0.181,
+      "log": "build/verification/build-no-audio.log"
+    },
+    {
+      "name": "python",
+      "command": "python3 -m unittest discover -s os/tests -p test_*.py -v",
+      "exit_code": 0,
+      "seconds": 13.616,
+      "log": "build/verification/python.log"
+    },
+    {
+      "name": "terminal-capture",
+      "command": "python3 tools/capture-writingdeck-screens.py",
+      "exit_code": 0,
+      "seconds": 0.895,
+      "log": "build/verification/terminal-capture.log"
     },
     {
       "name": "shellcheck",
-      "command": "shellcheck os/scripts/*.sh os/scripts/writingdeck-session",
+      "command": "shellcheck os/scripts/assemble-image.sh os/scripts/bootstrap-rootfs.sh os/scripts/generate-keymaps.sh os/scripts/install-files.sh os/scripts/writingdeck-session",
       "exit_code": 0,
-      "seconds": 0.347,
-      "log": "build/shellcheck.log"
+      "seconds": 0.303,
+      "log": "build/verification/shellcheck.log"
     },
     {
-      "name": "Python syntax",
-      "command": "python3 -m py_compile os/tests/*.py tools/*.py os/scripts/install-plan.py os/scripts/writingdeck-keyboard",
+      "name": "python-syntax",
+      "command": "python3 -m py_compile os/tests/boot_vm.py os/tests/guest-boot-probe.py os/tests/terminal_screen.py os/tests/test_cli.py os/tests/test_install_plan.py os/tests/test_journal_pty.py os/tests/test_keyboard.py os/tests/test_pins_pty.py os/tests/test_productivity_pty.py os/tests/test_secondary_pty.py os/tests/test_terminal_screen.py os/tests/test_workflow_pty.py tools/capture-writingdeck-screens.py tools/check-writingdeck.py tools/demo.py tools/generate-keyboard-reference.py tools/generate-writingdeck-manifests.py tools/screenshots.py tools/site_themes.py tools/verify-writingdeck.py tools/winget.py tools/writingdeck_source.py os/scripts/install-plan.py os/scripts/writingdeck-keyboard",
       "exit_code": 0,
-      "seconds": 0.072,
-      "log": "build/python-syntax.log"
+      "seconds": 0.082,
+      "log": "build/verification/python-syntax.log"
     },
     {
-      "name": "license/content inventories",
+      "name": "inventories",
       "command": "python3 tools/generate-writingdeck-manifests.py",
       "exit_code": 0,
-      "seconds": 0.641,
-      "log": "build/manifests.log"
+      "seconds": 0.691,
+      "log": "build/verification/inventories.log"
     },
     {
-      "name": "printable keyboard reference",
+      "name": "printable-reference",
       "command": "python3 tools/generate-keyboard-reference.py",
       "exit_code": 0,
-      "seconds": 0.033,
-      "log": "build/reference.log"
+      "seconds": 0.036,
+      "log": "build/verification/printable-reference.log"
     },
     {
-      "name": "diff whitespace",
-      "command": "git diff --check",
-      "exit_code": 0,
-      "seconds": 0.04,
-      "log": "build/diff-check.log"
-    },
-    {
-      "name": "actual compiled-app terminal-frame capture",
-      "command": "python3 tools/capture-writingdeck-screens.py",
-      "exit_code": 0,
-      "log": "build/capture-screens.log"
-    },
-    {
-      "name": "docs matrix/content/licenses/local links",
+      "name": "documentation",
       "command": "python3 tools/check-writingdeck.py",
       "exit_code": 0,
-      "log": "build/docs-check.log"
+      "seconds": 0.071,
+      "log": "build/verification/documentation.log"
     },
     {
-      "name": "fresh regular-file VM image assembly",
-      "command": "sudo -n env PATH=/home/user/GrimoireTUI/build/image-tools:/usr/sbin:/usr/bin:/sbin:/bin os/scripts/assemble-image.sh target/debug/grimoire",
+      "name": "diff-whitespace",
+      "command": "git diff --check",
       "exit_code": 0,
-      "log": "build/image-build.log",
-      "note": "The build-only ckbcomp wrapper runs /usr/bin/ckbcomp in the actual staged Debian rootfs via chroot; no host keyboard map/service is applied."
-    },
-    {
-      "name": "actual networkless UEFI VM acceptance",
-      "command": "python3 os/tests/boot_vm.py",
-      "exit_code": 0,
-      "log": "build/vm-boot-run.log",
-      "scope": "Five boot/system/console markers; no workflow interaction or physical hardware claim."
-    },
-    {
-      "name": "strict current-source evidence audit",
-      "command": "python3 tools/check-writingdeck.py --require-current-evidence",
-      "exit_code": 0,
-      "log": "build/strict-evidence.log"
-    },
-    {
-      "name": "final source/binary/reviewed-artifact hash agreement",
-      "exit_code": 0,
-      "note": "Executed final inline audit: software/VM/current fingerprints identical; tested debug-binary SHA-256 identical; stripped copy SHA-256 matches installed VM executable; both reviewed terminal frames and actual VM screenshot match recorded hashes. Source alignment, not signed attestation."
-    }
-  ],
-  "terminal_screen_reviews": [
-    {
-      "file": "docs/evidence/workflow-pty-screen.txt",
-      "sha256": "db5ad4b5954099441c7fa7cc37e021f2720b5db66fbd4597229a8bacd29933b6",
-      "terminal_columns_rows": [
-        80,
-        24
-      ],
-      "inspected": true,
-      "note": "Actual current compiled-app/new demo/HOME. Cleared bordered source readers, complete footer; cursor/erase/UTF-8 reconstruction, not a full emulator or physical-keyboard certificate. Workflow handoff frame comes from a separate new process. Fixture device dates/offsets, not assumed user timezone."
-    },
-    {
-      "file": "docs/evidence/journal-pty-screen.txt",
-      "sha256": "a06d9452a5d64d8fe6d52a877447ec88d6b1084a813169500838c5fd808d1674",
-      "terminal_columns_rows": [
-        80,
-        24
-      ],
-      "inspected": true,
-      "note": "Actual current compiled-app/new demo/HOME. Cleared bordered source readers, complete footer; cursor/erase/UTF-8 reconstruction, not a full emulator or physical-keyboard certificate. Workflow handoff frame comes from a separate new process. Fixture device dates/offsets, not assumed user timezone."
-    }
-  ],
-  "regressions": [
-    {
-      "observation": "New actual PTY sequence exposed Ctrl-K admitted by reader modal guard but opening palette only for Overlay::None.",
-      "fix": "Palette reachability for read-only Pinboard/Journal/Scratchpad/Handoff, with pure UI and actual compiled workflow coverage. Other modal editors retain their own input contracts."
-    },
-    {
-      "observation": "Retained F11 PTY asserted old v2 after intentional layout migration to v3.",
-      "fix": "Expect v3 and assert null follow-all card IDs, preserving all original source/role/save/undo assertions."
+      "seconds": 0.123,
+      "log": "build/verification/diff-whitespace.log"
     }
   ],
   "limitations": [
-    "Ignored screenshots/performance/real-model tests are not passed.",
-    "Journal facts are sampled saved-Project observations, not gross/deleted/exclusive-typing/active/elapsed or durable per-edit ledger facts. Pending observations can be lost on crash/explicit forced exit.",
-    "Prepared and exact-target completion I/O tests synthesize phase/failure conditions; no actual kernel power-cut, cross-file atomicity, OS lock or hostile-race certification.",
-    "Handoff tutorial verifies a new App context, not an OS/process restart. Separate actual compiled-process PTYs provide that narrow restart/source-load evidence.",
-    "Promotion retains original bytes and independent snapshot content/frontmatter conventions; relative resource URLs are not rebased and need review before publishing.",
-    "Fresh VM evidence is separate networkless boot/system/console proof, not workflow interactions, loaded-card/log stress or physical hardware qualification.",
-    "No physical install, cloud/provider/restore, legal release, low-power or large-note/index/log/analyzer performance clearance. M2b and M5-M10 remain substantial."
+    "Overlapping configurations are not distinct-test counts; ignored external/performance/model tests are not passed.",
+    "Temporary fixtures and compiled PTYs are not physical keyboard, laptop, power-cut, signed release or provider qualification.",
+    "Recorded edit totals do not certify complete all-day/crash-tail coverage or exclusive human typing.",
+    "No host disk installation, credentials, cloud enrollment, user manuscript or Git push performed."
   ],
-  "vm_screen_review": {
-    "file": "docs/evidence/vm-dashboard.png",
-    "sha256": "d2de1e90a6429542e262b72d1f5a1c7dab18acf90d1eaf08f67c0d536a1cdc7e",
-    "dimensions_pixels": [
-      1280,
-      800
-    ],
-    "console_columns_rows": [
-      160,
-      50
-    ],
-    "inspected": true,
-    "note": "Actual fresh non-root dashboard with separate journal/scratchpad/handoff widgets. Boot/system/console evidence only; no workflow control, physical keyboard, large-load or power qualification."
-  }
+  "tested_no_audio_binary_sha256": "99427c3c82644950a38322deb96dbc0ccaeb7ba197a60eaca83ab90ed2600fd9",
+  "python": {
+    "name": "python",
+    "command": "python3 -m unittest discover -s os/tests -p test_*.py -v",
+    "exit_code": 0,
+    "seconds": 13.616,
+    "log": "build/verification/python.log",
+    "passed": 37,
+    "failed": 0,
+    "skipped": 0,
+    "pty_scope": "Actual non-root compiled app, new demo/HOME only; original edit/save/undo/restart, four terminal sizes, metadata failures/retry. Not a full emulator or physical certificate."
+  },
+  "verification_finished_at_utc": "2026-10-26T00:06:42.680436+00:00"
 }

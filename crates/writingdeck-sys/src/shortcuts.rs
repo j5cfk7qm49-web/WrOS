@@ -21,6 +21,12 @@ pub enum Action {
     Journal,
     Scratchpad,
     Handoff,
+    Productivity,
+    MeasuredGoals,
+    Calendar,
+    AdvancedSprints,
+    Achievements,
+    DailyChallenges,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

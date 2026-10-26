@@ -24,7 +24,7 @@ impl Inactive {
     fn new(i: usize, body: &str) -> Self {
         Self {
             open: Some(i),
-            editor: Editor::from_text(body),
+            editor: productivity::source_editor(body),
             width: 60,
             height: 20,
             rect: Rect::default(),
@@ -189,6 +189,7 @@ impl App {
         self.views.registry.validate()
     }
     pub fn update_document_editor(&mut self, i: usize) {
+        self.capture_productivity();
         let body = &self.project.nodes[i].body;
         if self.open == Some(i) && self.editor.text() != *body {
             self.editor.set_text(body);
@@ -203,6 +204,7 @@ impl App {
     /// Detach only after the caller has successfully committed/kept changes.
     /// F11 does NOT detach: a hidden secondary retains selection and undo.
     pub fn detach_secondary(&mut self) {
+        self.flush();
         self.swap_editor_context(Pane::Primary);
         if let Some(mut other) = self.views.other.take()
             && let Some(i) = other.open
@@ -220,6 +222,7 @@ impl App {
         }
     }
     pub fn close_document_views_under(&mut self, path: &Path) {
+        self.flush();
         for pane in [Pane::Primary, Pane::Secondary] {
             let affected = self
                 .view_open(pane)
@@ -231,7 +234,7 @@ impl App {
                             .insert(app.project.nodes[i].path.clone(), app.editor.take_history());
                     }
                     app.open = None;
-                    app.editor = Editor::from_text("");
+                    app.editor = productivity::source_editor("");
                 });
                 self.views.registry.release(pane);
                 if pane == Pane::Secondary {

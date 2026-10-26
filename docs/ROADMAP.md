@@ -1,6 +1,6 @@
 # WritingDeck OS implementation roadmap
 
-Working branch: `writingdeck/foundation`. Upstream base: Grimoire v0.7.5 / `f3ca1e8`. Current release designation: **0.1.0-dev foundation + M3b + initial M4 (pins, sampled journal, scratchpad/handoff, presets)**, not a complete production OS. Read [STATUS](STATUS.md) for the latest run evidence and exact remaining work.
+Working branch: `writingdeck/foundation`. Upstream base: Grimoire v0.7.5 / `f3ca1e8`. Current release designation: **0.1.0-dev foundation + M3b + M4 + initial M5 (recorded operations, goals/calendar/sprints/challenges)**, not a complete production OS. Read [STATUS](STATUS.md) for the latest run evidence and exact remaining work.
 
 ## Working rules
 
@@ -18,7 +18,7 @@ Status vocabulary: **Existing** (audited upstream), **Planned**, **In progress**
 | M3a: Home and primary workspace state | M2a (does not need disk installer) | 80×24+ navigation; real project/goal/progress/sprint/system widgets; hide/reorder; optional direct restore; outline toggle/width; primary cursor and custom layout slots; strict focus; safe alias UI | **Tested** initial slice; advanced widgets/pane presets not complete |
 | M3b: Multi-document pane registry | M3a | Independent editable secondary buffer/cursor/selection/undo/autosave; no two competing saves for same canonical file; full focus cycling/resizing/external-change/recovery tests; only then assign F11 | **Tested**: 28 dedicated UI tests, registry/schema tests and real-binary PTY at four sizes; F11 enabled |
 | M4: Pins, journal, scratchpad, handoff | M3b | Single-source Markdown pin views, scopes/trash/categories; free-scroll and semantic anchors; card/sidebar restoration; quick edits; journal event/manual separation; scene-linked scratchpad and next-boot intention | **Tested initial M4**: M4a pins, M4b sampled journal/original reflections, M4c original-preserving multi-note promotion, next-open handoff, explicit starters/pin sets; real UI/tutorial/failure/process-restart evidence. Gross/time ledger and large-load/power-loss qualification remain M5/M10 |
-| M5: Goals, accounting, sprints, achievements, daily challenges | M4 and edit ledger | Monotonic idle-aware accounting with gross/net/deleted words, revision/footnote policy; calendars/rest days/50k preset; sprint variants; disableable non-punitive achievements; persisted local-date challenges across ten categories | **Planned** extensions; existing basic goals/sprints retained |
+| M5: Goals, accounting, sprints, achievements, daily challenges | M4 and edit ledger | Monotonic idle-aware accounting with gross/net/deleted words, revision/footnote policy; calendars/rest days/50k preset; sprint variants; disableable non-punitive achievements; persisted local-date challenges across ten categories | **Tested initial software**: actual-range source-unit ledger/injected civil clocks, goals/calendar/rest days, sprint variants/retained breaks, optional collection and 30 original exercises; 30 controller cases + compiled four-size restart/retry PTY. Checkpoint crash-tail completeness, indefinite archival and physical/loaded/power qualification are not claimed |
 | M6a: Licensed corpus | Rights review and M5 data format | Per-item source/edition/hash/attribution; CC ShareAlike separation; 1,000+ substantively distinct reviewed plot options plus substantial usable exercises; measurable unique-record validation, not adjective multiplication | **Planned**; source research complete enough to select a safe path, no such corpus bundled yet |
 | M6b: Story Spark | M6a, M4-M5 | Plot/challenge/combined/daily modes; compatibility and independent/joint rerolls; local history/favorites/filtering/anti-repeat; static and optional roulette views; pin/scratchpad/scene/task/sprint actions | **Planned** |
 | M7a: Common diagnostics and Harper | M3b | Byte-accurate source maps, revision-tagged jobs, stale-result discard; live offline grammar alongside current spelling; novel/global/once ignores; dialogue policy; no automatic replacements | **Planned**, researched harper-core 2.13.0 |
@@ -36,11 +36,11 @@ The application tests retain the upstream Every key/menu/palette/help contracts 
 
 ## Next executable work
 
-1. Continue M5 from verified initial M4: implement a genuine edit/idle ledger with injected monotonic/civil clocks before gross/deleted/exclusive-typing/active-time metrics. Preserve original pins, date reflections, scratch notes and handoff. Benchmark large notes/card/log counts; controlled Prepared I/O tests are not power-loss or low-power qualification.
+1. Preserve the software-tested initial M5 operation/civil-date subsystem and all original-source M4 workflows. Continue M6a with genuinely distinct reviewed/licensed plot records before Story Spark; the 30 M5 exercises do not meet its 1,000-option gate. Observed keyboard-pair time must never become an exclusive-human-typing claim; checkpoint/archival/large-load/power limits remain explicit.
 2. Add screen-lock integration with an input-reader pause/ownership handshake. Do not launch a password reader while Grimoire's event thread can still consume password keystrokes.
 3. Integrate safe authenticated first-run provisioning with an upstream Debian installation path; review without selecting or erasing a real disk. Add staged tests for current account/keyboard/timezone choices.
 4. Pin image/toolchain inputs for reproducible releases; build `.deb` integration packaging, security update/rollback fixtures and required corresponding-source/notices artifacts.
-5. Continue M5–M9 in dependency order after their actual prerequisites. Avoid shallow stubs for every later feature or claiming an original two-scene tutorial is a 1,000-item challenge corpus.
+5. Continue M6–M9 in dependency order after their actual prerequisites. Avoid shallow stubs for every later feature or claiming an original two-scene tutorial is a 1,000-item challenge corpus.
 
 ## Release blockers
 

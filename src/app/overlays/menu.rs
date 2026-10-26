@@ -59,6 +59,18 @@ impl App {
 
     /// Up out of a group, onto the row that led into it.
     fn menu_back(&mut self, from: Option<Sub>) {
+        if from == Some(Sub::Productivity) {
+            let sel = self
+                .submenu(Sub::Writing)
+                .iter()
+                .position(|(_, a)| *a == Action::Submenu(Sub::Productivity))
+                .unwrap_or(0);
+            self.overlay = Overlay::Sub {
+                sub: Sub::Writing,
+                sel,
+            };
+            return;
+        }
         let sel = from
             .and_then(|sub| {
                 self.menu()
@@ -88,6 +100,10 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
         Action::Submenu(Sub::Writing) => (
             "Focus mode, sprints, your notes, and other help while you write.",
             "writing",
+        ),
+        Action::Submenu(Sub::Productivity) => (
+            "Observed edit accounting, goals and rest days, sprints, optional milestones and daily exercises.",
+            "productivity",
         ),
         Action::Submenu(Sub::Settings) => (
             "Themes, music, spellcheck, and how the page and the manuscript look.",
@@ -328,6 +344,15 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "Original next-session prose and explicit saved manuscript context resume.",
             "handoff",
         ),
+        Action::Productivity
+        | Action::MeasuredGoals
+        | Action::Calendar
+        | Action::AdvancedSprints
+        | Action::Achievements
+        | Action::DailyChallenges => (
+            "Real operation ledger, explicit goals/rest days, monotonic sprints, optional milestones and persisted offline challenges; not baseline/Git-derived gross or time.",
+            "productivity",
+        ),
         Action::Journal => (
             "Recorded saved-manuscript observations, separate from original Markdown reflections. No gross-word or active-time guesses.",
             "journal",
@@ -399,6 +424,7 @@ pub(super) fn draw_menu(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         None => "GRIMOIRE",
         Some(Sub::Book) => "GRIMOIRE › THIS BOOK",
         Some(Sub::Writing) => "GRIMOIRE › WRITING TOOLS",
+        Some(Sub::Productivity) => "GRIMOIRE › PRODUCTIVITY",
         Some(Sub::Settings) => "GRIMOIRE › SETTINGS",
         Some(Sub::Help) => "GRIMOIRE › HELP & ABOUT",
     };

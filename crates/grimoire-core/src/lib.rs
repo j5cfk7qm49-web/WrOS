@@ -5,7 +5,9 @@
 //! and an Android app on a phone, with the book itself staying plain Markdown
 //! either way.
 
+pub mod accounting;
 pub mod atomic;
+pub mod challenges;
 pub mod cloud;
 pub mod codex;
 pub mod cork;
@@ -19,11 +21,13 @@ pub mod history;
 pub mod import;
 pub mod journal;
 pub mod manuscript;
+pub mod measure;
 pub mod names;
 pub mod notes;
 pub mod paths;
 pub mod pdf;
 pub mod pins;
+pub mod productivity;
 pub mod project;
 pub mod recovery;
 pub mod resume;
@@ -32,6 +36,7 @@ pub mod search;
 pub mod sessions;
 pub mod settings;
 pub mod spell;
+pub mod statefile;
 pub mod submission;
 pub mod sync;
 pub mod typeset;

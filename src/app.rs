@@ -34,6 +34,7 @@ pub(crate) mod documents;
 pub(crate) mod journal;
 pub(crate) mod overlays;
 pub(crate) mod pins;
+pub(crate) mod productivity;
 pub(crate) mod workflow;
 pub(crate) mod writingdeck;
 pub use aids::{MarkRow, Sprint, filter_marks as aids_filter};
@@ -127,6 +128,7 @@ enum TreeStep {
     Replaced {
         what: String,
         scenes: Vec<(PathBuf, String, String)>,
+        metrics: HashMap<PathBuf, grimoire_core::measure::Counts>,
     },
     /// A conflict copy settled: what moved (to the trash, or into place as a
     /// scene of its own) and whole files whose text changed, so one Ctrl-Z
@@ -169,6 +171,7 @@ type PdfJob = (
 );
 
 pub struct App {
+    pub productivity: productivity::Productivity,
     pub deck: writingdeck::Deck,
     pub pins: pins::Pins,
     pub journal: journal::Journal,
@@ -428,6 +431,16 @@ pub enum Overlay {
     Journal,
     Scratchpad,
     Handoff,
+    Productivity {
+        page: productivity::Page,
+        sel: usize,
+        scroll: Option<usize>,
+    },
+    ProductivityInput {
+        kind: productivity::Input,
+        buf: String,
+        back: productivity::Page,
+    },
     PinCategory {
         id: u64,
         buf: String,
@@ -739,6 +752,7 @@ impl App {
         let deck = writingdeck::Deck::load(&project.root, setup.background);
         let views = documents::Views::new(&project.root)?;
         let pins = pins::Pins::load(&project.root);
+        let productivity = productivity::Productivity::load(&project.root);
         let workflow = workflow::Workflow::load(&project.root);
         let complete = !project.nodes.iter().any(|n| {
             n.in_manuscript
@@ -792,6 +806,7 @@ impl App {
         let visible = project.visible();
 
         Ok(Self {
+            productivity,
             deck,
             pins,
             journal,
@@ -803,7 +818,7 @@ impl App {
             sel: 0,
             tree_scroll: 0,
             open: None,
-            editor: Editor::from_text(""),
+            editor: productivity::source_editor(""),
             focus: Focus::Tree,
             baseline,
             baseline_date: today_string(),
@@ -900,7 +915,7 @@ impl App {
                 app.overlay = Overlay::Recover { items, sel: 0 };
             }
             if let Some(i) = guide.or(first_scene) {
-                app.editor = Editor::from_text(&app.project.nodes[i].body);
+                app.editor = productivity::source_editor(&app.project.nodes[i].body);
                 app.open = Some(i);
                 if let Some(pos) = app.visible.iter().position(|&v| v == i) {
                     app.sel = pos;
@@ -935,6 +950,8 @@ impl App {
                 );
             }
             app.apply_handoff_startup();
+            app.capture_productivity();
+            app.refresh_productivity_snapshot();
             app
         })
     }
@@ -1027,6 +1044,7 @@ impl App {
 
     /// Push editor contents back into the open node.
     pub fn flush(&mut self) {
+        self.capture_productivity();
         self.flush_active_editor();
         if let Some(other) = &self.views.other
             && let Some(i) = other.open
@@ -1079,7 +1097,7 @@ impl App {
             && self.project.nodes[i].never_read()
         {
             if self.open == Some(i) {
-                self.editor = Editor::from_text("");
+                self.editor = productivity::source_editor("");
             }
             self.msg = format!(
                 "{} can't be edited yet — {}",
@@ -1090,7 +1108,7 @@ impl App {
         let _ = self.project.nodes[i].read_disk();
         if self.open == Some(i) {
             let (cy, cx) = (self.editor.cy, self.editor.cx);
-            self.editor = Editor::from_text(&self.project.nodes[i].body);
+            self.editor = productivity::source_editor(&self.project.nodes[i].body);
             self.editor.place(cy, cx);
         }
         self.msg = format!(
@@ -1179,7 +1197,7 @@ impl App {
             let path = self.project.nodes[i].path.clone();
             self.undo_stash.insert(path, self.editor.take_history());
         }
-        self.editor = Editor::from_text(&self.project.nodes[idx].body);
+        self.editor = productivity::source_editor(&self.project.nodes[idx].body);
         if let Some(h) = self.undo_stash.remove(&self.project.nodes[idx].path) {
             self.editor.set_history(h);
         }
@@ -1194,6 +1212,7 @@ impl App {
         self.flush();
         let pending = self.project.dirty_count().max(before);
         if self.commit_saves() {
+            let recorded = self.checkpoint_productivity(true);
             self.msg = match pending {
                 0 => "all saved".into(),
                 1 => "saved".into(),
@@ -1201,6 +1220,10 @@ impl App {
             };
             if !self.journal.warning.is_empty() {
                 self.msg.push_str(&format!("; {}", self.journal.warning));
+            }
+            if !recorded {
+                self.msg
+                    .push_str(&format!("; {}", self.productivity.warning));
             }
         }
     }
@@ -1599,7 +1622,7 @@ impl App {
                 self.undo_stash.remove(&path);
                 self.with_editor_view(pane, |app| {
                     app.open = None;
-                    app.editor = Editor::from_text("");
+                    app.editor = productivity::source_editor("");
                 });
                 if pane == Pane::Secondary {
                     self.views.secondary_visible = false;
@@ -1624,6 +1647,13 @@ impl App {
     /// be saved; its words are in recovery either way.
     pub fn try_quit(&mut self) -> bool {
         if !self.commit_saves() || self.project.dirty_count() != 0 {
+            return false;
+        }
+        if !self.checkpoint_productivity(true) {
+            self.msg = format!(
+                "Exit observation not recorded: {}. Pending metric groups retained; explicit force quit may lose uncheckpointed metrics (not saved prose).",
+                self.productivity.warning
+            );
             return false;
         }
         self.save_resume(true);
@@ -2031,6 +2061,12 @@ impl App {
                 self.overlay = Overlay::Deck(writingdeck::Page::Tutorial { sel: 0 })
             }
             Action::ToggleOutline => self.toggle_outline(),
+            Action::Productivity => self.open_productivity(productivity::Page::Overview),
+            Action::MeasuredGoals => self.open_productivity(productivity::Page::Goals),
+            Action::Calendar => self.open_productivity(productivity::Page::Calendar),
+            Action::AdvancedSprints => self.open_productivity(productivity::Page::Sprints),
+            Action::Achievements => self.open_productivity(productivity::Page::Achievements),
+            Action::DailyChallenges => self.open_productivity(productivity::Page::Challenges),
             Action::Journal => self.open_journal(),
             Action::ApplyPreset(slot, preset) => self.apply_starter_preset(slot, preset),
             Action::Scratchpad => self.open_scratchpad(),
@@ -2203,7 +2239,8 @@ impl App {
             search::matches_with(&t, query, self.find_opts) == vec![(0, t.chars().count())]
         });
         if is_match {
-            self.editor.replace_selection_with(with);
+            self.editor
+                .replace_selection_with_as(with, grimoire_core::measure::Origin::Replace);
             self.flush();
         }
         self.find_step(query, true, None);
@@ -2219,10 +2256,8 @@ impl App {
                 ..
             } if !query.is_empty() => {
                 let (query, with) = (query.clone(), with.clone());
-                let (text, n) =
-                    search::replace_all(&self.editor.text(), &query, &with, self.find_opts);
+                let n = self.editor.replace_matches(&query, &with, self.find_opts);
                 if n > 0 {
-                    self.editor.set_text(&text);
                     self.flush();
                 }
                 self.msg = match n {
@@ -2318,6 +2353,7 @@ impl App {
         self.flush();
         let root = self.project.root.clone();
         let mut changed = Vec::new();
+        let mut metrics = HashMap::new();
         let mut total = 0;
         for i in 0..self.project.nodes.len() {
             if self.project.nodes[i].kind != Kind::Scene
@@ -2327,16 +2363,35 @@ impl App {
                 continue;
             }
             let before = self.project.nodes[i].body.clone();
-            let (text, n) = search::replace_all(&before, query, with, self.find_opts);
+            let mut meter = Editor::from_text(&before);
+            meter.measure_operations(self.productivity.tracking());
+            let n = meter.replace_matches(query, with, self.find_opts);
+            let text = meter.text();
+            let counts = if self.productivity.tracking() {
+                meter.take_mutations().into_iter().fold(
+                    grimoire_core::measure::Counts::default(),
+                    |mut a, m| {
+                        a.plus(m.counts);
+                        a
+                    },
+                )
+            } else {
+                grimoire_core::measure::Counts {
+                    gaps: 1,
+                    operations: 1,
+                    ..Default::default()
+                }
+            };
             if n == 0 {
                 continue;
             }
             // Every scene's version from before goes into its history.
             let path = self.project.nodes[i].path.clone();
             let _ = history::snapshot(&root, &path, &self.project.nodes[i].file_text(), None);
+            self.adopt_measured_source(i, &text, grimoire_core::measure::Origin::Replace, counts);
             self.project.nodes[i].body = text.clone();
-            self.update_document_editor(i);
             self.mark_changed(i);
+            metrics.insert(path.clone(), counts);
             changed.push((path, before, text));
             total += n;
         }
@@ -2346,6 +2401,7 @@ impl App {
             self.record(TreeStep::Replaced {
                 what: format!("replace “{query}” with “{with}”"),
                 scenes: changed,
+                metrics,
             });
         }
         let m = self.mod_label();
@@ -2410,7 +2466,12 @@ impl App {
         Ok(())
     }
 
-    fn swap_replaced(&mut self, scenes: &[(PathBuf, String, String)], back: bool) -> usize {
+    fn swap_replaced(
+        &mut self,
+        scenes: &[(PathBuf, String, String)],
+        back: bool,
+        metrics: &HashMap<PathBuf, grimoire_core::measure::Counts>,
+    ) -> usize {
         let mut skipped = 0;
         for (path, before, after) in scenes {
             let (from, to) = if back {
@@ -2426,21 +2487,25 @@ impl App {
                 skipped += 1;
                 continue;
             }
-            if let Some(pane) = [Pane::Primary, Pane::Secondary]
-                .into_iter()
-                .find(|&p| self.view_open(p) == Some(i))
-            {
-                self.with_editor_view(pane, |app| {
-                    let stepped = if back {
-                        app.editor.undo()
-                    } else {
-                        app.editor.redo()
-                    };
-                    if !stepped || &app.editor.text() != to {
-                        app.editor.set_text(to);
-                    }
+            let counts = metrics
+                .get(path)
+                .copied()
+                .unwrap_or(grimoire_core::measure::Counts {
+                    gaps: 1,
+                    operations: 1,
+                    ..Default::default()
                 });
-            }
+            let counts = if back { counts.inverse() } else { counts };
+            self.adopt_measured_source(
+                i,
+                to,
+                if back {
+                    grimoire_core::measure::Origin::Undo
+                } else {
+                    grimoire_core::measure::Origin::Redo
+                },
+                counts,
+            );
             self.project.nodes[i].body = to.clone();
             self.mark_changed(i);
         }
@@ -2892,7 +2957,7 @@ impl App {
         };
         let scene = self.project.nodes[i].path.clone();
         self.reveal(i);
-        self.editor = Editor::from_text(&self.project.nodes[i].body);
+        self.editor = productivity::source_editor(&self.project.nodes[i].body);
         self.open = Some(i);
         self.editor.place(r.line, r.column);
         self.focus = self.editor_focus();
@@ -3449,7 +3514,8 @@ impl App {
         let _ = history::snapshot(&root, scene, &self.project.nodes[idx].file_text(), None);
         let (front, body) = grimoire_core::project::split_frontmatter(text);
         self.project.nodes[idx].front = front;
-        self.editor.set_text(&body);
+        self.editor
+            .set_text_as(&body, grimoire_core::measure::Origin::Restore);
         self.flush();
         self.mark_changed(idx);
         self.focus = self.editor_focus();
@@ -4075,8 +4141,12 @@ impl App {
                     label,
                 )
             }
-            TreeStep::Replaced { what, scenes } => {
-                let skipped = self.swap_replaced(&scenes, back);
+            TreeStep::Replaced {
+                what,
+                scenes,
+                metrics,
+            } => {
+                let skipped = self.swap_replaced(&scenes, back, &metrics);
                 let result = if self.commit_saves() {
                     Ok(())
                 } else {
@@ -4093,7 +4163,16 @@ impl App {
                 };
                 self.replace_undoable = !back;
                 self.replace_redoable = back;
-                (result, TreeStep::Replaced { what, scenes }, None, label)
+                (
+                    result,
+                    TreeStep::Replaced {
+                        what,
+                        scenes,
+                        metrics,
+                    },
+                    None,
+                    label,
+                )
             }
             TreeStep::Settled {
                 what,
@@ -4752,6 +4831,8 @@ impl App {
                 | Overlay::Journal
                 | Overlay::Scratchpad
                 | Overlay::Handoff
+                | Overlay::Productivity { .. }
+                | Overlay::ProductivityInput { .. }
         ) {
             return;
         }
@@ -4968,12 +5049,24 @@ impl App {
                     Action::ToggleSecondary,
                 ),
                 ("Choose secondary document…".into(), Action::SecondaryPicker),
+                (
+                    row("Productivity tools", "›"),
+                    Action::Submenu(Sub::Productivity),
+                ),
                 ("Writing journal…".into(), Action::Journal),
                 ("Scratchpad…".into(), Action::Scratchpad),
                 ("Session handoff…".into(), Action::Handoff),
                 ("Pinboard…".into(), Action::Pinboard),
                 ("Pin current document".into(), Action::PinCurrent),
                 ("Toggle pins sidebar".into(), Action::TogglePins),
+            ],
+            Sub::Productivity => vec![
+                ("Recorded edit ledger…".into(), Action::Productivity),
+                ("Advanced goals…".into(), Action::MeasuredGoals),
+                ("Calendar and rest days…".into(), Action::Calendar),
+                ("Advanced sprints…".into(), Action::AdvancedSprints),
+                ("Milestone collection…".into(), Action::Achievements),
+                ("Daily challenges…".into(), Action::DailyChallenges),
             ],
             Sub::Settings => vec![
                 ("System settings…".into(), Action::SystemSettings),

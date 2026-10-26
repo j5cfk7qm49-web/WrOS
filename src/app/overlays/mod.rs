@@ -59,6 +59,9 @@ impl App {
         match self.overlay {
             Overlay::None => {}
             Overlay::Deck(_) => self.on_deck_key(key),
+            Overlay::Productivity { .. } | Overlay::ProductivityInput { .. } => {
+                self.on_productivity_key(key)
+            }
             Overlay::Journal => self.on_journal_key(key),
             Overlay::Scratchpad | Overlay::Handoff => self.on_workflow_key(key),
             Overlay::Pins | Overlay::PinCategory { .. } => self.on_pin_key(key),
@@ -180,6 +183,9 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     match &app.overlay {
         Overlay::None => {}
         Overlay::Deck(_) => super::writingdeck::draw(f, app, area, t),
+        Overlay::Productivity { .. } | Overlay::ProductivityInput { .. } => {
+            super::productivity::draw(f, app, area, t)
+        }
         Overlay::Journal => super::journal::draw(f, app, area, t),
         Overlay::Scratchpad | Overlay::Handoff => super::workflow::draw(f, app, area, t),
         Overlay::Pins | Overlay::PinCategory { .. } => super::pins::draw_board(f, app, area, t),

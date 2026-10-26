@@ -29,9 +29,15 @@ pub enum Widget {
     Battery,
     Backup,
     System,
+    Accounting,
+    AdvancedGoals,
+    Calendar,
+    AdvancedSprints,
+    Achievements,
+    DailyChallenges,
 }
 impl Widget {
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 20] = [
         Self::Resume,
         Self::Manuscript,
         Self::DailyGoal,
@@ -46,6 +52,12 @@ impl Widget {
         Self::Battery,
         Self::Backup,
         Self::System,
+        Self::Accounting,
+        Self::AdvancedGoals,
+        Self::Calendar,
+        Self::AdvancedSprints,
+        Self::Achievements,
+        Self::DailyChallenges,
     ];
     pub fn name(self) -> &'static str {
         match self {
@@ -63,6 +75,12 @@ impl Widget {
             Self::Battery => "Battery",
             Self::Backup => "Backup status",
             Self::System => "System status",
+            Self::Accounting => "Recorded edit ledger",
+            Self::AdvancedGoals => "Advanced goals",
+            Self::Calendar => "Calendar / rest days",
+            Self::AdvancedSprints => "Advanced sprints",
+            Self::Achievements => "Milestone collection",
+            Self::DailyChallenges => "Daily challenges",
         }
     }
 }

@@ -70,7 +70,7 @@ See [PINS](PINS.md) and compiled Sticky-note pins help for controls, exact layou
 
 ## M4b: journal — Tested initial slice
 
-The Writing journal widget and dashboard `j` open a separate reader for sampled saved-Project facts and an ordinary date-path reflection. Automatic immutable observations and editable reflection text never share a generated prose body. Enter/e uses the same exclusive editors; note-only/view operations invent no writing events. Known incomplete totals stay unavailable, not zero-filled. Guarded per-date metadata handles conflicts/future data/pending retry; all four required sizes, actual-binary PTY/restart/force-exit and real lesson 14 are covered. See [JOURNAL](JOURNAL.md). No gross-word/time ledger is implemented.
+The Writing journal widget and dashboard `j` open a separate reader for sampled saved-Project facts and an ordinary date-path reflection. Automatic immutable observations and editable reflection text never share a generated prose body. Enter/e uses the same exclusive editors; note-only/view operations invent no writing events. Known incomplete totals stay unavailable, not zero-filled. Guarded per-date metadata handles conflicts/future data/pending retry; all four required sizes, actual-binary PTY/restart/force-exit and real lesson 14 are covered. See [JOURNAL](JOURNAL.md). The sampled journal is not the M5 operation ledger; measured/source-unit and observed-time features are described in [DAILY_CHALLENGES](DAILY_CHALLENGES.md).
 
 ## Remaining M4 services — Planned
 
@@ -98,3 +98,7 @@ Existing originals are opened without replacing their prose, YAML or undo. Creat
 `pin_ids: null` follows all cards (including future ones); `[]` shows none; an explicit list filters the existing sidebar/dashboard scopes. The global Pinboard, card lifecycle and original bodies are unchanged. These are references to global project cards, not copied note bodies. Selection/commands normalize to cards actually in the visible set, so changing a set cannot edit a hidden old selection.
 
 The layout reader/preflight and save enforce a 1 MiB limit. Invalid/oversized/future/externally replaced layouts remain byte-preserved; source saves remain independent. Four-size real compiled-app PTYs verify actual Research Secondary editing, explicit empty pin-set persistence and refusal to create a Planning original after an external future-layout replacement. Rust UI tests exercise all five starters, existing-source/alias/Waiting/I/O behavior, persistence/migration, sidebar/dashboard filtering and selected-card safety. See [WORKFLOW](WORKFLOW.md) and [TESTING](TESTING.md).
+
+## M5 additive dashboard tools
+
+Six appended optional widgets expose recorded edits, advanced goals, calendar/rest days, advanced sprints, milestone collection and daily challenges. There are 20 widget kinds and 21 alias actions; legacy order/visibility/chord ownership remain intact and old layouts gain the missing widgets additively. Counts are cached checkpointed observations, not an inference from a visible editor. The accounting summary has an explicit civil date and one pending-group label; word gaps are unavailable.
