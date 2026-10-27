@@ -31,7 +31,10 @@ host target, exposes no NIC/shared directory, uses no account credential and
 checks the original artifact's whole-file SHA-256 before and after. It exercises
 actual boot-service adoption, Linux `dumpkeys`/`loadkeys`, systemd timer rollback,
 committed-layout preservation and refusal to replace an unregistered system map.
-Its results are still pending. This fixture tests helper integration with a
+The [actual guest record](evidence/installer-keyboard-vm.json) passed in **84.71
+seconds**, with 512 MiB/two vCPUs, Nehalem TCG and no NIC. All four integration
+contracts passed and the original whole-image SHA-256 was unchanged. This tests
+helper integration with a
 simulated Debian-selected configuration, not Debian Installer's own keyboard
 question, the corrected shipping ISO or physical keyboard behavior.
 
@@ -39,12 +42,15 @@ Run it as a normal Debian user after creating the isolated appliance artifact:
 
 ```sh
 # Builder prerequisite: initramfs-tools-core (lsinitramfs), QEMU, OVMF and cpio.
-python3 os/tests/keyboard_vm.py
+python3 os/tests/keyboard_vm.py --artifacts-directory /path/on/linux/keyboard-vm
 ```
 
 The first fixture attempts failed before exercising the new helper: the added
 initramfs stage needed Debian's explicit `ORDER` file and klibc's mount requires
-both the virtual device and mount point. Those failed runs remain retained.
+both the virtual device and mount point. The minimal image also lacks `cp`,
+and console-setup must retain the appliance's tty1-primary console ordering.
+Mutable fixtures now support a native Linux artifacts directory after an
+observed live-file read failure on the Windows mount. Failed runs remain retained.
 The fixture refuses to replace any existing local-bottom `ORDER` file.
 
 Issue #24 and installer #3 remain open until their actual guest/installer

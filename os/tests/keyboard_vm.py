@@ -6,6 +6,7 @@ initrd injects the current helper and fixture into the guest's disposable layer;
 the original VM artifact and installer ISO are never modified. This qualifies
 helper integration, not Debian Installer's keyboard question or a current ISO.
 """
+import argparse
 import gzip
 import hashlib
 import json
@@ -26,6 +27,10 @@ def digest(path):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--artifacts-directory', type=Path, default=REPO / 'build/keyboard-vm',
+                        help='directory for new private run folders; prefer a native Linux filesystem')
+    options = parser.parse_args()
     if os.geteuid() == 0:
         raise RuntimeError('Run the virtual integration test as a non-root user')
     image = BASE / 'disk.img'
@@ -39,8 +44,8 @@ def main():
     listing = subprocess.check_output(['lsinitramfs', str(initrd)], text=True).splitlines()
     if 'scripts/local-bottom/ORDER' in listing:
         raise RuntimeError('Preserve existing initramfs local-bottom ordering; this fixture requires an empty stage')
-    output = REPO / 'build/keyboard-vm'
-    output.mkdir(exist_ok=True)
+    output = options.artifacts_directory
+    output.mkdir(parents=True, exist_ok=True)
     run = Path(tempfile.mkdtemp(prefix='run-', dir=output))
     before = digest(image)
     overlay = run / 'overlay.qcow2'
@@ -59,13 +64,13 @@ exec >/dev/ttyS0 2>&1
 set -eux
 test -f "$rootmnt/etc/writingdeck/VM-DEMO-ONLY"
 mount -o remount,rw /dev/vda2 "$rootmnt"
-cp /wros-keyboard-test/helper "$rootmnt/usr/libexec/writingdeck-keyboard"
-cp /wros-keyboard-test/probe "$rootmnt/usr/libexec/writingdeck-boot-probe"
-chmod 755 "$rootmnt/usr/libexec/writingdeck-keyboard" "$rootmnt/usr/libexec/writingdeck-boot-probe"
+cat /wros-keyboard-test/helper > "$rootmnt/usr/libexec/writingdeck-keyboard"
+cat /wros-keyboard-test/probe > "$rootmnt/usr/libexec/writingdeck-boot-probe"
 printf 'XKBLAYOUT="us"\nXKBVARIANT="colemak"\n' > "$rootmnt/etc/default/keyboard"
 printf '{"version":1,"layout":"qwerty","generation":"initial"}\n' > "$rootmnt/etc/writingdeck/keyboard.json"
-touch "$rootmnt/etc/writingdeck/installer-keyboard-pending"
+: > "$rootmnt/etc/writingdeck/installer-keyboard-pending"
 mount -o remount,ro /dev/vda2 "$rootmnt"
+echo WROS_KEYBOARD_FIXTURE_STAGED
 ''')
     hook.chmod(0o755)
     # Debian sources ORDER rather than discovering hooks dynamically. The base
@@ -85,7 +90,7 @@ mount -o remount,ro /dev/vda2 "$rootmnt"
             '-drive', 'if=pflash,format=raw,file=' + str(firmware),
             '-drive', 'if=virtio,format=qcow2,file=' + str(overlay),
             '-kernel', str(kernel), '-initrd', str(test_initrd),
-            '-append', 'root=UUID=3224a43a-692d-4cd6-a526-96b9a630fa24 ro console=tty1 console=ttyS0,115200 panic=1',
+            '-append', 'root=UUID=3224a43a-692d-4cd6-a526-96b9a630fa24 ro console=ttyS0,115200 console=tty1 panic=1',
             '-serial', 'file:' + str(serial)]
     result = {'scope': 'Current helper injected into a disposable VM-demo overlay; not installer ISO qualification',
               'host_disks_exposed': 0, 'network_devices': 0, 'base_image_sha256_before': before,
@@ -96,7 +101,14 @@ mount -o remount,ro /dev/vda2 "$rootmnt"
     with (run / 'qemu.log').open('w') as log:
         process = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=log, stderr=log)
         try:
-            process.wait(timeout=300)
+            deadline = started + 300
+            while process.poll() is None and time.monotonic() < deadline:
+                content = serial.read_text(errors='replace') if serial.exists() else ''
+                if 'Kernel panic' in content or 'WRITINGDECK_VM_' in content:
+                    # A legacy probe means the fixture was not staged. Never
+                    # spend the rest of the budget running the wrong test.
+                    break
+                time.sleep(0.25)
         finally:
             if process.poll() is None:
                 process.terminate()
