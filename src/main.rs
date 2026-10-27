@@ -22,8 +22,10 @@ mod shots;
 mod ui_tests;
 
 use anyhow::{Context, Result};
+#[cfg(not(target_os = "linux"))]
+use ratatui::crossterm::event;
 use ratatui::crossterm::event::{
-    self, DisableBracketedPaste, DisableFocusChange, DisableMouseCapture, EnableBracketedPaste,
+    DisableBracketedPaste, DisableFocusChange, DisableMouseCapture, EnableBracketedPaste,
     EnableFocusChange, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers,
     KeyboardEnhancementFlags, MouseButton, MouseEventKind, PopKeyboardEnhancementFlags,
     PushKeyboardEnhancementFlags,
@@ -47,6 +49,20 @@ const RAINBOW_TICK: Duration = Duration::from_millis(80);
 fn main() -> Result<()> {
     let mut args = std::env::args().skip(1);
     let first = args.next();
+    #[cfg(target_os = "linux")]
+    if first.as_deref() == Some(wros_input::WORKER_ARGUMENT) {
+        let parent = args.next().and_then(|value| value.parse::<u32>().ok());
+        if let Some(parent) = parent
+            && args.next().is_none()
+        {
+            // Before any project, configuration, rescue or App initialization.
+            if wros_input::worker_main(parent).is_ok() {
+                return Ok(());
+            }
+        }
+        eprintln!("WrOS input reader unavailable");
+        std::process::exit(1);
+    }
     if first.as_deref() == Some("writingdeck") {
         return writingdeck_cli::command(args);
     }
@@ -529,11 +545,18 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
     let mut confirm_quit = false;
     let mut last_frame = Instant::now();
 
+    #[cfg(target_os = "linux")]
+    let events = wros_input::Input::start(&std::env::current_exe()?)?;
+
+    // Retained upstream fallback outside WrOS. Linux's parser instead belongs
+    // to a separate, unprivileged re-exec process and dies with the editor.
     // Keys and the mouse are read on a thread of their own. When the terminal
     // window closes, crossterm 0.29's reader spins forever on the dead tty
     // instead of returning; on this thread that can't stop the loop below from
     // seeing the hang-up, saving, and leaving (which ends the spinning thread).
+    #[cfg(not(target_os = "linux"))]
     let (events_tx, events) = std::sync::mpsc::channel::<std::io::Result<Event>>();
+    #[cfg(not(target_os = "linux"))]
     std::thread::spawn(move || {
         loop {
             let ev = event::read();

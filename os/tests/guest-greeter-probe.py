@@ -196,11 +196,18 @@ def main():
     wait(lambda: 'Resume writing' in screen() and processes('grimoire'), 'native writing session', 70)
     app = processes('grimoire')[0]
     assert '\nUid:\t1000\t' in (app / 'status').read_text()
+    readers = processes('wros-input')
+    assert len(readers) == 1
+    reader_status = (readers[0] / 'status').read_text()
+    assert '\nUid:\t1000\t' in reader_status and ('\nPPid:\t' + app.name + '\n') in reader_status
+    marker('INPUT_READER_UID1000_PASS')
     assert not processes('wros-greeter')
     marker('SESSION')
     # Return to a new login, never an authenticated shell, on session exit.
-    os.kill(int(app.name), signal.SIGTERM)
-    wait(lambda: 'Local account' in screen() and processes('wros-greeter') and not processes('grimoire'), 'logout returns to login')
+    os.kill(int(app.name), signal.SIGKILL)
+    wait(lambda: 'Local account' in screen() and processes('wros-greeter') and not processes('grimoire')
+         and not processes('wros-input'), 'crashed session returns to login without an orphan reader')
+    marker('INPUT_READER_CRASH_EXIT_PASS')
     marker('SWITCH_READY')
     wait(lambda: '[hidden]' in screen() and no_echo(), 'second account prompt')
     marker('SWITCH_PROMPT')
@@ -209,9 +216,13 @@ def main():
     wait(lambda: 'Resume writing' in screen() and processes('grimoire'), 'second account writing session', 70)
     app = processes('grimoire')[0]
     assert '\nUid:\t1001\t' in (app / 'status').read_text()
+    readers = processes('wros-input')
+    assert len(readers) == 1 and '\nUid:\t1001\t' in (readers[0] / 'status').read_text()
+    marker('INPUT_READER_UID1001_PASS')
     assert not processes('wros-greeter')
     os.kill(int(app.name), signal.SIGTERM)
-    wait(lambda: 'Local account' in screen() and processes('wros-greeter') and not processes('grimoire'), 'second account logout')
+    wait(lambda: 'Local account' in screen() and processes('wros-greeter') and not processes('grimoire')
+         and not processes('wros-input'), 'second account logout')
     marker('ACCOUNT_SWITCH_PASS')
     journal = command('journalctl', '-b', '--no-pager').stdout
     assert secret.encode() not in journal

@@ -1174,6 +1174,7 @@ dependencies = [
  "mio",
  "parking_lot",
  "rustix",
+ "serde",
  "signal-hook",
  "signal-hook-mio",
  "winapi",
@@ -2621,6 +2622,7 @@ dependencies = [
  "ureq",
  "windows-sys 0.61.2",
  "writingdeck-sys",
+ "wros-input",
  "wros-shell",
 ]
 
@@ -6995,6 +6997,17 @@ dependencies = [
  "serde_json",
  "signal-hook",
  "wros-shell",
+ "zeroize",
+]
+
+[[package]]
+name = "wros-input"
+version = "0.1.0"
+dependencies = [
+ "crossterm",
+ "libc",
+ "serde",
+ "serde_json",
  "zeroize",
 ]
 

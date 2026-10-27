@@ -1,0 +1,206 @@
+{
+  "scope": "Focused editor input-retirement and private-PTY qualification; no locker, PAM unlock, VT protection, suspend or hardware claim",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "0f668f5d8bb5e757138060d0321c2bd50bfa5ba161b2655bac8e1ad5f8e17aba",
+    "file_count": 304,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "checks": [
+    {
+      "name": "format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 2.958,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "input-tests",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "wros-input",
+        "--locked",
+        "--offline"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 3.192,
+      "log_sha256": "16ae2fd27d025bdf18d971f1937b53c258f7e5d1eabfda41d2271799df5b430f"
+    },
+    {
+      "name": "input-tests-no-audio",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "wros-input",
+        "--no-default-features",
+        "--locked",
+        "--offline"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 1.101,
+      "log_sha256": "4b4fc225a071edbad81f4b8ea3facf4ce204e8fd52e63f6f54708397ee492ac3"
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 32.7,
+      "log_sha256": "ccea4b069a5e96da414d9e63d77d702d0e3b108bce70ccecd8f380cc5d33687b"
+    },
+    {
+      "name": "clippy-no-audio",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--no-default-features",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 7.721,
+      "log_sha256": "724e5d7be783a4b12f1ccbb3de9578e55b9cfb6ec7ad60632f62e916dae065b5"
+    },
+    {
+      "name": "build",
+      "command": [
+        "cargo",
+        "build",
+        "--workspace",
+        "--no-default-features",
+        "--locked",
+        "--offline",
+        "-j2"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 15.423,
+      "log_sha256": "8256f99773b4e068560918d0cab2beb37cdcd6cf80e80dda45b0b70ffb8a79bf"
+    },
+    {
+      "name": "editor-input-pty",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "os/tests",
+        "-p",
+        "test_input_pty.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.709,
+      "log_sha256": "7d6ceb39d365794abf1ccc57d30e700e1149a05efacb00b023c1f31246d1169e"
+    },
+    {
+      "name": "retained-editor-shell-pty",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "os/tests",
+        "-p",
+        "test_shell_pty.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 3.244,
+      "log_sha256": "8d27d6eb1421bd76e4d0358a88b135914c0015f231ce13909e68658e8a26708d"
+    },
+    {
+      "name": "python-syntax",
+      "command": [
+        "python3",
+        "-m",
+        "py_compile",
+        "os/tests/greeter_vm.py",
+        "os/tests/guest-greeter-probe.py",
+        "os/tests/test_input_pty.py"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.111,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "documentation",
+      "command": [
+        "python3",
+        "tools/check-writingdeck.py"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.739,
+      "log_sha256": "8f760c64e7877650e23159ee751dce0319e97a1dda01b45ebc91e27aba92ff05"
+    },
+    {
+      "name": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 19.294,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "harness_sha256": "971242a69bb5c0295dcf75f67436e26f62631f20ec430b50ec9f172b8e99ec8f",
+  "source_unchanged": true,
+  "editor_binary_sha256": "250ea0fb7b952cb199682de9f05ea55f51ef6b955dc01f378178a06375563601",
+  "greeter_binary_sha256": "bf193c66af41625892b866f000f5c5850919855d72189d89735017eb8be74e7c",
+  "input_unit_tests": 4,
+  "input_thread_affinity_compile_fail_test": 1,
+  "private_pty_scenarios": [
+    "partial parser retirement and exclusive handoff/typeahead reset",
+    "full queue retirement and dropped-proof refusal",
+    "parent SIGKILL kills and reaps reader",
+    "flush and startup failure cannot resume"
+  ],
+  "actual_editor_pty_tests": 3,
+  "retained_settings_pty_sizes": [
+    [
+      80,
+      24
+    ],
+    [
+      100,
+      30
+    ],
+    [
+      120,
+      40
+    ],
+    [
+      160,
+      50
+    ]
+  ],
+  "passed": true
+}

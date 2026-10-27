@@ -35,6 +35,9 @@ ureq = { version = "3.4.1", features = ["json"] }
 [target.'cfg(unix)'.dependencies]
 signal-hook = "0.3"
 
+[target.'cfg(target_os = "linux")'.dependencies]
+wros-input = { path = "crates/wros-input" }
+
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Console"] }
 
@@ -90,7 +93,7 @@ default = ["audio"]
 audio = ["dep:rodio", "dep:cpal"]
 
 [workspace]
-members = ["crates/grimoire-core", "crates/grimoire-app", "crates/writingdeck-sys", "crates/wros-shell", "crates/wros-greeter"]
+members = ["crates/grimoire-core", "crates/grimoire-app", "crates/writingdeck-sys", "crates/wros-shell", "crates/wros-greeter", "crates/wros-input"]
 
 # One version for the terminal app and the crates under it; bump it here.
 [workspace.package]
