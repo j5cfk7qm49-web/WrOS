@@ -29,7 +29,10 @@ Do not claim a theme is a screen filter or unsupported outputs are successful.
 
 Unified-shell head `e31d12b9d30d205a6796b34c6ac848530b322ba9` has now also
 passed real Debian and macOS CI run 40459742814. PR #31 remains draft; the warm
-increment will use its own stacked PR and evidence. No host display/account/disk
+increment's qualified source is commit `22f6fcf` on `codex/warm-screen`, with its
+own stacked PR/evidence. Three secret-scan findings were manually verified as
+deterministic noncredential fixtures and narrowly fingerprinted in `.gitleaksignore`.
+No host display/account/disk
 has been accessed. Original import/main/foundation history remains preserved.
 
 Next immediate safety fix: issue #32 reproduces the pre-existing Linux adapter

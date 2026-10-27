@@ -79,6 +79,10 @@ zero skips** and **18 gates**. Default/no-audio intentionally ignore 5/4 separat
 external/performance cases. Source and verifier inputs stayed unchanged; binary
 SHA `911c8675789e57474155a084adfdffdb1d230bab8ed089b1f44c70fee9613c7c`
 matches the guest-tested binary. Historical M7b evidence remains untouched.
+The initial history secret scan flagged three deterministic simulator/invalid-reply
+tokens. Each was inspected and confirmed to be a noncredential fixture. The
+repository's `.gitleaksignore` lists only those exact commit/file/rule/line
+fingerprints; no source path or token pattern is broadly excluded.
 
 `os/tests/display_vm.py` runs the current binary, helper, bridge, policy and units
 in a new VM-demo COW layer with no NIC or host disk/display exposure. A real
