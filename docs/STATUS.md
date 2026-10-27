@@ -25,8 +25,11 @@ installer draft is PR #21. Its own Debian/macOS CI
 [`40448965974`](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40448965974)
 passed 912 Rust/configuration, 75 Python with zero skips and all 17 gates.
 The revised recipe also passed a [clean current-source ISO build](evidence/installer-clean-build.json).
-Its current-image VM/authentication and safety acceptance are still running;
-the older ISO's passed VM record does not qualify this newer image.
+Its current-image full install hit the 1,200-second test deadline during
+finalization and remains failed. A separate [post-interruption UEFI/PAM/UI/Wi-Fi
+probe](evidence/installer-current-interrupted.json) passed, as did actual
+[no-disk refusal and unchanged-target cancellation](evidence/installer-safety.json).
+The older ISO's passed normal installation remains a separate result.
 
 - **910 Rust tests passed per overlapping configuration**, default **5 ignored**,
   no-audio **4 ignored**; ignored cases are not passed. Both warning-denying

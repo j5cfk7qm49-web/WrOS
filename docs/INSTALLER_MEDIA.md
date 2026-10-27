@@ -40,8 +40,16 @@ Debian build now passed at `59cc34f`, including those fixes and the revised reci
 [exact input, ISO, signature-chain and payload identities](evidence/installer-clean-build.json).
 The source and all measured build inputs were unchanged across that build. Its
 ISO SHA-256 is `6c3a66746b9bc94bff0b7917f79aa4a3aea71922c821ae3ab0568ec875fa4a56`.
-Its fresh no-network installation/authentication test is still in progress; the
-original ISO's passed VM record must not be attributed to this newer image.
+Its full install test reached the actual payload/late-command markers but hit
+the 1,200-second fixture deadline during finalization. That failure is retained.
+A separate [post-interruption boot probe](evidence/installer-current-interrupted.json)
+passed real UEFI/PAM/password-required sudo/non-root UI and installed Wi-Fi
+contracts, with an [actual current-image screenshot](evidence/installed-current-session.png).
+It does not turn the failed normal-install record into a pass. This image also
+passed [actual no-disk refusal and cancellation](evidence/installer-safety.json):
+finish an empty plan and observe refusal; select Finish interactively, answer No,
+require a newly received partition menu and an unchanged whole-target SHA-256.
+No NIC or host disk was exposed.
 
 ## Build
 
@@ -104,8 +112,8 @@ The boot probe requires actual PAM rejection/acceptance, password-required sudo,
 the non-root tty1 writing UI, and installed firmware/connection-tool payloads.
 An interrupted or failed probe remains failed and retains partial diagnostics.
 
-Still required: current-image installation qualification, cancellation,
-no-disk/wrong-disk refusal, interrupted installation/retry, encrypted install and
+Still required: normal current-image installation completion, wrong-disk
+refusal, earlier-stage interrupted installation/retry, encrypted install and
 recovery, usable keyboard selection, physical firmware/Secure Boot checks,
 input-safe lock/suspend, signed WrOS updates and complete redistribution/source
 review. Do not deploy this development media as a production writing system.

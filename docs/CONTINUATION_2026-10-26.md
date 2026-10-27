@@ -136,8 +136,13 @@ experimental ISO/older M7b binary. Earlier failed probe records remain separate.
 The revised recipe has now passed a clean native Debian build at `59cc34f`,
 with current source-path/Git fixes, unchanged measured inputs and actual
 signature/media/firmware audits. Exact identities are in
-`docs/evidence/installer-clean-build.json`. That newer ISO's fresh no-NIC install
-is still running; do not attribute the older passed VM record to it.
+`docs/evidence/installer-clean-build.json`. The newer ISO's full install probe
+reached payload/late-command markers but timed out at 1,200 seconds during finalization.
+The original failed record is retained. Its independent post-interruption UEFI/PAM/
+non-root-dashboard/Wi-Fi probe passed; see `installer-current-interrupted.json`.
+This is separate boot evidence, not a successful normal installation. Actual
+current-image no-disk refusal (463.62 s) and interactive cancellation (467.95 s)
+also passed; `installer-safety.json` retains exact ISO/harness/disk hashes.
 
 PR #21 is the separate installer draft. Its earlier CI `40443525255` passed macOS
 but exposed #22 on Debian; the qualified correction is now merged into the draft.
@@ -147,19 +152,32 @@ Updated draft CI `40448965974` passed Debian/macOS on `bf22273`:
 has the same source-content fingerprint; commit `59cc34f` corrects intended
 OS entry-point executable modes. Current-image VM acceptance remains required.
 
-Cancellation and no-disk probes are under development. The first cancellation
-probe incorrectly inferred a returned menu from stale ANSI cells; actual serial
-output showed that the text frontend requires numbered answers. The probe is
-being corrected to answer choice 2 and require newly received partition-menu
-text, as well as an unchanged whole-target SHA-256. Its earlier reported pass
-is invalid. No-disk acceptance must attempt finishing the empty plan and observe
-an actual installer refusal. Neither safety case is qualified yet.
+Cancellation and no-disk probes now pass on the current ISO. The first
+cancellation probe incorrectly inferred a returned menu from stale ANSI cells;
+its reported pass is rejected. The final probe chooses Finish interactively,
+answers choice 2, and requires newly received menu text plus unchanged whole-disk
+SHA-256. Another test-only automatic-Finish loop was removed. No-disk acceptance
+actually attempts finishing the empty plan and observes the installer's refusal.
 
 Inspection also found that the installed default WrOS QWERTY configuration can
 override a different keyboard selected in Debian Installer. First-install
-adoption needs an explicit, tested integration that preserves committed layouts
-on upgrades and never silently substitutes QWERTY for an unsupported layout.
-Do not close #3 before this and remaining safety/recovery gates pass.
+adoption is isolated in PR #25 (`codex/installer-keyboard`, `b5d486b`). Its helper
+passed 19 safety tests, all 81 Python methods offline, and real guest boot/keymap/
+systemd rollback in 84.71 seconds; actual d-i selection/corrected ISO acceptance
+is still pending. #24 and #3 remain open. Source schema/legacy IDs are preserved.
+
+The user approved retiring only the completed generated test disks and temporary
+inputs in two named original-ISO fixtures; that exact cleanup completed while
+retaining reports/logs/screenshots. The user independently removed Docker's
+separate docker_data.vhdx, freeing roughly 93 GB. WrOS uses Ubuntu WSL + isolated
+Debian + QEMU, not Docker; the Ubuntu disk is intact.
+
+The new unified-shell directive now takes priority over unrelated features:
+audit the existing Grimoire navigation/services, document pre-login/authenticated/
+privileged/shared-UI boundaries, update roadmap/matrix/issues, then implement a
+reusable native Settings shell with a mockable backend. Separate greeter input,
+credentials, cloud mounting, conflict-safe sync and verified backup. Ordinary OS
+tasks must stay in WrOS panes. Existing safety and release gates remain in force.
 
 The first real workflow run `40407371491` passed Linux and failed two macOS
 journal assertions. PR #20 fixed both application behaviors; the next run
