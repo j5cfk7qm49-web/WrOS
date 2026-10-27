@@ -583,9 +583,9 @@
       "area": "OS",
       "capability": "Native WrOS greeter, account switching and coherent locked session",
       "status": "In progress",
-      "verification": "Debian CI: 954 Rust/configuration, 96 Python/zero skips, both Clippys and 17 checks; 22 focused greeter tests/configuration; real keyboard/PAM guest 302.81 seconds and stable cold boot 65.93 seconds passed",
+      "verification": "Debian CI: 959 Rust/configuration, 99 Python/zero skips, both Clippys and 17 gates; four standalone input-ownership scenarios/configuration; current PAM/reader guest passed 376.22 seconds",
       "hardware_verified": false,
-      "detail": "Native login, all four pre-login console layouts, cancel/expiry/crash rollback, commit/recovery, account switching, hidden PAM input, non-root writing and logout tested; package/guest binary and all source identities match; further transitions, independent locker and physical gates remain issues 27 and 4"
+      "detail": "Native login/layout recovery/account switching and editor reader retirement, proof refusal, partial-parser cleanup and crash save/exit tested; exact focused/guest source and local binaries match; protected locker, rendering/query pause, VT/seat ownership, verified unlock/sleep and physical gates remain issues 27 and 4"
     },
     {
       "area": "Accounts",

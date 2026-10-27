@@ -1,5 +1,37 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Editor input ownership — focused, full Debian CI and guest qualification passed
+
+`codex/input-ownership` / [draft PR #39](https://github.com/j5cfk7qm49-web/WrOS/pull/39)
+replaces Linux's blocking editor input thread with an unprivileged re-exec reader
+in the same installed binary. The independent MIT `wros-input` crate provides
+reader retirement/reaping, queued/partial-input cleanup, kernel typeahead flush,
+an opaque single-use pause proof and explicit fresh-parser resume. Reader death
+triggers the existing two-buffer save/rescue path; editor death kills its reader.
+There is no new credential prompt or locker. See [input ownership](INPUT_OWNERSHIP.md).
+
+[Focused checks](evidence/input-ownership-focused.json) passed four unit tests,
+one thread-affinity compile-fail test and four real private-PTY scenarios in both
+configurations, both workspace Clippys/build, three actual editor fault/context
+tests and the retained four-size Settings/cursor/undo/restart PTY. All 11 gates
+passed without external networking. Source is
+`0f668f5d8bb5e757138060d0321c2bd50bfa5ba161b2655bac8e1ad5f8e17aba` / 304 files.
+[Real guest integration](evidence/input-ownership-vm.json) passed in **376.22 seconds**:
+actual reader UID/parent checks, writer SIGKILL and normal logout without orphan
+readers, PAM/account switching, keyboard recovery and the secret scan. The no-NIC
+base stayed unchanged, and focused/guest binaries match the archived fixture.
+[Debian CI 40601108193](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40601108193)
+passed implementation `930ee9e`: [959 Rust/configuration, both Clippys, 99 Python
+tests/zero skips and 17 gates](evidence/input-ownership-ci.json), plus the four
+standalone ownership scenarios in each configuration. Its source matches;
+tested merge is `25c2b9fd1b7b132f5f966c94c47fe9e6a0b30f95`. The older keyboard/login
+reports below retain their original source identities.
+
+Protected seat/VT ownership, an independent maintained locker, stopping all
+editor rendering/terminal queries during handoff, verified unlock and an
+authoritative lock-ready acknowledgment before sleep remain issue #4. Suspend
+is unavailable; no host terminal, account, credential or power state was changed.
+
 ## Login keyboard recovery — software, real guest and Debian CI passed
 
 `codex/greeter-keyboard` / [draft PR #38](https://github.com/j5cfk7qm49-web/WrOS/pull/38)

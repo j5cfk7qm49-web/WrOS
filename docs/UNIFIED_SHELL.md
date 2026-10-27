@@ -85,7 +85,10 @@ The [experimental separate Rust/Ratatui greeter](NATIVE_GREETER.md) uses greetd'
 PAM verifies local accounts; the editor never receives authentication keystrokes.
 Use a fixed session command, bounded IPC and secret-free error reporting. A
 greetd login is **not** a session lock. Issue #4 still requires seat/VT protection,
-editor input pause/ack/drain, independent authentication and lock-before-suspend.
+protected terminal ownership, independent authentication and lock-before-suspend.
+The [editor reader-retirement primitive](INPUT_OWNERSHIP.md) now supplies a
+single-use pause proof and a fresh parser on explicit resume. This is necessary
+input cleanup, not a secure locker or a lock-ready acknowledgment.
 Fail closed and retain authenticated maintenance/recovery. Early LUKS unlock
 runs before ordinary encrypted user space; consistent branding cannot remove
 that boundary or bypass encryption.

@@ -52,6 +52,12 @@ locker with protected terminal ownership. That integration and an authoritative
 lock-ready acknowledgment before sleep remain issue #4. No lock command or
 password prompt is added to the editor; Suspend remains unavailable.
 
+The future controller must also stop editor rendering and all terminal/cursor
+queries while another owner is active. The proof describes this input reader's
+retirement; it does not manage Ratatui or prevent unrelated processes from
+opening a terminal. A background locker started while the normal editor loop
+continues is not a completed handoff.
+
 Tests use new unprivileged private PTYs, never the host terminal. The standalone
 ownership fixture exercises a partial paste already consumed by the old parser,
 reader reaping, a distinct test reader, stale typeahead on return, a full queue,
@@ -67,5 +73,17 @@ ownership scenarios in both configurations, both workspace Clippys/build,
 three actual editor fault/context tests and the retained four-size Settings
 PTY. All 11 checks passed with external networking isolated. Source is
 `0f668f5d8bb5e757138060d0321c2bd50bfa5ba161b2655bac8e1ad5f8e17aba` / 304 files.
-Fresh full Debian CI and the disposable-guest session integration are pending.
+The [native-login guest](evidence/input-ownership-vm.json) passed in 376.22 seconds
+with no NICs and an unchanged base image. It verified the actual UID-1000/1001
+reader processes, abrupt writer exit and ordinary logout without orphan readers,
+PAM rejection/success, hidden input, account switching, all four keyboard layouts
+and the journal/home secret scan. Focused and guest editor/greeter binaries match
+the archived fixture exactly. This is session integration, not a VT-lock/unlock test.
+
+Fresh [Debian CI 40601108193](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40601108193)
+passed implementation `930ee9e`: [959 Rust tests per configuration, both Clippys,
+99 Python tests/zero skips and 17 checks](evidence/input-ownership-ci.json). The
+four standalone ownership scenarios also ran in each CI configuration. Its
+source fingerprint matches the focused and guest records; tested merge is
+`25c2b9fd1b7b132f5f966c94c47fe9e6a0b30f95`. CI binaries are recorded independently.
 Previous keyboard/login evidence retains its original source.

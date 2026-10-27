@@ -33,6 +33,12 @@ independent secure locker/input handoff, remaining transition/failure cases and
 physical suspend/resume still prevent completion of the authentication/session
 work. [CI](CI.md) targets only the WrOS Debian runtime.
 
+The [editor input-ownership prerequisite](INPUT_OWNERSHIP.md) now replaces its
+Linux reader thread with an isolated parser process, acknowledged retirement
+and explicit fresh-parser resume. Focused fault/private-PTY checks pass; full
+software and guest records remain separately tracked. This is not the protected
+locker/VT or lock-before-suspend integration required by #4.
+
 ## Working rules
 
 Keep changes vertical, safe and tested. Preserve manuscript formats and all existing UI guard tests. Add tutorial events, offline help, recovery behavior and tests when a feature lands, not at the end. Unknown configuration must not be rewritten. Never open a physical disk merely to demonstrate an installer. No root Grimoire, telemetry, mandatory AI or automatic manuscript transmission.

@@ -1,6 +1,42 @@
 # WrOS continuation — 2026-10-26
 
-## Active continuation — WrOS CI and greeter keyboards, 2026-10-27
+## Active continuation — editor input ownership, 2026-10-27
+
+Current `codex/input-ownership`, implementation `930ee9e`, draft PR #39, stacked
+on keyboard #38 (`fd1864e`). CI remains WrOS Debian only. The MIT `wros-input`
+crate and early same-binary re-exec replace Linux's blocking input thread with
+an unprivileged reader process, without a new installed executable. Pause
+retires/reaps it, discards its complete/partial parser and queued input, flushes
+the kernel and returns an opaque single-use proof; explicit resume flushes again
+and starts a fresh acknowledged parser. Parent death kills the reader; controller
+thread affinity is enforced. Failure/proof drop never resumes input.
+
+Focused record `input-ownership-focused.json` passed 11 checks: four unit tests,
+one compile-fail and four actual private-PTY scenarios in both configurations,
+both workspace Clippys/build, three real editor fault/context tests, retained
+four-size Settings/cursor/undo/restart PTY and static gates. Source
+`0f668f5d...17aba` / 304 files; editor `250ea0fb...63601`, greeter `bf193c66...4e7c`.
+The only Cargo.lock changes add the internal package/edges and crossterm serde;
+no dependency versions changed. Existing notices preserved; new internal MIT
+inventory/notice retained.
+
+Debian CI 40601108193 PASSED: 959 Rust/configuration (5 default / 4 no-audio
+ignored), both Clippys, 99 Python/zero skips and 17 gates. Four standalone real-PTY
+ownership scenarios ran in each configuration. Tested merge
+25c2b9fd1b7b132f5f966c94c47fe9e6a0b30f95; source matches focused/guest records.
+The no-NIC native-login guest run-k45jefgu PASSED 376.22s: reader UID/parent, writer
+SIGKILL and ordinary logout without orphan readers, PAM/keyboard/account switching
+and secret scan. Base unchanged; exact local editor/greeter match focused and
+archived fixture. Safe raw reports input-ownership-{ci,vm}.json are retained.
+Do not relabel old keyboard/login evidence as current. This is not VT-lock proof.
+
+Next #4 requires the independent maintained locker, protected seat/VT ownership,
+stopping editor rendering and ALL terminal queries during handoff, verified
+unlock and authoritative lock-ready before sleep. This reader API alone cannot
+authorize a credential prompt or suspend. Suspend remains unavailable. No live
+host terminal/disk/account/credentials/lock/suspend operations were performed.
+
+## Prior checkpoint — WrOS CI and greeter keyboards, 2026-10-27
 
 Current branch `codex/greeter-keyboard`, implementation `4381d58`, draft PR #38,
 stacked on CI PR #37 (`75a2a3a`) and native login #36. WrOS is the platform;

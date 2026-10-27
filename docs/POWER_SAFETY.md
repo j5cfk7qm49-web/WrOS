@@ -60,8 +60,10 @@ No test suspends or powers off the host. Controlled power cases use a recorded
 simulator and the Linux no-process guard. New full CI is tracked separately from
 the earlier warm-screen source/binary/VM evidence.
 
-Issues #4/#27 still require isolated PAM/greetd login, secure locking, exclusive
-input/VT ownership, acknowledged lock before sleep, crash/logout/account-switch
-handling and physical suspend/resume qualification. This application guard does
+The [native login](NATIVE_GREETER.md) and [keyboard recovery](GREETER_KEYBOARD.md)
+have separate qualification. The [reader-retirement prerequisite](INPUT_OWNERSHIP.md)
+now addresses the editor's input-reader lifecycle. Issue #4 still requires a
+secure independent locker, protected seat/VT ownership, acknowledged lock before
+sleep and physical suspend/resume qualification. This application guard does
 not configure or qualify logind lid/power-key behavior or prevent a user from
 requesting sleep through other Linux tools. No production session claim is made.
