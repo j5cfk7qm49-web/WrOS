@@ -1,5 +1,16 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Power safety follow-up — current branch
+
+`codex/suspend-lock-guard` follows warm-screen PR #33. [Power guards](POWER_SAFETY.md)
+address reproduced issues #32/#34: Suspend is unavailable until secure locking is
+qualified, and shutdown/restart refuse pending writes, stale source trees and
+unresolved conflicts after saves. [Focused offline qualification](evidence/power-guard-targeted.json)
+passed 17 backend tests, 11 Settings/controller tests, the retained asynchronous
+System test, both Clippys and an actual four-size Settings PTY. Fresh whole-suite
+CI is separate. The earlier complete warm-screen/VM records below apply to their
+own source, not automatically to this newer increment. Full locking remains #4.
+
 ## Manual warm-screen increment — software qualified, hardware gates open
 
 `codex/warm-screen` builds on unified-shell `e31d12b` (Debian/macOS CI
@@ -20,6 +31,9 @@ positive gamma, physical display or current installer claim is made; #30 stays o
 Read-only audit also reproduced an existing unguarded suspend invocation despite
 the absent secure locker. **Issue #32** tracks immediate fail-closed mitigation;
 the broader lock/input ownership, lid/resume and hardware work stays under #4.
+The follow-up implementation is above. Warm-screen's published head `8e2aeeb`
+also passed Debian/macOS CI
+[40466790817](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40466790817).
 
 ## Initial unified WrOS shell — current architectural direction
 

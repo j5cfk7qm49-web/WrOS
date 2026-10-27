@@ -844,10 +844,13 @@ impl App {
                         self.deck
                             .request(Request::PowerSave(self.deck.state.low_power));
                     }
-                    8..=10 => {
+                    8 => {
+                        self.deck.note = writingdeck_sys::SUSPEND_UNAVAILABLE.into();
+                        self.deck.shell.notices.push(&self.deck.note);
+                    }
+                    9..=10 => {
                         self.overlay = Overlay::Deck(Page::Power {
                             action: match sel {
-                                8 => PowerAction::Suspend,
                                 9 => PowerAction::Shutdown,
                                 _ => PowerAction::Restart,
                             },
@@ -918,7 +921,19 @@ impl App {
                 }
                 Key::Esc => self.open_system_settings(),
                 Key::Enter => {
-                    if yes && self.commit_saves() {
+                    if yes && action == PowerAction::Suspend {
+                        self.deck.note = writingdeck_sys::SUSPEND_UNAVAILABLE.into();
+                        self.deck.shell.notices.push(&self.deck.note);
+                    } else if yes {
+                        if !self.commit_saves()
+                            || self.project.dirty_count() != 0
+                            || self.tree_stale
+                            || !self.conflicts().is_empty()
+                        {
+                            self.deck.note = "Power unchanged: unsaved buffers or source conflicts need attention. Return to writing to review them.".into();
+                            self.deck.shell.notices.push(&self.deck.note);
+                            return;
+                        }
                         self.save_deck();
                         self.deck.request(Request::Power(action));
                     }
@@ -1436,7 +1451,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                         "off"
                     }
                 ),
-                "Suspend (confirmation required)".into(),
+                writingdeck_sys::SUSPEND_UNAVAILABLE.into(),
                 "Shutdown (confirmation required)".into(),
                 "Restart (confirmation required)".into(),
                 "Keyboard shortcuts".into(),
@@ -1486,19 +1501,25 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             hint = "Enter keep  Esc revert · test text is never saved";
         }
         Page::Power { action, yes } => {
-            title = format!("Confirm {action:?}");
-            rows.push(
-                "All manuscript buffers must save successfully before a power request.".into(),
-            );
-            rows.push(
-                if *yes {
-                    "  Cancel     [YES, proceed]"
-                } else {
-                    "[Cancel]      Yes, proceed"
-                }
-                .into(),
-            );
-            hint = "←→ select  Enter confirm  Esc cancel";
+            if *action == PowerAction::Suspend {
+                title = "Suspend unavailable".into();
+                rows.push(writingdeck_sys::SUSPEND_UNAVAILABLE.into());
+                hint = "Esc return · no power operation is available";
+            } else {
+                title = format!("Confirm {action:?}");
+                rows.push(
+                    "All manuscript buffers must save successfully before a power request.".into(),
+                );
+                rows.push(
+                    if *yes {
+                        "  Cancel     [YES, proceed]"
+                    } else {
+                        "[Cancel]      Yes, proceed"
+                    }
+                    .into(),
+                );
+                hint = "←→ select  Enter confirm  Esc cancel";
+            }
         }
         Page::Tutorial { sel } => {
             title = format!(

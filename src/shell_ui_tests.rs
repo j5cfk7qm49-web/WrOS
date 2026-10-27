@@ -322,3 +322,234 @@ fn late_warm_preview_is_cancelled_without_reopening_settings() {
             .any(|r| matches!(r, Request::DisplayCancel(_)))
     );
 }
+
+#[test]
+fn unavailable_suspend_never_reaches_the_worker_and_retains_editors_at_four_sizes() {
+    use std::sync::{Arc, Mutex};
+    use writingdeck_sys::{Backend, PowerAction, Reply, Request, Simulated};
+    struct Recorded(Arc<Mutex<Vec<Request>>>, Simulated);
+    impl Backend for Recorded {
+        fn request(&mut self, request: Request) -> anyhow::Result<Reply> {
+            self.0.lock().unwrap().push(request.clone());
+            self.1.request(request)
+        }
+    }
+    for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let (mut desk, note) =
+            secondary_book(&format!("suspend-guard-{width}"), width, height, true);
+        choose_secondary(&mut desk, &note);
+        desk.typed("Keep both original editors. ");
+        desk.app.editor.select((10, 3), (8, 7));
+        desk.draw();
+        let original = desk.app.editor.text();
+        let primary = desk.app.view_position(Pane::Primary).unwrap();
+        let secondary = desk.app.view_position(Pane::Secondary).unwrap();
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        desk.app
+            .deck
+            .use_test_backend(Box::new(Recorded(calls.clone(), Simulated::laptop())));
+        system_panel(&mut desk, 2);
+        wait_system(&mut desk);
+        choose_warm_row(&mut desk, 3); // Native Power: unavailable Suspend row.
+        assert_eq!(desk.app.overlay, Overlay::Deck(Page::Settings));
+        assert!(desk.shows("secure screen locking"));
+        close_settings(&mut desk);
+        desk.app.overlay = Overlay::Deck(Page::System { sel: 8 });
+        desk.key(KeyCode::Enter);
+        assert!(matches!(
+            desk.app.overlay,
+            Overlay::Deck(Page::System { .. })
+        ));
+        assert!(desk.shows("secure screen locking"));
+        // A future caller cannot bypass the menu by creating an old confirmed
+        // modal. The Linux adapter separately refuses direct typed requests.
+        desk.app.overlay = Overlay::Deck(Page::Power {
+            action: PowerAction::Suspend,
+            yes: true,
+        });
+        desk.draw();
+        assert!(desk.shows("Suspend unavailable"));
+        assert!(!desk.shows("YES, proceed"));
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert!(
+            !calls
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|r| matches!(r, Request::Power(_)))
+        );
+        desk.key(KeyCode::Esc);
+        desk.key(KeyCode::Esc);
+        assert_eq!(desk.app.overlay, Overlay::None);
+        assert_eq!(desk.app.editor.text(), original);
+        assert_eq!(desk.app.view_position(Pane::Primary).unwrap(), primary);
+        assert_eq!(desk.app.view_position(Pane::Secondary).unwrap(), secondary);
+        assert_eq!(desk.app.focus, Focus::Secondary);
+        desk.ctrl('z');
+        assert_ne!(desk.app.editor.text(), original);
+    }
+}
+
+#[test]
+fn supported_power_actions_still_require_confirmation_and_successful_saves() {
+    use std::sync::{Arc, Mutex};
+    use writingdeck_sys::{Backend, PowerAction, Reply, Request, Simulated};
+    struct Recorded(Arc<Mutex<Vec<Request>>>, Simulated);
+    impl Backend for Recorded {
+        fn request(&mut self, request: Request) -> anyhow::Result<Reply> {
+            self.0.lock().unwrap().push(request.clone());
+            self.1.request(request)
+        }
+    }
+    for (selection, expected) in [(9, PowerAction::Shutdown), (10, PowerAction::Restart)] {
+        let mut desk = Desk::open(book(&format!("power-guard-{selection}"), true), 100, 30);
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        desk.app
+            .deck
+            .use_test_backend(Box::new(Recorded(calls.clone(), Simulated::laptop())));
+        desk.app.open_system_settings();
+        wait_system(&mut desk);
+        desk.app.overlay = Overlay::Deck(Page::System { sel: selection });
+        desk.key(KeyCode::Enter);
+        desk.key(KeyCode::Enter); // Default is Cancel.
+        assert!(
+            !calls
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|r| matches!(r, Request::Power(_)))
+        );
+        desk.app.overlay = Overlay::None;
+        desk.app.focus = Focus::Editor;
+        desk.typed("New original before power confirmation. ");
+        desk.app.overlay = Overlay::Deck(Page::System { sel: selection });
+        desk.key(KeyCode::Enter);
+        desk.key(KeyCode::Right);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert!(calls.lock().unwrap().contains(&Request::Power(expected)));
+        assert!(
+            fs::read_to_string(first_scene(&desk.root))
+                .unwrap()
+                .contains("New original before power confirmation.")
+        );
+        calls.lock().unwrap().clear();
+        // External source replacement triggers the existing save conflict gate.
+        desk.app.overlay = Overlay::None;
+        desk.app.focus = Focus::Editor;
+        desk.typed("Unsaved source with an external conflict. ");
+        fs::write(
+            first_scene(&desk.root),
+            "External source must be preserved.\n",
+        )
+        .unwrap();
+        desk.app.overlay = Overlay::Deck(Page::Power {
+            action: PowerAction::Restart,
+            yes: true,
+        });
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert!(
+            !calls
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|r| matches!(r, Request::Power(_)))
+        );
+        assert_eq!(
+            fs::read_to_string(first_scene(&desk.root)).unwrap(),
+            "External source must be preserved.\n"
+        );
+        assert!(desk.shows("Power unchanged"));
+        assert!(
+            fs::read_dir(first_scene(&desk.root).parent().unwrap())
+                .unwrap()
+                .filter_map(Result::ok)
+                .any(|entry| fs::read_to_string(entry.path())
+                    .is_ok_and(|text| text.contains("Unsaved source with an external conflict.")))
+        );
+    }
+}
+
+#[test]
+fn power_waits_for_missing_sources_and_failed_document_claims_then_allows_explicit_retry() {
+    use std::sync::{Arc, Mutex};
+    use writingdeck_sys::{Backend, PowerAction, Reply, Request, Simulated};
+    struct Recorded(Arc<Mutex<Vec<Request>>>, Simulated);
+    impl Backend for Recorded {
+        fn request(&mut self, request: Request) -> anyhow::Result<Reply> {
+            self.0.lock().unwrap().push(request.clone());
+            self.1.request(request)
+        }
+    }
+    for directory in [false, true] {
+        let mut desk = Desk::open(book(&format!("power-backing-{directory}"), true), 100, 30);
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        desk.app
+            .deck
+            .use_test_backend(Box::new(Recorded(calls.clone(), Simulated::laptop())));
+        desk.app.open_system_settings();
+        wait_system(&mut desk);
+        desk.app.overlay = Overlay::None;
+        desk.app.focus = Focus::Editor;
+        desk.typed("Retain this original while storage is unavailable. ");
+        let original = desk.app.editor.text();
+        let position = desk.app.view_position(Pane::Primary).unwrap();
+        let path = first_scene(&desk.root);
+        let held = path.with_extension("fixture-held");
+        fs::rename(&path, &held).unwrap();
+        let stored = fs::read(&held).unwrap();
+        if directory {
+            fs::create_dir(&path).unwrap();
+        }
+        desk.app.overlay = Overlay::Deck(Page::Power {
+            action: PowerAction::Shutdown,
+            yes: true,
+        });
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert!(
+            !calls
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|r| matches!(r, Request::Power(_)))
+        );
+        assert!(desk.shows("Power unchanged"));
+        assert!(desk.app.project.dirty_count() > 0);
+        assert!(matches!(
+            desk.app.save_state,
+            app::SaveState::Failed(_) | app::SaveState::Waiting(_)
+        ));
+        assert_eq!(desk.app.editor.text(), original);
+        assert_eq!(desk.app.view_position(Pane::Primary).unwrap(), position);
+        assert_eq!(fs::read(&held).unwrap(), stored);
+        if directory {
+            fs::remove_dir(&path).unwrap();
+        }
+        assert!(!path.exists(), "no unchecked backing source was recreated");
+        fs::rename(&held, &path).unwrap();
+        desk.key(KeyCode::Enter); // Explicit retry through the retained confirmation.
+        wait_system(&mut desk);
+        assert!(
+            calls
+                .lock()
+                .unwrap()
+                .contains(&Request::Power(PowerAction::Shutdown))
+        );
+        assert!(
+            fs::read_to_string(&path)
+                .unwrap()
+                .contains("Retain this original while storage is unavailable.")
+        );
+        desk.key(KeyCode::Esc);
+        desk.key(KeyCode::Esc);
+        desk.ctrl('z');
+        assert_ne!(
+            desk.app.editor.text(),
+            original,
+            "the retained original still has undo"
+        );
+    }
+}

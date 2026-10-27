@@ -243,7 +243,7 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
             &[
                 "--no-ask-password",
                 match action {
-                    PowerAction::Suspend => "suspend",
+                    PowerAction::Suspend => bail!(crate::SUSPEND_UNAVAILABLE),
                     PowerAction::Shutdown => "poweroff",
                     PowerAction::Restart => "reboot",
                 },
@@ -441,6 +441,40 @@ mod tests {
     fn real_command_errors_are_not_reported_as_success() {
         let r = ProcessRunner.run(&Invocation::new("/usr/bin/false", &[]));
         assert!(r.is_err());
+    }
+    #[test]
+    fn unsupported_suspend_never_reaches_a_process_runner() {
+        let mut backend = Linux {
+            runner: Fake::default(),
+            sys: "/missing".into(),
+            etc: "/missing".into(),
+            storage: "/missing".into(),
+        };
+        let error = backend
+            .request(Request::Power(PowerAction::Suspend))
+            .unwrap_err();
+        assert!(error.to_string().contains("secure screen locking"));
+        assert!(
+            backend.runner.0.is_empty(),
+            "not even a systemctl probe may run"
+        );
+        assert_eq!(
+            invocation(&Request::Power(PowerAction::Restart))
+                .unwrap()
+                .args,
+            ["--no-ask-password", "reboot"]
+        );
+        assert_eq!(
+            invocation(&Request::Power(PowerAction::Shutdown))
+                .unwrap()
+                .args,
+            ["--no-ask-password", "poweroff"]
+        );
+        assert!(
+            crate::Simulated::laptop()
+                .request(Request::Power(PowerAction::Suspend))
+                .is_err()
+        );
     }
     #[test]
     fn display_calls_are_fixed_bounded_and_never_start_a_tty_auth_reader() {

@@ -38,9 +38,11 @@ The older Settings menu remains available during this migration.
 
 System has native Network, Display, Power, Storage and Date/time panes using
 cached background services. Accounts, updates and recovery explicitly identify
-unfinished services. The requested Warm screen mode is planned in Display;
-there is no actual color-temperature backend yet. It must not be confused with
-the theme picker. No Google account is required for local writing.
+unfinished services. Display → Warm screen has an offline filter on supported
+drivers: 1000–6500 K, initial 2200 K, strength/Off and a 15-second Keep/Cancel
+preview. Off restores original color curves. Unsupported drivers are unavailable;
+this is separate from the theme picker. No Google account is required for local
+writing. Suspend is unavailable until secure screen locking has been qualified.
 
 ## System settings
 

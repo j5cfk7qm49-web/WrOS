@@ -165,11 +165,11 @@
     },
     {
       "area": "System",
-      "capability": "Confirmed power requests after successful manuscript save",
+      "capability": "Confirmed shutdown/restart after durable saves and conflict review",
       "status": "Tested",
-      "verification": "TUI confirmation + command construction tests",
+      "verification": "17 backend, 11 Settings/controller, retained async System and four-size PTY tests; both Clippys; no real power operation",
       "hardware_verified": false,
-      "detail": "Physical suspend/restart/shutdown deliberately not run"
+      "detail": "Suspend unavailable until secure locking; dirty buffers, stale trees and conflicts block shutdown/restart; physical power operations not run"
     },
     {
       "area": "System",

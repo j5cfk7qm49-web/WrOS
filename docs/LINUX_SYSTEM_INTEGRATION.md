@@ -11,7 +11,8 @@
 | Battery | Read-only sysfs energy-weighted battery aggregation, capacity fallback | Missing-device/fixture tests; no physical discharge/charging test; UPower evaluated/installed but not yet queried by the adapter |
 | Brightness | Read sysfs; explicit `brightnessctl --class=backlight set N%` | 1–100 validation and no-device behavior; actual permissions/backlight pending |
 | Power saver | UI low-power setting plus explicit `powerprofilesctl set` | UI works independently; unsupported OS profile reported separately |
-| Suspend / restart / shutdown | `systemctl --no-ask-password ...` via maintained system service authorization | UI confirmation, manuscript save gate, typed adapter tests; never exercised on host/physical hardware |
+| Suspend | Refused before any process invocation until a qualified locker exists | Native/legacy controls and adapter fail closed; #4/#27 still open |
+| Restart / shutdown | `systemctl --no-ask-password ...` via maintained system authorization | Explicit confirmation plus no pending writes, stale tree or unresolved conflicts; controlled tests only; no physical power operation |
 | Keyboard | Exact polkit helper; fixed root-owned maps, independent timer | Rootless transaction tests + real VM console/polkit/timer tests |
 | Warm screen | Typed 1000–6500K/strength/Off controls; exact polkit manager, bounded non-setuid libdrm bridge and independent preview timer | [Calibration, failure/rollback tests and driver limits](WARM_SCREEN.md); unsupported outputs refused; physical/hotplug/suspend qualification open |
 | Timezone / disk free / OS | Local `/etc` reads, `statvfs`, Debian release identity | Read-only; setting timezone/clock remains planned |

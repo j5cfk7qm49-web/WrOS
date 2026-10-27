@@ -26,7 +26,7 @@ Existing means audited baseline; Tested identifies automated/VM evidence, not pr
 | System | Wi-Fi radio and scan command interfaces | Tested | Typed command/unit tests | Actual radio/native enrollment unverified; scan truncation open; nmtui is emergency maintenance only |
 | System | In-app new-network credentials / secret agent | Planned | None | Never passwords in argv/logs |
 | System | Brightness request + UI/OS power-saving distinction | Tested | Validation and no-device tests | No physical backlight or battery-savings claim |
-| System | Confirmed power requests after successful manuscript save | Tested | TUI confirmation + command construction tests | Physical suspend/restart/shutdown deliberately not run |
+| System | Confirmed shutdown/restart after durable saves and conflict review | Tested | 17 backend, 11 Settings/controller, retained async System and four-size PTY tests; both Clippys; no real power operation | Suspend unavailable until secure locking; dirty buffers, stale trees and conflicts block shutdown/restart; physical power operations not run |
 | System | Clock/timezone changes, sound/volume, updater/restore panels | Planned | None | Read-only status is not full settings coverage |
 | Keyboard | QWERTY/Colemak/DH ANSI/ISO console maps | Tested | Four Unicode map builds; VM QWERTY/DH/Colemak key assertions | Full modifiers/ISO physical keyboard remain unverified |
 | Keyboard | 15-second preview, token commit and independent rollback | Tested | 13 rootless helper tests + real VM systemd timer | Survives client absence; commit generation handles crash boundary |

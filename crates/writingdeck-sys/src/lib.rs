@@ -11,6 +11,10 @@ pub mod shortcuts;
 use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 
+/// Fail closed until a separate locker can acknowledge protected input ownership.
+pub const SUSPEND_UNAVAILABLE: &str =
+    "Suspend unavailable: secure screen locking has not been qualified.";
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Snapshot {
     pub simulated: bool,
@@ -100,6 +104,7 @@ impl Backend for Simulated {
             bail!("simulated service unavailable");
         }
         match request {
+            Request::Power(PowerAction::Suspend) => bail!(SUSPEND_UNAVAILABLE),
             Request::DisplayStatus => Ok(Reply::DisplayStatus(display::Status {
                 warmth: self.warmth,
                 available: true,

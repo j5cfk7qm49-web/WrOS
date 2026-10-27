@@ -294,7 +294,7 @@ fn entries(app: &App) -> Vec<Entry> {
                         ),
                         Choice::System(7),
                     ),
-                    Entry::new("Suspend · requires secure lock support", Choice::System(8)),
+                    Entry::info(writingdeck_sys::SUSPEND_UNAVAILABLE),
                     Entry::new("Shutdown · confirmation required", Choice::System(9)),
                     Entry::new("Restart · confirmation required", Choice::System(10)),
                 ]),

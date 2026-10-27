@@ -79,6 +79,11 @@ zero skips** and **18 gates**. Default/no-audio intentionally ignore 5/4 separat
 external/performance cases. Source and verifier inputs stayed unchanged; binary
 SHA `911c8675789e57474155a084adfdffdb1d230bab8ed089b1f44c70fee9613c7c`
 matches the guest-tested binary. Historical M7b evidence remains untouched.
+Published head `8e2aeeb` also passed real Debian/macOS CI
+[40466790817](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40466790817);
+the [unmodified CI report](evidence/warm-screen-ci.json) has the same source
+fingerprint and 928/96 totals. The CI tested merge revision is recorded separately
+from the source branch head.
 The initial history secret scan flagged three deterministic simulator/invalid-reply
 tokens. Each was inspected and confirmed to be a noncredential fixture. The
 repository's `.gitleaksignore` lists only those exact commit/file/rule/line

@@ -2,6 +2,18 @@
 
 ## Latest architectural directive and working branch
 
+Current branch is `codex/suspend-lock-guard`, based on warm-screen head `8e2aeeb`
+(draft PR #33, stacked on #31). Warm-screen's real Debian/macOS CI 40466790817
+passed on that exact head. New power guards address #32 and the controller-test
+reproduction #34: no Suspend without a qualified locker; no shutdown/restart
+with dirty buffers, stale source tree or unresolved conflicts. See
+[POWER_SAFETY](POWER_SAFETY.md). Targeted offline qualification passed 17 backend,
+11 Settings/controller, one retained asynchronous System test, both Clippys and
+the actual four-size Settings PTY; source fingerprint 56e59e1b…8410 / 287 files.
+`power-guard-targeted.json` keeps exact scope, current binary and log hashes.
+New whole-suite CI is still separate;
+do not label this newer source as covered by the prior warm-screen VM record.
+
 The user supplied the Unified Operating System Shell Architectural Directive:
 Grimoire evolves into the whole native WrOS interface, with modular internals.
 Ordinary settings/network/power/accounts/Drive/help must stay in WrOS panes.
