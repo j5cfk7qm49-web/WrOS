@@ -11,7 +11,22 @@ with dirty buffers, stale source tree or unresolved conflicts. See
 11 Settings/controller, one retained asynchronous System test, both Clippys and
 the actual four-size Settings PTY; source fingerprint 56e59e1b…8410 / 287 files.
 `power-guard-targeted.json` keeps exact scope, current binary and log hashes.
-New whole-suite CI is still separate;
+Power code head `15512d4cae28dc6d160124909df71ecac72b68ab` is pushed in draft
+PR #35, stacked on #33. Fresh Debian/macOS CI **40468810112 passed** with
+**932 Rust/configuration** (5 default / 4 no-audio ignored), both Clippys,
+**96 Python / zero skips** and **17 CI gates**. `power-guard-ci.json` is the
+unmodified actual report and matches source fingerprint 56e59e1b…8410. Its tested
+merge revision is e656c3b0cdfccd282f5ea536bafa45b730da1634. The separate Windows
+run40468809931 was still running when recorded. Issues #32/#34 remain open for
+integration; #4/#27 locking/authentication remain unimplemented.
+
+Next: integrate the qualified safety increments through the experimental branch
+stack, then implement #27's isolated native greetd/PAM greeter and #4's separate
+locker/input handoff. Keep current authenticated maintenance and installer
+profiles; test only disposable guest accounts until authorized live acceptance.
+Do not lose #25's separately qualified installer-keyboard correction when making
+a new ISO. Required full installation/encryption/recovery/physical/provider and
+later writing-feature gates still prevent release.
 do not label this newer source as covered by the prior warm-screen VM record.
 
 The user supplied the Unified Operating System Shell Architectural Directive:

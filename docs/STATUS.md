@@ -7,8 +7,12 @@ address reproduced issues #32/#34: Suspend is unavailable until secure locking i
 qualified, and shutdown/restart refuse pending writes, stale source trees and
 unresolved conflicts after saves. [Focused offline qualification](evidence/power-guard-targeted.json)
 passed 17 backend tests, 11 Settings/controller tests, the retained asynchronous
-System test, both Clippys and an actual four-size Settings PTY. Fresh whole-suite
-CI is separate. The earlier complete warm-screen/VM records below apply to their
+System test, both Clippys and an actual four-size Settings PTY. Fresh Debian/macOS
+CI [40468810112](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40468810112)
+passed on code head `15512d4`: **932 Rust/configuration, 96 Python/zero skips**,
+both Clippys and **17 CI gates**. [Its unmodified report](evidence/power-guard-ci.json)
+matches the targeted source fingerprint. The separate Windows check was still
+running when recorded. The earlier warm-screen/VM records below apply to their
 own source, not automatically to this newer increment. Full locking remains #4.
 
 ## Manual warm-screen increment — software qualified, hardware gates open

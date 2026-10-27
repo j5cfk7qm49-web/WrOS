@@ -1,0 +1,231 @@
+{
+  "recorded_at_utc": "2026-10-27T07:44:24.899799+00:00",
+  "verification_started_at_utc": "2026-10-27T07:44:24.899822+00:00",
+  "milestone": "WrOS integrated writing, native shell and system-adapter software",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "56e59e1b858f2da7c2366e9fe88c9f5d712cce3515de033c5e6aa5fb02058410",
+    "file_count": 287,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "verifier_input_sha256": {
+    ".github/workflows/ci.yml": "69ce646eb1254fb8cc9420df5f1020fcd0c2ce83173bea2a973de0e3b5a50e52",
+    ".github/workflows/installer-check.yml": "b5d8cd7f44ea841b262b2ec93670c4cfca1ae42959e3433502882da06fc658a6",
+    ".github/workflows/packages.yml": "a7474649734d228a533383a851af6dddb8219905b2c2220339153217e3e58ae9",
+    ".github/workflows/release.yml": "6bcb629ffb36acd4c345e699cc9ea5435da65260f6d96787a256ffc8e1ca5a97",
+    ".github/workflows/windows.yml": "2d81bca8833d52cffdd0e3eed5ef19e7dd994093ec6581fcd989e1902f4c09b3",
+    "tools/audit-installer-media.py": "f6400271822e6799c56a6530e4b084db4c40257fb17c72732e355c643e068484",
+    "tools/audit-prose-tools.py": "e2c52df63b3c09beef85581f7cfbcaeb5b245cd0673e11946120b926c2a2d3a4",
+    "tools/audit-wifi-image.py": "62b6bd5426dc2679fe27c1e4e8531851407b3eecc9728745e597fa0171bcd712",
+    "tools/audit-writing-checks-assets.py": "172cb1198573a5c46aaab1abf52bf7fee49ebdc07c904612157c3369a0b0a3fa",
+    "tools/build-spark-corpus.py": "f2b2a1a01cad9409719ff9600b619b2dc8fbb4d576bd4432eb3b58349d5f77ef",
+    "tools/capture-prose-tool-lock.py": "28b61b11ef6dd469843283635f67dc82e3c0dfb4a09f8cba85fa8c45f2cbf464",
+    "tools/capture-writingdeck-screens.py": "0ebe9452e8df098f6bf7bd386c69f8a1fe15c061d5323e0f30f36cf23cda7263",
+    "tools/check-writingdeck.py": "f4a5d5b95fe5911074c85f558fe80c590f4270a0610ad820e33b824c73e7781f",
+    "tools/demo.py": "3a3aef96c2458ed84689ae58c1313c590147e1dbf824b1a281a2b7049fb3646c",
+    "tools/generate-keyboard-reference.py": "57adab56577e970a9d4c3a177c49f936c6c87632468aad2e926c8ec5adf7ae4d",
+    "tools/generate-writingdeck-manifests.py": "5333f5db67e61e6c7a8aadb94f8d1c1ee170ec0833df245b4aab26be19a014ce",
+    "tools/measure-prose-tools.py": "1784294e517bad7219244ae6f31dc388b24b7e3d827342f1be70ca3b8108fe09",
+    "tools/measure-writing-checks.py": "91f8927398b31f44912d3d967b3f8d19b9e25a1b0a22f402a178218fa737939e",
+    "tools/prepare-prose-tools.py": "82299ec8a1d7b8c45a59c34ad8a34e1e37b15633ea0befaca89fc8cb399c80d4",
+    "tools/push-writingdeck-to-wros.sh": "cfc95d5a8470c3cb7e2507f245c4d8830ad0365d88c787f739eebaec48d6190b",
+    "tools/push-wros-source.sh": "6d2da4ed532debd9d120ad23986a40bba8dae9225f4a652f3aa3c5569a8b7157",
+    "tools/screenshots.py": "93a7708779ce4085df479d71e028195eea3fd0bb7c82fff49f8e8c29babd83e5",
+    "tools/site_themes.py": "e9626289d0c45fb89bd07f255c63056edbd8a1f5f0cbe76ff2ada31ed5c20e20",
+    "tools/stage-prose-runtime.py": "da698baf338be8235f24af6f9e0fb1ee36f0ee89cf5a0db5f473480245450cd9",
+    "tools/test-m7b.sh": "e7c208ad24ffa5418baaaedef1746624243ed98afbd6b395429b8923fcfa1b89",
+    "tools/verify-debian-installer.py": "8a4c1316b30eb9e93073da5d4c5e640ff6c1bf420d94ce1b0b1db2468d435f81",
+    "tools/verify-writingdeck.py": "39ba35abb9ff5e4438961201c7c793ca265fdc43854eb99864ac077885d4ef19",
+    "tools/winget.py": "314b0168c9b8b3484880ea918ff8808e53cec3c7e2b0e904380a5d885d44843b",
+    "tools/writingdeck_source.py": "55ba86e051ba61c4a343faf28ffd9cab167ad17fc78c602b64458365be816895"
+  },
+  "git_head_at_start": "e656c3b0cdfccd282f5ea536bafa45b730da1634",
+  "previous_evidence": {
+    "milestone": "M7b offline prose, WordNet, voice and revision software",
+    "source_fingerprint": {
+      "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+      "sha256": "b23ed164a65904fe2aaf85a2534bac08c2e1bc5bffa21972690c7021f98775f5",
+      "file_count": 263,
+      "scope": "Cargo.toml/lock, src, crates, assets, os scripts/config/systemd/tests; no generated evidence/docs/builds"
+    }
+  },
+  "toolchain": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "rust_suites": [
+    {
+      "name": "tests-default",
+      "command": "cargo test --workspace --locked --offline -j2",
+      "exit_code": 0,
+      "seconds": 148.008,
+      "log": "build/verification/tests-default.log",
+      "configuration": "default",
+      "passed": 932,
+      "failed": 0,
+      "ignored": 5,
+      "ignored_tests": [
+        "test spell::tests::timings ... ignored",
+        "test shots::demo ... ignored",
+        "test shots::shots ... ignored",
+        "test ui_tests::dump_pomodoro_previews ... ignored",
+        "test voice::piper_reads_every_sentence_in_order ... ignored"
+      ]
+    },
+    {
+      "name": "tests-no-audio",
+      "command": "cargo test --workspace --no-default-features --locked --offline -j2",
+      "exit_code": 0,
+      "seconds": 100.187,
+      "log": "build/verification/tests-no-audio.log",
+      "configuration": "no-audio",
+      "passed": 932,
+      "failed": 0,
+      "ignored": 4,
+      "ignored_tests": [
+        "test spell::tests::timings ... ignored",
+        "test shots::demo ... ignored",
+        "test shots::shots ... ignored",
+        "test ui_tests::dump_pomodoro_previews ... ignored"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "name": "format",
+      "command": "cargo fmt --all -- --check",
+      "exit_code": 0,
+      "seconds": 1.065,
+      "log": "build/verification/format.log"
+    },
+    {
+      "name": "spark-corpus",
+      "command": "python3 tools/build-spark-corpus.py --check",
+      "exit_code": 0,
+      "seconds": 1.048,
+      "log": "build/verification/spark-corpus.log"
+    },
+    {
+      "name": "diagnostic-assets",
+      "command": "python3 tools/audit-writing-checks-assets.py",
+      "exit_code": 0,
+      "seconds": 0.53,
+      "log": "build/verification/diagnostic-assets.log"
+    },
+    {
+      "name": "prose-assets",
+      "command": "python3 tools/audit-prose-tools.py --runtime /__w/WrOS/WrOS/build/prose-runtime/runtime",
+      "exit_code": 0,
+      "seconds": 2.157,
+      "log": "build/verification/prose-assets.log"
+    },
+    {
+      "name": "tests-default",
+      "command": "cargo test --workspace --locked --offline -j2",
+      "exit_code": 0,
+      "seconds": 148.008,
+      "log": "build/verification/tests-default.log"
+    },
+    {
+      "name": "clippy-default",
+      "command": "cargo clippy --workspace --all-targets --locked --offline -j2 -- -D warnings",
+      "exit_code": 0,
+      "seconds": 41.305,
+      "log": "build/verification/clippy-default.log"
+    },
+    {
+      "name": "tests-no-audio",
+      "command": "cargo test --workspace --no-default-features --locked --offline -j2",
+      "exit_code": 0,
+      "seconds": 100.187,
+      "log": "build/verification/tests-no-audio.log"
+    },
+    {
+      "name": "clippy-no-audio",
+      "command": "cargo clippy --workspace --all-targets --no-default-features --locked --offline -j2 -- -D warnings",
+      "exit_code": 0,
+      "seconds": 20.26,
+      "log": "build/verification/clippy-no-audio.log"
+    },
+    {
+      "name": "build-no-audio",
+      "command": "cargo build --workspace --no-default-features --locked --offline -j2",
+      "exit_code": 0,
+      "seconds": 5.491,
+      "log": "build/verification/build-no-audio.log"
+    },
+    {
+      "name": "python",
+      "command": "python3 -m unittest discover -s os/tests -p test_*.py -v",
+      "exit_code": 0,
+      "seconds": 151.55,
+      "log": "build/verification/python.log"
+    },
+    {
+      "name": "terminal-capture",
+      "command": "python3 tools/capture-writingdeck-screens.py",
+      "exit_code": 0,
+      "seconds": 1.064,
+      "log": "build/verification/terminal-capture.log"
+    },
+    {
+      "name": "shellcheck",
+      "command": "shellcheck os/scripts/assemble-image.sh os/scripts/bootstrap-rootfs.sh os/scripts/build-installer.sh os/scripts/generate-keymaps.sh os/scripts/install-files.sh os/scripts/writingdeck-session tools/test-m7b.sh",
+      "exit_code": 0,
+      "seconds": 0.183,
+      "log": "build/verification/shellcheck.log"
+    },
+    {
+      "name": "python-syntax",
+      "command": "python3 -m py_compile os/tests/boot_vm.py os/tests/display_vm.py os/tests/guest-boot-probe.py os/tests/guest-checks-probe.py os/tests/guest-display-probe.py os/tests/guest-prose-probe.py os/tests/install_vm.py os/tests/installed_boot.py os/tests/installer_safety_vm.py os/tests/terminal_screen.py os/tests/test_checks_pty.py os/tests/test_cli.py os/tests/test_display_bridge.py os/tests/test_display_manager.py os/tests/test_install_plan.py os/tests/test_installer_media.py os/tests/test_journal_pty.py os/tests/test_keyboard.py os/tests/test_lexicon_pty.py os/tests/test_pins_pty.py os/tests/test_productivity_pty.py os/tests/test_prose_pty.py os/tests/test_prose_runtime.py os/tests/test_prose_staging.py os/tests/test_secondary_pty.py os/tests/test_shell_pty.py os/tests/test_spark_corpus.py os/tests/test_spark_pty.py os/tests/test_terminal_screen.py os/tests/test_wifi_policy.py os/tests/test_workflow_pty.py tools/audit-installer-media.py tools/audit-prose-tools.py tools/audit-wifi-image.py tools/audit-writing-checks-assets.py tools/build-spark-corpus.py tools/capture-prose-tool-lock.py tools/capture-writingdeck-screens.py tools/check-writingdeck.py tools/demo.py tools/generate-keyboard-reference.py tools/generate-writingdeck-manifests.py tools/measure-prose-tools.py tools/measure-writing-checks.py tools/prepare-prose-tools.py tools/screenshots.py tools/site_themes.py tools/stage-prose-runtime.py tools/verify-debian-installer.py tools/verify-writingdeck.py tools/winget.py tools/writingdeck_source.py os/scripts/install-plan.py os/scripts/writingdeck-keyboard os/scripts/wros-display",
+      "exit_code": 0,
+      "seconds": 0.113,
+      "log": "build/verification/python-syntax.log"
+    },
+    {
+      "name": "inventories",
+      "command": "python3 tools/generate-writingdeck-manifests.py",
+      "exit_code": 0,
+      "seconds": 0.962,
+      "log": "build/verification/inventories.log"
+    },
+    {
+      "name": "printable-reference",
+      "command": "python3 tools/generate-keyboard-reference.py",
+      "exit_code": 0,
+      "seconds": 0.028,
+      "log": "build/verification/printable-reference.log"
+    },
+    {
+      "name": "documentation",
+      "command": "python3 tools/check-writingdeck.py",
+      "exit_code": 0,
+      "seconds": 0.063,
+      "log": "build/verification/documentation.log"
+    },
+    {
+      "name": "diff-whitespace",
+      "command": "git diff --check",
+      "exit_code": 0,
+      "seconds": 0.193,
+      "log": "build/verification/diff-whitespace.log"
+    }
+  ],
+  "limitations": [
+    "Overlapping configurations are not distinct-test counts; ignored external/performance/model tests are not passed.",
+    "Temporary fixtures and compiled PTYs are not physical keyboard, laptop, power-cut, signed release or provider qualification.",
+    "Recorded edit totals do not certify complete all-day/crash-tail coverage or exclusive human typing.",
+    "This verifier does not install on a host disk, enroll credentials, open user manuscripts or push Git."
+  ],
+  "python_runtime_marker_sha256": "6200a7a2fc15e900d5a53f0fd5326f4d0615129d234e30dff87c2615525d5e37",
+  "tested_no_audio_binary_sha256": "905d254b9a15db6f7b6c067bd4762b5bca86c6f34193be2db3fcf5c6238a1318",
+  "python": {
+    "name": "python",
+    "command": "python3 -m unittest discover -s os/tests -p test_*.py -v",
+    "exit_code": 0,
+    "seconds": 151.55,
+    "log": "build/verification/python.log",
+    "passed": 96,
+    "failed": 0,
+    "skipped": 0,
+    "pty_scope": "Actual non-root compiled app, new demo/HOME only; original edit/save/undo/restart, four terminal sizes, metadata failures/retry. Not a full emulator or physical certificate."
+  },
+  "verification_finished_at_utc": "2026-10-27T07:52:19.220264+00:00"
+}

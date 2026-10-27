@@ -47,7 +47,14 @@ backend tests, 11 Settings/controller tests, one existing asynchronous System
 test**, both Clippys, the actual four-size Settings PTY and documentation/diff
 checks, inside a network namespace without external connectivity. Its source
 fingerprint is `56e59e1b858f2da7c2366e9fe88c9f5d712cce3515de033c5e6aa5fb02058410`.
-Whole-suite CI for this follow-up must be recorded separately.
+The [separate full CI record](evidence/power-guard-ci.json) from Debian/macOS run
+[40468810112](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40468810112)
+passed **932 Rust tests/configuration** (5 default / 4 no-audio ignored), both
+Clippys, **96 Python methods / zero skips** and **17 CI gates**. Code head is
+`15512d4`; CI tested merge revision `e656c3b0cdfccd282f5ea536bafa45b730da1634`.
+Its source fingerprint matches the focused record. CI has no staged image, so
+it does not claim the local verifier's additional Wi-Fi image audit. The
+separate upstream Windows check was still running when recorded.
 
 No test suspends or powers off the host. Controlled power cases use a recorded
 simulator and the Linux no-process guard. New full CI is tracked separately from
