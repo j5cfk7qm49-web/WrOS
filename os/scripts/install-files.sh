@@ -5,6 +5,11 @@ set -euo pipefail
 repo=$(cd "$(dirname "$0")/../.." && pwd)
 dest=${1:?usage: install-files.sh STAGING_ROOT GRIMOIRE_BINARY}
 binary=${2:?usage: install-files.sh STAGING_ROOT GRIMOIRE_BINARY}
+profile=${3:-vm-demo}
+case "$profile" in
+    vm-demo|installer) ;;
+    *) echo 'Unknown image profile; expected vm-demo or installer.' >&2; exit 2 ;;
+esac
 dest=$(realpath "$dest")
 [[ $EUID == 0 && $dest != / && -f $dest/etc/debian_version && -x $binary ]] || {
     echo 'Requires root, an existing staged Debian root (not /), and a built binary.' >&2; exit 2;
@@ -41,6 +46,6 @@ install -m 644 "$repo/docs/upstream-notice-sources.json" "$dest/usr/share/doc/wr
 cp -a "$repo/os/licenses/python" "$dest/usr/share/doc/writingdeck/"
 install -m 644 "$repo/docs/python-tools-lock.json" "$repo/docs/python-tool-notices.json" \
     "$dest/usr/share/doc/writingdeck/"
-printf 'WRITINGDECK_VERSION=0.1.0-dev\nGRIMOIRE_BASE=0.7.5\nBASE_COMMIT=f3ca1e8\nIMAGE_PROFILE=vm-demo\n' > "$dest/etc/writingdeck/release"
+printf 'WRITINGDECK_VERSION=0.1.0-dev\nGRIMOIRE_BASE=0.7.5\nBASE_COMMIT=f3ca1e8\nIMAGE_PROFILE=%s\n' "$profile" > "$dest/etc/writingdeck/release"
 mkdir -p "$dest/etc/systemd/system/multi-user.target.wants"
 ln -sf ../writingdeck-keyboard.service "$dest/etc/systemd/system/multi-user.target.wants/writingdeck-keyboard.service"

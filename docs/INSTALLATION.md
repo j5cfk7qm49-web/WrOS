@@ -2,7 +2,7 @@
 
 ## Safety first
 
-There is **no production disk installer yet**. Nothing in this repository authorizes erasing a physical disk. The current image profile is an isolated, passwordless **VM demo**, not a hardware deployment image. No physical repartitioning/formatting was performed during development.
+There is **no qualified production disk installer yet**. Nothing in this repository authorizes erasing a physical disk. The original image profile is an isolated, passwordless **VM demo**, not a hardware deployment image. A separate [experimental offline Debian Installer ISO](INSTALLER_MEDIA.md) now builds with the complete writing and Wi-Fi payload; its installation/authentication and interruption tests are still in progress. No physical repartitioning/formatting was performed during development.
 
 `install-plan.py` performs read-only inventory and validates a proposed disk, account, IANA timezone, encryption preference and registered keyboard. It has deliberately **no `--apply` mode**. `install-files.sh` stages integration into an existing Debian root and explicitly refuses `/`. These are testable installer building blocks, not a complete wizard.
 

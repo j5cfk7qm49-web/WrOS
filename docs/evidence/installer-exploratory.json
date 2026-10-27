@@ -1,0 +1,112 @@
+{
+  "recorded_at_utc": "2026-10-26T22:26:35.041449+00:00",
+  "scope": "Exploratory offline media and first install attempt; not release qualification",
+  "media_audit": {
+    "schema_version": 1,
+    "passed": true,
+    "installed_rootfs_wifi": {
+      "schema_version": 1,
+      "scope": "Installed image payload and retained notices; no physical radio test",
+      "packages": {
+        "firmware-ath9k-htc": "1.4.0-110-ge888634+dfsg1-0.1",
+        "firmware-atheros": "20250410-2",
+        "firmware-brcm80211": "20250410-2",
+        "firmware-iwlwifi": "20250410-2",
+        "firmware-mediatek": "20250410-2",
+        "firmware-realtek": "20250410-2",
+        "iw": "6.9-1",
+        "linux-image-amd64": "6.12.113-1",
+        "network-manager": "1.52.1-1",
+        "rfkill": "2.41.5-0+deb13u1",
+        "wireless-regdb": "2026.05.30-1~deb13u1",
+        "wpasupplicant": "2:2.10-24"
+      },
+      "firmware_payload": {
+        "firmware-iwlwifi": {
+          "file_count": 180,
+          "copyright_sha256": "f5d62266d99e91aeae9223a5b4f830ed5e917256672f50470ef868e0378ad6d8"
+        },
+        "firmware-realtek": {
+          "file_count": 144,
+          "copyright_sha256": "f5d62266d99e91aeae9223a5b4f830ed5e917256672f50470ef868e0378ad6d8"
+        },
+        "firmware-atheros": {
+          "file_count": 284,
+          "copyright_sha256": "f5d62266d99e91aeae9223a5b4f830ed5e917256672f50470ef868e0378ad6d8"
+        },
+        "firmware-ath9k-htc": {
+          "file_count": 2,
+          "copyright_sha256": "7b64be56ce49cd2bfb17d61b1d95f8fb9a5cb071e4d25b3822e1d66cfb575991"
+        },
+        "firmware-brcm80211": {
+          "file_count": 132,
+          "copyright_sha256": "f5d62266d99e91aeae9223a5b4f830ed5e917256672f50470ef868e0378ad6d8"
+        },
+        "firmware-mediatek": {
+          "file_count": 119,
+          "copyright_sha256": "f5d62266d99e91aeae9223a5b4f830ed5e917256672f50470ef868e0378ad6d8"
+        }
+      },
+      "connection_tool": "nmtui",
+      "physical_adapters_verified": []
+    },
+    "installer_firmware_packages": [
+      "firmware-ath9k-htc",
+      "firmware-atheros",
+      "firmware-brcm80211",
+      "firmware-iwlwifi",
+      "firmware-mediatek",
+      "firmware-realtek"
+    ],
+    "vm_profile_absent": true,
+    "physical_hardware_verified": false,
+    "installation_verified": false
+  },
+  "debian_installer_input_trust": {
+    "schema_version": 1,
+    "passed": true,
+    "origin": "Debian",
+    "codename": "trixie",
+    "release_sha256": "0584fba32e13e0ab8285fb16c27adea1ec03a73669c18702821094fd6ca86675",
+    "installer_sums_sha256": "31a1a4fc99c5b0a729d261f137cd7e1599bfa6f214f83fe4e596543d8ccf2dec",
+    "images": {
+      "cdrom/vmlinuz": {
+        "sha256": "2b2358b37674d2505350528875bb17afae2a36522a9e8a9417eaca65a7da0e08",
+        "bytes": 12142528
+      },
+      "cdrom/initrd.gz": {
+        "sha256": "8de544ab627ab794504c530c82de621814386b5b67a492f1e3133390c47ea933",
+        "bytes": 24361578
+      }
+    },
+    "chain": "Debian archive keyring -> gpgv InRelease -> SHA256SUMS -> kernel/initrd",
+    "wros_release_signature": false
+  },
+  "first_attempt": {
+    "schema_version": 1,
+    "scope": "Disposable no-network QEMU install, not hardware qualification",
+    "iso_sha256": "012c8f1a9311d569d8d15b5fbf03ac9b6d609b6b2e94b46d87bdcc7d565bae7d",
+    "installed_binary_sha256": "610c2cdcea4f8fe60f117ac93f2f41f1d7b5a2eb08aa14b7adbfe1fcb7fb8d7a",
+    "network_devices": 0,
+    "host_disks_exposed": 0,
+    "test_answers_in_shipping_iso": false,
+    "installed_boot_verified": false,
+    "authentication_verified": false,
+    "passed": false,
+    "exit_code": 0,
+    "late_payload_verified": false,
+    "late_stage_reached": true,
+    "wall_seconds": 1016.21
+  },
+  "observer_limit": "in-target routed payload/version output to syslog; absence correctly failed the acceptance probe. Shipping ISO was not modified to bypass it. The corrected --pass-stdout probe must run again.",
+  "harness_revision": "exploratory uncommitted version, corrected afterward",
+  "physical_hardware_verified": false,
+  "production_release_qualified": false,
+  "visual_boot_observation": {
+    "tty1_login_prompt_observed": true,
+    "authentication_tested": false,
+    "screenshot": "installed-login-exploratory.png",
+    "screenshot_sha256": "31744250deea84d947082e45f369696660e57c3634538229aa6f233ec52ae8c1",
+    "limit": "Actual screenshot reviewed; serial automation timed out because the fixture omitted console propagation after ---"
+  }
+}

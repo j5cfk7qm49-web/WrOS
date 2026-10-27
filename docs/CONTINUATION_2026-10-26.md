@@ -9,7 +9,13 @@ are authorized by this development task.
 ## Repository
 
 - Repository: https://github.com/j5cfk7qm49-web/WrOS
-- Development: `codex/m7b-qualification`; draft PR #15 targets `writingdeck/m7b-wip`.
+- M7b merged through PR #15 at `268fa6310c8866178ba00a905221b13f284241a0`.
+  Default development branch is now `writingdeck/m7b-wip`; foundation is retained.
+- PR #20 corrected canonical/lexical source paths exposed by actual macOS CI,
+  merged at `4eb1533a7668e3a1a551fb8cc0bb081a4eb24c64` after actual Debian/macOS
+  run `40409883083` passed (911 Rust/configuration and 70 Python on Debian).
+  Its focused 24 journal tests and Clippy pass locally; #19 is closed. The next
+  increment is on `codex/installer-media`.
 - Historical foundation remains `3360ec511caa9004547a9c959ac09ea2cc90ff9d` (191 commits).
 - Preserved M7b handoff head is `461bb64434e524fd3a8dba8a42568b3e86839d21` (193 commits).
 - Placeholder `main` remains unchanged. Import #1 was closed after independent
@@ -90,15 +96,37 @@ rejects changed inputs. VM image assembly needs the verified runtime path in
 `WRITINGDECK_PROSE_RUNTIME`. VM commands and safety constraints are in
 [INSTALLATION](INSTALLATION.md); [M7B](M7B.md) records tool limits.
 
+## Installer and CI work in progress
+
+The experimental `os/scripts/build-installer.sh` completed a Debian live-build
+ISO with offline writing/runtime/WordNet and Wi-Fi firmware. Actual media/rootfs
+audits and the Debian signature chain for the cached installer kernel/initrd
+passed. Five new non-root media/authentication/hash-chain regressions pass.
+See [INSTALLER_MEDIA](INSTALLER_MEDIA.md) for exact boundaries; #3 remains open.
+The first actual no-NIC QEMU installation powered off normally after 1,016.21 s
+and its installed disk reached a real tty1 login prompt. The acceptance record
+remains failed because `in-target` hid earlier payload markers in syslog and
+the first serial fixture did not propagate console settings after `---`.
+The corrected full install/PAM/tty1 probe is running on a new qcow2. Its generated
+test initrd contains synthetic account/disk answers; the shipping ISO does not.
+Do not commit private generated acceptance artifacts.
+
+The first real workflow run `40407371491` passed Linux and failed two macOS
+journal assertions. PR #20 fixed both application behaviors; the next run
+`40408744544` reached the retained recovery assertions and exposed a test-only
+path-prefix assumption. Commit `881bd47` preserves those content assertions with
+the loaded path spelling. Run `40409883083` passed that final correction on both
+platforms.
+
 ## Next steps
 
 1. Keep final source-aligned software, benchmark and VM evidence with the changes.
 2. Finish documentation/feature inventory review and push the qualified changes.
-3. Bootstrap actual GitHub Actions registration: files exist on the historical
-   default branch, but workflow listings/dispatch currently return empty/404.
-   Preserve the historical foundation and verify actual CI before claiming green.
-4. Resolve #2 and discovered defects #16–#18 only after acceptance. Keep PR review
-   and full ancestry. Integrate placeholder main only through a reviewed merge.
+3. Retain exact CI results for merged PR #20; do not describe the installer
+   increment as covered by those earlier source hashes.
+4. Finish installer VM install/first-boot/cancel/interruption/encryption evidence
+   and submit the separate installer increment as a reviewed PR. Preserve full
+   ancestry. Integrate placeholder main only through a reviewed merge.
 5. Prioritize production installer/authentication (#3), input-safe lock/suspend
    (#4), signed updates/rollback/recovery (#5), then remaining M8/M9 and tutorial,
    branding, corpus and hardware qualification (#6–#14).

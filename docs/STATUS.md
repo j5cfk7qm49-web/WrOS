@@ -3,7 +3,15 @@
 ## Qualified M7b software — 2026-10-26
 
 Source import #1 is complete. The historical foundation remains at `3360ec5`;
-M7b development is in PR #15 on `codex/m7b-qualification`. This is an experimental
+M7b was merged through PR #15 at `268fa63`; #2 and reproduced defects #16–#18
+are closed. The default development branch is `writingdeck/m7b-wip`; placeholder
+`main` is unchanged. A subsequent [experimental installer-media increment](INSTALLER_MEDIA.md)
+is being tested. Real Debian and macOS CI passed on `881bd47` in run
+[`40409883083`](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40409883083),
+including 911 Rust tests per overlapping Debian configuration and 70 Python
+methods. The source-path correction is merged through PR #20 at `4eb1533`;
+#19 is closed. These later changes are not covered by
+the earlier M7b source fingerprint below. This is an experimental
 writing OS, with production installation, authentication/locking, signed updates,
 recovery and hardware qualification still open. See [M7b scope](M7B.md),
 [continuation](CONTINUATION_2026-10-26.md) and [import evidence](evidence/recovery-import-2026-10-26.md).
@@ -21,7 +29,7 @@ recovery and hardware qualification still open. See [M7b scope](M7B.md),
   across **263 source files**; verifier/tool hashes and binary/runtime identities
   are retained. The extra legacy publishing-workflow guards are independently
   recorded in [static workflow review](evidence/workflow-policy.json); actual
-  GitHub CI remains a separate gate until runs exist.
+  GitHub CI is tracked separately from these local records.
 - [Fresh VM evidence](evidence/vm-boot.json): **512 MiB / 2 vCPUs / zero NICs**,
   TCG Nehalem (x86-64-v2, no AVX), **223.45 s** including firmware, deliberate
   keyboard waits and shutdown. Actual non-root UI, polkit, keyboard rollback and
