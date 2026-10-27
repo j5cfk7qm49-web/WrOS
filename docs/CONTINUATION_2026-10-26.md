@@ -16,7 +16,11 @@ captures, inspected by the Codex agent. Source ffd48f61…074c1 / 297 files and 
 binaries match all final focused/guest/reboot records under `docs/evidence/`.
 
 The profile stays opt-in; no new installer or live-host configuration changed.
-Full remote CI is required before integration. Next: pre-login keyboard/further
+Debian/macOS CI 40568739789 passed implementation `e758294`, with final-source
+947 Rust/configuration, 96 Python/zero skips, both Clippys and 17 CI checks.
+The unmodified report is `docs/evidence/native-greeter-ci.json`; source matches
+the final guest. Separate Windows 40568739805 was still running when recorded.
+Next: pre-login keyboard/further
 crash acceptance and independent secure locker/input pause, acknowledgment/drain
 and VT/sleep handoff. Suspend stays unavailable. Read [NATIVE_GREETER](NATIVE_GREETER.md)
 and current status before relying on older branch/evidence claims below.

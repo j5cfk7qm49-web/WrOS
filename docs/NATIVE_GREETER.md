@@ -87,7 +87,12 @@ agent; the [one-off observer harness, with LF-normalized text](evidence/native-g
 is retained for audit. It observes the screen and does not start greetd manually
 or submit credentials. Both guest tests preserve their base/fixture disks.
 Final focused, PAM and reboot source/binary identities match. Full remote CI is
-required before integration; these records are not physical/installer/locker proof.
+now recorded separately: Debian/macOS [run 40568739789](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40568739789)
+passed final implementation `e758294`, with [947 Rust/configuration, 96 Python,
+both Clippys and 17 CI checks](evidence/native-greeter-ci.json). Its source matches
+the final guest; CI and local binaries are recorded independently. These records
+are not physical/installer/locker proof. The separate Windows workflow was still
+running when recorded.
 
 After building the marked VM-demo base as described in [installation](INSTALLATION.md),
 run the guest harness as a normal user with the exact Debian package and current

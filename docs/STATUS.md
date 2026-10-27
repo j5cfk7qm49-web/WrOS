@@ -14,6 +14,15 @@ A subsequent cache-only display refinement has its own [focused final record](ev
 syntax, staging ShellCheck and documentation checks. The baseline retains its
 own prior source identity; it is not relabeled as a full rerun of the refinement.
 
+Fresh Debian/macOS [CI 40568739789](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40568739789)
+then **passed on implementation head `e758294`**. Its [unmodified final-source
+report](evidence/native-greeter-ci.json) contains **947 Rust/configuration,
+96 Python/zero skips, both Clippys and 17 CI checks**, matching the final focused
+and guest source fingerprint below. CI lacks the local staged Wi-Fi image, so
+that separate local baseline audit is not counted as a CI gate. Tested PR merge
+revision is `2a01e71a6cfa8e6bb51c470c5ce1e3531cca249c`. The separate Windows
+workflow was still running when this record was written.
+
 The [final unattended real guest run](evidence/native-greeter-vm.json) passed in
 **147.06 seconds** with 512 MiB, two CPUs and no NIC: actual PAM rejection/success,
 hidden input, crash recovery, UID-1000/1001 editor sessions, actual picker-based
@@ -27,8 +36,7 @@ entered during this separate reboot test; the completed fixture stayed unchanged
 Final focused, authentication and reboot records share source
 `ffd48f613a3387a9f8c579200424b7313cfb7093a8b7dcfd11c1ac0d375074c1` / 297 files and the exact binaries.
 Idle console damage is repaired by cache invalidation without physically clearing
-the display or adding cursor queries to authentication input. Full remote CI is
-required before integration. This remains an opt-in experimental image profile;
+the display or adding cursor queries to authentication input. This remains an opt-in experimental image profile;
 pre-login keyboard recovery, further crash/layout cases and secure locking keep
 #27/#4 open. Installer, encryption, update/recovery and hardware gates remain.
 
