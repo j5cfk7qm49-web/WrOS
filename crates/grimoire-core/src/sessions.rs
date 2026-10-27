@@ -680,13 +680,39 @@ impl ScratchIndex {
     fn copy_of(root: &Path) -> Result<Self> {
         static COUNTER: AtomicUsize = AtomicUsize::new(0);
         let n = COUNTER.fetch_add(1, AtomicOrdering::Relaxed);
-        let path = std::env::temp_dir().join(format!("grimoire-index-{}-{n}", std::process::id()));
+        let directory =
+            std::env::temp_dir().join(format!("grimoire-index-{}-{n}", std::process::id()));
+        let mut create = fs::DirBuilder::new();
+        create.recursive(false);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            create.mode(0o700);
+        }
+        // Exclusive creation preserves an unknown existing path. A private
+        // directory also keeps the index (and tracked draft metadata) out of
+        // the shared temporary namespace, including when no index exists yet.
+        create
+            .create(&directory)
+            .context("creating private git index directory")?;
+        let scratch = ScratchIndex(directory.join("index"));
         let real = root.join(git(root, ["rev-parse", "--git-path", "index"]).text()?);
-        let scratch = ScratchIndex(path);
-        if real.is_file() {
-            fs::copy(&real, &scratch.0).context("copying git's index")?;
-        } else {
-            let _ = fs::remove_file(&scratch.0);
+        match fs::File::open(&real) {
+            Ok(mut original) => {
+                let modified = original.metadata()?.modified()?;
+                let mut copy = fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(&scratch.0)
+                    .context("creating private git index")?;
+                io::copy(&mut original, &mut copy).context("copying git's index")?;
+                // Git uses the index mtime to detect racy file stat entries.
+                // A newer timestamp on the copy can hide same-size edits.
+                copy.set_times(fs::FileTimes::new().set_modified(modified))
+                    .context("preserving git index timestamp")?;
+            }
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e).context("opening git's index"),
         }
         Ok(scratch)
     }
@@ -702,6 +728,11 @@ impl Drop for ScratchIndex {
         let mut lock = self.0.clone().into_os_string();
         lock.push(".lock");
         let _ = fs::remove_file(lock);
+        if let Some(directory) = self.0.parent() {
+            // Remove only the directory we exclusively created, and only when
+            // empty. Never recursively delete unknown temporary contents.
+            let _ = fs::remove_dir(directory);
+        }
     }
 }
 
@@ -2004,6 +2035,51 @@ mod tests {
                 .unwrap()
                 .as_deref(),
             Some("Act Two, Scene One\n")
+        );
+        cleanup(&[&d]);
+    }
+
+    #[test]
+    fn pending_preview_detects_same_size_edits_with_racy_git_timestamps() {
+        let d = book("racy-preview").expect("Git is required for this regression");
+        enable(&d).unwrap();
+        run(&d, &["config", "core.trustctime", "false"]);
+        run(&d, &["config", "core.checkStat", "minimal"]);
+        let old = std::time::SystemTime::now() - Duration::from_secs(120);
+        let stamp = |path: &Path| {
+            fs::OpenOptions::new()
+                .write(true)
+                .open(path)
+                .unwrap()
+                .set_times(fs::FileTimes::new().set_modified(old))
+                .unwrap();
+        };
+        let source = d.join(native_path(A1));
+        stamp(&source);
+        stage_all(&d, None).unwrap();
+        let index = d.join(run(&d, &["rev-parse", "--git-path", "index"]));
+        let original = fs::read_to_string(&source).unwrap();
+        let revised = original.replacen("w0", "x0", 1);
+        assert_ne!(original, revised);
+        assert_eq!(original.len(), revised.len());
+        fs::write(&source, &revised).unwrap();
+        stamp(&source);
+        // Model a coarse/rapid clock: Git must hash content when the source
+        // timestamp coincides with the original index timestamp. Copying an
+        // index must not turn this racy entry into a falsely trusted stat hit.
+        stamp(&index);
+        let staged_before = fs::read(&index).unwrap();
+        assert!(pending_label(&d, tuesday_evening()).unwrap().is_some());
+        assert_eq!(fs::read(&index).unwrap(), staged_before);
+        assert_eq!(fs::read_to_string(&source).unwrap(), revised);
+        assert_eq!(
+            file_at(&d, "HEAD", Path::new(A1)).unwrap().unwrap(),
+            original
+        );
+        assert!(commit_session(&d, tuesday_evening()).unwrap().is_some());
+        assert_eq!(
+            file_at(&d, "HEAD", Path::new(A1)).unwrap().unwrap(),
+            revised
         );
         cleanup(&[&d]);
     }
