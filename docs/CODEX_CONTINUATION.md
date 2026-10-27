@@ -10,6 +10,10 @@
 
 ## Mission
 
+**Platform scope:** WrOS is the platform. Active CI qualifies the Debian 13
+amd64 runtime; do not restore macOS or Windows jobs. Imported Grimoire publishing
+workflows are preserved outside `.github/workflows`. See [CI](CI.md).
+
 Continue the **actual recovered implementation**, not a new application or speculative architecture exercise. WrOS is a complete, offline-first, Debian-based **writing operating system** for low-powered laptops, not just a terminal editor. Its primary interface is Grimoire, but the deliverables include a bootable/maintainable OS image, safe installation, user authentication, OS-level Colemak and Colemak-DH, system settings, recovery, a complete fiction-writing workflow, a guided tutorial and optional safe off-device backup.
 
 **Do not present the prototype as a production-safe OS.** Preserve original Grimoire licensing, credits, portable Markdown manuscript files, atomic saves, external-change safeguards and user work. The original Grimoire remains the editor, not the name of the entire operating system.

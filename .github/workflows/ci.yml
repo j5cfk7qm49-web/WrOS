@@ -1,7 +1,7 @@
 name: ci
 
-# WrOS's real prose runtime targets Debian 13 amd64 / CPython 3.13.
-# Keep the upstream macOS and Windows editor checks separately scoped.
+# WrOS is the platform: qualify its Debian 13 amd64 / CPython 3.13 runtime.
+# Preserved upstream editor workflows live in docs/upstream-workflows/.
 
 on:
   push:
@@ -52,24 +52,3 @@ jobs:
             build/verification/partial-results.json
             docs/evidence/test-results.json
           if-no-files-found: warn
-
-  macos:
-    runs-on: macos-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Rust
-        run: |
-          rustup toolchain install stable --profile minimal --component clippy,rustfmt
-          rustup default stable
-          rustc --version
-
-      - name: Format
-        run: cargo fmt --all --check
-
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets --locked -- -D warnings
-
-      - name: Test
-        run: cargo test --workspace --locked
