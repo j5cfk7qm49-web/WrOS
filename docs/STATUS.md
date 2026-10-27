@@ -16,6 +16,14 @@ writing OS, with production installation, authentication/locking, signed updates
 recovery and hardware qualification still open. See [M7b scope](M7B.md),
 [continuation](CONTINUATION_2026-10-26.md) and [import evidence](evidence/recovery-import-2026-10-26.md).
 
+PR #23 subsequently fixed a deterministically reproduced Git index timestamp
+race and is merged at `c67a5b1`; #22 is closed. Its actual Debian/macOS run
+[`40445356850`](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40445356850)
+passed **912 Rust tests per overlapping Debian configuration**, both Clippys,
+**70 Python methods with zero skips**, and all 17 software gates. The separate
+installer draft is PR #21; its new VM/authentication and clean-build acceptance
+must not be inferred from that earlier source identity.
+
 - **910 Rust tests passed per overlapping configuration**, default **5 ignored**,
   no-audio **4 ignored**; ignored cases are not passed. Both warning-denying
   workspace/all-target Clippys passed. **70 Python methods passed, zero skipped**,

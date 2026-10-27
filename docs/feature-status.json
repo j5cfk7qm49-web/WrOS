@@ -86,26 +86,26 @@
     {
       "area": "OS",
       "capability": "Production disk/LUKS/account/Wi-Fi first-run installer",
-      "status": "Planned",
-      "verification": "None",
+      "status": "In progress",
+      "verification": "Offline ISO/media audit and real VM copy/UEFI/PAM/dashboard/Wi-Fi contracts passed",
       "hardware_verified": false,
-      "detail": "Delegate storage/authentication to upstream Debian installer; no physical install performed"
+      "detail": "Debian live-installer; no physical installs; full auth, cancellation/interruption, LUKS, layout and lock gates remain open"
     },
     {
       "area": "OS",
       "capability": "Authenticated boot + console screen lock / lock before suspend",
-      "status": "Planned",
-      "verification": "None",
+      "status": "In progress",
+      "verification": "Real UEFI/PAM wrong-password rejection, UID-1000 login, sudo and tty1 writing UI",
       "hardware_verified": false,
-      "detail": "Critical release gate; VM autologin must not ship"
+      "detail": "Installer profile is separate from VM-demo autologin; input-safe screen lock and suspend integration remain unimplemented"
     },
     {
       "area": "OS",
       "capability": "Authenticated tty2 maintenance and usable recovery boot",
       "status": "In progress",
-      "verification": "Upstream unit structure + docs only",
+      "verification": "Fixture serial PAM login as UID 1000; tty2/encrypted recovery still pending",
       "hardware_verified": false,
-      "detail": "Normal Debian account required; demo passwords locked, so usable recovery not certified"
+      "detail": "Normal installer account uses authenticated sudo; demo accounts remain locked; usable production recovery not certified"
     },
     {
       "area": "OS",

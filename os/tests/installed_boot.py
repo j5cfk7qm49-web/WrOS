@@ -1,5 +1,6 @@
 """Actual UEFI/PAM/tty1 acceptance for a disposable installer-created disk."""
 import json
+import os
 from pathlib import Path
 import socket
 import subprocess
@@ -24,6 +25,8 @@ def qmp(path, command, arguments=None):
 
 
 def verify(run, secret=None):
+    if os.geteuid() == 0:
+        raise RuntimeError('Run QEMU acceptance as a non-root builder')
     run = Path(run)
     disk = run / 'target.qcow2'
     if disk.is_symlink() or not disk.is_file() or not (run / 'preseed.cfg').is_file():
@@ -39,7 +42,8 @@ def verify(run, secret=None):
             '-serial', 'unix:' + str(serial_path) + ',server=on,wait=on',
             '-qmp', 'unix:' + str(control) + ',server=on,wait=off']
     result = {'installed_boot_verified': False, 'authentication_verified': False,
-              'tty1_nonroot_session_verified': False, 'password_logged': False}
+              'tty1_nonroot_session_verified': False, 'writing_ui_verified': False,
+              'offline_wifi_packages_verified': False, 'password_logged': False}
     content = bytearray()
     with (run / 'boot-qemu.log').open('w') as log, (run / 'boot-serial.log').open('wb') as capture:
         process = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=log, stderr=log)
@@ -57,11 +61,14 @@ def verify(run, secret=None):
 
                 def expect(needle, timeout=180):
                     nonlocal cursor
+                    needles = (needle,) if isinstance(needle, bytes) else needle
                     deadline = time.monotonic() + timeout
                     while time.monotonic() < deadline:
-                        found = content.find(needle, cursor)
-                        if found >= 0:
-                            cursor = found + len(needle)
+                        matches = [(found, len(value)) for value in needles
+                                   if (found := content.find(value, cursor)) >= 0]
+                        if matches:
+                            found, length = min(matches)
+                            cursor = found + length
                             return
                         try:
                             data = connection.recv(65536)
@@ -94,9 +101,13 @@ def verify(run, secret=None):
                 if b'WROS_AUTH_UID=1000' not in content or b'WROS_NO_PASSWORD_ADMIN=1' not in content:
                     raise RuntimeError('Installed account is root or has a passwordless admin bypass')
                 result['authentication_verified'] = True
+                expect(b':~$ ', 20)
 
                 connection.sendall(b'sudo -p WROS_ADMIN_PROMPT: true\n')
-                expect(b'\r\nWROS_ADMIN_PROMPT:', 20)
+                # Bash may disable bracketed paste and return to column zero
+                # with a lone CR. Require the prompt at the start of the line,
+                # so its occurrence in the echoed sudo command cannot match.
+                expect((b'\r\nWROS_ADMIN_PROMPT:', b'\rWROS_ADMIN_PROMPT:'), 20)
                 connection.sendall(secret.encode() + b'\n')
                 expect(b':~$ ', 20)
 
@@ -113,6 +124,7 @@ def verify(run, secret=None):
                     connection.sendall(b'sudo -n /bin/sh -c \'cat /dev/vcs1; stty -F /dev/tty1 -a; printf "\\nWROS_CONSOLE_STATE_END\\n"\'\n')
                     expect(b'\r\nWROS_CONSOLE_STATE_END\r\n', 10)
                     console = content[start:]
+                    expect(b':~$ ', 20)
                     if b'Password:' in console and b'-echo' in console.split():
                         break
                     if time.monotonic() > deadline:
@@ -125,6 +137,32 @@ def verify(run, secret=None):
                 connection.sendall(b'sudo -n journalctl -t writingdeck-session --no-pager -n 1\n')
                 expect(b'WRITINGDECK_SESSION uid=1000 tty=/dev/tty1', 40)
                 result['tty1_nonroot_session_verified'] = True
+                # sudo's pty can consume input until its child has exited.
+                # Wait for Bash before issuing the next command, even after
+                # the expected child output has already arrived.
+                expect(b':~$ ', 20)
+                deadline = time.monotonic() + 40
+                while True:
+                    start = len(content)
+                    connection.sendall(b'sudo -n /bin/sh -c \'cat /dev/vcs1; printf "\\nWROS_UI_STATE_END\\n"\'\n')
+                    expect(b'\r\nWROS_UI_STATE_END\r\n', 10)
+                    console = content[start:]
+                    expect(b':~$ ', 20)
+                    if b'WRITINGDECK OS' in console and b'Resume writing' in console:
+                        result['writing_ui_verified'] = True
+                        break
+                    if time.monotonic() > deadline:
+                        raise RuntimeError('Authenticated tty1 did not render the actual writing dashboard')
+                    time.sleep(0.5)
+                packages = (b'firmware-iwlwifi', b'firmware-realtek', b'firmware-atheros',
+                            b'firmware-ath9k-htc', b'firmware-brcm80211', b'firmware-mediatek')
+                connection.sendall(b"dpkg-query -W -f='WROS_WIFI=${Package}:${Status}\\n' " + b' '.join(packages) +
+                                   b"; test -x /usr/bin/nmtui && test -d /lib/modules/$(uname -r)/kernel/drivers/net/wireless && printf '\\nWROS_WIFI_TOOLS_PASS\\n'; printf '\\nWROS_WIFI_STATE_END\\n'\n")
+                expect(b'\r\nWROS_WIFI_STATE_END\r\n', 30)
+                expect(b':~$ ', 20)
+                if not all(b'WROS_WIFI=' + name + b':install ok installed' in content for name in packages) or b'\r\nWROS_WIFI_TOOLS_PASS\r\n' not in content:
+                    raise RuntimeError('Actual installed system lacks the required offline Wi-Fi payload')
+                result['offline_wifi_packages_verified'] = True
                 qmp(control, 'screendump', {'filename': str(run / 'installed-writing-session.ppm')})
                 if secret.encode() in content:
                     result['password_logged'] = True
@@ -133,6 +171,9 @@ def verify(run, secret=None):
                 process.wait(timeout=60)
                 return result
         finally:
+            if secret is not None and secret.encode() in content:
+                result['password_logged'] = True
+            (run / 'boot-result.json').write_text(json.dumps(result, indent=2) + '\n')
             if process.poll() is None:
                 if control.exists():
                     try:

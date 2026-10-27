@@ -22,7 +22,21 @@ remains failed: `in-target` routed payload markers to syslog, and the first boot
 fixture had not propagated the serial console after Debian's `---` separator.
 The corrected probe is being rerun. These observations are retained in
 [exploratory evidence](evidence/installer-exploratory.json), without relabeling
-the failed probe as passed or claiming that credentials were tested.
+the failed probe as passed or claiming that credentials were tested in that attempt.
+
+The third fresh installation and subsequent auth-only retry now pass the bounded
+[installed-image contracts](evidence/installer-vm.json): real UEFI boot, wrong
+password rejection, authenticated UID-1000 maintenance login, refusal of
+passwordless sudo, non-echoing tty1 PAM input, the actual non-root
+[writing dashboard](evidence/installed-writing-session.png), and six installed
+Wi-Fi firmware packages plus nmtui and kernel wireless modules. The test had
+zero NICs and no host disks. Its 1,044.5-second measurement covers installation
+only; the later authenticated boot/retry is separate. Earlier failures remain
+retained. The generated test secret was removed after success.
+
+That ISO contains the earlier qualified M7b binary, whose exact hash is recorded.
+It does not qualify the later source-path/Git fixes or a clean execution of the
+revised build recipe. Those are separate acceptance steps.
 
 ## Build
 
@@ -72,9 +86,14 @@ regular qcow2 target with no host disks, no shared directory and zero NICs.
 Synthetic credentials and automated disk answers exist only in an additional
 private test initrd; they are never added to the ISO. Generated private test
 artifacts are ignored by Git. Do not publish them as release artifacts.
+An auth-only retry uses a generated 0600 fixture secret inside the private 0700
+test directory. It is removed on success; it is never a human account credential.
+The boot probe requires actual PAM rejection/acceptance, password-required sudo,
+the non-root tty1 writing UI, and installed firmware/connection-tool payloads.
+An interrupted or failed probe remains failed and retains partial diagnostics.
 
-Still required: finished VM install and authenticated first boot, cancellation,
-no-disk/wrong-disk refusal, interrupted installation/retry, encrypted install and
+Still required: clean revised-recipe/latest-binary build and qualification,
+cancellation, no-disk/wrong-disk refusal, interrupted installation/retry, encrypted install and
 recovery, usable keyboard selection, physical firmware/Secure Boot checks,
 input-safe lock/suspend, signed WrOS updates and complete redistribution/source
 review. Do not deploy this development media as a production writing system.

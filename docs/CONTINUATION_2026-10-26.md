@@ -16,6 +16,11 @@ are authorized by this development task.
   run `40409883083` passed (911 Rust/configuration and 70 Python on Debian).
   Its focused 24 journal tests and Clippy pass locally; #19 is closed. The next
   increment is on `codex/installer-media`.
+- PR #23 fixed a deterministic session-preview Git index timestamp race (#22),
+  merged at `c67a5b167996b67f932bb68b6d4a09f92c70be36` after Debian/macOS CI
+  `40445356850` passed (912 Rust/configuration, 70 Python, all 17 software gates).
+  The test failed before the production fix and passes afterward; all 23 focused
+  Git tests passed with external networking disabled. #22 is closed.
 - Historical foundation remains `3360ec511caa9004547a9c959ac09ea2cc90ff9d` (191 commits).
 - Preserved M7b handoff head is `461bb64434e524fd3a8dba8a42568b3e86839d21` (193 commits).
 - Placeholder `main` remains unchanged. Import #1 was closed after independent
@@ -107,9 +112,32 @@ The first actual no-NIC QEMU installation powered off normally after 1,016.21 s
 and its installed disk reached a real tty1 login prompt. The acceptance record
 remains failed because `in-target` hid earlier payload markers in syslog and
 the first serial fixture did not propagate console settings after `---`.
-The corrected full install/PAM/tty1 probe is running on a new qcow2. Its generated
+The corrected full install/PAM/tty1 probe used a new qcow2. Its generated
 test initrd contains synthetic account/disk answers; the shipping ISO does not.
 Do not commit private generated acceptance artifacts.
+
+The second install verified real payload/version markers and rebooted into PAM.
+Its wrong-password rejection, UID-1000 login and refusal of passwordless sudo
+were observed. The overall probe still failed safely at the sudo prompt parser:
+Bash emitted a lone CR after disabling bracketed paste. The revised third run
+accepts either real line-start prompt, checks tty1's actual Password prompt and
+disabled echo before keyboard input, and checks the real dashboard plus installed
+Wi-Fi packages. Generated fixture credentials remain private (0600 in a 0700
+ignored test directory), enabling auth-only retries; successful acceptance removes
+that generated secret. No real account or manuscript is used.
+
+The third fresh install completed, then its auth-only retry passed real UEFI/PAM,
+UID-1000 maintenance login, password-required sudo, actual non-root tty1 dashboard
+rendering, and all six firmware packages plus nmtui/kernel modules in the guest.
+See `docs/evidence/installer-vm.json` and `installed-writing-session.png`.
+The 1,044.5-second installation duration excludes the subsequent auth retry.
+Its private synthetic secret was removed on success. This is the original
+experimental ISO/older M7b binary; the clean revised recipe/latest binary still
+needs to be built and tested. Earlier failed probe records remain separate.
+
+PR #21 is the separate installer draft. Its earlier CI `40443525255` passed macOS
+but exposed #22 on Debian; the qualified correction is now merged into the draft.
+A clean build of the revised recipe and updated draft CI remain required.
 
 The first real workflow run `40407371491` passed Linux and failed two macOS
 journal assertions. PR #20 fixed both application behaviors; the next run

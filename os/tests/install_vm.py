@@ -4,6 +4,7 @@
 The extra test initrd supplies synthetic credentials and disk answers. These
 answers are NOT added to the shipping ISO. No network or host directory share.
 """
+import argparse
 import gzip
 import hashlib
 import json
@@ -20,9 +21,42 @@ REPO = Path(__file__).resolve().parents[2]
 BASE = REPO / 'build/installer'
 
 
+def authenticate(run, result, secret):
+    result['passed'] = False
+    try:
+        result.update(verify_boot(run, secret))
+        result['passed'] = all(result.get(name) for name in (
+            'authentication_verified', 'tty1_nonroot_session_verified',
+            'writing_ui_verified', 'offline_wifi_packages_verified')) and not result['password_logged']
+        return result
+    finally:
+        partial = run / 'boot-result.json'
+        if partial.is_file():
+            result.update(json.loads(partial.read_text()))
+        (run / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
+        if result['passed']:
+            (run / '.fixture-secret').unlink(missing_ok=True)
+
+
 def main():
     if os.geteuid() == 0:
         raise RuntimeError('Run QEMU acceptance as a non-root builder')
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--resume-auth', type=Path, help='retry only an existing generated fixture authentication phase')
+    args = parser.parse_args()
+    if args.resume_auth:
+        run = args.resume_auth.resolve(strict=True)
+        if run.parent != (BASE / 'acceptance').resolve() or not run.name.startswith('install-'):
+            raise RuntimeError('Only a generated installer acceptance directory may be resumed')
+        credential = run / '.fixture-secret'
+        if credential.is_symlink() or credential.stat().st_uid != os.geteuid() or credential.stat().st_mode & 0o077:
+            raise RuntimeError('Synthetic fixture credential must be private and owned by this test user')
+        result = json.loads((run / 'result.json').read_text())
+        if not result.get('installation_copy_verified') or result['host_disks_exposed'] or result['network_devices']:
+            raise RuntimeError('Only a completed disposable offline install may be resumed')
+        result = authenticate(run, result, credential.read_text())
+        print(json.dumps(result, indent=2))
+        return 0 if result['passed'] else 1
     iso = BASE / 'wros-installer-amd64.hybrid.iso'
     if iso.is_symlink() or not iso.is_file():
         raise RuntimeError('Build the regular installer ISO first')
@@ -34,6 +68,12 @@ def main():
         raise RuntimeError('Installer kernel changed after trust verification')
     run = Path(tempfile.mkdtemp(prefix='install-', dir=BASE / 'acceptance'))
     secret = secrets.token_hex(16)
+    # Private, generated test-only credentials permit auth-phase retries.
+    # These artifacts are ignored and must never be put in the shipping ISO.
+    credential = run / '.fixture-secret'
+    with credential.open('x') as output:
+        output.write(secret)
+    credential.chmod(0o600)
     password_hash = subprocess.check_output(['openssl', 'passwd', '-6', '-stdin'], input=secret + '\n', text=True).strip()
     preseed = (REPO / 'os/config/installer.preseed').read_text() + f'''
 # Disposable no-NIC QEMU fixture only; never distributed in ISO.
@@ -121,8 +161,7 @@ d-i preseed/late_command string in-target --pass-stdout /bin/sh -c 'test -x /usr
     result['passed'] = False
     try:
         if result['installation_copy_verified']:
-            result.update(verify_boot(run, secret))
-            result['passed'] = result['authentication_verified'] and result['tty1_nonroot_session_verified']
+            result = authenticate(run, result, secret)
     finally:
         (run / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps(result, indent=2), flush=True)

@@ -16,9 +16,9 @@ Existing means audited baseline; Tested identifies automated/VM evidence, not pr
 | OS | Boot-to-writing splash + non-root tty1 startup | Tested | Actual VM screen and UID assertion | Explicit VM demo autologin is not production authentication |
 | OS | Conventional Linux development mode | Tested | Rust builds/tests + CLI smoke | No appliance policies installed in host |
 | OS | Read-only compatibility/disk/account/timezone/layout installation plan | Tested | Rootless fixture tests | No apply mode; mounted/read-only/small/unknown disks refused |
-| OS | Production disk/LUKS/account/Wi-Fi first-run installer | Planned | None | Delegate storage/authentication to upstream Debian installer; no physical install performed |
-| OS | Authenticated boot + console screen lock / lock before suspend | Planned | None | Critical release gate; VM autologin must not ship |
-| OS | Authenticated tty2 maintenance and usable recovery boot | In progress | Upstream unit structure + docs only | Normal Debian account required; demo passwords locked, so usable recovery not certified |
+| OS | Production disk/LUKS/account/Wi-Fi first-run installer | In progress | Offline ISO/media audit and real VM copy/UEFI/PAM/dashboard/Wi-Fi contracts passed | Debian live-installer; no physical installs; full auth, cancellation/interruption, LUKS, layout and lock gates remain open |
+| OS | Authenticated boot + console screen lock / lock before suspend | In progress | Real UEFI/PAM wrong-password rejection, UID-1000 login, sudo and tty1 writing UI | Installer profile is separate from VM-demo autologin; input-safe screen lock and suspend integration remain unimplemented |
+| OS | Authenticated tty2 maintenance and usable recovery boot | In progress | Fixture serial PAM login as UID 1000; tty2/encrypted recovery still pending | Normal installer account uses authenticated sudo; demo accounts remain locked; usable production recovery not certified |
 | OS | Signed OS/app updates, snapshots/rollback and offline bundles | Planned | None | Use apt plus a selected upstream snapshot mechanism |
 | OS | Secure Boot / legacy BIOS / physical firmware compatibility | Blocked | UEFI without Secure Boot only | Requires signed boot-chain work and identified physical hardware |
 | System | Typed Linux + explicitly simulated backend | Tested | Rust adapter/validation tests + worker UI test | No arbitrary shell or manuscript paths in OS requests |
