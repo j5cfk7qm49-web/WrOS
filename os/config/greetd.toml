@@ -1,0 +1,13 @@
+# Experimental native login profile. No initial_session/autologin.
+[terminal]
+vt = 1
+switch = true
+
+[general]
+# /etc/profile.d/writingdeck.sh is for the separate authenticated getty path.
+# Never run it in the greeter or before the explicit fixed session command.
+source_profile = false
+
+[default_session]
+command = "/usr/bin/wros-greeter"
+user = "_greetd"

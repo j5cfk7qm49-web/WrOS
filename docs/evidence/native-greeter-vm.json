@@ -1,0 +1,38 @@
+{
+  "scope": "Experimental greeter with real Debian greetd/PAM in VM-demo COW layer; not installer/locker/hardware qualification",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "ffd48f613a3387a9f8c579200424b7313cfb7093a8b7dcfd11c1ac0d375074c1",
+    "file_count": 297,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "binary_sha256": "e2ccd46b522fcfa268b67dc798c243e37aeb4f4ecb472ce452957ee86e350de5",
+  "greetd_package_sha256": "b93c5fd21ddf11da984d3c236ba7eb8996d34e1964852993c40cd5241c64810a",
+  "editor_binary_sha256": "5898e81ff9158c172697ffcfccce829703a9a7d6d8ce04dd40589201964c6411",
+  "network_devices": 0,
+  "host_disks_exposed": 0,
+  "passed": true,
+  "base_image_sha256_before": "cdc3b6cddd90b32b5a73c5f7e324c91ba34b3d6a93306e29375b5a7fa5eda74d",
+  "markers": [
+    "WROS_GREETER_SERVICE_BOUNDARIES_PASS",
+    "WROS_GREETER_CRASH_RECOVERED",
+    "WROS_GREETER_READY",
+    "WROS_GREETER_PROMPT1",
+    "WROS_GREETER_RETRY_REQUIRED",
+    "WROS_GREETER_DENIED",
+    "WROS_GREETER_PROMPT2",
+    "WROS_GREETER_HIDDEN",
+    "WROS_GREETER_AUTHENTICATED",
+    "WROS_GREETER_SESSION",
+    "WROS_GREETER_SWITCH_READY",
+    "WROS_GREETER_SWITCH_PROMPT",
+    "WROS_GREETER_SWITCH_AUTHENTICATED",
+    "WROS_GREETER_ACCOUNT_SWITCH_PASS",
+    "WROS_GREETER_LOGOUT_AND_SECRET_SCAN_PASS",
+    "WROS_GREETER_PASS"
+  ],
+  "base_image_sha256_after": "cdc3b6cddd90b32b5a73c5f7e324c91ba34b3d6a93306e29375b5a7fa5eda74d",
+  "source_unchanged": true,
+  "base_image_unchanged": true,
+  "wall_seconds": 147.06
+}

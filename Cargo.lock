@@ -6986,6 +6986,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "wros-greeter"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "ratatui",
+ "serde",
+ "serde_json",
+ "signal-hook",
+ "wros-shell",
+ "zeroize",
+]
+
+[[package]]
 name = "wros-shell"
 version = "0.1.0"
 dependencies = [

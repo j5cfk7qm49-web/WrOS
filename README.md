@@ -89,6 +89,12 @@ spelling completion 26. See [controls, models and limitations](docs/WRITING_CHEC
 M2b/M7b–M10 and production/power-loss/large-load/physical
 qualification remain incomplete; this is not the completed full OS request.
 
+**Native WrOS login has software and VM qualification:** a separate Rust/Ratatui greeter
+uses maintained greetd/PAM, a local account picker, bounded credential messages
+and a fixed non-root writing session. It shares presentation with the shell and
+keeps authentication outside the editor. See [native login and its remaining
+acceptance gates](docs/NATIVE_GREETER.md). Secure session locking remains separate.
+
 ## Why it exists
 
 Most novel apps make you pick. Some tuck your manuscript away in a database you

@@ -24,6 +24,12 @@ open. Issue #32 immediately blocks unsecured suspend before #27/#4 enable it.
 Installer/encryption, signed updates/recovery, notices/source and identified
 physical hardware remain release gates throughout this architectural change.
 
+The separate [native greeter](NATIVE_GREETER.md) now implements the greetd/PAM
+conversation, local account selection and fixed unprivileged session startup.
+Its software and guest qualification are tracked in current status. Native
+keyboard recovery, the independent secure locker/input handoff and physical
+suspend/resume still prevent completion of the authentication/session work.
+
 ## Working rules
 
 Keep changes vertical, safe and tested. Preserve manuscript formats and all existing UI guard tests. Add tutorial events, offline help, recovery behavior and tests when a feature lands, not at the end. Unknown configuration must not be rewritten. Never open a physical disk merely to demonstrate an installer. No root Grimoire, telemetry, mandatory AI or automatic manuscript transmission.
@@ -36,7 +42,7 @@ Status vocabulary: **Existing** (audited upstream), **Planned**, **In progress**
 |---|---|---|---|
 | M1: Audited appliance foundation | Baseline checkout/toolchain | Audit, base comparison, architecture, manifests, all required doc entry points; Debian rootfs and GPT/UEFI image workflow; real non-root tty1 Grimoire boot without a desktop; no host disk writes | **Tested** foundation; production installer intentionally not included |
 | M2a: Narrow system + console keyboards | M1 | Linux/simulated backend; fixed commands; cached off-thread status; pre-login QWERTY/Colemak/DH ANSI/ISO; token-bound preview; independent 15s rollback even if app disappears; documented maintenance tty | **Tested** interfaces/VM subset; no physical laptop verified |
-| M2b: Secure laptop setup and maintenance | M2a | Debian installer integration or guarded installer with compatibility/disk/LUKS/account/timezone/keyboard/Wi-Fi review; authenticated first boot; working console lock before suspend; signed updates and verified recovery/rollback | **In progress** design; production install, lock and updater code remain **Planned** |
+| M2b: Secure laptop setup and maintenance | M2a | Debian installer integration or guarded installer with compatibility/disk/LUKS/account/timezone/keyboard/Wi-Fi review; authenticated first boot; working console lock before suspend; signed updates and verified recovery/rollback | **In progress** experimental installer and isolated native login; production installation, secure lock and updater remain open |
 | M3a: Home and primary workspace state | M2a (does not need disk installer) | 80×24+ navigation; real project/goal/progress/sprint/system widgets; hide/reorder; optional direct restore; outline toggle/width; primary cursor and custom layout slots; strict focus; safe alias UI | **Tested** initial slice; advanced widgets/pane presets not complete |
 | M3b: Multi-document pane registry | M3a | Independent editable secondary buffer/cursor/selection/undo/autosave; no two competing saves for same canonical file; full focus cycling/resizing/external-change/recovery tests; only then assign F11 | **Tested**: 28 dedicated UI tests, registry/schema tests and real-binary PTY at four sizes; F11 enabled |
 | M4: Pins, journal, scratchpad, handoff | M3b | Single-source Markdown pin views, scopes/trash/categories; free-scroll and semantic anchors; card/sidebar restoration; quick edits; journal event/manual separation; scene-linked scratchpad and next-boot intention | **Tested initial M4**: M4a pins, M4b sampled journal/original reflections, M4c original-preserving multi-note promotion, next-open handoff, explicit starters/pin sets; real UI/tutorial/failure/process-restart evidence. Gross/time ledger and large-load/power-loss qualification remain M5/M10 |

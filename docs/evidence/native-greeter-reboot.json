@@ -1,0 +1,35 @@
+{
+  "scope": "Cold boot of passed disposable fixture with current greeter and read-only visibility observer; boot probe masked; native service starts without manual invocation",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "ffd48f613a3387a9f8c579200424b7313cfb7093a8b7dcfd11c1ac0d375074c1",
+    "file_count": 297,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "source_unchanged": true,
+  "greeter_binary_sha256": "e2ccd46b522fcfa268b67dc798c243e37aeb4f4ecb472ce452957ee86e350de5",
+  "editor_binary_sha256": "5898e81ff9158c172697ffcfccce829703a9a7d6d8ce04dd40589201964c6411",
+  "network_devices": 0,
+  "host_disks_exposed": 0,
+  "fixture_overlay_sha256_before": "ef9455df4b773cfef1ba9fc45d792270048c7b7a8a743df7cc637d17f463721b",
+  "fixture_overlay_sha256_after": "ef9455df4b773cfef1ba9fc45d792270048c7b7a8a743df7cc637d17f463721b",
+  "wall_seconds": 58.77,
+  "complete_login_visible_three_seconds": true,
+  "screenshot_captured": true,
+  "visual_login_verified": true,
+  "harness_sha256": "f7653b8ec48204885242a9017feba3ddeb1d2f4b70a25c127bdc8b0b1402e207",
+  "visual_review": {
+    "reviewer": "Codex agent",
+    "method": "Inspected actual QMP screendump; six complete identical captures taken one second apart",
+    "observed": [
+      "WrOS title",
+      "Local account prompt",
+      "Offline login status",
+      "Account picker and maintenance hints",
+      "Complete stable frame"
+    ]
+  },
+  "screenshot_sha256": "858187e2bbf5e26c9719973fdd128764beae0872d186cc7423bda8608c481aae",
+  "retained_harness_sha256": "33a860be4947f53a7c96a88f6d80debfc720cf6cc38c8fa91612b8cbff91093e",
+  "retained_harness_note": "LF-normalized audit copy; harness_sha256 identifies the original executed bytes retained privately"
+}

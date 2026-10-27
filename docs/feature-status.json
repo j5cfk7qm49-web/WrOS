@@ -582,10 +582,10 @@
     {
       "area": "OS",
       "capability": "Native WrOS greeter, account switching and coherent locked session",
-      "status": "Planned",
-      "verification": "Source audit and greetd/PAM architecture; no greeter acceptance yet",
+      "status": "In progress",
+      "verification": "Full baseline 947 Rust/configuration and 96 Python; final 15 greeter tests, both Clippys, real PAM 147.06 seconds and stable cold boot passed",
       "hardware_verified": false,
-      "detail": "Separate credential process and input ownership; greetd login is not a session locker; issues 27 and 4"
+      "detail": "Separate login, actual picker/account switching, hidden PAM input, non-root sessions, logout and tty1/tty2 tested; final focused/guest source and binaries match; pre-login keyboard recovery, further faults, secure locker and physical gates remain issues 27 and 4"
     },
     {
       "area": "Accounts",

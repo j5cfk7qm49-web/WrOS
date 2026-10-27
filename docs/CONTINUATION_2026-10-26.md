@@ -1,5 +1,26 @@
 # WrOS continuation — 2026-10-26
 
+## Active continuation — native greeter, 2026-10-27
+
+Work continues on `codex/native-greeter` from power checkpoint `88c2903`.
+The isolated greeter shares presentation only, uses maintained greetd/PAM and an
+independent bounded JSON codec, and never links the editor or GPL Rust IPC crate.
+Full local baseline: 947 Rust/configuration, both Clippys, 96 Python/zero skips,
+18 checks. Final cache-only display refinement: 15 greeter tests per overlapping
+configuration, both workspace Clippys and build/static gates; separate exact
+source record, not a relabeled full baseline. Final real guest passed in
+147.06 seconds, with actual PAM rejection/success, hidden input, crash recovery,
+UID-1000/1001 writing, real account picker, logout, secret scan and tty1/tty2.
+Cold boot also passed stable visible-text and six complete identical framebuffer
+captures, inspected by the Codex agent. Source ffd48f61…074c1 / 297 files and exact
+binaries match all final focused/guest/reboot records under `docs/evidence/`.
+
+The profile stays opt-in; no new installer or live-host configuration changed.
+Full remote CI is required before integration. Next: pre-login keyboard/further
+crash acceptance and independent secure locker/input pause, acknowledgment/drain
+and VT/sleep handoff. Suspend stays unavailable. Read [NATIVE_GREETER](NATIVE_GREETER.md)
+and current status before relying on older branch/evidence claims below.
+
 ## Latest architectural directive and working branch
 
 Current branch is `codex/suspend-lock-guard`, based on warm-screen head `8e2aeeb`

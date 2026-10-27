@@ -16,7 +16,7 @@ recovery. A conventional desktop and unrelated management TUIs are not the goal.
 | Settings | Native editor preferences plus a flat 13-action system pane | Migrate available actions into Writing, Interface, System and Accounts; do not simulate missing capabilities |
 | Services | `writingdeck-sys::Backend`, typed requests, cached Snapshot, one bounded off-thread worker and explicit errors | Reuse; no drawing/input-loop I/O, shell commands or manuscript arguments |
 | Visuals/help | Existing Ratatui theme roles, menus/modals and event-driven tutorial | Extract reusable presentation without linking the editor into the greeter; add real feature exercises |
-| Login/lock | Installer-created PAM account/tty login tested in bounded VM contracts; secure locker absent | New greeter and locker remain separate security work, not an editor overlay |
+| Login/lock | Installer-created PAM account/tty login plus experimental isolated native greetd client; secure locker absent | Greeter qualification is tracked separately from locker/input ownership; credentials stay outside the editor |
 | Cloud | No qualified OAuth/Drive mount/verified remote backup | Separate account, browse/cache, sync and backup state machines |
 | Display warmth | No system color-temperature implementation | Native warm-screen controls and a verified display-service backend are required; theme colors are insufficient |
 
@@ -80,7 +80,7 @@ supported-output verification rather than treating exit status as qualification.
 
 ## Authentication and cloud decisions
 
-Investigate a separate Rust/Ratatui greetd greeter using its existing
+The [experimental separate Rust/Ratatui greeter](NATIVE_GREETER.md) uses greetd's existing
 [authentication/session protocol](https://docs.rs/greetd_ipc/latest/greetd_ipc/).
 PAM verifies local accounts; the editor never receives authentication keystrokes.
 Use a fixed session command, bounded IPC and secret-free error reporting. A

@@ -1,6 +1,38 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
-## Power safety follow-up — current branch
+## Native login — focused software and real guest qualification passed
+
+`codex/native-greeter` adds an isolated Rust/Ratatui greetd client, bounded IPC,
+non-echoing secret entry, local account selection, fixed non-root writing
+sessions and an explicit staging profile. Read [native login boundaries](NATIVE_GREETER.md).
+
+The [complete local software baseline](evidence/native-greeter-software.json)
+passed **947 Rust tests per overlapping configuration** (5 default / 4 no-audio
+ignored), both Clippys, **96 Python methods / zero skips** and **18 checks**.
+A subsequent cache-only display refinement has its own [focused final record](evidence/native-greeter-focused.json):
+**15 greeter tests in both configurations**, both workspace Clippys, full build,
+syntax, staging ShellCheck and documentation checks. The baseline retains its
+own prior source identity; it is not relabeled as a full rerun of the refinement.
+
+The [final unattended real guest run](evidence/native-greeter-vm.json) passed in
+**147.06 seconds** with 512 MiB, two CPUs and no NIC: actual PAM rejection/success,
+hidden input, crash recovery, UID-1000/1001 editor sessions, actual picker-based
+account switching, logout, journal/user-file secret scan and tty1/tty2 boundaries.
+The base image stayed unchanged. The [cold-boot record](evidence/native-greeter-reboot.json)
+and [actual screen](evidence/native-greeter-reboot.png) verify native service auto-start,
+three seconds of complete visible text and six identical complete framebuffer
+captures. The screenshot was inspected by the Codex agent. No password was
+entered during this separate reboot test; the completed fixture stayed unchanged.
+
+Final focused, authentication and reboot records share source
+`ffd48f613a3387a9f8c579200424b7313cfb7093a8b7dcfd11c1ac0d375074c1` / 297 files and the exact binaries.
+Idle console damage is repaired by cache invalidation without physically clearing
+the display or adding cursor queries to authentication input. Full remote CI is
+required before integration. This remains an opt-in experimental image profile;
+pre-login keyboard recovery, further crash/layout cases and secure locking keep
+#27/#4 open. Installer, encryption, update/recovery and hardware gates remain.
+
+## Power safety follow-up — qualified parent increment
 
 `codex/suspend-lock-guard` follows warm-screen PR #33. [Power guards](POWER_SAFETY.md)
 address reproduced issues #32/#34: Suspend is unavailable until secure locking is
