@@ -21,6 +21,7 @@ use writingdeck_sys::{
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Page {
+    Settings,
     Home {
         sel: usize,
     },
@@ -107,6 +108,7 @@ const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 22] = [
 ];
 
 pub struct Deck {
+    pub shell: super::shell::Shell,
     pub state: State,
     layout_store: Option<workspaces::Store>,
     pub progress: tutorial::Progress,
@@ -214,6 +216,7 @@ impl Deck {
             }
         };
         Self {
+            shell: super::shell::Shell::load(root, background),
             state,
             layout_store,
             progress,
@@ -285,6 +288,10 @@ impl Deck {
         self.worker = Some(Worker::spawn(
             Box::new(writingdeck_sys::Simulated::laptop()),
         ));
+    }
+    #[cfg(test)]
+    pub fn use_test_backend(&mut self, backend: Box<dyn Backend>) {
+        self.worker = Some(Worker::spawn(backend));
     }
 }
 
@@ -501,6 +508,7 @@ impl App {
                     }
                 }
             }
+            self.deck.shell.notices.push(&self.deck.note);
         }
         if self
             .deck
@@ -520,6 +528,7 @@ impl App {
             return;
         };
         match page {
+            Page::Settings => self.on_settings_key(key),
             Page::Home { mut sel } => {
                 let widgets: Vec<_> = self
                     .deck
@@ -579,7 +588,7 @@ impl App {
                                         sel: self.deck.state.selected,
                                     })
                                 }
-                                4 => self.open_system_settings(),
+                                4 => self.open_settings(),
                                 5 => self.overlay = Overlay::Deck(Page::Tutorial { sel: 0 }),
                                 _ => self.overlay = Overlay::Deck(Page::Widgets { sel: 0 }),
                             }
@@ -1095,6 +1104,10 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     let Overlay::Deck(page) = &app.overlay else {
         return;
     };
+    if matches!(page, Page::Settings) {
+        super::shell::draw(f, app, area, t);
+        return;
+    }
     f.render_widget(Clear, area);
     let block = crate::ui::pane_block("WRITINGDECK OS · offline first", true, t);
     let inner = block.inner(area);
@@ -1107,6 +1120,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     let title: String;
     let hint: &str;
     match page {
+        Page::Settings => unreachable!("shared shell draws Settings"),
         Page::Home { sel } => {
             title = format!(
                 "{} · {}",
@@ -1261,7 +1275,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                     "Goals",
                     "Progress",
                     "Workspaces",
-                    "System settings",
+                    "Settings",
                     "Interactive tutorial",
                     "Configure widgets",
                 ]

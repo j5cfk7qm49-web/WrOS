@@ -26,9 +26,26 @@ Only one authoritative editor may own a canonical file. Choosing a document alre
 
 Choose Pinboard or Pin current document in Writing tools or Ctrl-K. Dashboard `p` opens Pinboard too. Cards reference existing Markdown sources, keep independent scroll and heading/quote anchors, and never become a competing text store. Enter explicitly edits a source through the existing owner-aware editor. Scopes, category/color/size/order, recoverable card archive/Trash and narrow-screen fallback are explained in the Sticky-note pins help topic. Writing journal now separates sampled saved-Project facts from original Markdown reflections: Ctrl-K or dashboard j opens it. Its help explains source editing, explicit current snapshots and retry. Scratchpad now has multiple original Notes, explicit scene links and original-preserving scene promotion; Session handoff shows an ordinary user-authored next-open intention. Dashboard s/o and their own help topics expose both.
 
+## Unified WrOS settings
+
+From the dashboard choose Settings, or use the command palette's WrOS settings
+action. Writing, Interface, System and Accounts share arrow/Enter/Escape
+navigation and remember their selections. Existing editor and interface actions
+use the same underlying settings. Closing a child dialog returns to its category;
+Escape follows the route back to the writing workspace. Both editable documents,
+cursor, selection, free scroll and undo remain retained. F1 opens offline help.
+The older Settings menu remains available during this migration.
+
+System has native Network, Display, Power, Storage and Date/time panes using
+cached background services. Accounts, updates and recovery explicitly identify
+unfinished services. The requested Warm screen mode is planned in Display;
+there is no actual color-temperature backend yet. It must not be confused with
+the theme picker. No Google account is required for local writing.
+
 ## System settings
 
-System settings uses a background worker and cached status. NetworkManager controls Wi-Fi radio and scanning; brightnessctl controls supported backlights. Power controls require confirmation and successful manuscript saving. Unsupported services report unavailable, never success. Connecting a new Wi-Fi network still uses `nmtui` from the maintenance console.
+System settings uses a background worker and cached status. NetworkManager controls Wi-Fi radio and scanning; brightnessctl controls supported backlights. Power controls require confirmation and successful manuscript saving. Unsupported services report unavailable, never success. Native connection enrollment is still unfinished. `nmtui` remains available
+only as an emergency maintenance tool while that work is completed.
 
 Keyboard layout selects QWERTY, Colemak or Colemak-DH ANSI/ISO on appliance tty1. A root-owned helper previews for 15 seconds with an independent systemd rollback timer. Type in the preview field; Enter keeps it, Escape reverts. The test field never changes a manuscript. Desktop and SSH sessions must use their own OS layout configuration.
 

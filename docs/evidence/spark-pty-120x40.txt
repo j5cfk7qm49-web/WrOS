@@ -1,14 +1,14 @@
 ┌ Story Spark · offline, non-AI ───────────────────────────────────────────────────────────────────────────────────────┐
 │  Status: Spark save · notes/sparks/r-0000000000000006.md · original scene preserved                                  │
 │  1047 original plots / 84 exercises · static offline selection                                                       │
-│  r-0000000000000006 · Combined · 2026-10-26 · Etc/UTC                                                                │
-│  PLOT [wd-p-0853] · coordination · level 1 · suggested 20 min                                                        │
-│  A town elects a dog as honorary mayor to avoid political arguments. Its owner receives conflicting invitations, and │
-│  choosing which ceremony the dog attends becomes the most divisive decision of the year.                             │
-│  EXERCISE [wd-x-0064] · subtext · level 3 · suggested 25 min                                                         │
-│  Write a sincere compliment that assigns its recipient a role they no longer want. Let the recipient answer without  │
-│  rejecting the affection. Make the response open a practical possibility rather than merely reveal discomfort to the │
-│  reader.                                                                                                             │
+│  r-0000000000000006 · Combined · 2026-10-27 · Etc/UTC                                                                │
+│  PLOT [wd-p-0158] · pattern · level 2 · suggested 20 min                                                             │
+│  A family clock runs faster whenever someone avoids a necessary conversation. A repairer discovers that its apparent │
+│  malfunction began when the youngest family member stopped being invited to the conversations everyone else considers│
+│  necessary.                                                                                                          │
+│  EXERCISE [wd-x-0049] · setting · level 1 · suggested 15 min                                                         │
+│  Invent or choose a place whose layout enforces an ordinary rule. Show someone trying to accomplish a task there. Let│
+│  the built environment help one participant and hinder another without explaining the place as a moral lesson.       │
 │  Work mode: Drafting · creative completion is self-reported, not automatically scored.                               │
 │  ★ Favorited; retained separately from history.                                                                      │
 │  6 history / 128 · 1 favorites / 64 · 0 dismissals / 128 · 12-result recent window                                   │

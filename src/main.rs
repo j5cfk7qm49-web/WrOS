@@ -643,7 +643,10 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
                     | Overlay::Lexicon
                     | Overlay::ProseDashboard
                     | Overlay::Productivity { .. }
-                    | Overlay::Deck(app::writingdeck::Page::WorkspacePins { .. })
+                    | Overlay::Deck(_)
+            ) && !matches!(
+                app.overlay,
+                Overlay::Deck(app::writingdeck::Page::KeyboardTest { .. })
             ) {
                 app.msg = "Read-only preview. Enter explicitly edits the original source; pasted commands ignored.".into();
                 continue;
@@ -902,7 +905,7 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
                 | Overlay::ProseDashboard
                 | Overlay::Productivity { .. }
                 | Overlay::ProductivityInput { .. }
-                | Overlay::Deck(app::writingdeck::Page::WorkspacePins { .. })
+                | Overlay::Deck(_)
         ) || (app.overlay == Overlay::None && app.focus == Focus::Pins))
         && !matches!(k.code, KeyCode::Char('s' | 'q' | 'k' | 'd'))
         && !(matches!(app.overlay, Overlay::PinCategory { .. }) && k.code == KeyCode::Char('v'))
@@ -912,6 +915,10 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
         && !(app.overlay == Overlay::Lexicon
             && app.lexicon.page == app::lexicon::Page::Query
             && k.code == KeyCode::Char('v'))
+        && !(matches!(
+            app.overlay,
+            Overlay::Deck(app::writingdeck::Page::KeyboardTest { .. })
+        ) && k.code == KeyCode::Char('v'))
     {
         return false;
     }

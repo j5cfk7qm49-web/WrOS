@@ -1,0 +1,13 @@
+[package]
+name = "wros-shell"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Shared WrOS presentation and navigation without editor, authentication or privilege dependencies"
+
+[dependencies]
+ratatui = "0.30.2"
+serde = { version = "1.0", features = ["derive"] }
+
+[dev-dependencies]
+serde_json = "1.0"

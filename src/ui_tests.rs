@@ -7990,6 +7990,9 @@ fn writingdeck_productivity_empty_collection_and_subjective_challenge_do_not_com
 #[path = "spark_ui_tests.rs"]
 mod spark_ui_tests;
 
+#[path = "shell_ui_tests.rs"]
+mod shell_ui_tests;
+
 #[path = "checks_ui_tests.rs"]
 mod checks_ui_tests;
 

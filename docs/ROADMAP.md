@@ -2,6 +2,26 @@
 
 Historical M7a verified branch: `writingdeck/foundation`; the original unqualified M7b handoff remains in the ancestry of `writingdeck/m7b-wip`. Upstream base: Grimoire v0.7.5 / `f3ca1e8`. Current development scope is **0.1.0-dev through M7b software**, including its documented emulated-CPU limits. Production installation, authentication/lock, updates/recovery and later milestones remain open. Read [STATUS](STATUS.md) for fresh evidence and exact remaining work.
 
+## Current architectural priority
+
+The user's unified-shell directive now precedes unrelated feature expansion.
+[Architecture audit and decisions](UNIFIED_SHELL.md) preserve all existing work.
+Execute #26 shared UI/native categorized Settings and exact editor restoration;
+#30 native very warm display controls; #27 isolated greetd/PAM greeter and #4
+secure input/lock/suspend; #28 optional protected Google enrollment; #29 native
+Drive browsing/materialization, then #10 independent verified backup and
+conflict-safe sync. Ordinary management stays inside WrOS. Emergency maintenance
+remains documented. No root editor, desktop-environment replacement, credential
+shortcuts, mounted active manuscripts or fake tutorial completion.
+
+The initial `wros-shell` library and categorized Settings adapter are implemented
+and being tested. Existing menu/settings actions are retained during migration;
+unsupported account/update/recovery/warmth operations remain explicitly unavailable.
+The warm-screen request includes very warm temperatures around 2200K, strength
+and off/revert controls, backed by real output adjustment rather than a theme.
+Installer/encryption, signed updates/recovery, notices/source and identified
+physical hardware remain release gates throughout this architectural change.
+
 ## Working rules
 
 Keep changes vertical, safe and tested. Preserve manuscript formats and all existing UI guard tests. Add tutorial events, offline help, recovery behavior and tests when a feature lands, not at the end. Unknown configuration must not be rewritten. Never open a physical disk merely to demonstrate an installer. No root Grimoire, telemetry, mandatory AI or automatic manuscript transmission.

@@ -87,9 +87,9 @@
       "area": "OS",
       "capability": "Production disk/LUKS/account/Wi-Fi first-run installer",
       "status": "In progress",
-      "verification": "Offline ISO/media audit and real VM copy/UEFI/PAM/dashboard/Wi-Fi contracts passed",
+      "verification": "Original ISO normal install/PAM; current ISO post-interruption boot plus cancellation/no-disk passed",
       "hardware_verified": false,
-      "detail": "Debian live-installer; no physical installs; full auth, cancellation/interruption, LUKS, layout and lock gates remain open"
+      "detail": "Current full install timed out during finalization; LUKS, layout, wrong-disk/earlier retry and lock gates remain open"
     },
     {
       "area": "OS",
@@ -145,7 +145,7 @@
       "status": "Tested",
       "verification": "Typed command/unit tests",
       "hardware_verified": false,
-      "detail": "Actual radio/enrollment unverified; scan truncation still open; nmtui fallback"
+      "detail": "Actual radio/native enrollment unverified; scan truncation open; nmtui is emergency maintenance only"
     },
     {
       "area": "System",
@@ -562,6 +562,54 @@
       "verification": "Actual staged-image package/firmware/notice/module/nmtui audit plus missing-payload policy tests",
       "hardware_verified": false,
       "detail": "Intel, Realtek, Qualcomm/Atheros, Broadcom/Cypress brcm80211 and MediaTek packaged for supported kernel drivers; production installer media must retain this set; physical radio acceptance pending"
+    },
+    {
+      "area": "Shell",
+      "capability": "Shared WrOS navigation, presentation, notifications and UI preferences",
+      "status": "Tested",
+      "verification": "Five shared component tests; fresh 922 Rust/configuration, 76 Python and 18 software gates",
+      "hardware_verified": false,
+      "detail": "No editor/authentication/privilege dependencies; bounded history and guarded per-user presentation state"
+    },
+    {
+      "area": "Shell",
+      "capability": "Unified Writing, Interface, System and Accounts settings",
+      "status": "In progress",
+      "verification": "Five actual retained-editor UI tests plus real four-size PTY cursor/undo/settings restart tests passed",
+      "hardware_verified": false,
+      "detail": "Initial native categories tested; legacy paths retained; enrollment, warmth, cloud, greeter and recovery backends unfinished"
+    },
+    {
+      "area": "OS",
+      "capability": "Native WrOS greeter, account switching and coherent locked session",
+      "status": "Planned",
+      "verification": "Source audit and greetd/PAM architecture; no greeter acceptance yet",
+      "hardware_verified": false,
+      "detail": "Separate credential process and input ownership; greetd login is not a session locker; issues 27 and 4"
+    },
+    {
+      "area": "Accounts",
+      "capability": "Native optional Google account linking and protected refresh credentials",
+      "status": "Planned",
+      "verification": "Provider flow/scope audit; no client registration or real account used",
+      "hardware_verified": false,
+      "detail": "Encrypted per-user credential service; no mandatory cloud or deprecated OOB flow; issue 28"
+    },
+    {
+      "area": "Storage",
+      "capability": "Native Google Drive browsing, cache status and explicit local materialization",
+      "status": "Planned",
+      "verification": "FUSE/VFS limitations evaluated; no mount or remote operation performed",
+      "hardware_verified": false,
+      "detail": "Active manuscripts remain local; mounting, conflict-safe sync and verified backup are distinct; issues 29 and 10"
+    },
+    {
+      "area": "System",
+      "capability": "Warm screen and blue-light filter with very warm temperature controls",
+      "status": "Planned",
+      "verification": "Native Display destination and DRM/backend investigation; no screen adjustment yet",
+      "hardware_verified": false,
+      "detail": "Target 2200K and lower supported temperatures with strength/off/revert; real output support must be verified; issue 30"
     }
   ]
 }

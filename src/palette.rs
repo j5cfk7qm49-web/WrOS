@@ -7,6 +7,7 @@ use grimoire_core::project::Kind;
 /// Everything the palette can do. Scenes and notes are opened by path.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Action {
+    Settings,
     Dashboard,
     SystemSettings,
     Workspaces,
@@ -192,6 +193,7 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
     let part = app.project.meta.part_noun();
     let mut v = vec![
         Entry::new("WritingDeck dashboard", "F12", Action::Dashboard),
+        Entry::new("WrOS settings", "", Action::Settings),
         Entry::new("System settings", "", Action::SystemSettings),
         Entry::new("Workspaces", "", Action::Workspaces),
         Entry::new("Interactive tutorial", "", Action::Tutorial),

@@ -1,10 +1,10 @@
 ┌ Daily challenges · local civil date ─────────────────────────────────────────────────────────────────────────────────┐
 │1 edits  2 goals  3 calendar  4 sprints  5 collection  6 challenges                                                   │
-│  2026-10-26 · creation zone Etc/UTC · 30 original exercises across 10 categories                                     │
+│  2026-10-27 · creation zone Etc/UTC · 30 original exercises across 10 categories                                     │
 │  Saved profile: None, difficulty ≤2, ≤30 min · 0 explicit rerolls                                                    │
 │› [Completed] A small beginning · Productivity · 5 min · level 1 · Measured                                           │
-│  [Assigned] The wrong delivery · Creative writing · 5 min · level 1                                                  │
-│  [Assigned] Repair a causal hinge · Revision · 15 min · level 2                                                      │
+│  [Assigned] A different witness · Point of view · 5 min · level 1                                                    │
+│  [Assigned] Distance without explanation · Point of view · 15 min · level 2                                          │
 │  Drafting mode · Add fifty source word units to the manuscript in Drafting mode. Typing and deliberate paste count;  │
 │  historical restoration is recorded separately. The measured criterion is quantity, not literary quality.            │
 │  Measured criterion: 50 / 50 recorded input word additions since acceptance (Ctrl-S checkpoints pending edits)       │

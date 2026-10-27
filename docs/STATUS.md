@@ -1,5 +1,24 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Initial unified WrOS shell — current architectural direction
+
+The user's unified-shell directive supersedes the standalone appliance-launcher
+assumption. [The architecture audit and proposal](UNIFIED_SHELL.md) preserves
+Grimoire as the foundation of one WrOS interface with isolated authentication
+and service processes. The first `codex/unified-shell` increment adds shared
+navigation/menu/notification/preferences components and native Writing,
+Interface, System and Accounts Settings around retained editors and the existing
+mockable worker. Existing settings remain available during migration.
+
+[Its own fresh software run](evidence/unified-shell-software.json) passed **922
+Rust tests/configuration**, both Clippys, **76 Python methods with zero skips**
+and all **18 gates**, with exact unchanged inputs. This includes two-pane
+cursor/selection/free-scroll/focus/undo, native error/confirmation and actual
+four-size PTY/restart tests. No new OS/physical/credential acceptance is inferred.
+Native greeter/lock, Google linking, Drive browsing and actual warm-screen output
+remain unfinished (#26–#30); warm temperatures around 2200K are requested.
+
+
 ## Qualified M7b software — 2026-10-26
 
 Source import #1 is complete. The historical foundation remains at `3360ec5`;

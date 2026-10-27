@@ -1,5 +1,56 @@
 # WrOS continuation — 2026-10-26
 
+## Latest architectural directive and working branch
+
+The user supplied the Unified Operating System Shell Architectural Directive:
+Grimoire evolves into the whole native WrOS interface, with modular internals.
+Ordinary settings/network/power/accounts/Drive/help must stay in WrOS panes.
+The greeter is separate and shares presentation only; PAM/greetd authenticate,
+not the editor. A secure locker and input handoff remain separate. Active
+manuscripts stay local; OAuth, mounted Drive browsing/cache, conflict-safe sync
+and verified backups are distinct services. Emergency maintenance and all
+existing security/data/release/hardware gates remain. Do not resume unrelated
+M8 work before this new architecture is established.
+
+The user additionally requested a blue-light filter with really warm screens.
+Issue #30 targets native System → Display warm-screen controls including 2200K,
+lower supported temperatures, strength/off and reversible preview. **No actual
+warm-screen backend has been implemented yet.** Do not claim a theme change is
+a physical-screen filter or treat unsupported DRM outputs as successful.
+
+Current branch `codex/unified-shell` starts at installer checkpoint `c9e513f`.
+It adds the editor-independent `crates/wros-shell` library and `src/app/shell.rs`
+adapter: bounded navigation/selection history, clipped shared Ratatui menus,
+bounded notices, guarded version-1 per-user UI preferences and native categories.
+Existing writing/interface actions and bounded system worker are reused. Return
+from child panels retains the exact document/pane/cursor/selection/free-scroll/
+workspace/undo objects. Unimplemented controls remain visibly unavailable.
+
+Fresh full qualification passed: **922 Rust tests/configuration** (default 5
+ignored/no-audio 4 ignored), both Clippys, **76 Python methods/zero skips** and
+**18 gates**. `docs/evidence/unified-shell-software.json` has exact source/tool/
+binary/runtime identities; source fingerprint
+`22e7e0e4383a1d4c6842d7ee35f085d5d644c247b7f7b0c1e9491fdda8a65e9a`
+contains 274 files and stayed unchanged across verification. Previous M7b
+`test-results.json` was preserved; this new source is not covered by older VM/ISO
+records. Tests initially caught hidden cut/undo reaching the editor under Deck
+pages; all Deck controls are now guarded, with keyboard-test-field paste explicit.
+The real PTY case checks caret/undo/redo/save/quit and persisted Settings selections
+at four sizes; a stale parent-title barrier was corrected, not weakened.
+
+Issues #26 shell/settings, #27 native greeter, #28 Google enrollment, #29 Drive
+browsing and #30 warm screen now track the directive. Existing #4 and #10 were
+updated with isolation and service distinctions. `docs/UNIFIED_SHELL.md`, roadmap,
+76-row feature matrix and offline help describe implemented vs remaining work.
+Final keyboard PR #25 head `b5d486b` separately passed Debian/macOS CI
+`40457429492`; that code is still on `codex/installer-keyboard`, not this branch.
+
+Next: publish/review this shell increment, qualify the combined branches through
+normal merges, implement the actual warm-display service/control, then native
+network enrollment and isolated greeter/session/lock work. Provider registration,
+live accounts and physical disks require authorization only when actually reached.
+
+
 The original goal remains a complete Writer's OS. The user resumed after a model
 switch and asked to continue toward completion. Common laptop Wi-Fi support must
 be bundled on installation media and in the installed system, without requiring
