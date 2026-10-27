@@ -1,0 +1,23 @@
+{
+  "scope": "Package-only build following full workspace feature-unified build; verifies exact executable used by the passed guest fixture without relabeling the separately recorded workspace binary",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "18bc11d96e690e6f931537a3256288496bac55119a50865b398dbdf8a195b445",
+    "file_count": 299,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "command": [
+    "cargo",
+    "build",
+    "-p",
+    "wros-greeter",
+    "--locked",
+    "--offline"
+  ],
+  "exit_code": 0,
+  "wall_seconds": 2.92,
+  "greeter_binary_sha256": "ab85be8e20e5ca7a3e8aacd5cc8025cf4f8c792192a118c7c679b15a58872a9e",
+  "fixture_binary_sha256": "ab85be8e20e5ca7a3e8aacd5cc8025cf4f8c792192a118c7c679b15a58872a9e",
+  "guest_wall_seconds": 302.81,
+  "passed": true
+}

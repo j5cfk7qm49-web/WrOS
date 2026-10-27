@@ -583,9 +583,9 @@
       "area": "OS",
       "capability": "Native WrOS greeter, account switching and coherent locked session",
       "status": "In progress",
-      "verification": "Final Debian/macOS CI: 947 Rust/configuration, 96 Python/zero skips, both Clippys and 17 checks; actual PAM 147.06 seconds and stable cold boot passed",
+      "verification": "Debian CI: 954 Rust/configuration, 96 Python/zero skips, both Clippys and 17 checks; 22 focused greeter tests/configuration; real keyboard/PAM guest 302.81 seconds and stable cold boot 65.93 seconds passed",
       "hardware_verified": false,
-      "detail": "Separate login, actual picker/account switching, hidden PAM input, non-root sessions, logout and tty1/tty2 tested; final focused/guest source and binaries match; pre-login keyboard recovery, further faults, secure locker and physical gates remain issues 27 and 4"
+      "detail": "Native login, all four pre-login console layouts, cancel/expiry/crash rollback, commit/recovery, account switching, hidden PAM input, non-root writing and logout tested; package/guest binary and all source identities match; further transitions, independent locker and physical gates remain issues 27 and 4"
     },
     {
       "area": "Accounts",

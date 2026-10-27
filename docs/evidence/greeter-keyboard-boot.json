@@ -1,0 +1,47 @@
+{
+  "scope": "Cold boot of passed keyboard/PAM fixture; read-only guest observer; boot probe status output disabled; native service starts automatically; host presses only F2 and sends no credentials",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "18bc11d96e690e6f931537a3256288496bac55119a50865b398dbdf8a195b445",
+    "file_count": 299,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "source_unchanged": true,
+  "greeter_binary_sha256": "ab85be8e20e5ca7a3e8aacd5cc8025cf4f8c792192a118c7c679b15a58872a9e",
+  "editor_binary_sha256": "5898e81ff9158c172697ffcfccce829703a9a7d6d8ce04dd40589201964c6411",
+  "network_devices": 0,
+  "host_disks_exposed": 0,
+  "fixture_overlay_sha256_before": "a50c21ded9966e399ce6c46c100a8f8540448088741ec1add21b8ee70287f626",
+  "fixture_overlay_sha256_after": "a50c21ded9966e399ce6c46c100a8f8540448088741ec1add21b8ee70287f626",
+  "wall_seconds": 65.93,
+  "complete_login_visible_three_seconds": true,
+  "complete_keyboard_visible_three_seconds": true,
+  "keyboard_frame_sha256": [
+    "0731f52f3e523f31577c70ae0bdb31275fe611c7778a8cea00a54c5fa177752f",
+    "0731f52f3e523f31577c70ae0bdb31275fe611c7778a8cea00a54c5fa177752f",
+    "0731f52f3e523f31577c70ae0bdb31275fe611c7778a8cea00a54c5fa177752f",
+    "0731f52f3e523f31577c70ae0bdb31275fe611c7778a8cea00a54c5fa177752f",
+    "0731f52f3e523f31577c70ae0bdb31275fe611c7778a8cea00a54c5fa177752f",
+    "0731f52f3e523f31577c70ae0bdb31275fe611c7778a8cea00a54c5fa177752f"
+  ],
+  "six_identical_keyboard_frames": true,
+  "visual_keyboard_verified": true,
+  "harness_sha256": "4bae6f646d8b6e694624806eb6fddf1193c3ad852530649884f89378b0529047",
+  "passed": true,
+  "visual_login_verified": true,
+  "visual_review": {
+    "reviewer": "Codex agent",
+    "method": "Inspected actual full-resolution login and keyboard screendumps; six keyboard captures one second apart are byte-identical",
+    "observed": [
+      "Complete WrOS login and F2/maintenance hints",
+      "All four keyboard options and selection",
+      "Preview/keep/revert and maintenance hints",
+      "Complete stable frames"
+    ]
+  },
+  "screenshot_sha256": {
+    "boot": "0c956e1a4244e43251f22c2ec0c77e74bd6046459d289f0617f8850dc58022cc",
+    "login": "06b2a13ad1a969864075690de0bce6b905d9a35c6e5a52983b80ae36a365870c"
+  },
+  "retained_harness_sha256": "4bae6f646d8b6e694624806eb6fddf1193c3ad852530649884f89378b0529047"
+}

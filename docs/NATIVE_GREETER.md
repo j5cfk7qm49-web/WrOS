@@ -108,7 +108,9 @@ The VM fixture is not a fresh installer, LUKS, physical keyboard, secure locking
 lid/resume, update/rollback or full release test. Local accounts can be selected
 with Up/Down, or entered by name; enumeration reads only a bounded local passwd
 file, excludes system/nonlogin accounts and never reads shadow or network NSS.
-PAM still decides whether an account is permitted. Native keyboard recovery
-controls remain to be integrated. The existing pre-login console layout service
-and maintenance path remain separate. Issue #27 stays open until its full
-acceptance matrix, including account switching and keyboard layouts, is qualified.
+PAM still decides whether an account is permitted. [Native keyboard recovery](GREETER_KEYBOARD.md)
+now opens with F2 before authentication, using the existing console layout
+helper with independent rollback. Its focused, real guest and current CI records
+are tracked separately from the older login evidence above. Issue #27 stays
+open for the remaining failure/transition matrix and integration; the independent
+secure locker, physical keyboards and sleep/resume remain separate gates.

@@ -1,6 +1,37 @@
 # WrOS continuation — 2026-10-26
 
-## Active continuation — native greeter, 2026-10-27
+## Active continuation — WrOS CI and greeter keyboards, 2026-10-27
+
+Current branch `codex/greeter-keyboard`, implementation `4381d58`, draft PR #38,
+stacked on CI PR #37 (`75a2a3a`) and native login #36. WrOS is the platform;
+Windows/macOS jobs are removed and upstream application publishing workflows
+are preserved outside active Actions. The sole Debian job for #37 passed run
+40580883303. Do not restore cross-platform CI.
+
+Native pre-login F2 recovery uses only the narrow keyboard helper and existing
+independent rollback. Focused 22 greeter tests/configuration, both workspace
+Clippys/build, 13 helper tests and static gates pass. Real guest passed 302.81s:
+four console maps/cancel, expiry, crash rollback, durable confirmation/QWERTY
+recovery, real PAM/hidden input, two-account writing/switch/logout, secret scan.
+Base unchanged. Focused/package/guest source `18bc11d9...b445` / 299 files;
+package greeter `ab85be8e...2a9e` matches the guest fixture, while the workspace
+feature-unified binary is independently recorded. See [keyboard recovery](GREETER_KEYBOARD.md).
+Separate cold boot passed 65.93s: automatic service start, complete login/keyboard
+text stable three seconds, six identical full keyboard captures, agent visual
+inspection at original resolution, same guest binary, fixture unchanged. Safe
+report, images and exact observer harness retained under greeter-keyboard-*.
+Final-source Debian CI 40582861536 PASSED: 954 Rust/configuration (5 default /
+4 no-audio ignored), both Clippys, 96 Python/zero skips and 17 checks. Unmodified
+report greeter-keyboard-ci.json matches focused/guest source18bc. Tested merge
+f1cf70511be97ab3158157541d0c4fc6118c2ae6, implementation4381d58. Do not relabel
+older native-login evidence as current.
+
+Next security priority is still the independent #4 locker and the editor input
+pause/acknowledgment/drain/VT handoff. Suspend remains unavailable. No live host
+accounts, displays, disks, credentials or power operations were changed. Keep
+#27/#4 open for remaining acceptance and integration.
+
+## Prior checkpoint — native greeter, 2026-10-27
 
 Work continues on `codex/native-greeter` from power checkpoint `88c2903`.
 The isolated greeter shares presentation only, uses maintained greetd/PAM and an

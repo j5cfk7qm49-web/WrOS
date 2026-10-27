@@ -1,0 +1,93 @@
+from pathlib import Path
+import gzip,hashlib,json,os,shutil,subprocess,sys,tempfile,time,zipfile
+sys.path.insert(0,'/work/os/tests')
+from installed_boot import qmp
+sys.path.insert(0,'/work/tools')
+from writingdeck_source import fingerprint
+assert os.geteuid()!=0
+parent=Path('/home/builder/greeter-vm/run-a4ownh8r')
+original=json.loads((parent/'result.json').read_text()); assert original['passed']
+run=Path(tempfile.mkdtemp(prefix='keyboard-boot-',dir=parent.parent)); run.chmod(0o700)
+base=Path('/work/build/appliance/rootfs/boot')
+kernel=next(base.glob('vmlinuz-*')); initrd=kernel.with_name(kernel.name.replace('vmlinuz-','initrd.img-'))
+extra=run/'extra'; payload=extra/'wros-keyboard-observer'; payload.mkdir(parents=True)
+(payload/'observer.py').write_text('''from pathlib import Path
+import time
+assert Path('/etc/writingdeck/VM-DEMO-ONLY').is_file()
+def stable(labels,marker):
+    deadline=time.monotonic()+170
+    start=None
+    while time.monotonic()<deadline:
+        current=Path('/dev/vcs1').read_bytes().decode('latin1')
+        if all(label in current for label in labels):
+            start=time.monotonic() if start is None else start
+            if time.monotonic()-start>=3:
+                with open('/dev/ttyS0','w') as output: output.write(marker+'\\n')
+                return
+        else: start=None
+        time.sleep(0.05)
+    with open('/dev/ttyS0','w') as output: output.write('WROS_OBSERVER_FAILED\\n')
+    raise SystemExit(1)
+stable(('Local account','Offline login','F2: keyboard','maintenance'),'WROS_LOGIN_STABLE')
+stable(('Login keyboard','QWERTY','Colemak-DH ANSI','Colemak-DH ISO','Choose a layout','maintenance'),'WROS_KEYBOARD_STABLE')
+''')
+(payload/'observer.service').write_text('''[Unit]
+Description=Read-only disposable login and keyboard visibility observer
+After=greetd.service
+ConditionPathExists=/etc/writingdeck/VM-DEMO-ONLY
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/libexec/wros-keyboard-observer
+TimeoutStartSec=360
+[Install]
+WantedBy=multi-user.target
+''')
+hook=extra/'scripts/local-bottom/wros-keyboard-observer'; hook.parent.mkdir(parents=True)
+hook.write_text('''#!/bin/sh
+case "$1" in prereqs) exit 0;; esac
+set -eu
+test -f "$rootmnt/etc/writingdeck/VM-DEMO-ONLY"
+mount -o remount,rw /dev/vda2 "$rootmnt"
+cat /wros-keyboard-observer/observer.py > "$rootmnt/usr/libexec/wros-keyboard-observer"
+cat /wros-keyboard-observer/observer.service > "$rootmnt/etc/systemd/system/wros-keyboard-observer.service"
+ln -s ../wros-keyboard-observer.service "$rootmnt/etc/systemd/system/multi-user.target.wants/wros-keyboard-observer.service"
+mount -o remount,ro /dev/vda2 "$rootmnt"
+'''); hook.chmod(0o755)
+hook.with_name('ORDER').write_text('/scripts/local-bottom/wros-keyboard-observer "$@"\n')
+names=[str(p.relative_to(extra)) for p in sorted(extra.rglob('*'))]
+archive=subprocess.check_output(['cpio','--create','--format=newc','--quiet'],cwd=extra,input=('\n'.join(names)+'\n').encode())
+test_initrd=run/'test-initrd.gz'; test_initrd.write_bytes(initrd.read_bytes()+gzip.compress(archive))
+firmware=run/'OVMF_VARS.fd'; shutil.copyfile('/usr/share/OVMF/OVMF_VARS_4M.fd',firmware)
+control=run/'qmp.sock'; overlay=parent/'overlay.qcow2'; serial=run/'serial.log'
+def digest(path):
+    with path.open('rb') as source: return hashlib.file_digest(source,'sha256').hexdigest()
+before=digest(overlay); source=fingerprint(); assert source==original['source_fingerprint']
+with zipfile.ZipFile(parent/'extra/wros-greeter-test/fixture.zip') as archive:
+    assert hashlib.sha256(archive.read('usr/bin/wros-greeter')).hexdigest()==original['binary_sha256']
+command=['qemu-system-x86_64','-accel','tcg,thread=multi','-machine','q35','-cpu','Nehalem','-m','512','-smp','2','-nic','none','-display','none','-no-reboot','-drive','if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd','-drive','if=pflash,format=raw,file='+str(firmware),'-drive','if=virtio,format=qcow2,snapshot=on,file='+str(overlay),'-kernel',str(kernel),'-initrd',str(test_initrd),'-append','root=UUID=3224a43a-692d-4cd6-a526-96b9a630fa24 ro console=ttyS0,115200 console=tty1 panic=1 systemd.mask=writingdeck-boot-probe.service systemd.show_status=false','-serial','file:'+str(serial),'-qmp','unix:'+str(control)+',server=on,wait=off']
+started=time.monotonic(); login=False; keyboard=False
+with (run/'qemu.log').open('w') as log:
+    process=subprocess.Popen(command,stdin=subprocess.DEVNULL,stdout=log,stderr=log)
+    try:
+        while process.poll() is None and time.monotonic()-started<240:
+            text=serial.read_text(errors='replace') if serial.exists() else ''
+            if 'WROS_LOGIN_STABLE' in text and not login:
+                qmp(control,'screendump',{'filename':str(run/'login.ppm')})
+                qmp(control,'send-key',{'keys':[{'type':'qcode','data':'f2'}],'hold-time':40})
+                login=True
+            if 'WROS_KEYBOARD_STABLE' in text: keyboard=True; break
+            if 'WROS_OBSERVER_FAILED' in text or 'Kernel panic' in text: break
+            time.sleep(0.25)
+        if keyboard:
+            for capture in range(6):
+                qmp(control,'screendump',{'filename':str(run/('keyboard-'+str(capture)+'.ppm'))})
+                time.sleep(1)
+    finally:
+        process.terminate()
+        try: process.wait(timeout=5)
+        except subprocess.TimeoutExpired: process.kill(); process.wait()
+frames=[digest(p) for p in sorted(run.glob('keyboard-*.ppm'))]
+result={'scope':'Cold boot of passed keyboard/PAM fixture; read-only guest observer; boot probe status output disabled; native service starts automatically; host presses only F2 and sends no credentials','source_fingerprint':source,'source_unchanged':fingerprint()==source,'greeter_binary_sha256':original['binary_sha256'],'editor_binary_sha256':original['editor_binary_sha256'],'network_devices':0,'host_disks_exposed':0,'fixture_overlay_sha256_before':before,'fixture_overlay_sha256_after':digest(overlay),'wall_seconds':round(time.monotonic()-started,2),'complete_login_visible_three_seconds':login,'complete_keyboard_visible_three_seconds':keyboard,'keyboard_frame_sha256':frames,'six_identical_keyboard_frames':len(frames)==6 and len(set(frames))==1,'visual_keyboard_verified':False,'harness_sha256':digest(Path(__file__))}
+result['passed']=login and keyboard and result['six_identical_keyboard_frames'] and result['source_unchanged'] and before==result['fixture_overlay_sha256_after']
+(run/'result.json').write_text(json.dumps(result,indent=2)+'\n'); print(str(run),flush=True)
+raise SystemExit(0 if result['passed'] else 1)

@@ -36,9 +36,31 @@ returning to login.
 [Focused software checks](evidence/greeter-keyboard-focused.json) cover 22 greeter
 tests in both configurations, both workspace Clippys, the workspace build, the
 13 existing helper tests, syntax, staging ShellCheck and documentation checks.
-The separate real guest/PAM acceptance and final-source Debian CI results must
-be recorded before treating this increment as qualified. The previous native
-login evidence retains its original source identity.
+The [real guest/PAM run](evidence/greeter-keyboard-vm.json) passed in 302.81 seconds
+with no NICs and an unchanged base disk. It exercises narrow active/inactive
+authorization, all four actual console mappings/cancel, expiry, rollback after
+killing the greeter, durable confirmation, QWERTY recovery, PAM refusal/success,
+hidden input, UID-1000/1001 writing sessions, account switching, logout and the
+secret scan. The [package-only build](evidence/greeter-keyboard-package-build.json)
+matches the exact guest executable and archived fixture; the focused report
+separately records the workspace feature-unified build. All share source
+`18bc11d96e690e6f931537a3256288496bac55119a50865b398dbdf8a195b445`.
+Fresh [Debian CI 40582861536](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40582861536)
+passed implementation `4381d58`: [954 Rust tests per configuration, both Clippys,
+96 Python tests/zero skips and 17 checks](evidence/greeter-keyboard-ci.json). Its
+source fingerprint matches the focused and guest records. Tested merge is
+`f1cf70511be97ab3158157541d0c4fc6118c2ae6`; CI binaries are recorded independently
+from local builds. Previous native login evidence retains its original source identity.
+
+The [separate cold-boot observer](evidence/greeter-keyboard-boot.json) passed in
+65.93 seconds using that same guest executable. Automatic service startup,
+three seconds of complete login and keyboard text, and six identical keyboard
+framebuffer captures were verified. The agent inspected the actual full-resolution
+[login](evidence/greeter-keyboard-login.png) and [keyboard](evidence/greeter-keyboard-boot.png)
+screens. The [retained observer harness](evidence/greeter-keyboard-boot-harness.txt)
+only reads the guest screen; the host presses F2 and sends no credentials. Its
+completed fixture disk remains unchanged. Test-probe status output is disabled
+for this visual check; the preceding acceptance run retains ordinary status output.
 
 This remains an explicitly staged experimental image profile. It is separate
 from installer keyboard recovery, early LUKS prompts, secure session locking,

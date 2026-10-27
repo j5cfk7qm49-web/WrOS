@@ -1,6 +1,40 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
-## Native login — focused software and real guest qualification passed
+## Login keyboard recovery — software, real guest and Debian CI passed
+
+`codex/greeter-keyboard` / [draft PR #38](https://github.com/j5cfk7qm49-web/WrOS/pull/38)
+adds F2 recovery before PAM, all four supported console layouts, explicit
+preview/keep/revert, timed expiry and crash-surviving rollback. Unresolved helper
+state blocks authentication; typeahead is discarded at transitions. A separate
+staged policy grants only the active local greeter's narrow keyboard action.
+Read [keyboard recovery](GREETER_KEYBOARD.md).
+
+[Focused checks](evidence/greeter-keyboard-focused.json) passed **22 greeter tests
+per configuration**, both workspace Clippys/build, 13 existing helper tests and
+static/documentation checks. The [actual guest](evidence/greeter-keyboard-vm.json)
+passed in **302.81 seconds**: four maps/cancel, expiry, greeter-crash rollback,
+commit/recovery, real PAM, account switching/logout and a secret scan. Its base
+disk stayed unchanged. [Package-only executable proof](evidence/greeter-keyboard-package-build.json)
+matches the guest and archived fixture; the workspace binary is independently
+recorded. Source matches across records: `18bc11d96e690e6f931537a3256288496bac55119a50865b398dbdf8a195b445` / 299 files.
+A [separate cold boot](evidence/greeter-keyboard-boot.json) passed in **65.93 seconds**
+with three seconds of complete login/keyboard text and six identical keyboard
+frames; the actual [keyboard screen](evidence/greeter-keyboard-boot.png) and
+[login screen](evidence/greeter-keyboard-login.png) were inspected at full resolution.
+Fresh [Debian CI 40582861536](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40582861536)
+passed implementation `4381d58`: [954 Rust/configuration, both Clippys, 96 Python
+tests/zero skips and 17 checks](evidence/greeter-keyboard-ci.json), matching the
+focused and guest source. Its tested merge is `f1cf70511be97ab3158157541d0c4fc6118c2ae6`.
+Earlier reports below remain qualified only for their original sources. #27/#4 and physical, installer,
+encryption, recovery and release gates remain open. Suspend is unavailable.
+
+WrOS is the platform: [PR #37](https://github.com/j5cfk7qm49-web/WrOS/pull/37)
+removes Windows/macOS jobs and archives imported application publishing workflows.
+Its sole Debian job [passed](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40580883303).
+See [CI scope](CI.md); historical cross-platform results below are retained only
+as past evidence.
+
+## Native login — qualified parent increment
 
 `codex/native-greeter` adds an isolated Rust/Ratatui greetd client, bounded IPC,
 non-echoing secret entry, local account selection, fixed non-root writing

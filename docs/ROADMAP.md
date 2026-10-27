@@ -26,9 +26,12 @@ physical hardware remain release gates throughout this architectural change.
 
 The separate [native greeter](NATIVE_GREETER.md) now implements the greetd/PAM
 conversation, local account selection and fixed unprivileged session startup.
-Its software and guest qualification are tracked in current status. Native
-keyboard recovery, the independent secure locker/input handoff and physical
-suspend/resume still prevent completion of the authentication/session work.
+Its software and guest qualification are tracked in current status. [Native
+keyboard recovery](GREETER_KEYBOARD.md) now has software and real guest coverage
+for all four layouts, timed/crash rollback and explicit confirmation. The
+independent secure locker/input handoff, remaining transition/failure cases and
+physical suspend/resume still prevent completion of the authentication/session
+work. [CI](CI.md) targets only the WrOS Debian runtime.
 
 ## Working rules
 
