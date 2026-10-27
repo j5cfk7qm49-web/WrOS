@@ -12,7 +12,11 @@ binary=${2:?usage: stage-greeter.sh STAGING_ROOT GREETER_BINARY}
     echo 'Stage the Debian greetd package and WrOS session first.' >&2; exit 2;
 }
 chroot "$dest" getent passwd _greetd >/dev/null
+[[ -x $dest/usr/libexec/writingdeck-keyboard && -f $dest/usr/share/polkit-1/actions/org.writingdeck.keyboard.policy ]] || {
+    echo 'Stage the WrOS keyboard helper and policy first.' >&2; exit 2;
+}
 mkdir -p "$dest/etc/greetd" "$dest/etc/systemd/system" "$dest/usr/bin"
+install -m 644 "$repo/os/config/51-wros-greeter-keyboard.rules" "$dest/etc/polkit-1/rules.d/"
 systemctl --root="$dest" disable greetd.service
 install -m 755 "$binary" "$dest/usr/bin/wros-greeter"
 install -m 644 "$repo/os/config/greetd.toml" "$dest/etc/greetd/config.toml"

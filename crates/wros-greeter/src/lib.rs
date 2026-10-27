@@ -3,6 +3,8 @@
 use serde::{Deserialize, Serialize};
 use zeroize::{Zeroize, Zeroizing};
 
+pub mod keyboard;
+
 pub const MAX_FRAME: usize = 16 * 1024;
 pub const MAX_INPUT: usize = 1024;
 pub const SESSION: &str = "/usr/libexec/writingdeck-session";
@@ -151,6 +153,14 @@ impl Default for Conversation {
     }
 }
 impl Conversation {
+    pub fn open_keyboard(&mut self, keyboard: &mut keyboard::Keyboard) -> bool {
+        if self.phase != Phase::Username {
+            return false;
+        }
+        self.clear();
+        keyboard.open = true;
+        true
+    }
     pub fn choose_account(&mut self, name: &str) {
         if self.phase == Phase::Username {
             self.clear();
@@ -314,7 +324,11 @@ pub fn render(frame: &mut ratatui::Frame, conversation: &Conversation) {
             rows: &rows,
             selected: 0,
             notice: conversation.notice,
-            hint: "Enter: continue  Esc: cancel  Up/Down: accounts  Ctrl+Alt+F2: maintenance",
+            hint: if conversation.phase == Phase::Username {
+                "Enter: continue  F2: keyboard  Up/Down: accounts  Ctrl+Alt+F2: maintenance"
+            } else {
+                "Enter: continue  Esc: cancel for account/keyboard recovery  Ctrl+Alt+F2: maintenance"
+            },
         },
         wros_shell::Theme {
             text: Color::White,

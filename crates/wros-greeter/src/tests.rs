@@ -206,3 +206,36 @@ fn malformed_protocol_has_only_static_diagnostics() {
         .is_err()
     );
 }
+#[test]
+fn keyboard_recovery_clears_username_and_cannot_open_during_pam() {
+    let mut conversation = Conversation::default();
+    let mut keyboard = crate::keyboard::Keyboard::default();
+    conversation.choose_account("writer");
+    assert!(conversation.open_keyboard(&mut keyboard));
+    assert!(conversation.shown_input().is_empty());
+    keyboard.open = false;
+    conversation.choose_account("writer");
+    conversation.submit().unwrap();
+    assert!(!conversation.open_keyboard(&mut keyboard) && !keyboard.open);
+    conversation
+        .receive(Response::AuthMessage {
+            auth_message_type: MessageKind::Secret,
+            auth_message: "Password:".into(),
+        })
+        .unwrap();
+    for c in "synthetic-secret".chars() {
+        conversation.type_char(c);
+    }
+    assert!(!conversation.open_keyboard(&mut keyboard) && !keyboard.open);
+    assert_eq!(conversation.shown_input(), "[hidden]");
+    let answer = conversation.submit().unwrap();
+    let Request::PostAuthMessageResponse {
+        response: Some(ref text),
+    } = answer
+    else {
+        panic!("wrong request");
+    };
+    assert_eq!(text, "synthetic-secret");
+    conversation.receive(Response::Success).unwrap();
+    assert!(!conversation.open_keyboard(&mut keyboard) && !keyboard.open);
+}

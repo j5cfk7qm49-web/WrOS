@@ -1,0 +1,171 @@
+{
+  "scope": "Focused pre-login keyboard recovery software checks; full core software coverage is separate CI, and guest/PAM evidence is separate",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "18bc11d96e690e6f931537a3256288496bac55119a50865b398dbdf8a195b445",
+    "file_count": 299,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "checks": [
+    {
+      "name": "format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 2.953,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "greeter-tests",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "wros-greeter",
+        "--locked",
+        "--offline"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 2.204,
+      "log_sha256": "5205930a4c7f63a3f82629d61450b257676556931b3b27e7feba70803edfdc37"
+    },
+    {
+      "name": "greeter-tests-no-audio",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "wros-greeter",
+        "--no-default-features",
+        "--locked",
+        "--offline"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.443,
+      "log_sha256": "c6b330d91b6e7f818199a1536f33c844f7b1c6cec0f733f167c6fd86681ae017"
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 2.711,
+      "log_sha256": "2eba32381bdec8ebe3b3c9990252542aaa7ccfd0f333b7f9e679a897b9b9a536"
+    },
+    {
+      "name": "clippy-no-audio",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--no-default-features",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 2.773,
+      "log_sha256": "cec5d105c265743b2cc38c2252dee2eda171112b062be17bac6e83080485a72c"
+    },
+    {
+      "name": "build",
+      "command": [
+        "cargo",
+        "build",
+        "--workspace",
+        "--no-default-features",
+        "--locked",
+        "--offline",
+        "-j2"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 5.505,
+      "log_sha256": "bf9e2bb7a6e9179db13f2645a8ead7d0f1eed629275d10fd72073c6a66d2c723"
+    },
+    {
+      "name": "keyboard-tests",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "os/tests",
+        "-p",
+        "test_keyboard.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 1.195,
+      "log_sha256": "40dead979fa782c849e50ebae0a9012ff40fb081143b4ad4eccb9b78c60c248c"
+    },
+    {
+      "name": "python-syntax",
+      "command": [
+        "python3",
+        "-m",
+        "py_compile",
+        "os/tests/greeter_vm.py",
+        "os/tests/guest-greeter-probe.py"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.23,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "stage-shellcheck",
+      "command": [
+        "shellcheck",
+        "os/scripts/stage-greeter.sh"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.161,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "documentation",
+      "command": [
+        "python3",
+        "tools/check-writingdeck.py"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 1.419,
+      "log_sha256": "8f760c64e7877650e23159ee751dce0319e97a1dda01b45ebc91e27aba92ff05"
+    },
+    {
+      "name": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 21.407,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "harness_sha256": "a1442c1dc9004c04b2cff21dc8a95367645d6dc5931ab0fc19b58e36a388e6ce",
+  "source_unchanged": true,
+  "greeter_binary_sha256": "b3b02f4c905007b77ab65de1582d8e25bea0d12ef768392bed7589248e738878",
+  "editor_binary_sha256": "5898e81ff9158c172697ffcfccce829703a9a7d6d8ce04dd40589201964c6411",
+  "passed": true
+}

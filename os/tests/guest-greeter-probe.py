@@ -3,6 +3,8 @@
 import os
 from pathlib import Path
 import signal
+import json
+import re
 import subprocess
 import termios
 import time
@@ -51,6 +53,73 @@ def no_echo():
         os.close(fd)
 
 
+def keycode(code):
+    text = command('dumpkeys', '--console=/dev/tty1', '--keys-only', '--numeric').stdout.decode()
+    match = re.search(r'^\s*keycode\s+' + str(code) + r'\s*=\s*\+?(0x[0-9a-fA-F]+)', text, re.MULTILINE)
+    assert match
+    return int(match[1], 16) & 0xff
+
+
+def keyboard_acceptance():
+    greeter = processes('wros-greeter')[0]
+    command('pkcheck', '--action-id', 'org.writingdeck.keyboard', '--process', greeter.name)
+    for action in ('org.wros.display', 'org.freedesktop.policykit.exec'):
+        denied = subprocess.run(['pkcheck', '--action-id', action, '--process', greeter.name], capture_output=True)
+        assert denied.returncode != 0
+    command('chvt', '2')
+    denied = subprocess.run(['pkcheck', '--action-id', 'org.writingdeck.keyboard', '--process', greeter.name], capture_output=True)
+    assert denied.returncode != 0
+    command('chvt', '1')
+    command('pkcheck', '--action-id', 'org.writingdeck.keyboard', '--process', greeter.name)
+    marker('KEYBOARD_AUTHORIZATION_PASS')
+    config = Path('/etc/writingdeck/keyboard.json')
+    original = config.read_bytes()
+    pending = Path('/run/writingdeck/keyboard-preview.json')
+    marker('KEYBOARD_READY')
+    wait(lambda: 'Login keyboard' in screen(), 'keyboard menu')
+    for index, layout in enumerate(('qwerty', 'colemak', 'colemak-dh-ansi', 'colemak-dh-iso')):
+        marker('LAYOUT_READY_' + str(index))
+        wait(lambda: pending.exists() and json.loads(pending.read_text())['layout'] == layout
+             and 'Preview active' in screen(), 'layout preview ' + str(index))
+        assert keycode(18) == (ord('e') if index == 0 else ord('f'))
+        assert keycode(35) == (ord('h') if index < 2 else ord('m'))
+        assert no_echo() and not processes('grimoire') and config.read_bytes() == original
+        marker('LAYOUT_ACTIVE_' + str(index))
+        wait(lambda: not pending.exists() and 'Saved layout restored' in screen(), 'layout cancellation')
+        assert keycode(18) == ord('e') and config.read_bytes() == original
+    marker('FOUR_LAYOUT_CANCEL_PASS')
+    marker('TIMEOUT_READY')
+    wait(lambda: pending.exists() and 'Preview active' in screen(), 'timed preview')
+    wait(lambda: not pending.exists() and 'Saved layout restored' in screen(), 'preview expiry', 30)
+    assert keycode(18) == ord('e') and config.read_bytes() == original
+    marker('TIMEOUT_PASS')
+    marker('CRASH_PREVIEW_READY')
+    wait(lambda: pending.exists() and 'Preview active' in screen(), 'crash preview')
+    old_pid = processes('wros-greeter')[0].name
+    os.kill(int(old_pid), signal.SIGKILL)
+    wait(lambda: processes('wros-greeter') and all(p.name != old_pid for p in processes('wros-greeter'))
+         and 'Local account' in screen(), 'preview crash recovery')
+    wait(lambda: not pending.exists(), 'rollback without greeter', 30)
+    assert keycode(18) == ord('e') and config.read_bytes() == original and not processes('grimoire')
+    marker('CRASH_ROLLBACK_PASS')
+    marker('COMMIT_MENU_READY')
+    wait(lambda: 'Login keyboard' in screen(), 'reopened keyboard')
+    marker('COMMIT_READY')
+    wait(lambda: pending.exists() and 'Preview active' in screen(), 'commit preview')
+    marker('COMMIT_ACTIVE')
+    wait(lambda: not pending.exists() and 'Local account' in screen(), 'confirmed layout')
+    assert json.loads(config.read_text())['layout'] == 'colemak-dh-iso'
+    assert keycode(18) == ord('f') and keycode(35) == ord('m')
+    marker('COMMIT_PASS')
+    marker('RESTORE_READY')
+    wait(lambda: pending.exists() and json.loads(pending.read_text())['layout'] == 'qwerty'
+         and 'Preview active' in screen(), 'qwerty recovery preview')
+    marker('RESTORE_ACTIVE')
+    wait(lambda: not pending.exists() and 'Local account' in screen(), 'qwerty recovery commit')
+    assert json.loads(config.read_text())['layout'] == 'qwerty' and keycode(18) == ord('e')
+    marker('KEYBOARD_PASS')
+
+
 def main():
     assert Path('/etc/writingdeck/VM-DEMO-ONLY').is_file()
     command('systemctl', 'stop', 'getty@tty1.service')
@@ -65,6 +134,7 @@ def main():
     policy.unlink()
     files = {'usr/bin/wros-greeter': 0o755, 'usr/bin/grimoire': 0o755,
              'usr/libexec/writingdeck-session': 0o755,
+             'etc/polkit-1/rules.d/51-wros-greeter-keyboard.rules': 0o644,
              'etc/greetd/config.toml': 0o644,
              'etc/systemd/system/greetd.service': 0o644}
     with zipfile.ZipFile('/root/greeter-fixture.zip') as archive:
@@ -99,6 +169,7 @@ def main():
          and 'Local account' in screen(), 'crash recovery')
     assert not processes('grimoire')
     marker('CRASH_RECOVERED')
+    keyboard_acceptance()
     marker('READY')
     wait(lambda: '[hidden]' in screen() and no_echo(), 'first hidden prompt')
     login_pid = processes('wros-greeter')[0].name
@@ -161,11 +232,14 @@ if __name__ == '__main__':
         current = screen()
         journal = command('journalctl', '-b', '--no-pager').stdout.decode(errors='replace')
         for line in journal.splitlines():
+            if 'The value for the SHELL variable was not found in the /etc/shells file' in line:
+                marker('DIAGNOSTIC_PKEXEC_REJECTED_INHERITED_SHELL')
             if 'wros-greeter: ' in line:
                 # Greeter diagnostics are static internal strings only.
                 marker('DIAGNOSTIC_' + line.split('wros-greeter: ', 1)[1])
         for label in ('Local account', '[hidden]', 'Please wait', 'Login was not accepted', 'Open writing session',
                       'Login service read failed or timed out', 'Login service could not complete the request',
+                      'Keyboard helper failed', 'Keyboard authorization unavailable', 'Keyboard process unavailable',
                       'Invalid login service response', 'Login service disconnected'):
             if label in current:
                 marker('OBSERVED_' + label.replace(' ', '_'))

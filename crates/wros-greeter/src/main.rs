@@ -36,7 +36,7 @@ mod linux {
         },
         time::{Duration, Instant},
     };
-    use wros_greeter::{Conversation, Phase, Request, transport::Client};
+    use wros_greeter::{Conversation, Phase, Request, keyboard, transport::Client};
 
     struct TerminalGuard;
     fn repaint<B: ratatui::backend::Backend>(terminal: &mut ratatui::Terminal<B>) {
@@ -126,12 +126,47 @@ mod linux {
                 }
             }
         });
+        let (keyboard_requests, keyboard_incoming) = mpsc::sync_channel::<keyboard::Command>(1);
+        let (keyboard_replies, keyboard_completed) = mpsc::sync_channel(1);
+        // No terminal reader or PAM state in this worker. An outstanding helper
+        // blocks authentication, while the main input loop remains responsive.
+        std::thread::spawn(move || {
+            while let Ok(command) = keyboard_incoming.recv() {
+                let reply = keyboard::execute(&command);
+                if keyboard_replies.send((command, reply)).is_err() {
+                    break;
+                }
+            }
+        });
         let result = (|| {
             let mut conversation = Conversation::default();
+            let mut keyboard = keyboard::Keyboard::default();
             let mut last_refresh = Instant::now();
             loop {
                 if stop.load(Ordering::Relaxed) {
                     return Err("login interrupted");
+                }
+                match keyboard_completed.try_recv() {
+                    Ok((command, reply)) => {
+                        drain_input()?;
+                        keyboard.receive(
+                            &command,
+                            reply.as_deref().map_err(|reason| *reason),
+                            Instant::now(),
+                        );
+                        conversation.clear();
+                        repaint(&mut terminal);
+                    }
+                    Err(mpsc::TryRecvError::Disconnected) => {
+                        return Err("keyboard worker disconnected");
+                    }
+                    Err(mpsc::TryRecvError::Empty) => {}
+                }
+                if let Some(command) = keyboard.tick(Instant::now()) {
+                    drain_input()?;
+                    keyboard_requests
+                        .try_send(command)
+                        .map_err(|_| "keyboard queue unavailable")?;
                 }
                 match completed.try_recv() {
                     Ok(response) => {
@@ -158,7 +193,13 @@ mod linux {
                 }
                 refresh(&mut terminal, &mut last_refresh, Instant::now());
                 terminal
-                    .draw(|frame| wros_greeter::render(frame, &conversation))
+                    .draw(|frame| {
+                        if keyboard.open {
+                            keyboard.render(frame, Instant::now());
+                        } else {
+                            wros_greeter::render(frame, &conversation);
+                        }
+                    })
                     .map_err(|_| "terminal draw failed")?;
                 if !event::poll(Duration::from_millis(50)).map_err(|_| "terminal poll failed")? {
                     continue;
@@ -167,6 +208,44 @@ mod linux {
                     continue;
                 };
                 if key.kind == KeyEventKind::Release {
+                    continue;
+                }
+                if keyboard.open {
+                    if key.code == KeyCode::Char('c')
+                        && key.modifiers.contains(KeyModifiers::CONTROL)
+                    {
+                        return Err("keyboard recovery interrupted");
+                    }
+                    let command = match key.code {
+                        KeyCode::Up => {
+                            keyboard.choose(-1);
+                            None
+                        }
+                        KeyCode::Down => {
+                            keyboard.choose(1);
+                            None
+                        }
+                        KeyCode::Enter => keyboard.enter(Instant::now()),
+                        KeyCode::Esc => keyboard.escape(),
+                        _ => None,
+                    };
+                    if let Some(command) = command {
+                        drain_input()?;
+                        keyboard_requests
+                            .try_send(command)
+                            .map_err(|_| "keyboard queue unavailable")?;
+                    }
+                    if !keyboard.open {
+                        drain_input()?;
+                        conversation.clear();
+                        conversation.notice = keyboard.notice;
+                        repaint(&mut terminal);
+                    }
+                    continue;
+                }
+                if key.code == KeyCode::F(2) && conversation.open_keyboard(&mut keyboard) {
+                    drain_input()?;
+                    repaint(&mut terminal);
                     continue;
                 }
                 if key.code == KeyCode::Esc
@@ -225,6 +304,8 @@ mod linux {
         let _ = interrupt.shutdown(Shutdown::Both);
         drop(requests);
         drop(completed);
+        drop(keyboard_requests);
+        drop(keyboard_completed);
         worker.join().map_err(|_| "login worker failed")?;
         result
     }
