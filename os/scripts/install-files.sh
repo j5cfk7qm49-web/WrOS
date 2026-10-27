@@ -24,8 +24,13 @@ python3 "$repo/tools/stage-prose-runtime.py" "$dest" "$runtime"
 install -m 755 "$repo/os/scripts/writingdeck-keyboard" "$repo/os/scripts/writingdeck-session" "$dest/usr/libexec/"
 install -m 644 "$repo/os/config/writingdeck-profile.sh" "$dest/etc/profile.d/writingdeck.sh"
 # Reassembly/upgrades must not reset a committed layout.
-if [[ ! -e $dest/etc/writingdeck/keyboard.json ]]; then
+if [[ ! -e $dest/etc/writingdeck/keyboard.json && ! -L $dest/etc/writingdeck/keyboard.json ]]; then
     install -m 644 "$repo/os/config/keyboard.json" "$dest/etc/writingdeck/keyboard.json"
+    if [[ $profile == installer ]]; then
+        # Debian Installer populates /etc/default/keyboard on the target later.
+        # Adopt that choice at first boot, never on an existing installation.
+        install -m 644 /dev/null "$dest/etc/writingdeck/installer-keyboard-pending"
+    fi
 fi
 install -m 644 "$repo/os/config/50-writingdeck-keyboard.rules" "$dest/etc/polkit-1/rules.d/"
 install -m 644 "$repo/os/config/org.writingdeck.keyboard.policy" "$dest/usr/share/polkit-1/actions/"
