@@ -1,5 +1,20 @@
 # Testing and verification
 
+## Warm-screen qualification
+
+[Warm-screen controls and boundaries](WARM_SCREEN.md) distinguish the rootless
+actual-C fake DRM driver/real-state fault tests from real VM driver refusal and
+physical acceptance. `python3 -m unittest discover -s os/tests -p 'test_display_*.py' -v`
+requires a normal user, a C compiler, pkg-config and libdrm-dev. The ordinary full
+verifier includes these tests and the actual four-size Settings PTY. Never pass
+the fake DRM library to a root process or stage it into an image.
+
+`GRIMOIRE_BINARY=... python3 os/tests/display_vm.py --artifacts-directory NEW_NATIVE_DIRECTORY`
+uses a new no-NIC QEMU layer over the regular VM demo only. It retains source,
+binary, bridge and base-disk hashes, real polkit/driver status, page barriers and
+an actual screenshot. Unsupported-driver refusal is separate from successful
+gamma/readback/timer/Off application; neither establishes physical qualification.
+
 ## Current M7b qualification
 
 Use `bash tools/test-m7b.sh` after provisioning the exact runtime described in

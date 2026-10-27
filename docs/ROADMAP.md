@@ -14,11 +14,13 @@ conflict-safe sync. Ordinary management stays inside WrOS. Emergency maintenance
 remains documented. No root editor, desktop-environment replacement, credential
 shortcuts, mounted active manuscripts or fake tutorial completion.
 
-The initial `wros-shell` library and categorized Settings adapter are implemented
-and being tested. Existing menu/settings actions are retained during migration;
-unsupported account/update/recovery/warmth operations remain explicitly unavailable.
-The warm-screen request includes very warm temperatures around 2200K, strength
-and off/revert controls, backed by real output adjustment rather than a theme.
+The initial `wros-shell` library and categorized Settings adapter passed local and
+Debian/macOS CI qualification. Existing menu/settings actions remain available;
+unsupported account/update/recovery operations remain explicitly unavailable.
+The [warm-screen service](WARM_SCREEN.md) now implements 1000–6500K, initial
+2200K, strength/Off and independent preview rollback; fresh full software and
+unsupported-driver VM qualification passed. Physical and transition gates stay
+open. Issue #32 immediately blocks unsecured suspend before #27/#4 enable it.
 Installer/encryption, signed updates/recovery, notices/source and identified
 physical hardware remain release gates throughout this architectural change.
 

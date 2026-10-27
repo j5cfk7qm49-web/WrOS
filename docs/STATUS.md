@@ -1,5 +1,26 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Manual warm-screen increment — software qualified, hardware gates open
+
+`codex/warm-screen` builds on unified-shell `e31d12b` (Debian/macOS CI
+[40459742814](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40459742814) passed).
+[Warm-screen controls and the narrow display service](WARM_SCREEN.md) now implement
+1000–6500 K, a very warm 2200 K initial choice, strength, Off, confirmation and
+independent rollback while retaining original calibration. Twenty display fault
+tests, 16 backend tests and eight shared Settings UI cases passed locally.
+The [fresh complete software run](evidence/warm-screen-software.json) passed
+**928 Rust tests per overlapping configuration** (5 default / 4 no-audio ignored),
+both Clippys, **96 Python methods with zero skips** and all **18 gates**. Source
+and verifier inputs stayed unchanged; the tested binary matches the VM exactly.
+The [current-code guest
+probe](evidence/warm-screen-vm.json) passed in 88.51 s: the actual virtual GPU was
+correctly refused, policies isolated users and native Settings rendered. No
+positive gamma, physical display or current installer claim is made; #30 stays open.
+
+Read-only audit also reproduced an existing unguarded suspend invocation despite
+the absent secure locker. **Issue #32** tracks immediate fail-closed mitigation;
+the broader lock/input ownership, lid/resume and hardware work stays under #4.
+
 ## Initial unified WrOS shell — current architectural direction
 
 The user's unified-shell directive supersedes the standalone appliance-launcher
@@ -15,8 +36,8 @@ Rust tests/configuration**, both Clippys, **76 Python methods with zero skips**
 and all **18 gates**, with exact unchanged inputs. This includes two-pane
 cursor/selection/free-scroll/focus/undo, native error/confirmation and actual
 four-size PTY/restart tests. No new OS/physical/credential acceptance is inferred.
-Native greeter/lock, Google linking, Drive browsing and actual warm-screen output
-remain unfinished (#26–#30); warm temperatures around 2200K are requested.
+Native greeter/lock, Google linking and Drive browsing remain unfinished
+(#26–#29). Warm-screen implementation and its remaining qualification are above.
 
 
 ## Qualified M7b software — 2026-10-26

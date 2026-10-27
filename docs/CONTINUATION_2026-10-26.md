@@ -13,13 +13,35 @@ existing security/data/release/hardware gates remain. Do not resume unrelated
 M8 work before this new architecture is established.
 
 The user additionally requested a blue-light filter with really warm screens.
-Issue #30 targets native System → Display warm-screen controls including 2200K,
-lower supported temperatures, strength/off and reversible preview. **No actual
-warm-screen backend has been implemented yet.** Do not claim a theme change is
-a physical-screen filter or treat unsupported DRM outputs as successful.
+Issue #30 now has a `codex/warm-screen` implementation based on `e31d12b`, with
+1000–6500K / initial 2200K, strength/Off, original calibration, root-only libdrm
+bridge, narrow polkit helper, durable confirmed preferences and independent
+15-second systemd preview rollback. See [service and limits](WARM_SCREEN.md).
+Twenty Python display fault tests, 16 backend tests and eight native Settings UI
+tests have passed. Fresh complete qualification passed **928 Rust/configuration**
+(5 default / 4 no-audio ignored), both Clippys, **96 Python / zero skips** and
+**18 gates**, with unchanged source/verifier inputs. The final current-code
+VM run passed in 88.51 s with source fingerprint 30691d88…c863 / 287 files and
+binary SHA 911c8675…13c7c, base disk unchanged. Real virtio gamma is unsupported,
+so refusal/polkit/native UI passed; no positive hardware gamma claim. Its actual
+screen and report are retained under `docs/evidence/warm-screen-vm.*`.
+Do not claim a theme is a screen filter or unsupported outputs are successful.
 
-Current branch `codex/unified-shell` starts at installer checkpoint `c9e513f`.
-It adds the editor-independent `crates/wros-shell` library and `src/app/shell.rs`
+Unified-shell head `e31d12b9d30d205a6796b34c6ac848530b322ba9` has now also
+passed real Debian and macOS CI run 40459742814. PR #31 remains draft; the warm
+increment will use its own stacked PR and evidence. No host display/account/disk
+has been accessed. Original import/main/foundation history remains preserved.
+
+Next immediate safety fix: issue #32 reproduces the pre-existing Linux adapter
+constructing an unsecured `systemctl suspend` invocation without a qualified
+locker. The private rootless reproduction constructed arguments only; it never
+ran a power command. Block this capability in both backend and native/legacy
+Power pages, retain shutdown/restart confirmation/save behavior, add no-process
+and retained-editor regressions, then resume #27/#4 greeter/locking work. Do not
+mistake that guard for complete session/lid/suspend security.
+
+Prior branch `codex/unified-shell` starts at installer checkpoint `c9e513f`.
+It added the editor-independent `crates/wros-shell` library and `src/app/shell.rs`
 adapter: bounded navigation/selection history, clipped shared Ratatui menus,
 bounded notices, guarded version-1 per-user UI preferences and native categories.
 Existing writing/interface actions and bounded system worker are reused. Return

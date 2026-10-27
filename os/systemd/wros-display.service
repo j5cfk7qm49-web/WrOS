@@ -1,0 +1,18 @@
+[Unit]
+Description=Apply confirmed WrOS screen warmth
+After=systemd-vconsole-setup.service console-setup.service systemd-udev-settle.service
+Before=getty@tty1.service greetd.service
+ConditionPathExists=/etc/wros/display.json
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/wros-display boot
+RemainAfterExit=yes
+RuntimeDirectory=wros-display
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/run/wros-display /etc/wros
+NoNewPrivileges=yes
+TimeoutStartSec=12s

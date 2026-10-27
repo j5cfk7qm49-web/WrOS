@@ -1,0 +1,11 @@
+[Unit]
+Description=Restore an unconfirmed WrOS display preview
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/wros-display rollback
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/run/wros-display /etc/wros
+NoNewPrivileges=yes
+TimeoutStartSec=12s

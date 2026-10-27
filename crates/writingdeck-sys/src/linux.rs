@@ -255,7 +255,12 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
         ),
         Request::KeyboardPreview(l) => Invocation::new(
             "/usr/bin/pkexec",
-            &["/usr/libexec/writingdeck-keyboard", "preview", l.id()],
+            &[
+                "--disable-internal-agent",
+                "/usr/libexec/writingdeck-keyboard",
+                "preview",
+                l.id(),
+            ],
         ),
         Request::KeyboardConfirm(t) | Request::KeyboardCancel(t) => {
             if t.len() != 32 || !t.bytes().all(|b| b.is_ascii_hexdigit()) {
@@ -264,6 +269,7 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
             Invocation::new(
                 "/usr/bin/pkexec",
                 &[
+                    "--disable-internal-agent",
                     "/usr/libexec/writingdeck-keyboard",
                     if matches!(request, Request::KeyboardConfirm(_)) {
                         "confirm"
@@ -271,6 +277,44 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
                         "cancel"
                     },
                     t,
+                ],
+            )
+        }
+        Request::DisplayStatus => Invocation::new(
+            "/usr/bin/pkexec",
+            &[
+                "--disable-internal-agent",
+                "/usr/libexec/wros-display",
+                "status",
+            ],
+        ),
+        Request::DisplayPreview(choice) => {
+            choice.validate()?;
+            Invocation::new(
+                "/usr/bin/pkexec",
+                &[
+                    "--disable-internal-agent",
+                    "/usr/libexec/wros-display",
+                    "preview",
+                    if choice.enabled { "on" } else { "off" },
+                    &choice.kelvin.to_string(),
+                    &choice.strength.to_string(),
+                ],
+            )
+        }
+        Request::DisplayConfirm(token) | Request::DisplayCancel(token) => {
+            crate::display::validate_token(token)?;
+            Invocation::new(
+                "/usr/bin/pkexec",
+                &[
+                    "--disable-internal-agent",
+                    "/usr/libexec/wros-display",
+                    if matches!(request, Request::DisplayConfirm(_)) {
+                        "confirm"
+                    } else {
+                        "cancel"
+                    },
+                    token,
                 ],
             )
         }
@@ -282,6 +326,50 @@ impl<R: Runner> Backend for Linux<R> {
             return Ok(Reply::Snapshot(self.snapshot()));
         }
         let output = self.runner.run(&invocation(&request)?)?;
+        if matches!(request, Request::DisplayStatus) {
+            let status: crate::display::Status =
+                serde_json::from_str(&output).context("invalid display status")?;
+            status.validate()?;
+            return Ok(Reply::DisplayStatus(status));
+        }
+        if matches!(request, Request::DisplayPreview(_)) {
+            #[derive(serde::Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct Preview {
+                token: String,
+                seconds: u64,
+            }
+            let preview: Preview =
+                serde_json::from_str(&output).context("invalid display preview reply")?;
+            crate::display::validate_token(&preview.token)?;
+            if preview.seconds == 0 || preview.seconds > 15 {
+                bail!("display preview expired or invalid");
+            }
+            return Ok(Reply::DisplayPreview {
+                token: preview.token,
+                seconds: preview.seconds,
+            });
+        }
+        if matches!(
+            request,
+            Request::DisplayConfirm(_) | Request::DisplayCancel(_)
+        ) {
+            let result: serde_json::Value =
+                serde_json::from_str(&output).context("invalid display completion reply")?;
+            let message = match (request, result["status"].as_str()) {
+                (Request::DisplayConfirm(_), Some("committed")) => {
+                    "Screen warmth kept for this display and future boots."
+                }
+                (Request::DisplayCancel(_), Some("cancelled")) => {
+                    "Previous screen colors restored."
+                }
+                (Request::DisplayCancel(_), Some("no-preview")) => {
+                    "Display preview has already finished."
+                }
+                _ => bail!("display transaction was not confirmed by the service"),
+            };
+            return Ok(Reply::Message(message.into()));
+        }
         if matches!(request, Request::KeyboardPreview(_)) {
             let v: serde_json::Value =
                 serde_json::from_str(&output).context("invalid keyboard helper reply")?;
@@ -353,5 +441,64 @@ mod tests {
     fn real_command_errors_are_not_reported_as_success() {
         let r = ProcessRunner.run(&Invocation::new("/usr/bin/false", &[]));
         assert!(r.is_err());
+    }
+    #[test]
+    fn display_calls_are_fixed_bounded_and_never_start_a_tty_auth_reader() {
+        use crate::display::Warmth;
+        let command = invocation(&Request::DisplayPreview(Warmth::default())).unwrap();
+        assert_eq!(command.program, "/usr/bin/pkexec");
+        assert_eq!(
+            command.args,
+            [
+                "--disable-internal-agent",
+                "/usr/libexec/wros-display",
+                "preview",
+                "on",
+                "2200",
+                "100"
+            ]
+        );
+        assert!(
+            invocation(&Request::DisplayPreview(Warmth {
+                kelvin: 999,
+                ..Warmth::default()
+            }))
+            .is_err()
+        );
+        assert!(invocation(&Request::DisplayConfirm(";rm -rf /".into())).is_err());
+        assert_eq!(
+            invocation(&Request::KeyboardPreview(
+                crate::keyboard::Layout::ALL[0].clone()
+            ))
+            .unwrap()
+            .args[0],
+            "--disable-internal-agent"
+        );
+    }
+    #[test]
+    fn malformed_or_expired_display_replies_never_become_successful_previews() {
+        struct Output(&'static str);
+        impl Runner for Output {
+            fn run(&mut self, _: &Invocation) -> Result<String> {
+                Ok(self.0.into())
+            }
+        }
+        for output in [
+            r#"{"token":"bad","seconds":15}"#,
+            r#"{"token":"0123456789abcdef0123456789abcdef","seconds":0}"#,
+            r#"{"token":"0123456789abcdef0123456789abcdef","seconds":16}"#,
+        ] {
+            let mut backend = Linux {
+                runner: Output(output),
+                sys: "/missing".into(),
+                etc: "/missing".into(),
+                storage: "/missing".into(),
+            };
+            assert!(
+                backend
+                    .request(Request::DisplayPreview(crate::display::Warmth::default()))
+                    .is_err()
+            );
+        }
     }
 }

@@ -33,7 +33,7 @@ Tested builder host: Debian 13 amd64, approximately 2 GiB RAM / 2 CPUs. Allow se
 
 ```sh
 sudo apt-get install --no-install-recommends \
-  build-essential pkg-config libasound2-dev mmdebstrap qemu-system-x86 qemu-utils \
+  build-essential pkg-config libasound2-dev libdrm-dev mmdebstrap qemu-system-x86 qemu-utils \
   ovmf gdisk dosfstools mtools e2fsprogs grub-efi-amd64-bin \
   console-setup kbd xkb-data python3 python3-pil shellcheck
 cargo build --locked --no-default-features -j 2

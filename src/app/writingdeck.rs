@@ -482,6 +482,31 @@ impl App {
                     if matches!(request, Request::KeyboardConfirm(_)) {
                         self.observe_deck(tutorial::Event::LayoutConfirmed);
                     }
+                    if matches!(
+                        request,
+                        Request::DisplayConfirm(_) | Request::DisplayCancel(_)
+                    ) {
+                        self.deck.request(Request::DisplayStatus);
+                    }
+                }
+                Ok(Reply::DisplayStatus(status)) => {
+                    self.deck.shell.warmth = status.warmth;
+                    self.deck.note = status.message.clone();
+                    self.deck.shell.display = Some(status);
+                }
+                Ok(Reply::DisplayPreview { token, seconds }) => {
+                    if self.deck.shell.warm_wait
+                        && matches!(self.overlay, Overlay::Deck(Page::Settings))
+                        && self.deck.shell.nav.current() == super::shell::Route::WarmScreen
+                    {
+                        self.deck.shell.warm_preview =
+                            Some((token, Instant::now() + Duration::from_secs(seconds.min(15))));
+                        self.deck.shell.nav.open(super::shell::Route::WarmPreview);
+                        self.deck.note = "Temporary warmth applied. Choose Keep or Cancel; automatic rollback is armed.".into();
+                    } else {
+                        self.deck.request(Request::DisplayCancel(token));
+                    }
+                    self.deck.shell.warm_wait = false;
                 }
                 Ok(Reply::KeyboardPreview { token, seconds }) => {
                     if let Request::KeyboardPreview(layout) = request {
@@ -502,6 +527,10 @@ impl App {
                     }
                 }
                 Err(e) => {
+                    self.deck.shell.warm_wait = false;
+                    if matches!(request, Request::DisplayStatus) {
+                        self.deck.shell.display = None;
+                    }
                     self.deck.note = format!("Unavailable: {e}");
                     if matches!(self.overlay, Overlay::Deck(Page::KeyboardWait)) {
                         self.overlay = Overlay::Deck(Page::Keyboard { sel: 0 });
@@ -509,6 +538,22 @@ impl App {
                 }
             }
             self.deck.shell.notices.push(&self.deck.note);
+        }
+        if self
+            .deck
+            .shell
+            .warm_preview
+            .as_ref()
+            .is_some_and(|(_, end)| {
+                Instant::now() >= *end || !matches!(self.overlay, Overlay::Deck(Page::Settings))
+            })
+            && !self.deck.busy
+        {
+            let (token, _) = self.deck.shell.warm_preview.take().unwrap();
+            self.deck.request(Request::DisplayCancel(token));
+            if self.deck.shell.nav.current() == super::shell::Route::WarmPreview {
+                self.deck.shell.nav.back();
+            }
         }
         if self
             .deck

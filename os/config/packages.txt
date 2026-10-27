@@ -32,6 +32,7 @@ login
 passwd
 libasound2t64
 libgcc-s1
+libdrm2
 git
 less
 nano

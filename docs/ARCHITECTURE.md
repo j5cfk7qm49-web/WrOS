@@ -99,6 +99,13 @@ Use NetworkManager/logind/UPower/brightnessctl and maintained Debian services; d
 
 Power requests are user-confirmed and require successful manuscript saves. Normal development does not install appliance login/polkit policies. Timezone, sound, updates, first-run account provisioning and screen-lock integration remain planned. An upstream authenticated tty2 is the maintenance path; a passwordless VM demo cannot provide production authentication or recovery guarantees.
 
+The [manual warm-screen service](WARM_SCREEN.md) adds a separate fixed polkit
+endpoint, root-owned transaction state and a non-setuid bounded libdrm bridge.
+The same worker handles its typed status/preview/Keep/Cancel requests. It scales
+captured calibration, verifies all outputs/readback and arms independent systemd
+rollback before writing colors. Unsupported or externally changed displays are
+refused. The editor never owns credentials, privileged device handles or timers.
+
 Production release gates: encrypted Debian installation, authenticated login and lock/suspend interaction, recovery secrets, firmware/Secure Boot policy, signed update source and tested rollback. The present GRUB fallback image is unsigned. Never deploy its passwordless profile to a physical laptop.
 
 ## Performance design

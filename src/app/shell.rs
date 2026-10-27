@@ -60,6 +60,8 @@ pub enum Route {
     Settings,
     Category(Category),
     Panel(Panel),
+    WarmScreen,
+    WarmPreview,
 }
 
 pub struct Shell {
@@ -70,6 +72,10 @@ pub struct Shell {
     path: PathBuf,
     seen: Option<grimoire_core::sync::Fingerprint>,
     writable: bool,
+    pub display: Option<writingdeck_sys::display::Status>,
+    pub warmth: writingdeck_sys::display::Warmth,
+    pub warm_wait: bool,
+    pub warm_preview: Option<(String, Instant)>,
 }
 impl Shell {
     pub fn load(root: &Path, background: bool) -> Self {
@@ -87,6 +93,10 @@ impl Shell {
             path,
             seen: None,
             writable: true,
+            display: None,
+            warmth: writingdeck_sys::display::Warmth::default(),
+            warm_wait: false,
+            warm_preview: None,
         };
         let result = (|| -> Result<()> {
             if state.path.is_symlink() {
@@ -145,6 +155,11 @@ enum Choice {
     Action(Action),
     System(usize),
     Information,
+    WarmAdjust(i16, i16),
+    WarmToggle,
+    WarmStatus,
+    WarmApply,
+    WarmResolve(bool),
 }
 struct Entry {
     label: String,
@@ -256,8 +271,9 @@ fn entries(app: &App) -> Vec<Entry> {
                     )),
                     Entry::new("Brightness -10%", Choice::System(5)),
                     Entry::new("Brightness +10%", Choice::System(6)),
-                    Entry::info(
-                        "Warm screen · very warm 2200K preference; display service pending",
+                    Entry::new(
+                        "Warm screen · blue light filter",
+                        Choice::Open(Route::WarmScreen),
                     ),
                 ]),
                 Panel::Power => rows.extend([
@@ -306,6 +322,76 @@ fn entries(app: &App) -> Vec<Entry> {
             }
             rows
         }
+        Route::WarmScreen => {
+            let shell = &app.deck.shell;
+            let choice = shell.warmth;
+            let status = shell
+                .display
+                .as_ref()
+                .map_or("Not checked; check display support", |s| s.message.as_str());
+            vec![
+                Entry::new(
+                    "Check display support and saved settings",
+                    Choice::WarmStatus,
+                ),
+                Entry::info(status),
+                Entry::info(shell.display.as_ref().map_or(
+                    "Display support: unknown".into(),
+                    |s| {
+                        format!(
+                            "Display support: {} · saved preference {}",
+                            if s.available {
+                                "available"
+                            } else {
+                                "unavailable"
+                            },
+                            if s.applied {
+                                "matches display"
+                            } else {
+                                "not applied"
+                            }
+                        )
+                    },
+                )),
+                Entry::new(
+                    format!("Filter: {}", if choice.enabled { "on" } else { "off" }),
+                    Choice::WarmToggle,
+                ),
+                Entry::new(
+                    format!("Temperature: {} K · warmer -100 K", choice.kelvin),
+                    Choice::WarmAdjust(-100, 0),
+                ),
+                Entry::new("Temperature: cooler +100 K", Choice::WarmAdjust(100, 0)),
+                Entry::new(
+                    format!("Strength: {}% · decrease 10%", choice.strength),
+                    Choice::WarmAdjust(0, -10),
+                ),
+                Entry::new("Strength: increase 10%", Choice::WarmAdjust(0, 10)),
+                Entry::new("Preview choice · keep within 15 seconds", Choice::WarmApply),
+                Entry::info("1000–6500 K; 2200 K is very warm. Changes apply only after Preview."),
+                Entry::info(
+                    "Off restores the original color curves. Unsupported drivers stay unchanged.",
+                ),
+            ]
+        }
+        Route::WarmPreview => vec![
+            Entry::info(format!(
+                "Temporary display preview · {} seconds remaining",
+                app.deck
+                    .shell
+                    .warm_preview
+                    .as_ref()
+                    .map_or(0, |(_, end)| end
+                        .saturating_duration_since(Instant::now())
+                        .as_secs())
+            )),
+            Entry::new(
+                "Cancel and restore previous colors",
+                Choice::WarmResolve(false),
+            ),
+            Entry::new("Keep these display settings", Choice::WarmResolve(true)),
+            Entry::info("The independent system timer restores unconfirmed changes if WrOS exits."),
+        ],
     }
 }
 
@@ -324,6 +410,12 @@ impl App {
         self.observe_deck(tutorial::Event::SystemOpened);
     }
     pub fn on_settings_key(&mut self, key: Key) {
+        if self.deck.shell.nav.current() == Route::WarmPreview
+            && matches!(key, Key::Esc | Key::Left)
+        {
+            self.resolve_warm_preview(false);
+            return;
+        }
         let rows = entries(self);
         let nav = &mut self.deck.shell.nav;
         match key {
@@ -334,6 +426,7 @@ impl App {
             Key::Home => nav.select(0, rows.len()),
             Key::End => nav.select(rows.len().saturating_sub(1), rows.len()),
             Key::Esc | Key::Left => {
+                self.deck.shell.warm_wait = false;
                 if !nav.back() {
                     self.deck.shell.save();
                     self.overlay = self.deck.shell.origin.take().unwrap_or(Overlay::None);
@@ -347,6 +440,9 @@ impl App {
                 match row.choice {
                     Choice::Open(route) => {
                         self.deck.shell.nav.open(route);
+                        if route == Route::WarmScreen && !self.deck.busy {
+                            self.deck.request(writingdeck_sys::Request::DisplayStatus);
+                        }
                         if matches!(route, Route::Panel(_))
                             && self.deck.snapshot.is_none()
                             && !self.deck.busy
@@ -355,6 +451,43 @@ impl App {
                         }
                     }
                     Choice::Information => self.deck.shell.notices.push(&row.label),
+                    Choice::WarmAdjust(kelvin, strength) if !self.deck.busy => {
+                        let choice = &mut self.deck.shell.warmth;
+                        choice.kelvin =
+                            (i32::from(choice.kelvin) + i32::from(kelvin)).clamp(1000, 6500) as u16;
+                        choice.strength =
+                            (i16::from(choice.strength) + strength).clamp(0, 100) as u8;
+                    }
+                    Choice::WarmToggle if !self.deck.busy => {
+                        self.deck.shell.warmth.enabled = !self.deck.shell.warmth.enabled
+                    }
+                    Choice::WarmStatus if !self.deck.busy => {
+                        self.deck.request(writingdeck_sys::Request::DisplayStatus)
+                    }
+                    Choice::WarmApply if !self.deck.busy => {
+                        if self
+                            .deck
+                            .shell
+                            .display
+                            .as_ref()
+                            .is_some_and(|s| s.available)
+                        {
+                            self.deck.request(writingdeck_sys::Request::DisplayPreview(
+                                self.deck.shell.warmth,
+                            ));
+                            self.deck.shell.warm_wait = self.deck.busy;
+                        } else {
+                            self.deck.shell.notices.push(
+                                "Display support is unavailable or unchecked; colors unchanged.",
+                            );
+                        }
+                    }
+                    Choice::WarmResolve(keep) if !self.deck.busy => self.resolve_warm_preview(keep),
+                    Choice::WarmAdjust(..)
+                    | Choice::WarmToggle
+                    | Choice::WarmStatus
+                    | Choice::WarmApply
+                    | Choice::WarmResolve(_) => {}
                     Choice::Action(action) => {
                         self.deck.shell.external = true;
                         self.run_action(action);
@@ -370,6 +503,19 @@ impl App {
             }
             _ => {}
         }
+    }
+    fn resolve_warm_preview(&mut self, keep: bool) {
+        if self.deck.busy {
+            return;
+        }
+        if let Some((token, _)) = self.deck.shell.warm_preview.take() {
+            self.deck.request(if keep {
+                writingdeck_sys::Request::DisplayConfirm(token)
+            } else {
+                writingdeck_sys::Request::DisplayCancel(token)
+            });
+        }
+        self.deck.shell.nav.back();
     }
     pub fn return_to_settings(&mut self) {
         if self.deck.shell.external
@@ -397,6 +543,8 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
         Route::Settings => "WrOS · Settings".into(),
         Route::Category(category) => format!("WrOS · Settings › {}", category.label()),
         Route::Panel(panel) => format!("WrOS · Settings › System › {}", panel.label()),
+        Route::WarmScreen => "WrOS · Settings › Display › Warm screen".into(),
+        Route::WarmPreview => "WrOS · Keep display preview?".into(),
     };
     if app
         .deck

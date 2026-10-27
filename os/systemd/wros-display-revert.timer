@@ -1,0 +1,7 @@
+[Unit]
+Description=Independent 15-second WrOS display preview safety timer
+
+[Timer]
+OnActiveSec=15s
+AccuracySec=100ms
+Unit=wros-display-revert.service

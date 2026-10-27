@@ -159,5 +159,6 @@ also matched a title present in its parent; the final test waits for a unique
 child-page control before sending Escape. No acceptance assertion was removed.
 
 This qualifies the initial software slice. There is no unified-shell ISO/greeter/
-lock/suspend/physical display/Google/Drive acceptance yet. The warm-screen
-destination is explicitly unavailable until its actual output service exists.
+lock/suspend/physical display/Google/Drive acceptance yet. The subsequent
+[warm-screen increment](WARM_SCREEN.md) adds its actual output service and native
+controls; unsupported drivers remain explicitly unavailable.

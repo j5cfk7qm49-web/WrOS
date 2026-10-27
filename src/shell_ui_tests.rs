@@ -174,6 +174,151 @@ fn unified_settings_power_confirmation_and_display_unavailability_are_honest() {
     desk.key(KeyCode::Enter);
     desk.key(KeyCode::End);
     desk.key(KeyCode::Enter);
-    assert!(desk.shows("display service pending"));
+    assert!(desk.shows("Warm screen"));
     assert!(!desk.app.deck.busy, "no fabricated warmth request was sent");
+}
+
+fn wait_system(desk: &mut Desk) {
+    let end = std::time::Instant::now() + std::time::Duration::from_secs(3);
+    while desk.app.deck.busy && std::time::Instant::now() < end {
+        desk.app.tick_deck();
+        std::thread::yield_now();
+    }
+    assert!(!desk.app.deck.busy);
+    desk.draw();
+}
+fn open_warm(desk: &mut Desk) {
+    system_panel(desk, 1);
+    wait_system(desk);
+    desk.key(KeyCode::End);
+    desk.key(KeyCode::Enter);
+    wait_system(desk);
+    assert_eq!(desk.app.deck.shell.nav.current(), Route::WarmScreen);
+}
+fn choose_warm_row(desk: &mut Desk, row: usize) {
+    desk.key(KeyCode::Home);
+    for _ in 0..row {
+        desk.key(KeyCode::Down);
+    }
+    desk.key(KeyCode::Enter);
+}
+
+#[test]
+fn warm_screen_preview_confirm_cancel_and_timeout_retain_both_editors() {
+    use std::time::{Duration, Instant};
+    for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let (mut desk, note) = secondary_book(&format!("warm-retain-{width}"), width, height, true);
+        choose_secondary(&mut desk, &note);
+        desk.typed("Warm light; original words. ");
+        desk.app.editor.select((10, 3), (8, 7));
+        desk.draw();
+        let before = desk.app.editor.text();
+        let primary = desk.app.view_position(Pane::Primary).unwrap();
+        let secondary = desk.app.view_position(Pane::Secondary).unwrap();
+        desk.app.deck.simulate();
+        open_warm(&mut desk);
+        assert_eq!(desk.app.deck.shell.warmth.kelvin, 2200);
+        choose_warm_row(&mut desk, 4);
+        assert_eq!(desk.app.deck.shell.warmth.kelvin, 2100);
+        choose_warm_row(&mut desk, 8);
+        wait_system(&mut desk);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::WarmPreview);
+        desk.ctrl('x');
+        assert_eq!(desk.app.editor.text(), before);
+        desk.typed("should not enter manuscript");
+        assert_eq!(desk.app.editor.text(), before);
+        desk.key(KeyCode::Esc);
+        wait_system(&mut desk);
+        assert_eq!(desk.app.deck.shell.warmth.kelvin, 2200);
+        choose_warm_row(&mut desk, 4);
+        choose_warm_row(&mut desk, 8);
+        wait_system(&mut desk);
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert_eq!(desk.app.deck.shell.warmth.kelvin, 2100);
+        choose_warm_row(&mut desk, 8);
+        wait_system(&mut desk);
+        desk.app.deck.shell.warm_preview.as_mut().unwrap().1 =
+            Instant::now() - Duration::from_secs(1);
+        desk.app.tick_deck();
+        wait_system(&mut desk);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::WarmScreen);
+        for _ in 0..4 {
+            desk.key(KeyCode::Esc);
+        }
+        assert_eq!(desk.app.overlay, Overlay::None);
+        assert_eq!(desk.app.editor.text(), before);
+        assert_eq!(desk.app.view_position(Pane::Primary).unwrap(), primary);
+        assert_eq!(desk.app.view_position(Pane::Secondary).unwrap(), secondary);
+        assert_eq!(desk.app.focus, Focus::Secondary);
+        desk.ctrl('z');
+        assert_ne!(desk.app.editor.text(), before);
+    }
+}
+
+#[test]
+fn warm_screen_missing_service_has_no_preview_and_leaves_writing_available() {
+    let mut desk = Desk::open(book("warm-unavailable", true), 80, 24);
+    open_warm(&mut desk);
+    choose_warm_row(&mut desk, 8);
+    assert!(!desk.app.deck.busy);
+    assert!(desk.app.deck.shell.warm_preview.is_none());
+    assert!(desk.shows("unavailable or unchecked"));
+}
+
+#[test]
+fn late_warm_preview_is_cancelled_without_reopening_settings() {
+    use std::sync::{Arc, Mutex, mpsc};
+    use writingdeck_sys::{Backend, Reply, Request, Simulated};
+    struct Delayed {
+        backend: Simulated,
+        entered: mpsc::Sender<()>,
+        release: mpsc::Receiver<()>,
+        calls: Arc<Mutex<Vec<Request>>>,
+    }
+    impl Backend for Delayed {
+        fn request(&mut self, request: Request) -> anyhow::Result<Reply> {
+            self.calls.lock().unwrap().push(request.clone());
+            if matches!(request, Request::DisplayPreview(_)) {
+                self.entered.send(()).unwrap();
+                self.release
+                    .recv_timeout(std::time::Duration::from_secs(3))
+                    .unwrap();
+            }
+            self.backend.request(request)
+        }
+    }
+    let (entered_tx, entered_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let mut desk = Desk::open(book("warm-late", true), 80, 24);
+    desk.app.deck.use_test_backend(Box::new(Delayed {
+        backend: Simulated::laptop(),
+        entered: entered_tx,
+        release: release_rx,
+        calls: calls.clone(),
+    }));
+    open_warm(&mut desk);
+    choose_warm_row(&mut desk, 8);
+    entered_rx
+        .recv_timeout(std::time::Duration::from_secs(3))
+        .unwrap();
+    desk.key(KeyCode::Esc);
+    desk.key(KeyCode::Esc);
+    desk.key(KeyCode::Esc);
+    desk.key(KeyCode::Esc);
+    assert_eq!(desk.app.overlay, Overlay::None);
+    release_tx.send(()).unwrap();
+    wait_system(&mut desk);
+    assert_eq!(desk.app.overlay, Overlay::None);
+    assert!(desk.app.deck.shell.warm_preview.is_none());
+    assert!(
+        calls
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|r| matches!(r, Request::DisplayCancel(_)))
+    );
 }

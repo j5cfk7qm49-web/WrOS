@@ -577,7 +577,7 @@
       "status": "In progress",
       "verification": "Five actual retained-editor UI tests plus real four-size PTY cursor/undo/settings restart tests passed",
       "hardware_verified": false,
-      "detail": "Initial native categories tested; legacy paths retained; enrollment, warmth, cloud, greeter and recovery backends unfinished"
+      "detail": "Initial categories and warm-screen software qualified; enrollment, cloud, greeter, recovery and physical display qualification unfinished"
     },
     {
       "area": "OS",
@@ -606,10 +606,10 @@
     {
       "area": "System",
       "capability": "Warm screen and blue-light filter with very warm temperature controls",
-      "status": "Planned",
-      "verification": "Native Display destination and DRM/backend investigation; no screen adjustment yet",
+      "status": "In progress",
+      "verification": "928 Rust/configuration, 96 Python/zero skips, both Clippys and 18 gates; real VM driver refusal, polkit and native UI passed",
       "hardware_verified": false,
-      "detail": "Target 2200K and lower supported temperatures with strength/off/revert; real output support must be verified; issue 30"
+      "detail": "1000–6500K, initial 2200K, strength/Off, calibration retention and independent preview rollback implemented; physical and transition qualification open; issue 30"
     }
   ]
 }

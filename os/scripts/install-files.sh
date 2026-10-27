@@ -15,6 +15,7 @@ dest=$(realpath "$dest")
     echo 'Requires root, an existing staged Debian root (not /), and a built binary.' >&2; exit 2;
 }
 mkdir -p "$dest/usr/bin" "$dest/usr/libexec" "$dest/etc/profile.d" "$dest/etc/writingdeck" \
+    "$dest/etc/wros" \
     "$dest/etc/polkit-1/rules.d" "$dest/usr/share/polkit-1/actions" \
     "$dest/usr/share/doc/writingdeck" "$dest/usr/share/writingdeck/keymaps" "$dest/etc/systemd/system"
 install -m 755 "$binary" "$dest/usr/bin/grimoire"
@@ -22,6 +23,17 @@ strip "$dest/usr/bin/grimoire"
 runtime=${WRITINGDECK_PROSE_RUNTIME:-$repo/build/prose-runtime/runtime}
 python3 "$repo/tools/stage-prose-runtime.py" "$dest" "$runtime"
 install -m 755 "$repo/os/scripts/writingdeck-keyboard" "$repo/os/scripts/writingdeck-session" "$dest/usr/libexec/"
+install -m 755 "$repo/os/scripts/wros-display" "$dest/usr/libexec/"
+# Build on the declared Debian builder; never ship the fake test DRM library.
+display_build=$(mktemp -d)
+trap 'rm -f -- "$display_build/wros-display-hw"; rmdir -- "$display_build"' EXIT
+read -r -a drm_cflags < <(pkg-config --cflags libdrm)
+read -r -a drm_libs < <(pkg-config --libs libdrm)
+cc -std=c11 -O2 -Wall -Wextra -Werror -D_FORTIFY_SOURCE=3 -fstack-protector-strong \
+    "${drm_cflags[@]}" "$repo/os/helpers/wros-display-hw.c" \
+    -Wl,-z,relro,-z,now -o "$display_build/wros-display-hw" "${drm_libs[@]}"
+install -m 755 "$display_build/wros-display-hw" "$dest/usr/libexec/"
+strip "$dest/usr/libexec/wros-display-hw"
 install -m 644 "$repo/os/config/writingdeck-profile.sh" "$dest/etc/profile.d/writingdeck.sh"
 # Reassembly/upgrades must not reset a committed layout.
 if [[ ! -e $dest/etc/writingdeck/keyboard.json ]]; then
@@ -29,6 +41,8 @@ if [[ ! -e $dest/etc/writingdeck/keyboard.json ]]; then
 fi
 install -m 644 "$repo/os/config/50-writingdeck-keyboard.rules" "$dest/etc/polkit-1/rules.d/"
 install -m 644 "$repo/os/config/org.writingdeck.keyboard.policy" "$dest/usr/share/polkit-1/actions/"
+install -m 644 "$repo/os/config/50-wros-display.rules" "$dest/etc/polkit-1/rules.d/"
+install -m 644 "$repo/os/config/org.wros.display.policy" "$dest/usr/share/polkit-1/actions/"
 install -m 644 "$repo/os/systemd/"* "$dest/etc/systemd/system/"
 "$repo/os/scripts/generate-keymaps.sh" "$dest/usr/share/writingdeck/keymaps"
 install -m 644 "$repo/LICENSE" "$dest/usr/share/doc/writingdeck/LICENSE-grimoire"
@@ -49,3 +63,4 @@ install -m 644 "$repo/docs/python-tools-lock.json" "$repo/docs/python-tool-notic
 printf 'WRITINGDECK_VERSION=0.1.0-dev\nGRIMOIRE_BASE=0.7.5\nBASE_COMMIT=f3ca1e8\nIMAGE_PROFILE=%s\n' "$profile" > "$dest/etc/writingdeck/release"
 mkdir -p "$dest/etc/systemd/system/multi-user.target.wants"
 ln -sf ../writingdeck-keyboard.service "$dest/etc/systemd/system/multi-user.target.wants/writingdeck-keyboard.service"
+ln -sf ../wros-display.service "$dest/etc/systemd/system/multi-user.target.wants/wros-display.service"

@@ -24,7 +24,7 @@ jobs:
       - name: Debian prerequisites
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends build-essential pkg-config libasound2-dev libssl-dev python3 python3-venv wordnet-base ca-certificates curl git shellcheck gpgv debian-archive-keyring
+          apt-get install -y --no-install-recommends build-essential pkg-config libasound2-dev libssl-dev libdrm-dev python3 python3-venv wordnet-base ca-certificates curl git shellcheck gpgv debian-archive-keyring
           useradd -m -s /bin/bash builder
       - uses: actions/checkout@v4
         with:

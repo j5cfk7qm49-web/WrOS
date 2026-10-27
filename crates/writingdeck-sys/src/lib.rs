@@ -3,6 +3,7 @@
 //! Linux commands are fixed executables and argument vectors, never shell text.
 //! Call the Linux backend on a worker, not the input/render thread. Unsupported
 //! capabilities remain unavailable instead of being reported as successful.
+pub mod display;
 pub mod keyboard;
 pub mod linux;
 pub mod shortcuts;
@@ -42,6 +43,10 @@ pub enum Request {
     KeyboardPreview(keyboard::Layout),
     KeyboardConfirm(String),
     KeyboardCancel(String),
+    DisplayStatus,
+    DisplayPreview(display::Warmth),
+    DisplayConfirm(String),
+    DisplayCancel(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -49,6 +54,8 @@ pub enum Reply {
     Snapshot(Snapshot),
     Message(String),
     KeyboardPreview { token: String, seconds: u64 },
+    DisplayStatus(display::Status),
+    DisplayPreview { token: String, seconds: u64 },
 }
 
 pub trait Backend: Send {
@@ -62,6 +69,8 @@ pub struct Simulated {
     pub requests: Vec<Request>,
     pub fail_next: bool,
     preview: Option<String>,
+    display_preview: Option<(String, display::Warmth)>,
+    warmth: display::Warmth,
 }
 
 impl Simulated {
@@ -91,6 +100,33 @@ impl Backend for Simulated {
             bail!("simulated service unavailable");
         }
         match request {
+            Request::DisplayStatus => Ok(Reply::DisplayStatus(display::Status {
+                warmth: self.warmth,
+                available: true,
+                applied: true,
+                message: "SIMULATED display; hardware unchanged".into(),
+            })),
+            Request::DisplayPreview(choice) => {
+                choice.validate()?;
+                let token = "0123456789abcdef0123456789abcdef".to_string();
+                self.display_preview = Some((token.clone(), choice));
+                Ok(Reply::DisplayPreview { token, seconds: 15 })
+            }
+            Request::DisplayConfirm(token) | Request::DisplayCancel(token) => {
+                let Some((expected, choice)) = self.display_preview.as_ref() else {
+                    bail!("no simulated display preview");
+                };
+                if expected != &token {
+                    bail!("invalid simulated display token");
+                }
+                if matches!(self.requests.last(), Some(Request::DisplayConfirm(_))) {
+                    self.warmth = *choice;
+                }
+                self.display_preview = None;
+                Ok(Reply::Message(
+                    "SIMULATED display transaction resolved; hardware unchanged".into(),
+                ))
+            }
             Request::Refresh => Ok(Reply::Snapshot(self.snapshot.clone())),
             Request::Brightness(p) => {
                 if !(1..=100).contains(&p) {
