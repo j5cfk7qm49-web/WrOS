@@ -21,8 +21,12 @@ race and is merged at `c67a5b1`; #22 is closed. Its actual Debian/macOS run
 [`40445356850`](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40445356850)
 passed **912 Rust tests per overlapping Debian configuration**, both Clippys,
 **70 Python methods with zero skips**, and all 17 software gates. The separate
-installer draft is PR #21; its new VM/authentication and clean-build acceptance
-must not be inferred from that earlier source identity.
+installer draft is PR #21. Its own Debian/macOS CI
+[`40448965974`](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40448965974)
+passed 912 Rust/configuration, 75 Python with zero skips and all 17 gates.
+The revised recipe also passed a [clean current-source ISO build](evidence/installer-clean-build.json).
+Its current-image VM/authentication and safety acceptance are still running;
+the older ISO's passed VM record does not qualify this newer image.
 
 - **910 Rust tests passed per overlapping configuration**, default **5 ignored**,
   no-audio **4 ignored**; ignored cases are not passed. Both warning-denying

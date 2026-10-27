@@ -132,12 +132,34 @@ rendering, and all six firmware packages plus nmtui/kernel modules in the guest.
 See `docs/evidence/installer-vm.json` and `installed-writing-session.png`.
 The 1,044.5-second installation duration excludes the subsequent auth retry.
 Its private synthetic secret was removed on success. This is the original
-experimental ISO/older M7b binary; the clean revised recipe/latest binary still
-needs to be built and tested. Earlier failed probe records remain separate.
+experimental ISO/older M7b binary. Earlier failed probe records remain separate.
+The revised recipe has now passed a clean native Debian build at `59cc34f`,
+with current source-path/Git fixes, unchanged measured inputs and actual
+signature/media/firmware audits. Exact identities are in
+`docs/evidence/installer-clean-build.json`. That newer ISO's fresh no-NIC install
+is still running; do not attribute the older passed VM record to it.
 
 PR #21 is the separate installer draft. Its earlier CI `40443525255` passed macOS
 but exposed #22 on Debian; the qualified correction is now merged into the draft.
-A clean build of the revised recipe and updated draft CI remain required.
+Updated draft CI `40448965974` passed Debian/macOS on `bf22273`:
+912 Rust/configuration, 75 Python with zero skips and all 17 software gates.
+`docs/evidence/ci-40448965974.json` retains the actual artifact. The clean build
+has the same source-content fingerprint; commit `59cc34f` corrects intended
+OS entry-point executable modes. Current-image VM acceptance remains required.
+
+Cancellation and no-disk probes are under development. The first cancellation
+probe incorrectly inferred a returned menu from stale ANSI cells; actual serial
+output showed that the text frontend requires numbered answers. The probe is
+being corrected to answer choice 2 and require newly received partition-menu
+text, as well as an unchanged whole-target SHA-256. Its earlier reported pass
+is invalid. No-disk acceptance must attempt finishing the empty plan and observe
+an actual installer refusal. Neither safety case is qualified yet.
+
+Inspection also found that the installed default WrOS QWERTY configuration can
+override a different keyboard selected in Debian Installer. First-install
+adoption needs an explicit, tested integration that preserves committed layouts
+on upgrades and never silently substitutes QWERTY for an unsupported layout.
+Do not close #3 before this and remaining safety/recovery gates pass.
 
 The first real workflow run `40407371491` passed Linux and failed two macOS
 journal assertions. PR #20 fixed both application behaviors; the next run

@@ -34,9 +34,14 @@ zero NICs and no host disks. Its 1,044.5-second measurement covers installation
 only; the later authenticated boot/retry is separate. Earlier failures remain
 retained. The generated test secret was removed after success.
 
-That ISO contains the earlier qualified M7b binary, whose exact hash is recorded.
-It does not qualify the later source-path/Git fixes or a clean execution of the
-revised build recipe. Those are separate acceptance steps.
+That original ISO contains the earlier qualified M7b binary, whose exact hash is
+recorded. It does not qualify later source-path/Git fixes. A separate clean native
+Debian build now passed at `59cc34f`, including those fixes and the revised recipe:
+[exact input, ISO, signature-chain and payload identities](evidence/installer-clean-build.json).
+The source and all measured build inputs were unchanged across that build. Its
+ISO SHA-256 is `6c3a66746b9bc94bff0b7917f79aa4a3aea71922c821ae3ab0568ec875fa4a56`.
+Its fresh no-network installation/authentication test is still in progress; the
+original ISO's passed VM record must not be attributed to this newer image.
 
 ## Build
 
@@ -64,7 +69,8 @@ keyring, signed InRelease and authenticated SHA256SUMS before live-build unpacks
 them. This does not provide a WrOS release signature or update/rollback policy.
 The first exploratory build verified that same chain after assembly and before
 boot; the recipe now moves verification earlier and checks all prerequisites.
-A clean end-to-end rerun of that revised recipe remains a qualification gate.
+The clean end-to-end rerun of that revised recipe passed; its current-image
+installation and safety acceptance remain separate gates.
 
 The shipping preseed only enables live copying, requires a normal account,
 disables direct root login and selects ordinary account groups including
@@ -79,7 +85,13 @@ an initial network download is not required for that payload.
 Five non-root Debian regression tests check actual firmware archive metadata,
 missing-media refusal, autologin/demo/root-account rejection, the interactive
 preseed boundary, hash tampering and actual unsigned-release rejection by gpgv.
-ShellCheck and Python syntax checks pass. These do not substitute for installation.
+ShellCheck and Python syntax checks pass. Actual Debian/macOS CI
+[`40448965974`](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40448965974)
+passed on `bf22273`: 912 Rust tests per overlapping Debian configuration, both
+Clippys, 75 Python methods with zero skips and all 17 software gates. Its
+[software record](evidence/ci-40448965974.json) has the same source fingerprint
+as the clean build; the later commit only corrects executable file modes. These
+software checks do not substitute for installation.
 
 `os/tests/install_vm.py` is an explicit, non-root QEMU test. It creates a new
 regular qcow2 target with no host disks, no shared directory and zero NICs.
@@ -92,8 +104,8 @@ The boot probe requires actual PAM rejection/acceptance, password-required sudo,
 the non-root tty1 writing UI, and installed firmware/connection-tool payloads.
 An interrupted or failed probe remains failed and retains partial diagnostics.
 
-Still required: clean revised-recipe/latest-binary build and qualification,
-cancellation, no-disk/wrong-disk refusal, interrupted installation/retry, encrypted install and
+Still required: current-image installation qualification, cancellation,
+no-disk/wrong-disk refusal, interrupted installation/retry, encrypted install and
 recovery, usable keyboard selection, physical firmware/Secure Boot checks,
 input-safe lock/suspend, signed WrOS updates and complete redistribution/source
 review. Do not deploy this development media as a production writing system.
