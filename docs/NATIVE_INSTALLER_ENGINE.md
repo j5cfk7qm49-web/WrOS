@@ -93,3 +93,9 @@ cleanup, fresh target installation/reboot, firmware boot and physical hardware
 checks remain open. The diskless fixture proves startup, native form exchange
 and service-stop containment; it has no target disk and cannot qualify an
 installation. No host disk or account was changed.
+
+The [full local software run](evidence/native-engine-local.json) passed 973
+Rust/configuration, 153 Python/zero skips, both Clippys and 21 gates. Its
+[source and binary provenance](evidence/native-engine-local-provenance.json)
+matches the focused and guest reports. Debian CI remains pending; this local
+record does not imply a remote result or target installation acceptance.

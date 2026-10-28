@@ -2,12 +2,12 @@
 │  Status: Spark save · notes/sparks/r-0000000000000006.md · original scene preserved                                                                          │
 │  1047 original plots / 84 exercises · static offline selection                                                                                               │
 │  r-0000000000000006 · Combined · 2026-10-28 · Etc/UTC                                                                                                        │
-│  PLOT [wd-p-0762] · commitment · level 1 · suggested 20 min                                                                                                  │
-│  Two people promise to keep one evening a week for each other. When both become responsible for separate community obligations that meet on that evening,    │
-│  preserving the promise requires changing commitments other people reasonably rely on.                                                                       │
-│  EXERCISE [wd-x-0015] · point-of-view · level 2 · suggested 20 min                                                                                           │
-│  Tell a turning point from the viewpoint of someone doing an ordinary supporting task. Give that task consequences for the central event. Do not let the     │
-│  observer know everything merely because the principal characters are busy.                                                                                  │
+│  PLOT [wd-p-0417] · access · level 1 · suggested 20 min                                                                                                      │
+│  A couple chooses a restaurant for their first anniversary, then one learns the other has never understood the menu. The partner's confident ordering was an │
+│  attempt to avoid admitting difficulty with reading in public.                                                                                               │
+│  EXERCISE [wd-x-0055] · conflict · level 1 · suggested 15 min                                                                                                │
+│  Give two people legitimate plans for the same object. Make neither plan merely symbolic. Let an attempted compromise expose a property of the object or a   │
+│  timing condition that changes what sharing would actually require.                                                                                          │
 │  Work mode: Drafting · creative completion is self-reported, not automatically scored.                                                                       │
 │  ★ Favorited; retained separately from history.                                                                                                              │
 │  6 history / 128 · 1 favorites / 64 · 0 dismissals / 128 · 12-result recent window                                                                           │

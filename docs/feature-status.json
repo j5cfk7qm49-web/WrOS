@@ -631,9 +631,9 @@
       "area": "OS",
       "capability": "Live WrOS installer TUI over Debian installation components",
       "status": "In progress",
-      "verification": "Debian CI: 972 Rust/configuration, 123 Python/zero skips, both Clippys and 19 gates; separate local matching-kernel initrd build, 12 actual image backend native checks and 14 protocol cases passed; no complete live installation claim",
+      "verification": "Current full local: 973 Rust/configuration, 153 Python/zero skips, both Clippys and 21 gates; 401-package capsule, 18 focused checks and actual diskless Debian menu/containment guest passed 122.03 seconds; current CI pending",
       "hardware_verified": false,
-      "detail": "Shared Grimoire palettes/widgets and fail-closed transport; module verified inside compressed matching initrd; original failures retained; privileged launcher, complete live media and fresh install/reboot remain open"
+      "detail": "Shared Grimoire TUI and qualified fail-closed backend; exact matching private media view, non-root forms, filtered boot arguments and service-stop containment verified. Separate QA fixture only; delivered live ISO, production root grant, LUKS cleanup and fresh target install/reboot remain open"
     },
     {
       "area": "System",

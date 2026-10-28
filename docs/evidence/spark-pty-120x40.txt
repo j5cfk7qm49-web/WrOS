@@ -2,9 +2,9 @@
 │  Status: Spark save · notes/sparks/r-0000000000000006.md · original scene preserved                                  │
 │  1047 original plots / 84 exercises · static offline selection                                                       │
 │  r-0000000000000006 · Combined · 2026-10-28 · Etc/UTC                                                                │
-│  PLOT [wd-p-0504] · trust · level 2 · suggested 20 min                                                               │
-│  An office introduces a rule that every instruction must be written. Informal requests continue as friendly          │
-│  questions, and an employee's refusal to infer an order is recorded as poor communication.                           │
+│  PLOT [wd-p-0318] · proof · level 2 · suggested 20 min                                                               │
+│  A soil expert finds that mud on a missing person's boots came from an indoor garden. The garden's owner agrees to   │
+│  identify the visit only if the investigator first establishes who borrowed the boots afterward.                     │
 │  EXERCISE [wd-x-0034] · motivation · level 3 · suggested 25 min                                                      │
 │  Give a character an ambition first chosen to please someone else. Present an opportunity to fulfill it after that   │
 │  person's influence has changed. Let the character separate what remains genuinely wanted from what has become habit.│

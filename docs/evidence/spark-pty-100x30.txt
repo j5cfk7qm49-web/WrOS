@@ -2,19 +2,19 @@
 │  Status: Spark save · notes/sparks/r-0000000000000006.md · original scene preserved              │
 │  1047 original plots / 84 exercises · static offline selection                                   │
 │  r-0000000000000006 · Combined · 2026-10-28 · Etc/UTC                                            │
-│  PLOT [wd-p-0089] · evidence · level 2 · suggested 20 min                                        │
-│  A woman helping her father appeal a denied pension finds that his strongest evidence is a diary │
-│  in which he falsely claimed credit for a coworker's labor. The coworker's family has a competing│
-│  claim and has never seen the diary.                                                             │
-│  EXERCISE [wd-x-0044] · pacing · level 2 · suggested 20 min                                      │
-│  Write an action that happens quickly and a recognition that takes longer. Keep the physical     │
-│  sequence clear. Spend more narrative attention on the consequence that alters a plan than on    │
-│  decorating every movement equally.                                                              │
+│  PLOT [wd-p-0589] · exchange · level 2 · suggested 20 min                                        │
+│  A shop exchanges years of waiting for moments of perfect timing. A person spends a long         │
+│  separation to arrive at a reunion exactly on time, then discovers that the waiting was the      │
+│  experience their partner most needed understood.                                                │
+│  EXERCISE [wd-x-0030] · structure · level 3 · suggested 30 min                                   │
+│  Write two scenes separated by an unshown interval. Make the second scene contain evidence of a  │
+│  choice made during the gap. The reader should infer its consequence while remaining uncertain   │
+│  about one important part of its motive.                                                         │
+│  Narrative conditions: multi-scene, time-jumps                                                   │
 │  Work mode: Drafting · creative completion is self-reported, not automatically scored.           │
 │  ★ Favorited; retained separately from history.                                                  │
 │  6 history / 128 · 1 favorites / 64 · 0 dismissals / 128 · 12-result recent window               │
 │  Roulette presentation: off (l toggles); always static in focus/low-power.                       │
-│                                                                                                  │
 │                                                                                                  │
 │                                                                                                  │
 │                                                                                                  │

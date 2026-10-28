@@ -1,5 +1,34 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Authenticated installer capsule — local software and diskless native menu passed
+
+The matching Debian backend and 401-package offline set now compose into a
+verified regular-file capsule. Original signed Debian metadata, all archive
+hashes and upstream licenses are retained. The native private media view keeps
+the live kernel and initrd matched, excludes the GTK preference, preserves the
+ordinary binary pool and checks the exact paths Debian reads.
+
+The [full local run](evidence/native-engine-local.json) passed **973
+Rust/configuration, 153 Python/zero skips, both Clippys and 21 gates**.
+[Eighteen focused checks](evidence/native-engine-focused.json), the
+[actual capsule](evidence/native-capsule-build.json) and the
+[diskless no-NIC guest](evidence/native-engine-menu-vm.json) passed. In **122.03
+seconds**, Debian's actual startup/menu showed actionable language and location
+forms in the non-root shared Grimoire TUI; stopping its standard temporary
+service retired both processes and private backend mounts before poweroff.
+[Provenance](evidence/native-engine-local-provenance.json) binds source
+`41f5d815...b1da7` / 425 files, reports and the observed frontend executable.
+Actual [language](evidence/native-engine-language.png) and
+[location](evidence/native-engine-location.png) captures are retained alongside
+[original failed observations](evidence/native-engine-attempts.json).
+
+This is a guarded VM fixture using a separate read-only QA medium. The delivered
+live ISO has not been rebuilt with the capsule, and no production root launcher
+is installed. Trusted editor handoff, disk review/LUKS cleanup, fresh target
+installation/reboot, UEFI/Secure Boot, sleep and physical qualification remain
+open. Current Debian CI is pending; local checks do not imply a CI result.
+Read the [backend integration boundaries](NATIVE_INSTALLER_ENGINE.md).
+
 ## Live Grimoire session — image, local software, guest and Debian CI passed
 
 `codex/live-session` delivers a new development live ISO with the actual
