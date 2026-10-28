@@ -78,3 +78,8 @@ software gates. Its [artifact provenance](evidence/live-image-ci-provenance.json
 matches the final local component source and exact transport module. Earlier
 passing records before the final configuration README update remain preserved
 in [their original scope](evidence/live-image-before-readme/README.md).
+
+The next [offline native/text package pool](NATIVE_INSTALLER_ENGINE.md) now
+retains 401 authenticated packages, both required kernel ABIs and strict
+dependency availability. It is a regular-file input for the pending privileged
+integration; the earlier component build and live ISO keep their own scopes.
