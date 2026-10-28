@@ -65,5 +65,13 @@ have separate qualification. The [reader-retirement prerequisite](INPUT_OWNERSHI
 now addresses the editor's input-reader lifecycle. Issue #4 still requires a
 secure independent locker, protected seat/VT ownership, acknowledged lock before
 sleep and physical suspend/resume qualification. This application guard does
-not configure or qualify logind lid/power-key behavior or prevent a user from
-requesting sleep through other Linux tools. No production session claim is made.
+not itself configure logind lid/power-key behavior. The newer integrated image
+stages explicit `ignore` actions for lid, power/reboot/sleep keys and idle,
+disables all four systemd sleep modes and masks the five sleep targets. See the
+Debian [logind contract](https://manpages.debian.org/trixie/systemd/logind.conf.5.en.html)
+and [sleep configuration](https://manpages.debian.org/trixie/systemd/systemd-sleep.conf.5.en.html).
+The media audit requires those policies; fresh installed-boot checks require
+masked targets and logind `CanSuspend` reporting unavailable, without requesting
+sleep. This does not protect against administrator changes, direct privileged
+kernel access, hardware forced power-off or loss of power. Secure locking and
+physical suspend/resume remain unimplemented/unqualified.

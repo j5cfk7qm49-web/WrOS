@@ -69,3 +69,11 @@ printf 'WRITINGDECK_VERSION=0.1.0-dev\nGRIMOIRE_BASE=0.7.5\nBASE_COMMIT=f3ca1e8\
 mkdir -p "$dest/etc/systemd/system/multi-user.target.wants"
 ln -sf ../writingdeck-keyboard.service "$dest/etc/systemd/system/multi-user.target.wants/writingdeck-keyboard.service"
 ln -sf ../wros-display.service "$dest/etc/systemd/system/multi-user.target.wants/wros-display.service"
+# No independent secure locker exists yet. Block automatic and explicit sleep
+# in the image as well as in the UI; logind's default lid action bypasses it.
+mkdir -p "$dest/etc/systemd/logind.conf.d" "$dest/etc/systemd/sleep.conf.d"
+install -m 644 "$repo/os/config/60-wros-power-guard.conf" "$dest/etc/systemd/logind.conf.d/"
+install -m 644 "$repo/os/config/60-wros-sleep-guard.conf" "$dest/etc/systemd/sleep.conf.d/"
+for unit in sleep suspend hibernate hybrid-sleep suspend-then-hibernate; do
+    ln -sf /dev/null "$dest/etc/systemd/system/$unit.target"
+done

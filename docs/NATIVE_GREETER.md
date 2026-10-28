@@ -41,10 +41,16 @@ at protocol transitions and before terminal handoff. Escape cancels an idle PAM
 conversation; during an outstanding request it disconnects and exits for greetd
 to restart. SIGTERM/HUP/INT restore the terminal and exit without starting a session.
 
-## Experimental installation
+## Experimental image integration
 
-The existing installer is unchanged. In an isolated Debian staging root with the
-maintained `greetd` package and WrOS session already installed, explicitly run:
+The current installer recipe includes Debian `greetd` and stages the native tty1
+login by default. Build both workspace binaries before building the image; set
+`WROS_GREETER_BINARY` when the greeter is outside `target/debug`. Image and fresh
+installation evidence are tracked separately from the earlier overlay fixtures
+below. The VM-demo profile keeps its explicit, insecure demonstration login.
+
+For a separate isolated Debian staging root with the maintained `greetd` package
+and WrOS session already installed, explicitly run:
 
 ```sh
 cargo build -p wros-greeter --locked
@@ -58,8 +64,9 @@ An explicit WrOS unit replaces the package's tty7 service configuration, orders
 after the former tty1 getty, and starts from multi-user.target. Only tty1's getty
 is masked; maintenance gettys remain available. A drop-in cannot remove the
 package's old terminal dependencies.
-There is no initial-session/autologin stanza. This profile must not be enabled on
-a live machine as a substitute for image qualification.
+There is no initial-session/autologin stanza. The image also stages power-key,
+lid/idle and sleep guards until secure locking is qualified. Never enable this
+profile on a live machine as a substitute for image qualification.
 
 ## Verification and remaining gates
 

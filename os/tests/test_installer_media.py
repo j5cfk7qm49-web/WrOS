@@ -7,6 +7,7 @@ import unittest
 from unittest import mock
 
 import test_wifi_policy
+import test_native_image
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location('installer_audit', ROOT / 'tools/audit-installer-media.py')
@@ -41,6 +42,7 @@ class InstallerMedia(unittest.TestCase):
                 f'Package: {name}\nVersion: 1\nArchitecture: all\nMaintainer: Fixture <fixture@example.invalid>\nDescription: synthetic firmware policy fixture\n')
             subprocess.run(['dpkg-deb', '--build', '--root-owner-group', str(package), str(pool / (name + '.deb'))],
                            check=True, stdout=subprocess.DEVNULL)
+        test_native_image.fixture(root)
 
     def test_installed_firmware_is_insufficient_without_archives_on_installation_media(self):
         with tempfile.TemporaryDirectory(prefix='wros-media-') as tmp:
@@ -65,10 +67,10 @@ class InstallerMedia(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'autologin'):
                 module.audit(base)
             unit.unlink()
-            (root / 'etc/shadow').write_text('root::1:0:99999:7:::\n')
+            (root / 'etc/shadow').write_text('root::1:0:99999:7:::\n_greetd:!:1:0:99999:7:::\n')
             with self.assertRaisesRegex(ValueError, 'root account must be locked'):
                 module.audit(base)
-            (root / 'etc/shadow').write_text('root:!:1:0:99999:7:::\n')
+            (root / 'etc/shadow').write_text('root:!:1:0:99999:7:::\n_greetd:!:1:0:99999:7:::\n')
             with (root / 'etc/passwd').open('a') as users:
                 users.write('writer:x:1000:1000:demo:/home/writer:/bin/bash\n')
             with self.assertRaisesRegex(ValueError, 'build/demo account'):

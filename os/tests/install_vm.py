@@ -15,19 +15,29 @@ import shutil
 import subprocess
 import tempfile
 import time
+import sys
 from installed_boot import verify as verify_boot
 
 REPO = Path(__file__).resolve().parents[2]
 BASE = REPO / 'build/installer'
+sys.path.insert(0, str(REPO / 'tools'))
+from writingdeck_source import fingerprint
 
 
 def authenticate(run, result, secret):
     result['passed'] = False
     try:
-        result.update(verify_boot(run, secret))
-        result['passed'] = all(result.get(name) for name in (
+        result.update(verify_boot(run, secret, native_session=result.get('native_session_expected', False)))
+        required = [
             'authentication_verified', 'tty1_nonroot_session_verified',
-            'writing_ui_verified', 'offline_wifi_packages_verified')) and not result['password_logged']
+            'writing_ui_verified', 'offline_wifi_packages_verified']
+        if result.get('native_session_expected'):
+            required += ['native_login_verified', 'native_wrong_password_rejected',
+                         'sleep_guard_verified', 'native_logout_verified', 'input_reader_nonroot_verified']
+            result['installed_binary_identities_match'] = result.get('running_image_binary_sha256') == {
+                'grimoire': result['installed_binary_sha256'], 'wros-greeter': result['greeter_binary_sha256']}
+            required.append('installed_binary_identities_match')
+        result['passed'] = all(result.get(name) for name in required) and not result['password_logged']
         return result
     finally:
         partial = run / 'boot-result.json'
@@ -66,6 +76,7 @@ def main():
     kernel = BASE / 'binary/install/vmlinuz'
     if hashlib.sha256(kernel.read_bytes()).hexdigest() != trust['images']['cdrom/vmlinuz']['sha256']:
         raise RuntimeError('Installer kernel changed after trust verification')
+    (BASE / 'acceptance').mkdir(exist_ok=True)
     run = Path(tempfile.mkdtemp(prefix='install-', dir=BASE / 'acceptance'))
     secret = secrets.token_hex(16)
     # Private, generated test-only credentials permit auth-phase retries.
@@ -131,14 +142,19 @@ d-i preseed/late_command string in-target --pass-stdout /bin/sh -c 'test -x /usr
             '-serial', 'file:' + str(serial)]
     started = time.monotonic()
     result = {'schema_version': 1, 'scope': 'Disposable no-network QEMU install, not hardware qualification',
+              'source_fingerprint': fingerprint(), 'native_session_expected': True,
               'iso_sha256': hashlib.sha256(iso.read_bytes()).hexdigest(),
               'installed_binary_sha256': hashlib.sha256((BASE / 'chroot/usr/bin/grimoire').read_bytes()).hexdigest(),
+              'greeter_binary_sha256': hashlib.sha256((BASE / 'chroot/usr/bin/wros-greeter').read_bytes()).hexdigest(),
               'network_devices': 0, 'host_disks_exposed': 0, 'test_answers_in_shipping_iso': False,
               'installed_boot_verified': False, 'authentication_verified': False, 'passed': False}
     with (run / 'qemu.log').open('w') as log:
         process = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=log, stderr=log)
         try:
-            process.wait(timeout=1200)
+            # Earlier Nehalem/TCG installations needed over 20 minutes to
+            # finalize; retain a bounded 30-minute deadline without weakening
+            # the required normal poweroff and late-payload assertions.
+            process.wait(timeout=1800)
             content = serial.read_text(errors='replace')
             result['exit_code'] = process.returncode
             result['late_payload_verified'] = 'WROS_INSTALLED_PAYLOAD_PASS' in content

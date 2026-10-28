@@ -7,6 +7,14 @@ uses Debian Installer for storage, encryption, accounts and the bootloader.
 See the [Debian Live installer documentation](https://live-team.pages.debian.net/live-manual/html/live-manual/customizing-installer.en.html)
 and [Debian account/storage options](https://www.debian.org/releases/trixie/amd64/apbs04.en.html).
 
+The current integrated recipe now ships the native WrOS tty1 greeter backed by
+Debian greetd/PAM, the current editor/input reader, categorized Settings and
+first-install keyboard adoption. An actual image audit requires the locked
+non-root greeter account, fixed session, PAM/package notices, enabled service,
+exclusive tty1 ownership, authenticated tty2 maintenance and sleep/power guards.
+The older image records below keep their original source identities. Current
+fresh-build and installed-boot qualification are in progress.
+
 The initial ISO built successfully on 2026-10-26. Its actual media audit passed:
 the squashfs and installer boot files exist, the six required Wi-Fi firmware
 archives are in the media pool, and the installed filesystem has their real
@@ -58,10 +66,12 @@ for chroot/cache/ISO and disposable test disks. Install `live-build debootstrap
 squashfs-tools xorriso isolinux syslinux-common grub-pc-bin grub-efi-amd64-bin
 cpio file zstd rsync gpgv debian-archive-keyring` plus the appliance build
 prerequisites in [INSTALLATION](INSTALLATION.md). Build the existing Grimoire
-binary and exact Python runtime first, as described in [M7B](M7B.md).
+workspace binaries and exact Python runtime first, as described in [M7B](M7B.md).
 
 ```sh
+cargo build --workspace --locked --no-default-features
 sudo env GRIMOIRE_BINARY=/absolute/path/to/grimoire \
+  WROS_GREETER_BINARY=/absolute/path/to/wros-greeter \
   WRITINGDECK_PROSE_RUNTIME=/absolute/path/to/runtime \
   bash os/scripts/build-installer.sh
 ```
@@ -109,7 +119,9 @@ artifacts are ignored by Git. Do not publish them as release artifacts.
 An auth-only retry uses a generated 0600 fixture secret inside the private 0700
 test directory. It is removed on success; it is never a human account credential.
 The boot probe requires actual PAM rejection/acceptance, password-required sudo,
-the non-root tty1 writing UI, and installed firmware/connection-tool payloads.
+the native login's own rejection/hidden input/recovery, the non-root tty1 writing
+UI/input reader, matching installed executable hashes, logout to a fresh login,
+effective disabled sleep and installed firmware/connection-tool payloads.
 An interrupted or failed probe remains failed and retains partial diagnostics.
 
 Still required: normal current-image installation completion, wrong-disk

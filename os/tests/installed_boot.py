@@ -1,6 +1,7 @@
 """Actual UEFI/PAM/tty1 acceptance for a disposable installer-created disk."""
 import json
 import os
+import re
 from pathlib import Path
 import socket
 import subprocess
@@ -24,7 +25,7 @@ def qmp(path, command, arguments=None):
                     break
 
 
-def verify(run, secret=None):
+def verify(run, secret=None, native_session=False):
     if os.geteuid() == 0:
         raise RuntimeError('Run QEMU acceptance as a non-root builder')
     run = Path(run)
@@ -43,7 +44,10 @@ def verify(run, secret=None):
             '-qmp', 'unix:' + str(control) + ',server=on,wait=off']
     result = {'installed_boot_verified': False, 'authentication_verified': False,
               'tty1_nonroot_session_verified': False, 'writing_ui_verified': False,
-              'offline_wifi_packages_verified': False, 'password_logged': False}
+              'offline_wifi_packages_verified': False, 'password_logged': False,
+              'native_session_requested': native_session, 'native_login_verified': False,
+              'native_wrong_password_rejected': False, 'sleep_guard_verified': False,
+              'native_logout_verified': False, 'input_reader_nonroot_verified': False}
     content = bytearray()
     with (run / 'boot-qemu.log').open('w') as log, (run / 'boot-serial.log').open('wb') as capture:
         process = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=log, stderr=log)
@@ -111,44 +115,67 @@ def verify(run, secret=None):
                 connection.sendall(secret.encode() + b'\n')
                 expect(b':~$ ', 20)
 
-                # The serial login remains the maintenance shell. Independently
-                # authenticate tty1 through the actual virtual keyboard/PAM path.
-                for char in 'fixture\n':
-                    qmp(control, 'send-key', {'keys': [{'type': 'qcode', 'data': 'ret' if char == '\n' else char}], 'hold-time': 30})
-                    time.sleep(0.06)
-                # Inspect the actual console and echo flag before sending any
-                # password keystrokes. A guessed delay is not input ownership.
-                deadline = time.monotonic() + 30
+                def keys(text):
+                    for char in text:
+                        qmp(control, 'send-key', {'keys': [{'type': 'qcode', 'data': 'ret' if char == '\n' else char}], 'hold-time': 30})
+                        time.sleep(0.06)
+
+                def console_until(predicate, description, timeout=45):
+                    deadline = time.monotonic() + timeout
+                    while True:
+                        start = len(content)
+                        connection.sendall(b'sudo -n /bin/sh -c \'cat /dev/vcs1; stty -F /dev/tty1 -a; printf "\\nWROS_CONSOLE_STATE_END\\n"\'\n')
+                        expect(b'\r\nWROS_CONSOLE_STATE_END\r\n', 15)
+                        console = content[start:]
+                        expect(b':~$ ', 20)
+                        if predicate(console):
+                            return console
+                        if time.monotonic() > deadline:
+                            raise RuntimeError(description)
+                        time.sleep(0.5)
+
+                # The serial login remains the authenticated maintenance shell.
+                # tty1 uses only the installed stack, not a test-injected service.
+                if native_session:
+                    console_until(lambda c: b'Local account' in c and b'WrOS' in c,
+                                  'Installed native greeter did not start automatically')
+                    keys('fixture\n')
+                    console_until(lambda c: b'[hidden]' in c and b'-echo' in c.split(),
+                                  'Native PAM prompt is not hidden')
+                    keys('badfixture\n')
+                    refused = console_until(lambda c: b'Login was not accepted' in c,
+                                            'Native PAM did not reject incorrect password')
+                    result['native_wrong_password_rejected'] = True
+                    if b'Enter to restart login' in refused:
+                        keys('\n')
+                    console_until(lambda c: b'Local account' in c,
+                                  'Native login did not recover from rejected authentication')
+                keys('fixture\n')
+                # Inspect the console and echo flag before any password input.
+                console_until(lambda c: (b'[hidden]' if native_session else b'Password:') in c
+                              and b'-echo' in c.split(), 'tty1 PAM prompt is not non-echoing')
+                keys(secret)
+                if native_session:
+                    console_until(lambda c: b'[hidden]' in c and secret.encode() not in c,
+                                  'Native login exposed the typed password')
+                keys('\n')
+                if native_session:
+                    console_until(lambda c: b'Open writing session' in c and b'Authenticated.' in c,
+                                  'Installed native PAM did not authenticate')
+                    result['native_login_verified'] = True
+                    keys('\n')
+                deadline = time.monotonic() + 45
                 while True:
                     start = len(content)
-                    connection.sendall(b'sudo -n /bin/sh -c \'cat /dev/vcs1; stty -F /dev/tty1 -a; printf "\\nWROS_CONSOLE_STATE_END\\n"\'\n')
-                    expect(b'\r\nWROS_CONSOLE_STATE_END\r\n', 10)
-                    console = content[start:]
+                    connection.sendall(b'sudo -n journalctl -t writingdeck-session --no-pager -n 1\n')
+                    expect(b'WRITINGDECK_SESSION uid=1000 tty=/dev/tty1', 45)
                     expect(b':~$ ', 20)
-                    if b'Password:' in console and b'-echo' in console.split():
-                        break
-                    if time.monotonic() > deadline:
-                        raise RuntimeError('tty1 did not hand input to a non-echoing PAM password prompt')
-                    time.sleep(0.5)
-                for char in secret + '\n':
-                    qmp(control, 'send-key', {'keys': [{'type': 'qcode', 'data': 'ret' if char == '\n' else char}], 'hold-time': 30})
-                    time.sleep(0.06)
-                time.sleep(12)
-                connection.sendall(b'sudo -n journalctl -t writingdeck-session --no-pager -n 1\n')
-                expect(b'WRITINGDECK_SESSION uid=1000 tty=/dev/tty1', 40)
-                result['tty1_nonroot_session_verified'] = True
-                # sudo's pty can consume input until its child has exited.
-                # Wait for Bash before issuing the next command, even after
-                # the expected child output has already arrived.
-                expect(b':~$ ', 20)
-                deadline = time.monotonic() + 40
-                while True:
-                    start = len(content)
                     connection.sendall(b'sudo -n /bin/sh -c \'cat /dev/vcs1; printf "\\nWROS_UI_STATE_END\\n"\'\n')
                     expect(b'\r\nWROS_UI_STATE_END\r\n', 10)
                     console = content[start:]
                     expect(b':~$ ', 20)
                     if b'WRITINGDECK OS' in console and b'Resume writing' in console:
+                        result['tty1_nonroot_session_verified'] = True
                         result['writing_ui_verified'] = True
                         break
                     if time.monotonic() > deadline:
@@ -164,6 +191,36 @@ def verify(run, secret=None):
                     raise RuntimeError('Actual installed system lacks the required offline Wi-Fi payload')
                 result['offline_wifi_packages_verified'] = True
                 qmp(control, 'screendump', {'filename': str(run / 'installed-writing-session.ppm')})
+                if native_session:
+                    start = len(content)
+                    connection.sendall(b'if test "$(ps -C grimoire -o uid= | xargs)" = 1000 && test "$(ps -C wros-input -o uid= | xargs)" = 1000; then echo WROS_INPUT_UID_PASS; fi; sha256sum /usr/bin/grimoire /usr/bin/wros-greeter; printf "\\nWROS_IDENTITY_STATE_END\\n"\n')
+                    expect(b'\r\nWROS_IDENTITY_STATE_END\r\n', 20)
+                    expect(b':~$ ', 20)
+                    if b'\r\nWROS_INPUT_UID_PASS\r\n' not in content[start:]:
+                        raise RuntimeError('Installed editor/input reader is not the non-root writer')
+                    result['input_reader_nonroot_verified'] = True
+                    hashes = re.findall(rb'([0-9a-f]{64})  /usr/bin/(grimoire|wros-greeter)\r', content[start:])
+                    result['running_image_binary_sha256'] = {name.decode(): value.decode() for value, name in hashes}
+                    # Inspect logind and masks; never issue an actual sleep request.
+                    start = len(content)
+                    connection.sendall(b'sudo -n /bin/sh -c \'for u in sleep suspend hibernate hybrid-sleep suspend-then-hibernate; do test "$(systemctl is-enabled "$u.target" 2>/dev/null)" = masked || exit 1; done; echo WROS_SLEEP_MASKS_PASS; busctl call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager CanSuspend\'; printf "\\nWROS_SLEEP_STATE_END\\n"\n')
+                    expect(b'\r\nWROS_SLEEP_STATE_END\r\n', 30)
+                    expect(b':~$ ', 20)
+                    if b'\r\nWROS_SLEEP_MASKS_PASS\r\n' not in content[start:] or b'\r\ns "na"\r\n' not in content[start:]:
+                        raise RuntimeError('Installed sleep guard is not effective')
+                    result['sleep_guard_verified'] = True
+                    # Exit through the actual home menu, then check login and no
+                    # surviving editor/input process. Keep no authenticated shell.
+                    qmp(control, 'send-key', {'keys': [{'type': 'qcode', 'data': 'ctrl'},
+                                                    {'type': 'qcode', 'data': 'q'}], 'hold-time': 40})
+                    console_until(lambda c: b'Local account' in c and b'WrOS' in c,
+                                  'Native logout did not return to login')
+                    connection.sendall(b'if ! pgrep -x grimoire >/dev/null && ! pgrep -x wros-input >/dev/null; then echo WROS_LOGOUT_PASS; fi; printf "\\nWROS_LOGOUT_STATE_END\\n"\n')
+                    expect(b'\r\nWROS_LOGOUT_STATE_END\r\n', 20)
+                    expect(b':~$ ', 20)
+                    if b'\r\nWROS_LOGOUT_PASS\r\n' not in content:
+                        raise RuntimeError('Native logout left editor/input processes')
+                    result['native_logout_verified'] = True
                 if secret.encode() in content:
                     result['password_logged'] = True
                     raise RuntimeError('Synthetic unlock password appeared in output; keep private output for diagnosis')

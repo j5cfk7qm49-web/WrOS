@@ -9,6 +9,8 @@ for command in lb gpgv file zstd xorriso mksquashfs; do
 done
 binary=${GRIMOIRE_BINARY:-$repo/target/debug/grimoire}
 [[ -x $binary ]] || { echo 'Build Grimoire first or set GRIMOIRE_BINARY.' >&2; exit 2; }
+greeter=${WROS_GREETER_BINARY:-$repo/target/debug/wros-greeter}
+[[ -x $greeter ]] || { echo 'Build wros-greeter first or set WROS_GREETER_BINARY.' >&2; exit 2; }
 base="$repo/build/installer"
 [[ ! -L $repo/build && ! -L $base ]] || { echo 'Refusing symlinked build paths.' >&2; exit 2; }
 mkdir -p "$base"
@@ -35,11 +37,12 @@ lb config --ignore-system-defaults --mode debian --distribution trixie \
     --checksums sha256 --chroot-squashfs-compression-type zstd
 mkdir -p config/package-lists
 cp "$repo/os/config/packages.txt" config/package-lists/wros.list.chroot
-printf 'sudo\ncryptsetup\ncryptsetup-initramfs\n' >> config/package-lists/wros.list.chroot
+printf 'sudo\ncryptsetup\ncryptsetup-initramfs\ngreetd\n' >> config/package-lists/wros.list.chroot
 lb bootstrap
 lb chroot
 chroot chroot groupadd --system writingdeck
 bash "$repo/os/scripts/install-files.sh" "$base/chroot" "$binary" installer
+bash "$repo/os/scripts/stage-greeter.sh" "$base/chroot" "$greeter"
 # Do not copy any VM-only getty/probe/account into the installed filesystem.
 [[ ! -e chroot/etc/writingdeck/VM-DEMO-ONLY && ! -e chroot/etc/systemd/system/getty@tty1.service.d/writingdeck-vm.conf ]]
 python3 "$repo/tools/audit-wifi-image.py" chroot > wifi-rootfs.json

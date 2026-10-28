@@ -17,6 +17,10 @@ def audit(base):
     # This invokes dpkg-query against the staged database and checks real files.
     result = wifi.audit(base / 'chroot')
     root = base / 'chroot'
+    native_spec = importlib.util.spec_from_file_location('native_audit', REPO / 'tools/audit-native-image.py')
+    native = importlib.util.module_from_spec(native_spec)
+    native_spec.loader.exec_module(native)
+    native_result = native.audit(root)
     for relative in ('etc/writingdeck/VM-DEMO-ONLY',
                      'etc/systemd/system/getty@tty1.service.d/writingdeck-vm.conf',
                      'etc/systemd/system/writingdeck-boot-probe.service'):
@@ -45,6 +49,7 @@ def audit(base):
     if missing:
         raise ValueError('installer media missing offline firmware packages: ' + ', '.join(sorted(missing)))
     return {'schema_version': 1, 'passed': True, 'installed_rootfs_wifi': result,
+            'native_session': native_result,
             'installer_firmware_packages': sorted(packages), 'vm_profile_absent': True,
             'physical_hardware_verified': False, 'installation_verified': False}
 

@@ -1,7 +1,8 @@
 # Explicit console service: package drop-ins cannot remove its tty7 dependency.
 [Unit]
 Description=WrOS native login with greetd and PAM
-After=systemd-user-sessions.service writingdeck-keyboard.service getty@tty1.service
+After=systemd-user-sessions.service console-setup.service writingdeck-keyboard.service getty@tty1.service
+Wants=writingdeck-keyboard.service
 Conflicts=getty@tty1.service
 StartLimitIntervalSec=0
 
