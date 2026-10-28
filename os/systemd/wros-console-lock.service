@@ -1,0 +1,14 @@
+[Unit]
+Description=WrOS independent console lock owner
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/wros-lock worker
+ExecStopPost=/usr/libexec/wros-lock cleanup
+KillMode=control-group
+TimeoutStartSec=infinity
+TimeoutStopSec=5s
+StandardInput=null
+StandardOutput=null
+StandardError=journal
+LimitCORE=0

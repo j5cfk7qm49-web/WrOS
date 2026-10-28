@@ -22,6 +22,8 @@ pub fn available() -> bool {
             "/usr/libexec/wros-lock",
             "/usr/bin/openvt",
             "/usr/sbin/vlock-main",
+            "/etc/systemd/system/wros-console-lock.service",
+            "/etc/systemd/system/wros-console-lock.path",
         ]
         .iter()
         .all(|path| Path::new(path).is_file())

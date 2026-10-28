@@ -5,9 +5,11 @@ import fcntl
 import os
 from pathlib import Path
 import resource
-import signal
+import secrets
+import select
 import stat
 import struct
+import json
 import subprocess
 import sys
 import termios
@@ -18,6 +20,8 @@ ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8', 'LC_ALL': 'C.
        'HOME': '/nonexistent', 'TERM': 'linux'}
 PAM = ('# WrOS existing-session unlock; authentication is performed only by Debian vlock.\n'
        'auth requisite pam_succeed_if.so quiet uid > 0\n@include common-auth\n')
+ROOT = Path('/run/wros-lock')
+UNIT = 'wros-console-lock.service'
 
 
 def require(condition):
@@ -110,6 +114,8 @@ def validate_caller():
                  '/etc/pam.d/vlock'):
         trusted_file(path, executable=path != '/etc/pam.d/vlock')
     trusted_file('/usr/lib/x86_64-linux-gnu/security/pam_succeed_if.so')
+    for name in ('wros-console-lock.service', 'wros-console-lock.path'):
+        trusted_file('/etc/systemd/system/' + name)
     require(Path('/etc/pam.d/vlock').read_text() == PAM)
     require(os.getppid() == parent)
     return username
@@ -136,25 +142,115 @@ def ready(child):
     return False
 
 
-def main():
-    username = validate_caller()
-    # Keep ownership of openvt's wait/switch-back even when the old writer's
-    # controlling session closes. No new login or shell is created here.
-    signal.signal(signal.SIGHUP, signal.SIG_IGN)
-    if os.getpgrp() != os.getpid():
-        os.setsid()
+def directory():
+    ROOT.mkdir(mode=0o700, exist_ok=True)
+    info = ROOT.lstat()
+    require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and info.st_mode & 0o077 == 0)
+
+
+def record(path):
+    info = path.lstat()
+    require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and info.st_mode & 0o077 == 0
+            and info.st_size <= 4096)
+    return json.loads(path.read_bytes())
+
+
+def publish(path, value, exclusive=False):
+    temporary = ROOT / ('.pending-' + secrets.token_hex(16))
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    try:
+        with os.fdopen(fd, 'w') as output:
+            json.dump(value, output)
+            output.flush()
+            os.fsync(output.fileno())
+        if exclusive:
+            os.link(temporary, path)  # Atomic publication without replacing another request.
+        else:
+            os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def request():
+    value = record(ROOT / 'request.json')
+    require(set(value) == {'token', 'uid', 'parent', 'starttime'})
+    require(isinstance(value['token'], str) and len(value['token']) == 48
+            and all(c in '0123456789abcdef' for c in value['token']))
+    require(type(value['uid']) is int and 0 < value['uid'] < 2**31)
+    require(type(value['parent']) is int and value['parent'] > 1)
+    require(isinstance(value['starttime'], str) and value['starttime'].isascii()
+            and value['starttime'].isdigit() and len(value['starttime']) <= 32)
+    return value
+
+
+def starttime(pid):
+    return Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()[19]
+
+
+def state(token, phase, owns_vt=False, sysrq=None):
+    publish(ROOT / 'state.json', {'token': token, 'phase': phase, 'owns_vt': owns_vt, 'sysrq': sysrq})
+
+
+def secure_process():
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     libc = ctypes.CDLL(None)
     require(libc.prctl(4, 0, 0, 0, 0) == 0)  # PR_SET_DUMPABLE
-    directory = Path('/run/wros-lock')
-    directory.mkdir(mode=0o700, exist_ok=True)
-    info = directory.lstat()
-    require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and info.st_mode & 0o077 == 0)
-    lock = os.open(directory / 'owner', os.O_CREAT | os.O_NOFOLLOW | os.O_RDWR | os.O_CLOEXEC, 0o600)
+
+
+def client():
+    validate_caller()
+    secure_process()
+    directory()
+    require(query(['/usr/bin/systemctl', 'is-active', 'wros-console-lock.path']) == 'active')
+    lock = os.open(ROOT / 'client', os.O_CREAT | os.O_NOFOLLOW | os.O_RDWR | os.O_CLOEXEC, 0o600)
     with os.fdopen(lock, 'w'):
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        token, parent = secrets.token_hex(24), os.getppid()
+        value = {'token': token, 'uid': int(os.environ['PKEXEC_UID']),
+                 'parent': parent, 'starttime': starttime(parent)}
+        publish(ROOT / 'request.json', value, exclusive=True)
+        query(['/usr/bin/systemctl', '--no-ask-password', '--no-block', 'start', UNIT])
+        acquired, deadline = False, time.monotonic() + 15
+        while True:
+            try:
+                current = record(ROOT / 'state.json')
+                if current.get('token') == token:
+                    acquired = acquired or current.get('phase') == 'locked'
+                    if not (ROOT / 'request.json').exists():
+                        return 0 if current.get('phase') == 'unlocked' else 1
+            except FileNotFoundError:
+                pass
+            if not acquired and time.monotonic() >= deadline:
+                query(['/usr/bin/systemctl', '--no-ask-password', '--no-block', 'stop', UNIT])
+                return 1
+            time.sleep(0.1)
+
+
+def worker():
+    secure_process()
+    directory()
+    value = request()
+    token, parent = value['token'], value['parent']
+    parent_fd = os.pidfd_open(parent)
+    try:
+        require(starttime(parent) == value['starttime'])
+        require(os.path.samefile(f'/proc/{parent}/exe', '/usr/bin/grimoire'))
+        status = Path(f'/proc/{parent}/status').read_text()
+        users = next(line.split()[1:] for line in status.splitlines() if line.startswith('Uid:'))
+        require(users == [str(value['uid'])] * 4)
+        username = account_name(value['uid'], Path('/etc/passwd').read_text())
+        require(query(['/usr/bin/passwd', '-S', username]).split()[1] == 'P')
+        require(query(['/usr/bin/passwd', '-S', 'root']).split()[1] == 'L')
+        require(Path('/etc/pam.d/vlock').read_text() == PAM)
+        fd = os.open('/dev/tty1', os.O_RDWR | os.O_NOCTTY | os.O_CLOEXEC)
+        os.dup2(fd, 0)
+        if fd != 0:
+            os.close(fd)
         active, _, used = console_state()
         require(active == 1 and not used & (1 << 8))
+        original_sysrq = int(Path('/proc/sys/kernel/sysrq').read_text().strip())
+        require(0 <= original_sysrq < 2**32)
+        state(token, 'allocating', True, original_sysrq)
         os.chmod('/dev/tty8', 0o600)
         arguments, environment = fixed_command(username)
         child = subprocess.Popen(arguments, stdin=None, stdout=subprocess.DEVNULL,
@@ -162,22 +258,63 @@ def main():
         acquired = False
         deadline = time.monotonic() + 8
         while child.poll() is None:
+            if select.select([parent_fd], [], [], 0)[0]:
+                return 1  # systemd kills this unit's remaining children before cleanup.
             try:
-                acquired = acquired or ready(child)
+                if not acquired and ready(child):
+                    acquired = True
+                    state(token, 'locked', True, original_sysrq)
             except (OSError, ValueError):
                 pass
             if not acquired and time.monotonic() >= deadline:
-                child.terminate()
-                try:
-                    child.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    child.kill()
-                    child.wait()
                 return 1
             time.sleep(0.05)
         # openvt propagates normal child exits and maps signal death to 127.
         # vlock returns zero only after PAM success, SIGTERM returns one.
-        return 0 if acquired and child.returncode == 0 else 1
+        success = acquired and child.returncode == 0 and not select.select([parent_fd], [], [], 0)[0]
+        state(token, 'authenticated' if success else 'failed', True, original_sysrq)
+        return 0 if success else 1
+    finally:
+        os.close(parent_fd)
+
+
+def cleanup():
+    directory()
+    value = request()
+    token = value['token']
+    try:
+        current = record(ROOT / 'state.json')
+    except (FileNotFoundError, ValueError):
+        current = {}
+    success = (current.get('token') == token and current.get('phase') == 'authenticated'
+               and os.environ.get('SERVICE_RESULT') == 'success')
+    # ExecStopPost runs after systemd has stopped the entire unit cgroup. Only
+    # this fixed reserved VT may be reset; an unrelated active VT is preserved.
+    if current.get('token') == token and current.get('owns_vt') is True:
+        fd = os.open('/dev/tty8', os.O_RDWR | os.O_NOCTTY | os.O_CLOEXEC)
+        try:
+            fcntl.ioctl(fd, 0x5602, struct.pack('BBhhh', 0, 0, 0, 0, 0))  # VT_AUTO
+            if struct.unpack('HHH', fcntl.ioctl(fd, VT_GETSTATE, bytes(6)))[0] == 8:
+                fcntl.ioctl(fd, 0x5606, 1)  # VT_ACTIVATE; never an unbounded WAITACTIVE.
+                deadline = time.monotonic() + 3
+                while struct.unpack('HHH', fcntl.ioctl(fd, VT_GETSTATE, bytes(6)))[0] != 1:
+                    require(time.monotonic() < deadline)
+                    time.sleep(0.05)
+            previous = current.get('sysrq')
+            require(type(previous) is int and 0 <= previous < 2**32)
+            Path('/proc/sys/kernel/sysrq').write_text(str(previous))
+        finally:
+            os.close(fd)
+    state(token, 'unlocked' if success else 'failed')
+    (ROOT / 'request.json').unlink()
+    return 0
+
+
+def main():
+    if len(sys.argv) == 2 and sys.argv[1] in ('worker', 'cleanup'):
+        require(os.geteuid() == 0 and os.getppid() == 1 and 'PKEXEC_UID' not in os.environ)
+        return worker() if sys.argv[1] == 'worker' else cleanup()
+    return client()
 
 
 if __name__ == '__main__':

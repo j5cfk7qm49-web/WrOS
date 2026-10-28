@@ -65,6 +65,8 @@ def main():
              'etc/polkit-1/rules.d/51-wros-greeter-keyboard.rules': (REPO / 'os/config/51-wros-greeter-keyboard.rules', 0o644),
              'etc/greetd/config.toml': (REPO / 'os/config/greetd.toml', 0o644),
              'etc/systemd/system/greetd.service': (REPO / 'os/config/greetd.service', 0o644)}
+    for name in ('wros-console-lock.service', 'wros-console-lock.path'):
+        files['etc/systemd/system/' + name] = (REPO / 'os/systemd' / name, 0o644)
     (fixtures / 'files.json').write_text(json.dumps({name: mode for name, (_, mode) in files.items()}))
     with zipfile.ZipFile(fixtures / 'fixture.zip', 'w', compression=zipfile.ZIP_DEFLATED) as archive:
         for name, (path, _) in files.items():
@@ -156,7 +158,7 @@ mount -o remount,ro /dev/vda2 "$rootmnt"
                     'SECOND_PROTECTED': lambda: (chord('ctrl', 'alt', 'f1'), chord('ctrl', 'alt', 'f2')),
                     'SECOND_SWITCH_CHECKPOINT': ack,
                 }
-                for label in ('LOCKER_FAILURE', 'HELPER_FAILURE'):
+                for label in ('LOCKER_FAILURE', 'HELPER_FAILURE', 'WORKER_FAILURE'):
                     actions.update({
                         label + '_LOGIN': lambda: keys('writer', True),
                         label + '_PASSWORD': lambda: keys(secret, True),

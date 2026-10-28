@@ -52,6 +52,9 @@ def fixture(root):
     enabled = root / 'etc/systemd/system/multi-user.target.wants/greetd.service'
     enabled.parent.mkdir(parents=True)
     enabled.symlink_to('../greetd.service')
+    for name in ('wros-console-lock.service', 'wros-console-lock.path'):
+        shutil.copyfile(ROOT / 'os/systemd' / name, root / 'etc/systemd/system' / name)
+    (enabled.parent / 'wros-console-lock.path').symlink_to('../wros-console-lock.path')
     for name in ('getty@tty1.service', 'getty@tty8.service', 'autovt@tty8.service',
                  *(target + '.target' for target in module.SLEEP_TARGETS)):
         (root / 'etc/systemd/system' / name).symlink_to('/dev/null')
@@ -97,6 +100,8 @@ class NativeImage(unittest.TestCase):
             'missing lock policy': lambda r: (r / 'usr/share/polkit-1/actions/org.wros.lock.policy').unlink(),
             'unreserved tty8': lambda r: (r / 'etc/systemd/system/getty@tty8.service').unlink(),
             'unmasked automatic tty8': lambda r: (r / 'etc/systemd/system/autovt@tty8.service').unlink(),
+            'disabled independent lock owner': lambda r: (r / 'etc/systemd/system/multi-user.target.wants/wros-console-lock.path').unlink(),
+            'altered lock owner': lambda r: (r / 'etc/systemd/system/wros-console-lock.service').write_text('[Service]\nExecStart=/bin/sh\n'),
         }
         for target in module.SLEEP_TARGETS:
             mutations['unmasked ' + target] = lambda r, t=target: (r / 'etc/systemd/system' / (t + '.target')).unlink()

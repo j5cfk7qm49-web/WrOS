@@ -1,0 +1,9 @@
+[Unit]
+Description=WrOS private console lock requests
+
+[Path]
+PathExists=/run/wros-lock/request.json
+Unit=wros-console-lock.service
+
+[Install]
+WantedBy=multi-user.target

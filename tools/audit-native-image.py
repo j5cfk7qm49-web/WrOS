@@ -83,6 +83,13 @@ def audit(root):
             ('60-wros-sleep-guard.conf', 'etc/systemd/sleep.conf.d/60-wros-sleep-guard.conf')):
         if regular(root, relative).read_bytes() != (REPO / 'os/config' / source).read_bytes():
             raise ValueError('native session policy differs from qualified source: ' + relative)
+    for name in ('wros-console-lock.service', 'wros-console-lock.path'):
+        if regular(root, 'etc/systemd/system/' + name).read_bytes() != (REPO / 'os/systemd' / name).read_bytes():
+            raise ValueError('independent locker unit differs from qualified source: ' + name)
+    lock_enabled = root / 'etc/systemd/system/multi-user.target.wants/wros-console-lock.path'
+    if not lock_enabled.is_symlink() or os.readlink(lock_enabled) not in (
+            '../wros-console-lock.path', '/etc/systemd/system/wros-console-lock.path'):
+        raise ValueError('independent locker path is not enabled')
     enabled = root / 'etc/systemd/system/multi-user.target.wants/greetd.service'
     if not enabled.is_symlink() or os.readlink(enabled) not in (
             '../greetd.service', '/etc/systemd/system/greetd.service'):
