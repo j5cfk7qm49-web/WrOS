@@ -1,5 +1,33 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Native disk-write refusal passed in the Grimoire TUI
+
+Debian's real partitioner now reaches its LVM disk-write question in the native
+Grimoire interface. The [no-NIC guest](evidence/native-target-review-vm.json)
+verified No selected, declined the write and returned to partitioning. The
+complete newly generated **16 GiB disk stayed byte-identical**. Service stop
+retired both processes and private mounts before poweroff; **478.14 seconds**.
+The [actual question](evidence/native-target-review.png) and
+[returned overview](evidence/native-target-declined.png) are retained.
+
+The [full local software run](evidence/native-target-local.json) passed **973
+Rust/configuration, 162 Python/zero skips, both Clippys and 21 gates**. The
+[provenance](evidence/native-target-local-provenance.json) binds source
+`8128d68d...4fa26` / 427 files and the exact compiled guest frontend. A passive
+500-message measurement improved from 7.8773 to 0.3667 seconds after removing
+per-message keyboard delays; hidden-password, raw-input and typeahead checks
+pass. This is transport timing, not installation throughput. Original failed
+attempts remain separate.
+
+[Draft PR 49](https://github.com/j5cfk7qm49-web/WrOS/pull/49) retains this increment;
+[Debian CI 40757537144](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40757537144)
+passed [973 Rust/configuration, 162 Python/zero skips, both Clippys and 20 gates](evidence/native-target-ci.json).
+The [artifact provenance](evidence/native-target-ci-provenance.json) matches
+local/guest source and verifier inputs, retaining tested merge `639a8b3d...007db`. No new live image or production root launcher is
+claimed. Encrypted target installation/authenticated boot, owned interruption
+cleanup, production handoff, refreshed media and physical qualification remain
+open. Read the [target-review scope](NATIVE_INSTALLER_TARGET.md).
+
 ## Authenticated installer capsule — local software, diskless native menu and Debian CI passed
 
 The matching Debian backend and 401-package offline set now compose into a

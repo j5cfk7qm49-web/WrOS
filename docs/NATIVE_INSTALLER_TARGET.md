@@ -47,7 +47,17 @@ no-Ethernet question. No failed observation is relabelled passed. The final
 driver waits only for actionable forms, bounds the whole review, and refuses
 unrecognized questions without answering them.
 
-Full current software and Debian CI qualification are pending. The delivered
+The [full local software run](evidence/native-target-local.json) passed **973
+Rust/configuration, 162 Python/zero skips, both Clippys and 21 gates**.
+[Provenance](evidence/native-target-local-provenance.json) matches the guest source
+and the byte-reproduced standalone guest executable. The separately identified
+[workspace and standalone binaries](evidence/native-target-executables.json)
+retain their own hashes; the full verifier PTYs exercised the workspace build.
+[Debian CI 40757537144](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40757537144)
+passed 973 Rust/configuration, 162 Python/zero skips, both Clippys and 20 gates.
+Its [artifact provenance](evidence/native-target-ci-provenance.json) matches the
+local/guest source and verifier inputs. The actual disk-refusal VM remains a
+separate local acceptance result. The delivered
 [live image](LIVE_SESSION.md) still has its earlier executable. Actual encrypted
 installation and authenticated target boot, owned LUKS/LVM interruption cleanup,
 the trusted production editor handoff, refreshed media and physical qualification

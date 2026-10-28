@@ -2,12 +2,12 @@
 │  Status: Spark save · notes/sparks/r-0000000000000006.md · original scene preserved                                  │
 │  1047 original plots / 84 exercises · static offline selection                                                       │
 │  r-0000000000000006 · Combined · 2026-10-28 · Etc/UTC                                                                │
-│  PLOT [wd-p-0318] · proof · level 2 · suggested 20 min                                                               │
-│  A soil expert finds that mud on a missing person's boots came from an indoor garden. The garden's owner agrees to   │
-│  identify the visit only if the investigator first establishes who borrowed the boots afterward.                     │
-│  EXERCISE [wd-x-0034] · motivation · level 3 · suggested 25 min                                                      │
-│  Give a character an ambition first chosen to please someone else. Present an opportunity to fulfill it after that   │
-│  person's influence has changed. Let the character separate what remains genuinely wanted from what has become habit.│
+│  PLOT [wd-p-0359] · return · level 2 · suggested 20 min                                                              │
+│  A woman receives a suitcase she lost as a child, packed with clothes in her current size. The luggage tag still     │
+│  bears her old address, where the present occupant claims the suitcase was collected that morning.                   │
+│  EXERCISE [wd-x-0047] · pacing · level 1 · suggested 10 min                                                          │
+│  Insert a pause into a practical exchange. During it, let someone notice information that changes the next action.   │
+│  The pause may be quiet, but it should do more than signal that the characters are having strong feelings.           │
 │  Work mode: Drafting · creative completion is self-reported, not automatically scored.                               │
 │  ★ Favorited; retained separately from history.                                                                      │
 │  6 history / 128 · 1 favorites / 64 · 0 dismissals / 128 · 12-result recent window                                   │

@@ -3,22 +3,22 @@
 │  preserved                                                                   │
 │  1047 original plots / 84 exercises · static offline selection               │
 │  r-0000000000000006 · Combined · 2026-10-28 · Etc/UTC                        │
-│  PLOT [wd-p-0454] · reciprocity · level 1 · suggested 20 min                 │
-│  Two partners keep a playful score of household favors until a difficult week│
-│  produces a large imbalance. The score was meant to make care visible, but   │
-│  now makes the person needing help reluctant to ask.                         │
-│  EXERCISE [wd-x-0056] · conflict · level 2 · suggested 20 min                │
-│  Show someone applying a rule they sincerely believe is fair. Introduce a    │
-│  case where the rule produces a barrier its maker did not anticipate. Let the│
-│  conflict concern a concrete remedy rather than winning an abstract debate.  │
+│  PLOT [wd-p-0184] · authenticity · level 2 · suggested 20 min                │
+│  An archive distinguishes original documents from perfect copies by recording│
+│  the intentions of their makers. A legal claim depends on a copy made with   │
+│  more faithful intentions than the original, and the archivist's rules       │
+│  recognize authenticity but not truth.                                       │
+│  EXERCISE [wd-x-0020] · voice · level 2 · suggested 20 min                   │
+│  Write in a voice that sounds confident about ordinary procedure. Introduce a│
+│  small exception the speaker cannot account for. Keep the voice recognizable │
+│  while allowing a hesitation, correction, or detour to expose the limit of   │
+│  that confidence.                                                            │
 │  Work mode: Drafting · creative completion is self-reported, not             │
 │  automatically scored.                                                       │
-│  ★ Favorited; retained separately from history.                              │
-│  6 history / 128 · 1 favorites / 64 · 0 dismissals / 128 · 12-result recent  │
 │1 plot  2 exercise  3 combined  4 daily · p/e/r reroll plot/exercise/both     │
 │f favorite · x dismiss · s save · a actions · h history · F favorites · o     │
 │filters                                                                       │
-│PgUp/PgDn 0/2 · u reload · v source · t optional · Esc · F1 help              │
+│PgUp/PgDn 0/4 · u reload · v source · t optional · Esc · F1 help              │
 │Spark save · notes/sparks/r-0000000000000006.md · original scene preserved    │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘

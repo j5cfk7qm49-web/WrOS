@@ -1,0 +1,50 @@
+{
+  "passed": true,
+  "scope": "Native installer protocol scheduling, fixture device identity, actual refusal of the first LVM disk write, and service-stop containment. No encrypted target install/boot, production root grant, post-write LUKS/LVM cleanup or hardware qualification.",
+  "implementation_commit": "4b8fb6d0e7bfe39b7baa40ccc262c158924c2ef0",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "8128d68daebc3c13e1c39406a74ac948a3eec7928a6ea319e13cf8755e34fa26",
+    "file_count": 427,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "rust_per_configuration": [
+    973,
+    973
+  ],
+  "python": 162,
+  "python_skips": 0,
+  "local_gates": 21,
+  "compiled_frontend_sha256": "f7b391c6d717b54becb3297ef254cfd9c445b0cee8ef7bde8ef6cf2cff8eb93c",
+  "guest_frontend_matches_compiled_executable": true,
+  "executable_build_contexts": {
+    "scope": "Same immutable source, separately identified executable build contexts; no hash is substituted for another.",
+    "full_verifier_executable_sha256": "9443db46d4d87a399d5f67ebbb71d4ac23507b0d653e47f400ef0df365081904",
+    "observed_guest_executable_sha256": "f7b391c6d717b54becb3297ef254cfd9c445b0cee8ef7bde8ef6cf2cff8eb93c",
+    "current_standalone_executable_sha256": "f7b391c6d717b54becb3297ef254cfd9c445b0cee8ef7bde8ef6cf2cff8eb93c",
+    "standalone_reproduces_guest": true,
+    "source_fingerprint": {
+      "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+      "sha256": "8128d68daebc3c13e1c39406a74ac948a3eec7928a6ea319e13cf8755e34fa26",
+      "file_count": 427,
+      "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+    }
+  },
+  "guest_seconds": 478.14,
+  "whole_target_bytes": 17179869184,
+  "whole_target_unchanged": true,
+  "live_iso_rebuilt": false,
+  "debian_ci": {
+    "passed": true,
+    "run_id": 40757537144,
+    "provenance": "docs/evidence/native-target-ci-provenance.json"
+  },
+  "reports_sha256": {
+    "native-target-local.json": "cad037b157cd921c73746db4c6d0de32a4747101cae99eefc156a59564175724",
+    "native-target-review-vm.json": "bbd3480815262e9288a1cdc1a6ae1e32763f3dfb1d916a008833235ae659fbcf",
+    "native-target-attempts.json": "6c7490dfe2ad8747a1b5cc490fc91ebd2509ad4d3753e657dd50dca7265391df",
+    "native-target-protocol.json": "53c602b10a8107199950eba0a78d7f2c6765ed70f7f294920308b60566b62c31",
+    "native-target-captures.json": "bb5b3ee1d9d441b5934e1d078c033c3e92742ef0ae818edb69bf3a7fda702387",
+    "native-target-executables.json": "24f964f87d097e48f46d4e90a9f577579583e0e3109e6de5e0722486c0627644"
+  }
+}
