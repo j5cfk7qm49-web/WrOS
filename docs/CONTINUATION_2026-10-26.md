@@ -31,9 +31,16 @@ Clean native source/build and Debian CI 40611457588 passed: 959 Rust/configurati
 tested merge `4b821f15b9e8416a8c6c4326a1d113ac1d2225fb`.
 Safe raw build/CI reports are `integrated-installer-{build,ci}.json`.
 
-A fresh no-NIC install/UEFI/native PAM/editor/input/sleep-guard/logout run is
-in progress in the clean native snapshot. Record its actual result separately;
-do not substitute older image, interrupted-install or overlay evidence. Current
+Fresh no-NIC installation run install-v7jfplk2 completed normally in1263.38s.
+Four original verifier attempts failed and remain retained; the actual runtime
+was unchanged. A separate97.76s auth-onlyretry passed UEFI/nativePAM/editor+reader
+UID1000/tty1device/current+loadedhashes/WiFi/masked-sleep+CanSuspendno/logout.
+Five pure console-parser regressions pass; updated-verifier DebianCI40619901511
+passed959Rust/config,113Python/0skips,bothClippys17gates. Raw report is
+integrated-installer-verifier-ci.json; testedmerge1231c581d0bb69768a738837f2f63352accab951.
+Reports retain distinct ISO-source97e9/309 and verifier965692...1cc2eeb/310 identities.
+Safe public vm/attempts/image records are retained; screenshot originally from
+the first probe is explicitly identified and inspected at full resolution. Current
 ISO `cdb2be91...665d8ff` is 1,219,952,640 bytes. It predates the separately tested
 native timezone controls, draft #41, implementation `c88c66c`, whose focused and
 real guest records are on that branch and whose Debian CI is running.

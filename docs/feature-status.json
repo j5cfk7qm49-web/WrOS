@@ -87,9 +87,9 @@
       "area": "OS",
       "capability": "Production disk/LUKS/account/Wi-Fi first-run installer",
       "status": "In progress",
-      "verification": "Original ISO normal install/PAM; current ISO post-interruption boot plus cancellation/no-disk passed",
+      "verification": "Current native ISO normal installation passed 1263.38 seconds; separate UEFI/native PAM/process/hash/sleep-denial/logout retry passed 97.76 seconds; original failed probes retained",
       "hardware_verified": false,
-      "detail": "Current full install timed out during finalization; LUKS, layout, wrong-disk/earlier retry and lock gates remain open"
+      "detail": "Current native image has no autologin; exact runtime hashes match; LUKS/recovery, broader layout/wrong-disk/interruption, secure lock and physical gates remain open"
     },
     {
       "area": "OS",

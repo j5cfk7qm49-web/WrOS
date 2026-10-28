@@ -22,7 +22,7 @@ both Clippys and 17 gates](evidence/native-timezone-ci.json). Source matches
 tested merge `139e2c4dba96dbbc0e4c985469f72c387b34d111`. No new timezone ISO or
 physical claim is made; the integrated image below predates these controls.
 
-## Integrated native-login image — build and Debian CI passed; fresh install running
+## Integrated native-login image — normal installation and installed boot passed
 
 `codex/integrated-installer` / [draft PR #40](https://github.com/j5cfk7qm49-web/WrOS/pull/40)
 brings the current editor/input reader, native greetd/PAM login, Settings and the
@@ -39,9 +39,25 @@ passed [959 Rust/configuration, both Clippys, 108 Python/zero skips and 17 gates
 Its source matches the build exactly: `97e9afe2c17c7c6028ab40ffe66fed06c2950e1ab942ea091052e3bce41d2741`
 / 309 files; implementation is `9e7d99c`, tested merge `4b821f15b9e8416a8c6c4326a1d113ac1d2225fb`.
 
-A fresh no-NIC installation and UEFI/native-login/logout acceptance run is in
-progress on a newly created disposable disk. Build/CI success does not establish
-installed boot, LUKS, recovery, secure lock/suspend or physical qualification.
+The [fresh no-NIC installation](evidence/integrated-installer-vm.json) completed
+normally in 1,263.38 seconds. A separate 97.76-second authenticated-boot retry
+passed UEFI boot, native wrong/right PAM, the actual UID-1000 editor and reader,
+tty1 device binding, running/installed executable hashes, offline Wi-Fi payload,
+all five sleep masks, logind denial (`no`) and logout to login without readers.
+No sleep request was issued. Four [original verifier failures](evidence/integrated-installer-attempts.json)
+remain failed: missing journal telemetry, controlling-TTY accounting rather than
+the actual descriptor, mixed console line endings and expecting only one of the
+documented denied capability values. Five parser regressions cover framing and
+capability responses. ISO/runtime inputs stayed unchanged; the report separately
+records the updated authentication verifier's identity. Its full [Debian CI
+40619901511](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40619901511) passed
+[959 Rust/configuration, 113 Python/zero skips, both Clippys and 17 gates](evidence/integrated-installer-verifier-ci.json).
+Verifier source `96569207...1cc2eeb` / 310 matches the actual boot probe; tested
+merge is `1231c581d0bb69768a738837f2f63352accab951`.
+The [actual complete dashboard](evidence/integrated-installed-writing.png) has
+[capture provenance](evidence/integrated-installed-writing.json) from the initial
+probe and was inspected at original resolution. This is not LUKS, recovery,
+secure lock/suspend or physical qualification.
 The later [native timezone increment](https://github.com/j5cfk7qm49-web/WrOS/pull/41)
 is separately tested and is not contained in this ISO. Older image evidence below
 retains its original source identity.

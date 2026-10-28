@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "scope": "Disposable no-network QEMU install, not hardware qualification",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "97e9afe2c17c7c6028ab40ffe66fed06c2950e1ab942ea091052e3bce41d2741",
+    "file_count": 309,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "native_session_expected": true,
+  "iso_sha256": "cdb2be91b244e7fa9c6465c0ab0c538044f08cc00a2afe2cadf9d6204665d8ff",
+  "installed_binary_sha256": "45de885b776345ed2981495fe5ab131cd166204ca9f1aae6be1dffe03d419462",
+  "greeter_binary_sha256": "bf193c66af41625892b866f000f5c5850919855d72189d89735017eb8be74e7c",
+  "network_devices": 0,
+  "host_disks_exposed": 0,
+  "test_answers_in_shipping_iso": false,
+  "installed_boot_verified": true,
+  "authentication_verified": true,
+  "passed": true,
+  "exit_code": 0,
+  "late_payload_verified": true,
+  "late_stage_reached": true,
+  "wall_seconds": 1263.38,
+  "installation_copy_verified": true,
+  "tty1_nonroot_session_verified": true,
+  "writing_ui_verified": true,
+  "offline_wifi_packages_verified": true,
+  "password_logged": false,
+  "native_session_requested": true,
+  "native_login_verified": true,
+  "native_wrong_password_rejected": true,
+  "sleep_guard_verified": true,
+  "native_logout_verified": true,
+  "input_reader_nonroot_verified": true,
+  "authentication_only_retry": true,
+  "authentication_verifier_source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "9656920768baa405909790e67e3623ed8a32d13e254c0507b606c905d1cc2eeb",
+    "file_count": 310,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "authentication_verifier_sha256": {
+    "install_vm.py": "e6b78d0ef4d05da8bb83e243ff381e5a08b434144232e69753320e055c8a9914",
+    "installed_boot.py": "1ccdd59455d31777b3fb7358ea616f91fd11ac107a4028ff4a7638e4d5f19f86"
+  },
+  "authentication_wall_seconds": 97.76,
+  "running_image_binary_sha256": {
+    "grimoire": "45de885b776345ed2981495fe5ab131cd166204ca9f1aae6be1dffe03d419462",
+    "wros-greeter": "bf193c66af41625892b866f000f5c5850919855d72189d89735017eb8be74e7c"
+  },
+  "running_editor_exe_sha256": "45de885b776345ed2981495fe5ab131cd166204ca9f1aae6be1dffe03d419462",
+  "logind_can_suspend": "no",
+  "installed_binary_identities_match": true
+}
