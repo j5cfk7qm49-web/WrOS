@@ -1,10 +1,10 @@
 {
-  "recorded_at_utc": "2026-10-28T10:36:43.348377+00:00",
+  "recorded_at_utc": "2026-10-28T11:37:09.755169+00:00",
   "scope": "Actual non-root Debian cdebconf with private RAM confirmation markers; no target disk, user account or privileged live launcher",
   "observation_only": false,
   "source_fingerprint": {
     "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
-    "sha256": "53d28478e10a85b6ffed15db1a6abd6ac2956e849b004537c41864fadca239a1",
+    "sha256": "0857c7d7704df857126eb9c6409992b2e47d884a2e51f324551e7aec042a9455",
     "file_count": 333,
     "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
   },
@@ -121,7 +121,7 @@
       "module_observed": true,
       "timed_out": false,
       "forced_child_cleanup": false,
-      "seconds": 0.013
+      "seconds": 0.014
     },
     {
       "case": "malformed",
@@ -143,7 +143,7 @@
       "module_observed": true,
       "timed_out": false,
       "forced_child_cleanup": false,
-      "seconds": 0.013
+      "seconds": 0.014
     },
     {
       "case": "status-suffix",
@@ -165,7 +165,7 @@
       "module_observed": true,
       "timed_out": false,
       "forced_child_cleanup": false,
-      "seconds": 0.013
+      "seconds": 0.015
     },
     {
       "case": "negative",
@@ -209,7 +209,7 @@
       "module_observed": true,
       "timed_out": false,
       "forced_child_cleanup": false,
-      "seconds": 0.013
+      "seconds": 0.014
     },
     {
       "case": "nul",
@@ -231,7 +231,7 @@
       "module_observed": true,
       "timed_out": false,
       "forced_child_cleanup": false,
-      "seconds": 0.014
+      "seconds": 0.013
     },
     {
       "case": "crlf",
@@ -253,7 +253,7 @@
       "module_observed": true,
       "timed_out": false,
       "forced_child_cleanup": false,
-      "seconds": 0.014
+      "seconds": 0.013
     },
     {
       "case": "oversized",

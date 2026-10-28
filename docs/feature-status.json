@@ -631,7 +631,7 @@
       "area": "OS",
       "capability": "Live WrOS installer TUI over Debian installation components",
       "status": "In progress",
-      "verification": "Local matching-kernel initrd build, 12 actual image backend native checks and 14 protocol cases passed; new full Debian CI pending; prior transport CI passed 972 Rust/configuration, 123 Python/zero skips and 19 gates",
+      "verification": "Debian CI: 972 Rust/configuration, 123 Python/zero skips, both Clippys and 19 gates; separate local matching-kernel initrd build, 12 actual image backend native checks and 14 protocol cases passed; no complete live installation claim",
       "hardware_verified": false,
       "detail": "Shared Grimoire palettes/widgets and fail-closed transport; module verified inside compressed matching initrd; original failures retained; privileged launcher, complete live media and fresh install/reboot remain open"
     }

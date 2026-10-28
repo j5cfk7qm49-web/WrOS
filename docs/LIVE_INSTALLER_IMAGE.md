@@ -71,3 +71,10 @@ private no-network/noexec-RAM fixtures. The
 [original failed attempts](evidence/live-image-attempts.json) retain their scope.
 This component build is separate from the standard software CI gates; it is
 not performed implicitly during every Rust test run.
+
+[Debian CI 40673836623](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40673836623)
+passed 972 Rust/configuration, 123 Python/zero skips, both Clippys and all 19
+software gates. Its [artifact provenance](evidence/live-image-ci-provenance.json)
+matches the final local component source and exact transport module. Earlier
+passing records before the final configuration README update remain preserved
+in [their original scope](evidence/live-image-before-readme/README.md).

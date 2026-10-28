@@ -40,8 +40,12 @@ Cloud adapters remain future workers, never synchronous input-loop work.
 notifications and Ratatui menu presentation without editor, authentication,
 filesystem, process or privilege dependencies. `src/app/shell.rs` adapts native
 categorized Settings to retained editor objects and the existing service worker.
-The initial code is under qualification; it does not implement a greeter, cloud
-enrollment, native Wi-Fi enrollment or an actual display-temperature backend.
+The shared library also owns the original Grimoire palette/theme-file code and
+panel geometry used by native login/layout and installer presentation. Current
+greeter, timezone, manual-lock and display results are tracked in [STATUS](STATUS.md);
+the graph above retains the earlier baseline. Cloud/native Wi-Fi enrollment and
+complete live installation remain unfinished. Visual integration of unlock and
+future system panels is part of the same Grimoire interface requirement.
 
 ## Implemented vertical slice
 

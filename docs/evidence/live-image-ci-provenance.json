@@ -1,0 +1,22 @@
+{
+  "recorded_at_utc": "2026-10-28T11:38:52.640086+00:00",
+  "implementation_commit": "a21c04fb41b19388f217bb2574fcb7ddc596b342",
+  "tested_merge": "3ee24e819de4558327b9047f6174802c00ac71ed",
+  "run_id": 40673836623,
+  "run_url": "https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40673836623",
+  "job": "linux",
+  "job_id": 122767067689,
+  "artifact_id": 12809329651,
+  "artifact_zip_sha256": "e0d8b6448724959e6ff48c463c2576b1ae445366394b8070639e36ee24d9b02f",
+  "report_sha256": "d39f0f43ef3e3875b2b8f6913f99e10c05e4c6c3ee667fde4052f49472339d08",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "0857c7d7704df857126eb9c6409992b2e47d884a2e51f324551e7aec042a9455",
+    "file_count": 333,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "local_image_and_ci_source_match": true,
+  "exact_transport_module_matches_image": true,
+  "passed": true,
+  "scope": "Debian software/component CI. Actual initrd build and image backend checks have separate local evidence; CI does not rebuild that initrd or certify a live ISO/install/reboot."
+}

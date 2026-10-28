@@ -8,7 +8,7 @@
   "source_descriptor_sha256": "2542e25aff5b98f318d2cf9c642c384e254141ad98b6871e2048e1a5e9a2ab2e",
   "source_archive_sha256": "3703614db280645e10ce4efd6e255081495c48f2acd66bbdbfca571b4ae860b6",
   "kernel_archive_sha256": "a4ad0bf9f084b199dd2b12cb8a2ed918abb442da467f40b772166a267c784a5b",
-  "initrd_sha256": "38149bed920f48e39a8e97b87672fa26ee0a8401d002f006d6f38dd33237978d",
+  "initrd_sha256": "16c50887e5e55598122ada69a369df91df56a38eb6736bd30cdadc1233c911cd",
   "kernel_sha256": "4336c75fc1a6a58e7bda66cbe9f4042f88064e7abc93faaea9e2aceb19459561",
   "module_sha256": "be37dee7f39730b6369b54f72ac83a1ff27f9d59bcea10fed9fd11a0ea2adf18",
   "module_observed_in_compressed_initrd": true,
@@ -17,7 +17,7 @@
   "recipe_sha256": "abbb71e88c6add556b8877bcfaf64b7dc079b5cfd2114c2fdc772c2bd3ec37ad",
   "source_fingerprint": {
     "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
-    "sha256": "53d28478e10a85b6ffed15db1a6abd6ac2956e849b004537c41864fadca239a1",
+    "sha256": "0857c7d7704df857126eb9c6409992b2e47d884a2e51f324551e7aec042a9455",
     "file_count": 333,
     "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
   },
@@ -121,7 +121,7 @@
     "apt.udeb/cache/archives/util-linux-udeb_2.41.5-0+deb13u1_amd64.udeb": "b91ad338b071a3da47a105472b93bb10ff99c2afd9221eb3c3e40ac2c346f02c",
     "apt.udeb/cache/archives/wget-udeb_1.25.0-2_amd64.udeb": "5b2a49803999a26000960cd946665da71c5eab46a28e2f0c299b8f1e01ce2398",
     "apt.udeb/cache/archives/wireless-regdb-udeb_2026.05.30-1~deb13u1_all.udeb": "ef31b881ac73cbb3e570daddd4200e7259daf300bf1d7408abd1811f67f703ec",
-    "apt.udeb/cache/archives/wros-cdebconf-passthrough_0.280+wros2_amd64.udeb": "ee5d412af1a36226d8471ebee5da7dcae897be2eb091d4989654d4c44a20a8db",
+    "apt.udeb/cache/archives/wros-cdebconf-passthrough_0.280+wros2_amd64.udeb": "5205b7c93a7250b64171eac58fb80664c5c0e2b4840920b0a469e6f90c21b58a",
     "apt.udeb/cache/archives/zlib1g-udeb_1%3a1.3.dfsg+really1.3.1-1+b1_amd64.udeb": "1163b2f516fe5ac1064df73d0134fa07a06e450f3c9883e40e0a72744ae13b58",
     "udebs/cdebconf-newt-entropy.udeb": "8d23e07e580d1a9596d76e4a78fb7eedac1971d3ab6bc6f9c6e5a82fe1b441ff",
     "udebs/cdebconf-text-entropy.udeb": "d50734648c9a9a0dd4d926d751c5d7b85ea2a88e143fdb3c2f0a834266312430"

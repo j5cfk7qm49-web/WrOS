@@ -1,8 +1,8 @@
 {
-  "recorded_at_utc": "2026-10-28T10:37:56.836732+00:00",
+  "recorded_at_utc": "2026-10-28T11:38:52.479836+00:00",
   "source_fingerprint": {
     "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
-    "sha256": "53d28478e10a85b6ffed15db1a6abd6ac2956e849b004537c41864fadca239a1",
+    "sha256": "0857c7d7704df857126eb9c6409992b2e47d884a2e51f324551e7aec042a9455",
     "file_count": 333,
     "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
   },
@@ -13,19 +13,21 @@
     "actual-image-protocol-faults"
   ],
   "report_sha256": {
-    "live-image-build.json": "caa8885c82f4bfe330f6ae740b211853c7f84f2d339432bb6cb35af8cb6ffc61",
-    "live-image-backend-frontend.json": "a60c7c0be0da0610d1ec062dce681527874b9ef32adcb311062eab4dad87c2b2",
-    "live-image-backend-faults.json": "911b902a09cd6a66b5a80ca076d391d0f069d495f65da67f3ebb448d60760645"
+    "live-image-build.json": "075ee6e6ae232ad045a1e8c2fb7a9759df84970767b49ec8a23d95fa6705835f",
+    "live-image-backend-frontend.json": "e0e7a635a610d68099fcb02596a126def3890eaf7a8e93bdb6279964997c9fae",
+    "live-image-backend-faults.json": "a22309140120863e25434dd73fa8b2ef8e9cca877b34bcaf26023cff8620be29"
   },
   "driver_sha256": {
     "tools/test-installer-backend.py": "3e8fc145533c57fe407b72d9efce08a6c5c555cd5f908b79fddff4dc988d3c0f",
     "os/tests/cdebconf_protocol.py": "34e9d0107766a9386066b7f8f61904b1e077bdab1e9356f7fb0b2fa152248789"
   },
-  "successful_build_log_sha256": "4c86c4a39aa2b2eee5fad2b5bfb9535593c4c5ae73ae7c4f6731d0f6c17e322b",
-  "successful_image_test_log_sha256": "d1d15c765da2a8e7c2b8a7e4882d2483db0f7f14af1af6f922b6dd4f31dd4b5b",
+  "successful_build_log_sha256": "32141c5bd0cc21bb965d274ac0631baa0faa0a0c2b7e34fccd88e400f1aad756",
+  "successful_image_test_log_sha256": "c93392bfb357a096e98d7cb5f2ae45725167c0cd3a9d232e4c6de895c3e4f000",
   "kernel_version": "6.12.113+deb13-amd64",
   "image_frontend_checks": 12,
   "image_fault_cases": 14,
   "fixture": "Non-root actual image backend and native frontend; private mount/network namespace, synthetic noexec RAM configuration and markers; no target disk.",
-  "scope": "Kernel/initrd component build and backend ABI/protocol; no complete live ISO, privileged launch, installation/reboot, Secure Boot or physical qualification."
+  "scope": "Kernel/initrd component build and backend ABI/protocol; no complete live ISO, privileged launch, installation/reboot, Secure Boot or physical qualification.",
+  "previous_passed_source_record": "live-image-before-readme/live-image-local-provenance.json",
+  "refresh_reason": "Broad fingerprint includes the final os/config installer README. Rebuilt and repeated the actual image fixtures against the exact CI-tested committed source; earlier passing records remain unchanged."
 }

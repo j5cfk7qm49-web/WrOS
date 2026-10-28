@@ -16,6 +16,13 @@ surface: share Grimoire's theme, widgets, spacing, selection, navigation and
 help/status code. The [native installer increment](NATIVE_INSTALLER.md) extracts
 the actual palette and theme format into `wros-shell`, retaining editor behavior.
 
+The current shared implementation covers Settings, login/layout and the
+installer forms, progress and help. Cohesion applies to every ordinary WrOS
+surface, including errors, unlock, updates, recovery and backup. Reused engines
+must sit behind those shared screens. The existing vlock prompt has separate
+security qualification; its Grimoire presentation is still unfinished. Shared
+presentation must preserve the separately qualified credential/input owners.
+
 | Area | Actual implementation | Consequence |
 |---|---|---|
 | Editor/panes | `App`, independent retained Editor contexts, exclusive source ownership, guarded save/recovery, workspace restoration | Extend in place; Settings must retain these objects, selection, free scroll, focus and undo |

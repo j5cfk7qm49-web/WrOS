@@ -1,0 +1,1 @@
+Original passing component records before the final installer configuration README update. The broad source fingerprint includes os/config/installer/README.md. These records retain source 53d28478; the later final source records and Debian CI are separate. No original test has been relabeled.
