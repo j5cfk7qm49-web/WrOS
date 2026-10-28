@@ -107,7 +107,7 @@ mount -o remount,ro /dev/vda2 "$rootmnt"
     with (run / 'qemu.log').open('w') as log:
         process = subprocess.Popen(arguments, stdin=subprocess.DEVNULL, stdout=log, stderr=log)
         try:
-            while process.poll() is None and time.monotonic() - started < 420:
+            while process.poll() is None and time.monotonic() - started < 600:
                 content = serial.read_text(errors='replace') if serial.exists() else ''
                 if 'WROS_LOCK_FAIL' in content or 'WROS_GREETER_TIMEOUT' in content or 'Kernel panic' in content:
                     qmp(control, 'screendump', {'filename': str(run / 'failed-screen.ppm')}); break
@@ -131,18 +131,33 @@ mount -o remount,ro /dev/vda2 "$rootmnt"
                     'SYSTEM_READY': lambda: keys(['down', 'down'], True),
                     'POWER_READY': lambda: keys(['down', 'down'], True),
                     'LOCK_READY': lambda: keys(['end'], True),
-                    'FIRST_PROTECTED': lambda: (chord('ctrl', 'alt', 'f1'), chord('ctrl', 'alt', 'f2'), ack()),
+                    'FIRST_PROTECTED': lambda: (chord('ctrl', 'alt', 'f1'), chord('ctrl', 'alt', 'f2')),
+                    'FIRST_SWITCH_CHECKPOINT': ack,
                     'WRONG_PASSWORD_READY': lambda: keys([], True),
                     'WRONG_PROMPT': lambda: keys('wrongfixture', True),
                     'ROOT_PROMPT': lambda: keys('wrongfixture', True),
-                    'WRONG_DENIED': lambda: (keys([], True), ack()),
-                    'CORRECT_PROMPT': lambda: keys(secret, True),
+                    'WRONG_DENIED': lambda: keys([], True),
+                    'RETRY_CHECKPOINT': ack,
+                    'CORRECT_PROMPT': lambda: keys(secret),
+                    'CORRECT_HIDDEN_CHECKPOINT': ack,
+                    'CORRECT_HIDDEN_PASS': lambda: keys([], True),
                     'UNLOCKED': lambda: (keys(['esc', 'esc', 'esc']), keys(' suffix')),
                     'CONTEXT_PASS': lambda: None,
-                    'RELOCK_READY': lambda: (palette('wros settings'), keys(['down', 'down'], True), keys(['down', 'down'], True)),
+                    'RELOCK_READY': lambda: (palette('wros settings'), keys(['home', 'down', 'down'], True), keys(['home', 'down', 'down'], True)),
                     'RELOCK': lambda: keys(['end'], True),
-                    'SECOND_PROTECTED': lambda: (chord('ctrl', 'alt', 'f1'), chord('ctrl', 'alt', 'f2'), ack()),
+                    'SECOND_PROTECTED': lambda: (chord('ctrl', 'alt', 'f1'), chord('ctrl', 'alt', 'f2')),
+                    'SECOND_SWITCH_CHECKPOINT': ack,
                 }
+                for label in ('LOCKER_FAILURE', 'HELPER_FAILURE'):
+                    actions.update({
+                        label + '_LOGIN': lambda: keys('writer', True),
+                        label + '_PASSWORD': lambda: keys(secret, True),
+                        label + '_AUTHENTICATED': lambda: keys([], True),
+                        label + '_NAVIGATE': lambda: (keys(['esc']), palette('wros settings'), keys(['home', 'down', 'down'], True), keys(['home', 'down', 'down'], True)),
+                        label + '_LOCK': lambda: keys(['end'], True),
+                        label + '_PROTECTED': lambda: (chord('ctrl', 'alt', 'f1'), chord('ctrl', 'alt', 'f2')),
+                        label + '_SWITCH_CHECKPOINT': ack,
+                    })
                 for name, action in actions.items():
                     if 'WROS_LOCK_' + name + '\n' in content and name not in completed:
                         action(); completed.add(name)
@@ -157,6 +172,7 @@ mount -o remount,ro /dev/vda2 "$rootmnt"
             content = serial.read_text(errors='replace') if serial.exists() else ''
             result['markers'] = [line[line.index('WROS_'):].strip() for line in content.splitlines() if 'WROS_LOCK_' in line or 'WROS_GREETER_TIMEOUT' in line]
             result['completed_controller_steps'] = sorted(completed)
+            result['qemu_exit_code'] = process.returncode
             result['base_image_sha256_after'] = digest(image)
             result['base_image_unchanged'] = before == result['base_image_sha256_after']
             result['source_unchanged'] = source == fingerprint()
