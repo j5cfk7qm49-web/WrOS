@@ -18,6 +18,13 @@ def has_line(content, label):
     return marker_pattern(label).search(content) is not None
 
 
+def suspend_capability(content):
+    for state in ('no', 'na', 'yes', 'challenge'):
+        if has_line(content, ('s "' + state + '"').encode()):
+            return state
+    return None
+
+
 def qmp(path, command, arguments=None):
     with socket.socket(socket.AF_UNIX) as connection:
         connection.settimeout(10)
@@ -226,7 +233,8 @@ def verify(run, secret=None, native_session=False):
                     connection.sendall(b'sudo -n /bin/sh -c \'for u in sleep suspend hibernate hybrid-sleep suspend-then-hibernate; do test "$(systemctl is-enabled "$u.target" 2>/dev/null)" = masked || exit 1; done; echo WROS_SLEEP_MASKS_PASS; busctl call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager CanSuspend\'; printf "\\nWROS_SLEEP_STATE_END\\n"\n')
                     expect(marker_pattern(b'WROS_SLEEP_STATE_END'), 30)
                     expect(b':~$ ', 20)
-                    if not has_line(content[start:], b'WROS_SLEEP_MASKS_PASS') or not has_line(content[start:], b's "na"'):
+                    result['logind_can_suspend'] = suspend_capability(content[start:])
+                    if not has_line(content[start:], b'WROS_SLEEP_MASKS_PASS') or result['logind_can_suspend'] not in ('no', 'na'):
                         raise RuntimeError('Installed sleep guard is not effective')
                     result['sleep_guard_verified'] = True
                     # Exit through the actual home menu, then check login and no

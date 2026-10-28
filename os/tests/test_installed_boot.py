@@ -1,6 +1,6 @@
 """Observed serial line boundaries, without a guest, credential or host device."""
 import unittest
-from installed_boot import has_line, marker_pattern
+from installed_boot import has_line, marker_pattern, suspend_capability
 
 
 class ConsoleProtocol(unittest.TestCase):
@@ -24,3 +24,10 @@ class ConsoleProtocol(unittest.TestCase):
     def test_marker_metacharacters_are_literal(self):
         self.assertTrue(has_line(b'\nservice.a[1]\n', b'service.a[1]'))
         self.assertFalse(has_line(b'\nserviceXa1\n', b'service.a[1]'))
+
+    def test_logind_denials_are_distinct_from_permission_or_a_challenge(self):
+        for state in ('no', 'na', 'yes', 'challenge'):
+            with self.subTest(state=state):
+                self.assertEqual(suspend_capability(('\ns "' + state + '"\r\n').encode()), state)
+        self.assertIsNone(suspend_capability(b'command echo s "no"; more\n'))
+        self.assertIsNone(suspend_capability(b'\ns "unknown"\n'))
