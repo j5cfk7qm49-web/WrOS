@@ -19,6 +19,7 @@ pub fn available() -> bool {
         && unsafe { libc::geteuid() } != 0
         && !Path::new("/etc/writingdeck/VM-DEMO-ONLY").exists()
         && !Path::new("/run/wros-live/session.json").exists()
+        && !Path::new("/run/live/medium/live/filesystem.squashfs").is_file()
         && [
             "/usr/libexec/wros-lock",
             "/usr/bin/openvt",

@@ -9,7 +9,7 @@ fi
 export LANG=C.UTF-8
 export TERM="${TERM:-linux}"
 export WRITINGDECK_OS=1
-if [ -f /run/wros-live/session.json ]; then
+if [ -f /run/wros-live/session.json ] || [ -f /run/live/medium/live/filesystem.squashfs ]; then
     export WROS_LIVE_SESSION=1
 fi
 umask 077

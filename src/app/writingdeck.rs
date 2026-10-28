@@ -133,7 +133,9 @@ pub struct Deck {
 impl Deck {
     pub fn load(root: &Path, background: bool) -> Self {
         let mut warnings = Vec::new();
-        let live_session = background && std::env::var_os("WROS_LIVE_SESSION").is_some();
+        let live_session = background
+            && (std::env::var_os("WROS_LIVE_SESSION").is_some()
+                || Path::new("/run/live/medium/live/filesystem.squashfs").is_file());
         if live_session {
             warnings
                 .push("Live session · save work somewhere persistent before restarting.".into());

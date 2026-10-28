@@ -14,6 +14,10 @@ initial session enters the normal WrOS session wrapper; greetd retains its
 authenticated default session. The stock live-config getty generator is masked
 so it cannot also open accounts automatically on other consoles. Documented
 `noautologin` and `nottyautologin` aliases still prevent automatic entry.
+Both normal and failsafe boot entries carry the live-profile flag. The session
+wrapper, application and privileged lock helper also recognize the live medium
+independently, so omitting the automatic-entry flag cannot turn the public
+account into a personal locked session.
 
 The immutable SquashFS contains neither the temporary account nor its runtime
 configuration. `/etc/greetd/config.toml` remains the authenticated installed
@@ -23,6 +27,7 @@ remain necessary to qualify the complete profile.
 
 This public live account has Debian's standard temporary live credentials and
 live administration privileges. It is not a personal authenticated session.
+Manual entry uses username `wros-live` and the public password `live`.
 WrOS disables its personal screen-lock action in both the interface and the
 privileged lock helper. Installed sessions retain the existing lock path.
 Sleep remains disabled pending separate qualification.

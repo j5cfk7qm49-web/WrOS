@@ -50,6 +50,7 @@ lb config --ignore-system-defaults --mode debian --distribution trixie \
     --uefi-secure-boot enable --image-name "$image" \
     --iso-application 'WrOS - Writer OS (experimental)' --iso-volume "$volume" \
     --bootappend-live "$bootappend" \
+    --bootappend-live-failsafe "$bootappend memtest noapic noapm nodma nomce nosmp nosplash vga=788" \
     --checksums sha256 --chroot-squashfs-compression-type zstd
 mkdir -p config/package-lists
 cp "$repo/os/config/packages.txt" config/package-lists/wros.list.chroot

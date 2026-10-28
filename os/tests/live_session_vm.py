@@ -21,47 +21,61 @@ sys.path.insert(0, str(ROOT/'tools'))
 from writingdeck_source import fingerprint
 
 PROBE = r'''
-import hashlib,json,os,pathlib,subprocess,sys,tomllib
+import hashlib,json,os,pathlib,pwd,subprocess,sys,time,tomllib
 P=pathlib.Path
 assert os.geteuid()==0
-assert {'boot=live','wros.live=1'} <= set(P('/proc/cmdline').read_text().split())
-marker=json.loads(P('/run/wros-live/session.json').read_bytes())
+assert 'boot=live' in P('/proc/cmdline').read_text().split()
+present=P('/run/wros-live/session.json').exists()
+marker=json.loads(P('/run/wros-live/session.json').read_bytes()) if present else {'automatic':False,'user':'wros-live','uid':1000}
 assert marker['user']=='wros-live' and marker['uid']==1000
+assert pwd.getpwnam('wros-live').pw_uid==1000
 assert P('/run/live/medium/live/filesystem.squashfs').is_file()
 assert os.statvfs('/run/live/medium').f_flag & os.ST_RDONLY
 base=tomllib.loads(P('/etc/greetd/config.toml').read_text())
 assert 'initial_session' not in base
-runtime=tomllib.loads(P('/run/wros-live/greetd.toml').read_text())
+runtime=tomllib.loads(P('/run/wros-live/greetd.toml').read_text()) if present else base
 assert ('initial_session' in runtime)==marker['automatic']
 assert subprocess.check_output(['passwd','-S','root']).split()[1]==b'L'
 assert P('/etc/systemd/system-generators/live-config-getty-generator').is_symlink()
 assert os.readlink('/etc/systemd/system-generators/live-config-getty-generator')=='/dev/null'
-processes={}
-for p in P('/proc').glob('[0-9]*'):
-    try:
-        name=(p/'comm').read_text().strip()
-        if name not in ('grimoire','wros-input','wros-greeter','agetty'): continue
-        status=(p/'status').read_text().splitlines()
-        uid=next(s.split()[1:] for s in status if s.startswith('Uid:'))
-        cmd=(p/'cmdline').read_bytes().split(b'\0')
-        if name=='agetty': assert not any(b'autologin' in s for s in cmd)
-        processes.setdefault(name,[]).append({'pid':int(p.name),'uid':uid,
-          'exe_sha256':hashlib.sha256((p/'exe').read_bytes()).hexdigest()})
-    except (FileNotFoundError,ProcessLookupError): pass
-screen=P('/dev/vcs1').read_bytes().decode('latin1')
+def snapshot():
+    processes={}
+    for p in P('/proc').glob('[0-9]*'):
+        try:
+            name=(p/'comm').read_text().strip()
+            if name not in ('grimoire','wros-input','wros-greeter','agetty'): continue
+            status=(p/'status').read_text().splitlines()
+            uid=next(s.split()[1:] for s in status if s.startswith('Uid:'))
+            cmd=(p/'cmdline').read_bytes().split(b'\0')
+            if name=='agetty': assert not any(b'autologin' in s for s in cmd)
+            processes.setdefault(name,[]).append({'pid':int(p.name),'uid':uid,
+              'exe_sha256':hashlib.sha256((p/'exe').read_bytes()).hexdigest()})
+        except (FileNotFoundError,ProcessLookupError): pass
+    return processes,P('/dev/vcs1').read_bytes().decode('latin1')
 phase=sys.argv[1]
-if phase=='manual':
+required={'manual':['Local account','WrOS'],'password':['Password:'],
+          'authenticated':['Open writing session','Authenticated.'],
+          'home':['WrOS','Live session','Resume writing'],
+          'settings':['Interface','Accounts','System'],
+          'system':['Wi-Fi and networking','Power','Date and time'],
+          'power':['Live session','personal lock unavailable']}.get(phase,[])
+deadline=time.monotonic()+30
+while True:
+    processes,screen=snapshot()
+    if all(s in screen for s in required) and (phase!='session' or all(processes.get(n) for n in ('grimoire','wros-input'))):break
+    assert time.monotonic()<deadline,'native UI readiness: '+phase
+    time.sleep(0.15)
+if phase in ('manual','password','authenticated'):
     assert not marker['automatic'] and not processes.get('grimoire')
     assert len(processes.get('wros-greeter',[]))==1
     assert processes['wros-greeter'][0]['uid'][0]!='0'
-    assert 'Local account' in screen and 'WrOS' in screen
 else:
     for name in ('grimoire','wros-input'):
         assert len(processes.get(name,[]))==1
         assert processes[name][0]['uid']==['1000']*4
     if phase=='home': assert 'WrOS' in screen and 'Live session' in screen and 'Resume writing' in screen
     if phase=='power': assert 'Live session' in screen and 'personal lock unavailable' in screen
-print(sys.argv[2]+json.dumps({'phase':phase,'marker':marker,'processes':processes,
+print(sys.argv[2]+json.dumps({'phase':phase,'marker':marker,'runtime_marker_present':present,'processes':processes,
  'screen':screen,'shipping_initial_session_absent':True,'root_locked':True,
  'other_gettys_authenticated':True}),flush=True)
 '''
@@ -77,6 +91,7 @@ def main():
     for name in ('iso', 'kernel', 'initrd', 'artifacts-directory'):
         parser.add_argument('--'+name, type=Path, required=True)
     parser.add_argument('--manual', action='store_true')
+    parser.add_argument('--unmarked', action='store_true', help='Omit the automatic-entry flag; live role must still be recognized')
     args = parser.parse_args()
     if os.geteuid() == 0:
         raise SystemExit('Run the diskless QEMU fixture as a normal user')
@@ -88,6 +103,7 @@ def main():
     (run/'DISPOSABLE_DISKLESS_FIXTURE').write_text('No network interface or writable disk.\n')
     source = fingerprint()
     result = {'passed': False, 'source_fingerprint': source, 'manual_requested': args.manual,
+              'unmarked_requested': args.unmarked,
               'iso_sha256_before': digest(args.iso), 'network_devices': 0,
               'host_disks_exposed': 0, 'writable_disks': 0, 'phases': [],
               'probe_sha256': hashlib.sha256(PROBE.encode()).hexdigest(),
@@ -102,7 +118,9 @@ def main():
             raise SystemExit('Live boot artifact differs from ISO')
         result[name+'_sha256'] = digest(extracted)
     serial, control = run/'serial.sock', run/'qmp.sock'
-    append = 'boot=live components wros.live=1 console=ttyS0,115200 console=tty1 systemd.show_status=no panic=1'
+    append = 'boot=live components console=ttyS0,115200 console=tty1 systemd.show_status=no panic=1'
+    if not args.unmarked:
+        append += ' wros.live=1'
     if args.manual:
         append += ' live-config.noautologin'
     command = ['qemu-system-x86_64', '-accel', 'tcg,thread=multi', '-machine', 'q35',
@@ -157,6 +175,9 @@ def main():
                     connection.sendall(invocation.encode())
                     match = expect(rb'(?:^|[\r\n])'+nonce.encode()+rb'([^\r\n]+)[\r\n]', 45)
                     reply = json.loads(match.group(1)); result['phases'].append(reply)
+                    # sudo restores terminal state on exit. Wait for the shell
+                    # to own input again before another command can be flushed.
+                    expect(rb':~\$ ', 30)
                     return reply
 
                 expect(rb'login:')
@@ -167,21 +188,22 @@ def main():
                 upload = "umask 077; base64 -d > /tmp/wros-live-fixture.py <<'WROS_FIXTURE_END'\n"
                 upload += '\n'.join(encoded[i:i+512] for i in range(0,len(encoded),512))
                 upload += '\nWROS_FIXTURE_END\n'
-                connection.sendall(upload.encode()); time.sleep(0.5)
-                if args.manual:
+                connection.sendall(upload.encode()); expect(rb':~\$ ', 30)
+                if args.manual or args.unmarked:
                     probe('manual')
                     qmp(control, 'screendump', {'filename':str(run/'manual-login.ppm')})
                     keys(['w','r','o','s','minus','l','i','v','e','ret'])
-                    time.sleep(0.5); keys(['l','i','v','e','ret']); time.sleep(3)
+                    probe('password'); keys(['l','i','v','e','ret'])
+                    probe('authenticated'); keys(['ret'])
                 first = probe('session')
                 if 'Live session' not in first['screen'] or 'Resume writing' not in first['screen']:
                     keys(['f12']); time.sleep(1)
                 probe('home')
                 qmp(control, 'screendump', {'filename':str(run/'live-home.ppm')})
-                keys(['esc']); chord('ctrl','p')
+                keys(['esc']); chord('ctrl','k')
                 keys(['w','r','o','s','spc','s','e','t','t','i','n','g','s','ret'])
-                time.sleep(1); keys(['home','down','down','ret']); time.sleep(0.5)
-                keys(['home','down','down','ret']); time.sleep(1)
+                probe('settings'); keys(['home','down','down','ret'])
+                probe('system'); keys(['home','down','down','ret'])
                 probe('power')
                 qmp(control, 'screendump', {'filename':str(run/'live-power.ppm')})
                 connection.sendall(b'sudo -n /sbin/poweroff\n')
