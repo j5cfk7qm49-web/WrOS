@@ -37,7 +37,7 @@ def audit(root):
     binaries = {}
     for relative in ('usr/sbin/greetd', 'usr/bin/wros-greeter', 'usr/bin/grimoire',
                      'usr/libexec/writingdeck-session', 'usr/libexec/writingdeck-keyboard',
-                     'usr/libexec/wros-lock', 'usr/bin/openvt'):
+                     'usr/libexec/wros-lock', 'usr/bin/openvt', 'usr/bin/systemd-run', 'usr/bin/chvt'):
         path = regular(root, relative)
         if not path.stat().st_mode & 0o111 or path.stat().st_mode & 0o6022:
             raise ValueError('unsafe native session executable permissions: ' + relative)

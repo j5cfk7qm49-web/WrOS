@@ -143,7 +143,6 @@ mount -o remount,ro /dev/vda2 "$rootmnt"
                     'FIRST_SWITCH_CHECKPOINT': ack,
                     'WRONG_PASSWORD_READY': lambda: keys([], True),
                     'WRONG_PROMPT': lambda: keys('wrongfixture', True),
-                    'ROOT_PROMPT': lambda: keys('wrongfixture', True),
                     'WRONG_DENIED': lambda: keys([], True),
                     'RETRY_CHECKPOINT': ack,
                     'CORRECT_PROMPT': lambda: keys(secret),
@@ -156,7 +155,7 @@ mount -o remount,ro /dev/vda2 "$rootmnt"
                     'SECOND_PROTECTED': lambda: (chord('ctrl', 'alt', 'f1'), chord('ctrl', 'alt', 'f2')),
                     'SECOND_SWITCH_CHECKPOINT': ack,
                 }
-                for label in ('LOCKER_FAILURE', 'HELPER_FAILURE'):
+                for label in ('LOCKER_FAILURE', 'HELPER_FAILURE', 'WORKER_FAILURE'):
                     actions.update({
                         label + '_LOGIN': lambda: keys('writer', True),
                         label + '_PASSWORD': lambda: keys(secret, True),

@@ -24,7 +24,7 @@ def fixture(root):
     for relative in ('usr/sbin/greetd', 'usr/bin/wros-greeter', 'usr/bin/grimoire',
                      'usr/libexec/writingdeck-session', 'usr/libexec/writingdeck-keyboard',
                      'etc/pam.d/greetd', 'usr/share/doc/greetd/copyright', 'usr/share/doc/vlock/copyright',
-                     'usr/libexec/wros-lock', 'usr/bin/openvt', 'usr/sbin/vlock-main',
+                     'usr/libexec/wros-lock', 'usr/bin/openvt', 'usr/bin/systemd-run', 'usr/bin/chvt', 'usr/sbin/vlock-main',
                      'usr/lib/x86_64-linux-gnu/security/pam_succeed_if.so',
                      'usr/lib/vlock/modules/all.so', 'usr/lib/vlock/modules/nosysrq.so'):
         path = root / relative
@@ -69,7 +69,7 @@ class NativeImage(unittest.TestCase):
             self.assertEqual(result['greetd_package_version'], '0.10.3-4')
             self.assertEqual(result['vlock_package_version'], '2.2.2-12')
             self.assertTrue(result['manual_lock_payload_present'])
-            self.assertEqual(len(result['binary_sha256']), 11)
+            self.assertEqual(len(result['binary_sha256']), 13)
 
     def test_unsafe_native_session_cannot_pass_even_with_all_requested_packages(self):
         mutations = {

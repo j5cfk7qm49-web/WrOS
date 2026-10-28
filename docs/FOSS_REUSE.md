@@ -20,11 +20,19 @@ are compatible with this policy. Do not add a graphical desktop or launch GUI
 frontends as the ordinary workflow. Keep optional provider-browser requirements
 explicit when a service cannot authorize entirely through a text interface.
 
+The desired installer is a **live WrOS session with its own installer TUI over
+Debian's installation backend**. Reuse supported preseeding/debconf interfaces
+and the maintained live-installer environment; keep disk/encryption/account and
+bootloader operations in Debian components. The live launcher has a text path
+and requires a matching live/installer kernel. Verify that boundary before
+shipping the frontend. Keep secrets and reviewed disk answers per-run in private
+RAM storage, with no unattended destructive answers in the shared ISO defaults.
+
 ## Decisions
 
 | Area | Reuse | WrOS work / decision |
 |---|---|---|
-| Boot and installation | Debian live-build, text Debian Installer, cryptsetup, initramfs-tools, signed Debian shim/GRUB/kernel | Retain the existing installer. Qualify LUKS, rescue, interruption and Secure Boot in new guests. No custom partitioner or bootloader. The desktop installer launcher is unnecessary. |
+| Boot and installation | Debian live-build, Debian Installer/live-installer and its text launcher path, cryptsetup, initramfs-tools, signed Debian shim/GRUB/kernel | Add the native installer TUI in a live WrOS session over the existing backend. Qualify kernel matching, LUKS, rescue, interruption and Secure Boot in new guests. Retain a standard text recovery/fallback path. |
 | Login | greetd, PAM, logind; evaluate packaged tuigreet | Retain qualified native account/layout recovery and the fixed writing-session command. Consolidate UI only if the packaged greeter preserves those requirements. No WrOS password verifier. |
 | Lock and sleep | vlock/PAM and systemd-managed lifecycle | Replace the experimental custom request/response service protocol with standard systemd execution and status handling. Keep reader retirement, display/query pause and real authenticated completion checks. Suspend remains disabled until the complete protocol and resume are qualified. |
 | Network enrollment | NetworkManager, libnm / its maintained introspection bindings | Use its connection, authorization and secret-agent APIs. Add the native selection/credential interface; no Wi-Fi protocol implementation or separate password store. |
@@ -112,3 +120,5 @@ materialization and verified round trips for external document formats.
 - [Restic restore](https://restic.readthedocs.io/en/stable/050_restore.html).
 - [Rclone Drive](https://rclone.org/drive/).
 - [Pandoc formats and footnotes](https://pandoc.org/MANUAL.html).
+- [Debian Live installer integration](https://live-team.pages.debian.net/live-manual/html/live-manual/customizing-installer.en.html)
+  and [debconf passthrough frontend](https://sources.debian.org/src/debconf/1.5.91/doc/passthrough.txt/).

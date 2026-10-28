@@ -66,6 +66,11 @@ def checkpoint(label):
 def locked(label, app):
     wait(lambda: processes('vlock-main') and protected() and not processes('wros-input'), 'protected ' + label)
     assert app.exists() and '\nUid:\t1000\t' in (app / 'status').read_text()
+    pid = int(command('systemctl', 'show', '--value', '-p', 'MainPID', 'wros-console-lock.service').stdout)
+    owner = Path('/proc') / str(pid)
+    assert pid > 1 and '\nPPid:\t1\n' in (owner / 'status').read_text()
+    group = command('systemctl', 'show', '--value', '-p', 'ControlGroup', 'wros-console-lock.service').stdout.decode().strip()
+    assert group == '/system.slice/wros-console-lock.service' and group in (owner / 'cgroup').read_text()
     assert 'locking fixture original' not in screen()
     blank = Path('/dev/vcs1').read_bytes()
     assert not blank.strip(b' '), 'old console must be completely blank'
@@ -96,6 +101,12 @@ def locked(label, app):
 def main():
     assert Path('/etc/writingdeck/VM-DEMO-ONLY').is_file()
     assert 'root=UUID=3224a43a-692d-4cd6-a526-96b9a630fa24' in Path('/proc/cmdline').read_text()
+    for name, post, good in (('pass', 'true', True), ('fail', 'false', False)):
+        reply = subprocess.run(['/usr/bin/systemd-run', '--quiet', '--wait', '--collect', '--service-type=exec',
+            '--unit=wros-lock-property-' + name, '--property=ExecStopPost=/usr/bin/' + post, '/usr/bin/true'],
+            capture_output=True, timeout=30)
+        assert (reply.returncode == 0) == good
+    marker('SYSTEMD_COMPLETION_AND_POST_FAILURE_PASS')
     command('systemctl', 'stop', 'getty@tty1.service')
     for proc in processes('grimoire'):
         os.kill(int(proc.name), signal.SIGTERM)
@@ -124,6 +135,7 @@ def main():
     Path('/etc/writingdeck/VM-DEMO-ONLY').unlink()  # This generated COW only.
     command('systemctl', 'daemon-reload')
     command('systemctl', 'start', 'greetd')
+    original_sysrq = Path('/proc/sys/kernel/sysrq').read_text()
     wait(lambda: 'Local account' in screen() and processes('wros-greeter'), 'login')
     marker('LOGIN')
     wait(lambda: '[hidden]' in screen() and probe.no_echo(), 'password')
@@ -188,20 +200,23 @@ def main():
     assert len(originals) == 1
     saved = originals[0].read_bytes()
     os.kill(int(app.name), signal.SIGKILL)
-    time.sleep(3)
-    assert not processes('grimoire') and not processes('wros-input')
+    wait(lambda: not processes('grimoire') and not processes('wros-input'), 'dead editor without reader')
     assert 'locking fixture original' not in screen()
     # greetd may terminate the old session locker or leave it protected. Both
     # require authentication; an old authenticated editor must never reappear.
-    assert protected() if processes('vlock-main') else ('Local account' in screen() and processes('wros-greeter'))
+    wait(lambda: protected() if processes('vlock-main') else ('Local account' in screen() and processes('wros-greeter')),
+         'dead editor protected or fresh login')
     marker('EDITOR_DEATH_FAIL_CLOSED')
     for proc in processes('vlock-main'):
-        os.kill(int(proc.name), signal.SIGKILL)
+        try:
+            os.kill(int(proc.name), signal.SIGKILL)
+        except ProcessLookupError:
+            pass
     wait(lambda: 'Local account' in screen() and processes('wros-greeter') and not processes('grimoire')
          and not processes('wros-input'), 'fresh login after locker death')
     marker('LOCKER_DEATH_LOGIN_PASS')
     assert originals[0].read_bytes() == saved
-    for label in ('LOCKER_FAILURE', 'HELPER_FAILURE'):
+    for label in ('LOCKER_FAILURE', 'HELPER_FAILURE', 'WORKER_FAILURE'):
         marker(label + '_LOGIN')
         wait(lambda: '[hidden]' in screen() and probe.no_echo(), label + ' login prompt')
         marker(label + '_PASSWORD')
@@ -217,12 +232,17 @@ def main():
         if label == 'LOCKER_FAILURE':
             for proc in processes('vlock-main'):
                 os.kill(int(proc.name), signal.SIGTERM)
-        else:
+        elif label == 'HELPER_FAILURE':
             children = (app / 'task' / app.name / 'children').read_text().split()
             helpers = [Path('/proc') / pid for pid in children
                        if b'/usr/libexec/wros-lock\0' in (Path('/proc') / pid / 'cmdline').read_bytes()]
             assert len(helpers) == 1 and '\nUid:\t0\t0\t0\t0\n' in (helpers[0] / 'status').read_text()
             os.kill(int(helpers[0].name), signal.SIGKILL)
+        else:
+            pid = int(command('systemctl', 'show', '--value', '-p', 'MainPID', 'wros-console-lock.service').stdout)
+            assert pid > 1 and '\nUid:\t0\t0\t0\t0\n' in Path(f'/proc/{pid}/status').read_text()
+            assert b'/usr/libexec/wros-lock\0worker\0' in Path(f'/proc/{pid}/cmdline').read_bytes()
+            os.kill(pid, signal.SIGKILL)
         wait(lambda: not processes('grimoire') and not processes('wros-input'), label + ' editor closes')
         assert 'locking fixture original' not in screen()
         if processes('vlock-main'):
@@ -236,6 +256,7 @@ def main():
     # All guarded sleep modes remain unavailable; no actual suspend is invoked.
     for name in ('sleep', 'suspend', 'hibernate', 'hybrid-sleep', 'suspend-then-hibernate'):
         assert os.readlink('/etc/systemd/system/' + name + '.target') == '/dev/null'
+    assert Path('/proc/sys/kernel/sysrq').read_text() == original_sysrq
     journal = command('journalctl', '-b', '--no-pager').stdout
     assert secret.encode() not in journal
     for path in Path('/home/writer').rglob('*'):

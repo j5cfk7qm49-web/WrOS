@@ -1,8 +1,8 @@
 # Manual console locking
 
-This increment is under qualification. Do not use it as evidence for physical
-security or sleep/resume. Suspend, automatic idle/lid sleep and all five sleep
-targets remain disabled.
+Focused software and the full isolated-guest sequence passed; final Debian CI
+is pending. Physical security and sleep/resume remain unqualified. Suspend,
+automatic idle/lid sleep and all five sleep targets remain disabled.
 
 ## Maintained authentication and console ownership
 
@@ -43,10 +43,19 @@ acknowledged input reader. The same in-memory editor retains its writing context
 Failure leaves the proof unconsumed and closes the writing session through the
 existing save/rescue path.
 
-After validating the caller, the root controller starts an independent POSIX
-session and ignores controlling-terminal hangup. Its openvt wait/switch-back
-responsibility must survive the original writer's terminal session closing.
-This lifecycle change is under guest fault qualification.
+After validating the caller, the helper uses Debian `systemd-run --wait
+--collect` to place the fixed worker and its openvt/vlock children in a system
+service cgroup. A Linux PID handle monitors the original editor; its death
+fails the worker. systemd stops remaining children and runs the fixed cleanup
+command, which uses Debian chvt and restores the prior SysRq setting. It returns
+the service's completion status to the waiting editor. Worker/cleanup roles
+require a root process started by PID 1 and reject a pkexec environment.
+
+There is no custom request file, socket protocol or path-unit state machine.
+The [guest sequence](evidence/console-lock-vm.json) verifies service ownership,
+five lock cycles and editor/locker/client/worker failure recovery. [Focused
+checks](evidence/console-lock-focused.json) cover the interface and policy; all
+[original failed attempts](evidence/console-lock-attempts.json) remain failed.
 
 ## Limits and verification
 

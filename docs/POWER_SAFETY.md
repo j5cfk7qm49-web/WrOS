@@ -74,6 +74,6 @@ The media audit requires those policies; fresh installed-boot checks require
 masked targets and logind `CanSuspend` returning a documented denial (`no` or
 `na`), without requesting sleep. The installed guest returned `no`; the exact
 response is retained, rather than relabeled as hardware unavailability. This does not protect against administrator changes, direct privileged
-kernel access, hardware forced power-off or loss of power. Secure locking and
-physical suspend/resume remain unqualified. The [manual console-lock increment](CONSOLE_LOCK.md)
-is under qualification and does not enable any sleep path.
+kernel access, hardware forced power-off or loss of power. The [manual console-lock increment](CONSOLE_LOCK.md)
+has focused software and isolated-guest qualification. Physical session security
+and lock-before-suspend/resume remain open; no sleep path is enabled.

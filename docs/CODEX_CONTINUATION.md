@@ -19,6 +19,9 @@ qualification remain required.
 The user's interface preference is **everything TUI where possible**, including
 the reused installer. Keep Debian Installer in text mode; use native TUI
 frontends for maintained headless services rather than adding a desktop.
+The desired installation workflow is a live WrOS image with its own installer
+TUI backed by Debian's existing installation components and supported frontend
+interfaces. Retain standard text recovery and verify live/installer kernel matching.
 
 Latest development checkpoint: `codex/console-lock` builds on the integrated
 native installer (#40) and qualified timezone controls (#41). Manual vlock/PAM

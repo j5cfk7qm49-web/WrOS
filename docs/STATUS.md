@@ -1,6 +1,6 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
-## Manual console locker — implementation, qualification in progress
+## Manual console locker — focused software and guest passed; Debian CI pending
 
 `codex/console-lock` integrates Debian openvt/vlock/PAM on reserved root tty8.
 The editor saves both buffers, retires its reader, clears tty1 and waits without
@@ -10,15 +10,36 @@ The root helper validates the installed caller, logind session, account, exact
 policy and reserved console. Failure closes the writing session without resuming
 its retired reader. See [manual lock boundaries](CONSOLE_LOCK.md).
 
-Five pure privilege-boundary tests, the four-size controller/conflict-rescue
-case, no-audio workspace Clippy/build and staged-image policy mutations pass.
-Earlier no-NIC guests passed actual VT-switch denial, wrong/right PAM, hidden
-password entry, a fresh reader, original caret restoration, repeated locking
-and editor-death protection. The complete sequences still failed recovery to
-login after catastrophic process loss. Original failed attempts are retained.
-The current independent controller session and non-root PAM guard are under
-full guest fault qualification. No manual-lock release or sleep/resume claim
-is made. The delivered native ISO below predates this feature and timezone UI.
+[Eleven focused gates](evidence/console-lock-focused.json) passed: seven pure
+privilege/command/role checks, staged-image mutations, four-size controller and
+retained editor PTY coverage, no-audio Clippy/build and static checks. The
+[fresh no-NIC guest](evidence/console-lock-vm.json) passed in **239.11 seconds**:
+actual PID-1 system-service ownership, protected tty8, no editor reader or
+terminal activity, rejected/correct PAM, hidden credentials, a fresh reader,
+same-editor caret restoration and five lock cycles. Editor, locker, client and
+service-worker death all led safely to login; original saved bytes and SysRq
+restoration passed. The base image and source stayed unchanged.
+
+Source `73720477d334e13ca767304aa5384ecfe0b1f102c72d4dc82782d4f5eab19843`
+/ 320 files and exact binaries/policies match the archived guest fixture. The
+[eleven original failed attempts](evidence/console-lock-attempts.json) remain
+failed, including fixture-control problems and the real session-lifecycle
+defect. Maintained systemd lifecycle handling replaces the larger unqualified
+request/path-service prototype. Full Debian CI is pending. Physical security and
+lock-before-suspend/resume remain unqualified; sleep stays disabled. The
+delivered native ISO below predates manual locking and timezone selection.
+
+## Debian-first, TUI-first reuse
+
+The [component decisions](FOSS_REUSE.md) and [63-candidate inventory](foss-reuse.json)
+record 60 available Debian packages and the selected backends for remaining OS
+work. The target installer is a live WrOS session with its own TUI over Debian's
+installation components. The maintained launcher text path and kernel-matching
+condition were inspected; the new native installer frontend is not yet built.
+[Packaged Restic's local backend test](evidence/restic-backend-fit.json) passed
+encrypted versioned snapshots, full-data integrity, wrong-password rejection and
+byte-exact restore into a separate directory without changing originals. This
+does not claim the native backup interface or live cloud integration is done.
 
 ## Native timezone selection — software, guest and Debian CI passed
 

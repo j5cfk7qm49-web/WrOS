@@ -51,3 +51,27 @@ class ConsoleLockBoundary(unittest.TestCase):
     def test_packaged_pam_policy_is_exact_and_does_not_replace_login_or_account_setup(self):
         self.assertEqual((ROOT / 'os/config/vlock.pam').read_text(), module.PAM)
         self.assertNotIn('pam_permit', module.PAM)
+
+    def test_systemd_owns_the_service_and_only_fixed_worker_and_cleanup_commands(self):
+        args = module.systemd_command(1000, 42, '12345', 176)
+        self.assertEqual(args[0], '/usr/bin/systemd-run')
+        for flag in ('--wait', '--collect', '--service-type=exec', '--property=KillMode=control-group'):
+            self.assertIn(flag, args)
+        self.assertIn('--property=ExecStopPost=/usr/libexec/wros-lock cleanup 176', args)
+        self.assertEqual(args[-5:], ['/usr/libexec/wros-lock', 'worker', '1000', '42', '12345'])
+        for values in ((0, 42, '12345', 176), (1000, 1, '12345', 176),
+                       (1000, 42, '1\n/bin/sh', 176), (1000, 42, '12345', '1; sh'),
+                       (True, 42, '12345', 176), (1000, 42, '12345', -1)):
+            with self.subTest(values=values), self.assertRaises(ValueError):
+                module.systemd_command(*values)
+
+    def test_service_roles_cannot_be_called_from_a_pkexec_or_ordinary_parent(self):
+        for parent, environment in ((42, {}), (1, {'PKEXEC_UID': '1000'})):
+            with self.subTest(parent=parent), \
+                 mock.patch.object(module.sys, 'argv', ['wros-lock', 'worker', '1000', '42', '12345']), \
+                 mock.patch.object(module.os, 'geteuid', return_value=0), \
+                 mock.patch.object(module.os, 'getppid', return_value=parent), \
+                 mock.patch.dict(module.os.environ, environment, clear=True), \
+                 mock.patch.object(module, 'worker', side_effect=AssertionError('must not run a service role')):
+                with self.assertRaises(ValueError):
+                    module.main()
