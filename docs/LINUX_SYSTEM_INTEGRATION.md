@@ -17,9 +17,10 @@
 | Warm screen | Typed 1000–6500K/strength/Off controls; exact polkit manager, bounded non-setuid libdrm bridge and independent preview timer | [Calibration, failure/rollback tests and driver limits](WARM_SCREEN.md); unsupported outputs refused; physical/hotplug/suspend qualification open |
 | Timezone | Native searchable catalog, Cancel-default confirmation and `timedatectl --no-ask-password` with authoritative readback | [Narrow timezone action](NATIVE_TIMEZONE.md); clock/RTC/NTP controls remain unavailable |
 | Disk free / OS | `statvfs`, Debian release identity | Read-only |
-| Sound, updates, restore, screen lock | Design only | No fake success or broad root helper |
+| Manual console lock | Fixed openvt/vlock-main/PAM handoff, input retirement and reserved root tty8 | [Under qualification](CONSOLE_LOCK.md); sleep remains disabled |
+| Sound, updates, restore | Design only | No fake success or broad root helper |
 
-The first settings screen is a foundation, not all requested panels. New network credential entry, volume, account/first-run setup, updater/rollback and lock integration remain open gates.
+New network credential entry, volume, account/first-run setup and updater/rollback remain open gates. Manual locking is being qualified independently of sleep/resume.
 
 ## Privileged keyboard interface
 
@@ -40,7 +41,7 @@ The helper cannot execute arbitrary programs, load arbitrary paths, format stora
 
 The wrapper checks UID and refuses root. Production uses an actual PAM login; the VM demo explicitly bypasses passwords for tty1 and is not deployable. Keep tty2 available for authenticated maintenance, and keep root/admin recovery credentials outside the manuscript.
 
-`loginctl lock-session` alone is not a console lock: an actual locker must own the display/input. A future integration must pause Grimoire's event reader before handing a tty to an upstream PAM locker, handle failure safely, and lock before suspend. This is not implemented; do not equate a blank screen or disk encryption with session security.
+`loginctl lock-session` alone is not a console lock: an actual locker must own the display/input. The [manual handoff](CONSOLE_LOCK.md) retires Grimoire's reader and delegates authentication to Debian vlock on a separate protected VT. Its qualification is in progress. Lock-before-suspend and physical resume are separate open requirements; a blank screen or disk encryption alone does not provide session security.
 
 ## Future service contracts
 

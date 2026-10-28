@@ -2,6 +2,8 @@
 
 mod app;
 mod books;
+#[cfg(target_os = "linux")]
+mod console_lock;
 mod help;
 mod library;
 mod music;
@@ -546,7 +548,7 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
     let mut last_frame = Instant::now();
 
     #[cfg(target_os = "linux")]
-    let events = wros_input::Input::start(&std::env::current_exe()?)?;
+    let mut events = wros_input::Input::start(&std::env::current_exe()?)?;
 
     // Retained upstream fallback outside WrOS. Linux's parser instead belongs
     // to a separate, unprivileged re-exec process and dies with the editor.
@@ -573,6 +575,15 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
             save_or_rescue(app);
             shutdown::done();
             return Ok(());
+        }
+        #[cfg(target_os = "linux")]
+        if std::mem::take(&mut app.deck.lock_requested) {
+            if let Err(error) = console_lock::handoff(terminal, &mut events) {
+                save_or_rescue(app);
+                return Err(error);
+            }
+            app.deck.note = "Writing session unlocked; original editor context retained.".into();
+            app.deck.shell.notices.push(&app.deck.note);
         }
         app.autosave_tick();
         app.sync_tick();

@@ -1,0 +1,7 @@
+// Only the fixed local-console locker; no arbitrary command or power grant.
+polkit.addRule(function(action, subject) {
+    if (action.id == "org.wros.lock" && subject.local && subject.active &&
+        subject.isInGroup("writingdeck")) {
+        return polkit.Result.YES;
+    }
+});

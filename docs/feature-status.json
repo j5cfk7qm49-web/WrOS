@@ -97,7 +97,7 @@
       "status": "In progress",
       "verification": "Real UEFI/PAM wrong-password rejection, UID-1000 login, sudo and tty1 writing UI",
       "hardware_verified": false,
-      "detail": "Installer profile is separate from VM-demo autologin; input-safe screen lock and suspend integration remain unimplemented"
+      "detail": "Native authenticated boot is tested; manual protected tty8/PAM locker is under qualification; lock-before-suspend and physical resume remain unqualified"
     },
     {
       "area": "OS",
@@ -618,6 +618,14 @@
       "verification": "928 Rust/configuration, 96 Python/zero skips, both Clippys and 18 gates; real VM driver refusal, polkit and native UI passed",
       "hardware_verified": false,
       "detail": "1000–6500K, initial 2200K, strength/Off, calibration retention and independent preview rollback implemented; physical and transition qualification open; issue 30"
+    },
+    {
+      "area": "OS",
+      "capability": "Manual protected local-console lock",
+      "status": "In progress",
+      "verification": "Five pure boundary tests, four-size controller/conflict-rescue case, no-audio Clippy/build and staged-image mutations pass; real guest qualification pending",
+      "hardware_verified": false,
+      "detail": "Maintained openvt/vlock/PAM, reserved root tty8 and retired reader; no credential handling in editor; suspend remains disabled"
     }
   ]
 }

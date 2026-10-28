@@ -557,6 +557,50 @@ fn supported_power_actions_still_require_confirmation_and_successful_saves() {
 }
 
 #[test]
+fn console_lock_keeps_the_original_context_and_refuses_unsaved_conflicts() {
+    for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let (mut desk, note) =
+            secondary_book(&format!("console-lock-{width}"), width, height, true);
+        choose_secondary(&mut desk, &note);
+        desk.typed("Retain both editors through independent locking. ");
+        let original = desk.app.editor.text();
+        let primary = desk.app.view_position(Pane::Primary);
+        let secondary = desk.app.view_position(Pane::Secondary);
+        desk.app.deck.lock_available = true; // Only the request flag; no helper is run in a UI test.
+        desk.app.request_console_lock();
+        assert!(desk.app.deck.lock_requested);
+        assert_eq!(desk.app.editor.text(), original);
+        assert_eq!(desk.app.view_position(Pane::Primary), primary);
+        assert_eq!(desk.app.view_position(Pane::Secondary), secondary);
+        desk.app.deck.lock_requested = false;
+        desk.typed("New edits with a conflicted original. ");
+        fs::write(&note, "External original remains authoritative.\n").unwrap();
+        desk.app.request_console_lock();
+        assert!(!desk.app.deck.lock_requested);
+        assert_eq!(
+            fs::read_to_string(&note).unwrap(),
+            "External original remains authoritative.\n"
+        );
+        assert!(
+            desk.app
+                .deck
+                .shell
+                .notices
+                .latest()
+                .unwrap()
+                .contains("unsaved buffers or source conflicts")
+        );
+        assert!(
+            fs::read_dir(note.parent().unwrap())
+                .unwrap()
+                .filter_map(Result::ok)
+                .any(|entry| fs::read_to_string(entry.path())
+                    .is_ok_and(|text| text.contains("New edits with a conflicted original.")))
+        );
+    }
+}
+
+#[test]
 fn power_waits_for_missing_sources_and_failed_document_claims_then_allows_explicit_retry() {
     use std::sync::{Arc, Mutex};
     use writingdeck_sys::{Backend, PowerAction, Reply, Request, Simulated};

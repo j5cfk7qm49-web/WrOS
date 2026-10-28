@@ -1,0 +1,2 @@
+# WrOS existing-session unlock; authentication is performed only by Debian vlock.
+@include common-auth

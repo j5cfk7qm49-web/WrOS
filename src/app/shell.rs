@@ -171,6 +171,7 @@ enum Choice {
     TimezoneOpen,
     TimezoneChoose(String),
     TimezoneResolve(bool),
+    Lock,
 }
 struct Entry {
     label: String,
@@ -308,6 +309,11 @@ fn entries(app: &App) -> Vec<Entry> {
                     Entry::info(writingdeck_sys::SUSPEND_UNAVAILABLE),
                     Entry::new("Shutdown · confirmation required", Choice::System(9)),
                     Entry::new("Restart · confirmation required", Choice::System(10)),
+                    if app.deck.lock_available {
+                        Entry::new("Lock writing session", Choice::Lock)
+                    } else {
+                        Entry::info("Console lock unavailable in this image/session")
+                    },
                 ]),
                 Panel::Storage => rows.push(Entry::info(format!(
                     "Available local storage: {}",
@@ -514,6 +520,7 @@ impl App {
                     return;
                 };
                 match row.choice {
+                    Choice::Lock => self.request_console_lock(),
                     Choice::TimezoneOpen if !self.deck.busy => {
                         self.deck.shell.timezones = None;
                         self.deck.shell.timezone_query.clear();

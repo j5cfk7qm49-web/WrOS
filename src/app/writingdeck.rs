@@ -120,6 +120,8 @@ pub struct Deck {
     pub snapshot: Option<Snapshot>,
     pub note: String,
     pub busy: bool,
+    pub lock_available: bool,
+    pub lock_requested: bool,
     worker: Option<Worker>,
     enable_system: bool,
     pub preview: Option<(String, KeyboardLayout, Instant)>,
@@ -228,6 +230,17 @@ impl Deck {
             snapshot: None,
             note: warnings.join("; "),
             busy: false,
+            lock_available: {
+                #[cfg(target_os = "linux")]
+                {
+                    background && crate::console_lock::available()
+                }
+                #[cfg(not(target_os = "linux"))]
+                {
+                    false
+                }
+            },
+            lock_requested: false,
             worker: None,
             enable_system: background,
             preview: None,
@@ -296,6 +309,28 @@ impl Deck {
 }
 
 impl App {
+    pub fn request_console_lock(&mut self) {
+        if !self.deck.lock_available || self.deck.busy {
+            self.deck
+                .shell
+                .notices
+                .push("Console locking is unavailable or a system request is pending.");
+            return;
+        }
+        if !self.commit_saves()
+            || self.project.dirty_count() != 0
+            || self.tree_stale
+            || !self.conflicts().is_empty()
+        {
+            self.deck
+                .shell
+                .notices
+                .push("Lock not started: unsaved buffers or source conflicts need attention.");
+            return;
+        }
+        self.save_deck();
+        self.deck.lock_requested = true;
+    }
     pub fn init_writingdeck(&mut self, launch: bool) {
         if launch {
             self.restore_workspace_views(resume::read(&self.project.root).is_none());

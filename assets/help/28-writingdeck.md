@@ -42,7 +42,8 @@ unfinished services. Display → Warm screen has an offline filter on supported
 drivers: 1000–6500 K, initial 2200 K, strength/Off and a 15-second Keep/Cancel
 preview. Off restores original color curves. Unsupported drivers are unavailable;
 this is separate from the theme picker. No Google account is required for local
-writing. Suspend is unavailable until secure screen locking has been qualified.
+writing. Suspend remains unavailable until lock-before-suspend and resume have
+been qualified.
 
 ## System settings
 
@@ -62,6 +63,15 @@ select Use and confirm. WrOS reads the time service back before reporting succes
 An unavailable or denied service leaves writing available and keeps the choice
 for retry. Changing timezone affects future local dates; historical records
 keep their recorded dates. Manual clock and network-time controls remain unavailable.
+
+Battery and power offers Lock writing session on an installed local console
+with the locker configured. It saves both documents first; resolve source
+conflicts or unavailable storage before retrying. Linux then opens a separate
+protected console for your local account password. After successful unlock,
+the same writing context returns. If the locker cannot start or fails, the
+writing session closes through its save/recovery path and requires a new login.
+The passwordless VM demo and desktop/SSH sessions do not offer this action.
+This manual lock does not enable sleep or lid/idle locking.
 
 ## Interactive tutorial
 

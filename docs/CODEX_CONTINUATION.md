@@ -10,6 +10,12 @@
 
 ## Mission
 
+Latest development checkpoint: `codex/console-lock` builds on the integrated
+native installer (#40) and qualified timezone controls (#41). Manual vlock/PAM
+handoff is under qualification; consult [current status](STATUS.md) and
+[console-lock boundaries](CONSOLE_LOCK.md). Sleep remains disabled. Older
+milestone instructions and evidence below retain their historical scope.
+
 **Platform scope:** WrOS is the platform. Active CI qualifies the Debian 13
 amd64 runtime; do not restore macOS or Windows jobs. Imported Grimoire publishing
 workflows are preserved outside `.github/workflows`. See [CI](CI.md).

@@ -2614,6 +2614,7 @@ dependencies = [
  "chrono",
  "cpal",
  "grimoire-core",
+ "libc",
  "ratatui",
  "rodio",
  "serde",

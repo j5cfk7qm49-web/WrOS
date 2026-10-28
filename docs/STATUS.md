@@ -1,5 +1,23 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Manual console locker — implementation, qualification in progress
+
+`codex/console-lock` integrates Debian openvt/vlock/PAM on reserved root tty8.
+The editor saves both buffers, retires its reader, clears tty1 and waits without
+rendering or terminal queries. Unlock success requires observed VT ownership,
+echo/SysRq suppression and maintained-child success before a fresh parser starts.
+The root helper validates the installed caller, logind session, account, exact
+policy and reserved console. Failure closes the writing session without resuming
+its retired reader. See [manual lock boundaries](CONSOLE_LOCK.md).
+
+Five pure privilege-boundary tests, the four-size controller/conflict-rescue
+case, no-audio workspace Clippy/build and staged-image policy mutations pass.
+Fresh no-NIC guests reached actual protected tty8 with no editor reader. Their
+background-console stability assertions failed; those attempts remain failed.
+The startup-counter diagnosis and full wrong/right PAM, unlock/context and crash
+cases are still being qualified. No manual-lock release or sleep/resume claim
+is made. The delivered native ISO below predates this feature and timezone UI.
+
 ## Native timezone selection — software, guest and Debian CI passed
 
 `codex/native-timezone` / [draft PR #41](https://github.com/j5cfk7qm49-web/WrOS/pull/41)
