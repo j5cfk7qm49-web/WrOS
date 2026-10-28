@@ -1,6 +1,6 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
-## Shared Grimoire themes and native installer frontend — in progress
+## Shared Grimoire themes and native installer frontend — software and Debian CI passed
 
 `codex/live-installer` extracts Grimoire's original palette and theme format into
 the shared presentation crate. Settings, login/layout recovery and the new
@@ -10,6 +10,10 @@ Its native forms, choices, progress and help passed
 retained editor/Settings PTY and theme round trips. The
 [eleven actual Debian cdebconf checks](evidence/native-installer-backend.json)
 also passed with a retained protocol patch and pinned upstream build recipe.
+[Debian CI 40652566144](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40652566144)
+passed [971 Rust/configuration, 123 Python/zero skips, both Clippys and 17 gates](evidence/native-installer-ci.json).
+Its source matches the focused/backend record; [provenance](evidence/native-installer-ci-provenance.json)
+binds implementation `3514b4a` to tested merge `120bd335e52e711f1c73d47e474798ba370e4896`.
 Read the [implementation boundaries and remaining live integration](NATIVE_INSTALLER.md).
 
 This is not yet a complete live installer or a new ISO. The privileged launcher,

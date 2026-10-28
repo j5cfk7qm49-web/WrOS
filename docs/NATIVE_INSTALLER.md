@@ -58,7 +58,10 @@ at four sizes. [Eleven real Debian checks](evidence/native-installer-backend.jso
 passed with an observed loaded-module identity. The
 [pinned module build and notices](evidence/native-installer-cdebconf-build.json)
 and [original failed attempts](evidence/native-installer-attempts.json) are
-retained separately. None of this is a live-image installation claim.
+retained separately. [Debian CI](evidence/native-installer-ci.json) passed
+971 Rust/configuration, 123 Python/zero skips, both Clippys and 17 gates. Its
+[provenance](evidence/native-installer-ci-provenance.json) matches the focused and
+real-backend source. None of this is a live-image installation claim.
 
 The [password form](evidence/native-installer-password.png) and
 [progress form](evidence/native-installer-progress.png) are painted from actual

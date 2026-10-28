@@ -631,7 +631,7 @@
       "area": "OS",
       "capability": "Live WrOS installer TUI over Debian installation components",
       "status": "In progress",
-      "verification": "Native shared-Grimoire frontend pure/four-size PTY checks and actual Debian cdebconf synthetic questions; no live installation claim",
+      "verification": "Debian CI: 971 Rust/configuration, 123 Python/zero skips, both Clippys and 17 gates; eleven focused and eleven real Debian backend checks; no live installation claim",
       "hardware_verified": false,
       "detail": "Shared original palettes/theme format/panel widgets; canonical choices and hidden credentials; retained pinned-source passthrough fix; privileged live launcher, lifecycle/media and install/reboot tests remain open"
     }
