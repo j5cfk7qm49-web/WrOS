@@ -70,5 +70,8 @@ include the failsafe flag omission and test-driver readiness/shutdown issues.
 
 These guests directly boot the kernel/initrd verified inside the actual ISO.
 They do not qualify firmware boot, Secure Boot, physical devices or installation
-from the live interface. Publishing and current Debian CI await authorization;
-no passing CI record is inferred from local results.
+from the live interface. [Debian CI 40716348352](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40716348352)
+also passed 973 Rust/configuration, 135 Python/zero skips, both Clippys and all
+20 CI gates. Its [artifact provenance](evidence/live-session-ci-provenance.json)
+retains the actual tested merge and ZIP hash separately from local image/guest
+acceptance; qualification source matches.
