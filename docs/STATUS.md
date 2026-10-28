@@ -1,5 +1,33 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Offline encryption runtime and refreshed live image qualified
+
+The refreshed live image now contains Debian's complete encryption runtime
+and six matching offline archives. Its [actual media audit](evidence/encrypted-media-image-build.json)
+passes installed-state, runtime-byte, package-version, firmware and native
+login-policy checks. The [first image's missing archive failure](evidence/encrypted-media-first-build.json)
+is retained. Maintained live-build binary package lists now populate the pool.
+
+[Current Debian CI 40780133313](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40780133313)
+passed **973 Rust/configuration, 165 Python/zero skips, both Clippys and 20 gates**.
+[Artifact provenance](evidence/encrypted-media-ci-provenance.json) matches image
+and guest source `d4c4772d...7a0d7c` / 428 files. The earlier full local checkpoint
+retains its own source; it is not relabelled current.
+
+[Three actual live modes](evidence/encrypted-media-guests.json) passed automatic
+entry, manual authentication and unmarked fallback in **100.79 / 126.46 / 116.37
+seconds**. The ISO's shipped native frontend also passed disk-write refusal in
+**484.97 seconds**, returning to partitioning with the complete new **16 GiB**
+disk unchanged and both processes/private mounts retired. No frontend override,
+host disk or network was used. Actual [Home](evidence/encrypted-media-home.png)
+and [write-question](evidence/encrypted-media-review.png) captures are retained.
+
+This is image composition, live-role and refusal acceptance. Full encrypted
+target installation/authenticated boot, owned interruption cleanup, production
+installer handoff/completion UI and physical qualification remain open. Read the
+[encrypted-media scope](ENCRYPTED_INSTALLER_MEDIA.md). [Draft PR 50](https://github.com/j5cfk7qm49-web/WrOS/pull/50)
+retains this increment.
+
 ## Native disk-write refusal passed in the Grimoire TUI
 
 Debian's real partitioner now reaches its LVM disk-write question in the native

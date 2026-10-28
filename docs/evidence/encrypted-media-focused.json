@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "d4c4772d7dcc639c57918f7c7af9d9f6985768fe06384664b9cd5ab5bb7a0d7c",
+    "file_count": 428,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "scope": "Real synthetic Debian archive, staged dpkg/runtime policy and Wi-Fi payload fixtures only; no image boot or installation qualification.",
+  "tests": 11,
+  "seconds": 4.778,
+  "log_sha256": "99292eaa6b8ae6a4f14268743bc65c29b5426a4e2361b2059e73113e0783882f",
+  "inputs_sha256": {
+    "tools/audit-installer-media.py": "4dc9205b075ddc30b4c72f561d63efce35e0f19e72cba4a7a35d5229e0bd4aa1",
+    "os/tests/test_installer_media.py": "7f0114e4d8ec0a600bf6bd366e46208952d7029ceb331dd77647aff2b32305ee",
+    "os/tests/test_wifi_policy.py": "e5f1b089891a2291c5cee80f8c16d105adad79105aea44194d09fd4f26453973",
+    "os/scripts/build-installer.sh": "e1c056cecdea85ea4c0a230a6b67518e74eaa0644f2646bd139fddc55fc622b4",
+    "os/config/encrypted-target-packages.txt": "bd3db7dc795e038359cb7eec327f911c3e423ffbe9b7dccfc88248eb276f79f2"
+  }
+}

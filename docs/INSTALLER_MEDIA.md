@@ -1,5 +1,10 @@
 # Experimental offline Debian Installer media
 
+The later [encrypted-target media increment](ENCRYPTED_INSTALLER_MEDIA.md) records
+the corrected offline runtime/dependency set, current Debian CI, three live boot
+modes and actual shipped-frontend disk-write refusal. Full encrypted installation
+and the production live installer remain separate open work.
+
 This continues the existing Debian 13 appliance. The separate VM demo remains
 available; it is not an installation image. The new ISO uses Debian's maintained
 `live-build` and `live-installer` to copy the complete writing filesystem, then

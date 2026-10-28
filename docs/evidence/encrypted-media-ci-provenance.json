@@ -1,0 +1,28 @@
+{
+  "passed": true,
+  "scope": "Current corrected-source Debian software/component CI. Actual image composition and VM acceptance have separate reports. The earlier full local software checkpoint has a different source and is not relabelled current. No encrypted target installation/boot, production root launcher or hardware qualification.",
+  "implementation_commit": "ce440233457599ee2771b9cec66f5897dfd6ba00",
+  "tested_merge": "5fabc1793e3802d982c7fbef24fa5c429dddab36",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "d4c4772d7dcc639c57918f7c7af9d9f6985768fe06384664b9cd5ab5bb7a0d7c",
+    "file_count": 428,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "run_id": 40780133313,
+  "run_url": "https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40780133313",
+  "job_id": 123139431111,
+  "artifact_id": 12857586333,
+  "artifact_zip_sha256": "5881f78656245f58382ef1b0ef19f3d4a57413ecb702f5ee48bcae3a177ff9eb",
+  "report_sha256": "ad567d65a7c816fca175858c980656217b8c304bcd61eb10145bfd51c0acccc2",
+  "image_and_ci_source_match": true,
+  "previous_local_and_current_ci_verifier_inputs_match": true,
+  "previous_local_source_is_current": false,
+  "rust_per_configuration": [
+    973,
+    973
+  ],
+  "python": 165,
+  "python_skips": 0,
+  "ci_gates": 20
+}
