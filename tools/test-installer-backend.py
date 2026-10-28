@@ -28,13 +28,14 @@ def main():
     parser.add_argument('package_root',type=Path)
     parser.add_argument('--report',type=Path,required=True)
     parser.add_argument('--passthrough-module',type=Path,required=True)
+    parser.add_argument('--config-file',type=Path,default=Path('/etc/cdebconf.conf'))
     args=parser.parse_args()
     source_before=fingerprint()
     fixture,package=args.fixture.resolve(),args.package_root.resolve()
     if os.geteuid()==0 or fixture.is_symlink() or not (fixture/'WROS-SYNTHETIC-ONLY').is_file():
         raise SystemExit('A prepared private non-root synthetic fixture is required.')
-    if (fixture/'cdebconf.conf').read_bytes()!=Path('/etc/cdebconf.conf').read_bytes():
-        raise SystemExit('The private cdebconf configuration is not mounted.')
+    if (fixture/'cdebconf.conf').read_bytes()!=args.config_file.read_bytes():
+        raise SystemExit('The private cdebconf configuration differs from the prepared fixture.')
     secret=secrets.token_hex(1500).encode()+b'\\n\\literal'
     typed=b' '+secrets.token_hex(16).encode()+b'\\n\\literal '
     (fixture/'secret').write_bytes(secret)
@@ -93,6 +94,7 @@ Description: Synthetic backend completed
     script='''#!/bin/sh
 set -eu
 . /usr/share/debconf/confmodule
+db_x_loadtemplatefile fixture.templates fixture
 db_capb backup
 db_input critical fixture/name
 db_go
@@ -119,6 +121,12 @@ db_input critical fixture/layout
 db_go
 db_get fixture/layout
 test "$RET" = fr
+db_set fixture/name ""
+db_fset fixture/name seen false
+db_input critical fixture/name
+db_go
+db_get fixture/name
+test "$RET" = ""
 db_progress START 0 10 fixture/progress
 db_progress STEP 5
 db_progress SET 10
@@ -143,7 +151,7 @@ db_stop
             'DEBCONF_READFD':str(terminal.peer.fileno()),'DEBCONF_WRITEFD':str(terminal.peer.fileno()),
             'DEBCONF_DEBUG':'0','DEBIAN_PRIORITY':'low'}
         with log.open('wb') as output:
-            backend=subprocess.Popen([str(package/'usr/lib/cdebconf/debconf'),'-fpassthrough','-ofixture',str(postinst)],
+            backend=subprocess.Popen([str(package/'usr/lib/cdebconf/debconf'),'-fpassthrough','-ofixture','/bin/sh',str(postinst)],
                 stdin=subprocess.DEVNULL,stdout=output,stderr=output,env=environment,cwd=fixture,
                 pass_fds=(terminal.peer.fileno(),),start_new_session=True)
         terminal.screen_shows('Fixture account name')
@@ -163,6 +171,8 @@ db_stop
         terminal.screen_shows('▸ No');terminal.send(b'\r')
         terminal.screen_shows('Fixture keyboard layout')
         terminal.screen_shows('▸ Français');terminal.send(b'\r')
+        terminal.screen_shows('Fixture account name')
+        terminal.send(b'\r')
         terminal.screen_shows('Synthetic backend completed')
         terminal.send(b'\r')
         terminal.until(lambda:(fixture/'backend-completed').is_file(),'backend accepted canonical answers')
@@ -171,6 +181,7 @@ db_stop
         checks.extend(['real-back-navigation-status','real-password-roundtrip-hidden','prefilled-secret-with-literal-backslashes',
                        'prefilled-password-over-one-stdio-chunk','typed-password-preserves-leading-and-trailing-spaces',
                        'explicit-no-overrides-backend-true-default',
+                       'backend-cleared-default-does-not-reuse-earlier-answer',
                        'canonical-translated-choice','real-progress-commands','backend-success-observed'])
         if secret in log.read_bytes() or typed in log.read_bytes(): raise AssertionError('Synthetic credential reached backend log')
         checks.append('credential-absent-from-backend-log')

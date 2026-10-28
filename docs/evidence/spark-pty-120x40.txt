@@ -1,18 +1,18 @@
 ┌ Story Spark · offline, non-AI ───────────────────────────────────────────────────────────────────────────────────────┐
 │  Status: Spark save · notes/sparks/r-0000000000000006.md · original scene preserved                                  │
 │  1047 original plots / 84 exercises · static offline selection                                                       │
-│  r-0000000000000006 · Combined · 2026-10-27 · Etc/UTC                                                                │
-│  PLOT [wd-p-0158] · pattern · level 2 · suggested 20 min                                                             │
-│  A family clock runs faster whenever someone avoids a necessary conversation. A repairer discovers that its apparent │
-│  malfunction began when the youngest family member stopped being invited to the conversations everyone else considers│
-│  necessary.                                                                                                          │
-│  EXERCISE [wd-x-0049] · setting · level 1 · suggested 15 min                                                         │
-│  Invent or choose a place whose layout enforces an ordinary rule. Show someone trying to accomplish a task there. Let│
-│  the built environment help one participant and hinder another without explaining the place as a moral lesson.       │
+│  r-0000000000000006 · Combined · 2026-10-28 · Etc/UTC                                                                │
+│  PLOT [wd-p-0796] · choice · level 3 · suggested 20 min                                                              │
+│  Two adult apprentices finish training with the same master. The only available workshop can support one trade, and  │
+│  choosing whose work it will house would turn their hoped-for partnership into an employer's hierarchy.              │
+│  EXERCISE [wd-x-0050] · setting · level 2 · suggested 20 min                                                         │
+│  Set a scene in a public place after its normal service has ended. Give someone a legitimate need to remain. Let the │
+│  altered lighting, access, or staffing change what can be negotiated, rather than merely making the setting eerie.   │
 │  Work mode: Drafting · creative completion is self-reported, not automatically scored.                               │
 │  ★ Favorited; retained separately from history.                                                                      │
 │  6 history / 128 · 1 favorites / 64 · 0 dismissals / 128 · 12-result recent window                                   │
 │  Roulette presentation: off (l toggles); always static in focus/low-power.                                           │
+│                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │

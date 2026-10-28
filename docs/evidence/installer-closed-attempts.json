@@ -1,0 +1,21 @@
+{
+  "attempts": [
+    {
+      "passed": false,
+      "scope": "Original full software attempt, not reclassified as passing",
+      "failure": "Existing process-exit observer caught FileNotFoundError but not kernel ESRCH/ProcessLookupError while reading an already exiting Python worker stat file",
+      "partial_report_sha256": "a725aacf9b72d2a9adc99e229754295e7a7da28f6031a741b8c0f2cbecc69e3b",
+      "source_fingerprint": {
+        "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+        "sha256": "f20c6cb6e774858deacdfb34f2c686e97f9c94eb5ce65816101543d09b456a97",
+        "file_count": 331,
+        "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+      },
+      "report": "installer-closed-attempt1.json",
+      "python_log_sha256": "3a93f4e727c57b81904e862ba2e8e0fd9bcf0043a7d5e431183b523a279fbaa9",
+      "python_result": "123 tests; one process-observer error; failed",
+      "correction": "Catch only FileNotFoundError or ProcessLookupError from a disappearing /proc stat file; a running worker still fails."
+    }
+  ],
+  "scope": "Original failed attempt retained unchanged; later full success is separate."
+}

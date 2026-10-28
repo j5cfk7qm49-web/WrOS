@@ -65,7 +65,11 @@ class InputOwnershipPTY(unittest.TestCase):
                 deadline = time.monotonic() + 3
                 while time.monotonic() < deadline:
                     path = Path(f'/proc/{pid}/stat')
-                    if not path.exists() or path.read_text().split(') ', 1)[1].startswith('Z '):
+                    try:
+                        state = path.read_text().split(') ', 1)[1]
+                    except (FileNotFoundError, ProcessLookupError):
+                        break
+                    if state.startswith(('Z ', 'X ')):
                         break
                     time.sleep(0.02)
                 else:

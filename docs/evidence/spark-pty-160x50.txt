@@ -1,13 +1,13 @@
 ┌ Story Spark · offline, non-AI ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │  Status: Spark save · notes/sparks/r-0000000000000006.md · original scene preserved                                                                          │
 │  1047 original plots / 84 exercises · static offline selection                                                                                               │
-│  r-0000000000000006 · Combined · 2026-10-27 · Etc/UTC                                                                                                        │
-│  PLOT [wd-p-0652] · resources · level 2 · suggested 20 min                                                                                                   │
-│  A team sheltering after a storm finds a generator with fuel but no starter battery. The available battery powers a medical device, and the mechanic cannot  │
-│  know how long starting will take until the connection is made.                                                                                              │
-│  EXERCISE [wd-x-0063] · subtext · level 2 · suggested 20 min                                                                                                 │
-│  Write an apparently agreeable exchange in front of an audience. Give one participant a boundary they cannot comfortably announce there. Make the boundary   │
-│  legible through a specific correction or condition rather than coded gestures alone.                                                                        │
+│  r-0000000000000006 · Combined · 2026-10-28 · Etc/UTC                                                                                                        │
+│  PLOT [wd-p-0204] · route · level 2 · suggested 20 min                                                                                                       │
+│  A courier can shorten any journey by giving away a possession associated with its destination. To carry a medicine home in time, she must surrender the last│
+│  object connecting her to the person who will need to recognize and admit her.                                                                               │
+│  EXERCISE [wd-x-0076] · formal · level 3 · suggested 30 min                                                                                                  │
+│  Write the same small decision as a list, a letter, and a scene. Preserve the practical facts in all three versions. Compare what each form lets a speaker   │
+│  omit, then choose one omission worth exploring further.                                                                                                     │
 │  Work mode: Drafting · creative completion is self-reported, not automatically scored.                                                                       │
 │  ★ Favorited; retained separately from history.                                                                                                              │
 │  6 history / 128 · 1 favorites / 64 · 0 dismissals / 128 · 12-result recent window                                                                           │

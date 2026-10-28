@@ -1,0 +1,40 @@
+{
+  "recorded_at_utc": "2026-10-28T09:55:26.509430+00:00",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "2f2c9211868b49ec1d7adb322d2a4f5845f7ceebe4d344739285d3a979d15fc3",
+    "file_count": 331,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "local_all_gates_passed": true,
+  "local_gates": 20,
+  "expected_ci_gates": 19,
+  "extra_local_gate": "Existing staged image offline Wi-Fi audit; CI has no staged image.",
+  "reports_sha256": {
+    "installer-closed-local.json": "b763d54d77054bf2a52fe0a27ceeee7588d66c4ca10367ebcae49c1dcde78179",
+    "installer-closed-components.json": "131b705f869d59a1c456feec5e49c6741b111466a311819b40da4bad595a4565",
+    "installer-closed-components-frontend.json": "0155b0200b8ce18e65f42fee434e26929f048eeed88008f28d1c9b418838803d",
+    "installer-closed-components-faults.json": "5fca93ff87bfb1db7789116204a7d58354615fc004fc3f39bb8820dfe3106d8b",
+    "installer-closed-components-build.json": "4a78789e722988207543ffd6947c759fc935776646c9849d6f39c291593006a1",
+    "installer-closed-components-package.json": "198e6a079a2871f493587e2598716483546a513f9dc1ba2d41f2733de16f8d97",
+    "installer-faults-baseline.json": "d489eb86a2f9e22342718262893051b5eb1f21f161fe16821b4b993a90ef4a57"
+  },
+  "retained_text_capture_sha256": {
+    "journal-pty-screen.txt": "fdcd6c68f8626fbe42ad98036f26c928ab0ce939b9247405a09a3d3a62f97e8c",
+    "workflow-pty-screen.txt": "e67e3fee75c04b7b11298ff650710f9224517cacd678e88c533bd74918ed7b64",
+    "checks-pty-80x24.txt": "c5ac10e3c302a5a57f70a61a14559432242788d84f7256e0088c0c2b8385f697",
+    "checks-pty-100x30.txt": "b83e398f8234f1025b295455ae52986f6a302ef6f0af6c29d8d49cc7623c4b49",
+    "checks-pty-120x40.txt": "d3fb4deb133763554d8d1176840d63a72a84f41b45600f16aeacfa5815e2f669",
+    "checks-pty-160x50.txt": "ca9a52067db1f40bbae6f1c647b87b145805d506dc64947eb32f369043e2689d",
+    "productivity-pty-80x24.txt": "ac93438639e4423d03ea86abebfb1aaef9bc21e1f499883f2efbceb0f09d5bc1",
+    "productivity-pty-100x30.txt": "ca7da8575cd75aaabe6fb464fefe8924e741eeb1d383f6bf73029b0f59695a93",
+    "productivity-pty-120x40.txt": "3bfccad9d883055bd84373a693d501a8b98d3c736b9d9ee4000ef7da648fb7ed",
+    "productivity-pty-160x50.txt": "485e647711e86a93185a2c97f7cab215b335844d40ce40f75b617cbd80f59baa",
+    "spark-pty-80x24.txt": "e2bb8faa3f1644d720f0c91cabbfe64d7dce8ec25bd0cd426540ffeab48dc54c",
+    "spark-pty-100x30.txt": "cd144c95128bf0eb03d888ad4ef778f343c0aafea1270cfc040a00452a45ae01",
+    "spark-pty-120x40.txt": "aefe8e11944792182fa5b618d6af6dcfd3790f42f131773db2dc39391e01209c",
+    "spark-pty-160x50.txt": "533e3a18c6d5aea82ec111fc0a8705a90bb553fa85da2899db3322898943b7cb"
+  },
+  "fixture": "Normal builder UID in private mount and network namespaces; loopback only; synthetic credentials on private noexec tmpfs; no target disk.",
+  "scope": "Software and Debian backend protocol only; no root launcher, new ISO, live installation, suspend or physical qualification."
+}

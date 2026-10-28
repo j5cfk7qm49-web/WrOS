@@ -51,6 +51,23 @@ fn string(session: &mut Session, kind: &str) {
     assert!(matches!(session.command("GO").unwrap(), Exchange::Show));
 }
 #[test]
+fn a_backend_cleared_default_and_metadata_do_not_reuse_an_earlier_answer() {
+    let mut session = Session::default();
+    string(&mut session, "string");
+    session.active_mut().unwrap().type_char('x');
+    session.advance().unwrap();
+    assert_eq!(&*answer(&mut session, "fixture/entry"), "0 x");
+    send(&mut session, "DATA fixture/entry type string");
+    assert!(session.command("GET fixture/entry").is_err());
+    send(&mut session, "INPUT critical fixture/entry");
+    session.command("GO").unwrap();
+    let active = session.active().unwrap();
+    assert_eq!(active.shown_answer(), "");
+    assert!(active.description.is_empty() && active.detail.is_empty());
+    session.advance().unwrap();
+    assert_eq!(&*answer(&mut session, "fixture/entry"), "0 ");
+}
+#[test]
 fn canonical_translated_choices_and_explicit_partition_consent() {
     let mut session = Session::default();
     for line in [

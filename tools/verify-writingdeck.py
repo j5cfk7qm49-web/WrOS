@@ -15,6 +15,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import tempfile
 import time
 
 from writingdeck_source import fingerprint
@@ -96,6 +97,18 @@ def main():
     run('build-no-audio', ['cargo', 'build', '--workspace', '--no-default-features', '--locked', '--offline', '-j2'])
     binary = Path(os.environ.get('GRIMOIRE_BINARY', ROOT/'target/debug/grimoire'))
     record['tested_no_audio_binary_sha256'] = hashlib.sha256(binary.read_bytes()).hexdigest()
+    installer_source = Path(os.environ.get('WROS_INSTALLER_SOURCE_DESCRIPTOR', ROOT/'build/installer-source/cdebconf_0.280.dsc'))
+    if not installer_source.is_file():
+        raise SystemExit('Provision the pinned Debian installer source archives before offline qualification.')
+    installer_build_root = Path(os.environ.get('WROS_INSTALLER_BUILD_ROOT', logs.parent))
+    installer_build_root.mkdir(parents=True, exist_ok=True)
+    installer_build = Path(tempfile.mkdtemp(prefix='installer-components-', dir=installer_build_root))/'upstream'
+    run('installer-build', ['bash', 'os/scripts/build-installer-frontend.sh', str(installer_source), str(installer_build), '--test-runtime'])
+    manifest = installer_build/'manifest.json'
+    (logs/'installer-components-build.json').write_bytes(manifest.read_bytes())
+    run('installer-components', ['python3', 'tools/test-installer-components.py', str(installer_build), '--report', str(logs/'installer-components.json')])
+    record['installer_components'] = json.loads((logs/'installer-components.json').read_bytes())
+    record['installer_build_manifest_sha256'] = hashlib.sha256(manifest.read_bytes()).hexdigest()
     check, text = run('python', ['python3', '-m', 'unittest', 'discover', '-s', 'os/tests', '-p', 'test_*.py', '-v'],
                       os.environ | {'WRITINGDECK_CAPTURE_PTY': '1'})
     summary = re.search(r'Ran (\d+) tests in ([\d.]+)s', text)

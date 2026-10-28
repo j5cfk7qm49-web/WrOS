@@ -1,5 +1,30 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Installer transport failure handling — full local software passed
+
+`codex/installer-fail-closed` makes the maintained Debian cdebconf passthrough
+abort on a lost, truncated or invalid frontend response. Actual tests reproduced
+the earlier backend continuing with its original confirmation default; that
+[failing baseline](evidence/installer-faults-baseline.json) remains failed. The
+native TUI also clears an old answer when Debian presents an empty default.
+
+The [full local run](evidence/installer-closed-local.json) passed **972
+Rust/configuration, 123 Python/zero skips, both Clippys and 20 gates**. Required
+component gates build the hash-pinned maintained backend and run
+[12 native frontend checks](evidence/installer-closed-components-frontend.json)
+and [14 protocol cases](evidence/installer-closed-components-faults.json) as a
+normal user with private RAM fixtures. The separate
+[packaged Debian backend](evidence/installer-closed-components-package.json)
+also passed the native checks. [Provenance](evidence/installer-closed-local-provenance.json)
+binds source `2f2c9211...15fc3` / 331 files, the built module and retained text
+captures. The [original full-run observer failure](evidence/installer-closed-attempts.json)
+is preserved separately. Debian CI now requires both component gates; its new
+19-gate result is pending. The extra local gate audits the existing staged Wi-Fi image.
+
+Read the [backend boundary](INSTALLER_BACKEND.md). Root launch supervision, live
+media staging and fresh install/reboot qualification remain open. No new ISO or
+disk-writing permission is delivered by this increment.
+
 ## Shared Grimoire themes and native installer frontend — software and Debian CI passed
 
 `codex/live-installer` extracts Grimoire's original palette and theme format into
@@ -58,7 +83,8 @@ The [component decisions](FOSS_REUSE.md) and [63-candidate inventory](foss-reuse
 record 60 available Debian packages and the selected backends for remaining OS
 work. The target installer is a live WrOS session with its own TUI over Debian's
 installation components. The maintained launcher text path and kernel-matching
-condition were inspected; the new native installer frontend is not yet built.
+condition were inspected; the new native installer frontend has software and
+Debian CI qualification, while privileged live integration remains open.
 [Packaged Restic's local backend test](evidence/restic-backend-fit.json) passed
 encrypted versioned snapshots, full-data integrity, wrong-password rejection and
 byte-exact restore into a separate directory without changing originals. This

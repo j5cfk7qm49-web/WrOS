@@ -336,7 +336,15 @@ impl Session {
                 let (field, value) = rest.split_once(' ').ok_or("Invalid installer data")?;
                 let q = self.question(tag)?;
                 match field {
-                    "type" => q.kind = Kind::parse(value)?,
+                    // cdebconf starts every presentation with DATA type and
+                    // omits SET for an empty default. Retaining the old answer
+                    // here would silently resurrect a backend-cleared choice.
+                    "type" => {
+                        *q = Question {
+                            kind: Kind::parse(value)?,
+                            ..Question::default()
+                        }
+                    }
                     "description" => q.description = display(&unescape(value)),
                     "extended_description" => q.detail = display(&unescape(value)),
                     "choices" => {
@@ -350,6 +358,9 @@ impl Session {
                 }
                 if q.choices.len() > 2048 || q.values.len() > 2048 {
                     return Err("Too many installer choices");
+                }
+                if field == "type" {
+                    self.approved.remove(tag);
                 }
                 Ok(reply("0"))
             }

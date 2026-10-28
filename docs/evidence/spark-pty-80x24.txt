@@ -2,23 +2,23 @@
 │  Status: Spark save · notes/sparks/r-0000000000000006.md · original scene    │
 │  preserved                                                                   │
 │  1047 original plots / 84 exercises · static offline selection               │
-│  r-0000000000000006 · Combined · 2026-10-27 · Etc/UTC                        │
-│  PLOT [wd-p-0606] · proof · level 2 · suggested 20 min                       │
-│  A lie detector rings only when its subject believes an answer is false. A   │
-│  witness's impossible account passes every test because the story has been   │
-│  rehearsed until the witness can no longer identify its invented parts.      │
-│  EXERCISE [wd-x-0036] · motivation · level 3 · suggested 30 min              │
-│  Give two people incompatible immediate goals and a defensible reason for    │
-│  each. Let each learn one fact that weakens their preferred solution. End    │
-│  with an action that costs both something different, not with a declaration  │
-│  that both were right.                                                       │
+│  r-0000000000000006 · Combined · 2026-10-28 · Etc/UTC                        │
+│  PLOT [wd-p-0437] · care · level 1 · suggested 20 min                        │
+│  An adult child takes over arranging family visits, then discovers that two  │
+│  relatives have maintained peace by never attending at the same time. A more │
+│  efficient schedule would force the encounter their separate invitations have│
+│  concealed.                                                                  │
+│  EXERCISE [wd-x-0065] · subtext · level 1 · suggested 10 min                 │
+│  Let someone change the subject for a defensible reason. Make the new topic  │
+│  connected to the avoided one through a practical detail. Give the other     │
+│  person a choice about following the detour or returning to the original     │
+│  question.                                                                   │
 │  Work mode: Drafting · creative completion is self-reported, not             │
 │  automatically scored.                                                       │
-│  ★ Favorited; retained separately from history.                              │
 │1 plot  2 exercise  3 combined  4 daily · p/e/r reroll plot/exercise/both     │
 │f favorite · x dismiss · s save · a actions · h history · F favorites · o     │
 │filters                                                                       │
-│PgUp/PgDn 0/3 · u reload · v source · t optional · Esc · F1 help              │
+│PgUp/PgDn 0/4 · u reload · v source · t optional · Esc · F1 help              │
 │Spark save · notes/sparks/r-0000000000000006.md · original scene preserved    │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘

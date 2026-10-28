@@ -83,9 +83,10 @@ Before the live installer can be exposed:
 1. Reuse Debian's live launch preparation with a matching live/installer kernel
    and the compatible passthrough module. Keep the backend outside the editor,
    with a single terminal/credential owner and supervised process lifetime.
-2. Stop the whole backend on frontend loss or malformed protocol. cdebconf's
-   passthrough module alone can continue after a disconnected frontend; its
-   error response is not a safe installation-abort mechanism.
+2. Stop the whole backend on frontend loss or malformed protocol. The
+   [failure-boundary patch](INSTALLER_BACKEND.md) makes cdebconf abort those
+   protocol errors; the future supervisor must also stop all child workers and
+   clean the private mount/terminal state.
 3. Keep per-run answers and credentials in private RAM. Shipping defaults must
    contain no target disk, password or destructive confirmation. The live account
    and live-only startup configuration must not become an installed login.

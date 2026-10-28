@@ -23,8 +23,9 @@ jobs:
     steps:
       - name: Debian prerequisites
         run: |
+          printf 'deb-src [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] http://deb.debian.org/debian trixie main\n' > /etc/apt/sources.list.d/wros-build-sources.list
           apt-get update
-          apt-get install -y --no-install-recommends build-essential pkg-config libasound2-dev libssl-dev libdrm-dev python3 python3-venv wordnet-base ca-certificates curl git shellcheck gpgv debian-archive-keyring
+          apt-get install -y --no-install-recommends build-essential pkg-config libasound2-dev libssl-dev libdrm-dev python3 python3-venv wordnet-base ca-certificates curl git shellcheck gpgv debian-archive-keyring autoconf automake libtool dpkg-dev patch libdebian-installer4-dev debconf
           useradd -m -s /bin/bash builder
       - uses: actions/checkout@v4
         with:
@@ -38,7 +39,14 @@ jobs:
       - name: Fetch and verify locked build inputs
         shell: bash
         run: |
-          runuser -u builder -- env PATH="/opt/cargo/bin:$PATH" bash -c 'cargo fetch --locked && python3 tools/prepare-prose-tools.py --include-sources'
+          runuser -u builder -- env PATH="/opt/cargo/bin:$PATH" bash -c '
+            set -e
+            cargo fetch --locked
+            python3 tools/prepare-prose-tools.py --include-sources
+            mkdir -p build/installer-source
+            cd build/installer-source
+            apt-get source --download-only cdebconf=0.280
+          '
       - name: Non-root software qualification
         shell: bash
         run: runuser -u builder -- env PATH="/opt/cargo/bin:$PATH" bash tools/test-m7b.sh
@@ -50,5 +58,6 @@ jobs:
           path: |
             build/verification/*.log
             build/verification/partial-results.json
+            build/verification/installer-components*.json
             docs/evidence/test-results.json
           if-no-files-found: warn
