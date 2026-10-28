@@ -26,6 +26,11 @@ from writingdeck_source import fingerprint
 
 def authenticate(run, result, secret):
     result['passed'] = False
+    started = time.monotonic()
+    result['authentication_verifier_source_fingerprint'] = fingerprint()
+    result['authentication_verifier_sha256'] = {
+        name: hashlib.sha256((REPO / 'os/tests' / name).read_bytes()).hexdigest()
+        for name in ('install_vm.py', 'installed_boot.py')}
     try:
         result.update(verify_boot(run, secret, native_session=result.get('native_session_expected', False)))
         required = [
@@ -36,10 +41,12 @@ def authenticate(run, result, secret):
                          'sleep_guard_verified', 'native_logout_verified', 'input_reader_nonroot_verified']
             result['installed_binary_identities_match'] = result.get('running_image_binary_sha256') == {
                 'grimoire': result['installed_binary_sha256'], 'wros-greeter': result['greeter_binary_sha256']}
+            result['installed_binary_identities_match'] &= result.get('running_editor_exe_sha256') == result['installed_binary_sha256']
             required.append('installed_binary_identities_match')
         result['passed'] = all(result.get(name) for name in required) and not result['password_logged']
         return result
     finally:
+        result['authentication_wall_seconds'] = round(time.monotonic() - started, 2)
         partial = run / 'boot-result.json'
         if partial.is_file():
             result.update(json.loads(partial.read_text()))
@@ -64,6 +71,7 @@ def main():
         result = json.loads((run / 'result.json').read_text())
         if not result.get('installation_copy_verified') or result['host_disks_exposed'] or result['network_devices']:
             raise RuntimeError('Only a completed disposable offline install may be resumed')
+        result['authentication_only_retry'] = True
         result = authenticate(run, result, credential.read_text())
         print(json.dumps(result, indent=2))
         return 0 if result['passed'] else 1

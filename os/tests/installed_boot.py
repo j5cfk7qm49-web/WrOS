@@ -167,14 +167,18 @@ def verify(run, secret=None, native_session=False):
                 deadline = time.monotonic() + 45
                 while True:
                     start = len(content)
-                    connection.sendall(b'sudo -n journalctl -t writingdeck-session --no-pager -n 1\n')
-                    expect(b'WRITINGDECK_SESSION uid=1000 tty=/dev/tty1', 45)
+                    # A logger marker is telemetry, not authoritative process
+                    # ownership; a fresh installed journal may omit it. Require
+                    # the actual writer process/TTY and rendered UI instead.
+                    connection.sendall(b'if test "$(ps -C grimoire -o uid= | xargs)" = 1000 && test "$(ps -C grimoire -o tty= | xargs)" = tty1; then echo WROS_WRITER_PROCESS_PASS; fi; printf "\\nWROS_WRITER_STATE_END\\n"\n')
+                    expect(b'\r\nWROS_WRITER_STATE_END\r\n', 20)
                     expect(b':~$ ', 20)
+                    process_verified = b'\r\nWROS_WRITER_PROCESS_PASS\r\n' in content[start:]
                     connection.sendall(b'sudo -n /bin/sh -c \'cat /dev/vcs1; printf "\\nWROS_UI_STATE_END\\n"\'\n')
                     expect(b'\r\nWROS_UI_STATE_END\r\n', 10)
                     console = content[start:]
                     expect(b':~$ ', 20)
-                    if b'WRITINGDECK OS' in console and b'Resume writing' in console:
+                    if process_verified and b'WRITINGDECK OS' in console and b'Resume writing' in console:
                         result['tty1_nonroot_session_verified'] = True
                         result['writing_ui_verified'] = True
                         break
@@ -193,7 +197,7 @@ def verify(run, secret=None, native_session=False):
                 qmp(control, 'screendump', {'filename': str(run / 'installed-writing-session.ppm')})
                 if native_session:
                     start = len(content)
-                    connection.sendall(b'if test "$(ps -C grimoire -o uid= | xargs)" = 1000 && test "$(ps -C wros-input -o uid= | xargs)" = 1000; then echo WROS_INPUT_UID_PASS; fi; sha256sum /usr/bin/grimoire /usr/bin/wros-greeter; printf "\\nWROS_IDENTITY_STATE_END\\n"\n')
+                    connection.sendall(b'if test "$(ps -C grimoire -o uid= | xargs)" = 1000 && test "$(ps -C wros-input -o uid= | xargs)" = 1000; then echo WROS_INPUT_UID_PASS; fi; sudo -n /bin/sh -c \'sha256sum /proc/$(pgrep -x grimoire)/exe\'; sha256sum /usr/bin/grimoire /usr/bin/wros-greeter; printf "\\nWROS_IDENTITY_STATE_END\\n"\n')
                     expect(b'\r\nWROS_IDENTITY_STATE_END\r\n', 20)
                     expect(b':~$ ', 20)
                     if b'\r\nWROS_INPUT_UID_PASS\r\n' not in content[start:]:
@@ -201,6 +205,8 @@ def verify(run, secret=None, native_session=False):
                     result['input_reader_nonroot_verified'] = True
                     hashes = re.findall(rb'([0-9a-f]{64})  /usr/bin/(grimoire|wros-greeter)\r', content[start:])
                     result['running_image_binary_sha256'] = {name.decode(): value.decode() for value, name in hashes}
+                    loaded = re.findall(rb'([0-9a-f]{64})  /proc/[0-9]+/exe\r', content[start:])
+                    result['running_editor_exe_sha256'] = loaded[0].decode() if len(loaded) == 1 else None
                     # Inspect logind and masks; never issue an actual sleep request.
                     start = len(content)
                     connection.sendall(b'sudo -n /bin/sh -c \'for u in sleep suspend hibernate hybrid-sleep suspend-then-hibernate; do test "$(systemctl is-enabled "$u.target" 2>/dev/null)" = masked || exit 1; done; echo WROS_SLEEP_MASKS_PASS; busctl call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager CanSuspend\'; printf "\\nWROS_SLEEP_STATE_END\\n"\n')
