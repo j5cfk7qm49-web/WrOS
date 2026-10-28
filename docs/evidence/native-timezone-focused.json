@@ -1,0 +1,192 @@
+{
+  "scope": "Native timezone backend/controller and retained editor PTY; not clock/RTC/NTP/physical qualification",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "3c4f44b61749cfaf29ca15902ac04b73b2ff54964fd1741eadc2d648a8a51569",
+    "file_count": 311,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "checks": [
+    {
+      "name": "format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 5.088,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "backend",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "writingdeck-sys",
+        "--locked",
+        "--offline",
+        "-j2"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 2.253,
+      "log_sha256": "85ec50e0771756b5bdc5dcd338f915f0b9ec1c6603ce66ad61974f03a8130c90"
+    },
+    {
+      "name": "controller",
+      "command": [
+        "cargo",
+        "test",
+        "--bin",
+        "grimoire",
+        "--no-default-features",
+        "--locked",
+        "--offline",
+        "-j2",
+        "native_timezone"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 7.572,
+      "log_sha256": "cd9bd13c633cd24e29800d4ea8482940f8567246f39e1a1d58b5c5045a98befe"
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--no-default-features",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 3.114,
+      "log_sha256": "f8c6b9b250ae7235d793bef735beba7105374ed3addfd75bca227008019913b0"
+    },
+    {
+      "name": "build",
+      "command": [
+        "cargo",
+        "build",
+        "--workspace",
+        "--no-default-features",
+        "--locked",
+        "--offline",
+        "-j2"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 1.142,
+      "log_sha256": "5567284e5fe78520f46a9ac555724d4ffe8a541edefb82a1cf4eb7f6dd7ed3de"
+    },
+    {
+      "name": "retained-editor-pty",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "os/tests",
+        "-p",
+        "test_shell_pty.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 4.671,
+      "log_sha256": "1b01b8023179a5f70de619dc581460665c85577e26644497416cab7319c4ef8a"
+    },
+    {
+      "name": "python-syntax",
+      "command": [
+        "python3",
+        "-m",
+        "py_compile",
+        "os/tests/greeter_vm.py",
+        "os/tests/guest-greeter-probe.py"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.084,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "shellcheck",
+      "command": [
+        "shellcheck",
+        "os/scripts/install-files.sh"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.406,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "documentation",
+      "command": [
+        "python3",
+        "tools/check-writingdeck.py"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.859,
+      "log_sha256": "8f760c64e7877650e23159ee751dce0319e97a1dda01b45ebc91e27aba92ff05"
+    },
+    {
+      "name": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 20.162,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "source_unchanged": true,
+  "editor_binary_sha256": "f5d7bc7d1340c1837ba4b29b9cbb20a6df3a03a20c5254469d227a2265ae4b8c",
+  "greeter_binary_sha256": "bf193c66af41625892b866f000f5c5850919855d72189d89735017eb8be74e7c",
+  "exact_guest_fixture_binaries_match": true,
+  "controller_sizes": [
+    [
+      80,
+      24
+    ],
+    [
+      100,
+      30
+    ],
+    [
+      120,
+      40
+    ],
+    [
+      160,
+      50
+    ]
+  ],
+  "retained_editor_pty_sizes": [
+    [
+      80,
+      24
+    ],
+    [
+      100,
+      30
+    ],
+    [
+      120,
+      40
+    ],
+    [
+      160,
+      50
+    ]
+  ],
+  "passed": true
+}

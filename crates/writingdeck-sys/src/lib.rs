@@ -7,6 +7,7 @@ pub mod display;
 pub mod keyboard;
 pub mod linux;
 pub mod shortcuts;
+pub mod timezone;
 
 use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
@@ -44,6 +45,8 @@ pub enum Request {
     Brightness(u8),
     Power(PowerAction),
     PowerSave(bool),
+    ListTimezones,
+    SetTimezone(String),
     KeyboardPreview(keyboard::Layout),
     KeyboardConfirm(String),
     KeyboardCancel(String),
@@ -57,6 +60,8 @@ pub enum Request {
 pub enum Reply {
     Snapshot(Snapshot),
     Message(String),
+    Timezones(Vec<String>),
+    Timezone(String),
     KeyboardPreview { token: String, seconds: u64 },
     DisplayStatus(display::Status),
     DisplayPreview { token: String, seconds: u64 },
@@ -104,6 +109,17 @@ impl Backend for Simulated {
             bail!("simulated service unavailable");
         }
         match request {
+            Request::ListTimezones => Ok(Reply::Timezones(vec![
+                "America/Los_Angeles".into(),
+                "Asia/Tokyo".into(),
+                "Europe/London".into(),
+                "UTC".into(),
+            ])),
+            Request::SetTimezone(zone) => {
+                timezone::validate(&zone)?;
+                self.snapshot.timezone = Some(zone.clone());
+                Ok(Reply::Timezone(zone))
+            }
             Request::Power(PowerAction::Suspend) => bail!(SUSPEND_UNAVAILABLE),
             Request::DisplayStatus => Ok(Reply::DisplayStatus(display::Status {
                 warmth: self.warmth,

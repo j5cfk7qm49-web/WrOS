@@ -120,6 +120,40 @@ def keyboard_acceptance():
     marker('KEYBOARD_PASS')
 
 
+def timezone_acceptance(app):
+    def current():
+        return command('timedatectl', '--value', '--property=Timezone', 'show').stdout.decode().strip()
+    original = current()
+    command('pkcheck', '--action-id', 'org.freedesktop.timedate1.set-timezone', '--process', app.name)
+    for action in ('set-time', 'set-local-rtc', 'set-ntp'):
+        assert subprocess.run(['pkcheck', '--action-id', 'org.freedesktop.timedate1.' + action,
+                               '--process', app.name], capture_output=True).returncode != 0
+    command('chvt', '2')
+    assert subprocess.run(['pkcheck', '--action-id', 'org.freedesktop.timedate1.set-timezone',
+                           '--process', app.name], capture_output=True).returncode != 0
+    command('chvt', '1')
+    marker('TIMEZONE_READY')
+    wait(lambda: 'WrOS' in screen() and 'Settings' in screen() and 'Accounts' in screen(), 'timezone settings root')
+    marker('TIMEZONE_SETTINGS')
+    wait(lambda: 'Date and time' in screen() and 'Recovery' in screen(), 'timezone system category')
+    marker('TIMEZONE_SYSTEM')
+    wait(lambda: 'Choose timezone' in screen() and 'Manual clock' in screen(), 'timezone date page')
+    marker('TIMEZONE_PAGE')
+    wait(lambda: 'Filter:' in screen() and 'Africa/Abidjan' in screen(), 'local timezone catalog')
+    marker('TIMEZONE_LIST')
+    wait(lambda: 'Cancel timezone change' in screen() and 'Use Asia/Tokyo' in screen(), 'timezone confirmation')
+    assert current() == original
+    marker('TIMEZONE_CANCEL_READY')
+    wait(lambda: 'Filter: tokyo' in screen() and 'Asia/Tokyo' in screen(), 'timezone default cancellation')
+    assert current() == original
+    marker('TIMEZONE_CANCEL_PASS')
+    wait(lambda: 'Cancel timezone change' in screen(), 'timezone retry confirmation')
+    marker('TIMEZONE_APPLY_READY')
+    wait(lambda: current() == 'Asia/Tokyo' and 'Timezone: Asia/Tokyo' in screen(), 'verified native timezone change')
+    assert 'Timezone verified: Asia/Tokyo' in screen()
+    marker('TIMEZONE_PASS')
+
+
 def main():
     assert Path('/etc/writingdeck/VM-DEMO-ONLY').is_file()
     command('systemctl', 'stop', 'getty@tty1.service')
@@ -134,6 +168,7 @@ def main():
     policy.unlink()
     files = {'usr/bin/wros-greeter': 0o755, 'usr/bin/grimoire': 0o755,
              'usr/libexec/writingdeck-session': 0o755,
+             'etc/polkit-1/rules.d/50-wros-timezone.rules': 0o644,
              'etc/polkit-1/rules.d/51-wros-greeter-keyboard.rules': 0o644,
              'etc/greetd/config.toml': 0o644,
              'etc/systemd/system/greetd.service': 0o644}
@@ -202,6 +237,7 @@ def main():
     assert '\nUid:\t1000\t' in reader_status and ('\nPPid:\t' + app.name + '\n') in reader_status
     marker('INPUT_READER_UID1000_PASS')
     assert not processes('wros-greeter')
+    timezone_acceptance(app)
     marker('SESSION')
     # Return to a new login, never an authenticated shell, on session exit.
     os.kill(int(app.name), signal.SIGKILL)

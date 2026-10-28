@@ -60,6 +60,7 @@ def main():
     (fixtures / 'secret').chmod(0o600)
     files = {'usr/bin/wros-greeter': args.binary, 'usr/bin/grimoire': args.editor,
              'usr/libexec/writingdeck-session': REPO / 'os/scripts/writingdeck-session',
+             'etc/polkit-1/rules.d/50-wros-timezone.rules': REPO / 'os/config/50-wros-timezone.rules',
              'etc/polkit-1/rules.d/51-wros-greeter-keyboard.rules': REPO / 'os/config/51-wros-greeter-keyboard.rules',
              'etc/greetd/config.toml': REPO / 'os/config/greetd.toml',
              'etc/systemd/system/greetd.service': REPO / 'os/config/greetd.service'}
@@ -98,11 +99,11 @@ mount -o remount,ro /dev/vda2 "$rootmnt"
                '-append', 'root=UUID=3224a43a-692d-4cd6-a526-96b9a630fa24 ro console=ttyS0,115200 console=tty1 panic=1',
                '-serial', 'file:' + str(serial), '-serial', 'unix:' + str(handshake) + ',server=on,wait=off',
                '-qmp', 'unix:' + str(control) + ',server=on,wait=off']
-    result = {'scope': 'Experimental greeter with real Debian greetd/PAM in VM-demo COW layer; not installer/locker/hardware qualification',
+    result = {'scope': 'Native timezone selection/policy and retained greetd/PAM/input/keyboard checks in VM-demo COW layer; not installer/locker/hardware qualification',
               'source_fingerprint': source, 'binary_sha256': digest(args.binary), 'greetd_package_sha256': digest(args.package),
               'editor_binary_sha256': digest(args.editor),
               'network_devices': 0, 'host_disks_exposed': 0, 'passed': False, 'base_image_sha256_before': before}
-    started, stage, retry_sent, keyboard_stage = time.monotonic(), 0, False, 0
+    started, stage, retry_sent, keyboard_stage, timezone_stage = time.monotonic(), 0, False, 0, 0
     with (run / 'qemu.log').open('w') as output:
         process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=output, stderr=output)
         try:
@@ -113,7 +114,7 @@ mount -o remount,ro /dev/vda2 "$rootmnt"
                     break
                 def keys(text, enter=True):
                     for value in [*text, *(['ret'] if enter else [])]:
-                        qmp(control, 'send-key', {'keys': [{'type': 'qcode', 'data': value}], 'hold-time': 40})
+                        qmp(control, 'send-key', {'keys': [{'type': 'qcode', 'data': 'spc' if value == ' ' else value}], 'hold-time': 40})
                         time.sleep(0.09)
                 if 'WROS_GREETER_KEYBOARD_READY' in content and keyboard_stage == 0:
                     keys(['f2'], enter=False); keyboard_stage = 1
@@ -158,6 +159,33 @@ mount -o remount,ro /dev/vda2 "$rootmnt"
                     keys(''); stage = 5
                 if 'WROS_GREETER_AUTHENTICATED' in content and stage == 5:
                     keys(''); stage = 6
+                if 'WROS_GREETER_TIMEZONE_READY' in content and timezone_stage == 0:
+                    keys(['esc'], enter=False)
+                    qmp(control, 'send-key', {'keys': [{'type': 'qcode', 'data': 'ctrl'}, {'type': 'qcode', 'data': 'k'}], 'hold-time': 40})
+                    time.sleep(0.2)
+                    keys('wros settings')
+                    timezone_stage = 1
+                if 'WROS_GREETER_TIMEZONE_SETTINGS' in content and timezone_stage == 1:
+                    keys(['down', 'down'])
+                    timezone_stage = 2
+                if 'WROS_GREETER_TIMEZONE_SYSTEM' in content and timezone_stage == 2:
+                    keys(['down', 'down', 'down', 'down'])
+                    timezone_stage = 3
+                if 'WROS_GREETER_TIMEZONE_PAGE' in content and timezone_stage == 3:
+                    keys(['down', 'down'])
+                    timezone_stage = 4
+                if 'WROS_GREETER_TIMEZONE_LIST' in content and timezone_stage == 4:
+                    keys('tokyo')
+                    timezone_stage = 5
+                if 'WROS_GREETER_TIMEZONE_CANCEL_READY' in content and timezone_stage == 5:
+                    keys('')
+                    timezone_stage = 6
+                if 'WROS_GREETER_TIMEZONE_CANCEL_PASS' in content and timezone_stage == 6:
+                    keys('')
+                    timezone_stage = 7
+                if 'WROS_GREETER_TIMEZONE_APPLY_READY' in content and timezone_stage == 7:
+                    keys(['down'])
+                    timezone_stage = 8
                 if 'WROS_GREETER_SWITCH_READY' in content and stage == 6:
                     # The last selectable ordinary account is writerother;
                     # exercise the actual picker rather than typing its name.
@@ -184,7 +212,8 @@ mount -o remount,ro /dev/vda2 "$rootmnt"
             result['source_unchanged'] = fingerprint() == source
             result['base_image_unchanged'] = before == result['base_image_sha256_after']
             result['wall_seconds'] = round(time.monotonic() - started, 2)
-            result['passed'] = (process.returncode == 0 and stage == 10 and keyboard_stage == 16 and result['base_image_unchanged'] and result['source_unchanged']
+            result['passed'] = (process.returncode == 0 and stage == 10 and keyboard_stage == 16 and timezone_stage == 8
+                                and 'WROS_GREETER_TIMEZONE_PASS' in content and result['base_image_unchanged'] and result['source_unchanged']
                                 and secret not in content and 'WROS_GREETER_FAIL' not in content)
             (run / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
             if result['passed']:

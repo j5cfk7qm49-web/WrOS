@@ -62,6 +62,8 @@ pub enum Route {
     Panel(Panel),
     WarmScreen,
     WarmPreview,
+    Timezones,
+    TimezoneConfirm,
 }
 
 pub struct Shell {
@@ -76,6 +78,9 @@ pub struct Shell {
     pub warmth: writingdeck_sys::display::Warmth,
     pub warm_wait: bool,
     pub warm_preview: Option<(String, Instant)>,
+    pub timezones: Option<Vec<String>>,
+    pub timezone_query: String,
+    pub timezone_choice: Option<String>,
 }
 impl Shell {
     pub fn load(root: &Path, background: bool) -> Self {
@@ -97,6 +102,9 @@ impl Shell {
             warmth: writingdeck_sys::display::Warmth::default(),
             warm_wait: false,
             warm_preview: None,
+            timezones: None,
+            timezone_query: String::new(),
+            timezone_choice: None,
         };
         let result = (|| -> Result<()> {
             if state.path.is_symlink() {
@@ -160,6 +168,9 @@ enum Choice {
     WarmStatus,
     WarmApply,
     WarmResolve(bool),
+    TimezoneOpen,
+    TimezoneChoose(String),
+    TimezoneResolve(bool),
 }
 struct Entry {
     label: String,
@@ -311,7 +322,8 @@ fn entries(app: &App) -> Vec<Entry> {
                             .and_then(|s| s.timezone.as_deref())
                             .unwrap_or("unknown")
                     )),
-                    Entry::info("Date/time editing · narrow authorized service pending"),
+                    Entry::new("Choose timezone", Choice::TimezoneOpen),
+                    Entry::info("Manual clock / network time controls are not available yet"),
                 ]),
                 Panel::Updates => rows.push(Entry::info(
                     "Signed WrOS updates and rollback are not available yet",
@@ -322,6 +334,53 @@ fn entries(app: &App) -> Vec<Entry> {
             }
             rows
         }
+        Route::Timezones => {
+            let mut rows = vec![Entry::info(format!(
+                "Filter: {} · type a city or region",
+                app.deck.shell.timezone_query
+            ))];
+            if let Some(zones) = &app.deck.shell.timezones {
+                let query = app
+                    .deck
+                    .shell
+                    .timezone_query
+                    .to_ascii_lowercase()
+                    .replace(' ', "_");
+                rows.extend(
+                    zones
+                        .iter()
+                        .filter(|zone| zone.to_ascii_lowercase().contains(&query))
+                        .map(|zone| Entry::new(zone, Choice::TimezoneChoose(zone.clone()))),
+                );
+                if rows.len() == 1 {
+                    rows.push(Entry::info(
+                        "No matching timezones; Backspace edits the filter",
+                    ));
+                }
+            } else {
+                rows.push(Entry::info(
+                    "Timezone list unavailable; return and try again",
+                ));
+            }
+            rows
+        }
+        Route::TimezoneConfirm => vec![
+            Entry::new("Cancel timezone change", Choice::TimezoneResolve(false)),
+            Entry::new(
+                format!(
+                    "Use {}",
+                    app.deck
+                        .shell
+                        .timezone_choice
+                        .as_deref()
+                        .unwrap_or("unavailable")
+                ),
+                Choice::TimezoneResolve(true),
+            ),
+            Entry::info(
+                "Changes future local dates. Existing writing records keep their recorded dates.",
+            ),
+        ],
         Route::WarmScreen => {
             let shell = &app.deck.shell;
             let choice = shell.warmth;
@@ -410,6 +469,23 @@ impl App {
         self.observe_deck(tutorial::Event::SystemOpened);
     }
     pub fn on_settings_key(&mut self, key: Key) {
+        if self.deck.shell.nav.current() == Route::Timezones {
+            let query = &mut self.deck.shell.timezone_query;
+            let changed = match key {
+                Key::Char(c)
+                    if query.len() < 64 && (c.is_ascii_alphanumeric() || " /_+-".contains(c)) =>
+                {
+                    query.push(c);
+                    true
+                }
+                Key::Backspace => query.pop().is_some(),
+                _ => false,
+            };
+            if changed {
+                self.deck.shell.nav.select(1, entries(self).len());
+                return;
+            }
+        }
         if self.deck.shell.nav.current() == Route::WarmPreview
             && matches!(key, Key::Esc | Key::Left)
         {
@@ -438,6 +514,37 @@ impl App {
                     return;
                 };
                 match row.choice {
+                    Choice::TimezoneOpen if !self.deck.busy => {
+                        self.deck.shell.timezones = None;
+                        self.deck.shell.timezone_query.clear();
+                        self.deck.shell.timezone_choice = None;
+                        self.deck.shell.nav.open(Route::Timezones);
+                        self.deck.request(writingdeck_sys::Request::ListTimezones);
+                    }
+                    Choice::TimezoneChoose(zone) if !self.deck.busy => {
+                        self.deck.shell.timezone_choice = Some(zone);
+                        self.deck.shell.nav.open(Route::TimezoneConfirm);
+                        self.deck.shell.nav.select(0, 3);
+                    }
+                    Choice::TimezoneResolve(false) => {
+                        self.deck.shell.nav.back();
+                    }
+                    Choice::TimezoneResolve(true) if !self.deck.busy => {
+                        if let Some(zone) = self.deck.shell.timezone_choice.clone()
+                            && self
+                                .deck
+                                .shell
+                                .timezones
+                                .as_ref()
+                                .is_some_and(|zones| zones.contains(&zone))
+                        {
+                            self.deck
+                                .request(writingdeck_sys::Request::SetTimezone(zone));
+                        }
+                    }
+                    Choice::TimezoneOpen
+                    | Choice::TimezoneChoose(_)
+                    | Choice::TimezoneResolve(true) => {}
                     Choice::Open(route) => {
                         self.deck.shell.nav.open(route);
                         if route == Route::WarmScreen && !self.deck.busy {
@@ -545,6 +652,8 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
         Route::Panel(panel) => format!("WrOS · Settings › System › {}", panel.label()),
         Route::WarmScreen => "WrOS · Settings › Display › Warm screen".into(),
         Route::WarmPreview => "WrOS · Keep display preview?".into(),
+        Route::Timezones => "WrOS · Settings › Date and time › Timezone".into(),
+        Route::TimezoneConfirm => "WrOS · Change timezone?".into(),
     };
     if app
         .deck

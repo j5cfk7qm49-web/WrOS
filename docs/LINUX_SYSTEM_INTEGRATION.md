@@ -15,7 +15,8 @@
 | Restart / shutdown | `systemctl --no-ask-password ...` via maintained system authorization | Explicit confirmation plus no pending writes, stale tree or unresolved conflicts; controlled tests only; no physical power operation |
 | Keyboard | Exact polkit helper; fixed root-owned maps, independent timer | Rootless transaction tests + real VM console/polkit/timer tests |
 | Warm screen | Typed 1000–6500K/strength/Off controls; exact polkit manager, bounded non-setuid libdrm bridge and independent preview timer | [Calibration, failure/rollback tests and driver limits](WARM_SCREEN.md); unsupported outputs refused; physical/hotplug/suspend qualification open |
-| Timezone / disk free / OS | Local `/etc` reads, `statvfs`, Debian release identity | Read-only; setting timezone/clock remains planned |
+| Timezone | Native searchable catalog, Cancel-default confirmation and `timedatectl --no-ask-password` with authoritative readback | [Narrow timezone action](NATIVE_TIMEZONE.md); clock/RTC/NTP controls remain unavailable |
+| Disk free / OS | `statvfs`, Debian release identity | Read-only |
 | Sound, updates, restore, screen lock | Design only | No fake success or broad root helper |
 
 The first settings screen is a foundation, not all requested panels. New network credential entry, volume, account/first-run setup, updater/rollback and lock integration remain open gates.
@@ -45,7 +46,7 @@ The wrapper checks UID and refuses root. Production uses an actual PAM login; th
 
 - Wi-Fi enrollment: a password-safe TTY/D-Bus secret agent, never argv/logging; explicit scan/connect consent.
 - UPower/logind subscriptions if polling costs or multiple devices require them; cache status, no 4 Hz subprocess loop.
-- Timezone/volume: narrow maintained APIs with validation, explicit capability discovery and recovery.
+- Volume/manual clock/NTP: narrow maintained APIs with validation, explicit capability discovery and recovery.
 - Updates: upstream signed apt packages plus a chosen upstream snapshot/rollback facility; no blanket passwordless apt/shell policy.
 - Backup worker: separate opt-in queue, secure credentials, hashes and conflict states; no access through the keyboard helper.
 

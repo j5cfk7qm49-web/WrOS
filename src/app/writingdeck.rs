@@ -489,6 +489,31 @@ impl App {
                         self.deck.request(Request::DisplayStatus);
                     }
                 }
+                Ok(Reply::Timezones(zones)) => {
+                    self.deck.note = "Local timezone catalog loaded. Type to filter.".into();
+                    self.deck.shell.timezones = Some(zones);
+                }
+                Ok(Reply::Timezone(zone)) => {
+                    self.deck.note = format!(
+                        "Timezone verified: {zone}{}.",
+                        if self.deck.snapshot.as_ref().is_some_and(|s| s.simulated) {
+                            " (simulated)"
+                        } else {
+                            ""
+                        }
+                    );
+                    self.deck
+                        .snapshot
+                        .get_or_insert_with(Snapshot::default)
+                        .timezone = Some(zone);
+                    if matches!(self.overlay, Overlay::Deck(Page::Settings))
+                        && self.deck.shell.nav.current() == super::shell::Route::TimezoneConfirm
+                    {
+                        self.deck.shell.timezone_choice = None;
+                        self.deck.shell.nav.back();
+                        self.deck.shell.nav.back();
+                    }
+                }
                 Ok(Reply::DisplayStatus(status)) => {
                     self.deck.shell.warmth = status.warmth;
                     self.deck.note = status.message.clone();

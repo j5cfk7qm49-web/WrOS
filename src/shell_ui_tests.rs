@@ -187,6 +187,90 @@ fn wait_system(desk: &mut Desk) {
     assert!(!desk.app.deck.busy);
     desk.draw();
 }
+
+#[test]
+fn native_timezone_filter_cancel_confirmation_and_failure_keep_the_original_editor() {
+    use std::sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    };
+    use writingdeck_sys::{Backend, Reply, Request, Simulated};
+    struct TimeBackend {
+        calls: Arc<Mutex<Vec<Request>>>,
+        fail: Arc<AtomicBool>,
+        simulator: Simulated,
+    }
+    impl Backend for TimeBackend {
+        fn request(&mut self, request: Request) -> anyhow::Result<Reply> {
+            self.calls.lock().unwrap().push(request.clone());
+            if matches!(request, Request::SetTimezone(_)) && self.fail.load(Ordering::Relaxed) {
+                anyhow::bail!("timezone authorization unavailable");
+            }
+            self.simulator.request(request)
+        }
+    }
+    for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let mut desk = Desk::open(book(&format!("timezone-{width}"), true), width, height);
+        let calls = Arc::new(Mutex::new(vec![]));
+        let fail = Arc::new(AtomicBool::new(false));
+        desk.app.deck.use_test_backend(Box::new(TimeBackend {
+            calls: calls.clone(),
+            fail: fail.clone(),
+            simulator: Simulated::laptop(),
+        }));
+        desk.app.focus = Focus::Editor;
+        desk.typed("Original timezone context. ");
+        let original = desk.app.editor.text();
+        let position = desk.app.view_position(Pane::Primary);
+        system_panel(&mut desk, 4);
+        wait_system(&mut desk);
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::Timezones);
+        desk.typed("tokyo");
+        assert!(desk.shows("Asia/Tokyo"));
+        desk.key(KeyCode::Enter);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::TimezoneConfirm);
+        assert!(desk.shows("Cancel timezone change"));
+        desk.key(KeyCode::Enter); // Cancel is the default.
+        assert!(
+            !calls
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|r| matches!(r, Request::SetTimezone(_)))
+        );
+        desk.key(KeyCode::Enter);
+        desk.key(KeyCode::Down);
+        fail.store(true, Ordering::Relaxed);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert!(desk.shows("timezone authorization unavailable"));
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::TimezoneConfirm);
+        assert_eq!(
+            desk.app.deck.snapshot.as_ref().unwrap().timezone.as_deref(),
+            Some("America/Los_Angeles")
+        );
+        fail.store(false, Ordering::Relaxed);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert_eq!(
+            desk.app.deck.shell.nav.current(),
+            Route::Panel(crate::app::shell::Panel::DateTime)
+        );
+        assert_eq!(
+            desk.app.deck.snapshot.as_ref().unwrap().timezone.as_deref(),
+            Some("Asia/Tokyo")
+        );
+        assert_eq!(desk.app.editor.text(), original);
+        assert_eq!(desk.app.view_position(Pane::Primary), position);
+        close_settings(&mut desk);
+        desk.ctrl('z');
+        assert_ne!(desk.app.editor.text(), original);
+    }
+}
 fn open_warm(desk: &mut Desk) {
     system_panel(desk, 1);
     wait_system(desk);

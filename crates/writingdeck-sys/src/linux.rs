@@ -126,8 +126,10 @@ impl<R: Runner> Linux<R> {
             Ok(v) => s.network = Some(v),
             Err(e) => s.warnings.push(format!("NetworkManager: {e}")),
         }
-        if let Ok(v) = fs::read_to_string(self.etc.join("timezone")) {
-            s.timezone = Some(v.trim().into());
+        // timedated changes /etc/localtime; /etc/timezone can be stale.
+        match self.runner.run(&timezone_status()) {
+            Ok(zone) if crate::timezone::validate(&zone).is_ok() => s.timezone = Some(zone),
+            _ => s.warnings.push("Timezone service unavailable".into()),
         }
         if let Ok(v) = fs::read_to_string(self.etc.join("writingdeck/keyboard.json")) {
             s.keyboard = serde_json::from_str::<serde_json::Value>(&v)
@@ -181,6 +183,18 @@ impl<R: Runner> Linux<R> {
         s
     }
 }
+fn timezone_status() -> Invocation {
+    Invocation::new(
+        "/usr/bin/timedatectl",
+        &[
+            "--no-ask-password",
+            "--no-pager",
+            "--value",
+            "--property=Timezone",
+            "show",
+        ],
+    )
+}
 fn percentage(now: u64, full: u64) -> Option<u8> {
     (u128::from(now) * 100)
         .checked_div(u128::from(full))
@@ -212,6 +226,17 @@ fn available(_: &Path) -> Option<u64> {
 pub fn invocation(request: &Request) -> Result<Invocation> {
     Ok(match request {
         Request::Refresh => bail!("refresh is a composite read-only operation"),
+        Request::ListTimezones => Invocation::new(
+            "/usr/bin/timedatectl",
+            &["--no-ask-password", "--no-pager", "list-timezones"],
+        ),
+        Request::SetTimezone(zone) => {
+            crate::timezone::validate(zone)?;
+            Invocation::new(
+                "/usr/bin/timedatectl",
+                &["--no-ask-password", "--no-pager", "set-timezone", zone],
+            )
+        }
         Request::Wifi(on) => Invocation::new(
             "/usr/bin/nmcli",
             &["radio", "wifi", if *on { "on" } else { "off" }],
@@ -326,6 +351,19 @@ impl<R: Runner> Backend for Linux<R> {
             return Ok(Reply::Snapshot(self.snapshot()));
         }
         let output = self.runner.run(&invocation(&request)?)?;
+        if request == Request::ListTimezones {
+            return Ok(Reply::Timezones(crate::timezone::catalog(&output)?));
+        }
+        if let Request::SetTimezone(expected) = &request {
+            // A successful method call alone does not establish the current
+            // value; another session may have changed it concurrently.
+            let actual = self.runner.run(&timezone_status())?;
+            crate::timezone::validate(&actual)?;
+            if &actual != expected {
+                bail!("timezone change could not be verified; refresh current status");
+            }
+            return Ok(Reply::Timezone(actual));
+        }
         if matches!(request, Request::DisplayStatus) {
             let status: crate::display::Status =
                 serde_json::from_str(&output).context("invalid display status")?;
@@ -474,6 +512,68 @@ mod tests {
             crate::Simulated::laptop()
                 .request(Request::Power(PowerAction::Suspend))
                 .is_err()
+        );
+    }
+    #[test]
+    fn timezone_change_is_fixed_noninteractive_and_requires_matching_readback() {
+        use std::collections::VecDeque;
+        struct Replies(VecDeque<&'static str>, Vec<Invocation>);
+        impl Runner for Replies {
+            fn run(&mut self, invocation: &Invocation) -> Result<String> {
+                self.1.push(invocation.clone());
+                let output = self.0.pop_front().unwrap();
+                if output == "FAIL" {
+                    bail!("fixture service unavailable");
+                }
+                Ok(output.into())
+            }
+        }
+        for (outputs, accepted) in [
+            (vec!["", "Asia/Tokyo"], true),
+            (vec!["", "UTC"], false),
+            (vec!["", "bad output"], false),
+            (vec!["", "FAIL"], false),
+            (vec!["FAIL"], false),
+        ] {
+            let mut backend = Linux {
+                runner: Replies(outputs.into(), vec![]),
+                sys: "/missing".into(),
+                etc: "/missing".into(),
+                storage: "/missing".into(),
+            };
+            let result = backend.request(Request::SetTimezone("Asia/Tokyo".into()));
+            assert_eq!(result.is_ok(), accepted);
+            if accepted {
+                assert_eq!(result.unwrap(), Reply::Timezone("Asia/Tokyo".into()));
+            }
+            assert_eq!(
+                backend.runner.1[0],
+                Invocation::new(
+                    "/usr/bin/timedatectl",
+                    &[
+                        "--no-ask-password",
+                        "--no-pager",
+                        "set-timezone",
+                        "Asia/Tokyo"
+                    ]
+                )
+            );
+        }
+        let mut backend = Linux {
+            runner: Fake::default(),
+            sys: "/missing".into(),
+            etc: "/missing".into(),
+            storage: "/missing".into(),
+        };
+        assert!(
+            backend
+                .request(Request::SetTimezone("--host=other".into()))
+                .is_err()
+        );
+        assert!(backend.runner.0.is_empty());
+        assert!(
+            backend.request(Request::ListTimezones).is_err(),
+            "invalid service output must not become a catalog"
         );
     }
     #[test]

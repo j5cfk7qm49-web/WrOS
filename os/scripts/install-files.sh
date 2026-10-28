@@ -47,6 +47,7 @@ fi
 install -m 644 "$repo/os/config/50-writingdeck-keyboard.rules" "$dest/etc/polkit-1/rules.d/"
 install -m 644 "$repo/os/config/org.writingdeck.keyboard.policy" "$dest/usr/share/polkit-1/actions/"
 install -m 644 "$repo/os/config/50-wros-display.rules" "$dest/etc/polkit-1/rules.d/"
+install -m 644 "$repo/os/config/50-wros-timezone.rules" "$dest/etc/polkit-1/rules.d/"
 install -m 644 "$repo/os/config/org.wros.display.policy" "$dest/usr/share/polkit-1/actions/"
 install -m 644 "$repo/os/systemd/"* "$dest/etc/systemd/system/"
 "$repo/os/scripts/generate-keymaps.sh" "$dest/usr/share/writingdeck/keymaps"

@@ -55,6 +55,14 @@ Keyboard shortcuts adds aliases to actions using Ctrl+Alt letters or F10-F12. Es
 
 Low-power mode reduces redraws and disables the visualizer; requesting an OS power profile can fail independently. Start-at-dashboard is optional; disable it to restore the selected workspace directly.
 
+In Settings → System → Date and time, Choose timezone loads the installed local
+timezone list. Type a city or region, select a result and press Enter. Try Enter
+on the default Cancel choice first. To change the timezone, reopen the result,
+select Use and confirm. WrOS reads the time service back before reporting success.
+An unavailable or denied service leaves writing available and keeps the choice
+for retry. Changing timezone affects future local dates; historical records
+keep their recorded dates. Manual clock and network-time controls remain unavailable.
+
 ## Interactive tutorial
 
 Interactive tutorial lists all 39 required lessons. Planned lessons are explicitly unavailable. Press `d` for a new safe demonstration project: your novel saves first and is not overwritten. Enter opens a lesson, then launches the actual feature. Progress is verified by application events; a Next button cannot fake completion. Writing exercises only complete in the demo project. `s` skips a lesson; any implemented lesson can be replayed. Help is searchable offline with F1.
