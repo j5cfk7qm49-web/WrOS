@@ -623,7 +623,7 @@
       "area": "OS",
       "capability": "Manual protected local-console lock",
       "status": "Tested",
-      "verification": "Eleven focused gates, seven privilege/command/role tests, staged-image mutations, four-size controller/editor PTY and real five-cycle guest passed 239.11 seconds; final Debian CI pending",
+      "verification": "Debian CI: 964 Rust/configuration, 120 Python/zero skips, both Clippys and 17 gates; eleven focused gates and real five-cycle guest passed 239.11 seconds",
       "hardware_verified": false,
       "detail": "Maintained vlock/PAM and systemd cgroup lifecycle; hidden credentials, fresh reader, original caret and editor/locker/client/worker death recovery tested; physical security and suspend/resume remain unqualified"
     },

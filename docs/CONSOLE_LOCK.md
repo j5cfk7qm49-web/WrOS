@@ -1,7 +1,7 @@
 # Manual console locking
 
-Focused software and the full isolated-guest sequence passed; final Debian CI
-is pending. Physical security and sleep/resume remain unqualified. Suspend,
+Focused software, the full isolated-guest sequence and [Debian CI](evidence/console-lock-ci.json)
+passed: 964 Rust/configuration, 120 Python/zero skips, both Clippys and 17 gates. Physical security and sleep/resume remain unqualified. Suspend,
 automatic idle/lid sleep and all five sleep targets remain disabled.
 
 ## Maintained authentication and console ownership

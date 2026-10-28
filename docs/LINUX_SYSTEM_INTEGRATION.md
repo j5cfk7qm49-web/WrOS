@@ -17,7 +17,7 @@
 | Warm screen | Typed 1000–6500K/strength/Off controls; exact polkit manager, bounded non-setuid libdrm bridge and independent preview timer | [Calibration, failure/rollback tests and driver limits](WARM_SCREEN.md); unsupported outputs refused; physical/hotplug/suspend qualification open |
 | Timezone | Native searchable catalog, Cancel-default confirmation and `timedatectl --no-ask-password` with authoritative readback | [Narrow timezone action](NATIVE_TIMEZONE.md); clock/RTC/NTP controls remain unavailable |
 | Disk free / OS | `statvfs`, Debian release identity | Read-only |
-| Manual console lock | Fixed openvt/vlock-main/PAM handoff, systemd lifecycle, input retirement and reserved root tty8 | [Focused software and five-cycle guest passed](CONSOLE_LOCK.md); CI pending and sleep remains disabled |
+| Manual console lock | Fixed openvt/vlock-main/PAM handoff, systemd lifecycle, input retirement and reserved root tty8 | [Focused software and five-cycle guest passed](CONSOLE_LOCK.md); Debian CI passed; sleep remains disabled |
 | Sound, updates, restore | Design only | No fake success or broad root helper |
 
 New network credential entry, volume, account/first-run setup and updater/rollback remain open gates. Manual locking has separate software/guest qualification; physical security and sleep/resume remain open.

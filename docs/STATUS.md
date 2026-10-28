@@ -1,6 +1,6 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
-## Manual console locker — focused software and guest passed; Debian CI pending
+## Manual console locker — software, guest and Debian CI passed
 
 `codex/console-lock` integrates Debian openvt/vlock/PAM on reserved root tty8.
 The editor saves both buffers, retires its reader, clears tty1 and waits without
@@ -25,7 +25,10 @@ Source `73720477d334e13ca767304aa5384ecfe0b1f102c72d4dc82782d4f5eab19843`
 [eleven original failed attempts](evidence/console-lock-attempts.json) remain
 failed, including fixture-control problems and the real session-lifecycle
 defect. Maintained systemd lifecycle handling replaces the larger unqualified
-request/path-service prototype. Full Debian CI is pending. Physical security and
+request/path-service prototype. [Debian CI 40641387973](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40641387973) passed
+[964 Rust/configuration, 120 Python/zero skips, both Clippys and 17 gates](evidence/console-lock-ci.json).
+Its source matches the focused/guest record; [provenance](evidence/console-lock-ci-provenance.json)
+records implementation `3c8612b` and tested merge `a24860420d193c0d0389aa68a324b62c4304a237`. Physical security and
 lock-before-suspend/resume remain unqualified; sleep stays disabled. The
 delivered native ISO below predates manual locking and timezone selection.
 

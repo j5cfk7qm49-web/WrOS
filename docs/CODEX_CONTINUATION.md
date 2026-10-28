@@ -22,6 +22,10 @@ frontends for maintained headless services rather than adding a desktop.
 The desired installation workflow is a live WrOS image with its own installer
 TUI backed by Debian's existing installation components and supported frontend
 interfaces. Retain standard text recovery and verify live/installer kernel matching.
+All native surfaces, including the live installer, must have Grimoire's same
+look and feel through shared UI/theme/interaction code. FOSS components supply
+the backend behind that coherent interface; do not assemble unrelated frontends
+as the ordinary WrOS experience.
 
 Latest development checkpoint: `codex/console-lock` builds on the integrated
 native installer (#40) and qualified timezone controls (#41). Manual vlock/PAM

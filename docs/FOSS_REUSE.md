@@ -20,6 +20,14 @@ are compatible with this policy. Do not add a graphical desktop or launch GUI
 frontends as the ordinary workflow. Keep optional provider-browser requirements
 explicit when a service cannot authorize entirely through a text interface.
 
+**One Grimoire interface:** the live installer and every native WrOS surface
+must share Grimoire's themes, widgets, layout/spacing, focus and selection,
+navigation, shortcuts and help/status patterns. Reuse the existing UI/design
+code. Backend adoption must appear through that common interface. Installation,
+updates, recovery, backup and account management are parts of the same product;
+upstream frontends are not the ordinary user-facing workflow. Keep advanced
+emergency maintenance explicit and separate from normal product navigation.
+
 The desired installer is a **live WrOS session with its own installer TUI over
 Debian's installation backend**. Reuse supported preseeding/debconf interfaces
 and the maintained live-installer environment; keep disk/encryption/account and
