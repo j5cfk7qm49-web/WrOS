@@ -638,8 +638,8 @@
     {
       "area": "System",
       "capability": "Terminal multi-read input and preserved reader ownership",
-      "status": "In progress",
-      "verification": "Full local 972 Rust/configuration, 124 Python/zero skips, both Clippys and 21 gates; four-size long-secret/typeahead PTYs, real Debian 13/14 cases and protected-lock guest passed 228.09 seconds; new Debian CI pending",
+      "status": "Tested",
+      "verification": "Debian CI: 972 Rust/configuration, 124 Python/zero skips, both Clippys and 20 gates; full local 21 gates; four-size long-secret/typeahead PTYs, real Debian 13/14 cases and protected-lock guest passed 228.09 seconds",
       "detail": "Locked Crossterm parser/API retained with exact upstream MIT source, 77-file audit and explicit Linux readiness patch; flags, fresh readers and process-death recovery preserved; no clipboard, suspend or physical claim"
     }
   ]

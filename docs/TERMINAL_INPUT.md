@@ -23,7 +23,12 @@ that failure remains separate. The corrected private probe accepted the same
 with unchanged base image/source, exact new binaries, real PAM/lock/reader
 handoffs and process-death recovery. [Source and artifact provenance](evidence/terminal-input-local-provenance.json)
 and [original exploratory failures](evidence/terminal-input-observations.json)
-are separate. Debian CI is pending; neither scope certifies a live installation.
+are separate.
+[Debian CI 40687062920](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40687062920)
+passed 972 Rust/configuration, 124 Python/zero skips, both Clippys and 20 gates.
+Its [verified provenance](evidence/terminal-input-ci-provenance.json) matches the
+local, guest and actual-image backend source. These scopes do not certify a
+complete live installation.
 
 Regression coverage exercises ASCII and Unicode across read boundaries,
 unchanged descriptor flags, reader retirement/backpressure and fresh parsers,

@@ -1,6 +1,6 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
-## Terminal input readiness — full local software and guest passed
+## Terminal input readiness — local software, guest and Debian CI passed
 
 `codex/terminal-readiness` retains the locked Crossterm parser/API with an
 explicit Linux readiness patch. The earlier 3000-byte raw burst stalled after
@@ -24,8 +24,12 @@ credential hiding, original editor context, fresh readers and editor/locker/
 client/worker-death recovery. The base image and source stayed unchanged.
 [Provenance](evidence/terminal-input-local-provenance.json) binds source
 `4dfdd630...e167c` / 413 files, actual binaries, source/patch audit and captures.
-New 20-gate Debian CI is pending; the extra local gate audits the existing
-staged Wi-Fi image. Read the [input boundaries](TERMINAL_INPUT.md).
+[Debian CI 40687062920](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40687062920)
+passed [972 Rust/configuration, 124 Python/zero skips, both Clippys and 20 gates](evidence/terminal-input-ci.json).
+Its [artifact provenance](evidence/terminal-input-ci-provenance.json) matches the
+local/guest/image source; tested merge is `8a5119cfb73c3fe30ba109adf0b12d442764c961`.
+The extra local gate audits the existing staged Wi-Fi image. Read the
+[input boundaries](TERMINAL_INPUT.md).
 
 This does not deliver a new live ISO, native lock presentation, privileged live
 launcher, LUKS installation, suspend/resume or physical qualification.
