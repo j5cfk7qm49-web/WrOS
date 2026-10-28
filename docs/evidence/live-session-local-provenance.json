@@ -40,5 +40,9 @@
     "docs/evidence/live-session-attempts.json": "0f2c90f4185a91da029b7423084565b2425e8c6639cb1266e249305600d15127",
     "docs/evidence/live-session-captures.json": "ed2588d866209671bd5830b764d4083748266d60e96333c8d34f4bf897a890c2"
   },
-  "debian_ci": "Publication authorization pending; no current CI result claimed"
+  "debian_ci": {
+    "passed": true,
+    "run_id": 40716348352,
+    "provenance": "docs/evidence/live-session-ci-provenance.json"
+  }
 }

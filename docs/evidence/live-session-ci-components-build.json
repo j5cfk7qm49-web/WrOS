@@ -1,0 +1,16 @@
+{
+  "upstream": "Debian cdebconf",
+  "version": "0.280",
+  "architecture": "amd64",
+  "source_descriptor_sha256": "36cdaa45fca445d2164fbdd81faad9918d748fa703678d8af237354d5744b1d1",
+  "source_archive_sha256": "c42115131939845e452a323ceded937efad3b2e3e1b80a1a186f9d5c494a43a2",
+  "patch_sha256": "a3e773ee640e31323040a92d5955efc5b197ab3cd07b324d7e74a6dfb15a6c2a",
+  "module_sha256": "be37dee7f39730b6369b54f72ac83a1ff27f9d59bcea10fed9fd11a0ea2adf18",
+  "compiler": "cc (Debian 14.2.0-19) 14.2.0",
+  "cflags": "-O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2",
+  "ldflags": "-Wl,-z,relro,-z,now",
+  "private_test_runtime": true,
+  "frontend_debug_formats_absent": true,
+  "scope": "Frontend protocol and response handling only; no changes to partitioning, encryption, account or installation engines.",
+  "source_trust": "Pinned hashes of archives retrieved through authenticated Debian APT indexes; no independent maintainer-signature claim."
+}

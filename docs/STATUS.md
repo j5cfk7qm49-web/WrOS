@@ -1,6 +1,6 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
-## Live Grimoire session — local image, software and guest checks passed
+## Live Grimoire session — image, local software, guest and Debian CI passed
 
 `codex/live-session` delivers a new development live ISO with the actual
 Grimoire home and shared Settings surfaces. Maintained Debian live-config and
@@ -38,11 +38,16 @@ Actual [home](evidence/live-session-auto-live-home.png),
 [live power](evidence/live-session-unmarked-live-power.png) captures are retained.
 Read the [profile and limits](LIVE_SESSION.md).
 
-Publication authorization is pending, so no current Debian CI or new pull
-request is claimed. The privileged native installer, complete matching offline
-backend integration, fresh target install/LUKS/reboot, UEFI/Secure Boot, sleep,
-and physical hardware qualification remain open. This increment qualifies live
-startup and its shared interface, not the completed OS.
+[Debian CI 40716348352](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40716348352)
+passed [973 Rust/configuration, 135 Python/zero skips, both Clippys and 20 gates](evidence/live-session-ci.json).
+The [verified artifact receipt](evidence/live-session-ci-provenance.json) matches
+local and guest qualification source; tested merge is `f6e87cbdf47d3ef757654290e0412db01e119e1a`.
+The extra local gate audits the existing staged Wi-Fi image.
+[Draft PR 47](https://github.com/j5cfk7qm49-web/WrOS/pull/47) retains this increment.
+The privileged native installer, complete matching offline backend integration,
+fresh target install/LUKS/reboot, UEFI/Secure Boot, sleep and physical hardware
+qualification remain open. This increment qualifies live startup and its shared
+interface, not the completed OS.
 
 ## Terminal input readiness — local software, guest and Debian CI passed
 

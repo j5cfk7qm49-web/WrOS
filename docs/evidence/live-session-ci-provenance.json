@@ -1,0 +1,29 @@
+{
+  "recorded_at_utc": "2026-10-28T15:49:03.683577+00:00",
+  "implementation_commit": "33f7acfc1c67942b0e1ace2c340c949c9d18669f",
+  "published_head": "e410c714974e195b1d3ef821227883b299725906",
+  "tested_merge": "f6e87cbdf47d3ef757654290e0412db01e119e1a",
+  "run_id": 40716348352,
+  "run_url": "https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40716348352",
+  "job": "linux",
+  "job_id": 122914985090,
+  "artifact_id": 12828687364,
+  "artifact_zip_sha256": "fa0c1d174cf7ec87426af68ae9768c1fbf169d96ad0dacb31ea0685f34511965",
+  "report_sha256": "223cff81104d87553ec53b5a7550aae3592d9b989b74037a1d46af4a8d6783b9",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "253d7f0ac28300ee67d4e6682a578c161923d004f2b495744f14ceeb6b493575",
+    "file_count": 420,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "image_build_source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "67844e12f260a5583d9de4305caeee5f98ed75fb59ae7b3e33b2aa5c0d7518a1",
+    "file_count": 420,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "runtime_source_unchanged_since_image_build": true,
+  "local_guests_and_ci_qualification_source_match": true,
+  "passed": true,
+  "scope": "Debian software/component CI only; actual ISO payload, three live boot/UI/shutdown modes and installed-lock regression have separate matching local evidence. No privileged native installation, target install/reboot, firmware or hardware qualification."
+}

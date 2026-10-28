@@ -646,7 +646,7 @@
       "area": "OS",
       "capability": "Grimoire live-session startup and immutable installed authentication",
       "status": "Tested",
-      "verification": "Final local: 973 Rust/configuration, 135 Python/zero skips, both Clippys and 21 gates; actual compressed ISO audit, three diskless live boot/UI/shutdown modes and installed-lock regression (347.59 seconds) passed",
+      "verification": "Debian CI: 973 Rust/configuration, 135 Python/zero skips, both Clippys and 20 gates; full local 21 gates; compressed ISO audit, three diskless live boot/UI/shutdown modes and installed-lock guest (347.59 seconds) passed",
       "hardware_verified": false,
       "detail": "Maintained live-config/user-setup with temporary runtime greetd entry; all live boot entries and omitted-flag role guard verified; public personal lock unavailable. Native privileged installer, new target install/reboot, UEFI and physical gates remain open"
     }
