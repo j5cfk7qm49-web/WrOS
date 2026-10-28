@@ -57,7 +57,7 @@ required={'manual':['Local account','WrOS'],'password':['Password:'],
           'authenticated':['Open writing session','Authenticated.'],
           'home':['WrOS','Live session','Resume writing'],
           'settings':['Interface','Accounts','System'],
-          'system':['Wi-Fi and networking','Power','Date and time'],
+          'system':['Wi-Fi and networking','Battery and power','Date and time'],
           'power':['Live session','personal lock unavailable']}.get(phase,[])
 deadline=time.monotonic()+30
 while True:
@@ -171,9 +171,17 @@ def main():
 
                 def probe(phase):
                     nonce = 'WROS_LIVE_'+secrets.token_hex(12)+'='
-                    invocation = 'sudo -n /usr/bin/python3 -I /tmp/wros-live-fixture.py '+phase+' '+nonce+'\n'
+                    status = nonce[:-1]+'_STATUS='
+                    start = len(content)
+                    invocation = ('sudo -n /usr/bin/python3 -I /tmp/wros-live-fixture.py '+phase+' '+nonce
+                                  + '; printf "\\n'+status+'%s\\n" "$?"\n')
                     connection.sendall(invocation.encode())
-                    match = expect(rb'(?:^|[\r\n])'+nonce.encode()+rb'([^\r\n]+)[\r\n]', 45)
+                    completed = expect(rb'(?:^|[\r\n])'+status.encode()+rb'([0-9]+)[\r\n]', 75)
+                    if completed.group(1) != b'0':
+                        raise RuntimeError('Live native probe failed: '+phase)
+                    match = re.search(rb'(?:^|[\r\n])'+nonce.encode()+rb'([^\r\n]+)[\r\n]', content[start:cursor])
+                    if match is None:
+                        raise RuntimeError('Live native probe response missing: '+phase)
                     reply = json.loads(match.group(1)); result['phases'].append(reply)
                     # sudo restores terminal state on exit. Wait for the shell
                     # to own input again before another command can be flushed.
@@ -207,7 +215,19 @@ def main():
                 probe('power')
                 qmp(control, 'screendump', {'filename':str(run/'live-power.ppm')})
                 connection.sendall(b'sudo -n /sbin/poweroff\n')
-                process.wait(timeout=60)
+                # Keep draining the serial console during shutdown. A full
+                # socket can otherwise stall QEMU while the guest logs exit.
+                deadline = time.monotonic()+60
+                while process.poll() is None and time.monotonic()<deadline:
+                    try:
+                        chunk = connection.recv(65536)
+                    except socket.timeout:
+                        continue
+                    if chunk:
+                        content.extend(chunk); capture.write(chunk); capture.flush()
+                    else:
+                        time.sleep(0.05)
+                process.wait(timeout=1)
                 result['passed'] = process.returncode == 0
         except Exception as error:
             result['error'] = type(error).__name__+': '+str(error)
