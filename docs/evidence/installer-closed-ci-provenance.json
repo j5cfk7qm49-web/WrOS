@@ -1,0 +1,22 @@
+{
+  "recorded_at_utc": "2026-10-28T10:12:50.906570+00:00",
+  "implementation_commit": "938ddfd9d4b6e7e167924d6069b4f788aea87513",
+  "ci_head_commit": "209d7ca35d95b07e2d9fd498b55fdece7697267d",
+  "tested_merge": "a1980a13d2bd3f4e05d20915f1ea222c1438c43e",
+  "run_id": 40668541104,
+  "run_url": "https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40668541104",
+  "job": "linux",
+  "job_id": 122749176972,
+  "artifact_id": 12807108466,
+  "artifact_zip_sha256": "8407121cd3551162152af453ff647c6fe643dbd501aa5008469428639caf2128",
+  "report_sha256": "b715fc98b99361ade9b78cdc226451ea84efb26cb03be046d49d4387ef6eba86",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "2f2c9211868b49ec1d7adb322d2a4f5845f7ceebe4d344739285d3a979d15fc3",
+    "file_count": 331,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "local_component_ci_source_match": true,
+  "passed": true,
+  "scope": "Debian software and real non-root component CI; no root launch, live installation, new ISO or hardware qualification."
+}

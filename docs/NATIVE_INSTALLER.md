@@ -63,6 +63,12 @@ retained separately. [Debian CI](evidence/native-installer-ci.json) passed
 [provenance](evidence/native-installer-ci-provenance.json) matches the focused and
 real-backend source. None of this is a live-image installation claim.
 
+The later [failure-boundary increment](INSTALLER_BACKEND.md) passed a full
+20-gate local run and [19-gate Debian CI](evidence/installer-closed-ci.json), with
+972 Rust/configuration, 123 Python/zero skips, both Clippys, 12 native backend
+checks and 14 protocol cases. It rejects transport failures before confirmation
+can reach the configuration script and fixes backend-cleared answer reuse.
+
 The [password form](evidence/native-installer-password.png) and
 [progress form](evidence/native-installer-progress.png) are painted from actual
 synthetic renderer cells using Grimoire's existing cell painter. Their

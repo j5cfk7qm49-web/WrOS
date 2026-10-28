@@ -1,6 +1,6 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
-## Installer transport failure handling — full local software passed
+## Installer transport failure handling — local software and Debian CI passed
 
 `codex/installer-fail-closed` makes the maintained Debian cdebconf passthrough
 abort on a lost, truncated or invalid frontend response. Actual tests reproduced
@@ -18,8 +18,13 @@ normal user with private RAM fixtures. The separate
 also passed the native checks. [Provenance](evidence/installer-closed-local-provenance.json)
 binds source `2f2c9211...15fc3` / 331 files, the built module and retained text
 captures. The [original full-run observer failure](evidence/installer-closed-attempts.json)
-is preserved separately. Debian CI now requires both component gates; its new
-19-gate result is pending. The extra local gate audits the existing staged Wi-Fi image.
+is preserved separately.
+[Debian CI 40668541104](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40668541104)
+passed [972 Rust/configuration, 123 Python/zero skips, both Clippys and 19 gates](evidence/installer-closed-ci.json),
+including both actual Debian component gates. [CI provenance](evidence/installer-closed-ci-provenance.json)
+matches the local source and records tested merge `a1980a13d2bd3f4e05d20915f1ea222c1438c43e`.
+The [original APT provisioning failure](evidence/installer-closed-ci-attempts.json)
+remains failed. The extra local gate audits the existing staged Wi-Fi image.
 
 Read the [backend boundary](INSTALLER_BACKEND.md). Root launch supervision, live
 media staging and fresh install/reboot qualification remain open. No new ISO or

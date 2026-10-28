@@ -65,3 +65,11 @@ check. The [old module baseline](evidence/installer-faults-baseline.json) and
 [first full-run process-observer failure](evidence/installer-closed-attempts.json)
 remain failed. No large unpaced keyboard-paste or live-install coverage is
 inferred from the long prefilled-password check.
+
+[Debian CI 40668541104](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40668541104)
+also passed 972 Rust/configuration, 123 Python/zero skips, both Clippys and all 19
+software gates, including the actual source-built backend and both fixture sets.
+Its [source and artifact provenance](evidence/installer-closed-ci-provenance.json)
+matches the local source and exact module. The
+[first CI provisioning failure](evidence/installer-closed-ci-attempts.json)
+remains failed; no tests ran in that attempt.
