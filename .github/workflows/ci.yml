@@ -23,7 +23,7 @@ jobs:
     steps:
       - name: Debian prerequisites
         run: |
-          printf 'deb-src [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] http://deb.debian.org/debian trixie main\n' > /etc/apt/sources.list.d/wros-build-sources.list
+          sed 's/^Types:.*/Types: deb-src/' /etc/apt/sources.list.d/debian.sources > /etc/apt/sources.list.d/wros-build-sources.sources
           apt-get update
           apt-get install -y --no-install-recommends build-essential pkg-config libasound2-dev libssl-dev libdrm-dev python3 python3-venv wordnet-base ca-certificates curl git shellcheck gpgv debian-archive-keyring autoconf automake libtool dpkg-dev patch libdebian-installer4-dev debconf
           useradd -m -s /bin/bash builder
