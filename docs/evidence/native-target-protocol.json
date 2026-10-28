@@ -1,0 +1,26 @@
+{
+  "scope": "Measured passive native protocol only; this is not whole-installer timing. The first wait-on-channel attempt broke four long raw-input subcases and was corrected before qualification.",
+  "baseline": {
+    "scope": "500 sequential passive native transport roundtrips in a fresh real non-root PTY; no disk backend, credentials or keyboard input",
+    "label": "baseline",
+    "roundtrips": 500,
+    "seconds": 7.8773,
+    "binary_sha256": "1aa119183c47bac156746afac4b65ec453dc9bfd8bc07b83fc0cca750cf62bcb"
+  },
+  "first_channel_wait": {
+    "scope": "500 sequential passive native transport roundtrips in a fresh real non-root PTY; no disk backend, credentials or keyboard input",
+    "label": "fixed",
+    "roundtrips": 500,
+    "seconds": 0.3631,
+    "binary_sha256": "37f51e66daaa645ecdaf7b853742cd1ef83e2934647d5541b7222df0f43aff56",
+    "accepted": false,
+    "long_raw_input_subcases_failed": 4
+  },
+  "corrected": {
+    "scope": "500 sequential passive native transport roundtrips in a fresh real non-root PTY; no disk backend, credentials or keyboard input",
+    "label": "fixed",
+    "roundtrips": 500,
+    "seconds": 0.3667,
+    "binary_sha256": "f7b391c6d717b54becb3297ef254cfd9c445b0cee8ef7bde8ef6cf2cff8eb93c"
+  }
+}

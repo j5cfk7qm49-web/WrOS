@@ -143,7 +143,17 @@ mod linux {
             if stop.load(Ordering::Relaxed) {
                 return Err("Installer interrupted");
             }
-            match receive.try_recv() {
+            // Wait on the backend channel only when keyboard input is idle.
+            // Both protocol bursts and buffered key bursts must run without
+            // a fixed delay on each message or character.
+            let keyboard_pending =
+                event::poll(Duration::ZERO).map_err(|_| "Installer input poll failed")?;
+            let wait = if keyboard_pending {
+                Duration::ZERO
+            } else {
+                Duration::from_millis(15)
+            };
+            match receive.recv_timeout(wait) {
                 Ok(result) => {
                     dirty = true;
                     let line = result?.ok_or("Installer backend disconnected")?;
@@ -161,8 +171,10 @@ mod linux {
                         }
                     }
                 }
-                Err(mpsc::TryRecvError::Disconnected) => return Err("Installer reader stopped"),
-                Err(mpsc::TryRecvError::Empty) => {}
+                Err(mpsc::RecvTimeoutError::Disconnected) => {
+                    return Err("Installer reader stopped");
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => {}
             }
             if dirty {
                 terminal
@@ -170,7 +182,7 @@ mod linux {
                     .map_err(|_| "Installer rendering failed")?;
                 dirty = false;
             }
-            if !event::poll(Duration::from_millis(15)).map_err(|_| "Installer input poll failed")? {
+            if !event::poll(Duration::ZERO).map_err(|_| "Installer input poll failed")? {
                 continue;
             }
             let key = match event::read().map_err(|_| "Installer input failed")? {

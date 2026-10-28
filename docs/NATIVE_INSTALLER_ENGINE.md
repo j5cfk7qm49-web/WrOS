@@ -1,5 +1,9 @@
 # Native installer backend integration
 
+The later [fresh-target review](NATIVE_INSTALLER_TARGET.md) qualifies the native
+No/refusal path against a newly generated disk. Full encrypted installation,
+interruption cleanup and production image integration remain open.
+
 This increment assembles an authenticated offline package pool and stages it
 with the matching installer initrd as regular files. It does not grant a root
 launcher or certify installation from the live desk. The delivered live image

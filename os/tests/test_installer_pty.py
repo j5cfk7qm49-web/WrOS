@@ -47,6 +47,41 @@ class InstallerTerminal(TerminalProcess):
 @unittest.skipUnless(BINARY.is_file(),'build the native installer first')
 @unittest.skipIf(os.geteuid()==0,'native frontend must be unprivileged')
 class InstallerPTY(unittest.TestCase):
+    def test_passive_protocol_roundtrips_do_not_wait_for_a_keyboard_poll(self):
+        with tempfile.TemporaryDirectory(prefix='wros-installer-protocol-') as directory:
+            terminal=InstallerTerminal(Path(directory),80,24)
+            try:
+                started=time.monotonic()
+                for _ in range(500):
+                    terminal.peer.sendall(b'CAPB backup\n')
+                    received=bytearray(); deadline=time.monotonic()+8
+                    while b'\n' not in received:
+                        self.assertLess(time.monotonic(),deadline,'Native protocol stalled')
+                        ready,_,_=select.select([terminal.peer,terminal.master],[],[],.5)
+                        if terminal.master in ready:
+                            block=os.read(terminal.master,65536)
+                            terminal.screen.feed(block)
+                            terminal.output=(terminal.output+block)[-262144:]
+                        if terminal.peer in ready:
+                            block=terminal.peer.recv(1024)
+                            self.assertTrue(block,'Native protocol disconnected')
+                            received.extend(block)
+                    self.assertEqual(received,b'0 backup\n')
+                # Former unconditional 15 ms keyboard waits took about 7.9 s.
+                # Leave scheduler margin while rejecting that per-message delay.
+                self.assertLess(time.monotonic()-started,3.5)
+                for line in ['DATA fixture/after-passive type boolean',
+                             'DATA fixture/after-passive description Review after passive messages',
+                             'SET fixture/after-passive true','INPUT critical fixture/after-passive']:
+                    terminal.command(line)
+                terminal.command('GO',None)
+                terminal.screen_shows('Review after passive messages')
+                terminal.screen_shows('▸ No')
+                terminal.send(b'\r'); terminal.expect(b'0\n')
+                terminal.command('GET fixture/after-passive',b'0 false\n')
+            finally:
+                terminal.close()
+
     def test_installer_uses_the_existing_saved_grimoire_custom_palette(self):
         with tempfile.TemporaryDirectory(prefix='wros-installer-theme-') as directory:
             home=Path(directory)

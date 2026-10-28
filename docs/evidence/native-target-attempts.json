@@ -1,0 +1,105 @@
+{
+  "scope": "Original failed guarded target observations; no failed attempt is relabelled passed. Target hashes and input identities retain their own source checkpoints.",
+  "observations": [
+    {
+      "passed": false,
+      "source_fingerprint": {
+        "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+        "sha256": "9a6ab9b56a38b44c69cb9a4473efd806f45aaa7b2317ca9acc1af90630c01029",
+        "file_count": 427,
+        "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+      },
+      "seconds": 353.89,
+      "error": "RuntimeError: Guest fixture command failed",
+      "source_unchanged": true,
+      "iso_unchanged": true,
+      "capsule_unchanged": true,
+      "target_unchanged": true,
+      "artifact": "native-37iowvdl",
+      "phases_observed": [
+        "language",
+        "location"
+      ],
+      "report_sha256": "f2340cf1ba7517e107f4893be06ef8d8fb2107504cb8eeea2b1de03961c4d7e6"
+    },
+    {
+      "passed": false,
+      "source_fingerprint": {
+        "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+        "sha256": "fb2d58ca6333cd1335adca155264c3e0b1b6497f15c082b03c5946dccfba9739",
+        "file_count": 427,
+        "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+      },
+      "seconds": 136.88,
+      "error": "RuntimeError: Guest fixture command failed",
+      "source_unchanged": true,
+      "iso_unchanged": true,
+      "capsule_unchanged": true,
+      "target_unchanged": true,
+      "artifact": "native-gzmxg960",
+      "phases_observed": [],
+      "report_sha256": "f394ccc35d775186cfcc677ff1bf40dde317029b3783994a1e9a91ba0efed31b"
+    },
+    {
+      "passed": false,
+      "source_fingerprint": {
+        "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+        "sha256": "78a62ced404c68ac2e6de18facd543a9f709a15392869af564fc53fc3ecd4cbb",
+        "file_count": 427,
+        "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+      },
+      "seconds": 342.82,
+      "error": "RuntimeError: Guest fixture command failed",
+      "source_unchanged": true,
+      "iso_unchanged": true,
+      "capsule_unchanged": true,
+      "target_unchanged": true,
+      "artifact": "native-xbae4ueq",
+      "phases_observed": [
+        "language",
+        "location"
+      ],
+      "report_sha256": "ec941aae4887ed446247c7fcc3808a314d58e89e30668b01ed171baf20ba2a6d"
+    },
+    {
+      "passed": false,
+      "source_fingerprint": {
+        "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+        "sha256": "382559ed7809a3c1243d6c6baa95c19138e314e2a20439ee13cf7e3151a0ad83",
+        "file_count": 427,
+        "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+      },
+      "seconds": 372.53,
+      "error": "RuntimeError: Unrecognized pre-confirmation form; no answer sent",
+      "source_unchanged": true,
+      "iso_unchanged": true,
+      "capsule_unchanged": true,
+      "target_unchanged": true,
+      "artifact": "native-zuqhuxen",
+      "phases_observed": [
+        "language",
+        "location",
+        "review-0"
+      ],
+      "report_sha256": "4656553ff01cb2083c73208c6e05f170c888c7faa6a0093894ba1fd669c73e20"
+    },
+    {
+      "passed": false,
+      "source_fingerprint": {
+        "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+        "sha256": "080f1ea0f744d152229a0ff371b75a41b1028e47e70e8650dbddcf87925dd92e",
+        "file_count": 427,
+        "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+      },
+      "seconds": 121.6,
+      "error": "RuntimeError: Guest fixture command failed",
+      "source_unchanged": true,
+      "iso_unchanged": true,
+      "capsule_unchanged": true,
+      "target_unchanged": true,
+      "artifact": "native-p_2nix04",
+      "phases_observed": [],
+      "report_sha256": "0b871bdcc8db6150f6a812897d4730df0fe560206d12c2fcc35830b954d613cf"
+    }
+  ]
+}

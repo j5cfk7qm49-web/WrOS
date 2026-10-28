@@ -1,22 +1,27 @@
 #!/usr/bin/env python3
-"""Root fixture for a marked, diskless QEMU guest; never an installed launcher.
+"""Root fixture for marked QEMU guests; never an installed launcher.
 
 The maintained Debian live plugin prepares the backend. Its normal startup and
 menu run over the inherited native stream, without invoking console wrappers.
 Only the separate frontend owns tty7. A transient systemd cgroup and private
 mount/PID namespaces contain every process and mount until this probe stops.
+The optional target is a new fixed-size virtual disk with the fixture nonce;
+ordinary diskless operation retains its strict rejection of writable media.
 """
 import ctypes
 import fcntl
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
 import pwd
 import re
 import resource
+import select
 import shutil
 import socket
+import stat
 import subprocess
 import sys
 import termios
@@ -27,6 +32,9 @@ WORK = Path('/run/wros-native-probe')
 UNIT = 'wros-native-probe.service'
 DI = Path('/run/live/installer')
 FRONTEND = Path('/usr/bin/wros-installer')
+storage_spec = importlib.util.spec_from_file_location('wros_fixture_storage', Path(__file__).with_name('fixture_storage.py'))
+storage = importlib.util.module_from_spec(storage_spec)
+storage_spec.loader.exec_module(storage)
 
 
 def require(value, message):
@@ -46,7 +54,7 @@ def block_is_readonly_or_unconfigured_loop(block):
                 and not (block/'loop/backing_file').exists()))
 
 
-def guard():
+def guard(allow_synthetic_target=False):
     require(os.geteuid() == 0, 'Guest fixture needs root inside its disposable VM')
     token = (QA/'fixture-token').read_text().strip()
     require(len(token) == 32 and all(c in '0123456789abcdef' for c in token), 'Invalid fixture marker')
@@ -56,8 +64,19 @@ def guard():
     require('wros.native_probe='+token in Path('/proc/cmdline').read_text().split(),
             'Guest kernel fixture marker is absent')
     require(Path('/run/live/medium/live/filesystem.squashfs').is_file(), 'Expected a live guest')
+    identity = None
+    if allow_synthetic_target:
+        description = QA/'fixture-target.json'
+        require(description.is_file() and not description.is_symlink() and description.stat().st_size <= 1024,
+                'Bounded generated target description required')
+        identity = storage.inspect_target(json.loads(description.read_bytes()), token)
+        device = os.stat('/dev/vda')
+        require(stat.S_ISBLK(device.st_mode) and os.major(device.st_rdev) == identity['major']
+                and os.minor(device.st_rdev) == identity['minor'],
+                'Generated target device node differs')
     for block in Path('/sys/class/block').iterdir():
-        require(block_is_readonly_or_unconfigured_loop(block),
+        require(block_is_readonly_or_unconfigured_loop(block)
+                or (identity is not None and storage.belongs_to_target(block.name, identity)),
                 'Writable block device is forbidden in this probe: '+block.name)
     require(os.statvfs(QA).f_flag & os.ST_RDONLY, 'Fixture payload must be mounted read-only')
     manifest = json.loads((QA/'native-installer/manifest.json').read_bytes())
@@ -71,7 +90,7 @@ def guard():
                 'Read-only capsule member differs: '+name)
     require(digest(Path('/run/live/medium/dists/trixie/Release'))
             == manifest['base_media_release_sha256'], 'Base live media differs')
-    return manifest
+    return manifest, identity
 
 
 def command(*args):
@@ -98,14 +117,102 @@ def state(value):
     temporary.replace(WORK/'status.json')
 
 
-def worker():
-    manifest = guard()
+def validate_review_preseed(contents):
+    require(len(contents) <= 16*1024 and b'\0' not in contents and b'\r' not in contents,
+            'Invalid review fixture defaults')
+    allowed = {'anna/choose_modules', 'keyboard-configuration/xkb-keymap', 'netcfg/enable',
+               'ethdetect/module_select',
+               'netcfg/get_hostname', 'netcfg/get_domain', 'clock-setup/utc', 'clock-setup/ntp',
+               'time/zone', 'passwd/user-fullname', 'passwd/username', 'passwd/user-password-crypted',
+               'partman-auto/disk', 'partman-auto/method', 'partman-auto/choose_recipe',
+               'partman-auto-lvm/guided_size'}
+    values = {}
+    for line in contents.decode('utf-8').splitlines():
+        if not line.strip() or line.lstrip().startswith('#'):
+            continue
+        parts = line.split(None, 3)
+        require(len(parts) == 4 and parts[0] == 'd-i' and parts[1] in allowed
+                and parts[1] not in values, 'Unexpected review fixture default')
+        values[parts[1]] = (parts[2], parts[3])
+    require(values.get('partman-auto/disk') == ('string', '/dev/vda')
+            and values.get('partman-auto/method') == ('string', 'crypto')
+            and values.get('ethdetect/module_select', ('select', 'no ethernet card')) == ('select', 'no ethernet card')
+            and values.get('passwd/user-password-crypted', ('password', '!')) == ('password', '!'),
+            'Review fixture may only select the fresh disk, never unlock credentials or approve writes')
+
+
+def diagnose():
+    # Read only the marked guest's own backend logs and process metadata. No
+    # question/password database, manuscript or arbitrary path is inspected.
+    guard((QA/'fixture-target.json').exists())
+    for process in Path('/proc').glob('[0-9]*'):
+        try:
+            arguments = (process/'cmdline').read_bytes().split(b'\0')
+            if (not arguments or arguments[0] != b'/usr/bin/python3'
+                    or str(QA/'native_installer_guest.py').encode() not in arguments
+                    or not any(value in arguments for value in (b'worker', b'worker-target', b'worker-review'))):
+                continue
+            require('/system.slice/'+UNIT in (process/'cgroup').read_text(), 'Diagnostic process differs')
+            namespace = os.open(process/'ns/mnt', os.O_RDONLY | os.O_CLOEXEC)
+            pid_namespace = os.open(process/'ns/pid', os.O_RDONLY | os.O_CLOEXEC)
+            try:
+                subprocess.run(['/usr/bin/nsenter', '--mount=/proc/self/fd/'+str(namespace), '--',
+                                '/usr/bin/tail', '-c', '16000', str(DI/'var/log/syslog')],
+                               pass_fds=(namespace,), stdin=subprocess.DEVNULL, timeout=15, check=False)
+                subprocess.run(['/usr/bin/nsenter', '--mount=/proc/self/fd/'+str(namespace),
+                                '--pid=/proc/self/fd/'+str(pid_namespace), '--fork', '--',
+                                '/bin/ps', '-eo', 'pid,ppid,stat,wchan:24,comm'],
+                               pass_fds=(namespace, pid_namespace), stdin=subprocess.DEVNULL, timeout=15, check=False)
+            finally:
+                os.close(pid_namespace)
+                os.close(namespace)
+            return
+        except (FileNotFoundError, ProcessLookupError):
+            continue
+    print('No active installer worker remained for read-only diagnostics.')
+
+
+def writing_readers_retired():
+    # A stopped greetd session can retain an already-exited zombie briefly.
+    # pidfd readiness proves exit; a live reader must still block the handoff.
+    for process in Path('/proc').glob('[0-9]*'):
+        try:
+            if (process/'comm').read_text().strip() not in ('grimoire', 'wros-input', 'wros-greeter'):
+                continue
+            descriptor = os.pidfd_open(int(process.name))
+            try:
+                if not select.select([descriptor], [], [], 0)[0]:
+                    return False
+            finally:
+                os.close(descriptor)
+        except (FileNotFoundError, ProcessLookupError):
+            pass
+    return True
+
+
+def worker(allow_synthetic_target=False, review=False):
+    manifest, identity = guard(allow_synthetic_target)
     require(os.getpid() == 1, 'Worker must run in the private PID namespace')
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     require(ctypes.CDLL(None).prctl(4, 0, 0, 0, 0) == 0, 'Worker dump protection failed')
-    record = {'installation_complete': False, 'scope': 'Diskless menu/transport probe only', 'writable_disks': 0,
+    record = {'installation_complete': False,
+              'scope': 'Marked fresh-target menu probe only' if identity else 'Diskless menu/transport probe only',
+              'writable_disks': 1 if identity else 0, 'fixture_target': identity,
               'backend_kernel': manifest['kernel_release'], 'module_sha256': manifest['module_sha256']}
     state(record)
+    candidate = QA/'wros-installer'
+    if candidate.exists():
+        expected = (QA/'frontend.sha256').read_text().strip()
+        require(candidate.is_file() and not candidate.is_symlink()
+                and re.fullmatch('[0-9a-f]{64}', expected) is not None and digest(candidate) == expected,
+                'Compiled fixture frontend differs from its read-only receipt')
+        staged = WORK/'wros-installer'
+        shutil.copyfile(candidate, staged); staged.chmod(0o755)
+        require(digest(staged) == expected, 'Copied fixture frontend differs')
+        bind(staged, FRONTEND, True)
+        command('/bin/mount', '-o', 'remount,bind,ro,exec', str(FRONTEND))
+        record['frontend_override_sha256'] = expected
+        state(record)
     # Preserve the original live root/pool, replacing only the installer's
     # private view. Neither this view nor /proc/cmdline escapes the namespace.
     view = WORK/'medium'; view.mkdir()
@@ -167,6 +274,14 @@ def worker():
             'Unpacked native transport differs')
     require({p.name for p in (DI/'lib/modules').iterdir()} == {os.uname().release},
             'Unpacked kernel modules differ')
+    if review:
+        require(identity is not None, 'Review requires the generated target')
+        defaults = (QA/'review.preseed').read_bytes()
+        validate_review_preseed(defaults)
+        shipping = (QA/'installer.preseed').read_bytes()
+        require(len(shipping) <= 16*1024 and b'\0' not in shipping, 'Bounded shipping defaults required')
+        with (DI/'preseed.cfg').open('ab') as output:
+            output.write(b'\n'+shipping+b'\n'+defaults+b'\n')
     bind(medium, DI/'cdrom', True, recursive=True)
     for name in ('dev', 'dev/pts', 'proc', 'sys', 'tmp'):
         bind(Path('/'+name), DI/name)
@@ -241,28 +356,34 @@ def worker():
 
 
 def main():
-    require(len(sys.argv) == 2 and sys.argv[1] in ('start', 'worker'), 'Fixed fixture operation required')
-    if sys.argv[1] == 'worker':
-        worker()
+    require(len(sys.argv) == 2 and sys.argv[1] in ('start', 'worker', 'start-target', 'worker-target',
+                                                'start-review', 'worker-review', 'inspect'),
+            'Fixed fixture operation required')
+    if sys.argv[1] == 'inspect':
+        diagnose()
         return
-    guard()
+    review = sys.argv[1].endswith('-review')
+    target = review or sys.argv[1].endswith('-target')
+    if sys.argv[1].startswith('worker'):
+        worker(target, review)
+        return
+    guard(target)
     require(not WORK.exists(), 'This one-shot guest probe already ran')
     command('/usr/bin/systemctl', 'stop', 'greetd.service')
     # Stopping greetd must retire its editor and dedicated input reader before
     # any new TUI is started. No signal is sent to an unrelated process.
-    for process in Path('/proc').glob('[0-9]*'):
-        try:
-            require((process/'comm').read_text().strip() not in ('grimoire', 'wros-input', 'wros-greeter'),
-                    'The previous writing session has not retired')
-        except (FileNotFoundError, ProcessLookupError):
-            pass
+    deadline = time.monotonic()+10
+    while not writing_readers_retired():
+        require(time.monotonic() < deadline, 'The previous writing session has not retired')
+        time.sleep(.1)
     WORK.mkdir(mode=0o700)
     command('/usr/bin/systemd-run', '--unit='+UNIT, '--collect',
             '--property=KillMode=control-group', '--property=TimeoutStopSec=5s',
-            '--property=RuntimeMaxSec=600s', '--property=PrivateMounts=yes',
+            '--property=RuntimeMaxSec='+('1200s' if review else '600s'), '--property=PrivateMounts=yes',
             '--property=PrivateTmp=yes', '--property=LimitCORE=0',
             '/usr/bin/unshare', '--mount', '--pid', '--uts', '--ipc', '--fork', '--kill-child', '--mount-proc',
-            '/usr/bin/python3', '-I', str(QA/'native_installer_guest.py'), 'worker')
+            '/usr/bin/python3', '-I', str(QA/'native_installer_guest.py'),
+            'worker-review' if review else 'worker-target' if target else 'worker')
 
 
 if __name__ == '__main__':
