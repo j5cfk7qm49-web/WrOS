@@ -161,7 +161,8 @@ def dependency_gaps(selected):
                               and apt_pkg.check_dep(version, relation, requested))
                               for version in available.get(dependency, []))
                            for dependency, requested, relation in alternatives):
-                    gaps.append({'package': name, 'field': field, 'alternatives': alternatives})
+                    gaps.append({'package': name, 'field': field,
+                                 'alternatives': [list(value) for value in alternatives]})
     return gaps
 
 
@@ -233,38 +234,104 @@ def download_missing(output, indexes, receipts, selected, missing, keyring):
     return downloads
 
 
-def write_pool(output, selected, found):
+def validate_archive(source, record):
+    require(not source.is_symlink() and source.is_file()
+            and digest(source) == record['SHA256'] and source.stat().st_size == int(record['Size']),
+            'Archive changed after input verification')
+    with DebFile(str(source)) as package:
+        control = package.debcontrol()
+        require(all(control.get(field) == record[field] for field in ('Package', 'Version', 'Architecture')),
+                'Archive control identity differs from authenticated index')
+        for field in ('Depends', 'Pre-Depends', 'Provides'):
+            require(apt_pkg.parse_depends(control.get(field, ''), True, 'amd64')
+                    == apt_pkg.parse_depends(record.get(field, ''), True, 'amd64'),
+                    'Archive dependency metadata differs from authenticated index')
+        for path in ('usr/lib/cdebconf/frontend/passthrough.so', 'lib/cdebconf/frontend/passthrough.so'):
+            require(not package.data.has_file(path) and not package.data.has_file('./'+path),
+                    'Archive would replace the qualified native passthrough module')
+
+
+def render_index(selected):
     paragraphs = []
+    for _, (_, record) in sorted(selected.items()):
+        paragraph = Packages(record)
+        paragraph['Filename'] = PREFIX+'/'+str(archive_path(record['Filename']))
+        paragraphs.append(paragraph.dump())
+    return ('\n'.join(paragraphs)+'\n').encode('utf-8')
+
+
+def write_pool(output, selected, found):
     archives = []
     for name, (origin, record) in sorted(selected.items()):
         source = found[record['SHA256']]
-        require(digest(source) == record['SHA256'] and source.stat().st_size == int(record['Size']),
-                'Archive changed after input verification')
-        with DebFile(str(source)) as package:
-            control = package.debcontrol()
-            require(all(control.get(field) == record[field] for field in ('Package', 'Version', 'Architecture')),
-                    'Archive control identity differs from authenticated index')
-            for field in ('Depends', 'Pre-Depends', 'Provides'):
-                require(apt_pkg.parse_depends(control.get(field, ''), True, 'amd64')
-                        == apt_pkg.parse_depends(record.get(field, ''), True, 'amd64'),
-                        'Archive dependency metadata differs from authenticated index')
-            for path in ('usr/lib/cdebconf/frontend/passthrough.so', 'lib/cdebconf/frontend/passthrough.so'):
-                require(not package.data.has_file(path) and not package.data.has_file('./'+path),
-                        'Archive would replace the qualified native passthrough module')
+        validate_archive(source, record)
         relative = archive_path(record['Filename'])
         target = output/str(relative); target.parent.mkdir(parents=True, exist_ok=True)
         require(not target.exists() and not target.is_symlink(), 'Installer archive destination collision')
         shutil.copyfile(source, target)
         require(digest(target) == record['SHA256'], 'Copied archive differs')
-        paragraph = Packages(record)
-        paragraph['Filename'] = PREFIX+'/'+str(relative)
-        paragraphs.append(paragraph.dump())
         archives.append({'package': name, 'version': record['Version'], 'origin': origin,
                          'file': str(relative), 'sha256': record['SHA256'], 'bytes': int(record['Size'])})
-    payload = ('\n'.join(paragraphs)+'\n').encode('utf-8')
+    payload = render_index(selected)
     (output/'Packages').write_bytes(payload)
     (output/'Packages.gz').write_bytes(gzip.compress(payload, mtime=0))
     return archives
+
+
+def audit_pool(directory, now=None):
+    """Reconstruct and check a produced pool against original signed inputs."""
+    require(directory.is_dir() and not directory.is_symlink() and directory.resolve() != Path('/'),
+            'Inspect an existing regular-file pool directory, never the live root')
+    now = now or datetime.now(timezone.utc)
+    keyring = Path('/usr/share/keyrings/debian-archive-keyring.pgp')
+    if not keyring.is_file():
+        keyring = keyring.with_suffix('.gpg')
+    records, receipts = {}, {}
+    for origin, (_, suite, _) in REPOSITORIES.items():
+        source = directory/'sources'/origin
+        records[origin], _, receipts[origin] = load_index(source/'InRelease', source/'Packages', suite, keyring, now)
+    selected, omitted = native_catalogue(select_packages(records))
+    require(selected['cdebconf-udeb'][1]['Version'] == CDEBCONF_VERSION, 'Unsupported frontend ABI')
+    receipt = directory/'manifest.json'
+    require(receipt.is_file() and not receipt.is_symlink() and receipt.stat().st_size <= 4*1024*1024,
+            'Regular bounded pool receipt required')
+    manifest = json.loads(receipt.read_bytes())
+    require(manifest.get('passed') is True and manifest.get('kernel_abi') == ABI
+            and manifest.get('rescue_kernel_abi') == RESCUE_ABI
+            and manifest.get('authenticated_indexes') == receipts,
+            'Pool receipt differs from authenticated inputs')
+    payload = render_index(selected)
+    plain, compressed = directory/'Packages', directory/'Packages.gz'
+    require(plain.is_file() and not plain.is_symlink() and plain.stat().st_size == len(payload)
+            and compressed.is_file() and not compressed.is_symlink()
+            and compressed.stat().st_size <= len(payload)*2+65536, 'Unsafe generated package index')
+    with plain.open('rb') as stream:
+        plain_bytes = stream.read(len(payload)+1)
+    with gzip.open(compressed, 'rb') as stream:
+        decoded = stream.read(len(payload)+1)
+    require(plain_bytes == payload and decoded == payload
+            and digest(directory/'Packages') == manifest['generated_packages_sha256']
+            and digest(directory/'Packages.gz') == manifest['generated_packages_gz_sha256'],
+            'Generated index is not the authenticated catalogue')
+    expected = []
+    for name, (origin, record) in sorted(selected.items()):
+        relative = archive_path(record['Filename'])
+        validate_archive(directory/str(relative), record)
+        expected.append({'package': name, 'version': record['Version'], 'origin': origin,
+                         'file': str(relative), 'sha256': record['SHA256'], 'bytes': int(record['Size'])})
+    require(manifest['archives'] == expected and manifest['package_count'] == len(expected)
+            and manifest['bytes'] == sum(row['bytes'] for row in expected)
+            and manifest['architecture'] == 'amd64' and manifest['media_subdirectory'] == PREFIX
+            and manifest['required_native_text_components'] == sorted(REQUIRED)
+            and manifest['required_kernel_components'] == sorted(name for name in selected
+                if any(name.endswith('-'+abi+'-di') for abi in (ABI, RESCUE_ABI)))
+            and manifest['cdebconf_version'] == CDEBCONF_VERSION
+            and manifest['dependency_availability_closed'] is True
+            and manifest['qualified_passthrough_path_preserved'] is True
+            and manifest['generated_index_debian_signed'] is False
+            and manifest['omitted_optional_components'] == omitted,
+            'Pool archive inventory differs')
+    return manifest
 
 
 def main():

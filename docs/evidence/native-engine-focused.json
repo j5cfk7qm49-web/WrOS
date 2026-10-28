@@ -1,0 +1,26 @@
+{
+  "passed": true,
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "41f5d815e1bcf615f644e39c4cb95f6574dc511f538ba957f0a75c871fdb1da7",
+    "file_count": 425,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "scope": "Regular-file authenticated package/capsule staging and diskless fixture guard only; no installed root grant, target install or hardware clearance",
+  "tests": 18,
+  "seconds": 2.947,
+  "network_for_tests": false,
+  "recipe_sha256": "367d75214f03118d5791f94088c6425b0a275f4e72d40439766d42de0915cdb4",
+  "stager_sha256": "34c30d65d33d508538ea417a8b1080b0870e753561deeb353b4130db278d2a75",
+  "capsule_manifest_sha256": "1453c0c9157416765ee038accd1e2dfaea83cbe032f8ee132079ead5cb2a6ffd",
+  "base_pool_build_receipt": "docs/evidence/native-pool-build.json",
+  "pool_scope": "The earlier v4 pool was built at its own retained recipe/source checkpoint. The current capsule independently reconstructs its catalogue from original signed indexes and rechecks every archive.",
+  "test_driver_sha256": {
+    "test_live_installer_pool.py": "f1a6867c527a488eabbcfbe27a97642cf215317210f0d88f7d37efd2c4c3d1da",
+    "test_native_installer_capsule.py": "16dc049f54cbf060d740ff9beaa9445b3d79a2ee361d00f99353ce5dfb4b2cbe",
+    "test_native_installer_guest.py": "2370f6557241b21021dd577ac012d5ab7c395fad9a9b91a36a72f5474b8755f9"
+  },
+  "synthetic_scope": "Unit CPIO/kernel/module inputs are private synthetic fixtures only. Actual staging and guest use the qualified Debian backend and the pinned native module.",
+  "package_count": 401,
+  "archive_bytes": 163256088
+}

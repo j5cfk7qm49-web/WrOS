@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime
 import hashlib
 import importlib.util
+import json
 from pathlib import Path
 import subprocess
 import tempfile
@@ -126,6 +127,7 @@ class LiveInstallerPool(unittest.TestCase):
         closed, omitted = pool.native_catalogue(selected, {'engine'})
         self.assertEqual(set(closed), {'engine'})
         self.assertEqual({p['package'] for p in omitted}, {'optional', 'dependent'})
+        self.assertEqual(omitted, json.loads(json.dumps(omitted)), 'Published omission records must round-trip exactly')
         with self.assertRaisesRegex(ValueError, 'Required native installer dependency'):
             pool.native_catalogue(selected, {'engine', 'optional'})
         kernel = 'kernel-image-'+pool.ABI+'-di'

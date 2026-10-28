@@ -1,8 +1,9 @@
 # Native installer backend integration
 
-The currently qualified part of this increment is an offline package pool.
-It does not grant a root launcher or certify installation from the live desk.
-The live image and shared Grimoire frontend remain separate qualified pieces.
+This increment assembles an authenticated offline package pool and stages it
+with the matching installer initrd as regular files. It does not grant a root
+launcher or certify installation from the live desk. The delivered live image
+and shared Grimoire frontend remain separately qualified pieces.
 
 `tools/build-live-installer-pool.py` uses maintained python3-debian and
 python3-apt for Debian metadata, versions, virtual providers and dependency
@@ -46,9 +47,49 @@ subset index is WrOS metadata; it is **not a Debian-signed Release**. The
 original signed metadata and complete archive hashes are retained separately.
 The current live ISO has not been rebuilt with this pool.
 
-Next integration must preserve Debian's live preparation, retriever, partman,
-crypto, account and finish engines while forcing the native frontend over its
-private inherited stream. Privileged lifecycle, disk review, cancellation and
-interruption, LUKS state cleanup, fresh installation/reboot, firmware boot and
-physical hardware checks remain open. No host disk or account was changed by
-this regular-file pool build.
+`tools/stage-native-installer.py` independently revalidates that pool from its
+retained signed Debian indexes and every archive, rather than trusting its build
+receipt. It checks the native transport inside the compressed backend, rejects
+extra kernel module versions, and requires the backend kernel to equal the
+actual live medium's kernel bytes. The output includes the backend, pool,
+original signatures, licenses and file hashes. Generated media metadata says
+WrOS and preserves the ordinary binary-package index checksums; it makes no
+claim to be a Debian signature. Existing outputs and symlinks are preserved.
+
+The eighteen focused tests cover the package pool, real CPIO capsule fixtures
+and the diskless guest guard. Synthetic kernel/module bytes are confined to
+unit fixtures; actual staging uses the separately qualified Debian image and
+the pinned transport hash. This distinction is retained in the test sources.
+
+The [actual staged capsule](evidence/native-capsule-build.json) and
+[eighteen focused checks](evidence/native-engine-focused.json) passed. The
+[diskless no-NIC guest](evidence/native-engine-menu-vm.json) then passed in
+**122.03 seconds**: Debian's maintained startup and menu presented actionable
+language and location forms through the actual non-root WrOS frontend on tty7.
+Actual [language](evidence/native-engine-language.png) and
+[location](evidence/native-engine-location.png) captures show the shared
+Grimoire palette and panel code, with their [pixel identities](evidence/native-engine-captures.json).
+
+This is a guarded VM fixture with a separate read-only QA medium, not a root
+grant installed in the live ISO. It rejects writable media, verifies its QEMU
+marker and capsule bytes, and retires the previous editor/input reader before
+starting the TUI. A standard temporary systemd service contains the backend
+and frontend; private mount/PID/UTS/IPC namespaces keep the backend's media,
+boot arguments and hostname changes separate. Stopping that service retired
+both processes and removed the private backend mounts; the guest powered off.
+
+Debian's live plugin prefers a GTK initrd even in text mode. The native private
+view excludes that path and carries all verified overmounts recursively, with
+byte checks on the exact initrd and package-index paths Debian reads. Its
+separate host kernel check uses noninteractive debconf; later installer forms
+use the independent native stream. The backend's inherited descriptor avoids
+debconf's reserved low descriptors. Original upstream files and copyrights are
+retained in the fixture payload. [Earlier failed observations](evidence/native-engine-attempts.json)
+keep their original sources and results.
+
+The next integration must package this path into the live image with a trusted
+editor handoff and complete interruption handling. Disk review, LUKS state
+cleanup, fresh target installation/reboot, firmware boot and physical hardware
+checks remain open. The diskless fixture proves startup, native form exchange
+and service-stop containment; it has no target disk and cannot qualify an
+installation. No host disk or account was changed.

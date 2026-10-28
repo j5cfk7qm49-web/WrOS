@@ -1,0 +1,8 @@
+{
+  "scope": "Unmodified pixel conversion of actual passing diskless guest captures; no mock UI",
+  "source_sha256": "41f5d815e1bcf615f644e39c4cb95f6574dc511f538ba957f0a75c871fdb1da7",
+  "capture_sha256": {
+    "language": "63ebefb41a5f9047f41ad77f38fb18bcdfcf2f9754b1d924a4f5a35e4257e1a8",
+    "location": "27a1bb46fd455ffc19f0df372094f1c4f7e31235149bc70d1a1c0344c06c05cb"
+  }
+}
