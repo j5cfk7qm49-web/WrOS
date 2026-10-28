@@ -1,5 +1,35 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Terminal input readiness — full local software and guest passed
+
+`codex/terminal-readiness` retains the locked Crossterm parser/API with an
+explicit Linux readiness patch. The earlier 3000-byte raw burst stalled after
+the first read; the corrected implementation preserves pending readability,
+checks byte availability before reading blocking stdin and keeps descriptor
+flags unchanged. The original MIT crate and 77-file hash inventory are retained;
+only two files differ, with an offline reverse-patch audit required in CI.
+
+The [full local run](evidence/terminal-input-local.json) passed **972
+Rust/configuration, 124 Python/zero skips, both Clippys and 21 gates**. Actual
+four-size native PTYs cover long hidden ASCII/Unicode input and clearing
+post-submit typeahead before another confirmation. The maintained Debian
+[component fixture](evidence/terminal-input-components-frontend.json) and
+[actual image backend](evidence/terminal-image-backend-frontend.json) each passed
+13 native checks; both passed 14 protocol cases. [Original exploratory failures](evidence/terminal-input-observations.json)
+remain separate, including the first blocking-stdin prototype.
+
+The [fresh no-NIC COW guest](evidence/terminal-input-vm.json) passed in **228.09
+seconds** with the exact new editor/greeter binaries: real PAM, protected tty8,
+credential hiding, original editor context, fresh readers and editor/locker/
+client/worker-death recovery. The base image and source stayed unchanged.
+[Provenance](evidence/terminal-input-local-provenance.json) binds source
+`4dfdd630...e167c` / 413 files, actual binaries, source/patch audit and captures.
+New 20-gate Debian CI is pending; the extra local gate audits the existing
+staged Wi-Fi image. Read the [input boundaries](TERMINAL_INPUT.md).
+
+This does not deliver a new live ISO, native lock presentation, privileged live
+launcher, LUKS installation, suspend/resume or physical qualification.
+
 ## Matching live-installer image components — local build/backend and Debian CI passed
 
 `codex/live-backend-image` adds a retained non-root recipe over Debian's installer

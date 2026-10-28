@@ -2,14 +2,14 @@
 │  Status: Spark save · notes/sparks/r-0000000000000006.md · original scene preserved              │
 │  1047 original plots / 84 exercises · static offline selection                                   │
 │  r-0000000000000006 · Combined · 2026-10-28 · Etc/UTC                                            │
-│  PLOT [wd-p-0426] · recognition · level 1 · suggested 20 min                                     │
-│  A father attends an exhibition of his child's work and recognizes a room he believed the child  │
-│  had forgotten. His explanation of the room's importance conflicts with the artist's account     │
-│  printed beside the painting.                                                                    │
-│  EXERCISE [wd-x-0041] · senses · level 1 · suggested 15 min                                      │
-│  Place a familiar smell in an unexpected setting. Give the observer a concrete memory and an     │
-│  immediate task. Let the association complicate that task rather than using the memory as an     │
-│  unrelated pause in the action.                                                                  │
+│  PLOT [wd-p-0759] · learning · level 1 · suggested 20 min                                        │
+│  Two people agree to communicate disagreement without sarcasm. The person who uses humor to make │
+│  difficult feelings speakable becomes quiet, and the other must help build a new language rather │
+│  than treating silence as improvement.                                                           │
+│  EXERCISE [wd-x-0054] · setting · level 3 · suggested 30 min                                     │
+│  Choose one ordinary policy change and show its material effects in a place. Follow a character  │
+│  trying to do something simple. Include a benefit as well as a barrier, and make the decision    │
+│  arise from their coexistence.                                                                   │
 │  Work mode: Drafting · creative completion is self-reported, not automatically scored.           │
 │  ★ Favorited; retained separately from history.                                                  │
 │  6 history / 128 · 1 favorites / 64 · 0 dismissals / 128 · 12-result recent window               │

@@ -50,9 +50,19 @@ def main():
             missing.append(package['name'] + '@' + package['version'])
             if selected:
                 missing_selected.append(package['name'] + '@' + package['version'])
+        vendored = None
+        if package['name'] == 'crossterm' and base.resolve() == (ROOT/'crates/crossterm-upstream').resolve():
+            upstream = json.loads((ROOT/'os/config/terminal/crossterm-upstream.json').read_bytes())
+            vendored = {'manifest': 'os/config/terminal/crossterm-upstream.json',
+                        'upstream_repository': upstream['repository'],
+                        'crate_archive_sha256': upstream['crate_archive_sha256'],
+                        'local_patch': upstream['local_patch'], 'local_patch_sha256': upstream['local_patch_sha256'],
+                        'scope': 'Retained upstream MIT crate with an explicit WrOS patch; not original WrOS code.'}
+        source = package.get('source') or (vendored['upstream_repository'] + ' (retained patched upstream crate)' if vendored else 'WritingDeck workspace')
         records.append({'name': package['name'], 'version': package['version'], 'declared_license': package.get('license'),
-                        'repository': package.get('repository'), 'used_in_linux_no_audio_build': selected, 'source': package.get('source') or 'WritingDeck workspace',
-                        'notice_files': texts, 'retained_upstream_notice_source': retained_record})
+                        'repository': package.get('repository'), 'used_in_linux_no_audio_build': selected, 'source': source,
+                        'notice_files': texts, 'retained_upstream_notice_source': retained_record,
+                        **({'retained_patched_upstream': vendored} if vendored else {})})
     notice_path = ROOT / 'os/licenses/RUST-THIRD-PARTY-NOTICES.txt'
     notice_path.parent.mkdir(exist_ok=True, parents=True)
     notice_path.write_text('Rust dependency notices retained from the locked Cargo dependency graph.\nIncludes a superset of platform/default-feature dependencies, not just the no-audio Linux binary.\nOwn modifications remain under the repository MIT terms.\n\n' + '\n'.join(notices))

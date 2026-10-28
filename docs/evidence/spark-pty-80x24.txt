@@ -3,22 +3,22 @@
 │  preserved                                                                   │
 │  1047 original plots / 84 exercises · static offline selection               │
 │  r-0000000000000006 · Combined · 2026-10-28 · Etc/UTC                        │
-│  PLOT [wd-p-0437] · care · level 1 · suggested 20 min                        │
-│  An adult child takes over arranging family visits, then discovers that two  │
-│  relatives have maintained peace by never attending at the same time. A more │
-│  efficient schedule would force the encounter their separate invitations have│
-│  concealed.                                                                  │
-│  EXERCISE [wd-x-0065] · subtext · level 1 · suggested 10 min                 │
-│  Let someone change the subject for a defensible reason. Make the new topic  │
-│  connected to the avoided one through a practical detail. Give the other     │
-│  person a choice about following the detour or returning to the original     │
-│  question.                                                                   │
+│  PLOT [wd-p-0324] · causality · level 2 · suggested 20 min                   │
+│  A laboratory alarm activates during experiments conducted with no hazardous │
+│  material. The investigator finds that a mislabeled control sample has been  │
+│  quietly preventing the reaction everyone expected the alarm to detect.      │
+│  EXERCISE [wd-x-0047] · pacing · level 1 · suggested 10 min                  │
+│  Insert a pause into a practical exchange. During it, let someone notice     │
+│  information that changes the next action. The pause may be quiet, but it    │
+│  should do more than signal that the characters are having strong feelings.  │
 │  Work mode: Drafting · creative completion is self-reported, not             │
 │  automatically scored.                                                       │
+│  ★ Favorited; retained separately from history.                              │
+│  6 history / 128 · 1 favorites / 64 · 0 dismissals / 128 · 12-result recent  │
 │1 plot  2 exercise  3 combined  4 daily · p/e/r reroll plot/exercise/both     │
 │f favorite · x dismiss · s save · a actions · h history · F favorites · o     │
 │filters                                                                       │
-│PgUp/PgDn 0/4 · u reload · v source · t optional · Esc · F1 help              │
+│PgUp/PgDn 0/2 · u reload · v source · t optional · Esc · F1 help              │
 │Spark save · notes/sparks/r-0000000000000006.md · original scene preserved    │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘

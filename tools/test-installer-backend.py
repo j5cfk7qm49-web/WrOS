@@ -37,7 +37,7 @@ def main():
     if (fixture/'cdebconf.conf').read_bytes()!=args.config_file.read_bytes():
         raise SystemExit('The private cdebconf configuration differs from the prepared fixture.')
     secret=secrets.token_hex(1500).encode()+b'\\n\\literal'
-    typed=b' '+secrets.token_hex(16).encode()+b'\\n\\literal '
+    typed=b' '+secrets.token_hex(1500).encode()+b'\\n\\literal '
     (fixture/'secret').write_bytes(secret)
     (fixture/'secret').chmod(0o600)
     (fixture/'typed').write_bytes(typed)
@@ -181,6 +181,7 @@ db_stop
         if backend.returncode!=0: raise AssertionError('Debian backend failed')
         checks.extend(['real-back-navigation-status','real-password-roundtrip-hidden','prefilled-secret-with-literal-backslashes',
                        'prefilled-password-over-one-stdio-chunk','typed-password-preserves-leading-and-trailing-spaces',
+                       'typed-password-over-one-terminal-read',
                        'explicit-no-overrides-backend-true-default',
                        'backend-cleared-default-does-not-reuse-earlier-answer',
                        'canonical-translated-choice','real-progress-commands','backend-success-observed'])

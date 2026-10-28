@@ -116,3 +116,35 @@ class InstallerPTY(unittest.TestCase):
                 self.assertNotIn(b'Installation complete',terminal.output)
             finally:
                 terminal.close()
+
+    def test_large_raw_secret_bursts_and_post_submit_typeahead_at_four_sizes(self):
+        for width,height in [(80,24),(100,30),(120,40),(160,50)]:
+            with self.subTest(width=width), tempfile.TemporaryDirectory(prefix='wros-installer-burst-') as directory:
+                terminal=InstallerTerminal(Path(directory),width,height)
+                try:
+                    for index,secret in enumerate((b'fixture-burst-'*230,('é'*1500).encode())):
+                        for line in ['DATA fixture/burst type password',
+                                     f'DATA fixture/burst description Burst password {index}',
+                                     'INPUT critical fixture/burst']:
+                            terminal.command(line)
+                        terminal.command('GO',None)
+                        terminal.screen_shows(f'Burst password {index}')
+                        terminal.send(secret+b'\r\x1b[B\r')
+                        terminal.expect(b'0\n')
+                        terminal.command('GET fixture/burst',b'0 '+secret+b'\n')
+                        terminal.command('GET fixture/burst',b'0 \n')
+                        self.assertNotIn(secret,terminal.output)
+                        for line in ['DATA fixture/review type boolean',
+                                     f'DATA fixture/review description Review after burst {index}',
+                                     'SET fixture/review true','INPUT critical fixture/review']:
+                            terminal.command(line)
+                        terminal.command('GO',None)
+                        terminal.screen_shows(f'Review after burst {index}')
+                        terminal.screen_shows('▸ No')
+                        self.assertFalse(select.select([terminal.peer],[],[],.15)[0],
+                                         'Old typeahead submitted the following confirmation')
+                        terminal.send(b'\r')
+                        terminal.expect(b'0\n')
+                        terminal.command('GET fixture/review',b'0 false\n')
+                finally:
+                    terminal.close()

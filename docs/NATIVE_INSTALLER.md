@@ -37,8 +37,10 @@ Answers are released only after explicit field completion. Passwords have a
 constant hidden placeholder, bounded zeroed storage, no debug formatting and no
 per-character repaint. Back navigation clears secrets. Protocol/transport errors
 stop the frontend with fixed diagnostics and never claim installation success.
-Large unpaced raw keyboard bursts remain unqualified; ordinary interactive
-entry and long prefilled backend values have separate test coverage.
+The later [terminal readiness increment](TERMINAL_INPUT.md) adds actual
+multi-read raw ASCII/Unicode secret-entry and post-submit typeahead regression
+at four sizes, plus long typed values against the maintained Debian backend.
+Bracketed-paste support is a separate, unclaimed contract.
 
 Debian cdebconf 0.280's passthrough module needed a small, retained
 [protocol patch](../os/config/installer/README.md). It fixes multiline field

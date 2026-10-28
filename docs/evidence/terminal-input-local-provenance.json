@@ -1,0 +1,45 @@
+{
+  "recorded_at_utc": "2026-10-28T12:18:13.741563+00:00",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "4dfdd63079e7e93dc38d40bee749fb0c7fa4389728512d7e55112d29a82e167c",
+    "file_count": 413,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "passed": true,
+  "local_gates": 21,
+  "expected_ci_gates": 20,
+  "extra_local_gate": "Existing staged Wi-Fi image audit",
+  "report_sha256": {
+    "terminal-input-local.json": "97394f0ff5bd17a2ccfda6a335504270f5a4465cca52ea283ca7bb2ded0b1bbf",
+    "terminal-input-components.json": "e7afd71403d63cf661802f26db8090b97a04b2a5659978e84a76b6d9a29a91f4",
+    "terminal-input-components-frontend.json": "90214074f41725f3ddaccbc43a1b72729eef9e7d14ab257501eeca69272492c9",
+    "terminal-input-components-faults.json": "3c38bd378f63d5f1fa0c654bc6d8533f228f482348c2380b51d6550e1f6e1925",
+    "terminal-input-components-build.json": "4a78789e722988207543ffd6947c759fc935776646c9849d6f39c291593006a1",
+    "terminal-image-backend-frontend.json": "8ed840f94d1efaf85718a5a2661e0ce438113b49163d2fb9b3519f038acba45f",
+    "terminal-image-backend-faults.json": "0d21e4c01f8cba084b102affabe695b973c5f032f1e7989d49901009d9030ce7",
+    "terminal-input-vm.json": "12702ed61f72b097e38c9b5c940e4f14eafa9ce0684458bab10820622f6ee890",
+    "terminal-input-artifacts.json": "6bd8e99f9ce0e02ce4b9ec671036f5977e6ff5ad2c5c6bafc007d373e1f8c2c6"
+  },
+  "text_capture_sha256": {
+    "journal-pty-screen.txt": "56b60919d804d429408a696a84e2d584dc77b8cc6c31f3dac590bcceab734952",
+    "workflow-pty-screen.txt": "74b14df20b9bc7ca2cb25687eee7d82cb399ac607887da92dff2ebf4a88cf309",
+    "checks-pty-80x24.txt": "37ceb096aa9e54ccaf4c3f32763ae4f16e9e140088cbb4acaeeecb2e9c5a37e6",
+    "checks-pty-100x30.txt": "907bbe15d5ecd0d176a1f02080e1f4a982a77d9ea8183352c9533a764af94a81",
+    "checks-pty-120x40.txt": "a8504c745ada7e80fc5b624bde6f3aaab5d8bdd463187f44de627d7d4bea25c6",
+    "checks-pty-160x50.txt": "fbbc3447f3b0681bfb1a4baf20c47b0dd0e912a882dbc9ab00c1f530cc333373",
+    "productivity-pty-80x24.txt": "ac93438639e4423d03ea86abebfb1aaef9bc21e1f499883f2efbceb0f09d5bc1",
+    "productivity-pty-100x30.txt": "ca7da8575cd75aaabe6fb464fefe8924e741eeb1d383f6bf73029b0f59695a93",
+    "productivity-pty-120x40.txt": "3bfccad9d883055bd84373a693d501a8b98d3c736b9d9ee4000ef7da648fb7ed",
+    "productivity-pty-160x50.txt": "485e647711e86a93185a2c97f7cab215b335844d40ce40f75b617cbd80f59baa",
+    "spark-pty-80x24.txt": "49eae9eff897f83db342cc134d9c1e4b66dcea0b87d4dd5c9c1174e050936776",
+    "spark-pty-100x30.txt": "11196d088302956e632e4b747aff988ceef13a718129f7ff9073ff8f3f279bd2",
+    "spark-pty-120x40.txt": "1e7d33342a128e45a18a633b870b62486e81ee8d429863b383b730c0ebd93d3b",
+    "spark-pty-160x50.txt": "b15a38ee300f8ec1f19df71ed437bbc96b41cd3b73e023f82c90861e915f8218"
+  },
+  "terminal_patch_sha256": "ca6e1b210b5d3f88ca27490b8dffc18b8e090bc70abc226ccfee0a109a6f2075",
+  "focused_log_sha256": "6b40e5fd3683550e21687df69a9bffc31d2b7b8d735d9426e04669022f95296a",
+  "full_log_sha256": "86aa25c78622ca01aa0f061949f6a381f6a69bd6a4fcf334e6ee8b056dac2e28",
+  "guest_seconds": 228.09,
+  "scope": "Non-root software, actual Debian backend/image protocol and marked no-NIC COW manual lock/login regression. No new ISO, privileged live installation, suspend or hardware qualification."
+}

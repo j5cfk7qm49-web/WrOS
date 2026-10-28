@@ -78,6 +78,8 @@ def main():
         return check, text
 
     run('format', ['cargo', 'fmt', '--all', '--', '--check'])
+    _, terminal = run('terminal-library', ['python3', 'tools/audit-terminal-library.py'])
+    record['terminal_library'] = json.loads(terminal)
     run('spark-corpus', ['python3', 'tools/build-spark-corpus.py', '--check'])
     run('diagnostic-assets', ['python3', 'tools/audit-writing-checks-assets.py'])
     runtime = Path(os.environ.get('WRITINGDECK_TOOLS_PYTHON', ROOT/'build/prose-runtime/runtime/bin/python3')).parent.parent

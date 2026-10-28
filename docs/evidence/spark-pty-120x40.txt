@@ -2,18 +2,18 @@
 │  Status: Spark save · notes/sparks/r-0000000000000006.md · original scene preserved                                  │
 │  1047 original plots / 84 exercises · static offline selection                                                       │
 │  r-0000000000000006 · Combined · 2026-10-28 · Etc/UTC                                                                │
-│  PLOT [wd-p-0796] · choice · level 3 · suggested 20 min                                                              │
-│  Two adult apprentices finish training with the same master. The only available workshop can support one trade, and  │
-│  choosing whose work it will house would turn their hoped-for partnership into an employer's hierarchy.              │
-│  EXERCISE [wd-x-0050] · setting · level 2 · suggested 20 min                                                         │
-│  Set a scene in a public place after its normal service has ended. Give someone a legitimate need to remain. Let the │
-│  altered lighting, access, or staffing change what can be negotiated, rather than merely making the setting eerie.   │
+│  PLOT [wd-p-0720] · identity · level 1 · suggested 20 min                                                            │
+│  A traveler returns from a journey during which only a few days passed for her. Her partner has built a life over    │
+│  several years, and their reunion must accommodate promises both kept under incompatible understandings of waiting.  │
+│  EXERCISE [wd-x-0037] · senses · level 1 · suggested 10 min                                                          │
+│  Describe moving through a short route without visual information. Use contact, balance, sound, and effort to locate │
+│  obstacles. Make one sensation prompt a specific correction rather than adding sensory details that do not affect    │
+│  movement.                                                                                                           │
+│  Narrative conditions: nonvisual-only                                                                                │
 │  Work mode: Drafting · creative completion is self-reported, not automatically scored.                               │
 │  ★ Favorited; retained separately from history.                                                                      │
 │  6 history / 128 · 1 favorites / 64 · 0 dismissals / 128 · 12-result recent window                                   │
 │  Roulette presentation: off (l toggles); always static in focus/low-power.                                           │
-│                                                                                                                      │
-│                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │

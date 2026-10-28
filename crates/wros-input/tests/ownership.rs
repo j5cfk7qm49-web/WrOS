@@ -106,6 +106,21 @@ mod linux {
         pty.send(b"a");
         key(&input, 'a');
         let original_reader = child_pid();
+        let original_flags = unsafe { libc::fcntl(0, libc::F_GETFL) };
+        assert!(original_flags >= 0);
+        for (bytes, character, count) in [
+            (vec![b'q'; 3000], 'q', 3000),
+            ("é".repeat(1500).into_bytes(), 'é', 1500),
+        ] {
+            pty.send(&bytes);
+            for _ in 0..count {
+                key(&input, character);
+            }
+            until(|| pty.empty());
+            assert!(input.recv_timeout(Duration::from_millis(80)).is_err());
+        }
+        assert_eq!(unsafe { libc::fcntl(0, libc::F_GETFL) }, original_flags);
+        println!("PASS multi-read ASCII/Unicode bursts and unchanged terminal descriptor flags");
         // Deliberately leave an incomplete bracketed paste INSIDE crossterm.
         // FIONREAD proves it consumed the bytes, not merely a kernel flush.
         pty.send(b"\x1b[200~pre-handoff-partial");

@@ -95,6 +95,10 @@ audio = ["dep:rodio", "dep:cpal"]
 
 [workspace]
 members = ["crates/grimoire-core", "crates/grimoire-app", "crates/writingdeck-sys", "crates/wros-shell", "crates/wros-greeter", "crates/wros-input", "crates/wros-installer"]
+exclude = ["crates/crossterm-upstream"]
+
+[patch.crates-io]
+crossterm = { path = "crates/crossterm-upstream" }
 
 # One version for the terminal app and the crates under it; bump it here.
 [workspace.package]

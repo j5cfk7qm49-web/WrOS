@@ -1,14 +1,14 @@
 Actual non-root compiled-app PTY, 80x24, isolated newly created demo/HOME.
-Captured 2026-10-28T09:45:35.139409+00:00.
+Captured 2026-10-28T12:10:59.053362+00:00.
 ANSI cursor/erase/UTF-8 cell reconstruction; not a full terminal emulator.
 No physical keyboard or VM workflow claim. Original-source fixtures only.
 
 RECORDED FACTS
 ┌ Writing journal · 2026-10-28 · Recorded facts ───────────────────────────────┐
 │AUTOMATIC — sampled saved Project counts (≥10min); c captures current clean co│
-│#1 Saved checkpoint · 09:45:36 +00:00                                         │
+│#1 Saved checkpoint · 12:11:00 +00:00                                         │
 │Book 31 · daily net +6 · since-open delta +6                                  │
-│App opened 2026-10-28 09:45:36 +00:00 · initial 25 words                      │
+│App opened 2026-10-28 12:11:00 +00:00 · initial 25 words                      │
 │                                                                              │
 │                                                                              │
 │                                                                              │
