@@ -15,6 +15,11 @@ maintained python3-debian to inspect archives without extracting into the image;
 that package is a builder prerequisite. The earlier live image lacks
 `systemd-cryptsetup` in both its root and offline pool. Its historical results
 remain unchanged; this stronger check does not certify encrypted installation.
+The [first refreshed image](evidence/encrypted-media-first-build.json) installed
+all six required runtime packages but failed the final audit because live-build
+omitted the systemd-cryptsetup archive. That failure is retained. The recipe now
+uses the same explicit encryption list for maintained chroot and binary package
+stages; the latter downloads the complete dependency set for the offline pool.
 
 The current integrated recipe now ships the native WrOS tty1 greeter backed by
 Debian greetd/PAM, the current editor/input reader, categorized Settings and

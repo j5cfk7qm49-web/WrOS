@@ -2,19 +2,19 @@
 │  Status: Spark save · notes/sparks/r-0000000000000006.md · original scene preserved                                  │
 │  1047 original plots / 84 exercises · static offline selection                                                       │
 │  r-0000000000000006 · Combined · 2026-10-28 · Etc/UTC                                                                │
-│  PLOT [wd-p-0359] · return · level 2 · suggested 20 min                                                              │
-│  A woman receives a suitcase she lost as a child, packed with clothes in her current size. The luggage tag still     │
-│  bears her old address, where the present occupant claims the suitcase was collected that morning.                   │
-│  EXERCISE [wd-x-0047] · pacing · level 1 · suggested 10 min                                                          │
-│  Insert a pause into a practical exchange. During it, let someone notice information that changes the next action.   │
-│  The pause may be quiet, but it should do more than signal that the characters are having strong feelings.           │
+│  PLOT [wd-p-0015] · care · level 2 · suggested 20 min                                                                │
+│  A nurse arranging home care for her father discovers that he has been paying a neighbor to visit another isolated   │
+│  patient instead. He wants the payments kept secret because accepting that he needs help would end the useful role he│
+│  has invented for himself.                                                                                           │
+│  EXERCISE [wd-x-0010] · description · level 3 · suggested 25 min                                                     │
+│  Describe a damaged place at two scales: a broad view and one small repairable feature. Use no spoken lines. Make the│
+│  small feature change what the observer believes can be done next, rather than merely making the description more    │
+│  vivid.                                                                                                              │
+│  Narrative conditions: narration-only                                                                                │
 │  Work mode: Drafting · creative completion is self-reported, not automatically scored.                               │
 │  ★ Favorited; retained separately from history.                                                                      │
 │  6 history / 128 · 1 favorites / 64 · 0 dismissals / 128 · 12-result recent window                                   │
 │  Roulette presentation: off (l toggles); always static in focus/low-power.                                           │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │

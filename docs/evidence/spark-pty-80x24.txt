@@ -3,22 +3,22 @@
 │  preserved                                                                   │
 │  1047 original plots / 84 exercises · static offline selection               │
 │  r-0000000000000006 · Combined · 2026-10-28 · Etc/UTC                        │
-│  PLOT [wd-p-0184] · authenticity · level 2 · suggested 20 min                │
-│  An archive distinguishes original documents from perfect copies by recording│
-│  the intentions of their makers. A legal claim depends on a copy made with   │
-│  more faithful intentions than the original, and the archivist's rules       │
-│  recognize authenticity but not truth.                                       │
-│  EXERCISE [wd-x-0020] · voice · level 2 · suggested 20 min                   │
-│  Write in a voice that sounds confident about ordinary procedure. Introduce a│
-│  small exception the speaker cannot account for. Keep the voice recognizable │
-│  while allowing a hesitation, correction, or detour to expose the limit of   │
-│  that confidence.                                                            │
+│  PLOT [wd-p-0594] · territory · level 2 · suggested 20 min                   │
+│  A moving border follows the person carrying a ceremonial stone. A refugee is│
+│  given the stone without explanation, turning every shelter she reaches into │
+│  disputed territory before she can understand why doors close behind her.    │
+│  EXERCISE [wd-x-0011] · description · level 1 · suggested 15 min             │
+│  Describe a familiar public place on a day when one regular visitor is       │
+│  absent. Use no dialogue and do not name the absence directly. Show which    │
+│  ordinary activities no longer happen or must be performed by someone else.  │
+│  Narrative conditions: narration-only                                        │
 │  Work mode: Drafting · creative completion is self-reported, not             │
 │  automatically scored.                                                       │
+│  ★ Favorited; retained separately from history.                              │
 │1 plot  2 exercise  3 combined  4 daily · p/e/r reroll plot/exercise/both     │
 │f favorite · x dismiss · s save · a actions · h history · F favorites · o     │
 │filters                                                                       │
-│PgUp/PgDn 0/4 · u reload · v source · t optional · Esc · F1 help              │
+│PgUp/PgDn 0/3 · u reload · v source · t optional · Esc · F1 help              │
 │Spark save · notes/sparks/r-0000000000000006.md · original scene preserved    │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘

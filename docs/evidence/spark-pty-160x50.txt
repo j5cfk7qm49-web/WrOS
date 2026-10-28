@@ -2,17 +2,17 @@
 │  Status: Spark save · notes/sparks/r-0000000000000006.md · original scene preserved                                                                          │
 │  1047 original plots / 84 exercises · static offline selection                                                                                               │
 │  r-0000000000000006 · Combined · 2026-10-28 · Etc/UTC                                                                                                        │
-│  PLOT [wd-p-0773] · trust · level 1 · suggested 20 min                                                                                                       │
-│  A partner admits that a treasured coincidence at their first meeting was deliberately arranged. The arrangement was harmless, but the other has relied on   │
-│  the story as proof that neither had to perform to be loved.                                                                                                 │
-│  EXERCISE [wd-x-0058] · conflict · level 3 · suggested 25 min                                                                                                │
-│  Let a character solve an immediate problem by shifting work or risk elsewhere. Give the affected person a chance to respond. Revise the available solution  │
-│  through that response rather than using the hidden cost as a final twist only.                                                                              │
+│  PLOT [wd-p-0312] · classification · level 2 · suggested 20 min                                                                                              │
+│  A botanist finds a planted tree recorded as naturally occurring in a protected grove. Its annual rings prove the grove was moved, but the boundary records  │
+│  needed to locate its original site have been sealed by the donor.                                                                                           │
+│  EXERCISE [wd-x-0004] · dialogue · level 3 · suggested 25 min                                                                                                │
+│  Write spoken dialogue among three people who need the conversation to finish at different times. Avoid direct statements of their deadlines until the final │
+│  exchange. Let interruptions and delayed answers reveal the pressure.                                                                                        │
+│  Narrative conditions: dialogue-only                                                                                                                         │
 │  Work mode: Drafting · creative completion is self-reported, not automatically scored.                                                                       │
 │  ★ Favorited; retained separately from history.                                                                                                              │
 │  6 history / 128 · 1 favorites / 64 · 0 dismissals / 128 · 12-result recent window                                                                           │
 │  Roulette presentation: off (l toggles); always static in focus/low-power.                                                                                   │
-│                                                                                                                                                              │
 │                                                                                                                                                              │
 │                                                                                                                                                              │
 │                                                                                                                                                              │

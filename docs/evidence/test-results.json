@@ -1,16 +1,16 @@
 {
-  "recorded_at_utc": "2026-10-28T19:47:37.067133+00:00",
-  "verification_started_at_utc": "2026-10-28T19:47:37.067256+00:00",
-  "milestone": "Native installer scheduling, fixed fresh-target identity and bounded negative disk-write review software",
+  "recorded_at_utc": "2026-10-28T20:16:03.767639+00:00",
+  "verification_started_at_utc": "2026-10-28T20:16:03.769037+00:00",
+  "milestone": "Offline encrypted-target runtime, matching Debian archives and regular-file live-image package audit software",
   "source_fingerprint": {
     "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
-    "sha256": "8128d68daebc3c13e1c39406a74ac948a3eec7928a6ea319e13cf8755e34fa26",
+    "sha256": "b124affa1b128abc97ff22717386ca91346f5cd99cbc9a3c861c06ad6a399ebc",
     "file_count": 427,
     "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
   },
   "verifier_input_sha256": {
     ".github/workflows/ci.yml": "6dedfedbfa0bc67778862ced52fb4781b65fdcee1eeab4e3656676a79ad6b3e1",
-    "tools/audit-installer-media.py": "e65525584b382ac7786abb256c5f2a9096c06a16e8c08b161697b00124c9da85",
+    "tools/audit-installer-media.py": "4dc9205b075ddc30b4c72f561d63efce35e0f19e72cba4a7a35d5229e0bd4aa1",
     "tools/audit-live-session.py": "e9579e380050a5d6c6f3fbfa9769fe01fab0bf82fd1eabaada1aed684d873871",
     "tools/audit-native-image.py": "aa14b70bc2503b106cd160a86951a02dfd94d9998b2bbff70ca6fa21da52128b",
     "tools/audit-prose-tools.py": "e2c52df63b3c09beef85581f7cfbcaeb5b245cd0673e11946120b926c2a2d3a4",
@@ -42,13 +42,13 @@
     "tools/winget.py": "314b0168c9b8b3484880ea918ff8808e53cec3c7e2b0e904380a5d885d44843b",
     "tools/writingdeck_source.py": "55ba86e051ba61c4a343faf28ffd9cab167ad17fc78c602b64458365be816895"
   },
-  "git_head_at_start": "4b8fb6d0e7bfe39b7baa40ccc262c158924c2ef0",
+  "git_head_at_start": "c68e8db467d91480deed68144ce32579af9cda7e",
   "previous_evidence": {
-    "milestone": "Authenticated native installer offline pool, backend capsule and guarded diskless menu probe software",
+    "milestone": "Native installer scheduling, fixed fresh-target identity and bounded negative disk-write review software",
     "source_fingerprint": {
       "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
-      "sha256": "41f5d815e1bcf615f644e39c4cb95f6574dc511f538ba957f0a75c871fdb1da7",
-      "file_count": 425,
+      "sha256": "8128d68daebc3c13e1c39406a74ac948a3eec7928a6ea319e13cf8755e34fa26",
+      "file_count": 427,
       "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
     }
   },
@@ -58,7 +58,7 @@
       "name": "tests-default",
       "command": "cargo test --workspace --locked --offline -j2",
       "exit_code": 0,
-      "seconds": 101.721,
+      "seconds": 190.24,
       "log": "build/verification/tests-default.log",
       "configuration": "default",
       "passed": 973,
@@ -76,7 +76,7 @@
       "name": "tests-no-audio",
       "command": "cargo test --workspace --no-default-features --locked --offline -j2",
       "exit_code": 0,
-      "seconds": 98.059,
+      "seconds": 133.476,
       "log": "build/verification/tests-no-audio.log",
       "configuration": "no-audio",
       "passed": 973,
@@ -95,147 +95,147 @@
       "name": "format",
       "command": "cargo fmt --all -- --check",
       "exit_code": 0,
-      "seconds": 2.124,
+      "seconds": 2.645,
       "log": "build/verification/format.log"
     },
     {
       "name": "terminal-library",
       "command": "python3 tools/audit-terminal-library.py",
       "exit_code": 0,
-      "seconds": 1.293,
+      "seconds": 1.267,
       "log": "build/verification/terminal-library.log"
     },
     {
       "name": "spark-corpus",
       "command": "python3 tools/build-spark-corpus.py --check",
       "exit_code": 0,
-      "seconds": 1.051,
+      "seconds": 1.018,
       "log": "build/verification/spark-corpus.log"
     },
     {
       "name": "diagnostic-assets",
       "command": "python3 tools/audit-writing-checks-assets.py",
       "exit_code": 0,
-      "seconds": 1.796,
+      "seconds": 3.942,
       "log": "build/verification/diagnostic-assets.log"
     },
     {
       "name": "prose-assets",
       "command": "python3 tools/audit-prose-tools.py --runtime /home/builder/prose-rebuild/runtime",
       "exit_code": 0,
-      "seconds": 6.924,
+      "seconds": 7.016,
       "log": "build/verification/prose-assets.log"
     },
     {
       "name": "tests-default",
       "command": "cargo test --workspace --locked --offline -j2",
       "exit_code": 0,
-      "seconds": 101.721,
+      "seconds": 190.24,
       "log": "build/verification/tests-default.log"
     },
     {
       "name": "clippy-default",
       "command": "cargo clippy --workspace --all-targets --locked --offline -j2 -- -D warnings",
       "exit_code": 0,
-      "seconds": 1.171,
+      "seconds": 3.874,
       "log": "build/verification/clippy-default.log"
     },
     {
       "name": "tests-no-audio",
       "command": "cargo test --workspace --no-default-features --locked --offline -j2",
       "exit_code": 0,
-      "seconds": 98.059,
+      "seconds": 133.476,
       "log": "build/verification/tests-no-audio.log"
     },
     {
       "name": "clippy-no-audio",
       "command": "cargo clippy --workspace --all-targets --no-default-features --locked --offline -j2 -- -D warnings",
       "exit_code": 0,
-      "seconds": 0.955,
+      "seconds": 1.364,
       "log": "build/verification/clippy-no-audio.log"
     },
     {
       "name": "build-no-audio",
       "command": "cargo build --workspace --no-default-features --locked --offline -j2",
       "exit_code": 0,
-      "seconds": 0.928,
+      "seconds": 0.78,
       "log": "build/verification/build-no-audio.log"
     },
     {
       "name": "installer-build",
-      "command": "bash os/scripts/build-installer-frontend.sh /home/builder/foss-audit/cdebconf_0.280.dsc /home/builder/installer-component-qualification/installer-components-_re4h5fu/upstream --test-runtime",
+      "command": "bash os/scripts/build-installer-frontend.sh /home/builder/foss-audit/cdebconf_0.280.dsc /home/builder/installer-component-qualification/installer-components-lpfvv64a/upstream --test-runtime",
       "exit_code": 0,
-      "seconds": 5.745,
+      "seconds": 5.401,
       "log": "build/verification/installer-build.log"
     },
     {
       "name": "installer-components",
-      "command": "python3 tools/test-installer-components.py /home/builder/installer-component-qualification/installer-components-_re4h5fu/upstream --report /work/build/verification/installer-components.json",
+      "command": "python3 tools/test-installer-components.py /home/builder/installer-component-qualification/installer-components-lpfvv64a/upstream --report /work/build/verification/installer-components.json",
       "exit_code": 0,
-      "seconds": 12.936,
+      "seconds": 12.694,
       "log": "build/verification/installer-components.log"
     },
     {
       "name": "python",
       "command": "python3 -m unittest discover -s os/tests -p test_*.py -v",
       "exit_code": 0,
-      "seconds": 201.985,
+      "seconds": 203.181,
       "log": "build/verification/python.log"
     },
     {
       "name": "terminal-capture",
       "command": "python3 tools/capture-writingdeck-screens.py",
       "exit_code": 0,
-      "seconds": 1.445,
+      "seconds": 1.331,
       "log": "build/verification/terminal-capture.log"
     },
     {
       "name": "shellcheck",
       "command": "shellcheck os/scripts/assemble-image.sh os/scripts/bootstrap-rootfs.sh os/scripts/build-installer-frontend.sh os/scripts/build-installer.sh os/scripts/build-live-backend.sh os/scripts/generate-keymaps.sh os/scripts/install-files.sh os/scripts/stage-greeter.sh os/scripts/stage-live-session.sh os/scripts/writingdeck-session os/config/live/9998-wros-session tools/test-m7b.sh",
       "exit_code": 0,
-      "seconds": 0.494,
+      "seconds": 0.463,
       "log": "build/verification/shellcheck.log"
     },
     {
       "name": "python-syntax",
       "command": "python3 -m py_compile os/tests/boot_vm.py os/tests/cdebconf_protocol.py os/tests/console_lock_vm.py os/tests/display_vm.py os/tests/fixture_storage.py os/tests/greeter_vm.py os/tests/guest-boot-probe.py os/tests/guest-checks-probe.py os/tests/guest-console-lock.py os/tests/guest-display-probe.py os/tests/guest-greeter-probe.py os/tests/guest-keyboard-probe.py os/tests/guest-prose-probe.py os/tests/install_vm.py os/tests/installed_boot.py os/tests/installer_safety_vm.py os/tests/keyboard_vm.py os/tests/live_session_vm.py os/tests/native_installer_guest.py os/tests/native_installer_vm.py os/tests/terminal_screen.py os/tests/test_checks_pty.py os/tests/test_cli.py os/tests/test_console_lock.py os/tests/test_display_bridge.py os/tests/test_display_manager.py os/tests/test_fixture_storage.py os/tests/test_input_pty.py os/tests/test_install_plan.py os/tests/test_installed_boot.py os/tests/test_installer_media.py os/tests/test_installer_pty.py os/tests/test_journal_pty.py os/tests/test_keyboard.py os/tests/test_lexicon_pty.py os/tests/test_live_installer_pool.py os/tests/test_live_session.py os/tests/test_native_image.py os/tests/test_native_installer_capsule.py os/tests/test_native_installer_guest.py os/tests/test_pins_pty.py os/tests/test_productivity_pty.py os/tests/test_prose_pty.py os/tests/test_prose_runtime.py os/tests/test_prose_staging.py os/tests/test_secondary_pty.py os/tests/test_shell_pty.py os/tests/test_spark_corpus.py os/tests/test_spark_pty.py os/tests/test_terminal_screen.py os/tests/test_wifi_policy.py os/tests/test_workflow_pty.py tools/audit-installer-media.py tools/audit-live-session.py tools/audit-native-image.py tools/audit-prose-tools.py tools/audit-terminal-library.py tools/audit-wifi-image.py tools/audit-writing-checks-assets.py tools/build-live-installer-pool.py tools/build-spark-corpus.py tools/capture-prose-tool-lock.py tools/capture-writingdeck-screens.py tools/check-writingdeck.py tools/demo.py tools/generate-keyboard-reference.py tools/generate-writingdeck-manifests.py tools/measure-prose-tools.py tools/measure-writing-checks.py tools/prepare-prose-tools.py tools/screenshots.py tools/site_themes.py tools/stage-native-installer.py tools/stage-prose-runtime.py tools/test-installer-backend.py tools/test-installer-components.py tools/verify-debian-installer.py tools/verify-writingdeck.py tools/winget.py tools/writingdeck_source.py os/scripts/install-plan.py os/scripts/writingdeck-keyboard os/scripts/wros-display os/scripts/wros-lock os/scripts/wros-live-session",
       "exit_code": 0,
-      "seconds": 1.549,
+      "seconds": 1.484,
       "log": "build/verification/python-syntax.log"
     },
     {
       "name": "inventories",
       "command": "python3 tools/generate-writingdeck-manifests.py",
       "exit_code": 0,
-      "seconds": 2.06,
+      "seconds": 2.211,
       "log": "build/verification/inventories.log"
     },
     {
       "name": "wifi-image-payload",
       "command": "python3 tools/audit-wifi-image.py build/appliance/rootfs",
       "exit_code": 0,
-      "seconds": 0.123,
+      "seconds": 0.122,
       "log": "build/verification/wifi-image-payload.log"
     },
     {
       "name": "printable-reference",
       "command": "python3 tools/generate-keyboard-reference.py",
       "exit_code": 0,
-      "seconds": 0.072,
+      "seconds": 0.058,
       "log": "build/verification/printable-reference.log"
     },
     {
       "name": "documentation",
       "command": "python3 tools/check-writingdeck.py",
       "exit_code": 0,
-      "seconds": 0.915,
+      "seconds": 0.936,
       "log": "build/verification/documentation.log"
     },
     {
       "name": "diff-whitespace",
       "command": "git diff --check",
       "exit_code": 0,
-      "seconds": 17.999,
+      "seconds": 18.947,
       "log": "build/verification/diff-whitespace.log"
     }
   ],
@@ -266,7 +266,7 @@
     "passed": true,
     "source_fingerprint": {
       "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
-      "sha256": "8128d68daebc3c13e1c39406a74ac948a3eec7928a6ea319e13cf8755e34fa26",
+      "sha256": "b124affa1b128abc97ff22717386ca91346f5cd99cbc9a3c861c06ad6a399ebc",
       "file_count": 427,
       "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
     },
@@ -285,12 +285,12 @@
     "name": "python",
     "command": "python3 -m unittest discover -s os/tests -p test_*.py -v",
     "exit_code": 0,
-    "seconds": 201.985,
+    "seconds": 203.181,
     "log": "build/verification/python.log",
-    "passed": 162,
+    "passed": 165,
     "failed": 0,
     "skipped": 0,
     "pty_scope": "Actual non-root compiled app, new demo/HOME only; original edit/save/undo/restart, four terminal sizes, metadata failures/retry. Not a full emulator or physical certificate."
   },
-  "verification_finished_at_utc": "2026-10-28T19:55:21.141520+00:00"
+  "verification_finished_at_utc": "2026-10-28T20:25:59.388184+00:00"
 }

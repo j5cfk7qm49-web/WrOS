@@ -55,9 +55,12 @@ lb config --ignore-system-defaults --mode debian --distribution trixie \
     --checksums sha256 --chroot-squashfs-compression-type zstd
 mkdir -p config/package-lists
 cp "$repo/os/config/packages.txt" config/package-lists/wros.list.chroot
-# Debian's encrypted-target finish hooks request both initramfs and systemd
-# unlock support. Keep LVM and its runtime available in the copied offline root.
-printf 'sudo\ncryptsetup\ncryptsetup-initramfs\nsystemd-cryptsetup\nlvm2\ngreetd\n' >> config/package-lists/wros.list.chroot
+printf 'sudo\ngreetd\n' >> config/package-lists/wros.list.chroot
+# Root installation alone does not populate Debian Installer's offline pool.
+# The maintained binary-list stage downloads these packages and dependencies
+# with an empty APT status database, then indexes them on the medium.
+cp "$repo/os/config/encrypted-target-packages.txt" config/package-lists/wros-encryption.list.chroot
+cp "$repo/os/config/encrypted-target-packages.txt" config/package-lists/wros-encryption.list.binary
 if [[ $profile == live-session ]]; then
     printf 'live-boot\nlive-config\nlive-config-systemd\nuser-setup\n' >> config/package-lists/wros.list.chroot
 fi
