@@ -8,6 +8,16 @@ import subprocess
 import time
 
 
+def marker_pattern(label):
+    # Console output can mix LF, CRLF and CRCRLF while sudo temporarily changes
+    # terminal modes. Require a complete line, never a substring of command echo.
+    return re.compile(rb'(?:^|[\r\n])' + re.escape(label) + rb'(?=[\r\n])')
+
+
+def has_line(content, label):
+    return marker_pattern(label).search(content) is not None
+
+
 def qmp(path, command, arguments=None):
     with socket.socket(socket.AF_UNIX) as connection:
         connection.settimeout(10)
@@ -68,8 +78,12 @@ def verify(run, secret=None, native_session=False):
                     needles = (needle,) if isinstance(needle, bytes) else needle
                     deadline = time.monotonic() + timeout
                     while time.monotonic() < deadline:
-                        matches = [(found, len(value)) for value in needles
-                                   if (found := content.find(value, cursor)) >= 0]
+                        if isinstance(needle, re.Pattern):
+                            match = needle.search(content, cursor)
+                            matches = [(match.start(), match.end() - match.start())] if match else []
+                        else:
+                            matches = [(found, len(value)) for value in needles
+                                       if (found := content.find(value, cursor)) >= 0]
                         if matches:
                             found, length = min(matches)
                             cursor = found + length
@@ -101,7 +115,7 @@ def verify(run, secret=None, native_session=False):
                 connection.sendall(secret.encode() + b'\n')
                 expect(b':~$ ')
                 connection.sendall(b'printf "\\nWROS_AUTH_UID="; id -u; printf "\\nWROS_NO_PASSWORD_ADMIN="; sudo -n true >/dev/null 2>&1; printf "%s\\n" "$?"; printf "\\nWROS_AUTH_CHECK_DONE\\n"\n')
-                expect(b'\r\nWROS_AUTH_CHECK_DONE\r\n', 30)
+                expect(marker_pattern(b'WROS_AUTH_CHECK_DONE'), 30)
                 if b'WROS_AUTH_UID=1000' not in content or b'WROS_NO_PASSWORD_ADMIN=1' not in content:
                     raise RuntimeError('Installed account is root or has a passwordless admin bypass')
                 result['authentication_verified'] = True
@@ -125,7 +139,7 @@ def verify(run, secret=None, native_session=False):
                     while True:
                         start = len(content)
                         connection.sendall(b'sudo -n /bin/sh -c \'cat /dev/vcs1; stty -F /dev/tty1 -a; printf "\\nWROS_CONSOLE_STATE_END\\n"\'\n')
-                        expect(b'\r\nWROS_CONSOLE_STATE_END\r\n', 15)
+                        expect(marker_pattern(b'WROS_CONSOLE_STATE_END'), 15)
                         console = content[start:]
                         expect(b':~$ ', 20)
                         if predicate(console):
@@ -171,11 +185,11 @@ def verify(run, secret=None, native_session=False):
                     # ownership; a fresh installed journal may omit it. Require
                     # the actual writer process/TTY and rendered UI instead.
                     connection.sendall(b'sudo -n /bin/sh -c \'p=$(pgrep -x grimoire); if test -n "$p"; then ps -p "$p" -o uid=,tty=; stat -L -c WROS_STDIN_DEVICE=%t:%T /proc/"$p"/fd/0; if test "$(ps -p "$p" -o uid= | xargs)" = 1000 && test "$(stat -L -c %t:%T /proc/"$p"/fd/0)" = 4:1; then echo WROS_WRITER_PROCESS_PASS; fi; fi\'; printf "\\nWROS_WRITER_STATE_END\\n"\n')
-                    expect(b'\r\nWROS_WRITER_STATE_END\r\n', 20)
+                    expect(marker_pattern(b'WROS_WRITER_STATE_END'), 20)
                     expect(b':~$ ', 20)
-                    process_verified = b'\r\nWROS_WRITER_PROCESS_PASS\r\n' in content[start:]
+                    process_verified = has_line(content[start:], b'WROS_WRITER_PROCESS_PASS')
                     connection.sendall(b'sudo -n /bin/sh -c \'cat /dev/vcs1; printf "\\nWROS_UI_STATE_END\\n"\'\n')
-                    expect(b'\r\nWROS_UI_STATE_END\r\n', 10)
+                    expect(marker_pattern(b'WROS_UI_STATE_END'), 10)
                     console = content[start:]
                     expect(b':~$ ', 20)
                     if process_verified and b'WRITINGDECK OS' in console and b'Resume writing' in console:
@@ -189,30 +203,30 @@ def verify(run, secret=None, native_session=False):
                             b'firmware-ath9k-htc', b'firmware-brcm80211', b'firmware-mediatek')
                 connection.sendall(b"dpkg-query -W -f='WROS_WIFI=${Package}:${Status}\\n' " + b' '.join(packages) +
                                    b"; test -x /usr/bin/nmtui && test -d /lib/modules/$(uname -r)/kernel/drivers/net/wireless && printf '\\nWROS_WIFI_TOOLS_PASS\\n'; printf '\\nWROS_WIFI_STATE_END\\n'\n")
-                expect(b'\r\nWROS_WIFI_STATE_END\r\n', 30)
+                expect(marker_pattern(b'WROS_WIFI_STATE_END'), 30)
                 expect(b':~$ ', 20)
-                if not all(b'WROS_WIFI=' + name + b':install ok installed' in content for name in packages) or b'\r\nWROS_WIFI_TOOLS_PASS\r\n' not in content:
+                if not all(b'WROS_WIFI=' + name + b':install ok installed' in content for name in packages) or not has_line(content, b'WROS_WIFI_TOOLS_PASS'):
                     raise RuntimeError('Actual installed system lacks the required offline Wi-Fi payload')
                 result['offline_wifi_packages_verified'] = True
                 qmp(control, 'screendump', {'filename': str(run / 'installed-writing-session.ppm')})
                 if native_session:
                     start = len(content)
                     connection.sendall(b'if test "$(ps -C grimoire -o uid= | xargs)" = 1000 && test "$(ps -C wros-input -o uid= | xargs)" = 1000; then echo WROS_INPUT_UID_PASS; fi; sudo -n /bin/sh -c \'sha256sum /proc/$(pgrep -x grimoire)/exe\'; sha256sum /usr/bin/grimoire /usr/bin/wros-greeter; printf "\\nWROS_IDENTITY_STATE_END\\n"\n')
-                    expect(b'\r\nWROS_IDENTITY_STATE_END\r\n', 20)
+                    expect(marker_pattern(b'WROS_IDENTITY_STATE_END'), 20)
                     expect(b':~$ ', 20)
-                    if b'\r\nWROS_INPUT_UID_PASS\r\n' not in content[start:]:
+                    if not has_line(content[start:], b'WROS_INPUT_UID_PASS'):
                         raise RuntimeError('Installed editor/input reader is not the non-root writer')
                     result['input_reader_nonroot_verified'] = True
-                    hashes = re.findall(rb'([0-9a-f]{64})  /usr/bin/(grimoire|wros-greeter)\r', content[start:])
+                    hashes = re.findall(rb'([0-9a-f]{64})  /usr/bin/(grimoire|wros-greeter)(?=[\r\n])', content[start:])
                     result['running_image_binary_sha256'] = {name.decode(): value.decode() for value, name in hashes}
-                    loaded = re.findall(rb'([0-9a-f]{64})  /proc/[0-9]+/exe\r', content[start:])
+                    loaded = re.findall(rb'([0-9a-f]{64})  /proc/[0-9]+/exe(?=[\r\n])', content[start:])
                     result['running_editor_exe_sha256'] = loaded[0].decode() if len(loaded) == 1 else None
                     # Inspect logind and masks; never issue an actual sleep request.
                     start = len(content)
                     connection.sendall(b'sudo -n /bin/sh -c \'for u in sleep suspend hibernate hybrid-sleep suspend-then-hibernate; do test "$(systemctl is-enabled "$u.target" 2>/dev/null)" = masked || exit 1; done; echo WROS_SLEEP_MASKS_PASS; busctl call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager CanSuspend\'; printf "\\nWROS_SLEEP_STATE_END\\n"\n')
-                    expect(b'\r\nWROS_SLEEP_STATE_END\r\n', 30)
+                    expect(marker_pattern(b'WROS_SLEEP_STATE_END'), 30)
                     expect(b':~$ ', 20)
-                    if b'\r\nWROS_SLEEP_MASKS_PASS\r\n' not in content[start:] or b'\r\ns "na"\r\n' not in content[start:]:
+                    if not has_line(content[start:], b'WROS_SLEEP_MASKS_PASS') or not has_line(content[start:], b's "na"'):
                         raise RuntimeError('Installed sleep guard is not effective')
                     result['sleep_guard_verified'] = True
                     # Exit through the actual home menu, then check login and no
@@ -222,9 +236,9 @@ def verify(run, secret=None, native_session=False):
                     console_until(lambda c: b'Local account' in c and b'WrOS' in c,
                                   'Native logout did not return to login')
                     connection.sendall(b'if ! pgrep -x grimoire >/dev/null && ! pgrep -x wros-input >/dev/null; then echo WROS_LOGOUT_PASS; fi; printf "\\nWROS_LOGOUT_STATE_END\\n"\n')
-                    expect(b'\r\nWROS_LOGOUT_STATE_END\r\n', 20)
+                    expect(marker_pattern(b'WROS_LOGOUT_STATE_END'), 20)
                     expect(b':~$ ', 20)
-                    if b'\r\nWROS_LOGOUT_PASS\r\n' not in content:
+                    if not has_line(content, b'WROS_LOGOUT_PASS'):
                         raise RuntimeError('Native logout left editor/input processes')
                     result['native_logout_verified'] = True
                 if secret.encode() in content:
