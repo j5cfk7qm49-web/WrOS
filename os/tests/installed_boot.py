@@ -42,7 +42,7 @@ def qmp(path, command, arguments=None):
                     break
 
 
-def verify(run, secret=None, native_session=False):
+def verify(run, secret=None, native_session=False, unlock_secret=None):
     if os.geteuid() == 0:
         raise RuntimeError('Run QEMU acceptance as a non-root builder')
     run = Path(run)
@@ -53,7 +53,7 @@ def verify(run, secret=None, native_session=False):
     for path in (serial_path, control):
         path.unlink(missing_ok=True)
     args = ['qemu-system-x86_64', '-accel', 'tcg,thread=multi', '-machine', 'q35', '-cpu', 'Nehalem',
-            '-m', '1024', '-smp', '2', '-nic', 'none', '-display', 'none', '-no-reboot',
+            '-m', '3072' if unlock_secret is not None else '1024', '-smp', '2', '-nic', 'none', '-display', 'none', '-no-reboot',
             '-drive', 'if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd',
             '-drive', 'if=pflash,format=raw,file=' + str(run / 'OVMF_VARS.fd'),
             '-drive', 'if=virtio,format=qcow2,file=' + str(disk),
@@ -63,6 +63,8 @@ def verify(run, secret=None, native_session=False):
               'tty1_nonroot_session_verified': False, 'writing_ui_verified': False,
               'offline_wifi_packages_verified': False, 'password_logged': False,
               'native_session_requested': native_session, 'native_login_verified': False,
+              'encrypted_root_unlock_verified': False,
+              'encrypted_wrong_key_rejected': False,
               'native_wrong_password_rejected': False, 'sleep_guard_verified': False,
               'native_logout_verified': False, 'input_reader_nonroot_verified': False}
     content = bytearray()
@@ -106,7 +108,19 @@ def verify(run, secret=None, native_session=False):
                         capture.flush()
                     raise RuntimeError('Installed boot did not reach expected authentication/session state')
 
-                expect(b'login:')
+                if unlock_secret is not None:
+                    marker = run/'fixture-token'
+                    if marker.is_symlink() or not re.fullmatch('[0-9a-f]{32}\n', marker.read_text()):
+                        raise RuntimeError('Only a generated marked encrypted fixture may be unlocked')
+                    expect(re.compile(rb'Please unlock disk [A-Za-z0-9_-]+: ?'), 300)
+                    qmp(control, 'screendump', {'filename': str(run/'encrypted-unlock-prompt.ppm')})
+                    connection.sendall(b'wrong-fixture-unlock\n')
+                    expect(re.compile(rb'Please unlock disk [A-Za-z0-9_-]+: ?'), 300)
+                    result['encrypted_wrong_key_rejected'] = True
+                    connection.sendall(unlock_secret.encode()+b'\n')
+                expect(b'login:', 300 if unlock_secret is not None else 180)
+                if unlock_secret is not None:
+                    result['encrypted_root_unlock_verified'] = True
                 result['installed_boot_verified'] = True
                 qmp(control, 'screendump', {'filename': str(run / 'login-prompt.ppm')})
                 if secret is None:
@@ -138,7 +152,7 @@ def verify(run, secret=None, native_session=False):
 
                 def keys(text):
                     for char in text:
-                        qmp(control, 'send-key', {'keys': [{'type': 'qcode', 'data': 'ret' if char == '\n' else char}], 'hold-time': 30})
+                        qmp(control, 'send-key', {'keys': [{'type': 'qcode', 'data': 'ret' if char == '\n' else 'minus' if char == '-' else char}], 'hold-time': 30})
                         time.sleep(0.06)
 
                 def console_until(predicate, description, timeout=45):
@@ -253,10 +267,22 @@ def verify(run, secret=None, native_session=False):
                     result['password_logged'] = True
                     raise RuntimeError('Synthetic unlock password appeared in output; keep private output for diagnosis')
                 connection.sendall(b'sudo /sbin/poweroff\n')
-                process.wait(timeout=60)
+                deadline = time.monotonic()+60
+                while process.poll() is None and time.monotonic()<deadline:
+                    try:
+                        data = connection.recv(65536)
+                    except socket.timeout:
+                        continue
+                    if data:
+                        content.extend(data); capture.write(data); capture.flush()
+                    else:
+                        time.sleep(.05)
+                process.wait(timeout=1)
                 return result
         finally:
             if secret is not None and secret.encode() in content:
+                result['password_logged'] = True
+            if unlock_secret is not None and unlock_secret.encode() in content:
                 result['password_logged'] = True
             (run / 'boot-result.json').write_text(json.dumps(result, indent=2) + '\n')
             if process.poll() is None:

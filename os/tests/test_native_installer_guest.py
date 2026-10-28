@@ -49,6 +49,25 @@ class DisklessNativeGuest(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(RuntimeError):
                 guest.validate_review_preseed(value)
 
+    def test_full_install_mode_still_refuses_write_seeds_plaintext_keys_and_boot_bypasses(self):
+        defaults = (b'd-i partman-auto/disk string /dev/vda\n'
+                    b'd-i partman-auto/method string crypto\n'
+                    b'd-i passwd/user-password-crypted password $6$fixture$'+b'A'*86+b'\n'
+                    b'd-i apt-setup/services-select multiselect\n'
+                    b'tasksel tasksel/first multiselect\n'
+                    b'd-i partman-auto-crypto/erase_disks boolean false\n')
+        guest.validate_review_preseed(defaults, installing=True)
+        for value in (defaults+b'd-i partman/confirm boolean true\n',
+                defaults+b'd-i partman-crypto/passphrase password generated\n',
+                defaults+b'd-i preseed/late_command string /bin/true\n',
+                defaults+b'd-i debian-installer/add-kernel-opts string init=/bin/sh\n',
+                defaults.replace(b'erase_disks boolean false', b'erase_disks boolean true'),
+                defaults.replace(b'$6$fixture$'+b'A'*86, b'plaintext-fixture')):
+            with self.subTest(value=value), self.assertRaises(RuntimeError):
+                guest.validate_review_preseed(value, installing=True)
+        with self.assertRaises(RuntimeError):
+            guest.validate_review_preseed(defaults)
+
     def test_only_readonly_media_or_unconfigured_zero_length_loop_slots_are_allowed(self):
         with tempfile.TemporaryDirectory(prefix='wros-disk-guard-') as directory:
             root = Path(directory)

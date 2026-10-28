@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Exercise Debian's real installer menus in a no-NIC WrOS guest.
 
-The default is diskless; the optional target is created fresh by this fixture
-and its entire contents must remain unchanged. It does not qualify partitioning, passwords,
-installation, completion or reboot into a target. Its separate read-only QA CD
-contains a verified capsule and maintained Debian launcher source, not a grant
-installed in the live image.
+The default is diskless. Review mode creates its own target and requires every
+byte to stay unchanged. A separate explicit install mode may write only to that
+new marked target, then requires encrypted UEFI boot and native authentication.
+The read-only QA CD contains a verified capsule and maintained Debian launcher;
+none of this grants a production launcher in the live image.
 """
 import argparse
 import hashlib
@@ -14,13 +14,14 @@ import os
 from pathlib import Path
 import re
 import secrets
+import shutil
 import socket
 import subprocess
 import sys
 import tempfile
 import time
 
-from installed_boot import qmp
+from installed_boot import qmp, verify as verify_boot
 from fixture_storage import TARGET_BYTES, fixture_serial
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -37,15 +38,17 @@ SNAPSHOT = r'''
 import hashlib,importlib.util,json,os,pathlib,re,select,subprocess,sys,time
 P=pathlib.Path
 seconds=int(sys.argv[4]) if len(sys.argv)>4 else 45
-assert 10<=seconds<=600
+assert 10<=seconds<=1800
 deadline=time.monotonic()+seconds
 needle=sys.argv[1]
 previous=sys.argv[3] if len(sys.argv)>3 else ''
+installing=len(sys.argv)>5 and sys.argv[5]=='install'
 while True:
     status=P('/run/wros-native-probe/status.json')
     record=json.loads(status.read_bytes()) if status.exists() else {}
     screen=P('/dev/vcs7').read_bytes().decode('latin1') if P('/dev/vcs7').exists() else ''
     screen_hash=hashlib.sha256(screen.encode('latin1')).hexdigest()
+    if installing and record.get('target_configuration_verified') and record.get('target_mounts_retired'):break
     if needle in screen and 'Enter continue' in screen and record.get('ready') and screen_hash!=previous: break
     assert subprocess.run(['systemctl','is-active','--quiet','wros-native-probe.service']).returncode==0,'Backend service stopped'
     assert time.monotonic()<deadline,'Installer UI readiness'
@@ -63,8 +66,9 @@ for p in P('/proc').glob('[0-9]*'):
         processes.append({'name':name,'pid':int(p.name),'uids':uid,'cgroup':(p/'cgroup').read_text()})
     except (FileNotFoundError,ProcessLookupError):pass
 front=[p for p in processes if p['name']=='wros-installer']
-assert len(front)==1 and front[0]['uids']==['1000']*4
-assert 'wros-native-probe.service' in front[0]['cgroup']
+completed=installing and record.get('target_configuration_verified') and record.get('target_mounts_retired')
+assert len(front)<=1 if completed else len(front)==1
+assert all(p['uids']==['1000']*4 and 'wros-native-probe.service' in p['cgroup'] for p in front)
 assert not any(p['name'] in ('grimoire','wros-input','wros-greeter') for p in processes)
 spec=importlib.util.spec_from_file_location('fixture_storage',P('/run/wros-native-qa/fixture_storage.py'))
 storage=importlib.util.module_from_spec(spec);spec.loader.exec_module(storage)
@@ -75,7 +79,7 @@ assert all((p/'ro').read_text().strip()=='1' or (re.fullmatch(r'loop[0-9]+',p.na
 assert 'wros.native_probe=' in P('/proc/cmdline').read_text(),'Private sanitized cmdline escaped'
 assert os.uname().nodename=='debian','Backend hostname change escaped its UTS namespace'
 assert not P('/run/live/installer/usr/bin/main-menu').exists(),'Private backend mount escaped'
-record.update({'screen':screen,'screen_sha256':screen_hash,'processes':processes,'outside_namespace_unchanged':True})
+record.update({'screen':screen,'screen_sha256':screen_hash,'processes':processes,'outside_namespace_unchanged':True,'completion_observed':bool(completed)})
 print(sys.argv[2]+json.dumps(record),flush=True)
 '''
 
@@ -88,11 +92,15 @@ def main():
                         help='Create the fixed new virtual disk and stop before any partitioning question')
     parser.add_argument('--partition-review', action='store_true',
                         help='With the fresh target only, decline the first disk-write confirmation')
+    parser.add_argument('--install-target', action='store_true',
+                        help='Explicitly install only to this fixture\'s new marked virtual disk; no host disk argument exists')
     parser.add_argument('--frontend', type=Path,
                         help='Stage a newly compiled non-root frontend only inside this disposable service namespace')
     args = parser.parse_args()
     if args.partition_review and not args.synthetic_target:
         raise SystemExit('Partition review requires the freshly generated synthetic target')
+    if args.install_target and (not args.synthetic_target or args.partition_review):
+        raise SystemExit('Full installation requires the new synthetic target and a separate explicit mode')
     if os.geteuid() == 0:
         raise SystemExit('Run the QEMU fixture as a normal user')
     for path in (args.iso, args.kernel, args.initrd):
@@ -106,6 +114,13 @@ def main():
     args.artifacts_directory.mkdir(parents=True, exist_ok=True)
     run = Path(tempfile.mkdtemp(prefix='native-', dir=args.artifacts_directory)); run.chmod(0o700)
     token = secrets.token_hex(16)
+    crypt_secret = 'wros-qa-'+secrets.token_hex(16) if args.install_target else None
+    login_secret = 'wros-user-'+secrets.token_hex(16) if args.install_target else None
+    if args.install_target:
+        credential = run/'.fixture-secrets'
+        credential.write_text(json.dumps({'crypt':crypt_secret, 'login':login_secret}))
+        credential.chmod(0o600)
+        shutil.copyfile('/usr/share/OVMF/OVMF_VARS_4M.fd', run/'OVMF_VARS.fd')
     (run/'fixture-token').write_text(token+'\n')
     (run/'snapshot.py').write_text(SNAPSHOT)
     target = None
@@ -123,9 +138,11 @@ def main():
               'capsule_manifest_sha256': capsule_hash, 'network_devices': 0,
               'host_disks_exposed': 0, 'writable_disks': 1 if target else 0, 'phases': [],
               'scope': 'Real Debian startup/menu and containment only; no disk-write consent, target installation or hardware qualification.'}
+    if args.install_target:
+        result['scope'] = 'Native encrypted installation into the fixed fresh virtual target; authenticated target boot and production completion UI remain separate.'
     if target:
         result.update({'target_created_by_fixture':True,'target_bytes':TARGET_BYTES,'target_sha256_before':digest(target)})
-    if args.partition_review:
+    if args.partition_review or args.install_target:
         # No format, overwrite, LVM/crypto or new-label confirmations are seeded.
         # The only target is the newly generated and nonce-verified vda above.
         (run/'review.preseed').write_text('''# Private negative-answer fixture only; never shipping defaults.
@@ -146,7 +163,25 @@ d-i partman-auto/method string crypto
 d-i partman-auto/choose_recipe select atomic
 d-i partman-auto-lvm/guided_size string max
 ''')
-        result['partition_review_requested'] = True
+        if args.install_target:
+            password_hash = subprocess.check_output(['openssl','passwd','-6','-stdin'],
+                input=login_secret+'\n', text=True).strip()
+            defaults = (run/'review.preseed').read_text().replace(
+                'd-i passwd/user-password-crypted password !',
+                'd-i passwd/user-password-crypted password '+password_hash)
+            defaults += '''d-i apt-setup/use_mirror boolean false
+d-i apt-setup/services-select multiselect
+d-i pkgsel/upgrade select none
+tasksel tasksel/first multiselect
+popularity-contest popularity-contest/participate boolean false
+d-i partman-auto-crypto/erase_disks boolean false
+d-i cdrom-detect/eject boolean false
+d-i debian-installer/add-kernel-opts string console=tty1 console=ttyS0,115200
+'''
+            (run/'review.preseed').write_text(defaults)
+            result['encrypted_install_requested'] = True
+        else:
+            result['partition_review_requested'] = True
     if args.frontend:
         result['frontend_override_sha256'] = digest(args.frontend)
         (run/'frontend.sha256').write_text(result['frontend_override_sha256']+'\n')
@@ -161,9 +196,11 @@ d-i partman-auto-lvm/guided_size string max
                '-map', str(ROOT/'os/tests/native_installer_guest.py'), '/native_installer_guest.py']
     if target:
         command += ['-map', str(run/'fixture-target.json'), '/fixture-target.json']
-    if args.partition_review:
+    if args.partition_review or args.install_target:
         command += ['-map', str(run/'review.preseed'), '/review.preseed',
                     '-map', str(ROOT/'os/config/installer.preseed'), '/installer.preseed']
+    if args.install_target:
+        command += ['-map', str(ROOT/'os/tests/native_target_audit.py'), '/native_target_audit.py']
     if args.frontend:
         command += ['-map', str(args.frontend.resolve()), '/wros-installer',
                     '-map', str(run/'frontend.sha256'), '/frontend.sha256']
@@ -194,6 +231,9 @@ d-i partman-auto-lvm/guided_size string max
     if target:
         command += ['-drive', 'if=none,id=wros-target,format=raw,file='+str(target),
                     '-device', 'virtio-blk-pci,drive=wros-target,serial='+fixture_serial(token)]
+    if args.install_target:
+        command += ['-drive','if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd',
+                    '-drive','if=pflash,format=raw,file='+str(run/'OVMF_VARS.fd')]
     content = bytearray(); cursor = 0
     started = time.monotonic()
     with (run/'qemu.log').open('w') as log, (run/'serial.log').open('wb') as capture:
@@ -240,7 +280,8 @@ d-i partman-auto-lvm/guided_size string max
                 def snapshot(needle, name, previous='', seconds=45):
                     marker = 'WROS_SNAPSHOT_'+secrets.token_hex(12)+'='
                     output = shell('sudo -n /usr/bin/python3 -I /run/wros-native-qa/snapshot.py '
-                                   +"'"+needle+"' "+marker+" '"+previous+"' "+str(seconds), seconds+30)
+                                   +"'"+needle+"' "+marker+" '"+previous+"' "+str(seconds)
+                                   +(' install' if args.install_target else ''), seconds+30)
                     matched = re.search(rb'(?:^|[\r\n])'+marker.encode()+rb'([^\r\n]+)', output)
                     if matched is None: raise RuntimeError('Native snapshot missing')
                     observation = json.loads(matched.group(1))
@@ -258,10 +299,77 @@ d-i partman-auto-lvm/guided_size string max
                 connection.sendall(b'live\n'); expect(rb':~\$ ', 45)
                 shell('sudo -n mkdir /run/wros-native-qa && sudo -n mount -o ro,nosuid,nodev,noexec /dev/disk/by-label/WROS_NATIVE_QA /run/wros-native-qa')
                 shell('sudo -n /usr/bin/python3 -I /run/wros-native-qa/native_installer_guest.py '
-                      + ('start-review' if args.partition_review else 'start-target' if target else 'start'))
+                      + ('start-install' if args.install_target else 'start-review' if args.partition_review else 'start-target' if target else 'start'))
                 snapshot('Select a language', 'language')
                 key('ret')
                 observation = snapshot('Select your location', 'location')
+                if args.install_target:
+                    key('ret')
+                    deadline = time.monotonic()+3500
+                    approvals = []
+                    for step in range(80):
+                        remaining = int(deadline-time.monotonic())
+                        if remaining < 10:
+                            raise RuntimeError('Encrypted installation exceeded its bounded deadline')
+                        observation = snapshot('', 'install-'+str(step), observation['screen_sha256'],
+                                               min(600 if step == 0 else 1800, remaining))
+                        if observation.get('completion_observed'):
+                            proof = observation['target_proof']
+                            image = json.loads((ROOT/'docs/evidence/encrypted-media-image-build.json').read_bytes())
+                            if image['iso_sha256'] != result['iso_sha256_before']:
+                                raise RuntimeError('Target binary expectations differ from the actual image')
+                            expected = {name: row['staged_sha256'] for name,row in image['application_inputs']['applications'].items()}
+                            if proof['binary_sha256'] != expected:
+                                raise RuntimeError('Installed application bytes differ from the image')
+                            result.update({'target_configuration_verified':True,
+                                           'installed_binaries_match_image':True,'target_proof':proof,
+                                           'explicit_fresh_target_approvals':approvals})
+                            break
+                        if observation['fixture_target']['serial'] != fixture_serial(token):
+                            raise RuntimeError('Fixture target changed before input')
+                        screen = observation['screen']
+                        selected_no = re.search(r'\x1a No(?:\s|\xb3|$)', screen) is not None
+                        write_prompts = ('Write the changes to disks and configure LVM?',
+                                         'Write the changes to disk and configure encrypted volumes?',
+                                         'Keep current partition layout and configure LVM?',
+                                         'Keep current partition layout and configure encrypted volumes?',
+                                         'Write the changes to disks?')
+                        prompt = next((value for value in write_prompts if value in screen), None)
+                        if prompt and selected_no and 'Yes' in screen and ('vda' in screen or 'LVM' in screen or 'encrypted volumes' in prompt):
+                            approvals.append(prompt)
+                            key('down'); key('ret')
+                        elif 'Encryption passphrase:' in screen or 'Re-enter passphrase to verify:' in screen:
+                            if '[hidden]' not in screen:
+                                raise RuntimeError('Encryption credential field is not hidden')
+                            for char in crypt_secret:
+                                key('minus' if char == '-' else char)
+                            key('ret')
+                        elif ('Create new empty partition table on this device?' in screen
+                                and 'undo this operation later' in screen and selected_no and 'Yes' in screen):
+                            key('down'); key('ret')
+                        elif ('This is an overview of your currently configured partitions' in screen
+                                and 'vda' in screen and 'Finish partitioning and write changes to disk' in screen):
+                            for _ in range(48):key('down')
+                            choice = snapshot('Finish partitioning and write changes to disk', 'partition-finish-'+str(step))
+                            if '\x1a Finish partitioning and write changes to disk' not in choice['screen']:
+                                raise RuntimeError('Partition finish selection differs')
+                            key('ret')
+                        elif ('Install the GRUB boot loader to your primary drive?' in screen
+                                and 'only operating system' in screen and selected_no):
+                            approvals.append('Install GRUB on the only fresh target')
+                            key('down'); key('ret')
+                        elif ('Use a network mirror?' in screen or 'Force GRUB installation to the EFI removable media path?' in screen) and selected_no:
+                            key('ret')
+                        elif any(value in screen.lower() for value in ('installer components to load', 'keymap to use:')):
+                            key('ret')
+                        elif 'Driver needed by your Ethernet card:' in screen and '\x1a no ethernet card' in screen:
+                            key('ret')
+                        elif 'Ethernet card not found' in screen and 'No Ethernet card was found on the system.' in screen:
+                            key('ret')
+                        else:
+                            raise RuntimeError('Unrecognized full-install form; no answer sent')
+                    else:
+                        raise RuntimeError('Verified encrypted target finish was not observed')
                 if args.partition_review:
                     key('ret')
                     deadline = time.monotonic()+900
@@ -306,10 +414,13 @@ d-i partman-auto-lvm/guided_size string max
                         raise RuntimeError('No disk-write confirmation was observed')
                 # Stop the standard service, proving that its frontend and
                 # backend leave together, before restarting authenticated entry.
-                shell('sudo -n systemctl stop wros-native-probe.service')
+                if args.install_target:
+                    shell('if sudo -n systemctl is-active --quiet wros-native-probe.service; then sudo -n systemctl stop wros-native-probe.service; fi')
+                else:
+                    shell('sudo -n systemctl stop wros-native-probe.service')
                 cleanup = r'''import json,pathlib,subprocess; P=pathlib.Path; names=[(p/'comm').read_text().strip() for p in P('/proc').glob('[0-9]*') if (p/'comm').exists()]; assert not any(n in names for n in ('wros-installer','main-menu')); assert not P('/run/live/installer/usr/bin/main-menu').exists(); assert 'wros.native_probe=' in P('/proc/cmdline').read_text(); print('WROS_NATIVE_CLEANUP_PASSED')'''
                 shell('sudo -n python3 -I -c '+"'"+cleanup.replace("'", "'\"'\"'")+"'")
-                result['cgroup_stop_retired_both_processes'] = True
+                result['finish_retired_both_processes' if args.install_target else 'cgroup_stop_retired_both_processes'] = True
                 result['private_mounts_did_not_escape'] = True
                 connection.sendall(b'sudo -n /sbin/poweroff\n')
                 deadline = time.monotonic()+60
@@ -322,6 +433,8 @@ d-i partman-auto-lvm/guided_size string max
                     else: time.sleep(.05)
                 process.wait(timeout=1)
                 result['passed'] = process.returncode == 0
+                if args.install_target and (crypt_secret.encode() in content or login_secret.encode() in content):
+                    raise RuntimeError('Generated fixture credential appeared in serial output')
         except Exception as error:
             result['error'] = type(error).__name__+': '+str(error)
             if control.exists():
@@ -343,11 +456,46 @@ d-i partman-auto-lvm/guided_size string max
             if target:
                 result['target_sha256_after'] = digest(target)
                 result['target_unchanged'] = result['target_sha256_before'] == result['target_sha256_after']
-                result['passed'] &= result['target_unchanged']
+                if args.install_target:
+                    result['target_changed'] = not result['target_unchanged']
+                    result['passed'] &= result['target_changed'] and result.get('target_configuration_verified',False)
+                else:
+                    result['passed'] &= result['target_unchanged']
             result['seconds'] = round(time.monotonic()-started, 2)
             (run/'result.json').write_text(json.dumps(result,indent=2)+'\n')
+    if args.install_target and result['passed']:
+        result['backend_installation_verified'] = True
+        result['passed'] = False
+        boot_started = time.monotonic()
+        try:
+            subprocess.run(['qemu-img','convert','-f','raw','-O','qcow2',str(target),str(run/'target.qcow2')],
+                           check=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+            subprocess.run(['qemu-img','compare','-f','raw','-F','qcow2',str(target),str(run/'target.qcow2')],
+                           check=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+            shutil.copyfile(run/'review.preseed',run/'preseed.cfg')
+            boot = verify_boot(run, secret=login_secret, native_session=True, unlock_secret=crypt_secret)
+            result['installed_boot'] = boot
+            required = ('installed_boot_verified','encrypted_root_unlock_verified','authentication_verified',
+                        'encrypted_wrong_key_rejected',
+                        'tty1_nonroot_session_verified','writing_ui_verified','offline_wifi_packages_verified',
+                        'native_login_verified','native_wrong_password_rejected','sleep_guard_verified',
+                        'native_logout_verified','input_reader_nonroot_verified')
+            expected = {name: result['target_proof']['binary_sha256'][name] for name in ('grimoire','wros-greeter')}
+            identities = (boot.get('running_image_binary_sha256') == expected
+                          and boot.get('running_editor_exe_sha256') == expected['grimoire'])
+            result['running_target_binaries_match_proof'] = identities
+            result['passed'] = all(boot.get(name) for name in required) and identities and not boot['password_logged']
+            if result['passed']:
+                (run/'.fixture-secrets').unlink()
+        except Exception as error:
+            result['boot_error'] = type(error).__name__+': '+str(error)
+        finally:
+            result['boot_seconds'] = round(time.monotonic()-boot_started,2)
+            result['source_unchanged'] &= source == fingerprint()
+            result['passed'] &= result['source_unchanged']
+            (run/'result.json').write_text(json.dumps(result,indent=2)+'\n')
     print(json.dumps({k:v for k,v in result.items() if k!='phases'},indent=2))
-    print('Private diskless artifacts: '+str(run))
+    print('Private disposable artifacts: '+str(run))
     return 0 if result['passed'] else 1
 
 

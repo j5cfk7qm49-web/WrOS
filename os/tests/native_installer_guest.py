@@ -19,6 +19,7 @@ import pwd
 import re
 import resource
 import select
+import shlex
 import shutil
 import socket
 import stat
@@ -117,7 +118,7 @@ def state(value):
     temporary.replace(WORK/'status.json')
 
 
-def validate_review_preseed(contents):
+def validate_review_preseed(contents, installing=False):
     require(len(contents) <= 16*1024 and b'\0' not in contents and b'\r' not in contents,
             'Invalid review fixture defaults')
     allowed = {'anna/choose_modules', 'keyboard-configuration/xkb-keymap', 'netcfg/enable',
@@ -126,19 +127,73 @@ def validate_review_preseed(contents):
                'time/zone', 'passwd/user-fullname', 'passwd/username', 'passwd/user-password-crypted',
                'partman-auto/disk', 'partman-auto/method', 'partman-auto/choose_recipe',
                'partman-auto-lvm/guided_size'}
+    extra = {'apt-setup/use_mirror': ('boolean', 'false'),
+             'apt-setup/services-select': ('multiselect', ''),
+             'pkgsel/upgrade': ('select', 'none'), 'tasksel/first': ('multiselect', ''),
+             'popularity-contest/participate': ('boolean', 'false'),
+             'partman-auto-crypto/erase_disks': ('boolean', 'false'),
+             'cdrom-detect/eject': ('boolean', 'false'),
+             'debian-installer/add-kernel-opts': ('string', 'console=tty1 console=ttyS0,115200')}
+    owners = {'tasksel/first': 'tasksel', 'popularity-contest/participate': 'popularity-contest'}
+    if installing:
+        allowed.update(extra)
     values = {}
     for line in contents.decode('utf-8').splitlines():
         if not line.strip() or line.lstrip().startswith('#'):
             continue
         parts = line.split(None, 3)
-        require(len(parts) == 4 and parts[0] == 'd-i' and parts[1] in allowed
+        if installing and len(parts) == 3 and parts[1] in extra and extra[parts[1]] == ('multiselect', ''):
+            parts.append('')
+        require(len(parts) == 4 and parts[0] == (owners.get(parts[1], 'd-i') if installing else 'd-i') and parts[1] in allowed
                 and parts[1] not in values, 'Unexpected review fixture default')
         values[parts[1]] = (parts[2], parts[3])
+    password = values.get('passwd/user-password-crypted', ('password', '!'))
+    if installing:
+        require(all(values.get(name, value) == value for name, value in extra.items()),
+                'Unexpected full-install fixture default')
+        require(password[0] == 'password' and re.fullmatch(r'\$6\$[./A-Za-z0-9]{1,16}\$[./A-Za-z0-9]{86}', password[1]) is not None,
+                'Only a generated hashed login credential is accepted')
     require(values.get('partman-auto/disk') == ('string', '/dev/vda')
             and values.get('partman-auto/method') == ('string', 'crypto')
             and values.get('ethdetect/module_select', ('select', 'no ethernet card')) == ('select', 'no ethernet card')
-            and values.get('passwd/user-password-crypted', ('password', '!')) == ('password', '!'),
+            and (installing or password == ('password', '!')),
             'Review fixture may only select the fresh disk, never unlock credentials or approve writes')
+
+
+def stage_target_proof(token):
+    source = (QA/'native_target_audit.py').read_text()
+    require(0 < len(source.encode()) <= 65536, 'Bounded fixed target audit required')
+    directory = DI/'usr/lib/finish-install.d'
+    audit = directory/'94wros-fixture-proof'
+    finish = directory/'97wros-fixture-finished'
+    require(not audit.exists() and not finish.exists(), 'Fixture completion hooks already exist')
+    audit.write_text('#!/bin/sh\nset -e\numask 077\n'
+        'if in-target --pass-stdout /usr/bin/python3 -I -c '+shlex.quote(source)
+        +' --fixture-token '+shlex.quote(token)+' > /wros-target-proof; then\n'
+        '  exit 0\nelse\n  exit 10\nfi\n')
+    finish.write_text('#!/bin/sh\nset -e\numask 077\n'
+                      'test -s /wros-target-proof || exit 10\n'
+                      'printf "%s\\n" '+shlex.quote(token)+' > /wros-target-finished\n')
+    audit.chmod(0o755); finish.chmod(0o755)
+
+
+def verified_target_proof(token, manifest):
+    path = DI/'wros-target-proof'
+    info = path.lstat()
+    require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o077
+            and 0 < info.st_size <= 65536, 'Private bounded target proof required')
+    require((DI/'wros-target-finished').read_text() == token+'\n', 'Finish marker differs')
+    proof = json.loads(path.read_bytes())
+    require(proof.get('passed') is True and proof.get('root_locked') is True
+            and proof.get('native_authentication_preserved') is True
+            and proof.get('plaintext_fixture_credentials_in_logs') is False
+            and proof.get('kernel_sha256') == manifest['file_sha256']['vmlinuz'],
+            'Target proof did not satisfy its required fields')
+    target = str(DI/'target')
+    require(not any(line.split()[4] == target or line.split()[4].startswith(target+'/')
+                    for line in Path('/proc/self/mountinfo').read_text().splitlines()),
+            'Target mounts remained after Debian finish hooks')
+    return proof
 
 
 def diagnose():
@@ -150,7 +205,7 @@ def diagnose():
             arguments = (process/'cmdline').read_bytes().split(b'\0')
             if (not arguments or arguments[0] != b'/usr/bin/python3'
                     or str(QA/'native_installer_guest.py').encode() not in arguments
-                    or not any(value in arguments for value in (b'worker', b'worker-target', b'worker-review'))):
+                    or not any(value in arguments for value in (b'worker', b'worker-target', b'worker-review', b'worker-install'))):
                 continue
             require('/system.slice/'+UNIT in (process/'cgroup').read_text(), 'Diagnostic process differs')
             namespace = os.open(process/'ns/mnt', os.O_RDONLY | os.O_CLOEXEC)
@@ -190,13 +245,14 @@ def writing_readers_retired():
     return True
 
 
-def worker(allow_synthetic_target=False, review=False):
+def worker(allow_synthetic_target=False, review=False, installing=False):
     manifest, identity = guard(allow_synthetic_target)
     require(os.getpid() == 1, 'Worker must run in the private PID namespace')
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     require(ctypes.CDLL(None).prctl(4, 0, 0, 0, 0) == 0, 'Worker dump protection failed')
     record = {'installation_complete': False,
-              'scope': 'Marked fresh-target menu probe only' if identity else 'Diskless menu/transport probe only',
+              'scope': 'Marked fresh-target encrypted installation fixture' if installing
+                       else 'Marked fresh-target menu probe only' if identity else 'Diskless menu/transport probe only',
               'writable_disks': 1 if identity else 0, 'fixture_target': identity,
               'backend_kernel': manifest['kernel_release'], 'module_sha256': manifest['module_sha256']}
     state(record)
@@ -277,11 +333,13 @@ def worker(allow_synthetic_target=False, review=False):
     if review:
         require(identity is not None, 'Review requires the generated target')
         defaults = (QA/'review.preseed').read_bytes()
-        validate_review_preseed(defaults)
+        validate_review_preseed(defaults, installing)
         shipping = (QA/'installer.preseed').read_bytes()
         require(len(shipping) <= 16*1024 and b'\0' not in shipping, 'Bounded shipping defaults required')
         with (DI/'preseed.cfg').open('ab') as output:
             output.write(b'\n'+shipping+b'\n'+defaults+b'\n')
+        if installing:
+            stage_target_proof((QA/'fixture-token').read_text().strip())
     bind(medium, DI/'cdrom', True, recursive=True)
     for name in ('dev', 'dev/pts', 'proc', 'sys', 'tmp'):
         bind(Path('/'+name), DI/name)
@@ -343,6 +401,13 @@ def worker(allow_synthetic_target=False, review=False):
             record.update({'frontend_exit': frontend.poll(), 'backend_exit': backend.poll(),
                            'ready': False})
             state(record)
+            if installing:
+                code = backend.wait(timeout=5)
+                require(code in (0, 11), 'Backend did not exit through the maintained finish path')
+                proof = verified_target_proof((QA/'fixture-token').read_text().strip(), manifest)
+                record.update({'target_configuration_verified': True, 'target_mounts_retired': True,
+                               'target_proof': proof, 'backend_exit': code})
+                state(record)
         finally:
             for process in (backend, frontend):
                 if process is not None and process.poll() is None:
@@ -357,15 +422,16 @@ def worker(allow_synthetic_target=False, review=False):
 
 def main():
     require(len(sys.argv) == 2 and sys.argv[1] in ('start', 'worker', 'start-target', 'worker-target',
-                                                'start-review', 'worker-review', 'inspect'),
+                                                'start-review', 'worker-review', 'start-install', 'worker-install', 'inspect'),
             'Fixed fixture operation required')
     if sys.argv[1] == 'inspect':
         diagnose()
         return
-    review = sys.argv[1].endswith('-review')
+    installing = sys.argv[1].endswith('-install')
+    review = installing or sys.argv[1].endswith('-review')
     target = review or sys.argv[1].endswith('-target')
     if sys.argv[1].startswith('worker'):
-        worker(target, review)
+        worker(target, review, installing)
         return
     guard(target)
     require(not WORK.exists(), 'This one-shot guest probe already ran')
@@ -379,11 +445,11 @@ def main():
     WORK.mkdir(mode=0o700)
     command('/usr/bin/systemd-run', '--unit='+UNIT, '--collect',
             '--property=KillMode=control-group', '--property=TimeoutStopSec=5s',
-            '--property=RuntimeMaxSec='+('1200s' if review else '600s'), '--property=PrivateMounts=yes',
+            '--property=RuntimeMaxSec='+('3600s' if installing else '1200s' if review else '600s'), '--property=PrivateMounts=yes',
             '--property=PrivateTmp=yes', '--property=LimitCORE=0',
             '/usr/bin/unshare', '--mount', '--pid', '--uts', '--ipc', '--fork', '--kill-child', '--mount-proc',
             '/usr/bin/python3', '-I', str(QA/'native_installer_guest.py'),
-            'worker-review' if review else 'worker-target' if target else 'worker')
+            'worker-install' if installing else 'worker-review' if review else 'worker-target' if target else 'worker')
 
 
 if __name__ == '__main__':
