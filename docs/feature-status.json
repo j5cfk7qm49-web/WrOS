@@ -631,9 +631,9 @@
       "area": "OS",
       "capability": "Live WrOS installer TUI over Debian installation components",
       "status": "In progress",
-      "verification": "Debian CI: 971 Rust/configuration, 123 Python/zero skips, both Clippys and 17 gates; eleven focused and eleven real Debian backend checks; no live installation claim",
+      "verification": "Full local: 972 Rust/configuration, 123 Python/zero skips, both Clippys and 20 gates; 12 native Debian checks and 14 protocol cases; new 19-gate Debian CI pending; earlier shared-theme CI passed",
       "hardware_verified": false,
-      "detail": "Shared original palettes/theme format/panel widgets; canonical choices and hidden credentials; retained pinned-source passthrough fix; privileged live launcher, lifecycle/media and install/reboot tests remain open"
+      "detail": "Shared original palettes/theme format/panel widgets; canonical choices, hidden credentials and fail-closed maintained transport; original failed baseline retained; privileged live launcher, lifecycle/media and install/reboot tests remain open"
     }
   ]
 }
