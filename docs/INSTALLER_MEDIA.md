@@ -16,8 +16,23 @@ The older image records below keep their original source identities. Current
 [clean native build](evidence/integrated-installer-build.json) passed, with source
 matching the [passing Debian CI record](evidence/integrated-installer-ci.json).
 Its ISO SHA-256 is `cdb2be91b244e7fa9c6465c0ab0c538044f08cc00a2afe2cadf9d6204665d8ff`.
-Fresh installation and native installed-boot acceptance are still in progress.
+[Fresh installation and native installed-boot acceptance](evidence/integrated-installer-vm.json)
+now pass: normal installation took 1,263.38 seconds, followed by a separate
+97.76-second authenticated-boot retry on the same disposable disk. Native PAM
+rejection/acceptance, UID-1000 editor/reader, actual tty1 descriptor, loaded and
+installed executable hashes, offline firmware, sleep masks/logind denial and
+logout to login were verified. The [four failed earlier probes](evidence/integrated-installer-attempts.json)
+retain their original results; they exposed incorrect verifier assumptions,
+without changes to the installed runtime. The corrected verifier's separate
+identity is recorded. The [actual complete dashboard](evidence/integrated-installed-writing.png)
+and [original capture identity](evidence/integrated-installed-writing.json) remain
+separate from the latest passing report. Local development artifact:
+`build/releases/wros-native-9e7d99c-development-amd64.iso` plus `.sha256`.
 The later timezone controls in PR #41 are not contained in this image.
+
+The corrected verifier also passed full [Debian CI 40619901511](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40619901511):
+[959 Rust/configuration, 113 Python/zero skips, both Clippys and 17 gates](evidence/integrated-installer-verifier-ci.json).
+Its source matches the authenticated-boot verifier, separately from the ISO build.
 
 The initial ISO built successfully on 2026-10-26. Its actual media audit passed:
 the squashfs and installer boot files exist, the six required Wi-Fi firmware
@@ -128,8 +143,8 @@ UI/input reader, matching installed executable hashes, logout to a fresh login,
 effective disabled sleep and installed firmware/connection-tool payloads.
 An interrupted or failed probe remains failed and retains partial diagnostics.
 
-Still required: normal current-image installation completion, wrong-disk
-refusal, earlier-stage interrupted installation/retry, encrypted install and
+Still required: wrong-disk refusal, earlier-stage interrupted installation/
+retry, encrypted install and
 recovery, usable keyboard selection, physical firmware/Secure Boot checks,
 input-safe lock/suspend, signed WrOS updates and complete redistribution/source
 review. Do not deploy this development media as a production writing system.

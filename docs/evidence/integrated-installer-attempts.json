@@ -1,0 +1,198 @@
+{
+  "scope": "Original failed verifier attempts on the same unchanged installed runtime; not relabeled as passing",
+  "attempts": [
+    {
+      "private_attempt_directory": "auth-failed-3",
+      "original_result": {
+        "schema_version": 1,
+        "scope": "Disposable no-network QEMU install, not hardware qualification",
+        "source_fingerprint": {
+          "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+          "sha256": "97e9afe2c17c7c6028ab40ffe66fed06c2950e1ab942ea091052e3bce41d2741",
+          "file_count": 309,
+          "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+        },
+        "native_session_expected": true,
+        "iso_sha256": "cdb2be91b244e7fa9c6465c0ab0c538044f08cc00a2afe2cadf9d6204665d8ff",
+        "installed_binary_sha256": "45de885b776345ed2981495fe5ab131cd166204ca9f1aae6be1dffe03d419462",
+        "greeter_binary_sha256": "bf193c66af41625892b866f000f5c5850919855d72189d89735017eb8be74e7c",
+        "network_devices": 0,
+        "host_disks_exposed": 0,
+        "test_answers_in_shipping_iso": false,
+        "installed_boot_verified": true,
+        "authentication_verified": true,
+        "passed": false,
+        "exit_code": 0,
+        "late_payload_verified": true,
+        "late_stage_reached": true,
+        "wall_seconds": 1263.38,
+        "installation_copy_verified": true,
+        "tty1_nonroot_session_verified": true,
+        "writing_ui_verified": true,
+        "offline_wifi_packages_verified": true,
+        "password_logged": false,
+        "native_session_requested": true,
+        "native_login_verified": true,
+        "native_wrong_password_rejected": true,
+        "sleep_guard_verified": false,
+        "native_logout_verified": false,
+        "input_reader_nonroot_verified": false,
+        "authentication_only_retry": true,
+        "authentication_verifier_source_fingerprint": {
+          "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+          "sha256": "88eadf4c9e39066b34111c812abdfa2869947ebb8a8958a151f33e45143824de",
+          "file_count": 309,
+          "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+        },
+        "authentication_verifier_sha256": {
+          "install_vm.py": "e6b78d0ef4d05da8bb83e243ff381e5a08b434144232e69753320e055c8a9914",
+          "installed_boot.py": "0d3f7d93b6cc96726631ffe679673f6cca372334f3f9e74570b9aa29637d5814"
+        },
+        "authentication_wall_seconds": 86.95
+      }
+    },
+    {
+      "private_attempt_directory": "auth-failed-4",
+      "original_result": {
+        "schema_version": 1,
+        "scope": "Disposable no-network QEMU install, not hardware qualification",
+        "source_fingerprint": {
+          "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+          "sha256": "97e9afe2c17c7c6028ab40ffe66fed06c2950e1ab942ea091052e3bce41d2741",
+          "file_count": 309,
+          "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+        },
+        "native_session_expected": true,
+        "iso_sha256": "cdb2be91b244e7fa9c6465c0ab0c538044f08cc00a2afe2cadf9d6204665d8ff",
+        "installed_binary_sha256": "45de885b776345ed2981495fe5ab131cd166204ca9f1aae6be1dffe03d419462",
+        "greeter_binary_sha256": "bf193c66af41625892b866f000f5c5850919855d72189d89735017eb8be74e7c",
+        "network_devices": 0,
+        "host_disks_exposed": 0,
+        "test_answers_in_shipping_iso": false,
+        "installed_boot_verified": true,
+        "authentication_verified": true,
+        "passed": false,
+        "exit_code": 0,
+        "late_payload_verified": true,
+        "late_stage_reached": true,
+        "wall_seconds": 1263.38,
+        "installation_copy_verified": true,
+        "tty1_nonroot_session_verified": true,
+        "writing_ui_verified": true,
+        "offline_wifi_packages_verified": true,
+        "password_logged": false,
+        "native_session_requested": true,
+        "native_login_verified": true,
+        "native_wrong_password_rejected": true,
+        "sleep_guard_verified": false,
+        "native_logout_verified": false,
+        "input_reader_nonroot_verified": true,
+        "authentication_only_retry": true,
+        "authentication_verifier_source_fingerprint": {
+          "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+          "sha256": "d485286c6d43b3f1a3803e239d9a24c159319505bca0541c87a8975b467f0528",
+          "file_count": 310,
+          "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+        },
+        "authentication_verifier_sha256": {
+          "install_vm.py": "e6b78d0ef4d05da8bb83e243ff381e5a08b434144232e69753320e055c8a9914",
+          "installed_boot.py": "a13d32126bc95029e451c2b5b2ae742191c16e751855ee94679d57ba9cb4710b"
+        },
+        "authentication_wall_seconds": 89.66,
+        "running_image_binary_sha256": {
+          "grimoire": "45de885b776345ed2981495fe5ab131cd166204ca9f1aae6be1dffe03d419462",
+          "wros-greeter": "bf193c66af41625892b866f000f5c5850919855d72189d89735017eb8be74e7c"
+        },
+        "running_editor_exe_sha256": "45de885b776345ed2981495fe5ab131cd166204ca9f1aae6be1dffe03d419462"
+      }
+    },
+    {
+      "private_attempt_directory": "direct-tty-accounting-failed",
+      "original_result": {
+        "schema_version": 1,
+        "scope": "Disposable no-network QEMU install, not hardware qualification",
+        "source_fingerprint": {
+          "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+          "sha256": "97e9afe2c17c7c6028ab40ffe66fed06c2950e1ab942ea091052e3bce41d2741",
+          "file_count": 309,
+          "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+        },
+        "native_session_expected": true,
+        "iso_sha256": "cdb2be91b244e7fa9c6465c0ab0c538044f08cc00a2afe2cadf9d6204665d8ff",
+        "installed_binary_sha256": "45de885b776345ed2981495fe5ab131cd166204ca9f1aae6be1dffe03d419462",
+        "greeter_binary_sha256": "bf193c66af41625892b866f000f5c5850919855d72189d89735017eb8be74e7c",
+        "network_devices": 0,
+        "host_disks_exposed": 0,
+        "test_answers_in_shipping_iso": false,
+        "installed_boot_verified": true,
+        "authentication_verified": true,
+        "passed": false,
+        "exit_code": 0,
+        "late_payload_verified": true,
+        "late_stage_reached": true,
+        "wall_seconds": 1263.38,
+        "installation_copy_verified": true,
+        "tty1_nonroot_session_verified": false,
+        "writing_ui_verified": false,
+        "offline_wifi_packages_verified": false,
+        "password_logged": false,
+        "native_session_requested": true,
+        "native_login_verified": true,
+        "native_wrong_password_rejected": true,
+        "sleep_guard_verified": false,
+        "native_logout_verified": false,
+        "input_reader_nonroot_verified": false,
+        "authentication_only_retry": true,
+        "authentication_verifier_source_fingerprint": {
+          "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+          "sha256": "0c0ec20dc3a29c1bb451eb39006db5ab02e86d5797a59b41147b67b945c5c65c",
+          "file_count": 309,
+          "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+        },
+        "authentication_verifier_sha256": {
+          "install_vm.py": "e6b78d0ef4d05da8bb83e243ff381e5a08b434144232e69753320e055c8a9914",
+          "installed_boot.py": "d8f05492dfe3c339c29fd57ade3adfb8b5349d3ecc5a87efe55252a9d3139fb8"
+        },
+        "authentication_wall_seconds": 130.29
+      }
+    },
+    {
+      "private_attempt_directory": "first-auth-failed",
+      "original_result": {
+        "schema_version": 1,
+        "scope": "Disposable no-network QEMU install, not hardware qualification",
+        "source_fingerprint": {
+          "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+          "sha256": "97e9afe2c17c7c6028ab40ffe66fed06c2950e1ab942ea091052e3bce41d2741",
+          "file_count": 309,
+          "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+        },
+        "native_session_expected": true,
+        "iso_sha256": "cdb2be91b244e7fa9c6465c0ab0c538044f08cc00a2afe2cadf9d6204665d8ff",
+        "installed_binary_sha256": "45de885b776345ed2981495fe5ab131cd166204ca9f1aae6be1dffe03d419462",
+        "greeter_binary_sha256": "bf193c66af41625892b866f000f5c5850919855d72189d89735017eb8be74e7c",
+        "network_devices": 0,
+        "host_disks_exposed": 0,
+        "test_answers_in_shipping_iso": false,
+        "installed_boot_verified": true,
+        "authentication_verified": true,
+        "passed": false,
+        "exit_code": 0,
+        "late_payload_verified": true,
+        "late_stage_reached": true,
+        "wall_seconds": 1263.38,
+        "installation_copy_verified": true,
+        "tty1_nonroot_session_verified": false,
+        "writing_ui_verified": false,
+        "offline_wifi_packages_verified": false,
+        "password_logged": false,
+        "native_session_requested": true,
+        "native_login_verified": true,
+        "native_wrong_password_rejected": true,
+        "sleep_guard_verified": false,
+        "native_logout_verified": false,
+        "input_reader_nonroot_verified": false
+      }
+    }
+  ]
+}
