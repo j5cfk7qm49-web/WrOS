@@ -1,5 +1,18 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Live Grimoire startup — integration under qualification
+
+`codex/live-session` adds an explicit live-build profile using maintained Debian
+live-config/user-setup and the shared Grimoire writing desk. Temporary account
+and one-time greetd entry remain in the boot overlay; immutable installed
+login stays authenticated. The public live session identifies itself and
+disables personal locking in both the interface and root helper.
+
+Eleven private Python fixture methods and one actual four-size renderer test
+pass. Full software qualification and actual diskless live boot are pending.
+Read the [profile and limits](LIVE_SESSION.md). This is not a privileged native
+installer or a completed live installation claim.
+
 ## Terminal input readiness — local software, guest and Debian CI passed
 
 `codex/terminal-readiness` retains the locked Crossterm parser/API with an

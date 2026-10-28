@@ -641,6 +641,14 @@
       "status": "Tested",
       "verification": "Debian CI: 972 Rust/configuration, 124 Python/zero skips, both Clippys and 20 gates; full local 21 gates; four-size long-secret/typeahead PTYs, real Debian 13/14 cases and protected-lock guest passed 228.09 seconds",
       "detail": "Locked Crossterm parser/API retained with exact upstream MIT source, 77-file audit and explicit Linux readiness patch; flags, fresh readers and process-death recovery preserved; no clipboard, suspend or physical claim"
+    },
+    {
+      "area": "OS",
+      "capability": "Grimoire live-session startup and immutable installed authentication",
+      "status": "In progress",
+      "verification": "Eleven private Python fixture methods and actual four-size Grimoire renderer test passed; full software and diskless live boot pending",
+      "hardware_verified": false,
+      "detail": "Maintained live-config/user-setup with temporary runtime greetd entry; stock multi-console automatic entry masked; public live personal lock unavailable; privileged installer remains unfinished"
     }
   ]
 }

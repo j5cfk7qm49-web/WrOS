@@ -121,6 +121,7 @@ pub struct Deck {
     pub note: String,
     pub busy: bool,
     pub lock_available: bool,
+    pub live_session: bool,
     pub lock_requested: bool,
     worker: Option<Worker>,
     enable_system: bool,
@@ -132,6 +133,11 @@ pub struct Deck {
 impl Deck {
     pub fn load(root: &Path, background: bool) -> Self {
         let mut warnings = Vec::new();
+        let live_session = background && std::env::var_os("WROS_LIVE_SESSION").is_some();
+        if live_session {
+            warnings
+                .push("Live session · save work somewhere persistent before restarting.".into());
+        }
         let layout_store = workspaces::Store::load(root)
             .map_err(|e| warnings.push(e.to_string()))
             .ok();
@@ -230,6 +236,7 @@ impl Deck {
             snapshot: None,
             note: warnings.join("; "),
             busy: false,
+            live_session,
             lock_available: {
                 #[cfg(target_os = "linux")]
                 {
@@ -310,6 +317,13 @@ impl Deck {
 
 impl App {
     pub fn request_console_lock(&mut self) {
+        if self.deck.live_session {
+            self.deck
+                .shell
+                .notices
+                .push("Live sessions have no personal screen lock.");
+            return;
+        }
         if !self.deck.lock_available || self.deck.busy {
             self.deck
                 .shell
@@ -1229,7 +1243,12 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         return;
     }
     f.render_widget(Clear, area);
-    let block = crate::ui::pane_block("WRITINGDECK OS · offline first", true, t);
+    let heading = if app.deck.live_session {
+        "WrOS · Live session"
+    } else {
+        "WrOS · offline first"
+    };
+    let block = crate::ui::pane_block(heading, true, t);
     let inner = block.inner(area);
     f.render_widget(block, area);
     if inner.height < 4 || inner.width < 10 {

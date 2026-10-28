@@ -601,6 +601,31 @@ fn console_lock_keeps_the_original_context_and_refuses_unsaved_conflicts() {
 }
 
 #[test]
+fn live_session_uses_shared_surfaces_and_never_requests_personal_lock() {
+    for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let (mut desk, note) =
+            secondary_book(&format!("live-session-{width}"), width, height, true);
+        choose_secondary(&mut desk, &note);
+        let original = desk.app.editor.text();
+        let position = desk.app.view_position(Pane::Secondary);
+        desk.app.deck.live_session = true;
+        desk.app.deck.lock_available = true; // A stale capability must not enable a personal lock.
+        desk.key(KeyCode::F(12));
+        desk.draw();
+        assert!(desk.shows("WrOS · Live session"));
+        desk.key(KeyCode::Esc);
+        system_panel(&mut desk, 2);
+        desk.draw();
+        assert!(desk.shows("Live session"));
+        assert!(desk.shows("personal lock unavailable"));
+        desk.app.request_console_lock();
+        assert!(!desk.app.deck.lock_requested);
+        assert_eq!(desk.app.editor.text(), original);
+        assert_eq!(desk.app.view_position(Pane::Secondary), position);
+    }
+}
+
+#[test]
 fn power_waits_for_missing_sources_and_failed_document_claims_then_allows_explicit_retry() {
     use std::sync::{Arc, Mutex};
     use writingdeck_sys::{Backend, PowerAction, Reply, Request, Simulated};

@@ -309,7 +309,9 @@ fn entries(app: &App) -> Vec<Entry> {
                     Entry::info(writingdeck_sys::SUSPEND_UNAVAILABLE),
                     Entry::new("Shutdown · confirmation required", Choice::System(9)),
                     Entry::new("Restart · confirmation required", Choice::System(10)),
-                    if app.deck.lock_available {
+                    if app.deck.live_session {
+                        Entry::info("Live session · personal lock unavailable")
+                    } else if app.deck.lock_available {
                         Entry::new("Lock writing session", Choice::Lock)
                     } else {
                         Entry::info("Console lock unavailable in this image/session")
@@ -662,6 +664,9 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
         Route::Timezones => "WrOS · Settings › Date and time › Timezone".into(),
         Route::TimezoneConfirm => "WrOS · Change timezone?".into(),
     };
+    if app.deck.live_session {
+        title.push_str(" · Live session");
+    }
     if app
         .deck
         .snapshot

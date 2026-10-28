@@ -3,7 +3,13 @@
 # encryption and account workflow; this builder never selects a target disk.
 set -euo pipefail
 repo=$(cd "$(dirname "$0")/../.." && pwd)
-[[ $# == 0 && $EUID == 0 ]] || { echo 'Run without arguments as root in an isolated Debian 13 builder.' >&2; exit 2; }
+profile=installer
+if [[ $# == 1 && $1 == --live ]]; then
+    profile=live-session
+elif [[ $# != 0 ]]; then
+    echo 'Usage: build-installer.sh [--live], as root in an isolated Debian 13 builder.' >&2; exit 2
+fi
+[[ $EUID == 0 ]] || { echo 'Requires an isolated Debian 13 root builder.' >&2; exit 2; }
 for command in lb gpgv file zstd xorriso mksquashfs; do
     command -v "$command" >/dev/null || { echo "Missing builder prerequisite: $command" >&2; exit 2; }
 done
@@ -11,7 +17,17 @@ binary=${GRIMOIRE_BINARY:-$repo/target/debug/grimoire}
 [[ -x $binary ]] || { echo 'Build Grimoire first or set GRIMOIRE_BINARY.' >&2; exit 2; }
 greeter=${WROS_GREETER_BINARY:-$repo/target/debug/wros-greeter}
 [[ -x $greeter ]] || { echo 'Build wros-greeter first or set WROS_GREETER_BINARY.' >&2; exit 2; }
-base="$repo/build/installer"
+image=wros-installer
+volume=WROS_INSTALL
+bootappend='boot=live components live-config.noautologin'
+if [[ $profile == live-session ]]; then
+    installer=${WROS_INSTALLER_BINARY:-$repo/target/debug/wros-installer}
+    [[ -x $installer ]] || { echo 'Build wros-installer first or set WROS_INSTALLER_BINARY.' >&2; exit 2; }
+    image=wros-live
+    volume=WROS_LIVE
+    bootappend='boot=live components wros.live=1'
+fi
+base="$repo/build/$profile"
 [[ ! -L $repo/build && ! -L $base ]] || { echo 'Refusing symlinked build paths.' >&2; exit 2; }
 mkdir -p "$base"
 shopt -s nullglob dotglob
@@ -31,18 +47,25 @@ lb config --ignore-system-defaults --mode debian --distribution trixie \
     --mirror-binary https://deb.debian.org/debian \
     --mirror-binary-security https://security.debian.org/debian-security \
     --mirror-debian-installer https://deb.debian.org/debian \
-    --uefi-secure-boot enable --image-name wros-installer \
-    --iso-application 'WrOS - Writer OS (experimental)' --iso-volume WROS_INSTALL \
-    --bootappend-live 'boot=live components live-config.noautologin' \
+    --uefi-secure-boot enable --image-name "$image" \
+    --iso-application 'WrOS - Writer OS (experimental)' --iso-volume "$volume" \
+    --bootappend-live "$bootappend" \
     --checksums sha256 --chroot-squashfs-compression-type zstd
 mkdir -p config/package-lists
 cp "$repo/os/config/packages.txt" config/package-lists/wros.list.chroot
 printf 'sudo\ncryptsetup\ncryptsetup-initramfs\ngreetd\n' >> config/package-lists/wros.list.chroot
+if [[ $profile == live-session ]]; then
+    printf 'live-boot\nlive-config\nlive-config-systemd\nuser-setup\n' >> config/package-lists/wros.list.chroot
+fi
 lb bootstrap
 lb chroot
 chroot chroot groupadd --system writingdeck
 bash "$repo/os/scripts/install-files.sh" "$base/chroot" "$binary" installer
 bash "$repo/os/scripts/stage-greeter.sh" "$base/chroot" "$greeter"
+if [[ $profile == live-session ]]; then
+    bash "$repo/os/scripts/stage-live-session.sh" "$base/chroot" "$installer"
+    python3 "$repo/tools/audit-live-session.py" chroot > live-session-rootfs.json
+fi
 # Do not copy any VM-only getty/probe/account into the installed filesystem.
 [[ ! -e chroot/etc/writingdeck/VM-DEMO-ONLY && ! -e chroot/etc/systemd/system/getty@tty1.service.d/writingdeck-vm.conf ]]
 python3 "$repo/tools/audit-wifi-image.py" chroot > wifi-rootfs.json
@@ -50,5 +73,5 @@ python3 "$repo/tools/verify-debian-installer.py" cache/installer_debian-installe
 lb installer
 lb binary
 python3 "$repo/tools/audit-installer-media.py" "$base" > media-audit.json
-sha256sum wros-installer-amd64.hybrid.iso > SHA256SUMS
+sha256sum "$image-amd64.hybrid.iso" > SHA256SUMS
 echo 'Experimental media built. VM install/cancel/interruption and hardware qualification are still required.'

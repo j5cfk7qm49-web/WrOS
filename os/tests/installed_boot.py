@@ -199,7 +199,7 @@ def verify(run, secret=None, native_session=False):
                     expect(marker_pattern(b'WROS_UI_STATE_END'), 10)
                     console = content[start:]
                     expect(b':~$ ', 20)
-                    if process_verified and b'WRITINGDECK OS' in console and b'Resume writing' in console:
+                    if process_verified and any(title in console for title in (b'WrOS', b'WRITINGDECK OS')) and b'Resume writing' in console:
                         result['tty1_nonroot_session_verified'] = True
                         result['writing_ui_verified'] = True
                         break

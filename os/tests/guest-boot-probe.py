@@ -40,7 +40,7 @@ def main():
             screen = Path('/dev/vcs1').read_bytes().decode('latin1')
         except OSError:
             screen = ''
-        if processes and 'WRITINGDECK OS' in screen and 'Resume writing' in screen:
+        if processes and any(title in screen for title in ('WrOS', 'WRITINGDECK OS')) and 'Resume writing' in screen:
             pid = processes[0]
             break
         time.sleep(0.25)

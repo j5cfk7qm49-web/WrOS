@@ -3172,7 +3172,7 @@ fn writingdeck_dashboard_is_navigable_at_required_terminal_sizes() {
         let mut d = Desk::open(book(&format!("deck-home-{w}"), true), w, h);
         let before = d.app.editor.text();
         d.key(KeyCode::F(12));
-        assert!(d.shows("WRITINGDECK OS"));
+        assert!(d.shows("WrOS"));
         assert!(d.shows("Resume writing"));
         assert!(d.shows("local save is not backup"));
         d.key(KeyCode::End);

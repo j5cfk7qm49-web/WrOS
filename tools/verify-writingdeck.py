@@ -120,9 +120,9 @@ def main():
     record['python'] = check | {'passed': int(summary.group(1)), 'failed': 0, 'skipped': skipped,
         'pty_scope': 'Actual non-root compiled app, new demo/HOME only; original edit/save/undo/restart, four terminal sizes, metadata failures/retry. Not a full emulator or physical certificate.'}
     run('terminal-capture', ['python3', 'tools/capture-writingdeck-screens.py'])
-    run('shellcheck', ['shellcheck', *map(str, sorted(Path('os/scripts').glob('*.sh'))), 'os/scripts/writingdeck-session', 'tools/test-m7b.sh'])
+    run('shellcheck', ['shellcheck', *map(str, sorted(Path('os/scripts').glob('*.sh'))), 'os/scripts/writingdeck-session', 'os/config/live/9998-wros-session', 'tools/test-m7b.sh'])
     sources = [*sorted(Path('os/tests').glob('*.py')), *sorted(Path('tools').glob('*.py')),
-               Path('os/scripts/install-plan.py'), Path('os/scripts/writingdeck-keyboard'), Path('os/scripts/wros-display'), Path('os/scripts/wros-lock')]
+               Path('os/scripts/install-plan.py'), Path('os/scripts/writingdeck-keyboard'), Path('os/scripts/wros-display'), Path('os/scripts/wros-lock'), Path('os/scripts/wros-live-session')]
     run('python-syntax', ['python3', '-m', 'py_compile', *map(str, sources)])
     run('inventories', ['python3', 'tools/generate-writingdeck-manifests.py'])
     if (ROOT/'build/appliance/rootfs/etc/debian_version').is_file():
