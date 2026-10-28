@@ -10,6 +10,16 @@
 
 ## Mission
 
+**Latest user directive: reuse maintained FOSS first.** Audit remaining work and
+existing implementations against Debian packages; use pinned upstream builds
+when suitable components are not packaged. Then integrate them and continue
+finishing WrOS. Read [the component decisions](FOSS_REUSE.md) before expanding
+custom infrastructure. Native UI, manuscript compatibility and actual safety
+qualification remain required.
+The user's interface preference is **everything TUI where possible**, including
+the reused installer. Keep Debian Installer in text mode; use native TUI
+frontends for maintained headless services rather than adding a desktop.
+
 Latest development checkpoint: `codex/console-lock` builds on the integrated
 native installer (#40) and qualified timezone controls (#41). Manual vlock/PAM
 handoff is under qualification; consult [current status](STATUS.md) and

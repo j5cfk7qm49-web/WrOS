@@ -4,6 +4,12 @@ Historical M7a verified branch: `writingdeck/foundation`; the original unqualifi
 
 ## Current architectural priority
 
+**Reuse first:** follow the [Debian/FOSS component decisions](FOSS_REUSE.md).
+The user authorized maintained Debian packages and suitable upstream builds for
+remaining work and strengthening existing parts. Native WrOS UI and necessary
+integration stay local; do not create replacement OS engines where maintained
+components fit. Preserve existing authoring and safety contracts during adoption.
+
 The user's unified-shell directive now precedes unrelated feature expansion.
 [Architecture audit and decisions](UNIFIED_SHELL.md) preserve all existing work.
 Execute #26 shared UI/native categorized Settings and exact editor restoration;
