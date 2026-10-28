@@ -1,5 +1,25 @@
 # WrOS continuation — 2026-10-26
 
+## Active continuation — integrated native image, 2026-10-27
+
+`codex/integrated-installer`, implementation `9e7d99c`, draft #40 stacked on
+input #39. Includes the separate installer keyboard #25 commits and native login
+by default. Automatic lid/idle/power/sleep-key actions are ignored; all sleep
+modes disabled/targets masked until secure locking is qualified. No host changes.
+Clean native source/build and Debian CI 40611457588 passed: 959 Rust/configuration,
+108 Python/zero skips, both Clippys and 17 gates. Source `97e9afe2...1d2741` / 309;
+tested merge `4b821f15b9e8416a8c6c4326a1d113ac1d2225fb`.
+Safe raw build/CI reports are `integrated-installer-{build,ci}.json`.
+
+A fresh no-NIC install/UEFI/native PAM/editor/input/sleep-guard/logout run is
+in progress in the clean native snapshot. Record its actual result separately;
+do not substitute older image, interrupted-install or overlay evidence. Current
+ISO `cdb2be91...665d8ff` is 1,219,952,640 bytes. It predates the separately tested
+native timezone controls, draft #41, implementation `c88c66c`, whose focused and
+real guest records are on that branch and whose Debian CI is running.
+Secure locking/suspend, LUKS/recovery, updates, remaining management/writing tools,
+provider credentials, rights and physical qualification remain open.
+
 ## Active continuation — editor input ownership, 2026-10-27
 
 Current `codex/input-ownership`, implementation `930ee9e`, draft PR #39, stacked

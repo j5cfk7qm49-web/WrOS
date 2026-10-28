@@ -13,7 +13,11 @@ first-install keyboard adoption. An actual image audit requires the locked
 non-root greeter account, fixed session, PAM/package notices, enabled service,
 exclusive tty1 ownership, authenticated tty2 maintenance and sleep/power guards.
 The older image records below keep their original source identities. Current
-fresh-build and installed-boot qualification are in progress.
+[clean native build](evidence/integrated-installer-build.json) passed, with source
+matching the [passing Debian CI record](evidence/integrated-installer-ci.json).
+Its ISO SHA-256 is `cdb2be91b244e7fa9c6465c0ab0c538044f08cc00a2afe2cadf9d6204665d8ff`.
+Fresh installation and native installed-boot acceptance are still in progress.
+The later timezone controls in PR #41 are not contained in this image.
 
 The initial ISO built successfully on 2026-10-26. Its actual media audit passed:
 the squashfs and installer boot files exist, the six required Wi-Fi firmware

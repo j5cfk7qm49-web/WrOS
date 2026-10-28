@@ -1,5 +1,29 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Integrated native-login image — build and Debian CI passed; fresh install running
+
+`codex/integrated-installer` / [draft PR #40](https://github.com/j5cfk7qm49-web/WrOS/pull/40)
+brings the current editor/input reader, native greetd/PAM login, Settings and the
+separate installer-keyboard fix into one offline Debian image. Staging also
+ignores automatic lid/idle/power/sleep-key actions, disables the four sleep modes
+and masks sleep targets while secure locking remains unqualified.
+
+The [clean native build](evidence/integrated-installer-build.json) passed its
+authenticated Debian input chain and actual firmware/login/PAM/account/service/
+power-policy audits. The ISO is 1,219,952,640 bytes, SHA-256
+`cdb2be91b244e7fa9c6465c0ab0c538044f08cc00a2afe2cadf9d6204665d8ff`.
+[Debian CI 40611457588](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40611457588)
+passed [959 Rust/configuration, both Clippys, 108 Python/zero skips and 17 gates](evidence/integrated-installer-ci.json).
+Its source matches the build exactly: `97e9afe2c17c7c6028ab40ffe66fed06c2950e1ab942ea091052e3bce41d2741`
+/ 309 files; implementation is `9e7d99c`, tested merge `4b821f15b9e8416a8c6c4326a1d113ac1d2225fb`.
+
+A fresh no-NIC installation and UEFI/native-login/logout acceptance run is in
+progress on a newly created disposable disk. Build/CI success does not establish
+installed boot, LUKS, recovery, secure lock/suspend or physical qualification.
+The later [native timezone increment](https://github.com/j5cfk7qm49-web/WrOS/pull/41)
+is separately tested and is not contained in this ISO. Older image evidence below
+retains its original source identity.
+
 ## Editor input ownership — focused, full Debian CI and guest qualification passed
 
 `codex/input-ownership` / [draft PR #39](https://github.com/j5cfk7qm49-web/WrOS/pull/39)

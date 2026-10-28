@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "scope": "Clean Debian 13 native-session ISO build; fresh installed boot is a separate record",
+  "git_head": "9e7d99c074df142aab015cca3f303cc3021d9931",
+  "clean_native_checkout": true,
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "97e9afe2c17c7c6028ab40ffe66fed06c2950e1ab942ea091052e3bce41d2741",
+    "file_count": 309,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "source_matches_debian_ci": true,
+  "iso_sha256": "cdb2be91b244e7fa9c6465c0ab0c538044f08cc00a2afe2cadf9d6204665d8ff",
+  "iso_bytes": 1219952640,
+  "installed_binary_sha256": "45de885b776345ed2981495fe5ab131cd166204ca9f1aae6be1dffe03d419462",
+  "greeter_binary_sha256": "bf193c66af41625892b866f000f5c5850919855d72189d89735017eb8be74e7c",
+  "unstripped_build_inputs": {
+    "grimoire": "250ea0fb7b952cb199682de9f05ea55f51ef6b955dc01f378178a06375563601",
+    "wros-greeter": "bf193c66af41625892b866f000f5c5850919855d72189d89735017eb8be74e7c"
+  },
+  "build_input_sha256": {
+    "os/scripts/build-installer.sh": "7eff93d0700094bc990271724f796375bf5573c2c1356b4383f1db0716fe0a9d",
+    "os/scripts/install-files.sh": "3a4d392e2e9af4bcc682521de9b2b1fdc1fa4a2d6e8651892e6349609690e6cd",
+    "os/scripts/stage-greeter.sh": "2789107527b1613fa1bd97687a3c5a8311ae20e590c31a6bd8921036cff1a823",
+    "tools/audit-native-image.py": "ee88cc69a62c6c09d11163010d9d810590cc9a94935d156cf2d8becf6dacafc8",
+    "tools/audit-installer-media.py": "e65525584b382ac7786abb256c5f2a9096c06a16e8c08b161697b00124c9da85",
+    "tools/verify-debian-installer.py": "8a4c1316b30eb9e93073da5d4c5e640ff6c1bf420d94ce1b0b1db2468d435f81",
+    "tools/stage-prose-runtime.py": "da698baf338be8235f24af6f9e0fb1ee36f0ee89cf5a0db5f473480245450cd9"
+  },
+  "python_runtime_marker_sha256": "6200a7a2fc15e900d5a53f0fd5326f4d0615129d234e30dff87c2615525d5e37",
+  "debian_installer_input_trust": {
+    "schema_version": 1,
+    "passed": true,
+    "origin": "Debian",
+    "codename": "trixie",
+    "release_sha256": "0584fba32e13e0ab8285fb16c27adea1ec03a73669c18702821094fd6ca86675",
+    "installer_sums_sha256": "31a1a4fc99c5b0a729d261f137cd7e1599bfa6f214f83fe4e596543d8ccf2dec",
+    "images": {
+      "cdrom/vmlinuz": {
+        "sha256": "2b2358b37674d2505350528875bb17afae2a36522a9e8a9417eaca65a7da0e08",
+        "bytes": 12142528
+      },
+      "cdrom/initrd.gz": {
+        "sha256": "8de544ab627ab794504c530c82de621814386b5b67a492f1e3133390c47ea933",
+        "bytes": 24361578
+      }
+    },
+    "chain": "Debian archive keyring -> gpgv InRelease -> SHA256SUMS -> kernel/initrd",
+    "wros_release_signature": false
+  },
+  "media_audit": {
+    "schema_version": 1,
+    "passed": true,
+    "installed_rootfs_wifi": {
+      "schema_version": 1,
+      "scope": "Installed image payload and retained notices; no physical radio test",
+      "packages": {
+        "firmware-ath9k-htc": "1.4.0-110-ge888634+dfsg1-0.1",
+        "firmware-atheros": "20250410-2",
+        "firmware-brcm80211": "20250410-2",
+        "firmware-iwlwifi": "20250410-2",
+        "firmware-mediatek": "20250410-2",
+        "firmware-realtek": "20250410-2",
+        "iw": "6.9-1",
+        "linux-image-amd64": "6.12.113-1",
+        "network-manager": "1.52.1-1",
+        "rfkill": "2.41.5-0+deb13u1",
+        "wireless-regdb": "2026.05.30-1~deb13u1",
+        "wpasupplicant": "2:2.10-24"
+      },
+      "firmware_payload": {
+        "firmware-iwlwifi": {
+          "file_count": 180,
+          "copyright_sha256": "f5d62266d99e91aeae9223a5b4f830ed5e917256672f50470ef868e0378ad6d8"
+        },
+        "firmware-realtek": {
+          "file_count": 144,
+          "copyright_sha256": "f5d62266d99e91aeae9223a5b4f830ed5e917256672f50470ef868e0378ad6d8"
+        },
+        "firmware-atheros": {
+          "file_count": 284,
+          "copyright_sha256": "f5d62266d99e91aeae9223a5b4f830ed5e917256672f50470ef868e0378ad6d8"
+        },
+        "firmware-ath9k-htc": {
+          "file_count": 2,
+          "copyright_sha256": "7b64be56ce49cd2bfb17d61b1d95f8fb9a5cb071e4d25b3822e1d66cfb575991"
+        },
+        "firmware-brcm80211": {
+          "file_count": 132,
+          "copyright_sha256": "f5d62266d99e91aeae9223a5b4f830ed5e917256672f50470ef868e0378ad6d8"
+        },
+        "firmware-mediatek": {
+          "file_count": 119,
+          "copyright_sha256": "f5d62266d99e91aeae9223a5b4f830ed5e917256672f50470ef868e0378ad6d8"
+        }
+      },
+      "connection_tool": "nmtui",
+      "physical_adapters_verified": []
+    },
+    "native_session": {
+      "schema_version": 1,
+      "scope": "Staged native session/power policy; not installed boot or secure locking",
+      "passed": true,
+      "greetd_package_version": "0.10.3-4",
+      "binary_sha256": {
+        "usr/sbin/greetd": "7f614d15b4ed4959457e53a151f016be390506d4d95dcc0f2ad5ab370622b209",
+        "usr/bin/wros-greeter": "bf193c66af41625892b866f000f5c5850919855d72189d89735017eb8be74e7c",
+        "usr/bin/grimoire": "45de885b776345ed2981495fe5ab131cd166204ca9f1aae6be1dffe03d419462",
+        "usr/libexec/writingdeck-session": "f5d5983f464ebd62177937cff59d1703d36aa4ba63d365ffdb1b38e57ed7a351",
+        "usr/libexec/writingdeck-keyboard": "809820888eb4bf554127afe1be52832cf6a262839e107d76cbac1d6339a2c45b"
+      },
+      "native_tty1_login": true,
+      "autologin": false,
+      "greeter_account_locked": true,
+      "sleep_targets_masked": [
+        "sleep",
+        "suspend",
+        "hibernate",
+        "hybrid-sleep",
+        "suspend-then-hibernate"
+      ],
+      "automatic_power_actions_disabled": true,
+      "secure_locking_verified": false,
+      "physical_hardware_verified": false
+    },
+    "installer_firmware_packages": [
+      "firmware-ath9k-htc",
+      "firmware-atheros",
+      "firmware-brcm80211",
+      "firmware-iwlwifi",
+      "firmware-mediatek",
+      "firmware-realtek"
+    ],
+    "vm_profile_absent": true,
+    "physical_hardware_verified": false,
+    "installation_verified": false
+  },
+  "production_release_qualified": false,
+  "secure_locking_verified": false,
+  "physical_hardware_verified": false
+}
