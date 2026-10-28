@@ -19,6 +19,19 @@ trust_spec.loader.exec_module(trust)
 
 
 class InstallerMedia(unittest.TestCase):
+    def archive(self, base, name, version='1', payload=None, section='main'):
+        package = base/'packages'/name
+        (package/'DEBIAN').mkdir(parents=True, exist_ok=True)
+        (package/'DEBIAN/control').write_text(
+            f'Package: {name}\nVersion: {version}\nArchitecture: all\n'
+            'Maintainer: Fixture <fixture@example.invalid>\nDescription: synthetic policy fixture, not bootable\n')
+        for relative, contents in (payload or {}).items():
+            path = package/relative; path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(contents)
+        pool = base/'binary/pool'/section; pool.mkdir(parents=True, exist_ok=True)
+        subprocess.run(['dpkg-deb', '--build', '--root-owner-group', str(package), str(pool/(name+'.deb'))],
+                       check=True, stdout=subprocess.DEVNULL)
+
     def fixture(self, base):
         root = base / 'chroot'
         test_wifi_policy.WifiImagePolicy().fixture(root)
@@ -30,19 +43,76 @@ class InstallerMedia(unittest.TestCase):
             path = base / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(b'synthetic media fixture; not bootable')
-        pool = base / 'binary/pool/non-free-firmware'
-        pool.mkdir(parents=True)
         # Build actual Debian archives, so the gate reads their Package field
         # instead of trusting filenames or a requested package list.
         for name in ('firmware-iwlwifi', 'firmware-realtek', 'firmware-atheros',
                      'firmware-ath9k-htc', 'firmware-brcm80211', 'firmware-mediatek'):
-            package = base / 'packages' / name
-            (package / 'DEBIAN').mkdir(parents=True)
-            (package / 'DEBIAN/control').write_text(
-                f'Package: {name}\nVersion: 1\nArchitecture: all\nMaintainer: Fixture <fixture@example.invalid>\nDescription: synthetic firmware policy fixture\n')
-            subprocess.run(['dpkg-deb', '--build', '--root-owner-group', str(package), str(pool / (name + '.deb'))],
-                           check=True, stdout=subprocess.DEVNULL)
+            self.archive(base, name, section='non-free-firmware')
+        for name, paths in module.ENCRYPTION_PAYLOAD.items():
+            with (root/'var/lib/dpkg/status').open('a') as output:
+                output.write(f'\n\nPackage: {name}\nStatus: install ok installed\nArchitecture: all\n'
+                             'Version: 1\nMaintainer: Fixture <fixture@example.invalid>\n'
+                             'Description: synthetic encryption policy fixture, not bootable\n')
+            payload = {}
+            for relative, executable in paths:
+                contents = ('synthetic '+name+' policy fixture; not an encryption implementation\n').encode()
+                path = root/relative; path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(contents); path.chmod(0o755 if executable else 0o644)
+                payload[relative] = contents
+            self.archive(base, name, payload=payload)
         test_native_image.fixture(root)
+
+    def test_encrypted_target_needs_matching_offline_archive_not_just_root_install(self):
+        with tempfile.TemporaryDirectory(prefix='wros-offline-encryption-') as directory:
+            base = Path(directory); self.fixture(base)
+            result = module.audit(base)
+            self.assertEqual(set(result['encrypted_target_packages']), set(module.ENCRYPTION_PAYLOAD))
+            archive = base/'binary/pool/main/systemd-cryptsetup.deb'
+            renamed = archive.with_name('unrelated-filename.deb'); archive.rename(renamed)
+            self.assertIn('systemd-cryptsetup', module.audit(base)['offline_encryption_archives'])
+            renamed.unlink()
+            with self.assertRaisesRegex(ValueError, 'missing matching offline encryption.*systemd-cryptsetup'):
+                module.audit(base)
+            outside = base/'packages/systemd-cryptsetup-external.deb'
+            self.archive(base, 'systemd-cryptsetup')
+            archive.rename(outside); archive.symlink_to(outside)
+            with self.assertRaisesRegex(ValueError, 'offline package must be a regular archive'):
+                module.audit(base)
+
+    def test_encryption_archive_version_and_real_payload_must_match_staged_root(self):
+        for mutation in ('version', 'staged payload', 'archive payload'):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory(prefix='wros-encryption-match-') as directory:
+                base = Path(directory); self.fixture(base)
+                if mutation == 'version':
+                    self.archive(base, 'lvm2', version='2')
+                    expected = 'missing matching offline encryption.*lvm2'
+                elif mutation == 'staged payload':
+                    (base/'chroot/usr/sbin/cryptsetup').write_bytes(b'altered staged payload')
+                    expected = 'payload differs from offline archive'
+                else:
+                    self.archive(base, 'cryptsetup-bin', payload={'usr/sbin/cryptsetup': b'altered archive payload'})
+                    expected = 'payload differs from offline archive'
+                with self.assertRaisesRegex(ValueError, expected):
+                    module.audit(base)
+
+    def test_encryption_installed_state_and_executable_roles_are_required(self):
+        for mutation in ('state', 'missing hook', 'not executable'):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory(prefix='wros-encryption-runtime-') as directory:
+                base = Path(directory); self.fixture(base)
+                if mutation == 'state':
+                    path = base/'chroot/var/lib/dpkg/status'
+                    path.write_text(path.read_text().replace(
+                        'Package: systemd-cryptsetup\nStatus: install ok installed',
+                        'Package: systemd-cryptsetup\nStatus: deinstall ok config-files'))
+                    expected = 'encrypted-target package is not installed'
+                elif mutation == 'missing hook':
+                    (base/'chroot/usr/share/initramfs-tools/scripts/local-top/cryptroot').unlink()
+                    expected = 'runtime missing or not executable'
+                else:
+                    (base/'chroot/usr/lib/systemd/systemd-cryptsetup').chmod(0o644)
+                    expected = 'runtime missing or not executable'
+                with self.assertRaisesRegex(ValueError, expected):
+                    module.audit(base)
 
     def test_installed_firmware_is_insufficient_without_archives_on_installation_media(self):
         with tempfile.TemporaryDirectory(prefix='wros-media-') as tmp:

@@ -7,6 +7,15 @@ uses Debian Installer for storage, encryption, accounts and the bootloader.
 See the [Debian Live installer documentation](https://live-team.pages.debian.net/live-manual/html/live-manual/customizing-installer.en.html)
 and [Debian account/storage options](https://www.debian.org/releases/trixie/amd64/apbs04.en.html).
 
+The next encrypted-target image explicitly includes Debian's `lvm2` and
+`systemd-cryptsetup`, alongside cryptsetup and its initramfs support. The current
+image audit requires their installed package states, executable/hook payloads,
+matching offline archive versions and byte-identical runtime files. It uses
+maintained python3-debian to inspect archives without extracting into the image;
+that package is a builder prerequisite. The earlier live image lacks
+`systemd-cryptsetup` in both its root and offline pool. Its historical results
+remain unchanged; this stronger check does not certify encrypted installation.
+
 The current integrated recipe now ships the native WrOS tty1 greeter backed by
 Debian greetd/PAM, the current editor/input reader, categorized Settings and
 first-install keyboard adoption. An actual image audit requires the locked

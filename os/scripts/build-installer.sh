@@ -13,6 +13,7 @@ fi
 for command in lb gpgv file zstd xorriso mksquashfs; do
     command -v "$command" >/dev/null || { echo "Missing builder prerequisite: $command" >&2; exit 2; }
 done
+python3 -c 'import debian.debfile' || { echo 'Missing builder prerequisite: python3-debian' >&2; exit 2; }
 binary=${GRIMOIRE_BINARY:-$repo/target/debug/grimoire}
 [[ -x $binary ]] || { echo 'Build Grimoire first or set GRIMOIRE_BINARY.' >&2; exit 2; }
 greeter=${WROS_GREETER_BINARY:-$repo/target/debug/wros-greeter}
@@ -54,7 +55,9 @@ lb config --ignore-system-defaults --mode debian --distribution trixie \
     --checksums sha256 --chroot-squashfs-compression-type zstd
 mkdir -p config/package-lists
 cp "$repo/os/config/packages.txt" config/package-lists/wros.list.chroot
-printf 'sudo\ncryptsetup\ncryptsetup-initramfs\ngreetd\n' >> config/package-lists/wros.list.chroot
+# Debian's encrypted-target finish hooks request both initramfs and systemd
+# unlock support. Keep LVM and its runtime available in the copied offline root.
+printf 'sudo\ncryptsetup\ncryptsetup-initramfs\nsystemd-cryptsetup\nlvm2\ngreetd\n' >> config/package-lists/wros.list.chroot
 if [[ $profile == live-session ]]; then
     printf 'live-boot\nlive-config\nlive-config-systemd\nuser-setup\n' >> config/package-lists/wros.list.chroot
 fi

@@ -31,7 +31,7 @@ class WifiImagePolicy(unittest.TestCase):
         info = root/'var/lib/dpkg/info'
         info.mkdir(parents=True)
         (info.parent/'status').write_text('\n\n'.join(
-            f'Package: {name}\nStatus: install ok installed\nArchitecture: all\nVersion: 1\nDescription: synthetic audit fixture\n'
+            f'Package: {name}\nStatus: install ok installed\nArchitecture: all\nVersion: 1\nMaintainer: Fixture <fixture@example.invalid>\nDescription: synthetic audit fixture\n'
             for name in names))
         for item in policy['firmware']:
             name = item['package']
