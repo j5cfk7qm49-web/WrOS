@@ -1,0 +1,70 @@
+{
+  "passed": true,
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "253d7f0ac28300ee67d4e6682a578c161923d004f2b495744f14ceeb6b493575",
+    "file_count": 420,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "implementation_commit": "33f7acfc1c67942b0e1ace2c340c949c9d18669f",
+  "image_build_source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "67844e12f260a5583d9de4305caeee5f98ed75fb59ae7b3e33b2aa5c0d7518a1",
+    "file_count": 420,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "image_sha256": "531efcbd470ce01e5993726fe6bc40f18ab75634a8b01bb83cd6c37a3f4933e6",
+  "image_bytes": 1221148672,
+  "runtime_sources_unchanged_since_image_build": true,
+  "post_build_source_changes": [
+    "os/tests/live_session_vm.py"
+  ],
+  "vm_driver_sha256": "e908d9e9fd98d9afa80ae5f59152efa3d92aadfb5b10b31f5ebc345f69e0d0ae",
+  "probe_sha256": "dd059d55c3ea92185ba130c61dda5786ede2e20c407c1b3da358082bc608d0a4",
+  "runs": {
+    "auto": {
+      "report_sha256": "b437da787d1681100232a40f77e802661646138b02b51d285abe0db135439734",
+      "seconds": 94.12,
+      "phases": [
+        "session",
+        "home",
+        "settings",
+        "system",
+        "power"
+      ]
+    },
+    "manual": {
+      "report_sha256": "997a28902fa89cb33d004a0c0d4cf7fff90241f19f451f2f1beba708674176ab",
+      "seconds": 181.2,
+      "phases": [
+        "manual",
+        "password",
+        "authenticated",
+        "session",
+        "home",
+        "settings",
+        "system",
+        "power"
+      ]
+    },
+    "unmarked": {
+      "report_sha256": "81c4b49925c302aa3bef893bed7f8b92e2172208a4ec744bd626a9cf487a3e10",
+      "seconds": 181.24,
+      "phases": [
+        "manual",
+        "password",
+        "authenticated",
+        "session",
+        "home",
+        "settings",
+        "system",
+        "power"
+      ]
+    }
+  },
+  "limitations": [
+    "Direct-kernel live boot from actual read-only ISO; not UEFI/Secure Boot or physical hardware qualification.",
+    "No native privileged installer, LUKS installation, full matching offline backend pool, or new installed-system acceptance.",
+    "Personal live lock unavailable; standard public Debian live credentials, not personal security."
+  ]
+}

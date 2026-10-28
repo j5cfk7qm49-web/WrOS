@@ -2,12 +2,12 @@
 │  Status: Spark save · notes/sparks/r-0000000000000006.md · original scene preserved                                                                          │
 │  1047 original plots / 84 exercises · static offline selection                                                                                               │
 │  r-0000000000000006 · Combined · 2026-10-28 · Etc/UTC                                                                                                        │
-│  PLOT [wd-p-0517] · accountability · level 2 · suggested 20 min                                                                                              │
-│  An institution promises to implement every recommendation in an external review. It creates a recommendation-tracking office whose first request is         │
-│  permission to decide which recommendations count as recommendations.                                                                                        │
-│  EXERCISE [wd-x-0061] · subtext · level 1 · suggested 15 min                                                                                                 │
-│  Write someone offering a practical favor while hoping to learn whether they are welcome. Let the recipient respond to both levels imperfectly. Do not state │
-│  the hidden question directly until the offer has changed what each can do next.                                                                             │
+│  PLOT [wd-p-0762] · commitment · level 1 · suggested 20 min                                                                                                  │
+│  Two people promise to keep one evening a week for each other. When both become responsible for separate community obligations that meet on that evening,    │
+│  preserving the promise requires changing commitments other people reasonably rely on.                                                                       │
+│  EXERCISE [wd-x-0015] · point-of-view · level 2 · suggested 20 min                                                                                           │
+│  Tell a turning point from the viewpoint of someone doing an ordinary supporting task. Give that task consequences for the central event. Do not let the     │
+│  observer know everything merely because the principal characters are busy.                                                                                  │
 │  Work mode: Drafting · creative completion is self-reported, not automatically scored.                                                                       │
 │  ★ Favorited; retained separately from history.                                                                                                              │
 │  6 history / 128 · 1 favorites / 64 · 0 dismissals / 128 · 12-result recent window                                                                           │

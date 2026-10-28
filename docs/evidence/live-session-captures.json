@@ -1,0 +1,25 @@
+{
+  "actual_guest_captures": [
+    {
+      "file": "docs/evidence/live-session-auto-live-home.png",
+      "sha256": "bf7a92112b291e6488ef3f7887aa10f920c273d6dc150ffdd2e3ff4e24e11181",
+      "source": "Actual QEMU guest screendump; PNG encoding only, no changes to captured UI"
+    },
+    {
+      "file": "docs/evidence/live-session-auto-live-power.png",
+      "sha256": "5fb56e8f9043ffb7433c41f58979585842d39921c6800caed9dfd5daaa2dec7d",
+      "source": "Actual QEMU guest screendump; PNG encoding only, no changes to captured UI"
+    },
+    {
+      "file": "docs/evidence/live-session-manual-manual-login.png",
+      "sha256": "3376bd773748210a694340299dd89117a454baa5ad33f7e606e153a0d9c43d6a",
+      "source": "Actual QEMU guest screendump; PNG encoding only, no changes to captured UI"
+    },
+    {
+      "file": "docs/evidence/live-session-unmarked-live-power.png",
+      "sha256": "5fb56e8f9043ffb7433c41f58979585842d39921c6800caed9dfd5daaa2dec7d",
+      "source": "Actual QEMU guest screendump; PNG encoding only, no changes to captured UI"
+    }
+  ],
+  "scope": "Fresh public live sessions in diskless no-network VMs; no personal manuscripts or credentials"
+}

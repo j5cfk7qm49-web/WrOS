@@ -2,14 +2,14 @@
 │  Status: Spark save · notes/sparks/r-0000000000000006.md · original scene preserved              │
 │  1047 original plots / 84 exercises · static offline selection                                   │
 │  r-0000000000000006 · Combined · 2026-10-28 · Etc/UTC                                            │
-│  PLOT [wd-p-0759] · learning · level 1 · suggested 20 min                                        │
-│  Two people agree to communicate disagreement without sarcasm. The person who uses humor to make │
-│  difficult feelings speakable becomes quiet, and the other must help build a new language rather │
-│  than treating silence as improvement.                                                           │
-│  EXERCISE [wd-x-0054] · setting · level 3 · suggested 30 min                                     │
-│  Choose one ordinary policy change and show its material effects in a place. Follow a character  │
-│  trying to do something simple. Include a benefit as well as a barrier, and make the decision    │
-│  arise from their coexistence.                                                                   │
+│  PLOT [wd-p-0089] · evidence · level 2 · suggested 20 min                                        │
+│  A woman helping her father appeal a denied pension finds that his strongest evidence is a diary │
+│  in which he falsely claimed credit for a coworker's labor. The coworker's family has a competing│
+│  claim and has never seen the diary.                                                             │
+│  EXERCISE [wd-x-0044] · pacing · level 2 · suggested 20 min                                      │
+│  Write an action that happens quickly and a recognition that takes longer. Keep the physical     │
+│  sequence clear. Spend more narrative attention on the consequence that alters a plan than on    │
+│  decorating every movement equally.                                                              │
 │  Work mode: Drafting · creative completion is self-reported, not automatically scored.           │
 │  ★ Favorited; retained separately from history.                                                  │
 │  6 history / 128 · 1 favorites / 64 · 0 dismissals / 128 · 12-result recent window               │

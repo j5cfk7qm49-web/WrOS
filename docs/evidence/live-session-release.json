@@ -1,0 +1,29 @@
+{
+  "artifact": "wros-live-55aa13e-development-amd64.iso",
+  "sha256": "531efcbd470ce01e5993726fe6bc40f18ab75634a8b01bb83cd6c37a3f4933e6",
+  "bytes": 1221148672,
+  "image_build_commit": "55aa13e497d75fcc791dd51ed08f52a82affc99f",
+  "qualification_commit": "33f7acfc1c67942b0e1ace2c340c949c9d18669f",
+  "image_build_source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "67844e12f260a5583d9de4305caeee5f98ed75fb59ae7b3e33b2aa5c0d7518a1",
+    "file_count": 420,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "qualification_source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "253d7f0ac28300ee67d4e6682a578c161923d004f2b495744f14ceeb6b493575",
+    "file_count": 420,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "post_build_source_changes": [
+    "os/tests/live_session_vm.py"
+  ],
+  "runtime_source_unchanged": true,
+  "live_startup_qualified": true,
+  "standard_separate_debian_installer_boot_entry": true,
+  "native_privileged_installer_available": false,
+  "production_ready": false,
+  "wros_release_signature": false,
+  "qualification": "Three diskless no-network live startup/UI/shutdown modes, final local software and separate installed-lock regression; actual compressed payload and runtime hashes verified. Direct-kernel fixtures do not certify UEFI/Secure Boot or physical hardware."
+}

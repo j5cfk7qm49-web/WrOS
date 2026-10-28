@@ -45,3 +45,30 @@ file preservation, permissions and staging leaks using private fixture files.
 `live_session_uses_shared_surfaces_and_never_requests_personal_lock` exercises
 the actual Grimoire controller and renderer at four terminal sizes. These
 checks are not evidence of an actual live boot or physical hardware support.
+
+## Executed local qualification
+
+The [full local software run](evidence/live-session-local.json) passed 973 Rust
+checks per overlapping configuration, 135 Python methods with zero skips, both
+warning-denying Clippys and 21 gates. Three fresh diskless no-network guests
+passed automatic entry, explicit no-auto entry and entry with the automatic
+flag omitted. Each checks the actual non-root editor/input processes, native
+home/Settings/power surfaces and clean shutdown. The omitted-flag case proves
+the live-medium guard without a runtime marker. The separate authenticated
+installed-session lock regression also passed. [Combined provenance](evidence/live-session-local-provenance.json)
+retains exact source, executable and report hashes.
+
+The development image is `build/releases/wros-live-55aa13e-development-amd64.iso`
+(1,221,148,672 bytes). Its [artifact receipt](evidence/live-session-release.json)
+contains the full SHA-256. The [compressed-payload audit](evidence/live-session-image.json)
+retains the image build identity separately from the final test-driver identity;
+all runtime sources are unchanged and stripping the tested editor reproduces
+the shipped executable. The [original failed observations](evidence/live-session-attempts.json)
+include the failsafe flag omission and test-driver readiness/shutdown issues.
+
+![Actual live Grimoire home in the diskless guest](evidence/live-session-auto-live-home.png)
+
+These guests directly boot the kernel/initrd verified inside the actual ISO.
+They do not qualify firmware boot, Secure Boot, physical devices or installation
+from the live interface. Publishing and current Debian CI await authorization;
+no passing CI record is inferred from local results.

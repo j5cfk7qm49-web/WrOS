@@ -1,0 +1,44 @@
+{
+  "passed": true,
+  "scope": "Frozen live-session software, actual ISO payload, three diskless live startup/UI/shutdown modes and separate authenticated lock regression; no complete OS/install/hardware clearance",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "253d7f0ac28300ee67d4e6682a578c161923d004f2b495744f14ceeb6b493575",
+    "file_count": 420,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "implementation_commit": "33f7acfc1c67942b0e1ace2c340c949c9d18669f",
+  "image_build_commit": "55aa13e497d75fcc791dd51ed08f52a82affc99f",
+  "image_build_source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "67844e12f260a5583d9de4305caeee5f98ed75fb59ae7b3e33b2aa5c0d7518a1",
+    "file_count": 420,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "post_build_source_changes": [
+    "os/tests/live_session_vm.py"
+  ],
+  "runtime_source_unchanged_since_image_build": true,
+  "image_sha256": "531efcbd470ce01e5993726fe6bc40f18ab75634a8b01bb83cd6c37a3f4933e6",
+  "image_bytes": 1221148672,
+  "tested_editor_sha256": "205d2c37d3446e0c19aff7fbeebea291b3f74587faca082d79ef6b7eb5cf0903",
+  "tested_editor_stripped_sha256": "375c486af07f28ee888ac621690b6c50edecdd9a5772f3b96ceadccc6ee430fb",
+  "strip_binding_verified": true,
+  "normal_lock_seconds": 347.59,
+  "rust_per_configuration": [
+    973,
+    973
+  ],
+  "python": 135,
+  "python_skips": 0,
+  "local_gates": 21,
+  "report_sha256": {
+    "docs/evidence/live-session-local.json": "fa11b86ab2efbd9a39724de6b900123b169b892b291f1652e92dbc8b4708d25a",
+    "docs/evidence/live-session-normal-lock-vm.json": "7a721ccb9a829f770c753c5539f0c313c03d0558e83dc65f5cd86640bd6229bf",
+    "docs/evidence/live-session-image.json": "1b268a51bf01792cef10b128ad51b6a876912f3bd7e2e05db9b674d978685433",
+    "docs/evidence/live-session-vm-provenance.json": "4f03547dfeabd8e31180330401245eba27bc3ac3561f87dda05a06c148bab2bc",
+    "docs/evidence/live-session-attempts.json": "0f2c90f4185a91da029b7423084565b2425e8c6639cb1266e249305600d15127",
+    "docs/evidence/live-session-captures.json": "ed2588d866209671bd5830b764d4083748266d60e96333c8d34f4bf897a890c2"
+  },
+  "debian_ci": "Publication authorization pending; no current CI result claimed"
+}

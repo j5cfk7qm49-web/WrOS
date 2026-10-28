@@ -1,17 +1,48 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
-## Live Grimoire startup — integration under qualification
+## Live Grimoire session — local image, software and guest checks passed
 
-`codex/live-session` adds an explicit live-build profile using maintained Debian
-live-config/user-setup and the shared Grimoire writing desk. Temporary account
-and one-time greetd entry remain in the boot overlay; immutable installed
-login stays authenticated. The public live session identifies itself and
-disables personal locking in both the interface and root helper.
+`codex/live-session` delivers a new development live ISO with the actual
+Grimoire home and shared Settings surfaces. Maintained Debian live-config and
+user-setup create the public temporary account only in the live overlay; the
+immutable installed login configuration stays authenticated. Normal and
+failsafe live entries carry the WrOS selection, and live-medium recognition
+keeps the public role visible even when that selection is omitted.
 
-Eleven private Python fixture methods and one actual four-size renderer test
-pass. Full software qualification and actual diskless live boot are pending.
-Read the [profile and limits](LIVE_SESSION.md). This is not a privileged native
-installer or a completed live installation claim.
+The [final local run](evidence/live-session-local.json) passed **973
+Rust/configuration, 135 Python/zero skips, both Clippys and 21 gates**.
+The [actual compressed ISO audit](evidence/live-session-image.json) verifies
+payload bytes, locked root, absence of the temporary account/runtime/sudoers,
+and all live boot entries. The
+[automatic](evidence/live-session-auto-vm.json),
+[manual](evidence/live-session-manual-vm.json) and
+[omitted-flag](evidence/live-session-unmarked-vm.json) diskless, no-NIC guests
+passed native home/Settings/power screens, non-root process identity and clean
+shutdown in **94.12, 181.20 and 181.24 seconds**. Public live sessions keep
+personal locking unavailable.
+
+The separate [authenticated lock regression](evidence/live-session-normal-lock-vm.json)
+passed **347.59 seconds**, including original writing context, real PAM,
+protected tty8 and process-death recovery. [Provenance](evidence/live-session-local-provenance.json)
+binds current source `253d7f0a...93575` / 420 files, software, guest reports and
+executables. Stripping the exact tested editor reproduces the shipped binary.
+The ISO was built at `55aa13e` / source `67844e12...518a1`; only the VM test driver
+changed afterward, and all runtime sources and compressed payloads were checked
+unchanged. Earlier [failed observations](evidence/live-session-attempts.json)
+remain failed under their original source.
+
+The [development artifact receipt](evidence/live-session-release.json) records
+**1,221,148,672 bytes**, SHA-256 `531efcbd...3f4933e6` and its local filename.
+Actual [home](evidence/live-session-auto-live-home.png),
+[login](evidence/live-session-manual-manual-login.png) and
+[live power](evidence/live-session-unmarked-live-power.png) captures are retained.
+Read the [profile and limits](LIVE_SESSION.md).
+
+Publication authorization is pending, so no current Debian CI or new pull
+request is claimed. The privileged native installer, complete matching offline
+backend integration, fresh target install/LUKS/reboot, UEFI/Secure Boot, sleep,
+and physical hardware qualification remain open. This increment qualifies live
+startup and its shared interface, not the completed OS.
 
 ## Terminal input readiness — local software, guest and Debian CI passed
 
