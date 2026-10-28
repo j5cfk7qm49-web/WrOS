@@ -54,6 +54,10 @@ def audit(root):
             raise ValueError('maintained vlock-main mode must match the Debian package')
         binaries[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
     regular(root, 'usr/share/doc/vlock/copyright')
+    pam_module = regular(root, 'usr/lib/x86_64-linux-gnu/security/pam_succeed_if.so')
+    if pam_module.stat().st_mode & 0o6022:
+        raise ValueError('unsafe maintained PAM guard permissions')
+    binaries['usr/lib/x86_64-linux-gnu/security/pam_succeed_if.so'] = hashlib.sha256(pam_module.read_bytes()).hexdigest()
     if regular(root, 'usr/libexec/wros-lock').read_bytes() != (REPO / 'os/scripts/wros-lock').read_bytes():
         raise ValueError('manual-lock helper differs from qualified source')
     config = tomllib.loads(regular(root, 'etc/greetd/config.toml').read_text())

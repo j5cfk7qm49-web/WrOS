@@ -5,6 +5,7 @@ import fcntl
 import os
 from pathlib import Path
 import resource
+import signal
 import stat
 import struct
 import subprocess
@@ -15,7 +16,8 @@ import time
 VT_GETMODE, VT_GETSTATE = 0x5601, 0x5603
 ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8', 'LC_ALL': 'C.UTF-8',
        'HOME': '/nonexistent', 'TERM': 'linux'}
-PAM = '# WrOS existing-session unlock; authentication is performed only by Debian vlock.\n@include common-auth\n'
+PAM = ('# WrOS existing-session unlock; authentication is performed only by Debian vlock.\n'
+       'auth requisite pam_succeed_if.so quiet uid > 0\n@include common-auth\n')
 
 
 def require(condition):
@@ -107,6 +109,7 @@ def validate_caller():
                  '/usr/lib/vlock/modules/all.so', '/usr/lib/vlock/modules/nosysrq.so',
                  '/etc/pam.d/vlock'):
         trusted_file(path, executable=path != '/etc/pam.d/vlock')
+    trusted_file('/usr/lib/x86_64-linux-gnu/security/pam_succeed_if.so')
     require(Path('/etc/pam.d/vlock').read_text() == PAM)
     require(os.getppid() == parent)
     return username
@@ -135,6 +138,11 @@ def ready(child):
 
 def main():
     username = validate_caller()
+    # Keep ownership of openvt's wait/switch-back even when the old writer's
+    # controlling session closes. No new login or shell is created here.
+    signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    if os.getpgrp() != os.getpid():
+        os.setsid()
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     libc = ctypes.CDLL(None)
     require(libc.prctl(4, 0, 0, 0, 0) == 0)  # PR_SET_DUMPABLE

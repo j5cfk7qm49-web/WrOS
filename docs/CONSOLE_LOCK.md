@@ -30,6 +30,9 @@ user `.vlockrc`, environment-selected plugins and shell expansion are excluded.
 The helper uses a cleared environment and a fixed existing-session PAM stack
 including Debian `common-auth`. Authentication is performed by maintained
 vlock/libpam; WrOS does not implement password verification or read shadow data.
+An earlier requisite `pam_succeed_if` check requires the authenticated account's
+UID to be positive. It rejects vlock's unusable locked-root fallback without
+asking the writer for a root password; the helper also requires root locked.
 
 Readiness requires the actual vlock child, active tty8, `VT_PROCESS` ownership,
 echo disabled and SysRq disabled. Merely launching a process or requesting the
@@ -39,6 +42,11 @@ The editor then flushes typeahead, restores its display and starts a fresh
 acknowledged input reader. The same in-memory editor retains its writing context.
 Failure leaves the proof unconsumed and closes the writing session through the
 existing save/rescue path.
+
+After validating the caller, the root controller starts an independent POSIX
+session and ignores controlling-terminal hangup. Its openvt wait/switch-back
+responsibility must survive the original writer's terminal session closing.
+This lifecycle change is under guest fault qualification.
 
 ## Limits and verification
 
@@ -58,3 +66,10 @@ predates this work and native timezone selection.
 Maintained interfaces: Debian [vlock-main](https://manpages.debian.org/trixie/vlock/vlock-main.8.en.html),
 [plugins](https://manpages.debian.org/trixie/vlock/vlock-plugins.5.en.html) and
 [openvt](https://manpages.debian.org/trixie/kbd/openvt.1.en.html).
+
+Debian tracks [CVE-2026-72693](https://security-tracker.debian.org/tracker/CVE-2026-72693)
+in openvt's privileged `-u` passwordless-login path. The described path is
+excluded here by the fixed argument vector: WrOS never requests `-u`, `-l` or
+`login`, and executes only vlock-main. Caller checks use actual process UIDs and
+logind session properties rather than inferring process ownership from the owner
+of a TTY device node. This scoped check is not a blanket package-security audit.

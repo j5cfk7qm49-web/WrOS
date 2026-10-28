@@ -12,10 +12,12 @@ its retired reader. See [manual lock boundaries](CONSOLE_LOCK.md).
 
 Five pure privilege-boundary tests, the four-size controller/conflict-rescue
 case, no-audio workspace Clippy/build and staged-image policy mutations pass.
-Fresh no-NIC guests reached actual protected tty8 with no editor reader. Their
-background-console stability assertions failed; those attempts remain failed.
-The startup-counter diagnosis and full wrong/right PAM, unlock/context and crash
-cases are still being qualified. No manual-lock release or sleep/resume claim
+Earlier no-NIC guests passed actual VT-switch denial, wrong/right PAM, hidden
+password entry, a fresh reader, original caret restoration, repeated locking
+and editor-death protection. The complete sequences still failed recovery to
+login after catastrophic process loss. Original failed attempts are retained.
+The current independent controller session and non-root PAM guard are under
+full guest fault qualification. No manual-lock release or sleep/resume claim
 is made. The delivered native ISO below predates this feature and timezone UI.
 
 ## Native timezone selection — software, guest and Debian CI passed

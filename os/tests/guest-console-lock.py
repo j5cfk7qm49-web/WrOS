@@ -152,15 +152,18 @@ def main():
     marker('LOCK_READY')
     locked('FIRST', app)
     marker('WRONG_PASSWORD_READY')
-    wait(lambda: 'Password:' in Path('/dev/vcs8').read_bytes().decode('latin1'), 'locker prompt')
+    wait(lambda: "writer's Password:" in Path('/dev/vcs8').read_bytes().decode('latin1'), 'locker prompt')
     marker('WRONG_PROMPT')
-    wait(lambda: 'root' in Path('/dev/vcs8').read_bytes().decode('latin1'), 'root fallback refusal')
-    marker('ROOT_PROMPT')
-    time.sleep(4)
+    # PAM denial delays vary. Require the next cleared lock screen, rather
+    # than matching an old prompt or typing during the previous PAM request.
+    wait(lambda: 'Press Enter to unlock.' in Path('/dev/vcs8').read_bytes().decode('latin1')
+         and 'Password:' not in Path('/dev/vcs8').read_bytes().decode('latin1'), 'rejected attempt completed')
     assert protected() and not processes('wros-input') and app.exists()
+    assert "root's Password:" not in Path('/dev/vcs8').read_bytes().decode('latin1')
+    marker('ROOT_FALLBACK_DENIED_WITHOUT_PROMPT')
     marker('WRONG_DENIED')
     checkpoint('RETRY_CHECKPOINT')
-    wait(lambda: 'Password:' in Path('/dev/vcs8').read_bytes().decode('latin1'), 'retry prompt')
+    wait(lambda: "writer's Password:" in Path('/dev/vcs8').read_bytes().decode('latin1'), 'retry prompt')
     assert protected()
     marker('CORRECT_PROMPT')
     checkpoint('CORRECT_HIDDEN_CHECKPOINT')
@@ -249,6 +252,20 @@ if __name__ == '__main__':
     except Exception as error:
         # Static type only; never echo authentication, command output or screens.
         marker('FAIL_' + type(error).__name__ + '_LINE_' + str(traceback.extract_tb(error.__traceback__)[-1].lineno))
+        marker('DIAGNOSTIC_ACTIVE_VT_' + str(active()))
+        for name in ('grimoire', 'wros-input', 'wros-greeter', 'greetd', 'vlock-main', 'openvt', 'wros-lock', 'python3'):
+            found = processes(name)
+            marker('DIAGNOSTIC_' + name + '_COUNT_' + str(len(found)))
+            for proc in found:
+                try:
+                    marker('DIAGNOSTIC_' + name + '_WAIT_' + (proc / 'wchan').read_text().strip())
+                except OSError:
+                    pass
+        for label in ('Local account', 'Open writing session', 'Resume writing', 'locking fixture original'):
+            if label in screen():
+                marker('DIAGNOSTIC_TTY1_HAS_' + label.replace(' ', '_'))
+        for line in command('systemctl', 'show', 'greetd', '-p', 'ActiveState', '-p', 'SubState', '-p', 'Result').stdout.decode().splitlines():
+            marker('DIAGNOSTIC_UNIT_' + line)
     finally:
         time.sleep(2)
         subprocess.run(['systemctl', 'poweroff'], check=False)

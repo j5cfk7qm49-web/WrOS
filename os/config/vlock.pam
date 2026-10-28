@@ -1,2 +1,3 @@
 # WrOS existing-session unlock; authentication is performed only by Debian vlock.
+auth requisite pam_succeed_if.so quiet uid > 0
 @include common-auth

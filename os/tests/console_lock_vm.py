@@ -103,14 +103,22 @@ mount -o remount,ro /dev/vda2 "$rootmnt"
               'source_fingerprint': source, 'editor_binary_sha256': digest(args.editor), 'greeter_binary_sha256': digest(args.greeter),
               'greetd_package_sha256': digest(args.greetd), 'vlock_package_sha256': digest(args.vlock),
               'network_devices': 0, 'host_disks_exposed': 0, 'base_image_sha256_before': before, 'passed': False}
-    completed, started = set(), time.monotonic()
+    completed, started, failure_screen = set(), time.monotonic(), False
     with (run / 'qemu.log').open('w') as log:
         process = subprocess.Popen(arguments, stdin=subprocess.DEVNULL, stdout=log, stderr=log)
         try:
             while process.poll() is None and time.monotonic() - started < 600:
                 content = serial.read_text(errors='replace') if serial.exists() else ''
                 if 'WROS_LOCK_FAIL' in content or 'WROS_GREETER_TIMEOUT' in content or 'Kernel panic' in content:
-                    qmp(control, 'screendump', {'filename': str(run / 'failed-screen.ppm')}); break
+                    if not failure_screen:
+                        qmp(control, 'screendump', {'filename': str(run / 'failed-screen.ppm')})
+                        failure_screen = True
+                    if 'Kernel panic' in content:
+                        break
+                    # Retain the guest's bounded static diagnostics and normal
+                    # poweroff instead of terminating it at the first failure.
+                    time.sleep(0.15)
+                    continue
                 def keys(values, enter=False):
                     for value in [*values, *(['ret'] if enter else [])]:
                         qmp(control, 'send-key', {'keys': [{'type': 'qcode', 'data': 'spc' if value == ' ' else value}], 'hold-time': 40})

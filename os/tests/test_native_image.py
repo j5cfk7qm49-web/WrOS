@@ -25,6 +25,7 @@ def fixture(root):
                      'usr/libexec/writingdeck-session', 'usr/libexec/writingdeck-keyboard',
                      'etc/pam.d/greetd', 'usr/share/doc/greetd/copyright', 'usr/share/doc/vlock/copyright',
                      'usr/libexec/wros-lock', 'usr/bin/openvt', 'usr/sbin/vlock-main',
+                     'usr/lib/x86_64-linux-gnu/security/pam_succeed_if.so',
                      'usr/lib/vlock/modules/all.so', 'usr/lib/vlock/modules/nosysrq.so'):
         path = root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -68,7 +69,7 @@ class NativeImage(unittest.TestCase):
             self.assertEqual(result['greetd_package_version'], '0.10.3-4')
             self.assertEqual(result['vlock_package_version'], '2.2.2-12')
             self.assertTrue(result['manual_lock_payload_present'])
-            self.assertEqual(len(result['binary_sha256']), 10)
+            self.assertEqual(len(result['binary_sha256']), 11)
 
     def test_unsafe_native_session_cannot_pass_even_with_all_requested_packages(self):
         mutations = {
@@ -90,6 +91,7 @@ class NativeImage(unittest.TestCase):
             'missing locker': lambda r: (r / 'usr/sbin/vlock-main').unlink(),
             'writable locker module': lambda r: (r / 'usr/lib/vlock/modules/all.so').chmod(0o777),
             'missing lock PAM': lambda r: (r / 'etc/pam.d/vlock').unlink(),
+            'missing PAM guard': lambda r: (r / 'usr/lib/x86_64-linux-gnu/security/pam_succeed_if.so').unlink(),
             'changed lock PAM': lambda r: (r / 'etc/pam.d/vlock').write_text('auth sufficient pam_permit.so\n'),
             'changed lock helper': lambda r: (r / 'usr/libexec/wros-lock').write_text('#!/bin/sh\nexit 0\n'),
             'missing lock policy': lambda r: (r / 'usr/share/polkit-1/actions/org.wros.lock.policy').unlink(),
