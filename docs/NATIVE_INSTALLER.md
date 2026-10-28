@@ -46,8 +46,10 @@ framing, response buffer accounting and password whitespace handling. It changes
 no partitioning, encryption, account or bootloader engine. The
 [non-root build recipe](../os/scripts/build-installer-frontend.sh) checks pinned
 Debian source archives and retains the module's original BSD notice, full
-source/copyright index and a build manifest. The module is not yet staged into
-media. Native question tests do not certify arbitrary upstream package security.
+source/copyright index and a build manifest. A later
+[matching-kernel component recipe](LIVE_INSTALLER_IMAGE.md) now embeds the
+module in an actual initrd. Complete live media integration remains open.
+Native question tests do not certify arbitrary upstream package security.
 
 ## Verification and remaining integration
 

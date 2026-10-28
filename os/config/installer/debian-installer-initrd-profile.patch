@@ -1,0 +1,32 @@
+--- a/debian/control
++++ b/debian/control
+@@ -27,2 +27,2 @@
+-	docbook-xml,
+-	docbook-xsl,
++	docbook-xml <!wros-initrd>,
++	docbook-xsl <!wros-initrd>,
+@@ -71 +71 @@
+-	depthcharge-tools [amd64 arm64],
++	depthcharge-tools [amd64 arm64] <!wros-initrd>,
+@@ -78,2 +78,2 @@
+-	syslinux [i386 amd64],
+-	syslinux-utils [i386 amd64],
++	syslinux [i386 amd64] <!wros-initrd>,
++	syslinux-utils [i386 amd64] <!wros-initrd>,
+@@ -81 +81 @@
+-	pxelinux [i386 amd64],
++	pxelinux [i386 amd64] <!wros-initrd>,
+@@ -102,2 +102,2 @@
+-	shim-signed [amd64 arm64],
+-	grub-efi-amd64-signed [amd64],
++	shim-signed [amd64 arm64] <!wros-initrd>,
++	grub-efi-amd64-signed [amd64] <!wros-initrd>,
+@@ -159 +159 @@
+-	librsvg2-bin [any-amd64 any-i386],
++	librsvg2-bin [any-amd64 any-i386] <!wros-initrd>,
+@@ -161 +161 @@
+-	fdisk [amd64 arm64 armhf i386 loong64],
++	fdisk [amd64 arm64 armhf i386 loong64] <!wros-initrd>,
+@@ -168 +168 @@
+-	linux-image-6.12.107+deb13-amd64 [amd64],
++	linux-image-6.12.107+deb13-amd64 [amd64] <!wros-initrd>,

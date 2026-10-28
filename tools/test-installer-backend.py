@@ -147,7 +147,8 @@ db_stop
     log=fixture/'backend.log'
     try:
         environment={'PATH':'/usr/bin:/bin','HOME':str(fixture),'LANG':'C.UTF-8','LC_ALL':'C.UTF-8',
-            'LD_LIBRARY_PATH':str(package/'usr/lib/cdebconf')+':'+str(package/'usr/lib/x86_64-linux-gnu'),
+            'LD_LIBRARY_PATH':':'.join(str(package/path) for path in
+                                     ('usr/lib/cdebconf','usr/lib/x86_64-linux-gnu','usr/lib')),
             'DEBCONF_READFD':str(terminal.peer.fileno()),'DEBCONF_WRITEFD':str(terminal.peer.fileno()),
             'DEBCONF_DEBUG':'0','DEBIAN_PRIORITY':'low'}
         with log.open('wb') as output:

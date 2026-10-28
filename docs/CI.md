@@ -15,6 +15,11 @@ no privileged test mount or disk. Source downloads happen during provisioning,
 and component qualification is mandatory in the offline gate sequence. See
 the [installer failure boundary](INSTALLER_BACKEND.md).
 
+The [matching kernel/initrd recipe](LIVE_INSTALLER_IMAGE.md) has separate local
+artifact and actual-image backend qualification. Standard software CI checks its
+shell syntax and the shared drivers; it does not build or certify a complete
+live ISO or implicitly repeat that archive-backed initrd build.
+
 Windows and macOS jobs are removed. The imported Grimoire application release,
 package and installer workflows are retained as attributed source references in
 [upstream-workflows](upstream-workflows/README.md), outside GitHub's executable

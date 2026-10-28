@@ -84,7 +84,8 @@ db_stop
     frontend, backend = socket.socketpair()
     environment = {
         'PATH': '/usr/bin:/bin', 'HOME': str(case), 'LANG': 'C.UTF-8',
-        'LD_LIBRARY_PATH': str(package / 'usr/lib/cdebconf') + ':' + str(package / 'usr/lib/x86_64-linux-gnu'),
+        'LD_LIBRARY_PATH': ':'.join(str(package / path) for path in
+                                   ('usr/lib/cdebconf', 'usr/lib/x86_64-linux-gnu', 'usr/lib')),
         'DEBCONF_READFD': str(backend.fileno()), 'DEBCONF_WRITEFD': str(backend.fileno()),
         'DEBCONF_DEBUG': '0',
     }

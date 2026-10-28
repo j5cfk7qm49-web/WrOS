@@ -39,3 +39,9 @@ The optional `--test-runtime` build adds a private configured backend and RFC822
 plugin for ordinary non-root CI. `tools/test-installer-components.py` uses it
 without binding or changing system configuration; synthetic credential files
 stay on tmpfs, including when mounted noexec.
+
+`build-live-backend.sh` can now add this module as a local udeb to a matching
+Debian Security kernel/initrd, using retained upstream build machinery and an
+explicit initrd-only dependency profile. See the [component recipe and actual
+image backend evidence](../../../docs/LIVE_INSTALLER_IMAGE.md). This does not
+expose a privileged launcher or complete a live ISO.

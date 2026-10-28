@@ -1,0 +1,47 @@
+{
+  "attempts": [
+    {
+      "passed": false,
+      "log": "matching-di-fit-v1.log",
+      "log_sha256": "2b5944013e7b82d60c3a5e6d65545c4c40c2b28e604656ba58742f989f233fb6",
+      "failure": "Initial exploratory build lacked Debian build helper; failed before initrd assembly."
+    },
+    {
+      "passed": false,
+      "log": "matching-di-fit-v2.log",
+      "log_sha256": "2cadba65e4e1cc36dd7bed992c114f24c25eba75966c6f5877ec4c61d49ef7ee",
+      "failure": "Exploratory initrd-only build hit upstream full-distribution dependencies; retained explicit component profile fixes the target dependency scope."
+    },
+    {
+      "passed": false,
+      "log": "public-live-backend-v1.log",
+      "log_sha256": "665c64980086ca77eccaa4179dc502414eca9949e03b45678eb76f1ecb20c8c9",
+      "failure": "Local udeb source omitted from the overriding APT list; frontend package was not found."
+    },
+    {
+      "passed": false,
+      "log": "public-live-backend-v2.log",
+      "log_sha256": "3db2fd82a94a0dbce097d4c838668b5e4a3b7435907b63975b7f1730be6f6f58",
+      "failure": "Manifest looked in the reduction-only udeb directory instead of Debian apt cache; final qualification failed."
+    },
+    {
+      "passed": false,
+      "log": "public-live-backend-v3.log",
+      "log_sha256": "edbe41be92dab5a9226cb1a5c07f6724ea95f904346992b31df9fb375a90bfb7",
+      "failure": "Manifest requested a noncanonical CPIO member name and received no bytes; final qualification failed."
+    },
+    {
+      "passed": false,
+      "failure": "Initial image ABI test driver omitted the non-multiarch udeb library directory; loader failed before any question.",
+      "original_report": {
+        "recorded_at_utc": "2026-10-28T10:30:03.241665+00:00",
+        "passed": false,
+        "scope": "Synthetic cdebconf integration attempt",
+        "checks_completed": [],
+        "backend_exit_code": 127
+      },
+      "original_report_sha256": "9cac764af015263330cb8a4d4500b9ef60f4d586d3261949cfa9e2b2e2cf4e21"
+    }
+  ],
+  "scope": "Original exploratory/build/observer failures retained; no installation attempted."
+}

@@ -1,5 +1,28 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Matching live-installer image components — local build and actual backend passed
+
+`codex/live-backend-image` adds a retained non-root recipe over Debian's installer
+build. It uses the maintained Debian Security `6.12.113+deb13-amd64` kernel and
+udebs, and packages the qualified native passthrough transport as one local udeb.
+The [actual component build](evidence/live-image-build.json) passed: 103 udeb
+hashes retained, output kernel bytes equal the signed Debian package, and the
+exact module verified inside the compressed initrd. Source is
+`53d28478...239a1` / 333 files. This resolves the old ISO's live/installer kernel
+mismatch for the new components; it does not update that delivered ISO.
+
+The image-assembled Debian backend passed
+[12 native form checks](evidence/live-image-backend-frontend.json) and
+[14 protocol cases](evidence/live-image-backend-faults.json) with synthetic
+no-network/noexec-RAM fixtures. [Provenance](evidence/live-image-local-provenance.json)
+binds source, recipe and drivers; [original failures](evidence/live-image-attempts.json)
+remain failed. Full Debian CI for this increment is pending.
+
+Read the [component recipe and live boundaries](LIVE_INSTALLER_IMAGE.md).
+Root supervision, live-only startup, complete matching offline media, disk/LUKS
+review and fresh live install/reboot qualification remain open. No new complete
+ISO or disk-writing grant is delivered by this increment.
+
 ## Installer transport failure handling — local software and Debian CI passed
 
 `codex/installer-fail-closed` makes the maintained Debian cdebconf passthrough
