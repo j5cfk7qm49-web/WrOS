@@ -170,7 +170,7 @@ def verify(run, secret=None, native_session=False):
                     # A logger marker is telemetry, not authoritative process
                     # ownership; a fresh installed journal may omit it. Require
                     # the actual writer process/TTY and rendered UI instead.
-                    connection.sendall(b'if test "$(ps -C grimoire -o uid= | xargs)" = 1000 && test "$(ps -C grimoire -o tty= | xargs)" = tty1; then echo WROS_WRITER_PROCESS_PASS; fi; printf "\\nWROS_WRITER_STATE_END\\n"\n')
+                    connection.sendall(b'sudo -n /bin/sh -c \'p=$(pgrep -x grimoire); if test -n "$p"; then ps -p "$p" -o uid=,tty=; stat -L -c WROS_STDIN_DEVICE=%t:%T /proc/"$p"/fd/0; if test "$(ps -p "$p" -o uid= | xargs)" = 1000 && test "$(stat -L -c %t:%T /proc/"$p"/fd/0)" = 4:1; then echo WROS_WRITER_PROCESS_PASS; fi; fi\'; printf "\\nWROS_WRITER_STATE_END\\n"\n')
                     expect(b'\r\nWROS_WRITER_STATE_END\r\n', 20)
                     expect(b':~$ ', 20)
                     process_verified = b'\r\nWROS_WRITER_PROCESS_PASS\r\n' in content[start:]
