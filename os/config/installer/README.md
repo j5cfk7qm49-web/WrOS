@@ -1,5 +1,15 @@
 # Debian cdebconf passthrough framing
 
+`native-crypto-passphrase` is a fixed-version partman init hook for the native
+passphrase path. Debian partman-crypto 134 unconditionally requests a frontend
+entropy plugin, including for passphrases. Debian does not provide a passthrough
+entropy plugin. The hook accepts only the authenticated script's exact hash and
+removes that unused plugin request. It leaves maintained cryptsetup, kernel
+randomness and `blockdev-keygen` unchanged. No `plugin-entropy` capability is
+advertised; Debian's existing check rejects random-key requests. The stock text
+frontend keeps its entropy plugin. This adapter is staged by the guarded VM
+fixture; production media integration and full installation remain unqualified.
+
 The WrOS native installer frontend uses the cdebconf passthrough module from
 Debian source version 0.280, with the adjacent small field-framing patch. The
 module keeps its original BSD notice. The build retains that notice, upstream

@@ -330,6 +330,12 @@ def worker(allow_synthetic_target=False, review=False, installing=False):
             'Unpacked native transport differs')
     require({p.name for p in (DI/'lib/modules').iterdir()} == {os.uname().release},
             'Unpacked kernel modules differ')
+    # Debian loads crypto later through anna. Apply the fixed-version native
+    # passphrase adapter at partman startup, after those maintained files exist.
+    hook = DI/'lib/partman/init.d/00wros-native-passphrase'
+    hook.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(QA/'native-crypto-passphrase', hook)
+    hook.chmod(0o755)
     if review:
         require(identity is not None, 'Review requires the generated target')
         defaults = (QA/'review.preseed').read_bytes()

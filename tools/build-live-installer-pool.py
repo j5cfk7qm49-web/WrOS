@@ -30,7 +30,8 @@ INDEX = 'main/debian-installer/binary-amd64/Packages'
 PREFIX = 'native-installer'
 REQUIRED = {
     'anna', 'main-menu', 'cdebconf-udeb', 'cdebconf-newt-udeb', 'cdebconf-text-udeb',
-    'live-installer', 'partman-auto-crypto', 'partman-crypto', 'partman-efi',
+    'live-installer', 'partman-auto-crypto', 'partman-crypto', 'partman-crypto-dm',
+    'cryptsetup-udeb', 'partman-efi',
     'partman-ext3', 'grub-installer', 'user-setup-udeb', 'finish-install',
     'apt-cdrom-setup', 'di-utils-exit-installer', 'rescue-mode',
 }

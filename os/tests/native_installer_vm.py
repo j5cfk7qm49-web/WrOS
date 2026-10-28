@@ -193,6 +193,7 @@ d-i debian-installer/add-kernel-opts string console=tty1 console=ttyS0,115200
                '-map', str(run/'fixture-token'), '/fixture-token',
                '-map', str(run/'snapshot.py'), '/snapshot.py',
                '-map', str(ROOT/'os/tests/fixture_storage.py'), '/fixture_storage.py',
+               '-map', str(ROOT/'os/config/installer/native-crypto-passphrase'), '/native-crypto-passphrase',
                '-map', str(ROOT/'os/tests/native_installer_guest.py'), '/native_installer_guest.py']
     if target:
         command += ['-map', str(run/'fixture-target.json'), '/fixture-target.json']
@@ -367,6 +368,7 @@ d-i debian-installer/add-kernel-opts string console=tty1 console=ttyS0,115200
                         elif 'Ethernet card not found' in screen and 'No Ethernet card was found on the system.' in screen:
                             key('ret')
                         else:
+                            shell('sudo -n python3 -I /run/wros-native-qa/native_installer_guest.py inspect')
                             raise RuntimeError('Unrecognized full-install form; no answer sent')
                     else:
                         raise RuntimeError('Verified encrypted target finish was not observed')

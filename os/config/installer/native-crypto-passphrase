@@ -1,0 +1,23 @@
+#!/bin/sh
+# Native presentation supports Debian's passphrase path. It does not advertise
+# plugin-entropy: blockdev-keygen must continue to reject random-key requests.
+# partman-crypto 134 otherwise unconditionally asks anna for a nonexistent
+# cdebconf-passthrough-entropy, even when no entropy UI is used.
+set -eu
+[ "${DEBIAN_FRONTEND:-}" = passthrough ] || exit 0
+file=/lib/partman/lib/crypto-base.sh
+original=d30bc81eb9c7d8aad5f9d355b788d915697941ff195e755a332db723c0500478
+adapted=85c8ebb7b8bad9bc1d24f014eb9b33a9ce426fcc5f5fc32fe906492ca163e629
+[ -f "$file" ] && [ ! -L "$file" ] || exit 1
+current=$(sha256sum "$file")
+current=${current%% *}
+[ "$current" != "$adapted" ] || exit 0
+[ "$current" = "$original" ] || exit 1
+temporary=$(mktemp /lib/partman/lib/.wros-crypto.XXXXXX)
+trap 'rm -f "$temporary"' EXIT HUP INT TERM
+# Match Debian's literal shell source; do not expand the frontend variable.
+# shellcheck disable=SC2016
+sed 's/packages="cdebconf-$DEBIAN_FRONTEND-entropy"/packages=""/' "$file" > "$temporary"
+printf '%s  %s\n' "$adapted" "$temporary" | sha256sum -c - >/dev/null
+chmod 644 "$temporary"
+mv "$temporary" "$file"
