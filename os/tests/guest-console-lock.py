@@ -13,6 +13,7 @@ import subprocess
 import termios
 import time
 import traceback
+import tty
 import zipfile
 
 spec = importlib.util.spec_from_file_location('probe', '/root/greeter_probe.py')
@@ -45,13 +46,21 @@ def protected():
 
 
 def checkpoint(label):
-    with open('/dev/ttyS1', 'rb', buffering=0) as control:
-        # Announce only after opening the UART: opening it can flush input sent
-        # early by the host controller. This channel carries H/newline only.
+    control = os.open('/dev/ttyS1', os.O_RDONLY | os.O_NOCTTY | os.O_NONBLOCK)
+    try:
+        # Ignore modem carrier while opening this test-only control UART.
+        # The host connects only after our ready marker; ordinary open() can
+        # wait for that connection forever before it can publish the marker.
+        attributes = termios.tcgetattr(control)
+        attributes[2] |= termios.CLOCAL | termios.CREAD
+        termios.tcsetattr(control, termios.TCSANOW, attributes)
+        tty.setraw(control, when=termios.TCSANOW)
         marker(label)
-        assert select.select([control], [], [], 20)[0], 'controller acknowledgment timeout'
-        assert control.read(1) == b'H'
-        assert control.read(1) == b'\n'
+        for expected in b'H\n':
+            assert select.select([control], [], [], 20)[0], 'controller acknowledgment timeout'
+            assert os.read(control, 1) == bytes([expected])
+    finally:
+        os.close(control)
 
 
 def locked(label, app):
