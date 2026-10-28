@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "as_of": "2026-10-27",
+  "as_of": "2026-10-28",
   "release": "0.1.0-dev foundation + M3b + M4 + M5 + M6 + M7a + M7b software",
   "features": [
     {
@@ -630,10 +630,10 @@
     {
       "area": "OS",
       "capability": "Live WrOS installer TUI over Debian installation components",
-      "status": "Planned",
-      "verification": "Debian live-installer text launcher/source and supported frontend/preseed interfaces inspected; native frontend not yet built",
+      "status": "In progress",
+      "verification": "Native shared-Grimoire frontend pure/four-size PTY checks and actual Debian cdebconf synthetic questions; no live installation claim",
       "hardware_verified": false,
-      "detail": "User-selected TUI-first workflow; preserve Debian partition/LUKS/account/bootloader and text recovery, enforce kernel matching and per-run disk review; no new physical installation performed"
+      "detail": "Shared original palettes/theme format/panel widgets; canonical choices and hidden credentials; retained pinned-source passthrough fix; privileged live launcher, lifecycle/media and install/reboot tests remain open"
     }
   ]
 }

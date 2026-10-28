@@ -9,6 +9,8 @@ use ratatui::{
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
+pub mod grimoire_theme;
+
 const HISTORY_LIMIT: usize = 16;
 const ROUTE_LIMIT: usize = 64;
 
@@ -164,6 +166,23 @@ pub struct Theme {
     pub dim: Color,
     pub border: Color,
 }
+/// Project the exact Grimoire palette onto the common system widgets.
+impl From<&grimoire_theme::Theme> for Theme {
+    fn from(theme: &grimoire_theme::Theme) -> Self {
+        Self {
+            text: theme.text,
+            accent: theme.accent,
+            dim: theme.dim,
+            border: theme.border,
+        }
+    }
+}
+impl Default for Theme {
+    fn default() -> Self {
+        (&grimoire_theme::default_theme()).into()
+    }
+}
+
 pub struct Menu<'a> {
     pub title: &'a str,
     pub rows: &'a [String],
@@ -174,17 +193,7 @@ pub struct Menu<'a> {
 
 /// Shared clipped menu with a visible selection and fixed help/status area.
 pub fn render_menu(frame: &mut Frame, area: Rect, menu: Menu<'_>, theme: Theme) {
-    let border = Block::bordered()
-        .title(menu.title)
-        .border_style(Style::default().fg(theme.border));
-    let inner = border.inner(area);
-    frame.render_widget(border, area);
-    let [body, status, help] = Layout::vertical([
-        Constraint::Min(0),
-        Constraint::Length(1),
-        Constraint::Length(1),
-    ])
-    .areas(inner);
+    let body = render_panel(frame, area, menu.title, menu.notice, menu.hint, theme);
     let rows = menu
         .rows
         .iter()
@@ -201,14 +210,39 @@ pub fn render_menu(frame: &mut Frame, area: Rect, menu: Menu<'_>, theme: Theme) 
         body,
         &mut selected,
     );
+}
+
+/// Common Grimoire system-panel geometry. Forms and progress use the same
+/// border, content area and fixed status/help lines as Settings and login.
+/// Returns the clipped body; callers own their content and input state.
+pub fn render_panel(
+    frame: &mut Frame,
+    area: Rect,
+    title: &str,
+    notice: &str,
+    hint: &str,
+    theme: Theme,
+) -> Rect {
+    let border = Block::bordered()
+        .title(title)
+        .border_style(Style::default().fg(theme.border));
+    let inner = border.inner(area);
+    frame.render_widget(border, area);
+    let [body, status, help] = Layout::vertical([
+        Constraint::Min(0),
+        Constraint::Length(1),
+        Constraint::Length(1),
+    ])
+    .areas(inner);
     frame.render_widget(
-        Paragraph::new(menu.notice).style(Style::default().fg(theme.dim)),
+        Paragraph::new(notice).style(Style::default().fg(theme.dim)),
         status,
     );
     frame.render_widget(
-        Paragraph::new(menu.hint).style(Style::default().fg(theme.accent)),
+        Paragraph::new(hint).style(Style::default().fg(theme.accent)),
         help,
     );
+    body
 }
 
 #[cfg(test)]

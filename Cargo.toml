@@ -94,7 +94,7 @@ default = ["audio"]
 audio = ["dep:rodio", "dep:cpal"]
 
 [workspace]
-members = ["crates/grimoire-core", "crates/grimoire-app", "crates/writingdeck-sys", "crates/wros-shell", "crates/wros-greeter", "crates/wros-input"]
+members = ["crates/grimoire-core", "crates/grimoire-app", "crates/writingdeck-sys", "crates/wros-shell", "crates/wros-greeter", "crates/wros-input", "crates/wros-installer"]
 
 # One version for the terminal app and the crates under it; bump it here.
 [workspace.package]

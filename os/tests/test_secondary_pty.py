@@ -25,7 +25,7 @@ BINARY = Path(os.environ.get('GRIMOIRE_BINARY', ROOT / 'target/debug/grimoire'))
 
 
 class TerminalProcess:
-    def __init__(self, project, home, width, height):
+    def __init__(self, project, home, width, height, *, command=None, pass_fds=()):
         self.master, slave = pty.openpty()
         fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', height, width, 0, 0))
         self.output = b''
@@ -44,8 +44,9 @@ class TerminalProcess:
 
         try:
             self.process = subprocess.Popen(
-                [str(BINARY), str(project)], stdin=slave, stdout=slave, stderr=slave,
+                command or [str(BINARY), str(project)], stdin=slave, stdout=slave, stderr=slave,
                 env=env, cwd=home, preexec_fn=controlling_terminal,
+                pass_fds=pass_fds,
             )
         finally:
             os.close(slave)

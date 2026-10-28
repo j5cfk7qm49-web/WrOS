@@ -686,11 +686,6 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
             notice: note,
             hint: "↑↓ choose  Enter open  Esc back  F1 help",
         },
-        wros_shell::Theme {
-            text: theme.text,
-            accent: theme.accent,
-            dim: theme.dim,
-            border: theme.border,
-        },
+        theme.into(),
     );
 }

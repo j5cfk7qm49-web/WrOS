@@ -1,0 +1,67 @@
+--- a/src/modules/frontend/passthrough/passthrough.c
++++ b/src/modules/frontend/passthrough/passthrough.c
+@@ -58,0 +59,12 @@
++
++/* A protocol frame is one line. Escape backslashes before newlines in
++ * every field, including progress and substitutions, so neither paragraphs
++ * nor a literal backslash-n can change framing or lose their meaning. */
++static char *
++encode_field(const char *text)
++{
++    char *slashes = strreplace(text ? text : "", "\\", "\\\\");
++    char *encoded = strreplace(slashes, "\n", "\\n");
++    free(slashes);
++    return encoded;
++}
+@@ -104,2 +116,5 @@
+-    }
+-    inp = strstrip(in);
++        inlen += strlen(buf);
++    }
++    /* Strip framing only: password whitespace is part of the answer. */
++    inp = in;
++    inp[strcspn(inp, "\r\n")] = '\0';
+@@ -215 +230,3 @@
+-    talk(obj, NULL, "TITLE", title, NULL);
++    char *encoded = encode_field(title);
++    talk(obj, NULL, "TITLE", encoded, NULL);
++    free(encoded);
+@@ -243 +260 @@
+-            char *desc_esc = strreplace(desc, "\\n", "\\\\n");
++            char *desc_esc = encode_field(desc);
+@@ -251 +268 @@
+-            char *extdesc_esc = strreplace(extdesc, "\\n", "\\\\n");
++            char *extdesc_esc = encode_field(extdesc);
+@@ -263 +280 @@
+-            choices_c_esc = strreplace(choices_c, "\\n", "\\\\n");
++            choices_c_esc = encode_field(choices_c);
+@@ -269 +286 @@
+-            choices_esc = strreplace(choices, "\\n", "\\\\n");
++            choices_esc = encode_field(choices);
+@@ -276,5 +293,11 @@
+-        if (value && *value)
+-            talk(obj, NULL, "SET", q->tag, value, NULL);
+-
+-        for (qv = q->variables; qv; qv = qv->next)
+-            talk(obj, NULL, "SUBST", q->tag, qv->variable, qv->value, NULL);
++        if (value && *value) {
++            char *encoded = encode_field(value);
++            talk(obj, NULL, "SET", q->tag, encoded, NULL);
++            free(encoded);
++        }
++
++        for (qv = q->variables; qv; qv = qv->next) {
++            char *encoded = encode_field(qv->value);
++            talk(obj, NULL, "SUBST", q->tag, qv->variable, encoded, NULL);
++            free(encoded);
++        }
+@@ -317 +340,3 @@
+-        talk(obj, NULL, "DATA", q->tag, "description", desc, NULL);
++        char *encoded = encode_field(desc);
++        talk(obj, NULL, "DATA", q->tag, "description", encoded, NULL);
++        free(encoded);
+@@ -323 +348,3 @@
+-        talk(obj, NULL, "DATA", q->tag, "extended_description", extdesc, NULL);
++        char *encoded = encode_field(extdesc);
++        talk(obj, NULL, "DATA", q->tag, "extended_description", encoded, NULL);
++        free(encoded);

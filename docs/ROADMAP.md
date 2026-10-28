@@ -80,7 +80,7 @@ The application tests retain the upstream Every key/menu/palette/help contracts 
 ## Next executable work
 
 1. Preserve original-source M4, actual-operation/civil-date M5 and original offline M6 behavior and all failure/restart/tutorial tests. Preserve tested M7a common byte-accurate source maps/revision-tagged jobs/opt-in model Harper, then continue M7b prose/lexicon/voice/ranked dashboard before M8–M9. See [M7a scope/limits](WRITING_CHECKS.md). Original agent-reviewed corpus integrity is not independent human/legal attestation; observed keyboard-pair time is not exclusive-human typing. Archival/large-load/power/release gates remain explicit.
-2. Add screen-lock integration with an input-reader pause/ownership handshake. Do not launch a password reader while Grimoire's event thread can still consume password keystrokes.
+2. Preserve the qualified manual vlock/PAM/systemd lock and reader handoff. Continue lock-before-sleep/resume qualification while all sleep requests stay disabled.
 3. Integrate safe authenticated first-run provisioning with an upstream Debian installation path; review without selecting or erasing a real disk. Add staged tests for current account/keyboard/timezone choices.
 4. Pin image/toolchain inputs for reproducible releases; build `.deb` integration packaging, security update/rollback fixtures and required corresponding-source/notices artifacts.
 5. Continue M7–M9 in dependency order after their actual prerequisites. Avoid shallow stubs for every later feature; real M6 source/reference actions are not an implemented M8 story database or complete OS.

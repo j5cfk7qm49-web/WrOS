@@ -1,0 +1,197 @@
+{
+  "recorded_at_utc": "2026-10-28T07:46:42.091738+00:00",
+  "scope": "Shared Grimoire themes/native installer frontend and retained original-editor regression; no live launch, installation or hardware claim",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "27af9af83561d6e6322e2c026fb0a059767651be7024c8507e63f53545f88e10",
+    "file_count": 330,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "checks": [
+    {
+      "name": "format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "seconds": 2.177,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-components",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "wros-shell",
+        "-p",
+        "wros-greeter",
+        "-p",
+        "wros-installer",
+        "--locked",
+        "--offline",
+        "-j2"
+      ],
+      "exit_code": 0,
+      "seconds": 1.005,
+      "log_sha256": "c37f0021366a03dbd30b6bd384347a83ee2d35db0bc998f5e52e76947464f5e2"
+    },
+    {
+      "name": "retained-themes",
+      "command": [
+        "cargo",
+        "test",
+        "--bin",
+        "grimoire",
+        "--no-default-features",
+        "--locked",
+        "--offline",
+        "-j2",
+        "theme::tests"
+      ],
+      "exit_code": 0,
+      "seconds": 1.255,
+      "log_sha256": "51812f85dbc0b6e0df6b354baaa9ca0bab241249499b8bbed6e209ee26e6185c"
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--no-default-features",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "seconds": 1.107,
+      "log_sha256": "159c95084c74469e58793af212409793e85a7eb33ab10bebe1f7928ea6fcf10f"
+    },
+    {
+      "name": "build",
+      "command": [
+        "cargo",
+        "build",
+        "--workspace",
+        "--no-default-features",
+        "--locked",
+        "--offline",
+        "-j2"
+      ],
+      "exit_code": 0,
+      "seconds": 0.773,
+      "log_sha256": "93e65aaeaeca0d12fb3d1c5d308d108732cfd015f70e16e3500718ff1a8cff5d"
+    },
+    {
+      "name": "native-and-retained-pty",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "os/tests",
+        "-p",
+        "test_installer_pty.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 2.056,
+      "log_sha256": "d2ceba889244a649b3e08c98972600c26a49e62edeaafdfad0989d921c407bbb"
+    },
+    {
+      "name": "retained-editor-pty",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "os/tests",
+        "-p",
+        "test_shell_pty.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 2.693,
+      "log_sha256": "4c3e7d7fc777aff95c1db67850537c388b9e4fa7a5c756a73c395904c1e998af"
+    },
+    {
+      "name": "shellcheck",
+      "command": [
+        "shellcheck",
+        "os/scripts/build-installer-frontend.sh"
+      ],
+      "exit_code": 0,
+      "seconds": 0.086,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "python-syntax",
+      "command": [
+        "python3",
+        "-m",
+        "py_compile",
+        "tools/test-installer-backend.py",
+        "os/tests/test_installer_pty.py",
+        "os/tests/test_secondary_pty.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.086,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "documentation",
+      "command": [
+        "python3",
+        "tools/check-writingdeck.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.73,
+      "log_sha256": "c269fc7fbfa6e34cd7197f72464463f8dd3cee944e77224f275675cdf8e127b1"
+    },
+    {
+      "name": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "seconds": 13.983,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "source_unchanged": true,
+  "grimoire_binary_sha256": "e57999b6a975a3deb431d69b939b9a430a941439d4f16184aa77e9aaf165750a",
+  "wros-greeter_binary_sha256": "ef37376d8de3dd24b2e8196b43753b939ba604cb8ebfe77a28174f973ae5be3d",
+  "wros-installer_binary_sha256": "e57898bfce09dd7a26ade0b595245a2902b8665995eeefa0bb2ad8153cc51102",
+  "sizes": [
+    [
+      80,
+      24
+    ],
+    [
+      100,
+      30
+    ],
+    [
+      120,
+      40
+    ],
+    [
+      160,
+      50
+    ]
+  ],
+  "passed": true
+}

@@ -314,13 +314,12 @@ impl Conversation {
 }
 
 pub fn render(frame: &mut ratatui::Frame, conversation: &Conversation) {
-    use ratatui::style::Color;
     let rows = vec![conversation.prompt.clone(), conversation.shown_input()];
     wros_shell::render_menu(
         frame,
         frame.area(),
         wros_shell::Menu {
-            title: "WrOS — Writer's OS | Sign in",
+            title: "WrOS · Sign in",
             rows: &rows,
             selected: 0,
             notice: conversation.notice,
@@ -330,12 +329,7 @@ pub fn render(frame: &mut ratatui::Frame, conversation: &Conversation) {
                 "Enter: continue  Esc: cancel for account/keyboard recovery  Ctrl+Alt+F2: maintenance"
             },
         },
-        wros_shell::Theme {
-            text: Color::White,
-            accent: Color::LightYellow,
-            dim: Color::Gray,
-            border: Color::DarkGray,
-        },
+        wros_shell::Theme::default(),
     );
 }
 

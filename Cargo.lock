@@ -7013,6 +7013,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "wros-installer"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "ratatui",
+ "serde_json",
+ "signal-hook",
+ "wros-shell",
+ "zeroize",
+]
+
+[[package]]
 name = "wros-shell"
 version = "0.1.0"
 dependencies = [

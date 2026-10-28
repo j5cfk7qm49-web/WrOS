@@ -11694,6 +11694,21 @@
       "retained_upstream_notice_source": null
     },
     {
+      "name": "wros-installer",
+      "version": "0.1.0",
+      "declared_license": "MIT",
+      "repository": null,
+      "used_in_linux_no_audio_build": false,
+      "source": "WritingDeck workspace",
+      "notice_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "de028017fb22716dfc7b101cbb466e8ec278e8987145256770f97e0969ee127d"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
       "name": "wros-shell",
       "version": "0.1.0",
       "declared_license": "MIT",

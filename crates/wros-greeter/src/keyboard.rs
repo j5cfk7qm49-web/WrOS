@@ -175,7 +175,6 @@ impl Keyboard {
         }
     }
     pub fn render(&self, frame: &mut ratatui::Frame, now: Instant) {
-        use ratatui::style::Color;
         let mut rows: Vec<String> = LAYOUTS.iter().map(|(_, label)| (*label).into()).collect();
         if let Some((_, deadline)) = &self.preview {
             rows.push(format!(
@@ -190,18 +189,13 @@ impl Keyboard {
             frame,
             frame.area(),
             wros_shell::Menu {
-                title: "WrOS | Login keyboard",
+                title: "WrOS · Login keyboard",
                 rows: &rows,
                 selected: self.selected,
                 notice: self.notice,
                 hint: "Up/Down: layout  Enter: preview/keep  Esc: revert/back  Ctrl+Alt+F2: maintenance",
             },
-            wros_shell::Theme {
-                text: Color::White,
-                accent: Color::LightYellow,
-                dim: Color::Gray,
-                border: Color::DarkGray,
-            },
+            wros_shell::Theme::default(),
         );
     }
 }

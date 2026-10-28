@@ -1,0 +1,27 @@
+{
+  "recorded_at_utc": "2026-10-28T07:48:32.578526+00:00",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "27af9af83561d6e6322e2c026fb0a059767651be7024c8507e63f53545f88e10",
+    "file_count": 330,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "scope": "Actual native installer renderer cells from synthetic unit fixtures, rasterized with the existing Grimoire cell painter; not an actual installation, guest screenshot or physical console",
+  "font": "Consolas 17 pixels; 10 by 22 pixel cells on the shared Grimoire background",
+  "frames": [
+    {
+      "name": "native-installer-password",
+      "width": 80,
+      "height": 24,
+      "json_sha256": "e78cfe306289781dbaee5db578af5313acf7dfb366b6d4d3be46b636f176c904",
+      "png_sha256": "80b89bf02336274df5e3f0b3831534f66f1288dd2162f331549e8042d7b3438f"
+    },
+    {
+      "name": "native-installer-progress",
+      "width": 80,
+      "height": 24,
+      "json_sha256": "8897436b0d1f890ce58939cb6459d8acffd135c8e39477c6b1c9365f8b3c3b8b",
+      "png_sha256": "82dcdc44abc9267843fe5d834e950a6f425d8bd4b952e5a96e7ac17a1bd23bca"
+    }
+  ]
+}

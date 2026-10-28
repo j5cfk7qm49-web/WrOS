@@ -1,5 +1,21 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Shared Grimoire themes and native installer frontend — in progress
+
+`codex/live-installer` extracts Grimoire's original palette and theme format into
+the shared presentation crate. Settings, login/layout recovery and the new
+installer use that same code; the installer also reads the saved Grimoire theme.
+Its native forms, choices, progress and help passed
+[eleven focused gates](evidence/native-installer-focused.json), including the
+retained editor/Settings PTY and theme round trips. The
+[eleven actual Debian cdebconf checks](evidence/native-installer-backend.json)
+also passed with a retained protocol patch and pinned upstream build recipe.
+Read the [implementation boundaries and remaining live integration](NATIVE_INSTALLER.md).
+
+This is not yet a complete live installer or a new ISO. The privileged launcher,
+backend-death supervision, media staging and fresh install/reboot qualification
+remain open. Earlier source-bound evidence below retains its original scope.
+
 ## Manual console locker — software, guest and Debian CI passed
 
 `codex/console-lock` integrates Debian openvt/vlock/PAM on reserved root tty8.

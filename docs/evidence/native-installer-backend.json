@@ -1,0 +1,32 @@
+{
+  "recorded_at_utc": "2026-10-28T07:47:24.885225+00:00",
+  "passed": true,
+  "scope": "Debian cdebconf passthrough and native TUI synthetic questions; no installation or target disk",
+  "checks": [
+    "real-multiline-debian-template",
+    "real-back-navigation-status",
+    "real-password-roundtrip-hidden",
+    "prefilled-secret-with-literal-backslashes",
+    "prefilled-password-over-one-stdio-chunk",
+    "typed-password-preserves-leading-and-trailing-spaces",
+    "explicit-no-overrides-backend-true-default",
+    "canonical-translated-choice",
+    "real-progress-commands",
+    "backend-success-observed",
+    "credential-absent-from-backend-log"
+  ],
+  "seconds": 2.576,
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "27af9af83561d6e6322e2c026fb0a059767651be7024c8507e63f53545f88e10",
+    "file_count": 330,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "native_frontend_binary_sha256": "e57898bfce09dd7a26ade0b595245a2902b8665995eeefa0bb2ad8153cc51102",
+  "module_observed_in_backend_mapping": true,
+  "backend_binary_sha256": "aefecc2a805b52fdbbc82ca29350504f8eb6b2341ba7f937d3b26af10b47546c",
+  "passthrough_module_sha256": "e29829b3d183266b17867231c2e85710135c0f0cd4474dcaad16a609a02496d6",
+  "limitations": [
+    "Privileged live launcher, backend-death supervision and actual live-image installation remain unqualified."
+  ]
+}

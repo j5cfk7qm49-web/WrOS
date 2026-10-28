@@ -27,11 +27,13 @@ look and feel through shared UI/theme/interaction code. FOSS components supply
 the backend behind that coherent interface; do not assemble unrelated frontends
 as the ordinary WrOS experience.
 
-Latest development checkpoint: `codex/console-lock` builds on the integrated
-native installer (#40) and qualified timezone controls (#41). Manual vlock/PAM
-handoff is under qualification; consult [current status](STATUS.md) and
-[console-lock boundaries](CONSOLE_LOCK.md). Sleep remains disabled. Older
-milestone instructions and evidence below retain their historical scope.
+Latest development checkpoint: `codex/live-installer` builds on qualified
+integrated installation (#40), timezone (#41) and manual vlock/PAM/systemd lock
+(#42). The shared Grimoire palette and native cdebconf frontend are implemented;
+read [native installer boundaries](NATIVE_INSTALLER.md) and [current status](STATUS.md).
+The privileged live launcher, media staging and actual native install/reboot
+qualification are next. Sleep remains disabled. Earlier milestone evidence and
+the delivered ISO retain their original source scope.
 
 **Platform scope:** WrOS is the platform. Active CI qualifies the Debian 13
 amd64 runtime; do not restore macOS or Windows jobs. Imported Grimoire publishing
