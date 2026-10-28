@@ -24,7 +24,11 @@
   "capsule_manifest_sha256": "1453c0c9157416765ee038accd1e2dfaea83cbe032f8ee132079ead5cb2a6ffd",
   "live_iso_sha256": "531efcbd470ce01e5993726fe6bc40f18ab75634a8b01bb83cd6c37a3f4933e6",
   "live_iso_rebuilt_for_this_increment": false,
-  "debian_ci": "Pending publication and execution; no result inferred from local checks.",
+  "debian_ci": {
+    "passed": true,
+    "run_id": 40740207303,
+    "provenance": "docs/evidence/native-engine-ci-provenance.json"
+  },
   "report_sha256": {
     "docs/evidence/native-engine-local.json": "c43229c0fc122c413ec7412318bfc43e0cceeddcf2b35fff79b6d75756ef5c7b",
     "docs/evidence/native-engine-focused.json": "8f067998dee433804e6f51cf4902cb35db094a03695fbad31b489c2baa25bd98",

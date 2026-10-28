@@ -97,5 +97,10 @@ installation. No host disk or account was changed.
 The [full local software run](evidence/native-engine-local.json) passed 973
 Rust/configuration, 153 Python/zero skips, both Clippys and 21 gates. Its
 [source and binary provenance](evidence/native-engine-local-provenance.json)
-matches the focused and guest reports. Debian CI remains pending; this local
-record does not imply a remote result or target installation acceptance.
+matches the focused and guest reports.
+[Debian CI 40740207303](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40740207303)
+also passed 973 Rust/configuration, 153 Python/zero skips, both Clippys and 20
+gates. [Artifact provenance](evidence/native-engine-ci-provenance.json) records
+the tested merge and ZIP digest; local/guest source and verifier inputs match.
+The actual capsule build and diskless guest remain separately scoped local
+acceptance. Neither result qualifies target installation or a root launcher.

@@ -1,6 +1,6 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
-## Authenticated installer capsule — local software and diskless native menu passed
+## Authenticated installer capsule — local software, diskless native menu and Debian CI passed
 
 The matching Debian backend and 401-package offline set now compose into a
 verified regular-file capsule. Original signed Debian metadata, all archive
@@ -26,7 +26,13 @@ This is a guarded VM fixture using a separate read-only QA medium. The delivered
 live ISO has not been rebuilt with the capsule, and no production root launcher
 is installed. Trusted editor handoff, disk review/LUKS cleanup, fresh target
 installation/reboot, UEFI/Secure Boot, sleep and physical qualification remain
-open. Current Debian CI is pending; local checks do not imply a CI result.
+open. [Debian CI 40740207303](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40740207303)
+passed [973 Rust/configuration, 153 Python/zero skips, both Clippys and 20 gates](evidence/native-engine-ci.json).
+Its [verified artifact provenance](evidence/native-engine-ci-provenance.json)
+matches local/guest source and verifier inputs, retaining tested merge
+`dabf179afc0af76571a09cbf9f12e9de9f5c0a62`. The extra local gate audits the
+existing Wi-Fi staging payload. [Draft PR 48](https://github.com/j5cfk7qm49-web/WrOS/pull/48)
+retains this increment.
 Read the [backend integration boundaries](NATIVE_INSTALLER_ENGINE.md).
 
 ## Live Grimoire session — image, local software, guest and Debian CI passed
