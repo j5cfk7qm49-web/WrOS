@@ -183,7 +183,7 @@
       "area": "System",
       "capability": "Native searchable timezone selection",
       "status": "Tested",
-      "verification": "20 backend tests; four-size controller/editor PTY; real no-NIC guest passed 480.58 seconds; full CI pending",
+      "verification": "Debian CI: 963 Rust/configuration, 108 Python/zero skips, both Clippys and 17 gates; 20 focused backend tests, four-size controller/editor PTY and real guest passed 480.58 seconds",
       "hardware_verified": false,
       "detail": "Existing timedated/polkit action, Cancel-default confirmation, validated catalog and verified readback; active/local permissions and original editor context tested; no clock/RTC/NTP grant"
     },

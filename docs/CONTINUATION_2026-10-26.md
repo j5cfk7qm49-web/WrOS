@@ -1,5 +1,25 @@
 # WrOS continuation — 2026-10-26
 
+## Active continuation — native timezone qualified, 2026-10-27
+
+`codex/native-timezone`, implementation `c88c66c`, draft #41 on integrated image
+#40. Native city/region filter, Cancel-default confirmation, exact active/local
+timezone permission, fixed noninteractive timedatectl and authoritative readback.
+No clock/RTC/NTP grant or new dependencies. Twenty backend tests, four-size UI
+case and retained actual editor PTY passed; ten focused gates passed. Real no-NIC
+guest run-qz5lrcsf passed 480.58s including actual UI and policy denial plus
+retained PAM/keyboard/reader/accounts/faults/secret scan; base unchanged.
+Exact focused/guest source/binaries match archived fixture.
+
+Debian CI 40614744076 passed 963 Rust/configuration (5 default / 4 no-audio
+ignored), 108 Python/zero skips, both Clippys and 17 gates; standalone reader
+ownership cases ran in both configurations. Source `3c4f44b6...8a51569` / 311;
+tested merge `139e2c4dba96dbbc0e4c985469f72c387b34d111`. Raw reports are
+`native-timezone-{focused,vm,ci}.json`. The native-login ISO at `9e7d99c` predates
+these controls, and its independent fresh installer run remains in progress.
+Next priority is independently protected maintained console locking; suspend
+remains unavailable. No host credential, terminal, disk or power changes.
+
 ## Active continuation — integrated native image, 2026-10-27
 
 `codex/integrated-installer`, implementation `9e7d99c`, draft #40 stacked on

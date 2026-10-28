@@ -1,5 +1,27 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Native timezone selection — software, guest and Debian CI passed
+
+`codex/native-timezone` / [draft PR #41](https://github.com/j5cfk7qm49-web/WrOS/pull/41)
+adds local catalog search, Cancel-default confirmation, a narrow active/local
+timedated permission and matching readback before success. Status also reads the
+service rather than a potentially stale `/etc/timezone`. Failed requests retain
+the choice and editor context. Clock, RTC and NTP control are not granted.
+Read [native timezone boundaries and evidence](NATIVE_TIMEZONE.md).
+
+[Ten focused gates](evidence/native-timezone-focused.json) passed: 20 backend
+tests, the new four-size controller case, workspace Clippy/build, retained
+four-size Settings/cursor/undo/restart PTY and static gates. The [no-NIC guest](evidence/native-timezone-vm.json)
+passed in 480.58 seconds with actual search/cancel/apply/readback, inactive and
+unrelated policy denial and retained login/keyboard/accounts/input/fault/secret
+checks. Source and exact local binaries match the archived fixture; base unchanged.
+[Debian CI 40614744076](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40614744076)
+passed implementation `c88c66c`: [963 Rust/configuration, 108 Python/zero skips,
+both Clippys and 17 gates](evidence/native-timezone-ci.json). Source matches
+`3c4f44b61749cfaf29ca15902ac04b73b2ff54964fd1741eadc2d648a8a51569` / 311 files;
+tested merge `139e2c4dba96dbbc0e4c985469f72c387b34d111`. No new timezone ISO or
+physical claim is made; the integrated image below predates these controls.
+
 ## Integrated native-login image — build and Debian CI passed; fresh install running
 
 `codex/integrated-installer` / [draft PR #40](https://github.com/j5cfk7qm49-web/WrOS/pull/40)

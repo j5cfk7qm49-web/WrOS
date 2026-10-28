@@ -35,5 +35,11 @@ passed in 480.58 seconds, including native search, Cancel as the default,
 explicit application and authoritative readback of Asia/Tokyo, inactive-session
 and unrelated-action denial, plus retained PAM/keyboard/account/input/crash and
 secret-scan checks. The base image stayed unchanged. Source and the exact
-editor/greeter binaries match the archived guest fixture. Full Debian CI remains
-pending; this does not qualify a new ISO, manual clock control or physical hardware.
+editor/greeter binaries match the archived guest fixture. [Debian CI 40614744076](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40614744076)
+passed implementation `c88c66c`: [963 Rust/configuration, both Clippys, 108 Python/
+zero skips and 17 gates](evidence/native-timezone-ci.json). The four standalone
+input-ownership scenarios also passed in each CI configuration. Its source
+matches the focused/guest records exactly; tested merge is
+`139e2c4dba96dbbc0e4c985469f72c387b34d111`. CI binary identity remains separate
+from the local guest binary. This does not qualify a new ISO, manual clock
+control or physical hardware.
