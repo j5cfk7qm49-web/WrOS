@@ -3362,7 +3362,7 @@ fn writingdeck_export_tutorial_requires_a_real_demo_markdown_artifact() {
     assert!(
         fs::read_dir(root.join("exports"))
             .unwrap()
-            .filter_map(Result::ok)
+            .filter_map(|entry| entry.ok())
             .any(|e| {
                 e.path().extension().is_some_and(|ext| ext == "md")
                     && e.metadata().is_ok_and(|m| m.is_file() && m.len() > 0)
