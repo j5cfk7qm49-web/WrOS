@@ -3357,17 +3357,22 @@ fn inserting_footnote_creates_one_undoable_edit_without_rewriting_existing_notes
     assert_eq!(d.app.editor.text(), original);
     assert_eq!(d.app.project.nodes[current].body, original);
 
-    // An active selection must be preserved, never replaced with a marker.
+    // A real selection needs an actual source character; selecting a
+    // position in an empty scene clamps to an empty range.
+    d.app.editor.insert_str("A");
+    d.app.flush();
+    let selected_source = d.app.editor.text();
     d.app.editor.select((0, 0), (0, 1));
+    assert!(d.app.editor.has_selection());
     d.app.run_action(palette::Action::InsertFootnote);
-    assert_eq!(d.app.editor.text(), original);
+    assert_eq!(d.app.editor.text(), selected_source);
     assert!(d.app.editor.has_selection());
     d.app.editor.clear_selection();
 
     // Read-only source files are not candidates for insertion.
     d.app.project.nodes[current].read_only = true;
     d.app.run_action(palette::Action::InsertFootnote);
-    assert_eq!(d.app.editor.text(), original);
+    assert_eq!(d.app.editor.text(), selected_source);
 }
 
 #[test]
