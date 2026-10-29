@@ -1,14 +1,14 @@
 Actual non-root compiled-app PTY, 80x24, isolated newly created demo/HOME.
-Captured 2026-10-28T20:25:31.912981+00:00.
+Captured 2026-10-29T00:24:57.854050+00:00.
 ANSI cursor/erase/UTF-8 cell reconstruction; not a full terminal emulator.
 No physical keyboard or VM workflow claim. Original-source fixtures only.
 
 RECORDED FACTS
-┌ Writing journal · 2026-10-28 · Recorded facts ───────────────────────────────┐
+┌ Writing journal · 2026-10-29 · Recorded facts ───────────────────────────────┐
 │AUTOMATIC — sampled saved Project counts (≥10min); c captures current clean co│
-│#1 Saved checkpoint · 20:25:32 +00:00                                         │
+│#1 Saved checkpoint · 00:25:04 +00:00                                         │
 │Book 31 · daily net +6 · since-open delta +6                                  │
-│App opened 2026-10-28 20:25:32 +00:00 · initial 25 words                      │
+│App opened 2026-10-29 00:25:04 +00:00 · initial 25 words                      │
 │                                                                              │
 │                                                                              │
 │                                                                              │
@@ -30,7 +30,7 @@ RECORDED FACTS
 └──────────────────────────────────────────────────────────────────────────────┘
 
 ORIGINAL REFLECTION (SEPARATE MARKDOWN SOURCE)
-┌ Writing journal · 2026-10-28 · Reflection source ────────────────────────────┐
+┌ Writing journal · 2026-10-29 · Reflection source ────────────────────────────┐
 │MANUAL REFLECTION — separate ordinary Markdown; Enter/e explicitly edits its o│
 │Original reflection: keep the next sentence concrete.                         │
 │                                                                              │

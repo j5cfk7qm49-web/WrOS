@@ -14,6 +14,13 @@ from test_journal_pty import fixture
 from test_secondary_pty import TerminalProcess
 
 
+def write_capture(path, intro, frames):
+    # Validate the full terminal cells before serialization, then omit padding
+    # from the human-readable text artifact. This never edits a source document.
+    text=intro+'\n'+'\n'.join(frames)
+    path.write_text('\n'.join(line.rstrip(' \t') for line in text.splitlines())+'\n')
+
+
 def main():
     if os.geteuid()==0:
         raise SystemExit("Capture must run as a normal user, not root.")
@@ -59,7 +66,7 @@ def main():
       term.send(b'\r\x11');term.until(lambda: term.process.poll() is not None,'normal starter exit');assert term.process.returncode==0
       assert primary.read_bytes()==original and source.read_bytes()==saved and target.read_bytes()==scene and handoff.read_bytes()==saved_handoff
      finally:term.close()
-    Path('docs/evidence/workflow-pty-screen.txt').write_text(intro+'\n'+'\n'.join(frames))
+    write_capture(Path('docs/evidence/workflow-pty-screen.txt'),intro,frames)
 
     # Recapture retained M4b readers using the current binary, not an old screenshot.
     frames=[]
@@ -78,7 +85,7 @@ def main():
       frames.append(frame(term,'ORIGINAL REFLECTION (SEPARATE MARKDOWN SOURCE)','Writing journal','Original reflection','keep the next sentence concrete','Esc'))
       term.send(b'\x11');term.until(lambda: term.process.poll() is not None,'normal journal exit');assert term.process.returncode==0
      finally:term.close()
-    Path('docs/evidence/journal-pty-screen.txt').write_text(intro+'\n'+'\n'.join(frames))
+    write_capture(Path('docs/evidence/journal-pty-screen.txt'),intro,frames)
     print('Captured current-binary workflow and retained journal terminal frames.')
 
 if __name__=="__main__":

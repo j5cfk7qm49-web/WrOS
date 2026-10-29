@@ -13,6 +13,11 @@ and [passphrase-adapter CI](evidence/native-encrypted-install-before-overlay-ci.
 each passed 973 Rust tests per configuration and 168 Python tests with zero
 skips. Their original source identities remain separate. The overlay revision's
 full CI and new installation/boot test are pending.
+The first current-source CI ran all 973 Rust tests per configuration and 169
+Python tests with zero skips, then [failed its last whitespace gate](evidence/native-encrypted-install-capture-whitespace-provenance.json)
+on a trailing terminal cell in a generated journal capture. Capture serialization
+now omits that padding after validating the full frame. Both real demo captures,
+documentation and `git diff --check` pass locally; the new full CI remains pending.
 
 Two independent generated fixture credentials stay private. The account uses a
 generated SHA-512 crypt hash in the test preseed. The encryption passphrase is
