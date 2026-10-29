@@ -8,6 +8,8 @@ use std::ops::Range;
 pub struct FootnoteRef {
     pub label: String,
     pub offset: usize,
+    /// Exclusive original UTF-8 source end, including the closing bracket.
+    pub end_offset: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -74,6 +76,7 @@ pub fn analyze_footnotes(markdown: &str) -> FootnoteAnalysis {
             Event::FootnoteReference(label) => analysis.references.push(FootnoteRef {
                 label: label.to_string(),
                 offset: range.start,
+                end_offset: range.end,
             }),
             Event::Text(_) if !code => {
                 if let Some(last) = visible.last_mut().filter(|last| last.end == range.start) {
@@ -112,6 +115,7 @@ pub fn analyze_footnotes(markdown: &str) -> FootnoteAnalysis {
             analysis.references.push(FootnoteRef {
                 label: label.into(),
                 offset: absolute,
+                end_offset: range.start + end + 1,
             });
         }
     }
@@ -380,5 +384,20 @@ mod tests {
         let text = "Prose without notes.\n\n[^orphan]: I was never linked.";
         let analysis = analyze_footnotes(text);
         assert_eq!(analysis.unused_definitions, vec!["orphan"]);
+    }
+}
+
+#[cfg(test)]
+mod source_span_tests {
+    #[test]
+    fn reference_spans_retain_original_label_spacing_and_unicode() {
+        let text = "λ[^long  label] and [^missing].\n\n[^long label]: Original.\n";
+        let result = super::analyze_footnotes(text);
+        let spans: Vec<_> = result
+            .references
+            .iter()
+            .map(|r| &text[r.offset..r.end_offset])
+            .collect();
+        assert_eq!(spans, ["[^long  label]", "[^missing]"]);
     }
 }

@@ -69,6 +69,7 @@ impl App {
             Overlay::Checks { .. } => self.on_checks_key(key),
             Overlay::Lexicon => self.on_lexicon_key(key),
             Overlay::ProseDashboard => self.on_prose_dashboard_key(key),
+            Overlay::ReviewNotes => self.on_review_notes_key(key),
             Overlay::Productivity { .. } | Overlay::ProductivityInput { .. } => {
                 self.on_productivity_key(key)
             }
@@ -198,6 +199,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         Overlay::Checks { .. } => super::checks::draw(f, app, area, t),
         Overlay::Lexicon => super::lexicon::draw(f, app, area, t),
         Overlay::ProseDashboard => super::prose_dashboard::draw(f, app, area, t),
+        Overlay::ReviewNotes => super::review_notes::draw(f, app, area, t),
         Overlay::Productivity { .. } | Overlay::ProductivityInput { .. } => {
             super::productivity::draw(f, app, area, t)
         }

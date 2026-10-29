@@ -1,5 +1,33 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Writing workflow integration on development (2026-10-29)
+
+Remote PRs #54, #55, #57 and #58 were audited and retained. PR #59 was
+independently corrected, qualified and merged as `82ede406`: source ownership
+and backing-file checks now guard insertion, and the maintained parser must
+recognize both the reference and its appended definition. Its revised
+[Debian CI](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40916740650)
+passed; independent [local evidence](evidence/footnote-audit-local.json) records
+1022 Rust tests per configuration, 171 Python tests with zero skips, both
+Clippys and 21 gates. This receipt covers the footnote audit source only.
+
+`development` includes those changes and a local revision-note workflow with
+stable document IDs, guarded metadata history, explicit re-anchoring and
+revision-bound resolution. Owned rename/reorder/trash/restore preserves IDs;
+external or interrupted moves require explicit reconnection. Footnote browsing
+now guards stale source positions, shares wros-shell widgets, and jumps to
+original definitions for normal editing. Lessons 32 and 35 open their actual
+workflows. Independent [full Debian qualification](evidence/development-writing-local.json)
+passed **1037 Rust tests/configuration, 173 Python/zero skips, both Clippys and
+21 gates** on source `9a734ebd...26a20` / 450 files. [Provenance and four review
+frames](evidence/development-writing-local-provenance.json) bind the result to
+the tested binary. The earlier documentation-inventory failure is retained
+separately; the corrected run passed all gates.
+
+Genuine DOCX/PDF page footnotes, full M8/M9, OS image refresh, encrypted
+installation/authenticated reboot and physical hardware remain unqualified.
+The existing local voice adapters and scene-history engine remain in use.
+
 ## Native feature contribution reviewed and qualified in Debian CI
 
 The feature contribution is preserved and [reviewed](FEATURE_REVIEW.md). The

@@ -8113,5 +8113,11 @@ mod lexicon_ui_tests;
 #[cfg(target_os = "linux")]
 mod prose_ui_tests;
 
+#[path = "review_notes_ui_tests.rs"]
+mod review_notes_ui_tests;
+
 #[path = "footnote_insert_ui_tests.rs"]
 mod footnote_insert_ui_tests;
+
+#[path = "footnote_navigator_ui_tests.rs"]
+mod footnote_navigator_ui_tests;

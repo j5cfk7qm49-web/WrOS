@@ -52,7 +52,7 @@ The demo contains original short text and a deliberate spelling error. Nothing i
 | 29 | Proselint | Wired: review a real pinned-engine finding and its queue provenance |
 | 30 | Author voice | Wired: actual sufficient-material baseline comparison; preparing/saving/selecting alone is insufficient |
 | 31 | Continuity | Planned |
-| 32 | Inline revision notes | Planned |
+| 32 | Inline revision notes | Wired: safe-demo creation, original edit and explicit changed-anchor save; opening, cancelling, resolving or saving the same anchor cannot complete it |
 | 33 | Draft comparisons | Wired baseline history view; named variants/diff extension planned |
 | 34 | Footnotes | Planned |
 | 35 | Export | Wired: real nonempty Markdown export in safe demo; canceled, failed and ordinary-novel attempts cannot complete the lesson; PDF/DOCX footnotes remain separately unimplemented |

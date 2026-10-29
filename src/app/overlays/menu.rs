@@ -356,6 +356,10 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "Original next-session prose and explicit saved manuscript context resume.",
             "handoff",
         ),
+        Action::ReviewNotes => (
+            "Passage-anchored local comments, guarded revision review and explicit re-anchoring",
+            "review-notes",
+        ),
         Action::ProseDashboard => (
             "Local advisory prose statistics, pinned offline tools, source-safe ranked review and selected-reference voice profiles",
             "prose-dashboard",

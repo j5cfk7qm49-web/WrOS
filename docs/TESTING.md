@@ -22,8 +22,8 @@ Use `bash tools/test-m7b.sh` after provisioning the exact runtime described in
 and runtime marker, exact overlapping Rust counts, ignored cases and real Python
 coverage; it refuses skipped Python methods or changed source. Custom output
 paths use `GRIMOIRE_BINARY`, `CARGO_TARGET_DIR` and `WRITINGDECK_TOOLS_PYTHON`.
-Current software results are 910 passed per Rust configuration and 70 Python
-methods without skips. The independent image audit verifies Wi-Fi payloads.
+Current software totals and their source identities are recorded in
+[STATUS](STATUS.md); historical milestone counts do not qualify later changes. The independent image audit verifies Wi-Fi payloads.
 The 512-MiB zero-NIC TCG VM records successful native/proselint/WordNet/Harper
 checks and a real Nabokov kernel CPU-budget denial; positive trained analysis
 is required and passes in native offline UI/PTY tests. See [STATUS](STATUS.md)
@@ -117,3 +117,17 @@ The complete verifier runs both overlapping Rust configurations, both warning-de
 [Writing checks](WRITING_CHECKS.md) separates core controlled offset/fault/queue fixtures from actual pinned engine runs; 15 targeted UI cases include a genuine worker at all four sizes and genuine demo grammar replacement, plus location-bound consent/revocation/idle cleanup. Five `test_checks_pty.py` methods use the actual no-audio binary, disposable demo/HOME and real models: Unicode apply/undo/restart, once/novel/personal mutes, copied-novel consent, future/external refusal, edits during an in-flight check and supplementary lesson-40 proof retaining original 26. Ledger assertions wait for durable origin checkpoints, not merely source writes; analysis/debounce does not grant authorship credit.
 
 `tools/audit-writing-checks-assets.py` is a full-verifier gate for nine pinned packaged assets and seven retained upstream notices. Independent training/dictionary/legal/corresponding-source review remains open. [Debug resource measurements](evidence/writing-checks-resources.json) distinguish small Unicode vs specified repetitive 2,340-word fixture, cold/hot/CPU and baseline/kernel-peak RSS. Native cancel does not preempt a running parser or prove cache unloading. No physical battery/production Python claim. The VM-only probe now also requires a non-root actual model/apply/undo result under the installed stripped binary with zero NICs; it records loaded grammar separately from dashboard RSS. See [STATUS](STATUS.md) for whether full software and VM qualification have actually run on the current source.
+
+## Writing workflow increment (2026-10-29)
+
+[The independent Debian receipt](evidence/development-writing-local.json)
+records 1037 Rust tests in each overlapping configuration, both Clippys,
+173 Python tests with zero skips and 21 gates. Fresh demo/HOME fixtures exercise
+annotation creation, normal original-source editing, explicit re-anchor,
+revision-bound resolution, retained history, Undo and process restart at four
+terminal sizes. Footnote insertion and reference/definition navigation retain
+exact YAML/source bytes through Undo; modal/help input cannot mutate hidden prose.
+Model/UI tests cover unknown, corrupt, future, oversized, stale and aliased
+metadata and interrupted owned moves. The [initial documentation failure](evidence/development-writing-documentation-failure.json)
+is preserved separately. These tests do not establish crash/power-loss,
+large-load, image, full encrypted installation, physical or release qualification.

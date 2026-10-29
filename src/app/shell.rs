@@ -261,6 +261,7 @@ fn entries(app: &App) -> Vec<Entry> {
                     Entry::new("Writing goals", Choice::Action(Action::Goals)),
                     Entry::new("Daily challenges", Choice::Action(Action::DailyChallenges)),
                     Entry::new("Revision tools", Choice::Action(Action::ProseDashboard)),
+                    Entry::new("Revision notes", Choice::Action(Action::ReviewNotes)),
                     Entry::info("Footnotes · not implemented yet"),
                 ]);
             } else {

@@ -2046,7 +2046,8 @@ pub fn rename(path: &Path, name: &str) -> Result<PathBuf> {
         } else {
             sync::copies_of(path)
         };
-        fs::rename(path, &target).with_context(|| format!("renaming {}", path.display()))?;
+        crate::review_notes::tracked_rename(path, &target)
+            .with_context(|| format!("renaming {}", path.display()))?;
         // Its conflict copies follow it under the new name.
         let new_stem = target
             .file_stem()
@@ -2125,7 +2126,8 @@ pub fn trash(root: &Path, path: &Path) -> Result<PathBuf> {
         target = dir.join(format!("{stamp}-{n}-{name}"));
         n += 1;
     }
-    fs::rename(path, &target).with_context(|| format!("moving {} to the trash", path.display()))?;
+    crate::review_notes::tracked_rename(path, &target)
+        .with_context(|| format!("moving {} to the trash", path.display()))?;
     // Where it came from, so Restore can put it back there. A hidden file,
     // so the Trash section never shows it.
     if let (Ok(rel), Some(went)) = (path.strip_prefix(root), target.file_name()) {
@@ -2196,7 +2198,7 @@ pub fn restore(root: &Path, trashed: &Path) -> Result<PathBuf> {
         target = dir.join(format!("{stem}-{n}{ext}"));
         n += 1;
     }
-    fs::rename(trashed, &target)
+    crate::review_notes::tracked_rename(trashed, &target)
         .with_context(|| format!("moving {} out of the trash", trashed.display()))?;
     let origins = trash_dir(root).join(ORIGINS);
     if let Ok(text) = fs::read_to_string(&origins) {
@@ -2741,6 +2743,7 @@ const MOVING: &str = ".grimoire-moving-";
 /// already made are undone, so nothing is left hidden under a temporary name.
 fn rename_all(renames: &[(PathBuf, PathBuf)]) -> Result<()> {
     let renames = &with_copies(renames);
+    let note_move = crate::review_notes::MoveGuard::prepare(renames)?;
     let pid = std::process::id();
     // (where it was, where it waits, where it's going)
     let mut staged: Vec<(PathBuf, PathBuf, PathBuf)> = Vec::new();
@@ -2786,7 +2789,7 @@ fn rename_all(renames: &[(PathBuf, PathBuf)]) -> Result<()> {
             return Err(e);
         }
     }
-    Ok(())
+    crate::review_notes::MoveGuard::finish(note_move)
 }
 
 /// Bring back anything a move left under its temporary name — a crash or a

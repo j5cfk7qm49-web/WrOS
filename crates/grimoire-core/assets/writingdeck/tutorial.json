@@ -219,9 +219,9 @@
   {
     "id": 32,
     "title": "Inline revision notes",
-    "help_topic": "notes",
-    "event": null,
-    "instructions": "Attach an annotation to a passage and relocate its anchor after an edit. Planned."
+    "help_topic": "review-notes",
+    "event": "AnnotationReanchored",
+    "instructions": "In the safe demo, select an original passage and open Revision notes from the palette. Press n, write your own comment and Enter to save. Esc returns to writing. Edit that passage normally, then select its new wording. Reopen Revision notes, inspect your note with Enter, and press a. Review the old and new passages, choose Save reviewed anchor with Down and Enter. Only a changed anchor saved successfully completes this exercise. Opening, cancelling, resolving, or re-saving the same anchor does not count. Existing Undo, autosave and source history remain available; comments stay outside the manuscript."
   },
   {
     "id": 33,

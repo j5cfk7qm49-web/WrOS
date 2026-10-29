@@ -52,6 +52,7 @@ pub mod workspaces;
 
 pub mod voice_profile;
 
+pub mod review_notes;
 pub mod review_queue;
 
 pub mod annotations;
