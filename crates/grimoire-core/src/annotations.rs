@@ -43,30 +43,43 @@ impl Annotation {
     /// available context identify one occurrence. The offset is only a hint;
     /// never guess a replacement range from a case-folded string.
     pub fn locate_in(&self, text: &str) -> Option<(usize, usize)> {
-        let anchor = self.quote_anchor.as_str();
-        if anchor.is_empty() {
+        locate_quote(
+            text,
+            &self.quote_anchor,
+            &self.prefix_context,
+            &self.suffix_context,
+        )
+    }
+}
+
+/// Shared original-byte anchor matcher for the experimental model and the
+/// editor's durable review notes. Offsets never break ties.
+pub fn locate_quote(
+    text: &str,
+    anchor: &str,
+    prefix: &str,
+    suffix: &str,
+) -> Option<(usize, usize)> {
+    if anchor.is_empty() {
+        return None;
+    }
+
+    let mut found = None;
+    // char_indices also finds overlapping occurrences, unlike match_indices.
+    for (start, _) in text.char_indices() {
+        if !text[start..].starts_with(anchor) {
+            continue;
+        }
+        let end = start + anchor.len();
+        if !text[..start].ends_with(prefix) || !text[end..].starts_with(suffix) {
+            continue;
+        }
+        if found.is_some() {
             return None;
         }
-
-        let mut found = None;
-        // char_indices also finds overlapping occurrences, unlike match_indices.
-        for (start, _) in text.char_indices() {
-            if !text[start..].starts_with(anchor) {
-                continue;
-            }
-            let end = start + anchor.len();
-            if !text[..start].ends_with(&self.prefix_context)
-                || !text[end..].starts_with(&self.suffix_context)
-            {
-                continue;
-            }
-            if found.is_some() {
-                return None;
-            }
-            found = Some((start, end));
-        }
-        found
+        found = Some((start, end));
     }
+    found
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

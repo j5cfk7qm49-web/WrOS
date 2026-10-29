@@ -40,6 +40,7 @@ impl App {
             Overlay::Checks { .. } => "writing-checks",
             Overlay::Lexicon => "lexicon",
             Overlay::ProseDashboard => "prose-dashboard",
+            Overlay::ReviewNotes => "review-notes",
             Overlay::Productivity { .. } | Overlay::ProductivityInput { .. } => "productivity",
             Overlay::Journal => "journal",
             Overlay::Scratchpad => "scratchpad",
@@ -90,6 +91,7 @@ impl App {
     /// typed into something.
     pub fn question_opens_help(&self) -> bool {
         match &self.overlay {
+            Overlay::ReviewNotes => !self.review_notes.typing(),
             Overlay::ProseDashboard => {
                 self.prose_dashboard.page != super::super::prose_dashboard::Page::VoiceName
             }

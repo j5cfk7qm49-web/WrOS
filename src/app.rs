@@ -38,6 +38,7 @@ pub(crate) mod overlays;
 pub(crate) mod pins;
 pub(crate) mod productivity;
 pub(crate) mod prose_dashboard;
+pub(crate) mod review_notes;
 pub(crate) mod shell;
 pub(crate) mod spark;
 pub(crate) mod workflow;
@@ -181,6 +182,7 @@ pub struct App {
     pub checks: checks::Checks,
     pub lexicon: lexicon::Lexicon,
     pub prose_dashboard: prose_dashboard::Dashboard,
+    pub review_notes: review_notes::Review,
     pub deck: writingdeck::Deck,
     pub pins: pins::Pins,
     pub journal: journal::Journal,
@@ -442,6 +444,7 @@ pub enum Overlay {
     Handoff,
     Lexicon,
     ProseDashboard,
+    ReviewNotes,
     Checks {
         page: checks::Page,
     },
@@ -779,6 +782,7 @@ impl App {
             .flatten();
         let checks = checks::Checks::load(&project.root, personal_root);
         let prose_dashboard = prose_dashboard::Dashboard::load(&project.root);
+        let review_notes = review_notes::Review::load(&project.root);
         let workflow = workflow::Workflow::load(&project.root);
         let complete = !project.nodes.iter().any(|n| {
             n.in_manuscript
@@ -837,6 +841,7 @@ impl App {
             checks,
             lexicon: lexicon::Lexicon::default(),
             prose_dashboard,
+            review_notes,
             deck,
             pins,
             journal,
@@ -1762,6 +1767,11 @@ impl App {
     /// Ctrl-V: what's on the computer's clipboard, or failing that what
     /// was last copied here.
     pub fn paste_clipboard(&mut self) {
+        if self.overlay == Overlay::ReviewNotes {
+            let text = self.clipboard_text();
+            self.paste_review_notes(&text);
+            return;
+        }
         if self.overlay == Overlay::ProseDashboard {
             let text = self.clipboard_text();
             self.paste_prose_dashboard(&text);
@@ -1942,6 +1952,10 @@ impl App {
 
     /// Text pasted into the terminal arrives in one piece.
     pub fn paste(&mut self, text: &str) {
+        if self.overlay == Overlay::ReviewNotes {
+            self.paste_review_notes(text);
+            return;
+        }
         if self.overlay == Overlay::ProseDashboard {
             self.paste_prose_dashboard(text);
             return;
@@ -2120,6 +2134,7 @@ impl App {
             Action::WritingChecks => self.open_checks(),
             Action::Lexicon => self.open_lexicon(),
             Action::ProseDashboard => self.open_prose_dashboard(),
+            Action::ReviewNotes => self.open_review_notes(),
             Action::Productivity => self.open_productivity(productivity::Page::Overview),
             Action::MeasuredGoals => self.open_productivity(productivity::Page::Goals),
             Action::Calendar => self.open_productivity(productivity::Page::Calendar),
@@ -3861,6 +3876,11 @@ impl App {
     /// something twice.
     fn follow_many(&mut self, renames: &[(PathBuf, PathBuf)]) {
         let root = self.project.root.clone();
+        // Core tree operations publish durable document-ID mappings. Refresh
+        // only after our own successful move; external metadata reload stays explicit.
+        let notes = review_notes::Review::load(&root);
+        self.review_notes.store = notes.store;
+        self.review_notes.notice = notes.notice;
         self.pin_follow_many(renames);
         history::follow_all(&root, renames);
         let moved = |p: &PathBuf| {
@@ -4894,6 +4914,7 @@ impl App {
                 | Overlay::Checks { .. }
                 | Overlay::Lexicon
                 | Overlay::ProseDashboard
+                | Overlay::ReviewNotes
                 | Overlay::Productivity { .. }
                 | Overlay::ProductivityInput { .. }
         ) {
@@ -5087,6 +5108,7 @@ impl App {
                 (row("Next scene still in draft", ""), Action::NextDraft),
                 (on_off(self.echo_on, "echo words"), Action::EchoWords),
                 ("Check names…".into(), Action::CheckNames),
+                ("Revision notes…".into(), Action::ReviewNotes),
                 ("Writing checks…".into(), Action::WritingChecks),
                 ("Dictionary and thesaurus…".into(), Action::Lexicon),
                 (

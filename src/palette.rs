@@ -83,6 +83,7 @@ pub enum Action {
     WritingChecks,
     Lexicon,
     ProseDashboard,
+    ReviewNotes,
     Scratchpad,
     Handoff,
     LinkScratchpad(u64, std::path::PathBuf),
@@ -433,6 +434,7 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
         Entry::new("Writing checks · local grammar", "", Action::WritingChecks),
         Entry::new("Dictionary and thesaurus", "", Action::Lexicon),
         Entry::new("Prose and revision dashboard", "", Action::ProseDashboard),
+        Entry::new("Revision notes", "", Action::ReviewNotes),
     ]);
     // Every help topic, so "help sync" goes straight to it.
     for t in crate::help::TOPICS {

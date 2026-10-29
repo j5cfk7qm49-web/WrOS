@@ -46,6 +46,7 @@ pub enum Event {
     ProselintFindingReviewed,
     VoiceProfileCompared,
     HistoryOpened,
+    AnnotationReanchored,
     SystemOpened,
     RecoveryHelpOpened,
 }

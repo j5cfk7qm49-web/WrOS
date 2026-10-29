@@ -658,6 +658,10 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
         };
 
         if let Event::Paste(text) = &ev {
+            if app.overlay == Overlay::ReviewNotes {
+                app.paste_review_notes(text);
+                continue;
+            }
             if app.overlay == Overlay::ProseDashboard {
                 app.paste_prose_dashboard(text);
                 continue;
@@ -676,6 +680,7 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
                     | Overlay::Checks { .. }
                     | Overlay::Lexicon
                     | Overlay::ProseDashboard
+                    | Overlay::ReviewNotes
                     | Overlay::Productivity { .. }
                     | Overlay::Deck(_)
             ) && !matches!(
@@ -737,6 +742,20 @@ fn on_key(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
 fn route_key(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
     use app::writingdeck::Page;
     use grimoire_core::tutorial::Event as LessonEvent;
+    if app.review_notes.has_draft() && k.modifiers.contains(KeyModifiers::CONTROL) {
+        if matches!(k.code, KeyCode::Char('q' | 'k' | 'd')) {
+            app.review_notes.notice =
+                "Save the comment with Enter or cancel with Esc before leaving.".into();
+            app.msg = app.review_notes.notice.clone();
+            return false;
+        }
+        if k.code == KeyCode::Char('s') && app.overlay == Overlay::ReviewNotes {
+            if app.review_notes.typing() {
+                app.on_review_notes_key(Key::Enter);
+            }
+            return false;
+        }
+    }
     if matches!(
         app.overlay,
         Overlay::Deck(Page::Shortcuts { capture: true, .. })
@@ -937,12 +956,16 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
                 | Overlay::Checks { .. }
                 | Overlay::Lexicon
                 | Overlay::ProseDashboard
+                | Overlay::ReviewNotes
                 | Overlay::Productivity { .. }
                 | Overlay::ProductivityInput { .. }
                 | Overlay::Deck(_)
         ) || (app.overlay == Overlay::None && app.focus == Focus::Pins))
         && !matches!(k.code, KeyCode::Char('s' | 'q' | 'k' | 'd'))
         && !(matches!(app.overlay, Overlay::PinCategory { .. }) && k.code == KeyCode::Char('v'))
+        && !(app.overlay == Overlay::ReviewNotes
+            && app.review_notes.typing()
+            && k.code == KeyCode::Char('v'))
         && !(app.overlay == Overlay::ProseDashboard
             && app.prose_dashboard.page == app::prose_dashboard::Page::VoiceName
             && k.code == KeyCode::Char('v'))
@@ -990,6 +1013,7 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
                         | Overlay::Checks { .. }
                         | Overlay::Lexicon
                         | Overlay::ProseDashboard
+                        | Overlay::ReviewNotes
                         | Overlay::Productivity { .. }
                 ) =>
             {
