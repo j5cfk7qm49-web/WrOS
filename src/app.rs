@@ -5085,7 +5085,6 @@ impl App {
                 ),
                 (row("Open a scene beside…", "(v)"), Action::BesidePicker),
                 (row("Notes & TKs…", &format!("({m}T)")), Action::NotesList),
-                ("Footnote navigator…".into(), Action::Footnotes),
                 ("Next TK or note".into(), Action::NextTk),
                 (
                     row("Look up the name here", &format!("({m}O)")),
@@ -5093,6 +5092,7 @@ impl App {
                 ),
                 (row("Next scene still in draft", ""), Action::NextDraft),
                 (on_off(self.echo_on, "echo words"), Action::EchoWords),
+                ("Footnote navigator…".into(), Action::Footnotes),
                 ("Check names…".into(), Action::CheckNames),
                 ("Writing checks…".into(), Action::WritingChecks),
                 ("Dictionary and thesaurus…".into(), Action::Lexicon),
