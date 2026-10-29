@@ -1,0 +1,18 @@
+{
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "8128d68daebc3c13e1c39406a74ac948a3eec7928a6ea319e13cf8755e34fa26",
+    "file_count": 427,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "frames": {
+    "review": {
+      "capture": "actual QEMU framebuffer",
+      "sha256": "65127b42c2238b365d615c028b3a2a79726e13c4af1b4849e81289ef962bf788"
+    },
+    "declined": {
+      "capture": "actual QEMU framebuffer",
+      "sha256": "c4737552e60d155420f43c05d3a8b4a7b07dd6fb40c46ea322d5cebd4f1d80ba"
+    }
+  }
+}

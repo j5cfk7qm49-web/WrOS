@@ -1,0 +1,20 @@
+{
+  "passed": false,
+  "scope": "Original CI failure, 19 successful gates and one generated-capture whitespace gate. No passing full CI or installation claim.",
+  "run_id": 40792607567,
+  "job_id": 123181238631,
+  "artifact_id": 12861894714,
+  "artifact_sha256": "743a3087da44c3ef46eb656e18de8a572c0be0fe7a1136e2ca90dbc242ebeac0",
+  "tested_merge": "4c565bde6e96579a6bea358c191d3f7ef55e056d",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "736587d349ac92572db16739208e23ad57ef849b878a00794c6e4b408858abb5",
+    "file_count": 431,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "report": "native-encrypted-install-capture-whitespace-ci.json",
+  "report_sha256": "9313bc68315dc7e795387423edd352c3028db5eab4fe26eef7f0c1d30aa001ee",
+  "failed_check": "diff-whitespace",
+  "observed_error": "docs/evidence/journal-pty-screen.txt:30: trailing whitespace.\n+\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500day 6  \u2713 saved  saved        Esc menu  ^D focus mode \n",
+  "repair": "Omit trailing blank terminal cells only when serializing the two human-readable capture files; full cell/frame and behavior assertions stay in place."
+}

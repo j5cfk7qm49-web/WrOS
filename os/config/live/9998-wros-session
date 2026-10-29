@@ -1,0 +1,7 @@
+#!/bin/sh
+# Debian live-config owns account creation and calls components before basic.target.
+set -eu
+# shellcheck source=/dev/null
+. /usr/lib/live/config.sh
+/usr/libexec/wros-live-session
+touch /var/lib/live/config/wros-session

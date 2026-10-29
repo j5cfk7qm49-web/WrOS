@@ -1,0 +1,107 @@
+{
+  "observation_only": true,
+  "scope": "Original exploratory probes retained unchanged; no final-source qualification inferred from these observations.",
+  "baseline_binary_sha256": "386759d90b756e898b39f677e8583471a73f530ae5c2aa51ad466aeed62ddeb2",
+  "observations": {
+    "installer-input-burst-observation": {
+      "observation_only": true,
+      "scope": "Unpaced raw synthetic keyboard burst into a private PTY; not bracketed paste or a real credential",
+      "results": [
+        {
+          "bytes": 40,
+          "sent": 41,
+          "passed": true,
+          "seconds": 0.0
+        },
+        {
+          "bytes": 200,
+          "sent": 201,
+          "passed": true,
+          "seconds": 0.0
+        },
+        {
+          "bytes": 1000,
+          "sent": 1001,
+          "passed": true,
+          "seconds": 0.002
+        },
+        {
+          "bytes": 3000,
+          "passed": false,
+          "seconds": 8.0,
+          "error_type": "AssertionError"
+        }
+      ]
+    },
+    "installer-input-stall-observation": {
+      "observation_only": true,
+      "scope": "Constant synthetic input in a fresh private PTY; no real credential",
+      "written": 3001,
+      "initial_reply": false,
+      "process_exit": null,
+      "unread_terminal_bytes": 1977,
+      "second_enter_reply": false
+    },
+    "installer-input-burst-prototype-failed": {
+      "observation_only": true,
+      "scope": "Unpaced raw synthetic keyboard burst into a private PTY; not bracketed paste or a real credential",
+      "results": [
+        {
+          "bytes": 40,
+          "passed": false,
+          "seconds": 8.0,
+          "error_type": "AssertionError"
+        },
+        {
+          "bytes": 200,
+          "passed": false,
+          "seconds": 8.0,
+          "error_type": "AssertionError"
+        },
+        {
+          "bytes": 1000,
+          "passed": false,
+          "seconds": 8.0,
+          "error_type": "AssertionError"
+        },
+        {
+          "bytes": 3000,
+          "passed": false,
+          "seconds": 8.0,
+          "error_type": "AssertionError"
+        }
+      ]
+    },
+    "installer-input-burst-patched2": {
+      "observation_only": true,
+      "scope": "Unpaced raw synthetic keyboard burst into a private PTY; not bracketed paste or a real credential",
+      "results": [
+        {
+          "bytes": 40,
+          "sent": 41,
+          "passed": true,
+          "seconds": 0.0
+        },
+        {
+          "bytes": 200,
+          "sent": 201,
+          "passed": true,
+          "seconds": 0.0
+        },
+        {
+          "bytes": 1000,
+          "sent": 1001,
+          "passed": true,
+          "seconds": 0.002
+        },
+        {
+          "bytes": 3000,
+          "sent": 3001,
+          "passed": true,
+          "seconds": 0.003
+        }
+      ]
+    }
+  },
+  "failed_prototype_reason": "Remembering readiness without checking byte availability blocked on ordinary blocking stdin. Final code checks available bytes and preserves descriptor flags."
+}

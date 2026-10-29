@@ -1,18 +1,18 @@
 ┌ Story Spark · offline, non-AI ───────────────────────────────────────────────────────────────────────────────────────┐
 │  Status: Spark save · notes/sparks/r-0000000000000006.md · original scene preserved                                  │
 │  1047 original plots / 84 exercises · static offline selection                                                       │
-│  r-0000000000000006 · Combined · 2026-10-26 · Etc/UTC                                                                │
-│  PLOT [wd-p-0853] · coordination · level 1 · suggested 20 min                                                        │
-│  A town elects a dog as honorary mayor to avoid political arguments. Its owner receives conflicting invitations, and │
-│  choosing which ceremony the dog attends becomes the most divisive decision of the year.                             │
-│  EXERCISE [wd-x-0064] · subtext · level 3 · suggested 25 min                                                         │
-│  Write a sincere compliment that assigns its recipient a role they no longer want. Let the recipient answer without  │
-│  rejecting the affection. Make the response open a practical possibility rather than merely reveal discomfort to the │
-│  reader.                                                                                                             │
+│  r-0000000000000006 · Combined · 2026-10-29 · Etc/UTC                                                                │
+│  PLOT [wd-p-0286] · learning · level 2 · suggested 20 min                                                            │
+│  A trainee rescue swimmer is the only team member who can fit through a flooded access hatch. The instructor knows   │
+│  the trainee learned a shortcut that works in practice pools but fails in moving water.                              │
+│  EXERCISE [wd-x-0050] · setting · level 2 · suggested 20 min                                                         │
+│  Set a scene in a public place after its normal service has ended. Give someone a legitimate need to remain. Let the │
+│  altered lighting, access, or staffing change what can be negotiated, rather than merely making the setting eerie.   │
 │  Work mode: Drafting · creative completion is self-reported, not automatically scored.                               │
 │  ★ Favorited; retained separately from history.                                                                      │
 │  6 history / 128 · 1 favorites / 64 · 0 dismissals / 128 · 12-result recent window                                   │
 │  Roulette presentation: off (l toggles); always static in focus/low-power.                                           │
+│                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │

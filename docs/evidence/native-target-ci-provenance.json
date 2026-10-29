@@ -1,0 +1,23 @@
+{
+  "passed": true,
+  "recorded_at_utc": "2026-10-28T19:59:31.130324+00:00",
+  "implementation_commit": "4b8fb6d0e7bfe39b7baa40ccc262c158924c2ef0",
+  "published_head": "4b8fb6d0e7bfe39b7baa40ccc262c158924c2ef0",
+  "tested_merge": "639a8b3da5e386cd2d5f2bedf2cdada465a007db",
+  "run_id": 40757537144,
+  "run_url": "https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40757537144",
+  "job": "linux",
+  "job_id": 123060375635,
+  "artifact_id": 12845974964,
+  "artifact_zip_sha256": "84f440b02e97bc20fb2a3672fcc2261c296f199f062b9d084cd85432cac9c584",
+  "report_sha256": "048ae4887d704c2dd3c0ac452795155dde197aaffd850015a3c519046abbba3b",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "8128d68daebc3c13e1c39406a74ac948a3eec7928a6ea319e13cf8755e34fa26",
+    "file_count": 427,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "local_guest_and_ci_source_match": true,
+  "local_and_ci_verifier_inputs_match": true,
+  "scope": "Debian software/component CI only. Real disk-write refusal and unchanged whole target have separate local VM acceptance. No encrypted target installation/reboot, production root grant, post-write LUKS/LVM cleanup or hardware qualification."
+}

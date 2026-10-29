@@ -1,0 +1,34 @@
+{
+  "passed": true,
+  "scope": "Executed normal-user Debian software qualification of reviewed native read-only system views and experimental story models. No full M8/M9, image, installation, provider or physical claim.",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "815ecb268c431849d0674402752dc2b3cb848cc6b479a6071362c1f3c3dce352",
+    "file_count": 439,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "source_commit": "975c3521ff20dbb1b3fd8182a0397a0ef0de7004",
+  "verifier_git_head_at_start": "975c3521ff20dbb1b3fd8182a0397a0ef0de7004",
+  "commit_binding": "Source paths stayed byte-identical during qualification and match the committed source. The raw verifier HEAD is retained verbatim.",
+  "report": "native-feature-local.json",
+  "report_sha256": "1125caf22e68daae2e3e9a15eb46d77d86efb1b7e4342cef68d7e4161ace6563",
+  "tested_binary_sha256": "0683718451de7144dd3bdd04aa905ada24406722646f6fa4eb0d38612a35afb5",
+  "rust_passed_per_configuration": [
+    1008,
+    1008
+  ],
+  "python_passed": 170,
+  "python_skipped": 0,
+  "gates": 21,
+  "capture_scope": "Actual compiled application, four new isolated demo/HOME fixtures, ANSI cell reconstruction with styling omitted. Full terminal frames; no physical/VM screenshot or hardware claim.",
+  "capture_sha256": {
+    "native-feature-availability-80x24.txt": "02c3aead6d63cb2d5db71d29d06ede3f1c7140430e6a3c29580e996be215af33",
+    "native-feature-availability-100x30.txt": "f53b2b811dc8c82d390dcf6f5389789baae2081e03f23102c1f3cc1a813ebc55",
+    "native-feature-availability-120x40.txt": "d47bc6540e52d13ff85506e7bfa19e010574ad671c23c2d37ac7e96391f23270",
+    "native-feature-availability-160x50.txt": "7dfb64f0fd58ec33b345cf808fe9c0a7efb293a6b5e0309bba1fe1404c9c6363"
+  },
+  "full_story_features_complete": false,
+  "new_image_built": false,
+  "provider_enrolled": false,
+  "physical_hardware_verified": false
+}

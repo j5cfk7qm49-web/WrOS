@@ -8,6 +8,18 @@ Use **F12 → System settings → Keyboard layout**. Arrow keys select; Enter st
 
 The committed map is applied after Debian console-setup and before tty1 login. Do not also install an application letter-to-letter translator. Layout IDs in settings are physical-system configuration, not instructions to change already translated manuscript characters.
 
+The experimental installer integration now marks only a newly created keyboard
+configuration for first-boot adoption. It reads Debian's selected US QWERTY,
+Colemak or Colemak-DH variant before login, using the same registered maps. An
+existing committed configuration always wins on reassembly/upgrades. Other
+Debian layouts remain applied by console-setup; WrOS preview is unavailable in
+that case because it cannot promise a safe rollback to an unregistered map.
+The helper reports this reason without changing the keyboard. An administrator
+can select a supported layout through Debian's keyboard configuration before
+using WrOS preview. The configuration schema and legacy paths are unchanged.
+See [installer keyboard qualification](INSTALLER_KEYBOARD.md) for exact test
+boundaries; a new installer ISO with this correction still needs qualification.
+
 ## Important scope
 
 This switcher targets an installed WritingDeck **Linux virtual console tty1**. It does not change a remote SSH client's keyboard or a conventional desktop terminal's XKB/Wayland configuration. Use the desktop compositor's supported settings or the SSH client's OS in those cases. Changing loadkeys in a desktop terminal is not the correct fix.

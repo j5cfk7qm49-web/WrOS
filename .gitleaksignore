@@ -1,0 +1,5 @@
+# Reviewed deterministic, noncredential display simulator / invalid-reply fixtures.
+# Exact commit/file/rule/line fingerprints only; no broad path or token allowlist.
+22f6fcfc7f86843856de2c1438307c1397777347:crates/writingdeck-sys/src/lib.rs:generic-api-key:111
+22f6fcfc7f86843856de2c1438307c1397777347:crates/writingdeck-sys/src/linux.rs:generic-api-key:488
+22f6fcfc7f86843856de2c1438307c1397777347:crates/writingdeck-sys/src/linux.rs:generic-api-key:489

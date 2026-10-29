@@ -10,7 +10,7 @@ def fingerprint():
     selected = sorted({p for p in paths if p and (
         p in ('Cargo.toml', 'Cargo.lock') or
         p.split('/')[0] in ('src', 'crates', 'assets') or
-        any(p.startswith(d+'/') for d in ('os/scripts', 'os/config', 'os/systemd', 'os/tests'))
+        any(p.startswith(d+'/') for d in ('os/scripts', 'os/helpers', 'os/config', 'os/systemd', 'os/tests'))
     )})
     result = hashlib.sha256()
     for name in selected:
@@ -18,7 +18,7 @@ def fingerprint():
         if path.is_file():
             result.update(name.encode()+b'\0'+path.read_bytes()+b'\0')
     return {'algorithm':'sha256(path + NUL + file bytes + NUL, sorted source paths)', 'sha256':result.hexdigest(),
-            'file_count':len(selected), 'scope':'Cargo.toml/lock, src, crates, assets, os scripts/config/systemd/tests; no generated evidence/docs/builds'}
+            'file_count':len(selected), 'scope':'Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds'}
 
 if __name__ == '__main__':
     import json

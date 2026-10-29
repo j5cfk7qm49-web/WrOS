@@ -3172,7 +3172,7 @@ fn writingdeck_dashboard_is_navigable_at_required_terminal_sizes() {
         let mut d = Desk::open(book(&format!("deck-home-{w}"), true), w, h);
         let before = d.app.editor.text();
         d.key(KeyCode::F(12));
-        assert!(d.shows("WRITINGDECK OS"));
+        assert!(d.shows("WrOS"));
         assert!(d.shows("Resume writing"));
         assert!(d.shows("local save is not backup"));
         d.key(KeyCode::End);
@@ -7989,6 +7989,9 @@ fn writingdeck_productivity_empty_collection_and_subjective_challenge_do_not_com
 
 #[path = "spark_ui_tests.rs"]
 mod spark_ui_tests;
+
+#[path = "shell_ui_tests.rs"]
+mod shell_ui_tests;
 
 #[path = "checks_ui_tests.rs"]
 mod checks_ui_tests;

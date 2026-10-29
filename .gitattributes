@@ -2,3 +2,7 @@
 # Third-party license text must remain verbatim, including upstream whitespace.
 os/licenses/*.txt -whitespace
 os/licenses/upstream/*.txt -whitespace
+# Retained upstream crate/patch bytes include original CRLF and whitespace.
+# The terminal-library audit checks every file and reverse-patch recovery.
+crates/crossterm-upstream/** -text -whitespace
+os/config/terminal/crossterm-mio-readiness.patch -text -whitespace

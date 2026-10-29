@@ -1,0 +1,29 @@
+{
+  "passed": true,
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "a29f9e0aa8fffe06d0b8d1787ce6778ea783a09163ac57b8f2924ca12d18bc85",
+    "file_count": 421,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "scope": "Authenticated regular-file native/text installer pool only; no privileged launcher, media integration or target installation acceptance",
+  "tests": 9,
+  "test_seconds": 2.593,
+  "network_for_tests": false,
+  "tests_use_private_fixtures": true,
+  "gpg_unit_boundary": "GPG mocked in release-policy unit tests; actual build separately verifies real Debian signatures and archive bytes",
+  "pool_sha256": "09e3c020ff6d05eca4b6302935a362a53780649751410d7f52f4102365b80a8e",
+  "recipe_sha256": "e68576b96a21feb9cd1e029817a6b73c57b7cab493bd28518f5d46a033e08b38",
+  "test_driver_sha256": "e55499d4e94f0178b68c6a764cb37cbba4f5fc9390335aaa2c55d6d49486b09f",
+  "package_count": 401,
+  "archive_bytes": 163256088,
+  "kernel_components": 92,
+  "optional_components_omitted": 25,
+  "generated_packages_sha256": "e1808f476d9933cd4f322090b54e149ea4c16798bf0bc1964886b7e3e694dcdb",
+  "deterministic_index_across_builds": true,
+  "build_tools": [
+    "gpgv 2.4.7-21+deb13u1+b5",
+    "python3-apt 3.0.0",
+    "python3-debian 1.0.1"
+  ]
+}

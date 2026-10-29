@@ -1,0 +1,18 @@
+[package]
+name = "wros-installer"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Native Grimoire presentation for Debian Installer's passthrough frontend"
+
+[dependencies]
+wros-shell = { path = "../wros-shell" }
+ratatui = { version = "0.30.2", features = ["unstable-rendered-line-info"] }
+zeroize = "1.9"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+signal-hook = "0.3"
+
+[dev-dependencies]
+serde_json = "1.0"

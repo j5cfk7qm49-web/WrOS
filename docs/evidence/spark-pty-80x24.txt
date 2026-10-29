@@ -2,23 +2,23 @@
 │  Status: Spark save · notes/sparks/r-0000000000000006.md · original scene    │
 │  preserved                                                                   │
 │  1047 original plots / 84 exercises · static offline selection               │
-│  r-0000000000000006 · Combined · 2026-10-26 · Etc/UTC                        │
-│  PLOT [wd-p-0646] · resources · level 2 · suggested 20 min                   │
-│  A stranded climbing pair can descend together if they cut their rope into   │
-│  shorter lengths. The cuts would remove the only remaining line long enough  │
-│  to reach a third climber reported below them.                               │
-│  EXERCISE [wd-x-0025] · structure · level 1 · suggested 15 min               │
-│  Write one continuous scene organized around a task that can be completed in │
-│  the available place. Do not jump in time. Make an interruption change the   │
-│  meaning of finishing, while keeping the physical task visible enough to     │
-│  follow.                                                                     │
-│  Narrative conditions: continuous-time, single-scene                         │
+│  r-0000000000000006 · Combined · 2026-10-29 · Etc/UTC                        │
+│  PLOT [wd-p-0269] · classification · level 2 · suggested 20 min              │
+│  A pathologist finds that a preserved specimen's label describes the         │
+│  collector rather than the organism. Reclassifying the whole cabinet reveals │
+│  a travel itinerary the collector's family insists never occurred.           │
+│  EXERCISE [wd-x-0001] · dialogue · level 1 · suggested 15 min                │
+│  Write a conversation in spoken lines only. Give one speaker a practical     │
+│  question and the other a reason to answer a different emotional question.   │
+│  Let the mismatch change what they decide, without explanatory narration.    │
+│  Narrative conditions: dialogue-only                                         │
 │  Work mode: Drafting · creative completion is self-reported, not             │
 │  automatically scored.                                                       │
+│  ★ Favorited; retained separately from history.                              │
 │1 plot  2 exercise  3 combined  4 daily · p/e/r reroll plot/exercise/both     │
 │f favorite · x dismiss · s save · a actions · h history · F favorites · o     │
 │filters                                                                       │
-│PgUp/PgDn 0/4 · u reload · v source · t optional · Esc · F1 help              │
+│PgUp/PgDn 0/3 · u reload · v source · t optional · Esc · F1 help              │
 │Spark save · notes/sparks/r-0000000000000006.md · original scene preserved    │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘

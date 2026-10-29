@@ -1,0 +1,51 @@
+{
+  "recorded_at_utc": "2026-10-27T05:16:49.990223+00:00",
+  "scope": "Clean current-source installer: failed 1200-second full-install probe, followed by separate successful post-interruption boot/authentication",
+  "image_git_head": "59cc34feda0fbab7a0b15f75e32f64fe9a0d8aed",
+  "original_install_result": {
+    "schema_version": 1,
+    "scope": "Disposable no-network QEMU install, not hardware qualification",
+    "iso_sha256": "6c3a66746b9bc94bff0b7917f79aa4a3aea71922c821ae3ab0568ec875fa4a56",
+    "installed_binary_sha256": "af5219232a3820cd4e65ecd8085315ecd7d1c504a2570024784c2945388895cd",
+    "network_devices": 0,
+    "host_disks_exposed": 0,
+    "test_answers_in_shipping_iso": false,
+    "installed_boot_verified": false,
+    "authentication_verified": false,
+    "passed": false,
+    "wall_seconds": 1208.73
+  },
+  "observed_late_payload_markers_before_timeout": true,
+  "normal_installer_poweroff_observed": false,
+  "test_timeout_seconds": 1200,
+  "post_interruption_boot": {
+    "scope": "Separate boot/authentication after the current-image installation hit its 1200-second test deadline; the original failed install record is unchanged",
+    "original_install_passed": false,
+    "network_devices": 0,
+    "host_disks_exposed": 0,
+    "iso_sha256": "6c3a66746b9bc94bff0b7917f79aa4a3aea71922c821ae3ab0568ec875fa4a56",
+    "installed_binary_sha256": "af5219232a3820cd4e65ecd8085315ecd7d1c504a2570024784c2945388895cd",
+    "passed": true,
+    "installed_boot_verified": true,
+    "authentication_verified": true,
+    "tty1_nonroot_session_verified": true,
+    "writing_ui_verified": true,
+    "offline_wifi_packages_verified": true,
+    "password_logged": false
+  },
+  "original_install_record_unchanged": true,
+  "harness_sha256": {
+    "os/tests/install_vm.py": "b3d54f20b16deb54c0f068adad7e0b3a721389022b9019207117e95bc59f1fd9",
+    "os/tests/installed_boot.py": "6e77a87bbd75cc2db23d9d0412fff9857dfd6a72096542a55a5108e02c6cacec"
+  },
+  "production_release_qualified": false,
+  "remaining_gates": [
+    "normal current-image installation completion",
+    "wrong-disk and earlier-interruption/retry",
+    "LUKS/recovery",
+    "installer keyboard adoption",
+    "lock/suspend",
+    "signed updates",
+    "physical/rights/source review"
+  ]
+}

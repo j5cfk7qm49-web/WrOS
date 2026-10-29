@@ -1,0 +1,125 @@
+--- a/src/modules/frontend/passthrough/passthrough.c
++++ b/src/modules/frontend/passthrough/passthrough.c
+@@ -36,0 +37,5 @@
++/* Credential-bearing developer logs must never be compiled into this frontend. */
++#ifndef NODEBUG
++#define NODEBUG 1
++#endif
++
+@@ -59,0 +65,12 @@
++/* A protocol frame is one line. Escape backslashes before newlines in
++ * every field, including progress and substitutions, so neither paragraphs
++ * nor a literal backslash-n can change framing or lose their meaning. */
++static char *
++encode_field(const char *text)
++{
++    char *slashes = strreplace(text ? text : "", "\\", "\\\\");
++    char *encoded = strreplace(slashes, "\n", "\\n");
++    free(slashes);
++    return encoded;
++}
++
+@@ -66 +82,0 @@
+-    char buf[1023];
+@@ -68 +84,3 @@
+-    size_t inlen = 0, insize = 1024;
++    const size_t response_size = 64 * 1024;
++    char *newline;
++    int allow_backup;
+@@ -78,0 +97,3 @@
++    allow_backup = strcmp(command, "GO") == 0 &&
++                   (obj->capability & DCF_CAPB_BACKUP);
++
+@@ -80,2 +101,3 @@
+-    fprintf(data->writefh, "%s\n", command);
+-    fflush(data->writefh);
++    if (fprintf(data->writefh, "%s\n", command) < 0 ||
++        fflush(data->writefh) == EOF)
++        DIE("passthrough frontend write failed");
+@@ -84,22 +106,12 @@
+-    /* This is disgusting; it's more or less cloned from
+-     * confmodule_communicate.
+-     */
+-    in = di_malloc0(insize);
+-    buf[0] = 0;
+-    in[0] = 0;
+-    while (strchr(buf, '\n') == NULL) {
+-        if (fgets(buf, sizeof(buf), data->readfh) == NULL) {
+-            if (feof(data->readfh))
+-                di_warning("unexpected EOF on data->readfh");
+-            else
+-                di_warning("read from data->readfh failed: %s", strerror(errno));
+-            free(in);
+-            return CMDSTATUS_INTERNALERROR;
+-        }
+-        if (inlen + strlen(buf) + 1 > insize) {
+-            insize += sizeof(buf);
+-            in = di_realloc(in, insize);
+-        }
+-        strcat(in, buf);
+-    }
+-    inp = strstrip(in);
++    /* One bounded stdio read preserves long answers while rejecting EOF,
++     * incomplete frames and embedded control terminators before any answer
++     * can reach the configuration script. Never continue on transport loss. */
++    in = di_malloc0(response_size + 1);
++    if (fgets(in, response_size + 1, data->readfh) == NULL)
++        DIE("passthrough frontend read failed");
++    newline = memchr(in, '\n', response_size);
++    if (!newline || memchr(in, '\0', newline - in) ||
++        memchr(in, '\r', newline - in))
++        DIE("passthrough frontend frame invalid");
++    *newline = '\0';
++    inp = in;
+@@ -110 +122,6 @@
+-    ret = atoi(inp);
++    if (strcmp(inp, "0") == 0)
++        ret = 0;
++    else if (allow_backup && strcmp(inp, "30") == 0)
++        ret = 30;
++    else
++        DIE("passthrough frontend response rejected");
+@@ -215 +232,3 @@
+-    talk(obj, NULL, "TITLE", title, NULL);
++    char *encoded = encode_field(title);
++    talk(obj, NULL, "TITLE", encoded, NULL);
++    free(encoded);
+@@ -243 +262 @@
+-            char *desc_esc = strreplace(desc, "\\n", "\\\\n");
++            char *desc_esc = encode_field(desc);
+@@ -251 +270 @@
+-            char *extdesc_esc = strreplace(extdesc, "\\n", "\\\\n");
++            char *extdesc_esc = encode_field(extdesc);
+@@ -263 +282 @@
+-            choices_c_esc = strreplace(choices_c, "\\n", "\\\\n");
++            choices_c_esc = encode_field(choices_c);
+@@ -269 +288 @@
+-            choices_esc = strreplace(choices, "\\n", "\\\\n");
++            choices_esc = encode_field(choices);
+@@ -276,5 +295,11 @@
+-        if (value && *value)
+-            talk(obj, NULL, "SET", q->tag, value, NULL);
+-
+-        for (qv = q->variables; qv; qv = qv->next)
+-            talk(obj, NULL, "SUBST", q->tag, qv->variable, qv->value, NULL);
++        if (value && *value) {
++            char *encoded = encode_field(value);
++            talk(obj, NULL, "SET", q->tag, encoded, NULL);
++            free(encoded);
++        }
++
++        for (qv = q->variables; qv; qv = qv->next) {
++            char *encoded = encode_field(qv->value);
++            talk(obj, NULL, "SUBST", q->tag, qv->variable, encoded, NULL);
++            free(encoded);
++        }
+@@ -317 +342,3 @@
+-        talk(obj, NULL, "DATA", q->tag, "description", desc, NULL);
++        char *encoded = encode_field(desc);
++        talk(obj, NULL, "DATA", q->tag, "description", encoded, NULL);
++        free(encoded);
+@@ -323 +350,3 @@
+-        talk(obj, NULL, "DATA", q->tag, "extended_description", extdesc, NULL);
++        char *encoded = encode_field(extdesc);
++        talk(obj, NULL, "DATA", q->tag, "extended_description", encoded, NULL);
++        free(encoded);

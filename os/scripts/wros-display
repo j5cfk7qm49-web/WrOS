@@ -1,0 +1,336 @@
+#!/usr/bin/python3 -I
+"""Narrow root-only display transactions; never receives writing or passwords."""
+import fcntl
+import hashlib
+import json
+import math
+import os
+from pathlib import Path
+import secrets
+import struct
+import subprocess
+import sys
+import time
+
+LIMIT = 1024 * 1024
+DEFAULT = {'version': 1, 'enabled': False, 'kelvin': 2200, 'strength': 100, 'generation': 'initial'}
+
+
+def atomic(path, data, mode=0o600):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + '.' + secrets.token_hex(8) + '.tmp')
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, mode)
+    try:
+        with os.fdopen(descriptor, 'wb') as output:
+            output.write(data)
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, path)
+        parent = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(parent)
+        finally:
+            os.close(parent)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def json_write(path, data, mode=0o600):
+    atomic(path, (json.dumps(data, sort_keys=True) + '\n').encode(), mode)
+
+
+def read_file(path, limit=LIMIT):
+    if path.is_symlink():
+        raise ValueError('unsafe display state; original preserved')
+    with path.open('rb') as source:
+        data = source.read(limit + 1)
+    if len(data) > limit:
+        raise ValueError('oversized display state; original preserved')
+    return data
+
+
+def preference(enabled, kelvin, strength):
+    if type(enabled) is not bool or type(kelvin) is not int or not 1000 <= kelvin <= 6500:
+        raise ValueError('temperature must be an integer from 1000 to 6500 K')
+    if type(strength) is not int or not 0 <= strength <= 100:
+        raise ValueError('warmth strength must be an integer from 0 to 100 percent')
+    return {'enabled': enabled, 'kelvin': kelvin, 'strength': strength}
+
+
+def decode(data):
+    if len(data) < 12 or len(data) > LIMIT or data[:8] != b'WrOSGM1\0':
+        raise ValueError('invalid display snapshot')
+    count = struct.unpack_from('<I', data, 8)[0]
+    if not 1 <= count <= 32:
+        raise ValueError('unsupported display count')
+    at, outputs, identities = 12, [], set()
+    for _ in range(count):
+        if len(data) - at < 28:
+            raise ValueError('truncated display snapshot')
+        metadata = struct.unpack_from('<7I', data, at)
+        card, crtc, width, height, points, _, _ = metadata
+        at += 28
+        if card > 63 or not crtc or not 1 <= width <= 32768 or not 1 <= height <= 32768 or not 2 <= points <= 4096:
+            raise ValueError('invalid display bounds')
+        if (card, crtc) in identities or len(data) - at < points * 6:
+            raise ValueError('duplicate or truncated display output')
+        identities.add((card, crtc))
+        values = struct.unpack_from('<' + 'H' * (points * 3), data, at)
+        outputs.append((metadata, values))
+        at += points * 6
+    if at != len(data):
+        raise ValueError('unexpected display snapshot data')
+    return outputs
+
+
+def factors(kelvin, strength):
+    """Approximate manual warmth, not a calibrated monitor white-point claim.
+
+    Relative Planck spectral ratios at representative R/G/B wavelengths are
+    normalized to 6500K. Red is retained and small G/B floors protect legibility.
+    Existing calibration curves are scaled, never replaced by a linear ramp.
+    """
+    preference(True, kelvin, strength)
+    if kelvin == 6500 or strength == 0:
+        return (1.0, 1.0, 1.0)
+
+    def relative(wavelength, temperature):
+        red = 610e-9
+        constant = 0.01438776877
+        return (red / wavelength) ** 5 * math.expm1(constant / (red * temperature)) / math.expm1(constant / (wavelength * temperature))
+
+    green = max(0.10, min(1.0, relative(550e-9, kelvin) / relative(550e-9, 6500)))
+    blue = max(0.02, min(1.0, relative(460e-9, kelvin) / relative(460e-9, 6500)))
+    amount = strength / 100
+    return (1.0, 1 - (1 - green) * amount, 1 - (1 - blue) * amount)
+
+
+def transform(baseline, choice):
+    outputs = decode(baseline)
+    scale = factors(choice['kelvin'], choice['strength']) if choice['enabled'] else (1.0, 1.0, 1.0)
+    result = bytearray(b'WrOSGM1\0' + struct.pack('<I', len(outputs)))
+    for metadata, values in outputs:
+        points = metadata[4]
+        result.extend(struct.pack('<7I', *metadata))
+        adjusted = [round(value * scale[at // points]) for at, value in enumerate(values)]
+        result.extend(struct.pack('<' + 'H' * len(adjusted), *adjusted))
+    return bytes(result)
+
+
+class Hardware:
+    def command(self, operation, data=None):
+        result = subprocess.run(['/usr/libexec/wros-display-hw', operation], input=data,
+                                capture_output=True, timeout=4,
+                                env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'})
+        if result.returncode:
+            reason = result.stderr.decode(errors='replace').strip()[:512]
+            raise RuntimeError(reason or 'display hardware operation failed')
+        return result.stdout
+
+    def capture(self):
+        data = self.command('capture')
+        decode(data)
+        return data
+
+    def apply(self, data):
+        decode(data)
+        if self.command('apply', data) != b'applied-and-readback-verified\n':
+            raise RuntimeError('display change was not verified')
+
+
+class Manager:
+    def __init__(self, config=Path('/etc/wros/display.json'), runtime=Path('/run/wros-display'),
+                 hardware=None, runner=None, clock=None, owner=None):
+        self.config, self.runtime = config, runtime
+        self.hardware = hardware or Hardware()
+        self.run = runner or (lambda args: subprocess.run(args, check=True, timeout=4,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'}))
+        self.clock = clock or time.monotonic
+        self.owner = owner if owner is not None else int(os.environ.get('PKEXEC_UID', '0'))
+        self.baseline = runtime / 'baseline.bin'
+        self.current = runtime / 'current.bin'
+        self.restore = runtime / 'restore.bin'
+        self.pending = runtime / 'preview.json'
+
+    def saved(self):
+        if not self.config.exists() and not self.config.is_symlink():
+            return DEFAULT.copy()
+        value = json.loads(read_file(self.config, 4096))
+        if set(value) != set(DEFAULT) or type(value['version']) is not int or value['version'] != 1:
+            raise ValueError('unsupported display preferences; original preserved')
+        preference(value['enabled'], value['kelvin'], value['strength'])
+        generation = value['generation']
+        if not isinstance(generation, str) or (generation != 'initial' and
+                (len(generation) != 32 or any(c not in '0123456789abcdef' for c in generation))):
+            raise ValueError('invalid display generation; original preserved')
+        return value
+
+    def config_stamp(self):
+        if not self.config.exists() and not self.config.is_symlink():
+            return None
+        return hashlib.sha256(read_file(self.config, 4096)).hexdigest()
+
+    def timer(self, verb):
+        self.run(['/usr/bin/systemctl', verb, 'wros-display-revert.timer'])
+
+    def transaction(self):
+        value = json.loads(read_file(self.pending, 4096))
+        if set(value) != {'version', 'token', 'deadline', 'owner', 'target', 'config_stamp'} or type(value['version']) is not int or value['version'] != 1:
+            raise ValueError('invalid display preview state; original preserved')
+        token = value['token']
+        if not isinstance(token, str) or len(token) != 32 or any(c not in '0123456789abcdef' for c in token):
+            raise ValueError('invalid display preview token')
+        if type(value['owner']) is not int or value['owner'] < 0 or type(value['deadline']) not in (int, float) or not math.isfinite(value['deadline']):
+            raise ValueError('invalid display preview boundary')
+        if set(value['target']) != {'enabled', 'kelvin', 'strength'}:
+            raise ValueError('invalid display preview preference')
+        preference(**value['target'])
+        if value['config_stamp'] is not None and (not isinstance(value['config_stamp'], str) or
+                len(value['config_stamp']) != 64 or any(c not in '0123456789abcdef' for c in value['config_stamp'])):
+            raise ValueError('invalid display configuration receipt')
+        return value
+
+    def cleanup(self, disabled=False):
+        self.pending.unlink(missing_ok=True)
+        self.restore.unlink(missing_ok=True)
+        if disabled:
+            self.baseline.unlink(missing_ok=True)
+            self.current.unlink(missing_ok=True)
+        try:
+            self.timer('stop')
+        except (OSError, subprocess.SubprocessError):
+            pass  # The durable generation already resolves a late timer safely.
+
+    def rollback(self):
+        if not self.pending.exists() and not self.pending.is_symlink():
+            return {'status': 'no-preview'}
+        pending = self.transaction()
+        try:
+            saved = self.saved()
+        except (OSError, ValueError, TypeError):
+            saved = None  # A changed/future config cannot prevent physical rollback.
+        if saved is None or saved['generation'] != pending['token']:
+            data = read_file(self.restore)
+            decode(data)
+            self.hardware.apply(data)
+            atomic(self.current, data)
+        self.cleanup(disabled=saved is not None and not saved['enabled'])
+        return {'status': 'restored-or-already-committed'}
+
+    def preview(self, enabled, kelvin, strength, automatic=False):
+        target = preference(enabled, kelvin, strength)
+        self.saved()  # Unknown configurations must not be replaced.
+        config_stamp = self.config_stamp()
+        if self.pending.exists() or self.pending.is_symlink():
+            if self.clock() < self.transaction()['deadline']:
+                raise ValueError('a display preview is already active; keep or cancel it first')
+            self.rollback()
+        actual = self.hardware.capture()
+        if self.baseline.exists() or self.baseline.is_symlink():
+            baseline = read_file(self.baseline)
+            decode(baseline)
+            if read_file(self.current) != actual:
+                raise ValueError('display changed externally; existing colors preserved')
+        else:
+            baseline = actual
+            atomic(self.baseline, baseline)
+            atomic(self.current, actual)
+        wanted = transform(baseline, target)
+        token, deadline = secrets.token_hex(16), self.clock() + 15
+        atomic(self.restore, actual)
+        json_write(self.pending, {'version': 1, 'token': token, 'deadline': deadline,
+                                  'owner': self.owner, 'target': target, 'config_stamp': config_stamp})
+        try:
+            self.timer('restart')  # Independent rollback is armed BEFORE colors change.
+        except Exception:
+            self.pending.unlink(missing_ok=True)
+            self.restore.unlink(missing_ok=True)
+            raise
+        # A failure retains state/timer: incomplete hardware restoration must
+        # never be cleared merely because the client did not receive success.
+        self.hardware.apply(wanted)
+        atomic(self.current, wanted)
+        if automatic:
+            self.cleanup()
+            return {'status': 'applied', **target}
+        return {'token': token, 'seconds': max(0, int(deadline - self.clock()))}
+
+    def resolve(self, token, keep):
+        if not self.pending.exists() and not self.pending.is_symlink():
+            if not keep:
+                return {'status': 'no-preview'}
+            raise ValueError('no display preview is active')
+        pending = self.transaction()
+        if pending['owner'] != self.owner or not isinstance(token, str) or not secrets.compare_digest(token, pending['token']):
+            raise PermissionError('display preview belongs to another request or user')
+        if not keep or self.clock() >= pending['deadline']:
+            self.rollback()
+            if keep:
+                raise ValueError('display preview expired and was reverted')
+            return {'status': 'cancelled'}
+        if self.hardware.capture() != read_file(self.current):
+            raise ValueError('display changed during preview; confirmation refused')
+        if self.config_stamp() != pending['config_stamp']:
+            raise ValueError('display preferences changed externally; original preserved')
+        saved = {'version': 1, **pending['target'], 'generation': token}
+        json_write(self.config, saved, 0o644)  # Durable commit point before cancelling timer.
+        self.cleanup(disabled=not saved['enabled'])
+        return {'status': 'committed', **pending['target']}
+
+    def status(self):
+        saved = self.saved()
+        result = preference(saved['enabled'], saved['kelvin'], saved['strength'])
+        try:
+            actual = self.hardware.capture()
+            result.update(available=True, applied=(not saved['enabled'] or
+                (self.baseline.exists() and actual == transform(read_file(self.baseline), result))),
+                message='Approximate screen warmth; original calibration is retained')
+        except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as error:
+            result.update(available=False, applied=False, message=str(error)[:512])
+        return result
+
+    def boot(self):
+        saved = self.saved()
+        if not saved['enabled']:
+            return {'status': 'disabled'}
+        return self.preview(saved['enabled'], saved['kelvin'], saved['strength'], automatic=True)
+
+
+def main():
+    if os.geteuid() != 0:
+        raise PermissionError('use the authorized display action; never run WrOS as root')
+    arguments = sys.argv[1:]
+    if not arguments or arguments[0] not in ('status', 'preview', 'confirm', 'cancel', 'boot', 'rollback'):
+        raise ValueError('unsupported display operation')
+    verb = arguments[0]
+    if os.environ.get('PKEXEC_UID') is not None and verb in ('boot', 'rollback'):
+        raise PermissionError('operation reserved for root-owned systemd units')
+    expected = 4 if verb == 'preview' else 2 if verb in ('confirm', 'cancel') else 1
+    if len(arguments) != expected:
+        raise ValueError('wrong display argument count')
+    target = None
+    if verb == 'preview':
+        if arguments[1] not in ('on', 'off') or not all(value.isascii() and value.isdigit() for value in arguments[2:]):
+            raise ValueError('invalid warmth choice')
+        target = preference(arguments[1] == 'on', int(arguments[2]), int(arguments[3]))
+    runtime = Path('/run/wros-display')
+    if runtime.is_symlink():
+        raise ValueError('unsafe display runtime directory')
+    runtime.mkdir(mode=0o700, exist_ok=True)
+    with open(runtime / 'display.lock', 'a', encoding='utf-8') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        manager = Manager()
+        if verb == 'preview': result = manager.preview(**target)
+        elif verb == 'confirm': result = manager.resolve(arguments[1], True)
+        elif verb == 'cancel': result = manager.resolve(arguments[1], False)
+        else: result = getattr(manager, verb)()
+    print(json.dumps(result))
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as error:
+        print(str(error), file=sys.stderr)
+        sys.exit(1)

@@ -1,18 +1,18 @@
 ┌ Story Spark · offline, non-AI ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │  Status: Spark save · notes/sparks/r-0000000000000006.md · original scene preserved                                                                          │
 │  1047 original plots / 84 exercises · static offline selection                                                                                               │
-│  r-0000000000000006 · Combined · 2026-10-26 · Etc/UTC                                                                                                        │
-│  PLOT [wd-p-0266] · interpretation · level 3 · suggested 20 min                                                                                              │
-│  An alien archive answers every question with a diagram of the questioner's tools. A linguist realizes that the archive treats available actions, not spoken │
-│  propositions, as requests for knowledge.                                                                                                                    │
-│  EXERCISE [wd-x-0062] · subtext · level 2 · suggested 20 min                                                                                                 │
-│  Give two people a practical reason to handle an object associated with an unresolved event. Keep their immediate task clear. Let choices about touching,    │
-│  moving, or returning it carry information that their polite words avoid.                                                                                    │
+│  r-0000000000000006 · Combined · 2026-10-29 · Etc/UTC                                                                                                        │
+│  PLOT [wd-p-0360] · coordination · level 2 · suggested 20 min                                                                                                │
+│  A rescue organizer receives location updates from a missing climber's device after its battery was recovered separately. The updates follow the organizer's │
+│  proposed search sectors one step ahead.                                                                                                                     │
+│  EXERCISE [wd-x-0009] · description · level 2 · suggested 20 min                                                                                             │
+│  Describe an apparently ordinary collection through visible wear and placement. Do not state its owner's personality. Give each selected detail a practical  │
+│  history that a reader can infer without turning every object into a symbol.                                                                                 │
+│  Narrative conditions: narration-only, visual-detail                                                                                                         │
 │  Work mode: Drafting · creative completion is self-reported, not automatically scored.                                                                       │
 │  ★ Favorited; retained separately from history.                                                                                                              │
 │  6 history / 128 · 1 favorites / 64 · 0 dismissals / 128 · 12-result recent window                                                                           │
 │  Roulette presentation: off (l toggles); always static in focus/low-power.                                                                                   │
-│                                                                                                                                                              │
 │                                                                                                                                                              │
 │                                                                                                                                                              │
 │                                                                                                                                                              │

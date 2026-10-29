@@ -4,4 +4,4 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 export WRITINGDECK_TOOLS_PYTHON=${WRITINGDECK_TOOLS_PYTHON:-$PWD/build/prose-runtime/runtime/bin/python3}
 export GRIMOIRE_BINARY=${GRIMOIRE_BINARY:-${CARGO_TARGET_DIR:-$PWD/target}/debug/grimoire}
-exec python3 tools/verify-writingdeck.py --milestone 'M7b offline prose, WordNet, voice and revision software'
+exec python3 tools/verify-writingdeck.py --milestone 'WrOS integrated writing, native shell and system-adapter software'

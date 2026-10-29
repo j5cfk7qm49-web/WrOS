@@ -1,5 +1,12 @@
 # Settings
 
+**WrOS Settings → System → Display → Warm screen** offers an offline blue-light
+filter on supported displays. Start at 2200 K for very warm light, or choose
+1000–6500 K and adjust strength. Turn it on, choose Preview, then Keep within
+15 seconds. Esc/Cancel restores the previous colors; an independent timer also
+restores unconfirmed changes if WrOS exits. Off restores the original color
+curves. Unsupported drivers report unavailable and leave the screen unchanged.
+
 *Esc › Settings* opens a menu of its own. Switches stay open to show their new state; `←` or `Esc` goes back to the main menu. Each row says what it does while it's highlighted.
 
 - **Themes…**: the nineteen themes and your own (see *Themes*). Also `F9`.

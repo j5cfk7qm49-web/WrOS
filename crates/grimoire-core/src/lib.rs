@@ -53,3 +53,11 @@ pub mod workspaces;
 pub mod voice_profile;
 
 pub mod review_queue;
+
+pub mod annotations;
+pub mod continuity;
+pub mod footnotes;
+pub mod milestones;
+pub mod preflight;
+pub mod speech;
+mod story_state;

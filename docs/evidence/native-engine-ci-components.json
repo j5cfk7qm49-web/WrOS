@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "41f5d815e1bcf615f644e39c4cb95f6574dc511f538ba957f0a75c871fdb1da7",
+    "file_count": 425,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "scope": "Actual maintained Debian backend and WrOS TUI, non-root tmpfs fixtures; no system mounts, target disk, account or privileged live-launch qualification",
+  "module_sha256": "be37dee7f39730b6369b54f72ac83a1ff27f9d59bcea10fed9fd11a0ea2adf18",
+  "build_manifest_sha256": "4a78789e722988207543ffd6947c759fc935776646c9849d6f39c291593006a1",
+  "frontend_checks": 13,
+  "fault_cases": 14,
+  "reports": {
+    "frontend": "installer-components-frontend.json",
+    "faults": "installer-components-faults.json"
+  }
+}

@@ -9,8 +9,10 @@ fi
 export LANG=C.UTF-8
 export TERM="${TERM:-linux}"
 export WRITINGDECK_OS=1
+if [ -f /run/wros-live/session.json ] || [ -f /run/live/medium/live/filesystem.squashfs ]; then
+    export WROS_LIVE_SESSION=1
+fi
 umask 077
-printf '\033[2J\033[H\n  WRITINGDECK OS\n  Your words. Your machine. Offline first.\n\n'
 # Journal marker proves a non-root console session was reached; it is not a
 # substitute for the VM test's actual rendered-screen assertion.
 logger -t writingdeck-session "WRITINGDECK_SESSION uid=$(id -u) tty=$(tty)"

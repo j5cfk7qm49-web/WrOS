@@ -1,0 +1,27 @@
+{
+  "passed": false,
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "209c94ed52c50b43f5e354c4025cd4d77f5855436a428a0e0843c9a106861419",
+    "file_count": 430,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "iso_sha256_before": "bd32aca07ec6d7cb60bccdaf691caaabbe78c4e14be03bf2217e4983bed2ccbd",
+  "capsule_manifest_sha256": "511bc715820e5dce197848a65fa2257af48d85df47660c9f2ed7e7baebe9634b",
+  "network_devices": 0,
+  "host_disks_exposed": 0,
+  "writable_disks": 1,
+  "target_created_by_fixture": true,
+  "target_bytes": 17179869184,
+  "target_sha256_before": "f8b704004eeb0827aa3b0c805536896fdbfa61d5530f2fe898789e395005288a",
+  "target_sha256_after": "3fef47bc92a4619c4c9c84b6e4c32f6a108ef126a852046a18a1061821414f59",
+  "target_changed": true,
+  "iso_unchanged": true,
+  "source_unchanged": true,
+  "capsule_unchanged": true,
+  "seconds": 491.07,
+  "error": "RuntimeError: Unrecognized full-install form; no answer sent",
+  "observed_error": "Failed to download crypto components",
+  "cause": "partman-crypto 134 requests nonexistent cdebconf-passthrough-entropy, including for passphrases.",
+  "scope": "Original failed fixture; only its newly generated virtual target was written. No installation or boot pass."
+}

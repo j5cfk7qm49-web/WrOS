@@ -1,0 +1,45 @@
+{
+  "recorded_at_utc": "2026-10-27T05:20:10.723541+00:00",
+  "scope": "Actual current-source ISO no-disk refusal and interactive cancellation; no physical disks",
+  "harness_sha256": "74de8ea0a1fee408afe36360b1c30342fd83ab24ca0242423f73d7e5397dff20",
+  "tests": {
+    "no-disk": {
+      "schema_version": 1,
+      "mode": "no-disk",
+      "passed": true,
+      "iso_sha256": "6c3a66746b9bc94bff0b7917f79aa4a3aea71922c821ae3ab0568ec875fa4a56",
+      "host_disks_exposed": 0,
+      "network_devices": 0,
+      "target_is_new_regular_file": false,
+      "write_confirmation_seen": false,
+      "negative_answer_sent": false,
+      "no_disk_refusal_seen": true,
+      "finish_without_disk_attempted": true,
+      "partition_finish_requested": false,
+      "partition_menu_returned": false,
+      "virtual_target_sha256_before": null,
+      "wall_seconds": 463.62
+    },
+    "cancel": {
+      "schema_version": 1,
+      "mode": "cancel",
+      "passed": true,
+      "iso_sha256": "6c3a66746b9bc94bff0b7917f79aa4a3aea71922c821ae3ab0568ec875fa4a56",
+      "host_disks_exposed": 0,
+      "network_devices": 0,
+      "target_is_new_regular_file": true,
+      "write_confirmation_seen": true,
+      "negative_answer_sent": true,
+      "no_disk_refusal_seen": false,
+      "finish_without_disk_attempted": false,
+      "partition_finish_requested": true,
+      "partition_menu_returned": true,
+      "virtual_target_sha256_before": "92e39f0685e19316b0dd6bdb2e239fc037ade5c1466905c91b7272ab4d861cd7",
+      "virtual_target_sha256_after": "92e39f0685e19316b0dd6bdb2e239fc037ade5c1466905c91b7272ab4d861cd7",
+      "target_unchanged": true,
+      "wall_seconds": 467.95
+    }
+  },
+  "earlier_probe_boundary": "The initial probe falsely inferred cancellation from stale ANSI cells; its reported pass is rejected. Another probe looped because test-only preseed automatically selected Finish again. Both failed qualifications remain retained privately. The final test selects Finish interactively, answers numbered No and requires newly received returned-menu text plus unchanged whole-disk SHA-256.",
+  "production_release_qualified": false
+}

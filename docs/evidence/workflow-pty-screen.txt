@@ -1,5 +1,5 @@
 Actual non-root compiled-app PTY, 80x24, isolated newly created demo/HOME.
-Captured 2026-10-26T21:07:13.356354+00:00.
+Captured 2026-10-29T04:35:45.698498+00:00.
 ANSI cursor/erase/UTF-8 cell reconstruction; not a full terminal emulator.
 No physical keyboard or VM workflow claim. Original-source fixtures only.
 
@@ -32,7 +32,7 @@ ORIGINAL SCRATCHPAD AND INDEPENDENT READY SCENE
 SEPARATE-PROCESS NEXT-OPEN ORIGINAL HANDOFF
 ┌ Session handoff · original intention ────────────────────────────────────────┐
 │Next-open display: true · no generated prose/time metrics                     │
-│Left 2026-10-26T21:07:13.861731256+00:00                                      │
+│Left 2026-10-29T04:35:46.384779245+00:00                                      │
 │Context: manuscript/01-Chapter-One/01-Scene-One.md                            │
 │Next time, follow the river beyond the brass door.                            │
 │                                                                              │
@@ -56,7 +56,7 @@ SEPARATE-PROCESS NEXT-OPEN ORIGINAL HANDOFF
 └──────────────────────────────────────────────────────────────────────────────┘
 
 EXPLICIT WORKSPACE PIN-SET EDITOR (DRAFT NONE; ENTER SAVES)
-┌ WRITINGDECK OS · offline first ──────────────────────────────────────────────┐
+┌ WrOS · offline first ────────────────────────────────────────────────────────┐
 │Pin set · Drafting                                                            │
 │▸ No cards; create references in Pinboard first. A follows all future cards.  │
 │                                                                              │

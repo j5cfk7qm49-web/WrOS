@@ -2,6 +2,8 @@
 
 mod app;
 mod books;
+#[cfg(target_os = "linux")]
+mod console_lock;
 mod help;
 mod library;
 mod music;
@@ -22,8 +24,10 @@ mod shots;
 mod ui_tests;
 
 use anyhow::{Context, Result};
+#[cfg(not(target_os = "linux"))]
+use ratatui::crossterm::event;
 use ratatui::crossterm::event::{
-    self, DisableBracketedPaste, DisableFocusChange, DisableMouseCapture, EnableBracketedPaste,
+    DisableBracketedPaste, DisableFocusChange, DisableMouseCapture, EnableBracketedPaste,
     EnableFocusChange, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers,
     KeyboardEnhancementFlags, MouseButton, MouseEventKind, PopKeyboardEnhancementFlags,
     PushKeyboardEnhancementFlags,
@@ -47,6 +51,20 @@ const RAINBOW_TICK: Duration = Duration::from_millis(80);
 fn main() -> Result<()> {
     let mut args = std::env::args().skip(1);
     let first = args.next();
+    #[cfg(target_os = "linux")]
+    if first.as_deref() == Some(wros_input::WORKER_ARGUMENT) {
+        let parent = args.next().and_then(|value| value.parse::<u32>().ok());
+        if let Some(parent) = parent
+            && args.next().is_none()
+        {
+            // Before any project, configuration, rescue or App initialization.
+            if wros_input::worker_main(parent).is_ok() {
+                return Ok(());
+            }
+        }
+        eprintln!("WrOS input reader unavailable");
+        std::process::exit(1);
+    }
     if first.as_deref() == Some("writingdeck") {
         return writingdeck_cli::command(args);
     }
@@ -529,11 +547,18 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
     let mut confirm_quit = false;
     let mut last_frame = Instant::now();
 
+    #[cfg(target_os = "linux")]
+    let mut events = wros_input::Input::start(&std::env::current_exe()?)?;
+
+    // Retained upstream fallback outside WrOS. Linux's parser instead belongs
+    // to a separate, unprivileged re-exec process and dies with the editor.
     // Keys and the mouse are read on a thread of their own. When the terminal
     // window closes, crossterm 0.29's reader spins forever on the dead tty
     // instead of returning; on this thread that can't stop the loop below from
     // seeing the hang-up, saving, and leaving (which ends the spinning thread).
+    #[cfg(not(target_os = "linux"))]
     let (events_tx, events) = std::sync::mpsc::channel::<std::io::Result<Event>>();
+    #[cfg(not(target_os = "linux"))]
     std::thread::spawn(move || {
         loop {
             let ev = event::read();
@@ -550,6 +575,15 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
             save_or_rescue(app);
             shutdown::done();
             return Ok(());
+        }
+        #[cfg(target_os = "linux")]
+        if std::mem::take(&mut app.deck.lock_requested) {
+            if let Err(error) = console_lock::handoff(terminal, &mut events) {
+                save_or_rescue(app);
+                return Err(error);
+            }
+            app.deck.note = "Writing session unlocked; original editor context retained.".into();
+            app.deck.shell.notices.push(&app.deck.note);
         }
         app.autosave_tick();
         app.sync_tick();
@@ -643,7 +677,10 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
                     | Overlay::Lexicon
                     | Overlay::ProseDashboard
                     | Overlay::Productivity { .. }
-                    | Overlay::Deck(app::writingdeck::Page::WorkspacePins { .. })
+                    | Overlay::Deck(_)
+            ) && !matches!(
+                app.overlay,
+                Overlay::Deck(app::writingdeck::Page::KeyboardTest { .. })
             ) {
                 app.msg = "Read-only preview. Enter explicitly edits the original source; pasted commands ignored.".into();
                 continue;
@@ -902,7 +939,7 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
                 | Overlay::ProseDashboard
                 | Overlay::Productivity { .. }
                 | Overlay::ProductivityInput { .. }
-                | Overlay::Deck(app::writingdeck::Page::WorkspacePins { .. })
+                | Overlay::Deck(_)
         ) || (app.overlay == Overlay::None && app.focus == Focus::Pins))
         && !matches!(k.code, KeyCode::Char('s' | 'q' | 'k' | 'd'))
         && !(matches!(app.overlay, Overlay::PinCategory { .. }) && k.code == KeyCode::Char('v'))
@@ -912,6 +949,10 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
         && !(app.overlay == Overlay::Lexicon
             && app.lexicon.page == app::lexicon::Page::Query
             && k.code == KeyCode::Char('v'))
+        && !(matches!(
+            app.overlay,
+            Overlay::Deck(app::writingdeck::Page::KeyboardTest { .. })
+        ) && k.code == KeyCode::Char('v'))
     {
         return false;
     }

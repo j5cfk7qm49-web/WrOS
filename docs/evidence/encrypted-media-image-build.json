@@ -1,0 +1,253 @@
+{
+  "passed": true,
+  "scope": "Actual regular-file live image composition and final offline package/payload/authentication-policy audit. No boot, encrypted target installation, production root installer grant or hardware qualification.",
+  "build_commit": "ce440233457599ee2771b9cec66f5897dfd6ba00",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "d4c4772d7dcc639c57918f7c7af9d9f6985768fe06384664b9cd5ab5bb7a0d7c",
+    "file_count": 428,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "recipe_sha256": "e1c056cecdea85ea4c0a230a6b67518e74eaa0644f2646bd139fddc55fc622b4",
+  "media_auditor_sha256": "4dc9205b075ddc30b4c72f561d63efce35e0f19e72cba4a7a35d5229e0bd4aa1",
+  "encryption_list_sha256": "bd3db7dc795e038359cb7eec327f911c3e423ffbe9b7dccfc88248eb276f79f2",
+  "iso_bytes": 1248460800,
+  "iso_sha256": "bd32aca07ec6d7cb60bccdaf691caaabbe78c4e14be03bf2217e4983bed2ccbd",
+  "kernel": "vmlinuz-6.12.113+deb13-amd64",
+  "kernel_sha256": "4336c75fc1a6a58e7bda66cbe9f4042f88064e7abc93faaea9e2aceb19459561",
+  "live_initrd": "initrd.img-6.12.113+deb13-amd64",
+  "live_initrd_sha256": "533d7c8772c0fc507d57e963a91aa8367dfec729c5407f02a62e1e5ff22248c6",
+  "squashfs_sha256": "3d5d6006046a32c7899ad09ba0b26c8b22619dfbc459d5136b53cc9b776f0629",
+  "application_inputs": {
+    "scope": "Applications already copied by completed live staging; exact preserved inputs remain independent of later compiler output. No boot or encrypted installation claim.",
+    "source_fingerprint": {
+      "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+      "sha256": "b124affa1b128abc97ff22717386ca91346f5cd99cbc9a3c861c06ad6a399ebc",
+      "file_count": 427,
+      "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+    },
+    "build_commit": "c68e8db467d91480deed68144ce32579af9cda7e",
+    "applications": {
+      "grimoire": {
+        "compiled_sha256": "205d2c37d3446e0c19aff7fbeebea291b3f74587faca082d79ef6b7eb5cf0903",
+        "staged_sha256": "375c486af07f28ee888ac621690b6c50edecdd9a5772f3b96ceadccc6ee430fb",
+        "staged_binding": "strip of exact input"
+      },
+      "wros-greeter": {
+        "compiled_sha256": "c8e075f53f233547eba257b6ba78bdd0636664bd9a5aa5a24961900d1a0b5940",
+        "staged_sha256": "c8e075f53f233547eba257b6ba78bdd0636664bd9a5aa5a24961900d1a0b5940",
+        "staged_binding": "exact input"
+      },
+      "wros-installer": {
+        "compiled_sha256": "f7b391c6d717b54becb3297ef254cfd9c445b0cee8ef7bde8ef6cf2cff8eb93c",
+        "staged_sha256": "f7b391c6d717b54becb3297ef254cfd9c445b0cee8ef7bde8ef6cf2cff8eb93c",
+        "staged_binding": "exact input"
+      }
+    }
+  },
+  "runtime_Rust_sources_unchanged_since": "c68e8db467d91480deed68144ce32579af9cda7e",
+  "media_audit": {
+    "schema_version": 1,
+    "passed": true,
+    "installed_rootfs_wifi": {
+      "schema_version": 1,
+      "scope": "Installed image payload and retained notices; no physical radio test",
+      "packages": {
+        "firmware-ath9k-htc": "1.4.0-110-ge888634+dfsg1-0.1",
+        "firmware-atheros": "20250410-2",
+        "firmware-brcm80211": "20250410-2",
+        "firmware-iwlwifi": "20250410-2",
+        "firmware-mediatek": "20250410-2",
+        "firmware-realtek": "20250410-2",
+        "iw": "6.9-1",
+        "linux-image-amd64": "6.12.113-1",
+        "network-manager": "1.52.1-1",
+        "rfkill": "2.41.5-0+deb13u1",
+        "wireless-regdb": "2026.05.30-1~deb13u1",
+        "wpasupplicant": "2:2.10-24"
+      },
+      "firmware_payload": {
+        "firmware-iwlwifi": {
+          "file_count": 180,
+          "copyright_sha256": "f5d62266d99e91aeae9223a5b4f830ed5e917256672f50470ef868e0378ad6d8"
+        },
+        "firmware-realtek": {
+          "file_count": 144,
+          "copyright_sha256": "f5d62266d99e91aeae9223a5b4f830ed5e917256672f50470ef868e0378ad6d8"
+        },
+        "firmware-atheros": {
+          "file_count": 284,
+          "copyright_sha256": "f5d62266d99e91aeae9223a5b4f830ed5e917256672f50470ef868e0378ad6d8"
+        },
+        "firmware-ath9k-htc": {
+          "file_count": 2,
+          "copyright_sha256": "7b64be56ce49cd2bfb17d61b1d95f8fb9a5cb071e4d25b3822e1d66cfb575991"
+        },
+        "firmware-brcm80211": {
+          "file_count": 132,
+          "copyright_sha256": "f5d62266d99e91aeae9223a5b4f830ed5e917256672f50470ef868e0378ad6d8"
+        },
+        "firmware-mediatek": {
+          "file_count": 119,
+          "copyright_sha256": "f5d62266d99e91aeae9223a5b4f830ed5e917256672f50470ef868e0378ad6d8"
+        }
+      },
+      "connection_tool": "nmtui",
+      "physical_adapters_verified": []
+    },
+    "native_session": {
+      "schema_version": 2,
+      "scope": "Staged native session/manual-lock payload/power policy; not runtime locking qualification",
+      "passed": true,
+      "greetd_package_version": "0.10.3-4",
+      "binary_sha256": {
+        "usr/sbin/greetd": "7f614d15b4ed4959457e53a151f016be390506d4d95dcc0f2ad5ab370622b209",
+        "usr/bin/wros-greeter": "c8e075f53f233547eba257b6ba78bdd0636664bd9a5aa5a24961900d1a0b5940",
+        "usr/bin/grimoire": "375c486af07f28ee888ac621690b6c50edecdd9a5772f3b96ceadccc6ee430fb",
+        "usr/libexec/writingdeck-session": "de3b6735bf0887eb6f61a4f7d6df61b53d729c4253555598220386720b16e71b",
+        "usr/libexec/writingdeck-keyboard": "809820888eb4bf554127afe1be52832cf6a262839e107d76cbac1d6339a2c45b",
+        "usr/libexec/wros-lock": "a68cc9775dc17c6e36500adb961d961218b02925fd639ec689df8aa5194bab02",
+        "usr/bin/openvt": "0d103f79e587929a84f125816c6ac00d9cb7a3f86c1fbcce263b9ff9d8843f06",
+        "usr/bin/systemd-run": "fb8ee22411b3c0cdd56547df9915f387a5d5c7af3e05bbfe5332fda220d4732b",
+        "usr/bin/chvt": "b42d1ac72136bbe0615d16faf34d8961407fb3f32bb4a532acbf3b933a88f3e1",
+        "usr/sbin/vlock-main": "dce0f3ed068b4750ff32ae8302fd1bbc9f436c955606b3dd686b17066703cffb",
+        "usr/lib/vlock/modules/all.so": "fdac28728723460aa66bfb27294db74f12bb275ae2abd3f2ffc32f418af951e1",
+        "usr/lib/vlock/modules/nosysrq.so": "4a1ddee0bdd7c0703432ceefa7866da3a23f8ffc32f4db75aec448562e170ac6",
+        "usr/lib/x86_64-linux-gnu/security/pam_succeed_if.so": "782ce3b83b452e8e2f7a234846322e13a4c43c986e2ebf5d6f2023bb3fe1e53e"
+      },
+      "vlock_package_version": "2.2.2-12",
+      "manual_lock_payload_present": true,
+      "native_tty1_login": true,
+      "autologin": false,
+      "greeter_account_locked": true,
+      "sleep_targets_masked": [
+        "sleep",
+        "suspend",
+        "hibernate",
+        "hybrid-sleep",
+        "suspend-then-hibernate"
+      ],
+      "automatic_power_actions_disabled": true,
+      "secure_locking_verified": false,
+      "physical_hardware_verified": false
+    },
+    "installer_firmware_packages": [
+      "firmware-ath9k-htc",
+      "firmware-atheros",
+      "firmware-brcm80211",
+      "firmware-iwlwifi",
+      "firmware-mediatek",
+      "firmware-realtek"
+    ],
+    "vm_profile_absent": true,
+    "encrypted_target_packages": {
+      "cryptsetup": "2:2.7.5-2",
+      "cryptsetup-bin": "2:2.7.5-2",
+      "cryptsetup-initramfs": "2:2.7.5-2",
+      "dmsetup": "2:1.02.205-2",
+      "lvm2": "2.03.31-2",
+      "systemd-cryptsetup": "257.13-1~deb13u1"
+    },
+    "offline_encryption_archives": {
+      "cryptsetup-bin": {
+        "version": "2:2.7.5-2",
+        "file": "pool/main/c/cryptsetup/cryptsetup-bin_2%3a2.7.5-2_amd64.deb",
+        "sha256": "b77b192cf1c35f96da02134300bb227ab92c49eec2444268049fa1ce84fb9bc7"
+      },
+      "cryptsetup-initramfs": {
+        "version": "2:2.7.5-2",
+        "file": "pool/main/c/cryptsetup/cryptsetup-initramfs_2%3a2.7.5-2_all.deb",
+        "sha256": "da032fdf8c260a33af292b42c248e82da715b9570addcccbd7e3bfe3789dcb38"
+      },
+      "cryptsetup": {
+        "version": "2:2.7.5-2",
+        "file": "pool/main/c/cryptsetup/cryptsetup_2%3a2.7.5-2_amd64.deb",
+        "sha256": "916ff5b1336f67dbaf763039529c3a0e10d2b839ef11463cde13a405ba49bcd4"
+      },
+      "dmsetup": {
+        "version": "2:1.02.205-2",
+        "file": "pool/main/l/lvm2/dmsetup_2%3a1.02.205-2_amd64.deb",
+        "sha256": "4771f7ab0a907a8e5d02a6358ff016ae7cb49124906bada02fa882e141b615a0"
+      },
+      "lvm2": {
+        "version": "2.03.31-2",
+        "file": "pool/main/l/lvm2/lvm2_2.03.31-2_amd64.deb",
+        "sha256": "a6a130eae69ec2ede92b2bf4bfab35208a5340c2c3e2dcb4453bf8fbf742d0a6"
+      },
+      "systemd-cryptsetup": {
+        "version": "257.13-1~deb13u1",
+        "file": "pool/main/s/systemd/systemd-cryptsetup_257.13-1~deb13u1_amd64.deb",
+        "sha256": "08ec2063867d0e5861b01340f9705dfe0ef4c4612dc5bdfeae29e5d8e7370034"
+      }
+    },
+    "physical_hardware_verified": false,
+    "installation_verified": false
+  },
+  "live_rootfs_audit": {
+    "passed": true,
+    "native_session": {
+      "schema_version": 2,
+      "scope": "Staged native session/manual-lock payload/power policy; not runtime locking qualification",
+      "passed": true,
+      "greetd_package_version": "0.10.3-4",
+      "binary_sha256": {
+        "usr/sbin/greetd": "7f614d15b4ed4959457e53a151f016be390506d4d95dcc0f2ad5ab370622b209",
+        "usr/bin/wros-greeter": "c8e075f53f233547eba257b6ba78bdd0636664bd9a5aa5a24961900d1a0b5940",
+        "usr/bin/grimoire": "375c486af07f28ee888ac621690b6c50edecdd9a5772f3b96ceadccc6ee430fb",
+        "usr/libexec/writingdeck-session": "de3b6735bf0887eb6f61a4f7d6df61b53d729c4253555598220386720b16e71b",
+        "usr/libexec/writingdeck-keyboard": "809820888eb4bf554127afe1be52832cf6a262839e107d76cbac1d6339a2c45b",
+        "usr/libexec/wros-lock": "a68cc9775dc17c6e36500adb961d961218b02925fd639ec689df8aa5194bab02",
+        "usr/bin/openvt": "0d103f79e587929a84f125816c6ac00d9cb7a3f86c1fbcce263b9ff9d8843f06",
+        "usr/bin/systemd-run": "fb8ee22411b3c0cdd56547df9915f387a5d5c7af3e05bbfe5332fda220d4732b",
+        "usr/bin/chvt": "b42d1ac72136bbe0615d16faf34d8961407fb3f32bb4a532acbf3b933a88f3e1",
+        "usr/sbin/vlock-main": "dce0f3ed068b4750ff32ae8302fd1bbc9f436c955606b3dd686b17066703cffb",
+        "usr/lib/vlock/modules/all.so": "fdac28728723460aa66bfb27294db74f12bb275ae2abd3f2ffc32f418af951e1",
+        "usr/lib/vlock/modules/nosysrq.so": "4a1ddee0bdd7c0703432ceefa7866da3a23f8ffc32f4db75aec448562e170ac6",
+        "usr/lib/x86_64-linux-gnu/security/pam_succeed_if.so": "782ce3b83b452e8e2f7a234846322e13a4c43c986e2ebf5d6f2023bb3fe1e53e"
+      },
+      "vlock_package_version": "2.2.2-12",
+      "manual_lock_payload_present": true,
+      "native_tty1_login": true,
+      "autologin": false,
+      "greeter_account_locked": true,
+      "sleep_targets_masked": [
+        "sleep",
+        "suspend",
+        "hibernate",
+        "hybrid-sleep",
+        "suspend-then-hibernate"
+      ],
+      "automatic_power_actions_disabled": true,
+      "secure_locking_verified": false,
+      "physical_hardware_verified": false
+    },
+    "helper_sha256": "b47f978f2a6ec9fab6f02b2ebce7d864d4b550a5f283e95283b293e5ade45a23",
+    "temporary_account_absent": true,
+    "shipping_initial_session_absent": true,
+    "stock_console_entry_generator_masked": true,
+    "scope": "Immutable live staging files only; no actual live boot, installed authentication or privileged installer qualification."
+  },
+  "debian_installer_input_trust": {
+    "schema_version": 1,
+    "passed": true,
+    "origin": "Debian",
+    "codename": "trixie",
+    "release_sha256": "0584fba32e13e0ab8285fb16c27adea1ec03a73669c18702821094fd6ca86675",
+    "installer_sums_sha256": "31a1a4fc99c5b0a729d261f137cd7e1599bfa6f214f83fe4e596543d8ccf2dec",
+    "images": {
+      "cdrom/vmlinuz": {
+        "sha256": "2b2358b37674d2505350528875bb17afae2a36522a9e8a9417eaca65a7da0e08",
+        "bytes": 12142528
+      },
+      "cdrom/initrd.gz": {
+        "sha256": "8de544ab627ab794504c530c82de621814386b5b67a492f1e3133390c47ea933",
+        "bytes": 24361578
+      }
+    },
+    "chain": "Debian archive keyring -> gpgv InRelease -> SHA256SUMS -> kernel/initrd",
+    "wros_release_signature": false
+  },
+  "previous_failed_image": "docs/evidence/encrypted-media-first-build.json",
+  "boot_verified": false,
+  "encrypted_installation_verified": false
+}

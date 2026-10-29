@@ -1982,14 +1982,22 @@
       "declared_license": "MIT",
       "repository": "https://github.com/crossterm-rs/crossterm",
       "used_in_linux_no_audio_build": true,
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "source": "https://github.com/crossterm-rs/crossterm (retained patched upstream crate)",
       "notice_files": [
         {
           "file": "LICENSE",
           "sha256": "aca4760f2a5eba9ce9d4448fe7cd3fcf98245a8315ede59ebd0c6085dd542e61"
         }
       ],
-      "retained_upstream_notice_source": null
+      "retained_upstream_notice_source": null,
+      "retained_patched_upstream": {
+        "manifest": "os/config/terminal/crossterm-upstream.json",
+        "upstream_repository": "https://github.com/crossterm-rs/crossterm",
+        "crate_archive_sha256": "d8b9f2e4c67f833b660cdb0a3523065869fb35570177239812ed4c905aeff87b",
+        "local_patch": "os/config/terminal/crossterm-mio-readiness.patch",
+        "local_patch_sha256": "ca6e1b210b5d3f88ca27490b8dffc18b8e090bc70abc226ccfee0a109a6f2075",
+        "scope": "Retained upstream MIT crate with an explicit WrOS patch; not original WrOS code."
+      }
     },
     {
       "name": "crossterm_winapi",
@@ -11650,6 +11658,66 @@
     },
     {
       "name": "writingdeck-sys",
+      "version": "0.1.0",
+      "declared_license": "MIT",
+      "repository": null,
+      "used_in_linux_no_audio_build": true,
+      "source": "WritingDeck workspace",
+      "notice_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "de028017fb22716dfc7b101cbb466e8ec278e8987145256770f97e0969ee127d"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "wros-greeter",
+      "version": "0.1.0",
+      "declared_license": "MIT",
+      "repository": null,
+      "used_in_linux_no_audio_build": false,
+      "source": "WritingDeck workspace",
+      "notice_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "de028017fb22716dfc7b101cbb466e8ec278e8987145256770f97e0969ee127d"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "wros-input",
+      "version": "0.1.0",
+      "declared_license": "MIT",
+      "repository": null,
+      "used_in_linux_no_audio_build": true,
+      "source": "WritingDeck workspace",
+      "notice_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "de028017fb22716dfc7b101cbb466e8ec278e8987145256770f97e0969ee127d"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "wros-installer",
+      "version": "0.1.0",
+      "declared_license": "MIT",
+      "repository": null,
+      "used_in_linux_no_audio_build": false,
+      "source": "WritingDeck workspace",
+      "notice_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "de028017fb22716dfc7b101cbb466e8ec278e8987145256770f97e0969ee127d"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "wros-shell",
       "version": "0.1.0",
       "declared_license": "MIT",
       "repository": null,

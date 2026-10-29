@@ -1,0 +1,30 @@
+{
+  "upstream": "Debian cdebconf",
+  "version": "0.280",
+  "architecture": "amd64",
+  "source_descriptor_sha256": "36cdaa45fca445d2164fbdd81faad9918d748fa703678d8af237354d5744b1d1",
+  "source_archive_sha256": "c42115131939845e452a323ceded937efad3b2e3e1b80a1a186f9d5c494a43a2",
+  "patch_sha256": "0149f59252538802ef104e1a6e518ab604cddeacd581688866a8ad021d1218dd",
+  "module_sha256": "e29829b3d183266b17867231c2e85710135c0f0cd4474dcaad16a609a02496d6",
+  "compiler": "cc (Debian 14.2.0-19) 14.2.0",
+  "scope": "Frontend protocol and response handling only; no changes to partitioning, encryption, account or installation engines.",
+  "source_trust": "Pinned hashes of archives retrieved through authenticated Debian APT indexes; no independent maintainer-signature claim.",
+  "passed": true,
+  "build_log_sha256": "687fae997abf8756bf4c8c82ba51fe92c288ca6b9c597b517f3418822e0009a7",
+  "debian_package_sha256": {
+    "cdebconf_0.280_amd64.deb": "e296ed2345e0f117f318b1d429b414558bcc89240225582193630711feeb7230",
+    "libdebian-installer4_0.125_amd64.deb": "09f0328604971f4aef19048ebb1935c91cdee93662190d7cbdbd2d0dac653189",
+    "libdebian-installer4-dev_0.125_amd64.deb": "c8b70f086128e804ec11181179b855a5077e342de3ce6e71453c3340d0f768f4",
+    "libtextwrap1_0.1-17+b1_amd64.deb": "a902510dbb9fe53f035f86cd02b9869aa48b9a8733cae541166e9f40d819e6fe"
+  },
+  "upstream_notices_retained": [
+    "COPYING.passthrough",
+    "copyright",
+    "source/debian/copyright"
+  ],
+  "limitations": [
+    "Build and actual deb-package frontend compatibility only; installer-udeb/media ABI and actual disk installation remain unqualified.",
+    "Upstream asprintf unchecked-return warnings remain in the build log; this is not a blanket security audit."
+  ],
+  "original_packaged_module_sha256": "f01495c3ba58f41dc7ec5eaa49f40a28905f026835a1638e461aba13183487fa"
+}

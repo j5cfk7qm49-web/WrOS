@@ -1,0 +1,60 @@
+{
+  "scope": "Targeted offline software regression; all power operations recorded/simulated or refused before a runner. No full-OS, physical power or new VM qualification.",
+  "recorded_at_utc": "2026-10-27T07:39:38.853897+00:00",
+  "source_fingerprint_when_recorded": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "56e59e1b858f2da7c2366e9fe88c9f5d712cce3515de033c5e6aa5fb02058410",
+    "file_count": 287,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "checks": [
+    {
+      "command": "cargo test -p writingdeck-sys --locked --offline",
+      "passed": 17,
+      "ignored": 0
+    },
+    {
+      "command": "cargo test -p grimoire-tui --no-default-features --locked --offline shell_ui_tests",
+      "passed": 11,
+      "ignored": 0
+    },
+    {
+      "command": "cargo test -p grimoire-tui --no-default-features --locked --offline writingdeck_async_system_status",
+      "passed": 1,
+      "ignored": 0
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --locked --offline -j2 -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --no-default-features --locked --offline -j2 -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "command": "cargo build --no-default-features --locked --offline -j2",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -m unittest discover -s os/tests -p test_shell_pty.py -v",
+      "passed": 1,
+      "four_terminal_sizes": true
+    },
+    {
+      "command": "python3 tools/check-writingdeck.py",
+      "exit_code": 0
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0
+    }
+  ],
+  "binary_sha256": "5898e81ff9158c172697ffcfccce829703a9a7d6d8ce04dd40589201964c6411",
+  "log_sha256": "41e738249563ba9be1877c247b4a4c54da53dc08aa3c411d0038056e04b3a644",
+  "argument_only_reproduction_after_fix": "Err(Suspend unavailable: secure screen locking has not been qualified.)",
+  "limitations": [
+    "Power and shutdown tests never execute a real power command.",
+    "No secure locker, lid/power-key policy, PAM login or physical resume acceptance.",
+    "Whole-suite CI for this newer source is separate from the warm-screen report."
+  ]
+}

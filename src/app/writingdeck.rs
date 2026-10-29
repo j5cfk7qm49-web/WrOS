@@ -21,6 +21,7 @@ use writingdeck_sys::{
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Page {
+    Settings,
     Home {
         sel: usize,
     },
@@ -63,9 +64,11 @@ pub enum Page {
 struct Worker {
     tx: SyncSender<Request>,
     rx: Receiver<(Request, Result<Reply, String>)>,
+    simulated: bool,
 }
 impl Worker {
     fn spawn(mut backend: Box<dyn Backend>) -> Self {
+        let simulated = backend.simulated();
         let (tx, requests) = mpsc::sync_channel::<Request>(1);
         let (results, rx) = mpsc::channel();
         std::thread::spawn(move || {
@@ -78,7 +81,7 @@ impl Worker {
                 }
             }
         });
-        Self { tx, rx }
+        Self { tx, rx, simulated }
     }
 }
 const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 22] = [
@@ -107,6 +110,7 @@ const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 22] = [
 ];
 
 pub struct Deck {
+    pub shell: super::shell::Shell,
     pub state: State,
     layout_store: Option<workspaces::Store>,
     pub progress: tutorial::Progress,
@@ -118,6 +122,9 @@ pub struct Deck {
     pub snapshot: Option<Snapshot>,
     pub note: String,
     pub busy: bool,
+    pub lock_available: bool,
+    pub live_session: bool,
+    pub lock_requested: bool,
     worker: Option<Worker>,
     enable_system: bool,
     pub preview: Option<(String, KeyboardLayout, Instant)>,
@@ -128,6 +135,13 @@ pub struct Deck {
 impl Deck {
     pub fn load(root: &Path, background: bool) -> Self {
         let mut warnings = Vec::new();
+        let live_session = background
+            && (std::env::var_os("WROS_LIVE_SESSION").is_some()
+                || Path::new("/run/live/medium/live/filesystem.squashfs").is_file());
+        if live_session {
+            warnings
+                .push("Live session · save work somewhere persistent before restarting.".into());
+        }
         let layout_store = workspaces::Store::load(root)
             .map_err(|e| warnings.push(e.to_string()))
             .ok();
@@ -214,6 +228,7 @@ impl Deck {
             }
         };
         Self {
+            shell: super::shell::Shell::load(root, background),
             state,
             layout_store,
             progress,
@@ -225,6 +240,18 @@ impl Deck {
             snapshot: None,
             note: warnings.join("; "),
             busy: false,
+            live_session,
+            lock_available: {
+                #[cfg(target_os = "linux")]
+                {
+                    background && crate::console_lock::available()
+                }
+                #[cfg(not(target_os = "linux"))]
+                {
+                    false
+                }
+            },
+            lock_requested: false,
             worker: None,
             enable_system: background,
             preview: None,
@@ -258,6 +285,13 @@ impl Deck {
             self.note = "Original layout could not be loaded; not overwriting it.".into();
         }
     }
+    pub fn simulated(&self) -> bool {
+        self.worker.as_ref().is_some_and(|worker| worker.simulated)
+            || self
+                .snapshot
+                .as_ref()
+                .is_some_and(|snapshot| snapshot.simulated)
+    }
     pub fn request(&mut self, request: Request) {
         if self.busy {
             self.note = "A system request is still running; please wait.".into();
@@ -286,9 +320,42 @@ impl Deck {
             Box::new(writingdeck_sys::Simulated::laptop()),
         ));
     }
+    #[cfg(test)]
+    pub fn use_test_backend(&mut self, backend: Box<dyn Backend>) {
+        self.worker = Some(Worker::spawn(backend));
+    }
 }
 
 impl App {
+    pub fn request_console_lock(&mut self) {
+        if self.deck.live_session {
+            self.deck
+                .shell
+                .notices
+                .push("Live sessions have no personal screen lock.");
+            return;
+        }
+        if !self.deck.lock_available || self.deck.busy {
+            self.deck
+                .shell
+                .notices
+                .push("Console locking is unavailable or a system request is pending.");
+            return;
+        }
+        if !self.commit_saves()
+            || self.project.dirty_count() != 0
+            || self.tree_stale
+            || !self.conflicts().is_empty()
+        {
+            self.deck
+                .shell
+                .notices
+                .push("Lock not started: unsaved buffers or source conflicts need attention.");
+            return;
+        }
+        self.save_deck();
+        self.deck.lock_requested = true;
+    }
     pub fn init_writingdeck(&mut self, launch: bool) {
         if launch {
             self.restore_workspace_views(resume::read(&self.project.root).is_none());
@@ -475,6 +542,96 @@ impl App {
                     if matches!(request, Request::KeyboardConfirm(_)) {
                         self.observe_deck(tutorial::Event::LayoutConfirmed);
                     }
+                    if matches!(
+                        request,
+                        Request::DisplayConfirm(_) | Request::DisplayCancel(_)
+                    ) {
+                        self.deck.request(Request::DisplayStatus);
+                    }
+                }
+                Ok(Reply::WifiScan(networks)) => {
+                    self.deck.note = format!(
+                        "{} named Wi-Fi networks returned. Enrollment is not implemented.",
+                        networks.len()
+                    );
+                    self.deck.shell.wifi_networks = Some(networks);
+                }
+                Ok(Reply::SavedWifi(profiles)) => {
+                    self.deck.note = format!(
+                        "{} saved Wi-Fi profiles visible to this session.",
+                        profiles.len()
+                    );
+                    self.deck.shell.wifi_saved = Some(profiles);
+                }
+                Ok(Reply::LocalAccounts(accounts)) => {
+                    self.deck.note = "Local account list loaded; no account was changed.".into();
+                    self.deck.shell.local_accounts = Some(accounts);
+                }
+                Ok(Reply::StorageDevices(devices)) => {
+                    self.deck.note = "Mounted filesystem usage loaded locally.".into();
+                    self.deck.shell.storage_devices = Some(devices);
+                }
+                Ok(Reply::Updates(plan)) => {
+                    self.deck.note = plan.status.clone();
+                    self.deck.shell.updates = Some(plan);
+                }
+                Ok(Reply::GoogleStatus(status)) => {
+                    self.deck.note = status.status_message.clone();
+                    self.deck.shell.google_status = Some(status);
+                }
+                Ok(Reply::GoogleDriveFiles(files)) => {
+                    self.deck.note =
+                        "Development service reply; Drive enrollment is not implemented.".into();
+                    self.deck.shell.drive_files = Some(files);
+                }
+                Ok(Reply::Backups(backups)) => {
+                    self.deck.note =
+                        "Development service reply; verified backup is not configured.".into();
+                    self.deck.shell.backups = Some(backups);
+                }
+                Ok(Reply::Timezones(zones)) => {
+                    self.deck.note = "Local timezone catalog loaded. Type to filter.".into();
+                    self.deck.shell.timezones = Some(zones);
+                }
+                Ok(Reply::Timezone(zone)) => {
+                    self.deck.note = format!(
+                        "Timezone verified: {zone}{}.",
+                        if self.deck.snapshot.as_ref().is_some_and(|s| s.simulated) {
+                            " (simulated)"
+                        } else {
+                            ""
+                        }
+                    );
+                    self.deck
+                        .snapshot
+                        .get_or_insert_with(Snapshot::default)
+                        .timezone = Some(zone);
+                    if matches!(self.overlay, Overlay::Deck(Page::Settings))
+                        && self.deck.shell.nav.current() == super::shell::Route::TimezoneConfirm
+                    {
+                        self.deck.shell.timezone_choice = None;
+                        self.deck.shell.nav.back();
+                        self.deck.shell.nav.back();
+                    }
+                }
+                Ok(Reply::DisplayStatus(status)) => {
+                    self.deck.shell.warmth = status.warmth;
+                    self.deck.note = status.message.clone();
+                    self.deck.shell.display = Some(status);
+                }
+                Ok(Reply::DisplayPreview { token, seconds }) => {
+                    if self.deck.shell.warm_wait
+                        && matches!(self.overlay, Overlay::Deck(Page::Settings))
+                        && self.deck.shell.nav.current() == super::shell::Route::WarmScreen
+                    {
+                        self.deck.shell.warm_preview =
+                            Some((token, Instant::now() + Duration::from_secs(seconds.min(15))));
+                        self.deck.shell.nav.open(super::shell::Route::WarmPreview);
+                        self.deck.note = "Temporary warmth applied. Choose Keep or Cancel; automatic rollback is armed.".into();
+                    } else {
+                        self.deck.request(Request::DisplayCancel(token));
+                    }
+                    self.deck.shell.warm_wait = false;
                 }
                 Ok(Reply::KeyboardPreview { token, seconds }) => {
                     if let Request::KeyboardPreview(layout) = request {
@@ -495,11 +652,35 @@ impl App {
                     }
                 }
                 Err(e) => {
+                    self.deck.shell.warm_wait = false;
+                    if matches!(request, Request::DisplayStatus) {
+                        self.deck.shell.display = None;
+                    }
                     self.deck.note = format!("Unavailable: {e}");
                     if matches!(self.overlay, Overlay::Deck(Page::KeyboardWait)) {
                         self.overlay = Overlay::Deck(Page::Keyboard { sel: 0 });
                     }
                 }
+            }
+            if self.deck.simulated() && !self.deck.note.contains("SIMULATED") {
+                self.deck.note = format!("SIMULATED · {}", self.deck.note);
+            }
+            self.deck.shell.notices.push(&self.deck.note);
+        }
+        if self
+            .deck
+            .shell
+            .warm_preview
+            .as_ref()
+            .is_some_and(|(_, end)| {
+                Instant::now() >= *end || !matches!(self.overlay, Overlay::Deck(Page::Settings))
+            })
+            && !self.deck.busy
+        {
+            let (token, _) = self.deck.shell.warm_preview.take().unwrap();
+            self.deck.request(Request::DisplayCancel(token));
+            if self.deck.shell.nav.current() == super::shell::Route::WarmPreview {
+                self.deck.shell.nav.back();
             }
         }
         if self
@@ -520,6 +701,7 @@ impl App {
             return;
         };
         match page {
+            Page::Settings => self.on_settings_key(key),
             Page::Home { mut sel } => {
                 let widgets: Vec<_> = self
                     .deck
@@ -579,7 +761,7 @@ impl App {
                                         sel: self.deck.state.selected,
                                     })
                                 }
-                                4 => self.open_system_settings(),
+                                4 => self.open_settings(),
                                 5 => self.overlay = Overlay::Deck(Page::Tutorial { sel: 0 }),
                                 _ => self.overlay = Overlay::Deck(Page::Widgets { sel: 0 }),
                             }
@@ -790,10 +972,13 @@ impl App {
                         self.deck
                             .request(Request::PowerSave(self.deck.state.low_power));
                     }
-                    8..=10 => {
+                    8 => {
+                        self.deck.note = writingdeck_sys::SUSPEND_UNAVAILABLE.into();
+                        self.deck.shell.notices.push(&self.deck.note);
+                    }
+                    9..=10 => {
                         self.overlay = Overlay::Deck(Page::Power {
                             action: match sel {
-                                8 => PowerAction::Suspend,
                                 9 => PowerAction::Shutdown,
                                 _ => PowerAction::Restart,
                             },
@@ -864,7 +1049,19 @@ impl App {
                 }
                 Key::Esc => self.open_system_settings(),
                 Key::Enter => {
-                    if yes && self.commit_saves() {
+                    if yes && action == PowerAction::Suspend {
+                        self.deck.note = writingdeck_sys::SUSPEND_UNAVAILABLE.into();
+                        self.deck.shell.notices.push(&self.deck.note);
+                    } else if yes {
+                        if !self.commit_saves()
+                            || self.project.dirty_count() != 0
+                            || self.tree_stale
+                            || !self.conflicts().is_empty()
+                        {
+                            self.deck.note = "Power unchanged: unsaved buffers or source conflicts need attention. Return to writing to review them.".into();
+                            self.deck.shell.notices.push(&self.deck.note);
+                            return;
+                        }
                         self.save_deck();
                         self.deck.request(Request::Power(action));
                     }
@@ -1095,8 +1292,17 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     let Overlay::Deck(page) = &app.overlay else {
         return;
     };
+    if matches!(page, Page::Settings) {
+        super::shell::draw(f, app, area, t);
+        return;
+    }
     f.render_widget(Clear, area);
-    let block = crate::ui::pane_block("WRITINGDECK OS · offline first", true, t);
+    let heading = if app.deck.live_session {
+        "WrOS · Live session"
+    } else {
+        "WrOS · offline first"
+    };
+    let block = crate::ui::pane_block(heading, true, t);
     let inner = block.inner(area);
     f.render_widget(block, area);
     if inner.height < 4 || inner.width < 10 {
@@ -1107,6 +1313,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     let title: String;
     let hint: &str;
     match page {
+        Page::Settings => unreachable!("shared shell draws Settings"),
         Page::Home { sel } => {
             title = format!(
                 "{} · {}",
@@ -1261,7 +1468,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                     "Goals",
                     "Progress",
                     "Workspaces",
-                    "System settings",
+                    "Settings",
                     "Interactive tutorial",
                     "Configure widgets",
                 ]
@@ -1377,7 +1584,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                         "off"
                     }
                 ),
-                "Suspend (confirmation required)".into(),
+                writingdeck_sys::SUSPEND_UNAVAILABLE.into(),
                 "Shutdown (confirmation required)".into(),
                 "Restart (confirmation required)".into(),
                 "Keyboard shortcuts".into(),
@@ -1427,19 +1634,25 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             hint = "Enter keep  Esc revert · test text is never saved";
         }
         Page::Power { action, yes } => {
-            title = format!("Confirm {action:?}");
-            rows.push(
-                "All manuscript buffers must save successfully before a power request.".into(),
-            );
-            rows.push(
-                if *yes {
-                    "  Cancel     [YES, proceed]"
-                } else {
-                    "[Cancel]      Yes, proceed"
-                }
-                .into(),
-            );
-            hint = "←→ select  Enter confirm  Esc cancel";
+            if *action == PowerAction::Suspend {
+                title = "Suspend unavailable".into();
+                rows.push(writingdeck_sys::SUSPEND_UNAVAILABLE.into());
+                hint = "Esc return · no power operation is available";
+            } else {
+                title = format!("Confirm {action:?}");
+                rows.push(
+                    "All manuscript buffers must save successfully before a power request.".into(),
+                );
+                rows.push(
+                    if *yes {
+                        "  Cancel     [YES, proceed]"
+                    } else {
+                        "[Cancel]      Yes, proceed"
+                    }
+                    .into(),
+                );
+                hint = "←→ select  Enter confirm  Esc cancel";
+            }
         }
         Page::Tutorial { sel } => {
             title = format!(

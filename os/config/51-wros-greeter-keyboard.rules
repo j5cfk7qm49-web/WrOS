@@ -1,0 +1,8 @@
+// Staged only with the experimental native greeter. No group membership or
+// authorization for display, power, shells, systemctl or other executables.
+polkit.addRule(function(action, subject) {
+    if (action.id == "org.writingdeck.keyboard" &&
+        subject.user == "_greetd" && subject.local && subject.active) {
+        return polkit.Result.YES;
+    }
+});

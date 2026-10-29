@@ -1,0 +1,182 @@
+{
+  "scope": "Original failed probe observations, never relabelled passed. A language progress title was insufficient form readiness; final driver requires the actionable Enter hint. Earlier strict disk guards, noexec staging, GTK preference, nonrecursive binds and host preflight integration failures remain separate.",
+  "observations": [
+    {
+      "artifact": "native-3ltvetw6",
+      "passed": false,
+      "source_fingerprint": {
+        "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+        "sha256": "18908d546f8e4151c71055cb998bc28ee51276e4c933d31dafd487c1cbc99461",
+        "file_count": 425,
+        "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+      },
+      "seconds": 101.03,
+      "error": "RuntimeError: Guest fixture command failed",
+      "source_unchanged": true,
+      "iso_unchanged": true,
+      "capsule_unchanged": true,
+      "phases_observed": [],
+      "report_sha256": "c19d6a540c755c05229983e864e1e62c7da2c2a8f844a7b06ec731f4086ab43e"
+    },
+    {
+      "artifact": "native-5w16l52y",
+      "passed": false,
+      "source_fingerprint": {
+        "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+        "sha256": "01192b8b8633fa553f2df1d5baaae8be4c21cc123729d0085e95f7927a781fec",
+        "file_count": 425,
+        "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+      },
+      "seconds": 108.32,
+      "error": "RuntimeError: Guest fixture command failed",
+      "source_unchanged": true,
+      "iso_unchanged": true,
+      "capsule_unchanged": true,
+      "phases_observed": [],
+      "report_sha256": "0002bf3e6412097ab69daa8cdbeb05e7fc7680e608815a1aba12f58a76d9de06"
+    },
+    {
+      "artifact": "native-bo950mpg",
+      "passed": false,
+      "source_fingerprint": {
+        "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+        "sha256": "fcd4c70f65137664cc7b7f4df43bb359c0effc82ee34c1ac781d28184c8f66c7",
+        "file_count": 425,
+        "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+      },
+      "seconds": 103.2,
+      "error": "RuntimeError: Guest fixture command failed",
+      "source_unchanged": true,
+      "iso_unchanged": true,
+      "capsule_unchanged": true,
+      "phases_observed": [],
+      "report_sha256": "fe65779bf7140b14c2e194f51395794803cd8288b974d97c564ccd458f766bb9"
+    },
+    {
+      "artifact": "native-g6nxwjct",
+      "passed": false,
+      "source_fingerprint": {
+        "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+        "sha256": "5fa86bf2334ea9890b53945e4468eb65f5742103ac17edd8ec0a30b10cd804dc",
+        "file_count": 425,
+        "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+      },
+      "seconds": 129.19,
+      "error": "RuntimeError: Guest fixture command failed",
+      "source_unchanged": true,
+      "iso_unchanged": true,
+      "capsule_unchanged": true,
+      "phases_observed": [],
+      "report_sha256": "4eff4f98f70b8c6c646670e615bc8b2eb8848c570605b8e1ba97e209fbb0125c"
+    },
+    {
+      "artifact": "native-knuy33ca",
+      "passed": false,
+      "source_fingerprint": {
+        "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+        "sha256": "0af8a2e99fe90ca492870808984eb53a2ac820c8669830fe2216d6cf4b9c961c",
+        "file_count": 425,
+        "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+      },
+      "seconds": 158.35,
+      "error": "RuntimeError: Guest fixture command failed",
+      "source_unchanged": true,
+      "iso_unchanged": true,
+      "capsule_unchanged": true,
+      "phases_observed": [
+        "language"
+      ],
+      "report_sha256": "e6d609d49a8be02a1835c79731a961bbc9e28dd5c78aea9b22d8bd7bca893b4a"
+    },
+    {
+      "artifact": "native-m3atsqsa",
+      "passed": false,
+      "source_fingerprint": {
+        "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+        "sha256": "5104ab41ef73f8513a26487ad130bcd4b93688a5d839c2a72c46372292ce8411",
+        "file_count": 424,
+        "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+      },
+      "seconds": 78.04,
+      "error": "RuntimeError: Guest fixture command failed",
+      "source_unchanged": true,
+      "iso_unchanged": true,
+      "capsule_unchanged": true,
+      "phases_observed": [],
+      "report_sha256": "53560f987150d73605eb3c9c5952f802162b197ab79bdef688542ea7cc986fbb"
+    },
+    {
+      "artifact": "native-p1gajhwq",
+      "passed": false,
+      "source_fingerprint": {
+        "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+        "sha256": "3e3406a8ae5c7af7a4d68b181f2f15e50b27a899c0871fddda4177812d52e510",
+        "file_count": 425,
+        "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+      },
+      "seconds": 101.9,
+      "error": "RuntimeError: Guest fixture command failed",
+      "source_unchanged": false,
+      "iso_unchanged": true,
+      "capsule_unchanged": true,
+      "phases_observed": [],
+      "report_sha256": "f344b98d9600d371fc00e0dfd871a4bf9197d0e598ee65ab2a90a4650773af03"
+    },
+    {
+      "artifact": "native-q8azh41o",
+      "passed": false,
+      "source_fingerprint": {
+        "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+        "sha256": "c250437cb12849be2142dfcdeb96d00d3ca40cb492b2f1445043afadb95f22ff",
+        "file_count": 425,
+        "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+      },
+      "seconds": 131.71,
+      "error": "RuntimeError: Guest fixture command failed",
+      "source_unchanged": true,
+      "iso_unchanged": true,
+      "capsule_unchanged": true,
+      "phases_observed": [],
+      "report_sha256": "c2dcf2e98697f4b10dd4c37f6235fb3e1a8bff46d7de580abefa51b32f790a49"
+    },
+    {
+      "artifact": "native-slrdw2ew",
+      "passed": false,
+      "source_fingerprint": {
+        "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+        "sha256": "322c7fe3ab02b1ddda6265136df64128b8b9c4071830b04baa30ecaf3fc2719b",
+        "file_count": 425,
+        "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+      },
+      "seconds": 108.45,
+      "error": "RuntimeError: Guest fixture command failed",
+      "source_unchanged": true,
+      "iso_unchanged": true,
+      "capsule_unchanged": true,
+      "phases_observed": [],
+      "report_sha256": "271edca95bda392d9050126742ee7cdba68448f903adf92acdc13cfe417507d1"
+    },
+    {
+      "artifact": "native-thr8ki8v",
+      "passed": false,
+      "source_fingerprint": {
+        "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+        "sha256": "4e1d3bc746cb1cbbc1145bca43eb80e7ea9c1c7eb6f732eb6addefff529699fe",
+        "file_count": 424,
+        "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+      },
+      "seconds": 79.44,
+      "error": "RuntimeError: Guest fixture command failed",
+      "source_unchanged": true,
+      "iso_unchanged": true,
+      "capsule_unchanged": true,
+      "phases_observed": [],
+      "report_sha256": "520a2d2a25376486b146f4593639a905f203859c84c77d395d855d84817bf4c4"
+    }
+  ],
+  "interrupted_verifier": {
+    "source_sha256": "01192b8b8633fa553f2df1d5baaae8be4c21cc123729d0085e95f7927a781fec",
+    "passed": false,
+    "reason": "Stopped its identified normal-user process tree before correcting the fixture; no passing report published."
+  }
+}

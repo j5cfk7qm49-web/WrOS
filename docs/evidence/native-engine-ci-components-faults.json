@@ -1,0 +1,314 @@
+{
+  "recorded_at_utc": "2026-10-28T18:00:25.616860+00:00",
+  "scope": "Actual non-root Debian cdebconf with private RAM confirmation markers; no target disk, user account or privileged live launcher",
+  "observation_only": false,
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "41f5d815e1bcf615f644e39c4cb95f6574dc511f538ba957f0a75c871fdb1da7",
+    "file_count": 425,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "module_sha256": "be37dee7f39730b6369b54f72ac83a1ff27f9d59bcea10fed9fd11a0ea2adf18",
+  "source_unchanged": true,
+  "cases": [
+    {
+      "case": "yes",
+      "passed": true,
+      "backend_exit": 0,
+      "synthetic_write_marker": true,
+      "back_marker": false,
+      "commands": [
+        "CAPB",
+        "TITLE",
+        "CAPB",
+        "DATA",
+        "DATA",
+        "DATA",
+        "SET",
+        "INPUT",
+        "GO",
+        "GET"
+      ],
+      "module_observed": true,
+      "timed_out": false,
+      "forced_child_cleanup": false,
+      "seconds": 0.004
+    },
+    {
+      "case": "no",
+      "passed": true,
+      "backend_exit": 0,
+      "synthetic_write_marker": false,
+      "back_marker": false,
+      "commands": [
+        "CAPB",
+        "TITLE",
+        "CAPB",
+        "DATA",
+        "DATA",
+        "DATA",
+        "SET",
+        "INPUT",
+        "GO",
+        "GET"
+      ],
+      "module_observed": true,
+      "timed_out": false,
+      "forced_child_cleanup": false,
+      "seconds": 0.004
+    },
+    {
+      "case": "back",
+      "passed": true,
+      "backend_exit": 0,
+      "synthetic_write_marker": false,
+      "back_marker": true,
+      "commands": [
+        "CAPB",
+        "TITLE",
+        "CAPB",
+        "DATA",
+        "DATA",
+        "DATA",
+        "SET",
+        "INPUT",
+        "GO"
+      ],
+      "module_observed": true,
+      "timed_out": false,
+      "forced_child_cleanup": false,
+      "seconds": 0.004
+    },
+    {
+      "case": "half-close",
+      "passed": true,
+      "backend_exit": 1,
+      "synthetic_write_marker": false,
+      "back_marker": false,
+      "commands": [
+        "CAPB",
+        "TITLE",
+        "CAPB",
+        "DATA",
+        "DATA",
+        "DATA",
+        "SET",
+        "INPUT",
+        "GO"
+      ],
+      "module_observed": true,
+      "timed_out": false,
+      "forced_child_cleanup": false,
+      "seconds": 0.013
+    },
+    {
+      "case": "truncated",
+      "passed": true,
+      "backend_exit": 1,
+      "synthetic_write_marker": false,
+      "back_marker": false,
+      "commands": [
+        "CAPB",
+        "TITLE",
+        "CAPB",
+        "DATA",
+        "DATA",
+        "DATA",
+        "SET",
+        "INPUT",
+        "GO"
+      ],
+      "module_observed": true,
+      "timed_out": false,
+      "forced_child_cleanup": false,
+      "seconds": 0.014
+    },
+    {
+      "case": "malformed",
+      "passed": true,
+      "backend_exit": 1,
+      "synthetic_write_marker": false,
+      "back_marker": false,
+      "commands": [
+        "CAPB",
+        "TITLE",
+        "CAPB",
+        "DATA",
+        "DATA",
+        "DATA",
+        "SET",
+        "INPUT",
+        "GO"
+      ],
+      "module_observed": true,
+      "timed_out": false,
+      "forced_child_cleanup": false,
+      "seconds": 0.013
+    },
+    {
+      "case": "status-suffix",
+      "passed": true,
+      "backend_exit": 1,
+      "synthetic_write_marker": false,
+      "back_marker": false,
+      "commands": [
+        "CAPB",
+        "TITLE",
+        "CAPB",
+        "DATA",
+        "DATA",
+        "DATA",
+        "SET",
+        "INPUT",
+        "GO"
+      ],
+      "module_observed": true,
+      "timed_out": false,
+      "forced_child_cleanup": false,
+      "seconds": 0.013
+    },
+    {
+      "case": "negative",
+      "passed": true,
+      "backend_exit": 1,
+      "synthetic_write_marker": false,
+      "back_marker": false,
+      "commands": [
+        "CAPB",
+        "TITLE",
+        "CAPB",
+        "DATA",
+        "DATA",
+        "DATA",
+        "SET",
+        "INPUT",
+        "GO"
+      ],
+      "module_observed": true,
+      "timed_out": false,
+      "forced_child_cleanup": false,
+      "seconds": 0.013
+    },
+    {
+      "case": "error-status",
+      "passed": true,
+      "backend_exit": 1,
+      "synthetic_write_marker": false,
+      "back_marker": false,
+      "commands": [
+        "CAPB",
+        "TITLE",
+        "CAPB",
+        "DATA",
+        "DATA",
+        "DATA",
+        "SET",
+        "INPUT",
+        "GO"
+      ],
+      "module_observed": true,
+      "timed_out": false,
+      "forced_child_cleanup": false,
+      "seconds": 0.013
+    },
+    {
+      "case": "nul",
+      "passed": true,
+      "backend_exit": 1,
+      "synthetic_write_marker": false,
+      "back_marker": false,
+      "commands": [
+        "CAPB",
+        "TITLE",
+        "CAPB",
+        "DATA",
+        "DATA",
+        "DATA",
+        "SET",
+        "INPUT",
+        "GO"
+      ],
+      "module_observed": true,
+      "timed_out": false,
+      "forced_child_cleanup": false,
+      "seconds": 0.013
+    },
+    {
+      "case": "crlf",
+      "passed": true,
+      "backend_exit": 1,
+      "synthetic_write_marker": false,
+      "back_marker": false,
+      "commands": [
+        "CAPB",
+        "TITLE",
+        "CAPB",
+        "DATA",
+        "DATA",
+        "DATA",
+        "SET",
+        "INPUT",
+        "GO"
+      ],
+      "module_observed": true,
+      "timed_out": false,
+      "forced_child_cleanup": false,
+      "seconds": 0.013
+    },
+    {
+      "case": "oversized",
+      "passed": true,
+      "backend_exit": 1,
+      "synthetic_write_marker": false,
+      "back_marker": false,
+      "commands": [
+        "CAPB",
+        "TITLE",
+        "CAPB",
+        "DATA",
+        "DATA",
+        "DATA",
+        "SET",
+        "INPUT",
+        "GO"
+      ],
+      "module_observed": true,
+      "timed_out": false,
+      "forced_child_cleanup": false,
+      "seconds": 0.013
+    },
+    {
+      "case": "write-failure",
+      "passed": true,
+      "backend_exit": 1,
+      "synthetic_write_marker": false,
+      "back_marker": false,
+      "commands": [
+        "CAPB"
+      ],
+      "module_observed": true,
+      "timed_out": false,
+      "forced_child_cleanup": false,
+      "seconds": 0.002
+    },
+    {
+      "case": "back-during-data",
+      "passed": true,
+      "backend_exit": 1,
+      "synthetic_write_marker": false,
+      "back_marker": false,
+      "commands": [
+        "CAPB",
+        "TITLE",
+        "CAPB",
+        "DATA"
+      ],
+      "module_observed": true,
+      "timed_out": false,
+      "forced_child_cleanup": false,
+      "seconds": 0.012
+    }
+  ],
+  "module_debug_formats_absent": true,
+  "passed": true
+}

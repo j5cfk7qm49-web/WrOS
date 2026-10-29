@@ -1,0 +1,17 @@
+{
+  "passed": false,
+  "scope": "Original failed local harness run. No passing integrated qualification is claimed by this receipt.",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "815ecb268c431849d0674402752dc2b3cb848cc6b479a6071362c1f3c3dce352",
+    "file_count": 439,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "report": "native-feature-runner-signal-failure.json",
+  "report_sha256": "60a6969c90e81cc83219f323494b90d84234e80481062c04f3c12e1a9e8b574e",
+  "failed_check": "python",
+  "observed_test": "test_live_reader_blocks_handoff_but_kernel_confirmed_exit_does_not",
+  "diagnosis": "The private unshare --fork runner inherited SIGTERM=SIG_IGN and SIGINT=SIG_IGN. Direct/default and no-fork probes measured SIGTERM=SIG_DFL. The unchanged lifecycle test passed with default termination in 0.009 seconds.",
+  "repair": "Omit --fork from the private mount/network namespace runner; assert default SIGTERM and nonignored SIGINT before qualification. No product or test source, timeout or assertion is changed.",
+  "reference": "https://manpages.debian.org/trixie/util-linux/unshare.1.en.html"
+}

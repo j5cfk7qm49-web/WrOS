@@ -1,0 +1,109 @@
+{
+  "recorded_at_utc": "2026-10-27T04:43:14.114402+00:00",
+  "scope": "Clean native Debian 13 ISO build, not installation/hardware/release qualification",
+  "inputs": {
+    "git_head": "59cc34feda0fbab7a0b15f75e32f64fe9a0d8aed",
+    "source_fingerprint": {
+      "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+      "sha256": "f53bc18017797f512e1d1fee5e691038228d6b3b1ba8dd3d6818dd5f671f3cf2",
+      "file_count": 268,
+      "scope": "Cargo.toml/lock, src, crates, assets, os scripts/config/systemd/tests; no generated evidence/docs/builds"
+    },
+    "build_input_sha256": {
+      "os/scripts/build-installer.sh": "a1c8d5295e0275f05e5f36b62de37de5f03d39ae634ae142d48ab022bca84f9b",
+      "os/scripts/install-files.sh": "cd5f1151b7cc2497d252a2848da4df11238060f6e52ece25a2a02cb5114c8729",
+      "tools/verify-debian-installer.py": "8a4c1316b30eb9e93073da5d4c5e640ff6c1bf420d94ce1b0b1db2468d435f81",
+      "tools/audit-installer-media.py": "f6400271822e6799c56a6530e4b084db4c40257fb17c72732e355c643e068484",
+      "tools/audit-wifi-image.py": "62b6bd5426dc2679fe27c1e4e8531851407b3eecc9728745e597fa0171bcd712",
+      "tools/stage-prose-runtime.py": "da698baf338be8235f24af6f9e0fb1ee36f0ee89cf5a0db5f473480245450cd9"
+    },
+    "binary_sha256": "4f2723aae6b54040a0a62275b3b4c180772f6c7bab52a1cffb451a2aedadca5b",
+    "runtime_marker_sha256": "6200a7a2fc15e900d5a53f0fd5326f4d0615129d234e30dff87c2615525d5e37"
+  },
+  "inputs_unchanged_after_build": true,
+  "iso_sha256": "6c3a66746b9bc94bff0b7917f79aa4a3aea71922c821ae3ab0568ec875fa4a56",
+  "iso_bytes": 1218756608,
+  "installed_stripped_binary_sha256": "af5219232a3820cd4e65ecd8085315ecd7d1c504a2570024784c2945388895cd",
+  "debian_installer_input_trust": {
+    "schema_version": 1,
+    "passed": true,
+    "origin": "Debian",
+    "codename": "trixie",
+    "release_sha256": "0584fba32e13e0ab8285fb16c27adea1ec03a73669c18702821094fd6ca86675",
+    "installer_sums_sha256": "31a1a4fc99c5b0a729d261f137cd7e1599bfa6f214f83fe4e596543d8ccf2dec",
+    "images": {
+      "cdrom/vmlinuz": {
+        "sha256": "2b2358b37674d2505350528875bb17afae2a36522a9e8a9417eaca65a7da0e08",
+        "bytes": 12142528
+      },
+      "cdrom/initrd.gz": {
+        "sha256": "8de544ab627ab794504c530c82de621814386b5b67a492f1e3133390c47ea933",
+        "bytes": 24361578
+      }
+    },
+    "chain": "Debian archive keyring -> gpgv InRelease -> SHA256SUMS -> kernel/initrd",
+    "wros_release_signature": false
+  },
+  "media_audit": {
+    "schema_version": 1,
+    "passed": true,
+    "installed_rootfs_wifi": {
+      "schema_version": 1,
+      "scope": "Installed image payload and retained notices; no physical radio test",
+      "packages": {
+        "firmware-ath9k-htc": "1.4.0-110-ge888634+dfsg1-0.1",
+        "firmware-atheros": "20250410-2",
+        "firmware-brcm80211": "20250410-2",
+        "firmware-iwlwifi": "20250410-2",
+        "firmware-mediatek": "20250410-2",
+        "firmware-realtek": "20250410-2",
+        "iw": "6.9-1",
+        "linux-image-amd64": "6.12.113-1",
+        "network-manager": "1.52.1-1",
+        "rfkill": "2.41.5-0+deb13u1",
+        "wireless-regdb": "2026.05.30-1~deb13u1",
+        "wpasupplicant": "2:2.10-24"
+      },
+      "firmware_payload": {
+        "firmware-iwlwifi": {
+          "file_count": 180,
+          "copyright_sha256": "f5d62266d99e91aeae9223a5b4f830ed5e917256672f50470ef868e0378ad6d8"
+        },
+        "firmware-realtek": {
+          "file_count": 144,
+          "copyright_sha256": "f5d62266d99e91aeae9223a5b4f830ed5e917256672f50470ef868e0378ad6d8"
+        },
+        "firmware-atheros": {
+          "file_count": 284,
+          "copyright_sha256": "f5d62266d99e91aeae9223a5b4f830ed5e917256672f50470ef868e0378ad6d8"
+        },
+        "firmware-ath9k-htc": {
+          "file_count": 2,
+          "copyright_sha256": "7b64be56ce49cd2bfb17d61b1d95f8fb9a5cb071e4d25b3822e1d66cfb575991"
+        },
+        "firmware-brcm80211": {
+          "file_count": 132,
+          "copyright_sha256": "f5d62266d99e91aeae9223a5b4f830ed5e917256672f50470ef868e0378ad6d8"
+        },
+        "firmware-mediatek": {
+          "file_count": 119,
+          "copyright_sha256": "f5d62266d99e91aeae9223a5b4f830ed5e917256672f50470ef868e0378ad6d8"
+        }
+      },
+      "connection_tool": "nmtui",
+      "physical_adapters_verified": []
+    },
+    "installer_firmware_packages": [
+      "firmware-ath9k-htc",
+      "firmware-atheros",
+      "firmware-brcm80211",
+      "firmware-iwlwifi",
+      "firmware-mediatek",
+      "firmware-realtek"
+    ],
+    "vm_profile_absent": true,
+    "physical_hardware_verified": false,
+    "installation_verified": false
+  },
+  "production_release_qualified": false
+}

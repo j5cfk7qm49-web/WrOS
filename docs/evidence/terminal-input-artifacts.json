@@ -1,0 +1,14 @@
+{
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "4dfdd63079e7e93dc38d40bee749fb0c7fa4389728512d7e55112d29a82e167c",
+    "file_count": 413,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "baseline_frontend_binary_sha256": "386759d90b756e898b39f677e8583471a73f530ae5c2aa51ad466aeed62ddeb2",
+  "patched_frontend_binary_sha256": "1aa119183c47bac156746afac4b65ec453dc9bfd8bc07b83fc0cca750cf62bcb",
+  "private_guest_fixture": "/home/builder/terminal-console-lock-vm/run-y31e37i6",
+  "fixture_zip_sha256": "20948330df3538a4e8e0038f5aa2c113c7f5ae8e25110e98e36e14d91ecfb05b",
+  "guest_result_sha256": "12702ed61f72b097e38c9b5c940e4f14eafa9ce0684458bab10820622f6ee890",
+  "scope": "Private marked no-NIC COW guest and constant synthetic PTY probes; no physical device, suspend or live-install qualification."
+}

@@ -1,0 +1,26 @@
+{
+  "passed": false,
+  "scope": "First actual live image composed, but final encrypted-target offline media audit failed. No boot or installation acceptance.",
+  "build_commit": "c68e8db467d91480deed68144ce32579af9cda7e",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "b124affa1b128abc97ff22717386ca91346f5cd99cbc9a3c861c06ad6a399ebc",
+    "file_count": 427,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "image_composed": true,
+  "media_audit_passed": false,
+  "installed_encryption_packages": {
+    "cryptsetup": "2:2.7.5-2",
+    "cryptsetup-bin": "2:2.7.5-2",
+    "cryptsetup-initramfs": "2:2.7.5-2",
+    "dmsetup": "2:1.02.205-2",
+    "lvm2": "2.03.31-2",
+    "systemd-cryptsetup": "257.13-1~deb13u1"
+  },
+  "iso_bytes": 1228177408,
+  "iso_sha256": "90b89d54d79f3790119592d0f7108a03ac8e2650737c543bb7c40d7277edaede",
+  "audit_sha256": "4dc9205b075ddc30b4c72f561d63efce35e0f19e72cba4a7a35d5229e0bd4aa1",
+  "recipe_sha256": "df3b6b05f252b1f0f528586f84882f175c8819176773e18b8275a9eca21b9843",
+  "error": "installer media missing matching offline encryption packages: systemd-cryptsetup"
+}

@@ -1,0 +1,28 @@
+{
+  "passed": true,
+  "scope": "Original encrypted-media package/payload software checkpoint only. The composed image failed its offline archive gate; these results do not cover the later explicit binary package list, boot or installation.",
+  "implementation_commit": "c68e8db467d91480deed68144ce32579af9cda7e",
+  "tested_merge": "8df4c911a70c446d48edbd34b13b4f8efc974b8e",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "b124affa1b128abc97ff22717386ca91346f5cd99cbc9a3c861c06ad6a399ebc",
+    "file_count": 427,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "local_and_ci_verifier_inputs_match": true,
+  "run_id": 40760897406,
+  "job_id": 123072212671,
+  "artifact_id": 12849235511,
+  "artifact_zip_sha256": "faaa2add9ce830d2409b85745bf0e116cbda74970294800af24b9d73c57a74b9",
+  "ci_report_sha256": "975b68ee2a3464de63c286933529fe904a4f12b48c89dd5aa190c753cd10700f",
+  "local_report_sha256": "e533ed6c54a405f9fd80bf1da687c68af3397f19df70a9d1a7e1c55a9ff49ae2",
+  "local_rust_per_configuration": [
+    973,
+    973
+  ],
+  "python": 165,
+  "python_skips": 0,
+  "local_gates": 21,
+  "ci_gates": 20,
+  "actual_image_audit_passed": false
+}

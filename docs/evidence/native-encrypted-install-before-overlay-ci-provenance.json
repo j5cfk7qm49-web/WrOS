@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "scope": "Earlier native passphrase fixture software before the overlay media view and stronger actual-root proof; no installation or boot pass.",
+  "run_url": "https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40787611035",
+  "run_id": 40787611035,
+  "job_id": 123164635005,
+  "artifact_id": 12860920305,
+  "artifact_sha256": "e5494e79d5a7c9237d1ca7a2e8c431f9ca49ac3b571f6851e0357d83429a5d90",
+  "tested_merge": "7cac00cd2ad74345d2198a9e1fa9c5984bd821e7",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "a076c0fac220465e6a1a138227e73b3d9adaa808a4736727d261d11ad7b2cf1c",
+    "file_count": 431,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "report_sha256": "f9d99f9fdf972f0270c533d350189e9f61fa2d5baa067dded6ea8091657f40f5",
+  "report": "native-encrypted-install-before-overlay-ci.json"
+}

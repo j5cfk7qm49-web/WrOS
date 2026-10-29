@@ -1,15 +1,15 @@
 ┌ Story Spark · offline, non-AI ───────────────────────────────────────────────────────────────────┐
 │  Status: Spark save · notes/sparks/r-0000000000000006.md · original scene preserved              │
 │  1047 original plots / 84 exercises · static offline selection                                   │
-│  r-0000000000000006 · Combined · 2026-10-26 · Etc/UTC                                            │
-│  PLOT [wd-p-0759] · learning · level 1 · suggested 20 min                                        │
-│  Two people agree to communicate disagreement without sarcasm. The person who uses humor to make │
-│  difficult feelings speakable becomes quiet, and the other must help build a new language rather │
-│  than treating silence as improvement.                                                           │
-│  EXERCISE [wd-x-0076] · formal · level 3 · suggested 30 min                                      │
-│  Write the same small decision as a list, a letter, and a scene. Preserve the practical facts in │
-│  all three versions. Compare what each form lets a speaker omit, then choose one omission worth  │
-│  exploring further.                                                                              │
+│  r-0000000000000006 · Combined · 2026-10-29 · Etc/UTC                                            │
+│  PLOT [wd-p-0041] · reciprocity · level 2 · suggested 20 min                                     │
+│  After losing her job, a woman accepts meals from neighbors she once helped through a mutual-aid │
+│  fund. She discovers that one donor is borrowing to maintain the appearance of repayment, and    │
+│  stopping the exchange would publicly reveal the debt she wanted to keep private.                │
+│  EXERCISE [wd-x-0019] · voice · level 1 · suggested 15 min                                       │
+│  Write a narrator explaining something they have explained too often. Let rhythm and selection   │
+│  show both expertise and impatience. Add one new detail that forces the explanation to change    │
+│  rather than simply become more irritated.                                                       │
 │  Work mode: Drafting · creative completion is self-reported, not automatically scored.           │
 │  ★ Favorited; retained separately from history.                                                  │
 │  6 history / 128 · 1 favorites / 64 · 0 dismissals / 128 · 12-result recent window               │

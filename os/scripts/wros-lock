@@ -1,0 +1,266 @@
+#!/usr/bin/python3 -I
+"""Fixed local-console handoff to Debian openvt/vlock; no password handling."""
+import ctypes
+import fcntl
+import os
+from pathlib import Path
+import resource
+import select
+import stat
+import struct
+import subprocess
+import sys
+import termios
+import time
+
+VT_GETMODE, VT_GETSTATE = 0x5601, 0x5603
+ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8', 'LC_ALL': 'C.UTF-8',
+       'HOME': '/nonexistent', 'TERM': 'linux'}
+PAM = ('# WrOS existing-session unlock; authentication is performed only by Debian vlock.\n'
+       'auth requisite pam_succeed_if.so quiet uid > 0\n@include common-auth\n')
+
+
+def require(condition):
+    if not condition:
+        raise ValueError('console lock precondition failed')
+
+
+def trusted_file(path, executable=False):
+    info = Path(path).stat()
+    require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022)
+    require(not executable or info.st_mode & 0o111)
+
+
+def session_allowed(values, uid):
+    return all(values.get(key) == value for key, value in {
+        'User': str(uid), 'Active': 'yes', 'Remote': 'no', 'TTY': 'tty1',
+        'VTNr': '1', 'Seat': 'seat0', 'Type': 'tty', 'Class': 'user'}.items())
+
+
+def account_name(uid, passwd):
+    names = []
+    for line in passwd.splitlines():
+        fields = line.split(':')
+        if len(fields) == 7 and fields[2] == str(uid):
+            require(fields[0] and len(fields[0]) <= 64 and fields[0][0].isalpha()
+                    and fields[0].isascii() and all(c.isalnum() or c in '_-.' for c in fields[0])
+                    and not fields[6].endswith(('/nologin', '/false')))
+            names.append(fields[0])
+    require(len(names) == 1)
+    return names[0]
+
+
+def fixed_command(username):
+    environment = ENV | {'USER': username,
+        'VLOCK_ALL_MESSAGE': '\033[2J\033[3J\033[HWrOS - writing session locked\nPress Enter to unlock.'}
+    return ['/usr/bin/openvt', '-c', '8', '-s', '-w', '--',
+            '/usr/sbin/vlock-main', 'all', 'nosysrq'], environment
+
+
+def query(arguments):
+    reply = subprocess.run(arguments, stdin=subprocess.DEVNULL, capture_output=True,
+                           env=ENV, timeout=5, check=True)
+    require(len(reply.stdout) <= 8192 and len(reply.stderr) <= 8192)
+    return reply.stdout.decode('ascii').strip()
+
+
+def caller_session(parent):
+    library = ctypes.CDLL('libsystemd.so.0')
+    library.sd_pid_get_session.argtypes = [ctypes.c_int, ctypes.POINTER(ctypes.c_void_p)]
+    library.sd_pid_get_session.restype = ctypes.c_int
+    pointer = ctypes.c_void_p()
+    require(library.sd_pid_get_session(parent, ctypes.byref(pointer)) >= 0 and pointer.value)
+    try:
+        name = ctypes.string_at(pointer).decode('ascii')
+        require(0 < len(name) <= 64 and name.isalnum())
+        return name
+    finally:
+        libc = ctypes.CDLL(None)
+        libc.free.argtypes = [ctypes.c_void_p]
+        libc.free(pointer)
+
+
+def validate_caller():
+    require(os.geteuid() == 0 and len(sys.argv) == 1)
+    value = os.environ.get('PKEXEC_UID', '')
+    require(value.isascii() and value.isdigit() and 0 < int(value) < 2**31)
+    uid, parent = int(value), os.getppid()
+    require(parent > 1 and not Path('/etc/writingdeck/VM-DEMO-ONLY').exists()
+            and not Path('/run/wros-live/session.json').exists()
+            and not Path('/run/live/medium/live/filesystem.squashfs').is_file())
+    for fd in (0, 1, 2):
+        require(os.isatty(fd) and os.fstat(fd).st_rdev == os.makedev(4, 1))
+    trusted_file('/usr/bin/grimoire', True)
+    require(os.path.samefile(f'/proc/{parent}/exe', '/usr/bin/grimoire'))
+    status = Path(f'/proc/{parent}/status').read_text()
+    users = next(line.split()[1:] for line in status.splitlines() if line.startswith('Uid:'))
+    require(users == [str(uid)] * 4)
+    sid = caller_session(parent)
+    fields = query(['/usr/bin/loginctl', '--no-pager', 'show-session', sid,
+        '-p', 'User', '-p', 'Active', '-p', 'Remote', '-p', 'TTY', '-p', 'VTNr',
+        '-p', 'Seat', '-p', 'Type', '-p', 'Class'])
+    require(session_allowed(dict(line.split('=', 1) for line in fields.splitlines()), uid))
+    passwd = Path('/etc/passwd').read_bytes()
+    require(len(passwd) <= 1024 * 1024)
+    username = account_name(uid, passwd.decode('utf-8'))
+    require(query(['/usr/bin/passwd', '-S', username]).split()[1] == 'P')
+    require(query(['/usr/bin/passwd', '-S', 'root']).split()[1] == 'L')
+    for name in ('getty@tty8.service', 'autovt@tty8.service'):
+        require(os.readlink('/etc/systemd/system/' + name) == '/dev/null')
+    for path in ('/usr/bin/openvt', '/usr/sbin/vlock-main',
+                 '/usr/bin/systemd-run', '/usr/bin/chvt',
+                 '/usr/lib/vlock/modules/all.so', '/usr/lib/vlock/modules/nosysrq.so',
+                 '/etc/pam.d/vlock'):
+        trusted_file(path, executable=path != '/etc/pam.d/vlock')
+    trusted_file('/usr/lib/x86_64-linux-gnu/security/pam_succeed_if.so')
+    require(Path('/etc/pam.d/vlock').read_text() == PAM)
+    require(os.getppid() == parent)
+    return username
+
+
+def console_state():
+    return struct.unpack('HHH', fcntl.ioctl(0, VT_GETSTATE, bytes(6)))
+
+
+def ready(child):
+    # Do not open tty8 before openvt has acquired it: that would make the
+    # maintained allocator correctly reject an already-used console.
+    children = Path(f'/proc/{child.pid}/task/{child.pid}/children').read_text().split()
+    for pid in children:
+        if os.path.samefile(f'/proc/{pid}/exe', '/usr/sbin/vlock-main'):
+            fd = os.open('/dev/tty8', os.O_RDONLY | os.O_NOCTTY | os.O_CLOEXEC)
+            try:
+                mode = struct.unpack('BBhhh', fcntl.ioctl(fd, VT_GETMODE, bytes(8)))[0]
+                return (mode == 1 and console_state()[0] == 8
+                        and not termios.tcgetattr(fd)[3] & termios.ECHO
+                        and Path('/proc/sys/kernel/sysrq').read_text().strip() == '0')
+            finally:
+                os.close(fd)
+    return False
+
+
+def secure_process():
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+    libc = ctypes.CDLL(None)
+    require(libc.prctl(4, 0, 0, 0, 0) == 0)  # PR_SET_DUMPABLE
+
+
+def birth(pid):
+    return Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()[19]
+
+
+def systemd_command(uid, parent, started, sysrq):
+    require(type(uid) is int and 0 < uid < 2**31 and type(parent) is int and parent > 1)
+    require(isinstance(started, str) and started.isascii() and started.isdigit() and len(started) <= 32)
+    require(type(sysrq) is int and 0 <= sysrq < 2**32)
+    return ['/usr/bin/systemd-run', '--quiet', '--wait', '--collect', '--service-type=exec',
+            '--unit=wros-console-lock', '--property=KillMode=control-group',
+            '--property=TimeoutStopSec=5s', '--property=LimitCORE=0',
+            '--property=ExecStopPost=/usr/libexec/wros-lock cleanup ' + str(sysrq),
+            '/usr/libexec/wros-lock', 'worker', str(uid), str(parent), started]
+
+
+def client():
+    validate_caller()
+    secure_process()
+    directory = Path('/run/wros-lock')
+    directory.mkdir(mode=0o700, exist_ok=True)
+    info = directory.lstat()
+    require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and info.st_mode & 0o077 == 0)
+    lock = os.open(directory / 'owner', os.O_CREAT | os.O_NOFOLLOW | os.O_RDWR | os.O_CLOEXEC, 0o600)
+    with os.fdopen(lock, 'w'):
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        active, _, used = console_state()
+        require(active == 1 and not used & (1 << 8))
+        parent, uid = os.getppid(), int(os.environ['PKEXEC_UID'])
+        require(parent > 1)
+        arguments = systemd_command(uid, parent, birth(parent), int(Path('/proc/sys/kernel/sysrq').read_text()))
+        # Maintained systemd owns the root service cgroup and its exit status.
+        # No custom request files, socket protocol, path unit or credential IPC.
+        return subprocess.run(arguments, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL, env=ENV).returncode
+
+
+def worker(uid, parent, started):
+    secure_process()
+    uid, parent = int(uid), int(parent)
+    require(0 < uid < 2**31 and parent > 1 and started.isascii() and started.isdigit())
+    parent_fd = os.pidfd_open(parent)
+    try:
+        require(birth(parent) == started and os.path.samefile(f'/proc/{parent}/exe', '/usr/bin/grimoire'))
+        status = Path(f'/proc/{parent}/status').read_text()
+        users = next(line.split()[1:] for line in status.splitlines() if line.startswith('Uid:'))
+        require(users == [str(uid)] * 4)
+        sid = caller_session(parent)
+        fields = query(['/usr/bin/loginctl', '--no-pager', 'show-session', sid,
+            '-p', 'User', '-p', 'Active', '-p', 'Remote', '-p', 'TTY', '-p', 'VTNr',
+            '-p', 'Seat', '-p', 'Type', '-p', 'Class'])
+        require(session_allowed(dict(line.split('=', 1) for line in fields.splitlines()), uid))
+        username = account_name(uid, Path('/etc/passwd').read_text())
+        require(query(['/usr/bin/passwd', '-S', username]).split()[1] == 'P')
+        require(query(['/usr/bin/passwd', '-S', 'root']).split()[1] == 'L')
+        require(Path('/etc/pam.d/vlock').read_text() == PAM)
+        fd = os.open('/dev/tty1', os.O_RDWR | os.O_NOCTTY | os.O_CLOEXEC)
+        os.dup2(fd, 0)
+        if fd != 0:
+            os.close(fd)
+        active, _, used = console_state()
+        require(active == 1 and not used & (1 << 8))
+        os.chmod('/dev/tty8', 0o600)
+        arguments, environment = fixed_command(username)
+        child = subprocess.Popen(arguments, stdin=None, stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL, env=environment)
+        acquired = False
+        deadline = time.monotonic() + 8
+        while child.poll() is None:
+            if select.select([parent_fd], [], [], 0)[0]:
+                return 1
+            try:
+                acquired = acquired or ready(child)
+            except (OSError, ValueError):
+                pass
+            if not acquired and time.monotonic() >= deadline:
+                return 1
+            time.sleep(0.05)
+        # openvt propagates normal child exits and maps signal death to 127.
+        # vlock returns zero only after PAM success, SIGTERM returns one.
+        return 0 if acquired and child.returncode == 0 and not select.select([parent_fd], [], [], 0)[0] else 1
+    finally:
+        os.close(parent_fd)
+
+
+def cleanup(previous):
+    previous = int(previous)
+    require(0 <= previous < 2**32)
+    # systemd has stopped the service cgroup before ExecStopPost. Use kbd's
+    # maintained VT switch utility; never reset a live unrelated VT owner.
+    fd = os.open('/dev/tty1', os.O_RDWR | os.O_NOCTTY | os.O_CLOEXEC)
+    try:
+        active = struct.unpack('HHH', fcntl.ioctl(fd, VT_GETSTATE, bytes(6)))[0]
+        if active == 8:
+            query(['/usr/bin/chvt', '1'])
+            require(struct.unpack('HHH', fcntl.ioctl(fd, VT_GETSTATE, bytes(6)))[0] == 1)
+        Path('/proc/sys/kernel/sysrq').write_text(str(previous))
+    finally:
+        os.close(fd)
+    return 0
+
+
+def main():
+    if len(sys.argv) in (3, 5) and sys.argv[1] in ('worker', 'cleanup'):
+        require(os.geteuid() == 0 and os.getppid() == 1 and 'PKEXEC_UID' not in os.environ)
+        if len(sys.argv) == 5 and sys.argv[1] == 'worker':
+            return worker(*sys.argv[2:])
+        require(len(sys.argv) == 3 and sys.argv[1] == 'cleanup')
+        return cleanup(sys.argv[2])
+    return client()
+
+
+if __name__ == '__main__':
+    try:
+        result = main()
+    except Exception:
+        result = 1
+    if result:
+        print('WrOS console lock unavailable; the writing session will close safely.', file=sys.stderr)
+    raise SystemExit(result)

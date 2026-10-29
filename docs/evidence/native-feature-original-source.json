@@ -1,0 +1,15 @@
+{
+  "base_commit": "81af0ecf9e682116783ecc98c9fe81cdd99227ae",
+  "file_sha256": {
+    "crates/grimoire-core/src/annotations.rs": "3ca6939128795124c2ddab370e18151568ef527d0f23d4c4f6e4fc9c6c32d346",
+    "crates/grimoire-core/src/continuity.rs": "761ada103cdffeea542710ed7efc530327d3ce2538bccbf2465b91dbac190dec",
+    "crates/grimoire-core/src/footnotes.rs": "800820303cba6dcbdd22a94d8af2120b2b4a7b365bacdfbc299d65ae3c48a579",
+    "crates/grimoire-core/src/milestones.rs": "ea1e0716ada5346adce2c47eaf7103b6c6b81ba4d17bdeed44af94eac0721385",
+    "crates/grimoire-core/src/preflight.rs": "d6d06a605a48307c28747151e144336b6c1031aa5962e25c74f15335fa17fa24",
+    "crates/grimoire-core/src/speech.rs": "4f3f733c3fb8a1096aeff37721f792e5bf034ca4abe39e822299788cf6326f3b",
+    "crates/grimoire-core/src/lib.rs": "873821f12f4f9188741926cedb98950bc06e7ee130ba498e052f64ba22ee1d1f",
+    "crates/writingdeck-sys/src/lib.rs": "9e04fa0bc6e8797a111884f951d1a60e809251b9dea9270fec145d5af2acac8f",
+    "crates/writingdeck-sys/src/linux.rs": "ba740e5a7dc25cbcfd8e2af10172810dc07912d58cd09de579268bccd1ac0715",
+    "src/app/shell.rs": "56e9293abd05765c93d2f4bd82f70012fd613358f06b2aac36ac5dd2ecb5473c"
+  }
+}

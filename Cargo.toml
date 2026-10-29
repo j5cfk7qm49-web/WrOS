@@ -19,6 +19,7 @@ path = "src/main.rs"
 [dependencies]
 grimoire-core = { path = "crates/grimoire-core", version = "0.7" }
 writingdeck-sys = { path = "crates/writingdeck-sys" }
+wros-shell = { path = "crates/wros-shell" }
 anyhow = "1.0.104"
 chrono = "0.4.45"
 # Same cpal that rodio already pulls in; used directly for loopback capture.
@@ -26,12 +27,17 @@ cpal = { version = "0.17", optional = true }
 ratatui = "0.30.2"
 rodio = { version = "0.22.2", default-features = false, features = ["playback", "symphonia-mp3", "symphonia-flac", "symphonia-vorbis", "symphonia-wav", "symphonia-pcm"], optional = true }
 serde_json = "1.0.151"
+serde = { version = "1.0", features = ["derive"] }
 ureq = { version = "3.4.1", features = ["json"] }
 
 # Saving on the way out when the terminal window is closed or the machine asks
 # the process to stop: SIGHUP/SIGTERM on Unix, the console close event on Windows.
 [target.'cfg(unix)'.dependencies]
 signal-hook = "0.3"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+wros-input = { path = "crates/wros-input" }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Console"] }
@@ -88,7 +94,11 @@ default = ["audio"]
 audio = ["dep:rodio", "dep:cpal"]
 
 [workspace]
-members = ["crates/grimoire-core", "crates/grimoire-app", "crates/writingdeck-sys"]
+members = ["crates/grimoire-core", "crates/grimoire-app", "crates/writingdeck-sys", "crates/wros-shell", "crates/wros-greeter", "crates/wros-input", "crates/wros-installer"]
+exclude = ["crates/crossterm-upstream"]
+
+[patch.crates-io]
+crossterm = { path = "crates/crossterm-upstream" }
 
 # One version for the terminal app and the crates under it; bump it here.
 [workspace.package]

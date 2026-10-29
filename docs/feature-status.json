@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "as_of": "2026-10-26",
+  "as_of": "2026-10-28",
   "release": "0.1.0-dev foundation + M3b + M4 + M5 + M6 + M7a + M7b software",
   "features": [
     {
@@ -86,26 +86,26 @@
     {
       "area": "OS",
       "capability": "Production disk/LUKS/account/Wi-Fi first-run installer",
-      "status": "Planned",
-      "verification": "None",
+      "status": "In progress",
+      "verification": "Current native ISO normal installation passed 1263.38 seconds; separate UEFI/native PAM/process/hash/sleep-denial/logout retry passed 97.76 seconds; original failed probes retained",
       "hardware_verified": false,
-      "detail": "Delegate storage/authentication to upstream Debian installer; no physical install performed"
+      "detail": "Current native image has no autologin; exact runtime hashes match; LUKS/recovery, broader layout/wrong-disk/interruption, secure lock and physical gates remain open"
     },
     {
       "area": "OS",
       "capability": "Authenticated boot + console screen lock / lock before suspend",
-      "status": "Planned",
-      "verification": "None",
+      "status": "In progress",
+      "verification": "Real UEFI/PAM wrong-password rejection, UID-1000 login, sudo and tty1 writing UI",
       "hardware_verified": false,
-      "detail": "Critical release gate; VM autologin must not ship"
+      "detail": "Native authenticated boot and manual protected tty8/PAM lock have separate software/guest qualification; lock-before-suspend and physical resume remain unqualified"
     },
     {
       "area": "OS",
       "capability": "Authenticated tty2 maintenance and usable recovery boot",
       "status": "In progress",
-      "verification": "Upstream unit structure + docs only",
+      "verification": "Fixture serial PAM login as UID 1000; tty2/encrypted recovery still pending",
       "hardware_verified": false,
-      "detail": "Normal Debian account required; demo passwords locked, so usable recovery not certified"
+      "detail": "Normal installer account uses authenticated sudo; demo accounts remain locked; usable production recovery not certified"
     },
     {
       "area": "OS",
@@ -145,7 +145,7 @@
       "status": "Tested",
       "verification": "Typed command/unit tests",
       "hardware_verified": false,
-      "detail": "Actual radio/enrollment unverified; scan truncation still open; nmtui fallback"
+      "detail": "Actual radio/native enrollment unverified; scan truncation open; nmtui is emergency maintenance only"
     },
     {
       "area": "System",
@@ -165,19 +165,27 @@
     },
     {
       "area": "System",
-      "capability": "Confirmed power requests after successful manuscript save",
+      "capability": "Confirmed shutdown/restart after durable saves and conflict review",
       "status": "Tested",
-      "verification": "TUI confirmation + command construction tests",
+      "verification": "17 backend, 11 Settings/controller, retained async System and four-size PTY tests; both Clippys; no real power operation",
       "hardware_verified": false,
-      "detail": "Physical suspend/restart/shutdown deliberately not run"
+      "detail": "Suspend unavailable until secure locking; dirty buffers, stale trees and conflicts block shutdown/restart; physical power operations not run"
     },
     {
       "area": "System",
-      "capability": "Clock/timezone changes, sound/volume, updater/restore panels",
+      "capability": "Manual clock/NTP changes, sound/volume, updater/restore panels",
       "status": "Planned",
       "verification": "None",
       "hardware_verified": false,
-      "detail": "Read-only status is not full settings coverage"
+      "detail": "Timezone selection is separate; these controls remain unavailable"
+    },
+    {
+      "area": "System",
+      "capability": "Native searchable timezone selection",
+      "status": "Tested",
+      "verification": "Debian CI: 963 Rust/configuration, 108 Python/zero skips, both Clippys and 17 gates; 20 focused backend tests, four-size controller/editor PTY and real guest passed 480.58 seconds",
+      "hardware_verified": false,
+      "detail": "Existing timedated/polkit action, Cancel-default confirmation, validated catalog and verified readback; active/local permissions and original editor context tested; no clock/RTC/NTP grant"
     },
     {
       "area": "Keyboard",
@@ -562,6 +570,85 @@
       "verification": "Actual staged-image package/firmware/notice/module/nmtui audit plus missing-payload policy tests",
       "hardware_verified": false,
       "detail": "Intel, Realtek, Qualcomm/Atheros, Broadcom/Cypress brcm80211 and MediaTek packaged for supported kernel drivers; production installer media must retain this set; physical radio acceptance pending"
+    },
+    {
+      "area": "Shell",
+      "capability": "Shared WrOS navigation, presentation, notifications and UI preferences",
+      "status": "Tested",
+      "verification": "Five shared component tests; fresh 922 Rust/configuration, 76 Python and 18 software gates",
+      "hardware_verified": false,
+      "detail": "No editor/authentication/privilege dependencies; bounded history and guarded per-user presentation state"
+    },
+    {
+      "area": "Shell",
+      "capability": "Unified Writing, Interface, System and Accounts settings",
+      "status": "In progress",
+      "verification": "Five actual retained-editor UI tests plus real four-size PTY cursor/undo/settings restart tests passed",
+      "hardware_verified": false,
+      "detail": "Initial categories and warm-screen software qualified; enrollment, cloud, greeter, recovery and physical display qualification unfinished"
+    },
+    {
+      "area": "OS",
+      "capability": "Native WrOS greeter, account switching and coherent locked session",
+      "status": "In progress",
+      "verification": "Debian CI: 959 Rust/configuration, 99 Python/zero skips, both Clippys and 17 gates; four standalone input-ownership scenarios/configuration; current PAM/reader guest passed 376.22 seconds",
+      "hardware_verified": false,
+      "detail": "Native login/layout/account switching and reader ownership qualified; separate manual-lock guest passes system-service ownership, authenticated unlock and process-death recovery; sleep and physical gates remain issues 27 and 4"
+    },
+    {
+      "area": "Accounts",
+      "capability": "Native optional Google account linking and protected refresh credentials",
+      "status": "Planned",
+      "verification": "Provider flow/scope audit; no client registration or real account used",
+      "hardware_verified": false,
+      "detail": "Encrypted per-user credential service; no mandatory cloud or deprecated OOB flow; issue 28"
+    },
+    {
+      "area": "Storage",
+      "capability": "Native Google Drive browsing, cache status and explicit local materialization",
+      "status": "Planned",
+      "verification": "FUSE/VFS limitations evaluated; no mount or remote operation performed",
+      "hardware_verified": false,
+      "detail": "Active manuscripts remain local; mounting, conflict-safe sync and verified backup are distinct; issues 29 and 10"
+    },
+    {
+      "area": "System",
+      "capability": "Warm screen and blue-light filter with very warm temperature controls",
+      "status": "In progress",
+      "verification": "928 Rust/configuration, 96 Python/zero skips, both Clippys and 18 gates; real VM driver refusal, polkit and native UI passed",
+      "hardware_verified": false,
+      "detail": "1000–6500K, initial 2200K, strength/Off, calibration retention and independent preview rollback implemented; physical and transition qualification open; issue 30"
+    },
+    {
+      "area": "OS",
+      "capability": "Manual protected local-console lock",
+      "status": "Tested",
+      "verification": "Debian CI: 964 Rust/configuration, 120 Python/zero skips, both Clippys and 17 gates; eleven focused gates and real five-cycle guest passed 239.11 seconds",
+      "hardware_verified": false,
+      "detail": "Maintained vlock/PAM and systemd cgroup lifecycle; hidden credentials, fresh reader, original caret and editor/locker/client/worker death recovery tested; physical security and suspend/resume remain unqualified"
+    },
+    {
+      "area": "OS",
+      "capability": "Live WrOS installer TUI over Debian installation components",
+      "status": "In progress",
+      "verification": "Current Debian CI: 973 Rust/configuration, 165 Python/zero skips, both Clippys and 20 gates; six matching offline encryption archives/payloads, 11 focused checks, three actual live modes and shipped-frontend 16 GiB refusal guest passed 484.97 seconds",
+      "hardware_verified": false,
+      "detail": "Shared Grimoire presentation, authenticated matching backend/pool and corrected live ISO qualified for live startup and default-No refusal. QA root launcher only; production handoff/completion, post-write LUKS/LVM cleanup and full encrypted target install/boot remain open"
+    },
+    {
+      "area": "System",
+      "capability": "Terminal multi-read input and preserved reader ownership",
+      "status": "Tested",
+      "verification": "Debian CI: 972 Rust/configuration, 124 Python/zero skips, both Clippys and 20 gates; full local 21 gates; four-size long-secret/typeahead PTYs, real Debian 13/14 cases and protected-lock guest passed 228.09 seconds",
+      "detail": "Locked Crossterm parser/API retained with exact upstream MIT source, 77-file audit and explicit Linux readiness patch; flags, fresh readers and process-death recovery preserved; no clipboard, suspend or physical claim"
+    },
+    {
+      "area": "OS",
+      "capability": "Grimoire live-session startup and immutable installed authentication",
+      "status": "Tested",
+      "verification": "Debian CI: 973 Rust/configuration, 135 Python/zero skips, both Clippys and 20 gates; full local 21 gates; compressed ISO audit, three diskless live boot/UI/shutdown modes and installed-lock guest (347.59 seconds) passed",
+      "hardware_verified": false,
+      "detail": "Maintained live-config/user-setup with temporary runtime greetd entry; all live boot entries and omitted-flag role guard verified; public personal lock unavailable. Native privileged installer, new target install/reboot, UEFI and physical gates remain open"
     }
   ]
 }

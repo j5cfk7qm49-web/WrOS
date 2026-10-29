@@ -1,0 +1,13 @@
+{
+  "scope": "Same immutable source, separately identified executable build contexts; no hash is substituted for another.",
+  "full_verifier_executable_sha256": "9443db46d4d87a399d5f67ebbb71d4ac23507b0d653e47f400ef0df365081904",
+  "observed_guest_executable_sha256": "f7b391c6d717b54becb3297ef254cfd9c445b0cee8ef7bde8ef6cf2cff8eb93c",
+  "current_standalone_executable_sha256": "f7b391c6d717b54becb3297ef254cfd9c445b0cee8ef7bde8ef6cf2cff8eb93c",
+  "standalone_reproduces_guest": true,
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "8128d68daebc3c13e1c39406a74ac948a3eec7928a6ea319e13cf8755e34fa26",
+    "file_count": 427,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  }
+}

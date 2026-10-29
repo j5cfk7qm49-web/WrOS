@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "scope": "Earlier fixture checkpoint before the native passphrase adapter; not current adapter source or a VM installation pass.",
+  "run_url": "https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40786240100",
+  "run_id": 40786240100,
+  "job_id": 123160021752,
+  "artifact_id": 12858974975,
+  "artifact_sha256": "391b1e1fdcfd647cd46df576c544a928d3f1ccdf2fbea00c2f29a99a8cf5de23",
+  "tested_merge": "3f23cb21babe9542204ea680132054bf4d04b5a6",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "209c94ed52c50b43f5e354c4025cd4d77f5855436a428a0e0843c9a106861419",
+    "file_count": 430,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "report_sha256": "2cca573a3a635f26b56e7fdc08db5f5f9ce5f326ed9062535ac7223c56aa7769",
+  "report": "native-encrypted-install-before-adapter-ci.json"
+}

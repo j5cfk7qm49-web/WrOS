@@ -38,6 +38,7 @@ pub(crate) mod overlays;
 pub(crate) mod pins;
 pub(crate) mod productivity;
 pub(crate) mod prose_dashboard;
+pub(crate) mod shell;
 pub(crate) mod spark;
 pub(crate) mod workflow;
 pub(crate) mod writingdeck;
@@ -2054,6 +2055,7 @@ impl App {
             Action::Menu => self.open_menu(),
             Action::Quit => self.quit = true,
             Action::FindAnything => self.open_palette(),
+            Action::Settings => self.open_settings(),
             Action::Submenu(sub) => self.overlay = Overlay::Sub { sub, sel: 0 },
             // The menu's own key handling brings you back to the group you
             // were in; from anywhere else, the top.
@@ -5137,6 +5139,7 @@ impl App {
                 ("Daily challenges…".into(), Action::DailyChallenges),
             ],
             Sub::Settings => vec![
+                ("WrOS settings…".into(), Action::Settings),
                 ("System settings…".into(), Action::SystemSettings),
                 ("Workspaces…".into(), Action::Workspaces),
                 ("Toggle outline".into(), Action::ToggleOutline),

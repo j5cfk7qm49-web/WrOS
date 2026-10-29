@@ -1,0 +1,173 @@
+{
+  "attempts": [
+    {
+      "passed": false,
+      "observation_only": true,
+      "classification": "Serial input sent before sudo restored shell ownership",
+      "original_report_sha256": "8a3168e3030b3ace54faef58678614ab21e32cad19edeff53fbb7b163d3dcc4d",
+      "source_fingerprint": {
+        "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+        "sha256": "6dc99ff858a2881bec7e1bb4a5bc21a2c9d007f2da675f6ac38907f8e431c252",
+        "file_count": 420,
+        "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+      },
+      "iso_sha256": "a5ec2ac3c386ba905e20f61a07ebc1943b7d7e1adec8634d40151d6ef2a18ff3",
+      "source_unchanged": true,
+      "iso_unchanged": true,
+      "seconds": 124.43,
+      "completed_phases": [
+        "session"
+      ],
+      "error": "RuntimeError: Live guest did not reach the expected fixture state"
+    },
+    {
+      "passed": false,
+      "observation_only": true,
+      "classification": "Serial input sent before sudo restored shell ownership",
+      "original_report_sha256": "be91404aa119813182b7ecc782c4ecd2508f51e8d0e6f6c1c797d3285a6268a8",
+      "source_fingerprint": {
+        "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+        "sha256": "6dc99ff858a2881bec7e1bb4a5bc21a2c9d007f2da675f6ac38907f8e431c252",
+        "file_count": 420,
+        "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+      },
+      "iso_sha256": "a5ec2ac3c386ba905e20f61a07ebc1943b7d7e1adec8634d40151d6ef2a18ff3",
+      "source_unchanged": true,
+      "iso_unchanged": true,
+      "seconds": 128.55,
+      "completed_phases": [
+        "manual"
+      ],
+      "error": "RuntimeError: Live guest did not reach the expected fixture state"
+    },
+    {
+      "passed": false,
+      "observation_only": true,
+      "classification": "Driver used a different palette shortcut",
+      "original_report_sha256": "7a108ce4480f0306347e6742b98c463d6ac19f67e770d66b82506e19a8291ae6",
+      "source_fingerprint": {
+        "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+        "sha256": "8764d609152f7a4c070f93c421f46f4d661c80868e8d9f62e4d2777763f27bf6",
+        "file_count": 420,
+        "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+      },
+      "iso_sha256": "a5ec2ac3c386ba905e20f61a07ebc1943b7d7e1adec8634d40151d6ef2a18ff3",
+      "source_unchanged": true,
+      "iso_unchanged": true,
+      "seconds": 204.1,
+      "completed_phases": [
+        "session",
+        "home"
+      ],
+      "error": "RuntimeError: Live guest did not reach the expected fixture state"
+    },
+    {
+      "passed": false,
+      "observation_only": true,
+      "classification": "Driver omitted greeter authenticated-session confirmation",
+      "original_report_sha256": "7f30fb4bff74dca195687f0c116150a7ee1cbe5975aaf4913263de33fb88cbea",
+      "source_fingerprint": {
+        "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+        "sha256": "8764d609152f7a4c070f93c421f46f4d661c80868e8d9f62e4d2777763f27bf6",
+        "file_count": 420,
+        "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+      },
+      "iso_sha256": "a5ec2ac3c386ba905e20f61a07ebc1943b7d7e1adec8634d40151d6ef2a18ff3",
+      "source_unchanged": true,
+      "iso_unchanged": true,
+      "seconds": 201.0,
+      "completed_phases": [
+        "manual"
+      ],
+      "error": "RuntimeError: Live guest did not reach the expected fixture state"
+    },
+    {
+      "passed": false,
+      "observation_only": true,
+      "classification": "Driver expected Power instead of actual Battery and power label",
+      "original_report_sha256": "9914c57b9d893b21bcfaf1ec3c5675b3dc41c9e6811ef3657549968a1b20203a",
+      "source_fingerprint": {
+        "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+        "sha256": "67844e12f260a5583d9de4305caeee5f98ed75fb59ae7b3e33b2aa5c0d7518a1",
+        "file_count": 420,
+        "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+      },
+      "iso_sha256": "a5ec2ac3c386ba905e20f61a07ebc1943b7d7e1adec8634d40151d6ef2a18ff3",
+      "source_unchanged": true,
+      "iso_unchanged": true,
+      "seconds": 218.53,
+      "completed_phases": [
+        "session",
+        "home",
+        "settings"
+      ],
+      "error": "RuntimeError: Live guest did not reach the expected fixture state"
+    },
+    {
+      "passed": false,
+      "observation_only": true,
+      "classification": "Driver expected Power instead of actual Battery and power label",
+      "original_report_sha256": "1e0b6dabdd95d8f9887414d47a676c755afad43759a946fec91744e3ecca670d",
+      "source_fingerprint": {
+        "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+        "sha256": "67844e12f260a5583d9de4305caeee5f98ed75fb59ae7b3e33b2aa5c0d7518a1",
+        "file_count": 420,
+        "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+      },
+      "iso_sha256": "a5ec2ac3c386ba905e20f61a07ebc1943b7d7e1adec8634d40151d6ef2a18ff3",
+      "source_unchanged": true,
+      "iso_unchanged": true,
+      "seconds": 218.53,
+      "completed_phases": [
+        "manual",
+        "password",
+        "authenticated",
+        "session",
+        "home",
+        "settings"
+      ],
+      "error": "RuntimeError: Live guest did not reach the expected fixture state"
+    },
+    {
+      "passed": false,
+      "observation_only": true,
+      "classification": "Driver stopped draining serial output while waiting for shutdown",
+      "original_report_sha256": "00aab5d4b6305afea01219c7f011b8e3e59de72a552a070d3ce188e713acee5d",
+      "source_fingerprint": {
+        "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+        "sha256": "49ffb732de7d075c72a1aa3302f3a089b63b842c55510aafbae97b57e8959621",
+        "file_count": 420,
+        "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+      },
+      "iso_sha256": "a5ec2ac3c386ba905e20f61a07ebc1943b7d7e1adec8634d40151d6ef2a18ff3",
+      "source_unchanged": true,
+      "iso_unchanged": true,
+      "seconds": 198.89,
+      "completed_phases": [
+        "session",
+        "home",
+        "settings",
+        "system",
+        "power"
+      ],
+      "error": "TimeoutExpired: Command '['qemu-system-x86_64', '-accel', 'tcg,thread=multi', '-machine', 'q35', '-cpu', 'Nehalem', '-m', '2048', '-smp', '2', '-nic', 'none', '-display', 'none', '-no-reboot', '-kernel', '/home/builder/live-session-vm/live-05w77fab/kernel', '-initrd', '/home/builder/live-session-vm/live-05w77fab/initrd', '-append', 'boot=live components console=ttyS0,115200 console=tty1 systemd.show_status=no panic=1 wros.live=1', '-drive', 'if=ide,media=cdrom,format=raw,readonly=on,file=/home/builder/wros-live-session-v1/build/live-session/wros-live-amd64.hybrid.iso', '-serial', 'unix:/home/builder/live-session-vm/live-05w77fab/serial.sock,server=on,wait=on', '-qmp', 'unix:/home/builder/live-session-vm/live-05w77fab/qmp.sock,server=on,wait=off']' timed out after 60 seconds"
+    },
+    {
+      "passed": false,
+      "observation_only": true,
+      "classification": "Actual first-image failsafe entry lacked the WrOS automatic-entry flag",
+      "image_build_source": "6dc99ff858a2881bec7e1bb4a5bc21a2c9d007f2da675f6ac38907f8e431c252",
+      "iso_sha256": "a5ec2ac3c386ba905e20f61a07ebc1943b7d7e1adec8634d40151d6ef2a18ff3",
+      "actual_command": "append boot=live components memtest noapic noapm nodma nomce nosmp nosplash vga=788",
+      "resolution": "Explicit maintained failsafe bootappend plus independent live-medium guards; rebuilt second ISO audited all live boot entries and passed omitted-flag VM test."
+    },
+    {
+      "passed": false,
+      "observation_only": true,
+      "classification": "Qualification overlapped implementation changes; verifier refused publication",
+      "verification_start_source": "8764d609152f7a4c070f93c421f46f4d661c80868e8d9f62e4d2777763f27bf6",
+      "resolution": "Retained earlier passing source separately and restarted after final VM driver was frozen."
+    }
+  ],
+  "scope": "Earlier failed observations remain failed; never counted as passing acceptance"
+}

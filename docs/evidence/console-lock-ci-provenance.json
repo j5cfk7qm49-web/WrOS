@@ -1,0 +1,21 @@
+{
+  "recorded_at_utc": "2026-10-28T06:17:42.314278+00:00",
+  "implementation_commit": "3c8612b9802f6080cf14656a74e75439f6cdbbdd",
+  "tested_merge": "a24860420d193c0d0389aa68a324b62c4304a237",
+  "run_id": 40641387973,
+  "run_url": "https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40641387973",
+  "job": "linux",
+  "job_id": 122660098135,
+  "artifact_id": 12795682440,
+  "artifact_zip_sha256": "587f0e05d63d40fc6d082132f0d850389b7bf0184c9e71968576de1bbfc0bdc5",
+  "report_sha256": "808e8beafdad52f047a654c470f6727d3d239bc5c9ceb92478b84e437f2b27e6",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "73720477d334e13ca767304aa5384ecfe0b1f102c72d4dc82782d4f5eab19843",
+    "file_count": 320,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "focused_guest_ci_source_match": true,
+  "passed": true,
+  "scope": "Debian software qualification only; guest/local and CI binaries are separately identified builds; no physical or sleep/resume claim"
+}

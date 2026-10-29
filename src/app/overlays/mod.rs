@@ -43,7 +43,11 @@ pub(crate) use menu::about_row;
 impl App {
     /// A key while an overlay is up goes to that overlay alone.
     pub fn on_overlay_key(&mut self, key: Key) {
+        let shell_panel = self.deck.shell.external;
         self.route_overlay_key(key);
+        if shell_panel {
+            self.return_to_settings();
+        }
         // A card named, renamed or deleted from the corkboard: back to it.
         if self.cork_back.is_some()
             && !matches!(

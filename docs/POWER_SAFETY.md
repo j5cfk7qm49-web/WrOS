@@ -1,0 +1,79 @@
+# Power-action safety guards
+
+WrOS **does not offer Suspend** until a separate secure screen locker and
+lock-before-suspend/input-ownership protocol have been qualified. Both native
+Power and retained System settings say why. The Linux adapter independently
+rejects `Request::Power(Suspend)` before invoking any external process. The
+simulator also refuses it. A manually constructed legacy confirmation cannot
+bypass the controller guard. This addresses issue #32; it is not a session lock.
+
+Shutdown and Restart still start with Cancel selected. A confirmed action first
+attempts to save both document buffers, then requires **no dirty scene, no stale
+tree and no unresolved source conflict**. Otherwise the confirmation remains
+open with a visible refusal, and no worker request is sent. Return to writing to
+review conflicts or unavailable storage; retry is explicit after recovery.
+
+## Why the caller needs a stricter gate
+
+The existing general `commit_saves()` intentionally treats a temporary missing
+source as waiting after recovery-copy attempts, and preserves external changes
+by parking original edits. It can return true while buffers are still dirty or
+new conflict files await a tree reload. A normal save can therefore preserve
+words successfully without satisfying a power request's requirement that every
+buffer is durably saved and its conflicts reviewed. Its broader semantics are
+unchanged. The Power caller now checks those extra conditions; `tree_stale`
+also catches a freshly parked copy before it has a row in `conflicts()`.
+
+The source-conflict regression initially reproduced a Restart request through
+the recorded simulator despite unresolved source changes. Checking the current
+conflict list alone also failed because the newly parked file was not indexed
+yet. Both original and external contents were preserved in those fixtures; no
+real power operation occurred. Issue #34 tracks the stricter caller contract.
+
+## Verification and remaining work
+
+The focused offline suite exercises the actual Linux adapter with a recording
+runner, both native and legacy controls, a forged old confirmation, retained
+two-pane position/selection/focus/undo at four sizes, default cancellation,
+normal confirmed saves and source-conflict refusal. Missing source and genuine
+nonregular-file document-claim failures preserve editor text, backing bytes and
+undo; restoring the backing file allows an explicit retry. The actual compiled
+four-size Settings PTY also enters the unavailable Suspend row, tests paste
+ownership and returns to the original caret/save/undo/restart flow. Both Clippy
+configurations and ordinary documentation gates are required.
+
+The [executed focused record](evidence/power-guard-targeted.json) passed **17
+backend tests, 11 Settings/controller tests, one existing asynchronous System
+test**, both Clippys, the actual four-size Settings PTY and documentation/diff
+checks, inside a network namespace without external connectivity. Its source
+fingerprint is `56e59e1b858f2da7c2366e9fe88c9f5d712cce3515de033c5e6aa5fb02058410`.
+The [separate full CI record](evidence/power-guard-ci.json) from Debian/macOS run
+[40468810112](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40468810112)
+passed **932 Rust tests/configuration** (5 default / 4 no-audio ignored), both
+Clippys, **96 Python methods / zero skips** and **17 CI gates**. Code head is
+`15512d4`; CI tested merge revision `e656c3b0cdfccd282f5ea536bafa45b730da1634`.
+Its source fingerprint matches the focused record. CI has no staged image, so
+it does not claim the local verifier's additional Wi-Fi image audit. The
+separate upstream Windows check was still running when recorded.
+
+No test suspends or powers off the host. Controlled power cases use a recorded
+simulator and the Linux no-process guard. New full CI is tracked separately from
+the earlier warm-screen source/binary/VM evidence.
+
+The [native login](NATIVE_GREETER.md) and [keyboard recovery](GREETER_KEYBOARD.md)
+have separate qualification. The [reader-retirement prerequisite](INPUT_OWNERSHIP.md)
+now addresses the editor's input-reader lifecycle. Issue #4 still requires a
+secure independent locker, protected seat/VT ownership, acknowledged lock before
+sleep and physical suspend/resume qualification. This application guard does
+not itself configure logind lid/power-key behavior. The newer integrated image
+stages explicit `ignore` actions for lid, power/reboot/sleep keys and idle,
+disables all four systemd sleep modes and masks the five sleep targets. See the
+Debian [logind contract](https://manpages.debian.org/trixie/systemd/logind.conf.5.en.html)
+and [sleep configuration](https://manpages.debian.org/trixie/systemd/systemd-sleep.conf.5.en.html).
+The media audit requires those policies; fresh installed-boot checks require
+masked targets and logind `CanSuspend` returning a documented denial (`no` or
+`na`), without requesting sleep. The installed guest returned `no`; the exact
+response is retained, rather than relabeled as hardware unavailability. This does not protect against administrator changes, direct privileged
+kernel access, hardware forced power-off or loss of power. The [manual console-lock increment](CONSOLE_LOCK.md)
+has focused software and isolated-guest qualification. Physical session security
+and lock-before-suspend/resume remain open; no sleep path is enabled.

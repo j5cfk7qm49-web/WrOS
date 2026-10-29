@@ -1,0 +1,36 @@
+{
+  "recorded_at_utc": "2026-10-27T05:22:31.070725+00:00",
+  "result": {
+    "scope": "Current helper injected into a disposable VM-demo overlay; not installer ISO qualification",
+    "host_disks_exposed": 0,
+    "network_devices": 0,
+    "base_image_sha256_before": "cdc3b6cddd90b32b5a73c5f7e324c91ba34b3d6a93306e29375b5a7fa5eda74d",
+    "input_sha256": {
+      "os/scripts/writingdeck-keyboard": "809820888eb4bf554127afe1be52832cf6a262839e107d76cbac1d6339a2c45b",
+      "os/tests/guest-keyboard-probe.py": "a6c3c1b67830a40073851991089fc65edc75473d4d1ec257c803a2170a45b64d",
+      "os/tests/keyboard_vm.py": "351903623a64694a30f0bc658db379a9facddae54ae12725d6460b16e323bf78"
+    },
+    "passed": true,
+    "markers": [
+      "+ echo WROS_KEYBOARD_FIXTURE_STAGED",
+      "WROS_KEYBOARD_FIXTURE_STAGED",
+      "writingdeck-vm login: WROS_KEYBOARD_INSTALLER_BOOT_PASS",
+      "WROS_KEYBOARD_INSTALLER_ROLLBACK_PASS",
+      "WROS_KEYBOARD_COMMITTED_PRESERVED_PASS",
+      "WROS_KEYBOARD_SYSTEM_MAP_PRESERVED_PASS",
+      "WROS_KEYBOARD_PASS"
+    ],
+    "base_image_sha256_after": "cdc3b6cddd90b32b5a73c5f7e324c91ba34b3d6a93306e29375b5a7fa5eda74d",
+    "base_image_unchanged": true,
+    "wall_seconds": 84.71
+  },
+  "memory_mib": 512,
+  "vcpus": 2,
+  "cpu_model": "Nehalem (no AVX)",
+  "acceleration": "TCG",
+  "installer_question_verified": false,
+  "corrected_installer_iso_verified": false,
+  "physical_keyboard_verified": false,
+  "production_release_qualified": false,
+  "earlier_fixture_failures": "Retained: missing Debian ORDER file; klibc mount invocation; unavailable cp command; Windows-mount ENODATA; primary serial console stalling console-setup. No production helper limit, keymap assertion or rollback budget was relaxed."
+}

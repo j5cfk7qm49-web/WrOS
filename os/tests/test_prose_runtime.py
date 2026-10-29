@@ -34,7 +34,7 @@ def provisioner():
 def process_state(pid):
     try:
         return (Path('/proc')/str(pid)/'stat').read_text().rsplit(')', 1)[1].split()[0]
-    except FileNotFoundError:
+    except (FileNotFoundError, ProcessLookupError):
         return None
 
 

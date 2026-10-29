@@ -1,0 +1,96 @@
+--- a/src/event/source/unix/mio.rs
++++ b/src/event/source/unix/mio.rs
+@@ -29,0 +30,2 @@
++    // An edge remains readable until WouldBlock, even after yielding one key.
++    tty_ready: bool,
+@@ -59,0 +62 @@
++            tty_ready: false,
+@@ -75,0 +79,42 @@
++            while self.tty_ready {
++                // stdin can be a blocking tty. Check its current byte count
++                // before continuing a previous edge; never change shared fd flags.
++                #[cfg(not(feature = "libc"))]
++                let available = rustix::io::ioctl_fionread(&self.tty_fd)?;
++                #[cfg(feature = "libc")]
++                let available = {
++                    let mut available = 0;
++                    if unsafe { libc::ioctl(self.tty_fd.raw_fd(), libc::FIONREAD, &mut available) }
++                        < 0
++                    {
++                        return Err(io::Error::last_os_error());
++                    }
++                    available as u64
++                };
++                if available == 0 {
++                    self.tty_ready = false;
++                    break;
++                }
++                match self.tty_fd.read(&mut self.tty_buffer) {
++                    Ok(0) => {
++                        return Err(io::Error::new(
++                            io::ErrorKind::UnexpectedEof,
++                            "terminal input ended",
++                        ));
++                    }
++                    Ok(read_count) => self.parser.advance(
++                        &self.tty_buffer[..read_count],
++                        read_count == TTY_BUFFER_SIZE,
++                    ),
++                    Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
++                        self.tty_ready = false;
++                        break;
++                    }
++                    Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
++                    Err(e) => return Err(e),
++                }
++                if let Some(event) = self.parser.next() {
++                    return Ok(Some(event));
++                }
++            }
++
+@@ -92,2 +137,2 @@
+-            for token in self.events.iter().map(|x| x.token()) {
+-                match token {
++            for event in &self.events {
++                match event.token() {
+@@ -95,25 +140,5 @@
+-                        loop {
+-                            match self.tty_fd.read(&mut self.tty_buffer) {
+-                                Ok(read_count) => {
+-                                    if read_count > 0 {
+-                                        self.parser.advance(
+-                                            &self.tty_buffer[..read_count],
+-                                            read_count == TTY_BUFFER_SIZE,
+-                                        );
+-                                    }
+-                                }
+-                                Err(e) => {
+-                                    // No more data to read at the moment. We will receive another event
+-                                    if e.kind() == io::ErrorKind::WouldBlock {
+-                                        break;
+-                                    }
+-                                    // once more data is available to read.
+-                                    else if e.kind() == io::ErrorKind::Interrupted {
+-                                        continue;
+-                                    }
+-                                }
+-                            };
+-
+-                            if let Some(event) = self.parser.next() {
+-                                return Ok(Some(event));
+-                            }
++                        if event.is_read_closed() {
++                            return Err(io::Error::new(
++                                io::ErrorKind::UnexpectedEof,
++                                "terminal input ended",
++                            ));
+@@ -120,0 +146 @@
++                        self.tty_ready = true;
+@@ -149 +175 @@
+-            if timeout.elapsed() {
++            if timeout.elapsed() && !self.tty_ready {
+--- a/src/terminal/sys/unix.rs
++++ b/src/terminal/sys/unix.rs
+@@ -87 +87 @@
+-    let file = File::open("/dev/tty").map(|file| (FileDesc::Owned(file.into())));
++    let file = File::open("/dev/tty").map(|file| FileDesc::Owned(file.into()));

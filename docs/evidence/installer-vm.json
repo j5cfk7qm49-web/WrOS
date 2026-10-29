@@ -1,0 +1,43 @@
+{
+  "recorded_at_utc": "2026-10-27T04:12:14.995515+00:00",
+  "scope": "Offline installation plus real authenticated UEFI/tty1 writing session and installed Wi-Fi payload",
+  "result": {
+    "schema_version": 1,
+    "scope": "Disposable no-network QEMU install, not hardware qualification",
+    "iso_sha256": "012c8f1a9311d569d8d15b5fbf03ac9b6d609b6b2e94b46d87bdcc7d565bae7d",
+    "installed_binary_sha256": "610c2cdcea4f8fe60f117ac93f2f41f1d7b5a2eb08aa14b7adbfe1fcb7fb8d7a",
+    "network_devices": 0,
+    "host_disks_exposed": 0,
+    "test_answers_in_shipping_iso": false,
+    "installed_boot_verified": true,
+    "authentication_verified": true,
+    "passed": true,
+    "exit_code": 0,
+    "late_payload_verified": true,
+    "late_stage_reached": true,
+    "wall_seconds": 1044.5,
+    "installation_copy_verified": true,
+    "tty1_nonroot_session_verified": true,
+    "writing_ui_verified": true,
+    "offline_wifi_packages_verified": true,
+    "password_logged": false
+  },
+  "wall_seconds_scope": "installation phase only; subsequent authenticated boot/retry not included",
+  "final_harness_sha256": {
+    "os/tests/install_vm.py": "b3d54f20b16deb54c0f068adad7e0b3a721389022b9019207117e95bc59f1fd9",
+    "os/tests/installed_boot.py": "6e77a87bbd75cc2db23d9d0412fff9857dfd6a72096542a55a5108e02c6cacec"
+  },
+  "retry_boundary": "Third fresh installation; its first auth probe failed at serial command synchronization. That failure was archived privately, then auth alone was rerun with explicit shell-prompt handshakes. No account or image policy was relaxed.",
+  "image_boundary": "Original experimental ISO with previously qualified M7b binary, not the later source-path/Git-index fixes. Revised-recipe clean build remains required.",
+  "physical_adapters_verified": [],
+  "production_release_qualified": false,
+  "remaining_gates": [
+    "clean revised recipe/latest binary",
+    "cancel/wrong-disk/interrupted install",
+    "LUKS and recovery",
+    "installer keyboard adoption",
+    "input-safe lock/suspend",
+    "signed WrOS update/rollback",
+    "physical hardware and redistribution/source review"
+  ]
+}

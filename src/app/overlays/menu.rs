@@ -85,6 +85,10 @@ impl App {
 /// What a menu row does, in a line, and the help topic that says more.
 pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
     let (says, topic): (&str, &str) = match action {
+        Action::Settings => (
+            "WrOS writing, interface, system and account settings; return to the same manuscript.",
+            "writingdeck",
+        ),
         Action::FindAnything => (
             "Type a few letters to jump to any scene or note, or to run anything Grimoire can do.",
             "getting-started",

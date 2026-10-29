@@ -2,7 +2,14 @@
 
 ## Scope and non-negotiable boundaries
 
-WritingDeck is a Debian-based writing appliance, not a custom kernel. The principal UI remains Rust/Ratatui Grimoire. Ordinary novel writing must remain offline, unprivileged and usable without AI, a GPU, cloud authentication or a desktop. The project is independent and has no implied NaNoWriMo affiliation.
+WrOS — Writer's OS uses a maintained Debian foundation. Grimoire evolves into
+the unified Rust/Ratatui operating-system shell: writing, native Settings,
+networking, accounts, storage and system interactions share one interface.
+The user's architectural directive supersedes the earlier application-launcher
+assumption. [UNIFIED_SHELL](UNIFIED_SHELL.md) records the source audit, target
+pre-login/authenticated/privileged boundaries, service decisions and execution
+order. The graph below describes the existing baseline, not a completed greeter.
+The editor is extended in place. Ordinary novel writing must remain offline, unprivileged and usable without AI, a GPU, cloud authentication or a desktop. The project is independent and has no implied NaNoWriMo affiliation.
 
 Preserve upstream Markdown/YAML, atomic saves, conflict checks, history, resume and recovery. Add versioned state alongside them; never migrate manuscript text merely to implement a UI widget. [AUDIT](AUDIT.md) is the baseline.
 
@@ -27,7 +34,18 @@ privileged keyboard helper: fixed layouts only, root-owned files only
   -> independent 15-second systemd timer -> restore committed layout
 ```
 
-`crates/writingdeck-sys` knows OS capabilities but not manuscript contents. It never receives a book path or text. `grimoire-core` and `grimoire-app` remain free of Linux privilege/service dependencies. The TUI uses both layers. External Python analyzers and cloud adapters are future workers, never synchronous input-loop work.
+`crates/writingdeck-sys` knows OS capabilities but not manuscript contents. It never receives a book path or text. `grimoire-core` and `grimoire-app` remain free of Linux privilege/service dependencies. The TUI uses both layers. Pinned external Python analyzers already run in bounded optional workers.
+Cloud adapters remain future workers, never synchronous input-loop work.
+`crates/wros-shell` now provides reusable bounded navigation/preferences,
+notifications and Ratatui menu presentation without editor, authentication,
+filesystem, process or privilege dependencies. `src/app/shell.rs` adapts native
+categorized Settings to retained editor objects and the existing service worker.
+The shared library also owns the original Grimoire palette/theme-file code and
+panel geometry used by native login/layout and installer presentation. Current
+greeter, timezone, manual-lock and display results are tracked in [STATUS](STATUS.md);
+the graph above retains the earlier baseline. Cloud/native Wi-Fi enrollment and
+complete live installation remain unfinished. Visual integration of unlock and
+future system panels is part of the same Grimoire interface requirement.
 
 ## Implemented vertical slice
 
@@ -84,6 +102,13 @@ Workspace restoration deliberately gives the existing newer resume record preced
 Use NetworkManager/logind/UPower/brightnessctl and maintained Debian services; do not create a root application server accepting arbitrary commands. The first helper accepts only four registered layout IDs and token-bound preview/confirm/cancel. The policy grants only that exact executable to active local members of `writingdeck`; there is no passwordless general sudo rule.
 
 Power requests are user-confirmed and require successful manuscript saves. Normal development does not install appliance login/polkit policies. Timezone, sound, updates, first-run account provisioning and screen-lock integration remain planned. An upstream authenticated tty2 is the maintenance path; a passwordless VM demo cannot provide production authentication or recovery guarantees.
+
+The [manual warm-screen service](WARM_SCREEN.md) adds a separate fixed polkit
+endpoint, root-owned transaction state and a non-setuid bounded libdrm bridge.
+The same worker handles its typed status/preview/Keep/Cancel requests. It scales
+captured calibration, verifies all outputs/readback and arms independent systemd
+rollback before writing colors. Unsupported or externally changed displays are
+refused. The editor never owns credentials, privileged device handles or timers.
 
 Production release gates: encrypted Debian installation, authenticated login and lock/suspend interaction, recovery secrets, firmware/Secure Boot policy, signed update source and tested rollback. The present GRUB fallback image is unsigned. Never deploy its passwordless profile to a physical laptop.
 

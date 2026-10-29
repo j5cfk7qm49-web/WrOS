@@ -1,0 +1,83 @@
+{
+  "scope": "Original failed synthetic backend qualification attempts; none are reclassified as passed",
+  "retained_attempts": [
+    {
+      "recorded_at_utc": "2026-10-28T06:53:33.091448+00:00",
+      "passed": false,
+      "scope": "Synthetic cdebconf integration attempt",
+      "checks_completed": [],
+      "backend_exit_code": 1
+    },
+    {
+      "recorded_at_utc": "2026-10-28T06:53:58.249572+00:00",
+      "passed": false,
+      "scope": "Synthetic cdebconf integration attempt",
+      "checks_completed": [],
+      "backend_exit_code": -13
+    },
+    {
+      "recorded_at_utc": "2026-10-28T07:12:52.293757+00:00",
+      "passed": false,
+      "scope": "Synthetic cdebconf integration attempt",
+      "checks_completed": [
+        "real-multiline-debian-template"
+      ],
+      "backend_exit_code": null
+    },
+    {
+      "recorded_at_utc": "2026-10-28T07:15:50.430162+00:00",
+      "passed": false,
+      "scope": "Synthetic cdebconf integration attempt",
+      "checks_completed": [
+        "real-multiline-debian-template"
+      ],
+      "backend_exit_code": null
+    },
+    {
+      "recorded_at_utc": "2026-10-28T07:17:54.173039+00:00",
+      "passed": false,
+      "scope": "Synthetic cdebconf integration attempt",
+      "checks_completed": [
+        "real-multiline-debian-template"
+      ],
+      "backend_exit_code": 1
+    },
+    {
+      "recorded_at_utc": "2026-10-28T07:19:22.046964+00:00",
+      "passed": false,
+      "scope": "Synthetic cdebconf integration attempt",
+      "checks_completed": [
+        "real-multiline-debian-template"
+      ],
+      "backend_exit_code": 43
+    }
+  ],
+  "additional_unrecorded_early_attempts": [
+    {
+      "passed": false,
+      "reason": "WSL chroot mount propagation setup rejected before the backend ran"
+    },
+    {
+      "passed": false,
+      "reason": "First Debian multiline-template failure before JSON failure retention was added"
+    }
+  ],
+  "resolved_conditions": [
+    "Inherited Python timeout descriptor was nonblocking; C stdio requires blocking mode",
+    "Debian 0.280 passthrough field framing failed multi-paragraph templates",
+    "Debian confmodule SET trims boundary whitespace; the fixture now tests typed boundary spaces separately from long prefilled values"
+  ],
+  "unresolved": [
+    "Unpaced raw keyboard burst of about 3 KiB timed out; this is not passing large-paste coverage."
+  ],
+  "local_broad_test_setup_failures": [
+    {
+      "passed": false,
+      "reason": "Fresh no-network namespace had loopback down; existing local Git-server fixture could not connect"
+    },
+    {
+      "passed": false,
+      "reason": "Ten retained prose UI tests correctly refused the default absent NLP-runtime path; the existing documented runtime is under /home/builder/prose-rebuild"
+    }
+  ]
+}

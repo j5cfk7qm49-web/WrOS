@@ -1,0 +1,11 @@
+{
+  "scope": "Original full-resolution framebuffer of the actual installed writing dashboard",
+  "private_attempt": "install-v7jfplk2/first-auth-failed",
+  "original_capture": "boot-last-screen.ppm",
+  "capture_context": "Initial authenticated boot probe; its journal-marker assertion failed. The screen is retained separately from the later passing process/descriptor-based acceptance.",
+  "original_ppm_sha256": "b3ed5f6b0ef400e25831d08c61a3ff0f8720c4bba547061b6b06bb1694c10dc3",
+  "png_sha256": "4c81a7251989205a8e6c8edcf44a2242732f82aac843545539842948f9bba4a6",
+  "iso_sha256": "cdb2be91b244e7fa9c6465c0ab0c538044f08cc00a2afe2cadf9d6204665d8ff",
+  "conversion": "Lossless PPM-to-PNG only; no pixel edits",
+  "physical_hardware_verified": false
+}

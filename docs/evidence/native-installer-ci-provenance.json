@@ -1,0 +1,21 @@
+{
+  "recorded_at_utc": "2026-10-28T08:03:29.460149+00:00",
+  "implementation_commit": "3514b4a6bda3b4e47a649ad93e639c8f790505ef",
+  "tested_merge": "120bd335e52e711f1c73d47e474798ba370e4896",
+  "run_id": 40652566144,
+  "run_url": "https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40652566144",
+  "job": "linux",
+  "job_id": 122695859737,
+  "artifact_id": 12800588400,
+  "artifact_zip_sha256": "e8397d4f33d369c8605938e95f459f9ccd51ee5a4b2f04aaacbf04ce73f86cf1",
+  "report_sha256": "55e2ab0f08168aa3309c5bf6345d5de185d644efd69aa5524c638e28cda72ee2",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "27af9af83561d6e6322e2c026fb0a059767651be7024c8507e63f53545f88e10",
+    "file_count": 330,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "focused_backend_ci_source_match": true,
+  "passed": true,
+  "scope": "Debian software CI only. Real Debian module fixture is separate local evidence; no privileged launch, live installation, new ISO or hardware qualification."
+}

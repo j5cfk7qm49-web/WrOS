@@ -1164,8 +1164,6 @@ checksum = "a31eee39dddec8330830986fcd7625edb5a24ec90ea038215273bbc3adb08ac6"
 [[package]]
 name = "crossterm"
 version = "0.29.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8b9f2e4c67f833b660cdb0a3523065869fb35570177239812ed4c905aeff87b"
 dependencies = [
  "bitflags 2.13.2",
  "crossterm_winapi",
@@ -1174,6 +1172,7 @@ dependencies = [
  "mio",
  "parking_lot",
  "rustix",
+ "serde",
  "signal-hook",
  "signal-hook-mio",
  "winapi",
@@ -2601,6 +2600,7 @@ dependencies = [
  "spellbook",
  "toml 1.1.6+spec-1.1.0",
  "unicode-normalization",
+ "unicode-segmentation",
  "unicode-width",
  "zip 8.6.0",
 ]
@@ -2613,13 +2613,17 @@ dependencies = [
  "chrono",
  "cpal",
  "grimoire-core",
+ "libc",
  "ratatui",
  "rodio",
+ "serde",
  "serde_json",
  "signal-hook",
  "ureq",
  "windows-sys 0.61.2",
  "writingdeck-sys",
+ "wros-input",
+ "wros-shell",
 ]
 
 [[package]]
@@ -6979,6 +6983,51 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "libc",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "wros-greeter"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "ratatui",
+ "serde",
+ "serde_json",
+ "signal-hook",
+ "wros-shell",
+ "zeroize",
+]
+
+[[package]]
+name = "wros-input"
+version = "0.1.0"
+dependencies = [
+ "crossterm",
+ "libc",
+ "serde",
+ "serde_json",
+ "zeroize",
+]
+
+[[package]]
+name = "wros-installer"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "ratatui",
+ "serde_json",
+ "signal-hook",
+ "wros-shell",
+ "zeroize",
+]
+
+[[package]]
+name = "wros-shell"
+version = "0.1.0"
+dependencies = [
+ "ratatui",
  "serde",
  "serde_json",
 ]

@@ -1,0 +1,213 @@
+{
+  "scope": "Manual console-lock boundary, controller, image policy and retained writing PTY; not guest, hardware or sleep qualification",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "73720477d334e13ca767304aa5384ecfe0b1f102c72d4dc82782d4f5eab19843",
+    "file_count": 320,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "checks": [
+    {
+      "name": "format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "seconds": 4.316,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "boundaries",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "os/tests",
+        "-p",
+        "test_console_lock.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 0.28,
+      "log_sha256": "bb5ebdc705b7ab02ac9b8e9856c96917ca6d83d7fbb96dbfdb834513f8395fc1"
+    },
+    {
+      "name": "image-policy",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "os/tests",
+        "-p",
+        "test_native_image.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 2.494,
+      "log_sha256": "b8913f116c6747bf3cf4d1b76e79cd0406420bc27e7ac2d4fb32ad38c8459039"
+    },
+    {
+      "name": "controller",
+      "command": [
+        "cargo",
+        "test",
+        "--bin",
+        "grimoire",
+        "--no-default-features",
+        "--locked",
+        "--offline",
+        "-j2",
+        "console_lock"
+      ],
+      "exit_code": 0,
+      "seconds": 6.887,
+      "log_sha256": "314ca0e9d3e51c3f75f55018463132070e4b2f0c7cf364d3583b2125954b75a5"
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--no-default-features",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "seconds": 1.238,
+      "log_sha256": "42e41addc1b4c899804408ec67a39bd90140dfc0777a0dfed1b9e59155c2eaeb"
+    },
+    {
+      "name": "build",
+      "command": [
+        "cargo",
+        "build",
+        "--workspace",
+        "--no-default-features",
+        "--locked",
+        "--offline",
+        "-j2"
+      ],
+      "exit_code": 0,
+      "seconds": 1.001,
+      "log_sha256": "66653771f626babfbb4e623f11124412dfb9d60b30a6c0c84e4b18b98b9dc02c"
+    },
+    {
+      "name": "retained-editor-pty",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "os/tests",
+        "-p",
+        "test_shell_pty.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 3.257,
+      "log_sha256": "09938212d9ec499545321aaa99d774fcde82f3bc551b3078c1338df8a288ddbd"
+    },
+    {
+      "name": "python-syntax",
+      "command": [
+        "python3",
+        "-m",
+        "py_compile",
+        "os/tests/console_lock_vm.py",
+        "os/tests/guest-console-lock.py",
+        "os/scripts/wros-lock",
+        "tools/audit-native-image.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.142,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "shellcheck",
+      "command": [
+        "shellcheck",
+        "os/scripts/install-files.sh"
+      ],
+      "exit_code": 0,
+      "seconds": 0.161,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "documentation",
+      "command": [
+        "python3",
+        "tools/check-writingdeck.py"
+      ],
+      "exit_code": 0,
+      "seconds": 1.108,
+      "log_sha256": "1401b019231ccadc503f3029cf1ab926e21e2d55ff0a308180ee0b191fd27d30"
+    },
+    {
+      "name": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "seconds": 16.945,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "source_unchanged": true,
+  "grimoire_binary_sha256": "1fe9795c9c34b14c75d0286ec4ddff540cf4bb9d42f01826cd46f4dc6d889a03",
+  "wros-greeter_binary_sha256": "bf193c66af41625892b866f000f5c5850919855d72189d89735017eb8be74e7c",
+  "controller_sizes": [
+    [
+      80,
+      24
+    ],
+    [
+      100,
+      30
+    ],
+    [
+      120,
+      40
+    ],
+    [
+      160,
+      50
+    ]
+  ],
+  "retained_editor_pty_sizes": [
+    [
+      80,
+      24
+    ],
+    [
+      100,
+      30
+    ],
+    [
+      120,
+      40
+    ],
+    [
+      160,
+      50
+    ]
+  ],
+  "passed": true,
+  "exact_guest_fixture_binaries_and_lock_policy_match": true
+}

@@ -9,6 +9,10 @@ checkpoint. Both retain their complete ancestry. New qualification work is on
 
 The previous working title was “WritingDeck OS.” Legacy code identifiers, CLI aliases, historical branches and existing saved-data formats temporarily retain `writingdeck` names for compatibility. See [naming migration](docs/NAMING_MIGRATION.md). **Grimoire and its upstream authors retain their original names and attribution.**
 
+**WrOS is the platform.** [CI](docs/CI.md) qualifies the Debian runtime; Windows
+and macOS jobs are removed. The Grimoire description below retains upstream
+application capabilities and attribution, not additional WrOS targets.
+
 ---
 
 ## Grimoire — core manuscript editor
@@ -88,6 +92,12 @@ independent spelling. Genuine additional lesson 40 does not reinterpret historic
 spelling completion 26. See [controls, models and limitations](docs/WRITING_CHECKS.md).
 M2b/M7b–M10 and production/power-loss/large-load/physical
 qualification remain incomplete; this is not the completed full OS request.
+
+**Native WrOS login has software and VM qualification:** a separate Rust/Ratatui greeter
+uses maintained greetd/PAM, a local account picker, bounded credential messages
+and a fixed non-root writing session. It shares presentation with the shell and
+keeps authentication outside the editor. See [native login and its remaining
+acceptance gates](docs/NATIVE_GREETER.md). Secure session locking remains separate.
 
 ## Why it exists
 
@@ -839,7 +849,11 @@ python3 tools/screenshots.py /tmp/frames.json assets/screenshots ~/shots-book/ex
 Pillow and fontTools paint the frames; `pdftoppm` renders the manuscript and
 paperback pages.
 
-### Releasing
+### Upstream Grimoire releasing (historical reference)
+
+The instructions below describe the upstream application. Its workflow sources
+are [archived outside active WrOS CI](docs/upstream-workflows/README.md).
+WrOS OS image releases require their own signing and recovery qualification.
 
 Bump `version` in `Cargo.toml`, add a matching section to `CHANGELOG.md`,
 commit, then tag and push the tag:

@@ -49,7 +49,7 @@ impl Runner for ProcessRunner {
                 if n == 0 {
                     return Ok(kept);
                 }
-                let room = 65_536usize.saturating_sub(kept.len());
+                let room = 65_537usize.saturating_sub(kept.len());
                 kept.extend_from_slice(&b[..n.min(room)]);
             }
         }
@@ -77,6 +77,12 @@ impl Runner for ProcessRunner {
         if timed_out {
             bail!("{} timed out; no success assumed", cmd.program);
         }
+        if stdout.len() > 65_536 || stderr.len() > 65_536 {
+            bail!(
+                "{} output exceeds limit; no partial result accepted",
+                cmd.program
+            );
+        }
         if !status.success() {
             bail!(
                 "{}: {}",
@@ -84,7 +90,10 @@ impl Runner for ProcessRunner {
                 String::from_utf8_lossy(&stderr).trim()
             );
         }
-        Ok(String::from_utf8_lossy(&stdout).trim().to_string())
+        Ok(String::from_utf8(stdout)
+            .context("system reply is not UTF-8")?
+            .trim_end_matches(['\r', '\n'])
+            .to_string())
     }
 }
 
@@ -126,8 +135,10 @@ impl<R: Runner> Linux<R> {
             Ok(v) => s.network = Some(v),
             Err(e) => s.warnings.push(format!("NetworkManager: {e}")),
         }
-        if let Ok(v) = fs::read_to_string(self.etc.join("timezone")) {
-            s.timezone = Some(v.trim().into());
+        // timedated changes /etc/localtime; /etc/timezone can be stale.
+        match self.runner.run(&timezone_status()) {
+            Ok(zone) if crate::timezone::validate(&zone).is_ok() => s.timezone = Some(zone),
+            _ => s.warnings.push("Timezone service unavailable".into()),
         }
         if let Ok(v) = fs::read_to_string(self.etc.join("writingdeck/keyboard.json")) {
             s.keyboard = serde_json::from_str::<serde_json::Value>(&v)
@@ -181,6 +192,18 @@ impl<R: Runner> Linux<R> {
         s
     }
 }
+fn timezone_status() -> Invocation {
+    Invocation::new(
+        "/usr/bin/timedatectl",
+        &[
+            "--no-ask-password",
+            "--no-pager",
+            "--value",
+            "--property=Timezone",
+            "show",
+        ],
+    )
+}
 fn percentage(now: u64, full: u64) -> Option<u8> {
     (u128::from(now) * 100)
         .checked_div(u128::from(full))
@@ -212,6 +235,17 @@ fn available(_: &Path) -> Option<u64> {
 pub fn invocation(request: &Request) -> Result<Invocation> {
     Ok(match request {
         Request::Refresh => bail!("refresh is a composite read-only operation"),
+        Request::ListTimezones => Invocation::new(
+            "/usr/bin/timedatectl",
+            &["--no-ask-password", "--no-pager", "list-timezones"],
+        ),
+        Request::SetTimezone(zone) => {
+            crate::timezone::validate(zone)?;
+            Invocation::new(
+                "/usr/bin/timedatectl",
+                &["--no-ask-password", "--no-pager", "set-timezone", zone],
+            )
+        }
         Request::Wifi(on) => Invocation::new(
             "/usr/bin/nmcli",
             &["radio", "wifi", if *on { "on" } else { "off" }],
@@ -219,7 +253,11 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
         Request::ScanWifi => Invocation::new(
             "/usr/bin/nmcli",
             &[
+                "--colors",
+                "no",
                 "-t",
+                "--escape",
+                "yes",
                 "-f",
                 "IN-USE,SSID,SIGNAL,SECURITY",
                 "device",
@@ -229,6 +267,52 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
                 "yes",
             ],
         ),
+        Request::ListSavedWifi => Invocation::new(
+            "/usr/bin/nmcli",
+            &[
+                "--colors",
+                "no",
+                "-t",
+                "--escape",
+                "yes",
+                "-f",
+                "UUID,NAME,TYPE",
+                "connection",
+                "show",
+            ],
+        ),
+        Request::CheckUpdates => Invocation::new("/usr/bin/apt-get", &["-s", "dist-upgrade"]),
+        Request::ListStorageDevices => Invocation::new(
+            "/usr/bin/findmnt",
+            &[
+                "--json",
+                "--list",
+                "--bytes",
+                "--df",
+                "--output",
+                "SOURCE,TARGET,SIZE,USED,AVAIL,USE%",
+            ],
+        ),
+        Request::ConnectWifi { .. }
+        | Request::DisconnectWifi
+        | Request::ForgetWifi(_)
+        | Request::ConnectGoogleAccount
+        | Request::DisconnectGoogleAccount
+        | Request::ListGoogleDriveFiles
+        | Request::MaterializeDriveFile { .. }
+        | Request::ListBackups
+        | Request::CreateBackup { .. }
+        | Request::RestoreBackup { .. }
+        | Request::VerifyBackups
+        | Request::StageUpdates
+        | Request::RecoveryStatus
+        | Request::RebootRecovery
+        | Request::RebootFirmware => {
+            bail!("this native workflow is not implemented; no action was performed")
+        }
+        Request::ListLocalAccounts | Request::GetGoogleStatus => {
+            bail!("read-only local request handled directly by Linux backend")
+        }
         Request::Brightness(p) => {
             if !(1..=100).contains(p) {
                 bail!("brightness must be 1..100");
@@ -243,7 +327,7 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
             &[
                 "--no-ask-password",
                 match action {
-                    PowerAction::Suspend => "suspend",
+                    PowerAction::Suspend => bail!(crate::SUSPEND_UNAVAILABLE),
                     PowerAction::Shutdown => "poweroff",
                     PowerAction::Restart => "reboot",
                 },
@@ -255,7 +339,12 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
         ),
         Request::KeyboardPreview(l) => Invocation::new(
             "/usr/bin/pkexec",
-            &["/usr/libexec/writingdeck-keyboard", "preview", l.id()],
+            &[
+                "--disable-internal-agent",
+                "/usr/libexec/writingdeck-keyboard",
+                "preview",
+                l.id(),
+            ],
         ),
         Request::KeyboardConfirm(t) | Request::KeyboardCancel(t) => {
             if t.len() != 32 || !t.bytes().all(|b| b.is_ascii_hexdigit()) {
@@ -264,6 +353,7 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
             Invocation::new(
                 "/usr/bin/pkexec",
                 &[
+                    "--disable-internal-agent",
                     "/usr/libexec/writingdeck-keyboard",
                     if matches!(request, Request::KeyboardConfirm(_)) {
                         "confirm"
@@ -274,6 +364,44 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
                 ],
             )
         }
+        Request::DisplayStatus => Invocation::new(
+            "/usr/bin/pkexec",
+            &[
+                "--disable-internal-agent",
+                "/usr/libexec/wros-display",
+                "status",
+            ],
+        ),
+        Request::DisplayPreview(choice) => {
+            choice.validate()?;
+            Invocation::new(
+                "/usr/bin/pkexec",
+                &[
+                    "--disable-internal-agent",
+                    "/usr/libexec/wros-display",
+                    "preview",
+                    if choice.enabled { "on" } else { "off" },
+                    &choice.kelvin.to_string(),
+                    &choice.strength.to_string(),
+                ],
+            )
+        }
+        Request::DisplayConfirm(token) | Request::DisplayCancel(token) => {
+            crate::display::validate_token(token)?;
+            Invocation::new(
+                "/usr/bin/pkexec",
+                &[
+                    "--disable-internal-agent",
+                    "/usr/libexec/wros-display",
+                    if matches!(request, Request::DisplayConfirm(_)) {
+                        "confirm"
+                    } else {
+                        "cancel"
+                    },
+                    token,
+                ],
+            )
+        }
     })
 }
 impl<R: Runner> Backend for Linux<R> {
@@ -281,7 +409,101 @@ impl<R: Runner> Backend for Linux<R> {
         if request == Request::Refresh {
             return Ok(Reply::Snapshot(self.snapshot()));
         }
+        if request == Request::ListLocalAccounts {
+            let file =
+                fs::File::open(self.etc.join("passwd")).context("reading local account list")?;
+            let mut content = String::new();
+            file.take(1_048_577).read_to_string(&mut content)?;
+            if content.len() > 1_048_576 {
+                bail!("local account list exceeds limit");
+            }
+            return Ok(Reply::LocalAccounts(crate::system_views::local_accounts(
+                &content,
+                unsafe { libc::geteuid() },
+            )?));
+        }
+        if request == Request::GetGoogleStatus {
+            return Ok(Reply::GoogleStatus(crate::GoogleAccountStatus {
+                connected: false,
+                email: None,
+                status_message: "Google enrollment is not configured in this build.".into(),
+            }));
+        }
         let output = self.runner.run(&invocation(&request)?)?;
+        if request == Request::ListTimezones {
+            return Ok(Reply::Timezones(crate::timezone::catalog(&output)?));
+        }
+        if let Request::SetTimezone(expected) = &request {
+            // A successful method call alone does not establish the current
+            // value; another session may have changed it concurrently.
+            let actual = self.runner.run(&timezone_status())?;
+            crate::timezone::validate(&actual)?;
+            if &actual != expected {
+                bail!("timezone change could not be verified; refresh current status");
+            }
+            return Ok(Reply::Timezone(actual));
+        }
+        if matches!(request, Request::DisplayStatus) {
+            let status: crate::display::Status =
+                serde_json::from_str(&output).context("invalid display status")?;
+            status.validate()?;
+            return Ok(Reply::DisplayStatus(status));
+        }
+        if matches!(request, Request::DisplayPreview(_)) {
+            #[derive(serde::Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct Preview {
+                token: String,
+                seconds: u64,
+            }
+            let preview: Preview =
+                serde_json::from_str(&output).context("invalid display preview reply")?;
+            crate::display::validate_token(&preview.token)?;
+            if preview.seconds == 0 || preview.seconds > 15 {
+                bail!("display preview expired or invalid");
+            }
+            return Ok(Reply::DisplayPreview {
+                token: preview.token,
+                seconds: preview.seconds,
+            });
+        }
+        if matches!(
+            request,
+            Request::DisplayConfirm(_) | Request::DisplayCancel(_)
+        ) {
+            let result: serde_json::Value =
+                serde_json::from_str(&output).context("invalid display completion reply")?;
+            let message = match (request, result["status"].as_str()) {
+                (Request::DisplayConfirm(_), Some("committed")) => {
+                    "Screen warmth kept for this display and future boots."
+                }
+                (Request::DisplayCancel(_), Some("cancelled")) => {
+                    "Previous screen colors restored."
+                }
+                (Request::DisplayCancel(_), Some("no-preview")) => {
+                    "Display preview has already finished."
+                }
+                _ => bail!("display transaction was not confirmed by the service"),
+            };
+            return Ok(Reply::Message(message.into()));
+        }
+        match request {
+            Request::ScanWifi => {
+                return Ok(Reply::WifiScan(crate::system_views::wifi_scan(&output)?));
+            }
+            Request::ListSavedWifi => {
+                return Ok(Reply::SavedWifi(crate::system_views::saved_wifi(&output)?));
+            }
+            Request::ListStorageDevices => {
+                return Ok(Reply::StorageDevices(crate::system_views::storage(
+                    &output,
+                )?));
+            }
+            Request::CheckUpdates => {
+                return Ok(Reply::Updates(crate::system_views::updates(&output)?));
+            }
+            _ => {}
+        }
         if matches!(request, Request::KeyboardPreview(_)) {
             let v: serde_json::Value =
                 serde_json::from_str(&output).context("invalid keyboard helper reply")?;
@@ -311,6 +533,125 @@ mod tests {
             self.0.push(c.clone());
             Ok("disconnected:none".into())
         }
+    }
+    #[test]
+    fn unfinished_mutations_cannot_invoke_tools_or_fabricate_service_success() {
+        let mut backend = Linux {
+            runner: Fake::default(),
+            sys: "/missing".into(),
+            etc: "/missing".into(),
+            storage: "/missing".into(),
+        };
+        for request in [
+            Request::ConnectWifi {
+                ssid: "any network".into(),
+            },
+            Request::DisconnectWifi,
+            Request::ForgetWifi("ambiguous profile".into()),
+            Request::ConnectGoogleAccount,
+            Request::DisconnectGoogleAccount,
+            Request::ListGoogleDriveFiles,
+            Request::MaterializeDriveFile {
+                file_id: "file-01".into(),
+                local_name: "draft.md".into(),
+            },
+            Request::ListBackups,
+            Request::CreateBackup {
+                target_dir: "/unused".into(),
+            },
+            Request::RestoreBackup {
+                snapshot_id: "latest".into(),
+                restore_dir: "/unused".into(),
+            },
+            Request::VerifyBackups,
+            Request::StageUpdates,
+            Request::RecoveryStatus,
+            Request::RebootRecovery,
+            Request::RebootFirmware,
+        ] {
+            assert!(backend.request(request).is_err());
+        }
+        assert!(backend.runner.0.is_empty());
+        let Reply::GoogleStatus(status) = backend.request(Request::GetGoogleStatus).unwrap() else {
+            panic!()
+        };
+        assert!(!status.connected);
+        assert!(status.email.is_none());
+        assert!(
+            backend.request(Request::ListLocalAccounts).is_err(),
+            "missing passwd is an error, never a fabricated writer account"
+        );
+    }
+    #[test]
+    fn read_only_views_use_structured_fixed_commands_without_secrets_or_assumed_interfaces() {
+        let scan = invocation(&Request::ScanWifi).unwrap();
+        assert_eq!(scan.program, "/usr/bin/nmcli");
+        assert!(scan.args.windows(2).any(|p| p == ["--escape", "yes"]));
+        let profiles = invocation(&Request::ListSavedWifi).unwrap();
+        assert!(profiles.args.contains(&"UUID,NAME,TYPE".into()));
+        let disks = invocation(&Request::ListStorageDevices).unwrap();
+        assert_eq!(disks.program, "/usr/bin/findmnt");
+        assert!(disks.args.contains(&"--json".into()));
+        assert_eq!(
+            invocation(&Request::CheckUpdates).unwrap().args,
+            ["-s", "dist-upgrade"]
+        );
+    }
+    #[test]
+    fn process_runner_rejects_truncation_and_invalid_utf8_instead_of_partial_success() {
+        let mut runner = ProcessRunner;
+        assert!(
+            runner
+                .run(&Invocation::new(
+                    "/usr/bin/python3",
+                    &["-c", "import sys; sys.stdout.write('x'*65537)"]
+                ))
+                .is_err()
+        );
+        assert!(
+            runner
+                .run(&Invocation::new(
+                    "/usr/bin/python3",
+                    &["-c", "import sys; sys.stdout.buffer.write(bytes([255]))"]
+                ))
+                .is_err()
+        );
+        assert_eq!(
+            runner
+                .run(&Invocation::new(
+                    "/usr/bin/python3",
+                    &["-c", "print('  name  ')"]
+                ))
+                .unwrap(),
+            "  name  "
+        );
+    }
+    #[test]
+    fn actual_debian_findmnt_json_matches_the_storage_view_contract() {
+        let mut runner = ProcessRunner;
+        let output = runner
+            .run(&Invocation::new(
+                "/usr/bin/findmnt",
+                &[
+                    "--json",
+                    "--list",
+                    "--bytes",
+                    "--df",
+                    "--target",
+                    ".",
+                    "--output",
+                    "SOURCE,TARGET,SIZE,USED,AVAIL,USE%",
+                ],
+            ))
+            .unwrap();
+        let devices = crate::system_views::storage(&output).unwrap();
+        assert_eq!(devices.len(), 1);
+        assert!(
+            std::env::current_dir()
+                .unwrap()
+                .starts_with(&devices[0].mountpoint)
+        );
+        assert!(devices[0].total_bytes > 0);
     }
     #[test]
     fn percentages_are_bounded_without_zero_division_or_multiply_overflow() {
@@ -353,5 +694,160 @@ mod tests {
     fn real_command_errors_are_not_reported_as_success() {
         let r = ProcessRunner.run(&Invocation::new("/usr/bin/false", &[]));
         assert!(r.is_err());
+    }
+    #[test]
+    fn unsupported_suspend_never_reaches_a_process_runner() {
+        let mut backend = Linux {
+            runner: Fake::default(),
+            sys: "/missing".into(),
+            etc: "/missing".into(),
+            storage: "/missing".into(),
+        };
+        let error = backend
+            .request(Request::Power(PowerAction::Suspend))
+            .unwrap_err();
+        assert!(error.to_string().contains("secure screen locking"));
+        assert!(
+            backend.runner.0.is_empty(),
+            "not even a systemctl probe may run"
+        );
+        assert_eq!(
+            invocation(&Request::Power(PowerAction::Restart))
+                .unwrap()
+                .args,
+            ["--no-ask-password", "reboot"]
+        );
+        assert_eq!(
+            invocation(&Request::Power(PowerAction::Shutdown))
+                .unwrap()
+                .args,
+            ["--no-ask-password", "poweroff"]
+        );
+        assert!(
+            crate::Simulated::laptop()
+                .request(Request::Power(PowerAction::Suspend))
+                .is_err()
+        );
+    }
+    #[test]
+    fn timezone_change_is_fixed_noninteractive_and_requires_matching_readback() {
+        use std::collections::VecDeque;
+        struct Replies(VecDeque<&'static str>, Vec<Invocation>);
+        impl Runner for Replies {
+            fn run(&mut self, invocation: &Invocation) -> Result<String> {
+                self.1.push(invocation.clone());
+                let output = self.0.pop_front().unwrap();
+                if output == "FAIL" {
+                    bail!("fixture service unavailable");
+                }
+                Ok(output.into())
+            }
+        }
+        for (outputs, accepted) in [
+            (vec!["", "Asia/Tokyo"], true),
+            (vec!["", "UTC"], false),
+            (vec!["", "bad output"], false),
+            (vec!["", "FAIL"], false),
+            (vec!["FAIL"], false),
+        ] {
+            let mut backend = Linux {
+                runner: Replies(outputs.into(), vec![]),
+                sys: "/missing".into(),
+                etc: "/missing".into(),
+                storage: "/missing".into(),
+            };
+            let result = backend.request(Request::SetTimezone("Asia/Tokyo".into()));
+            assert_eq!(result.is_ok(), accepted);
+            if accepted {
+                assert_eq!(result.unwrap(), Reply::Timezone("Asia/Tokyo".into()));
+            }
+            assert_eq!(
+                backend.runner.1[0],
+                Invocation::new(
+                    "/usr/bin/timedatectl",
+                    &[
+                        "--no-ask-password",
+                        "--no-pager",
+                        "set-timezone",
+                        "Asia/Tokyo"
+                    ]
+                )
+            );
+        }
+        let mut backend = Linux {
+            runner: Fake::default(),
+            sys: "/missing".into(),
+            etc: "/missing".into(),
+            storage: "/missing".into(),
+        };
+        assert!(
+            backend
+                .request(Request::SetTimezone("--host=other".into()))
+                .is_err()
+        );
+        assert!(backend.runner.0.is_empty());
+        assert!(
+            backend.request(Request::ListTimezones).is_err(),
+            "invalid service output must not become a catalog"
+        );
+    }
+    #[test]
+    fn display_calls_are_fixed_bounded_and_never_start_a_tty_auth_reader() {
+        use crate::display::Warmth;
+        let command = invocation(&Request::DisplayPreview(Warmth::default())).unwrap();
+        assert_eq!(command.program, "/usr/bin/pkexec");
+        assert_eq!(
+            command.args,
+            [
+                "--disable-internal-agent",
+                "/usr/libexec/wros-display",
+                "preview",
+                "on",
+                "2200",
+                "100"
+            ]
+        );
+        assert!(
+            invocation(&Request::DisplayPreview(Warmth {
+                kelvin: 999,
+                ..Warmth::default()
+            }))
+            .is_err()
+        );
+        assert!(invocation(&Request::DisplayConfirm(";rm -rf /".into())).is_err());
+        assert_eq!(
+            invocation(&Request::KeyboardPreview(
+                crate::keyboard::Layout::ALL[0].clone()
+            ))
+            .unwrap()
+            .args[0],
+            "--disable-internal-agent"
+        );
+    }
+    #[test]
+    fn malformed_or_expired_display_replies_never_become_successful_previews() {
+        struct Output(&'static str);
+        impl Runner for Output {
+            fn run(&mut self, _: &Invocation) -> Result<String> {
+                Ok(self.0.into())
+            }
+        }
+        for output in [
+            r#"{"token":"bad","seconds":15}"#,
+            r#"{"token":"0123456789abcdef0123456789abcdef","seconds":0}"#,
+            r#"{"token":"0123456789abcdef0123456789abcdef","seconds":16}"#,
+        ] {
+            let mut backend = Linux {
+                runner: Output(output),
+                sys: "/missing".into(),
+                etc: "/missing".into(),
+                storage: "/missing".into(),
+            };
+            assert!(
+                backend
+                    .request(Request::DisplayPreview(crate::display::Warmth::default()))
+                    .is_err()
+            );
+        }
     }
 }

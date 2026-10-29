@@ -1,0 +1,55 @@
+{
+  "scope": "Current binary/helper/units injected into a VM-demo COW layer; not current ISO or hardware qualification",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "30691d88e1a667be4cea780ffdf2b9b46fcf62dba08d3bb7cd3dd42c89edc863",
+    "file_count": 287,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "network_devices": 0,
+  "host_disks_exposed": 0,
+  "passed": true,
+  "base_image_sha256_before": "cdc3b6cddd90b32b5a73c5f7e324c91ba34b3d6a93306e29375b5a7fa5eda74d",
+  "binary_sha256": "911c8675789e57474155a084adfdffdb1d230bab8ed089b1f44c70fee9613c7c",
+  "bridge_sha256": "4addf0e4aee4a5dd296a1bf9bc2f0cf1814c3ed94816a328fed58da618d688ff",
+  "input_sha256": {
+    "os/scripts/wros-display": "3d04a6a8695fc9d4cfb7d66dd1145e84ea52607267578a6f401157de0c6f86e1",
+    "os/config/50-wros-display.rules": "4025f3ca2989372c725130a52d706000ea908280f244316a121a6fb1480f93b9",
+    "os/config/org.wros.display.policy": "ba17f2f4faf627d80eb7923a94a25f2f1a24d8c1f50ac2f3e3ce92f4f48cf1ef",
+    "os/systemd/wros-display.service": "098b1f72d3501bf0b16d44161d1d684f5f094881528fc6284becd3788a470772",
+    "os/systemd/wros-display-revert.service": "a237fc586131615855539801e5538c93696d7b638f8712f05e9851fe4f30b166",
+    "os/systemd/wros-display-revert.timer": "df5d56cf2123c51ccef9d44f3c8f0ae0ac4e0eca276c4d56ce94540b0d0d0e9e",
+    "os/helpers/wros-display-hw.c": "d5b718b89269b5d142314de5872c7dc84ce0ad7b541eaf7b071de4a2fe77e530",
+    "os/tests/display_vm.py": "079f1652ef5daa489dccb45bd8e0197ecbbf70135a2793d4bd6197b39cde4bc8",
+    "os/tests/guest-display-probe.py": "9732c707c8442a80f6c11cd8ccb6bfd3125128191cca926d99daf69732e9e135"
+  },
+  "markers": [
+    "WROS_DISPLAY_FIXTURE_STAGED",
+    "WROS_DISPLAY_DRIVER {\"applied\": false, \"available\": false, \"enabled\": false, \"kelvin\": 2200, \"message\": \"An active output lacks supported gamma controls\", \"strength\": 100}",
+    "WROS_DISPLAY_POLKIT_BOUNDARY_PASS",
+    "WROS_DISPLAY_UI_READY",
+    "WROS_DISPLAY_UI_SETTINGS",
+    "WROS_DISPLAY_UI_SYSTEM",
+    "WROS_DISPLAY_UI_DISPLAY",
+    "WROS_DISPLAY_NATIVE_UI_PASS rss_kib=35768",
+    "WROS_DISPLAY_PASS"
+  ],
+  "gamma_application_verified": false,
+  "unsupported_driver_refusal_verified": true,
+  "base_image_sha256_after": "cdc3b6cddd90b32b5a73c5f7e324c91ba34b3d6a93306e29375b5a7fa5eda74d",
+  "base_image_unchanged": true,
+  "wall_seconds": 88.51,
+  "source_unchanged": true,
+  "status_resource_observation": {
+    "wall_seconds": 0.834,
+    "cpu_seconds": 0.77,
+    "max_child_rss_kib_so_far": 17468,
+    "scope": "Status on this emulated driver; max RSS includes earlier short service commands, not a positive gamma or battery benchmark"
+  },
+  "limitations": [
+    "Real virtio GPU gamma controls unavailable; positive gamma/readback/rollback tests use a rootless fake DRM driver.",
+    "Current binary, service and policy injected into a new VM-demo layer; this is not current installer ISO qualification.",
+    "No physical screen, laptop, suspend/hotplug or colorimeter acceptance. All host display/disk/account access excluded.",
+    "Earlier two automation attempts failed native navigation; the final probe uses visible child-control barriers and returns from the dashboard before opening the palette. Those private reports remain unchanged."
+  ]
+}

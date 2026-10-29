@@ -1,0 +1,21 @@
+{
+  "recorded_at_utc": "2026-10-28T12:34:18.119829+00:00",
+  "implementation_commit": "0ba7aa9b01ad5fd072d9d119c7cbfa1bf86c2e9f",
+  "tested_merge": "8a5119cfb73c3fe30ba109adf0b12d442764c961",
+  "run_id": 40687062920,
+  "run_url": "https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40687062920",
+  "job": "linux",
+  "job_id": 122812035601,
+  "artifact_id": 12815872267,
+  "artifact_zip_sha256": "e8e271d2f6f1797f608d9e65019ef388cc7847d6ce8146acee138a2584355d66",
+  "report_sha256": "e892a387b4354a4fb131fbd13be2c640ccb119be52b00267b7ef41d4ebd26f0f",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "4dfdd63079e7e93dc38d40bee749fb0c7fa4389728512d7e55112d29a82e167c",
+    "file_count": 413,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "local_guest_image_ci_source_match": true,
+  "passed": true,
+  "scope": "Debian software/component CI; actual image backend and manual lock/login guest have separate local evidence. No complete live ISO, live installation, suspend or physical qualification."
+}

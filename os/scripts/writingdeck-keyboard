@@ -8,12 +8,37 @@ import fcntl
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import subprocess
 import sys
 import time
 
 LAYOUTS = ("qwerty", "colemak", "colemak-dh-ansi", "colemak-dh-iso")
+INITIAL = {"version": 1, "layout": "qwerty", "generation": "initial"}
+
+
+def installer_layout(path):
+    """Read Debian's data file without sourcing shell or expanding anything."""
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > 65536:
+        raise ValueError("missing or unsafe Debian keyboard configuration")
+    values = {}
+    assignment = re.compile(r'''\s*(XKBLAYOUT|XKBVARIANT)\s*=\s*(?:"([^"\n]*)"|'([^'\n]*)'|([^#\s]*))\s*(?:#.*)?''')
+    for line in path.read_text().splitlines():
+        if not line.strip() or line.lstrip().startswith('#'):
+            continue
+        match = assignment.fullmatch(line)
+        if match:
+            name = match[1]
+            if name in values:
+                raise ValueError("duplicate Debian keyboard setting")
+            values[name] = next(value for value in match.groups()[1:] if value is not None)
+        elif line.lstrip().startswith(('XKBLAYOUT', 'XKBVARIANT')):
+            raise ValueError("invalid Debian keyboard setting")
+    if values.get('XKBLAYOUT') != 'us' or 'XKBVARIANT' not in values:
+        return None
+    return {'': 'qwerty', 'colemak': 'colemak', 'colemak_dh': 'colemak-dh-ansi',
+            'colemak_dh_iso': 'colemak-dh-iso'}.get(values['XKBVARIANT'])
 
 
 def atomic_json(path, data):
@@ -37,12 +62,38 @@ def atomic_json(path, data):
 class KeyboardManager:
     def __init__(self, config=Path("/etc/writingdeck/keyboard.json"),
                  pending=Path("/run/writingdeck/keyboard-preview.json"),
-                 maps=Path("/usr/share/writingdeck/keymaps"), runner=None, clock=None):
+                 maps=Path("/usr/share/writingdeck/keymaps"), runner=None, clock=None,
+                 installer_pending=Path("/etc/writingdeck/installer-keyboard-pending"),
+                 system_keyboard=Path("/etc/default/keyboard")):
         self.config, self.pending, self.maps = config, pending, maps
+        self.installer_pending, self.system_keyboard = installer_pending, system_keyboard
         self.run = runner or (lambda args: subprocess.run(args, check=True, timeout=8,
                                                         stdin=subprocess.DEVNULL,
                                                         stdout=subprocess.DEVNULL))
         self.clock = clock or time.monotonic
+
+    def adopt_installer(self):
+        if not self.installer_pending.exists() and not self.installer_pending.is_symlink():
+            return True
+        if self.installer_pending.is_symlink() or not self.installer_pending.is_file():
+            raise ValueError("unsafe installer keyboard marker")
+        saved = self.saved()
+        if saved != INITIAL:
+            # A committed layout, including a crash after the adoption rename,
+            # always wins over the initial installer's preference.
+            self.installer_pending.unlink()
+            return True
+        try:
+            layout = installer_layout(self.system_keyboard)
+        except (OSError, ValueError):
+            layout = None
+        if layout is None:
+            # console-setup already applied the installer's actual layout.
+            # Keep the marker so preview cannot offer a false QWERTY rollback.
+            return False
+        atomic_json(self.config, {"version": 1, "layout": layout, "generation": "installer"})
+        self.installer_pending.unlink()
+        return True
 
     def saved(self):
         if not self.config.exists():
@@ -77,6 +128,8 @@ class KeyboardManager:
 
     def command(self, verb, value=None):
         if verb == "boot":
+            if not self.adopt_installer():
+                return {"status": "preserved-system-layout", "preview_available": False}
             self.load(self.saved()["layout"])
             return {"status": "applied"}
         if verb == "rollback":
@@ -84,6 +137,8 @@ class KeyboardManager:
         if verb == "preview":
             if value not in LAYOUTS:
                 raise ValueError("unregistered layout")
+            if not self.adopt_installer():
+                raise ValueError("Debian's selected keyboard is preserved; preview requires a supported US/QWERTY or Colemak layout in /etc/default/keyboard")
             if self.pending.exists():
                 p = json.loads(self.pending.read_text())
                 if self.clock() < p["deadline"]:

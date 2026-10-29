@@ -1,0 +1,23 @@
+{
+  "passed": true,
+  "recorded_at_utc": "2026-10-28T18:11:55.701490+00:00",
+  "implementation_commit": "519c53755781710531d366fa1b795342474735c1",
+  "published_head": "b73f10ffe59ca0818e303e5d12c8766cb643abb4",
+  "tested_merge": "dabf179afc0af76571a09cbf9f12e9de9f5c0a62",
+  "run_id": 40740207303,
+  "run_url": "https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40740207303",
+  "job": "linux",
+  "job_id": 122999433410,
+  "artifact_id": 12840055860,
+  "artifact_zip_sha256": "ef168738c70e84ca6724e42150e62038558561af605fddf7fe393ef940c34efc",
+  "report_sha256": "6c2fd12527e3bc331206f4a380704644d1cb1d6cbc5bf7b70daedf82b011e2f2",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "41f5d815e1bcf615f644e39c4cb95f6574dc511f538ba957f0a75c871fdb1da7",
+    "file_count": 425,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "local_guest_and_ci_source_match": true,
+  "local_and_ci_verifier_inputs_match": true,
+  "scope": "Debian software/component CI only. Actual authenticated pool/capsule assembly and diskless native form/service-stop acceptance have separate local evidence. No production root grant, target installation/reboot, LUKS cleanup or hardware qualification."
+}

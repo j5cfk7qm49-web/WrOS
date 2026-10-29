@@ -2,7 +2,7 @@
 │ Harper 2.13.0 · live OFF · local only · no automatic changes                                     │
 │ Source: manuscript/01-Chapter-One/01-Scene-One.md · editor-body UTF-8 bytes; logical scalar      │
 │ columns                                                                                          │
-│ 1 current suggestions · 4071 ms · 0 unmappable omitted                                           │
+│ 1 current suggestions · 3859 ms · 0 unmappable omitted                                           │
 │ › 1:20 · AnA · Grammar/Dialogue · a                                                              │
 │ Review: Incorrect indefinite article.                                                            │
 │ Alternative 1/1: an · a explicitly applies; Ctrl-Z undoes                                        │

@@ -1,0 +1,33 @@
+{
+  "passed": false,
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "736587d349ac92572db16739208e23ad57ef849b878a00794c6e4b408858abb5",
+    "file_count": 431,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "iso_sha256_before": "bd32aca07ec6d7cb60bccdaf691caaabbe78c4e14be03bf2217e4983bed2ccbd",
+  "capsule_manifest_sha256": "511bc715820e5dce197848a65fa2257af48d85df47660c9f2ed7e7baebe9634b",
+  "network_devices": 0,
+  "host_disks_exposed": 0,
+  "target_created_by_fixture": true,
+  "target_bytes": 17179869184,
+  "target_sha256_before": "f8b704004eeb0827aa3b0c805536896fdbfa61d5530f2fe898789e395005288a",
+  "target_sha256_after": "138d7dcf42c727691cb32130a596a63683f035ce26ae46ecfdd682c2da7f2f42",
+  "target_changed": true,
+  "media_nonrecursive_bind_verified": true,
+  "iso_unchanged": true,
+  "source_unchanged": true,
+  "capsule_unchanged": true,
+  "seconds": 1027.9,
+  "error": "RuntimeError: Unrecognized full-install form; no answer sent",
+  "observed_form": "Installation step failed: Configure the package manager",
+  "answer_sent_to_error": false,
+  "generated_credentials_in_serial": false,
+  "observed_errors": [
+    "APT treated capsule authentication indexes as a flat repository without a Release file.",
+    "apt-setup ended without sources.list.new; its CD-ROM provider was not loaded.",
+    "Queued dosfstools installation failed; the ordinary offline pool lacked that archive."
+  ],
+  "scope": "Original failed encrypted install, after system copy and before bootloader/completion. No target boot pass."
+}

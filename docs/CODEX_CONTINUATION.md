@@ -10,6 +10,35 @@
 
 ## Mission
 
+**Latest user directive: reuse maintained FOSS first.** Audit remaining work and
+existing implementations against Debian packages; use pinned upstream builds
+when suitable components are not packaged. Then integrate them and continue
+finishing WrOS. Read [the component decisions](FOSS_REUSE.md) before expanding
+custom infrastructure. Native UI, manuscript compatibility and actual safety
+qualification remain required.
+The user's interface preference is **everything TUI where possible**, including
+the reused installer. Keep Debian Installer in text mode; use native TUI
+frontends for maintained headless services rather than adding a desktop.
+The desired installation workflow is a live WrOS image with its own installer
+TUI backed by Debian's existing installation components and supported frontend
+interfaces. Retain standard text recovery and verify live/installer kernel matching.
+All native surfaces, including the live installer, must have Grimoire's same
+look and feel through shared UI/theme/interaction code. FOSS components supply
+the backend behind that coherent interface; do not assemble unrelated frontends
+as the ordinary WrOS experience.
+
+Latest development checkpoint: `codex/live-installer` builds on qualified
+integrated installation (#40), timezone (#41) and manual vlock/PAM/systemd lock
+(#42). The shared Grimoire palette and native cdebconf frontend are implemented;
+read [native installer boundaries](NATIVE_INSTALLER.md) and [current status](STATUS.md).
+The privileged live launcher, media staging and actual native install/reboot
+qualification are next. Sleep remains disabled. Earlier milestone evidence and
+the delivered ISO retain their original source scope.
+
+**Platform scope:** WrOS is the platform. Active CI qualifies the Debian 13
+amd64 runtime; do not restore macOS or Windows jobs. Imported Grimoire publishing
+workflows are preserved outside `.github/workflows`. See [CI](CI.md).
+
 Continue the **actual recovered implementation**, not a new application or speculative architecture exercise. WrOS is a complete, offline-first, Debian-based **writing operating system** for low-powered laptops, not just a terminal editor. Its primary interface is Grimoire, but the deliverables include a bootable/maintainable OS image, safe installation, user authentication, OS-level Colemak and Colemak-DH, system settings, recovery, a complete fiction-writing workflow, a guided tutorial and optional safe off-device backup.
 
 **Do not present the prototype as a production-safe OS.** Preserve original Grimoire licensing, credits, portable Markdown manuscript files, atomic saves, external-change safeguards and user work. The original Grimoire remains the editor, not the name of the entire operating system.

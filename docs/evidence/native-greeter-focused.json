@@ -1,0 +1,208 @@
+{
+  "scope": "Focused final greeter cache-only refinement after the separately retained complete software baseline; not a re-execution of all core tests",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "ffd48f613a3387a9f8c579200424b7313cfb7093a8b7dcfd11c1ac0d375074c1",
+    "file_count": 297,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "full_baseline_source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "cfde471ffce8e1698496f2521c995eaa24c19a47c43e45cb23093f23d4891a38",
+    "file_count": 297,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "full_baseline_rust": [
+    {
+      "name": "tests-default",
+      "command": "cargo test --workspace --locked --offline -j2",
+      "exit_code": 0,
+      "seconds": 162.101,
+      "log": "build/verification/tests-default.log",
+      "configuration": "default",
+      "passed": 947,
+      "failed": 0,
+      "ignored": 5,
+      "ignored_tests": [
+        "test spell::tests::timings ... ignored",
+        "test shots::demo ... ignored",
+        "test shots::shots ... ignored",
+        "test ui_tests::dump_pomodoro_previews ... ignored",
+        "test voice::piper_reads_every_sentence_in_order ... ignored"
+      ]
+    },
+    {
+      "name": "tests-no-audio",
+      "command": "cargo test --workspace --no-default-features --locked --offline -j2",
+      "exit_code": 0,
+      "seconds": 158.67,
+      "log": "build/verification/tests-no-audio.log",
+      "configuration": "no-audio",
+      "passed": 947,
+      "failed": 0,
+      "ignored": 4,
+      "ignored_tests": [
+        "test spell::tests::timings ... ignored",
+        "test shots::demo ... ignored",
+        "test shots::shots ... ignored",
+        "test ui_tests::dump_pomodoro_previews ... ignored"
+      ]
+    }
+  ],
+  "full_baseline_python": {
+    "name": "python",
+    "command": "python3 -m unittest discover -s os/tests -p test_*.py -v",
+    "exit_code": 0,
+    "seconds": 237.74,
+    "log": "build/verification/python.log",
+    "passed": 96,
+    "failed": 0,
+    "skipped": 0,
+    "pty_scope": "Actual non-root compiled app, new demo/HOME only; original edit/save/undo/restart, four terminal sizes, metadata failures/retry. Not a full emulator or physical certificate."
+  },
+  "checks": [
+    {
+      "name": "format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 3.359,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "greeter-tests",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "wros-greeter",
+        "--locked",
+        "--offline"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 1.849,
+      "log_sha256": "306c92d839902e81f7cb04d551412a2d3adaf7e59a144df71a80e92b63ccbe4f"
+    },
+    {
+      "name": "greeter-tests-no-audio",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "wros-greeter",
+        "--no-default-features",
+        "--locked",
+        "--offline"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.793,
+      "log_sha256": "471c8571176492d2eb0c8087c62f4dc5d002e7831789077ad0f94794870c4bf8"
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 3.257,
+      "log_sha256": "16c0263ad93e9c13fb36760d4b458acfdb784ff89cf051a00521b96e8044a2e9"
+    },
+    {
+      "name": "clippy-no-audio",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--no-default-features",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 1.252,
+      "log_sha256": "e5ecac8382457bfeea849040ff981bdf686e7dad0539120b6eefb024c6f4e9f1"
+    },
+    {
+      "name": "build",
+      "command": [
+        "cargo",
+        "build",
+        "--workspace",
+        "--no-default-features",
+        "--locked",
+        "--offline",
+        "-j2"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 2.074,
+      "log_sha256": "03e3ca59b62f4837ed4cda82cd2ed6b28403b6701bbea36edfba58c379a76b5c"
+    },
+    {
+      "name": "python-syntax",
+      "command": [
+        "python3",
+        "-m",
+        "py_compile",
+        "os/tests/greeter_vm.py",
+        "os/tests/guest-greeter-probe.py"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.181,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "stage-shellcheck",
+      "command": [
+        "shellcheck",
+        "os/scripts/stage-greeter.sh"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.179,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "documentation",
+      "command": [
+        "python3",
+        "tools/check-writingdeck.py"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.896,
+      "log_sha256": "8f760c64e7877650e23159ee751dce0319e97a1dda01b45ebc91e27aba92ff05"
+    },
+    {
+      "name": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 4.375,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "harness_sha256": "6e735131dcb53fe453413daf2c3e41292deca0bf8223332cb9dcd1e806db3ecb",
+  "source_unchanged": true,
+  "greeter_binary_sha256": "e2ccd46b522fcfa268b67dc798c243e37aeb4f4ecb472ce452957ee86e350de5",
+  "editor_binary_sha256": "5898e81ff9158c172697ffcfccce829703a9a7d6d8ce04dd40589201964c6411",
+  "passed": true
+}

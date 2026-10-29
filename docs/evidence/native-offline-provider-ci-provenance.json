@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "scope": "Offline provider and native encrypted-fixture software checkpoint. Predates the separate Gemini feature changes; no full encrypted installation or hardware claim.",
+  "run_url": "https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40796270591",
+  "run_id": 40796270591,
+  "job_id": 123193379927,
+  "artifact_id": 12864386262,
+  "artifact_sha256": "0056d3766565555c71dd5470185a2a6a4d4117ba8fb01163468b21252d00aa92",
+  "tested_merge": "6da3a64a08d36200f032e6cda630784a22db21fe",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "1bdd9a3972ff9b4c566bd0e6a2d0b1bf48f094e46cb77d7e2179f62f40ddc484",
+    "file_count": 431,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "report_sha256": "35b75989a1a771973ff69f218425dc9698ac6dcd10f717f2e79bb8026575282e",
+  "report": "native-offline-provider-ci.json"
+}

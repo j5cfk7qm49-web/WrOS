@@ -1,0 +1,16 @@
+{
+  "attempts": [
+    {
+      "passed": false,
+      "run_id": 40668358406,
+      "job_id": 122748547743,
+      "run_url": "https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40668358406",
+      "head_commit": "0e37cfa8c03a86c525c72b858e93bbf7047ce2af",
+      "tested_merge": "ee9bc76203e96df01d35143ebd4ed3536927e38b",
+      "failure": "Prerequisite APT sources used a hard-coded .gpg keyring, conflicting with the current Debian image configured .pgp keyring. Checkout and tests never ran.",
+      "correction": "Derive deb-src stanzas from the image configured deb822 sources, preserving its Signed-By and archive settings.",
+      "raw_job_log_sha256": "00da6618c257e60c2806e285a32db260fc780e759b82e39044017203f405a557",
+      "scope": "Failed provisioning run retained; no test or artifact pass inferred."
+    }
+  ]
+}

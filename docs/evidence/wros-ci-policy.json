@@ -1,0 +1,20 @@
+{
+  "scope": "Static YAML parse, Debian job equivalence and byte-identical archived upstream workflows; not a CI execution",
+  "base_commit": "69b7358d4e5abe393dd151355ca7e4c7cfe49ead",
+  "active_workflows": [
+    ".github/workflows/ci.yml"
+  ],
+  "active_jobs": [
+    "linux"
+  ],
+  "target": "Debian 13 amd64",
+  "debian_job_unchanged": true,
+  "workflow_sha256": "8eab33b922c6174af488215a614f63545fa445697ce890ffdfa1b5b8010c66b8",
+  "archived_workflow_sha256": {
+    "docs/upstream-workflows/windows.yml": "2d81bca8833d52cffdd0e3eed5ef19e7dd994093ec6581fcd989e1902f4c09b3",
+    "docs/upstream-workflows/release.yml": "6bcb629ffb36acd4c345e699cc9ea5435da65260f6d96787a256ffc8e1ca5a97",
+    "docs/upstream-workflows/installer-check.yml": "b5d8cd7f44ea841b262b2ec93670c4cfca1ae42959e3433502882da06fc658a6",
+    "docs/upstream-workflows/packages.yml": "a7474649734d228a533383a851af6dddb8219905b2c2220339153217e3e58ae9"
+  },
+  "passed": true
+}

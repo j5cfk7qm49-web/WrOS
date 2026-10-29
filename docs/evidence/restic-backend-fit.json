@@ -1,0 +1,73 @@
+{
+  "scope": "Packaged Restic backend only: new synthetic local files, encrypted local repository, two snapshots and byte-exact restore to a new directory; not native UI/cloud/release qualification",
+  "recorded_at_utc": "2026-10-28T05:50:16.892529+00:00",
+  "passed": true,
+  "network_namespace_isolated": true,
+  "package_version": "0.18.0-1+b4",
+  "package_sha256": "4888fb20b272a28b84ac39171b7d7f0d9a58c2aeae51ec28e54684648d66e12c",
+  "binary_sha256": "7135345e471b64fe43356f8cc665d33d9e52fb042ba39e5cff77310c46d46857",
+  "checks": [
+    {
+      "name": "version",
+      "exit_code": 0,
+      "expected_success": true,
+      "seconds": 0.007
+    },
+    {
+      "name": "encrypted-repository-init",
+      "exit_code": 0,
+      "expected_success": true,
+      "seconds": 2.073
+    },
+    {
+      "name": "first-original-snapshot",
+      "exit_code": 0,
+      "expected_success": true,
+      "seconds": 0.594
+    },
+    {
+      "name": "snapshot-list",
+      "exit_code": 0,
+      "expected_success": true,
+      "seconds": 0.566
+    },
+    {
+      "name": "second-version-snapshot",
+      "exit_code": 0,
+      "expected_success": true,
+      "seconds": 0.603
+    },
+    {
+      "name": "two-versions-retained",
+      "exit_code": 0,
+      "expected_success": true,
+      "seconds": 0.603
+    },
+    {
+      "name": "restore-first-to-new-directory",
+      "exit_code": 0,
+      "expected_success": true,
+      "seconds": 0.772
+    },
+    {
+      "name": "repository-read-data-integrity",
+      "exit_code": 0,
+      "expected_success": true,
+      "seconds": 0.627
+    },
+    {
+      "name": "wrong-password-rejected",
+      "exit_code": 12,
+      "expected_success": false,
+      "seconds": 0.412
+    }
+  ],
+  "original_files_untouched_by_restore": true,
+  "source_fixture_files": [
+    ".grimoire/history/earlier.md",
+    "chapter-one.md",
+    "notes.md"
+  ],
+  "user_manuscripts_used": false,
+  "accounts_enrolled": false
+}
