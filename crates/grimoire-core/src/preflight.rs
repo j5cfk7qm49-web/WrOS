@@ -125,27 +125,37 @@ pub fn run_preflight(
             )?;
         }
         let notes = analyze_footnotes(content);
-        for missing in notes.missing_definitions {
+        // Report locations in the *original UTF-8 scene*, not a rendered or
+        // masked copy. A user can navigate directly to these lines when a
+        // preflight UI is connected to the manuscript's revision identity.
+        for missing in &notes.missing_definitions {
+            let line = notes
+                .references
+                .iter()
+                .find(|r| crate::footnotes::normalize(&r.label) == *missing)
+                .map(|r| content[..r.offset].bytes().filter(|&b| b == b'\n').count() + 1);
             add(
                 PreflightSeverity::Error,
                 "Footnotes",
-                None,
+                line,
                 format!("Footnote '[^{missing}]' has no definition in this scene."),
             )?;
         }
-        for duplicate in notes.duplicate_definitions {
+        for duplicate in &notes.duplicate_definitions {
+            let line = notes.definitions.get(duplicate).map(|d| d.line_number);
             add(
                 PreflightSeverity::Error,
                 "Footnotes",
-                None,
+                line,
                 format!("Footnote '[^{duplicate}]' has duplicate definitions in this scene."),
             )?;
         }
-        for unused in notes.unused_definitions {
+        for unused in &notes.unused_definitions {
+            let line = notes.definitions.get(unused).map(|d| d.line_number);
             add(
                 PreflightSeverity::Warning,
                 "Footnotes",
-                None,
+                line,
                 format!("Footnote '[^{unused}]' is defined but never referenced in this scene."),
             )?;
         }
@@ -287,6 +297,47 @@ mod tests {
         assert_eq!(report.errors_count(), 1); // missing footnote
         assert_eq!(report.warnings_count(), 1); // TK marker
         assert!(!report.is_clean());
+    }
+
+    #[test]
+    fn footnote_issues_point_to_original_unicode_lines_without_private_false_positives() {
+        let scenes = vec![(
+            7,
+            "Annotations".into(),
+            "λ introduction\nMissing[^lost] and cited[^repeated].\n\n[^unused]: No citation.\n\n[^Repeated]: First.\n\n[^repeated]: Second.\n\n%% [^private]: secret %%".into(),
+        )];
+        let report = run_preflight(&scenes, None, None).unwrap();
+        let footnotes: Vec<_> = report
+            .issues
+            .iter()
+            .filter(|i| i.category == "Footnotes")
+            .collect();
+        assert_eq!(footnotes.len(), 3);
+        assert_eq!(
+            footnotes
+                .iter()
+                .find(|i| i.message.contains("lost"))
+                .unwrap()
+                .line,
+            Some(2)
+        );
+        assert_eq!(
+            footnotes
+                .iter()
+                .find(|i| i.message.contains("unused"))
+                .unwrap()
+                .line,
+            Some(4)
+        );
+        assert_eq!(
+            footnotes
+                .iter()
+                .find(|i| i.message.contains("repeated"))
+                .unwrap()
+                .line,
+            Some(6)
+        );
+        assert!(footnotes.iter().all(|i| i.scene_id == Some(7)));
     }
 
     #[test]
