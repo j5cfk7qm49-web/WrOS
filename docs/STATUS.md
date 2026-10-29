@@ -17,7 +17,12 @@ revision-bound resolution. Owned rename/reorder/trash/restore preserves IDs;
 external or interrupted moves require explicit reconnection. Footnote browsing
 now guards stale source positions, shares wros-shell widgets, and jumps to
 original definitions for normal editing. Lessons 32 and 35 open their actual
-workflows. Full qualification of this combined increment is in progress.
+workflows. Independent [full Debian qualification](evidence/development-writing-local.json)
+passed **1037 Rust tests/configuration, 173 Python/zero skips, both Clippys and
+21 gates** on source `9a734ebd...26a20` / 450 files. [Provenance and four review
+frames](evidence/development-writing-local-provenance.json) bind the result to
+the tested binary. The earlier documentation-inventory failure is retained
+separately; the corrected run passed all gates.
 
 Genuine DOCX/PDF page footnotes, full M8/M9, OS image refresh, encrypted
 installation/authenticated reboot and physical hardware remain unqualified.

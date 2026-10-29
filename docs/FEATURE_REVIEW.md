@@ -183,3 +183,15 @@ reconnection. The active editor retains caret, selection and Undo; annotation
 metadata never becomes manuscript prose. Lesson 32 requires a real changed
 anchor save in a demo. Complete M8, a note-history restore interface, automatic
 cross-document queue navigation and large-source qualification remain open.
+
+## Development writing qualification
+
+The independent [corrected local run](evidence/development-writing-local.json)
+passed 1037 Rust tests per configuration, both warning-denying Clippys,
+173 Python tests with zero skips and 21 gates. Source is `9a734ebd...26a20`
+/ 450 files; [provenance](evidence/development-writing-local-provenance.json)
+retains the exact binary and source binding and four actual review frames.
+The first run passed product tests but failed the documentary matrix/inventory
+comparison; its raw failed receipt remains separate. The inventory was corrected
+and the complete verifier then passed. Manuscript/source and verifier inputs
+did not change between these runs. Full M8/M9 and installer/hardware gates remain open.

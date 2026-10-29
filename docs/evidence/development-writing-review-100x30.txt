@@ -1,0 +1,30 @@
+┌Revision notes · Review───────────────────────────────────────────────────────────────────────────┐
+│Note #1 · Resolved · Document #1                                                                  │
+│manuscript/01-Chapter-One/01-Scene-One.md                                                         │
+│                                                                                                  │
+│Exact unique passage available                                                                    │
+│                                                                                                  │
+│Passage:                                                                                          │
+│The golden key                                                                                    │
+│                                                                                                  │
+│Comment:                                                                                          │
+│Who owns this key? λ                                                                              │
+│                                                                                                  │
+│3 prior versions retained. Esc returns; PgUp/PgDn scroll; F1 help.                                │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│Resolved saved for the reviewed source revision.                                                  │
+│g passage  e comment  a anchor  s start  x resolve  o reopen  r refresh                           │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘

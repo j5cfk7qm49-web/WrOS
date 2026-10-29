@@ -1,0 +1,16 @@
+{
+  "passed": true,
+  "source_implementation_commit": "932d25e2ec9b97a8ef46dfc93f794f15dcfa0881",
+  "tested_head": "e4562b6d594745a1fcb4f3eba6d29abc7677855d",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "9a734ebde78c21fbc8d95ceac7bd23e22d04d1fa1503d379f2f20cb8e3a26a20",
+    "file_count": 450,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "receipt_sha256": "44275073ea370f834fb71677ebed4519e0c167cb1a8ed0187a35b82b1ef321a7",
+  "tested_binary_sha256": "f8089ed07b77bf7b6af30b80c865ddfaa2e2e303a0cb0223868a7debfe1d0d4f",
+  "runner": "Corrected private unshare --net --mount runner, no --fork, normal termination defaults asserted; Debian chroot ordinary builder with loopback and external network isolation.",
+  "documentary_failure_preserved": "development-writing-documentation-failure.json",
+  "scope": "21 executed software gates, 1037 Rust/configuration, both Clippys, 173 Python/zero skips, compiled four-size writing workflows; no image refresh/full encrypted installation/provider/physical/release qualification."
+}

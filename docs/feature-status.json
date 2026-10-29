@@ -438,8 +438,8 @@
     {
       "area": "Long-form",
       "capability": "Text-anchored annotations and revision queue",
-      "status": "In progress",
-      "verification": "Guarded model and UI tests; combined qualification in progress",
+      "status": "Tested",
+      "verification": "Debian software: 1037 Rust/config, 173 Python/zero skips, both Clippys; four-size compiled edit/undo/restart",
       "hardware_verified": false,
       "detail": "Stable sidecar document IDs, exact original quote/context, comment/status/anchor history, owned move reconciliation and explicit re-anchor; outside manuscript/export; 64 KiB source bound, no history-restore UI"
     },
@@ -661,8 +661,8 @@
     {
       "area": "Publishing",
       "capability": "Source-bound footnote reference/definition navigation",
-      "status": "In progress",
-      "verification": "Four-size UI regressions; combined qualification in progress",
+      "status": "Tested",
+      "verification": "Four-size UI and compiled reference/definition edit/undo/help tests; full Debian suite",
       "detail": "Shared shell, original-source editing, stale-source and modal input guards; not a separate mutable footnote store",
       "hardware_verified": false
     }
