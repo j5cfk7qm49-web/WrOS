@@ -8115,3 +8115,6 @@ mod prose_ui_tests;
 
 #[path = "review_notes_ui_tests.rs"]
 mod review_notes_ui_tests;
+
+#[path = "footnote_insert_ui_tests.rs"]
+mod footnote_insert_ui_tests;

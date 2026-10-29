@@ -1,5 +1,21 @@
 # Native environment and story-model review
 
+## Footnote insertion audit (2026-10-29)
+
+PR #59 now checks exclusive editor ownership, hidden/parked/trashed/unavailable
+sources and the backing-file fingerprint before inserting. Unsaved original
+buffer changes remain supported when the backing source is unchanged. The
+maintained Markdown parser must recognize both the exact inserted reference
+and the appended definition; an unclosed fence or HTML block at the end cannot
+hide the definition while the action reports success.
+
+Focused Debian verification passed 19 core tests, 7 UI tests, no-audio
+warning-denying Clippy and one actual compiled-app test covering primary and
+secondary insertion, typing, save, Undo/Redo and process restart at 80×24,
+100×30, 120×40 and 160×50. Fresh full CI is required for this revised source.
+The rich-format export guard remains in place; this does not qualify page
+footnotes, a new OS image, installation or hardware.
+
 The 2026-10-28 feature contribution added useful model and system-view scaffolding.
 It was unfinished: three exhaustive-match errors prevented a workspace build,
 and none of the new story models had editor interaction, export or speech-engine

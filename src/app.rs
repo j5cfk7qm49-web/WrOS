@@ -2031,6 +2031,21 @@ impl App {
             self.msg = "Clear the selection and place the caret for the footnote reference.".into();
             return;
         }
+        let ready = (|| -> Result<()> {
+            self.ensure_document_claims()?;
+            self.check_document(self.views.active)?;
+            let node = &self.project.nodes[i];
+            anyhow::ensure!(
+                node.seen.is_some()
+                    && grimoire_core::sync::Fingerprint::read(&node.path) == node.seen,
+                "backing source changed or is unreadable; reconcile it before inserting"
+            );
+            Ok(())
+        })();
+        if let Err(error) = ready {
+            self.msg = format!("Footnote not inserted: {error}");
+            return;
+        }
         let Some(line) = self.editor.lines.get(self.editor.cy) else {
             self.msg = "The editor caret is unavailable; nothing changed.".into();
             return;
