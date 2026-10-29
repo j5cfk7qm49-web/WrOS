@@ -1,5 +1,22 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Native encrypted target installation qualification in progress
+
+The guarded native fixture now attempts a complete installation on its own fresh
+virtual disk and requires a separate encrypted UEFI boot and authenticated
+Grimoire entry. Fourteen focused policy/identity/actual-root ancestry checks
+pass. Earlier fixture and passphrase-adapter CI each passed 973 Rust tests per
+configuration, 168 Python tests/zero skips, both Clippys and 20 gates; their
+receipts keep their original source identities.
+
+The first actual attempt stopped at Debian's frontend-specific entropy-plugin
+request. The next reached hidden passphrase entry and system copy, then was
+explicitly stopped during APT setup after a source audit found a media-rebind
+flaw. Both remain failed receipts. A single overlay media view now tests Debian's
+nonrecursive bind before native input. Current full CI and the fresh installation
+retry are pending. This adds no production root launcher or completed encrypted
+installation claim. Read the [scope and retained attempts](NATIVE_ENCRYPTED_INSTALL.md).
+
 ## Offline encryption runtime and refreshed live image qualified
 
 The refreshed live image now contains Debian's complete encryption runtime

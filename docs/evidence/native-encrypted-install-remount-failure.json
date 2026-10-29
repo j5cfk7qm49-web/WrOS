@@ -1,0 +1,28 @@
+{
+  "passed": false,
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "7892d424d18c9ec48aa3cacb61c183a5c29a93093ad368d07cfd1d9f1a441bf8",
+    "file_count": 431,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "iso_sha256_before": "bd32aca07ec6d7cb60bccdaf691caaabbe78c4e14be03bf2217e4983bed2ccbd",
+  "capsule_manifest_sha256": "511bc715820e5dce197848a65fa2257af48d85df47660c9f2ed7e7baebe9634b",
+  "network_devices": 0,
+  "host_disks_exposed": 0,
+  "writable_disks": 1,
+  "target_created_by_fixture": true,
+  "target_bytes": 17179869184,
+  "target_sha256_before": "f8b704004eeb0827aa3b0c805536896fdbfa61d5530f2fe898789e395005288a",
+  "target_sha256_after": "f8b704004eeb0827aa3b0c805536896fdbfa61d5530f2fe898789e395005288a",
+  "target_unchanged": true,
+  "iso_unchanged": true,
+  "source_unchanged": true,
+  "capsule_unchanged": true,
+  "seconds": 149.65,
+  "error": "RuntimeError: Guest fixture command failed",
+  "native_frontend_started": false,
+  "partitioning_started": false,
+  "observed_error": "overlayfs filesystem remount read-only returned exit 32 before frontend startup.",
+  "scope": "Original failed mount attempt; entire generated target stayed unchanged. Subsequent code uses the existing VFS read-only bind operation."
+}

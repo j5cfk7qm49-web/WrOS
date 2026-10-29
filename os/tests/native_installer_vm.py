@@ -43,6 +43,7 @@ deadline=time.monotonic()+seconds
 needle=sys.argv[1]
 previous=sys.argv[3] if len(sys.argv)>3 else ''
 installing=len(sys.argv)>5 and sys.argv[5]=='install'
+diagnostic_at=time.monotonic()+180
 while True:
     status=P('/run/wros-native-probe/status.json')
     record=json.loads(status.read_bytes()) if status.exists() else {}
@@ -52,6 +53,11 @@ while True:
     if needle in screen and 'Enter continue' in screen and record.get('ready') and screen_hash!=previous: break
     assert subprocess.run(['systemctl','is-active','--quiet','wros-native-probe.service']).returncode==0,'Backend service stopped'
     assert time.monotonic()<deadline,'Installer UI readiness'
+    if installing and time.monotonic()>=diagnostic_at:
+        diagnostic=subprocess.run(['/usr/bin/python3','-I','/run/wros-native-qa/native_installer_guest.py','inspect'],
+            stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=45)
+        print('WROS_NATIVE_PROGRESS_DIAGNOSTIC\n'+diagnostic.stdout[-20000:].decode(errors='replace'),flush=True)
+        diagnostic_at=time.monotonic()+180
     time.sleep(.2)
 processes=[]
 for p in P('/proc').glob('[0-9]*'):
@@ -140,6 +146,8 @@ def main():
               'scope': 'Real Debian startup/menu and containment only; no disk-write consent, target installation or hardware qualification.'}
     if args.install_target:
         result['scope'] = 'Native encrypted installation into the fixed fresh virtual target; authenticated target boot and production completion UI remain separate.'
+        result['firmware_variables_created_by_fixture'] = True
+        result['firmware_variables_sha256_before'] = digest(run/'OVMF_VARS.fd')
     if target:
         result.update({'target_created_by_fixture':True,'target_bytes':TARGET_BYTES,'target_sha256_before':digest(target)})
     if args.partition_review or args.install_target:
@@ -286,6 +294,9 @@ d-i debian-installer/add-kernel-opts string console=tty1 console=ttyS0,115200
                     matched = re.search(rb'(?:^|[\r\n])'+marker.encode()+rb'([^\r\n]+)', output)
                     if matched is None: raise RuntimeError('Native snapshot missing')
                     observation = json.loads(matched.group(1))
+                    if observation.get('media_nonrecursive_bind_verified') is not True:
+                        raise RuntimeError('Debian media rebind was not verified before native input')
+                    result['media_nonrecursive_bind_verified'] = True
                     if args.frontend and observation['frontend_sha256'] != result['frontend_override_sha256']:
                         raise RuntimeError('Observed fixture frontend differs from the compiled input')
                     result['phases'].append({'phase':name, **observation})
@@ -358,6 +369,11 @@ d-i debian-installer/add-kernel-opts string console=tty1 console=ttyS0,115200
                         elif ('Install the GRUB boot loader to your primary drive?' in screen
                                 and 'only operating system' in screen and selected_no):
                             approvals.append('Install GRUB on the only fresh target')
+                            key('down'); key('ret')
+                        elif ('Update NVRAM variables to automatically boot into Debian?' in screen
+                                and selected_no and 'Yes' in screen
+                                and result['firmware_variables_created_by_fixture']):
+                            approvals.append('Configure only this fixture\'s fresh OVMF variables')
                             key('down'); key('ret')
                         elif ('Use a network mirror?' in screen or 'Force GRUB installation to the EFI removable media path?' in screen) and selected_no:
                             key('ret')
@@ -451,6 +467,8 @@ d-i debian-installer/add-kernel-opts string console=tty1 console=ttyS0,115200
             result['iso_unchanged'] = result['iso_sha256_after'] == result['iso_sha256_before']
             result['source_unchanged'] = source == fingerprint()
             result['capsule_unchanged'] = capsule_hash == digest(args.capsule/'manifest.json')
+            if args.install_target:
+                result['firmware_variables_sha256_after_install'] = digest(run/'OVMF_VARS.fd')
             result['passed'] &= result['iso_unchanged'] and result['source_unchanged'] and result['capsule_unchanged']
             if args.frontend:
                 result['compiled_frontend_unchanged'] = digest(args.frontend) == result['frontend_override_sha256']

@@ -19,9 +19,13 @@ PACKAGES = ('cryptsetup', 'cryptsetup-bin', 'cryptsetup-initramfs', 'dmsetup',
             'lvm2', 'systemd-cryptsetup', 'greetd', 'vlock')
 
 
+class AuditFailure(ValueError):
+    """Only fixed, credential-free policy diagnostics may be displayed."""
+
+
 def require(value, reason):
     if not value:
-        raise ValueError(reason)
+        raise AuditFailure(reason)
 
 
 def crypttab_entry(contents):
@@ -63,6 +67,29 @@ def account_state(passwd, shadow, groups):
     memberships = {row[0] for line in groups.splitlines()
                    if len(row := line.split(':')) == 4 and 'fixture' in row[3].split(',')}
     require({'writingdeck', 'sudo'} <= memberships, 'Fixture administration/writing groups missing')
+
+
+def encrypted_root_chain(root_name, entry, partition, sysroot=Path('/sys/class/block')):
+    """Prove the fixture's actual root is LVM on its one LUKS2 partition."""
+    require(re.fullmatch(r'dm-[0-9]+', root_name) is not None
+            and re.fullmatch(r'vda[0-9]+', partition) is not None,
+            'Root must be the fixture LVM mapping')
+    root = sysroot/root_name
+    require((root/'dm/uuid').read_text().strip().startswith('LVM-'),
+            'The actual root is not the fixture LVM volume')
+    children = list((root/'slaves').iterdir())
+    require(len(children) == 1 and re.fullmatch(r'dm-[0-9]+', children[0].name) is not None,
+            'Root requires one encrypted dependency')
+    crypt = sysroot/children[0].name
+    require(children[0].resolve() == crypt.resolve()
+            and (crypt/'dm/uuid').read_text().strip()
+            == 'CRYPT-LUKS2-'+entry['uuid'].replace('-', '')+'-'+entry['mapping'],
+            'Root encryption identity differs from crypttab')
+    leaves = list((crypt/'slaves').iterdir())
+    require(len(leaves) == 1 and leaves[0].name == partition
+            and leaves[0].resolve() == (sysroot/partition).resolve(),
+            'Root encryption does not cover the fresh target partition')
+    return {'root': root_name, 'crypt': crypt.name, 'partition': partition, 'format': 'LUKS2'}
 
 
 def query(*arguments):
@@ -125,6 +152,9 @@ def audit(token):
             'Encrypted partition ancestry differs')
     require(query('/usr/sbin/cryptsetup', 'luksUUID', str(device)).strip() == entry['uuid'],
             'LUKS identity differs from target configuration')
+    root_device = os.stat('/').st_dev
+    root_name = Path('/sys/dev/block/'+str(os.major(root_device))+':'+str(os.minor(root_device))).resolve(strict=True).name
+    chain = encrypted_root_chain(root_name, entry, device.name)
     fstab = [line.split() for line in Path('/etc/fstab').read_text().splitlines()
              if line.strip() and not line.lstrip().startswith('#')]
     require(sum(len(row) >= 3 and row[1:3] == ['/', 'ext4'] for row in fstab) == 1,
@@ -154,6 +184,7 @@ def audit(token):
     return {'passed': True, 'scope': 'Guarded installed target snapshot before unmount; actual target boot remains separate.',
             'normal_account': True, 'root_locked': True, 'native_authentication_preserved': True,
             'live_account_absent': True, 'interactive_luks_uuid': entry['uuid'],
+            'encrypted_root_chain': chain,
             'encrypted_device': device.name, 'packages': versions,
             'binary_sha256': {name: digest(Path('/usr/bin')/name) for name in ('grimoire', 'wros-greeter', 'wros-installer')},
             'kernel_sha256': digest(kernel), 'initrd_sha256': digest(initrd),
@@ -169,6 +200,9 @@ def main():
 if __name__ == '__main__':
     try:
         main()
+    except AuditFailure as error:
+        print('Disposable encrypted target audit failed: '+str(error)+'.', file=sys.stderr)
+        raise SystemExit(1) from None
     except (OSError, ValueError, KeyError, subprocess.SubprocessError):
         print('Disposable encrypted target audit failed.', file=sys.stderr)
         raise SystemExit(1) from None

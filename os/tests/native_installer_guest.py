@@ -186,6 +186,7 @@ def verified_target_proof(token, manifest):
     proof = json.loads(path.read_bytes())
     require(proof.get('passed') is True and proof.get('root_locked') is True
             and proof.get('native_authentication_preserved') is True
+            and proof.get('encrypted_root_chain', {}).get('format') == 'LUKS2'
             and proof.get('plaintext_fixture_credentials_in_logs') is False
             and proof.get('kernel_sha256') == manifest['file_sha256']['vmlinuz'],
             'Target proof did not satisfy its required fields')
@@ -269,37 +270,50 @@ def worker(allow_synthetic_target=False, review=False, installing=False):
         command('/bin/mount', '-o', 'remount,bind,ro,exec', str(FRONTEND))
         record['frontend_override_sha256'] = expected
         state(record)
-    # Preserve the original live root/pool, replacing only the installer's
-    # private view. Neither this view nor /proc/cmdline escapes the namespace.
+    # Debian base-installer later uses a nonrecursive CD bind. Its entire
+    # view must therefore be one filesystem, rather than a tree of submounts.
+    # Both lower layers are verified read-only media; only the small native
+    # layout/index replacements occupy the private RAM upper layer.
     view = WORK/'medium'; view.mkdir()
-    command('/bin/mount', '-t', 'tmpfs', '-o', 'mode=755,nosuid,nodev', 'tmpfs', str(view))
+    upper, overlay_work = WORK/'media-upper', WORK/'media-work'
+    upper.mkdir(); upper.chmod(0o755); overlay_work.mkdir()
     medium = Path('/run/live/medium')
-    for source in medium.iterdir():
-        if source.name == 'install':
-            # Debian's live plugin prefers install/gtk/initrd.gz even with
-            # --text. The native view must expose only the matching backend.
-            shutil.copytree(source, view/source.name, symlinks=True,
-                            ignore=shutil.ignore_patterns('gtk'))
-        elif source.name == 'dists':
-            shutil.copytree(source, view/source.name, symlinks=True)
-        elif source.is_symlink():
-            (view/source.name).symlink_to(os.readlink(source))
-        else:
-            bind(source, view/source.name, True)
-    bind(QA/'native-installer', view/'native-installer', True)
-    # The installer sees the matching initrd and the verified subset index.
-    # These overmounts are private even though their lower directories are RO.
+    media_info = (medium/'.disk/info').read_bytes()
+    squashfs_size = (medium/'live/filesystem.squashfs').stat().st_size
+    # Hide Debian's GTK preference through an opaque overlay directory.
+    # No upstream package or lower-layer file is modified.
+    gtk = upper/'install/gtk'; gtk.mkdir(parents=True)
+    os.setxattr(gtk, 'trusted.overlay.opaque', b'y')
+    options = ('nosuid,nodev,lowerdir='+str(QA/'native-installer')+':'+str(medium)
+               +',upperdir='+str(upper)+',workdir='+str(overlay_work))
+    command('/bin/mount', '-t', 'overlay', '-o', options, 'overlay', str(view))
     for name, target in [('initrd.gz', 'install/initrd.gz'),
                          ('Packages', 'dists/trixie/main/debian-installer/binary-amd64/Packages'),
                          ('Packages.gz', 'dists/trixie/main/debian-installer/binary-amd64/Packages.gz'),
                          ('media-Release', 'dists/trixie/Release')]:
-        bind(QA/'native-installer'/name, view/target, True)
-    # Carry the verified file and directory overmounts into the installer's
-    # view. A nonrecursive bind would expose the copied old initrd underneath.
-    bind(view, medium, True, recursive=True)
+        destination = view/target
+        require(not destination.is_symlink(), 'Native media layout must use regular files')
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(QA/'native-installer'/name, destination)
+    # Seal the published VFS mount through the same maintained read-only bind
+    # operation as the rest of the fixture; do not reconfigure overlayfs.
+    bind(view, view, True)
+    rebound = WORK/'media-rebound'
+    bind(view, rebound, True)
+    sample = next(name for name in manifest['file_sha256'] if name.startswith('pool/'))
+    require((rebound/'.disk/info').read_bytes() == media_info
+            and (rebound/'live/filesystem.squashfs').stat().st_size == squashfs_size
+            and digest(rebound/'install/initrd.gz') == manifest['file_sha256']['initrd.gz']
+            and digest(rebound/'dists/trixie/main/debian-installer/binary-amd64/Packages') == manifest['file_sha256']['Packages']
+            and digest(rebound/sample) == manifest['file_sha256'][sample]
+            and not (rebound/'install/gtk/initrd.gz').exists(),
+            'Debian nonrecursive media bind lost its native or ordinary payload')
+    command('/bin/umount', str(rebound)); rebound.rmdir()
+    record['media_nonrecursive_bind_verified'] = True
+    bind(view, medium, True)
     require(not (medium/'install/gtk/initrd.gz').exists()
             and digest(medium/'install/initrd.gz') == manifest['file_sha256']['initrd.gz']
-            and digest(medium/'native-installer/Packages') == manifest['file_sha256']['Packages'],
+            and digest(medium/'Packages') == manifest['file_sha256']['Packages'],
             'Private media view does not expose the exact matching backend and pool')
     launcher = Path('/usr/share/debian-installer-launcher')
     launcher.mkdir(parents=True, exist_ok=True)

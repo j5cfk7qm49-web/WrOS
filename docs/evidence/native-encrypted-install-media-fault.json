@@ -1,0 +1,35 @@
+{
+  "passed": false,
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "a076c0fac220465e6a1a138227e73b3d9adaa808a4736727d261d11ad7b2cf1c",
+    "file_count": 431,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "iso_sha256_before": "bd32aca07ec6d7cb60bccdaf691caaabbe78c4e14be03bf2217e4983bed2ccbd",
+  "capsule_manifest_sha256": "511bc715820e5dce197848a65fa2257af48d85df47660c9f2ed7e7baebe9634b",
+  "network_devices": 0,
+  "host_disks_exposed": 0,
+  "writable_disks": 1,
+  "target_created_by_fixture": true,
+  "target_bytes": 17179869184,
+  "target_sha256_before": "f8b704004eeb0827aa3b0c805536896fdbfa61d5530f2fe898789e395005288a",
+  "target_sha256_after": "37e91cfb0fb9de97b0b2d7aae4fe1e0a15dc370a59cf6a0fb479d912f3d96928",
+  "target_changed": true,
+  "iso_unchanged": true,
+  "source_unchanged": true,
+  "capsule_unchanged": true,
+  "seconds": 1662.81,
+  "error": "RuntimeError: Guest did not reach the expected fixture state",
+  "operator_stopped": true,
+  "observed_stage": "Installing the system / Configuring APT sources / 85%",
+  "passphrase_forms_reached": true,
+  "generated_credentials_in_serial": false,
+  "source_audit_finding": "Debian base-installer configure_apt uses a nonrecursive CD bind. The previous private view relied on submounts, which do not survive that bind.",
+  "limitation": "Backend process diagnostics were not captured before this operator termination; no complete installation or boot pass.",
+  "capture": {
+    "file": "native-encrypted-install-apt-stage.png",
+    "source_sha256": "44eb696ededf29a2a8a31272af084dd1c22dfce889e80f59ae2f50ab5f45159d",
+    "sha256": "08428c151047d5ce2c08703717bdd1b51479588e33068623d229b16db13633a1"
+  }
+}
