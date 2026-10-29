@@ -1,5 +1,5 @@
 Actual non-root compiled-app PTY, 80x24, isolated newly created demo/HOME.
-Captured 2026-10-29T00:24:57.854050+00:00.
+Captured 2026-10-29T04:35:45.698498+00:00.
 ANSI cursor/erase/UTF-8 cell reconstruction; not a full terminal emulator.
 No physical keyboard or VM workflow claim. Original-source fixtures only.
 
@@ -32,7 +32,7 @@ ORIGINAL SCRATCHPAD AND INDEPENDENT READY SCENE
 SEPARATE-PROCESS NEXT-OPEN ORIGINAL HANDOFF
 ┌ Session handoff · original intention ────────────────────────────────────────┐
 │Next-open display: true · no generated prose/time metrics                     │
-│Left 2026-10-29T00:25:02.572769100+00:00                                      │
+│Left 2026-10-29T04:35:46.384779245+00:00                                      │
 │Context: manuscript/01-Chapter-One/01-Scene-One.md                            │
 │Next time, follow the river beyond the brass door.                            │
 │                                                                              │

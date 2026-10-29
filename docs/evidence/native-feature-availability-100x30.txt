@@ -1,0 +1,30 @@
+┌WrOS · Settings › Backups─────────────────────────────────────────────────────────────────────────┐
+│▸ Verified backup and restore are not configured.                                                 │
+│  Local history is not an independent backup.                                                     │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│Verified backup and restore are not configured.                                                   │
+│↑↓ choose  Enter open  Esc back  F1 help                                                          │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘

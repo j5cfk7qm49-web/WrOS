@@ -1,14 +1,14 @@
 ┌ Story Spark · offline, non-AI ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │  Status: Spark save · notes/sparks/r-0000000000000006.md · original scene preserved                                                                          │
 │  1047 original plots / 84 exercises · static offline selection                                                                                               │
-│  r-0000000000000006 · Combined · 2026-10-28 · Etc/UTC                                                                                                        │
-│  PLOT [wd-p-0312] · classification · level 2 · suggested 20 min                                                                                              │
-│  A botanist finds a planted tree recorded as naturally occurring in a protected grove. Its annual rings prove the grove was moved, but the boundary records  │
-│  needed to locate its original site have been sealed by the donor.                                                                                           │
-│  EXERCISE [wd-x-0004] · dialogue · level 3 · suggested 25 min                                                                                                │
-│  Write spoken dialogue among three people who need the conversation to finish at different times. Avoid direct statements of their deadlines until the final │
-│  exchange. Let interruptions and delayed answers reveal the pressure.                                                                                        │
-│  Narrative conditions: dialogue-only                                                                                                                         │
+│  r-0000000000000006 · Combined · 2026-10-29 · Etc/UTC                                                                                                        │
+│  PLOT [wd-p-0360] · coordination · level 2 · suggested 20 min                                                                                                │
+│  A rescue organizer receives location updates from a missing climber's device after its battery was recovered separately. The updates follow the organizer's │
+│  proposed search sectors one step ahead.                                                                                                                     │
+│  EXERCISE [wd-x-0009] · description · level 2 · suggested 20 min                                                                                             │
+│  Describe an apparently ordinary collection through visible wear and placement. Do not state its owner's personality. Give each selected detail a practical  │
+│  history that a reader can infer without turning every object into a symbol.                                                                                 │
+│  Narrative conditions: narration-only, visual-detail                                                                                                         │
 │  Work mode: Drafting · creative completion is self-reported, not automatically scored.                                                                       │
 │  ★ Favorited; retained separately from history.                                                                                                              │
 │  6 history / 128 · 1 favorites / 64 · 0 dismissals / 128 · 12-result recent window                                                                           │

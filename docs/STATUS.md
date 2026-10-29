@@ -1,6 +1,6 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
-## Native feature contribution reviewed; integrated qualification pending
+## Native feature contribution reviewed and qualified in Debian CI
 
 The feature contribution is preserved and [reviewed](FEATURE_REVIEW.md). The
 workspace compiles again. Native read-only Wi-Fi/profile, local-account,
@@ -10,9 +10,19 @@ Google/Drive success and password arguments have been removed. New story models
 have guarded persistence and Unicode/Markdown corrections, with their missing
 editor, export and speech integration explicitly retained as open work.
 
-Thirty system tests, strict no-audio Clippy and a compiled availability workflow
-at four terminal sizes pass. Full integrated Debian qualification and fresh CI
-for this source are pending. This is not a completed M8/M9 or a new live image.
+[Debian CI 40816807534](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40816807534)
+passed **1008 Rust tests/configuration, 170 Python/zero skips, both Clippys and
+20 gates**. [Artifact provenance](evidence/native-feature-ci-provenance.json)
+binds the tested merge to source `815ecb26...ce352` / 439 files. The native
+availability workflow passed at four terminal sizes with retained manuscript,
+caret and undo and no fabricated account file. This is not a completed M8/M9
+or a new live image.
+
+The independent [local qualification](evidence/native-feature-local.json) passed
+the same test sets and **21 gates**. [Provenance and four actual terminal frames](evidence/native-feature-local-provenance.json)
+retain the binary/source binding. The corrected runner uses normal signal
+defaults; its earlier failed run remains separate. [Draft PR 52](https://github.com/j5cfk7qm49-web/WrOS/pull/52)
+contains this environment increment.
 
 ## Environment first; installer composition checkpoint retained
 

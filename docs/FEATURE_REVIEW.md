@@ -65,7 +65,10 @@ These are tested foundations under development, not completed M8/M9 workflows:
   It has no compile-scope/revision binding or export hook yet.
 - Sentence spans reuse pinned [`unicode-segmentation` 1.13.3](https://docs.rs/unicode-segmentation/1.13.3/unicode_segmentation/trait.UnicodeSegmentation.html),
   already in the dependency graph, with a narrow fiction dialogue-tag adapter.
-  There is no speech engine, audio playback, multi-scene queue or highlighting UI.
+  This new model is not connected to Grimoire's existing scene read-aloud and
+  highlighting implementation in `src/voice.rs`, whose Piper, Speech Dispatcher
+  and eSpeak adapters remain intact. The new model adds no audio playback,
+  multi-scene queue or revision-bound highlighting workflow.
 
 Named snapshots/variants remain bounded models. They do not replace existing
 manuscript history, restore drafts or implement diff/variant interaction. Stable
@@ -74,6 +77,29 @@ guards and actual publishing/speech acceptance are still required before those
 capabilities can be called complete.
 
 ## Qualification boundary
+
+[Debian CI](evidence/native-feature-ci.json) passed 1008 Rust tests per
+configuration, 170 Python tests with zero skips, both Clippys and 20 gates.
+[Provenance](evidence/native-feature-ci-provenance.json) retains the verified
+artifact digest, tested merge and exact source fingerprint.
+
+The independent [local run](evidence/native-feature-local.json) passed the same
+1008 Rust/configuration and 170 Python/zero-skip sets, both Clippys and 21 gates.
+[Local provenance](evidence/native-feature-local-provenance.json) binds the exact
+source and compiled binary to four actual availability frames:
+[80×24](evidence/native-feature-availability-80x24.txt),
+[100×30](evidence/native-feature-availability-100x30.txt),
+[120×40](evidence/native-feature-availability-120x40.txt) and
+[160×50](evidence/native-feature-availability-160x50.txt).
+These are ANSI cell reconstructions with styling omitted, not VM screenshots.
+
+An [earlier local harness failure](evidence/native-feature-runner-signal-failure.json)
+is retained separately. A probe measured ignored SIGTERM/SIGINT inherited from
+the private `unshare --fork` runner; the unchanged process-lifecycle test passed
+with normal signal defaults. The corrected local runner omits that option and
+asserts the defaults before testing. No product assertion or timeout was relaxed.
+See the [diagnosis](evidence/native-feature-runner-signal-provenance.json) and
+Debian's [documented fork-mode signal behavior](https://manpages.debian.org/trixie/util-linux/unshare.1.en.html).
 
 Focused checks and fresh integrated Debian evidence are recorded separately from
 the earlier [installer composition checkpoint](evidence/native-offline-provider-checkpoint.json).

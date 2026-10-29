@@ -1,0 +1,26 @@
+{
+  "passed": true,
+  "scope": "Reviewed native system views and guarded experimental story models; complete Debian software CI. No full story-feature, image, installation, provider or hardware qualification.",
+  "run_url": "https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40816807534",
+  "run_id": 40816807534,
+  "job_id": 123259676735,
+  "artifact_id": 12873023178,
+  "artifact_sha256": "82e74f30295d3f8274d6b4fbb52b8a076c43da1819d00ab1357991438cbb6e4e",
+  "source_commit": "975c3521ff20dbb1b3fd8182a0397a0ef0de7004",
+  "tested_merge": "d8675e1d71f2c008f0106cea84584cc9e7191422",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "815ecb268c431849d0674402752dc2b3cb848cc6b479a6071362c1f3c3dce352",
+    "file_count": 439,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "report_sha256": "1dbf3d771ebff2253ddf125024117dad36f6e9cdd7a6c1d17edf2a7617a1c539",
+  "report": "native-feature-ci.json",
+  "rust_passed_per_configuration": [
+    1008,
+    1008
+  ],
+  "python_passed": 170,
+  "python_skipped": 0,
+  "gates": 20
+}
