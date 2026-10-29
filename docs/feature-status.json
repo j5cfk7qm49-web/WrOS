@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "as_of": "2026-10-28",
+  "as_of": "2026-10-29",
   "release": "0.1.0-dev foundation + M3b + M4 + M5 + M6 + M7a + M7b software",
   "features": [
     {
@@ -438,10 +438,10 @@
     {
       "area": "Long-form",
       "capability": "Text-anchored annotations and revision queue",
-      "status": "Planned",
-      "verification": "None",
+      "status": "In progress",
+      "verification": "Guarded model and UI tests; combined qualification in progress",
       "hardware_verified": false,
-      "detail": "Separate from published manuscript"
+      "detail": "Stable sidecar document IDs, exact original quote/context, comment/status/anchor history, owned move reconciliation and explicit re-anchor; outside manuscript/export; 64 KiB source bound, no history-restore UI"
     },
     {
       "area": "Long-form",
@@ -649,6 +649,22 @@
       "verification": "Debian CI: 973 Rust/configuration, 135 Python/zero skips, both Clippys and 20 gates; full local 21 gates; compressed ISO audit, three diskless live boot/UI/shutdown modes and installed-lock guest (347.59 seconds) passed",
       "hardware_verified": false,
       "detail": "Maintained live-config/user-setup with temporary runtime greetd entry; all live boot entries and omitted-flag role guard verified; public personal lock unavailable. Native privileged installer, new target install/reboot, UEFI and physical gates remain open"
+    },
+    {
+      "area": "Publishing",
+      "capability": "In-editor Markdown footnote reference/definition creation",
+      "status": "Tested",
+      "verification": "PR59 Debian CI + independent local 1022 Rust/config, 171 Python/zero skips, four-size compiled insertion/undo/restart",
+      "detail": "Guarded unique label and same-scene definition; programmatic markup does not earn typing credit; no page-bottom layout",
+      "hardware_verified": false
+    },
+    {
+      "area": "Publishing",
+      "capability": "Source-bound footnote reference/definition navigation",
+      "status": "In progress",
+      "verification": "Four-size UI regressions; combined qualification in progress",
+      "detail": "Shared shell, original-source editing, stale-source and modal input guards; not a separate mutable footnote store",
+      "hardware_verified": false
     }
   ]
 }
