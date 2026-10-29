@@ -53,6 +53,7 @@ pub enum Action {
     Timer,
     TimerReset,
     NotesList,
+    Footnotes,
     /// Every conflict copy in the book, to settle.
     Conflicts,
     NextTk,
@@ -268,6 +269,7 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
         Entry::new("Bold (on or off)", &format!("{m}B"), Action::Bold),
         Entry::new("Corkboard", "b", Action::Corkboard),
         Entry::new("Notes & TKs", &format!("{m}T"), Action::NotesList),
+        Entry::new("Footnotes · browse and jump", "", Action::Footnotes),
         Entry::new("Next TK (or note)", "", Action::NextTk),
         Entry::new("Next scene still in draft", "", Action::NextDraft),
         Entry::new("Read aloud from here", "", Action::ReadAloud),

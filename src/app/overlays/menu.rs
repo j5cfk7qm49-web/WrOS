@@ -247,6 +247,10 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "Every note and TK (your mark for \"fill this in later\") in the book, in one list.",
             "notes",
         ),
+        Action::Footnotes => (
+            "Browse Markdown footnote references and definitions, inspect missing labels, and jump to the original scene.",
+            "writing",
+        ),
         Action::NextDraft => (
             "Opens the next scene that isn't marked revised or done yet. Handy for a revision pass.",
             "revision",

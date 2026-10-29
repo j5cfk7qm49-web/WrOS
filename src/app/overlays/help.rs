@@ -58,6 +58,7 @@ impl App {
             Overlay::History { .. } | Overlay::Recover { .. } => "history",
             Overlay::Pins | Overlay::PinCategory { .. } => "pins",
             Overlay::Marks { .. } => "notes",
+            Overlay::Footnotes { .. } => "notes",
             Overlay::Sprint { .. } | Overlay::Progress | Overlay::Goals { .. } => "sprints",
             Overlay::Reading | Overlay::Voices { .. } => "revision",
             Overlay::Details { .. } => "outline",
