@@ -216,7 +216,7 @@ def diagnose():
                                 '/usr/bin/tail', '-c', '16000', str(DI/'var/log/syslog')],
                                pass_fds=(namespace,), stdin=subprocess.DEVNULL, timeout=15, check=False)
                 subprocess.run(['/usr/bin/nsenter', '--mount=/proc/self/fd/'+str(namespace),
-                                '--pid=/proc/self/fd/'+str(pid_namespace), '--fork', '--',
+                                '--pid=/proc/self/fd/'+str(pid_namespace), '--',
                                 '/bin/ps', '-eo', 'pid,ppid,stat,wchan:24,comm'],
                                pass_fds=(namespace, pid_namespace), stdin=subprocess.DEVNULL, timeout=15, check=False)
             finally:
@@ -272,8 +272,8 @@ def worker(allow_synthetic_target=False, review=False, installing=False):
         state(record)
     # Debian base-installer later uses a nonrecursive CD bind. Its entire
     # view must therefore be one filesystem, rather than a tree of submounts.
-    # Both lower layers are verified read-only media; only the small native
-    # layout/index replacements occupy the private RAM upper layer.
+    # The live ISO is the read-only lower layer. The separate QA capsule must
+    # retain its indexed native-installer/ prefix as regular RAM-backed files.
     view = WORK/'medium'; view.mkdir()
     upper, overlay_work = WORK/'media-upper', WORK/'media-work'
     upper.mkdir(); upper.chmod(0o755); overlay_work.mkdir()
@@ -284,9 +284,11 @@ def worker(allow_synthetic_target=False, review=False, installing=False):
     # No upstream package or lower-layer file is modified.
     gtk = upper/'install/gtk'; gtk.mkdir(parents=True)
     os.setxattr(gtk, 'trusted.overlay.opaque', b'y')
-    options = ('nosuid,nodev,lowerdir='+str(QA/'native-installer')+':'+str(medium)
+    options = ('nosuid,nodev,lowerdir='+str(medium)
                +',upperdir='+str(upper)+',workdir='+str(overlay_work))
     command('/bin/mount', '-t', 'overlay', '-o', options, 'overlay', str(view))
+    shutil.copytree(QA/'native-installer', view/'native-installer')
+    (view/'native-installer').chmod(0o755)
     for name, target in [('initrd.gz', 'install/initrd.gz'),
                          ('Packages', 'dists/trixie/main/debian-installer/binary-amd64/Packages'),
                          ('Packages.gz', 'dists/trixie/main/debian-installer/binary-amd64/Packages.gz'),
@@ -300,12 +302,22 @@ def worker(allow_synthetic_target=False, review=False, installing=False):
     bind(view, view, True)
     rebound = WORK/'media-rebound'
     bind(view, rebound, True)
-    sample = next(name for name in manifest['file_sha256'] if name.startswith('pool/'))
+    # This is an invariant over the builder's authenticated, canonical index,
+    # not a replacement package parser. Check its exact retriever paths, not
+    # merely that an archive exists somewhere in the merged filesystem.
+    index = (QA/'native-installer/Packages').read_bytes()
+    require(0 < len(index) <= 32*1024*1024, 'Bounded canonical package index required')
+    paths = re.findall(r'^Filename: (\S+)$', index.decode('utf-8'), re.MULTILINE)
+    expected = {'native-installer/'+name for name in manifest['file_sha256'] if name.startswith('pool/')}
+    require(len(paths) == len(expected) and set(paths) == expected,
+            'Canonical package index paths differ from the capsule')
+    require(all((rebound/name).is_file() and not (rebound/name).is_symlink()
+                and digest(rebound/name) == manifest['file_sha256'][name.removeprefix('native-installer/')]
+                for name in paths), 'Debian media rebind lost an indexed package archive')
     require((rebound/'.disk/info').read_bytes() == media_info
             and (rebound/'live/filesystem.squashfs').stat().st_size == squashfs_size
             and digest(rebound/'install/initrd.gz') == manifest['file_sha256']['initrd.gz']
             and digest(rebound/'dists/trixie/main/debian-installer/binary-amd64/Packages') == manifest['file_sha256']['Packages']
-            and digest(rebound/sample) == manifest['file_sha256'][sample]
             and not (rebound/'install/gtk/initrd.gz').exists(),
             'Debian nonrecursive media bind lost its native or ordinary payload')
     command('/bin/umount', str(rebound)); rebound.rmdir()
@@ -313,7 +325,7 @@ def worker(allow_synthetic_target=False, review=False, installing=False):
     bind(view, medium, True)
     require(not (medium/'install/gtk/initrd.gz').exists()
             and digest(medium/'install/initrd.gz') == manifest['file_sha256']['initrd.gz']
-            and digest(medium/'Packages') == manifest['file_sha256']['Packages'],
+            and digest(medium/'native-installer/Packages') == manifest['file_sha256']['Packages'],
             'Private media view does not expose the exact matching backend and pool')
     launcher = Path('/usr/share/debian-installer-launcher')
     launcher.mkdir(parents=True, exist_ok=True)

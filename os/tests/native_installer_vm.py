@@ -312,7 +312,7 @@ d-i debian-installer/add-kernel-opts string console=tty1 console=ttyS0,115200
                 shell('sudo -n mkdir /run/wros-native-qa && sudo -n mount -o ro,nosuid,nodev,noexec /dev/disk/by-label/WROS_NATIVE_QA /run/wros-native-qa')
                 shell('sudo -n /usr/bin/python3 -I /run/wros-native-qa/native_installer_guest.py '
                       + ('start-install' if args.install_target else 'start-review' if args.partition_review else 'start-target' if target else 'start'))
-                snapshot('Select a language', 'language')
+                snapshot('Select a language', 'language', seconds=120)
                 key('ret')
                 observation = snapshot('Select your location', 'location')
                 if args.install_target:

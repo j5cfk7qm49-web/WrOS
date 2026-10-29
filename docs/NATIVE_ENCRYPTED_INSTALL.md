@@ -35,12 +35,18 @@ both hidden passphrase fields and copied the system, then remained at
 It was explicitly stopped after a source audit found that Debian's subsequent
 nonrecursive CD bind drops the previous private view's submounts. That attempt
 has no installation/boot pass. The new view uses one overlay filesystem with
-verified read-only lower layers and a small private RAM upper layer. It checks
+the read-only live ISO below a private RAM upper layer containing the verified
+capsule and native layout. It checks
 an actual nonrecursive bind of that filesystem before starting the frontend.
 Bounded periodic backend diagnostics now accompany long fixture transitions.
 A [pre-frontend remount attempt](evidence/native-encrypted-install-remount-failure.json)
 failed without changing any target byte. The overlay is now sealed through the
 existing VFS read-only bind operation rather than a filesystem remount.
+The subsequent [prefix attempt](evidence/native-encrypted-install-prefix-failure.json)
+passed the bind check and reached the native menus, then Debian reported a
+missing `native-installer/pool/...` path. The target again stayed unchanged and
+the retry question received no answer. The capsule now keeps that exact prefix;
+admission verifies every indexed archive's path and bytes after the bind.
 
 Completion requires more than a successful backend exit. A read-only in-target
 audit checks the generated account, locked root, native authentication, installed
