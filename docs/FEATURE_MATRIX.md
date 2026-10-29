@@ -23,6 +23,7 @@ Existing means audited baseline; Tested identifies automated/VM evidence, not pr
 | OS | Signed OS/app updates, snapshots/rollback and offline bundles | Planned | None | Use apt plus a selected upstream snapshot mechanism |
 | OS | Secure Boot / legacy BIOS / physical firmware compatibility | Blocked | UEFI without Secure Boot only | Requires signed boot-chain work and identified physical hardware |
 | System | Typed Linux + explicitly simulated backend | Tested | Rust adapter/validation tests + worker UI test | No arbitrary shell or manuscript paths in OS requests |
+| System | Native read-only Wi-Fi/profile/account/filesystem/cached package-plan views | Implemented | Thirty system tests, strict Clippy and actual four-size availability PTY passed; full integrated qualification pending | Shared Grimoire menu; no credential enrollment, account changes, provider access, backup, update application or recovery grant; see [feature review](FEATURE_REVIEW.md) |
 | System | Cached/off-thread network/battery/brightness/storage/timezone status | Tested | Missing-device/fixture tests + networkless VM | Physical battery/backlight behavior not verified |
 | System | Wi-Fi radio and scan command interfaces | Tested | Typed command/unit tests | Actual radio/native enrollment unverified; scan truncation open; nmtui is emergency maintenance only |
 | System | In-app new-network credentials / secret agent | Planned | None | Never passwords in argv/logs |

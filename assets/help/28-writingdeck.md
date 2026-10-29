@@ -50,6 +50,24 @@ been qualified.
 System settings uses a background worker and cached status. NetworkManager controls Wi-Fi radio and scanning; brightnessctl controls supported backlights. Power controls require confirmation and successful manuscript saving. Unsupported services report unavailable, never success. Native connection enrollment is still unfinished. `nmtui` remains available
 only as an emergency maintenance tool while that work is completed.
 
+Network → Scan Wi-Fi networks shows a native list with signal/security and the
+active network. Saved Wi-Fi profiles shows the profiles visible to this session;
+UUIDs distinguish identical names. Refresh clears old results before retrying,
+so an unavailable service cannot leave a stale list looking current. These are
+read-only lists; new-network credentials and profile changes are unfinished.
+
+Accounts → Local accounts lists supported local login accounts and identifies
+this session. Google, Drive, synchronization and backups state their actual
+availability. Opening those screens does not enroll an account, fetch documents
+or create a verified backup. Local manuscript history is not a separate backup.
+
+Storage → Mounted filesystems shows local mount paths and capacity. Updates →
+Preview cached package plan runs a read-only APT simulation, including proposed
+removals. It uses the existing package cache; it does not establish repository
+freshness, download or install updates, or qualify recovery. Nothing is scheduled
+at restart by this preview. The screens use the same Grimoire navigation and keep
+the current writing buffers, caret, selection and undo in place.
+
 Keyboard layout selects QWERTY, Colemak or Colemak-DH ANSI/ISO on appliance tty1. A root-owned helper previews for 15 seconds with an independent systemd rollback timer. Type in the preview field; Enter keeps it, Escape reverts. The test field never changes a manuscript. Desktop and SSH sessions must use their own OS layout configuration.
 
 Keyboard shortcuts adds aliases to actions using Ctrl+Alt letters or F10-F12. Established Grimoire bindings are protected. Shortcuts use logical letters: Colemak text is not remapped again. Plain letters always remain prose.

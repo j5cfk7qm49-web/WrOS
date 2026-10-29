@@ -64,9 +64,11 @@ pub enum Page {
 struct Worker {
     tx: SyncSender<Request>,
     rx: Receiver<(Request, Result<Reply, String>)>,
+    simulated: bool,
 }
 impl Worker {
     fn spawn(mut backend: Box<dyn Backend>) -> Self {
+        let simulated = backend.simulated();
         let (tx, requests) = mpsc::sync_channel::<Request>(1);
         let (results, rx) = mpsc::channel();
         std::thread::spawn(move || {
@@ -79,7 +81,7 @@ impl Worker {
                 }
             }
         });
-        Self { tx, rx }
+        Self { tx, rx, simulated }
     }
 }
 const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 22] = [
@@ -282,6 +284,13 @@ impl Deck {
         } else {
             self.note = "Original layout could not be loaded; not overwriting it.".into();
         }
+    }
+    pub fn simulated(&self) -> bool {
+        self.worker.as_ref().is_some_and(|worker| worker.simulated)
+            || self
+                .snapshot
+                .as_ref()
+                .is_some_and(|snapshot| snapshot.simulated)
     }
     pub fn request(&mut self, request: Request) {
         if self.busy {
@@ -540,6 +549,46 @@ impl App {
                         self.deck.request(Request::DisplayStatus);
                     }
                 }
+                Ok(Reply::WifiScan(networks)) => {
+                    self.deck.note = format!(
+                        "{} named Wi-Fi networks returned. Enrollment is not implemented.",
+                        networks.len()
+                    );
+                    self.deck.shell.wifi_networks = Some(networks);
+                }
+                Ok(Reply::SavedWifi(profiles)) => {
+                    self.deck.note = format!(
+                        "{} saved Wi-Fi profiles visible to this session.",
+                        profiles.len()
+                    );
+                    self.deck.shell.wifi_saved = Some(profiles);
+                }
+                Ok(Reply::LocalAccounts(accounts)) => {
+                    self.deck.note = "Local account list loaded; no account was changed.".into();
+                    self.deck.shell.local_accounts = Some(accounts);
+                }
+                Ok(Reply::StorageDevices(devices)) => {
+                    self.deck.note = "Mounted filesystem usage loaded locally.".into();
+                    self.deck.shell.storage_devices = Some(devices);
+                }
+                Ok(Reply::Updates(plan)) => {
+                    self.deck.note = plan.status.clone();
+                    self.deck.shell.updates = Some(plan);
+                }
+                Ok(Reply::GoogleStatus(status)) => {
+                    self.deck.note = status.status_message.clone();
+                    self.deck.shell.google_status = Some(status);
+                }
+                Ok(Reply::GoogleDriveFiles(files)) => {
+                    self.deck.note =
+                        "Development service reply; Drive enrollment is not implemented.".into();
+                    self.deck.shell.drive_files = Some(files);
+                }
+                Ok(Reply::Backups(backups)) => {
+                    self.deck.note =
+                        "Development service reply; verified backup is not configured.".into();
+                    self.deck.shell.backups = Some(backups);
+                }
                 Ok(Reply::Timezones(zones)) => {
                     self.deck.note = "Local timezone catalog loaded. Type to filter.".into();
                     self.deck.shell.timezones = Some(zones);
@@ -612,6 +661,9 @@ impl App {
                         self.overlay = Overlay::Deck(Page::Keyboard { sel: 0 });
                     }
                 }
+            }
+            if self.deck.simulated() && !self.deck.note.contains("SIMULATED") {
+                self.deck.note = format!("SIMULATED · {}", self.deck.note);
             }
             self.deck.shell.notices.push(&self.deck.note);
         }

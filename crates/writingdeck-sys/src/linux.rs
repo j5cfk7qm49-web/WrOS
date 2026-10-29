@@ -49,7 +49,7 @@ impl Runner for ProcessRunner {
                 if n == 0 {
                     return Ok(kept);
                 }
-                let room = 65_536usize.saturating_sub(kept.len());
+                let room = 65_537usize.saturating_sub(kept.len());
                 kept.extend_from_slice(&b[..n.min(room)]);
             }
         }
@@ -77,6 +77,12 @@ impl Runner for ProcessRunner {
         if timed_out {
             bail!("{} timed out; no success assumed", cmd.program);
         }
+        if stdout.len() > 65_536 || stderr.len() > 65_536 {
+            bail!(
+                "{} output exceeds limit; no partial result accepted",
+                cmd.program
+            );
+        }
         if !status.success() {
             bail!(
                 "{}: {}",
@@ -84,7 +90,10 @@ impl Runner for ProcessRunner {
                 String::from_utf8_lossy(&stderr).trim()
             );
         }
-        Ok(String::from_utf8_lossy(&stdout).trim().to_string())
+        Ok(String::from_utf8(stdout)
+            .context("system reply is not UTF-8")?
+            .trim_end_matches(['\r', '\n'])
+            .to_string())
     }
 }
 
@@ -244,7 +253,11 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
         Request::ScanWifi => Invocation::new(
             "/usr/bin/nmcli",
             &[
+                "--colors",
+                "no",
                 "-t",
+                "--escape",
+                "yes",
                 "-f",
                 "IN-USE,SSID,SIGNAL,SECURITY",
                 "device",
@@ -254,6 +267,52 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
                 "yes",
             ],
         ),
+        Request::ListSavedWifi => Invocation::new(
+            "/usr/bin/nmcli",
+            &[
+                "--colors",
+                "no",
+                "-t",
+                "--escape",
+                "yes",
+                "-f",
+                "UUID,NAME,TYPE",
+                "connection",
+                "show",
+            ],
+        ),
+        Request::CheckUpdates => Invocation::new("/usr/bin/apt-get", &["-s", "dist-upgrade"]),
+        Request::ListStorageDevices => Invocation::new(
+            "/usr/bin/findmnt",
+            &[
+                "--json",
+                "--list",
+                "--bytes",
+                "--df",
+                "--output",
+                "SOURCE,TARGET,SIZE,USED,AVAIL,USE%",
+            ],
+        ),
+        Request::ConnectWifi { .. }
+        | Request::DisconnectWifi
+        | Request::ForgetWifi(_)
+        | Request::ConnectGoogleAccount
+        | Request::DisconnectGoogleAccount
+        | Request::ListGoogleDriveFiles
+        | Request::MaterializeDriveFile { .. }
+        | Request::ListBackups
+        | Request::CreateBackup { .. }
+        | Request::RestoreBackup { .. }
+        | Request::VerifyBackups
+        | Request::StageUpdates
+        | Request::RecoveryStatus
+        | Request::RebootRecovery
+        | Request::RebootFirmware => {
+            bail!("this native workflow is not implemented; no action was performed")
+        }
+        Request::ListLocalAccounts | Request::GetGoogleStatus => {
+            bail!("read-only local request handled directly by Linux backend")
+        }
         Request::Brightness(p) => {
             if !(1..=100).contains(p) {
                 bail!("brightness must be 1..100");
@@ -350,6 +409,26 @@ impl<R: Runner> Backend for Linux<R> {
         if request == Request::Refresh {
             return Ok(Reply::Snapshot(self.snapshot()));
         }
+        if request == Request::ListLocalAccounts {
+            let file =
+                fs::File::open(self.etc.join("passwd")).context("reading local account list")?;
+            let mut content = String::new();
+            file.take(1_048_577).read_to_string(&mut content)?;
+            if content.len() > 1_048_576 {
+                bail!("local account list exceeds limit");
+            }
+            return Ok(Reply::LocalAccounts(crate::system_views::local_accounts(
+                &content,
+                unsafe { libc::geteuid() },
+            )?));
+        }
+        if request == Request::GetGoogleStatus {
+            return Ok(Reply::GoogleStatus(crate::GoogleAccountStatus {
+                connected: false,
+                email: None,
+                status_message: "Google enrollment is not configured in this build.".into(),
+            }));
+        }
         let output = self.runner.run(&invocation(&request)?)?;
         if request == Request::ListTimezones {
             return Ok(Reply::Timezones(crate::timezone::catalog(&output)?));
@@ -408,6 +487,23 @@ impl<R: Runner> Backend for Linux<R> {
             };
             return Ok(Reply::Message(message.into()));
         }
+        match request {
+            Request::ScanWifi => {
+                return Ok(Reply::WifiScan(crate::system_views::wifi_scan(&output)?));
+            }
+            Request::ListSavedWifi => {
+                return Ok(Reply::SavedWifi(crate::system_views::saved_wifi(&output)?));
+            }
+            Request::ListStorageDevices => {
+                return Ok(Reply::StorageDevices(crate::system_views::storage(
+                    &output,
+                )?));
+            }
+            Request::CheckUpdates => {
+                return Ok(Reply::Updates(crate::system_views::updates(&output)?));
+            }
+            _ => {}
+        }
         if matches!(request, Request::KeyboardPreview(_)) {
             let v: serde_json::Value =
                 serde_json::from_str(&output).context("invalid keyboard helper reply")?;
@@ -437,6 +533,125 @@ mod tests {
             self.0.push(c.clone());
             Ok("disconnected:none".into())
         }
+    }
+    #[test]
+    fn unfinished_mutations_cannot_invoke_tools_or_fabricate_service_success() {
+        let mut backend = Linux {
+            runner: Fake::default(),
+            sys: "/missing".into(),
+            etc: "/missing".into(),
+            storage: "/missing".into(),
+        };
+        for request in [
+            Request::ConnectWifi {
+                ssid: "any network".into(),
+            },
+            Request::DisconnectWifi,
+            Request::ForgetWifi("ambiguous profile".into()),
+            Request::ConnectGoogleAccount,
+            Request::DisconnectGoogleAccount,
+            Request::ListGoogleDriveFiles,
+            Request::MaterializeDriveFile {
+                file_id: "file-01".into(),
+                local_name: "draft.md".into(),
+            },
+            Request::ListBackups,
+            Request::CreateBackup {
+                target_dir: "/unused".into(),
+            },
+            Request::RestoreBackup {
+                snapshot_id: "latest".into(),
+                restore_dir: "/unused".into(),
+            },
+            Request::VerifyBackups,
+            Request::StageUpdates,
+            Request::RecoveryStatus,
+            Request::RebootRecovery,
+            Request::RebootFirmware,
+        ] {
+            assert!(backend.request(request).is_err());
+        }
+        assert!(backend.runner.0.is_empty());
+        let Reply::GoogleStatus(status) = backend.request(Request::GetGoogleStatus).unwrap() else {
+            panic!()
+        };
+        assert!(!status.connected);
+        assert!(status.email.is_none());
+        assert!(
+            backend.request(Request::ListLocalAccounts).is_err(),
+            "missing passwd is an error, never a fabricated writer account"
+        );
+    }
+    #[test]
+    fn read_only_views_use_structured_fixed_commands_without_secrets_or_assumed_interfaces() {
+        let scan = invocation(&Request::ScanWifi).unwrap();
+        assert_eq!(scan.program, "/usr/bin/nmcli");
+        assert!(scan.args.windows(2).any(|p| p == ["--escape", "yes"]));
+        let profiles = invocation(&Request::ListSavedWifi).unwrap();
+        assert!(profiles.args.contains(&"UUID,NAME,TYPE".into()));
+        let disks = invocation(&Request::ListStorageDevices).unwrap();
+        assert_eq!(disks.program, "/usr/bin/findmnt");
+        assert!(disks.args.contains(&"--json".into()));
+        assert_eq!(
+            invocation(&Request::CheckUpdates).unwrap().args,
+            ["-s", "dist-upgrade"]
+        );
+    }
+    #[test]
+    fn process_runner_rejects_truncation_and_invalid_utf8_instead_of_partial_success() {
+        let mut runner = ProcessRunner;
+        assert!(
+            runner
+                .run(&Invocation::new(
+                    "/usr/bin/python3",
+                    &["-c", "import sys; sys.stdout.write('x'*65537)"]
+                ))
+                .is_err()
+        );
+        assert!(
+            runner
+                .run(&Invocation::new(
+                    "/usr/bin/python3",
+                    &["-c", "import sys; sys.stdout.buffer.write(bytes([255]))"]
+                ))
+                .is_err()
+        );
+        assert_eq!(
+            runner
+                .run(&Invocation::new(
+                    "/usr/bin/python3",
+                    &["-c", "print('  name  ')"]
+                ))
+                .unwrap(),
+            "  name  "
+        );
+    }
+    #[test]
+    fn actual_debian_findmnt_json_matches_the_storage_view_contract() {
+        let mut runner = ProcessRunner;
+        let output = runner
+            .run(&Invocation::new(
+                "/usr/bin/findmnt",
+                &[
+                    "--json",
+                    "--list",
+                    "--bytes",
+                    "--df",
+                    "--target",
+                    ".",
+                    "--output",
+                    "SOURCE,TARGET,SIZE,USED,AVAIL,USE%",
+                ],
+            ))
+            .unwrap();
+        let devices = crate::system_views::storage(&output).unwrap();
+        assert_eq!(devices.len(), 1);
+        assert!(
+            std::env::current_dir()
+                .unwrap()
+                .starts_with(&devices[0].mountpoint)
+        );
+        assert!(devices[0].total_bytes > 0);
     }
     #[test]
     fn percentages_are_bounded_without_zero_division_or_multiply_overflow() {

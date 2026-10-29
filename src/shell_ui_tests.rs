@@ -8,9 +8,11 @@ use grimoire_core::documents::Pane;
 fn system_panel(desk: &mut Desk, panel: usize) {
     desk.app.open_settings();
     desk.draw();
+    desk.key(KeyCode::Home);
     desk.key(KeyCode::Down);
     desk.key(KeyCode::Down);
     desk.key(KeyCode::Enter);
+    desk.key(KeyCode::Home);
     for _ in 0..panel {
         desk.key(KeyCode::Down);
     }
@@ -186,6 +188,162 @@ fn wait_system(desk: &mut Desk) {
     }
     assert!(!desk.app.deck.busy);
     desk.draw();
+}
+
+#[test]
+fn native_read_only_system_views_keep_editor_state_and_failed_refresh_drops_stale_results() {
+    use std::sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    };
+    use writingdeck_sys::{Backend, Reply, Request, Simulated};
+    struct Services {
+        calls: Arc<Mutex<Vec<Request>>>,
+        fail: Arc<AtomicBool>,
+        simulator: Simulated,
+    }
+    impl Backend for Services {
+        fn request(&mut self, request: Request) -> anyhow::Result<Reply> {
+            self.calls.lock().unwrap().push(request.clone());
+            if request == Request::ScanWifi && self.fail.load(Ordering::Relaxed) {
+                anyhow::bail!("scan service stopped");
+            }
+            self.simulator.request(request)
+        }
+    }
+    for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let mut desk = Desk::open(
+            book(&format!("native-service-views-{width}"), true),
+            width,
+            height,
+        );
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let fail = Arc::new(AtomicBool::new(false));
+        desk.app.deck.use_test_backend(Box::new(Services {
+            calls: calls.clone(),
+            fail: fail.clone(),
+            simulator: Simulated::laptop(),
+        }));
+        desk.app.focus = Focus::Editor;
+        desk.typed("Original λ draft. ");
+        let original = desk.app.editor.text();
+        let position = desk.app.view_position(Pane::Primary);
+        system_panel(&mut desk, 0);
+        wait_system(&mut desk);
+        for _ in 0..4 {
+            desk.key(KeyCode::Down);
+        }
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::WifiNetworks);
+        assert!(desk.shows("WrOS-Studio"));
+        assert!(desk.shows("SIMULATED"));
+        desk.typed("DO-NOT-ENTER-THE-EDITOR");
+        desk.ctrl('z');
+        assert_eq!(desk.app.editor.text(), original);
+        assert_eq!(desk.app.view_position(Pane::Primary), position);
+        // Information rows cannot turn a scan result into a connection request.
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        assert!(
+            !calls
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|r| matches!(r, Request::ConnectWifi { .. }))
+        );
+        fail.store(true, Ordering::Relaxed);
+        desk.key(KeyCode::Home);
+        desk.key(KeyCode::Enter);
+        assert!(desk.app.deck.shell.wifi_networks.is_none());
+        wait_system(&mut desk);
+        assert!(desk.shows("scan service stopped"));
+        assert!(!desk.shows("WrOS-Studio"));
+        desk.key(KeyCode::Esc);
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::SavedWifi);
+        assert!(desk.shows("HomeOffice"));
+        for _ in 0..4 {
+            desk.key(KeyCode::Esc);
+        }
+        assert_eq!(desk.app.overlay, Overlay::None);
+        assert_eq!(desk.app.editor.text(), original);
+        assert_eq!(desk.app.view_position(Pane::Primary), position);
+        desk.ctrl('z');
+        assert_ne!(desk.app.editor.text(), original);
+    }
+}
+
+#[test]
+fn accounts_storage_and_package_views_are_read_only_and_do_not_offer_fake_cloud_or_recovery() {
+    use writingdeck_sys::Simulated;
+    for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let mut desk = Desk::open(
+            book(&format!("native-service-availability-{width}"), true),
+            width,
+            height,
+        );
+        desk.app
+            .deck
+            .use_test_backend(Box::new(Simulated::laptop()));
+        desk.app.open_settings();
+        for _ in 0..3 {
+            desk.key(KeyCode::Down);
+        }
+        desk.key(KeyCode::Enter);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::LocalAccounts);
+        assert!(desk.shows("UID 1000"));
+        desk.key(KeyCode::Esc);
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::GoogleAccount);
+        assert!(desk.shows("not implemented"));
+        desk.key(KeyCode::Enter);
+        assert!(!desk.app.deck.busy);
+        for route in [
+            Route::GoogleDrive,
+            Route::SyncPanel,
+            Route::Backups,
+            Route::RecoveryView,
+        ] {
+            desk.app.deck.shell.nav.reset(route);
+            desk.draw();
+            assert!(!desk.app.deck.busy);
+            assert!(!desk.shows("Connected via OAuth"));
+            assert!(!desk.shows("Healthy"));
+            desk.key(KeyCode::Enter);
+            assert!(!desk.app.deck.busy);
+        }
+        system_panel(&mut desk, 3);
+        wait_system(&mut desk);
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::StorageDevicesView);
+        assert!(desk.shows("MiB free"));
+        system_panel(&mut desk, 5);
+        wait_system(&mut desk);
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::UpdatesView);
+        assert!(desk.shows("No package download"));
+        assert!(
+            desk.app
+                .deck
+                .shell
+                .updates
+                .as_ref()
+                .unwrap()
+                .status
+                .contains("SIMULATED")
+        );
+    }
 }
 
 #[test]

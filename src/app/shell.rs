@@ -64,6 +64,16 @@ pub enum Route {
     WarmPreview,
     Timezones,
     TimezoneConfirm,
+    WifiNetworks,
+    SavedWifi,
+    LocalAccounts,
+    GoogleAccount,
+    GoogleDrive,
+    SyncPanel,
+    Backups,
+    UpdatesView,
+    RecoveryView,
+    StorageDevicesView,
 }
 
 pub struct Shell {
@@ -81,6 +91,14 @@ pub struct Shell {
     pub timezones: Option<Vec<String>>,
     pub timezone_query: String,
     pub timezone_choice: Option<String>,
+    pub wifi_networks: Option<Vec<writingdeck_sys::WifiNetwork>>,
+    pub wifi_saved: Option<Vec<writingdeck_sys::SavedWifi>>,
+    pub local_accounts: Option<Vec<writingdeck_sys::LocalAccount>>,
+    pub google_status: Option<writingdeck_sys::GoogleAccountStatus>,
+    pub drive_files: Option<Vec<writingdeck_sys::RemoteFile>>,
+    pub backups: Option<Vec<writingdeck_sys::ResticSnapshot>>,
+    pub updates: Option<writingdeck_sys::UpdateInfo>,
+    pub storage_devices: Option<Vec<writingdeck_sys::StorageDevice>>,
 }
 impl Shell {
     pub fn load(root: &Path, background: bool) -> Self {
@@ -105,6 +123,14 @@ impl Shell {
             timezones: None,
             timezone_query: String::new(),
             timezone_choice: None,
+            wifi_networks: None,
+            wifi_saved: None,
+            local_accounts: None,
+            google_status: None,
+            drive_files: None,
+            backups: None,
+            updates: None,
+            storage_devices: None,
         };
         let result = (|| -> Result<()> {
             if state.path.is_symlink() {
@@ -163,6 +189,8 @@ enum Choice {
     Action(Action),
     System(usize),
     Information,
+    View(Route, writingdeck_sys::Request),
+    Read(writingdeck_sys::Request),
     WarmAdjust(i16, i16),
     WarmToggle,
     WarmStatus,
@@ -252,11 +280,23 @@ fn entries(app: &App) -> Vec<Entry> {
             .map(|panel| Entry::new(panel.label(), Choice::Open(Route::Panel(panel))))
             .collect(),
         Route::Category(Category::Accounts) => vec![
-            Entry::info("Local accounts · native management not available yet"),
-            Entry::info("Google · account service not configured"),
-            Entry::info("Google Drive · native browsing not available yet"),
-            Entry::info("Synchronization · conflict-safe service not available yet"),
-            Entry::info("Backups · verified remote restore not available yet"),
+            Entry::new(
+                "Local accounts",
+                Choice::View(
+                    Route::LocalAccounts,
+                    writingdeck_sys::Request::ListLocalAccounts,
+                ),
+            ),
+            Entry::new(
+                "Google account",
+                Choice::View(
+                    Route::GoogleAccount,
+                    writingdeck_sys::Request::GetGoogleStatus,
+                ),
+            ),
+            Entry::new("Google Drive", Choice::Open(Route::GoogleDrive)),
+            Entry::new("Synchronization", Choice::Open(Route::SyncPanel)),
+            Entry::new("Backups", Choice::Open(Route::Backups)),
         ],
         Route::Panel(panel) => {
             let status = app.deck.snapshot.as_ref();
@@ -271,8 +311,17 @@ fn entries(app: &App) -> Vec<Entry> {
                     )),
                     Entry::new("Enable Wi-Fi radio", Choice::System(1)),
                     Entry::new("Disable Wi-Fi radio", Choice::System(2)),
-                    Entry::new("Scan Wi-Fi networks", Choice::System(3)),
-                    Entry::info("Connect / saved connections · native enrollment still required"),
+                    Entry::new(
+                        "Scan Wi-Fi networks",
+                        Choice::View(Route::WifiNetworks, writingdeck_sys::Request::ScanWifi),
+                    ),
+                    Entry::new(
+                        "Saved Wi-Fi profiles",
+                        Choice::View(Route::SavedWifi, writingdeck_sys::Request::ListSavedWifi),
+                    ),
+                    Entry::info(
+                        "New-network credentials · protected enrollment is not implemented",
+                    ),
                 ]),
                 Panel::Display => rows.extend([
                     Entry::info(format!(
@@ -317,12 +366,21 @@ fn entries(app: &App) -> Vec<Entry> {
                         Entry::info("Console lock unavailable in this image/session")
                     },
                 ]),
-                Panel::Storage => rows.push(Entry::info(format!(
-                    "Available local storage: {}",
-                    status
-                        .and_then(|s| s.available_bytes)
-                        .map_or("unknown".into(), |n| format!("{} MiB", n / (1024 * 1024)))
-                ))),
+                Panel::Storage => {
+                    rows.push(Entry::new(
+                        "Mounted filesystems",
+                        Choice::View(
+                            Route::StorageDevicesView,
+                            writingdeck_sys::Request::ListStorageDevices,
+                        ),
+                    ));
+                    rows.push(Entry::info(format!(
+                        "Available local storage: {}",
+                        status
+                            .and_then(|s| s.available_bytes)
+                            .map_or("unknown".into(), |n| format!("{} MiB", n / (1024 * 1024)))
+                    )));
+                }
                 Panel::DateTime => rows.extend([
                     Entry::info(format!(
                         "Timezone: {}",
@@ -333,15 +391,184 @@ fn entries(app: &App) -> Vec<Entry> {
                     Entry::new("Choose timezone", Choice::TimezoneOpen),
                     Entry::info("Manual clock / network time controls are not available yet"),
                 ]),
-                Panel::Updates => rows.push(Entry::info(
-                    "Signed WrOS updates and rollback are not available yet",
-                )),
-                Panel::Recovery => rows.push(Entry::info(
-                    "Native recovery is not qualified; use documented maintenance media",
+                Panel::Updates => rows.extend([
+                    Entry::new(
+                        "Preview cached package plan",
+                        Choice::View(Route::UpdatesView, writingdeck_sys::Request::CheckUpdates),
+                    ),
+                    Entry::info("Update installation and rollback are not available yet"),
+                ]),
+                Panel::Recovery => rows.push(Entry::new(
+                    "Recovery availability",
+                    Choice::Open(Route::RecoveryView),
                 )),
             }
             rows
         }
+        Route::WifiNetworks => {
+            let mut rows = vec![Entry::new(
+                "Refresh scan",
+                Choice::Read(writingdeck_sys::Request::ScanWifi),
+            )];
+            if let Some(networks) = &app.deck.shell.wifi_networks {
+                for network in networks {
+                    rows.push(Entry::info(format!(
+                        "{}{}\nSignal: {}% · Security: {}",
+                        if network.in_use { "Connected: " } else { "" },
+                        network.ssid,
+                        network.signal,
+                        network.security
+                    )));
+                }
+                if networks.is_empty() {
+                    rows.push(Entry::info("No visible named Wi-Fi networks returned."));
+                }
+            } else {
+                rows.push(Entry::info("Scan unavailable; refresh to try again."));
+            }
+            rows.push(Entry::info(
+                "New-network credentials · protected enrollment is not implemented.",
+            ));
+            rows
+        }
+        Route::SavedWifi => {
+            let mut rows = vec![Entry::new(
+                "Refresh saved profiles",
+                Choice::Read(writingdeck_sys::Request::ListSavedWifi),
+            )];
+            if let Some(profiles) = &app.deck.shell.wifi_saved {
+                for profile in profiles {
+                    rows.push(Entry::info(format!(
+                        "{}\nUUID: {}",
+                        profile.name, profile.uuid
+                    )));
+                }
+                if profiles.is_empty() {
+                    rows.push(Entry::info(
+                        "No saved Wi-Fi profiles are visible to this session.",
+                    ));
+                }
+            } else {
+                rows.push(Entry::info(
+                    "Saved profiles unavailable; refresh to try again.",
+                ));
+            }
+            rows.push(Entry::info(
+                "This view does not change or delete network profiles.",
+            ));
+            rows
+        }
+        Route::LocalAccounts => {
+            let mut rows = vec![Entry::new(
+                "Refresh local accounts",
+                Choice::Read(writingdeck_sys::Request::ListLocalAccounts),
+            )];
+            if let Some(accounts) = &app.deck.shell.local_accounts {
+                for account in accounts {
+                    rows.push(Entry::info(format!(
+                        "{}{}\nUID {} · Home: {}",
+                        account.username,
+                        if account.is_current {
+                            " (this session)"
+                        } else {
+                            ""
+                        },
+                        account.uid,
+                        account.home
+                    )));
+                }
+                if accounts.is_empty() {
+                    rows.push(Entry::info(
+                        "No local login accounts found in the supported UID range.",
+                    ));
+                }
+            } else {
+                rows.push(Entry::info(
+                    "Local accounts unavailable; refresh to try again.",
+                ));
+            }
+            rows.push(Entry::info(
+                "Account creation and password changes are not available here yet.",
+            ));
+            rows
+        }
+        Route::StorageDevicesView => {
+            let mut rows = vec![Entry::new(
+                "Refresh mounted filesystems",
+                Choice::Read(writingdeck_sys::Request::ListStorageDevices),
+            )];
+            if let Some(devices) = &app.deck.shell.storage_devices {
+                for device in devices {
+                    rows.push(Entry::info(format!(
+                        "{}\n{}\n{} MiB free of {} MiB · {}% used",
+                        device.mountpoint,
+                        device.filesystem,
+                        device.available_bytes / 1_048_576,
+                        device.total_bytes / 1_048_576,
+                        device.use_percent
+                    )));
+                }
+                if devices.is_empty() {
+                    rows.push(Entry::info("No supported filesystems returned."));
+                }
+            } else {
+                rows.push(Entry::info(
+                    "Mounted filesystems unavailable; refresh to try again.",
+                ));
+            }
+            rows
+        }
+        Route::UpdatesView => {
+            let mut rows = vec![
+                Entry::new(
+                    "Refresh cached package plan",
+                    Choice::Read(writingdeck_sys::Request::CheckUpdates),
+                ),
+                Entry::info("Preview only. No package download or installation is performed."),
+                Entry::info("Repository freshness and recovery are unchecked."),
+            ];
+            if let Some(plan) = &app.deck.shell.updates {
+                rows.push(Entry::info(&plan.status));
+                rows.extend(
+                    plan.packages
+                        .iter()
+                        .map(|name| Entry::info(format!("Install/upgrade: {name}"))),
+                );
+                rows.extend(
+                    plan.removals
+                        .iter()
+                        .map(|name| Entry::info(format!("Remove: {name}"))),
+                );
+            } else {
+                rows.push(Entry::info(
+                    "Cached package plan unavailable; refresh to try again.",
+                ));
+            }
+            rows
+        }
+        Route::GoogleAccount => vec![
+            Entry::info(app.deck.shell.google_status.as_ref().map_or(
+                "Google enrollment is not configured in this build.",
+                |status| status.status_message.as_str(),
+            )),
+            Entry::info("No account has been linked or verified by this screen."),
+        ],
+        Route::GoogleDrive => vec![
+            Entry::info("Google Drive browsing is not configured."),
+            Entry::info("No remote files have been fetched or cached."),
+        ],
+        Route::SyncPanel => vec![
+            Entry::info("Conflict-safe synchronization is not implemented."),
+            Entry::info("Local saves remain local."),
+        ],
+        Route::Backups => vec![
+            Entry::info("Verified backup and restore are not configured."),
+            Entry::info("Local history is not an independent backup."),
+        ],
+        Route::RecoveryView => vec![
+            Entry::info("Recovery boot and restore are not qualified."),
+            Entry::info("Use the documented maintenance media."),
+        ],
         Route::Timezones => {
             let mut rows = vec![Entry::info(format!(
                 "Filter: {} · type a city or region",
@@ -463,6 +690,18 @@ fn entries(app: &App) -> Vec<Entry> {
 }
 
 impl App {
+    fn clear_system_view(&mut self, request: &writingdeck_sys::Request) {
+        use writingdeck_sys::Request;
+        match request {
+            Request::ScanWifi => self.deck.shell.wifi_networks = None,
+            Request::ListSavedWifi => self.deck.shell.wifi_saved = None,
+            Request::ListLocalAccounts => self.deck.shell.local_accounts = None,
+            Request::ListStorageDevices => self.deck.shell.storage_devices = None,
+            Request::CheckUpdates => self.deck.shell.updates = None,
+            Request::GetGoogleStatus => self.deck.shell.google_status = None,
+            _ => {}
+        }
+    }
     pub fn open_settings(&mut self) {
         let origin = match self.overlay {
             Overlay::Menu { .. } | Overlay::Deck(writingdeck::Page::Home { .. }) => {
@@ -556,6 +795,19 @@ impl App {
                     | Choice::TimezoneResolve(true) => {}
                     Choice::Open(route) => {
                         self.deck.shell.nav.open(route);
+                        let availability = match route {
+                            Route::GoogleDrive => Some("Drive browsing is not configured."),
+                            Route::SyncPanel => Some("Synchronization is not configured."),
+                            Route::Backups => {
+                                Some("Verified backup and restore are not configured.")
+                            }
+                            Route::RecoveryView => Some("Recovery is not qualified."),
+                            _ => None,
+                        };
+                        if let Some(message) = availability {
+                            self.deck.note = message.into();
+                            self.deck.shell.notices.push(message);
+                        }
                         if route == Route::WarmScreen && !self.deck.busy {
                             self.deck.request(writingdeck_sys::Request::DisplayStatus);
                         }
@@ -566,6 +818,16 @@ impl App {
                             self.deck.request(writingdeck_sys::Request::Refresh);
                         }
                     }
+                    Choice::View(route, request) if !self.deck.busy => {
+                        self.deck.shell.nav.open(route);
+                        self.clear_system_view(&request);
+                        self.deck.request(request);
+                    }
+                    Choice::Read(request) if !self.deck.busy => {
+                        self.clear_system_view(&request);
+                        self.deck.request(request);
+                    }
+                    Choice::View(..) | Choice::Read(_) => {}
                     Choice::Information => self.deck.shell.notices.push(&row.label),
                     Choice::WarmAdjust(kelvin, strength) if !self.deck.busy => {
                         let choice = &mut self.deck.shell.warmth;
@@ -663,16 +925,21 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
         Route::WarmPreview => "WrOS · Keep display preview?".into(),
         Route::Timezones => "WrOS · Settings › Date and time › Timezone".into(),
         Route::TimezoneConfirm => "WrOS · Change timezone?".into(),
+        Route::WifiNetworks => "WrOS · Settings › Wi-Fi networks".into(),
+        Route::SavedWifi => "WrOS · Settings › Saved Wi-Fi profiles".into(),
+        Route::LocalAccounts => "WrOS · Settings › Local accounts".into(),
+        Route::GoogleAccount => "WrOS · Settings › Google account".into(),
+        Route::GoogleDrive => "WrOS · Settings › Google Drive".into(),
+        Route::SyncPanel => "WrOS · Settings › Synchronization".into(),
+        Route::Backups => "WrOS · Settings › Backups".into(),
+        Route::UpdatesView => "WrOS · Settings › Cached package plan".into(),
+        Route::RecoveryView => "WrOS · Settings › Recovery".into(),
+        Route::StorageDevicesView => "WrOS · Settings › Mounted filesystems".into(),
     };
     if app.deck.live_session {
         title.push_str(" · Live session");
     }
-    if app
-        .deck
-        .snapshot
-        .as_ref()
-        .is_some_and(|snapshot| snapshot.simulated)
-    {
+    if app.deck.simulated() {
         title = format!("SIMULATED · {title}");
     }
     let note = if app.deck.busy {

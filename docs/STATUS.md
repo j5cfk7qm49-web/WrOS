@@ -1,5 +1,19 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Native feature contribution reviewed; integrated qualification pending
+
+The feature contribution is preserved and [reviewed](FEATURE_REVIEW.md). The
+workspace compiles again. Native read-only Wi-Fi/profile, local-account,
+filesystem and cached package-plan views now use the shared Grimoire interface.
+Unimplemented cloud/backup/update/recovery actions report unavailable; fake
+Google/Drive success and password arguments have been removed. New story models
+have guarded persistence and Unicode/Markdown corrections, with their missing
+editor, export and speech integration explicitly retained as open work.
+
+Thirty system tests, strict no-audio Clippy and a compiled availability workflow
+at four terminal sizes pass. Full integrated Debian qualification and fresh CI
+for this source are pending. This is not a completed M8/M9 or a new live image.
+
 ## Environment first; installer composition checkpoint retained
 
 The current priority is the everyday native writing environment and remaining
