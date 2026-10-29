@@ -304,7 +304,7 @@ mod tests {
         let scenes = vec![(
             7,
             "Annotations".into(),
-            "λ introduction\nMissing[^lost].\n\n[^unused]: No citation.\n\n[^Repeated]: First.\n\n[^repeated]: Second.\n\n%% [^private]: secret %%".into(),
+            "λ introduction\nMissing[^lost] and cited[^repeated].\n\n[^unused]: No citation.\n\n[^Repeated]: First.\n\n[^repeated]: Second.\n\n%% [^private]: secret %%".into(),
         )];
         let report = run_preflight(&scenes, None, None).unwrap();
         let footnotes: Vec<_> = report
