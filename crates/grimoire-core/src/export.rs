@@ -168,6 +168,57 @@ pub fn tks(p: &Project, opts: &ExportOptions) -> Result<Vec<String>> {
     Ok(book(p, opts.parts.as_deref(), opts.scope)?.tks)
 }
 
+/// The selected content that still uses Markdown footnotes. The reader-format
+/// exporters currently treat their syntax as ordinary text rather than true
+/// Word/PDF page footnotes or accessible EPUB notes. Inspect the *compiled*
+/// scope, never unrelated notes, skipped scenes or unselected chapters.
+fn unsupported_footnote_locations(p: &Project, b: &Book<'_>, opts: &ExportOptions) -> Vec<String> {
+    let mut locations = Vec::new();
+    let mut inspect = |where_: &str, text: &str| {
+        let analysis = crate::footnotes::analyze_footnotes(text);
+        if !analysis.references.is_empty() || !analysis.definitions.is_empty() {
+            locations.push(where_.to_string());
+        }
+    };
+
+    for piece in &b.pieces {
+        match piece {
+            Piece::Part { .. } => {}
+            Piece::Chapter { title, scenes, .. } => {
+                for (i, scene) in scenes.iter().enumerate() {
+                    inspect(&format!("chapter '{title}', scene {}", i + 1), scene);
+                }
+            }
+            Piece::Scene(scene) => inspect("unnested manuscript scene", scene),
+        }
+    }
+
+    // Front/back matter is edition-specific; scanning every source file would
+    // incorrectly block an export over a different selection or edition.
+    if opts.docx || opts.pdf {
+        for text in &b.front {
+            inspect("manuscript front matter", text);
+        }
+    }
+    for (enabled, edition, label) in [
+        (opts.epub, Edition::Ebook, "EPUB"),
+        (opts.paperback, Edition::Paperback, "paperback"),
+    ] {
+        if enabled {
+            for text in front_pages(p, edition) {
+                inspect(&format!("{label} front matter"), &text);
+            }
+            for text in back_pages(p, edition) {
+                inspect(&format!("{label} back matter"), &text);
+            }
+        }
+    }
+
+    locations.sort();
+    locations.dedup();
+    locations
+}
+
 /// Write the chosen formats to `<book>/exports/`.
 pub fn export(p: &Project, opts: &ExportOptions) -> Result<Exported> {
     p.ensure_whole()?;
@@ -177,6 +228,18 @@ pub fn export(p: &Project, opts: &ExportOptions) -> Result<Exported> {
     let mut book = book(p, opts.parts.as_deref(), opts.scope)?;
     if book.pieces.is_empty() {
         bail!("there's nothing written to export yet");
+    }
+    // Never produce a plausible-looking DOCX/PDF/EPUB that silently degrades
+    // footnotes to literal [^label] text or omits their page-bottom placement.
+    // Markdown-only export keeps the source footnote syntax intact.
+    if opts.docx || opts.pdf || opts.epub || opts.paperback {
+        let affected = unsupported_footnote_locations(p, &book, opts);
+        if let Some(first) = affected.first() {
+            bail!(
+                "footnotes in {first} ({} affected section(s)): Word/PDF/EPUB/paperback footnote rendering is not implemented; choose Markdown only to preserve footnotes. No export files were changed.",
+                affected.len()
+            );
+        }
     }
     let dir = p.root.join("exports");
     std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
@@ -2550,6 +2613,94 @@ mod tests {
             parts: None,
             scope: Scope::Whole,
         }
+    }
+
+    #[test]
+    fn rich_footnotes_fail_before_writing_any_export_and_markdown_preserves_them() {
+        let d = book_dir("footnote-export-guard");
+        put(
+            &d,
+            "manuscript/01-Act-One/01-Chapter-One/01-Scene-One.md",
+            "A supported claim[^note].\n\n[^note]: A λ-rich footnote.\n",
+        );
+        let p = Project::load(&d).unwrap();
+        let error = export(&p, &all_options()).unwrap_err().to_string();
+        assert!(error.contains("chapter 'Chapter One', scene 1"), "{error}");
+        assert!(error.contains("choose Markdown only"), "{error}");
+        assert!(
+            !d.join("exports").exists(),
+            "a failed export must not create files"
+        );
+
+        let markdown_only = ExportOptions {
+            docx: false,
+            epub: false,
+            markdown: true,
+            ..all_options()
+        };
+        let out = export(&p, &markdown_only).unwrap();
+        assert_eq!(out.files.len(), 1);
+        let contents = fs::read_to_string(&out.files[0]).unwrap();
+        assert!(contents.contains("claim[^note]"), "{contents}");
+        assert!(
+            contents.contains("[^note]: A λ-rich footnote."),
+            "{contents}"
+        );
+
+        let before = fs::read(&out.files[0]).unwrap();
+        assert!(export(&p, &all_options()).is_err());
+        assert_eq!(before, fs::read(&out.files[0]).unwrap());
+        fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn footnote_export_guard_follows_compiled_scope_and_ignores_code_and_private_notes() {
+        let d = book_dir("footnote-scope-guard");
+        put(
+            &d,
+            "manuscript/01-Act-One/01-Chapter-One/01-Scene-One.md",
+            "Only chapter one has a reference[^a].\n\n[^a]: A definition.\n",
+        );
+        put(
+            &d,
+            "manuscript/01-Act-One/02-Chapter-Two/01-Scene-One.md",
+            "A normal scene. `[^code]` \\[^escaped]. %% [^private]: hidden %%\n",
+        );
+        let p = Project::load(&d).unwrap();
+        let opts = ExportOptions {
+            scope: Scope::Chapters { from: 2, to: 2 },
+            ..all_options()
+        };
+        assert!(
+            export(&p, &opts).is_ok(),
+            "excluded chapters, code, escapes and private notes do not block rich export"
+        );
+        assert!(
+            export(&p, &all_options()).is_err(),
+            "including the footnoted chapter must be rejected"
+        );
+        fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn edition_specific_front_and_back_matter_are_checked_before_any_file_is_written() {
+        let d = book_dir("footnote-editions");
+        put(
+            &d,
+            "front-matter/01-Title.md",
+            "Title[^front].\n\n[^front]: Context.\n",
+        );
+        let p = Project::load(&d).unwrap();
+        let opts = ExportOptions {
+            docx: true,
+            epub: false,
+            markdown: false,
+            ..all_options()
+        };
+        let error = export(&p, &opts).unwrap_err().to_string();
+        assert!(error.contains("front matter"), "{error}");
+        assert!(!d.join("exports").exists());
+        fs::remove_dir_all(&d).unwrap();
     }
 
     #[test]
