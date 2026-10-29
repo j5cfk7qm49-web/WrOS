@@ -2029,7 +2029,11 @@ impl App {
             .iter()
             .map(|text| text.len() + 1)
             .sum::<usize>()
-            + line.chars().take(self.editor.cx).map(char::len_utf8).sum::<usize>();
+            + line
+                .chars()
+                .take(self.editor.cx)
+                .map(char::len_utf8)
+                .sum::<usize>();
         let original = self.editor.text();
         let insertion = match grimoire_core::footnotes::insert_footnote(&original, byte_offset) {
             Ok(insertion) => insertion,
