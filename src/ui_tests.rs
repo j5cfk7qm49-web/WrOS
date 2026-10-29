@@ -3331,6 +3331,46 @@ fn writingdeck_keyboard_preview_field_is_not_manuscript_text() {
 }
 
 #[test]
+fn inserting_footnote_creates_one_undoable_edit_without_rewriting_existing_notes() {
+    let root = book("footnote-create", true);
+    let mut d = Desk::open(root, 120, 40);
+    d.app.focus = Focus::Editor;
+    d.app.editor.scene_end();
+    let original = d.app.editor.text();
+    let current = d.app.open.unwrap();
+    d.app.run_action(palette::Action::InsertFootnote);
+    let inserted = d.app.editor.text();
+    assert_ne!(inserted, original);
+    assert_eq!(d.app.project.nodes[current].body, inserted);
+    assert!(inserted.contains("[^fn-1]"));
+    assert!(inserted.ends_with("[^fn-1]: "));
+    assert_eq!(
+        d.app.editor.lines[d.app.editor.cy]
+            .chars()
+            .take(d.app.editor.cx)
+            .collect::<String>(),
+        "[^fn-1]: "
+    );
+    assert!(d.app.project.nodes[current].dirty);
+    assert!(d.app.editor.undo(), "single undo reverts generated markup");
+    d.app.flush();
+    assert_eq!(d.app.editor.text(), original);
+    assert_eq!(d.app.project.nodes[current].body, original);
+
+    // An active selection must be preserved, never replaced with a marker.
+    d.app.editor.select((0, 0), (0, 1));
+    d.app.run_action(palette::Action::InsertFootnote);
+    assert_eq!(d.app.editor.text(), original);
+    assert!(d.app.editor.has_selection());
+    d.app.editor.clear_selection();
+
+    // Read-only source files are not candidates for insertion.
+    d.app.project.nodes[current].read_only = true;
+    d.app.run_action(palette::Action::InsertFootnote);
+    assert_eq!(d.app.editor.text(), original);
+}
+
+#[test]
 fn writingdeck_export_tutorial_requires_a_real_demo_markdown_artifact() {
     let root = std::env::temp_dir().join(format!("wd-export-lesson-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
