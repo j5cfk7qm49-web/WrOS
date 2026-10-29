@@ -313,9 +313,30 @@ mod tests {
             .filter(|i| i.category == "Footnotes")
             .collect();
         assert_eq!(footnotes.len(), 3);
-        assert_eq!(footnotes.iter().find(|i| i.message.contains("lost")).unwrap().line, Some(2));
-        assert_eq!(footnotes.iter().find(|i| i.message.contains("unused")).unwrap().line, Some(4));
-        assert_eq!(footnotes.iter().find(|i| i.message.contains("repeated")).unwrap().line, Some(6));
+        assert_eq!(
+            footnotes
+                .iter()
+                .find(|i| i.message.contains("lost"))
+                .unwrap()
+                .line,
+            Some(2)
+        );
+        assert_eq!(
+            footnotes
+                .iter()
+                .find(|i| i.message.contains("unused"))
+                .unwrap()
+                .line,
+            Some(4)
+        );
+        assert_eq!(
+            footnotes
+                .iter()
+                .find(|i| i.message.contains("repeated"))
+                .unwrap()
+                .line,
+            Some(6)
+        );
         assert!(footnotes.iter().all(|i| i.scene_id == Some(7)));
     }
 
