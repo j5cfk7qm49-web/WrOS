@@ -502,6 +502,12 @@ pub enum Overlay {
         book: String,
         day: String,
     },
+    /// Read-only footnote index of the current unsaved editor buffer.
+    Footnotes {
+        title: String,
+        rows: Vec<overlays::FootnoteRow>,
+        sel: usize,
+    },
     /// Reading the scene aloud: the sentence being read is highlighted, and
     /// the keys pause, skip and stop.
     Reading,
@@ -2176,6 +2182,7 @@ impl App {
             }
             Action::OpenCodex => self.open_codex(),
             Action::Export => self.open_export(),
+            Action::Footnotes => self.open_footnotes(),
             Action::ManuscriptLook => self.open_look(None),
             Action::AuthorDetails => self.open_author(None),
             Action::Sessions => self.open_sessions(),
