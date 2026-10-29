@@ -76,6 +76,22 @@ project-document identity, full interaction/help/tutorial work, source-revision
 guards and actual publishing/speech acceptance are still required before those
 capabilities can be called complete.
 
+## Export guard for unrendered footnotes (incremental M9 work)
+
+The existing export pipeline does **not** yet create actual OOXML, PDF or EPUB
+footnotes. To prevent a superficially successful file with literal Markdown
+references or wrongly placed definitions, rich-format export now rejects
+selected manuscript scenes and edition-specific front/back matter containing
+public `[^label]` references or `[^label]:` definitions **before creating or
+modifying files**. The guard reuses the same compiled part/chapter/word scope as
+export, and respects `compile: false`, private notes and Markdown code/links.
+
+**Markdown-only export remains available** and preserves the Markdown footnote
+syntax. This is a safety measure, not a footnote renderer. It does not yet
+implement contextual footnote editing, real page-bottom DOCX/PDF placement,
+accessible EPUB linking or complete export preflight UI. Those remain tasks in
+[issue #9](https://github.com/j5cfk7qm49-web/WrOS/issues/9).
+
 ## Qualification boundary
 
 [Debian CI](evidence/native-feature-ci.json) passed 1008 Rust tests per
