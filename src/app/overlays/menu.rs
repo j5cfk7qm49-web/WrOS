@@ -247,6 +247,10 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "Every note and TK (your mark for \"fill this in later\") in the book, in one list.",
             "notes",
         ),
+        Action::InsertFootnote => (
+            "Create a unique Markdown footnote reference at the cursor and begin its definition. Undo restores the scene.",
+            "notes",
+        ),
         Action::Footnotes => (
             "Browse Markdown footnote references and definitions, inspect missing labels, and jump to the original scene.",
             "writing",
