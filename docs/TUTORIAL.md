@@ -62,7 +62,9 @@ The demo contains original short text and a deliberate spelling error. Nothing i
 | 39 | Recovery/troubleshooting | Wired: actual offline recovery manual; not a destructive crash simulation |
 | 40 | Optional local grammar: guarded review (supplemental) | Wired: explicit model permission, real completed grammar finding and actual current original-demo manuscript replacement; opening/navigation alone insufficient |
 
-Lesson 35 requires a real, nonempty Markdown artifact under the safe demo's exports directory, not merely opening the export dialog, choosing formats, or reaching a TK warning. Async PDF work does not count as completed Markdown export. Its event does not claim rich-format page footnotes or successful PDF generation.\n\nLesson 14 uses real saved manuscript observations, not fabricated session metrics: save a sentence in the demo manuscript, open Writing journal, Tab after reviewing facts, explicitly edit the original reflection and save genuine prose. Gross/active-time accounting is not claimed. A note-only save or reading the page cannot complete it.
+Lesson 35 requires a real, nonempty Markdown artifact under the safe demo's exports directory, not merely opening the export dialog, choosing formats, or reaching a TK warning. Async PDF work does not count as completed Markdown export. Its event does not claim rich-format page footnotes or successful PDF generation.
+
+Lesson 14 uses real saved manuscript observations, not fabricated session metrics: save a sentence in the demo manuscript, open Writing journal, Tab after reviewing facts, explicitly edit the original reflection and save genuine prose. Gross/active-time accounting is not claimed. A note-only save or reading the page cannot complete it.
 
 The newly created demo ships a Pin Practice note with a unique The Courtyard heading and enough source rows to actually scroll. Lessons 11/12 use it directly, without asking the user to manufacture a heading first; another source with a unique ATX heading also works. It does not rewrite a real manuscript or silently manufacture completion. Missing/ambiguous anchors and failed metadata saves cannot complete it.
 
