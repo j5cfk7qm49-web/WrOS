@@ -2662,7 +2662,7 @@ mod tests {
         put(
             &d,
             "manuscript/01-Act-One/02-Chapter-Two/01-Scene-One.md",
-            "A normal scene. \`[^code]\` \\[^escaped]. %% [^private]: hidden %%\n",
+            "A normal scene. `[^code]` \\[^escaped]. %% [^private]: hidden %%\n",
         );
         let p = Project::load(&d).unwrap();
         let opts = ExportOptions {
