@@ -92,6 +92,10 @@ implement contextual footnote editing, real page-bottom DOCX/PDF placement,
 accessible EPUB linking or complete export preflight UI. Those remain tasks in
 [issue #9](https://github.com/j5cfk7qm49-web/WrOS/issues/9).
 
+## Editable Markdown footnote quick-insert (incremental M9 work)
+
+Writing tools and the command palette can now create a unique Markdown footnote reference at the caret, append its same-scene definition and move the editor caret to the definition for immediate writing. Existing prose, labels and markdown are preserved; the generated insertion is one undo step. Unsafe positions (code/private notes), read-only sources, selections and overly large scenes fail without changing the editor. The normal autosave/history path remains responsible for committing the source, and programmatically inserted syntax is not misclassified as independently authored tutorial prose. This is not a separate editor store or rendered page-bottom footnote layout.
+
 ## Read-only footnote navigation (incremental M9 work)
 
 The writing-tools menu and command palette now expose a footnote navigator.
