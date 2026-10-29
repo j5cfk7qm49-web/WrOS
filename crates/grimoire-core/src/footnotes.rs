@@ -139,7 +139,7 @@ pub fn analyze_footnotes(markdown: &str) -> FootnoteAnalysis {
     analysis
 }
 
-fn normalize(label: &str) -> String {
+pub(crate) fn normalize(label: &str) -> String {
     label
         .split_whitespace()
         .collect::<Vec<_>>()
