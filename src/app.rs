@@ -2001,6 +2001,62 @@ impl App {
         }
     }
 
+    /// Insert one original Markdown footnote at the active writing cursor.
+    /// The content is still edited in the existing scene, not in a parallel
+    /// note store. One undo restores the source before the generated markup.
+    pub fn insert_new_footnote(&mut self) {
+        let Some(i) = self.open.filter(|_| self.focus.is_editor()) else {
+            self.msg = "Focus an editable scene before inserting a footnote.".into();
+            return;
+        };
+        if self.project.nodes[i].read_only || self.project.nodes[i].never_read() {
+            self.msg = "This source is read-only; footnote insertion was canceled.".into();
+            return;
+        }
+        if self.editor.has_selection() {
+            self.msg = "Clear the selection and place the caret for the footnote reference.".into();
+            return;
+        }
+        let Some(line) = self.editor.lines.get(self.editor.cy) else {
+            self.msg = "The editor caret is unavailable; nothing changed.".into();
+            return;
+        };
+        if self.editor.cx > line.chars().count() {
+            self.msg = "The editor caret is out of range; nothing changed.".into();
+            return;
+        }
+        let byte_offset: usize = self.editor.lines[..self.editor.cy]
+            .iter()
+            .map(|text| text.len() + 1)
+            .sum::<usize>()
+            + line.chars().take(self.editor.cx).map(char::len_utf8).sum::<usize>();
+        let original = self.editor.text();
+        let insertion = match grimoire_core::footnotes::insert_footnote(&original, byte_offset) {
+            Ok(insertion) => insertion,
+            Err(e) => {
+                self.msg = format!("Footnote not inserted: {e}");
+                return;
+            }
+        };
+        // Programmatic source insertion is a single undoable editor step. It
+        // is not measured as freshly written prose or awarded as a tutorial
+        // text-edit exercise. Actual typing into the definition follows the
+        // usual editor, autosave, history and productivity code paths.
+        self.editor.set_text(&insertion.markdown);
+        self.editor
+            .place(insertion.cursor_line, insertion.cursor_column);
+        self.project.nodes[i].body = insertion.markdown;
+        self.mark_changed(i);
+        self.last_caret = None;
+        self.manual_scroll = false;
+        self.replace_undoable = false;
+        self.replace_redoable = false;
+        self.msg = format!(
+            "[^{}] added · write its definition here · undo restores the original",
+            insertion.label
+        );
+    }
+
     pub fn run_action(&mut self, action: Action) {
         self.overlay = Overlay::None;
         match action {
