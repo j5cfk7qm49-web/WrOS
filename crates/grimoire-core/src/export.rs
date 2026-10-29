@@ -172,11 +172,7 @@ pub fn tks(p: &Project, opts: &ExportOptions) -> Result<Vec<String>> {
 /// exporters currently treat their syntax as ordinary text rather than true
 /// Word/PDF page footnotes or accessible EPUB notes. Inspect the *compiled*
 /// scope, never unrelated notes, skipped scenes or unselected chapters.
-fn unsupported_footnote_locations(
-    p: &Project,
-    b: &Book<'_>,
-    opts: &ExportOptions,
-) -> Vec<String> {
+fn unsupported_footnote_locations(p: &Project, b: &Book<'_>, opts: &ExportOptions) -> Vec<String> {
     let mut locations = Vec::new();
     let mut inspect = |where_: &str, text: &str| {
         let analysis = crate::footnotes::analyze_footnotes(text);
@@ -2631,7 +2627,10 @@ mod tests {
         let error = export(&p, &all_options()).unwrap_err().to_string();
         assert!(error.contains("chapter 'Chapter One', scene 1"), "{error}");
         assert!(error.contains("choose Markdown only"), "{error}");
-        assert!(!d.join("exports").exists(), "a failed export must not create files");
+        assert!(
+            !d.join("exports").exists(),
+            "a failed export must not create files"
+        );
 
         let markdown_only = ExportOptions {
             docx: false,
@@ -2643,7 +2642,10 @@ mod tests {
         assert_eq!(out.files.len(), 1);
         let contents = fs::read_to_string(&out.files[0]).unwrap();
         assert!(contents.contains("claim[^note]"), "{contents}");
-        assert!(contents.contains("[^note]: A λ-rich footnote."), "{contents}");
+        assert!(
+            contents.contains("[^note]: A λ-rich footnote."),
+            "{contents}"
+        );
 
         let before = fs::read(&out.files[0]).unwrap();
         assert!(export(&p, &all_options()).is_err());
@@ -2683,7 +2685,11 @@ mod tests {
     #[test]
     fn edition_specific_front_and_back_matter_are_checked_before_any_file_is_written() {
         let d = book_dir("footnote-editions");
-        put(&d, "front-matter/01-Title.md", "Title[^front].\n\n[^front]: Context.\n");
+        put(
+            &d,
+            "front-matter/01-Title.md",
+            "Title[^front].\n\n[^front]: Context.\n",
+        );
         let p = Project::load(&d).unwrap();
         let opts = ExportOptions {
             docx: true,
