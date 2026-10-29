@@ -241,8 +241,8 @@
     "id": 35,
     "title": "Exporting manuscripts",
     "help_topic": "compile",
-    "event": null,
-    "instructions": "Export the demo and validate generated files. Existing DOCX, EPUB and PDF workflows are available, but automated tutorial completion is not yet wired."
+    "event": "MarkdownExported",
+    "instructions": "In the safe demo, open Export for readers through Ctrl-K. Untick Word and EPUB, tick Markdown, then press x to export. If a TK warning appears, review it before pressing x again. Only a real nonempty Markdown file successfully written to exports/ completes this lesson. This does not verify Word/PDF/EPUB page footnotes."
   },
   {
     "id": 36,

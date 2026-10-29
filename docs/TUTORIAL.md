@@ -2,7 +2,7 @@
 
 ## Current implementation
 
-The compiled catalog at `crates/grimoire-core/assets/writingdeck/tutorial.json` retains **all 39 requested lesson IDs plus supplemental grammar lesson 40**. Thirty-three have actual application-event hooks; seven remain explicitly unavailable. M7b adds real dictionary, prose and voice-review events. Full tutorial completion remains tracked separately in issue #11.
+The compiled catalog at `crates/grimoire-core/assets/writingdeck/tutorial.json` retains **all 39 requested lesson IDs plus supplemental grammar lesson 40**. Thirty-four have actual application-event hooks; six remain explicitly unavailable. M7b adds real dictionary, prose and voice-review events. Full tutorial completion remains tracked separately in issue #11.
 
 Open F12 → Interactive tutorial, or use the menu/command palette. Arrow keys select a lesson; Enter shows its instructions and then starts the real feature; `h` opens linked searchable offline help; `s` skips; Escape returns. Completed lessons can be replayed. Progress is schema-versioned, atomically guarded and stored with the project. There is no fake Next/Done button.
 
@@ -55,12 +55,14 @@ The demo contains original short text and a deliberate spelling error. Nothing i
 | 32 | Inline revision notes | Planned |
 | 33 | Draft comparisons | Wired baseline history view; named variants/diff extension planned |
 | 34 | Footnotes | Planned |
-| 35 | Export | Existing export retained; verified tutorial event planned |
+| 35 | Export | Wired: real nonempty Markdown export in safe demo; canceled, failed and ordinary-novel attempts cannot complete the lesson; PDF/DOCX footnotes remain separately unimplemented |
 | 36 | Google Drive backup | Planned; live credentials required for provider acceptance |
 | 37 | Mobile access | Planned |
 | 38 | Wi-Fi/system settings | Wired: actual settings screen; hardware changes separately verified |
 | 39 | Recovery/troubleshooting | Wired: actual offline recovery manual; not a destructive crash simulation |
 | 40 | Optional local grammar: guarded review (supplemental) | Wired: explicit model permission, real completed grammar finding and actual current original-demo manuscript replacement; opening/navigation alone insufficient |
+
+Lesson 35 requires a real, nonempty Markdown artifact under the safe demo's exports directory, not merely opening the export dialog, choosing formats, or reaching a TK warning. Async PDF work does not count as completed Markdown export. Its event does not claim rich-format page footnotes or successful PDF generation.
 
 Lesson 14 uses real saved manuscript observations, not fabricated session metrics: save a sentence in the demo manuscript, open Writing journal, Tab after reviewing facts, explicitly edit the original reflection and save genuine prose. Gross/active-time accounting is not claimed. A note-only save or reading the page cannot complete it.
 
