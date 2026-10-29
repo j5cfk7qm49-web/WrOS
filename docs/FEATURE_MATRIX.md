@@ -68,7 +68,7 @@ Existing means audited baseline; Tested identifies automated/VM evidence, not pr
 | Long-form | Multi-scene/chapter read-through and mark-for-revision | Planned | None | No cloud speech dependency |
 | Publishing | Native DOCX/EPUB/Markdown + print formatting | Existing | Existing output/package tests | Preserved |
 | Publishing | PDF through optional headless LibreOffice | Existing | Existing conversion path; external-engine tests conditional | LibreOffice not in minimal image; no page-footnote certification |
-| Publishing | In-editor Markdown footnote reference/definition creation | Tested in dev | Pure parser/undo regressions and TUI controller test; physical use unqualified | Unique label, same-scene editable definition and source-preserving undo; not page-bottom layout |
+| Publishing | In-editor Markdown footnote reference/definition creation | In progress | Pure parser/undo and TUI regression tests added; CI pending, physical use unqualified | Unique label, same-scene editable definition and source-preserving undo; not page-bottom layout |
 | Publishing | Contextual Markdown footnotes + genuine DOCX/PDF bottom-page output | Planned | None | OOXML relationships/pagination fixtures required |
 | Publishing | Unified pre-export link/asset/footnote/privacy validation | Planned | None | Some existing note/TK validation is not this full preflight |
 | Cloud | Opt-in Drive OAuth, private credentials, upload queue, verified backup/restore | Planned | None | Local state/fake-transport infrastructure can be built without credentials |
