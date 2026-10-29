@@ -8118,3 +8118,6 @@ mod review_notes_ui_tests;
 
 #[path = "footnote_insert_ui_tests.rs"]
 mod footnote_insert_ui_tests;
+
+#[path = "footnote_navigator_ui_tests.rs"]
+mod footnote_navigator_ui_tests;

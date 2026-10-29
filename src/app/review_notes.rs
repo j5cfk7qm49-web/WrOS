@@ -154,7 +154,10 @@ impl App {
             .ok_or_else(|| anyhow::anyhow!("select a passage in the editor first"))?;
         // Editor coordinates are Unicode scalar columns; anchors use UTF-8 bytes.
         let byte = |row: usize, column: usize| -> Result<usize> {
-            binding.snapshot.byte_at(row, column).ok_or_else(|| anyhow::anyhow!("invalid selection"))
+            binding
+                .snapshot
+                .byte_at(row, column)
+                .ok_or_else(|| anyhow::anyhow!("invalid selection"))
         };
         let anchor = Anchor::capture(binding.snapshot.text(), byte(line, col)?, byte(last, end)?)?;
         Ok(Draft {
@@ -168,13 +171,16 @@ impl App {
         let mut draft = if editing {
             let note = self.review_notes.note()?.clone();
             let binding = self.review_binding()?;
-            let path = self
+            let document = self
                 .review_notes
                 .store()?
                 .value
-                .document(note.current.document_id)?
-                .path
-                .clone();
+                .document(note.current.document_id)?;
+            ensure!(
+                !document.needs_reconnect,
+                "reconnect the interrupted document move before editing its notes"
+            );
+            let path = document.path.clone();
             ensure!(
                 binding.snapshot.stamp.document == path,
                 "open the note's source in the editor first"
@@ -611,7 +617,11 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
                 );
             }
         } else {
-            let reconnect = r.store.as_ref().and_then(|s| s.value.document(v.document_id).ok()).is_some_and(|d| d.needs_reconnect);
+            let reconnect = r
+                .store
+                .as_ref()
+                .and_then(|s| s.value.document(v.document_id).ok())
+                .is_some_and(|d| d.needs_reconnect);
             let state = match r.binding.as_ref().filter(|b| app.review_matches(b)) {
                 _ if reconnect => "Interrupted document move; explicitly re-anchor to reconnect",
                 Some(b) if b.snapshot.stamp.document == path => {

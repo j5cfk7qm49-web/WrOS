@@ -1,6 +1,6 @@
 # Feature status matrix
 
-As of 2026-10-28 — 0.1.0-dev through M7b software; VM constraints remain explicit. **No hardware-verified claims.**
+As of 2026-10-29 — 0.1.0-dev through M7b software; VM constraints remain explicit. **No hardware-verified claims.**
 
 Existing means audited baseline; Tested identifies automated/VM evidence, not production qualification. See [STATUS](STATUS.md) and [ROADMAP](ROADMAP.md).
 
@@ -62,13 +62,14 @@ Existing means audited baseline; Tested identifies automated/VM evidence, not pr
 | Writing tools | Offline WordNet definitions/senses/synonyms/antonyms UI | Tested | 12 exact data hashes, real CLI/UI/PTY and installed VM sense/antonym checks | WordNet 3.0 senses, morphology and sense-specific antonyms; read-only/copy interface; data bundled in image |
 | Writing tools | Author voice profiles with sufficient-material safeguards | Tested | Actual core/UI/PTY prepare/save/restart/compare/delete and lesson-30 contracts | Explicit references; 5000 words/40 segments/150 distinct words; metadata-only profiles, minimum comparison material and informational deviations |
 | Long-form | Structured explicit continuity/timeline/knowledge/thread tracker | Planned | None | Definite contradictions require explicit facts |
-| Long-form | Text-anchored annotations and revision queue | Planned | None | Separate from published manuscript |
+| Long-form | Text-anchored annotations and revision queue | In progress | Guarded model and UI tests; combined qualification in progress | Stable sidecar document IDs, exact original quote/context, comment/status/anchor history, owned move reconciliation and explicit re-anchor; outside manuscript/export; 64 KiB source bound, no history-restore UI |
 | Long-form | Named milestones/experimental variants/diff/selective restore | Planned | Existing dated history reused later | No competing version store rewrite |
 | Long-form | Local sentence-level read-aloud/highlighting/controls | Existing | Existing silent-engine tests | Installed voice engine/model may be needed |
 | Long-form | Multi-scene/chapter read-through and mark-for-revision | Planned | None | No cloud speech dependency |
 | Publishing | Native DOCX/EPUB/Markdown + print formatting | Existing | Existing output/package tests | Preserved |
 | Publishing | PDF through optional headless LibreOffice | Existing | Existing conversion path; external-engine tests conditional | LibreOffice not in minimal image; no page-footnote certification |
-| Publishing | In-editor Markdown footnote reference/definition creation | In progress | Pure parser/undo and TUI regression tests added; CI pending, physical use unqualified | Unique label, same-scene editable definition and source-preserving undo; not page-bottom layout |
+| Publishing | In-editor Markdown footnote reference/definition creation | Tested | PR59 Debian CI + independent local 1022 Rust/config, 171 Python/zero skips, four-size compiled insertion/undo/restart | Guarded unique label and same-scene definition; programmatic markup does not earn typing credit; no page-bottom layout |
+| Publishing | Source-bound footnote reference/definition navigation | In progress | Four-size UI regressions; combined qualification in progress | Shared shell, original-source editing, stale-source and modal input guards; not a separate mutable footnote store |
 | Publishing | Contextual Markdown footnotes + genuine DOCX/PDF bottom-page output | Planned | None | OOXML relationships/pagination fixtures required |
 | Publishing | Unified pre-export link/asset/footnote/privacy validation | Planned | None | Some existing note/TK validation is not this full preflight |
 | Cloud | Opt-in Drive OAuth, private credentials, upload queue, verified backup/restore | Planned | None | Local state/fake-transport infrastructure can be built without credentials |

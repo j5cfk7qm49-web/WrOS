@@ -1772,6 +1772,12 @@ impl App {
     /// Ctrl-V: what's on the computer's clipboard, or failing that what
     /// was last copied here.
     pub fn paste_clipboard(&mut self) {
+        if matches!(
+            self.overlay,
+            Overlay::Footnotes { .. } | Overlay::Help { .. }
+        ) {
+            return;
+        }
         if self.overlay == Overlay::ReviewNotes {
             let text = self.clipboard_text();
             self.paste_review_notes(&text);
@@ -1957,6 +1963,12 @@ impl App {
 
     /// Text pasted into the terminal arrives in one piece.
     pub fn paste(&mut self, text: &str) {
+        if matches!(
+            self.overlay,
+            Overlay::Footnotes { .. } | Overlay::Help { .. }
+        ) {
+            return;
+        }
         if self.overlay == Overlay::ReviewNotes {
             self.paste_review_notes(text);
             return;
@@ -5010,6 +5022,8 @@ impl App {
                 | Overlay::Lexicon
                 | Overlay::ProseDashboard
                 | Overlay::ReviewNotes
+                | Overlay::Footnotes { .. }
+                | Overlay::Help { .. }
                 | Overlay::Productivity { .. }
                 | Overlay::ProductivityInput { .. }
         ) {

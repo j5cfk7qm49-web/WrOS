@@ -5,7 +5,7 @@ name: ci
 
 on:
   push:
-    branches: [main, 'writingdeck/m7b-wip']
+    branches: [main, development, 'writingdeck/m7b-wip']
   pull_request:
   workflow_dispatch:
 

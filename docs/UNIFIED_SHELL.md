@@ -24,7 +24,8 @@ help/status code. The [native installer increment](NATIVE_INSTALLER.md) extracts
 the actual palette and theme format into `wros-shell`, retaining editor behavior.
 
 The current shared implementation covers Settings, login/layout and the
-installer forms, progress and help. Cohesion applies to every ordinary WrOS
+installer forms, progress and help. The development increment also uses shared
+menus/panels/navigation for anchored revision notes and the footnote browser. Cohesion applies to every ordinary WrOS
 surface, including errors, unlock, updates, recovery and backup. Reused engines
 must sit behind those shared screens. The existing vlock prompt has separate
 security qualification; its Grimoire presentation is still unfinished. Shared

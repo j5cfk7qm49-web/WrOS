@@ -50,23 +50,27 @@ Lesson 32 in the safe demo verifies a real changed-anchor save.
 Each annotated document receives a durable number in the project sidecar.
 Its relative path is a locator, never a project-tree index or scene title.
 Adding unrelated scenes and moving the entire project do not change this ID.
-After a file or folder rename, open the new source and explicitly re-anchor
-one of its notes. If the old path is missing and the new path is not already
-bound, confirmation reconnects the same document ID and all its notes. Other
-notes still require their own exact quote/context matches. Existing paths and
-identities cannot be merged. Renumbering that reuses an old path or external
-replacement with a different document requires manual metadata recovery;
-automatic rename/reorder reconciliation is not provided by this slice.
+Grimoire's own rename, reorder, trash and restore operations retain that ID.
+Before moving source files, a guarded intent marks affected identities as
+unavailable; successful completion updates all locators together. An interrupted
+or failed move needs explicit reconnection and cannot silently reuse an old path.
+After an external rename, open the new source and explicitly re-anchor one of
+its notes. If the old path is missing (or an owned move is unresolved) and the
+new path is not already bound, confirmation reconnects the same document ID and
+all its notes. Other notes still need their own exact quote/context matches.
+Identities cannot merge. External replacement/reordering that reuses existing
+paths requires manual recovery; source content is never used to guess identity.
 
 Metadata lives at `.grimoire/writingdeck/review-notes.json`. IDs are never
 reused. Earlier comments, anchors and review statuses are retained for up to
 64 changes per note; reaching that limit refuses a new change rather than
 discarding history. This is retained metadata, not a history-restore UI or
 an independent backup. Comments are limited to 4096 bytes and selections to
-16 KiB; the complete metadata store has the existing 1 MiB bound.
+16 KiB; the active source snapshot is limited to 64 KiB and the complete
+metadata store has the existing 1 MiB bound.
 
 Unknown, corrupt, oversized, externally changed or aliased metadata is
-preserved. Failed writes keep the draft available to copy or retry. Queue
+preserved. Failed writes keep the draft visible for review or retry. Queue
 reload is explicit and should be used only after cancelling the draft.
 Prototype annotations with tree-index identities are preserved and require
 an explicit migration; they are never silently imported or reassigned.

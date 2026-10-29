@@ -228,3 +228,24 @@ fn unavailable_notes_do_not_disable_manuscript_save_help_or_secondary_ownership(
             .contains("Original retained despite unavailable notes.")
     );
 }
+
+#[test]
+fn review_and_markdown_export_lessons_open_real_workflows_without_awarding_completion() {
+    let mut d = writer("review-notes-lessons", 80, 24);
+    fs::write(
+        d.root.join(".writingdeck-demo"),
+        "WritingDeck safe tutorial project v1\n",
+    )
+    .unwrap();
+    for id in [32, 35] {
+        d.app.overlay = Overlay::Deck(app::writingdeck::Page::Lesson { id });
+        d.key(KeyCode::Enter);
+        assert_eq!(d.app.deck.progress.active, Some(id));
+        assert!(!d.app.deck.progress.completed.contains(&id));
+        if id == 32 {
+            assert_eq!(d.app.overlay, Overlay::ReviewNotes);
+        } else {
+            assert!(matches!(d.app.overlay, Overlay::Export { .. }));
+        }
+    }
+}

@@ -32,7 +32,7 @@ Do not call every passive, adverb, fragment, repetition or long sentence an erro
 
 ## Revision and long-form extensions
 
-The current revision dashboard combines implemented grammar/prose findings and review states with original-source navigation. Future extensions add annotations, continuity questions, footnote/export errors and user tasks. Continuity should use explicit facts/scene chronology for definite contradictions; inferred concerns remain suggestions. Anchored comments/variants/named checkpoints are additional domain modules, not already supplied by dated local history.
+The current revision dashboard combines implemented grammar/prose findings and review states with original-source navigation. The initial anchored Revision notes workflow now adds local comments, review states and explicit re-anchoring through the retained editor. Durable document IDs follow owned moves; exact quotes, source revisions and guarded sidecars preserve manuscript and metadata originals. See the offline Revision notes help and FEATURE_REVIEW.md for bounds and qualification. Continuity questions, full export preflight and user tasks remain extensions. Continuity should use explicit facts/scene chronology for definite contradictions; inferred concerns remain suggestions. Anchored comments/variants/named checkpoints are additional domain modules, not already supplied by dated local history.
 
 ## Footnotes, publishing and read-through
 

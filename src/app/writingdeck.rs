@@ -1260,7 +1260,9 @@ impl App {
                 self.focus = self.editor_focus();
                 self.msg = "Optional exercise: type an article mistake in this demo manuscript, then open Writing checks and read its model disclosure. No permission or text has been inserted.".into();
             }
+            32 => self.open_review_notes(),
             33 => self.open_history(),
+            35 => self.run_action(Action::Export),
             38 => self.open_system_settings(),
             39 => {
                 self.open_help(Some("history"));

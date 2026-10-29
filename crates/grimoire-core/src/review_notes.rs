@@ -241,6 +241,11 @@ fn locator(path: &str) -> Result<()> {
     );
     crate::workspaces::relative(Path::new(path))?;
     ensure!(
+        path.split('/')
+            .all(|part| !part.is_empty() && part != "." && part != ".."),
+        "noncanonical document locator"
+    );
+    ensure!(
         path.ends_with(".md")
             && (!path.starts_with(".grimoire/") || path.starts_with(".grimoire/trash/")),
         "select a project Markdown document"

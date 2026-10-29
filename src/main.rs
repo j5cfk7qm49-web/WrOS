@@ -681,6 +681,8 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
                     | Overlay::Lexicon
                     | Overlay::ProseDashboard
                     | Overlay::ReviewNotes
+                    | Overlay::Footnotes { .. }
+                    | Overlay::Help { .. }
                     | Overlay::Productivity { .. }
                     | Overlay::Deck(_)
             ) && !matches!(
@@ -957,6 +959,8 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
                 | Overlay::Lexicon
                 | Overlay::ProseDashboard
                 | Overlay::ReviewNotes
+                | Overlay::Footnotes { .. }
+                | Overlay::Help { .. }
                 | Overlay::Productivity { .. }
                 | Overlay::ProductivityInput { .. }
                 | Overlay::Deck(_)
@@ -1014,6 +1018,8 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
                         | Overlay::Lexicon
                         | Overlay::ProseDashboard
                         | Overlay::ReviewNotes
+                        | Overlay::Footnotes { .. }
+                        | Overlay::Help { .. }
                         | Overlay::Productivity { .. }
                 ) =>
             {

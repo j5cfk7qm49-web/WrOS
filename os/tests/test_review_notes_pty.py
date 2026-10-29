@@ -73,7 +73,12 @@ class ReviewNotesPTY(unittest.TestCase):
                         (captures/f'review-notes-{width}x{height}.txt').write_text(terminal.screen.text+'\n', encoding='utf-8')
                     terminal.send(b'\x1b')
                     terminal.screen_shows('Revision notes · Open')
-                    terminal.send(b'\x1b\x1a\x13')
+                    terminal.send(b'\x1b')
+                    # ESC followed immediately by a control byte is an Alt
+                    # sequence to the terminal parser. Observe the exit before Undo.
+                    terminal.until(lambda: 'Revision notes ·' not in terminal.screen.text
+                                   and 'The golden key.' in terminal.screen.text, 'returned to source editor')
+                    terminal.send(b'\x1a\x13')
                     terminal.until(lambda: primary.read_bytes() == before.encode(), 'exact source Undo including YAML')
                     terminal.send(b'\x11')
                     terminal.until(lambda: terminal.process.poll() is not None, 'normal quit')
@@ -91,7 +96,11 @@ class ReviewNotesPTY(unittest.TestCase):
                     self.assertEqual(state()['documents'][0]['id'], 1)
                     self.assertEqual(state()['notes'][0]['previous'][0]['comment'], 'Who owns this key? λ')
                     self.assertEqual(primary.read_bytes(), before.encode())
-                    terminal.send(b'\x1b\x1b\x11')
+                    terminal.send(b'\x1b')
+                    terminal.screen_shows('Revision notes · All')
+                    terminal.send(b'\x1b')
+                    terminal.until(lambda: 'Revision notes ·' not in terminal.screen.text, 'restart returned to editor')
+                    terminal.send(b'\x11')
                     terminal.until(lambda: terminal.process.poll() is not None, 'restart normal quit')
                     self.assertEqual(terminal.process.returncode, 0)
                 finally:

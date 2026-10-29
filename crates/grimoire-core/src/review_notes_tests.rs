@@ -172,3 +172,18 @@ fn comment_and_anchor_versions_are_preserved_and_limits_refuse_discard() {
     );
     fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn document_locators_cannot_alias_an_existing_identity() {
+    let mut notes = ReviewNotes::default();
+    assert_eq!(notes.register("chapter/scene.md").unwrap(), 1);
+    for path in [
+        "chapter//scene.md",
+        "chapter/./scene.md",
+        "chapter/../scene.md",
+        "./chapter/scene.md",
+    ] {
+        assert!(notes.register(path).is_err(), "{path}");
+    }
+    assert_eq!(notes.documents.len(), 1);
+}
