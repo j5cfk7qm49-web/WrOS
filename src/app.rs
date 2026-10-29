@@ -592,6 +592,11 @@ pub enum Overlay {
         /// acts, so a stray key at launch can't decide for you.
         sel: usize,
     },
+    /// Public Markdown footnote references and unused definitions, with source jump.
+    Footnotes {
+        sel: usize,
+        rows: Vec<overlays::FootnoteRow>,
+    },
     /// Ctrl-T: every `%% note %%` and TK in the book, to jump to.
     Marks {
         query: String,
@@ -2165,6 +2170,7 @@ impl App {
         match action {
             Action::Corkboard => self.open_cork(),
             Action::NotesList => self.open_marks(),
+            Action::Footnotes => self.open_footnotes(),
             Action::Conflicts => self.open_conflicts(),
             Action::NextTk => self.next_tk(),
             Action::NextDraft => self.next_draft(),
@@ -5079,6 +5085,7 @@ impl App {
                 ),
                 (row("Open a scene beside…", "(v)"), Action::BesidePicker),
                 (row("Notes & TKs…", &format!("({m}T)")), Action::NotesList),
+                ("Footnote navigator…".into(), Action::Footnotes),
                 ("Next TK or note".into(), Action::NextTk),
                 (
                     row("Look up the name here", &format!("({m}O)")),
