@@ -34,6 +34,7 @@ pub enum Action {
     Icons,
     SpellingSuggestions,
     Export,
+    Footnotes,
     /// The submission manuscript's look (format, paper, headings…).
     ManuscriptLook,
     /// The byline and the title page's contact block.
@@ -340,6 +341,7 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
             Action::SpellingSuggestions,
         ),
         Entry::new("Export for readers (Word, PDF, EPUB)", "", Action::Export),
+        Entry::new("Inspect footnotes in open scene", "", Action::Footnotes),
         Entry::new(
             "Manuscript look (format, paper, headings)",
             "",
