@@ -53,6 +53,17 @@ missing `native-installer/pool/...` path. The target again stayed unchanged and
 the retry question received no answer. The capsule now keeps that exact prefix;
 admission verifies every indexed archive's path and bytes after the bind.
 
+The [next full-copy attempt](evidence/native-encrypted-install-apt-failure.json)
+passed that admission and copied the system, then failed in package-manager
+configuration. Debian loaded the mirror provider while its CD provider was only
+available in the pool. Capsule authentication catalogs also appeared as flat
+repositories to `apt-cdrom`, and queued `dosfstools` lacked an offline archive.
+The next backend explicitly includes maintained `apt-cdrom-setup`; the media view
+exposes only the capsule archive subtree and preserves its external mount through
+Debian's hybrid-media interface. The refreshed image requests and audits
+`dosfstools` in both the installed runtime and binary pool. Builds and full
+installation/boot qualification for these composition changes are pending.
+
 Completion requires more than a successful backend exit. A read-only in-target
 audit checks the generated account, locked root, native authentication, installed
 encryption packages, LUKS UUID, encrypted-root initrd, EFI loaders and application

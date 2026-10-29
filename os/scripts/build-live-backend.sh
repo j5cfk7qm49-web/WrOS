@@ -64,7 +64,7 @@ cat > config/local <<CONFIG
 LINUX_KERNEL_ABI = 6.12.113+deb13
 DRM_DIR = $dest/kernel/usr/lib/modules/6.12.113+deb13-amd64/kernel/drivers/gpu/drm
 DRIVERS_DIR = $dest/kernel/usr/lib/modules/6.12.113+deb13-amd64/kernel/drivers
-EXTRAS += wros-cdebconf-passthrough
+EXTRAS += wros-cdebconf-passthrough apt-cdrom-setup
 CONFIG
 keyring=/usr/share/keyrings/debian-archive-keyring.pgp
 [[ -f $keyring ]] || keyring=/usr/share/keyrings/debian-archive-keyring.gpg
@@ -95,16 +95,25 @@ udebs={p.relative_to(build).as_posix():digest(p)
        for directory in ('apt.udeb/cache/archives','udebs')
        for p in sorted((build/directory).glob('*.udeb'))}
 assert len(udebs)>=90 and any(Path(n).name.startswith('wros-cdebconf-passthrough') for n in udebs)
+assert any(Path(n).name.startswith('apt-cdrom-setup_') for n in udebs)
 assert digest(tree/'usr/lib/cdebconf/frontend/passthrough.so')==expected
 image=gzip.decompress((dest/'initrd.gz').read_bytes())
 module=subprocess.check_output(['cpio','-i','--to-stdout','--quiet','usr/lib/cdebconf/frontend/passthrough.so'],input=image)
 assert hashlib.sha256(module).hexdigest()==expected
+cdrom_generator=tree/'usr/lib/apt-setup/generators/40cdrom'
+assert cdrom_generator.is_file() and cdrom_generator.stat().st_mode & 0o111
+packed_generator=subprocess.check_output(['cpio','-i','--to-stdout','--quiet',
+    'usr/lib/apt-setup/generators/40cdrom'],input=image)
+assert hashlib.sha256(packed_generator).hexdigest()==digest(cdrom_generator)
 manifest={'passed':True,'upstream':'Debian Installer','version':'20250803+deb13u7',
           'architecture':'amd64','kernel_version':version,'kernel_bytes_match_signed_debian_package':True,
           'source_descriptor_sha256':digest(dsc),'source_archive_sha256':digest(archive),
           'kernel_archive_sha256':digest(kernel),
           'initrd_sha256':digest(dest/'initrd.gz'),'kernel_sha256':digest(dest/'vmlinuz'),
           'module_sha256':expected,'module_observed_in_compressed_initrd':True,
+          'offline_cdrom_apt_provider':'apt-cdrom-setup',
+          'offline_cdrom_apt_generator_sha256':digest(cdrom_generator),
+          'offline_cdrom_apt_generator_observed_in_compressed_initrd':True,
           'profile_patch_sha256':digest(repo/'os/config/installer/debian-installer-initrd-profile.patch'),
           'frontend_build_manifest_sha256':digest(frontend/'manifest.json'),
           'recipe_sha256':digest(repo/'os/scripts/build-live-backend.sh'),

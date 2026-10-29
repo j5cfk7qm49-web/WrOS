@@ -16,7 +16,7 @@ import sys
 import tomllib
 
 PACKAGES = ('cryptsetup', 'cryptsetup-bin', 'cryptsetup-initramfs', 'dmsetup',
-            'lvm2', 'systemd-cryptsetup', 'greetd', 'vlock')
+            'lvm2', 'systemd-cryptsetup', 'dosfstools', 'greetd', 'vlock')
 
 
 class AuditFailure(ValueError):

@@ -21,6 +21,8 @@ ENCRYPTION_PAYLOAD = {
     'dmsetup': (('usr/sbin/dmsetup', True),),
     'lvm2': (('usr/sbin/lvm', True),),
     'systemd-cryptsetup': (('usr/lib/systemd/systemd-cryptsetup', True),),
+    # Debian also queues this target EFI filesystem tool during partitioning.
+    'dosfstools': (('usr/sbin/mkfs.fat', True),),
 }
 
 

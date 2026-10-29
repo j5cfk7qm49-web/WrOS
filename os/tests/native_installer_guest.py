@@ -287,9 +287,12 @@ def worker(allow_synthetic_target=False, review=False, installing=False):
     options = ('nosuid,nodev,lowerdir='+str(medium)
                +',upperdir='+str(upper)+',workdir='+str(overlay_work))
     command('/bin/mount', '-t', 'overlay', '-o', options, 'overlay', str(view))
-    shutil.copytree(QA/'native-installer', view/'native-installer')
-    (view/'native-installer').chmod(0o755)
+    # Expose only the declared archive paths. Capsule authentication catalogs
+    # remain on the QA medium; apt-cdrom must not mistake them for flat repos.
+    (view/'native-installer').mkdir(mode=0o755)
+    shutil.copytree(QA/'native-installer/pool', view/'native-installer/pool')
     for name, target in [('initrd.gz', 'install/initrd.gz'),
+                         ('vmlinuz', 'install/vmlinuz'),
                          ('Packages', 'dists/trixie/main/debian-installer/binary-amd64/Packages'),
                          ('Packages.gz', 'dists/trixie/main/debian-installer/binary-amd64/Packages.gz'),
                          ('media-Release', 'dists/trixie/Release')]:
@@ -317,15 +320,17 @@ def worker(allow_synthetic_target=False, review=False, installing=False):
     require((rebound/'.disk/info').read_bytes() == media_info
             and (rebound/'live/filesystem.squashfs').stat().st_size == squashfs_size
             and digest(rebound/'install/initrd.gz') == manifest['file_sha256']['initrd.gz']
+            and digest(rebound/'install/vmlinuz') == manifest['file_sha256']['vmlinuz']
             and digest(rebound/'dists/trixie/main/debian-installer/binary-amd64/Packages') == manifest['file_sha256']['Packages']
-            and not (rebound/'install/gtk/initrd.gz').exists(),
+            and not (rebound/'install/gtk/initrd.gz').exists()
+            and not (rebound/'native-installer/Packages').exists(),
             'Debian nonrecursive media bind lost its native or ordinary payload')
     command('/bin/umount', str(rebound)); rebound.rmdir()
     record['media_nonrecursive_bind_verified'] = True
     bind(view, medium, True)
     require(not (medium/'install/gtk/initrd.gz').exists()
             and digest(medium/'install/initrd.gz') == manifest['file_sha256']['initrd.gz']
-            and digest(medium/'native-installer/Packages') == manifest['file_sha256']['Packages'],
+            and digest(medium/'dists/trixie/main/debian-installer/binary-amd64/Packages') == manifest['file_sha256']['Packages'],
             'Private media view does not expose the exact matching backend and pool')
     launcher = Path('/usr/share/debian-installer-launcher')
     launcher.mkdir(parents=True, exist_ok=True)
@@ -356,6 +361,12 @@ def worker(allow_synthetic_target=False, review=False, installing=False):
             'Unpacked native transport differs')
     require({p.name for p in (DI/'lib/modules').iterdir()} == {os.uname().release},
             'Unpacked kernel modules differ')
+    require((DI/'usr/lib/apt-setup/generators/40cdrom').is_file(),
+            'Maintained offline CD-ROM APT provider is absent')
+    # Debian must retain this externally supplied media view instead of
+    # unmounting it and probing the underlying physical ISO again.
+    with (DI/'preseed.cfg').open('ab') as output:
+        output.write(b'\nd-i cdrom-detect/hybrid boolean true\n')
     # Debian loads crypto later through anna. Apply the fixed-version native
     # passphrase adapter at partman startup, after those maintained files exist.
     hook = DI/'lib/partman/init.d/00wros-native-passphrase'

@@ -1,5 +1,11 @@
 # Debian cdebconf passthrough framing
 
+The matching backend recipe explicitly includes maintained `apt-cdrom-setup`.
+Its presence in the offline pool alone does not select it: `apt-setup-udeb` can
+load the real mirror provider instead of the CD provider's virtual alternative.
+The build checks the actual `40cdrom` generator in the compressed initrd, and
+the native fixture refuses to start its frontend when that provider is absent.
+
 `native-crypto-passphrase` is a fixed-version partman init hook for the native
 passphrase path. Debian partman-crypto 134 unconditionally requests a frontend
 entropy plugin, including for passphrases. Debian does not provide a passthrough
