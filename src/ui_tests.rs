@@ -3331,6 +3331,70 @@ fn writingdeck_keyboard_preview_field_is_not_manuscript_text() {
 }
 
 #[test]
+fn writingdeck_export_tutorial_requires_a_real_demo_markdown_artifact() {
+    let root = std::env::temp_dir().join(format!("wd-export-lesson-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    grimoire_core::tutorial::create_demo(&root).unwrap();
+    let mut d = Desk::open(root.clone(), 120, 40);
+    d.app.deck.progress.start(35).unwrap();
+    d.app.open_export();
+    if let Overlay::Export { formats, .. } = &mut d.app.overlay {
+        *formats = [false; 5];
+    } else {
+        panic!("export dialog expected");
+    }
+    d.key(KeyCode::Char('x'));
+    assert!(!d.app.deck.progress.completed.contains(&35));
+    assert!(
+        !root.join("exports").exists(),
+        "invalid selection must not write files"
+    );
+
+    if let Overlay::Export { formats, .. } = &mut d.app.overlay {
+        formats[4] = true; // Only the source-preserving Markdown edition.
+    }
+    d.key(KeyCode::Char('x'));
+    if matches!(
+        d.app.overlay,
+        Overlay::Export {
+            tks: Some(_),
+            done: None,
+            ..
+        }
+    ) {
+        d.key(KeyCode::Char('x')); // Real TK warning requires deliberate retry.
+    }
+    assert!(d.app.deck.progress.completed.contains(&35), "{}", d.app.msg);
+    assert!(
+        fs::read_dir(root.join("exports"))
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .any(|e| {
+                e.path().extension().is_some_and(|ext| ext == "md")
+                    && e.metadata().is_ok_and(|m| m.is_file() && m.len() > 0)
+            }),
+        "completion requires an actual nonempty Markdown output"
+    );
+    let persisted = grimoire_core::tutorial::Store::load(&root).unwrap();
+    assert!(persisted.progress.completed.contains(&35));
+
+    let mut novel = export_desk("export-lesson-real-book", "Original words.");
+    novel.app.deck.progress.start(35).unwrap();
+    if let Overlay::Export { formats, .. } = &mut novel.app.overlay {
+        *formats = [false, false, false, false, true];
+    }
+    novel.key(KeyCode::Char('x'));
+    assert!(
+        novel.root.join("exports").exists(),
+        "ordinary export still works"
+    );
+    assert!(
+        !novel.app.deck.progress.completed.contains(&35),
+        "an ordinary novel is not a safe tutorial demo"
+    );
+}
+
+#[test]
 fn writingdeck_tutorial_uses_actual_editor_and_persists_verified_progress() {
     let root =
         std::env::temp_dir().join(format!("grimoire-deck-tutorial-ui-{}", std::process::id()));

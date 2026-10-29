@@ -15,3 +15,9 @@ Notes are shown dimmed in italics and TKs in bold. Neither is counted in any wor
 ## TKs when you export
 
 A TK is still in the text when you export, so it's never silently dropped from the middle of a sentence. Export lists every TK first and waits: press export again to go ahead anyway, or go and fill them in.
+
+## Footnotes · browse and jump
+
+Footnotes are **public manuscript content**, unlike private `%% ... %%` notes. Write a reference such as `[^source]` in the prose and define it in the same scene with `[^source]: Author and page.`. Use **Writing tools → Footnote navigator…** or **Ctrl-K → Footnotes · browse and jump** to inspect references, see previews and warnings for missing, unused or duplicate definitions, and jump to the original Markdown.
+
+The navigator does not edit or move your text. True bottom-of-page footnotes in Word/PDF and EPUB note links are **not yet supported**. Choose Markdown-only export for footnoted manuscripts; rich-format export refuses those documents rather than misrepresenting their notes.

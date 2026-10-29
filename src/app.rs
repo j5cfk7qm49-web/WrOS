@@ -595,6 +595,11 @@ pub enum Overlay {
         /// acts, so a stray key at launch can't decide for you.
         sel: usize,
     },
+    /// Public Markdown footnote references and unused definitions, with source jump.
+    Footnotes {
+        sel: usize,
+        rows: Vec<overlays::FootnoteRow>,
+    },
     /// Ctrl-T: every `%% note %%` and TK in the book, to jump to.
     Marks {
         query: String,
@@ -2180,6 +2185,7 @@ impl App {
         match action {
             Action::Corkboard => self.open_cork(),
             Action::NotesList => self.open_marks(),
+            Action::Footnotes => self.open_footnotes(),
             Action::Conflicts => self.open_conflicts(),
             Action::NextTk => self.next_tk(),
             Action::NextDraft => self.next_draft(),
@@ -2725,6 +2731,19 @@ impl App {
     fn run_export(&mut self, opts: &export::ExportOptions, pdf: bool) -> Vec<String> {
         match export::export(&self.project, opts) {
             Ok(done) => {
+                // Tutorial credit is earned only after the actual exporter has
+                // written a nonempty Markdown artifact under this book's
+                // exports directory. An invalid dialog, warning, failed
+                // export, or an async PDF request cannot grant completion.
+                if opts.markdown
+                    && done.files.iter().any(|path| {
+                        path.starts_with(self.project.root.join("exports"))
+                            && path.extension().is_some_and(|ext| ext == "md")
+                            && fs::metadata(path).is_ok_and(|m| m.is_file() && m.len() > 0)
+                    })
+                {
+                    self.observe_deck(grimoire_core::tutorial::Event::MarkdownExported);
+                }
                 let mut lines: Vec<String> = done
                     .files
                     .iter()
@@ -5107,6 +5126,7 @@ impl App {
                 ),
                 (row("Next scene still in draft", ""), Action::NextDraft),
                 (on_off(self.echo_on, "echo words"), Action::EchoWords),
+                ("Footnote navigator…".into(), Action::Footnotes),
                 ("Check names…".into(), Action::CheckNames),
                 ("Revision notes…".into(), Action::ReviewNotes),
                 ("Writing checks…".into(), Action::WritingChecks),

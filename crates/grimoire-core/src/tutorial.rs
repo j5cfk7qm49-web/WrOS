@@ -47,6 +47,7 @@ pub enum Event {
     VoiceProfileCompared,
     HistoryOpened,
     AnnotationReanchored,
+    MarkdownExported,
     SystemOpened,
     RecoveryHelpOpened,
 }
@@ -266,6 +267,11 @@ mod tests {
         assert!(p.observe(Event::TextEdited, true));
         p.skip(9);
         assert!(p.skipped.contains(&9));
+        p.start(35).unwrap();
+        assert!(!p.observe(Event::MarkdownExported, false));
+        assert!(!p.completed.contains(&35));
+        assert!(p.observe(Event::MarkdownExported, true));
+        assert!(p.completed.contains(&35));
     }
     #[test]
     fn demo_cannot_overwrite_an_existing_project_and_progress_round_trips() {
