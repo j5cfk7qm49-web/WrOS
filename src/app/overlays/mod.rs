@@ -19,6 +19,7 @@ mod command;
 mod conflicts;
 mod details;
 mod find;
+mod footnotes;
 mod help;
 mod looks;
 mod marks;
@@ -35,6 +36,7 @@ mod spelling;
 mod versions;
 
 pub use details::Field as DetailField;
+pub(crate) use footnotes::FootnoteRow;
 #[cfg(test)]
 pub(crate) use help::lay_out as help_lay_out;
 #[cfg(test)]
@@ -89,6 +91,7 @@ impl App {
             Overlay::Names { .. } => self.on_names_key(key),
             Overlay::Recover { .. } => self.on_recover_key(key),
             Overlay::History { .. } => self.on_history_key(key),
+            Overlay::Footnotes { .. } => self.on_footnotes_key(key),
             Overlay::Menu { .. } | Overlay::Sub { .. } => self.on_menu_key(key),
             Overlay::NewBook { .. } => self.on_new_book_key(key),
             Overlay::Books { .. } => self.on_books_key(key),
@@ -236,6 +239,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         Overlay::Names { .. } => spelling::draw_names(f, app, area, t),
         Overlay::Recover { .. } => recover::draw_recover(f, app, area, t),
         Overlay::History { .. } => versions::draw_history(f, app, area, t),
+        Overlay::Footnotes { .. } => footnotes::draw_footnotes(f, app, area, t),
         Overlay::Menu { .. } | Overlay::Sub { .. } => menu::draw_menu(f, app, area, t),
         Overlay::NewBook { .. } => shelf::draw_new_book(f, app, area, t),
         Overlay::Books { .. } => shelf::draw_books(f, app, area, t),
