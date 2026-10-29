@@ -41,12 +41,10 @@ fn rows_for_scene(scene: PathBuf, place: String, body: &str) -> Vec<FootnoteRow>
         } else {
             "defined"
         };
-        let preview = analysis
-            .definitions
-            .get(&key)
-            .map_or_else(|| "No definition in this scene".to_string(), |definition| {
-                notes::strip_notes(&definition.content).trim().to_string()
-            });
+        let preview = analysis.definitions.get(&key).map_or_else(
+            || "No definition in this scene".to_string(),
+            |definition| notes::strip_notes(&definition.content).trim().to_string(),
+        );
         rows.push(FootnoteRow {
             scene: scene.clone(),
             place: place.clone(),
@@ -124,7 +122,10 @@ pub(super) fn draw_footnotes(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     };
     let box_area = centred(area, 94, 19);
     f.render_widget(Clear, box_area);
-    let heading = format!("FOOTNOTES · {} reference(s) / unused definition(s)", rows.len());
+    let heading = format!(
+        "FOOTNOTES · {} reference(s) / unused definition(s)",
+        rows.len()
+    );
     let block = pane_block(&heading, true, t);
     let inner = block.inner(box_area);
     f.render_widget(block, box_area);
@@ -176,7 +177,10 @@ pub(super) fn draw_footnotes(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         lines.push(Line::from(Span::styled(
             format!(
                 "  {}",
-                truncate(&row.preview.split_whitespace().collect::<Vec<_>>().join(" "), width.saturating_sub(4))
+                truncate(
+                    &row.preview.split_whitespace().collect::<Vec<_>>().join(" "),
+                    width.saturating_sub(4)
+                )
             ),
             Style::default().fg(t.text),
         )));
