@@ -229,8 +229,7 @@ mod tests {
 
     #[test]
     fn invisible_markup_does_not_create_notes_and_limit_refuses_partial_preview() {
-        let text = "%% [^hidden]: secret %%\n\n\
-                    \`[^inline]\` \\\[^escaped] [link](https://example.invalid/[^url])";
+        let text = "%% [^hidden]: secret %%\n\n`[^inline]` \\[^escaped] [link](https://example.invalid/[^url])";
         // The same context rules as the maintained Markdown parser apply.
         assert!(inspect(text).unwrap().is_empty());
         assert!(inspect(&"x".repeat(2 * 1024 * 1024 + 1)).is_err());
