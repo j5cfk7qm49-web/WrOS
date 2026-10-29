@@ -147,7 +147,6 @@ pub(crate) fn normalize(label: &str) -> String {
         .to_lowercase()
 }
 
-
 /// An undoable source edit's proposed content and the new definition's caret.
 ///
 /// This is a pure transformation. The caller decides whether the active
@@ -275,21 +274,34 @@ mod tests {
         editor.set_text(&inserted.markdown);
         editor.place(inserted.cursor_line, inserted.cursor_column);
         assert_eq!(
-            editor.lines[editor.cy].chars().take(editor.cx).collect::<String>(),
+            editor.lines[editor.cy]
+                .chars()
+                .take(editor.cx)
+                .collect::<String>(),
             "[^fn-2]: "
         );
         editor.insert_str("An original footnote.");
-        assert!(analyze_footnotes(&editor.text()).missing_definitions.is_empty());
+        assert!(
+            analyze_footnotes(&editor.text())
+                .missing_definitions
+                .is_empty()
+        );
         assert!(editor.undo(), "undo newly typed definition prose");
         assert_eq!(editor.text(), inserted.markdown);
-        assert!(editor.undo(), "undo the entire generated reference and definition");
+        assert!(
+            editor.undo(),
+            "undo the entire generated reference and definition"
+        );
         assert_eq!(editor.text(), source);
     }
 
     #[test]
     fn quick_insert_refuses_invalid_carets_and_hidden_markdown_contexts() {
         let source = "λ text `code` %% private %%";
-        assert!(insert_footnote(source, 1).is_err(), "middle of UTF-8 sequence");
+        assert!(
+            insert_footnote(source, 1).is_err(),
+            "middle of UTF-8 sequence"
+        );
         assert!(insert_footnote(source, source.len() + 1).is_err());
         let within_code = source.find("code").unwrap() + 1;
         assert!(insert_footnote(source, within_code).is_err());
