@@ -1,0 +1,36 @@
+{
+  "passed": true,
+  "scope": "Build composition, independently verified capsule, and one automatic diskless live smoke. Full encrypted installation/boot is deliberately deferred while the native environment is completed.",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "1bdd9a3972ff9b4c566bd0e6a2d0b1bf48f094e46cb77d7e2179f62f40ddc484",
+    "file_count": 431,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "iso_sha256": "573e686179fbdbfdf62f514b2cd6d1bbc2daa12b3060e565dd1afc88b6a504fb",
+  "iso_bytes": 1248460800,
+  "live_boot_seconds": 94.99,
+  "backend_initrd_sha256": "da8af696c4639a23659ed86def9b41a5ca73e82c69b08ac1087dcc3ba8d756cb",
+  "cdrom_generator_sha256": "1806ad0ef04dda1b5fc6d40ff2e25a5b6c668b5f9421df7cb4f10dfd5114f067",
+  "capsule_manifest_sha256": "b884fddab3a7189b5052bac01dee977ad01c043c0289f118202ba01b4508f723",
+  "runtime_and_offline_archive_packages": [
+    "cryptsetup",
+    "cryptsetup-bin",
+    "cryptsetup-initramfs",
+    "dmsetup",
+    "dosfstools",
+    "lvm2",
+    "systemd-cryptsetup"
+  ],
+  "native_installer_embedded": false,
+  "production_installer_grant": false,
+  "encrypted_installation_verified": false,
+  "physical_hardware_verified": false,
+  "report_sha256": {
+    "native-offline-provider-image.json": "5d6184dfa0966733cc2f9e262b7b9e06a6bd0a91c136d9fa140e566447504893",
+    "native-offline-provider-backend.json": "f8ae52d7b9c73ea09c1a0aa6943fd30dd01d24fa1872fcf84816972682636334",
+    "native-offline-provider-capsule.json": "b884fddab3a7189b5052bac01dee977ad01c043c0289f118202ba01b4508f723",
+    "native-offline-provider-live-smoke.json": "fa687b689cd4fb437077de5e99cc4e0a0b3b1a7397cc9c09d8f3e5cc7ccc7087",
+    "native-offline-provider-home.png": "2d585b9fddda12a9a20b6b857bbfd9e77691a39d9fc2826eee53c72f8a6d20f9"
+  }
+}

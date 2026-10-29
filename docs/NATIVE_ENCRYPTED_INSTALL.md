@@ -61,8 +61,14 @@ repositories to `apt-cdrom`, and queued `dosfstools` lacked an offline archive.
 The next backend explicitly includes maintained `apt-cdrom-setup`; the media view
 exposes only the capsule archive subtree and preserves its external mount through
 Debian's hybrid-media interface. The refreshed image requests and audits
-`dosfstools` in both the installed runtime and binary pool. Builds and full
-installation/boot qualification for these composition changes are pending.
+`dosfstools` in both the installed runtime and binary pool. The corrected
+[build/capsule/live checkpoint](evidence/native-offline-provider-checkpoint.json)
+passed, with the actual CD generator present in the compressed backend and all
+seven matching runtime/archive packages. One automatic diskless live boot passed
+in 94.99 seconds. [Debian software CI](evidence/native-offline-provider-ci.json)
+passed 973 Rust tests/configuration, 169 Python/zero skips and 20 gates for the
+same source. Full encrypted installation/boot remains unqualified and is deferred
+while the everyday native environment and writing workflows are completed.
 
 Completion requires more than a successful backend exit. A read-only in-target
 audit checks the generated account, locked root, native authentication, installed

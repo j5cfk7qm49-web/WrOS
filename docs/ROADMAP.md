@@ -4,6 +4,20 @@ Historical M7a verified branch: `writingdeck/foundation`; the original unqualifi
 
 ## Current architectural priority
 
+The user's 2026-10-28 sequencing decision puts the installed writing environment
+ahead of further full installer qualification. Preserve the current installer
+build checkpoint, then finish the everyday native environment and remaining
+writing workflows before repeatedly rebuilding the final installation image.
+Packages, services, defaults and first-run behavior should settle together.
+Keep basic boot/install smoke checks as prerequisites change; a finished installer
+and release qualification still remain required before shipping.
+
+The next environment work should close visible native gaps such as Wi-Fi
+enrollment, account management, backup/restore and update/recovery flows through
+maintained Debian services and the shared Grimoire interface. Retain existing
+writing behavior and complete the remaining story/publishing work in dependency
+order. Installer polish must not displace that environment work.
+
 **Reuse first:** follow the [Debian/FOSS component decisions](FOSS_REUSE.md).
 The user authorized maintained Debian packages and suitable upstream builds for
 remaining work and strengthening existing parts. Native WrOS UI and necessary

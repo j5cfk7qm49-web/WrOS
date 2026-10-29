@@ -1,5 +1,12 @@
 # WrOS unified shell — architecture decision and execution order
 
+On 2026-10-28 the user prioritized completing the installed writing environment
+before further full installer qualification. Finish and preserve the current
+build checkpoint, then close native everyday workflow gaps and remaining writing
+features. Keep basic smoke checks; qualify the final installer after its package,
+service, default and first-run contents are stable. All interface and data
+boundaries below continue to apply.
+
 The user's 2026-10-26 directive supersedes the earlier assumption that a Linux
 appliance launching Grimoire is the finished interface. **Grimoire evolves into
 WrOS.** Normal writing, settings, networking, accounts, storage, help and system

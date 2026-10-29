@@ -1,6 +1,24 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
-## Native encrypted target installation qualification in progress
+## Environment first; installer composition checkpoint retained
+
+The current priority is the everyday native writing environment and remaining
+writing workflows. Installer qualification resumes when those contents settle.
+The [composition checkpoint](evidence/native-offline-provider-checkpoint.json)
+retains the refreshed live image, its verified 401-archive capsule and maintained
+Debian CD-ROM APT provider. All seven encryption/EFI runtime packages have
+matching offline archives. One automatic diskless live boot passed in **94.99
+seconds**; [actual Home](evidence/native-offline-provider-home.png) is retained.
+
+[Debian CI 40796270591](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40796270591)
+passed **973 Rust tests/configuration, 169 Python/zero skips, both Clippys and
+20 gates**. [Provenance](evidence/native-offline-provider-ci-provenance.json)
+binds source `1bdd9a39...dc484` / 431 files to the image/backend checkpoint.
+This evidence predates the separate new feature changes under review.
+Full encrypted installation/authenticated boot, production handoff and owned
+post-write cleanup remain open. No physical hardware has been qualified.
+
+## Native encrypted target installation remains unqualified
 
 The guarded native fixture now attempts a complete installation on its own fresh
 virtual disk and requires a separate encrypted UEFI boot and authenticated
@@ -13,8 +31,10 @@ The first actual attempt stopped at Debian's frontend-specific entropy-plugin
 request. The next reached hidden passphrase entry and system copy, then was
 explicitly stopped during APT setup after a source audit found a media-rebind
 flaw. Both remain failed receipts. A single overlay media view now tests Debian's
-nonrecursive bind before native input. Current full CI and the fresh installation
-retry are pending. This adds no production root launcher or completed encrypted
+nonrecursive bind before native input. The later full-copy attempt exposed APT
+provider/archive composition faults. The corrected build and software CI passed;
+another full installation retry is deferred while the environment is completed.
+This adds no production root launcher or completed encrypted
 installation claim. Read the [scope and retained attempts](NATIVE_ENCRYPTED_INSTALL.md).
 
 ## Offline encryption runtime and refreshed live image qualified
