@@ -288,7 +288,7 @@ mod tests {
 
     #[test]
     fn quick_insert_refuses_invalid_carets_and_hidden_markdown_contexts() {
-        let source = "λ text \`code\` %% private %%";
+        let source = "λ text `code` %% private %%";
         assert!(insert_footnote(source, 1).is_err(), "middle of UTF-8 sequence");
         assert!(insert_footnote(source, source.len() + 1).is_err());
         let within_code = source.find("code").unwrap() + 1;
