@@ -76,6 +76,19 @@ project-document identity, full interaction/help/tutorial work, source-revision
 guards and actual publishing/speech acceptance are still required before those
 capabilities can be called complete.
 
+## Read-only footnote navigation (incremental M9 work)
+
+The writing-tools menu and command palette now expose a footnote navigator.
+It lists public Markdown references and orphaned definitions across scenes,
+shows each definition's preview, flags missing/duplicate/unused labels, and
+jumps directly to original source locations. UTF-8 parser byte offsets are
+converted to editor character positions; source text remains in its original
+Markdown files, and private notes, code and link destinations are excluded.
+There is no second mutable note store, automatic text rewrite, or export claim.
+
+This is deliberately **not** the final contextual bottom-of-page footnote
+editor, DOCX/PDF writer or accessible EPUB implementation. Those remain #9.
+
 ## Qualification boundary
 
 [Debian CI](evidence/native-feature-ci.json) passed 1008 Rust tests per
