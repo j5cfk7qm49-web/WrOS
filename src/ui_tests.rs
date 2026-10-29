@@ -3332,8 +3332,7 @@ fn writingdeck_keyboard_preview_field_is_not_manuscript_text() {
 
 #[test]
 fn writingdeck_export_tutorial_requires_a_real_demo_markdown_artifact() {
-    let root = std::env::temp_dir()
-        .join(format!("wd-export-lesson-{}", std::process::id()));
+    let root = std::env::temp_dir().join(format!("wd-export-lesson-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
     grimoire_core::tutorial::create_demo(&root).unwrap();
     let mut d = Desk::open(root.clone(), 120, 40);
@@ -3346,7 +3345,10 @@ fn writingdeck_export_tutorial_requires_a_real_demo_markdown_artifact() {
     }
     d.key(KeyCode::Char('x'));
     assert!(!d.app.deck.progress.completed.contains(&35));
-    assert!(!root.join("exports").exists(), "invalid selection must not write files");
+    assert!(
+        !root.join("exports").exists(),
+        "invalid selection must not write files"
+    );
 
     if let Overlay::Export { formats, .. } = &mut d.app.overlay {
         formats[4] = true; // Only the source-preserving Markdown edition.
@@ -3354,7 +3356,11 @@ fn writingdeck_export_tutorial_requires_a_real_demo_markdown_artifact() {
     d.key(KeyCode::Char('x'));
     if matches!(
         d.app.overlay,
-        Overlay::Export { tks: Some(_), done: None, .. }
+        Overlay::Export {
+            tks: Some(_),
+            done: None,
+            ..
+        }
     ) {
         d.key(KeyCode::Char('x')); // Real TK warning requires deliberate retry.
     }
@@ -3378,7 +3384,10 @@ fn writingdeck_export_tutorial_requires_a_real_demo_markdown_artifact() {
         *formats = [false, false, false, false, true];
     }
     novel.key(KeyCode::Char('x'));
-    assert!(novel.root.join("exports").exists(), "ordinary export still works");
+    assert!(
+        novel.root.join("exports").exists(),
+        "ordinary export still works"
+    );
     assert!(
         !novel.app.deck.progress.completed.contains(&35),
         "an ordinary novel is not a safe tutorial demo"
