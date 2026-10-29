@@ -8112,3 +8112,6 @@ mod lexicon_ui_tests;
 #[path = "prose_ui_tests.rs"]
 #[cfg(target_os = "linux")]
 mod prose_ui_tests;
+
+#[path = "footnote_insert_ui_tests.rs"]
+mod footnote_insert_ui_tests;

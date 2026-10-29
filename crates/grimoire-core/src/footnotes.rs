@@ -204,14 +204,23 @@ pub fn insert_footnote(markdown: &str, offset: usize) -> anyhow::Result<NewFootn
     body.push_str(sep);
     let definition = format!("[^{label}]: ");
     body.push_str(&definition);
-    // Never report success if the reference was inserted in a Markdown
-    // context that the existing parser intentionally ignores.
+    // Both ends must be visible to the maintained parser. A public caret can
+    // precede an unclosed code fence/private note/HTML block at EOF, which
+    // would swallow an appended definition. Check its exact source line too.
+    let parsed = analyze_footnotes(&body);
     anyhow::ensure!(
-        analyze_footnotes(&body)
+        parsed
             .references
             .iter()
-            .any(|r| normalize(&r.label) == label),
+            .any(|r| normalize(&r.label) == label && r.offset == offset),
         "the cursor is inside markup that does not support a footnote reference"
+    );
+    anyhow::ensure!(
+        parsed
+            .definitions
+            .get(&label)
+            .is_some_and(|d| d.line_number == body.split('\n').count()),
+        "the document ending hides the new footnote definition; close its markup first"
     );
     Ok(NewFootnote {
         cursor_line: body.split('\n').count() - 1,
@@ -308,6 +317,45 @@ mod tests {
         let within_private = source.find("private").unwrap() + 1;
         assert!(insert_footnote(source, within_private).is_err());
         assert!(insert_footnote(&"x".repeat(2 * 1024 * 1024 + 1), 0).is_err());
+    }
+
+    #[test]
+    fn quick_insert_requires_both_reference_and_definition_to_be_public() {
+        for tail in ["```\ncode", "~~~\ncode", "<!-- private", "<pre>\ncode"] {
+            let text = format!("Original prose.\n\n{tail}");
+            assert!(
+                insert_footnote(&text, 8).is_err(),
+                "definition was hidden by {tail:?}"
+            );
+        }
+        for text in [
+            "",
+            "λ first and last",
+            "Original.\n\n```\ncode\n```\n",
+            "%% private %%\n\nOriginal.",
+        ] {
+            let offset = if text.starts_with("%%") {
+                text.len()
+            } else {
+                0
+            };
+            let result = insert_footnote(text, offset).unwrap();
+            let parsed = analyze_footnotes(&result.markdown);
+            assert_eq!(
+                parsed
+                    .references
+                    .iter()
+                    .find(|r| r.label == result.label)
+                    .unwrap()
+                    .offset,
+                offset
+            );
+            assert_eq!(
+                parsed.definitions[&result.label].line_number,
+                result.cursor_line + 1
+            );
+            assert!(result.markdown.ends_with(&format!("[^{}]: ", result.label)));
+        }
     }
 
     #[test]
