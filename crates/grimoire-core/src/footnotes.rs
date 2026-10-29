@@ -147,6 +147,89 @@ pub(crate) fn normalize(label: &str) -> String {
         .to_lowercase()
 }
 
+/// An undoable source edit's proposed content and the new definition's caret.
+///
+/// This is a pure transformation. The caller decides whether the active
+/// editor is writable and applies it as one editor undo step; no file I/O.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NewFootnote {
+    pub markdown: String,
+    pub label: String,
+    /// Zero-based character coordinates (not UTF-8 byte offsets).
+    pub cursor_line: usize,
+    pub cursor_column: usize,
+}
+
+/// Place a new reference at a UTF-8 source boundary and append its matching
+/// Markdown definition. Existing labels and scene prose are left untouched.
+///
+/// A reference inside code, a URL or a private note is refused instead of
+/// creating a misleading "new footnote" whose reference is invisible.
+pub fn insert_footnote(markdown: &str, offset: usize) -> anyhow::Result<NewFootnote> {
+    anyhow::ensure!(
+        markdown.len() <= 2 * 1024 * 1024,
+        "scene is too large for the footnote insertion preview"
+    );
+    anyhow::ensure!(
+        offset <= markdown.len() && markdown.is_char_boundary(offset),
+        "footnote insertion requires a valid UTF-8 caret position"
+    );
+    let current = analyze_footnotes(markdown);
+    anyhow::ensure!(
+        current.references.len() + current.definitions.len() <= 2048,
+        "too many existing footnotes for safe automatic numbering"
+    );
+    let occupied: std::collections::HashSet<String> = current
+        .references
+        .iter()
+        .map(|r| normalize(&r.label))
+        .chain(current.definitions.keys().cloned())
+        .collect();
+    let label = (1..=10_000)
+        .map(|i| format!("fn-{i}"))
+        .find(|label| !occupied.contains(label))
+        .ok_or_else(|| anyhow::anyhow!("no unused footnote label is available"))?;
+    let reference = format!("[^{label}]");
+    let mut body = String::with_capacity(markdown.len() + reference.len() * 2 + 8);
+    body.push_str(&markdown[..offset]);
+    body.push_str(&reference);
+    body.push_str(&markdown[offset..]);
+    let sep = if body.ends_with("\n\n") {
+        ""
+    } else if body.ends_with('\n') {
+        "\n"
+    } else {
+        "\n\n"
+    };
+    body.push_str(sep);
+    let definition = format!("[^{label}]: ");
+    body.push_str(&definition);
+    // Both ends must be visible to the maintained parser. A public caret can
+    // precede an unclosed code fence/private note/HTML block at EOF, which
+    // would swallow an appended definition. Check its exact source line too.
+    let parsed = analyze_footnotes(&body);
+    anyhow::ensure!(
+        parsed
+            .references
+            .iter()
+            .any(|r| normalize(&r.label) == label && r.offset == offset),
+        "the cursor is inside markup that does not support a footnote reference"
+    );
+    anyhow::ensure!(
+        parsed
+            .definitions
+            .get(&label)
+            .is_some_and(|d| d.line_number == body.split('\n').count()),
+        "the document ending hides the new footnote definition; close its markup first"
+    );
+    Ok(NewFootnote {
+        cursor_line: body.split('\n').count() - 1,
+        cursor_column: definition.chars().count(),
+        markdown: body,
+        label,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -180,6 +263,98 @@ mod tests {
         );
         for r in analysis.references {
             assert!(text.is_char_boundary(r.offset));
+        }
+    }
+
+    #[test]
+    fn quick_insert_uses_unique_labels_preserves_unicode_and_is_undoable() {
+        use crate::editor::Editor;
+        let source = "λ introduction.\n\nAnother thought[^FN-1].\n\n[^fn-1]: Prior note.";
+        let caret = "λ".len(); // byte boundary after one two-byte code point
+        let inserted = insert_footnote(source, caret).unwrap();
+        assert_eq!(inserted.label, "fn-2");
+        assert!(inserted.markdown.starts_with("λ[^fn-2] introduction."));
+        assert!(inserted.markdown.contains("[^fn-1]: Prior note."));
+        let analysis = analyze_footnotes(&inserted.markdown);
+        assert_eq!(analysis.references.len(), 2);
+        assert!(analysis.definitions.contains_key("fn-1"));
+        let mut editor = Editor::from_text(source);
+        editor.place(0, 1);
+        editor.set_text(&inserted.markdown);
+        editor.place(inserted.cursor_line, inserted.cursor_column);
+        assert_eq!(
+            editor.lines[editor.cy]
+                .chars()
+                .take(editor.cx)
+                .collect::<String>(),
+            "[^fn-2]: "
+        );
+        editor.insert_str("An original footnote.");
+        assert!(
+            analyze_footnotes(&editor.text())
+                .missing_definitions
+                .is_empty()
+        );
+        assert!(editor.undo(), "undo newly typed definition prose");
+        assert_eq!(editor.text(), inserted.markdown);
+        assert!(
+            editor.undo(),
+            "undo the entire generated reference and definition"
+        );
+        assert_eq!(editor.text(), source);
+    }
+
+    #[test]
+    fn quick_insert_refuses_invalid_carets_and_hidden_markdown_contexts() {
+        let source = "λ text `code` %% private %%";
+        assert!(
+            insert_footnote(source, 1).is_err(),
+            "middle of UTF-8 sequence"
+        );
+        assert!(insert_footnote(source, source.len() + 1).is_err());
+        let within_code = source.find("code").unwrap() + 1;
+        assert!(insert_footnote(source, within_code).is_err());
+        let within_private = source.find("private").unwrap() + 1;
+        assert!(insert_footnote(source, within_private).is_err());
+        assert!(insert_footnote(&"x".repeat(2 * 1024 * 1024 + 1), 0).is_err());
+    }
+
+    #[test]
+    fn quick_insert_requires_both_reference_and_definition_to_be_public() {
+        for tail in ["```\ncode", "~~~\ncode", "<!-- private", "<pre>\ncode"] {
+            let text = format!("Original prose.\n\n{tail}");
+            assert!(
+                insert_footnote(&text, 8).is_err(),
+                "definition was hidden by {tail:?}"
+            );
+        }
+        for text in [
+            "",
+            "λ first and last",
+            "Original.\n\n```\ncode\n```\n",
+            "%% private %%\n\nOriginal.",
+        ] {
+            let offset = if text.starts_with("%%") {
+                text.len()
+            } else {
+                0
+            };
+            let result = insert_footnote(text, offset).unwrap();
+            let parsed = analyze_footnotes(&result.markdown);
+            assert_eq!(
+                parsed
+                    .references
+                    .iter()
+                    .find(|r| r.label == result.label)
+                    .unwrap()
+                    .offset,
+                offset
+            );
+            assert_eq!(
+                parsed.definitions[&result.label].line_number,
+                result.cursor_line + 1
+            );
+            assert!(result.markdown.ends_with(&format!("[^{}]: ", result.label)));
         }
     }
 

@@ -1,5 +1,21 @@
 # Native environment and story-model review
 
+## Footnote insertion audit (2026-10-29)
+
+PR #59 now checks exclusive editor ownership, hidden/parked/trashed/unavailable
+sources and the backing-file fingerprint before inserting. Unsaved original
+buffer changes remain supported when the backing source is unchanged. The
+maintained Markdown parser must recognize both the exact inserted reference
+and the appended definition; an unclosed fence or HTML block at the end cannot
+hide the definition while the action reports success.
+
+Focused Debian verification passed 19 core tests, 7 UI tests, no-audio
+warning-denying Clippy and one actual compiled-app test covering primary and
+secondary insertion, typing, save, Undo/Redo and process restart at 80×24,
+100×30, 120×40 and 160×50. Fresh full CI is required for this revised source.
+The rich-format export guard remains in place; this does not qualify page
+footnotes, a new OS image, installation or hardware.
+
 The 2026-10-28 feature contribution added useful model and system-view scaffolding.
 It was unfinished: three exhaustive-match errors prevented a workspace build,
 and none of the new story models had editor interaction, export or speech-engine
@@ -91,6 +107,10 @@ syntax. This is a safety measure, not a footnote renderer. It does not yet
 implement contextual footnote editing, real page-bottom DOCX/PDF placement,
 accessible EPUB linking or complete export preflight UI. Those remain tasks in
 [issue #9](https://github.com/j5cfk7qm49-web/WrOS/issues/9).
+
+## Editable Markdown footnote quick-insert (incremental M9 work)
+
+Writing tools and the command palette can now create a unique Markdown footnote reference at the caret, append its same-scene definition and move the editor caret to the definition for immediate writing. Existing prose, labels and markdown are preserved; the generated insertion is one undo step. Unsafe positions (code/private notes), read-only sources, selections and overly large scenes fail without changing the editor. The normal autosave/history path remains responsible for committing the source, and programmatically inserted syntax is not misclassified as independently authored tutorial prose. This is not a separate editor store or rendered page-bottom footnote layout.
 
 ## Read-only footnote navigation (incremental M9 work)
 
