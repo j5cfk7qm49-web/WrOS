@@ -2710,6 +2710,19 @@ impl App {
     fn run_export(&mut self, opts: &export::ExportOptions, pdf: bool) -> Vec<String> {
         match export::export(&self.project, opts) {
             Ok(done) => {
+                // Tutorial credit is earned only after the actual exporter has
+                // written a nonempty Markdown artifact under this book's
+                // exports directory. An invalid dialog, warning, failed
+                // export, or an async PDF request cannot grant completion.
+                if opts.markdown
+                    && done.files.iter().any(|path| {
+                        path.starts_with(self.project.root.join("exports"))
+                            && path.extension().is_some_and(|ext| ext == "md")
+                            && fs::metadata(path).is_ok_and(|m| m.is_file() && m.len() > 0)
+                    })
+                {
+                    self.observe_deck(grimoire_core::tutorial::Event::MarkdownExported);
+                }
                 let mut lines: Vec<String> = done
                     .files
                     .iter()
