@@ -150,3 +150,15 @@ demo/HOME fixtures at four terminal sizes and exercises review, help, modal
 input, original-source save and Undo. Scope tests cover selected parts, samples,
 editions, private material, the rich-footnote guard and bounded refusal. This
 is software evidence, not rendered-footnote, installer or hardware qualification.
+
+## Reviewed Argon writing integration (2026-10-30)
+
+The [independent Debian receipt](evidence/argon-writing-local.json) records
+1057 Rust tests per configuration, 177 Python tests with zero skips, both Clippys and 21 gates. Fixture UI/PTY checks cover durable identity after
+inserted tree nodes, milestones, scene variants, comparison, source/metadata
+refusal, restore/Undo, continuity facts/events/threads, help and actual restart
+at four terminal sizes. Silent-engine tests verify chapter scope and guarded
+revision marks; they do not qualify installed audio hardware. CLI tests retain
+old aliases and compare local source bytes without transmission. The
+[contribution review](ARGON_REVIEW_2026-10-30.md) explains excluded prototypes
+and the remaining full milestone, provider, system and release work.

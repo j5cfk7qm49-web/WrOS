@@ -685,24 +685,24 @@
     {
       "area": "Long-form",
       "capability": "Author-entered continuity facts, timeline and threads",
-      "status": "Implemented",
-      "verification": "Focused four-size UI/PTY; full qualification pending",
+      "status": "Tested",
+      "verification": "Full Debian suite; guarded source/UI regressions and four-size compiled writing workflows",
       "detail": "Durable fact/event document IDs, explicit scopes, guarded persistence; complete knowledge tracking remains open",
       "hardware_verified": false
     },
     {
       "area": "Long-form",
       "capability": "Durable draft snapshots and whole-scene variant restore",
-      "status": "Implemented",
-      "verification": "Focused four-size UI/PTY and refusal tests; full qualification pending",
+      "status": "Tested",
+      "verification": "Full Debian suite; guarded source/UI regressions and four-size compiled writing workflows",
       "detail": "Existing history diff, recovery and Undo; schema-1 prototypes preserved; selective passage restore remains open",
       "hardware_verified": false
     },
     {
       "area": "Long-form",
       "capability": "Current-chapter speech queue and anchored revision mark",
-      "status": "Implemented",
-      "verification": "Existing engine and guarded source integration; qualification pending",
+      "status": "Tested",
+      "verification": "Full Debian suite; guarded source/UI regressions and four-size compiled writing workflows",
       "detail": "Uses voice.rs; no new speech engine; queued paths/digests are ephemeral",
       "hardware_verified": false
     }

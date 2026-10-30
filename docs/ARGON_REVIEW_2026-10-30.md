@@ -48,6 +48,8 @@ code and private material from its inspection.
 
 ## Verification
 
-Focused writing and full Debian qualification are in progress. All fixture
+The [independent Debian software receipt](evidence/argon-writing-local.json)
+records 1057 Rust tests per configuration, 177 Python tests with zero skips, both Clippys and 21 gates. [Provenance](evidence/argon-writing-local-provenance.json)
+and four compiled-app terminal captures bind the source and binary. All fixture
 projects and HOME directories are generated; no real manuscript, provider,
 credential, disk, firmware or suspend operation is used for these tests.
