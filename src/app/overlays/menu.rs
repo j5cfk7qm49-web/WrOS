@@ -251,6 +251,10 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "Create a unique Markdown footnote reference at the cursor and begin its definition. Undo restores the scene.",
             "notes",
         ),
+        Action::FootnoteAtCaret => (
+            "Read the public footnote at the caret and navigate its references or original definition.",
+            "notes",
+        ),
         Action::Footnotes => (
             "Browse Markdown footnote references and definitions, inspect missing labels, and jump to the original scene.",
             "writing",

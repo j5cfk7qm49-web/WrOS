@@ -26,6 +26,8 @@ pub struct FootnoteAnalysis {
     pub missing_definitions: Vec<String>,
     pub unused_definitions: Vec<String>,
     pub duplicate_definitions: Vec<String>,
+    /// All original definition ranges, including duplicates, for caret lookup.
+    pub definition_ranges: Vec<(String, Range<usize>)>,
 }
 
 pub fn analyze_footnotes(markdown: &str) -> FootnoteAnalysis {
@@ -49,7 +51,13 @@ pub fn analyze_footnotes(markdown: &str) -> FootnoteAnalysis {
             Event::End(TagEnd::CodeBlock) => code = false,
             Event::Start(Tag::FootnoteDefinition(label)) => {
                 let key = normalize(&label);
-                let raw = &markdown[range.clone()];
+                analysis
+                    .definition_ranges
+                    .push((key.clone(), range.clone()));
+                // Use the offset-preserving public source. A private note may
+                // cross a definition boundary; slicing original text first and
+                // then stripping notes can expose its unmatched trailing half.
+                let raw = &parsed[range.clone()];
                 let content = raw
                     .find("]:")
                     .map_or("", |at| &raw[at + 2..])

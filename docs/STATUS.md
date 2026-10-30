@@ -1,5 +1,18 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Contextual footnote workflow
+
+Post-merge CI for PR #60 passed in run40972331871. Development now adds a
+caret-aware public footnote dock, full bounded definition reading, repeated
+reference selection and original-source editing. Parser/UI and actual terminal
+qualification passed in the [independent Debian run](evidence/footnote-context-local.json):
+1044 Rust tests per configuration, 174 Python tests with zero skips, both Clippys and 21 gates. [Provenance](evidence/footnote-context-local-provenance.json)
+binds the source and binary; four captured terminal sizes accompany the receipt.
+The [first local run](evidence/footnote-context-local-initial-failure.json)
+failed an installer prompt synchronization test; a distinct fresh prompt fixed
+the test, and the full suite was rerun. Printed DOCX/PDF page footnotes and
+installer qualification remain open; the existing rich-export refusal is retained.
+
 ## Writing workflow integration on development (2026-10-29)
 
 Remote PRs #54, #55, #57 and #58 were audited and retained. PR #59 was

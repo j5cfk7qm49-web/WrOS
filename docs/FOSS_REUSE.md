@@ -130,3 +130,10 @@ materialization and verified round trips for external document formats.
 - [Pandoc formats and footnotes](https://pandoc.org/MANUAL.html).
 - [Debian Live installer integration](https://live-team.pages.debian.net/live-manual/html/live-manual/customizing-installer.en.html)
   and [debconf passthrough frontend](https://sources.debian.org/src/debconf/1.5.91/doc/passthrough.txt/).
+
+
+The contextual footnote reader reuses the locked pulldown-cmark parser and
+Ratatui 0.30.2 paragraph wrapping. Its rendered-line-info feature supplies the
+same line count for scrolling as the maintained renderer, avoiding a competing
+word-wrap algorithm. Shared wros-shell panels retain Grimoire themes and help.
+This integration does not substitute a custom speech, history or publishing engine.

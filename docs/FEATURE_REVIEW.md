@@ -195,3 +195,21 @@ The first run passed product tests but failed the documentary matrix/inventory
 comparison; its raw failed receipt remains separate. The inventory was corrected
 and the complete verifier then passed. Manuscript/source and verifier inputs
 did not change between these runs. Full M8/M9 and installer/hardware gates remain open.
+
+## Contextual footnote reader (next development increment)
+
+Read footnote at caret opens a shared shell dock below the retained writing.
+The maintained parser identifies original reference and definition byte ranges,
+including adjacent-reference boundaries and definition EOF. The reader shows
+one complete bounded public definition, scrolls with the pinned Ratatui layout
+calculation, chooses among repeated references and opens original source for
+normal editing. The existing navigator's v action preserves its selection on Back.
+No parallel editor or durable footnote store is introduced.
+
+Definition previews now use the parser's offset-preserving masked public source.
+Stripping private notes only after slicing a definition could expose a trailing
+half of a private block that crossed that boundary. Source bytes remain intact.
+Changed source/backing files and ambiguous definitions refuse navigation. Limits
+are 2 MiB/scene, 8192 markers and a 64 KiB definition snapshot. The [independent Debian run](evidence/footnote-context-local.json) passed
+1044 Rust tests per configuration, 174 Python tests with zero skips, both Clippys and 21 gates. The rich-export guard remains intact and lesson 34 cannot claim
+DOCX/PDF validation. Existing speech and history engines remain unchanged.

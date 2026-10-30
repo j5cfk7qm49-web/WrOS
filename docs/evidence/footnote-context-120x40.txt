@@ -1,0 +1,40 @@
+┌ WRITINGDECK TUTORIAL ──────┐┌ Chapter One / The Brass Key ───────────────────────────────────────────────────────────┐
+│     ✧   ·    ✧    ✦   ✧    ││        λ Intro[^a] and again[^a].                                                      │
+│       ______ ☾ ______      ││                                                                                        │
+│     _/      ╲│╱      \_    ││        [^a]: First public paragraph. %% PRIVATE_SECRET %%                              │
+│    // ≈≈≈ ≈≈ │ ≈≈ ≈≈≈ \\   ││                                                                                        │
+│   // ≈ ≈≈ ✧  │  ✧ ≈≈ ≈ \\  ││            Original continuation 🦊. Original continuation 🦊. Original                │
+│  //__________│__________\\ ││        continuation 🦊. Original continuation 🦊. Original continuation 🦊.            │
+│  `───────────┴───────────' ││        Original continuation 🦊. Original continuation 🦊. Original                    │
+│                            ││        continuation 🦊. Original continuation 🦊. Original continuation 🦊.            │
+│  Novel Format              ││        Original continuation 🦊. Original continuation 🦊. Original                    │
+│▾ Manuscript            256 ││        continuation 🦊. Original continuation 🦊. Original continuation 🦊.            │
+│  ▾ Chapter One         256 ││        Original continuation 🦊. Original continuation 🦊. Original                    │
+│      The Brass Key     249 ││        continuation 🦊. Original continuation 🦊. Original continuation 🦊.            │
+│      The Other Door      7 ││        Original continuation 🦊. Original continuation 🦊. Original                    │
+│▾ Characters                ││        continuation 🦊. Original continuation 🦊. Original continuation 🦊.            │
+│▾ Places                    ││        Original continuation 🦊. Original continuation 🦊. Original                    │
+│▾ Front Matter              ││        continuation 🦊. Original continuation 🦊. Original continuation 🦊.            │
+│  ▸ Manuscript Format       ││        Original continuation 🦊. Original continuation 🦊. Original                    │
+│  ▸ Paperback               ││        continuation 🦊. Original continuation 🦊. Original continuation 🦊.            │
+│  ▸ Ebook                   ││        Original continuation 🦊. Original continuation 🦊. Original                    │
+┌Footnote context · Source Markdown────────────────────────────────────────────────────────────────────────────────────┐
+│[^a] · defack               ││        Original continuation 🦊. Original continuation 🦊. Original                    │
+│  ▸ Ebook                   ││        continuation 🦊. Original continuation 🦊. Original continuation 🦊.            │
+│▾ Notes                 259 ││        Original continuation 🦊. Original continuation 🦊. Original                    │
+│    Pin Practice        259 ││        continuation 🦊. Original continuation 🦊. Original continuation 🦊.            │
+│▾ Research                  ││        Original continuation 🦊. Original continuation 🦊. Original                    │
+│  ▾ Sample Output           ││        continuation 🦊. Original continuation 🦊. Original continuation 🦊.            │
+└ n scene  c chapter  p part ┘│        Original continuation 🦊. Original continuation 🦊. Original                    │
+┌ F2 timer · ^D focus mode ──┐│        continuation 🦊. Original continuation 🦊. Original continuation 🦊.            │
+│                            ││        Original continuation 🦊. Original continuation 🦊. Original                    │
+│              ☀             ││        continuation 🦊. Original continuation 🦊. Original continuation 🦊.            │
+│                   ▲        ││        Original continuation 🦊. Original continuation 🦊. Original                    │
+│    ˇ ˇ           ▟█▙       ││        continuation 🦊. Original continuation 🦊. Original continuation 🦊.            │
+│                  █▪█       ││        Original continuation 🦊. Original continuation 🦊. Original                    │
+│                  ███       ││        continuation 🦊. Original continuation 🦊. Original continuation 🦊.            │
+│          ▁▂▃▃▂▁▁▁█▪█▁▁     ││        Original continuation 🦊. Original continuation 🦊. Original                    │
+│  ▁▁▂▃▄▅▆▇▇▇▇▇▇▇▇▇▇▇▇▇▇▆▄▂▁ ││        continuation 🦊. Original continuation 🦊. Original continuation 🦊.            │
+│▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔││        END_CONTEXT                                                                     │
+└──◂ pomodoro visualizer ▸───┘└────────────────────────────────────────────────────────────────────────────────────────┘
+ 256 / 80,000 ░░░░░░░░░░  today 0  already open in the primary editor · selection and undo retained            Esc menu

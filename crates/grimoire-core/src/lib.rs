@@ -57,6 +57,7 @@ pub mod review_queue;
 
 pub mod annotations;
 pub mod continuity;
+pub mod footnote_context;
 pub mod footnotes;
 pub mod milestones;
 pub mod preflight;

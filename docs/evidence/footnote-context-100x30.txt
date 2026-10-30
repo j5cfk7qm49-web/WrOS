@@ -1,0 +1,30 @@
+┌ WRITINGDECK TUTORIAL ──────┐┌ Chapter One / The Brass Key ───────────────────────────────────────┐
+│  Novel Format              ││  λ Intro[^a] and again[^a].                                        │
+│▾ Manuscript            256 ││                                                                    │
+│  ▾ Chapter One         256 ││  [^a]: First public paragraph. %% PRIVATE_SECRET %%                │
+│      The Brass Key     249 ││                                                                    │
+│      The Other Door      7 ││      Original continuation 🦊. Original continuation 🦊.           │
+│▾ Characters                ││  Original continuation 🦊. Original continuation 🦊. Original      │
+│▾ Places                    ││  continuation 🦊. Original continuation 🦊. Original               │
+│▾ Front Matter              ││  continuation 🦊. Original continuation 🦊. Original               │
+│  ▸ Manuscript Format       ││  continuation 🦊. Original continuation 🦊. Original               │
+│  ▸ Paperback               ││  continuation 🦊. Original continuation 🦊. Original               │
+│  ▸ Ebook                   ││  continuation 🦊. Original continuation 🦊. Original               │
+│▾ Back Matter               ││  continuation 🦊. Original continuation 🦊. Original               │
+│  ▸ Paperback               ││  continuation 🦊. Original continuation 🦊. Original               │
+│  ▸ Ebook                   ││  continuation 🦊. Original continuation 🦊. Original               │
+┌Footnote context · Source Markdown────────────────────────────────────────────────────────────────┐
+│Original continuation 🦊. Original continuation 🦊. Original continuation 🦊. Original            │
+│continuation 🦊. Original continuation 🦊. Original continuation 🦊. Original continuation 🦊.    │
+│Original continuation 🦊. Original continuation 🦊. Original continuation 🦊. Original            │
+│continuation 🦊. Original continuation 🦊. Original continuation 🦊. Original continuation 🦊.    │
+│Original continuation 🦊. Original continuation 🦊. Original continuation 🦊. Original            │
+│continuation 🦊. Original continuation 🦊. Original continuation 🦊. Original continuation 🦊.    │
+│Original continuation 🦊. Original continuation 🦊. Original continuation 🦊. Original           │
+│continuation 🦊. Original continuation 🦊. Original continuation 🦊. Original continuation 🦊.    │
+│Original continuation 🦊. Original continuation 🦊. Original continuation 🦊. Original           │
+│continuation 🦊. Original continuation 🦊. Original continuation 🦊. Original continuation 🦊.    │
+│Original continuation 🦊. Original continuation 🦊. Original continuation 🦊. END_CONTEXT        │
+│all saved                                                                                         │
+│↑↓ scroll  ←→ reference  d definition  r reference  Esc back  F1 help                             │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘

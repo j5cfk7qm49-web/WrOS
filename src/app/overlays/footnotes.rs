@@ -21,7 +21,7 @@ pub struct FootnoteRow {
     pub source_sha256: String,
 }
 
-fn rows_for_scene(scene: PathBuf, place: String, body: &str) -> Vec<FootnoteRow> {
+pub(super) fn rows_for_scene(scene: PathBuf, place: String, body: &str) -> Vec<FootnoteRow> {
     let analysis = analyze_footnotes(body);
     // One bounded preview per definition: thousands of references to a large
     // definition must not clone its entire content into every list row.
@@ -146,6 +146,12 @@ impl App {
             return;
         }
         match key {
+            Key::Char('v') => {
+                let row = rows.get(*sel).cloned();
+                if let Some(row) = row {
+                    self.open_footnote_reader(row, true);
+                }
+            }
             Key::Enter | Key::Char('d') => {
                 let row = rows.get(*sel).cloned();
                 if let Some(row) = row
@@ -161,7 +167,11 @@ impl App {
         }
     }
 
-    fn goto_footnote(&mut self, row: &FootnoteRow, definition: bool) -> anyhow::Result<()> {
+    pub(super) fn goto_footnote(
+        &mut self,
+        row: &FootnoteRow,
+        definition: bool,
+    ) -> anyhow::Result<()> {
         use anyhow::ensure;
         let (line, col, end) = if definition {
             let (line, col) = row
@@ -171,32 +181,7 @@ impl App {
         } else {
             (row.line, row.col, row.end)
         };
-        self.flush();
-        self.ensure_document_claims()?;
-        let i = self
-            .project
-            .nodes
-            .iter()
-            .position(|n| n.path == row.scene)
-            .ok_or_else(|| anyhow::anyhow!("source moved or disappeared"))?;
-        let node = &self.project.nodes[i];
-        ensure!(
-            !node.read_only
-                && !node.parked
-                && !node.never_read()
-                && !self.project.in_trash(i)
-                && node.disk.pending.is_none()
-                && node.disk.unavailable.is_none(),
-            "source is unavailable or unresolved"
-        );
-        ensure!(
-            node.seen.is_some() && grimoire_core::sync::Fingerprint::read(&node.path) == node.seen,
-            "backing source changed"
-        );
-        ensure!(
-            grimoire_core::diagnostics::hex_digest(node.body.as_bytes()) == row.source_sha256,
-            "source revision changed"
-        );
+        let i = self.verify_footnote_source(row)?;
         if self.open != Some(i) {
             self.open_scene(i);
         }
@@ -227,6 +212,37 @@ impl App {
         );
         Ok(())
     }
+
+    pub(super) fn verify_footnote_source(&mut self, row: &FootnoteRow) -> anyhow::Result<usize> {
+        use anyhow::ensure;
+        self.flush();
+        self.ensure_document_claims()?;
+        let i = self
+            .project
+            .nodes
+            .iter()
+            .position(|n| n.path == row.scene)
+            .ok_or_else(|| anyhow::anyhow!("source moved or disappeared"))?;
+        let node = &self.project.nodes[i];
+        ensure!(
+            !node.read_only
+                && !node.parked
+                && !node.never_read()
+                && !self.project.in_trash(i)
+                && node.disk.pending.is_none()
+                && node.disk.unavailable.is_none(),
+            "source is unavailable or unresolved"
+        );
+        ensure!(
+            node.seen.is_some() && grimoire_core::sync::Fingerprint::read(&node.path) == node.seen,
+            "backing source changed"
+        );
+        ensure!(
+            grimoire_core::diagnostics::hex_digest(node.body.as_bytes()) == row.source_sha256,
+            "source revision changed"
+        );
+        Ok(i)
+    }
 }
 
 pub(super) fn draw_footnotes(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
@@ -254,7 +270,7 @@ pub(super) fn draw_footnotes(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             rows: &labels,
             selected: *sel,
             notice: &app.msg,
-            hint: "↑↓ choose  Enter reference  d definition  Esc back  F1 help",
+            hint: "↑↓ choose  v read  Enter reference  d definition  Esc back  F1 help",
         },
         t.into(),
     );

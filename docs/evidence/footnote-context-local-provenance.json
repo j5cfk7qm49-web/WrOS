@@ -1,0 +1,16 @@
+{
+  "passed": true,
+  "source_implementation_commit": "97037ba175bd074f412cf9eada0ed58fb37e5b24",
+  "tested_head": "8ed951bcf8d7c095bc4db67234720edfaa5609ae",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "3b5e945f4d5563566282032686e6e22e98e92ee2f263b2a4510f195852e385e6",
+    "file_count": 454,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "receipt_sha256": "e565e01132e60be9d0f3597a7697e723b38ca84e6da3e553adc71a1a3c96aa0a",
+  "tested_binary_sha256": "4b072c5dd8ce9e365537bcb75ebb14cce11097d26898e7b84b0d40741070b6e2",
+  "runner": "Corrected private unshare --net --mount runner, no --fork, normal termination defaults asserted; Debian chroot ordinary builder, loopback available and external network isolated.",
+  "initial_failure": "footnote-context-local-initial-failure.json",
+  "scope": "Software qualification with generated fixtures; not image, full encrypted installation, physical hardware, provider or release qualification."
+}
