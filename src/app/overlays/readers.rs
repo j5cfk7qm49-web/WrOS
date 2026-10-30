@@ -164,7 +164,7 @@ impl App {
                     String::new(),
                 ];
                 if !result.unsupported_footnotes.is_empty() {
-                    lines.push(format!("Rich export is blocked: footnote rendering is not implemented ({} affected sections). Choose Markdown only to preserve footnotes.", result.unsupported_footnotes.len()));
+                    lines.push(format!("Rich export is blocked: EPUB/paperback footnotes are not implemented ({} affected sections). Choose only manuscript Word/PDF, or Markdown.", result.unsupported_footnotes.len()));
                     lines.push(String::new());
                 }
                 if report.issues.is_empty() {

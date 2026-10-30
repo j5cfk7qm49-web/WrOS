@@ -313,6 +313,8 @@ pub struct App {
     /// PDFs being made off the main thread by LibreOffice: which one ("PDF",
     /// "paperback PDF") and how it went, one message each.
     pdf_job: Option<std::sync::mpsc::Receiver<(&'static str, Result<PathBuf, String>)>>,
+    /// The manuscript PDF whose real note export can complete lesson 34.
+    footnote_export_pending: Option<PathBuf>,
     /// LibreOffice, looked for the first time the export dialog opens.
     office: Option<Option<grimoire_core::pdf::Office>>,
     /// Words repeated close together are lit in the open scene.
@@ -942,6 +944,7 @@ impl App {
             backup_rx: None,
             backup_note: None,
             pdf_job: None,
+            footnote_export_pending: None,
             office: None,
             echo_on: false,
             sprint: None,
@@ -2863,6 +2866,12 @@ impl App {
     }
 
     fn run_export(&mut self, opts: &export::ExportOptions, pdf: bool) -> Vec<String> {
+        if self.pdf_job.is_some() {
+            return vec![
+                "The current PDF is still being made; wait before exporting again.".into(),
+            ];
+        }
+        self.footnote_export_pending = None;
         match export::export(&self.project, opts) {
             Ok(done) => {
                 // Tutorial credit is earned only after the actual exporter has
@@ -2901,10 +2910,15 @@ impl App {
                         })
                         .cloned();
                     match (office.clone(), docx) {
-                        (Some(office), Some(docx)) => jobs.push((
-                            "PDF",
-                            Box::new(move || grimoire_core::pdf::convert(&office, &docx)),
-                        )),
+                        (Some(office), Some(docx)) => {
+                            if done.manuscript_footnotes > 0 {
+                                self.footnote_export_pending = Some(docx.with_extension("pdf"));
+                            }
+                            jobs.push((
+                                "PDF",
+                                Box::new(move || grimoire_core::pdf::convert(&office, &docx)),
+                            ));
+                        }
                         _ => lines.push(format!(
                             "couldn't make a PDF: {}",
                             grimoire_core::pdf::HOW_TO_GET
@@ -2989,10 +3003,19 @@ impl App {
         };
         let mut said: Vec<(String, String)> = Vec::new();
         let mut finished = false;
+        let mut footnotes_exported = false;
         loop {
             match rx.try_recv() {
                 Ok((label, Ok(path))) => {
                     let size = fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+                    if label == "PDF"
+                        && self.footnote_export_pending.as_ref() == Some(&path)
+                        && path.starts_with(self.project.root.join("exports"))
+                        && size > 0
+                    {
+                        footnotes_exported = true;
+                        self.footnote_export_pending = None;
+                    }
                     let rel = path.strip_prefix(&self.project.root).unwrap_or(&path);
                     self.msg = format!("{label} ready: {}", rel.display());
                     said.push((
@@ -3001,6 +3024,9 @@ impl App {
                     ));
                 }
                 Ok((label, Err(why))) => {
+                    if label == "PDF" {
+                        self.footnote_export_pending = None;
+                    }
                     self.msg = format!("couldn't make the {label}: {why}");
                     said.push((
                         format!("… the {label}"),
@@ -3016,6 +3042,10 @@ impl App {
         }
         if finished {
             self.pdf_job = None;
+            self.footnote_export_pending = None;
+        }
+        if footnotes_exported {
+            self.observe_deck(grimoire_core::tutorial::Event::ManuscriptFootnotesExported);
         }
         if let Overlay::Export {
             done: Some(lines), ..

@@ -49,6 +49,7 @@ pub enum Event {
     HistoryOpened,
     AnnotationReanchored,
     MarkdownExported,
+    ManuscriptFootnotesExported,
     SystemOpened,
     RecoveryHelpOpened,
 }
@@ -273,6 +274,11 @@ mod tests {
         assert!(!p.completed.contains(&35));
         assert!(p.observe(Event::MarkdownExported, true));
         assert!(p.completed.contains(&35));
+        p.start(34).unwrap();
+        assert!(!p.observe(Event::MarkdownExported, true));
+        assert!(!p.observe(Event::ManuscriptFootnotesExported, false));
+        assert!(p.observe(Event::ManuscriptFootnotesExported, true));
+        assert!(p.completed.contains(&34));
     }
     #[test]
     fn demo_cannot_overwrite_an_existing_project_and_progress_round_trips() {

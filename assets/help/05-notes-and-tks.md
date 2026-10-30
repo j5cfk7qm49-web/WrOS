@@ -24,7 +24,20 @@ To write a new footnote, put the cursor in an editable scene and choose **Writin
 
 In the navigator, **Enter** selects the original reference and **d** moves to the definition for ordinary editing with Undo, autosave and history. Missing or duplicate definitions refuse the definition jump. A changed, missing or unresolved source refuses stale navigation: return to writing, reconcile the source and reopen the navigator. F1 opens this help; paste, cut and undo cannot alter hidden prose while the navigator or Help is open. The browser limits inspection to 2 MiB per scene, 16 MiB total, 8192 candidate markers per scene and 2048 listed items with 256-character previews; exceeding a limit preserves the manuscript and reports it.
 
-True bottom-of-page footnotes in Word/PDF and EPUB note links are **not yet supported**. Choose Markdown-only export for footnoted manuscripts; rich-format export refuses those documents rather than misrepresenting their notes.
+The manuscript **Word** export supports real page footnotes; **PDF** uses the
+same DOCX through headless LibreOffice. In Export, untick EPUB and Paperback
+when using this path. Those editions still refuse footnoted scenes.
+
+Manuscript notes support text paragraphs, emphasis, code and readable link
+targets. Each reference receives a consecutive numbered note; repeated labels
+repeat their definition at each reference. Definitions remain local to their
+scene. Missing, duplicate, uncited or nested notes refuse the Word/PDF export.
+Lists, images, tables and raw HTML in a footnoted scene also refuse it until
+their formatting is supported. Markdown-only export preserves the source.
+
+Limits are 2 MiB and 8,192 markers per footnoted scene, 64 KiB per definition,
+4,096 document notes and 16 MiB rendered note content. Refusal occurs before
+creating companion export files. Your original Markdown/YAML stays unchanged.
 
 
 ## Read the footnote at your caret
@@ -51,4 +64,6 @@ an unused definition has no reference to jump to. Inspection is bounded to
 2 MiB per scene, 8192 candidate markers and a 64 KiB definition snapshot.
 An exceeded bound refuses the reader and keeps the original source available.
 This contextual reader does not render printed pages or qualify rich exports.
-Lesson 34's DOCX/PDF validation exercise remains planned.
+Lesson 34 completes only after a real manuscript Word export with notes and
+its matching successful PDF conversion in the safe demo. Viewing this reader
+or exporting Word alone does not complete it.

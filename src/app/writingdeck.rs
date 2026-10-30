@@ -1263,7 +1263,7 @@ impl App {
             31 => self.open_continuity(),
             32 => self.open_review_notes(),
             33 => self.open_history(),
-            35 => self.run_action(Action::Export),
+            34 | 35 => self.run_action(Action::Export),
             38 => self.open_system_settings(),
             39 => {
                 self.open_help(Some("history"));
