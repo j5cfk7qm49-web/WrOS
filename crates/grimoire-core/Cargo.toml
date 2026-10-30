@@ -29,7 +29,7 @@ roxmltree = "0.21"
 # Opt-in local grammar service; includes Harper's bundled POS/chunker models.
 # No engine initialization or manuscript transmission in ordinary spelling.
 harper-core = { version = "=2.13.0", default-features = false, features = ["concurrent"] }
-pulldown-cmark = { version = "=0.13.3", default-features = false }
+pulldown-cmark = { version = "=0.13.3", default-features = false, features = ["html"] }
 
 # Pin the bundled model/runtime contract as well as its public adapter.
 # These are also reached transitively by harper-core.

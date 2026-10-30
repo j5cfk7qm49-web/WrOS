@@ -10,6 +10,14 @@
   backup/update/Wi-Fi/suspend prototypes require further integration;
   [review findings](docs/ARGON_REVIEW_2026-10-30.md) distinguish those limits.
 
+- Added native EPUB footnotes using shared bounded source validation and the
+  maintained Markdown HTML renderer, preserving original writing and Word/PDF
+  behavior. Same-file note/return links, real paragraphs and literal code/URLs
+  are checked with Debian EPUBCheck and four-size editor workflows.
+- Reviewed Argon's third contribution against current development, retained its
+  writing regressions and repaired the milestone test's invented APIs/fixture.
+  Backup/update/Wi-Fi/suspend planning remains outside normal product workflows.
+
 ## 0.7.5 · Colour, not color (if you like)
 
 - **Spelling in American, British, Canadian or Australian English.**

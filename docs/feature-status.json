@@ -489,14 +489,14 @@
       "status": "Tested",
       "verification": "Full Debian suite; actual LibreOffice/Poppler pagination and four-size compiled TUI export/lesson/Undo/restart",
       "hardware_verified": false,
-      "detail": "Bounded manuscript paragraphs, repeated/multiparagraph/long notes; original bytes/Undo retained. EPUB/paperback and unsupported structures remain guarded"
+      "detail": "Bounded manuscript paragraphs, repeated/multiparagraph/long notes; original bytes/Undo retained. Paperback and unsupported structures remain guarded; EPUB has separate validation"
     },
     {
       "area": "Publishing",
       "capability": "Export-selection source review",
       "status": "Tested",
       "verification": "Debian scope/model and four-size compiled UI/Undo tests; full software suite",
-      "detail": "Read-only footnote and editorial-marker checks plus rich-export guard status; no link, asset, continuity, revision or rendered-page validation",
+      "detail": "Read-only footnote and editorial-marker checks plus paperback-export guard status; no link, asset, continuity, revision or rendered-page validation",
       "hardware_verified": false
     },
     {
@@ -705,6 +705,14 @@
       "verification": "Full Debian suite; guarded source/UI regressions and four-size compiled writing workflows",
       "detail": "Uses voice.rs; no new speech engine; queued paths/digests are ephemeral",
       "hardware_verified": false
+    },
+    {
+      "hardware_verified": false,
+      "area": "Publishing",
+      "capability": "Native EPUB linked footnotes and return navigation",
+      "status": "Implemented",
+      "verification": "Focused XML/refusal/bounds tests, actual Debian EPUBCheck and four-size compiled TUI; full run in progress",
+      "detail": "Shared bounded parser and maintained HTML renderer; local labels, multiple paragraphs, literal code/URL and original bytes retained; paperback remains guarded"
     }
   ]
 }

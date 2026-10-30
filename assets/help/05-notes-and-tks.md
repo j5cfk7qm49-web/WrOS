@@ -25,13 +25,14 @@ To write a new footnote, put the cursor in an editable scene and choose **Writin
 In the navigator, **Enter** selects the original reference and **d** moves to the definition for ordinary editing with Undo, autosave and history. Missing or duplicate definitions refuse the definition jump. A changed, missing or unresolved source refuses stale navigation: return to writing, reconcile the source and reopen the navigator. F1 opens this help; paste, cut and undo cannot alter hidden prose while the navigator or Help is open. The browser limits inspection to 2 MiB per scene, 16 MiB total, 8192 candidate markers per scene and 2048 listed items with 256-character previews; exceeding a limit preserves the manuscript and reports it.
 
 The manuscript **Word** export supports real page footnotes; **PDF** uses the
-same DOCX through headless LibreOffice. In Export, untick EPUB and Paperback
-when using this path. Those editions still refuse footnoted scenes.
+same DOCX through headless LibreOffice. **EPUB** supports linked notes with
+return links. In Export, untick Paperback when using footnotes; that edition
+still refuses footnoted scenes.
 
 Manuscript notes support text paragraphs, emphasis, code and readable link
 targets. Each reference receives a consecutive numbered note; repeated labels
 repeat their definition at each reference. Definitions remain local to their
-scene. Missing, duplicate, uncited or nested notes refuse the Word/PDF export.
+scene. Missing, duplicate, uncited or nested notes refuse the rich export.
 Lists, images, tables and raw HTML in a footnoted scene also refuse it until
 their formatting is supported. Markdown-only export preserves the source.
 

@@ -289,4 +289,84 @@ mod tests {
                 .any(|p| matches!(p, Piece::Removed(s) if s.contains("I")))
         );
     }
+    #[test]
+    fn schema_v1_index_shift_is_refused_and_schema_v2_scene_snapshots_survive_reordering() {
+        let root = std::env::temp_dir().join(format!(
+            "grimoire-milestone-schema-compat-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        let chap = root.join("manuscript/01-Chapter-One");
+        std::fs::create_dir_all(&chap).unwrap();
+        std::fs::write(
+            root.join("novel.toml"),
+            "title = \"Index Shift Reproduction\"\n",
+        )
+        .unwrap();
+        let scene_a = chap.join("01-Scene-A.md");
+        std::fs::write(&scene_a, "Scene A original text.\n").unwrap();
+
+        // 1. A schema-1 file keyed by project-tree index 1 must be refused when
+        // an earlier scene B is inserted, never attaching A's text to B.
+        let path = MilestoneStore::path(&root);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let v1_bytes = br#"{"schema_version":1,"next_id":1,"milestones":[{"id":1,"name":"Old V1","timestamp":"2026-10-30 10:00","description":"","scene_snapshots":{"1":"Scene A historical text."},"total_words":4}]}"#;
+        std::fs::write(&path, v1_bytes).unwrap();
+        let scene_b = chap.join("00-Scene-B.md");
+        std::fs::write(&scene_b, "Scene B newly inserted.\n").unwrap();
+        let err = MilestoneStore::load(&root)
+            .err()
+            .expect("legacy data must be refused")
+            .to_string();
+        assert!(err.contains("explicit migration"), "{err}");
+        assert_eq!(std::fs::read(&path).unwrap(), v1_bytes);
+        assert!(!path.with_extension("json.v1.bak").exists());
+        std::fs::remove_file(&path).unwrap();
+        std::fs::remove_file(&scene_b).unwrap();
+
+        // 2. Schema-2 `scene_snapshots` keyed by shared durable ReviewNotes IDs
+        // stays bound to Scene A after Scene B is inserted before it.
+        let project = crate::project::Project::load(&root).unwrap();
+        let mut notes = crate::review_notes::ReviewNotes::load(&root).unwrap();
+        let old_index = project
+            .nodes
+            .iter()
+            .position(|n| n.path == scene_a)
+            .unwrap();
+        let path_a = "manuscript/01-Chapter-One/01-Scene-A.md";
+        let id_a = notes.update(|value| value.register(path_a)).unwrap();
+
+        let mut store = MilestoneStore::load(&root).unwrap();
+        let mut snaps = HashMap::new();
+        snaps.insert(id_a, "Scene A historical text.".into());
+        let ms_id = store
+            .update(|value| value.create_milestone("Draft 2", "Durable IDs", snaps))
+            .unwrap();
+
+        std::fs::write(&scene_b, "Scene B newly inserted.\n").unwrap();
+        let reloaded_project = crate::project::Project::load(&root).unwrap();
+        let mut reloaded_notes = crate::review_notes::ReviewNotes::load(&root).unwrap();
+        let new_index = reloaded_project
+            .nodes
+            .iter()
+            .position(|n| n.path == scene_a)
+            .unwrap();
+        assert_ne!(old_index, new_index);
+        let id_a_after = reloaded_notes
+            .update(|value| value.register(path_a))
+            .unwrap();
+        assert_eq!(id_a, id_a_after);
+        let id_b = reloaded_notes
+            .update(|value| value.register("manuscript/01-Chapter-One/00-Scene-B.md"))
+            .unwrap();
+        assert_ne!(id_a, id_b);
+
+        let reloaded_store = MilestoneStore::load(&root).unwrap();
+        assert_eq!(
+            reloaded_store.value.get_scene_snapshot(ms_id, id_a),
+            Some("Scene A historical text.")
+        );
+        assert_eq!(reloaded_store.value.get_scene_snapshot(ms_id, id_b), None);
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }

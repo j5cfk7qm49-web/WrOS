@@ -1485,6 +1485,9 @@ fn export_preflight_reviews_selected_source_without_writing_at_four_sizes() {
         let mut d = Desk::open(root.clone(), width, height);
         let editor = d.app.editor.text();
         d.app.open_export();
+        if let Overlay::Export { formats, .. } = &mut d.app.overlay {
+            formats[2] = true; // Paperback still refuses public footnotes.
+        }
         d.key(KeyCode::Char('p'));
         assert!(d.shows("EXPORT PREFLIGHT"));
         assert!(d.shows("Loaded source snapshot"));

@@ -44,6 +44,8 @@ use crate::submission::{
 use crate::typeset;
 
 mod docx_footnotes;
+mod epub_footnotes;
+mod footnote_source;
 
 /// Roughly how much of a novel fits on one double-spaced manuscript page.
 const WORDS_PER_PAGE: usize = 250;
@@ -246,10 +248,10 @@ pub fn preflight(p: &Project, opts: &ExportOptions) -> Result<ExportPreflight> {
 }
 
 /// The selected content that still uses Markdown footnotes in the unfinished
-/// EPUB/paperback paths. Inspect the *compiled*
+/// paperback path. Inspect the *compiled*
 /// scope, never unrelated notes, skipped scenes or unselected chapters.
 fn unsupported_footnote_locations(p: &Project, b: &Book<'_>, opts: &ExportOptions) -> Vec<String> {
-    if !opts.epub && !opts.paperback {
+    if !opts.paperback {
         return Vec::new();
     }
     let mut locations = Vec::new();
@@ -274,10 +276,7 @@ fn unsupported_footnote_locations(p: &Project, b: &Book<'_>, opts: &ExportOption
 
     // Front/back matter is edition-specific; scanning every source file would
     // incorrectly block an export over a different selection or edition.
-    for (enabled, edition, label) in [
-        (opts.epub, Edition::Ebook, "EPUB"),
-        (opts.paperback, Edition::Paperback, "paperback"),
-    ] {
+    for (enabled, edition, label) in [(opts.paperback, Edition::Paperback, "paperback")] {
         if enabled {
             for text in front_pages(p, edition) {
                 inspect(&format!("{label} front matter"), &text);
@@ -303,12 +302,12 @@ pub fn export(p: &Project, opts: &ExportOptions) -> Result<Exported> {
     if book.pieces.is_empty() {
         bail!("there's nothing written to export yet");
     }
-    // EPUB/paperback notes still need their own package/rendering integration.
+    // Paperback notes still need their own package/rendering integration.
     if opts.docx || opts.pdf || opts.epub || opts.paperback {
         let affected = unsupported_footnote_locations(p, &book, opts);
         if let Some(first) = affected.first() {
             bail!(
-                "footnotes in {first} ({} affected section(s)): EPUB/paperback footnote rendering is not implemented; choose Markdown only, or Word/PDF without EPUB/paperback. No export files were changed.",
+                "footnotes in {first} ({} affected section(s)): paperback footnote rendering is not implemented; deselect Paperback. No export files were changed.",
                 affected.len()
             );
         }
@@ -318,6 +317,23 @@ pub fn export(p: &Project, opts: &ExportOptions) -> Result<Exported> {
     // export which looks complete.
     let manuscript_docx = if opts.docx || opts.pdf {
         Some(docx(&book)?)
+    } else {
+        None
+    };
+    // Prepare the EPUB before any companion output. Restore the manuscript
+    // edition even when validation fails in ebook-only front/back matter.
+    let ebook = if opts.epub {
+        let submission = std::mem::replace(&mut book.front, front_pages(p, Edition::Ebook));
+        let result = epub_with(
+            &book,
+            &Extras {
+                meta: &p.meta.ebook,
+                back: back_pages(p, Edition::Ebook),
+                cover: find_cover(p),
+            },
+        );
+        book.front = submission;
+        Some(result?)
     } else {
         None
     };
@@ -355,15 +371,8 @@ pub fn export(p: &Project, opts: &ExportOptions) -> Result<Exported> {
         files.push(path);
         Ok(())
     };
-    if opts.epub {
-        let submission = std::mem::replace(&mut book.front, front_pages(p, Edition::Ebook));
-        let extras = Extras {
-            meta: &p.meta.ebook,
-            back: back_pages(p, Edition::Ebook),
-            cover: find_cover(p),
-        };
-        put(&format!("{stem}.epub"), &epub_with(&book, &extras)?)?;
-        book.front = submission;
+    if let Some(bytes) = &ebook {
+        put(&format!("{stem}.epub"), bytes)?;
     }
     if opts.markdown {
         put(&format!("{stem}.md"), markdown(&book).as_bytes())?;
@@ -599,7 +608,7 @@ pub(crate) fn find_cover(p: &Project) -> Option<(&'static str, Vec<u8>)> {
 
 /// A scene's text as it goes into the book: `%% notes %%` out, TKs kept
 /// (see [`Book::tks`]), trimmed, and book typography done. Footnoted source
-/// retains its syntax until the Word adapter typesets parsed text runs.
+/// retains its syntax until the publishing adapters typeset parsed text runs.
 pub(crate) fn prose(body: &str, hyphen: typeset::SpacedHyphen) -> Cow<'_, str> {
     let noted = notes::strip_notes(body);
     let trimmed: Cow<'_, str> = match noted {
@@ -607,8 +616,8 @@ pub(crate) fn prose(body: &str, hyphen: typeset::SpacedHyphen) -> Cow<'_, str> {
         Cow::Owned(o) => Cow::Owned(o.trim().to_string()),
     };
     // Footnote labels, link targets and table delimiters must reach the
-    // Markdown parser intact. The Word adapter typesets parsed prose runs;
-    // Markdown preserves this source and other rich formats remain guarded.
+    // Markdown parser intact. Publishing adapters typeset parsed prose runs;
+    // Markdown preserves this source and paperback notes remain guarded.
     if trimmed.contains("[^") {
         if trimmed.len() > 2 * 1024 * 1024 {
             return trimmed; // The bounded Word adapter will refuse it.
@@ -2256,6 +2265,7 @@ fn epub(b: &Book) -> Result<Vec<u8>> {
 }
 
 fn epub_with(b: &Book, x: &Extras) -> Result<Vec<u8>> {
+    let mut footnotes = epub_footnotes::Footnotes::default();
     let lang = xml_escape(x.meta.language());
     let page = |title: &str, body: &str| xhtml_lang(title, body, &lang);
     // (file, id, xhtml, properties)
@@ -2296,7 +2306,10 @@ fn epub_with(b: &Book, x: &Extras) -> Result<Vec<u8>> {
         ));
     } else {
         for (i, f) in b.front.iter().enumerate() {
-            let body = format!("<div class=\"front\">\n{}</div>", html_blocks(f));
+            let body = format!(
+                "<div class=\"front\">\n{}</div>",
+                footnotes.scene(f, b.look.spaced_hyphen)?
+            );
             docs.push((
                 format!("front-{}.xhtml", i + 1),
                 format!("front-{}", i + 1),
@@ -2374,7 +2387,7 @@ fn epub_with(b: &Book, x: &Extras) -> Result<Vec<u8>> {
                     if i > 0 {
                         body.push_str("<p class=\"break\">* * *</p>\n");
                     }
-                    body.push_str(&html_blocks(s));
+                    body.push_str(&footnotes.scene(s, b.look.spaced_hyphen)?);
                 }
                 body.push_str("</div>");
 
@@ -2403,7 +2416,10 @@ fn epub_with(b: &Book, x: &Extras) -> Result<Vec<u8>> {
             Piece::Scene(s) => {
                 text_no += 1;
                 let id = format!("text-{text_no:02}");
-                let body = format!("<div class=\"text\">\n{}</div>", html_blocks(s));
+                let body = format!(
+                    "<div class=\"text\">\n{}</div>",
+                    footnotes.scene(s, b.look.spaced_hyphen)?
+                );
                 docs.push((format!("{id}.xhtml"), id, page(b.title, &body), ""));
             }
         }
@@ -2417,7 +2433,7 @@ fn epub_with(b: &Book, x: &Extras) -> Result<Vec<u8>> {
         let label = page_label(text).unwrap_or_else(|| "Afterword".into());
         let body = format!(
             "<section class=\"back\" epub:type=\"backmatter\">\n{}</section>",
-            html_blocks(text)
+            footnotes.scene(text, b.look.spaced_hyphen)?
         );
         toc.push(Toc {
             label: label.clone(),
@@ -2609,7 +2625,7 @@ fn epub_with(b: &Book, x: &Extras) -> Result<Vec<u8>> {
         ("OEBPS/content.opf".into(), opf.into_bytes()),
         ("OEBPS/nav.xhtml".into(), page("Contents", &nav).into_bytes()),
         ("OEBPS/toc.ncx".into(), ncx.into_bytes()),
-        ("OEBPS/style.css".into(), EPUB_CSS.as_bytes().to_vec()),
+        ("OEBPS/style.css".into(), footnotes.css().into_bytes()),
     ];
     if let Some((href, _, bytes)) = &cover {
         entries.push((format!("OEBPS/{href}"), bytes.to_vec()));
@@ -2823,9 +2839,22 @@ mod tests {
         let file = "manuscript/01-Act-One/01-Chapter-One/01-Scene-One.md";
         put(&d, file, "A claim[^a].\n\n[^a]: A real note.\n");
         let p = Project::load(&d).unwrap();
-        let rich = preflight(&p, &all_options()).unwrap();
+        let rich = preflight(
+            &p,
+            &ExportOptions {
+                paperback: true,
+                ..all_options()
+            },
+        )
+        .unwrap();
         assert!(rich.report.is_clean());
         assert!(!rich.unsupported_footnotes.is_empty());
+        assert!(
+            preflight(&p, &all_options())
+                .unwrap()
+                .unsupported_footnotes
+                .is_empty()
+        );
         let markdown = preflight(
             &p,
             &ExportOptions {
@@ -2856,7 +2885,7 @@ mod tests {
     }
 
     #[test]
-    fn rich_footnotes_fail_before_writing_any_export_and_markdown_preserves_them() {
+    fn paperback_footnotes_fail_before_writing_any_export_and_markdown_preserves_them() {
         let d = book_dir("footnote-export-guard");
         put(
             &d,
@@ -2864,9 +2893,13 @@ mod tests {
             "A supported claim[^note].\n\n[^note]: A λ-rich footnote.\n",
         );
         let p = Project::load(&d).unwrap();
-        let error = export(&p, &all_options()).unwrap_err().to_string();
+        let blocked = ExportOptions {
+            paperback: true,
+            ..all_options()
+        };
+        let error = export(&p, &blocked).unwrap_err().to_string();
         assert!(error.contains("chapter 'Chapter One', scene 1"), "{error}");
-        assert!(error.contains("choose Markdown only"), "{error}");
+        assert!(error.contains("deselect Paperback"), "{error}");
         assert!(
             !d.join("exports").exists(),
             "a failed export must not create files"
@@ -2888,7 +2921,7 @@ mod tests {
         );
 
         let before = fs::read(&out.files[0]).unwrap();
-        assert!(export(&p, &all_options()).is_err());
+        assert!(export(&p, &blocked).is_err());
         assert_eq!(before, fs::read(&out.files[0]).unwrap());
         fs::remove_dir_all(&d).unwrap();
     }
@@ -2998,6 +3031,247 @@ mod tests {
         assert!(md.contains("`\"quoted -- code\"`"));
         assert_eq!(fs::read_to_string(d.join(scene)).unwrap(), source);
         fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn footnote_markdown_and_docx_preserve_literal_code_urls_and_multiparagraph_notes() {
+        let d = book_dir("footnote-literal-syntax-and-paragraphs");
+        let scene = "manuscript/01-Act-One/01-Chapter-One/01-Scene-One.md";
+        let source = "A claim[^a--b] with `\"literal -- code\"` and [source](https://example.invalid/source--two).\n\n[^a--b]: First note paragraph.\n\n    Second note paragraph.\n";
+        put(&d, scene, source);
+        let p = Project::load(&d).unwrap();
+
+        let md_out = export(
+            &p,
+            &ExportOptions {
+                docx: false,
+                epub: false,
+                markdown: true,
+                ..all_options()
+            },
+        )
+        .unwrap();
+        let md = fs::read_to_string(&md_out.files[0]).unwrap();
+        assert!(md.contains("A claim[^a--b]"), "{md}");
+        assert!(md.contains("`\"literal -- code\"`"), "{md}");
+        assert!(
+            md.contains("[source](https://example.invalid/source--two)"),
+            "{md}"
+        );
+        assert!(
+            md.contains("[^a--b]: First note paragraph.\n\n    Second note paragraph."),
+            "{md}"
+        );
+
+        let word_out = export(&p, &word_options()).unwrap();
+        assert_eq!(word_out.manuscript_footnotes, 1);
+        let files = unzip(&fs::read(&word_out.files[0]).unwrap());
+        let doc = xml_doc(entry(&files, "word/document.xml")).unwrap();
+        let body_text: String = doc
+            .descendants()
+            .filter(|n| n.has_tag_name((W, "t")))
+            .filter_map(|n| n.text())
+            .collect();
+        assert!(body_text.contains("\"literal -- code\""), "{body_text}");
+        assert!(
+            body_text.contains("https://example.invalid/source--two"),
+            "{body_text}"
+        );
+
+        let notes_doc = xml_doc(entry(&files, "word/footnotes.xml")).unwrap();
+        let note_node = notes_doc
+            .descendants()
+            .find(|n| n.has_tag_name((W, "footnote")) && n.attribute((W, "id")) == Some("1"))
+            .unwrap();
+        let note_paras: Vec<String> = note_node
+            .children()
+            .filter(|n| n.has_tag_name((W, "p")))
+            .map(|para| {
+                para.descendants()
+                    .filter(|n| n.has_tag_name((W, "t")))
+                    .filter_map(|n| n.text())
+                    .collect()
+            })
+            .collect();
+        assert_eq!(
+            note_paras,
+            vec![
+                " First note paragraph.".to_string(),
+                "Second note paragraph.".to_string()
+            ]
+        );
+        assert_eq!(fs::read_to_string(d.join(scene)).unwrap(), source);
+        fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn epub_footnotes_have_unique_same_file_round_trips_and_keep_literal_public_content() {
+        let d = book_dir("epub-notes");
+        let source = "\"A *claim*\"[^a--b] and again[^a--b].\n**A line\ncontinued** with `\"code -- unchanged\"` and [source](https://example.invalid/source--two).\n\n#\n\n[^a--b]: First café λ paragraph with *emphasis*. %% PRIVATE_SECRET %%\n\n    Second **note** paragraph.\n";
+        let file = "manuscript/01-Act-One/01-Chapter-One/01-Scene-One.md";
+        put(&d, file, source);
+        put(
+            &d,
+            "manuscript/01-Act-One/01-Chapter-One/02-Scene-Two.md",
+            "Another[^a--b].\n\n[^a--b]: Scene-local definition.\n",
+        );
+        put(
+            &d,
+            "front-matter/01-Ebook/01-Title.md",
+            "Title[^a--b].\n\n[^a--b]: Front context.\n",
+        );
+        put(
+            &d,
+            "back-matter/01-Ebook/01-Afterword.md",
+            "Afterword[^a--b].\n\n[^a--b]: Back context.\n",
+        );
+        let p = Project::load(&d).unwrap();
+        let result = export(&p, &all_options()).unwrap();
+        let files = unzip(
+            &fs::read(
+                result
+                    .files
+                    .iter()
+                    .find(|p| p.extension().is_some_and(|e| e == "epub"))
+                    .unwrap(),
+            )
+            .unwrap(),
+        );
+        let mut ids = std::collections::HashSet::new();
+        let mut count = 0;
+        for (file, _, text) in &files {
+            if !file.ends_with(".xhtml") {
+                continue;
+            }
+            let doc = xml_doc(text).unwrap();
+            let mut local = std::collections::HashSet::new();
+            for node in doc.descendants().filter(|n| n.is_element()) {
+                if let Some(id) = node.attribute("id") {
+                    assert!(local.insert(id), "duplicate id in {file}: {id}");
+                    if id.starts_with("fn-") || id.starts_with("ref-") {
+                        assert!(ids.insert(id.to_string()), "duplicate generated id: {id}");
+                    }
+                }
+            }
+            for node in doc
+                .descendants()
+                .filter(|n| matches!(n.attribute("role"), Some("doc-noteref" | "doc-backlink")))
+            {
+                let target = node
+                    .attribute("href")
+                    .unwrap()
+                    .strip_prefix('#')
+                    .expect("same-file target");
+                assert!(local.contains(target), "missing target {target} in {file}");
+                assert!(node.attribute("aria-label").is_some());
+                if node.attribute("role") == Some("doc-noteref") {
+                    count += 1;
+                }
+            }
+            assert!(!text.contains("PRIVATE_SECRET"));
+            if text.contains("Scene-local") {
+                let notes: Vec<_> = doc
+                    .descendants()
+                    .filter(|n| n.attribute("role") == Some("doc-footnote"))
+                    .collect();
+                assert_eq!(notes.len(), 3);
+                assert_eq!(
+                    notes[0]
+                        .children()
+                        .filter(|n| n.has_tag_name(("http://www.w3.org/1999/xhtml", "p")))
+                        .count(),
+                    3
+                );
+                assert!(text.contains("“A <em>claim</em>”"), "{text}");
+                assert!(
+                    text.contains("<code>\"code -- unchanged\"</code>"),
+                    "{text}"
+                );
+                assert!(text.contains("https://example.invalid/source--two"));
+                assert!(
+                    text.contains("<strong>A line</strong></p>\n<p><strong>continued</strong>"),
+                    "{text}"
+                );
+                assert!(text.contains("class=\"break\""));
+            }
+        }
+        assert_eq!(count, 5);
+        assert_eq!(ids.len(), 10);
+        assert_eq!(fs::read_to_string(d.join(file)).unwrap(), source);
+        fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn epub_validation_refuses_before_word_markdown_or_previous_outputs_change() {
+        for (tag, source) in [
+            ("missing", "Claim[^missing]."),
+            ("duplicate", "Claim[^a].\n\n[^a]: One.\n\n[^a]: Two."),
+            ("uncited", "Original.\n\n[^a]: Uncited."),
+            ("nested", "Claim[^a].\n\n[^a]: See[^b].\n\n[^b]: Nested."),
+            ("empty", "Claim[^a].\n\n[^a]: %% private %%"),
+            ("list", "Claim[^a].\n\n[^a]: Note.\n\n- A list"),
+            ("html", "Claim[^a]. <span>raw</span>\n\n[^a]: Note."),
+            ("image", "Claim[^a]. ![alt](missing.png)\n\n[^a]: Note."),
+            (
+                "table",
+                "Claim[^a].\n\n[^a]: Note.\n\n| A | B |\n| --- | --- |\n| one | two |",
+            ),
+        ] {
+            let d = book_dir(&format!("epub-refuse-{tag}"));
+            // Ebook-only front matter catches ordering bugs: Word is valid,
+            // but must not be written before EPUB validation fails.
+            put(&d, "front-matter/01-Ebook/01-Title.md", source);
+            let p = Project::load(&d).unwrap();
+            assert!(export(&p, &all_options()).is_err(), "{tag}");
+            assert!(!d.join("exports").exists(), "{tag}");
+            put(&d, "exports/the-archive.epub", "old epub");
+            put(&d, "exports/the-archive.md", "old markdown");
+            assert!(export(&p, &all_options()).is_err(), "{tag}");
+            assert_eq!(
+                fs::read(d.join("exports/the-archive.epub")).unwrap(),
+                b"old epub"
+            );
+            assert_eq!(
+                fs::read(d.join("exports/the-archive.md")).unwrap(),
+                b"old markdown"
+            );
+            assert_eq!(fs::read_dir(d.join("exports")).unwrap().count(), 2);
+            fs::remove_dir_all(d).unwrap();
+        }
+    }
+
+    #[test]
+    fn epub_footnote_limits_refuse_without_output_and_nonfootnoted_html_stays_legacy() {
+        let mut renderer = epub_footnotes::Footnotes::default();
+        let hyphen = typeset::SpacedHyphen::default();
+        let ordinary = "Ordinary *prose*.\nAnother paragraph.";
+        assert_eq!(
+            renderer.scene(ordinary, hyphen).unwrap(),
+            html_blocks(ordinary)
+        );
+        for source in [
+            format!("Claim[^a].\n\n[^a]: {}", "x".repeat(64 * 1024 + 1)),
+            format!("{}\n\n[^a]: Note.", "Claim[^a]. ".repeat(4097)),
+            format!("{}\n\n[^a]: Note.", "x".repeat(2 * 1024 * 1024)),
+            format!("{}\n\n[^a]: Note.", "[^a]".repeat(8193)),
+            // Repetition expands a bounded definition past the rendered cap.
+            format!(
+                "{}\n\n[^a]: {}",
+                "Claim[^a]. ".repeat(300),
+                "x".repeat(64 * 1024 - 20)
+            ),
+        ] {
+            let d = book_dir("epub-limit");
+            put(&d, "front-matter/01-Ebook/01-Title.md", &source);
+            let p = Project::load(&d).unwrap();
+            let error = export(&p, &all_options()).unwrap_err().to_string();
+            assert!(
+                error.contains("exceeds") || error.contains("exceed"),
+                "{error}"
+            );
+            assert!(!d.join("exports").exists());
+            fs::remove_dir_all(d).unwrap();
+        }
     }
 
     #[test]
@@ -3118,8 +3392,15 @@ mod tests {
             "excluded chapters, code, escapes and private notes do not block rich export"
         );
         assert!(
-            export(&p, &all_options()).is_err(),
-            "including the footnoted chapter must be rejected"
+            export(
+                &p,
+                &ExportOptions {
+                    paperback: true,
+                    ..all_options()
+                }
+            )
+            .is_err(),
+            "including the footnoted chapter in paperback must be rejected"
         );
         fs::remove_dir_all(&d).unwrap();
     }

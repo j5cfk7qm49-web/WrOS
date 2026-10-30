@@ -5,8 +5,9 @@ place public Markdown notes in a real Word footnotes part. The existing
 LibreOffice adapter produces the PDF. Original Markdown/YAML is never rewritten.
 No external links, images or manuscript content are fetched or transmitted.
 
-In **Export for readers**, choose Word and/or PDF and turn off EPUB and
-Paperback for a footnoted manuscript. Press **p** for selected-source review,
+In **Export for readers**, choose Word and/or PDF and turn off Paperback
+for a footnoted manuscript. [EPUB notes](EPUB_FOOTNOTES.md) are also available.
+Press **p** for selected-source review,
 **Esc** to return and **x** to export. A PDF includes its Word source. Wait for
 the actual PDF-ready result before leaving the application. Another export
 waits while the current PDF conversion is running.
@@ -25,7 +26,7 @@ runs; literal code and targets remain exact. Markdown keeps footnoted syntax.
 
 Missing, duplicate, uncited, empty or nested notes and unsupported structures
 such as lists, images or raw HTML in footnoted scenes refuse before any output
-directory or companion format is written. EPUB/paperback notes remain guarded.
+directory or companion format is written. Paperback notes remain guarded.
 Markdown-only export remains available. Bounds are 2 MiB and 8192 markers per
 scene, 64 KiB per definition, 4096 references and 16 MiB of rendered note XML
 per document. These are bounded manuscript notes, not full Markdown publishing

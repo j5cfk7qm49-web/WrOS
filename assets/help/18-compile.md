@@ -23,9 +23,9 @@ When the book is ready to send, *Export…* in the menu (*Export for readers* in
   markers and empty-source notices. `↑`/`↓`, Page Up/Down and Home/End scroll;
   `Esc` returns to the same export settings. Reopen the review to refresh it.
   It also reports when the current rich-format selection is blocked by the
-  EPUB/paperback footnote-export guard; choose only manuscript Word/PDF for
-  supported notes, or Markdown to preserve the syntax. Word/PDF validates
-  renderable note structure when exporting; this review does not render pages.
+  paperback footnote-export guard; deselect Paperback for supported manuscript
+  Word/PDF and EPUB notes, or use Markdown to preserve the syntax. Rich export
+  validates renderable note structure when exporting; this review does not render pages.
   It does not write export files or check links, continuity, revision notes,
   rendered pages or externally changed files. It inspects at most 512 scenes,
   16 MiB total, 2 MiB and 8,192 footnote markers per scene, and 512 findings; an exceeded limit
@@ -45,3 +45,15 @@ Your byline (pen name), legal name, address, phone, email and an agent's details
 A PDF is made with **LibreOffice** (free, from libreoffice.org). Without it, export makes the Word file and says how to get LibreOffice; Word can also save the file as a PDF.
 
 From the command line: `grimoire export --docx --pdf --chapters 1-3` (or `--words 10000`, `--parts 1,3`, `--epub`, `--md`).
+
+## EPUB footnotes
+
+EPUB exports public scene footnotes as numbered links with a return link in
+each note. Definitions stay local to their scene, including front/back matter;
+repeated references repeat the definition. Note paragraphs, emphasis and code
+are retained. Link targets appear as exact readable text. No resource is fetched.
+Missing, duplicate, uncited, empty or nested notes and unsupported lists, images,
+tables or raw HTML refuse export before any companion files are written.
+Your original Markdown/YAML and Undo are preserved. The limits match the
+manuscript notes documented in **Notes and TKs**. Paperback notes remain guarded.
+EPUB-only output does not complete the Word/PDF exercise in lesson 34.
