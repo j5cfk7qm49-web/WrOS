@@ -302,9 +302,8 @@ pub fn export(p: &Project, opts: &ExportOptions) -> Result<Exported> {
     if book.pieces.is_empty() {
         bail!("there's nothing written to export yet");
     }
-    // Never produce a plausible-looking DOCX/PDF/EPUB that silently degrades
-    // footnotes to literal [^label] text or omits their page-bottom placement.
-    // Markdown-only export keeps the source footnote syntax intact.
+    // Rich footnotes still require actual package and rendering integration.
+    // Keep the existing refusal until those outputs are verified.
     if opts.docx || opts.pdf || opts.epub || opts.paperback {
         let affected = unsupported_footnote_locations(p, &book, opts);
         if let Some(first) = affected.first() {

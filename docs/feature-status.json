@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "as_of": "2026-10-29",
+  "as_of": "2026-10-30",
   "release": "0.1.0-dev foundation + M3b + M4 + M5 + M6 + M7a + M7b software",
   "features": [
     {
@@ -680,6 +680,30 @@
       "status": "Tested",
       "verification": "Debian parser/UI tests and four-size compiled edit/Undo/restart; full software suite",
       "detail": "Dock below retained writing; complete bounded public definition, scrolling, repeated-reference selection and guarded original-source editing; not page layout",
+      "hardware_verified": false
+    },
+    {
+      "area": "Long-form",
+      "capability": "Author-entered continuity facts, timeline and threads",
+      "status": "Tested",
+      "verification": "Full Debian suite; guarded source/UI regressions and four-size compiled writing workflows",
+      "detail": "Durable fact/event document IDs, explicit scopes, guarded persistence; complete knowledge tracking remains open",
+      "hardware_verified": false
+    },
+    {
+      "area": "Long-form",
+      "capability": "Durable draft snapshots and whole-scene variant restore",
+      "status": "Tested",
+      "verification": "Full Debian suite; guarded source/UI regressions and four-size compiled writing workflows",
+      "detail": "Existing history diff, recovery and Undo; schema-1 prototypes preserved; selective passage restore remains open",
+      "hardware_verified": false
+    },
+    {
+      "area": "Long-form",
+      "capability": "Current-chapter speech queue and anchored revision mark",
+      "status": "Tested",
+      "verification": "Full Debian suite; guarded source/UI regressions and four-size compiled writing workflows",
+      "detail": "Uses voice.rs; no new speech engine; queued paths/digests are ephemeral",
       "hardware_verified": false
     }
   ]

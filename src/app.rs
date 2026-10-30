@@ -31,9 +31,11 @@ use grimoire_core::spell;
 
 mod aids;
 pub(crate) mod checks;
+pub(crate) mod continuity;
 pub(crate) mod documents;
 pub(crate) mod journal;
 pub(crate) mod lexicon;
+pub(crate) mod milestones;
 pub(crate) mod overlays;
 pub(crate) mod pins;
 pub(crate) mod productivity;
@@ -52,6 +54,9 @@ pub struct Reading {
     pub sentences: Vec<crate::voice::Sentence>,
     pub at: usize,
     pub voice: String,
+    pub queue: Vec<(PathBuf, String)>,
+    pub source_path: PathBuf,
+    pub source_revision: (u64, u64),
 }
 
 /// Save a couple of seconds after typing stops…
@@ -182,6 +187,8 @@ pub struct App {
     pub checks: checks::Checks,
     pub lexicon: lexicon::Lexicon,
     pub prose_dashboard: prose_dashboard::Dashboard,
+    pub continuity: continuity::Continuity,
+    pub milestones: milestones::Milestones,
     pub review_notes: review_notes::Review,
     pub deck: writingdeck::Deck,
     pub pins: pins::Pins,
@@ -451,6 +458,8 @@ pub enum Overlay {
     Handoff,
     Lexicon,
     ProseDashboard,
+    Continuity,
+    Milestones,
     ReviewNotes,
     Checks {
         page: checks::Page,
@@ -797,6 +806,8 @@ impl App {
             .flatten();
         let checks = checks::Checks::load(&project.root, personal_root);
         let prose_dashboard = prose_dashboard::Dashboard::load(&project.root);
+        let continuity = continuity::Continuity::load(&project.root);
+        let milestones = milestones::Milestones::load(&project.root);
         let review_notes = review_notes::Review::load(&project.root);
         let workflow = workflow::Workflow::load(&project.root);
         let complete = !project.nodes.iter().any(|n| {
@@ -856,6 +867,8 @@ impl App {
             checks,
             lexicon: lexicon::Lexicon::default(),
             prose_dashboard,
+            continuity,
+            milestones,
             review_notes,
             deck,
             pins,
@@ -1788,6 +1801,16 @@ impl App {
         ) {
             return;
         }
+        if self.overlay == Overlay::Continuity {
+            let text = self.clipboard_text();
+            self.paste_continuity(&text);
+            return;
+        }
+        if self.overlay == Overlay::Milestones {
+            let text = self.clipboard_text();
+            self.paste_milestones(&text);
+            return;
+        }
         if self.overlay == Overlay::ReviewNotes {
             let text = self.clipboard_text();
             self.paste_review_notes(&text);
@@ -1977,6 +2000,14 @@ impl App {
             self.overlay,
             Overlay::Footnotes { .. } | Overlay::FootnoteReader(_) | Overlay::Help { .. }
         ) {
+            return;
+        }
+        if self.overlay == Overlay::Continuity {
+            self.paste_continuity(text);
+            return;
+        }
+        if self.overlay == Overlay::Milestones {
+            self.paste_milestones(text);
             return;
         }
         if self.overlay == Overlay::ReviewNotes {
@@ -2236,6 +2267,9 @@ impl App {
             Action::WritingChecks => self.open_checks(),
             Action::Lexicon => self.open_lexicon(),
             Action::ProseDashboard => self.open_prose_dashboard(),
+            Action::Continuity => self.open_continuity(),
+            Action::Milestones => self.open_milestones(),
+            Action::ReadChapterAloud => self.start_chapter_reading(),
             Action::ReviewNotes => self.open_review_notes(),
             Action::Productivity => self.open_productivity(productivity::Page::Overview),
             Action::MeasuredGoals => self.open_productivity(productivity::Page::Goals),
@@ -5033,6 +5067,8 @@ impl App {
                 | Overlay::Checks { .. }
                 | Overlay::Lexicon
                 | Overlay::ProseDashboard
+                | Overlay::Continuity
+                | Overlay::Milestones
                 | Overlay::ReviewNotes
                 | Overlay::Footnotes { .. }
                 | Overlay::FootnoteReader(_)
@@ -5233,6 +5269,8 @@ impl App {
                 ("Read footnote at caret…".into(), Action::FootnoteAtCaret),
                 ("Insert footnote here".into(), Action::InsertFootnote),
                 ("Check names…".into(), Action::CheckNames),
+                ("Continuity tracker…".into(), Action::Continuity),
+                ("Draft milestones…".into(), Action::Milestones),
                 ("Revision notes…".into(), Action::ReviewNotes),
                 ("Writing checks…".into(), Action::WritingChecks),
                 ("Dictionary and thesaurus…".into(), Action::Lexicon),
@@ -5259,6 +5297,7 @@ impl App {
                 ),
                 (row("Reset the timer", "(F3)"), Action::TimerReset),
                 ("Read aloud".into(), Action::ReadAloud),
+                ("Read chapter aloud".into(), Action::ReadChapterAloud),
                 (row("Music player…", "(F7)"), Action::MusicPlayer),
                 (
                     row("Editable secondary pane", "(F11)"),

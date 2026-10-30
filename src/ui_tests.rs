@@ -3487,9 +3487,10 @@ fn writingdeck_tutorial_uses_actual_editor_and_persists_verified_progress() {
     d.app.deck.progress.start(4).unwrap();
     assert_eq!(d.app.deck.progress.active, Some(4));
     assert!(
-        d.app.deck.progress.start(31).is_err(),
-        "Continuity remains unavailable until its actual interaction exists"
+        d.app.deck.progress.start(36).is_err(),
+        "Google Drive live OAuth lesson remains unavailable without user credentials"
     );
+    assert!(d.app.deck.progress.start(31).is_ok());
     d.app.deck.progress.start(25).unwrap();
     assert_eq!(d.app.deck.progress.active, Some(25));
     assert!(!d.app.deck.progress.completed.contains(&25));
@@ -8156,3 +8157,6 @@ mod footnote_navigator_ui_tests;
 
 #[path = "footnote_context_ui_tests.rs"]
 mod footnote_context_ui_tests;
+
+#[path = "argon_writing_ui_tests.rs"]
+mod argon_writing_ui_tests;

@@ -66,7 +66,7 @@ mod tests {
         store.update(|_| Ok(())).unwrap();
         let path = root.join(format!(".grimoire/writingdeck/{stem}.json"));
         let mut future = serde_json::to_value(T::default()).unwrap();
-        future["schema_version"] = 2.into();
+        future["schema_version"] = (future["schema_version"].as_u64().unwrap() + 1).into();
         let mut unknown = serde_json::to_value(T::default()).unwrap();
         unknown["newer_field"] = true.into();
         for bytes in [
@@ -81,6 +81,20 @@ mod tests {
             assert_eq!(std::fs::read(&path).unwrap(), bytes);
         }
         std::fs::remove_file(&path).unwrap();
+        if T::default().validate().is_ok()
+            && serde_json::to_value(T::default()).unwrap()["schema_version"] == 2
+        {
+            let mut old = serde_json::to_value(T::default()).unwrap();
+            old["schema_version"] = 1.into();
+            let bytes = serde_json::to_vec(&old).unwrap();
+            std::fs::write(&path, &bytes).unwrap();
+            assert!(
+                open(&root).is_err(),
+                "index-based prototypes must not become durable document IDs"
+            );
+            assert_eq!(std::fs::read(&path).unwrap(), bytes);
+            std::fs::remove_file(&path).unwrap();
+        }
         let legacy = root.join(format!(".grimoire/{stem}.json"));
         std::fs::write(&legacy, b"original unversioned prototype data").unwrap();
         assert!(open(&root).is_err());

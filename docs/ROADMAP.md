@@ -4,6 +4,11 @@ Historical M7a verified branch: `writingdeck/foundation`; the original unqualifi
 
 ## Current architectural priority
 
+The reviewed [Argon contribution](ARGON_REVIEW_2026-10-30.md) advances explicit
+continuity, durable draft comparisons and chapter read-through. Full M8 knowledge
+and selective passage restore, M9 page-footnote output, maintained backup/sync
+and privileged system workflows remain open. Submission claims are not gates.
+
 The user's 2026-10-28 sequencing decision puts the installed writing environment
 ahead of further full installer qualification. Preserve the current installer
 build checkpoint, then finish the everyday native environment and remaining

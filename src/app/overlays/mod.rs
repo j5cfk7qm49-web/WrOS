@@ -71,6 +71,8 @@ impl App {
             Overlay::Checks { .. } => self.on_checks_key(key),
             Overlay::Lexicon => self.on_lexicon_key(key),
             Overlay::ProseDashboard => self.on_prose_dashboard_key(key),
+            Overlay::Continuity => self.on_continuity_key(key),
+            Overlay::Milestones => self.on_milestones_key(key),
             Overlay::ReviewNotes => self.on_review_notes_key(key),
             Overlay::Productivity { .. } | Overlay::ProductivityInput { .. } => {
                 self.on_productivity_key(key)
@@ -202,6 +204,8 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         Overlay::Checks { .. } => super::checks::draw(f, app, area, t),
         Overlay::Lexicon => super::lexicon::draw(f, app, area, t),
         Overlay::ProseDashboard => super::prose_dashboard::draw(f, app, area, t),
+        Overlay::Continuity => super::continuity::draw(f, app, area, t),
+        Overlay::Milestones => super::milestones::draw(f, app, area, t),
         Overlay::ReviewNotes => super::review_notes::draw(f, app, area, t),
         Overlay::Productivity { .. } | Overlay::ProductivityInput { .. } => {
             super::productivity::draw(f, app, area, t)
@@ -286,7 +290,7 @@ fn when_label(dt: chrono::DateTime<chrono::Local>) -> String {
 
 /// Lay a word diff out as wrapped lines. Returns the lines and the index of
 /// the first line with a change, so the view can open where it matters.
-fn diff_lines(
+pub(super) fn diff_lines(
     pieces: &[grimoire_core::history::Piece],
     width: usize,
     t: &Theme,

@@ -261,8 +261,13 @@ fn entries(app: &App) -> Vec<Entry> {
                     Entry::new("Writing goals", Choice::Action(Action::Goals)),
                     Entry::new("Daily challenges", Choice::Action(Action::DailyChallenges)),
                     Entry::new("Revision tools", Choice::Action(Action::ProseDashboard)),
+                    Entry::new("Continuity tracker", Choice::Action(Action::Continuity)),
+                    Entry::new("Draft milestones", Choice::Action(Action::Milestones)),
                     Entry::new("Revision notes", Choice::Action(Action::ReviewNotes)),
-                    Entry::info("Footnotes · not implemented yet"),
+                    Entry::new(
+                        "Footnotes · browse and jump",
+                        Choice::Action(Action::Footnotes),
+                    ),
                 ]);
             } else {
                 rows.extend([

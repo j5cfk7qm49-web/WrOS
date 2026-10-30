@@ -1,12 +1,12 @@
-//! Which sync service, if any, a book's folder lives in.
+//! Cloud folder detection and experimental read-only local comparison models.
 //!
-//! Only for saying so, and for one warning: writing-session history kept
-//! inside a synced folder (see `sessions`). Nothing else behaves differently —
-//! conflict copies are recognised by name whatever put them there.
+//! These models perform no transfer, backup, restore or provider enrollment.
 
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Client {
     Dropbox,
     GoogleDrive,
@@ -125,6 +125,163 @@ fn by_mount(root: &Path) -> Option<Client> {
     best.and_then(|(_, pcloud)| pcloud.then_some(Client::PCloud))
 }
 
+// ── M9b: Conflict-Safe Bidirectional Sync Evaluation ─────────────────
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SyncDecision {
+    UpToDate,
+    PushLocal,
+    PullRemote,
+    ConflictParkBoth,
+    TombstoneLocalDeleted,
+    TombstoneRemoteDeleted,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SyncLedger {
+    pub schema_version: u32,
+    pub base_hashes: BTreeMap<String, String>,
+}
+
+impl Default for SyncLedger {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SyncLedger {
+    pub fn new() -> Self {
+        Self {
+            schema_version: 1,
+            base_hashes: BTreeMap::new(),
+        }
+    }
+
+    /// Compare local and remote SHA-256 hashes against the last synchronized
+    /// base version without ever performing a destructive blind overwrite.
+    pub fn evaluate_file(
+        &self,
+        relative_path: &str,
+        local_sha256: Option<&str>,
+        remote_sha256: Option<&str>,
+        local_dirty: bool,
+    ) -> SyncDecision {
+        if self.schema_version != 1 || local_dirty {
+            return SyncDecision::ConflictParkBoth;
+        }
+        let base = self.base_hashes.get(relative_path).map(String::as_str);
+        match (base, local_sha256, remote_sha256) {
+            (_, None, None) => SyncDecision::UpToDate,
+            (_, Some(l), Some(r)) if l == r => SyncDecision::UpToDate,
+            (Some(b), Some(l), Some(r)) if l == b && r != b => SyncDecision::PullRemote,
+            (Some(b), Some(l), Some(r)) if r == b && l != b => SyncDecision::PushLocal,
+            (None, Some(_), None) => SyncDecision::PushLocal,
+            (None, None, Some(_)) => SyncDecision::PullRemote,
+            (Some(b), None, Some(r)) if r == b => SyncDecision::TombstoneLocalDeleted,
+            (Some(b), Some(l), None) if l == b => SyncDecision::TombstoneRemoteDeleted,
+            _ => SyncDecision::ConflictParkBoth,
+        }
+    }
+}
+
+// ── M9b: Google Docs Round-Trip Interoperability Evaluator ───────────
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DocsRoundTripAudit {
+    pub lossless: bool,
+    pub preserves_yaml_frontmatter: bool,
+    pub preserves_private_notes: bool,
+    pub preserves_footnotes: bool,
+    pub preserves_inline_markdown: bool,
+    pub differences: Vec<String>,
+    pub recommended_workflow: String,
+}
+
+/// Evaluate whether a round-tripped text (e.g. exported to Google Docs and
+/// converted back to Markdown/text) faithfully preserves all manuscript
+/// structures, or whether it must be imported only as a separate experimental
+/// review scene (`docs/SYNC_AND_BACKUP.md`).
+pub fn evaluate_google_docs_roundtrip(original_md: &str, returned_md: &str) -> DocsRoundTripAudit {
+    let mut differences = Vec::new();
+    if original_md != returned_md {
+        differences.push(
+            "Original and returned source bytes differ; canonical replacement is not authorized."
+                .into(),
+        );
+    }
+
+    let has_yaml = original_md.starts_with("---\n");
+    let yaml_preserved = if has_yaml {
+        let orig_front = original_md.split("\n---\n").next().unwrap_or("");
+        returned_md.starts_with("---\n")
+            && returned_md.split("\n---\n").next().unwrap_or("") == orig_front
+    } else {
+        true
+    };
+    if !yaml_preserved {
+        differences
+            .push("YAML frontmatter or custom metadata fields were altered or stripped.".into());
+    }
+
+    let orig_notes = crate::notes::note_ranges(original_md);
+    let ret_notes = crate::notes::note_ranges(returned_md);
+    let orig_note_texts: Vec<&str> = orig_notes
+        .iter()
+        .map(|&(a, b)| &original_md[a..b])
+        .collect();
+    let ret_note_texts: Vec<&str> = ret_notes.iter().map(|&(a, b)| &returned_md[a..b]).collect();
+    let notes_preserved = orig_note_texts == ret_note_texts;
+    if !notes_preserved {
+        differences.push("Private inline notes (%% ... %%) were stripped or modified.".into());
+    }
+
+    let orig_fn = crate::footnotes::analyze_footnotes(original_md);
+    let ret_fn = crate::footnotes::analyze_footnotes(returned_md);
+    let fn_preserved = orig_fn
+        .references
+        .iter()
+        .map(|r| &r.label)
+        .eq(ret_fn.references.iter().map(|r| &r.label))
+        && orig_fn.definitions == ret_fn.definitions;
+    if !fn_preserved {
+        differences.push(
+            "Contextual Markdown footnotes ([^label]) were altered or converted to plain endnotes."
+                .into(),
+        );
+    }
+
+    // Marker counts cannot establish preserved emphasis or its position.
+    // Conservatively claim preservation only for an exact source match.
+    let inline_preserved = original_md == returned_md;
+    if !inline_preserved {
+        differences
+            .push("Inline Markdown emphasis markers (* or _) changed during conversion.".into());
+    }
+
+    let lossless = original_md == returned_md
+        && yaml_preserved
+        && notes_preserved
+        && fn_preserved
+        && inline_preserved;
+
+    let recommended_workflow = if lossless {
+        "Exact local byte match; provider round-trip behavior has not been qualified.".into()
+    } else {
+        "Information loss detected: do NOT overwrite canonical manuscript scenes. Import as a separate review/experimental scene or use one-way DOCX review copies.".into()
+    };
+
+    DocsRoundTripAudit {
+        lossless,
+        preserves_yaml_frontmatter: yaml_preserved,
+        preserves_private_notes: notes_preserved,
+        preserves_footnotes: fn_preserved,
+        preserves_inline_markdown: inline_preserved,
+        differences,
+        recommended_workflow,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -180,5 +337,55 @@ mod tests {
         std::fs::write(d.join(".dropbox"), "{}").unwrap();
         assert_eq!(by_markers(&book), Some(Client::Dropbox));
         std::fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn sync_ledger_distinguishes_clean_updates_from_conflicts_and_dirty_buffers() {
+        let mut ledger = SyncLedger::new();
+        ledger
+            .base_hashes
+            .insert("scene.md".into(), "hash-v1".into());
+
+        assert_eq!(
+            ledger.evaluate_file("scene.md", Some("hash-v1"), Some("hash-v1"), false),
+            SyncDecision::UpToDate
+        );
+        assert_eq!(
+            ledger.evaluate_file("scene.md", Some("hash-v1"), Some("hash-v2"), false),
+            SyncDecision::PullRemote
+        );
+        assert_eq!(
+            ledger.evaluate_file("scene.md", Some("hash-v2"), Some("hash-v1"), false),
+            SyncDecision::PushLocal
+        );
+        assert_eq!(
+            ledger.evaluate_file("scene.md", Some("hash-v2"), Some("hash-v3"), false),
+            SyncDecision::ConflictParkBoth
+        );
+        assert_eq!(
+            ledger.evaluate_file("scene.md", Some("hash-v1"), Some("hash-v2"), true),
+            SyncDecision::ConflictParkBoth,
+            "never overwrite a dirty buffer"
+        );
+    }
+
+    #[test]
+    fn google_docs_roundtrip_auditor_flags_lost_yaml_footnotes_and_private_notes() {
+        let original = "---\ntitle: \"The Brass Key\"\ncustom_field: \"λ\"\n---\n\nShe waited[^1] in the *dark*. %% private note %%\n\n[^1]: Original footnote.\n";
+        let exact = evaluate_google_docs_roundtrip(original, original);
+        assert!(exact.lossless);
+
+        let degraded = "She waited[1] in the dark.\n\n[1] Original footnote.\n";
+        let audit = evaluate_google_docs_roundtrip(original, degraded);
+        assert!(!audit.lossless);
+        assert!(!audit.preserves_yaml_frontmatter);
+        assert!(!audit.preserves_private_notes);
+        assert!(!audit.preserves_footnotes);
+        assert!(!audit.preserves_inline_markdown);
+        assert!(
+            audit
+                .recommended_workflow
+                .contains("Information loss detected")
+        );
     }
 }

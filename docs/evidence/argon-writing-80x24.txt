@@ -1,0 +1,24 @@
+┌Draft Milestones · Scene Comparison───────────────────────────────────────────┐
+│Milestone 'Draft λ' (2026-10-30 12:39) vs active scene:                       │
+│Snapshot words: 3 · Current words: 4                                          │
+│Struck text is saved wording; underlined text is current wording.             │
+│Added λ Original sentence. %% private note %%                                 │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│Saved named milestone #1.                                                     │
+│r restore into editor (reversible)  PgUp/PgDn scroll  Esc back                │
+└──────────────────────────────────────────────────────────────────────────────┘

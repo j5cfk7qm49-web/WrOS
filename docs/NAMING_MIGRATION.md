@@ -19,3 +19,9 @@
 - Run normal and no-audio Rust tests, Python/PTY/VM smoke and CLI help regression checks before claiming the brand migration is complete.
 
 See [Issue #14](https://github.com/j5cfk7qm49-web/WrOS/issues/14).
+
+## CLI & Helper Naming Increment (2026-10-30)
+
+- Added `grimoire wros ...` as the primary user-facing CLI subcommand in `src/main.rs` and `src/writingdeck_cli.rs` while preserving `grimoire writingdeck ...` as a 100% backward-compatible alias.
+- Added bounded local `docs-audit` comparison to both aliases. It performs no provider operation.
+- Submitted backup/update/Wi-Fi helper prototypes remain outside the product pending maintained-engine integration and qualification; see [the contribution review](ARGON_REVIEW_2026-10-30.md).

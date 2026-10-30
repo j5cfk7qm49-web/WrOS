@@ -1,5 +1,7 @@
-//! Experimental bounded named-snapshot and scene-variant models. No editor,
-//! diff or restore integration yet; existing manuscript history is unchanged.
+//! Bounded named-snapshot milestones and reversible scene-variant models.
+//! Integrates with existing word-level diffing (`crate::history::diff`) and
+//! preserves existing manuscript history and undo.
+use crate::history::{self, Piece};
 use crate::statefile::{Store, Validate};
 use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
@@ -13,7 +15,7 @@ pub struct Milestone {
     pub name: String,
     pub timestamp: String,
     pub description: String,
-    pub scene_snapshots: HashMap<usize, String>,
+    pub scene_snapshots: HashMap<u64, String>,
     pub total_words: usize,
 }
 
@@ -28,7 +30,7 @@ pub struct MilestoneStore {
 impl Default for MilestoneStore {
     fn default() -> Self {
         Self {
-            schema_version: 1,
+            schema_version: 2,
             next_id: 0,
             milestones: Vec::new(),
         }
@@ -47,8 +49,14 @@ impl MilestoneStore {
         &mut self,
         name: impl Into<String>,
         description: impl Into<String>,
-        scenes: HashMap<usize, String>,
+        scenes: HashMap<u64, String>,
     ) -> Result<u64> {
+        let name = name.into().trim().to_string();
+        let description = description.into().trim().to_string();
+        ensure!(!name.is_empty(), "milestone name cannot be empty");
+        crate::story_state::text(&name, 256)?;
+        crate::story_state::text(&description, 16_384)?;
+        ensure!(scenes.len() <= 4096, "too many snapshot scenes");
         self.next_id = self
             .next_id
             .checked_add(1)
@@ -61,18 +69,34 @@ impl MilestoneStore {
 
         self.milestones.push(Milestone {
             id,
-            name: name.into().trim().to_string(),
+            name,
             timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M").to_string(),
-            description: description.into().trim().to_string(),
+            description,
             scene_snapshots: scenes,
             total_words,
         });
         Ok(id)
     }
 
-    pub fn get_scene_snapshot(&self, milestone_id: u64, scene_id: usize) -> Option<&str> {
+    pub fn get_scene_snapshot(&self, milestone_id: u64, scene_id: u64) -> Option<&str> {
         let m = self.milestones.iter().find(|m| m.id == milestone_id)?;
         m.scene_snapshots.get(&scene_id).map(|s| s.as_str())
+    }
+
+    pub fn diff_scene(
+        &self,
+        milestone_id: u64,
+        scene_id: u64,
+        current_body: &str,
+    ) -> Option<Vec<Piece>> {
+        let snapshot = self.get_scene_snapshot(milestone_id, scene_id)?;
+        Some(history::diff(snapshot, current_body))
+    }
+
+    pub fn remove_milestone(&mut self, id: u64) -> bool {
+        let before = self.milestones.len();
+        self.milestones.retain(|m| m.id != id);
+        self.milestones.len() < before
     }
 }
 
@@ -80,7 +104,7 @@ impl MilestoneStore {
 #[serde(deny_unknown_fields)]
 pub struct SceneVariant {
     pub id: u64,
-    pub scene_id: usize,
+    pub scene_id: u64,
     pub name: String,
     pub content: String,
     pub created_at: String,
@@ -97,7 +121,7 @@ pub struct VariantStore {
 impl Default for VariantStore {
     fn default() -> Self {
         Self {
-            schema_version: 1,
+            schema_version: 2,
             next_id: 0,
             variants: Vec::new(),
         }
@@ -114,10 +138,13 @@ impl VariantStore {
 
     pub fn save_variant(
         &mut self,
-        scene_id: usize,
+        scene_id: u64,
         name: impl Into<String>,
         content: impl Into<String>,
     ) -> Result<u64> {
+        let name = name.into().trim().to_string();
+        ensure!(!name.is_empty(), "variant name cannot be empty");
+        crate::story_state::text(&name, 256)?;
         self.next_id = self
             .next_id
             .checked_add(1)
@@ -126,18 +153,23 @@ impl VariantStore {
         self.variants.push(SceneVariant {
             id,
             scene_id,
-            name: name.into().trim().to_string(),
+            name,
             content: content.into(),
             created_at: chrono::Local::now().format("%Y-%m-%d %H:%M").to_string(),
         });
         Ok(id)
     }
 
-    pub fn variants_for_scene(&self, scene_id: usize) -> Vec<&SceneVariant> {
+    pub fn variants_for_scene(&self, scene_id: u64) -> Vec<&SceneVariant> {
         self.variants
             .iter()
             .filter(|v| v.scene_id == scene_id)
             .collect()
+    }
+
+    pub fn diff_variant(&self, variant_id: u64, current_body: &str) -> Option<Vec<Piece>> {
+        let v = self.variants.iter().find(|v| v.id == variant_id)?;
+        Some(history::diff(&v.content, current_body))
     }
 
     pub fn remove_variant(&mut self, id: u64) -> bool {
@@ -149,16 +181,20 @@ impl VariantStore {
 
 impl Validate for MilestoneStore {
     fn validate(&self) -> Result<()> {
-        crate::story_state::identities(
-            self.schema_version,
-            self.next_id,
-            self.milestones.iter().map(|m| m.id),
-        )?;
+        ensure!(
+            self.schema_version == 2,
+            "prototype scene identities require explicit migration; original preserved"
+        );
+        crate::story_state::identities(1, self.next_id, self.milestones.iter().map(|m| m.id))?;
         for m in &self.milestones {
             ensure!(!m.name.trim().is_empty(), "milestone name cannot be empty");
             crate::story_state::text(&m.name, 256)?;
             crate::story_state::text(&m.description, 16_384)?;
             ensure!(m.scene_snapshots.len() <= 4096, "too many snapshot scenes");
+            ensure!(
+                m.scene_snapshots.keys().all(|id| *id > 0),
+                "invalid document identity"
+            );
             ensure!(
                 m.total_words
                     == m.scene_snapshots
@@ -177,12 +213,13 @@ impl Validate for MilestoneStore {
 }
 impl Validate for VariantStore {
     fn validate(&self) -> Result<()> {
-        crate::story_state::identities(
-            self.schema_version,
-            self.next_id,
-            self.variants.iter().map(|v| v.id),
-        )?;
+        ensure!(
+            self.schema_version == 2,
+            "prototype scene identities require explicit migration; original preserved"
+        );
+        crate::story_state::identities(1, self.next_id, self.variants.iter().map(|v| v.id))?;
         for v in &self.variants {
+            ensure!(v.scene_id > 0, "invalid document identity");
             ensure!(!v.name.trim().is_empty(), "variant name cannot be empty");
             crate::story_state::text(&v.name, 256)?;
             ensure!(
@@ -223,12 +260,17 @@ mod tests {
             store.get_scene_snapshot(id, 1),
             Some("The first line of the book.")
         );
+        let diff = store
+            .diff_scene(id, 1, "The revised line of the book.")
+            .unwrap();
+        assert!(diff.iter().any(|p| matches!(p, Piece::Removed(_))));
+        assert!(diff.iter().any(|p| matches!(p, Piece::Added(_))));
     }
 
     #[test]
     fn variant_store_tracks_scene_alternatives() {
         let mut store = VariantStore::default();
-        store
+        let id = store
             .save_variant(42, "First-person POV", "I walked into the dark hallway.")
             .unwrap();
         store
@@ -239,5 +281,12 @@ mod tests {
         assert_eq!(vars.len(), 2);
         assert_eq!(vars[0].name, "First-person POV");
         assert_eq!(vars[1].name, "Third-person POV");
+        let diff = store
+            .diff_variant(id, "She walked into the dark hallway.")
+            .unwrap();
+        assert!(
+            diff.iter()
+                .any(|p| matches!(p, Piece::Removed(s) if s.contains("I")))
+        );
     }
 }

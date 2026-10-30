@@ -212,9 +212,9 @@
   {
     "id": 31,
     "title": "Continuity tracking",
-    "help_topic": "writingdeck",
-    "event": null,
-    "instructions": "Record explicit knowledge and chronology, then distinguish definite contradictions from suggestions. Planned."
+    "help_topic": "continuity",
+    "event": "ContinuityReviewed",
+    "instructions": "In the safe demo, open Continuity tracker from Writing tools or the palette. Press n to record an explicit character or world fact with a Subject, Property and Value, then press 4 (or c) to review Contradictions & Suggestions. Definite conflicts require two Definite facts sharing an explicit scope; unscoped changes suggest review without hallucinating contradictions."
   },
   {
     "id": 32,
@@ -226,9 +226,9 @@
   {
     "id": 33,
     "title": "Draft comparisons",
-    "help_topic": "history",
+    "help_topic": "continuity",
     "event": "HistoryOpened",
-    "instructions": "Open the actual scene history in the demo. Named milestones and experimental variants remain planned."
+    "instructions": "Open Scene history (H) or Draft milestones from Writing tools in the safe demo. Inspect a saved scene version, create a named milestone snapshot, or save a reversible scene variant."
   },
   {
     "id": 34,

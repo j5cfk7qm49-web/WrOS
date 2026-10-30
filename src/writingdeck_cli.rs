@@ -108,12 +108,34 @@ pub fn command(mut args: impl Iterator<Item = String>) -> Result<()> {
                 pins.state.pins.len()
             );
         }
+        Some("docs-audit") => {
+            let original = args.next().map(PathBuf::from).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "supply the original scene Markdown file and the returned Google Docs file"
+                )
+            })?;
+            let returned = args.next().map(PathBuf::from).ok_or_else(|| {
+                anyhow::anyhow!("supply the returned Google Docs Markdown/text file")
+            })?;
+            if args.next().is_some() {
+                bail!("too many docs-audit arguments");
+            }
+            let orig_text = read_audit_text(&original)?;
+            let ret_text = read_audit_text(&returned)?;
+            let audit = grimoire_core::cloud::evaluate_google_docs_roundtrip(&orig_text, &ret_text);
+            println!("{}", serde_json::to_string_pretty(&audit)?);
+            if !audit.lossless {
+                bail!(
+                    "Google Docs round-trip is not lossless; do not overwrite the canonical scene"
+                );
+            }
+        }
         Some("version") => println!(
-            "WritingDeck OS 0.1.0-dev · Grimoire {} · upstream base f3ca1e8",
+            "WrOS (Writer's OS) / WritingDeck OS 0.1.0-dev · Grimoire {} · upstream base f3ca1e8",
             env!("CARGO_PKG_VERSION")
         ),
         None | Some("help" | "--help" | "-h") => println!(
-            "WritingDeck OS development foundation\n\n  grimoire writingdeck status [--simulate]  read-only JSON status\n  grimoire writingdeck tutorial-demo DIR   create a NEW safe demo\n  grimoire writingdeck lexicon WORD [--data DIR]  local WordNet 3.0 senses/antonyms (read-only)\n  grimoire writingdeck check-config DIR    validate without rewriting\n  grimoire writingdeck version             application/base identification\n\nMain UI: F12 home, F10 outline, Ctrl-D focus.\nOS build and installation: docs/INSTALLATION.md\nCurrent limitations: docs/FEATURE_MATRIX.md"
+            "WrOS (Writer's OS) / WritingDeck OS development foundation\n\n  grimoire wros status [--simulate]         read-only JSON status (alias: writingdeck)\n  grimoire wros tutorial-demo DIR          create a NEW safe demo\n  grimoire wros lexicon WORD [--data DIR]  local WordNet 3.0 senses/antonyms (read-only)\n  grimoire wros check-config DIR           validate without rewriting\n  grimoire wros docs-audit ORIG_MD RET_MD  audit Google Docs round-trip fidelity\n  grimoire wros version                    application/base identification\n\nMain UI: F12 home, F10 outline, Ctrl-D focus.\nOS build and installation: docs/INSTALLATION.md\nCurrent limitations: docs/FEATURE_MATRIX.md"
         ),
         Some(other) => bail!("unknown WritingDeck command {other}; try grimoire writingdeck help"),
     }
@@ -237,4 +259,21 @@ fn prose_command(mut args: impl Iterator<Item = String>) -> Result<()> {
         bail!("prose engine did not complete; result is not a clean check: {status}")
     }
     Ok(())
+}
+
+fn read_audit_text(path: &std::path::Path) -> Result<String> {
+    use std::io::Read;
+    anyhow::ensure!(
+        std::fs::symlink_metadata(path)?.is_file(),
+        "audit input must be an ordinary file"
+    );
+    let file = std::fs::File::open(path)?;
+    anyhow::ensure!(
+        file.metadata()?.is_file(),
+        "audit input must be a regular file"
+    );
+    let mut text = String::new();
+    file.take(2 * 1024 * 1024 + 1).read_to_string(&mut text)?;
+    anyhow::ensure!(text.len() <= 2 * 1024 * 1024, "audit source exceeds 2 MiB");
+    Ok(text)
 }

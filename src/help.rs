@@ -44,6 +44,11 @@ pub const TOPICS: &[Topic] = &[
         "37-prose-dashboard.md"
     ),
     topic!("review-notes", "Revision notes", "38-review-notes.md"),
+    topic!(
+        "continuity",
+        "Continuity & draft milestones",
+        "39-continuity-and-milestones.md"
+    ),
     topic!("find", "Find & replace", "07-find-and-replace.md"),
     topic!("notebook", "The notebook & names", "08-the-notebook.md"),
     topic!("beside", "A scene beside", "09-a-scene-beside.md"),

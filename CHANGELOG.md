@@ -1,5 +1,15 @@
 # Changelog
 
+## WrOS development — reviewed Argon writing contribution (2026-10-30)
+
+- Integrated Argon's continuity, milestone/variant and chapter-reading work
+  with durable document identity, guarded restore, dated history, Undo and
+  shared modal input protection. Added local `wros` CLI alias and bounded
+  file comparison. Grimoire attribution and existing manuscript formats remain.
+- Preserved the original ZIP/patch for audit. Rich-footnote rendering and
+  backup/update/Wi-Fi/suspend prototypes require further integration;
+  [review findings](docs/ARGON_REVIEW_2026-10-30.md) distinguish those limits.
+
 ## 0.7.5 · Colour, not color (if you like)
 
 - **Spelling in American, British, Canadian or Australian English.**

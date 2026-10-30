@@ -1,5 +1,4 @@
-//! Experimental read-aloud state model and Unicode sentence spans.
-//! No speech engine, audio playback, source revision binding or UI is implemented.
+//! Read-aloud state model, multi-scene queue and Unicode sentence spans.
 use std::ops::Range;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -51,6 +50,12 @@ pub enum NarrationStatus {
     Paused,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QueuedScene {
+    pub scene_id: usize,
+    pub scene_title: String,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct NarrationSession {
     pub scene_id: usize,
@@ -60,19 +65,42 @@ pub struct NarrationSession {
     pub rate: f32, // 1.0 = normal speed
     pub pitch: f32,
     pub voice: String,
+    pub queue: Vec<QueuedScene>,
+    pub queue_index: usize,
 }
 
 impl NarrationSession {
     pub fn new(scene_id: usize, scene_title: impl Into<String>) -> Self {
+        let title = scene_title.into();
         Self {
             scene_id,
-            scene_title: scene_title.into(),
+            scene_title: title.clone(),
             current_sentence: 0,
             status: NarrationStatus::Stopped,
             rate: 1.0,
             pitch: 1.0,
             voice: "default".into(),
+            queue: vec![QueuedScene {
+                scene_id,
+                scene_title: title,
+            }],
+            queue_index: 0,
         }
+    }
+
+    pub fn with_queue(queue: Vec<QueuedScene>) -> Option<Self> {
+        let first = queue.first()?.clone();
+        Some(Self {
+            scene_id: first.scene_id,
+            scene_title: first.scene_title,
+            current_sentence: 0,
+            status: NarrationStatus::Stopped,
+            rate: 1.0,
+            pitch: 1.0,
+            voice: "default".into(),
+            queue,
+            queue_index: 0,
+        })
     }
 
     pub fn play(&mut self) {
@@ -100,6 +128,17 @@ impl NarrationSession {
             self.stop();
             false
         }
+    }
+
+    pub fn advance_scene(&mut self) -> Option<&QueuedScene> {
+        let next = self.queue_index.checked_add(1)?;
+        let item = self.queue.get(next)?;
+        self.queue_index = next;
+        self.scene_id = item.scene_id;
+        self.scene_title = item.scene_title.clone();
+        self.current_sentence = 0;
+        self.status = NarrationStatus::Playing;
+        self.queue.get(self.queue_index)
     }
 
     pub fn prev_sentence(&mut self) -> bool {
@@ -131,6 +170,27 @@ mod tests {
         session.current_sentence = usize::MAX;
         assert!(!session.next_sentence(1));
         assert_eq!(session.status, NarrationStatus::Stopped);
+    }
+
+    #[test]
+    fn multi_scene_queue_advances_cleanly() {
+        let mut session = NarrationSession::with_queue(vec![
+            QueuedScene {
+                scene_id: 1,
+                scene_title: "One".into(),
+            },
+            QueuedScene {
+                scene_id: 2,
+                scene_title: "Two".into(),
+            },
+        ])
+        .unwrap();
+        session.play();
+        assert!(!session.next_sentence(1));
+        let next = session.advance_scene().unwrap();
+        assert_eq!(next.scene_id, 2);
+        assert_eq!(session.current_sentence, 0);
+        assert!(session.advance_scene().is_none());
     }
 
     #[test]

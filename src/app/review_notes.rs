@@ -96,6 +96,93 @@ fn plain(value: &str) -> String {
         .collect()
 }
 impl App {
+    pub(super) fn current_story_document_id(&self) -> Option<u64> {
+        let (_, path) = self.check_document(self.views.active).ok()?;
+        self.review_notes
+            .store
+            .as_ref()?
+            .value
+            .documents
+            .iter()
+            .find(|d| d.path == path && !d.needs_reconnect)
+            .map(|d| d.id)
+    }
+    pub(super) fn story_document_id(&mut self, i: usize) -> Result<u64> {
+        self.ensure_document_claims()?;
+        let n = &self.project.nodes[i];
+        ensure!(
+            n.kind == Kind::Scene
+                && !n.read_only
+                && !n.parked
+                && !n.never_read()
+                && !self.project.in_trash(i)
+                && n.disk.unavailable.is_none()
+                && n.disk.pending.is_none(),
+            "story source unavailable or awaiting reconciliation"
+        );
+        let root = fs::canonicalize(&self.project.root)?;
+        let relative = n.path.strip_prefix(&self.project.root)?;
+        ensure!(
+            fs::canonicalize(&n.path)? == root.join(relative),
+            "story source is a symlink alias"
+        );
+        ensure!(
+            n.seen.is_some() && grimoire_core::sync::Fingerprint::read(&n.path) == n.seen,
+            "story backing source changed; reconcile it first"
+        );
+        let path = relative
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("non UTF-8 scene path"))?
+            .to_owned();
+        self.review_notes
+            .store()?
+            .update(|notes| notes.register(&path))
+    }
+    pub(super) fn active_story_document_id(&mut self) -> Result<u64> {
+        self.flush();
+        let binding = self.review_binding()?;
+        let i = self
+            .open
+            .ok_or_else(|| anyhow::anyhow!("open an original scene first"))?;
+        let id = self.story_document_id(i)?;
+        ensure!(self.review_matches(&binding), "story source changed");
+        Ok(id)
+    }
+    pub(super) fn snapshot_before_story_restore(&mut self) -> Result<()> {
+        self.flush();
+        let i = self
+            .open
+            .ok_or_else(|| anyhow::anyhow!("open a scene first"))?;
+        self.active_story_document_id()?;
+        let n = &self.project.nodes[i];
+        grimoire_core::history::snapshot(&self.project.root, &n.path, &n.file_text(), None)?;
+        Ok(())
+    }
+    pub(super) fn mark_current_reading_sentence(
+        &mut self,
+        line: usize,
+        start: usize,
+        end: usize,
+    ) -> Result<()> {
+        let binding = self.review_binding()?;
+        let a = binding
+            .snapshot
+            .byte_at(line, start)
+            .ok_or_else(|| anyhow::anyhow!("sentence start unavailable"))?;
+        let b = binding
+            .snapshot
+            .byte_at(line, end)
+            .ok_or_else(|| anyhow::anyhow!("sentence end unavailable"))?;
+        let anchor = Anchor::capture(binding.snapshot.text(), a, b)?;
+        self.review_notes.store()?.update(|notes| {
+            notes.add(
+                &binding.snapshot.stamp.document,
+                anchor,
+                "Marked during read-aloud for revision.".into(),
+            )
+        })?;
+        Ok(())
+    }
     pub fn open_review_notes(&mut self) {
         self.overlay = Overlay::ReviewNotes;
         self.review_notes.nav.reset(Page::Queue);
