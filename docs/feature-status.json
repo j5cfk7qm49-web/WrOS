@@ -710,8 +710,8 @@
       "hardware_verified": false,
       "area": "Publishing",
       "capability": "Native EPUB linked footnotes and return navigation",
-      "status": "Implemented",
-      "verification": "Focused XML/refusal/bounds tests, actual Debian EPUBCheck and four-size compiled TUI; full run in progress",
+      "status": "Tested",
+      "verification": "Independent full Debian suite; real EPUBCheck and four-size compiled TUI export/help/Undo/restart",
       "detail": "Shared bounded parser and maintained HTML renderer; local labels, multiple paragraphs, literal code/URL and original bytes retained; paperback remains guarded"
     }
   ]

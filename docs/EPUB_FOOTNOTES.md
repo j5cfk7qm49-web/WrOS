@@ -38,5 +38,6 @@ EPUBCheck are build/test dependencies only. Invoke the packaged validator as
 are unnecessary. Debian EPUBCheck 4.2.6 checks EPUB 3.2 rules, which is narrower
 than full reader, accessibility or production publishing qualification.
 
-Full source-bound Debian qualification is in progress. Existing Word/PDF
+The [independent Debian run](evidence/epub-footnotes-local.json) passed
+1065 Rust tests per configuration, 182 Python tests with zero skips, both Clippys and 21 gates. [Provenance and validator receipts](evidence/epub-footnotes-local-provenance.json) bind the exact tested source and binary. Existing Word/PDF
 [page-footnote evidence](MANUSCRIPT_FOOTNOTES.md) remains separate.

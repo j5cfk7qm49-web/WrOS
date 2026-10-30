@@ -8,8 +8,8 @@ are integrated with corrections to the milestone fixture and real guarded APIs.
 [Native EPUB footnotes](EPUB_FOOTNOTES.md) now use the same public-source parser,
 the maintained HTML renderer, same-file note/return links and preserved paragraphs.
 Actual EPUBCheck, four-size edit/export/help/Undo/restart, Word/PDF pagination
-regressions and strict no-audio Clippy passed. Full Debian qualification is in
-progress. Paperback notes, broader preflight, full M8/M9 and OS/release gates
+regressions and strict no-audio Clippy passed. The [independent full Debian run](evidence/epub-footnotes-local.json) passed
+1065 Rust tests per configuration, 182 Python tests with zero skips, both Clippys and 21 gates. [Provenance](evidence/epub-footnotes-local-provenance.json) binds its source and binary. Paperback notes, broader preflight, full M8/M9 and OS/release gates
 remain open; earlier paragraphs retain their historical scope.
 
 ## Manuscript page footnotes (2026-10-30)

@@ -1,0 +1,30 @@
+┌ WRITINGDECK TUTORIAL ──────┐┌ Chapter One / The Brass Key ───────────────────────────────────────┐
+│  Novel Format              ││  Added λ Intro[^a].                                                │
+│▾ Manuscript             14 ││                                                                    │
+│  ▾ Chapter One          14 ││  [^a]: A café note. %% PRIVATE_EPUB_SECRET %%                      │
+│      The Brass Key       7 ││                                                                    │
+│      The┌ EXPORT FOR READERS ──────────────────────────────────────────────────────────┐         │
+│▾ Charact│ ✓ exports/writingdeck-tutorial.epub  3 KB                                    │         │
+│▾ Places │                                                                              │         │
+│▾ Front M│ 1 chapter · 14 words · 3 manuscript pages                                    │         │
+│  ▸ Manus│                                                                              │         │
+│  ▸ Paper│                                                                              │         │
+│  ▸ Ebook│                                                                              │         │
+│▾ Back Ma│                                                                              │         │
+│  ▸ Paper│                                                                              │         │
+│  ▸ Ebook│                                                                              │         │
+│▾ Notes  │                                                                              │         │
+│    Pin P│                                                                              │         │
+└ n scene │                                                                              │         │
+┌ F2 timer│                                                                              │         │
+│         │                                                                              │         │
+│         │                                                                              │         │
+│         │                                                                              │         │
+│    ˇ ˇ  │                                                                              │         │
+│         │ any key closes                                                               │         │
+│         └──────────────────────────────────────────────────────────────────────────────┘         │
+│          ▁▂▃▃▂▁▁▁█▪█▁▁     ││                                                                    │
+│  ▁▁▂▃▄▅▆▇▇▇▇▇▇▇▇▇▇▇▇▇▇▆▄▂▁ ││                                                                    │
+│▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔││                                                                    │
+└──◂ pomodoro visualizer ▸───┘└────────────────────────────────────────────────────────────────────┘
+ 14 / 80,000 ░░░░░░░░░░  today 1  ✓ saved  exported 1 file to exports/      Esc menu  ^D focus mode
