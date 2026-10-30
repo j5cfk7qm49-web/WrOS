@@ -210,6 +210,6 @@ Definition previews now use the parser's offset-preserving masked public source.
 Stripping private notes only after slicing a definition could expose a trailing
 half of a private block that crossed that boundary. Source bytes remain intact.
 Changed source/backing files and ambiguous definitions refuse navigation. Limits
-are 2 MiB/scene, 8192 markers and a 64 KiB definition snapshot. Full qualification
-is in progress; the rich-export guard remains intact and lesson 34 cannot claim
+are 2 MiB/scene, 8192 markers and a 64 KiB definition snapshot. The [independent Debian run](evidence/footnote-context-local.json) passed
+1044 Rust tests per configuration, 174 Python tests with zero skips, both Clippys and 21 gates. The rich-export guard remains intact and lesson 34 cannot claim
 DOCX/PDF validation. Existing speech and history engines remain unchanged.

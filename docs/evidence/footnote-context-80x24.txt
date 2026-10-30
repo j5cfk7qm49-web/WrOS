@@ -1,0 +1,24 @@
+┌ WRITINGDECK TUTORIAL ──────┐┌ Chapter One / The Brass Key ───────────────────┐
+│  Novel Format              ││  λ Intro[^a] and again[^a].                    │
+│▾ Manuscript            256 ││                                                │
+│  ▾ Chapter One         256 ││  [^a]: First public paragraph. %%              │
+│      The Brass Key     249 ││  PRIVATE_SECRET %%                             │
+│      The Other Door      7 ││                                                │
+│▾ Characters                ││      Original continuation 🦊. Original        │
+│▾ Places                    ││  continuation 🦊. Original continuation 🦊.    │
+│▾ Front Matter              ││  Original continuation 🦊. Original            │
+│  ▸ Manuscript Format       ││  continuation 🦊. Original continuation 🦊.    │
+│  ▸ Paperback               ││  Original continuation 🦊. Original            │
+└ n scene  c chapter  p part ┘│  continuation 🦊. Original continuation 🦊.    │
+┌Footnote context · Source Markdown────────────────────────────────────────────┐
+│🦊. Original continuation 🦊. Original continuation 🦊. Original continuation │
+│🦊. Original continuation 🦊. Original continuation 🦊. Original continuation │
+│🦊. Original continuation 🦊. Original continuation 🦊. Original continuation │
+│🦊. Original continuation 🦊. Original continuation 🦊. Original continuation │
+│🦊. Original continuation 🦊. Original continuation 🦊. Original continuation │
+│🦊. Original continuation 🦊. Original continuation 🦊. Original continuation │
+│🦊. Original continuation 🦊. Original continuation 🦊. Original continuation │
+│🦊. Original continuation 🦊. Original continuation 🦊. END_CONTEXT           │
+│all saved                                                                     │
+│↑↓ scroll  ←→ reference  d definition  r reference  Esc back  F1 help         │
+└──────────────────────────────────────────────────────────────────────────────┘

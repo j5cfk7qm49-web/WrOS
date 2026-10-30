@@ -131,3 +131,13 @@ Model/UI tests cover unknown, corrupt, future, oversized, stale and aliased
 metadata and interrupted owned moves. The [initial documentation failure](evidence/development-writing-documentation-failure.json)
 is preserved separately. These tests do not establish crash/power-loss,
 large-load, image, full encrypted installation, physical or release qualification.
+
+## Contextual footnote reader (2026-10-29)
+
+The [independent Debian receipt](evidence/footnote-context-local.json) records
+1044 Rust tests per configuration, 174 Python tests with zero skips, both Clippys and 21 gates. Fresh demo/HOME fixtures exercise the
+docked reader, private-note masking, repeated-reference selection, original-source
+editing, Undo and restart at four terminal sizes. The initial local run failed an
+installer prompt synchronization test; its [partial receipt](evidence/footnote-context-local-initial-failure.json)
+is retained and the corrected complete suite passed. These results do not qualify
+page-bottom export, a full encrypted install, physical hardware or release.

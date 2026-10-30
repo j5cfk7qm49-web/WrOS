@@ -669,8 +669,8 @@
     {
       "area": "Publishing",
       "capability": "Contextual original-source footnote reader",
-      "status": "In progress",
-      "verification": "Maintained parser tests and UI/PTY qualification in progress",
+      "status": "Tested",
+      "verification": "Debian parser/UI tests and four-size compiled edit/Undo/restart; full software suite",
       "detail": "Dock below retained writing; complete bounded public definition, scrolling, repeated-reference selection and guarded original-source editing; not page layout",
       "hardware_verified": false
     }
