@@ -54,6 +54,7 @@ pub enum Action {
     TimerReset,
     NotesList,
     Footnotes,
+    FootnoteAtCaret,
     InsertFootnote,
     /// Every conflict copy in the book, to settle.
     Conflicts,
@@ -272,6 +273,7 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
         Entry::new("Corkboard", "b", Action::Corkboard),
         Entry::new("Notes & TKs", &format!("{m}T"), Action::NotesList),
         Entry::new("Footnotes · browse and jump", "", Action::Footnotes),
+        Entry::new("Read footnote at caret", "", Action::FootnoteAtCaret),
         Entry::new(
             "Insert a Markdown footnote at the cursor",
             "",

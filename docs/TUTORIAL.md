@@ -54,7 +54,7 @@ The demo contains original short text and a deliberate spelling error. Nothing i
 | 31 | Continuity | Planned |
 | 32 | Inline revision notes | Wired: safe-demo creation, original edit and explicit changed-anchor save; opening, cancelling, resolving or saving the same anchor cannot complete it |
 | 33 | Draft comparisons | Wired baseline history view; named variants/diff extension planned |
-| 34 | Footnotes | Planned |
+| 34 | Footnotes | Context reader and original-source navigation/editing implemented; genuine DOCX/PDF verification exercise remains planned and cannot complete |
 | 35 | Export | Wired: real nonempty Markdown export in safe demo; canceled, failed and ordinary-novel attempts cannot complete the lesson; PDF/DOCX footnotes remain separately unimplemented |
 | 36 | Google Drive backup | Planned; live credentials required for provider acceptance |
 | 37 | Mobile access | Planned |

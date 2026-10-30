@@ -665,6 +665,14 @@
       "verification": "Four-size UI and compiled reference/definition edit/undo/help tests; full Debian suite",
       "detail": "Shared shell, original-source editing, stale-source and modal input guards; not a separate mutable footnote store",
       "hardware_verified": false
+    },
+    {
+      "area": "Publishing",
+      "capability": "Contextual original-source footnote reader",
+      "status": "In progress",
+      "verification": "Maintained parser tests and UI/PTY qualification in progress",
+      "detail": "Dock below retained writing; complete bounded public definition, scrolling, repeated-reference selection and guarded original-source editing; not page layout",
+      "hardware_verified": false
     }
   ]
 }

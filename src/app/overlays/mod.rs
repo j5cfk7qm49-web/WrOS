@@ -19,6 +19,7 @@ mod command;
 mod conflicts;
 mod details;
 mod find;
+mod footnote_reader;
 mod footnotes;
 mod help;
 mod looks;
@@ -36,6 +37,7 @@ mod spelling;
 mod versions;
 
 pub use details::Field as DetailField;
+pub use footnote_reader::Reader as FootnoteReader;
 pub use footnotes::FootnoteRow;
 #[cfg(test)]
 pub(crate) use help::lay_out as help_lay_out;
@@ -78,6 +80,7 @@ impl App {
             Overlay::Pins | Overlay::PinCategory { .. } => self.on_pin_key(key),
             Overlay::Marks { .. } => self.on_marks_key(key),
             Overlay::Footnotes { .. } => self.on_footnotes_key(key),
+            Overlay::FootnoteReader(_) => self.on_footnote_reader_key(key),
             Overlay::Sprint { .. } => self.on_sprint_key(key),
             Overlay::Palette { .. } => self.on_palette_key(key),
             Overlay::Find { .. } => self.on_find_key(key),
@@ -208,6 +211,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         Overlay::Pins | Overlay::PinCategory { .. } => super::pins::draw_board(f, app, area, t),
         Overlay::Marks { query, sel, rows } => marks::draw_marks(f, area, query, *sel, rows, t),
         Overlay::Footnotes { .. } => footnotes::draw_footnotes(f, app, area, t),
+        Overlay::FootnoteReader(_) => footnote_reader::draw(f, app, area, t),
         Overlay::Sprint {
             words,
             minutes,

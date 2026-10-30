@@ -1,5 +1,13 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Contextual footnote workflow in progress
+
+Post-merge CI for PR #60 passed in run40972331871. Development now adds a
+caret-aware public footnote dock, full bounded definition reading, repeated
+reference selection and original-source editing. Parser/UI and actual terminal
+qualification are in progress. Printed DOCX/PDF page footnotes and installer
+qualification remain open; the existing rich-export refusal is retained.
+
 ## Writing workflow integration on development (2026-10-29)
 
 Remote PRs #54, #55, #57 and #58 were audited and retained. PR #59 was

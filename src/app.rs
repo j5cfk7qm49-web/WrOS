@@ -600,6 +600,7 @@ pub enum Overlay {
         sel: usize,
         rows: Vec<overlays::FootnoteRow>,
     },
+    FootnoteReader(Box<overlays::FootnoteReader>),
     /// Ctrl-T: every `%% note %%` and TK in the book, to jump to.
     Marks {
         query: String,
@@ -1774,7 +1775,7 @@ impl App {
     pub fn paste_clipboard(&mut self) {
         if matches!(
             self.overlay,
-            Overlay::Footnotes { .. } | Overlay::Help { .. }
+            Overlay::Footnotes { .. } | Overlay::FootnoteReader(_) | Overlay::Help { .. }
         ) {
             return;
         }
@@ -1965,7 +1966,7 @@ impl App {
     pub fn paste(&mut self, text: &str) {
         if matches!(
             self.overlay,
-            Overlay::Footnotes { .. } | Overlay::Help { .. }
+            Overlay::Footnotes { .. } | Overlay::FootnoteReader(_) | Overlay::Help { .. }
         ) {
             return;
         }
@@ -2273,6 +2274,7 @@ impl App {
             Action::Corkboard => self.open_cork(),
             Action::NotesList => self.open_marks(),
             Action::Footnotes => self.open_footnotes(),
+            Action::FootnoteAtCaret => self.open_footnote_at_caret(),
             Action::InsertFootnote => self.insert_new_footnote(),
             Action::Conflicts => self.open_conflicts(),
             Action::NextTk => self.next_tk(),
@@ -5023,6 +5025,7 @@ impl App {
                 | Overlay::ProseDashboard
                 | Overlay::ReviewNotes
                 | Overlay::Footnotes { .. }
+                | Overlay::FootnoteReader(_)
                 | Overlay::Help { .. }
                 | Overlay::Productivity { .. }
                 | Overlay::ProductivityInput { .. }
@@ -5217,6 +5220,7 @@ impl App {
                 (row("Next scene still in draft", ""), Action::NextDraft),
                 (on_off(self.echo_on, "echo words"), Action::EchoWords),
                 ("Footnote navigator…".into(), Action::Footnotes),
+                ("Read footnote at caret…".into(), Action::FootnoteAtCaret),
                 ("Insert footnote here".into(), Action::InsertFootnote),
                 ("Check names…".into(), Action::CheckNames),
                 ("Revision notes…".into(), Action::ReviewNotes),

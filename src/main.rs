@@ -682,6 +682,7 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
                     | Overlay::ProseDashboard
                     | Overlay::ReviewNotes
                     | Overlay::Footnotes { .. }
+                    | Overlay::FootnoteReader(_)
                     | Overlay::Help { .. }
                     | Overlay::Productivity { .. }
                     | Overlay::Deck(_)
@@ -960,6 +961,7 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
                 | Overlay::ProseDashboard
                 | Overlay::ReviewNotes
                 | Overlay::Footnotes { .. }
+                | Overlay::FootnoteReader(_)
                 | Overlay::Help { .. }
                 | Overlay::Productivity { .. }
                 | Overlay::ProductivityInput { .. }
@@ -1019,6 +1021,7 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
                         | Overlay::ProseDashboard
                         | Overlay::ReviewNotes
                         | Overlay::Footnotes { .. }
+                        | Overlay::FootnoteReader(_)
                         | Overlay::Help { .. }
                         | Overlay::Productivity { .. }
                 ) =>

@@ -8121,3 +8121,6 @@ mod footnote_insert_ui_tests;
 
 #[path = "footnote_navigator_ui_tests.rs"]
 mod footnote_navigator_ui_tests;
+
+#[path = "footnote_context_ui_tests.rs"]
+mod footnote_context_ui_tests;

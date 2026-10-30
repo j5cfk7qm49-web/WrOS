@@ -233,9 +233,9 @@
   {
     "id": 34,
     "title": "Footnotes",
-    "help_topic": "writingdeck",
+    "help_topic": "notes",
     "event": null,
-    "instructions": "Navigate a Markdown footnote and validate genuine DOCX/PDF footnotes. Planned; existing export has not been certified for this."
+    "instructions": "Place the caret on a public Markdown footnote reference or inside its definition, then choose Read footnote at caret in Ctrl-K. Read below your original writing; Up/Down and Page Up/Page Down scroll, Home/End reach the start/end, Left/Right chooses a reference, r selects it and d opens the original definition for normal editing and Undo. The navigator also offers v for this reader. Genuine DOCX/PDF page-footnote rendering and its verified exercise remain planned; this lesson cannot complete yet."
   },
   {
     "id": 35,
