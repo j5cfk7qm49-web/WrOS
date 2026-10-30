@@ -1,0 +1,50 @@
+┌ WRITINGDECK TUTORIAL ──────┐┌ Chapter One / The Brass Key ───────────────────────────────────────────────────────────────────────────────────────────────────┐
+│     ✧   ·    ✧    ✦   ✧    │┌EXPORT PREFLIGHT──────────────────────────────────────────────────────────────────────────────────┐                             │
+│       ______ ☾ ______      ││Loaded source snapshot · 2 scenes · 12 words                                                      │                             │
+│     _/      ╲│╱      \_    ││1 errors · 1 warnings · 0 notices                                                                 │                             │
+│    // ≈≈≈ ≈≈ │ ≈≈ ≈≈≈ \\   ││Footnotes, public TK/TODO/FIXME markers and empty-source notices only; no link, continuity,       │                             │
+│   // ≈ ≈≈ ✧  │  ✧ ≈≈ ≈ \\  ││revision or rendered-page checks.                                                                 │                             │
+│  //__________│__________\\ ││Review is read-only. Esc returns to export; reopen to refresh.                                    │                             │
+│  `───────────┴───────────' ││                                                                                                  │                             │
+│                            ││Rich export is blocked: footnote rendering is not implemented (1 affected sections). Choose       │                             │
+│  Novel Format              ││Markdown only to preserve footnotes.                                                              │                             │
+│▾ Manuscript             12 ││                                                                                                  │                             │
+│  ▾ Chapter One          12 ││Error · Footnotes · manuscript/01-Chapter-One/01-Scene-One.md · line 1: Footnote '[^lost]' has no │                             │
+│      The Brass Key       5 ││definition in this scene.                                                                         │                             │
+│      The Other Door      7 ││                                                                                                  │                             │
+│▾ Characters                ││Warning · Editorial · manuscript/01-Chapter-One/01-Scene-One.md · line 1: Unresolved TK/TODO/FIXME│                             │
+│▾ Places                    ││marker on line 1.                                                                                 │                             │
+│▾ Front Matter              ││                                                                                                  │                             │
+│  ▸ Manuscript Format       ││                                                                                                  │                             │
+│  ▸ Paperback               ││                                                                                                  │                             │
+│  ▸ Ebook                   ││                                                                                                  │                             │
+│▾ Back Matter               ││         │   [x] EPUB            for phones and e-readers                               │                                       │
+│  ▸ Paperback               ││         │   [ ] Markdown        the plain compiled text                                │                                       │
+│  ▸ Ebook                   ││         │   How much            ◂ the whole book ▸                                     │                                       │
+│▾ Notes                 259 ││         │                                                                              │                                       │
+│    Pin Practice        259 ││         │ Manuscript                                                                   │                                       │
+│▾ Research                  ││         │   Look…               Modern (Times New Roman) · US Letter · double-spa…     │                                       │
+│  ▾ Sample Output           ││         │   Author details…     not set — the title page wants your name and email     │                                       │
+│▾ Template Sheets           ││         │                                                                              │                                       │
+│    Character Sketch        ││         │    Export to exports/                                                        │                                       │
+│    Setting Sketch          ││         │                                                                              │                                       │
+│▸ Trash                     ││         │                                                                              │                                       │
+│                            ││         │                                                                              │                                       │
+│                            ││         │                                                                              │                                       │
+│                            ││         │ ↑↓ choose   space/↵ tick   p preflight   x export   esc close                │                                       │
+│                            ││         └──────────────────────────────────────────────────────────────────────────────┘                                       │
+│                            ││                                                                                                                                │
+│                            ││                                                                                                                                │
+└ n scene  c chapter  p part ┘│                                                                                                                                │
+┌ F2 timer · ^D focus mode ──┐│                                                                                                                                │
+│                            ││                                                                                                                                │
+│              ☀             ││                                                                                                                                │
+│                   ▲        ││                                                                                                                                │
+│    ˇ ˇ           ▟█▙       ││                                                                                                                                │
+│                  █▪█       ││                                                                                                                                │
+│                  ███       ││                                                                                                                                │
+│          ▁▂▃▃▂▁▁▁█▪█▁▁     ││                                                                                                                                │
+│  ▁▁▂▃▄▅▆▇▇▇▇▇▇▇▇▇▇▇▇▇▇▆▄▂▁ ││                                                                                                                                │
+│▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔││                                                                                                                                │
+└──◂ pomodoro visualizer ▸───┘└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+ 12 / 80,000 ░░░░░░░░░░  today 1  ✓ saved  saved          Esc menu  ^D focus mode  Tab pane  ^K find anything  F8 spelling  ^F find  ^T notes  ^Z undo  F1 help

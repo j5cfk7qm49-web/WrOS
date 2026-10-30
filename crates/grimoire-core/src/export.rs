@@ -168,6 +168,79 @@ pub fn tks(p: &Project, opts: &ExportOptions) -> Result<Vec<String>> {
     Ok(book(p, opts.parts.as_deref(), opts.scope)?.tks)
 }
 
+pub struct ExportPreflight {
+    pub report: crate::preflight::PreflightReport,
+    /// Sections that the existing rich-export guard would reject.
+    pub unsupported_footnotes: Vec<String>,
+}
+
+/// Review original source selected for export. Indices are transient and are
+/// never persisted or used for navigation. This is not a rendered-output check.
+pub fn preflight(p: &Project, opts: &ExportOptions) -> Result<ExportPreflight> {
+    p.ensure_whole()?;
+    if !(opts.docx || opts.pdf || opts.epub || opts.markdown || opts.paperback) {
+        bail!("nothing to review — choose at least one export format");
+    }
+    let selected = book(p, opts.parts.as_deref(), opts.scope)?;
+    if selected.pieces.is_empty() {
+        bail!("there's nothing written to export yet");
+    }
+    let mut indices = selected.source_indices.clone();
+    for (i, n) in p.nodes.iter().enumerate() {
+        if n.kind != Kind::Scene || !n.compile {
+            continue;
+        }
+        let edition = edition_of(p, n);
+        let enabled = |e| edition.is_none_or(|actual| actual == e);
+        let included = (n.front_matter
+            && (((opts.docx || opts.pdf || opts.markdown) && enabled(Edition::Manuscript))
+                || (opts.epub && enabled(Edition::Ebook))
+                || (opts.paperback && enabled(Edition::Paperback))))
+            || (n.area == crate::project::Area::BackMatter
+                && ((opts.epub && enabled(Edition::Ebook))
+                    || (opts.paperback && enabled(Edition::Paperback))));
+        if included && !prose(&n.body, p.meta.manuscript.spaced_hyphen).is_empty() {
+            indices.push(i);
+        }
+    }
+    indices.sort_unstable();
+    indices.dedup();
+    let mut bytes = 0usize;
+    for &i in &indices {
+        let n = &p.nodes[i];
+        bytes = bytes.saturating_add(n.body.len());
+        if n.body.len() > 2 * 1024 * 1024 || n.body.matches("[^").count() > 8192 {
+            bail!(
+                "preflight limit exceeded (2 MiB or 8192 footnote markers per scene); no partial report"
+            );
+        }
+    }
+    if indices.len() > 512 || bytes > 16 * 1024 * 1024 {
+        bail!("preflight limit exceeded (512 scenes or 16 MiB); no partial report");
+    }
+    let scenes = indices
+        .into_iter()
+        .map(|i| {
+            let n = &p.nodes[i];
+            let place = n
+                .path
+                .strip_prefix(&p.root)
+                .map_or_else(|_| n.title.clone(), |path| path.display().to_string());
+            (i, place, n.body.clone())
+        })
+        .collect::<Vec<_>>();
+    let report = crate::preflight::run_preflight(&scenes, None, None)?;
+    let unsupported_footnotes = if opts.docx || opts.pdf || opts.epub || opts.paperback {
+        unsupported_footnote_locations(p, &selected, opts)
+    } else {
+        Vec::new()
+    };
+    Ok(ExportPreflight {
+        report,
+        unsupported_footnotes,
+    })
+}
+
 /// The selected content that still uses Markdown footnotes. The reader-format
 /// exporters currently treat their syntax as ordinary text rather than true
 /// Word/PDF page footnotes or accessible EPUB notes. Inspect the *compiled*
@@ -376,6 +449,8 @@ pub(crate) struct Book<'a> {
     /// count, whatever part of it this export holds.
     pub total: usize,
     pub pieces: Vec<Piece<'a>>,
+    /// Project indices retained only for this in-memory compiled selection.
+    source_indices: Vec<usize>,
     /// Words, chapters and scenes in this export.
     pub words: usize,
     pub chapters: usize,
@@ -629,6 +704,7 @@ pub(crate) fn book<'a>(p: &'a Project, parts: Option<&[usize]>, scope: Scope) ->
         front: front_pages(p, Edition::Manuscript),
         total: 0,
         pieces: Vec::new(),
+        source_indices: Vec::new(),
         words: 0,
         chapters: 0,
         scenes: 0,
@@ -897,6 +973,7 @@ fn finish<'a>(p: &'a Project, b: &mut Book<'a>, items: Vec<Item<'a>>) {
                 b.scenes += c.scenes.len();
                 b.words += c.scenes.iter().map(|(_, n, _)| n).sum::<usize>();
                 for &(_, _, idx) in &c.scenes {
+                    b.source_indices.push(idx);
                     note_tks(p, idx, c.number, c.title, b);
                 }
                 b.pieces.push(Piece::Chapter {
@@ -907,6 +984,7 @@ fn finish<'a>(p: &'a Project, b: &mut Book<'a>, items: Vec<Item<'a>>) {
                 });
             }
             Item::Scene(text, n, idx) => {
+                b.source_indices.push(idx);
                 note_tks(p, idx, None, "", b);
                 b.scenes += 1;
                 b.words += n;
@@ -2613,6 +2691,114 @@ mod tests {
             parts: None,
             scope: Scope::Whole,
         }
+    }
+
+    #[test]
+    fn preflight_uses_export_scope_original_lines_and_selected_editions() {
+        let d = book_dir("preflight-scope");
+        put(
+            &d,
+            "manuscript/01-Act-One/01-Chapter-One/01-Scene-One.md",
+            "λ prose[^missing].\n\n%% TODO [^private] %%\n",
+        );
+        put(
+            &d,
+            "manuscript/01-Act-One/02-Chapter-Two/01-Scene-One.md",
+            "Later TODO marker.\n",
+        );
+        put(
+            &d,
+            "manuscript/01-Act-One/02-Chapter-Two/02-Cut.md",
+            "---\ncompile: false\n---\n\nCut[^excluded].\n",
+        );
+        put(
+            &d,
+            "front-matter/01-Ebook/01-Copyright.md",
+            "Ebook[^ebook].\n",
+        );
+        let p = Project::load(&d).unwrap();
+        let opts = ExportOptions {
+            docx: true,
+            epub: false,
+            markdown: false,
+            scope: Scope::first(1),
+            ..all_options()
+        };
+        let review = preflight(&p, &opts).unwrap();
+        assert!(!review.unsupported_footnotes.is_empty());
+        let report = review.report;
+        assert_eq!(report.errors_count(), 1);
+        assert_eq!(report.warnings_count(), 0);
+        assert_eq!(report.issues[0].line, Some(1));
+        assert!(report.issues[0].message.contains("missing"));
+        let later = preflight(
+            &p,
+            &ExportOptions {
+                scope: Scope::Chapters { from: 2, to: 2 },
+                epub: true,
+                ..opts
+            },
+        )
+        .unwrap()
+        .report;
+        assert!(later.issues.iter().any(|i| i.message.contains("TODO")));
+        assert!(later.issues.iter().any(|i| i.message.contains("ebook")));
+        assert!(!later.issues.iter().any(|i| i.message.contains("missing")
+            || i.message.contains("excluded")
+            || i.message.contains("private")));
+        let second_part = parts(&p)[1].0;
+        let selected = preflight(
+            &p,
+            &ExportOptions {
+                parts: Some(vec![second_part]),
+                epub: false,
+                scope: Scope::Whole,
+                ..all_options()
+            },
+        )
+        .unwrap();
+        assert!(selected.report.is_clean());
+        assert!(selected.unsupported_footnotes.is_empty());
+        assert!(!d.join("exports").exists());
+        fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn preflight_distinguishes_valid_footnotes_from_rich_export_support_and_refuses_limits() {
+        let d = book_dir("preflight-rich-limit");
+        let file = "manuscript/01-Act-One/01-Chapter-One/01-Scene-One.md";
+        put(&d, file, "A claim[^a].\n\n[^a]: A real note.\n");
+        let p = Project::load(&d).unwrap();
+        let rich = preflight(&p, &all_options()).unwrap();
+        assert!(rich.report.is_clean());
+        assert!(!rich.unsupported_footnotes.is_empty());
+        let markdown = preflight(
+            &p,
+            &ExportOptions {
+                docx: false,
+                epub: false,
+                markdown: true,
+                ..all_options()
+            },
+        )
+        .unwrap();
+        assert!(markdown.report.is_clean());
+        assert!(markdown.unsupported_footnotes.is_empty());
+        put(
+            &d,
+            file,
+            &format!("Original {}", "x".repeat(2 * 1024 * 1024)),
+        );
+        let p = Project::load(&d).unwrap();
+        assert!(
+            preflight(&p, &all_options())
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("no partial report")
+        );
+        assert!(!d.join("exports").exists());
+        fs::remove_dir_all(&d).unwrap();
     }
 
     #[test]

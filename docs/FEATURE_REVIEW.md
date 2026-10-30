@@ -213,3 +213,17 @@ Changed source/backing files and ambiguous definitions refuse navigation. Limits
 are 2 MiB/scene, 8192 markers and a 64 KiB definition snapshot. The [independent Debian run](evidence/footnote-context-local.json) passed
 1044 Rust tests per configuration, 174 Python tests with zero skips, both Clippys and 21 gates. The rich-export guard remains intact and lesson 34 cannot claim
 DOCX/PDF validation. Existing speech and history engines remain unchanged.
+
+## Export-selection source review (development increment)
+
+The export dialog's `p` action examines the original loaded source for the
+selected parts and sample, plus the front/back matter used by the selected
+editions. It lists footnote errors, unused definitions and public editorial
+markers with original source lines and relative paths. It separately reports the
+existing rich-footnote export block even when a footnote is otherwise valid.
+It is a bounded, read-only snapshot: no links, assets, continuity, revision
+notes, external-file freshness or rendered pages are checked. The report is
+refused in full when its bounds are exceeded. Original source and export
+settings are retained; closing the review returns to the dialog. The
+[independent Debian run](evidence/export-preflight-local.json) passed 1047 Rust tests per configuration, 175 Python tests with zero skips, both Clippys and 21 gates.
+This does not implement printed footnotes.

@@ -4,6 +4,7 @@
 use super::*;
 use crate::app::{SAMPLE_KINDS, sample_default};
 use grimoire_core::submission::Choice;
+use ratatui::widgets::Wrap;
 
 /// Rows: five formats, each act, then "How much", "Look", "Author" and the
 /// Export button.
@@ -13,6 +14,35 @@ const PAPERBACK: usize = 2;
 
 impl App {
     pub(super) fn on_export_key(&mut self, key: Key) {
+        if let Overlay::Export {
+            review: Some(review),
+            ..
+        } = &mut self.overlay
+        {
+            match key {
+                Key::Esc => {
+                    if let Overlay::Export { review, .. } = &mut self.overlay {
+                        *review = None;
+                    }
+                }
+                Key::Down | Key::Char('j') => {
+                    review.scroll = review.scroll.saturating_add(1).min(review.max_scroll.get())
+                }
+                Key::Up | Key::Char('k') => review.scroll = review.scroll.saturating_sub(1),
+                Key::PageDown => {
+                    review.scroll = review.scroll.saturating_add(8).min(review.max_scroll.get())
+                }
+                Key::PageUp => review.scroll = review.scroll.saturating_sub(8),
+                Key::Home => review.scroll = 0,
+                Key::End => review.scroll = review.max_scroll.get(),
+                _ => {}
+            }
+            return;
+        }
+        if key == Key::Char('p') && matches!(&self.overlay, Overlay::Export { done: None, .. }) {
+            self.open_export_review();
+            return;
+        }
         let Overlay::Export {
             formats,
             trim,
@@ -21,6 +51,7 @@ impl App {
             sel,
             tks,
             done,
+            ..
         } = &mut self.overlay
         else {
             return;
@@ -97,6 +128,80 @@ impl App {
             _ => {}
         }
     }
+
+    fn open_export_review(&mut self) {
+        let Overlay::Export {
+            formats,
+            trim,
+            parts,
+            sample,
+            ..
+        } = &self.overlay
+        else {
+            return;
+        };
+        let (formats, trim, parts, sample) = (*formats, *trim, parts.clone(), sample.clone());
+        let options = match self.export_options(formats, trim, &parts, &sample) {
+            Ok(options) => options,
+            Err(error) => {
+                self.msg = error;
+                return;
+            }
+        };
+        self.flush();
+        if let Err(error) = self.ensure_document_claims() {
+            self.msg = format!("Preflight unavailable: {error:#}");
+            return;
+        }
+        match grimoire_core::export::preflight(&self.project, &options) {
+            Ok(result) => {
+                let report = result.report;
+                let mut lines = vec![
+                    format!("Loaded source snapshot · {} scenes · {} words", report.total_scenes, report.total_words),
+                    format!("{} errors · {} warnings · {} notices", report.errors_count(), report.warnings_count(), report.notices_count()),
+                    "Footnotes, public TK/TODO/FIXME markers and empty-source notices only; no link, continuity, revision or rendered-page checks.".into(),
+                    "Review is read-only. Esc returns to export; reopen to refresh.".into(),
+                    String::new(),
+                ];
+                if !result.unsupported_footnotes.is_empty() {
+                    lines.push(format!("Rich export is blocked: footnote rendering is not implemented ({} affected sections). Choose Markdown only to preserve footnotes.", result.unsupported_footnotes.len()));
+                    lines.push(String::new());
+                }
+                if report.issues.is_empty() {
+                    lines.push("No issues found by these checks.".into());
+                }
+                for issue in report.issues {
+                    let clean = |s: &str| {
+                        s.chars()
+                            .map(|c| if c.is_control() { ' ' } else { c })
+                            .take(400)
+                            .collect::<String>()
+                    };
+                    let place = issue
+                        .scene_title
+                        .as_deref()
+                        .map(clean)
+                        .unwrap_or_else(|| "Book".into());
+                    let line = issue.line.map_or(String::new(), |n| format!(" · line {n}"));
+                    lines.push(format!(
+                        "{} · {} · {place}{line}: {}",
+                        issue.severity.label(),
+                        issue.category,
+                        clean(&issue.message)
+                    ));
+                    lines.push(String::new());
+                }
+                if let Overlay::Export { review, .. } = &mut self.overlay {
+                    *review = Some(crate::app::ExportReview {
+                        lines,
+                        scroll: 0,
+                        max_scroll: std::cell::Cell::new(0),
+                    });
+                }
+            }
+            Err(error) => self.msg = format!("Preflight unavailable: {error:#}"),
+        }
+    }
 }
 
 pub(super) fn draw_export(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
@@ -108,10 +213,37 @@ pub(super) fn draw_export(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         sel,
         tks,
         done,
+        review,
     } = &app.overlay
     else {
         return;
     };
+    if let Some(review) = review {
+        let box_area = centred(
+            area,
+            area.width.saturating_sub(4).clamp(40, 100),
+            area.height.saturating_sub(2),
+        );
+        f.render_widget(Clear, box_area);
+        let body = wros_shell::render_panel(
+            f,
+            box_area,
+            "EXPORT PREFLIGHT",
+            "Loaded source snapshot · no export files written",
+            "↑↓ scroll  PgUp/PgDn  Home/End  Esc back  F1 help",
+            t.into(),
+        );
+        let paragraph = Paragraph::new(review.lines.join("\n"))
+            .wrap(Wrap { trim: false })
+            .style(Style::default().fg(t.text));
+        let max = paragraph
+            .line_count(body.width)
+            .saturating_sub(body.height as usize)
+            .min(u16::MAX as usize) as u16;
+        review.max_scroll.set(max);
+        f.render_widget(paragraph.scroll((review.scroll.min(max), 0)), body);
+        return;
+    }
     let warn_rows = tks.as_ref().map_or(0, |v| v.len().min(3) + 2) as u16;
     let h = (FORMATS as u16 + parts.len() as u16 + 15 + warn_rows).min(area.height);
     let box_area = centred(area, area.width.saturating_sub(4).clamp(40, 80), h);
@@ -302,7 +434,7 @@ pub(super) fn draw_export(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     } else if *sel == PAPERBACK {
         " ←→ trim size   space/↵ tick   x export   esc close"
     } else {
-        " ↑↓ choose   space/↵ tick or open   x export   esc close"
+        " ↑↓ choose   space/↵ tick   p preflight   x export   esc close"
     };
     lines.push(hint_line(hint, t));
     let lines = fit_rows(lines, inner.height as usize);

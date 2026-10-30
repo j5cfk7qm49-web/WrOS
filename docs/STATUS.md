@@ -1,5 +1,16 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Export selection review
+
+The export dialog can review the selected loaded source before writing: it
+inspects footnote diagnostics and public editorial markers, and reports the
+existing rich-footnote export block. This is a bounded snapshot, not a link,
+continuity, asset, revision or rendered-page audit. The [independent Debian
+software run](evidence/export-preflight-local.json) passed 1047 Rust tests per configuration, 175 Python tests with zero skips, both Clippys and 21 gates.
+[Provenance](evidence/export-preflight-local-provenance.json) and four terminal
+captures retain its source and binary binding. Printed page footnotes and the
+rich-export guard remain unchanged.
+
 ## Contextual footnote workflow
 
 Post-merge CI for PR #60 passed in run40972331871. Development now adds a
