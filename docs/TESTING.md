@@ -12,7 +12,9 @@ original editing/Undo and fresh-process progress at all four terminal sizes.
 Set `WRITINGDECK_CAPTURE_PTY=1` to retain disposable render artifacts under
 `build/verification/manuscript-footnotes` and terminal frames under
 `build/verification/manuscript-footnote-screens`. See
-[scope and limits](MANUSCRIPT_FOOTNOTES.md). Full qualification is in progress.
+[scope and limits](MANUSCRIPT_FOOTNOTES.md). The
+[independent full Debian run](evidence/manuscript-footnotes-local.json) passed
+1060 Rust tests per configuration, 180 Python tests with zero skips, both Clippys and 21 gates.
 
 ## Warm-screen qualification
 

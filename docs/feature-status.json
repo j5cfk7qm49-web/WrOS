@@ -486,8 +486,8 @@
     {
       "area": "Publishing",
       "capability": "Contextual Markdown footnotes + genuine DOCX/PDF bottom-page output",
-      "status": "In progress",
-      "verification": "Focused package, actual LibreOffice/Poppler pagination and four-size compiled TUI checks passed; full Debian suite in progress",
+      "status": "Tested",
+      "verification": "Full Debian suite; actual LibreOffice/Poppler pagination and four-size compiled TUI export/lesson/Undo/restart",
       "hardware_verified": false,
       "detail": "Bounded manuscript paragraphs, repeated/multiparagraph/long notes; original bytes/Undo retained. EPUB/paperback and unsupported structures remain guarded"
     },
@@ -535,7 +535,7 @@
       "area": "Tutorial",
       "capability": "39-lesson catalog, safe demo, replay/skip/progress, help links",
       "status": "Tested",
-      "verification": "Core + actual editor/UI tests; new lesson 34 full qualification in progress",
+      "verification": "Core + actual editor/UI tests; lesson 34 actual output and restart verified in full Debian suite",
       "hardware_verified": false,
       "detail": "Original 39 IDs plus supplemental 40 retained; 37 event-capable / 3 unavailable. Lesson 34 requires real Word notes and completed PDF in safe demo; historic progress preserved"
     },

@@ -1,0 +1,40 @@
+┌ WRITINGDECK TUTORIAL ──────┐┌ Chapter One / The Brass Key ───────────────────────────────────────────────────────────┐
+│     ·   ·    ✦    ✧   ✧    ││        Added λ Intro[^a].                                                              │
+│       ______ ☾ ______      ││                                                                                        │
+│     _/      ╲│╱      \_    ││        [^a]: A *café* note. %% PRIVATE_MANUSCRIPT %%                                   │
+│    // ≈≈≈ ≈≈ │ ≈≈ ≈≈≈ \\   ││                                                                                        │
+│   // ≈ ≈≈ ✧  │  ✧ ≈≈ ≈ \\  ││                                                                                        │
+│  //__________│__________\\ ││                                                                                        │
+│  `───────────┴───────────' ││                                                                                        │
+│                            ││                                                                                        │
+│  Novel Format              ││                                                                                        │
+│▾ Manuscript       ┌ EXPORT FOR READERS ──────────────────────────────────────────────────────────┐                   │
+│  ▾ Chapter One    │ ✓ exports/WritingDeck-Tutorial_Manuscript.docx  4 KB                         │                   │
+│      The Brass Key│ ✓ exports/WritingDeck-Tutorial_Manuscript.pdf  27 KB                         │                   │
+│      The Other Doo│                                                                              │                   │
+│▾ Characters       │ 1 chapter · 10 words · 3 manuscript pages                                    │                   │
+│▾ Places           │                                                                              │                   │
+│▾ Front Matter     │                                                                              │                   │
+│  ▸ Manuscript Form│                                                                              │                   │
+│  ▸ Paperback      │                                                                              │                   │
+│  ▸ Ebook          │                                                                              │                   │
+│▾ Back Matter      │                                                                              │                   │
+│  ▸ Paperback      │                                                                              │                   │
+│  ▸ Ebook          │                                                                              │                   │
+│▾ Notes            │                                                                              │                   │
+│    Pin Practice   │                                                                              │                   │
+│▾ Research         │                                                                              │                   │
+│  ▾ Sample Output  │                                                                              │                   │
+└ n scene  c chapter│                                                                              │                   │
+┌ F2 timer · ^D focu│ any key closes                                                               │                   │
+│                   └──────────────────────────────────────────────────────────────────────────────┘                   │
+│              ☀             ││                                                                                        │
+│                   ▲        ││                                                                                        │
+│    ˇ ˇ           ▟█▙       ││                                                                                        │
+│                  █▪█       ││                                                                                        │
+│                  ███       ││                                                                                        │
+│          ▁▂▃▃▂▁▁▁█▪█▁▁     ││                                                                                        │
+│  ▁▁▂▃▄▅▆▇▇▇▇▇▇▇▇▇▇▇▇▇▇▆▄▂▁ ││                                                                                        │
+│▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔││                                                                                        │
+└──◂ pomodoro visualizer ▸───┘└────────────────────────────────────────────────────────────────────────────────────────┘
+ 10 / 80,000 ░░░░░░░░░░  today 1  ✓ saved  PDF ready: exports/WritingDeck-Tutorial_Manuscript.pdf              Esc menu

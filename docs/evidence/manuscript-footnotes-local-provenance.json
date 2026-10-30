@@ -1,0 +1,44 @@
+{
+  "passed": true,
+  "tested_head": "d3d2ffef1d92c5c6a932f86bbf7770f5249e8538",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "6f9d323a57397b7bc91d866dcab1211c7d293d2ab6c17ddc2885a6b4993ae316",
+    "file_count": 463,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "receipt_sha256": "fad09181314da7ac08bd0c8ff3474f91fe5224d5f893fbc98c9aa49c76e2e9e5",
+  "tested_binary_sha256": "59ded50e6dc1644ff5ff76e2d9d78b695960e259eedbbd9c1406e3fd54739ff3",
+  "runner": "Corrected private unshare --net --mount, no --fork, normal termination defaults asserted; Debian chroot ordinary builder with loopback and external network isolation.",
+  "render_artifacts": [
+    {
+      "file": "docs/evidence/manuscript-footnotes-modern-render.json",
+      "sha256": "bfcdd38ccb2ceb0bcfe9716b75ad30c69f31286664546bb9f27c1a3da56b7e13"
+    },
+    {
+      "file": "docs/evidence/manuscript-footnotes-classic-render.json",
+      "sha256": "8474d5de86c4234dcf62836d082c5482cb3f4e1303fbeb3748a96bdf06195c8b"
+    },
+    {
+      "file": "docs/evidence/manuscript-footnotes-long-render.json",
+      "sha256": "958edce0e6900852ed7cb8b5b040da086e05c7753ff10e41bd5b2a252b3d4bf4"
+    },
+    {
+      "file": "docs/evidence/manuscript-footnotes-modern-reference-page.png",
+      "sha256": "e9dc6b071bd4d953aeef1c3cddef78a2705eec60a3f4afdb32add65b1522a5b7"
+    },
+    {
+      "file": "docs/evidence/manuscript-footnotes-classic-reference-page.png",
+      "sha256": "7ed7d62830e527a5af99b7c0ccb5b27470e1c69ac20d6755d514c8bb415920bc"
+    },
+    {
+      "file": "docs/evidence/manuscript-footnotes-long-note-start.png",
+      "sha256": "17bd1f91c390d053f4f0b55e829f96446fa1149fb23efcfb5bc5b5fc7b5c0466"
+    },
+    {
+      "file": "docs/evidence/manuscript-footnotes-long-note-finish.png",
+      "sha256": "b0e4b5102b66606efb9b42d2f22b7e75c2f364b4f1471bd79c785053ad143517"
+    }
+  ],
+  "scope": "Bounded manuscript Word/PDF software and disposable fixture workflows. Not complete Markdown/EPUB/paperback publishing, OS image refresh, providers, installer, physical hardware or release qualification."
+}

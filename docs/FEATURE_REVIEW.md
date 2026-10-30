@@ -6,8 +6,8 @@ The current [Word/PDF increment](MANUSCRIPT_FOOTNOTES.md) supersedes the
 historical all-rich-format footnote guard below. It reuses the maintained
 parser, existing DOCX writer and LibreOffice adapter; unsupported source and
 EPUB/paperback notes still fail before output. Real PDF pages and terminal
-workflows have passed focused checks. Full Debian qualification is in
-progress. Neither a passing package assertion nor an installed renderer alone
+workflows passed the [independent full Debian run](evidence/manuscript-footnotes-local.json):
+1060 Rust tests per configuration, 180 Python tests with zero skips, both Clippys and 21 gates. Neither a passing package assertion nor an installed renderer alone
 establishes pagination, hardware or a complete publishing workflow.
 
 ## Footnote insertion audit (2026-10-29)

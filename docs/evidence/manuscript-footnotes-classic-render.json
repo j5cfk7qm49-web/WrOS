@@ -1,0 +1,38 @@
+{
+  "passed": true,
+  "format": "classic",
+  "paper": "a4",
+  "spacing": "1.5",
+  "pages": 6,
+  "positions": [
+    {
+      "body": "BODYANCHORALPHA",
+      "note": "NOTEANCHORALPHA",
+      "page": 2,
+      "page_height": 841.889764,
+      "body_y_max": 328.000764,
+      "note_y_min": 747.230764
+    },
+    {
+      "body": "BODYANCHORBETA",
+      "note": "NOTEANCHORBETA",
+      "page": 4,
+      "page_height": 841.889764,
+      "body_y_max": 452.800764,
+      "note_y_min": 758.580764
+    },
+    {
+      "body": "BODYANCHORREPEAT",
+      "note": "NOTEANCHORALPHA",
+      "page": 6,
+      "page_height": 841.889764,
+      "body_y_max": 575.200764,
+      "note_y_min": 747.230764
+    }
+  ],
+  "docx_sha256": "c7d9866be129781632e5abed20e1748302b151a1341d49794607b149339a5a21",
+  "pdf_sha256": "32c0de17ee4b9c21e1a9aa4bc4f248b96391f4e14a4269c0db560ef1b78253bf",
+  "source_sha256": "6eae2cc13a4405777794e7048cc591981911649a095ad29a2d7cf980f92dee0c",
+  "original_source_preserved": true,
+  "libreoffice": "LibreOffice 25.2.3.2 520(Build:2)"
+}

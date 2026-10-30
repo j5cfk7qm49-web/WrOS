@@ -43,7 +43,10 @@ placement, independent/repeated labels, Unicode, private-note exclusion and
 unchanged original bytes. A long note must begin beside its reference and
 continue across actual pages. Four-size compiled TUI checks exercise source
 editing, refusal, preflight, real export, lesson progress, Undo and restart.
-Focused checks passed; full source-bound Debian qualification is in progress.
+The [independent Debian receipt](evidence/manuscript-footnotes-local.json)
+records 1060 Rust tests per configuration, 180 Python tests with zero skips, both Clippys and 21 gates. [Provenance and render artifacts](evidence/manuscript-footnotes-local-provenance.json)
+bind the tested source and binary. Representative page PNGs were visually
+reviewed in addition to the physical-coordinate assertions.
 This does not refresh the OS image, qualify physical hardware or complete M9.
 
 The package follows the documented [Word footnotes part](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.footnotes?view=openxml-3.0.1),
