@@ -18,6 +18,16 @@ When the book is ready to send, *Export…* in the menu (*Export for readers* in
 - **Include**: which parts go in.
 - **How much**: `←` `→` choose the whole book, the first chapters, chapters X–Y, or the first N words — the samples agents ask for — and type the number or range. The title page still gives the whole book's word count.
 - **Look…** and **Author details…** (below).
+- `p` reviews the loaded source selected by these formats, parts and sample.
+  It lists missing, duplicate and unused footnotes, public TK/TODO/FIXME
+  markers and empty-source notices. `↑`/`↓`, Page Up/Down and Home/End scroll;
+  `Esc` returns to the same export settings. Reopen the review to refresh it.
+  It also reports when the current rich-format selection is blocked by the
+  existing footnote-export guard; Markdown-only export preserves the syntax.
+  It does not write export files or check links, continuity, revision notes,
+  rendered pages or externally changed files. It inspects at most 512 scenes,
+  16 MiB total, 2 MiB and 8,192 footnote markers per scene, and 512 findings; an exceeded limit
+  refuses the review instead of displaying a partial report.
 - `x` (or `Enter` on the Export button) exports into the book's `exports/` folder. Files are named the way agents ask: `Surname_Title_Manuscript.docx`.
 
 ## Look…

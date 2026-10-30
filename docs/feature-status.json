@@ -493,6 +493,14 @@
     },
     {
       "area": "Publishing",
+      "capability": "Export-selection source review",
+      "status": "In progress",
+      "verification": "Scope, original-line and four-size UI/PTY checks; full qualification pending",
+      "detail": "Read-only footnote and editorial-marker checks plus rich-export guard status; no link, asset, continuity, revision or rendered-page validation",
+      "hardware_verified": false
+    },
+    {
+      "area": "Publishing",
       "capability": "Unified pre-export link/asset/footnote/privacy validation",
       "status": "Planned",
       "verification": "None",

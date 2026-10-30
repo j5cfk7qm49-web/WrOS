@@ -1471,6 +1471,38 @@ fn export_says_what_tks_are_left_before_it_writes_anything() {
 }
 
 #[test]
+fn export_preflight_reviews_selected_source_without_writing_at_four_sizes() {
+    for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let root = book(&format!("preflight-{width}"), true);
+        let scene = first_scene(&root);
+        let original = fs::read_to_string(&scene).unwrap();
+        fs::write(
+            &scene,
+            format!("{original}\nλ claim[^lost]. TODO here.\n\n%% [^hidden]: secret %%\n"),
+        )
+        .unwrap();
+        let before = fs::read(&scene).unwrap();
+        let mut d = Desk::open(root.clone(), width, height);
+        let editor = d.app.editor.text();
+        d.app.open_export();
+        d.key(KeyCode::Char('p'));
+        assert!(d.shows("EXPORT PREFLIGHT"));
+        assert!(d.shows("Loaded source snapshot"));
+        assert!(d.shows("Rich export is blocked"));
+        d.key(KeyCode::End);
+        assert!(d.shows("lost"));
+        assert!(d.shows("TODO"));
+        assert!(!d.shows("hidden"));
+        assert!(!root.join("exports").exists());
+        d.key(KeyCode::Esc);
+        assert!(d.shows("EXPORT FOR READERS"));
+        d.key(KeyCode::Esc);
+        assert_eq!(d.app.editor.text(), editor);
+        assert_eq!(fs::read(&scene).unwrap(), before);
+    }
+}
+
+#[test]
 fn the_look_dialog_saves_to_novel_toml_and_goes_back_to_export() {
     let mut d = export_desk("look", "Words.");
     let (_, look, _, _) = export_rows(&d);

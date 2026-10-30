@@ -433,6 +433,13 @@ pub fn sample_scope((kind, text): &(usize, String)) -> Result<export::Scope, Str
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExportReview {
+    lines: Vec<String>,
+    scroll: u16,
+    max_scroll: std::cell::Cell<u16>,
+}
+
 /// Modal state. Only one can be up at a time.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Overlay {
@@ -679,6 +686,8 @@ pub enum Overlay {
         /// The TKs found when Export was pressed; pressing it again exports
         /// anyway.
         tks: Option<Vec<String>>,
+        /// Read-only review of the selected loaded source, never persisted.
+        review: Option<ExportReview>,
         /// What happened, once it has run: lines to show.
         done: Option<Vec<String>>,
     },
@@ -2728,6 +2737,7 @@ impl App {
             sample: (0, String::new()),
             sel: 0,
             tks: None,
+            review: None,
             done: None,
         };
     }

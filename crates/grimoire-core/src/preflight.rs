@@ -1,6 +1,6 @@
-//! Experimental read-only publishing review of supplied scene bodies.
-//! Checks footnotes, editorial markers, empty scenes and explicit story models.
-//! No export hook, missing-link check or OOXML/PDF footnote writer is implemented.
+//! Read-only publishing review of supplied scene bodies.
+//! Checks footnotes, editorial markers, empty scenes and optional story models.
+//! Missing-link checks and an OOXML/PDF footnote writer are not implemented.
 use crate::annotations::AnnotationStore;
 use crate::continuity::ContinuityStore;
 use crate::footnotes::analyze_footnotes;
