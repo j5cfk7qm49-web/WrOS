@@ -1,0 +1,40 @@
+┌ WRITINGDECK TUTORIAL ──────┐┌ Chapter One / The Brass Key ───────────────────────────────────────────────────────────┐
+│     ✧   ┌EXPORT PREFLIGHT──────────────────────────────────────────────────────────────────────────────────┐         │
+│       __│Loaded source snapshot · 2 scenes · 12 words                                                      │         │
+│     _/  │1 errors · 1 warnings · 0 notices                                                                 │         │
+│    // ≈≈│Footnotes, public TK/TODO/FIXME markers and empty-source notices only; no link, continuity,       │         │
+│   // ≈ ≈│revision or rendered-page checks.                                                                 │         │
+│  //_____│Review is read-only. Esc returns to export; reopen to refresh.                                    │         │
+│  `──────│                                                                                                  │         │
+│         │Rich export is blocked: footnote rendering is not implemented (1 affected sections). Choose       │         │
+│  Novel F│Markdown only to preserve footnotes.                                                              │         │
+│▾ Manuscr│                                                                                                  │         │
+│  ▾ Chapt│Error · Footnotes · manuscript/01-Chapter-One/01-Scene-One.md · line 1: Footnote '[^lost]' has no │         │
+│      The│definition in this scene.                                                                         │         │
+│      The│                                                                                                  │         │
+│▾ Charact│Warning · Editorial · manuscript/01-Chapter-One/01-Scene-One.md · line 1: Unresolved TK/TODO/FIXME│         │
+│▾ Places │marker on line 1.                                                                                 │         │
+│▾ Front M│                                                                                                  │         │
+│  ▸ Manus│                                                                                                  │         │
+│  ▸ Paper│                                                                                                  │         │
+│  ▸ Ebook│                                                                                                            │
+│▾ Back Matter      │   Look…               Modern (Times New Roman) · US Letter · double-spa…     │                   │
+│  ▸ Paperback      │   Author details…     not set — the title page wants your name and email     │                   │
+│  ▸ Ebook          │                                                                              │                   │
+│▾ Notes            │    Export to exports/                                                        │                   │
+│    Pin Practice   │                                                                              │                   │
+│▾ Research         │                                                                              │                   │
+│  ▾ Sample Output  │                                                                              │                   │
+└ n scene  c chapter│                                                                              │                   │
+┌ F2 timer · ^D focu│ ↑↓ choose   space/↵ tick   p preflight   x export   esc close                │                   │
+│                   └──────────────────────────────────────────────────────────────────────────────┘                   │
+│              ☀             ││                                                                                        │
+│                   ▲        ││                                                                                        │
+│    ˇ ˇ           ▟█▙       ││                                                                                        │
+│                  █▪█       ││                                                                                        │
+│                  ███       ││                                                                                        │
+│          ▁▂▃▃▂▁▁▁█▪█▁▁     ││                                                                                        │
+│  ▁▁▂▃▄▅▆▇▇▇▇▇▇▇▇▇▇▇▇▇▇▆▄▂▁ ││                                                                                        │
+│▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔││                                                                                        │
+└──◂ pomodoro visualizer ▸───┘└────────────────────────────────────────────────────────────────────────────────────────┘
+ 12 / 80,000 ░░░░░░░░░░  today 1  ✓ saved  saved       Esc menu  ^D focus mode  Tab pane  ^K find anything  F8 spelling

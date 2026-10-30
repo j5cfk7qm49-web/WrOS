@@ -224,5 +224,6 @@ existing rich-footnote export block even when a footnote is otherwise valid.
 It is a bounded, read-only snapshot: no links, assets, continuity, revision
 notes, external-file freshness or rendered pages are checked. The report is
 refused in full when its bounds are exceeded. Original source and export
-settings are retained; closing the review returns to the dialog. Full Debian
-qualification is in progress. This does not implement printed footnotes.
+settings are retained; closing the review returns to the dialog. The
+[independent Debian run](evidence/export-preflight-local.json) passed 1047 Rust tests per configuration, 175 Python tests with zero skips, both Clippys and 21 gates.
+This does not implement printed footnotes.

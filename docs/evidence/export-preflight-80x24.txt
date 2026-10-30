@@ -1,0 +1,24 @@
+┌ WRITINGDECK TUTORIAL ──────┐┌ Chapter One / The Brass Key ───────────────────┐
+│ ┌EXPORT PREFLIGHT──────────────────────────────────────────────────────────┐ │
+│▾│Loaded source snapshot · 2 scenes · 12 words                              │ │
+│ │1 errors · 1 warnings · 0 notices                                         │ │
+│ │Footnotes, public TK/TODO/FIXME markers and empty-source notices only; no │ │
+│ │link, continuity, revision or rendered-page checks.                       │ │
+│▾│Review is read-only. Esc returns to export; reopen to refresh.            │ │
+│▾│                                                                          │ │
+│▾│Rich export is blocked: footnote rendering is not implemented (1 affected │ │
+│ │sections). Choose Markdown only to preserve footnotes.                    │ │
+│ │                                                                          │ │
+└ │Error · Footnotes · manuscript/01-Chapter-One/01-Scene-One.md · line 1:   │ │
+┌ │Footnote '[^lost]' has no definition in this scene.                       │ │
+│ │                                                                          │ │
+│ │Warning · Editorial · manuscript/01-Chapter-One/01-Scene-One.md · line 1: │ │
+│ │Unresolved TK/TODO/FIXME marker on line 1.                                │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │Loaded source snapshot · no export files written                          │ │
+│▔│↑↓ scroll  PgUp/PgDn  Home/End  Esc back  F1 help                         │ │
+└─└──────────────────────────────────────────────────────────────────────────┘─┘
+ 12 / 80,000 ░░░░░░░░░░  today 1  ✓ saved  saved        Esc menu  ^D focus mode

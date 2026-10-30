@@ -141,3 +141,12 @@ editing, Undo and restart at four terminal sizes. The initial local run failed a
 installer prompt synchronization test; its [partial receipt](evidence/footnote-context-local-initial-failure.json)
 is retained and the corrected complete suite passed. These results do not qualify
 page-bottom export, a full encrypted install, physical hardware or release.
+
+## Export selection review (2026-10-29)
+
+The [independent Debian receipt](evidence/export-preflight-local.json) records
+1047 Rust tests per configuration, 175 Python tests with zero skips, both Clippys and 21 gates. The compiled-app workflow uses fresh
+demo/HOME fixtures at four terminal sizes and exercises review, help, modal
+input, original-source save and Undo. Scope tests cover selected parts, samples,
+editions, private material, the rich-footnote guard and bounded refusal. This
+is software evidence, not rendered-footnote, installer or hardware qualification.

@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "tested_head": "9bbe0fac2b1f6baa7691d422905b8df9e293ebf8",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "f70e3ae695ac5bbfb847089015110b32ff49e0dc0c9272026fc8b3ab387c2bcc",
+    "file_count": 455,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "receipt_sha256": "529e4413eea79139477affdad7ab2969ded739780ac7fd693fbb05e56dc2cfbc",
+  "tested_binary_sha256": "4229625dff288da19bd661e4f7d6815ea7f2e337d2c689869705fee1ec27b3f9",
+  "runner": "Corrected private unshare --net --mount runner, no --fork, normal termination defaults asserted; Debian chroot ordinary builder with loopback and external network isolation.",
+  "scope": "Software qualification with generated fixtures; no rendered page-footnote, image, full encrypted installation, physical hardware, provider or release qualification."
+}
