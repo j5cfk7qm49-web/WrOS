@@ -2,7 +2,7 @@
 
 ## Current implementation
 
-The compiled catalog at `crates/grimoire-core/assets/writingdeck/tutorial.json` retains **all 39 requested lesson IDs plus supplemental grammar lesson 40**. Thirty-four have actual application-event hooks; six remain explicitly unavailable. M7b adds real dictionary, prose and voice-review events. Full tutorial completion remains tracked separately in issue #11.
+The compiled catalog at `crates/grimoire-core/assets/writingdeck/tutorial.json` retains **all 39 requested lesson IDs plus supplemental grammar lesson 40**. Thirty-six have application-event hooks; four remain explicitly unavailable. M7b adds real dictionary, prose and voice-review events. Full tutorial completion remains tracked separately in issue #11.
 
 Open F12 → Interactive tutorial, or use the menu/command palette. Arrow keys select a lesson; Enter shows its instructions and then starts the real feature; `h` opens linked searchable offline help; `s` skips; Escape returns. Completed lessons can be replayed. Progress is schema-versioned, atomically guarded and stored with the project. There is no fake Next/Done button.
 
@@ -51,9 +51,9 @@ The demo contains original short text and a deliberate spelling error. Nothing i
 | 28 | Nabokov | Wired: separate single-run model permission and review of an actual returned finding; permission or denial alone is insufficient |
 | 29 | Proselint | Wired: review a real pinned-engine finding and its queue provenance |
 | 30 | Author voice | Wired: actual sufficient-material baseline comparison; preparing/saving/selecting alone is insufficient |
-| 31 | Continuity | Planned |
+| 31 | Continuity | Wired: save explicit facts in the safe demo and review their bounded contradictions/suggestions |
 | 32 | Inline revision notes | Wired: safe-demo creation, original edit and explicit changed-anchor save; opening, cancelling, resolving or saving the same anchor cannot complete it |
-| 33 | Draft comparisons | Wired baseline history view; named variants/diff extension planned |
+| 33 | Draft comparisons | Wired history view and durable milestone/variant workflow; creating a real snapshot or opening its comparison observes the existing event |
 | 34 | Footnotes | Context reader and original-source navigation/editing implemented; genuine DOCX/PDF verification exercise remains planned and cannot complete |
 | 35 | Export | Wired: real nonempty Markdown export in safe demo; canceled, failed and ordinary-novel attempts cannot complete the lesson; PDF/DOCX footnotes remain separately unimplemented |
 | 36 | Google Drive backup | Planned; live credentials required for provider acceptance |

@@ -1,5 +1,14 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Argon writing integration under review (2026-10-30)
+
+The remote `development` branch was synchronized before reviewing the supplied
+ZIP and patch. The [contribution review](ARGON_REVIEW_2026-10-30.md) records
+input hashes, repairs and parts that remain unfinished. Continuity, durable
+milestone/variant restore, chapter read-through and local file comparison are
+being qualified. Genuine rich footnotes, maintained backup/sync, protected Wi-Fi
+enrollment, signed update application and authenticated suspend remain open.
+
 ## Export selection review
 
 The export dialog can review the selected loaded source before writing: it

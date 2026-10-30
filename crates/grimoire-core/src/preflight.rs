@@ -1,6 +1,6 @@
-//! Read-only publishing review of supplied scene bodies.
-//! Checks footnotes, editorial markers, empty scenes and optional story models.
-//! Missing-link checks and an OOXML/PDF footnote writer are not implemented.
+//! Read-only publishing review of supplied scene bodies and optional story models.
+//! Checks footnotes, editorial markers, internal wiki links, empty scenes,
+//! unresolved revision notes, and explicit continuity contradictions.
 use crate::annotations::AnnotationStore;
 use crate::continuity::ContinuityStore;
 use crate::footnotes::analyze_footnotes;
@@ -69,12 +69,23 @@ impl PreflightReport {
     }
 }
 
-/// Inspect scene bodies supplied by a future compile-scope adapter. The caller
-/// must select included scenes and bind IDs/revisions; this does not read files.
+/// Inspect scene bodies supplied by a compile-scope adapter. The caller
+/// selects included scenes and binds IDs/revisions; this does not read files.
 pub fn run_preflight(
     scenes: &[(usize, String, String)], // (id, title, markdown)
     continuity: Option<&ContinuityStore>,
     annotations: Option<&AnnotationStore>,
+) -> Result<PreflightReport> {
+    run_preflight_with_targets(scenes, continuity, annotations, None)
+}
+
+/// Extended preflight that also checks `[[Target]]` wiki links when a set of
+/// known project titles/aliases (lowercased) is provided.
+pub fn run_preflight_with_targets(
+    scenes: &[(usize, String, String)],
+    continuity: Option<&ContinuityStore>,
+    annotations: Option<&AnnotationStore>,
+    known_targets: Option<&BTreeSet<String>>,
 ) -> Result<PreflightReport> {
     ensure!(
         scenes.len() <= 512,
@@ -167,6 +178,16 @@ pub fn run_preflight(
                 format!("Unresolved TK/TODO/FIXME marker on line {line}."),
             )?;
         }
+        if let Some(targets) = known_targets {
+            for (line, target) in unresolved_wiki_links(content, targets)? {
+                add(
+                    PreflightSeverity::Warning,
+                    "Links",
+                    Some(line),
+                    format!("Unresolved internal link '[[{target}]]' on line {line}."),
+                )?;
+            }
+        }
         if let Some(store) = annotations {
             let count = store
                 .annotations
@@ -211,6 +232,66 @@ pub fn run_preflight(
         }
     }
     Ok(report)
+}
+
+fn unresolved_wiki_links(
+    content: &str,
+    known_targets: &BTreeSet<String>,
+) -> Result<Vec<(usize, String)>> {
+    let mut masked = content.as_bytes().to_vec();
+    for (a, b) in crate::notes::note_ranges(content) {
+        for byte in &mut masked[a..b] {
+            if *byte != b'\n' && *byte != b'\r' {
+                *byte = b' ';
+            }
+        }
+    }
+    let parsed = String::from_utf8(masked).expect("complete UTF-8 ranges masked with ASCII");
+    let mut excluded = Vec::new();
+    let mut code = false;
+    for (event, range) in Parser::new_ext(&parsed, Options::ENABLE_FOOTNOTES).into_offset_iter() {
+        match event {
+            Event::Start(Tag::CodeBlock(_)) => code = true,
+            Event::End(TagEnd::CodeBlock) => code = false,
+            Event::Code(_) | Event::Html(_) | Event::InlineHtml(_) => excluded.push(range),
+            _ if code => excluded.push(range),
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    let mut from = 0;
+    while let Some(rel) = parsed[from..].find("[[") {
+        let start = from + rel;
+        let escaped = parsed[..start]
+            .bytes()
+            .rev()
+            .take_while(|b| *b == b'\\')
+            .count()
+            % 2
+            == 1;
+        let Some(end_rel) = parsed[start + 2..].find("]]") else {
+            break;
+        };
+        let end = start + 2 + end_rel;
+        from = end + 2;
+        if escaped || excluded.iter().any(|r| r.start <= start && start < r.end) {
+            continue;
+        }
+        let inner = parsed[start + 2..end].trim();
+        let target = inner.split('|').next().unwrap_or("").trim();
+        if !target.is_empty()
+            && !target.contains('\n')
+            && !known_targets.contains(&target.to_lowercase())
+        {
+            ensure!(
+                out.len() < 512 && target.len() <= 4096,
+                "wiki-link review limit exceeded; no partial report"
+            );
+            let line = content[..start].bytes().filter(|&b| b == b'\n').count() + 1;
+            out.push((line, target.to_string()));
+        }
+    }
+    Ok(out)
 }
 
 fn editorial_lines(content: &str) -> BTreeSet<usize> {
@@ -297,6 +378,32 @@ mod tests {
         assert_eq!(report.errors_count(), 1); // missing footnote
         assert_eq!(report.warnings_count(), 1); // TK marker
         assert!(!report.is_clean());
+    }
+
+    #[test]
+    fn preflight_detects_unresolved_wiki_links() {
+        let scenes = vec![(
+            1,
+            "Chapter 1".into(),
+            "Mara met [[Wren]] at [[The Lost Harbor]].".into(),
+        )];
+        let targets = BTreeSet::from(["wren".to_string()]);
+        let report = run_preflight_with_targets(&scenes, None, None, Some(&targets)).unwrap();
+        assert_eq!(report.warnings_count(), 1);
+        assert!(report.issues[0].message.contains("The Lost Harbor"));
+    }
+
+    #[test]
+    fn wiki_review_ignores_code_private_and_escaped_links_and_refuses_partial_reports() {
+        let targets = BTreeSet::new();
+        let text = "λ [[Public]]\n\n`[[inline]]`\n\n```\n[[fenced]]\n```\n\n%% [[private]] %% \\[[escaped]]";
+        let scenes = vec![(1, "Scene".into(), text.into())];
+        let report = run_preflight_with_targets(&scenes, None, None, Some(&targets)).unwrap();
+        assert_eq!(report.issues.len(), 1);
+        assert_eq!(report.issues[0].line, Some(1));
+        assert!(report.issues[0].message.contains("Public"));
+        let many = vec![(1, "Scene".into(), "[[missing]] ".repeat(513))];
+        assert!(run_preflight_with_targets(&many, None, None, Some(&targets)).is_err());
     }
 
     #[test]

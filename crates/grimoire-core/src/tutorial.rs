@@ -45,6 +45,7 @@ pub enum Event {
     NabokovFindingReviewed,
     ProselintFindingReviewed,
     VoiceProfileCompared,
+    ContinuityReviewed,
     HistoryOpened,
     AnnotationReanchored,
     MarkdownExported,
@@ -252,7 +253,7 @@ mod tests {
             assert!(!l.instructions.is_empty());
         }
         let mut p = Progress::default();
-        assert!(p.start(31).is_err());
+        assert!(p.start(36).is_err());
         assert!(p.completed.is_empty());
     }
     #[test]

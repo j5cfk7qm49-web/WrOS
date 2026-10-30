@@ -65,7 +65,7 @@ fn main() -> Result<()> {
         eprintln!("WrOS input reader unavailable");
         std::process::exit(1);
     }
-    if first.as_deref() == Some("writingdeck") {
+    if matches!(first.as_deref(), Some("writingdeck" | "wros")) {
         return writingdeck_cli::command(args);
     }
 
@@ -143,7 +143,7 @@ fn main() -> Result<()> {
         println!("                              --parts 1,3");
         println!("  grimoire --version          which version, and who made it");
         println!(
-            "  grimoire writingdeck help   appliance status, safe demo and configuration checks"
+            "  grimoire wros help          WrOS appliance status, safe demo and local comparison (alias: writingdeck)"
         );
         println!("  grimoire music-setup <src>  connect music: youtube-music |");
         println!("                              spotify | jellyfin | plex");
@@ -658,6 +658,14 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
         };
 
         if let Event::Paste(text) = &ev {
+            if app.overlay == Overlay::Continuity {
+                app.paste_continuity(text);
+                continue;
+            }
+            if app.overlay == Overlay::Milestones {
+                app.paste_milestones(text);
+                continue;
+            }
             if app.overlay == Overlay::ReviewNotes {
                 app.paste_review_notes(text);
                 continue;
@@ -680,6 +688,8 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
                     | Overlay::Checks { .. }
                     | Overlay::Lexicon
                     | Overlay::ProseDashboard
+                    | Overlay::Continuity
+                    | Overlay::Milestones
                     | Overlay::ReviewNotes
                     | Overlay::Footnotes { .. }
                     | Overlay::FootnoteReader(_)
@@ -959,6 +969,8 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
                 | Overlay::Checks { .. }
                 | Overlay::Lexicon
                 | Overlay::ProseDashboard
+                | Overlay::Continuity
+                | Overlay::Milestones
                 | Overlay::ReviewNotes
                 | Overlay::Footnotes { .. }
                 | Overlay::FootnoteReader(_)
@@ -969,6 +981,12 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
         ) || (app.overlay == Overlay::None && app.focus == Focus::Pins))
         && !matches!(k.code, KeyCode::Char('s' | 'q' | 'k' | 'd'))
         && !(matches!(app.overlay, Overlay::PinCategory { .. }) && k.code == KeyCode::Char('v'))
+        && !(app.overlay == Overlay::Continuity
+            && app.continuity.typing()
+            && k.code == KeyCode::Char('v'))
+        && !(app.overlay == Overlay::Milestones
+            && app.milestones.typing()
+            && k.code == KeyCode::Char('v'))
         && !(app.overlay == Overlay::ReviewNotes
             && app.review_notes.typing()
             && k.code == KeyCode::Char('v'))
@@ -1019,6 +1037,8 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
                         | Overlay::Checks { .. }
                         | Overlay::Lexicon
                         | Overlay::ProseDashboard
+                        | Overlay::Continuity
+                        | Overlay::Milestones
                         | Overlay::ReviewNotes
                         | Overlay::Footnotes { .. }
                         | Overlay::FootnoteReader(_)

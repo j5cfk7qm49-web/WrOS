@@ -1,0 +1,55 @@
+# Continuity & draft milestones
+
+Open **Continuity tracker**, **Draft milestones**, or **Read chapter aloud**
+from the command palette (`Ctrl-K`) or **Writing tools**. All long-form
+tracking data lives in `.grimoire/writingdeck/` outside your Markdown scenes
+and never alters manuscript prose unless you explicitly restore a snapshot or
+scene variant.
+
+## Continuity tracker
+
+The continuity tracker records explicit, author-entered facts, ordered
+chronology events and plot threads without guessing or hallucinating conflicts
+from prose.
+
+- Press `1` for **Facts**, `2` for **Timeline**, `3` for **Plot Threads**, and
+  `4` or `c` for **Contradictions & Suggestions**.
+- Press `n` on Facts, Timeline or Threads to add a new record. Use `Tab` or
+  `Up`/`Down` to move between fields, `Left`/`Right` to cycle category,
+  certainty or thread status, and `Enter` to save.
+- A **Definite Conflict** requires two **Definite (Canon)** facts on the same
+  subject and property that share the same non-empty exclusive scope (for
+  example, `canon`). Unscoped or changing facts produce a **Suggested
+  Inconsistency** for review. Facts marked **Retconned / Obsolete** are
+  excluded from conflict checks.
+- Press `t` on a fact to cycle its certainty, or on a plot thread to cycle
+  between Open, Resolved and Abandoned. Press `d` to remove the selected item.
+
+## Draft milestones and scene variants
+
+Named **Draft milestones** snapshot every compiled manuscript scene across your
+book, while **Scene variants** store reversible alternative versions of the
+active scene (such as a different point of view or ending).
+
+- Press `1` for **Named Milestones** and `2` for **Active Scene Variants**.
+- Press `n` to create a named milestone or save the active scene as a named
+  variant.
+- Press `Enter` on any milestone or variant to inspect its word-count delta and
+  preview its text alongside your current scene.
+- Press `r` inside the comparison view to restore the snapshot or
+  variant into the active editor. Before replacing the buffer, Grimoire
+  saves the current wording as a recovery variant and in dated history. Failed
+  recovery/history writes, changed source or changed metadata refuse the restore.
+  `Ctrl-Z` undoes a successful restore in the original editor.
+
+The stores are bounded to 1 MiB each. When full, they refuse new snapshots;
+old versions are preserved. Prototype schema-1 data needs explicit migration;
+it is never rebound from old tree indices to current scenes.
+
+## Read chapter aloud
+
+Choose **Read chapter aloud** in the command palette or Writing tools to queue
+the current scene and following included scenes in the same chapter. During
+read-aloud, press `Space` to pause or resume, `Left`/`Right` to step by
+sentence, `m` to mark the highlighted sentence in **Revision notes**, or `n` to
+advance to the next queued scene.

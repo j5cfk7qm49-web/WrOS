@@ -360,6 +360,18 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "Original next-session prose and explicit saved manuscript context resume.",
             "handoff",
         ),
+        Action::Continuity => (
+            "Track explicit story facts, ordered timeline events and plot threads without hallucinating conflicts.",
+            "continuity",
+        ),
+        Action::Milestones => (
+            "Save named whole-book draft snapshots and reversible alternative scene versions.",
+            "continuity",
+        ),
+        Action::ReadChapterAloud => (
+            "Queue the open scene and following manuscript scenes for continuous offline read-aloud.",
+            "continuity",
+        ),
         Action::ReviewNotes => (
             "Passage-anchored local comments, guarded revision review and explicit re-anchoring",
             "review-notes",

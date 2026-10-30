@@ -86,6 +86,9 @@ pub enum Action {
     WritingChecks,
     Lexicon,
     ProseDashboard,
+    Continuity,
+    Milestones,
+    ReadChapterAloud,
     ReviewNotes,
     Scratchpad,
     Handoff,
@@ -444,6 +447,9 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
         Entry::new("Writing checks · local grammar", "", Action::WritingChecks),
         Entry::new("Dictionary and thesaurus", "", Action::Lexicon),
         Entry::new("Prose and revision dashboard", "", Action::ProseDashboard),
+        Entry::new("Continuity tracker", "", Action::Continuity),
+        Entry::new("Draft milestones", "", Action::Milestones),
+        Entry::new("Read chapter aloud", "", Action::ReadChapterAloud),
         Entry::new("Revision notes", "", Action::ReviewNotes),
     ]);
     // Every help topic, so "help sync" goes straight to it.

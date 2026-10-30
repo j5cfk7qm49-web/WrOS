@@ -1,6 +1,6 @@
 //! Bounded read-only views of maintained Debian services. None of these
 //! parsers infer successful authentication, backup, update or recovery.
-use crate::{LocalAccount, SavedWifi, StorageDevice, UpdateInfo, WifiNetwork};
+use crate::{LocalAccount, ResticSnapshot, SavedWifi, StorageDevice, UpdateInfo, WifiNetwork};
 use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 
@@ -212,6 +212,64 @@ pub fn updates(output: &str) -> Result<UpdateInfo> {
     })
 }
 
+pub fn restic_snapshots(output: &str) -> Result<Vec<ResticSnapshot>> {
+    ensure!(
+        output.len() <= 1_048_576,
+        "restic snapshot output exceeds limit"
+    );
+    #[derive(Deserialize)]
+    struct RawSnapshot {
+        short_id: Option<String>,
+        id: String,
+        time: String,
+        paths: Vec<String>,
+        hostname: String,
+    }
+    let parsed: Vec<RawSnapshot> =
+        serde_json::from_str(output).context("invalid restic snapshots JSON")?;
+    ensure!(parsed.len() <= 512, "restic snapshot list exceeds limit");
+    let mut out = Vec::new();
+    for item in parsed {
+        let snap_id = item.short_id.unwrap_or(item.id);
+        ensure!(
+            (8..=64).contains(&snap_id.len()) && snap_id.bytes().all(|b| b.is_ascii_hexdigit()),
+            "invalid restic snapshot ID"
+        );
+        label(&item.time)?;
+        label(&item.hostname)?;
+        ensure!(
+            !item.paths.is_empty() && item.paths.len() <= 64,
+            "invalid restic snapshot paths"
+        );
+        for p in &item.paths {
+            ensure!(p.starts_with('/'), "restic path must be absolute");
+            label(p)?;
+        }
+        out.push(ResticSnapshot {
+            id: snap_id,
+            time: item.time,
+            paths: item.paths,
+            hostname: item.hostname,
+        });
+    }
+    Ok(out)
+}
+
+pub fn validate_saved_wifi_uuid(uuid: &str) -> Result<()> {
+    ensure!(
+        uuid.len() == 36
+            && uuid.bytes().enumerate().all(|(i, c)| {
+                if matches!(i, 8 | 13 | 18 | 23) {
+                    c == b'-'
+                } else {
+                    c.is_ascii_hexdigit()
+                }
+            }),
+        "saved Wi-Fi profile operation requires an exact 36-char UUID"
+    );
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -275,5 +333,18 @@ mod tests {
                 .contains("up to date")
         );
         assert!(updates("").is_err());
+    }
+    #[test]
+    fn restic_json_and_wifi_uuid_validators_enforce_strict_identities() {
+        let json = r#"[{"id":"a8f3b9c100112233","short_id":"a8f3b9c1","time":"2026-10-29T12:00:00Z","paths":["/home/writer/novels"],"hostname":"wros-laptop"}]"#;
+        let snaps = restic_snapshots(json).unwrap();
+        assert_eq!(snaps.len(), 1);
+        assert_eq!(snaps[0].id, "a8f3b9c1");
+        assert!(
+            restic_snapshots(r#"[{"id":"not-hex","time":"now","paths":["/home"],"hostname":"h"}]"#)
+                .is_err()
+        );
+        assert!(validate_saved_wifi_uuid("00000000-0000-4000-8000-000000000001").is_ok());
+        assert!(validate_saved_wifi_uuid("ambiguous profile").is_err());
     }
 }

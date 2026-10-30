@@ -1,6 +1,6 @@
-//! Experimental author-entered facts, ordered events and plot threads.
-//! Definite conflicts require an explicit single-value context; no prose
-//! inference, character-knowledge service or editor UI is implemented.
+//! Author-entered continuity facts, ordered timeline events, character knowledge
+//! and plot threads. Definite conflicts require an explicit single-value context;
+//! changing or unscoped facts produce suggested inconsistencies only.
 use crate::statefile::{Store, Validate};
 use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
@@ -34,6 +34,11 @@ impl FactCategory {
             Self::Lore => "Lore & Rules",
         }
     }
+
+    pub fn next(self) -> Self {
+        let idx = Self::ALL.iter().position(|&c| c == self).unwrap_or(0);
+        Self::ALL[(idx + 1) % Self::ALL.len()]
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -45,6 +50,8 @@ pub enum Certainty {
 }
 
 impl Certainty {
+    pub const ALL: [Self; 4] = [Self::Definite, Self::Stated, Self::Rumor, Self::Retconned];
+
     pub fn label(self) -> &'static str {
         match self {
             Self::Definite => "Definite (Canon)",
@@ -52,6 +59,11 @@ impl Certainty {
             Self::Rumor => "Rumor / Unconfirmed",
             Self::Retconned => "Retconned / Obsolete",
         }
+    }
+
+    pub fn next(self) -> Self {
+        let idx = Self::ALL.iter().position(|&c| c == self).unwrap_or(0);
+        Self::ALL[(idx + 1) % Self::ALL.len()]
     }
 }
 
@@ -63,7 +75,7 @@ pub struct Fact {
     pub subject: String,
     pub property: String,
     pub value: String,
-    pub scene_id: Option<usize>,
+    pub scene_id: Option<u64>,
     pub scene_name: Option<String>,
     pub certainty: Certainty,
     /// Explicit author assertion that this property has one value in this
@@ -102,7 +114,7 @@ pub struct TimelineEvent {
     pub order: i32,
     pub title: String,
     pub story_date: String,
-    pub scene_id: Option<usize>,
+    pub scene_id: Option<u64>,
     pub participants: Vec<String>,
     pub description: String,
 }
@@ -115,12 +127,19 @@ pub enum ThreadStatus {
 }
 
 impl ThreadStatus {
+    pub const ALL: [Self; 3] = [Self::Open, Self::Resolved, Self::Abandoned];
+
     pub fn label(self) -> &'static str {
         match self {
             Self::Open => "Open",
             Self::Resolved => "Resolved",
             Self::Abandoned => "Abandoned",
         }
+    }
+
+    pub fn next(self) -> Self {
+        let idx = Self::ALL.iter().position(|&s| s == self).unwrap_or(0);
+        Self::ALL[(idx + 1) % Self::ALL.len()]
     }
 }
 
@@ -174,7 +193,7 @@ pub struct ContinuityStore {
 impl Default for ContinuityStore {
     fn default() -> Self {
         Self {
-            schema_version: 1,
+            schema_version: 2,
             next_id: 0,
             facts: Vec::new(),
             events: Vec::new(),
@@ -207,12 +226,22 @@ impl ContinuityStore {
         self.facts.len() < len_before
     }
 
+    pub fn cycle_fact_certainty(&mut self, id: u64) -> Result<Certainty> {
+        let fact = self
+            .facts
+            .iter_mut()
+            .find(|f| f.id == id)
+            .ok_or_else(|| anyhow::anyhow!("fact #{id} not found"))?;
+        fact.certainty = fact.certainty.next();
+        Ok(fact.certainty)
+    }
+
     pub fn add_event(
         &mut self,
         order: i32,
         title: impl Into<String>,
         story_date: impl Into<String>,
-        scene_id: Option<usize>,
+        scene_id: Option<u64>,
         participants: Vec<String>,
         description: impl Into<String>,
     ) -> Result<u64> {
@@ -262,6 +291,16 @@ impl ContinuityStore {
             notes: notes.into().trim().to_string(),
         });
         Ok(id)
+    }
+
+    pub fn cycle_thread_status(&mut self, id: u64) -> Result<ThreadStatus> {
+        let thread = self
+            .threads
+            .iter_mut()
+            .find(|t| t.id == id)
+            .ok_or_else(|| anyhow::anyhow!("plot thread #{id} not found"))?;
+        thread.status = thread.status.next();
+        Ok(thread.status)
     }
 
     pub fn remove_thread(&mut self, id: u64) -> bool {
@@ -332,6 +371,10 @@ impl ContinuityStore {
                             b.certainty.label()
                         );
 
+                        ensure!(
+                            contradictions.len() < 512,
+                            "continuity conflict limit reached; no partial report"
+                        );
                         contradictions.push(Contradiction {
                             severity,
                             subject: a.subject.clone(),
@@ -353,8 +396,12 @@ impl ContinuityStore {
 
 impl Validate for ContinuityStore {
     fn validate(&self) -> Result<()> {
+        ensure!(
+            self.schema_version == 2,
+            "prototype scene identities require explicit migration; original preserved"
+        );
         crate::story_state::identities(
-            self.schema_version,
+            1,
             self.next_id,
             self.facts
                 .iter()
