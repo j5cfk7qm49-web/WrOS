@@ -234,8 +234,8 @@
     "id": 34,
     "title": "Footnotes",
     "help_topic": "notes",
-    "event": null,
-    "instructions": "Place the caret on a public Markdown footnote reference or inside its definition, then choose Read footnote at caret in Ctrl-K. Read below your original writing; Up/Down and Page Up/Page Down scroll, Home/End reach the start/end, Left/Right chooses a reference, r selects it and d opens the original definition for normal editing and Undo. The navigator also offers v for this reader. Genuine DOCX/PDF page-footnote rendering and its verified exercise remain planned; this lesson cannot complete yet."
+    "event": "ManuscriptFootnotesExported",
+    "instructions": "In the safe demo, write a public Markdown reference such as Key[^key] and a separate definition paragraph [^key]: Your own note. Save normally. Read footnote at caret in Ctrl-K lets you inspect and edit the original definition. Open Export for readers, untick EPUB and Paperback, and tick PDF. Word is included with PDF. Press p to review the selected source, Esc to return, then x to export. Only a successfully written manuscript Word file containing real notes followed by its completed nonempty PDF earns this exercise. Viewing notes, Word alone, unavailable LibreOffice, or a failed export cannot complete it. EPUB/paperback page notes remain unavailable; no external resource is fetched."
   },
   {
     "id": 35,

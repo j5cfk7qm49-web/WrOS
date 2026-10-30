@@ -479,17 +479,17 @@
       "area": "Publishing",
       "capability": "PDF through optional headless LibreOffice",
       "status": "Existing",
-      "verification": "Existing conversion path; external-engine tests conditional",
+      "verification": "Existing conversion plus mandatory real manuscript-note page fixtures in Debian CI",
       "hardware_verified": false,
-      "detail": "LibreOffice not in minimal image; no page-footnote certification"
+      "detail": "LibreOffice remains optional at runtime and is not in the minimal image; build/CI dependencies do not refresh it"
     },
     {
       "area": "Publishing",
       "capability": "Contextual Markdown footnotes + genuine DOCX/PDF bottom-page output",
-      "status": "Planned",
-      "verification": "None",
+      "status": "Tested",
+      "verification": "Full Debian suite; actual LibreOffice/Poppler pagination and four-size compiled TUI export/lesson/Undo/restart",
       "hardware_verified": false,
-      "detail": "OOXML relationships/pagination fixtures required"
+      "detail": "Bounded manuscript paragraphs, repeated/multiparagraph/long notes; original bytes/Undo retained. EPUB/paperback and unsupported structures remain guarded"
     },
     {
       "area": "Publishing",
@@ -535,9 +535,9 @@
       "area": "Tutorial",
       "capability": "39-lesson catalog, safe demo, replay/skip/progress, help links",
       "status": "Tested",
-      "verification": "Core + actual editor/UI tests",
+      "verification": "Core + actual editor/UI tests; lesson 34 actual output and restart verified in full Debian suite",
       "hardware_verified": false,
-      "detail": "Original 39 IDs plus supplemental 40 retained; 33 event-capable / 7 unavailable. Historic spelling 26 remains distinct from real grammar 40; dictionary/prose/voice require actual review/comparison events."
+      "detail": "Original 39 IDs plus supplemental 40 retained; 37 event-capable / 3 unavailable. Lesson 34 requires real Word notes and completed PDF in safe demo; historic progress preserved"
     },
     {
       "area": "Tutorial",

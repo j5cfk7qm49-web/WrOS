@@ -1,0 +1,30 @@
+┌ WRITINGDECK TUTORIAL ──────┐┌ Chapter One / The Brass Key ───────────────────────────────────────┐
+│  Novel Format              ││  Added λ Intro[^a].                                                │
+│▾ Manuscript             10 ││                                                                    │
+│  ▾ Chapter One          10 ││  [^a]: A *café* note. %% PRIVATE_MANUSCRIPT %%                     │
+│      The Brass Key       7 ││                                                                    │
+│      The┌ EXPORT FOR READERS ──────────────────────────────────────────────────────────┐         │
+│▾ Charact│ ✓ exports/WritingDeck-Tutorial_Manuscript.docx  4 KB                         │         │
+│▾ Places │ ✓ exports/WritingDeck-Tutorial_Manuscript.pdf  27 KB                         │         │
+│▾ Front M│                                                                              │         │
+│  ▸ Manus│ 1 chapter · 10 words · 3 manuscript pages                                    │         │
+│  ▸ Paper│                                                                              │         │
+│  ▸ Ebook│                                                                              │         │
+│▾ Back Ma│                                                                              │         │
+│  ▸ Paper│                                                                              │         │
+│  ▸ Ebook│                                                                              │         │
+│▾ Notes  │                                                                              │         │
+│    Pin P│                                                                              │         │
+└ n scene │                                                                              │         │
+┌ F2 timer│                                                                              │         │
+│         │                                                                              │         │
+│         │                                                                              │         │
+│         │                                                                              │         │
+│    ˇ ˇ  │                                                                              │         │
+│         │ any key closes                                                               │         │
+│         └──────────────────────────────────────────────────────────────────────────────┘         │
+│          ▁▂▃▃▂▁▁▁█▪█▁▁     ││                                                                    │
+│  ▁▁▂▃▄▅▆▇▇▇▇▇▇▇▇▇▇▇▇▇▇▆▄▂▁ ││                                                                    │
+│▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔││                                                                    │
+└──◂ pomodoro visualizer ▸───┘└────────────────────────────────────────────────────────────────────┘
+ 10 / 80,000 ░░░░░░░░░░  today 1  ✓ saved  PDF ready: exports/WritingDeck-Tutorial_Manuscript.pdf

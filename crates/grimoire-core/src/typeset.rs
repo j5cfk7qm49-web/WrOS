@@ -59,13 +59,20 @@ fn opens_after(c: Option<char>) -> bool {
 
 /// `line` with book typography. Borrowed when there's nothing to change.
 pub fn line(text: &str, hyphen: SpacedHyphen) -> Cow<'_, str> {
+    line_after(text, hyphen, None)
+}
+
+/// Typeset a displayed text run after its previous visible character, retaining
+/// quote direction across Markdown emphasis/code boundaries. Syntax and link
+/// targets must be parsed separately, never passed through this formatter.
+pub fn line_after(text: &str, hyphen: SpacedHyphen, previous: Option<char>) -> Cow<'_, str> {
     if !text.chars().any(|c| matches!(c, '"' | '\'' | '-' | '.')) {
         return Cow::Borrowed(text);
     }
     let chars: Vec<char> = text.chars().collect();
     let mut out = String::with_capacity(text.len() + 8);
     // The last character written that wasn't a Markdown mark.
-    let prev_real = |out: &String| out.chars().rev().find(|&c| !is_mark(c));
+    let prev_real = |out: &String| out.chars().rev().find(|&c| !is_mark(c)).or(previous);
     let next_real = |from: usize| chars[from..].iter().copied().find(|&c| !is_mark(c));
 
     let mut i = 0;

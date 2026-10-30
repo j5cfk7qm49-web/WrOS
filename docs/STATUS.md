@@ -1,5 +1,16 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Manuscript page footnotes (2026-10-30)
+
+[Manuscript Word/PDF notes](MANUSCRIPT_FOOTNOTES.md) now have real OOXML parts
+and page-bottom rendering through the existing LibreOffice adapter. Focused
+package/refusal, actual PDF pagination and four-size terminal checks passed.
+Lesson 34 requires the actual completed Word/PDF workflow. The
+[independent Debian run](evidence/manuscript-footnotes-local.json) passed
+1060 Rust tests per configuration, 180 Python tests with zero skips, both Clippys and 21 gates. EPUB/paperback notes and wider M9 preflight,
+backup/sync, installation and physical qualification remain open. Historical
+footnote limitations below describe their earlier checkpoints.
+
 ## Reviewed Argon writing integration (2026-10-30)
 
 The remote `development` branch was synchronized before reviewing the supplied

@@ -23,7 +23,9 @@ When the book is ready to send, *Export…* in the menu (*Export for readers* in
   markers and empty-source notices. `↑`/`↓`, Page Up/Down and Home/End scroll;
   `Esc` returns to the same export settings. Reopen the review to refresh it.
   It also reports when the current rich-format selection is blocked by the
-  existing footnote-export guard; Markdown-only export preserves the syntax.
+  EPUB/paperback footnote-export guard; choose only manuscript Word/PDF for
+  supported notes, or Markdown to preserve the syntax. Word/PDF validates
+  renderable note structure when exporting; this review does not render pages.
   It does not write export files or check links, continuity, revision notes,
   rendered pages or externally changed files. It inspects at most 512 scenes,
   16 MiB total, 2 MiB and 8,192 footnote markers per scene, and 512 findings; an exceeded limit

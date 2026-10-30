@@ -43,6 +43,8 @@ use crate::submission::{
 };
 use crate::typeset;
 
+mod docx_footnotes;
+
 /// Roughly how much of a novel fits on one double-spaced manuscript page.
 const WORDS_PER_PAGE: usize = 250;
 
@@ -149,6 +151,8 @@ pub struct Exported {
     /// Anything else worth saying about what was (or wasn't) written, e.g.
     /// that the paperback's PDF needs LibreOffice.
     pub notes: Vec<String>,
+    /// Actual page-note references serialized into the manuscript Word file.
+    pub manuscript_footnotes: usize,
     /// With `paperback_pdf` off: the paperback's LibreOffice document and
     /// where its PDF belongs, for the caller to hand to
     /// [`crate::export_print::to_pdf`].
@@ -241,11 +245,13 @@ pub fn preflight(p: &Project, opts: &ExportOptions) -> Result<ExportPreflight> {
     })
 }
 
-/// The selected content that still uses Markdown footnotes. The reader-format
-/// exporters currently treat their syntax as ordinary text rather than true
-/// Word/PDF page footnotes or accessible EPUB notes. Inspect the *compiled*
+/// The selected content that still uses Markdown footnotes in the unfinished
+/// EPUB/paperback paths. Inspect the *compiled*
 /// scope, never unrelated notes, skipped scenes or unselected chapters.
 fn unsupported_footnote_locations(p: &Project, b: &Book<'_>, opts: &ExportOptions) -> Vec<String> {
+    if !opts.epub && !opts.paperback {
+        return Vec::new();
+    }
     let mut locations = Vec::new();
     let mut inspect = |where_: &str, text: &str| {
         let analysis = crate::footnotes::analyze_footnotes(text);
@@ -268,11 +274,6 @@ fn unsupported_footnote_locations(p: &Project, b: &Book<'_>, opts: &ExportOption
 
     // Front/back matter is edition-specific; scanning every source file would
     // incorrectly block an export over a different selection or edition.
-    if opts.docx || opts.pdf {
-        for text in &b.front {
-            inspect("manuscript front matter", text);
-        }
-    }
     for (enabled, edition, label) in [
         (opts.epub, Edition::Ebook, "EPUB"),
         (opts.paperback, Edition::Paperback, "paperback"),
@@ -302,17 +303,24 @@ pub fn export(p: &Project, opts: &ExportOptions) -> Result<Exported> {
     if book.pieces.is_empty() {
         bail!("there's nothing written to export yet");
     }
-    // Rich footnotes still require actual package and rendering integration.
-    // Keep the existing refusal until those outputs are verified.
+    // EPUB/paperback notes still need their own package/rendering integration.
     if opts.docx || opts.pdf || opts.epub || opts.paperback {
         let affected = unsupported_footnote_locations(p, &book, opts);
         if let Some(first) = affected.first() {
             bail!(
-                "footnotes in {first} ({} affected section(s)): Word/PDF/EPUB/paperback footnote rendering is not implemented; choose Markdown only to preserve footnotes. No export files were changed.",
+                "footnotes in {first} ({} affected section(s)): EPUB/paperback footnote rendering is not implemented; choose Markdown only, or Word/PDF without EPUB/paperback. No export files were changed.",
                 affected.len()
             );
         }
     }
+    // Validate/serialize Word before creating any output, including companion
+    // formats. Invalid or unsupported note structures cannot publish a partial
+    // export which looks complete.
+    let manuscript_docx = if opts.docx || opts.pdf {
+        Some(docx(&book)?)
+    } else {
+        None
+    };
     let dir = p.root.join("exports");
     std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
     let stem = slug(book.title);
@@ -327,7 +335,10 @@ pub fn export(p: &Project, opts: &ExportOptions) -> Result<Exported> {
     };
     let mut pdf_error = None;
     if opts.docx || opts.pdf {
-        let docx_path = put(&format!("{manuscript}.docx"), &docx(&book)?)?;
+        let docx_path = put(
+            &format!("{manuscript}.docx"),
+            &manuscript_docx.as_ref().expect("Word edition prepared").0,
+        )?;
         if opts.pdf {
             match crate::pdf::find() {
                 None => pdf_error = Some(crate::pdf::HOW_TO_GET.to_string()),
@@ -397,6 +408,7 @@ pub fn export(p: &Project, opts: &ExportOptions) -> Result<Exported> {
         empty: book.empty,
         pdf_error,
         notes,
+        manuscript_footnotes: manuscript_docx.as_ref().map_or(0, |(_, count)| *count),
         paperback_document,
     })
 }
@@ -586,13 +598,26 @@ pub(crate) fn find_cover(p: &Project) -> Option<(&'static str, Vec<u8>)> {
 }
 
 /// A scene's text as it goes into the book: `%% notes %%` out, TKs kept
-/// (see [`Book::tks`]), trimmed, and book typography done.
+/// (see [`Book::tks`]), trimmed, and book typography done. Footnoted source
+/// retains its syntax until the Word adapter typesets parsed text runs.
 pub(crate) fn prose(body: &str, hyphen: typeset::SpacedHyphen) -> Cow<'_, str> {
     let noted = notes::strip_notes(body);
     let trimmed: Cow<'_, str> = match noted {
         Cow::Borrowed(b) => Cow::Borrowed(b.trim()),
         Cow::Owned(o) => Cow::Owned(o.trim().to_string()),
     };
+    // Footnote labels, link targets and table delimiters must reach the
+    // Markdown parser intact. The Word adapter typesets parsed prose runs;
+    // Markdown preserves this source and other rich formats remain guarded.
+    if trimmed.contains("[^") {
+        if trimmed.len() > 2 * 1024 * 1024 {
+            return trimmed; // The bounded Word adapter will refuse it.
+        }
+        let notes = crate::footnotes::analyze_footnotes(&trimmed);
+        if !notes.references.is_empty() || !notes.definitions.is_empty() {
+            return trimmed;
+        }
+    }
     let typeset = match typeset::body(&trimmed, hyphen, is_break) {
         Cow::Owned(o) => Some(o),
         Cow::Borrowed(_) => None,
@@ -1452,6 +1477,7 @@ struct Look {
     font: &'static str,
     /// Classic: italics become underlines, typography back to typewriter.
     classic: bool,
+    hyphen: typeset::SpacedHyphen,
     width: u32,
     height: u32,
     margin: u32,
@@ -1493,6 +1519,7 @@ impl Look {
                 Format::Classic => "Courier New",
             },
             classic: m.format == Format::Classic,
+            hyphen: m.spaced_hyphen,
             width,
             height,
             margin: 1440,
@@ -1622,7 +1649,18 @@ fn docx_runs(text: &str, look: &Look) -> String {
 
 /// A body's blocks. `first` is whether the next paragraph opens a chapter or
 /// follows a break, for the flush-first-paragraph setting.
-fn docx_blocks(body: &str, front: bool, look: &Look, first: &mut bool, out: &mut Vec<Para>) {
+fn docx_blocks(
+    body: &str,
+    front: bool,
+    look: &Look,
+    first: &mut bool,
+    out: &mut Vec<Para>,
+    footnotes: &mut docx_footnotes::Footnotes,
+) -> Result<()> {
+    if let Some(paragraphs) = footnotes.scene(body, front, look, first)? {
+        out.extend(paragraphs);
+        return Ok(());
+    }
     for block in blocks(body) {
         let para = match block {
             Block::Para(t) => {
@@ -1649,6 +1687,7 @@ fn docx_blocks(body: &str, front: bool, look: &Look, first: &mut bool, out: &mut
         };
         out.push(para);
     }
+    Ok(())
 }
 
 /// Title case as typed for the modern format; capitals for the classic
@@ -1661,8 +1700,9 @@ fn title_line(b: &Book, look: &Look) -> String {
     }
 }
 
-fn docx(b: &Book) -> Result<Vec<u8>> {
+fn docx(b: &Book) -> Result<(Vec<u8>, usize)> {
     let look = Look::of(b.look);
+    let mut footnotes = docx_footnotes::Footnotes::default();
     // Section one: the title page, or the author's own front matter. No
     // running header here.
     let count = format!("about {} words", commas(rounded_words(b.total)));
@@ -1724,7 +1764,7 @@ fn docx(b: &Book) -> Result<Vec<u8>> {
         for (i, f) in b.front.iter().enumerate() {
             let start = opening.len();
             let mut first = false;
-            docx_blocks(f, true, &look, &mut first, &mut opening);
+            docx_blocks(f, true, &look, &mut first, &mut opening, &mut footnotes)?;
             if i > 0 && start < opening.len() {
                 opening[start].page_break = true;
             }
@@ -1776,7 +1816,7 @@ fn docx(b: &Book) -> Result<Vec<u8>> {
                         body.push(Para::new("SceneBreak", docx_text("#")));
                         first = true;
                     }
-                    docx_blocks(s, false, &look, &mut first, &mut body);
+                    docx_blocks(s, false, &look, &mut first, &mut body, &mut footnotes)?;
                 }
                 if start > 0 && new_page {
                     body[start].page_break = true;
@@ -1786,7 +1826,7 @@ fn docx(b: &Book) -> Result<Vec<u8>> {
             Piece::Scene(s) => {
                 under_part = false;
                 let mut first = false;
-                docx_blocks(s, false, &look, &mut first, &mut body);
+                docx_blocks(s, false, &look, &mut first, &mut body, &mut footnotes)?;
             }
         }
         // A part opens a new page; the first thing in the section already is.
@@ -1850,9 +1890,21 @@ fn docx(b: &Book) -> Result<Vec<u8>> {
         ("word/settings.xml", DOCX_SETTINGS.to_string()),
         ("word/header1.xml", header),
     ];
-    let entries: Vec<(String, String)> =
+    let mut entries: Vec<(String, String)> =
         files.into_iter().map(|(n, t)| (n.to_string(), t)).collect();
-    pack(&entries)
+    if !footnotes.is_empty() {
+        for (name, xml) in &mut entries {
+            match name.as_str() {
+                "[Content_Types].xml" => *xml=xml.replace("</Types>","<Override PartName=\"/word/footnotes.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml\"/></Types>"),
+                "word/_rels/document.xml.rels" => *xml=xml.replace("</Relationships>","<Relationship Id=\"rIdFootnotes\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes\" Target=\"footnotes.xml\"/></Relationships>"),
+                "word/settings.xml" => *xml=xml.replace("<w:compat>","<w:footnotePr><w:pos w:val=\"pageBottom\"/><w:footnote w:id=\"-1\"/><w:footnote w:id=\"0\"/></w:footnotePr><w:compat>"),
+                "word/styles.xml" => *xml=xml.replace("</w:styles>",&format!("<w:style w:type=\"paragraph\" w:styleId=\"FootnoteText\"><w:name w:val=\"Footnote Text\"/><w:basedOn w:val=\"Normal\"/><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/><w:ind w:left=\"0\" w:right=\"0\" w:firstLine=\"0\"/></w:pPr><w:rPr><w:rFonts w:ascii=\"{}\" w:hAnsi=\"{}\"/><w:sz w:val=\"20\"/><w:szCs w:val=\"20\"/></w:rPr></w:style><w:style w:type=\"character\" w:styleId=\"FootnoteReference\"><w:name w:val=\"Footnote Reference\"/><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr></w:style></w:styles>",look.font,look.font)),
+                _=>{}
+            }
+        }
+        entries.push(("word/footnotes.xml".into(), footnotes.xml()));
+    }
+    Ok((pack(&entries)?, footnotes.len()))
 }
 
 const DOCX_CONTENT_TYPES: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
@@ -2724,7 +2776,10 @@ mod tests {
             ..all_options()
         };
         let review = preflight(&p, &opts).unwrap();
-        assert!(!review.unsupported_footnotes.is_empty());
+        assert!(
+            review.unsupported_footnotes.is_empty(),
+            "Word/PDF note structure is validated before writing, not blocked wholesale"
+        );
         let report = review.report;
         assert_eq!(report.errors_count(), 1);
         assert_eq!(report.warnings_count(), 0);
@@ -2838,6 +2893,208 @@ mod tests {
         fs::remove_dir_all(&d).unwrap();
     }
 
+    fn word_options() -> ExportOptions {
+        ExportOptions {
+            docx: true,
+            epub: false,
+            markdown: false,
+            ..all_options()
+        }
+    }
+
+    #[test]
+    fn manuscript_docx_footnotes_are_real_related_parts_with_unique_references_and_public_content()
+    {
+        let d = book_dir("word-footnotes");
+        let scene = "manuscript/01-Act-One/01-Chapter-One/01-Scene-One.md";
+        let source = "---\ncustom: λ original\n---\n\nA \"*café[^a--b] remains italic*\" and cites it again[^a--b]. `[^code]` \\[^escaped]. `\"quoted -- code\"`\n\n#\n\nLater prose.\n\n[^a--b]: Public **bold** note. %% PRIVATE_SECRET %%\n\n    Second paragraph with [the source](https://example.invalid/reference--two).\n";
+        put(&d, scene, source);
+        put(
+            &d,
+            "manuscript/01-Act-One/01-Chapter-One/02-Scene-Two.md",
+            "Another scene[^a--b].\n\n[^a--b]: Independent second-scene definition.\n",
+        );
+        let p = Project::load(&d).unwrap();
+        let out = export(&p, &word_options()).unwrap();
+        assert_eq!(out.files.len(), 1);
+        assert_eq!(out.manuscript_footnotes, 3);
+        let files = unzip(&fs::read(&out.files[0]).unwrap());
+        let document = xml_doc(entry(&files, "word/document.xml")).unwrap();
+        let ids: Vec<_> = document
+            .descendants()
+            .filter(|n| n.has_tag_name((W, "footnoteReference")))
+            .map(|n| n.attribute((W, "id")).unwrap())
+            .collect();
+        assert_eq!(ids, vec!["1", "2", "3"]);
+        let notes = xml_doc(entry(&files, "word/footnotes.xml")).unwrap();
+        let rendered: Vec<_> = notes
+            .descendants()
+            .filter(|n| n.has_tag_name((W, "footnote")) && n.attribute((W, "type")).is_none())
+            .collect();
+        assert_eq!(rendered.len(), 3);
+        for (note, id) in rendered.iter().zip(&ids) {
+            assert_eq!(note.attribute((W, "id")), Some(*id));
+            assert_eq!(
+                note.descendants()
+                    .filter(|n| n.has_tag_name((W, "footnoteRef")))
+                    .count(),
+                1
+            );
+        }
+        assert!(
+            rendered[0]
+                .children()
+                .filter(|n| n.has_tag_name((W, "p")))
+                .count()
+                >= 2
+        );
+        assert!(rendered[0].descendants().any(|n| n.has_tag_name((W, "b"))));
+        let main = entry(&files, "word/document.xml");
+        let foot = entry(&files, "word/footnotes.xml");
+        assert!(!main.contains("Public") && !main.contains("Independent second-scene definition"));
+        let visible = document
+            .descendants()
+            .filter(|n| n.has_tag_name((W, "t")))
+            .filter_map(|n| n.text())
+            .collect::<String>();
+        assert!(
+            visible.contains("[^code]") && visible.contains("[^escaped]"),
+            "{visible}"
+        );
+        assert!(visible.contains("A “café remains italic”"), "{visible}");
+        assert!(visible.contains("\"quoted -- code\""), "{visible}");
+        for text in ["café", " remains italic"] {
+            assert!(
+                document
+                    .descendants()
+                    .filter(|n| n.has_tag_name((W, "r")))
+                    .any(|r| r
+                        .descendants()
+                        .any(|n| n.has_tag_name((W, "t"))
+                            && n.text().is_some_and(|t| t.contains(text)))
+                        && r.descendants().any(|n| n.has_tag_name((W, "i")))),
+                "emphasis must survive around a reference: {text}"
+            );
+        }
+        assert!(main.contains("SceneBreak"));
+        assert!(foot.contains("https://example.invalid/reference--two"));
+        assert!(!foot.contains("PRIVATE_SECRET") && !main.contains("PRIVATE_SECRET"));
+        assert!(entry(&files, "word/_rels/document.xml.rels").contains("relationships/footnotes"));
+        assert!(entry(&files, "[Content_Types].xml").contains("wordprocessingml.footnotes+xml"));
+        assert!(entry(&files, "word/settings.xml").contains("pageBottom"));
+        assert!(entry(&files, "word/styles.xml").contains("FootnoteReference"));
+        let md = export(
+            &p,
+            &ExportOptions {
+                docx: false,
+                markdown: true,
+                ..word_options()
+            },
+        )
+        .unwrap();
+        let md = fs::read_to_string(&md.files[0]).unwrap();
+        assert!(md.contains("\"*café[^a--b] remains italic*\""));
+        assert!(md.contains("https://example.invalid/reference--two"));
+        assert!(md.contains("`\"quoted -- code\"`"));
+        assert_eq!(fs::read_to_string(d.join(scene)).unwrap(), source);
+        fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn manuscript_footnotes_refuse_unrenderable_source_before_any_companion_files_change() {
+        for (tag, source) in [
+            ("missing", "Claim[^a].\n"),
+            ("duplicate", "Claim[^a].\n\n[^a]: First.\n\n[^A]: Second.\n"),
+            ("unused", "Public prose.\n\n[^a]: Uncited source.\n"),
+            (
+                "nested",
+                "Claim[^a].\n\n[^a]: Other[^b].\n\n[^b]: Nested note.\n",
+            ),
+            (
+                "image",
+                "Claim[^a]. ![picture](https://example.invalid/never-fetch.png)\n\n[^a]: Context.\n",
+            ),
+            (
+                "list",
+                "Claim[^a].\n\n[^a]:\n    - First item\n    - Second item\n",
+            ),
+            (
+                "table",
+                "Claim[^a].\n\n| Name | Value |\n| --- | --- |\n| Key | Brass |\n\n[^a]: Context.\n",
+            ),
+        ] {
+            let d = book_dir(&format!("word-footnote-refusal-{tag}"));
+            put(
+                &d,
+                "manuscript/01-Act-One/01-Chapter-One/01-Scene-One.md",
+                source,
+            );
+            let p = Project::load(&d).unwrap();
+            assert!(
+                export(
+                    &p,
+                    &ExportOptions {
+                        markdown: true,
+                        ..word_options()
+                    }
+                )
+                .is_err(),
+                "{tag}"
+            );
+            assert!(
+                !d.join("exports").exists(),
+                "{tag}: refuse before making an output directory"
+            );
+            fs::remove_dir_all(&d).unwrap();
+        }
+    }
+
+    #[test]
+    fn manuscript_footnote_limits_preserve_previous_outputs() {
+        for (tag, source, reason) in [
+            (
+                "large-scene",
+                format!("{}[^a].\n\n[^a]: Context.\n", "x".repeat(2 * 1024 * 1024)),
+                "2 MiB",
+            ),
+            (
+                "large-definition",
+                format!("Claim[^a].\n\n[^a]: {}\n", "x".repeat(64 * 1024 + 1)),
+                "64 KiB",
+            ),
+            (
+                "many-notes",
+                format!("{}\n\n[^a]: Context.\n", "Claim[^a]. ".repeat(4097)),
+                "4096",
+            ),
+        ] {
+            let d = book_dir(&format!("word-footnote-limit-{tag}"));
+            put(
+                &d,
+                "manuscript/01-Act-One/01-Chapter-One/01-Scene-One.md",
+                &source,
+            );
+            put(&d, "exports/previous.md", "Previous original export.\n");
+            let p = Project::load(&d).unwrap();
+            let error = export(
+                &p,
+                &ExportOptions {
+                    markdown: true,
+                    ..word_options()
+                },
+            )
+            .unwrap_err()
+            .to_string();
+            assert!(error.contains(reason), "{tag}: {error}");
+            assert_eq!(
+                fs::read_to_string(d.join("exports/previous.md")).unwrap(),
+                "Previous original export.\n"
+            );
+            assert_eq!(fs::read_dir(d.join("exports")).unwrap().count(), 1);
+            fs::remove_dir_all(d).unwrap();
+        }
+    }
+
     #[test]
     fn footnote_export_guard_follows_compiled_scope_and_ignores_code_and_private_notes() {
         let d = book_dir("footnote-scope-guard");
@@ -2882,9 +3139,10 @@ mod tests {
             markdown: false,
             ..all_options()
         };
-        let error = export(&p, &opts).unwrap_err().to_string();
-        assert!(error.contains("front matter"), "{error}");
-        assert!(!d.join("exports").exists());
+        let out = export(&p, &opts).unwrap();
+        let files = unzip(&fs::read(&out.files[0]).unwrap());
+        assert!(entry(&files, "word/footnotes.xml").contains("Context."));
+        assert!(entry(&files, "word/document.xml").contains("footnoteReference"));
         fs::remove_dir_all(&d).unwrap();
     }
 
@@ -3392,7 +3650,7 @@ mod tests {
         let b = book(&p, None, Scope::Whole).unwrap();
         assert_eq!(b.front.len(), 2);
 
-        let files = unzip(&docx(&b).unwrap());
+        let files = unzip(&docx(&b).unwrap().0);
         let paras = docx_paragraphs(entry(&files, "word/document.xml"));
         assert!(
             !paras.iter().any(|(s, _)| s == "Title"),
