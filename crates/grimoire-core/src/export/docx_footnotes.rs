@@ -49,7 +49,9 @@ impl Footnotes {
         let mut definitions: HashMap<String, Vec<Event<'_>>> = HashMap::new();
         let mut body = Vec::new();
         let mut capture: Option<(String, Vec<Event<'_>>)> = None;
-        for event in Parser::new_ext(&public, Options::ENABLE_FOOTNOTES) {
+        // Recognize tables so the unsupported-structure branch refuses them
+        // rather than emitting pipe-delimited text as a successful layout.
+        for event in Parser::new_ext(&public, Options::ENABLE_FOOTNOTES | Options::ENABLE_TABLES) {
             match event {
                 Event::Start(Tag::FootnoteDefinition(label)) => {
                     ensure!(
@@ -101,6 +103,7 @@ impl Footnotes {
         let mut heading_level = 1usize;
         let mut code = false;
         let mut links = Vec::new();
+        let mut previous = None;
         let flush = |current: &mut Option<Para>, out: &mut Vec<Para>| {
             if let Some(p) = current.take() {
                 out.push(p);
@@ -110,12 +113,14 @@ impl Footnotes {
             match event {
                 Event::Start(Tag::Paragraph) => {
                     flush(&mut current, &mut out);
+                    previous = None;
                 }
                 Event::End(TagEnd::Paragraph) => {
                     flush(&mut current, &mut out);
                 }
                 Event::Start(Tag::Heading { level, .. }) => {
                     flush(&mut current, &mut out);
+                    previous = None;
                     heading = true;
                     heading_level = *level as usize;
                     *first = true;
@@ -147,6 +152,7 @@ impl Footnotes {
                 }
                 Event::Start(Tag::CodeBlock(_)) => {
                     flush(&mut current, &mut out);
+                    previous = None;
                     code = true;
                 }
                 Event::End(TagEnd::CodeBlock) => {
@@ -170,6 +176,8 @@ impl Footnotes {
                             strong > 0,
                             emphasis > 0,
                             false,
+                            &mut previous,
+                            true,
                         ));
                     }
                 }
@@ -181,18 +189,32 @@ impl Footnotes {
                         strong > 0 || (note && heading),
                         emphasis > 0,
                         code || matches!(event, Event::Code(_)),
+                        &mut previous,
+                        code || matches!(event, Event::Code(_)),
                     ));
                 }
-                Event::SoftBreak if !note => flush(&mut current, &mut out),
+                Event::SoftBreak if !note => {
+                    flush(&mut current, &mut out);
+                    previous = None;
+                }
                 Event::SoftBreak => {
                     paragraph(&mut current, note, front, heading, quote, look, first)
                         .runs
-                        .push_str(&run(" ", look, strong > 0, emphasis > 0, false));
+                        .push_str(&run(
+                            " ",
+                            look,
+                            strong > 0,
+                            emphasis > 0,
+                            false,
+                            &mut previous,
+                            false,
+                        ));
                 }
                 Event::HardBreak => {
                     paragraph(&mut current, note, front, heading, quote, look, first)
                         .runs
                         .push_str("<w:r><w:br/></w:r>");
+                    previous = None;
                 }
                 Event::Rule => {
                     flush(&mut current, &mut out);
@@ -201,6 +223,7 @@ impl Footnotes {
                         docx_text("#"),
                     ));
                     *first = true;
+                    previous = None;
                 }
                 Event::FootnoteReference(label) => {
                     ensure!(
@@ -299,7 +322,26 @@ fn paragraph<'a>(
         Para::new(style, String::new())
     })
 }
-fn run(text: &str, look: &Look, bold: bool, italic: bool, code: bool) -> String {
+fn run(
+    text: &str,
+    look: &Look,
+    bold: bool,
+    italic: bool,
+    code: bool,
+    previous: &mut Option<char>,
+    literal: bool,
+) -> String {
+    let typeset = if literal {
+        Cow::Borrowed(text)
+    } else {
+        typeset::line_after(text, look.hyphen, *previous)
+    };
+    let displayed = if literal {
+        typeset
+    } else {
+        Cow::Owned(look.text(&typeset).into_owned())
+    };
+    *previous = displayed.chars().last().or(*previous);
     let mut out = String::from("<w:r><w:rPr>");
     if bold {
         out.push_str("<w:b/>");
@@ -315,14 +357,14 @@ fn run(text: &str, look: &Look, bold: bool, italic: bool, code: bool) -> String 
         out.push_str("<w:rFonts w:ascii=\"Courier New\" w:hAnsi=\"Courier New\"/>");
     }
     out.push_str("</w:rPr>");
-    for (i, line) in text.split('\n').enumerate() {
+    for (i, line) in displayed.split('\n').enumerate() {
         if i > 0 {
             out.push_str("<w:br/>");
         }
         let _ = write!(
             out,
             "<w:t xml:space=\"preserve\">{}</w:t>",
-            xml_escape(&look.text(line))
+            xml_escape(line)
         );
     }
     out.push_str("</w:r>");

@@ -18,6 +18,10 @@ emphasis, strong text, code, headings, blockquotes and readable link targets are
 supported. Classic manuscript emphasis retains its underline convention.
 Links are readable text with their targets, not active external relationships.
 Scenes without public footnotes retain the existing native formatting path.
+Footnoted scenes reach the Markdown parser before prose typography, so labels,
+code, URL targets and table delimiters cannot be altered before recognition.
+The existing typography formatter carries quote context across inline prose
+runs; literal code and targets remain exact. Markdown keeps footnoted syntax.
 
 Missing, duplicate, uncited, empty or nested notes and unsupported structures
 such as lists, images or raw HTML in footnoted scenes refuse before any output

@@ -598,13 +598,26 @@ pub(crate) fn find_cover(p: &Project) -> Option<(&'static str, Vec<u8>)> {
 }
 
 /// A scene's text as it goes into the book: `%% notes %%` out, TKs kept
-/// (see [`Book::tks`]), trimmed, and book typography done.
+/// (see [`Book::tks`]), trimmed, and book typography done. Footnoted source
+/// retains its syntax until the Word adapter typesets parsed text runs.
 pub(crate) fn prose(body: &str, hyphen: typeset::SpacedHyphen) -> Cow<'_, str> {
     let noted = notes::strip_notes(body);
     let trimmed: Cow<'_, str> = match noted {
         Cow::Borrowed(b) => Cow::Borrowed(b.trim()),
         Cow::Owned(o) => Cow::Owned(o.trim().to_string()),
     };
+    // Footnote labels, link targets and table delimiters must reach the
+    // Markdown parser intact. The Word adapter typesets parsed prose runs;
+    // Markdown preserves this source and other rich formats remain guarded.
+    if trimmed.contains("[^") {
+        if trimmed.len() > 2 * 1024 * 1024 {
+            return trimmed; // The bounded Word adapter will refuse it.
+        }
+        let notes = crate::footnotes::analyze_footnotes(&trimmed);
+        if !notes.references.is_empty() || !notes.definitions.is_empty() {
+            return trimmed;
+        }
+    }
     let typeset = match typeset::body(&trimmed, hyphen, is_break) {
         Cow::Owned(o) => Some(o),
         Cow::Borrowed(_) => None,
@@ -1464,6 +1477,7 @@ struct Look {
     font: &'static str,
     /// Classic: italics become underlines, typography back to typewriter.
     classic: bool,
+    hyphen: typeset::SpacedHyphen,
     width: u32,
     height: u32,
     margin: u32,
@@ -1505,6 +1519,7 @@ impl Look {
                 Format::Classic => "Courier New",
             },
             classic: m.format == Format::Classic,
+            hyphen: m.spaced_hyphen,
             width,
             height,
             margin: 1440,
@@ -2892,12 +2907,12 @@ mod tests {
     {
         let d = book_dir("word-footnotes");
         let scene = "manuscript/01-Act-One/01-Chapter-One/01-Scene-One.md";
-        let source = "---\ncustom: λ original\n---\n\nA *café[^a] remains italic* and cites it again[^a]. `[^code]` \\[^escaped].\n\n#\n\nLater prose.\n\n[^a]: Public **bold** note. %% PRIVATE_SECRET %%\n\n    Second paragraph with [the source](https://example.invalid/reference).\n";
+        let source = "---\ncustom: λ original\n---\n\nA \"*café[^a--b] remains italic*\" and cites it again[^a--b]. `[^code]` \\[^escaped]. `\"quoted -- code\"`\n\n#\n\nLater prose.\n\n[^a--b]: Public **bold** note. %% PRIVATE_SECRET %%\n\n    Second paragraph with [the source](https://example.invalid/reference--two).\n";
         put(&d, scene, source);
         put(
             &d,
             "manuscript/01-Act-One/01-Chapter-One/02-Scene-Two.md",
-            "Another scene[^a].\n\n[^a]: Independent second-scene definition.\n",
+            "Another scene[^a--b].\n\n[^a--b]: Independent second-scene definition.\n",
         );
         let p = Project::load(&d).unwrap();
         let out = export(&p, &word_options()).unwrap();
@@ -2946,6 +2961,8 @@ mod tests {
             visible.contains("[^code]") && visible.contains("[^escaped]"),
             "{visible}"
         );
+        assert!(visible.contains("A “café remains italic”"), "{visible}");
+        assert!(visible.contains("\"quoted -- code\""), "{visible}");
         for text in ["café", " remains italic"] {
             assert!(
                 document
@@ -2960,12 +2977,25 @@ mod tests {
             );
         }
         assert!(main.contains("SceneBreak"));
-        assert!(foot.contains("https://example.invalid/reference"));
+        assert!(foot.contains("https://example.invalid/reference--two"));
         assert!(!foot.contains("PRIVATE_SECRET") && !main.contains("PRIVATE_SECRET"));
         assert!(entry(&files, "word/_rels/document.xml.rels").contains("relationships/footnotes"));
         assert!(entry(&files, "[Content_Types].xml").contains("wordprocessingml.footnotes+xml"));
         assert!(entry(&files, "word/settings.xml").contains("pageBottom"));
         assert!(entry(&files, "word/styles.xml").contains("FootnoteReference"));
+        let md = export(
+            &p,
+            &ExportOptions {
+                docx: false,
+                markdown: true,
+                ..word_options()
+            },
+        )
+        .unwrap();
+        let md = fs::read_to_string(&md.files[0]).unwrap();
+        assert!(md.contains("\"*café[^a--b] remains italic*\""));
+        assert!(md.contains("https://example.invalid/reference--two"));
+        assert!(md.contains("`\"quoted -- code\"`"));
         assert_eq!(fs::read_to_string(d.join(scene)).unwrap(), source);
         fs::remove_dir_all(&d).unwrap();
     }
@@ -2987,6 +3017,10 @@ mod tests {
             (
                 "list",
                 "Claim[^a].\n\n[^a]:\n    - First item\n    - Second item\n",
+            ),
+            (
+                "table",
+                "Claim[^a].\n\n| Name | Value |\n| --- | --- |\n| Key | Brass |\n\n[^a]: Context.\n",
             ),
         ] {
             let d = book_dir(&format!("word-footnote-refusal-{tag}"));
