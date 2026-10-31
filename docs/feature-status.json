@@ -449,7 +449,7 @@
       "status": "Tested",
       "verification": "Independent full Debian suite; bounded core and four-size compiled selected-draft/passage/Cancel/help/Undo/restart",
       "hardware_verified": false,
-      "detail": "Captured reviewed saved identity/content, guarded one-change restore, recovery variant and dated history; no durable range indices"
+      "detail": "Captured reviewed saved identity/content, guarded one-change restore, recovery variant and dated history; missing/incomplete shared identities refuse; no durable range indices"
     },
     {
       "area": "Long-form",

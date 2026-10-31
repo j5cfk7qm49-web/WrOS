@@ -1,5 +1,18 @@
 # Testing and verification
 
+## Shared story registry recovery boundary
+
+`crates/grimoire-core/tests/story_identity.rs` checks lost/empty registries,
+late orphan references before allocation, book-wide records and invalid bounded
+dependencies. `test_story_identity_pty.py` uses the actual app at all four
+sizes, retains the original registry as a fixture backup, proves wrong-target
+restore is refused without changing source/sidecars, exercises normal writing
+and Undo, then explicitly restores that registry and correctly restores scene B.
+Captures use `WRITINGDECK_CAPTURE_PTY=1` under
+`build/verification/story-identity-screens`. [Scope and limits](STORY_IDENTITIES.md)
+distinguish this guard from automatic recovery or a cross-file transaction.
+
+
 ## Reviewed draft and passage restoration
 
 `test_passage_restore_pty.py` runs the actual application at all four terminal

@@ -64,5 +64,6 @@ jobs:
             build/verification/epub-footnotes/
             build/verification/epub-footnote-screens/
             build/verification/passage-restore-screens/
+            build/verification/story-identity-screens/
             docs/evidence/test-results.json
           if-no-files-found: warn
