@@ -42,7 +42,9 @@ def fixture(root):
             ('vlock.pam', 'etc/pam.d/vlock'),
             ('60-wros-power-guard.conf', 'etc/systemd/logind.conf.d/60-wros-power-guard.conf'),
             ('60-wros-sleep-guard.conf', 'etc/systemd/sleep.conf.d/60-wros-sleep-guard.conf'),
-            ('60-wros-no-connectivity-check.conf', 'etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf')):
+            ('60-wros-no-connectivity-check.conf', 'etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf'),
+            ('60-wros-reboot-guard.conf', 'etc/systemd/system.conf.d/60-wros-reboot-guard.conf'),
+            ('60-wros-sysrq.conf', 'etc/sysctl.d/60-wros-sysrq.conf')):
         path = root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / 'os/config' / source, path)
@@ -89,6 +91,8 @@ class NativeImage(unittest.TestCase):
             'unavailable maintenance': lambda r: (r / 'etc/systemd/system/getty@tty2.service').symlink_to('/dev/null'),
             'altered service': lambda r: (r / 'etc/systemd/system/greetd.service').write_text('[Service]\nExecStart=/bin/sh\n'),
             'unprotected lid': lambda r: (r / 'etc/systemd/logind.conf.d/60-wros-power-guard.conf').unlink(),
+            'reboot burst allowed': lambda r: (r / 'etc/systemd/system.conf.d/60-wros-reboot-guard.conf').unlink(),
+            'sysrq left on': lambda r: (r / 'etc/sysctl.d/60-wros-sysrq.conf').unlink(),
             'network probe enabled': lambda r: (r / 'etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf').unlink(),
             'changed network probe': lambda r: (r / 'etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf').write_text(
                 '[connectivity]\nenabled=true\nuri=http://network-test.debian.org/nm\n'),
@@ -111,6 +115,34 @@ class NativeImage(unittest.TestCase):
                 mutate(root)
                 with self.assertRaises((ValueError, OSError)):
                     module.audit(root)
+
+    def test_weakened_policy_values_are_refused_even_when_the_file_is_present(self):
+        # A faithful copy of a weakened source file must still fail: values are checked, not just bytes.
+        weaken = {
+            'etc/systemd/logind.conf.d/60-wros-power-guard.conf': [
+                ('HandleLidSwitchDocked=ignore', 'HandleLidSwitchDocked=suspend'),
+                ('HandleHibernateKey=ignore', ''),
+                ('IdleAction=ignore', 'IdleAction=poweroff'),
+                ('HandlePowerKeyLongPress=ignore', 'HandlePowerKeyLongPress=poweroff')],
+            'etc/systemd/sleep.conf.d/60-wros-sleep-guard.conf': [
+                ('AllowHybridSleep=no', 'AllowHybridSleep=yes'),
+                ('AllowSuspend=no', '[Sleep]')],
+            'etc/systemd/system.conf.d/60-wros-reboot-guard.conf': [
+                ('CtrlAltDelBurstAction=none', 'CtrlAltDelBurstAction=reboot-force')],
+            'etc/sysctl.d/60-wros-sysrq.conf': [('kernel.sysrq = 0', 'kernel.sysrq = 1')],
+            'etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf': [('enabled=false', 'enabled=true')],
+        }
+        for relative, edits in weaken.items():
+            for old, new in edits:
+                with self.subTest(relative=relative, old=old), tempfile.TemporaryDirectory(prefix='wros-native-weak-') as tmp:
+                    root = Path(tmp)
+                    fixture(root)
+                    path = root / relative
+                    text = path.read_text()
+                    self.assertIn(old, text)
+                    path.write_text(text.replace(old, new))
+                    with self.assertRaisesRegex(ValueError, 'policy value'):
+                        module.audit(root)
 
     def test_live_root_and_symlinked_image_are_refused(self):
         with self.assertRaisesRegex(ValueError, 'never the live root'):
