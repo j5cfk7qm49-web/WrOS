@@ -940,7 +940,7 @@ fn native_wifi_enrollment_masks_credentials_handles_cancel_failure_and_success_p
         desk.key(KeyCode::Enter); // advances selection to Connect
         desk.key(KeyCode::Enter); // submits
         desk.draw();
-        assert!(desk.shows("8–128 bytes"));
+        assert!(desk.shows("8–63 bytes"));
         assert_eq!(desk.app.deck.shell.nav.current(), Route::WifiConnect);
         assert!(
             !calls
@@ -1062,7 +1062,7 @@ fn native_wifi_enrollment_masks_credentials_handles_cancel_failure_and_success_p
 }
 
 #[test]
-fn native_signed_update_staging_and_recovery_preserve_both_editors_at_four_sizes() {
+fn signed_bundle_inspection_and_recovery_diagnostics_preserve_both_editors_at_four_sizes() {
     use std::sync::{Arc, Mutex};
     use writingdeck_sys::{Backend, Reply, Request, Simulated};
     struct UpdateBackend {
@@ -1079,11 +1079,9 @@ fn native_signed_update_staging_and_recovery_preserve_both_editors_at_four_sizes
         }
     }
     for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
-        let mut desk = Desk::open(
-            book(&format!("signed-updates-{width}"), true),
-            width,
-            height,
-        );
+        let (mut desk, note) =
+            secondary_book(&format!("signed-updates-{width}"), width, height, true);
+        choose_secondary(&mut desk, &note);
         let calls = Arc::new(Mutex::new(Vec::new()));
         let mut sim = Simulated::laptop();
         sim.recovery.interrupted_dpkg = true;
@@ -1092,21 +1090,15 @@ fn native_signed_update_staging_and_recovery_preserve_both_editors_at_four_sizes
             calls: calls.clone(),
             simulator: sim,
         }));
-        desk.app.focus = Focus::Editor;
         desk.typed("Primary update draft. ");
-        desk.app.toggle_secondary();
         desk.typed("Secondary update notes. ");
         let original = desk.app.editor.text();
         let primary = desk.app.view_position(Pane::Primary).unwrap();
         let secondary = desk.app.view_position(Pane::Secondary).unwrap();
-
-        // Open System > Updates (index 5)
         system_panel(&mut desk, 5);
         wait_system(&mut desk);
-        desk.choose("Stage signed offline update bundle");
-        assert_eq!(desk.app.deck.shell.nav.current(), Route::UpdateStageForm);
-
-        // Invalid relative path is refused without calling the backend.
+        desk.choose("Inspect signed offline update bundle");
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::UpdateBundleForm);
         desk.app.paste("relative/bundle");
         desk.key(KeyCode::Enter);
         desk.key(KeyCode::Enter);
@@ -1116,58 +1108,36 @@ fn native_signed_update_staging_and_recovery_preserve_both_editors_at_four_sizes
                 .lock()
                 .unwrap()
                 .iter()
-                .any(|r| matches!(r, Request::StageUpdateBundle { .. }))
+                .any(|r| matches!(r, Request::VerifyUpdateBundle { .. }))
         );
-
-        // Clear and enter a valid absolute bundle path; interrupted dpkg blocks staging.
         desk.key(KeyCode::Home);
         desk.key(KeyCode::Delete);
         desk.app.paste("/media/usb/wros-signed-updates");
         desk.key(KeyCode::Enter);
         desk.key(KeyCode::Enter);
         wait_system(&mut desk);
-        assert!(desk.shows("interrupted dpkg transaction"));
-        assert_eq!(desk.app.deck.shell.nav.current(), Route::UpdateStageForm);
-
-        // Cancel out of UpdateStageForm, inspect filesystem & dpkg recovery, and recover dpkg.
-        desk.key(KeyCode::Esc);
+        assert!(desk.shows("SIMULATED signature inspection"));
+        assert!(
+            !desk
+                .app
+                .deck
+                .shell
+                .recovery
+                .as_ref()
+                .is_some_and(|r| r.staged_update)
+        );
         desk.choose("Inspect filesystem and dpkg recovery");
         wait_system(&mut desk);
-        assert_eq!(desk.app.deck.shell.nav.current(), Route::RecoveryView);
         assert!(desk.shows("ext4"));
-        assert!(desk.shows("unavailable"));
         assert!(desk.shows("Interrupted dpkg packages: grimoire"));
-
-        desk.choose("Recover interrupted package installation (dpkg)");
-        wait_system(&mut desk);
-        assert!(desk.shows("Recovered interrupted dpkg"));
-        assert!(calls.lock().unwrap().contains(&Request::RecoverUpdates));
-
-        // Return to Updates panel and stage the signed bundle.
-        desk.key(KeyCode::Esc);
-        desk.choose("Stage signed offline update bundle");
-        desk.app.paste("/media/usb/wros-signed-updates");
-        desk.key(KeyCode::Enter);
-        desk.key(KeyCode::Enter);
-        wait_system(&mut desk);
-        assert_eq!(
-            desk.app.deck.shell.nav.current(),
-            Route::Panel(crate::app::shell::Panel::Updates)
-        );
-        assert!(desk.shows("Verified and staged signed update bundle"));
-
-        // Cancel staged offline update.
-        desk.choose("Cancel staged offline update");
-        wait_system(&mut desk);
-        assert!(desk.shows("Cancelled staged offline update"));
         assert!(
             calls
                 .lock()
                 .unwrap()
-                .contains(&Request::CancelStagedUpdates)
+                .iter()
+                .all(|r| !matches!(r, Request::RecoverUpdates | Request::CancelStagedUpdates))
         );
-
-        for _ in 0..3 {
+        for _ in 0..4 {
             desk.key(KeyCode::Esc);
         }
         assert_eq!(desk.app.overlay, Overlay::None);

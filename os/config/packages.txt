@@ -37,6 +37,8 @@ libdrm2
 git
 restic
 rclone
+gpgv
+debian-archive-keyring
 less
 nano
 wordnet-base

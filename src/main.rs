@@ -671,7 +671,7 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
                 continue;
             }
             if app.overlay == Overlay::Deck(app::writingdeck::Page::Settings)
-                && app.deck.shell.nav.current() == app::shell::Route::UpdateStageForm
+                && app.deck.shell.nav.current() == app::shell::Route::UpdateBundleForm
             {
                 app.paste_update_form(text);
                 continue;

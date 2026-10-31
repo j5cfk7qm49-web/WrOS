@@ -40,7 +40,10 @@ can qualify it. This release never prunes or deletes snapshots. Offline/missing
 destinations report failure and record the saved project in the private offline
 backup queue (`queue.json`) for explicit retry (`Run queued backups and retry
 interrupted jobs`); you can also queue a saved project while offline (`Queue
-saved project for offline backup`). No unprompted background network upload
+saved project for offline backup`). Queued intent does not freeze the project: explicit retry backs up the latest saved
+files and applies the open editor save/conflict gate. Uploads carry a durable queue
+operation tag; interrupted uploads are restored and compared before avoiding a duplicate.
+No unprompted background network upload
 runs during ordinary writing. Interrupted temporary staging can need manual removal from
 the private backup state directory after a hard kill or power loss.
 
@@ -72,10 +75,11 @@ creating a repository, backing up or restoring explicitly accesses Google.
 Use **Verify Google Drive connection** to check provider reachability and detect
 expired or revoked grants (`reauthorization-required` vs `offline`), **Reauthorize
 Google Drive** to replace credentials atomically, or **Disconnect Google Drive
-and remove local credentials** to zero-scrub and unlink `rclone.conf` locally
+and remove local credentials** to attempt an overwrite and unlink `rclone.conf` locally
 while keeping manuscripts and recovery keys intact. Revoke access through your
 Google account's connected-app controls when needed; local credential removal
-alone does not revoke a provider grant. A real account,
+alone does not revoke a provider grant or guarantee secure deletion on SSDs or
+copy-on-write filesystems. A real account,
 provider interruption/refresh/revocation and cross-device Drive restore still
 require live acceptance; local and synthetic-provider tests do not establish them.
 
@@ -86,7 +90,7 @@ require live acceptance; local and synthetic-provider tests do not establish the
 repository; `connect REPOSITORY KEY_FILE` connects an existing one;
 `snapshot PROJECT` backs up an already saved project; `restore SNAPSHOT NEW_FOLDER`
 restores a selected full snapshot ID; `export-key NEW_FILE` retains a recovery
-copy, `queue PROJECT` stages a project into the offline queue, `run-queue`
+copy, `queue PROJECT` records saved-project backup intent in the offline queue, `run-queue`
 executes pending queued backups with interruption-safe deduplication,
 `clear-queue` clears pending queue entries, `check-google` verifies Google Drive
 credentials, `disconnect-google` scrubs and removes local Google credentials,

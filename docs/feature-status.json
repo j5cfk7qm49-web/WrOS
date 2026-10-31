@@ -111,9 +111,9 @@
       "area": "OS",
       "capability": "Signed OS/app updates, snapshots/rollback and offline bundles",
       "status": "In progress",
-      "verification": "Python GPG InRelease/Release.gpg + Packages + .deb SHA-256 chain, ext4/btrfs recovery and dpkg repair tests executed; Rust adapter and 4-size UI tests added (unrun in Rustless Argon environment)",
+      "verification": "Real ephemeral GPG-signed metadata/Packages/archive verification and mutation-refusal tests; Rust/four-size UI software gates passed",
       "hardware_verified": false,
-      "detail": "wros-update verifies signed bundles via gpgv, stages offline updates, repairs interrupted dpkg state and reports ext4 vs btrfs rollback honestly (no fake Snapper rollback on ext4); VM/hardware qualification open; issue 5"
+      "detail": "No update installation or automatic rollback: offline APT transaction, freshness/downgrade/dependency policy, boot service and interruption/rescue qualification remain open; see ARGON_INTEGRATION_2026-10-31.md"
     },
     {
       "area": "OS",
@@ -151,9 +151,9 @@
       "area": "System",
       "capability": "In-app new-network credentials / secret agent",
       "status": "In progress",
-      "verification": "Source/UI/adapter tests added (unrun in Rust toolchain); passwords sent via private stdin to nmcli --ask and omitted from argv/Debug/Serialize",
+      "verification": "Debian Rust adapter and four-size native UI tests passed; secret stdin, masking, cancellation, failures and requested-SSID readback covered",
       "hardware_verified": false,
-      "detail": "Protected credential entry, open/WPA connection, active-connection verification, saved-profile UUID reconnect/forget and disconnect implemented; local Rust/VM/hardware qualification pending"
+      "detail": "Protected personal WPA/open-network forms, UUID saved-profile reconnect/forget and disconnect implemented; actual NetworkManager/device acceptance and enterprise enrollment remain open"
     },
     {
       "area": "System",
@@ -511,9 +511,9 @@
       "area": "Cloud",
       "capability": "Native encrypted local/Drive backup, private keys and restore into new folders",
       "status": "Tested",
-      "verification": "Debian: 1094 Rust/config, 215 Python/zero skips, both Clippys and 21 gates; actual four-size native workflow and 512 MiB cancellation",
+      "verification": "Debian: 1099 Rust/config, 227 Python/zero skips, both Clippys and 21 gates; real interrupted snapshot reuse, four-size app and 512 MiB cancellation",
       "hardware_verified": false,
-      "detail": "Every completed backup is restored and hash checked; masked rclone Drive authorization, durable offline backup queue and interruption-safe deduplicating retry implemented; live provider acceptance and Rust/PTY re-qualification pending; see NATIVE_BACKUP.md"
+      "detail": "Durable operation-tagged queue and editor save/conflict gate; every successful backup restored and hash checked; live Google/provider restore and two-way sync remain open; see NATIVE_BACKUP.md"
     },
     {
       "area": "Cloud",
@@ -607,9 +607,9 @@
       "area": "Accounts",
       "capability": "Native optional Google account linking and protected refresh credentials",
       "status": "In progress",
-      "verification": "Masked authorization form, private rclone/account lifecycle adapter, revocation/offline classification and zero-scrubbed disconnect; Python service unit tests passed, Rust/live qualification pending",
+      "verification": "Synthetic revocation/offline/reauthorization tests, private-file removal, four-size UI and actual compiled-app queue/disconnect passed; no live provider qualification",
       "hardware_verified": false,
-      "detail": "Second-device rclone authorize flow with private per-user files, connection verification, reauthorization and scrubbed disconnect; no mandatory cloud; real authorization/refresh/revocation acceptance remains issue 28"
+      "detail": "Second-device rclone authorize flow with private per-user files, connection verification, reauthorization and best-effort local credential removal (not guaranteed secure deletion); no mandatory cloud; real authorization/refresh/revocation acceptance remains issue 28"
     },
     {
       "area": "Storage",
@@ -639,9 +639,9 @@
       "area": "OS",
       "capability": "Live WrOS installer TUI over Debian installation components",
       "status": "In progress",
-      "verification": "Current Debian CI: 973 Rust/configuration, 165 Python/zero skips, both Clippys and 20 gates; six matching offline encryption archives/payloads, 11 focused checks, three actual live modes and shipped-frontend 16 GiB refusal guest passed 484.97 seconds",
+      "verification": "Prior live/default-No VM evidence plus current synthetic target mount/swap/LVM/LUKS cleanup tests; full encrypted installation and first boot remain pending",
       "hardware_verified": false,
-      "detail": "Shared Grimoire presentation, authenticated matching backend/pool, leaf-first target LUKS2/LVM/swap/mount cleanup and writing-session handoff implemented; Python fixture/cleanup tests passed; full encrypted target install/boot and physical qualification remain open"
+      "detail": "Shared native frontend and maintained Debian backend; leaf-first cleanup/handoff are QA fixtures only. Production launcher/supervisor/completion and full encrypted install/boot remain open"
     },
     {
       "area": "System",

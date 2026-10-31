@@ -1,0 +1,24 @@
+┌WrOS · Settings › Backups─────────────────────────────────────────────────────┐
+│  Refresh snapshots                                                           │
+│  New backup on a local drive                                                 │
+│  New backup on Google Drive                                                  │
+│  Connect existing repository and recovery key                                │
+│  Connect Google Drive                                                        │
+│  Export recovery key                                                         │
+│  Recover an interrupted repository lock                                      │
+│  Queue saved project for offline backup                                      │
+│  Run queued backups and retry interrupted jobs                               │
+│  Destination: /tmp/wros-native-backup-wioo5lj2/encrypted snapshots           │
+│  Private recovery key: /tmp/wros-native-backup-wioo5lj2/home/data/grimoire/wr│
+│  Google Drive is not connected                                               │
+│  Select a snapshot below to restore into a NEW folder.                       │
+│  Keep local backups on another device; folders can share the same disk.      │
+│  Restore verified and saved in /tmp/w                                        │
+│  ros-native-backup-wioo5lj2/demo-rest                                        │
+│  ored-0cc3a881. Open that folder expl                                        │
+│  icitly to review it.                                                        │
+│▸ demo · 2026-10-31T16:39:05.534859714Z · 0cc3a881                            │
+│  Restore checked: 2026-10-31T16:39:09.880532+00:00                           │
+│Restore verified and saved in /tmp/wros-native-backup-wioo5lj2/demo-restored-0│
+│↑↓ choose  Enter open  Esc back  F1 help                                      │
+└──────────────────────────────────────────────────────────────────────────────┘

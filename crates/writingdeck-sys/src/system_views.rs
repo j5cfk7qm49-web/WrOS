@@ -372,8 +372,9 @@ pub fn validate_wifi_ssid(ssid: &str) -> Result<()> {
 
 pub fn validate_wifi_password(password: &str) -> Result<()> {
     ensure!(
-        (8..=128).contains(&password.len()) && !password.chars().any(char::is_control),
-        "Wi-Fi password must be 8–128 bytes without control characters"
+        ((8..=63).contains(&password.len()) && !password.chars().any(char::is_control))
+            || (password.len() == 64 && password.bytes().all(|b| b.is_ascii_hexdigit())),
+        "Wi-Fi password must be 8–63 bytes, or an exact 64-digit hexadecimal WPA key"
     );
     Ok(())
 }
@@ -461,6 +462,10 @@ mod tests {
         assert!(validate_wifi_password("correct-horse-battery").is_ok());
         assert!(validate_wifi_password("short").is_err());
         assert!(validate_wifi_password("bad\npassword").is_err());
+        assert!(validate_wifi_password(&"a".repeat(63)).is_ok());
+        assert!(validate_wifi_password(&"A".repeat(64)).is_ok());
+        assert!(validate_wifi_password(&"z".repeat(64)).is_err());
+        assert!(validate_wifi_password(&"a".repeat(65)).is_err());
         assert!(validate_update_bundle_path("/media/usb/wros-updates").is_ok());
         assert!(validate_update_bundle_path("relative/path").is_err());
         assert!(validate_update_bundle_path("/").is_err());

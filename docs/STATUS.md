@@ -1,6 +1,6 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
-## Protected Wi-Fi enrollment and Google/backup queue continuation (2026-10-31, Argon source contribution — unverified in Rust toolchain)
+## Protected Wi-Fi enrollment and Google/backup queue continuation (2026-10-31, locally software-qualified)
 
 Native Settings now implements protected Wi-Fi enrollment and ordinary connection
 management over maintained NetworkManager (`nmcli`): selecting a scanned network
@@ -25,9 +25,11 @@ manuscripts and recovery keys. A durable offline backup queue (`queue.json`, mod
 `0600`) supports explicit offline project queueing (`queue`) and automatic queue
 retention when a backup is interrupted, with interruption-safe deduplicating
 retry (`run-queue`) that verifies an already-uploaded unverified snapshot in
-place before falling back to a fresh upload. Rust compilation, Clippy, Rust unit/UI
-tests and compiled-binary PTY tests are unrun in the ZIP-only handover environment
-and require local Debian 13 qualification.
+place before falling back to a fresh upload. The [complete local software receipt](evidence/argon-os-local.json) passed
+1099 Rust tests per overlapping configuration, 227 Python tests with zero skips,
+both strict Clippys and 21 gates. The [integration review and gap list](ARGON_INTEGRATION_2026-10-31.md)
+records corrections and the return order for unfinished release work. Signed update
+inspection is read-only; unsafe prototype staging/repair grants were removed.
 
 ## Encrypted backup and verified restore (2026-10-31)
 

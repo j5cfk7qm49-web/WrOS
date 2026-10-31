@@ -53,8 +53,6 @@ install -m 644 "$repo/os/config/50-wros-display.rules" "$dest/etc/polkit-1/rules
 install -m 644 "$repo/os/config/50-wros-timezone.rules" "$dest/etc/polkit-1/rules.d/"
 install -m 644 "$repo/os/config/50-wros-lock.rules" "$dest/etc/polkit-1/rules.d/"
 install -m 644 "$repo/os/config/org.wros.lock.policy" "$dest/usr/share/polkit-1/actions/"
-install -m 644 "$repo/os/config/50-wros-update.rules" "$dest/etc/polkit-1/rules.d/"
-install -m 644 "$repo/os/config/org.wros.update.policy" "$dest/usr/share/polkit-1/actions/"
 if [[ -e $dest/etc/pam.d/vlock || -L $dest/etc/pam.d/vlock ]]; then
     if [[ -L $dest/etc/pam.d/vlock ]] || ! cmp -s "$repo/os/config/vlock.pam" "$dest/etc/pam.d/vlock"; then
         echo 'Existing locker PAM configuration preserved; review it before staging this profile.' >&2; exit 2;

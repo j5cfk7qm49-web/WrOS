@@ -206,7 +206,7 @@ pub enum Request {
     VerifyBackups,
     CheckUpdates,
     StageUpdates,
-    StageUpdateBundle {
+    VerifyUpdateBundle {
         bundle_dir: String,
     },
     CancelStagedUpdates,
@@ -531,48 +531,16 @@ impl Backend for Simulated {
             Request::StageUpdates => Ok(Reply::Message(
                 "SIMULATED update staging; no update was downloaded or scheduled.".into(),
             )),
-            Request::StageUpdateBundle { bundle_dir } => {
+            Request::VerifyUpdateBundle { bundle_dir } => {
                 system_views::validate_update_bundle_path(&bundle_dir)?;
-                if self.recovery.interrupted_dpkg {
-                    bail!("interrupted dpkg transaction must be recovered before staging updates");
-                }
-                self.recovery.staged_update = true;
-                self.recovery.staged_packages = vec!["grimoire 0.7.6 (simulated)".into()];
-                self.recovery.status = format!(
-                    "SIMULATED recovery status: Root filesystem: {} (no automatic filesystem rollback) · dpkg: clean · staged offline update: 1 package(s).",
-                    self.recovery.root_filesystem
-                );
                 Ok(Reply::Message(format!(
-                    "Verified and staged signed update bundle from {bundle_dir} (simulated)."
+                    "SIMULATED signature inspection of {bundle_dir}; no files verified or packages installed."
                 )))
             }
-            Request::CancelStagedUpdates => {
-                self.recovery.staged_update = false;
-                self.recovery.staged_packages.clear();
-                self.recovery.status = format!(
-                    "SIMULATED recovery status: Root filesystem: {} (no automatic filesystem rollback) · dpkg: clean · no offline update staged.",
-                    self.recovery.root_filesystem
-                );
-                Ok(Reply::Message(
-                    "Cancelled staged offline update and removed queued package archives (simulated)."
-                        .into(),
-                ))
-            }
-            Request::RecoverUpdates => {
-                self.recovery.interrupted_dpkg = false;
-                self.recovery.unconfigured_packages.clear();
-                self.recovery.status = format!(
-                    "SIMULATED recovery status: Root filesystem: {} (no automatic filesystem rollback) · dpkg: clean · {}.",
-                    self.recovery.root_filesystem,
-                    if self.recovery.staged_update {
-                        "staged offline update: 1 package(s)"
-                    } else {
-                        "no offline update staged"
-                    }
-                );
-                Ok(Reply::Message(
-                    "Recovered interrupted dpkg package state (simulated).".into(),
-                ))
+            Request::CancelStagedUpdates | Request::RecoverUpdates => {
+                bail!(
+                    "Update installation and package repair are unavailable; no system changes were made"
+                )
             }
             Request::RecoveryStatus => Ok(Reply::Recovery(self.recovery.clone())),
             Request::RebootRecovery => Ok(Reply::Message(

@@ -74,7 +74,8 @@ def audit(root):
     binaries = {}
     for relative in ('usr/sbin/greetd', 'usr/bin/wros-greeter', 'usr/bin/grimoire',
                      'usr/libexec/writingdeck-session', 'usr/libexec/writingdeck-keyboard',
-                     'usr/libexec/wros-lock', 'usr/libexec/wros-backup', 'usr/bin/restic', 'usr/bin/rclone',
+                     'usr/libexec/wros-lock', 'usr/libexec/wros-backup', 'usr/libexec/wros-update',
+                     'usr/bin/restic', 'usr/bin/rclone', 'usr/bin/gpgv',
                      'usr/bin/openvt', 'usr/bin/systemd-run', 'usr/bin/chvt'):
         path = regular(root, relative)
         if not path.stat().st_mode & 0o111 or path.stat().st_mode & 0o6022:
@@ -100,6 +101,9 @@ def audit(root):
         raise ValueError('manual-lock helper differs from qualified source')
     if regular(root, 'usr/libexec/wros-backup').read_bytes() != (REPO / 'os/scripts/wros-backup').read_bytes():
         raise ValueError('native backup helper differs from qualified source')
+    if regular(root, 'usr/libexec/wros-update').read_bytes() != (REPO / 'os/scripts/wros-update').read_bytes():
+        raise ValueError('read-only update inspector differs from qualified source')
+    regular(root, 'usr/share/keyrings/debian-archive-keyring.gpg')
     for name in ('restic', 'rclone'):
         state = subprocess.check_output(['dpkg-query', '--admindir=' + str(root/'var/lib/dpkg'),
                                          '-W', '-f=${Status}', name], text=True)

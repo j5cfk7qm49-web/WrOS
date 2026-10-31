@@ -77,7 +77,7 @@ pub enum Route {
     Backups,
     BackupForm,
     UpdatesView,
-    UpdateStageForm,
+    UpdateBundleForm,
     RecoveryView,
     StorageDevicesView,
 }
@@ -122,10 +122,10 @@ impl WifiForm {
                 self.network.ssid, self.network.signal, self.network.security
             ));
             rows.push(
-                "WPA passphrase (8–128 characters). Sent via private stdin, never argv or logs."
+                "WPA password: 8–63 bytes, or a 64-digit hexadecimal key. Input stays hidden."
                     .into(),
             );
-            rows.push("Escape discards the entered password without connecting.".into());
+            rows.push("Before Connect, Escape discards this form and password.".into());
             rows
         } else {
             let mut rows = vec![
@@ -145,16 +145,16 @@ impl WifiForm {
     }
 }
 
-pub struct UpdateStageForm {
+pub struct UpdateBundleForm {
     pub bundle_dir: String,
     pub selected: usize,
 }
-impl UpdateStageForm {
+impl UpdateBundleForm {
     pub fn rows(&self) -> Vec<String> {
         vec![
             format!("Signed update bundle path: {}", self.bundle_dir),
             "Cancel and return without staging updates".into(),
-            "Verify GPG signature and stage offline update".into(),
+            "Verify signatures and contents (inspection only)".into(),
             "Requires Debian gpgv verification of InRelease (or Release + Release.gpg),".into(),
             "authenticated Packages SHA-256, and matching SHA-256 for every .deb archive.".into(),
             "Create an encrypted Restic backup first; ext4 has no automatic snapshot rollback."
@@ -195,7 +195,7 @@ pub struct Shell {
     pub drive_files: Option<Vec<writingdeck_sys::RemoteFile>>,
     pub backups: Option<Vec<writingdeck_sys::ResticSnapshot>>,
     pub updates: Option<writingdeck_sys::UpdateInfo>,
-    pub update_form: Option<UpdateStageForm>,
+    pub update_form: Option<UpdateBundleForm>,
     pub recovery: Option<writingdeck_sys::RecoveryInfo>,
     pub storage_devices: Option<Vec<writingdeck_sys::StorageDevice>>,
 }
@@ -299,7 +299,7 @@ enum Choice {
     WifiDisconnect,
     SavedWifiSelect(writingdeck_sys::SavedWifi),
     SavedWifiResolve(SavedWifiAction),
-    UpdateStageOpen,
+    UpdateBundleOpen,
     Open(Route),
     Action(Action),
     System(usize),
@@ -517,13 +517,10 @@ fn entries(app: &App) -> Vec<Entry> {
                         Choice::View(Route::UpdatesView, writingdeck_sys::Request::CheckUpdates),
                     ),
                     Entry::new(
-                        "Stage signed offline update bundle",
-                        Choice::UpdateStageOpen,
+                        "Inspect signed offline update bundle",
+                        Choice::UpdateBundleOpen,
                     ),
-                    Entry::new(
-                        "Cancel staged offline update",
-                        Choice::Read(writingdeck_sys::Request::CancelStagedUpdates),
-                    ),
+                    Entry::info("Update installation is unavailable pending an offline transaction and recovery service."),
                     Entry::new(
                         "Inspect filesystem and dpkg recovery",
                         Choice::View(Route::RecoveryView, writingdeck_sys::Request::RecoveryStatus),
@@ -538,10 +535,7 @@ fn entries(app: &App) -> Vec<Entry> {
                         "Check filesystem and dpkg recovery status",
                         Choice::View(Route::RecoveryView, writingdeck_sys::Request::RecoveryStatus),
                     ),
-                    Entry::new(
-                        "Recover interrupted package installation (dpkg)",
-                        Choice::Read(writingdeck_sys::Request::RecoverUpdates),
-                    ),
+                    Entry::info("Native package repair is unavailable; use Debian rescue media."),
                 ]),
             }
             rows
@@ -706,8 +700,8 @@ fn entries(app: &App) -> Vec<Entry> {
                     Choice::Read(writingdeck_sys::Request::CheckUpdates),
                 ),
                 Entry::new(
-                    "Stage signed offline update bundle",
-                    Choice::UpdateStageOpen,
+                    "Inspect signed offline update bundle",
+                    Choice::UpdateBundleOpen,
                 ),
                 Entry::new(
                     "Inspect filesystem and dpkg recovery",
@@ -738,7 +732,7 @@ fn entries(app: &App) -> Vec<Entry> {
             }
             rows
         }
-        Route::UpdateStageForm => app
+        Route::UpdateBundleForm => app
             .deck
             .shell
             .update_form
@@ -963,10 +957,7 @@ fn entries(app: &App) -> Vec<Entry> {
                     "Check filesystem and dpkg recovery status",
                     Choice::Read(writingdeck_sys::Request::RecoveryStatus),
                 ),
-                Entry::new(
-                    "Recover interrupted package installation (dpkg)",
-                    Choice::Read(writingdeck_sys::Request::RecoverUpdates),
-                ),
+                Entry::info("Native package repair is unavailable; use Debian rescue media."),
                 Entry::new(
                     "Encrypted project backups and restore",
                     Choice::Open(Route::Backups),
@@ -1000,10 +991,7 @@ fn entries(app: &App) -> Vec<Entry> {
                         "Staged offline update: {}",
                         info.staged_packages.join(", ")
                     )));
-                    rows.push(Entry::new(
-                        "Cancel staged offline update",
-                        Choice::Read(writingdeck_sys::Request::CancelStagedUpdates),
-                    ));
+                    rows.push(Entry::info("Update installation is unavailable pending an offline transaction and recovery service."));
                 }
             } else {
                 rows.push(Entry::info("Recovery boot and restore are not qualified."));
@@ -1152,7 +1140,7 @@ impl App {
         if !form.requires_password() || form.selected != 0 {
             return;
         }
-        if form.password.len() + text.len() <= 128 && !text.chars().any(char::is_control) {
+        if form.password.len() + text.len() <= 64 && !text.chars().any(char::is_control) {
             form.password.push_str(text);
         }
     }
@@ -1172,6 +1160,7 @@ impl App {
             return;
         };
         match key {
+            Key::Home => form.selected = 0,
             Key::Esc => {
                 self.deck.shell.update_form = None;
                 self.deck.shell.nav.back();
@@ -1213,7 +1202,7 @@ impl App {
                     return;
                 }
                 self.deck
-                    .request(writingdeck_sys::Request::StageUpdateBundle { bundle_dir });
+                    .request(writingdeck_sys::Request::VerifyUpdateBundle { bundle_dir });
             }
             _ => {}
         }
@@ -1225,6 +1214,7 @@ impl App {
         let count = form.action_count();
         let requires_password = form.requires_password();
         match key {
+            Key::Home => form.selected = 0,
             Key::Esc => {
                 self.deck.shell.wifi_form = None;
                 self.deck.shell.nav.back();
@@ -1282,7 +1272,7 @@ impl App {
                             return;
                         }
                         let secret = writingdeck_sys::WifiSecret::new(form.password.as_str());
-                        form.password.clear();
+                        form.password = Zeroizing::new(String::new());
                         self.deck.request(writingdeck_sys::Request::ConnectWifi {
                             ssid,
                             password: Some(secret),
@@ -1323,7 +1313,7 @@ impl App {
             self.on_wifi_form_key(key);
             return;
         }
-        if self.deck.shell.nav.current() == Route::UpdateStageForm {
+        if self.deck.shell.nav.current() == Route::UpdateBundleForm {
             self.on_update_form_key(key);
             return;
         }
@@ -1375,6 +1365,9 @@ impl App {
                     return;
                 };
                 match row.choice {
+                    Choice::BackupRequest(crate::backup_service::Request::RunQueue) => {
+                        self.request_run_backup_queue()
+                    }
                     Choice::BackupRequest(request) => self.deck.shell.backup.request(request),
                     Choice::BackupForm(kind, snapshot) => self.open_backup_form(kind, snapshot),
                     Choice::BackupNow => self.request_project_backup(),
@@ -1387,6 +1380,11 @@ impl App {
                         self.deck.shell.nav.back();
                     }
                     Choice::GoogleDisconnectResolve(true) => {
+                        self.deck.shell.backup.tick();
+                        if self.deck.shell.backup.job.is_some() {
+                            self.deck.shell.backup.notice = "Wait for the current backup operation, then confirm disconnect again.".into();
+                            return;
+                        }
                         self.deck.shell.nav.back();
                         self.deck
                             .shell
@@ -1394,6 +1392,17 @@ impl App {
                             .request(crate::backup_service::Request::DisconnectGoogle);
                     }
                     Choice::WifiSelect(network) if !self.deck.busy => {
+                        if !network.security.is_empty()
+                            && network.security != "--"
+                            && !network
+                                .security
+                                .split_whitespace()
+                                .all(|kind| matches!(kind, "WPA1" | "WPA2" | "WPA3"))
+                        {
+                            self.deck.note = "This network needs enrollment beyond a personal WPA password; use a supported saved profile or another network.".into();
+                            self.deck.shell.notices.push(&self.deck.note);
+                            return;
+                        }
                         self.deck.shell.wifi_form = Some(WifiForm {
                             network,
                             password: Zeroizing::new(String::new()),
@@ -1430,18 +1439,18 @@ impl App {
                             }
                         }
                     }
-                    Choice::UpdateStageOpen if !self.deck.busy => {
-                        self.deck.shell.update_form = Some(UpdateStageForm {
+                    Choice::UpdateBundleOpen if !self.deck.busy => {
+                        self.deck.shell.update_form = Some(UpdateBundleForm {
                             bundle_dir: String::new(),
                             selected: 0,
                         });
-                        self.deck.shell.nav.open(Route::UpdateStageForm);
+                        self.deck.shell.nav.open(Route::UpdateBundleForm);
                     }
                     Choice::WifiSelect(_)
                     | Choice::WifiDisconnect
                     | Choice::SavedWifiSelect(_)
                     | Choice::SavedWifiResolve(_)
-                    | Choice::UpdateStageOpen => {}
+                    | Choice::UpdateBundleOpen => {}
                     Choice::Lock => self.request_console_lock(),
                     Choice::TimezoneOpen if !self.deck.busy => {
                         self.deck.shell.timezones = None;
@@ -1637,7 +1646,7 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
             .map(|form| format!("WrOS · {}", form.title()))
             .unwrap_or_else(|| "WrOS · Backups".into()),
         Route::UpdatesView => "WrOS · Settings › Cached package plan".into(),
-        Route::UpdateStageForm => "WrOS · Stage signed offline update".into(),
+        Route::UpdateBundleForm => "WrOS · Inspect signed offline update".into(),
         Route::RecoveryView => "WrOS · Settings › Recovery".into(),
         Route::StorageDevicesView => "WrOS · Settings › Mounted filesystems".into(),
     };
@@ -1647,16 +1656,14 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
     if app.deck.simulated() {
         title = format!("SIMULATED · {title}");
     }
-    let note = if matches!(
-        app.deck.shell.nav.current(),
-        Route::Backups | Route::BackupForm | Route::GoogleAccount | Route::GoogleDisconnectConfirm
-    ) && !app.deck.shell.backup.notice.is_empty()
-    {
-        app.deck.shell.backup.notice.as_str()
-    } else if matches!(
+    let uses_backup_notice = matches!(
         app.deck.shell.nav.current(),
         Route::Backups | Route::BackupForm
-    ) {
+    ) || matches!(
+        app.deck.shell.nav.current(),
+        Route::GoogleAccount | Route::GoogleDisconnectConfirm
+    ) && !app.deck.shell.backup.notice.is_empty();
+    let note = if uses_backup_notice {
         app.deck.shell.backup.notice.as_str()
     } else if app.deck.busy {
         "System request pending; writing remains responsive"
@@ -1683,7 +1690,7 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
                     .wifi_form
                     .as_ref()
                     .map_or(0, |form| form.selected)
-            } else if app.deck.shell.nav.current() == Route::UpdateStageForm {
+            } else if app.deck.shell.nav.current() == Route::UpdateBundleForm {
                 app.deck
                     .shell
                     .update_form
@@ -1695,7 +1702,7 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
             notice: note,
             hint: if matches!(
                 app.deck.shell.nav.current(),
-                Route::BackupForm | Route::WifiConnect | Route::UpdateStageForm
+                Route::BackupForm | Route::WifiConnect | Route::UpdateBundleForm
             ) {
                 "Type/paste field  Tab/↑↓ choose  Enter next/confirm  Esc cancel"
             } else {

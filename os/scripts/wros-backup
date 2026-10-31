@@ -99,7 +99,7 @@ def classify_rclone_failure(arguments, env):
         err_out.seek(0)
         err_text = err_out.read(65536).decode('utf-8', errors='replace').lower()
         for needle in ('invalid_grant', 'token has been expired or revoked', 'unauthorized',
-                       'invalid_client', '401 unauthorized', '403 forbidden', 'oauth2:'):
+                       'invalid_client', '401 unauthorized'):
             if needle in err_text:
                 return False, b'', 'reauthorization-required'
         return False, b'', 'offline'
@@ -222,6 +222,7 @@ class Service:
         if self.queue_path.exists() or self.queue_path.is_symlink():
             qdata = read_json(self.queue_path)
             require(isinstance(qdata, dict) and qdata.get('version') == 1
+                    and set(qdata) == {'version', 'items'}
                     and isinstance(qdata.get('items'), list) and len(qdata['items']) <= 64,
                     'Unknown backup queue metadata; original preserved.')
             for item in qdata['items']:
@@ -299,10 +300,11 @@ class Service:
         self.save()
         return self.status('Repository connected. Export your recovery key to a separate safe device before relying on this backup.')
 
-    def snapshots(self):
+    def snapshots(self, queue_id=None):
         if not self.current:
             return []
-        rows = json.loads(self.restic(['snapshots', '--tag', TAG])) or []
+        tags = TAG + (',queue:' + queue_id if queue_id else '')
+        rows = json.loads(self.restic(['snapshots', '--tag', tags])) or []
         require(isinstance(rows, list) and len(rows) <= 1000, 'Repository exceeds 1,000 supported snapshots; use Restic maintenance tools.')
         result = []
         for row in rows:
@@ -371,7 +373,7 @@ class Service:
                 item['inventory_sha256'] = digest
                 item['queued_at'] = now()
                 if error_note:
-                    item['attempts'] += 1
+                    item['attempts'] = min(item['attempts'] + 1, 2**32 - 1)
                     item['last_error'] = error_note[:256]
                 self.save_queue()
                 return item
@@ -413,43 +415,52 @@ class Service:
     def run_queue(self):
         require(self.current is not None, 'Set up a backup repository first.')
         if not self.queue:
-            return self.status('No queued backups are pending.')
-        try:
-            self.restic(['unlock'])
-        except Exception:
-            pass
-        existing = self.snapshots()
+            return self.status('No queued backups are pending.', refresh=False)
         for item in list(self.queue):
-            root = self.validate_project_root(item['project'])
-            original = inventory(root)
-            require(inventory(root) == original, 'Project changed while reading; save and retry.')
-            digest = inventory_digest(original)
-            # If an earlier attempt uploaded the snapshot before interruption
-            # prevented restore verification, verify that snapshot in place
-            # without creating a redundant upload.
-            recovered = False
-            for candidate in existing:
-                if candidate['project'] == item['label'] and not candidate['restore_checked_at']:
+            attempts = item['attempts']
+            try:
+                root = self.validate_project_root(item['project'])
+                original = inventory(root)
+                require(inventory(root) == original, 'Project changed while reading; save and retry.')
+                digest = inventory_digest(original)
+                # Match this durable operation ID, not the display name of a
+                # possibly different project. Restic requires BOTH tags here.
+                existing = self.snapshots(queue_id=item['id'])
+                recovered = False
+                for candidate in existing:
                     with tempfile.TemporaryDirectory(prefix='wros-backup-verify-', dir=self.state) as temporary:
                         restored = Path(temporary)/'restore-check'
                         restored.mkdir(mode=0o700)
-                        try:
-                            actual = self.restore_into(candidate, restored)
-                        except Exception:
-                            continue
+                        actual = self.restore_into(candidate, restored)
                         if inventory_digest(actual) == digest:
                             self.current['verified'][candidate['id']] = now()
                             self.save()
                             self.dequeue_project(root)
                             recovered = True
                             break
-            if not recovered:
-                self.backup(str(root))
+                if not recovered:
+                    self.backup(str(root))
+            except Exception:
+                pending = next((q for q in self.queue if q['id'] == item['id']), None)
+                if pending is not None:
+                    pending['attempts'] = min(max(pending['attempts'], attempts + 1), 2**32 - 1)
+                    pending['last_error'] = 'Backup or restore verification did not complete; check connectivity, saved files and repository locks, then retry.'
+                    self.save_queue()
+                raise ValueError('Queued backup did not complete. Pending projects remain queued; check connectivity, saved files and repository locks, then retry.') from None
         return self.status('Completed all queued backups and verified every restored file hash.')
 
     def backup(self, project):
         root = self.validate_project_root(project)
         require(self.current is not None, 'Set up a backup repository first.')
+        original = inventory(root)
+        queued = self.enqueue_project(root, original)
+        try:
+            return self.backup_saved(root, original, queued)
+        except Exception:
+            self.enqueue_project(root, original, 'Backup or restore verification did not complete; retry explicitly.')
+            raise
+
+    def backup_saved(self, root, original, queued):
         destination = self.repository(self.current['repository'])
         same_device = False
         if not destination.startswith('rclone:'):
@@ -459,23 +470,19 @@ class Service:
         with tempfile.TemporaryDirectory(prefix='wros-backup-', dir=self.state) as temporary:
             stage = Path(temporary)/'book'
             stage.mkdir(mode=0o700)
-            original = inventory(root, stage)
+            require(inventory(root, stage) == original, 'Project changed before staging; save and retry.')
             require(inventory(root) == original, 'Project changed during staging; save and retry. No snapshot verified.')
             (stage/MANIFEST).write_text(json.dumps({'version': 1, 'created': now(), 'inventory': original}), encoding='utf-8')
             label = ''.join(c for c in root.name if c.isprintable())[:80] or 'Book'
-            try:
-                output = self.restic(['backup', '--tag', TAG, '--tag', 'project:' + label, '--host', 'wros', '--', str(stage)], stage)
-                summaries = [json.loads(line) for line in output.splitlines() if line.strip()]
-                identifier = next((row.get('snapshot_id') for row in summaries if row.get('message_type') == 'summary'), None)
-                require(identifier, 'Backup did not return a complete snapshot; no verification claimed.')
-                snapshot = next((row for row in self.snapshots() if row['id'].startswith(identifier)), None)
-                require(snapshot is not None, 'New snapshot cannot be found; no verification claimed.')
-                restored = Path(temporary)/'restore-check'
-                restored.mkdir(mode=0o700)
-                require(self.restore_into(snapshot, restored) == original, 'Restore check differs from the saved project.')
-            except Exception as error:
-                self.enqueue_project(root, original, str(error))
-                raise
+            output = self.restic(['backup', '--tag', TAG, '--tag', 'project:' + label, '--tag', 'queue:' + queued['id'], '--host', 'wros', '--', str(stage)], stage)
+            summaries = [json.loads(line) for line in output.splitlines() if line.strip()]
+            identifier = next((row.get('snapshot_id') for row in summaries if row.get('message_type') == 'summary'), None)
+            require(identifier, 'Backup did not return a complete snapshot; no verification claimed.')
+            snapshot = next((row for row in self.snapshots() if row['id'].startswith(identifier)), None)
+            require(snapshot is not None, 'New snapshot cannot be found; no verification claimed.')
+            restored = Path(temporary)/'restore-check'
+            restored.mkdir(mode=0o700)
+            require(self.restore_into(snapshot, restored) == original, 'Restore check differs from the saved project.')
             self.current['verified'][snapshot['id']] = now()
             self.save()
             self.dequeue_project(root)

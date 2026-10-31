@@ -1,0 +1,50 @@
+┌WrOS · Settings › Backups─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│  No backup operation is running                                                                                                                              │
+│  Create encrypted backup of this saved project                                                                                                               │
+│  Refresh snapshots                                                                                                                                           │
+│  New backup on a local drive                                                                                                                                 │
+│  New backup on Google Drive                                                                                                                                  │
+│  Connect existing repository and recovery key                                                                                                                │
+│  Connect Google Drive                                                                                                                                        │
+│  Export recovery key                                                                                                                                         │
+│  Recover an interrupted repository lock                                                                                                                      │
+│  Queue saved project for offline backup                                                                                                                      │
+│  Run queued backups and retry interrupted jobs                                                                                                               │
+│  Destination: /tmp/wros-native-backup-ywkicn9a/encrypted snapshots                                                                                           │
+│  Private recovery key: /tmp/wros-native-backup-ywkicn9a/home/data/grimoire/wros/backup/recovery-b721337ab708e8114a04deacfe0153e1.key                         │
+│  Google Drive is not connected                                                                                                                               │
+│  Select a snapshot below to restore into a NEW folder.                                                                                                       │
+│  Keep local backups on another device; folders can share the same disk.                                                                                      │
+│  Restore verified and saved in /tmp/wros-native-backup-ywkicn9a/demo-restored                                                                                │
+│  -2fd8bf45. Open that folder explicitly to review it.                                                                                                        │
+│▸ demo · 2026-10-31T16:39:37.938943092Z · 2fd8bf45                                                                                                            │
+│  Restore checked: 2026-10-31T16:39:42.745814+00:00                                                                                                           │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│Restore verified and saved in /tmp/wros-native-backup-ywkicn9a/demo-restored-2fd8bf45. Open that folder explicitly to review it.                              │
+│↑↓ choose  Enter open  Esc back  F1 help                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

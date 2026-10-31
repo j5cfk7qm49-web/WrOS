@@ -1827,7 +1827,7 @@ impl App {
                 self.deck.shell.nav.current(),
                 shell::Route::BackupForm
                     | shell::Route::WifiConnect
-                    | shell::Route::UpdateStageForm
+                    | shell::Route::UpdateBundleForm
             )
         {
             let text = self.clipboard_text();
@@ -2043,7 +2043,7 @@ impl App {
             return;
         }
         if self.overlay == Overlay::Deck(writingdeck::Page::Settings)
-            && self.deck.shell.nav.current() == shell::Route::UpdateStageForm
+            && self.deck.shell.nav.current() == shell::Route::UpdateBundleForm
         {
             self.paste_update_form(text);
             return;

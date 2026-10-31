@@ -25,7 +25,7 @@ jobs:
         run: |
           sed 's/^Types:.*/Types: deb-src/' /etc/apt/sources.list.d/debian.sources > /etc/apt/sources.list.d/wros-build-sources.sources
           apt-get update
-          apt-get install -y --no-install-recommends build-essential pkg-config libasound2-dev libssl-dev libdrm-dev python3 python3-venv python3-debian python3-apt wordnet-base ca-certificates curl git restic rclone shellcheck gpgv debian-archive-keyring autoconf automake libtool dpkg-dev patch cpio libdebian-installer4-dev debconf libreoffice-writer-nogui poppler-utils fonts-liberation epubcheck default-jre-headless
+          apt-get install -y --no-install-recommends build-essential pkg-config libasound2-dev libssl-dev libdrm-dev python3 python3-venv python3-debian python3-apt wordnet-base ca-certificates curl git restic rclone shellcheck gnupg gpgv debian-archive-keyring autoconf automake libtool dpkg-dev patch cpio libdebian-installer4-dev debconf libreoffice-writer-nogui poppler-utils fonts-liberation epubcheck default-jre-headless
           useradd -m -s /bin/bash builder
       - uses: actions/checkout@v4
         with:

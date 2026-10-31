@@ -238,13 +238,15 @@ class EncryptedBackup(unittest.TestCase):
         reloaded = module.Service(self.service.state)
         self.assertEqual(len(reloaded.queue), 1)
         self.assertEqual(reloaded.queue[0]['attempts'], 1)
-        self.assertIn('Destination offline', reloaded.queue[0]['last_error'])
+        self.assertIn('did not complete', reloaded.queue[0]['last_error'])
 
         # Simulate an interrupted backup where the snapshot was already uploaded
         # to the repository, but restore verification was interrupted before completion.
         snap_id = 'a' * 64
         expected_inv = module.inventory(self.project)
-        def fake_snapshots():
+        def fake_snapshots(queue_id=None):
+            if queue_id is not None:
+                self.assertEqual(queue_id, reloaded.queue[0]['id'])
             return [{'id': snap_id, 'time': '2026-10-31T05:00:00Z', 'path': '/staged/book',
                      'project': 'A book with spaces',
                      'restore_checked_at': reloaded.current['verified'].get(snap_id, '')}]
@@ -273,6 +275,38 @@ class EncryptedBackup(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Unknown backup queue'):
             module.Service(self.service.state)
         self.assertEqual(self.service.queue_path.read_bytes(), future_queue)
+
+    def test_real_interrupted_upload_is_reverified_without_duplicate_snapshot(self):
+        self.initialize()
+        with mock.patch.object(self.service, 'restore_into', side_effect=InterruptedError('fixture interruption')):
+            with self.assertRaises(InterruptedError):
+                self.service.backup(str(self.project))
+        pending = module.Service(self.service.state)
+        self.assertEqual(len(pending.queue), 1)
+        before = pending.snapshots()
+        self.assertEqual(len(before), 1)
+        self.assertFalse(before[0]['restore_checked_at'])
+        # An identically named project is not sufficient: the engine must match
+        # the durable queue operation tag and verify the actual restored bytes.
+        tags = json.loads(pending.restic(['snapshots']))[0]['tags']
+        self.assertIn('queue:' + pending.queue[0]['id'], tags)
+        result = pending.run_queue()
+        self.assertEqual(result['queued_backups'], [])
+        self.assertEqual([s['id'] for s in result['snapshots']], [before[0]['id']])
+        self.assertTrue(result['snapshots'][0]['restore_checked_at'])
+
+    def test_queue_retain_and_count_failures_before_upload_and_for_missing_projects(self):
+        self.initialize()
+        self.service.queue_backup(str(self.project))
+        with mock.patch.object(self.service, 'snapshots', side_effect=ValueError('offline')):
+            with self.assertRaisesRegex(ValueError, 'remain queued'):
+                self.service.run_queue()
+        reloaded = module.Service(self.service.state)
+        self.assertEqual(reloaded.queue[0]['attempts'], 1)
+        self.project.rename(self.base/'temporarily-unavailable')
+        with self.assertRaisesRegex(ValueError, 'remain queued'):
+            reloaded.run_queue()
+        self.assertEqual(module.Service(self.service.state).queue[0]['attempts'], 2)
 
     def test_status_is_offline_and_malformed_authorization_never_echoes_a_secret(self):
         with mock.patch.object(module, 'run', side_effect=AssertionError('No process expected')):

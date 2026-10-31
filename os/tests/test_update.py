@@ -8,6 +8,7 @@ import importlib.machinery
 import importlib.util
 import os
 from pathlib import Path
+from unittest import mock
 import subprocess
 import tempfile
 import unittest
@@ -207,82 +208,30 @@ class SignedUpdateTests(unittest.TestCase):
             )
             self.assertEqual(btrfs_info['root_filesystem'], 'btrfs')
             self.assertTrue(btrfs_info['separate_home'])
-            self.assertTrue(btrfs_info['rollback_capable'])
+            self.assertFalse(btrfs_info['rollback_capable'])
 
-    def test_stage_and_cancel_offline_update_and_interrupted_dpkg_recovery(self):
-        with tempfile.TemporaryDirectory(prefix='wros-stage-') as tmp:
-            root = Path(tmp)
-            bundle = root / 'bundle'
+    def test_prototype_mutations_and_environment_overrides_cannot_change_system_state(self):
+        with tempfile.TemporaryDirectory(prefix='wros-update-readonly-') as tmp:
+            marker = Path(tmp)/'system-update'
+            with mock.patch.dict(os.environ, {'WROS_UPDATE_TRIGGER': str(marker),
+                                               'WROS_UPDATE_KEYRING': str(self.keyring)}):
+                for argv in (['stage', tmp], ['cancel-staged'], ['recover-dpkg']):
+                    with self.assertRaisesRegex(ValueError, 'unavailable; no system changes'):
+                        update.main(argv)
+            self.assertFalse(marker.exists())
+
+    def test_metadata_verified_is_the_same_private_copy_that_was_parsed(self):
+        with tempfile.TemporaryDirectory(prefix='wros-update-race-') as tmp:
+            bundle = Path(tmp)/'bundle'
             self.build_signed_bundle(bundle)
-            dpkg_dir = root / 'dpkg'
-            (dpkg_dir / 'updates').mkdir(parents=True)
-            status_path = dpkg_dir / 'status'
-            # Interrupted half-configured package blocks staging until recovered
-            status_path.write_text(
-                'Package: grimoire\nStatus: install ok half-configured\nVersion: 0.7.5\n\n'
-            )
-            state_dir = root / 'state'
-            trigger = root / 'system-update'
-            with self.assertRaisesRegex(ValueError, 'interrupted dpkg transaction.*grimoire'):
-                update.stage_bundle(
-                    bundle,
-                    keyring=self.keyring,
-                    state_dir=state_dir,
-                    dpkg_dir=dpkg_dir,
-                    trigger_path=trigger,
-                )
-
-            # Recover interrupted dpkg state using injected runner that marks package installed
-            calls = []
-
-            def fake_dpkg_runner(cmd):
-                calls.append(cmd)
-                status_path.write_text(
-                    'Package: grimoire\nStatus: install ok installed\nVersion: 0.7.5\n\n'
-                )
-                return subprocess.CompletedProcess(cmd, 0, stdout='configured\n', stderr='')
-
-            recovered = update.recover_dpkg(dpkg_dir=dpkg_dir, runner=fake_dpkg_runner)
-            self.assertEqual(recovered['status'], 'recovered')
-            self.assertEqual(recovered['recovered_packages'], ['grimoire'])
-            self.assertEqual(calls[0][0], '/usr/bin/dpkg')
-            self.assertIn('--configure', calls[0])
-
-            # Now stage the signed update bundle
-            staged = update.stage_bundle(
-                bundle,
-                keyring=self.keyring,
-                state_dir=state_dir,
-                dpkg_dir=dpkg_dir,
-                trigger_path=trigger,
-            )
-            self.assertEqual(staged['status'], 'staged')
-            self.assertEqual(staged['package_count'], 1)
-            self.assertTrue(trigger.is_symlink())
-
-            ext4_mountinfo = '29 1 253:0 / / rw - ext4 /dev/mapper/root rw\n'
-            status = update.inspect_recovery(
-                mountinfo_text=ext4_mountinfo,
-                dpkg_dir=dpkg_dir,
-                state_dir=state_dir,
-                trigger_path=trigger,
-                root_dir=root,
-            )
-            self.assertTrue(status['staged_update'])
-            self.assertEqual(status['staged_packages'], ['grimoire 0.7.6'])
-
-            # Cancel staged update
-            cancelled = update.cancel_staged(state_dir=state_dir, trigger_path=trigger)
-            self.assertEqual(cancelled['status'], 'cancelled')
-            self.assertFalse(trigger.is_symlink())
-            status_after = update.inspect_recovery(
-                mountinfo_text=ext4_mountinfo,
-                dpkg_dir=dpkg_dir,
-                state_dir=state_dir,
-                trigger_path=trigger,
-                root_dir=root,
-            )
-            self.assertFalse(status_after['staged_update'])
+            original_run = subprocess.run
+            def replace_original(cmd, **kwargs):
+                self.assertNotEqual(Path(kwargs['cwd']), bundle)
+                (bundle/'InRelease').write_text('UNSIGNED REPLACEMENT')
+                return original_run(cmd, **kwargs)
+            with mock.patch.object(update.subprocess, 'run', side_effect=replace_original):
+                verified = update.verify_bundle(bundle, keyring=self.keyring)
+            self.assertTrue(verified['verified'])
 
 
 if __name__ == '__main__':

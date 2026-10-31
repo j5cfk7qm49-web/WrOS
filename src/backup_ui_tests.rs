@@ -81,6 +81,9 @@ fn backup_refuses_source_conflicts_and_preserves_external_and_unsaved_words() {
     desk.app.request_project_backup_queue();
     assert!(desk.app.deck.shell.backup.job.is_none());
     assert!(desk.app.deck.shell.backup.notice.contains("conflicts"));
+    desk.app.request_run_backup_queue();
+    assert!(desk.app.deck.shell.backup.job.is_none());
+    assert!(desk.app.deck.shell.backup.notice.contains("conflicts"));
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
         "External writing must remain.\n"

@@ -28,7 +28,9 @@ def fixture(root):
     for relative in ('usr/sbin/greetd', 'usr/bin/wros-greeter', 'usr/bin/grimoire',
                      'usr/libexec/writingdeck-session', 'usr/libexec/writingdeck-keyboard',
                      'etc/pam.d/greetd', 'usr/share/doc/greetd/copyright', 'usr/share/doc/vlock/copyright',
-                     'usr/libexec/wros-lock', 'usr/libexec/wros-backup', 'usr/bin/restic', 'usr/bin/rclone',
+                     'usr/libexec/wros-lock', 'usr/libexec/wros-backup', 'usr/libexec/wros-update',
+                     'usr/bin/restic', 'usr/bin/rclone', 'usr/bin/gpgv',
+                     'usr/share/keyrings/debian-archive-keyring.gpg',
                      'usr/share/doc/restic/copyright', 'usr/share/doc/rclone/copyright',
                      'usr/bin/openvt', 'usr/bin/systemd-run', 'usr/bin/chvt', 'usr/sbin/vlock-main',
                      'usr/lib/x86_64-linux-gnu/security/pam_succeed_if.so',
@@ -40,6 +42,7 @@ def fixture(root):
     (root / 'usr/sbin/vlock-main').chmod(0o4755)
     shutil.copyfile(ROOT / 'os/scripts/wros-lock', root / 'usr/libexec/wros-lock')
     shutil.copyfile(ROOT / 'os/scripts/wros-backup', root / 'usr/libexec/wros-backup')
+    shutil.copyfile(ROOT / 'os/scripts/wros-update', root / 'usr/libexec/wros-update')
     for source, relative in (
             ('greetd.toml', 'etc/greetd/config.toml'),
             ('greetd.service', 'etc/systemd/system/greetd.service'),
@@ -79,7 +82,9 @@ class NativeImage(unittest.TestCase):
             self.assertEqual(result['greetd_package_version'], '0.10.3-4')
             self.assertEqual(result['vlock_package_version'], '2.2.2-12')
             self.assertTrue(result['manual_lock_payload_present'])
-            self.assertEqual(len(result['binary_sha256']), 16)
+            self.assertEqual(len(result['binary_sha256']), 18)
+            self.assertIn('usr/libexec/wros-update', result['binary_sha256'])
+            self.assertIn('usr/bin/gpgv', result['binary_sha256'])
 
     def test_unsafe_native_session_cannot_pass_even_with_all_requested_packages(self):
         mutations = {

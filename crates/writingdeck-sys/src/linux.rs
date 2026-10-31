@@ -27,7 +27,9 @@ impl Invocation {
 pub trait Runner: Send {
     fn run(&mut self, cmd: &Invocation) -> Result<String>;
     fn run_with_input(&mut self, cmd: &Invocation, input: &[u8]) -> Result<String> {
-        let _ = input;
+        if !input.is_empty() {
+            bail!("this runner does not support protected input");
+        }
         self.run(cmd)
     }
 }
@@ -53,14 +55,12 @@ impl Runner for ProcessRunner {
             .with_context(|| format!("starting {} (is its package installed?)", cmd.program))?;
         if !input.is_empty()
             && let Some(mut stdin) = child.stdin.take()
+            && let Err(err) = stdin.write_all(input).and_then(|()| stdin.flush())
+            && err.kind() != std::io::ErrorKind::BrokenPipe
         {
-            if let Err(err) = stdin.write_all(input).and_then(|()| stdin.flush())
-                && err.kind() != std::io::ErrorKind::BrokenPipe
-            {
-                let _ = child.kill();
-                let _ = child.wait();
-                bail!("writing protected input to {} failed", cmd.program);
-            }
+            let _ = child.kill();
+            let _ = child.wait();
+            bail!("writing protected input to {} failed", cmd.program);
         }
         // Drain pipes while waiting, with a bounded retained buffer.
         fn drain(mut pipe: impl Read) -> std::io::Result<Vec<u8>> {
@@ -84,7 +84,15 @@ impl Runner for ProcessRunner {
             if let Some(status) = child.try_wait()? {
                 break (status, false);
             }
-            if start.elapsed() > Duration::from_secs(8) {
+            if start.elapsed()
+                > Duration::from_secs(if cmd.program == "/usr/libexec/wros-update" {
+                    60
+                } else if cmd.program == "/usr/bin/nmcli" {
+                    20
+                } else {
+                    8
+                })
+            {
                 let _ = child.kill();
                 break (child.wait()?, true);
             }
@@ -313,7 +321,8 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
                 Invocation::new(
                     "/usr/bin/nmcli",
                     &[
-                        "--colors", "no", "--ask", "--wait", "8", "device", "wifi", "connect", ssid,
+                        "--colors", "no", "--ask", "--wait", "15", "device", "wifi", "connect",
+                        ssid,
                     ],
                 )
             } else {
@@ -367,34 +376,15 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
         Request::RecoveryStatus => {
             Invocation::new("/usr/libexec/wros-update", &["recovery-status"])
         }
-        Request::StageUpdateBundle { bundle_dir } => {
+        Request::VerifyUpdateBundle { bundle_dir } => {
             crate::system_views::validate_update_bundle_path(bundle_dir)?;
-            Invocation::new(
-                "/usr/bin/pkexec",
-                &[
-                    "--disable-internal-agent",
-                    "/usr/libexec/wros-update",
-                    "stage",
-                    bundle_dir,
-                ],
+            Invocation::new("/usr/libexec/wros-update", &["verify-bundle", bundle_dir])
+        }
+        Request::CancelStagedUpdates | Request::RecoverUpdates => {
+            bail!(
+                "Update installation and package repair are unavailable; no system changes were made"
             )
         }
-        Request::CancelStagedUpdates => Invocation::new(
-            "/usr/bin/pkexec",
-            &[
-                "--disable-internal-agent",
-                "/usr/libexec/wros-update",
-                "cancel-staged",
-            ],
-        ),
-        Request::RecoverUpdates => Invocation::new(
-            "/usr/bin/pkexec",
-            &[
-                "--disable-internal-agent",
-                "/usr/libexec/wros-update",
-                "recover-dpkg",
-            ],
-        ),
         Request::ListStorageDevices => Invocation::new(
             "/usr/bin/findmnt",
             &[
@@ -565,11 +555,30 @@ impl<R: Runner> Backend for Linux<R> {
             if output.contains("Error:") {
                 bail!("Wi-Fi connection failed; check network credentials and signal");
             }
-            let active_output = self.runner.run(&active_wifi_connections())?;
-            let active = crate::system_views::saved_wifi(&active_output)?;
-            if active.is_empty() {
+            let active_output = self.runner.run(&Invocation::new(
+                "/usr/bin/nmcli",
+                &[
+                    "--colors",
+                    "no",
+                    "-t",
+                    "--escape",
+                    "yes",
+                    "-f",
+                    "IN-USE,SSID,SIGNAL,SECURITY",
+                    "device",
+                    "wifi",
+                    "list",
+                    "--rescan",
+                    "no",
+                ],
+            ))?;
+            let active = crate::system_views::wifi_scan(&active_output)?;
+            if !active
+                .iter()
+                .any(|network| network.in_use && network.ssid == *ssid)
+            {
                 bail!(
-                    "Wi-Fi connection could not be verified as active; check credentials and signal"
+                    "Requested Wi-Fi network could not be verified as active; check credentials and signal"
                 );
             }
             return Ok(Reply::Message(format!(
@@ -697,10 +706,10 @@ impl<R: Runner> Backend for Linux<R> {
                     &output,
                 )?));
             }
-            Request::StageUpdateBundle { .. } => {
+            Request::VerifyUpdateBundle { .. } => {
                 return Ok(Reply::Message(crate::system_views::update_action_message(
                     &output,
-                    &["staged"],
+                    &["verified"],
                 )?));
             }
             Request::CancelStagedUpdates => {
@@ -766,10 +775,10 @@ mod tests {
                 ssid: "ValidSSID".into(),
                 password: Some(crate::WifiSecret::new("short")),
             },
-            Request::StageUpdateBundle {
+            Request::VerifyUpdateBundle {
                 bundle_dir: "relative-bundle".into(),
             },
-            Request::StageUpdateBundle {
+            Request::VerifyUpdateBundle {
                 bundle_dir: "/media/../etc".into(),
             },
             Request::ConnectGoogleAccount,
@@ -809,7 +818,7 @@ mod tests {
         assert!(backend.request(Request::RecoveryStatus).is_err());
         assert!(
             backend
-                .request(Request::StageUpdateBundle {
+                .request(Request::VerifyUpdateBundle {
                     bundle_dir: "/media/usb/wros-updates".into()
                 })
                 .is_err()
@@ -827,93 +836,27 @@ mod tests {
         );
     }
     #[test]
-    fn signed_update_staging_recovery_status_and_dpkg_repair_use_fixed_verified_helper() {
-        use std::collections::VecDeque;
-        struct UpdateRunner {
-            replies: VecDeque<Result<&'static str, &'static str>>,
-            calls: Vec<Invocation>,
-        }
-        impl Runner for UpdateRunner {
-            fn run(&mut self, cmd: &Invocation) -> Result<String> {
-                self.calls.push(cmd.clone());
-                match self.replies.pop_front().unwrap() {
-                    Ok(out) => Ok(out.into()),
-                    Err(err) => bail!("{err}"),
-                }
-            }
-        }
-        let ext4_recovery = r#"{"root_filesystem":"ext4","root_device":"/dev/mapper/wros--vg-root","separate_home":false,"rollback_capable":false,"rollback_strategy":"Root filesystem is ext4: automatic filesystem snapshot rollback is not available (installing Snapper on ext4 does not provide rollback).","interrupted_dpkg":true,"unconfigured_packages":["grimoire"],"staged_update":false,"staged_packages":[],"status":"Root filesystem: ext4 (no automatic filesystem rollback) · dpkg: interrupted (grimoire) · no offline update staged."}"#;
-        let recovered_reply = r#"{"status":"recovered","recovered_packages":["grimoire"],"message":"Recovered interrupted dpkg transaction (grimoire)."}"#;
-        let staged_reply = r#"{"status":"staged","package_count":1,"signer_fingerprint":"ABCD1234","packages":["grimoire 0.7.6"],"message":"Verified and staged 1 signed package(s) for offline update: grimoire (0.7.6)."}"#;
-        let cancelled_reply = r#"{"status":"cancelled","message":"Cancelled staged offline update and removed queued package archives."}"#;
+    fn update_mutations_are_refused_and_bundle_inspection_is_unprivileged() {
         let mut backend = Linux {
-            runner: UpdateRunner {
-                replies: VecDeque::from([
-                    Ok(ext4_recovery),
-                    Ok(recovered_reply),
-                    Ok(staged_reply),
-                    Ok(cancelled_reply),
-                ]),
-                calls: Vec::new(),
-            },
+            runner: Fake::default(),
             sys: "/missing".into(),
             etc: "/missing".into(),
             storage: "/missing".into(),
         };
-        let Reply::Recovery(info) = backend.request(Request::RecoveryStatus).unwrap() else {
-            panic!()
-        };
-        assert_eq!(info.root_filesystem, "ext4");
-        assert!(!info.rollback_capable);
-        assert!(info.interrupted_dpkg);
-        assert_eq!(info.unconfigured_packages, vec!["grimoire"]);
-        assert_eq!(backend.runner.calls[0].program, "/usr/libexec/wros-update");
-        assert_eq!(backend.runner.calls[0].args, ["recovery-status"]);
-
-        let msg = backend.request(Request::RecoverUpdates).unwrap();
-        assert_eq!(
-            msg,
-            Reply::Message("Recovered interrupted dpkg transaction (grimoire).".into())
-        );
-        assert_eq!(backend.runner.calls[1].program, "/usr/bin/pkexec");
-        assert_eq!(
-            backend.runner.calls[1].args,
-            [
-                "--disable-internal-agent",
-                "/usr/libexec/wros-update",
-                "recover-dpkg"
-            ]
-        );
-
-        let staged = backend
-            .request(Request::StageUpdateBundle {
-                bundle_dir: "/media/usb/wros-updates".into(),
-            })
-            .unwrap();
-        assert_eq!(
-            staged,
-            Reply::Message(
-                "Verified and staged 1 signed package(s) for offline update: grimoire (0.7.6)."
-                    .into()
-            )
-        );
-        assert_eq!(
-            backend.runner.calls[2].args,
-            [
-                "--disable-internal-agent",
-                "/usr/libexec/wros-update",
-                "stage",
-                "/media/usb/wros-updates"
-            ]
-        );
-
-        let cancelled = backend.request(Request::CancelStagedUpdates).unwrap();
-        assert_eq!(
-            cancelled,
-            Reply::Message(
-                "Cancelled staged offline update and removed queued package archives.".into()
-            )
-        );
+        for request in [
+            Request::StageUpdates,
+            Request::CancelStagedUpdates,
+            Request::RecoverUpdates,
+        ] {
+            assert!(backend.request(request).is_err());
+        }
+        assert!(backend.runner.0.is_empty());
+        let command = invocation(&Request::VerifyUpdateBundle {
+            bundle_dir: "/media/usb/wros-updates".into(),
+        })
+        .unwrap();
+        assert_eq!(command.program, "/usr/libexec/wros-update");
+        assert_eq!(command.args, ["verify-bundle", "/media/usb/wros-updates"]);
     }
     #[test]
     fn wifi_enrollment_passes_secret_on_stdin_never_argv_and_verifies_active_connection() {
@@ -941,7 +884,7 @@ mod tests {
             runner: WifiRunner {
                 replies: VecDeque::from([
                     Ok("Device 'wlan0' successfully activated."),
-                    Ok(active_line),
+                    Ok("*:WriterDeck-Cafe:88:WPA2"),
                     Ok("Connection 'WriterDeck-Cafe' successfully activated."),
                     Ok(active_line),
                     Ok(active_line),
@@ -999,6 +942,24 @@ mod tests {
         assert_eq!(
             backend.request(Request::ForgetWifi(uuid.into())).unwrap(),
             Reply::Message(format!("Removed saved Wi-Fi profile {uuid}."))
+        );
+
+        let mut unrelated = Linux {
+            runner: WifiRunner {
+                replies: VecDeque::from([Ok("success"), Ok("*:OtherSSID:90:WPA2")]),
+                calls: Vec::new(),
+            },
+            sys: "/missing".into(),
+            etc: "/missing".into(),
+            storage: "/missing".into(),
+        };
+        assert!(
+            unrelated
+                .request(Request::ConnectWifi {
+                    ssid: "WriterDeck-Cafe".into(),
+                    password: None
+                })
+                .is_err()
         );
 
         // Failed authentication redacts any echoed secret from the error.

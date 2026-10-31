@@ -96,6 +96,7 @@ impl Backups {
         }
     }
     pub fn request(&mut self, request: Request) {
+        self.tick();
         if self.job.is_some() {
             self.notice = "A backup operation is already running.".into();
             return;
@@ -225,6 +226,24 @@ impl App {
         self.deck.shell.backup.request(Request::Queue {
             project: self.project.root.to_string_lossy().into_owned(),
         });
+    }
+    pub fn request_run_backup_queue(&mut self) {
+        if self.deck.shell.backup.job.is_some() {
+            return;
+        }
+        // The queue can contain this open book. Apply the ordinary backup save
+        // and conflict gate before allowing its saved files to be transmitted.
+        if !self.commit_saves()
+            || self.project.dirty_count() != 0
+            || self.tree_stale
+            || !self.conflicts().is_empty()
+        {
+            self.deck.shell.backup.notice =
+                "Backup queue not started: save buffers and resolve source conflicts first.".into();
+            return;
+        }
+        self.save_deck();
+        self.deck.shell.backup.request(Request::RunQueue);
     }
     pub fn paste_backup_form(&mut self, text: &str) {
         let Some(form) = &mut self.deck.shell.backup.form else {

@@ -594,10 +594,11 @@ impl App {
                             network.in_use = network.ssid == profile.name;
                         }
                     }
-                    if matches!(request, Request::StageUpdateBundle { .. }) {
+                    if matches!(request, Request::VerifyUpdateBundle { .. }) {
                         self.deck.shell.update_form = None;
                         if matches!(self.overlay, Overlay::Deck(Page::Settings))
-                            && self.deck.shell.nav.current() == super::shell::Route::UpdateStageForm
+                            && self.deck.shell.nav.current()
+                                == super::shell::Route::UpdateBundleForm
                         {
                             self.deck.shell.nav.back();
                         }
