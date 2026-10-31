@@ -1,0 +1,24 @@
+┌Restore one reviewed passage──────────────────────────────────────────────────┐
+│▸ Cancel — keep current writing                                               │
+│  Restore this saved passage                                                  │
+│A full recovery variant and dated history are kept before an actual change.   │
+│↑↓/Tab choose  Enter confirm  Esc back  F1 help                               │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌Current and saved wording─────────────────────────────────────────────────────┐
+│Passage 2 of 2 · current UTF-8 bytes 57..63                                   │
+│                                                                              │
+│CURRENT WORDING:                                                              │
+│Added                                                                         │
+│                                                                              │
+│SAVED WORDING:                                                                │
+│(no text — removes this current passage)                                      │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│Saved named milestone #2.                                                     │
+│PgUp/PgDn scroll both wordings · Cancel is selected when this review opens    │
+└──────────────────────────────────────────────────────────────────────────────┘

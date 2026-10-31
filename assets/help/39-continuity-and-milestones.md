@@ -35,16 +35,30 @@ active scene (such as a different point of view or ending).
 - Press `n` to create a named milestone or save the active scene as a named
   variant.
 - Press `Enter` on any milestone or variant to inspect its word-count delta and
-  preview its text alongside your current scene.
+  preview its text alongside your current scene. The comparison and restore
+  stay bound to that exact reviewed snapshot, including the second or later
+  entry in a list.
 - Press `r` inside the comparison view to restore the snapshot or
   variant into the active editor. Before replacing the buffer, Grimoire
   saves the current wording as a recovery variant and in dated history. Failed
   recovery/history writes, changed source or changed metadata refuse the restore.
   `Ctrl-Z` undoes a successful restore in the original editor.
+- To restore only one changed passage, use `Left`/`Right` (or `[`/`]`) in the
+  comparison, then `p` to review the complete current and saved wording.
+  `Page Up`/`Page Down` scroll. **Cancel is selected initially**; `Enter` keeps
+  your current writing. Use `Down` or `Tab` to explicitly choose Restore,
+  then `Enter` applies only that change. Other edits remain intact. A recovery
+  variant and dated history are kept before the change; `Ctrl-Z` reverses it.
+  `Esc` returns without restoring; F1 opens this help. Changed editor revisions,
+  backing files or draft metadata refuse the operation and require fresh review.
 
 The stores are bounded to 1 MiB each. When full, they refuse new snapshots;
 old versions are preserved. Prototype schema-1 data needs explicit migration;
 it is never rebound from old tree indices to current scenes.
+Passage comparison additionally refuses bodies over 2 MiB, more than 16,384
+diff runs or 4,096 change groups. It never shows a partial change list. Other
+existing source-ownership/review bounds still apply. These byte positions are
+temporary and never replace the shared durable document IDs.
 
 ## Read chapter aloud
 

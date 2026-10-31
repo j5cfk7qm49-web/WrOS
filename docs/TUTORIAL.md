@@ -53,7 +53,7 @@ The demo contains original short text and a deliberate spelling error. Nothing i
 | 30 | Author voice | Wired: actual sufficient-material baseline comparison; preparing/saving/selecting alone is insufficient |
 | 31 | Continuity | Wired: save explicit facts in the safe demo and review their bounded contradictions/suggestions |
 | 32 | Inline revision notes | Wired: safe-demo creation, original edit and explicit changed-anchor save; opening, cancelling, resolving or saving the same anchor cannot complete it |
-| 33 | Draft comparisons | Wired history view and durable milestone/variant workflow; creating a real snapshot or opening its comparison observes the existing event |
+| 33 | Draft comparisons | Wired history view and durable milestone/variant workflow; creating a real snapshot or opening its comparison observes the existing event; optional guarded passage restore is explained without changing historic credit |
 | 34 | Footnotes | Wired: actual Word manuscript with page notes followed by successful matching nonempty PDF in the safe demo; viewing, Word alone, starting conversion and failures cannot complete it |
 | 35 | Export | Wired: real nonempty Markdown export in safe demo; canceled, failed and ordinary-novel attempts cannot complete the lesson; manuscript PDF/DOCX notes use the separate lesson 34 event |
 | 36 | Google Drive backup | Planned; live credentials required for provider acceptance |

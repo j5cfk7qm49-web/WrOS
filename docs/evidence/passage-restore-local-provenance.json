@@ -1,0 +1,48 @@
+{
+  "passed": true,
+  "tested_head": "77b7bb539db2267a3107ac9af4e0d09985460cf3",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "9485ceefde62a16dc6156e5b2c199663b8b78b231e82066b0f6784d2e877f904",
+    "file_count": 467,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "receipt_sha256": "3f8c875e3618d844a6c2935fa186a4b606ce3c8a074f747e0cc6ebae9da5173c",
+  "tested_binary_sha256": "4d23743c8c25362a5c0149e856ec30e0f26fc95df4ef307afbbb2cec889d3866",
+  "runner": "Isolated Debian chroot ordinary builder; external network isolation with loopback; corrected unshare without --fork and asserted normal signal defaults.",
+  "frames": [
+    {
+      "file": "docs/evidence/passage-restore-milestone-80x24.txt",
+      "sha256": "bc0e1a0bbe304c2c9ec03ac40b10867f2175fdbb6e0e856e1cc7c94e8f6e54af"
+    },
+    {
+      "file": "docs/evidence/passage-restore-milestone-100x30.txt",
+      "sha256": "aba1dc16ca3cb73c90fb70ef95f79b8a8c8d1840468e050d8f4b202637147272"
+    },
+    {
+      "file": "docs/evidence/passage-restore-milestone-120x40.txt",
+      "sha256": "f746e7fdaaeb2f47b1c9c267ae92be2d2bbf6f273c1f1014974c1cbd7748c973"
+    },
+    {
+      "file": "docs/evidence/passage-restore-milestone-160x50.txt",
+      "sha256": "d07c391bcf18b0067984d76f7f6ab4d1799a1bfc61223c2126202e770d7f66d7"
+    },
+    {
+      "file": "docs/evidence/passage-restore-variant-80x24.txt",
+      "sha256": "07b2e863226c2069c662fa7dd284add9474b6f7739f051ec7a0547c1d7518151"
+    },
+    {
+      "file": "docs/evidence/passage-restore-variant-100x30.txt",
+      "sha256": "41ce4926b066d85e425174417f43ae4029b0c0c98613a0c36f44c32b046617a7"
+    },
+    {
+      "file": "docs/evidence/passage-restore-variant-120x40.txt",
+      "sha256": "3de698f85cee0f958db7a2a57dff0c915fe6e15db1d2566e5ed8c051c2598da2"
+    },
+    {
+      "file": "docs/evidence/passage-restore-variant-160x50.txt",
+      "sha256": "1b4fe89aef3828b1ffaf21a8d75af82518ae65a283edb5c777826bdc93d084c0"
+    }
+  ],
+  "scope": "Reviewed draft and bounded one-passage restore using existing history/editor; generated fixtures only. Not full character knowledge/M8/M9, large-load/power-loss, image, provider, installer, physical or release qualification."
+}

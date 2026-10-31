@@ -228,14 +228,14 @@
     "title": "Draft comparisons",
     "help_topic": "continuity",
     "event": "HistoryOpened",
-    "instructions": "Open Scene history (H) or Draft milestones from Writing tools in the safe demo. Inspect a saved scene version, create a named milestone snapshot, or save a reversible scene variant."
+    "instructions": "Open Scene history (H) or Draft milestones from Writing tools in the safe demo. Inspect a saved scene version, create a named milestone snapshot, or save a reversible scene variant. After editing, compare a saved milestone or variant. Left/Right chooses a changed passage and p opens complete current/saved wording. Cancel is selected initially. Explicitly choose Restore to change only that passage; Ctrl-Z in the original editor reverses it. Viewing or cancelling does not establish a successful restore."
   },
   {
     "id": 34,
     "title": "Footnotes",
     "help_topic": "notes",
     "event": "ManuscriptFootnotesExported",
-    "instructions": "In the safe demo, write a public Markdown reference such as Key[^key] and a separate definition paragraph [^key]: Your own note. Save normally. Read footnote at caret in Ctrl-K lets you inspect and edit the original definition. Open Export for readers, untick EPUB and Paperback, and tick PDF. Word is included with PDF. Press p to review the selected source, Esc to return, then x to export. Only a successfully written manuscript Word file containing real notes followed by its completed nonempty PDF earns this exercise. Viewing notes, Word alone, unavailable LibreOffice, or a failed export cannot complete it. EPUB/paperback page notes remain unavailable; no external resource is fetched."
+    "instructions": "In the safe demo, write a public Markdown reference such as Key[^key] and a separate definition paragraph [^key]: Your own note. Save normally. Read footnote at caret in Ctrl-K lets you inspect and edit the original definition. Open Export for readers, untick Paperback, and tick PDF. Word is included with PDF. Press p to review the selected source, Esc to return, then x to export. Only a successfully written manuscript Word file containing real notes followed by its completed nonempty PDF earns this exercise. Viewing notes, Word alone, unavailable LibreOffice, or a failed export cannot complete it. EPUB linked notes are available; EPUB alone does not earn the Word/PDF exercise. Paperback page notes remain unavailable; no external resource is fetched."
   },
   {
     "id": 35,

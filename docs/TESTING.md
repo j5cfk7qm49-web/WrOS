@@ -1,5 +1,18 @@
 # Testing and verification
 
+## Reviewed draft and passage restoration
+
+`test_passage_restore_pty.py` runs the actual application at all four terminal
+sizes for both milestones and variants. It creates two saved drafts, verifies
+the second is the one reviewed/restored, edits two independent passages, cancels
+the default confirmation, then restores only the second change. It checks
+original YAML/private text, recovery variant and dated-history bytes, Undo,
+offline help and a fresh process. Captures use `WRITINGDECK_CAPTURE_PTY=1` under
+`build/verification/passage-restore-screens`. Core and controller regressions
+separately cover UTF-8/empty/EOF/bounds, changed revisions, backing files and both
+external/in-process metadata. [The scope](PASSAGE_RESTORE.md) retains limits.
+
+
 ## EPUB note validation
 
 The Debian verifier additionally requires `epubcheck` and `default-jre-headless`.

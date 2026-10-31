@@ -1,5 +1,18 @@
 # Native environment and story-model review
 
+## Reviewed draft and passage restore (2026-10-30)
+
+[Draft restore](PASSAGE_RESTORE.md) now binds the exact reviewed saved version,
+fixing the independently reproduced second-entry/first-restore bug. One changed
+passage can be reviewed in shared panels and restored after explicit selection
+from default Cancel. Existing history diff, recovery variants, dated snapshots,
+original editor Undo and guarded source/metadata persistence remain in use.
+Focused core/UI and real four-size milestone/variant/help/Undo/restart tests
+passed; the [independent full Debian run](evidence/passage-restore-local.json) passed
+1072 Rust tests per configuration, 184 Python tests with zero skips, both Clippys and 21 gates. [Provenance](evidence/passage-restore-local-provenance.json) binds the tested source and binary.
+Character knowledge, broader preflight, paperback notes and full M8/M9 remain open.
+
+
 ## EPUB publishing integration (2026-10-30)
 
 The [third contribution review](ARGON_THIRD_REVIEW_2026-10-30.md) retains the

@@ -221,6 +221,171 @@ pub fn diff(old: &str, new: &str) -> Vec<Piece> {
     out
 }
 
+/// A transient change between one reviewed saved draft and the current body.
+/// Byte positions are never persisted or used against an unverified revision.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Passage {
+    pub current_range: std::ops::Range<usize>,
+    pub saved: String,
+    pub current: String,
+}
+
+/// Group neighbouring word-diff changes, retaining unchanged writing between
+/// groups. Uses the existing history diff; this is not a new comparison engine.
+pub fn passages(pieces: &[Piece], current: &str) -> Result<Vec<Passage>> {
+    use anyhow::ensure;
+    ensure!(
+        current.len() <= 2 * 1024 * 1024 && pieces.len() <= 16384,
+        "passage review exceeds 2 MiB or 16384 diff runs; no partial review"
+    );
+    let mut passages = Vec::new();
+    let mut pending: Option<Passage> = None;
+    let mut cursor = 0usize;
+    let mut saved_bytes = 0usize;
+    let finish = |pending: &mut Option<Passage>, passages: &mut Vec<Passage>| -> Result<()> {
+        if let Some(passage) = pending.take() {
+            ensure!(
+                passages.len() < 4096,
+                "passage review exceeds 4096 changes; no partial review"
+            );
+            passages.push(passage);
+        }
+        Ok(())
+    };
+    for piece in pieces {
+        let (text, consumes_current, consumes_saved) = match piece {
+            Piece::Same(s) => (s, true, true),
+            Piece::Added(s) => (s, true, false),
+            Piece::Removed(s) => (s, false, true),
+        };
+        if consumes_saved {
+            saved_bytes = saved_bytes.saturating_add(text.len());
+            ensure!(
+                saved_bytes <= 2 * 1024 * 1024,
+                "saved draft exceeds 2 MiB passage review bound"
+            );
+        }
+        let end = if consumes_current {
+            cursor.saturating_add(text.len())
+        } else {
+            cursor
+        };
+        if consumes_current {
+            ensure!(
+                current.get(cursor..end) == Some(text.as_str()),
+                "diff no longer matches current source; reopen the comparison"
+            );
+        }
+        match piece {
+            Piece::Same(_) => finish(&mut pending, &mut passages)?,
+            Piece::Added(_) | Piece::Removed(_) => {
+                let passage = pending.get_or_insert_with(|| Passage {
+                    current_range: cursor..cursor,
+                    saved: String::new(),
+                    current: String::new(),
+                });
+                if consumes_current {
+                    passage.current.push_str(text);
+                }
+                if consumes_saved {
+                    passage.saved.push_str(text);
+                }
+                passage.current_range.end = end;
+            }
+        }
+        cursor = end;
+    }
+    ensure!(
+        cursor == current.len(),
+        "diff no longer covers current source; reopen the comparison"
+    );
+    finish(&mut pending, &mut passages)?;
+    Ok(passages)
+}
+
+/// Restore exactly one reviewed change after validating the whole current body.
+pub fn restore_passage(pieces: &[Piece], current: &str, selected: usize) -> Result<String> {
+    let passages = passages(pieces, current)?;
+    let passage = passages
+        .get(selected)
+        .ok_or_else(|| anyhow::anyhow!("select a changed passage first"))?;
+    let mut restored = current.to_owned();
+    restored.replace_range(passage.current_range.clone(), &passage.saved);
+    Ok(restored)
+}
+
+#[cfg(test)]
+mod passage_tests {
+    use super::*;
+    #[test]
+    fn selective_restore_changes_only_one_group_and_preserves_unicode_and_private_text() {
+        let current = "λ green retained middle words gold end. %% private %%\n";
+        let saved = "λ red retained middle words blue end. %% private %%\n";
+        let pieces = diff(saved, current);
+        let changes = passages(&pieces, current).unwrap();
+        assert_eq!(changes.len(), 2);
+        assert_eq!(changes[0].current, "green");
+        assert_eq!(changes[1].saved, "blue");
+        assert_eq!(
+            restore_passage(&pieces, current, 0).unwrap(),
+            "λ red retained middle words gold end. %% private %%\n"
+        );
+        assert_eq!(
+            restore_passage(&pieces, current, 1).unwrap(),
+            "λ green retained middle words blue end. %% private %%\n"
+        );
+        assert!(restore_passage(&pieces, current, 2).is_err());
+        assert!(restore_passage(&pieces, &current.replace("private", "changed"), 0).is_err());
+        assert!(restore_passage(&pieces, &(current.to_owned() + "extra"), 0).is_err());
+    }
+    #[test]
+    fn selective_restore_handles_empty_inserted_deleted_and_eof_changes() {
+        for (saved, current) in [
+            ("Saved λ", ""),
+            ("", "Added λ"),
+            ("λ end", "λ"),
+            ("λ", "λ end"),
+            ("α old ω", "α new ω"),
+        ] {
+            let pieces = diff(saved, current);
+            assert_eq!(passages(&pieces, current).unwrap().len(), 1);
+            assert_eq!(restore_passage(&pieces, current, 0).unwrap(), saved);
+        }
+        assert!(
+            passages(&diff("same λ", "same λ"), "same λ")
+                .unwrap()
+                .is_empty()
+        );
+    }
+    #[test]
+    fn selective_restore_refuses_oversized_partial_or_malformed_reviews() {
+        assert!(
+            passages(
+                &[Piece::Added("x".repeat(2 * 1024 * 1024 + 1))],
+                &"x".repeat(2 * 1024 * 1024 + 1)
+            )
+            .is_err()
+        );
+        assert!(passages(&[Piece::Removed("x".repeat(2 * 1024 * 1024 + 1))], "").is_err());
+        assert!(passages(&vec![Piece::Same("".into()); 16385], "").is_err());
+        assert!(passages(&[Piece::Same("a".into())], "λ").is_err());
+        let mut pieces = Vec::new();
+        for _ in 0..4097 {
+            pieces.extend([
+                Piece::Same("x".into()),
+                Piece::Removed("a".into()),
+                Piece::Added("b".into()),
+            ]);
+        }
+        assert!(
+            passages(&pieces, &"xb".repeat(4097))
+                .unwrap_err()
+                .to_string()
+                .contains("4096")
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

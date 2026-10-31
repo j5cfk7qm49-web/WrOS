@@ -446,10 +446,10 @@
     {
       "area": "Long-form",
       "capability": "Named milestones/experimental variants/diff/selective restore",
-      "status": "Planned",
-      "verification": "Existing dated history reused later",
+      "status": "Tested",
+      "verification": "Independent full Debian suite; bounded core and four-size compiled selected-draft/passage/Cancel/help/Undo/restart",
       "hardware_verified": false,
-      "detail": "No competing version store rewrite"
+      "detail": "Captured reviewed saved identity/content, guarded one-change restore, recovery variant and dated history; no durable range indices"
     },
     {
       "area": "Long-form",
@@ -695,7 +695,7 @@
       "capability": "Durable draft snapshots and whole-scene variant restore",
       "status": "Tested",
       "verification": "Full Debian suite; guarded source/UI regressions and four-size compiled writing workflows",
-      "detail": "Existing history diff, recovery and Undo; schema-1 prototypes preserved; selective passage restore remains open",
+      "detail": "Existing history diff, recovery and Undo; schema-1 prototypes preserved; selected draft bound to reviewed content, passage restore has separate coverage",
       "hardware_verified": false
     },
     {

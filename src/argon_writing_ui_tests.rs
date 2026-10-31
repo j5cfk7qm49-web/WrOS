@@ -1,6 +1,9 @@
 use super::*;
 use app::{continuity::Page as CPage, milestones::Page as MPage};
-use grimoire_core::{milestones::MilestoneStore, review_notes::ReviewNotes};
+use grimoire_core::{
+    milestones::{MilestoneStore, VariantStore},
+    review_notes::ReviewNotes,
+};
 
 #[test]
 fn argon_variant_restore_and_chapter_queue_use_original_source_and_existing_voice() {
@@ -56,6 +59,221 @@ fn argon_variant_restore_and_chapter_queue_use_original_source_and_existing_voic
         reader.app.project.nodes[reader.app.open.unwrap()].path,
         first
     );
+}
+
+fn save_named_draft(d: &mut Desk, variant: bool, name: &str) {
+    d.app.run_action(palette::Action::Milestones);
+    if variant {
+        d.key(KeyCode::Char('2'));
+    }
+    d.key(KeyCode::Char('n'));
+    d.app.paste(name);
+    d.key(KeyCode::Enter);
+    assert_eq!(
+        d.app.milestones.nav.current(),
+        if variant {
+            MPage::Variants
+        } else {
+            MPage::Milestones
+        },
+        "{}",
+        d.app.milestones.notice
+    );
+    d.key(KeyCode::Esc);
+}
+
+#[test]
+fn restoring_a_second_milestone_or_variant_uses_exactly_the_reviewed_snapshot_at_four_sizes() {
+    for variant in [false, true] {
+        for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+            let mut d = writer(&format!("reviewed-choice-{variant}-{width}"), width, height);
+            for (name, text) in [
+                ("First saved", "λ First saved body.\n"),
+                ("Second saved", "λ Second saved body.\n"),
+            ] {
+                d.app.editor.set_text(text);
+                d.app.save();
+                save_named_draft(&mut d, variant, name);
+            }
+            let current = "λ Current body. %% untouched original %%\n";
+            d.app.editor.set_text(current);
+            d.app.save();
+            d.app.run_action(palette::Action::Milestones);
+            if variant {
+                d.key(KeyCode::Char('2'));
+            }
+            d.key(KeyCode::Down);
+            d.key(KeyCode::Enter);
+            assert!(d.shows("Second saved"));
+            d.key(KeyCode::Char('r'));
+            assert_eq!(
+                d.app.editor.text(),
+                "λ Second saved body.\n",
+                "{}",
+                d.app.milestones.notice
+            );
+            assert_eq!(d.app.overlay, Overlay::None);
+            d.ctrl('z');
+            assert_eq!(d.app.editor.text(), current);
+            let recovery = VariantStore::load(&d.root).unwrap();
+            assert_eq!(recovery.value.variants.last().unwrap().content, current);
+            let path = &d.app.project.nodes[d.app.open.unwrap()].path;
+            assert!(
+                grimoire_core::history::versions(&d.root, path)
+                    .iter()
+                    .any(|v| v.body() == current)
+            );
+        }
+    }
+}
+
+#[test]
+fn passage_review_defaults_cancel_then_restores_only_selected_wording_with_undo_at_four_sizes() {
+    for variant in [false, true] {
+        for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+            let mut d = writer(&format!("passage-{variant}-{width}"), width, height);
+            let saved = "λ red retained middle words blue end. %% private %%\n";
+            let current = "λ green retained middle words gold end. %% private %%\n";
+            d.app.editor.set_text(saved);
+            d.app.save();
+            save_named_draft(&mut d, variant, "Passage saved");
+            d.app.editor.set_text(current);
+            d.app.save();
+            d.app.run_action(palette::Action::Milestones);
+            if variant {
+                d.key(KeyCode::Char('2'));
+            }
+            d.key(KeyCode::Enter);
+            d.key(KeyCode::Char('p'));
+            assert_eq!(d.app.milestones.nav.current(), MPage::ReviewPassage);
+            assert_eq!(d.app.milestones.nav.selected(), 0);
+            assert!(d.shows("CURRENT WORDING"));
+            d.app.paste("blocked hidden prose");
+            d.ctrl('x');
+            d.ctrl('z');
+            d.key(KeyCode::F(1));
+            assert!(d.shows("Continuity & draft milestones"));
+            d.key(KeyCode::Esc);
+            d.key(KeyCode::Enter);
+            assert_eq!(d.app.editor.text(), current);
+            assert_ne!(d.app.milestones.nav.current(), MPage::ReviewPassage);
+            d.key(KeyCode::Right);
+            d.key(KeyCode::Char('p'));
+            assert!(d.shows("gold"));
+            assert!(d.shows("blue"));
+            d.key(KeyCode::Down);
+            d.key(KeyCode::Enter);
+            assert_eq!(d.app.overlay, Overlay::None, "{}", d.app.milestones.notice);
+            assert_eq!(
+                d.app.editor.text(),
+                "λ green retained middle words blue end. %% private %%\n"
+            );
+            assert_eq!(
+                VariantStore::load(&d.root)
+                    .unwrap()
+                    .value
+                    .variants
+                    .last()
+                    .unwrap()
+                    .content,
+                current
+            );
+            d.ctrl('z');
+            assert_eq!(d.app.editor.text(), current);
+        }
+    }
+}
+
+#[test]
+fn passage_restore_refuses_changed_revision_metadata_and_backing_without_losing_source() {
+    for fault in ["revision", "metadata", "in-process metadata", "backing"] {
+        let mut d = writer(&format!("passage-refusal-{fault}"), 100, 30);
+        milestone(&mut d);
+        d.key(KeyCode::Esc);
+        d.app.editor.set_text("Current λ original.\n");
+        d.app.save();
+        d.app.run_action(palette::Action::Milestones);
+        d.key(KeyCode::Enter);
+        d.key(KeyCode::Char('p'));
+        d.key(KeyCode::Down);
+        let path = d.app.project.nodes[d.app.open.unwrap()].path.clone();
+        let metadata = d.root.join(".grimoire/writingdeck/variants.json");
+        match fault {
+            "revision" => d.app.editor.set_text("Changed after review.\n"),
+            "metadata" => fs::write(&metadata, b"unknown external metadata").unwrap(),
+            "in-process metadata" => {
+                let id = *d.app.milestones.store.as_ref().unwrap().value.milestones[0]
+                    .scene_snapshots
+                    .keys()
+                    .next()
+                    .unwrap();
+                d.app
+                    .milestones
+                    .variants
+                    .as_mut()
+                    .unwrap()
+                    .update(|v| {
+                        v.save_variant(id, "Another variant", "Independent saved text")?;
+                        Ok(())
+                    })
+                    .unwrap();
+            }
+            "backing" => fs::write(&path, "External λ original.\n").unwrap(),
+            _ => unreachable!(),
+        }
+        let before = d.app.editor.text();
+        let disk = fs::read(&path).unwrap();
+        let meta = fs::read(&metadata).ok();
+        d.key(KeyCode::Enter);
+        assert_eq!(d.app.editor.text(), before, "{fault}");
+        assert_eq!(fs::read(&path).unwrap(), disk, "{fault}");
+        assert_eq!(fs::read(&metadata).ok(), meta, "{fault}");
+        assert_eq!(
+            d.app.milestones.nav.current(),
+            MPage::ReviewPassage,
+            "{fault}"
+        );
+    }
+}
+
+#[test]
+fn passage_history_write_failure_retains_prose_and_the_recovery_variant() {
+    let mut d = writer("passage-history-failure", 100, 30);
+    milestone(&mut d);
+    d.key(KeyCode::Esc);
+    let current = "λ Current wording remains. %% private original %%\n";
+    d.app.editor.set_text(current);
+    d.app.save();
+    d.app.run_action(palette::Action::Milestones);
+    d.key(KeyCode::Enter);
+    d.key(KeyCode::Char('p'));
+    d.key(KeyCode::Down);
+    let history = d.root.join(".grimoire/history");
+    let retained = d.root.join(".grimoire/retained-history");
+    if history.exists() {
+        fs::rename(&history, &retained).unwrap();
+    }
+    fs::write(&history, "Original fixture obstruction.\n").unwrap();
+    let path = d.app.project.nodes[d.app.open.unwrap()].path.clone();
+    let disk = fs::read(&path).unwrap();
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.editor.text(), current);
+    assert_eq!(fs::read(&path).unwrap(), disk);
+    assert_eq!(
+        fs::read_to_string(&history).unwrap(),
+        "Original fixture obstruction.\n"
+    );
+    let recovery = VariantStore::load(&d.root).unwrap();
+    assert_eq!(recovery.value.variants.last().unwrap().content, current);
+    assert_eq!(d.app.milestones.nav.current(), MPage::ReviewPassage);
+    let saved = fs::read(d.root.join(".grimoire/writingdeck/variants.json")).unwrap();
+    d.key(KeyCode::Enter);
+    assert!(d.app.milestones.notice.contains("metadata changed"));
+    assert_eq!(
+        fs::read(d.root.join(".grimoire/writingdeck/variants.json")).unwrap(),
+        saved
+    );
+    assert_eq!(d.app.editor.text(), current);
 }
 
 fn writer(tag: &str, w: u16, h: u16) -> Desk {

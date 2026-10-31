@@ -22,6 +22,7 @@ pub enum Page {
     NewVariant,
     DiffMilestone,
     DiffVariant,
+    ReviewPassage,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -36,6 +37,20 @@ pub struct VariantDraft {
     pub name: String,
 }
 
+#[derive(Clone)]
+struct Comparison {
+    document_id: u64,
+    revision: (u64, u64),
+    saved_id: u64,
+    variant: bool,
+    label: String,
+    saved: String,
+    metadata: (
+        grimoire_core::sync::Fingerprint,
+        grimoire_core::sync::Fingerprint,
+    ),
+}
+
 pub struct Milestones {
     pub store: Option<Store<MilestoneStore>>,
     pub variants: Option<Store<VariantStore>>,
@@ -44,12 +59,33 @@ pub struct Milestones {
     pub scroll: u16,
     pub milestone_draft: Option<MilestoneDraft>,
     pub variant_draft: Option<VariantDraft>,
-    comparison: Option<(u64, (u64, u64))>,
+    comparison: Option<Comparison>,
+    passages: Vec<grimoire_core::history::Passage>,
+    passage: usize,
     diff: Vec<grimoire_core::history::Piece>,
     max_scroll: std::cell::Cell<u16>,
 }
 
 impl Milestones {
+    fn metadata_revision(
+        &self,
+    ) -> Result<(
+        grimoire_core::sync::Fingerprint,
+        grimoire_core::sync::Fingerprint,
+    )> {
+        let milestones = self
+            .store
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("milestone store unavailable"))?;
+        let variants = self
+            .variants
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("variant store unavailable"))?;
+        Ok((
+            grimoire_core::sync::Fingerprint::of_bytes(&serde_json::to_vec(&milestones.value)?),
+            grimoire_core::sync::Fingerprint::of_bytes(&serde_json::to_vec(&variants.value)?),
+        ))
+    }
     pub fn load(root: &Path) -> Self {
         let (store, m_err) = match MilestoneStore::load(root) {
             Ok(s) => (Some(s), None),
@@ -72,6 +108,8 @@ impl Milestones {
             milestone_draft: None,
             variant_draft: None,
             comparison: None,
+            passages: Vec::new(),
+            passage: 0,
             diff: Vec::new(),
             max_scroll: std::cell::Cell::new(0),
         }
@@ -115,34 +153,73 @@ impl App {
         let id = self.active_story_document_id()?;
         self.milestones.store_mut()?.verify()?;
         self.milestones.variants_mut()?.verify()?;
-        self.milestones.comparison = Some((id, self.editor.revision_stamp()));
-        let target = if self.milestones.nav.current() == Page::Milestones {
+        let selected = self.milestones.nav.selected();
+        let variant = self.milestones.nav.current() == Page::Variants;
+        let (saved_id, label, saved) = if !variant {
             self.milestones
                 .store
                 .as_ref()
-                .and_then(|s| s.value.milestones.get(self.milestones.nav.selected()))
-                .and_then(|m| m.scene_snapshots.get(&id))
-                .cloned()
+                .and_then(|s| s.value.milestones.get(selected))
+                .and_then(|m| {
+                    m.scene_snapshots.get(&id).map(|body| {
+                        (
+                            m.id,
+                            format!("Milestone '{}' ({})", m.name, m.timestamp),
+                            body.clone(),
+                        )
+                    })
+                })
         } else {
             self.milestones.variants.as_ref().and_then(|s| {
-                s.value
-                    .variants_for_scene(id)
-                    .get(self.milestones.nav.selected())
-                    .map(|v| v.content.clone())
+                s.value.variants_for_scene(id).get(selected).map(|v| {
+                    (
+                        v.id,
+                        format!("Variant '{}' ({})", v.name, v.created_at),
+                        v.content.clone(),
+                    )
+                })
             })
         }
         .ok_or_else(|| anyhow::anyhow!("selected snapshot has no version for this document"))?;
-        self.milestones.diff = grimoire_core::history::diff(&target, &self.editor.text());
+        let current = self.editor.text();
+        ensure!(
+            saved.len() <= 2 * 1024 * 1024 && current.len() <= 2 * 1024 * 1024,
+            "draft comparison exceeds 2 MiB; original preserved"
+        );
+        let diff = grimoire_core::history::diff(&saved, &current);
+        let passages = grimoire_core::history::passages(&diff, &current)?;
+        self.milestones.comparison = Some(Comparison {
+            document_id: id,
+            revision: self.editor.revision_stamp(),
+            saved_id,
+            variant,
+            label,
+            saved,
+            metadata: self.milestones.metadata_revision()?,
+        });
+        self.milestones.diff = diff;
+        self.milestones.passages = passages;
+        self.milestones.passage = 0;
         Ok(())
     }
     fn verify_story_comparison(&mut self) -> Result<u64> {
         let id = self.active_story_document_id()?;
         ensure!(
-            self.milestones.comparison == Some((id, self.editor.revision_stamp())),
+            self.milestones
+                .comparison
+                .as_ref()
+                .is_some_and(|c| c.document_id == id && c.revision == self.editor.revision_stamp()),
             "source revision changed; reopen the comparison before restoring"
         );
         self.milestones.store_mut()?.verify()?;
         self.milestones.variants_mut()?.verify()?;
+        ensure!(
+            self.milestones
+                .comparison
+                .as_ref()
+                .is_some_and(|c| Some(c.metadata) == self.milestones.metadata_revision().ok()),
+            "draft metadata changed since review; reopen the comparison"
+        );
         Ok(id)
     }
 
@@ -232,59 +309,86 @@ impl App {
         Ok(())
     }
 
-    fn restore_selected_milestone_scene(&mut self) -> Result<()> {
+    fn restore_reviewed_body(
+        &mut self,
+        body: &str,
+        recovery_name: &str,
+        message: String,
+    ) -> Result<()> {
         let scene_id = self.verify_story_comparison()?;
-        let sel = self.milestones.nav.selected();
-        let snapshot = self
-            .milestones
-            .store
-            .as_ref()
-            .and_then(|s| s.value.milestones.get(sel))
-            .and_then(|m| m.scene_snapshots.get(&scene_id).cloned())
-            .ok_or_else(|| anyhow::anyhow!("this milestone has no snapshot for the open scene"))?;
         let current = self.editor.text();
-        self.milestones.store_mut()?.verify()?;
+        ensure!(
+            body != current,
+            "the reviewed wording already matches the current scene"
+        );
         self.milestones.variants_mut()?.update(|v| {
-            v.save_variant(scene_id, "Before milestone restore", current)?;
+            v.save_variant(scene_id, recovery_name, current)?;
             Ok(())
         })?;
         self.snapshot_before_story_restore()?;
-        self.editor.set_text(&snapshot);
+        self.editor.set_text(body);
         self.flush();
         self.overlay = Overlay::None;
         self.focus = self.editor_focus();
-        self.msg =
-            "Restored scene from milestone (previous version saved in Variants & Undo).".into();
+        self.msg = message;
         Ok(())
     }
 
-    fn restore_selected_variant(&mut self) -> Result<()> {
-        let scene_id = self.verify_story_comparison()?;
-        let sel = self.milestones.nav.selected();
-        let variant = self
+    fn restore_selected_milestone_scene(&mut self) -> Result<()> {
+        self.verify_story_comparison()?;
+        let comparison = self
             .milestones
-            .variants
-            .as_ref()
-            .map(|s| s.value.variants_for_scene(scene_id))
-            .and_then(|list| list.get(sel).copied().cloned())
-            .ok_or_else(|| anyhow::anyhow!("select a scene variant first"))?;
-        let current = self.editor.text();
-        if current != variant.content {
-            self.milestones.variants_mut()?.update(|v| {
-                v.save_variant(scene_id, "Before variant switch", current)?;
-                Ok(())
-            })?;
-        }
-        self.snapshot_before_story_restore()?;
-        self.editor.set_text(&variant.content);
-        self.flush();
-        self.overlay = Overlay::None;
-        self.focus = self.editor_focus();
-        self.msg = format!(
-            "Switched to variant '{}' · Ctrl-Z or Variants reverts it.",
-            variant.name
+            .comparison
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("reopen the comparison"))?;
+        ensure!(!comparison.variant, "reopen the milestone comparison");
+        self.restore_reviewed_body(
+            &comparison.saved,
+            "Before milestone restore",
+            "Restored scene from reviewed milestone (previous version saved in Variants & Undo)."
+                .into(),
+        )
+    }
+
+    fn restore_selected_variant(&mut self) -> Result<()> {
+        self.verify_story_comparison()?;
+        let comparison = self
+            .milestones
+            .comparison
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("reopen the comparison"))?;
+        ensure!(comparison.variant, "reopen the variant comparison");
+        self.restore_reviewed_body(
+            &comparison.saved,
+            "Before variant switch",
+            format!(
+                "Restored reviewed {} · Ctrl-Z or Variants reverts it.",
+                plain(&comparison.label)
+            ),
+        )
+    }
+
+    fn open_passage_review(&mut self) -> Result<()> {
+        self.verify_story_comparison()?;
+        ensure!(
+            !self.milestones.passages.is_empty(),
+            "no changed passage to restore"
         );
+        self.milestones.nav.open(Page::ReviewPassage);
+        self.milestones.nav.select(0, 2); // Always default to Cancel.
+        self.milestones.scroll = 0;
         Ok(())
+    }
+
+    fn restore_reviewed_passage(&mut self) -> Result<()> {
+        self.verify_story_comparison()?;
+        let restored = grimoire_core::history::restore_passage(
+            &self.milestones.diff,
+            &self.editor.text(),
+            self.milestones.passage,
+        )?;
+        self.restore_reviewed_body(&restored, "Before passage restore",
+            "Restored one reviewed passage · other writing retained · Variants, dated history and Ctrl-Z keep the previous scene.".into())
     }
 
     pub fn on_milestones_key(&mut self, key: Key) {
@@ -392,9 +496,45 @@ impl App {
                 self.observe_deck(grimoire_core::tutorial::Event::HistoryOpened);
                 Ok(())
             }
+            (Page::DiffMilestone | Page::DiffVariant, Key::Left | Key::Char('[')) => {
+                self.milestones.passage = self.milestones.passage.saturating_sub(1);
+                Ok(())
+            }
+            (Page::DiffMilestone | Page::DiffVariant, Key::Right | Key::Char(']')) => {
+                self.milestones.passage = self
+                    .milestones
+                    .passage
+                    .saturating_add(1)
+                    .min(self.milestones.passages.len().saturating_sub(1));
+                Ok(())
+            }
+            (Page::DiffMilestone | Page::DiffVariant, Key::Char('p')) => self.open_passage_review(),
+            (Page::ReviewPassage, Key::Up | Key::Left) => {
+                self.milestones.nav.select(0, 2);
+                Ok(())
+            }
+            (Page::ReviewPassage, Key::Down | Key::Right) => {
+                self.milestones.nav.select(1, 2);
+                Ok(())
+            }
+            (Page::ReviewPassage, Key::Tab | Key::BackTab) => {
+                self.milestones
+                    .nav
+                    .select(1 - self.milestones.nav.selected().min(1), 2);
+                Ok(())
+            }
+            (Page::ReviewPassage, Key::Enter) => {
+                if self.milestones.nav.selected() == 0 {
+                    self.milestones.nav.back();
+                    self.milestones.scroll = 0;
+                    Ok(())
+                } else {
+                    self.restore_reviewed_passage()
+                }
+            }
             (Page::DiffMilestone, Key::Char('r')) => self.restore_selected_milestone_scene(),
             (Page::DiffVariant, Key::Char('r')) => self.restore_selected_variant(),
-            (Page::DiffMilestone | Page::DiffVariant, Key::PageDown) => {
+            (Page::DiffMilestone | Page::DiffVariant | Page::ReviewPassage, Key::PageDown) => {
                 self.milestones.scroll = self
                     .milestones
                     .scroll
@@ -402,7 +542,7 @@ impl App {
                     .min(self.milestones.max_scroll.get());
                 Ok(())
             }
-            (Page::DiffMilestone | Page::DiffVariant, Key::PageUp) => {
+            (Page::DiffMilestone | Page::DiffVariant | Page::ReviewPassage, Key::PageUp) => {
                 self.milestones.scroll = self.milestones.scroll.saturating_sub(8);
                 Ok(())
             }
@@ -566,6 +706,51 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
                 );
             }
         }
+        Page::ReviewPassage => {
+            let [choices, preview] = ratatui::layout::Layout::vertical([
+                ratatui::layout::Constraint::Length(6),
+                ratatui::layout::Constraint::Min(0),
+            ])
+            .areas(area);
+            let rows = vec![
+                "Cancel — keep current writing".into(),
+                "Restore this saved passage".into(),
+            ];
+            wros_shell::render_menu(
+                f,
+                choices,
+                wros_shell::Menu {
+                    title: "Restore one reviewed passage",
+                    rows: &rows,
+                    selected: m.nav.selected(),
+                    notice: "A full recovery variant and dated history are kept before an actual change.",
+                    hint: "↑↓/Tab choose  Enter confirm  Esc back  F1 help",
+                },
+                theme.into(),
+            );
+            let body = wros_shell::render_panel(
+                f,
+                preview,
+                "Current and saved wording",
+                &m.notice,
+                "PgUp/PgDn scroll both wordings · Cancel is selected when this review opens",
+                theme.into(),
+            );
+            let text = m.passages.get(m.passage).map_or_else(|| "No changed passage.".into(), |p|
+                format!("Passage {} of {} · current UTF-8 bytes {}..{}\n\nCURRENT WORDING:\n{}\n\nSAVED WORDING:\n{}",
+                    m.passage + 1, m.passages.len(), p.current_range.start, p.current_range.end,
+                    if p.current.is_empty() { "(no text — insertion point)".into() } else { plain(&p.current) },
+                    if p.saved.is_empty() { "(no text — removes this current passage)".into() } else { plain(&p.saved) }));
+            let paragraph = Paragraph::new(text)
+                .wrap(Wrap { trim: false })
+                .style(Style::default().fg(theme.text));
+            let max = paragraph
+                .line_count(body.width)
+                .saturating_sub(body.height as usize)
+                .min(u16::MAX as usize) as u16;
+            m.max_scroll.set(max);
+            f.render_widget(paragraph.scroll((m.scroll.min(max), 0)), body);
+        }
         Page::DiffMilestone | Page::DiffVariant => {
             let body = wros_shell::render_panel(
                 f,
@@ -576,53 +761,22 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
                     "Scene Variants · Alternative Comparison"
                 },
                 &m.notice,
-                "r restore into editor (reversible)  PgUp/PgDn scroll  Esc back",
+                "←→ passage  p review one  r restore scene  PgUp/PgDn scroll  Esc back",
                 theme.into(),
             );
             let current = app.editor.text();
-            let summary = if page == Page::DiffMilestone {
-                if let (Some(scene_id), Some(ms)) = (
-                    app.current_story_document_id(),
-                    m.store
-                        .as_ref()
-                        .and_then(|s| s.value.milestones.get(m.nav.selected())),
-                ) {
-                    if let Some(snap) = ms.scene_snapshots.get(&scene_id) {
-                        format!(
-                            "Milestone '{}' ({}) vs active scene:\nSnapshot words: {} · Current words: {}\n\nSnapshot preview:\n{}",
-                            plain(&ms.name),
-                            plain(&ms.timestamp),
-                            grimoire_core::notes::count_words(snap),
-                            grimoire_core::notes::count_words(&current),
-                            plain(snap)
-                        )
-                    } else {
-                        "Active scene was not present in this milestone.".into()
-                    }
-                } else {
-                    "Open a scene to compare against this milestone.".into()
-                }
-            } else if let Some(scene_id) = app.current_story_document_id() {
-                if let Some(v) = m.variants.as_ref().and_then(|s| {
-                    s.value
-                        .variants_for_scene(scene_id)
-                        .get(m.nav.selected())
-                        .copied()
-                }) {
+            let summary = m.comparison.as_ref().map_or_else(
+                || "Reopen the comparison.".into(),
+                |c| {
                     format!(
-                        "Variant '{}' ({}) vs active scene:\nVariant words: {} · Current words: {}\n\nVariant text:\n{}",
-                        plain(&v.name),
-                        plain(&v.created_at),
-                        grimoire_core::notes::count_words(&v.content),
-                        grimoire_core::notes::count_words(&current),
-                        plain(&v.content)
+                        "{} · saved #{} vs active scene:\nSaved words: {} · Current words: {}",
+                        plain(&c.label),
+                        c.saved_id,
+                        grimoire_core::notes::count_words(&c.saved),
+                        grimoire_core::notes::count_words(&current)
                     )
-                } else {
-                    "Select a variant to compare.".into()
-                }
-            } else {
-                "Open a scene first.".into()
-            };
+                },
+            );
             let (diff, _) =
                 super::overlays::diff_lines(&m.diff, body.width.saturating_sub(1) as usize, theme);
             let mut lines: Vec<ratatui::text::Line> = summary
@@ -633,6 +787,15 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
             lines.push(ratatui::text::Line::from(
                 "Struck text is saved wording; underlined text is current wording.",
             ));
+            lines.push(ratatui::text::Line::from(if m.passages.is_empty() {
+                "No changed passages.".into()
+            } else {
+                format!(
+                    "Passage {} of {} · ←→ choose · p reviews current and saved wording",
+                    m.passage + 1,
+                    m.passages.len()
+                )
+            }));
             lines.extend(diff);
             let paragraph = Paragraph::new(lines).style(Style::default().fg(theme.text));
             let max = paragraph
