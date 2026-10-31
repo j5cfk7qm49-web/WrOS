@@ -46,6 +46,19 @@ PRESEED = Path('/etc/wros/installer.preseed')
 PASSPHRASE_HOOK = Path('/usr/lib/wros-installer/native-crypto-passphrase')
 MODULE_SHA256 = 'be37dee7f39730b6369b54f72ac83a1ff27f9d59bcea10fed9fd11a0ea2adf18'
 BLOCK_NAME = re.compile(r'[A-Za-z0-9_.-]{1,128}')
+LAUNCHER_DIR = Path('/usr/share/debian-installer-launcher')
+# Single source of truth for the upstream launcher files this root helper
+# sources or wraps. Each value is the pinned sha256 of the upstream file, or
+# None until the image build records one; a pinned entry is verified against
+# the installed bytes, an unpinned one only for presence and ownership.
+LAUNCHER_FILES = {
+    'plugins/live': None,
+    'debconf_kernel.sh': None,
+}
+# Unpacking the Debian Installer initrd (stager cap 512 MiB), the RAM-backed
+# media view (about 160 MiB of capsule archives) and the installation's own
+# tmpfs and apt working set must all fit in available memory without swap.
+MIN_MEM_AVAILABLE_MIB = 3072
 CAPSULE_NAME = 'native-installer'
 SHA256_TEXT = re.compile(r'[0-9a-f]{64}')
 # Capsule files that Debian's retrievers read at fixed media paths. The first
@@ -356,6 +369,10 @@ def validate_caller():
     for name in ('getty@tty7.service', 'autovt@tty7.service'):
         require(os.readlink('/etc/systemd/system/' + name) == '/dev/null',
                 f'{name} must be masked')
+    verify_launcher()
+    require_memory_headroom()
+    verify_launcher()
+    require_memory_headroom()
     deadline = time.monotonic() + 5.0
     while not input_readers_retired():
         require(time.monotonic() < deadline, 'writing input reader has not retired')
@@ -1029,23 +1046,58 @@ def build_media_view(work_dir):
     verify_media_view(MEDIUM, manifest, archives, media_info, squashfs_size)
 
 
+def require_memory_headroom(meminfo=Path('/proc/meminfo'), floor_mib=None):
+    """Refuse before unpacking the installer into RAM when memory is too tight."""
+    floor = MIN_MEM_AVAILABLE_MIB if floor_mib is None else floor_mib
+    text = Path(meminfo).read_text(encoding='ascii')
+    match = re.search(r'^MemAvailable:\s+([0-9]+)\s+kB\s*$', text, re.MULTILINE)
+    require(match is not None, 'available memory could not be determined; installer refused')
+    available = int(match.group(1)) // 1024
+    require(available >= floor,
+            f'Not enough free memory to run the installer: {available} MiB available, '
+            f'{floor} MiB required. Close other programs or use a machine with more RAM.')
+    return available
+
+
+def verify_launcher(launcher=LAUNCHER_DIR, files=None, owner=0, check_owner=True):
+    """Require the upstream launcher components; never guess a substitute."""
+    launcher = Path(launcher)
+    table = LAUNCHER_FILES if files is None else files
+    for name, pinned in table.items():
+        path = launcher / name
+        try:
+            info = path.lstat()
+        except FileNotFoundError:
+            raise ValueError(
+                f'Debian installer launcher component missing: {path}. The live image must '
+                f'ship {" and ".join(table)} under {launcher}; rebuild the media with the '
+                f'Debian installer launcher it was designed to use.') from None
+        require(stat.S_ISREG(info.st_mode) and not (info.st_mode & 0o022)
+                and (not check_owner or info.st_uid == owner),
+                f'untrusted Debian installer launcher component: {path}')
+        require(pinned is None or digest(path) == pinned,
+                f'Debian installer launcher component differs from its pinned hash: {path}')
+
+
 def prepare_media_and_backend(work_dir, baseline):
     work_dir = Path(work_dir)
+    require_memory_headroom()
+    launcher = LAUNCHER_DIR
+    verify_launcher(launcher)
     build_media_view(work_dir)
-    launcher = Path('/usr/share/debian-installer-launcher')
-    if (launcher / 'debconf_kernel.sh').is_file():
-        staged_launcher = work_dir / 'launcher'
-        shutil.copytree(launcher, staged_launcher)
-        (staged_launcher / 'debconf_kernel.sh').rename(staged_launcher / 'kernel-upstream.sh')
-        (staged_launcher / 'debconf_kernel.sh').write_text(
-            '#!/bin/sh\nexport DEBIAN_FRONTEND=noninteractive\n'
-            'exec /usr/bin/debconf --frontend=noninteractive /bin/sh -x '
-            '/usr/share/debian-installer-launcher/kernel-upstream.sh\n',
-            encoding='utf-8',
-        )
-        (staged_launcher / 'debconf_kernel.sh').chmod(0o755)
-        bind(staged_launcher, launcher, readonly=True)
-        command('/bin/mount', '-o', 'remount,bind,ro,exec', str(launcher))
+    staged_launcher = work_dir / 'launcher'
+    shutil.copytree(launcher, staged_launcher)
+    verify_launcher(staged_launcher, check_owner=False)
+    (staged_launcher / 'debconf_kernel.sh').rename(staged_launcher / 'kernel-upstream.sh')
+    (staged_launcher / 'debconf_kernel.sh').write_text(
+        '#!/bin/sh\nexport DEBIAN_FRONTEND=noninteractive\n'
+        'exec /usr/bin/debconf --frontend=noninteractive /bin/sh -x '
+        '/usr/share/debian-installer-launcher/kernel-upstream.sh\n',
+        encoding='utf-8',
+    )
+    (staged_launcher / 'debconf_kernel.sh').chmod(0o755)
+    bind(staged_launcher, launcher, readonly=True)
+    command('/bin/mount', '-o', 'remount,bind,ro,exec', str(launcher))
     prepare_cmd = '. /usr/share/debian-installer-launcher/plugins/live; if live_prepare --text; then exit 0; else exit 1; fi'
     prepare_log = work_dir / 'prepare.log'
     with prepare_log.open('xb') as log:

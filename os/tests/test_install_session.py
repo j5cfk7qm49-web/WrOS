@@ -682,5 +682,96 @@ class MediaViewTests(unittest.TestCase):
         self.assertEqual(published, [])
 
 
+class PreflightTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory(prefix='wros-inst-preflight-')
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name)
+
+    def meminfo(self, kib):
+        path = self.root / 'meminfo'
+        path.write_text(f'MemTotal:       8000000 kB\nMemFree:          100 kB\nMemAvailable:   {kib} kB\n')
+        return path
+
+    def test_memory_floor_is_a_documented_named_constant_and_enforced(self):
+        self.assertEqual(supervisor.MIN_MEM_AVAILABLE_MIB, 3072)
+        floor_kib = supervisor.MIN_MEM_AVAILABLE_MIB * 1024
+        self.assertEqual(supervisor.require_memory_headroom(self.meminfo(floor_kib)), 3072)
+        self.assertGreater(supervisor.require_memory_headroom(self.meminfo(floor_kib * 2)), 3072)
+        with self.assertRaisesRegex(ValueError, r'2047 MiB available, 3072 MiB required'):
+            supervisor.require_memory_headroom(self.meminfo(2047 * 1024 + 1023))
+        with self.assertRaisesRegex(ValueError, '3071 MiB available'):
+            supervisor.require_memory_headroom(self.meminfo(floor_kib - 1))
+        for broken in ('MemTotal: 1 kB\n', 'MemAvailable: lots kB\n', ''):
+            (self.root / 'meminfo').write_text(broken)
+            with self.subTest(broken=broken), self.assertRaisesRegex(ValueError, 'could not be determined'):
+                supervisor.require_memory_headroom(self.root / 'meminfo')
+
+    def launcher(self):
+        launcher = self.root / 'launcher'
+        (launcher / 'plugins').mkdir(parents=True)
+        for name in supervisor.LAUNCHER_FILES:
+            (launcher / name).write_text('#!/bin/sh\n')
+            (launcher / name).chmod(0o755)
+        return launcher
+
+    def test_launcher_table_is_the_single_pinned_source(self):
+        self.assertEqual(set(supervisor.LAUNCHER_FILES), {'plugins/live', 'debconf_kernel.sh'})
+        for pinned in supervisor.LAUNCHER_FILES.values():
+            self.assertTrue(pinned is None or len(pinned) == 64)
+
+    def test_missing_launcher_components_hard_fail_with_actionable_message(self):
+        launcher = self.launcher()
+        owner = os.getuid()
+        supervisor.verify_launcher(launcher, owner=owner)
+        for name in supervisor.LAUNCHER_FILES:
+            (launcher / name).rename(launcher / (name + '.moved'))
+            with self.subTest(name), self.assertRaises(ValueError) as caught:
+                supervisor.verify_launcher(launcher, owner=owner)
+            message = str(caught.exception)
+            self.assertIn('Debian installer launcher component missing', message)
+            self.assertIn(str(launcher / name), message)
+            self.assertIn('rebuild the media', message)
+            (launcher / (name + '.moved')).rename(launcher / name)
+        with self.assertRaisesRegex(ValueError, 'component missing'):
+            supervisor.verify_launcher(self.root / 'absent', owner=owner)
+
+    def test_launcher_components_must_be_trusted_regular_files_and_honour_pins(self):
+        launcher = self.launcher()
+        owner = os.getuid()
+        live = launcher / 'plugins/live'
+        live.chmod(0o775)
+        with self.assertRaisesRegex(ValueError, 'untrusted'):
+            supervisor.verify_launcher(launcher, owner=owner)
+        live.chmod(0o755)
+        with self.assertRaisesRegex(ValueError, 'untrusted'):
+            supervisor.verify_launcher(launcher, owner=owner + 1)
+        live.unlink()
+        live.symlink_to(launcher / 'debconf_kernel.sh')
+        with self.assertRaisesRegex(ValueError, 'untrusted'):
+            supervisor.verify_launcher(launcher, owner=owner)
+        live.unlink()
+        live.write_text('. real\n')
+        live.chmod(0o755)
+        pins = {'plugins/live': sha256_of(b'. real\n'), 'debconf_kernel.sh': None}
+        supervisor.verify_launcher(launcher, files=pins, owner=owner)
+        with self.assertRaisesRegex(ValueError, 'pinned hash'):
+            supervisor.verify_launcher(launcher, files=pins | {'plugins/live': '0' * 64}, owner=owner)
+
+    def test_prepare_refuses_before_any_mount_when_memory_or_launcher_is_unusable(self):
+        empty = self.root / 'no-launcher'
+        empty.mkdir()
+        mounted = mock.Mock()
+        with mock.patch.object(supervisor, 'build_media_view', mounted),              mock.patch.object(supervisor, 'command', mounted),              mock.patch.object(supervisor, 'bind', mounted):
+            with mock.patch.object(supervisor, 'LAUNCHER_DIR', empty),                  mock.patch.object(supervisor, 'require_memory_headroom', return_value=4096):
+                with self.assertRaisesRegex(ValueError, 'launcher component missing'):
+                    supervisor.prepare_media_and_backend(self.root / 'work', {})
+            with mock.patch.object(supervisor, 'LAUNCHER_DIR', self.launcher()),                  mock.patch.object(supervisor, 'verify_launcher'),                  mock.patch.object(supervisor, 'require_memory_headroom',
+                                   side_effect=ValueError('Not enough free memory')):
+                with self.assertRaisesRegex(ValueError, 'Not enough free memory'):
+                    supervisor.prepare_media_and_backend(self.root / 'work', {})
+        mounted.assert_not_called()
+
+
 if __name__ == '__main__':
     unittest.main()
