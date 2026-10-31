@@ -18,6 +18,11 @@
   writing regressions and repaired the milestone test's invented APIs/fixture.
   Backup/update/Wi-Fi/suspend planning remains outside normal product workflows.
 
+- Bound draft comparison and restore to the exact reviewed saved version,
+  fixing second-or-later draft selection. Added guarded one-passage restore
+  through the existing history engine, default Cancel, complete wording review,
+  preserved unrelated writing, recovery variants, dated history and editor Undo.
+
 ## 0.7.5 · Colour, not color (if you like)
 
 - **Spelling in American, British, Canadian or Australian English.**

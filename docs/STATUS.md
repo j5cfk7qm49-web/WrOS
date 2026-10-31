@@ -1,5 +1,17 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Reviewed draft and passage restore (2026-10-30)
+
+[Draft restore](PASSAGE_RESTORE.md) now binds the exact reviewed saved version,
+fixing the independently reproduced second-entry/first-restore bug. One changed
+passage can be reviewed in shared panels and restored after explicit selection
+from default Cancel. Existing history diff, recovery variants, dated snapshots,
+original editor Undo and guarded source/metadata persistence remain in use.
+Focused core/UI and real four-size milestone/variant/help/Undo/restart tests
+passed in isolation; full qualification of the applied source is in progress.
+Character knowledge, broader preflight, paperback notes and full M8/M9 remain open.
+
+
 ## Native EPUB notes and third Argon review (2026-10-30)
 
 The [third contribution review](ARGON_THIRD_REVIEW_2026-10-30.md) retains the
