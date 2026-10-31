@@ -46,6 +46,48 @@ PRESEED = Path('/etc/wros/installer.preseed')
 PASSPHRASE_HOOK = Path('/usr/lib/wros-installer/native-crypto-passphrase')
 MODULE_SHA256 = 'be37dee7f39730b6369b54f72ac83a1ff27f9d59bcea10fed9fd11a0ea2adf18'
 BLOCK_NAME = re.compile(r'[A-Za-z0-9_.-]{1,128}')
+LAUNCHER_DIR = Path('/usr/share/debian-installer-launcher')
+# Single source of truth for the upstream launcher files this root helper
+# sources or wraps. Each value is the pinned sha256 of the upstream file, or
+# None until the image build records one; a pinned entry is verified against
+# the installed bytes, an unpinned one only for presence and ownership.
+LAUNCHER_FILES = {
+    'plugins/live': None,
+    'debconf_kernel.sh': None,
+}
+# Unpacking the Debian Installer initrd (stager cap 512 MiB), the RAM-backed
+# media view (about 160 MiB of capsule archives) and the installation's own
+# tmpfs and apt working set must all fit in available memory without swap.
+MIN_MEM_AVAILABLE_MIB = 3072
+# Live-session files the image stages that must not outlive installation in the
+# target (paths relative to the target root). purge_live_artifacts removes exactly
+# these in finish-install; verify_target_hygiene proves they and their effects
+# (autologin, live account, sudo rights, live-config activation) are gone.
+LIVE_TARGET_ARTIFACTS = (
+    'etc/sudoers.d/live',
+    'etc/live/config.conf.d/90-wros.conf',
+    'lib/live/config/9998-wros-session',
+    'etc/systemd/system/greetd.service.d/90-wros-live.conf',
+    'var/lib/live/config/wros-session',
+)
+FORBIDDEN_TARGET_ACCOUNTS = ('wros-live', 'live', 'builder')
+CAPSULE_NAME = 'native-installer'
+SHA256_TEXT = re.compile(r'[0-9a-f]{64}')
+# Capsule files that Debian's retrievers read at fixed media paths. The first
+# element is the capsule name, the second the path inside the private media view.
+CAPSULE_MEDIA_FILES = (
+    ('initrd.gz', 'install/initrd.gz'),
+    ('vmlinuz', 'install/vmlinuz'),
+    ('Packages', 'dists/trixie/main/debian-installer/binary-amd64/Packages'),
+    ('Packages.gz', 'dists/trixie/main/debian-installer/binary-amd64/Packages.gz'),
+    ('media-Release', 'dists/trixie/Release'),
+)
+# Capsule entries that must never be visible below native-installer/ in the
+# private media view: only the indexed archive subtree may be, or apt-cdrom
+# mistakes the authentication catalogs for flat repositories.
+CAPSULE_ONLY_VISIBLE = ('pool',)
+MAX_PACKAGE_INDEX_BYTES = 32 * 1024 * 1024
+MAX_CAPSULE_FILES = 4096
 ENV = {
     'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
     'LANG': 'C.UTF-8',
@@ -339,6 +381,10 @@ def validate_caller():
     for name in ('getty@tty7.service', 'autovt@tty7.service'):
         require(os.readlink('/etc/systemd/system/' + name) == '/dev/null',
                 f'{name} must be masked')
+    verify_launcher()
+    require_memory_headroom()
+    verify_launcher()
+    require_memory_headroom()
     deadline = time.monotonic() + 5.0
     while not input_readers_retired():
         require(time.monotonic() < deadline, 'writing input reader has not retired')
@@ -636,8 +682,12 @@ def verify_installed_target_state(
     require(all(len(row) == 7 for row in users)
             and len({row[0] for row in users}) == len(users),
             'unique target accounts required')
-    require(not any(row[0] in ('wros-live', 'builder') for row in users),
+    require(not any(row[0] in FORBIDDEN_TARGET_ACCOUNTS for row in users),
             'temporary live or build account persisted in installed target')
+    installer_rows = [row for row in users if row[0] == FRONTEND_USER]
+    require(all(row[2] not in ('0', '1000') and row[6].endswith(('/nologin', '/false'))
+                for row in installer_rows),
+            'installer frontend account must stay an unprivileged no-login identity in target')
     normal_users = [row for row in users if row[2] == '1000']
     require(len(normal_users) == 1 and normal_users[0][3] == '1000'
             and normal_users[0][5].startswith('/home/')
@@ -657,8 +707,9 @@ def verify_installed_target_state(
         secrets_map[row[0]] = row[1]
     require(secrets_map.get('root', '').startswith(('!', '*'))
             and secrets_map.get('_greetd', '').startswith(('!', '*'))
-            and secrets_map.get(installed_user, '').startswith(('$6$', '$y$')),
-            'locked root/greeter and hashed user password required in target')
+            and secrets_map.get(installed_user, '').startswith(('$6$', '$y$'))
+            and (not installer_rows or secrets_map.get(FRONTEND_USER, '').startswith(('!', '*'))),
+            'locked root/greeter/installer and hashed user password required in target')
     memberships = {
         row[0] for line in group_text.splitlines()
         if len(row := line.split(':')) == 4 and installed_user in row[3].split(',')
@@ -719,11 +770,96 @@ def verify_installed_target_state(
     }
 
 
+def live_artifact_paths():
+    return LIVE_TARGET_ARTIFACTS + tuple(
+        'usr/' + item for item in LIVE_TARGET_ARTIFACTS if item.startswith('lib/'))
+
+
+def live_config_links(root):
+    """Enablement links for live-config.service, including dangling ones."""
+    units = Path(root) / 'etc/systemd/system'
+    if not units.is_dir():
+        return []
+    return [wants / 'live-config.service'
+            for wants in sorted(units.iterdir())
+            if wants.name.endswith('.wants') and wants.is_dir() and not wants.is_symlink()
+            and os.path.lexists(wants / 'live-config.service')]
+
+
+def purge_live_artifacts(root=Path('/')):
+    """Remove only the live-session files the image stages; never recurse.
+
+    Runs inside the installed target (finish-install) so the copied live
+    configuration cannot become a persistent autologin, live account or
+    live-config trigger. Directories are refused rather than removed.
+    """
+    root = Path(root)
+    removed = []
+    candidates = [root / item for item in live_artifact_paths()]
+    candidates += live_config_links(root)
+    for path in candidates:
+        if not os.path.lexists(path):
+            continue
+        require(not stat.S_ISDIR(path.lstat().st_mode),
+                f'refusing to remove a directory where a live file was expected: {path}')
+        path.unlink()
+        removed.append('/' + path.relative_to(root).as_posix())
+    return removed
+
+
+def scan_text(path, limit=65536):
+    info = Path(path).lstat()
+    require(stat.S_ISREG(info.st_mode) and info.st_size <= limit,
+            f'unexpected non-regular or oversized configuration file: {path}')
+    return Path(path).read_text(encoding='utf-8', errors='replace')
+
+
+def verify_target_hygiene(root=Path('/')):
+    """Prove the installed target carries no live session, autologin or live-config trigger."""
+    root = Path(root)
+    for item in live_artifact_paths():
+        require(not os.path.lexists(root / item),
+                f'live session artifact persisted in installed target: /{item}')
+    require(not live_config_links(root),
+            'live-config.service is enabled in installed target')
+    require(not os.path.lexists(root / 'home/wros-live') and not os.path.lexists(root / 'run/wros-live'),
+            'live session home or marker persisted in installed target')
+    sudoers = root / 'etc/sudoers.d'
+    for entry in sorted(sudoers.iterdir()) if sudoers.is_dir() else ():
+        require(entry.name != 'live' and re.search(r'\bwros-live\b', scan_text(entry)) is None,
+                f'live account sudo rights persisted in installed target: {entry.name}')
+    for conf in sorted((root / 'etc/live').glob('**/*.conf')) if (root / 'etc/live').is_dir() else ():
+        require(re.search(r'\bwros-live\b|LIVE_USERNAME', scan_text(conf)) is None,
+                f'live-config account configuration persisted in installed target: {conf.name}')
+    for toml in sorted((root / 'etc/greetd').glob('*.toml')) if (root / 'etc/greetd').is_dir() else ():
+        require('initial_session' not in tomllib.loads(scan_text(toml)),
+                f'greetd initial_session (autologin) persisted in installed target: {toml.name}')
+    for base in ('etc', 'usr/lib'):
+        for conf in sorted((root / base / 'systemd/system/greetd.service.d').glob('*.conf')):
+            require(re.search(r'wros-live|WROS_GREETD_CONFIG|initial_session', scan_text(conf)) is None,
+                    f'live greetd override persisted in installed target: {conf.name}')
+    for pattern in ('getty@*.service.d', 'autovt@*.service.d', 'serial-getty@*.service.d',
+                    'console-getty.service.d'):
+        for conf in sorted((root / 'etc/systemd/system').glob(pattern + '/*.conf')):
+            require('autologin' not in scan_text(conf).lower(),
+                    f'console autologin persisted in installed target: {conf.name}')
+    return {'live_artifacts_absent': True}
+
+
+def in_target_hygiene(nonce):
+    require(os.geteuid() == 0 and re.fullmatch('[a-f0-9]{32}', nonce) is not None,
+            'in-target hygiene requires root and a session nonce')
+    removed = purge_live_artifacts()
+    verify_target_hygiene()
+    print(json.dumps({'live_artifacts_removed': removed}, sort_keys=True), flush=True)
+    return 0
+
+
 def in_target_audit(nonce):
     require(os.geteuid() == 0 and re.fullmatch('[a-f0-9]{32}', nonce) is not None, 'in-target audit requires root and a session nonce')
-    require(not Path('/etc/sudoers.d/live').exists()
-            and not Path('/etc/writingdeck/VM-DEMO-ONLY').exists(),
-            'live sudoers or VM demo marker leaked into target')
+    require(not Path('/etc/writingdeck/VM-DEMO-ONLY').exists(),
+            'VM demo marker leaked into target')
+    hygiene = verify_target_hygiene()
     root_dev = os.stat('/').st_dev
     root_block = Path(f'/sys/dev/block/{os.major(root_dev)}:{os.minor(root_dev)}').resolve(strict=True).name
     proof = verify_installed_target_state(
@@ -752,6 +888,7 @@ def in_target_audit(nonce):
             'live boot arguments persisted in installed GRUB configuration')
     loaders = [p for p in Path('/boot/efi/EFI').glob('*/*') if p.is_file() and p.suffix.lower() == '.efi']
     require(loaders, 'installed UEFI loaders are missing')
+    proof.update(hygiene)
     proof['session_nonce'] = nonce
     proof['binary_sha256'] = {name: digest(Path('/usr/bin')/name)
                               for name in ('grimoire','wros-greeter','wros-installer')}
@@ -764,10 +901,18 @@ def stage_completion_hooks(di_root, nonce):
     require(re.fullmatch("[a-f0-9]{32}", nonce) is not None, "invalid session nonce")
     directory = Path(di_root) / 'usr/lib/finish-install.d'
     directory.mkdir(parents=True, exist_ok=True)
+    hygiene_hook = directory / '93wros-target-hygiene'
     audit_hook = directory / '94wros-target-proof'
     finish_hook = directory / '97wros-target-finished'
-    require(not audit_hook.exists() and not finish_hook.exists(),
+    require(not hygiene_hook.exists() and not audit_hook.exists() and not finish_hook.exists(),
             'installer completion hooks already exist')
+    # Purge the copied live-session files first; the proof hook then audits them.
+    hygiene_hook.write_text(
+        '#!/bin/sh\nset -e\numask 077\n'
+        f'if in-target /usr/bin/python3 -I {SELF_PATH} target-hygiene {nonce}; then\n'
+        '  exit 0\nelse\n  exit 10\nfi\n',
+        encoding='utf-8',
+    )
     audit_hook.write_text(
         '#!/bin/sh\nset -e\numask 077\n'
         f'if in-target --pass-stdout /usr/bin/python3 -I {SELF_PATH} target-audit {nonce} > /wros-target-proof; then\n'
@@ -780,6 +925,7 @@ def stage_completion_hooks(di_root, nonce):
         'printf "completed\\n" > /wros-target-finished\n',
         encoding='utf-8',
     )
+    hygiene_hook.chmod(0o755)
     audit_hook.chmod(0o755)
     finish_hook.chmod(0o755)
 
@@ -807,6 +953,7 @@ def verify_completion_proof(di_root, baseline):
             and proof.get('root_locked') is True
             and proof.get('native_authentication_preserved') is True
             and proof.get('live_account_absent') is True
+            and proof.get('live_artifacts_absent') is True
             and proof.get('encrypted_root_chain', {}).get('format') == 'LUKS2',
             'target completion proof failed validation')
     require(is_writable_target_block(proof['encrypted_root_chain']['partition'], baseline), 'installed target is outside selected disk')
@@ -815,55 +962,258 @@ def verify_completion_proof(di_root, baseline):
     return proof
 
 
-def prepare_media_and_backend(work_dir, baseline):
+def capsule_name_ok(name):
+    return (isinstance(name, str) and 0 < len(name) <= 512
+            and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.+~:-]*(?:/[A-Za-z0-9][A-Za-z0-9_.+~:-]*)*', name) is not None)
+
+
+def load_capsule_manifest(capsule, kernel_release=None):
+    """Read and bound-check the embedded capsule's receipt; fail closed if absent."""
+    capsule = Path(capsule)
+    require(capsule.is_dir() and not capsule.is_symlink(),
+            'embedded native-installer capsule is missing from the live medium')
+    manifest_path = capsule / 'manifest.json'
+    require(manifest_path.is_file() and not manifest_path.is_symlink()
+            and manifest_path.lstat().st_size <= 4 * 1024 * 1024,
+            'embedded native-installer capsule manifest is missing')
+    manifest = json.loads(manifest_path.read_bytes())
+    require(isinstance(manifest, dict) and manifest.get('passed') is True
+            and manifest.get('kernel_release') == (kernel_release or os.uname().release)
+            and manifest.get('module_sha256') == MODULE_SHA256,
+            'embedded native-installer capsule manifest mismatch')
+    hashes = manifest.get('file_sha256')
+    require(isinstance(hashes, dict) and 0 < len(hashes) <= MAX_CAPSULE_FILES
+            and all(capsule_name_ok(name) and isinstance(value, str)
+                    and SHA256_TEXT.fullmatch(value) is not None
+                    for name, value in hashes.items()),
+            'embedded native-installer capsule manifest has no valid file hashes')
+    require(all(name in hashes for name, _ in CAPSULE_MEDIA_FILES)
+            and any(name.startswith('pool/') for name in hashes),
+            'embedded native-installer capsule manifest lacks required media files')
+    return manifest
+
+
+def capsule_pool_names(manifest):
+    return {name for name in manifest['file_sha256'] if name.startswith('pool/')}
+
+
+def parse_package_index(text):
+    """Return (Filename, SHA256, Size) for each stanza of a canonical Packages index.
+
+    This is an invariant check over the builder's authenticated index, not a
+    replacement package parser: each stanza must name exactly one archive.
+    """
+    entries = []
+    for block in re.split(r'\n[ \t]*\n', text.strip('\n')):
+        fields = {}
+        for line in block.splitlines():
+            if line[:1] in (' ', '\t'):
+                continue
+            key, separator, value = line.partition(':')
+            require(separator == ':' and key, 'malformed capsule package index line')
+            fields.setdefault(key, []).append(value.strip())
+        for key in ('Filename', 'SHA256'):
+            require(len(fields.get(key, ())) == 1, f'capsule package index stanza needs one {key}')
+        size = fields.get('Size', [None])[0]
+        require(SHA256_TEXT.fullmatch(fields['SHA256'][0]) is not None
+                and (size is None or size.isdigit()),
+                'malformed capsule package index entry')
+        entries.append((fields['Filename'][0], fields['SHA256'][0], None if size is None else int(size)))
+    return entries
+
+
+def indexed_archives(index, manifest):
+    """Cross-check the capsule Packages index against the manifest; return its archives."""
+    require(isinstance(index, bytes) and 0 < len(index) <= MAX_PACKAGE_INDEX_BYTES,
+            'bounded canonical capsule package index required')
+    hashes = manifest['file_sha256']
+    require(hashlib.sha256(index).hexdigest() == hashes['Packages'],
+            'capsule package index differs from its manifest')
+    entries = parse_package_index(index.decode('utf-8'))
+    expected = {f'{CAPSULE_NAME}/{name}' for name in capsule_pool_names(manifest)}
+    paths = [filename for filename, _, _ in entries]
+    require(len(paths) == len(expected) and set(paths) == expected,
+            'capsule package index paths differ from the capsule manifest')
+    archives = []
+    for filename, sha256, size in entries:
+        require(sha256 == hashes[filename.removeprefix(f'{CAPSULE_NAME}/')],
+                f'capsule package index hash differs from its manifest: {filename}')
+        archives.append({'path': filename, 'sha256': sha256, 'size': size})
+    return archives
+
+
+def capsule_pool_files(pool_dir):
+    """Names (pool/...) of the regular files below `pool_dir`; symlinks and specials refuse."""
+    pool_dir = Path(pool_dir)
+    require(pool_dir.is_dir() and not pool_dir.is_symlink(), f'capsule pool directory missing: {pool_dir}')
+    names = set()
+    for current, directories, files in os.walk(pool_dir, followlinks=False):
+        for entry in (*directories, *files):
+            path = Path(current) / entry
+            mode = path.lstat().st_mode
+            if stat.S_ISDIR(mode):
+                continue
+            require(stat.S_ISREG(mode), f'capsule pool contains a non-regular entry: {path.name}')
+            names.add('pool/' + path.relative_to(pool_dir).as_posix())
+            require(len(names) <= MAX_CAPSULE_FILES, 'excessive capsule pool')
+    return names
+
+
+def reject_symlink_components(root, relative):
+    current = Path(root)
+    for part in Path(relative).parts:
+        current = current / part
+        require(not current.is_symlink(), f'media layout must use regular files: {relative}')
+
+
+def copy_verified(source, destination, expected, root):
+    source, destination, root = Path(source), Path(destination), Path(root)
+    require(stat.S_ISREG(source.lstat().st_mode), f'capsule source is not a regular file: {source.name}')
+    relative = destination.relative_to(root)
+    reject_symlink_components(root, relative)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, destination, follow_symlinks=False)
+    require(digest(destination) == expected, f'capsule file hash mismatch after copy: {relative}')
+
+
+def stage_capsule_view(view, capsule, manifest):
+    """Populate the private media view with exactly the declared capsule payload.
+
+    The view's native-installer/ directory must already be an opaque overlay
+    directory (empty), so authentication catalogs, media-Release and the
+    Packages indexes of the lower layer cannot be scanned by apt-cdrom.
+    """
+    view, capsule = Path(view), Path(capsule)
+    hashes = manifest['file_sha256']
+    native = view / CAPSULE_NAME
+    require(native.is_dir() and not native.is_symlink() and not any(native.iterdir()),
+            'capsule catalogs are not hidden from the private media view')
+    present = capsule_pool_files(capsule / 'pool')
+    require(present == capsule_pool_names(manifest),
+            'capsule pool differs from its manifest (extra or missing archives)')
+    for name in sorted(present):
+        copy_verified(capsule / name, native / name, hashes[name], view)
+    for name, target in CAPSULE_MEDIA_FILES:
+        copy_verified(capsule / name, view / target, hashes[name], view)
+
+
+def verify_media_view(root, manifest, archives, media_info, squashfs_size):
+    """Check a nonrecursive view of the private medium the way Debian's retriever sees it."""
+    root = Path(root)
+    hashes = manifest['file_sha256']
+    for archive in archives:
+        reject_symlink_components(root, archive['path'])
+        path = root / archive['path']
+        require(path.is_file() and (archive['size'] is None or path.stat().st_size == archive['size'])
+                and digest(path) == archive['sha256'],
+                f'Debian media bind lost or altered an indexed package archive: {archive["path"]}')
+    for name, target in CAPSULE_MEDIA_FILES:
+        reject_symlink_components(root, target)
+        require(digest(root / target) == hashes[name],
+                f'private media view does not expose the matching capsule file: {target}')
+    native = root / CAPSULE_NAME
+    require(native.is_dir() and sorted(entry.name for entry in native.iterdir()) == list(CAPSULE_ONLY_VISIBLE),
+            'capsule authentication catalogs are visible in the private media view')
+    require(capsule_pool_files(native / 'pool') == capsule_pool_names(manifest),
+            'private media pool has extra or missing files')
+    require(not os.path.lexists(root / 'install/gtk/initrd.gz'),
+            'Debian GTK installer preference is visible in the private media view')
+    require((root / '.disk/info').read_bytes() == media_info
+            and (root / 'live/filesystem.squashfs').stat().st_size == squashfs_size,
+            'private media view lost the ordinary live payload')
+
+
+def build_media_view(work_dir):
+    """Create, verify and publish the private media view over the live medium."""
     work_dir = Path(work_dir)
     medium = MEDIUM.resolve(strict=True)
+    capsule = medium / CAPSULE_NAME
+    manifest = load_capsule_manifest(capsule)
+    index_info = (capsule / 'Packages').lstat()
+    require(stat.S_ISREG(index_info.st_mode) and 0 < index_info.st_size <= MAX_PACKAGE_INDEX_BYTES,
+            'bounded canonical capsule package index required')
+    archives = indexed_archives((capsule / 'Packages').read_bytes(), manifest)
+    media_info = (medium / '.disk/info').read_bytes()
+    squashfs_size = (medium / 'live/filesystem.squashfs').stat().st_size
     view = work_dir / 'medium'
     upper = work_dir / 'media-upper'
     overlay_work = work_dir / 'media-work'
     view.mkdir()
     upper.mkdir(mode=0o755)
     overlay_work.mkdir()
-    gtk = upper / 'install/gtk'
-    gtk.mkdir(parents=True)
-    os.setxattr(gtk, 'trusted.overlay.opaque', b'y')
+    # Opaque directories hide Debian's GTK preference and the capsule's
+    # authentication catalogs (apt-cdrom must not mistake them for flat repos).
+    for opaque in ('install/gtk', CAPSULE_NAME):
+        hidden = upper / opaque
+        hidden.mkdir(parents=True)
+        os.setxattr(hidden, 'trusted.overlay.opaque', b'y')
     options = f'nosuid,nodev,lowerdir={medium},upperdir={upper},workdir={overlay_work}'
     command('/bin/mount', '-t', 'overlay', '-o', options, 'overlay', str(view))
-    capsule = medium / 'native-installer'
-    if (capsule / 'manifest.json').is_file():
-        manifest = json.loads((capsule / 'manifest.json').read_bytes())
-        require(manifest.get('passed') is True
-                and manifest.get('kernel_release') == os.uname().release
-                and manifest.get('module_sha256') == MODULE_SHA256,
-                'embedded native-installer capsule manifest mismatch')
-        for name, target in [
-            ('initrd.gz', 'install/initrd.gz'),
-            ('vmlinuz', 'install/vmlinuz'),
-            ('Packages', 'dists/trixie/main/debian-installer/binary-amd64/Packages'),
-            ('Packages.gz', 'dists/trixie/main/debian-installer/binary-amd64/Packages.gz'),
-            ('media-Release', 'dists/trixie/Release'),
-        ]:
-            src = capsule / name
-            if src.is_file():
-                dst = view / target
-                dst.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(src, dst)
+    stage_capsule_view(view, capsule, manifest)
     bind(view, view, readonly=True)
+    # Debian base-installer later uses a nonrecursive CD bind, so verify the
+    # view through the same operation before any consumer sees it.
+    rebound = work_dir / 'media-rebound'
+    bind(view, rebound, readonly=True)
+    verify_media_view(rebound, manifest, archives, media_info, squashfs_size)
+    command('/bin/umount', str(rebound))
+    rebound.rmdir()
     bind(view, MEDIUM, readonly=True)
-    launcher = Path('/usr/share/debian-installer-launcher')
-    if (launcher / 'debconf_kernel.sh').is_file():
-        staged_launcher = work_dir / 'launcher'
-        shutil.copytree(launcher, staged_launcher)
-        (staged_launcher / 'debconf_kernel.sh').rename(staged_launcher / 'kernel-upstream.sh')
-        (staged_launcher / 'debconf_kernel.sh').write_text(
-            '#!/bin/sh\nexport DEBIAN_FRONTEND=noninteractive\n'
-            'exec /usr/bin/debconf --frontend=noninteractive /bin/sh -x '
-            '/usr/share/debian-installer-launcher/kernel-upstream.sh\n',
-            encoding='utf-8',
-        )
-        (staged_launcher / 'debconf_kernel.sh').chmod(0o755)
-        bind(staged_launcher, launcher, readonly=True)
-        command('/bin/mount', '-o', 'remount,bind,ro,exec', str(launcher))
+    verify_media_view(MEDIUM, manifest, archives, media_info, squashfs_size)
+
+
+def require_memory_headroom(meminfo=Path('/proc/meminfo'), floor_mib=None):
+    """Refuse before unpacking the installer into RAM when memory is too tight."""
+    floor = MIN_MEM_AVAILABLE_MIB if floor_mib is None else floor_mib
+    text = Path(meminfo).read_text(encoding='ascii')
+    match = re.search(r'^MemAvailable:\s+([0-9]+)\s+kB\s*$', text, re.MULTILINE)
+    require(match is not None, 'available memory could not be determined; installer refused')
+    available = int(match.group(1)) // 1024
+    require(available >= floor,
+            f'Not enough free memory to run the installer: {available} MiB available, '
+            f'{floor} MiB required. Close other programs or use a machine with more RAM.')
+    return available
+
+
+def verify_launcher(launcher=LAUNCHER_DIR, files=None, owner=0, check_owner=True):
+    """Require the upstream launcher components; never guess a substitute."""
+    launcher = Path(launcher)
+    table = LAUNCHER_FILES if files is None else files
+    for name, pinned in table.items():
+        path = launcher / name
+        try:
+            info = path.lstat()
+        except FileNotFoundError:
+            raise ValueError(
+                f'Debian installer launcher component missing: {path}. The live image must '
+                f'ship {" and ".join(table)} under {launcher}; rebuild the media with the '
+                f'Debian installer launcher it was designed to use.') from None
+        require(stat.S_ISREG(info.st_mode) and not (info.st_mode & 0o022)
+                and (not check_owner or info.st_uid == owner),
+                f'untrusted Debian installer launcher component: {path}')
+        require(pinned is None or digest(path) == pinned,
+                f'Debian installer launcher component differs from its pinned hash: {path}')
+
+
+def prepare_media_and_backend(work_dir, baseline):
+    work_dir = Path(work_dir)
+    require_memory_headroom()
+    launcher = LAUNCHER_DIR
+    verify_launcher(launcher)
+    build_media_view(work_dir)
+    staged_launcher = work_dir / 'launcher'
+    shutil.copytree(launcher, staged_launcher)
+    verify_launcher(staged_launcher, check_owner=False)
+    (staged_launcher / 'debconf_kernel.sh').rename(staged_launcher / 'kernel-upstream.sh')
+    (staged_launcher / 'debconf_kernel.sh').write_text(
+        '#!/bin/sh\nexport DEBIAN_FRONTEND=noninteractive\n'
+        'exec /usr/bin/debconf --frontend=noninteractive /bin/sh -x '
+        '/usr/share/debian-installer-launcher/kernel-upstream.sh\n',
+        encoding='utf-8',
+    )
+    (staged_launcher / 'debconf_kernel.sh').chmod(0o755)
+    bind(staged_launcher, launcher, readonly=True)
+    command('/bin/mount', '-o', 'remount,bind,ro,exec', str(launcher))
     prepare_cmd = '. /usr/share/debian-installer-launcher/plugins/live; if live_prepare --text; then exit 0; else exit 1; fi'
     prepare_log = work_dir / 'prepare.log'
     with prepare_log.open('xb') as log:
@@ -906,6 +1256,72 @@ def prepare_media_and_backend(work_dir, baseline):
     bind(sanitized, DI / 'proc/cmdline', readonly=True)
     require((DI / 'proc/cmdline').read_bytes() == b'console=tty1\n',
             'installer chroot boot arguments were not filtered')
+
+
+BACKEND_EXIT_GRACE_SECONDS = 120.0
+FRONTEND_EXIT_GRACE_SECONDS = 10.0
+SUPERVISE_POLL_SECONDS = 0.05
+COMPLETED_BACKEND_EXIT_CODES = (0, 11)
+
+
+def supervise_installer(
+    frontend,
+    backend,
+    parent_exited,
+    baseline,
+    di_root=DI,
+    grace=None,
+    frontend_grace=None,
+    clock=time.monotonic,
+    sleep=time.sleep,
+    verify=None,
+):
+    """Wait for the installer to finish and judge it; return (outcome, reason, proof).
+
+    The cdebconf frontend exits 1 as soon as the backend disconnects, which on
+    Debian happens before finish-install has run the target-proof hooks and the
+    backend has exited. A frontend exit is therefore not a verdict: the backend
+    is given a bounded interval to exit, then judged. A completed installation
+    needs the fresh-nonce, selected-disk proof and a backend exit of 0 or 11.
+    """
+    grace = BACKEND_EXIT_GRACE_SECONDS if grace is None else grace
+    frontend_grace = FRONTEND_EXIT_GRACE_SECONDS if frontend_grace is None else frontend_grace
+    verify = verify_completion_proof if verify is None else verify
+    backend_deadline = frontend_deadline = None
+    cancel_checked = False
+    while True:
+        if parent_exited():
+            return 'interrupted', 'live writing session exited during installation', None
+        frontend_code, backend_code = frontend.poll(), backend.poll()
+        if frontend_code is not None and backend_code is not None:
+            break
+        now = clock()
+        if frontend_code is not None:
+            if frontend_code == 2 and not cancel_checked:
+                cancel_checked = True
+                if verify(di_root, baseline) is None:
+                    return 'cancelled', 'installer cancelled by user; no completed target verified', None
+            if backend_deadline is None:
+                backend_deadline = now + grace
+            if now >= backend_deadline:
+                return 'failed', (f'installer backend did not exit within {grace:g} s after the '
+                                  'frontend ended; no completed target accepted'), None
+        elif backend_code is not None:
+            if frontend_deadline is None:
+                frontend_deadline = now + frontend_grace
+            if now >= frontend_deadline:
+                break
+        sleep(SUPERVISE_POLL_SECONDS)
+    backend_code, frontend_code = backend.poll(), frontend.poll()
+    proof = verify(di_root, baseline)
+    if proof is not None:
+        if backend_code in COMPLETED_BACKEND_EXIT_CODES:
+            return 'completed', 'encrypted target installation verified', proof
+        return 'failed', (f'backend exited with code {backend_code}, not through the maintained '
+                          'finish path; no completed target accepted'), None
+    if frontend_code == 2:
+        return 'cancelled', 'installer cancelled by user; no completed target verified', None
+    return 'failed', 'installer backend or frontend stopped without a verified target', None
 
 
 def worker(uid, parent, started):
@@ -991,28 +1407,15 @@ def worker(uid, parent, started):
                 cwd='/',
             )
             os.close(fd)
-            interrupted_by_parent = False
-            while frontend.poll() is None and backend.poll() is None:
-                if select.select([parent_fd], [], [], 0)[0]:
-                    interrupted_by_parent = True
-                    break
-                time.sleep(0.05)
-            if interrupted_by_parent:
-                outcome = 'interrupted'
-                reason = 'live writing session exited during installation'
-            else:
-                proof = verify_completion_proof(DI, baseline)
-                if proof is not None:
-                    code = backend.wait(timeout=5)
-                    require(code in (0, 11), 'backend did not exit through maintained finish path')
-                    outcome = 'completed'
-                    reason = 'encrypted target installation verified'
-                elif frontend.poll() == 2:
-                    outcome = 'cancelled'
-                    reason = 'installer cancelled by user; no completed target verified'
-                else:
-                    outcome = 'failed'
-                    reason = 'installer backend or frontend stopped without a verified target'
+            outcome, reason, proof = supervise_installer(
+                frontend,
+                backend,
+                lambda: bool(select.select([parent_fd], [], [], 0)[0]),
+                baseline,
+            )
+    except Exception as exc:
+        outcome, reason, proof = 'failed', f'installer stopped before completion: {exc}', None
+        print(f'WrOS installer worker stopped: {exc}', file=sys.stderr)
     finally:
         os.close(parent_fd)
         for process in (backend, frontend):
@@ -1147,6 +1550,9 @@ def main():
     if len(sys.argv) == 3 and sys.argv[1] == 'target-audit':
         require('PKEXEC_UID' not in os.environ, 'target audit is reserved for the installed-target hook')
         return in_target_audit(sys.argv[2])
+    if len(sys.argv) == 3 and sys.argv[1] == 'target-hygiene':
+        require('PKEXEC_UID' not in os.environ, 'target hygiene is reserved for the installed-target hook')
+        return in_target_hygiene(sys.argv[2])
     if len(sys.argv) in (2, 5) and sys.argv[1] in ('worker', 'cleanup'):
         require(os.geteuid() == 0 and os.getppid() == 1 and 'PKEXEC_UID' not in os.environ,
                 'service roles may only be invoked by systemd')
