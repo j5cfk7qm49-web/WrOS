@@ -83,8 +83,34 @@ pub struct Backups {
     pub form: Option<Form>,
     pub notice: String,
     pub job: Option<service::Job>,
+    /// True once a backup-service reply has been read since `status_ok` was
+    /// last cleared. The update gate clears it before asking for fresh status
+    /// so a stale or never-loaded status can never be mistaken for "no backups".
+    pub status_ok: bool,
 }
+/// How recent a project snapshot must be to count as a backup taken for an update.
+pub const FRESH_BACKUP_HOURS: i64 = 24;
 impl Backups {
+    /// Time of the newest snapshot of exactly this project folder that is at
+    /// most `FRESH_BACKUP_HOURS` old, judged against `now`.
+    pub fn fresh_snapshot(
+        &self,
+        project: &Path,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Option<String> {
+        self.status
+            .snapshots
+            .iter()
+            .filter(|snapshot| Path::new(&snapshot._path) == project)
+            .filter_map(|snapshot| {
+                let taken = chrono::DateTime::parse_from_rfc3339(&snapshot.time).ok()?;
+                let age = now.signed_duration_since(taken);
+                (age >= chrono::Duration::hours(-1)
+                    && age <= chrono::Duration::hours(FRESH_BACKUP_HOURS))
+                .then(|| snapshot.time.clone())
+            })
+            .max()
+    }
     pub fn new(root: &Path, background: bool) -> Self {
         Self {
             state: if background {
@@ -141,6 +167,7 @@ impl Backups {
             Some(Ok(Ok(status))) => {
                 self.notice = status.notice.clone();
                 self.status = status;
+                self.status_ok = true;
                 self.job = None;
             }
             Some(Ok(Err(error))) => {

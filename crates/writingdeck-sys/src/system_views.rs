@@ -1,7 +1,8 @@
 //! Bounded read-only views of maintained Debian services. None of these
 //! parsers infer successful authentication, backup, update or recovery.
 use crate::{
-    LocalAccount, RecoveryInfo, ResticSnapshot, SavedWifi, StorageDevice, UpdateInfo, WifiNetwork,
+    LocalAccount, RecoveryInfo, ResticSnapshot, SavedWifi, StorageDevice, UpdateInfo,
+    UpdatePackage, UpdateReview, UpdateStaged, UpdateState, WifiNetwork,
 };
 use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
@@ -227,6 +228,7 @@ pub fn recovery_status(output: &str) -> Result<RecoveryInfo> {
         unconfigured_packages: Vec<String>,
         staged_update: bool,
         staged_packages: Vec<String>,
+        update_state: UpdateState,
         status: String,
     }
     let raw: RawRecovery =
@@ -265,27 +267,258 @@ pub fn recovery_status(output: &str) -> Result<RecoveryInfo> {
         unconfigured_packages: raw.unconfigured_packages,
         staged_update: raw.staged_update,
         staged_packages: raw.staged_packages,
+        update_state: raw.update_state,
         status: raw.status,
     })
 }
 
+/// Parse a helper reply as one JSON object and map a reported failure to an
+/// error that carries the helper's own message.
+fn helper_object(output: &str, verb: &str) -> Result<serde_json::Map<String, serde_json::Value>> {
+    let value: serde_json::Value =
+        serde_json::from_str(output).with_context(|| format!("invalid {verb} reply"))?;
+    let serde_json::Value::Object(object) = value else {
+        anyhow::bail!("invalid {verb} reply: not a JSON object");
+    };
+    let status = object
+        .get("status")
+        .and_then(serde_json::Value::as_str)
+        .with_context(|| format!("missing {verb} status"))?;
+    if status == "failed" {
+        let message = object
+            .get("message")
+            .and_then(serde_json::Value::as_str)
+            .filter(|m| !m.is_empty() && label(m).is_ok())
+            .unwrap_or("the helper reported failure without a message");
+        anyhow::bail!("{message}");
+    }
+    Ok(object)
+}
+
 pub fn update_action_message(output: &str, expected_statuses: &[&str]) -> Result<String> {
-    let val: serde_json::Value =
-        serde_json::from_str(output).context("invalid wros-update reply")?;
-    let status = val["status"]
-        .as_str()
-        .context("missing wros-update status")?;
+    let object = helper_object(output, "wros-update")?;
+    let status = object["status"].as_str().unwrap_or_default();
     ensure!(
         expected_statuses.contains(&status),
         "unexpected wros-update transaction status"
     );
-    let message = val["message"]
-        .as_str()
+    let message = object
+        .get("message")
+        .and_then(serde_json::Value::as_str)
         .context("missing wros-update message")?;
     ensure!(!message.is_empty(), "empty wros-update message");
     label(message)?;
     Ok(message.to_string())
 }
+
+fn lower_hex(value: &str, len: usize) -> bool {
+    value.len() == len
+        && value
+            .bytes()
+            .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+}
+
+/// A review identity is a lowercase SHA-256 hex digest.
+pub fn validate_review_id(id: &str) -> Result<()> {
+    ensure!(
+        lower_hex(id, 64),
+        "update review identity must be 64 lowercase hexadecimal characters"
+    );
+    Ok(())
+}
+
+fn short_text(value: &str, what: &str) -> Result<()> {
+    ensure!(
+        !value.is_empty() && value.len() <= 128 && !value.chars().any(char::is_control),
+        "invalid update {what}"
+    );
+    Ok(())
+}
+
+fn package_name(name: &str) -> Result<()> {
+    ensure!(
+        !name.is_empty()
+            && name.len() <= 255
+            && name
+                .bytes()
+                .next()
+                .is_some_and(|b| b.is_ascii_alphanumeric())
+            && name
+                .bytes()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || b"+.-".contains(&c)),
+        "invalid update package name"
+    );
+    Ok(())
+}
+
+fn package_version(version: &str) -> Result<()> {
+    ensure!(
+        !version.is_empty()
+            && version.len() <= 128
+            && version
+                .bytes()
+                .next()
+                .is_some_and(|b| b.is_ascii_alphanumeric())
+            && version
+                .bytes()
+                .all(|c| c.is_ascii_alphanumeric() || b"+.-:~".contains(&c)),
+        "invalid update package version"
+    );
+    Ok(())
+}
+
+/// Strict parse of `wros-update review`.
+pub fn update_review(output: &str) -> Result<UpdateReview> {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct RawPackage {
+        name: String,
+        from_version: Option<String>,
+        to_version: String,
+        action: String,
+    }
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct RawReview {
+        status: String,
+        review_id: String,
+        signer: String,
+        suite: String,
+        date: String,
+        valid_until: String,
+        packages: Vec<RawPackage>,
+        removals: Vec<String>,
+        backup_recommended: bool,
+    }
+    let object = helper_object(output, "wros-update review")?;
+    let raw: RawReview = serde_json::from_value(serde_json::Value::Object(object))
+        .context("invalid wros-update review reply")?;
+    ensure!(raw.status == "reviewed", "unexpected review status");
+    validate_review_id(&raw.review_id)?;
+    ensure!(
+        raw.signer.len() == 40 && raw.signer.bytes().all(|b| b.is_ascii_hexdigit()),
+        "invalid update signer fingerprint"
+    );
+    short_text(&raw.suite, "suite")?;
+    short_text(&raw.date, "date")?;
+    short_text(&raw.valid_until, "expiry")?;
+    ensure!(
+        raw.packages.len() <= 1024 && raw.removals.len() <= 1024,
+        "update package list exceeds limit"
+    );
+    let mut packages: Vec<UpdatePackage> = Vec::with_capacity(raw.packages.len());
+    for p in raw.packages {
+        package_name(&p.name)?;
+        package_version(&p.to_version)?;
+        match (p.action.as_str(), &p.from_version) {
+            ("install", None) => {}
+            ("upgrade" | "reinstall", Some(from)) => package_version(from)?,
+            _ => anyhow::bail!("update package action does not match its previous version"),
+        }
+        ensure!(
+            !packages.iter().any(|q| q.name == p.name),
+            "duplicate update package"
+        );
+        packages.push(UpdatePackage {
+            name: p.name,
+            from_version: p.from_version,
+            to_version: p.to_version,
+            action: p.action,
+        });
+    }
+    for name in &raw.removals {
+        package_name(name)?;
+        ensure!(
+            !packages.iter().any(|p| &p.name == name),
+            "update package is both changed and removed"
+        );
+    }
+    Ok(UpdateReview {
+        review_id: raw.review_id,
+        signer: raw.signer,
+        suite: raw.suite,
+        date: raw.date,
+        valid_until: raw.valid_until,
+        packages,
+        removals: raw.removals,
+        backup_recommended: raw.backup_recommended,
+    })
+}
+
+/// Strict parse of `wros-update-stage`. The helper must echo the identity the
+/// writer approved; anything else is not a staged update.
+pub fn update_staged(output: &str, expected_review_id: &str) -> Result<UpdateStaged> {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct RawStaged {
+        status: String,
+        transaction_id: String,
+        review_id: String,
+        packages: usize,
+        restart_required: bool,
+    }
+    let object = helper_object(output, "wros-update-stage")?;
+    let raw: RawStaged = serde_json::from_value(serde_json::Value::Object(object))
+        .context("invalid wros-update-stage reply")?;
+    ensure!(raw.status == "staged", "unexpected staging status");
+    ensure!(
+        !raw.transaction_id.is_empty()
+            && raw.transaction_id.len() <= 64
+            && raw
+                .transaction_id
+                .bytes()
+                .all(|c| c.is_ascii_alphanumeric() || b"._-".contains(&c)),
+        "invalid update transaction identity"
+    );
+    validate_review_id(&raw.review_id)?;
+    ensure!(
+        raw.review_id == expected_review_id,
+        "the helper staged a different update than the one you reviewed"
+    );
+    ensure!(raw.packages <= 1024, "update package count exceeds limit");
+    Ok(UpdateStaged {
+        transaction_id: raw.transaction_id,
+        review_id: raw.review_id,
+        packages: raw.packages,
+        restart_required: raw.restart_required,
+    })
+}
+
+/// Strict parse of `wros-update-media mount`.
+pub fn update_media(output: &str) -> Result<Option<String>> {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct RawMedia {
+        status: String,
+        path: Option<String>,
+        message: Option<String>,
+    }
+    let object = helper_object(output, "wros-update-media")?;
+    let raw: RawMedia = serde_json::from_value(serde_json::Value::Object(object))
+        .context("invalid wros-update-media reply")?;
+    if let Some(message) = &raw.message {
+        label(message)?;
+    }
+    match (raw.status.as_str(), raw.path) {
+        ("none", None) => Ok(None),
+        ("mounted", Some(path)) => {
+            validate_update_bundle_path(&path)?;
+            ensure!(
+                path.starts_with(MANAGED_MEDIA_PREFIX),
+                "mounted update media is outside the managed mount directory"
+            );
+            Ok(Some(path))
+        }
+        _ => anyhow::bail!("unexpected update media status"),
+    }
+}
+
+/// Directory in which the privileged media verb mounts `WROS-UPDATE` media.
+pub const MANAGED_MEDIA_PREFIX: &str = "/run/wros-update/media/";
+
+/// Prefixes under which a writer-typed update bundle path is accepted.
+pub const UPDATE_MEDIA_PREFIXES: [&str; 4] =
+    [MANAGED_MEDIA_PREFIX, "/media/", "/run/media/", "/mnt/"];
 
 pub fn validate_update_bundle_path(path: &str) -> Result<()> {
     ensure!(
@@ -297,6 +530,18 @@ pub fn validate_update_bundle_path(path: &str) -> Result<()> {
                 .components()
                 .any(|c| matches!(c, std::path::Component::ParentDir)),
         "update bundle path must be an absolute directory path without '..' or control characters"
+    );
+    // Only removable-media locations are accepted. System, runtime-state and
+    // home directories are never update sources, and the path must be written
+    // canonically so what the writer sees is what the helper receives.
+    ensure!(
+        UPDATE_MEDIA_PREFIXES
+            .iter()
+            .any(|prefix| path.len() > prefix.len() && path.starts_with(prefix))
+            && !path.ends_with('/')
+            && !path.contains("//")
+            && !path.split('/').any(|part| part == "."),
+        "update bundle must be a folder on update media under /run/wros-update/media, /media, /run/media or /mnt"
     );
     Ok(())
 }
@@ -444,6 +689,35 @@ mod tests {
         assert!(updates("").is_err());
     }
     #[test]
+    fn update_review_ids_and_media_prefixes_are_strict() {
+        assert!(validate_review_id(&"0123456789abcdef".repeat(4)).is_ok());
+        for bad in [
+            "",
+            "ABCDEF",
+            &"A".repeat(64),
+            &"a".repeat(65),
+            &"a".repeat(63),
+        ] {
+            assert!(validate_review_id(bad).is_err(), "{bad:?}");
+        }
+        for prefix in UPDATE_MEDIA_PREFIXES {
+            assert!(validate_update_bundle_path(&format!("{prefix}x")).is_ok());
+            // The prefix directory itself is not a bundle.
+            assert!(validate_update_bundle_path(prefix).is_err());
+            assert!(validate_update_bundle_path(prefix.trim_end_matches('/')).is_err());
+        }
+        for bad in [
+            "/run/wros-update/staging/x",
+            "/var/lib/wros-update/x",
+            "/media-extra/x",
+            "/mnt/./x",
+            "/mnt/x/",
+            "/mnt//x",
+        ] {
+            assert!(validate_update_bundle_path(bad).is_err(), "{bad}");
+        }
+    }
+    #[test]
     fn restic_json_and_wifi_uuid_validators_enforce_strict_identities() {
         let json = r#"[{"id":"a8f3b9c100112233","short_id":"a8f3b9c1","time":"2026-10-29T12:00:00Z","paths":["/home/writer/novels"],"hostname":"wros-laptop"}]"#;
         let snaps = restic_snapshots(json).unwrap();
@@ -470,10 +744,14 @@ mod tests {
         assert!(validate_update_bundle_path("relative/path").is_err());
         assert!(validate_update_bundle_path("/").is_err());
         assert!(validate_update_bundle_path("/media/../etc").is_err());
-        let ext4_json = r#"{"root_filesystem":"ext4","root_device":"/dev/mapper/root","separate_home":false,"rollback_capable":false,"rollback_strategy":"ext4 has no snapshot rollback","interrupted_dpkg":false,"unconfigured_packages":[],"staged_update":false,"staged_packages":[],"status":"clean"}"#;
+        let ext4_json = r#"{"root_filesystem":"ext4","root_device":"/dev/mapper/root","separate_home":false,"rollback_capable":false,"rollback_strategy":"ext4 has no snapshot rollback","interrupted_dpkg":false,"unconfigured_packages":[],"staged_update":false,"staged_packages":[],"update_state":"idle","status":"clean"}"#;
         let rec = recovery_status(ext4_json).unwrap();
         assert_eq!(rec.root_filesystem, "ext4");
+        assert_eq!(rec.update_state, UpdateState::Idle);
         assert!(!rec.rollback_capable);
+        // The journal state is mandatory and limited to the documented set.
+        assert!(recovery_status(&ext4_json.replace("\"update_state\":\"idle\",", "")).is_err());
+        assert!(recovery_status(&ext4_json.replace("\"idle\"", "\"rolled-back\"")).is_err());
         assert!(
             recovery_status(
                 &ext4_json.replace("\"rollback_capable\":false", "\"rollback_capable\":true")

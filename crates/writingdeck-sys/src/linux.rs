@@ -11,18 +11,62 @@ use std::{
     time::{Duration, Instant},
 };
 
+/// Longest the runner waits for each privileged update verb. Staging verifies
+/// and copies a whole bundle, so it is far longer than a display preview.
+pub const REVIEW_TIMEOUT_SECS: u64 = 180;
+pub const STAGE_TIMEOUT_SECS: u64 = 900;
+pub const REPAIR_TIMEOUT_SECS: u64 = 900;
+pub const CANCEL_TIMEOUT_SECS: u64 = 60;
+pub const MEDIA_TIMEOUT_SECS: u64 = 60;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Invocation {
     pub program: &'static str,
     pub args: Vec<String>,
+    pub timeout: Duration,
 }
 impl Invocation {
     fn new(program: &'static str, args: &[&str]) -> Self {
         Self {
             program,
             args: args.iter().map(|s| s.to_string()).collect(),
+            timeout: Duration::from_secs(match program {
+                "/usr/libexec/wros-update" => 60,
+                "/usr/bin/nmcli" => 20,
+                _ => 8,
+            }),
         }
     }
+    fn with_timeout(mut self, seconds: u64) -> Self {
+        self.timeout = Duration::from_secs(seconds);
+        self
+    }
+    /// Fixed argv for a narrow privileged WrOS update launcher. pkexec never
+    /// starts its own text agent, so a missing polkit rule fails instead of
+    /// prompting on the writer's terminal.
+    fn update_launcher(helper: &'static str, args: &[&str], timeout_secs: u64) -> Self {
+        let mut argv = vec!["--disable-internal-agent", helper];
+        argv.extend_from_slice(args);
+        Self::new("/usr/bin/pkexec", &argv).with_timeout(timeout_secs)
+    }
+}
+
+/// Bounded text of a failed helper: stderr first, then the `message` of a JSON
+/// reply on stdout, then the bare exit status.
+fn failure_detail(stdout: &[u8], stderr: &[u8], status: std::process::ExitStatus) -> String {
+    let stderr = String::from_utf8_lossy(stderr);
+    let stderr = stderr.trim();
+    if !stderr.is_empty() {
+        return stderr.to_string();
+    }
+    if let Ok(serde_json::Value::Object(object)) = serde_json::from_slice(stdout)
+        && let Some(message) = object.get("message").and_then(serde_json::Value::as_str)
+        && !message.is_empty()
+        && message.len() <= 1024
+    {
+        return message.chars().filter(|c| !c.is_control()).collect();
+    }
+    format!("exited with {status}")
 }
 pub trait Runner: Send {
     fn run(&mut self, cmd: &Invocation) -> Result<String>;
@@ -80,23 +124,22 @@ impl Runner for ProcessRunner {
         let out = std::thread::spawn(move || drain(out));
         let err = std::thread::spawn(move || drain(err));
         let start = Instant::now();
-        let (status, timed_out) = loop {
+        let status = loop {
             if let Some(status) = child.try_wait()? {
-                break (status, false);
+                break Some(status);
             }
-            if start.elapsed()
-                > Duration::from_secs(if cmd.program == "/usr/libexec/wros-update" {
-                    60
-                } else if cmd.program == "/usr/bin/nmcli" {
-                    20
-                } else {
-                    8
-                })
-            {
+            if start.elapsed() > cmd.timeout {
                 let _ = child.kill();
-                break (child.wait()?, true);
+                let _ = child.wait();
+                break None;
             }
             std::thread::sleep(Duration::from_millis(20));
+        };
+        let Some(status) = status else {
+            // Do not join the pipe readers: a helper child that outlives the
+            // killed launcher would hold the pipes open and hang the worker.
+            // The detached readers end when the pipes close.
+            bail!("{} timed out; no success assumed", cmd.program);
         };
         let stdout = out
             .join()
@@ -104,9 +147,6 @@ impl Runner for ProcessRunner {
         let stderr = err
             .join()
             .map_err(|_| anyhow::anyhow!("stderr reader failed"))??;
-        if timed_out {
-            bail!("{} timed out; no success assumed", cmd.program);
-        }
         if stdout.len() > 65_536 || stderr.len() > 65_536 {
             bail!(
                 "{} output exceeds limit; no partial result accepted",
@@ -117,7 +157,7 @@ impl Runner for ProcessRunner {
             bail!(
                 "{}: {}",
                 cmd.program,
-                String::from_utf8_lossy(&stderr).trim()
+                failure_detail(&stdout, &stderr, status)
             );
         }
         Ok(String::from_utf8(stdout)
@@ -380,10 +420,34 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
             crate::system_views::validate_update_bundle_path(bundle_dir)?;
             Invocation::new("/usr/libexec/wros-update", &["verify-bundle", bundle_dir])
         }
-        Request::CancelStagedUpdates | Request::RecoverUpdates => {
-            bail!(
-                "Update installation and package repair are unavailable; no system changes were made"
+        // Unprivileged: authenticates the bundle and lists it; changes nothing.
+        Request::ReviewUpdateBundle { bundle_dir } => {
+            crate::system_views::validate_update_bundle_path(bundle_dir)?;
+            Invocation::new("/usr/libexec/wros-update", &["review", bundle_dir])
+                .with_timeout(REVIEW_TIMEOUT_SECS)
+        }
+        Request::StageUpdates {
+            bundle_dir,
+            review_id,
+        } => {
+            crate::system_views::validate_update_bundle_path(bundle_dir)?;
+            crate::system_views::validate_review_id(review_id)?;
+            Invocation::update_launcher(
+                "/usr/libexec/wros-update-stage",
+                &[bundle_dir, review_id],
+                STAGE_TIMEOUT_SECS,
             )
+        }
+        Request::FindUpdateMedia => Invocation::update_launcher(
+            "/usr/libexec/wros-update-media",
+            &["mount"],
+            MEDIA_TIMEOUT_SECS,
+        ),
+        Request::CancelStagedUpdates => {
+            Invocation::update_launcher("/usr/libexec/wros-update-cancel", &[], CANCEL_TIMEOUT_SECS)
+        }
+        Request::RecoverUpdates => {
+            Invocation::update_launcher("/usr/libexec/wros-update-repair", &[], REPAIR_TIMEOUT_SECS)
         }
         Request::ListStorageDevices => Invocation::new(
             "/usr/bin/findmnt",
@@ -404,7 +468,6 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
         | Request::CreateBackup { .. }
         | Request::RestoreBackup { .. }
         | Request::VerifyBackups
-        | Request::StageUpdates
         | Request::RebootRecovery
         | Request::RebootFirmware => {
             bail!("this native workflow is not implemented; no action was performed")
@@ -686,7 +749,7 @@ impl<R: Runner> Backend for Linux<R> {
             };
             return Ok(Reply::Message(message.into()));
         }
-        match request {
+        match &request {
             Request::ScanWifi => {
                 return Ok(Reply::WifiScan(crate::system_views::wifi_scan(&output)?));
             }
@@ -710,6 +773,21 @@ impl<R: Runner> Backend for Linux<R> {
                 return Ok(Reply::Message(crate::system_views::update_action_message(
                     &output,
                     &["verified"],
+                )?));
+            }
+            Request::ReviewUpdateBundle { .. } => {
+                return Ok(Reply::UpdateReview(crate::system_views::update_review(
+                    &output,
+                )?));
+            }
+            Request::StageUpdates { review_id, .. } => {
+                return Ok(Reply::UpdateStaged(crate::system_views::update_staged(
+                    &output, review_id,
+                )?));
+            }
+            Request::FindUpdateMedia => {
+                return Ok(Reply::UpdateMedia(crate::system_views::update_media(
+                    &output,
                 )?));
             }
             Request::CancelStagedUpdates => {
@@ -797,7 +875,17 @@ mod tests {
                 restore_dir: "/unused".into(),
             },
             Request::VerifyBackups,
-            Request::StageUpdates,
+            Request::StageUpdates {
+                bundle_dir: "/media/usb/wros-updates".into(),
+                review_id: "not-a-review-id".into(),
+            },
+            Request::StageUpdates {
+                bundle_dir: "/etc".into(),
+                review_id: "a".repeat(64),
+            },
+            Request::ReviewUpdateBundle {
+                bundle_dir: "/var/lib/wros-update".into(),
+            },
             Request::RebootRecovery,
             Request::RebootFirmware,
         ] {
@@ -836,7 +924,151 @@ mod tests {
         );
     }
     #[test]
-    fn update_mutations_are_refused_and_bundle_inspection_is_unprivileged() {
+    fn update_verbs_use_fixed_argv_and_only_privileged_verbs_use_pkexec() {
+        let dir = "/media/usb/wros-updates";
+        let id = "0123456789abcdef".repeat(4);
+        let verify = invocation(&Request::VerifyUpdateBundle {
+            bundle_dir: dir.into(),
+        })
+        .unwrap();
+        assert_eq!(verify.program, "/usr/libexec/wros-update");
+        assert_eq!(verify.args, ["verify-bundle", dir]);
+
+        // Review is unprivileged and never goes through pkexec.
+        let review = invocation(&Request::ReviewUpdateBundle {
+            bundle_dir: dir.into(),
+        })
+        .unwrap();
+        assert_eq!(review.program, "/usr/libexec/wros-update");
+        assert_eq!(review.args, ["review", dir]);
+        assert_eq!(review.timeout, Duration::from_secs(180));
+
+        let pk = "--disable-internal-agent";
+        let stage = invocation(&Request::StageUpdates {
+            bundle_dir: dir.into(),
+            review_id: id.clone(),
+        })
+        .unwrap();
+        assert_eq!(stage.program, "/usr/bin/pkexec");
+        assert_eq!(
+            stage.args,
+            [pk, "/usr/libexec/wros-update-stage", dir, id.as_str()]
+        );
+        assert_eq!(stage.timeout, Duration::from_secs(900));
+
+        for (request, helper, args, seconds) in [
+            (
+                Request::CancelStagedUpdates,
+                "/usr/libexec/wros-update-cancel",
+                vec![],
+                60,
+            ),
+            (
+                Request::RecoverUpdates,
+                "/usr/libexec/wros-update-repair",
+                vec![],
+                900,
+            ),
+            (
+                Request::FindUpdateMedia,
+                "/usr/libexec/wros-update-media",
+                vec!["mount"],
+                60,
+            ),
+        ] {
+            let command = invocation(&request).unwrap();
+            assert_eq!(command.program, "/usr/bin/pkexec");
+            let mut expected = vec![pk, helper];
+            expected.extend(args);
+            assert_eq!(command.args, expected);
+            assert_eq!(command.timeout, Duration::from_secs(seconds));
+        }
+        // Read-only status and display calls keep their existing budgets.
+        assert_eq!(
+            invocation(&Request::RecoveryStatus).unwrap().timeout,
+            Duration::from_secs(60)
+        );
+        assert_eq!(
+            invocation(&Request::DisplayStatus).unwrap().timeout,
+            Duration::from_secs(8)
+        );
+    }
+    #[test]
+    fn update_requests_with_bad_paths_or_review_ids_never_reach_the_runner() {
+        let mut backend = Linux {
+            runner: Fake::default(),
+            sys: "/missing".into(),
+            etc: "/missing".into(),
+            storage: "/missing".into(),
+        };
+        let good_id = "ab".repeat(32);
+        for bad_dir in [
+            "relative/bundle",
+            "/",
+            "/media/../etc",
+            "/etc",
+            "/var/lib/wros-update/public",
+            "/run/wros-update",
+            "/run/wros-update/staging",
+            "/home/writer/novel",
+            "/media",
+            "/media/",
+            "/media/usb/",
+            "/media//usb",
+            "/media/./usb",
+            "/mnt",
+            "/proc/self",
+            "/media/usb\nreview",
+        ] {
+            for request in [
+                Request::ReviewUpdateBundle {
+                    bundle_dir: bad_dir.into(),
+                },
+                Request::StageUpdates {
+                    bundle_dir: bad_dir.into(),
+                    review_id: good_id.clone(),
+                },
+            ] {
+                assert!(backend.request(request).is_err(), "{bad_dir:?}");
+            }
+        }
+        let bad_ids: Vec<String> = vec![
+            String::new(),
+            "short".into(),
+            "A".repeat(64),
+            "g".repeat(64),
+            "a".repeat(63),
+            "a".repeat(65),
+            format!("{}\n", "a".repeat(63)),
+            "--help".into(),
+        ];
+        for bad_id in bad_ids {
+            assert!(
+                backend
+                    .request(Request::StageUpdates {
+                        bundle_dir: "/media/usb/wros-updates".into(),
+                        review_id: bad_id.clone(),
+                    })
+                    .is_err(),
+                "{bad_id:?}"
+            );
+        }
+        assert!(backend.runner.0.is_empty());
+        for ok in [
+            "/media/usb/wros-updates",
+            "/run/media/writer/WROS-UPDATE",
+            "/mnt/update",
+            "/run/wros-update/media/0",
+        ] {
+            assert!(
+                crate::system_views::validate_update_bundle_path(ok).is_ok(),
+                "{ok}"
+            );
+        }
+    }
+    #[test]
+    fn fabricated_update_output_is_never_success() {
+        // Fake answers every command with the unrelated text "disconnected:none".
         let mut backend = Linux {
             runner: Fake::default(),
             sys: "/missing".into(),
@@ -844,19 +1076,20 @@ mod tests {
             storage: "/missing".into(),
         };
         for request in [
-            Request::StageUpdates,
             Request::CancelStagedUpdates,
             Request::RecoverUpdates,
+            Request::FindUpdateMedia,
+            Request::ReviewUpdateBundle {
+                bundle_dir: "/media/usb/wros-updates".into(),
+            },
+            Request::StageUpdates {
+                bundle_dir: "/media/usb/wros-updates".into(),
+                review_id: "ab".repeat(32),
+            },
         ] {
             assert!(backend.request(request).is_err());
         }
-        assert!(backend.runner.0.is_empty());
-        let command = invocation(&Request::VerifyUpdateBundle {
-            bundle_dir: "/media/usb/wros-updates".into(),
-        })
-        .unwrap();
-        assert_eq!(command.program, "/usr/libexec/wros-update");
-        assert_eq!(command.args, ["verify-bundle", "/media/usb/wros-updates"]);
+        assert_eq!(backend.runner.0.len(), 5);
     }
     #[test]
     fn wifi_enrollment_passes_secret_on_stdin_never_argv_and_verifies_active_connection() {

@@ -10,6 +10,9 @@ pub mod shortcuts;
 pub mod system_views;
 pub mod timezone;
 
+#[cfg(test)]
+mod update_tests;
+
 use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 
@@ -127,6 +130,35 @@ pub struct UpdateInfo {
     pub status: String,
 }
 
+/// Journal state of the offline update engine, exactly as the privileged
+/// helper recorded it. `Staged` is the only state in which cancel is possible.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum UpdateState {
+    #[default]
+    Idle,
+    Staged,
+    Applying,
+    Failed,
+    Recovered,
+    Completed,
+    Interrupted,
+}
+
+impl UpdateState {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Idle => "idle (no update staged)",
+            Self::Staged => "staged (waiting for restart)",
+            Self::Applying => "applying (do not power off)",
+            Self::Failed => "failed",
+            Self::Recovered => "recovered after an interruption",
+            Self::Completed => "completed",
+            Self::Interrupted => "interrupted (repair needed)",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecoveryInfo {
     pub root_filesystem: String,
@@ -138,7 +170,40 @@ pub struct RecoveryInfo {
     pub unconfigured_packages: Vec<String>,
     pub staged_update: bool,
     pub staged_packages: Vec<String>,
+    pub update_state: UpdateState,
     pub status: String,
+}
+
+/// One exact package change in a reviewed, authenticated update bundle.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UpdatePackage {
+    pub name: String,
+    pub from_version: Option<String>,
+    pub to_version: String,
+    pub action: String,
+}
+
+/// Result of authenticating a bundle. `review_id` binds a later stage request to
+/// exactly the signed content the writer saw.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UpdateReview {
+    pub review_id: String,
+    pub signer: String,
+    pub suite: String,
+    pub date: String,
+    pub valid_until: String,
+    pub packages: Vec<UpdatePackage>,
+    pub removals: Vec<String>,
+    pub backup_recommended: bool,
+}
+
+/// The privileged helper's acknowledgement that a reviewed update is staged.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UpdateStaged {
+    pub transaction_id: String,
+    pub review_id: String,
+    pub packages: usize,
+    pub restart_required: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -205,7 +270,19 @@ pub enum Request {
     },
     VerifyBackups,
     CheckUpdates,
-    StageUpdates,
+    /// Authenticate a bundle and list its exact package changes. Unprivileged;
+    /// installs nothing.
+    ReviewUpdateBundle {
+        bundle_dir: String,
+    },
+    /// Stage the bundle the writer reviewed. The helper re-verifies and refuses
+    /// when the freshly computed review identity differs from `review_id`.
+    StageUpdates {
+        bundle_dir: String,
+        review_id: String,
+    },
+    /// Ask the narrow privileged helper to mount `WROS-UPDATE` media read-only.
+    FindUpdateMedia,
     VerifyUpdateBundle {
         bundle_dir: String,
     },
@@ -223,9 +300,15 @@ pub enum Reply {
     Message(String),
     Timezones(Vec<String>),
     Timezone(String),
-    KeyboardPreview { token: String, seconds: u64 },
+    KeyboardPreview {
+        token: String,
+        seconds: u64,
+    },
     DisplayStatus(display::Status),
-    DisplayPreview { token: String, seconds: u64 },
+    DisplayPreview {
+        token: String,
+        seconds: u64,
+    },
     WifiScan(Vec<WifiNetwork>),
     SavedWifi(Vec<SavedWifi>),
     LocalAccounts(Vec<LocalAccount>),
@@ -233,6 +316,10 @@ pub enum Reply {
     GoogleDriveFiles(Vec<RemoteFile>),
     Backups(Vec<ResticSnapshot>),
     Updates(UpdateInfo),
+    UpdateReview(UpdateReview),
+    UpdateStaged(UpdateStaged),
+    /// Mounted update media path, or `None` when no `WROS-UPDATE` media exists.
+    UpdateMedia(Option<String>),
     Recovery(RecoveryInfo),
     StorageDevices(Vec<StorageDevice>),
 }
@@ -252,6 +339,11 @@ pub struct Simulated {
     pub wifi_networks: Vec<WifiNetwork>,
     pub saved_wifi: Vec<SavedWifi>,
     pub recovery: RecoveryInfo,
+    /// Revision of the simulated bundle on the simulated media. Changing it
+    /// models media that was swapped or altered after the writer reviewed it.
+    pub bundle_revision: u32,
+    /// Path returned by the simulated media mount, if any media is "present".
+    pub media: Option<String>,
     preview: Option<String>,
     display_preview: Option<(String, display::Warmth)>,
     warmth: display::Warmth,
@@ -297,8 +389,11 @@ impl Default for Simulated {
                 unconfigured_packages: vec![],
                 staged_update: false,
                 staged_packages: vec![],
+                update_state: UpdateState::Idle,
                 status: "SIMULATED recovery status: Root filesystem: ext4 (no automatic filesystem rollback) · dpkg: clean · no offline update staged.".into(),
             },
+            bundle_revision: 1,
+            media: Some("/run/wros-update/media/0".into()),
             preview: None,
             display_preview: None,
             warmth: display::Warmth::default(),
@@ -307,6 +402,35 @@ impl Default for Simulated {
 }
 
 impl Simulated {
+    /// Review identity of the simulated bundle at its current revision.
+    pub fn review_id(&self) -> String {
+        format!("{:064x}", self.bundle_revision)
+    }
+    fn simulated_review(&self) -> UpdateReview {
+        UpdateReview {
+            review_id: self.review_id(),
+            signer: "SIMULATED-NO-KEY-CHECKED".into(),
+            suite: "SIMULATED-trixie-wros".into(),
+            date: "2026-10-31".into(),
+            valid_until: "2026-12-31".into(),
+            packages: vec![
+                UpdatePackage {
+                    name: "wros".into(),
+                    from_version: Some("0.1.0~rc1".into()),
+                    to_version: "0.1.0~rc2".into(),
+                    action: "upgrade".into(),
+                },
+                UpdatePackage {
+                    name: "wros-help".into(),
+                    from_version: None,
+                    to_version: "0.1.0~rc2".into(),
+                    action: "install".into(),
+                },
+            ],
+            removals: vec![],
+            backup_recommended: true,
+        }
+    }
     pub fn laptop() -> Self {
         Self {
             snapshot: Snapshot {
@@ -528,19 +652,81 @@ impl Backend for Simulated {
                 removals: vec![],
                 status: "SIMULATED cached package plan; no repository freshness check.".into(),
             })),
-            Request::StageUpdates => Ok(Reply::Message(
-                "SIMULATED update staging; no update was downloaded or scheduled.".into(),
-            )),
+            Request::ReviewUpdateBundle { bundle_dir } => {
+                system_views::validate_update_bundle_path(&bundle_dir)?;
+                Ok(Reply::UpdateReview(self.simulated_review()))
+            }
+            Request::FindUpdateMedia => Ok(Reply::UpdateMedia(self.media.clone())),
+            Request::StageUpdates {
+                bundle_dir,
+                review_id,
+            } => {
+                system_views::validate_update_bundle_path(&bundle_dir)?;
+                system_views::validate_review_id(&review_id)?;
+                if self.recovery.update_state == UpdateState::Staged {
+                    bail!("SIMULATED: an update is already staged; cancel it first");
+                }
+                if review_id != self.review_id() {
+                    bail!(
+                        "SIMULATED: the update media no longer matches the review you approved; nothing was staged"
+                    );
+                }
+                let review = self.simulated_review();
+                self.recovery.update_state = UpdateState::Staged;
+                self.recovery.staged_update = true;
+                self.recovery.staged_packages =
+                    review.packages.iter().map(|p| p.name.clone()).collect();
+                self.recovery.status = "SIMULATED recovery status: update staged; it would install at the next restart.".into();
+                Ok(Reply::UpdateStaged(UpdateStaged {
+                    transaction_id: "simulated-transaction-0001".into(),
+                    review_id,
+                    packages: review.packages.len(),
+                    restart_required: true,
+                }))
+            }
             Request::VerifyUpdateBundle { bundle_dir } => {
                 system_views::validate_update_bundle_path(&bundle_dir)?;
                 Ok(Reply::Message(format!(
                     "SIMULATED signature inspection of {bundle_dir}; no files verified or packages installed."
                 )))
             }
-            Request::CancelStagedUpdates | Request::RecoverUpdates => {
-                bail!(
-                    "Update installation and package repair are unavailable; no system changes were made"
-                )
+            Request::CancelStagedUpdates => {
+                if self.recovery.update_state == UpdateState::Staged {
+                    self.recovery.update_state = UpdateState::Idle;
+                    self.recovery.staged_update = false;
+                    self.recovery.staged_packages.clear();
+                    self.recovery.status =
+                        "SIMULATED recovery status: no offline update staged.".into();
+                    Ok(Reply::Message(
+                        "SIMULATED: staged update cancelled; nothing was installed.".into(),
+                    ))
+                } else {
+                    Ok(Reply::Message(
+                        "SIMULATED: no staged update to cancel.".into(),
+                    ))
+                }
+            }
+            Request::RecoverUpdates => {
+                let needed = self.recovery.interrupted_dpkg
+                    || !self.recovery.unconfigured_packages.is_empty()
+                    || matches!(
+                        self.recovery.update_state,
+                        UpdateState::Interrupted | UpdateState::Failed
+                    );
+                if self.recovery.update_state == UpdateState::Applying {
+                    bail!("SIMULATED: an update is being applied; repair must wait for it to end");
+                }
+                if needed {
+                    self.recovery.interrupted_dpkg = false;
+                    self.recovery.unconfigured_packages.clear();
+                    self.recovery.update_state = UpdateState::Recovered;
+                    Ok(Reply::Message(
+                        "SIMULATED: repair finished from retained archives; no real packages changed."
+                            .into(),
+                    ))
+                } else {
+                    Ok(Reply::Message("SIMULATED: nothing needed repair.".into()))
+                }
             }
             Request::RecoveryStatus => Ok(Reply::Recovery(self.recovery.clone())),
             Request::RebootRecovery => Ok(Reply::Message(
