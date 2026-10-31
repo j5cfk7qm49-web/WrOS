@@ -2,31 +2,29 @@
 <!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN" "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
 <policyconfig>
   <vendor>WrOS — Writer's OS</vendor>
-  <!-- Defaults require administrator authentication, which the app never offers
-       (pkexec --disable-internal-agent), so non-group users cannot use these.
-       50-wros-update.rules grants YES only to a local, active writingdeck session. -->
+  <!-- Defaults fail closed to no. 50-wros-update.rules grants YES only to a local, active writingdeck session. -->
   <action id="org.wros.update.stage">
     <description>Stage a reviewed WrOS update bundle for the next restart</description>
     <message>Authorize staging a WrOS update</message>
-    <defaults><allow_any>auth_admin</allow_any><allow_inactive>auth_admin</allow_inactive><allow_active>auth_admin</allow_active></defaults>
+    <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>no</allow_active></defaults>
     <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/wros-update-stage</annotate>
   </action>
   <action id="org.wros.update.cancel">
     <description>Cancel a staged WrOS update before it is applied</description>
     <message>Authorize cancelling a staged WrOS update</message>
-    <defaults><allow_any>auth_admin</allow_any><allow_inactive>auth_admin</allow_inactive><allow_active>auth_admin</allow_active></defaults>
+    <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>no</allow_active></defaults>
     <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/wros-update-cancel</annotate>
   </action>
   <action id="org.wros.update.repair">
     <description>Repair interrupted WrOS package state from retained authenticated archives</description>
     <message>Authorize repairing WrOS package state</message>
-    <defaults><allow_any>auth_admin</allow_any><allow_inactive>auth_admin</allow_inactive><allow_active>auth_admin</allow_active></defaults>
+    <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>no</allow_active></defaults>
     <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/wros-update-repair</annotate>
   </action>
   <action id="org.wros.update.media">
     <description>Mount the WROS-UPDATE media read-only to look for update bundles</description>
     <message>Authorize reading WrOS update media</message>
-    <defaults><allow_any>auth_admin</allow_any><allow_inactive>auth_admin</allow_inactive><allow_active>auth_admin</allow_active></defaults>
+    <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>no</allow_active></defaults>
     <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/wros-update-media</annotate>
   </action>
 </policyconfig>
