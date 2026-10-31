@@ -60,6 +60,21 @@ diff runs or 4,096 change groups. It never shows a partial change list. Other
 existing source-ownership/review bounds still apply. These byte positions are
 temporary and never replace the shared durable document IDs.
 
+## Missing document identity metadata
+
+The shared `.grimoire/writingdeck/review-notes.json` registry connects saved
+story data to its original documents. If it is lost, empty or incomplete while
+milestones, variants or continuity records still refer to its IDs, WrOS refuses
+to create replacement IDs or restore through them. It never guesses from the
+current outline order, scene titles or matching text. Your source and sidecars
+remain intact; ordinary writing, save, Undo and help remain available.
+Complete any pending document-move reconnection before allocating new story IDs.
+
+Restore the original registry from the same project's known backup before
+using those saved story records. Keep the existing files when investigating an
+unavailable or corrupt store. This guard does not automatically reconstruct a
+lost registry, certify a backup or make cross-process metadata changes atomic.
+
 ## Read chapter aloud
 
 Choose **Read chapter aloud** in the command palette or Writing tools to queue

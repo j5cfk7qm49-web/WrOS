@@ -5,7 +5,7 @@ use crate::{
     annotations::AnnotationStatus,
     statefile::{Store, Validate},
 };
-use anyhow::{Result, ensure};
+use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeSet, path::Path};
 
@@ -155,6 +155,10 @@ impl ReviewNotes {
             return Ok(doc.id);
         }
         ensure!(
+            !self.documents.iter().any(|d| d.needs_reconnect),
+            "resolve the pending document move/reconnection before assigning new document identities; originals preserved"
+        );
+        ensure!(
             self.documents.len() < 4096,
             "document identity limit reached"
         );
@@ -260,6 +264,44 @@ fn digest(value: &str) -> Result<()> {
     Ok(())
 }
 impl Validate for ReviewNotes {
+    fn validate_context(&self, root: &Path) -> Result<()> {
+        let known: BTreeSet<_> = self.documents.iter().map(|d| d.id).collect();
+        let mut referenced = BTreeSet::new();
+        // Read the same bounded, alias-refusing metadata paths as the stores.
+        // Never infer an old ID's scene from today's tree order or body text.
+        if let Some(value) = dependency::<crate::continuity::ContinuityStore>(
+            root,
+            ".grimoire/writingdeck/continuity.json",
+        )? {
+            referenced.extend(value.facts.iter().filter_map(|f| f.scene_id));
+            referenced.extend(value.events.iter().filter_map(|e| e.scene_id));
+        }
+        if let Some(value) = dependency::<crate::milestones::MilestoneStore>(
+            root,
+            ".grimoire/writingdeck/milestones.json",
+        )? {
+            referenced.extend(
+                value
+                    .milestones
+                    .iter()
+                    .flat_map(|m| m.scene_snapshots.keys())
+                    .copied(),
+            );
+        }
+        if let Some(value) = dependency::<crate::milestones::VariantStore>(
+            root,
+            ".grimoire/writingdeck/variants.json",
+        )? {
+            referenced.extend(value.variants.iter().map(|v| v.scene_id));
+        }
+        for id in referenced {
+            ensure!(
+                known.contains(&id),
+                "document identity registry is missing/incomplete: saved story data refers to document #{id}; restore the original registry before using saved story data; originals preserved"
+            );
+        }
+        Ok(())
+    }
     fn validate(&self) -> Result<()> {
         crate::story_state::identities(
             self.schema_version,
@@ -314,6 +356,25 @@ impl Validate for ReviewNotes {
     }
 }
 
+fn dependency<T: serde::de::DeserializeOwned + Validate>(
+    root: &Path,
+    relative: &str,
+) -> Result<Option<T>> {
+    let Some(bytes) = crate::statefile::read(root, Path::new(relative)).with_context(|| {
+        format!("reading story identity references in {relative}; originals preserved")
+    })?
+    else {
+        return Ok(None);
+    };
+    let value: T = serde_json::from_slice(&bytes).with_context(|| {
+        format!("unsupported story identity metadata in {relative}; originals preserved")
+    })?;
+    value.validate().with_context(|| {
+        format!("invalid story identity metadata in {relative}; originals preserved")
+    })?;
+    Ok(Some(value))
+}
+
 /// An owned tree move prepares durable invalidation BEFORE touching files.
 /// Success publishes all path mappings at once, so swaps do not merge IDs.
 /// A crash/failure leaves affected IDs unavailable until explicit reconnection.
@@ -336,10 +397,10 @@ impl MoveGuard {
         else {
             return Ok(None);
         };
-        if crate::statefile::read(root, Path::new(PATH))?.is_none() {
+        let mut store = ReviewNotes::load(root)?;
+        if !store.exists() {
             return Ok(None);
         }
-        let mut store = ReviewNotes::load(root)?;
         let mut changes = vec![];
         for doc in &store.value.documents {
             let path = root.join(&doc.path);

@@ -10,6 +10,11 @@ use std::{
 pub const MAX_BYTES: usize = 1_048_576;
 pub trait Validate {
     fn validate(&self) -> Result<()>;
+    /// Optional cross-file invariants, checked before allocating identities or
+    /// publishing an update. This is a guard, not a cross-process transaction.
+    fn validate_context(&self, _root: &Path) -> Result<()> {
+        Ok(())
+    }
 }
 /// Metadata aliases and special files are refused before opening. Existing
 /// ancestors must be ordinary directories; absence is not a write request.
@@ -67,6 +72,7 @@ impl<T: Validate + Serialize + DeserializeOwned + Clone> Store<T> {
             None => default,
         };
         value.validate()?;
+        value.validate_context(root)?;
         Ok(Self {
             root: fs::canonicalize(root)?,
             relative: relative.into(),
@@ -88,9 +94,11 @@ impl<T: Validate + Serialize + DeserializeOwned + Clone> Store<T> {
         Ok(())
     }
     pub fn update<R>(&mut self, f: impl FnOnce(&mut T) -> Result<R>) -> Result<R> {
+        self.value.validate_context(&self.root)?;
         let mut next = self.value.clone();
         let result = f(&mut next)?;
         next.validate()?;
+        next.validate_context(&self.root)?;
         let text = serde_json::to_string_pretty(&next)? + "\n";
         if text.len() > MAX_BYTES {
             bail!("metadata exceeds 1 MiB; original preserved");

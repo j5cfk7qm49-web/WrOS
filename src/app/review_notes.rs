@@ -78,9 +78,11 @@ impl Review {
             .ok_or_else(|| anyhow::anyhow!("select a revision note first"))
     }
     fn store(&mut self) -> Result<&mut Store<ReviewNotes>> {
-        self.store
-            .as_mut()
-            .ok_or_else(|| anyhow::anyhow!("notes unavailable; original metadata preserved"))
+        let mut reason = self.notice.clone();
+        if !reason.ends_with("original metadata preserved") {
+            reason.push_str(" · original metadata preserved");
+        }
+        self.store.as_mut().ok_or_else(|| anyhow::anyhow!(reason))
     }
     pub fn typing(&self) -> bool {
         self.nav.current() == Page::Comment
@@ -134,9 +136,17 @@ impl App {
             .to_str()
             .ok_or_else(|| anyhow::anyhow!("non UTF-8 scene path"))?
             .to_owned();
-        self.review_notes
-            .store()?
-            .update(|notes| notes.register(&path))
+        let store = self.review_notes.store()?;
+        if let Some(document) = store.value.documents.iter().find(|d| d.path == path) {
+            ensure!(
+                !document.needs_reconnect,
+                "document move needs explicit reconnection"
+            );
+            let id = document.id;
+            store.verify()?;
+            return Ok(id);
+        }
+        store.update(|notes| notes.register(&path))
     }
     pub(super) fn active_story_document_id(&mut self) -> Result<u64> {
         self.flush();

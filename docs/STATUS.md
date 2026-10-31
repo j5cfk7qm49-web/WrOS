@@ -1,5 +1,16 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Missing shared-registry guard (2026-10-30)
+
+[Story identity checks](STORY_IDENTITIES.md) now stop missing/incomplete
+registries from assigning historical story IDs to another scene. The previous
+wrong-scene restore was independently reproduced in a disposable compiled-app
+fixture. Core checks and actual four-size refusal, ordinary edit/save/Undo/help
+and original-registry recovery passed. Story metadata and source remain intact;
+no scene-order/title/text matching rebuilds the mapping. The [independent full Debian run](evidence/story-identity-local.json) passed
+1077 Rust tests per configuration, 185 Python tests with zero skips, both Clippys and 21 gates. [Provenance](evidence/story-identity-local-provenance.json) binds the tested source and binary. Broader writing and recovery work remain open.
+
+
 ## Reviewed draft and passage restore (2026-10-30)
 
 [Draft restore](PASSAGE_RESTORE.md) now binds the exact reviewed saved version,

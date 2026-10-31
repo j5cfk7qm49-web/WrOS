@@ -23,6 +23,11 @@
   through the existing history engine, default Cancel, complete wording review,
   preserved unrelated writing, recovery variants, dated history and editor Undo.
 
+- Refused missing/incomplete shared document registries before old story IDs
+  can be assigned to another scene. Existing story data, unavailable metadata,
+  original writing and ordinary save/Undo remain intact; restore uses the
+  original registry rather than guessed scene matching.
+
 ## 0.7.5 · Colour, not color (if you like)
 
 - **Spelling in American, British, Canadian or Australian English.**
