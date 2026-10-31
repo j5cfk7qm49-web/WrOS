@@ -396,7 +396,7 @@ class PackageAwareAudit(unittest.TestCase):
             # Valid Debian 13 symlink to debian-archive-keyring.pgp is accepted
             (root / 'usr/share/keyrings/debian-archive-keyring.pgp').write_bytes(b'pgp-keyring-data')
             (root / 'usr/share/keyrings/debian-archive-keyring.gpg').symlink_to('debian-archive-keyring.pgp')
-            self.assertTrue(module.audit(root)['package']['valid'])
+            self.assertTrue(module.audit(root)['passed'])
 
     def test_update_trust_inputs(self):
         keyring = synthetic_keyring()
