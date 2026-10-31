@@ -1,0 +1,30 @@
+┌ WRITINGDECK TUTORIAL ──────┐┌ Chapter One / The Brass Key ───────────────────────────────────────┐
+│ ┌ WRITING SESSIONS ────────────────────────────────────────────────────────────────────────────┐ │
+│▾│ 2 sessions   local writing history · no automatic remote transmission                        │ │
+│ │                                                                                              │ │
+│ │ ● Friday night · Chapter One · 1 word                                    Sat 31 Oct 1:59 am  │ │
+│ │ ● Original fixture snapshot                                              Sat 31 Oct 1:59 am  │ │
+│▾│                                                                                              │ │
+│▾│                                                                                              │ │
+│▾│                                                                                              │ │
+│ │                                                                                              │ │
+│ │                                                                                              │ │
+│ │                                                                                              │ │
+│▾│                                                                                              │ │
+│ │                                                                                              │ │
+│ │                                                                                              │ │
+│▾│                                                                                              │ │
+│ │                                                                                              │ │
+└ │                                                                                              │ │
+┌ │                                                                                              │ │
+│ │                                                                                              │ │
+│ │                                                                                              │ │
+│ │                                                                                              │ │
+│ │                                                                                              │ │
+│ │                                                                                              │ │
+│ │                                                                                              │ │
+│ │                                                                                              │ │
+│ │                                                                                              │ │
+│▔│ ↑↓ choose   ↵ what changed that session   s save this session now   esc close                │ │
+└─└──────────────────────────────────────────────────────────────────────────────────────────────┘─┘
+ 12 / 80,000 ░░░░░░░░░░  today 1  ✓ saved  session saved: Friday night · Chapter One · 1 word

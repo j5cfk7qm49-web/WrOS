@@ -131,11 +131,11 @@ pub(super) fn draw_sessions_off(f: &mut Frame, _app: &App, area: Rect, t: &Theme
         )),
         Line::from(""),
         Line::from(Span::styled(
-            " It uses Git inside this book's folder: ordinary files any Git tool can",
+            " It keeps local Git history; older books may keep it inside the book.",
             dim,
         )),
         Line::from(Span::styled(
-            " read. Connect a remote and sessions back themselves up.",
+            " A configured remote never causes WrOS to upload your writing.",
             dim,
         )),
         Line::from(""),

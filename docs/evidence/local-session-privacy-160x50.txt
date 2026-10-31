@@ -1,0 +1,50 @@
+┌ WRITINGDECK TUTORIAL ──────┐┌ Chapter One / The Brass Key ───────────────────────────────────────────────────────────────────────────────────────────────────┐
+│     ·   ✧    ✦    ✧   ·    ││                            Added λ Original private writing. %% retained %%                                                    │
+│       ______ ☾ ______      ││                                                                                                                                │
+│     _/      ╲│╱      \_    ││                                                                                                                                │
+│    // ≈≈≈ ≈≈ │ ≈≈ ≈≈≈ \\   ││                                                                                                                                │
+│   // ≈ ≈≈ ✧  │  ✧ ≈≈ ≈ \\  ││                                                                                                                                │
+│  //__________│__________\\ ││                                                                                                                                │
+│  `───────────┴───────────' ││                                                                                                                                │
+│                            ││ ┌ WRITING SESSIONS ────────────────────────────────────────────────────────────────────────────┐                               │
+│  Novel Format              ││ │ 2 sessions   local writing history · no automatic remote transmission                        │                               │
+│▾ Manuscript             12 ││ │                                                                                              │                               │
+│  ▾ Chapter One          12 ││ │ ● Friday night · Chapter One · 1 word                                    Sat 31 Oct 1:59 am  │                               │
+│      The Brass Key       5 ││ │ ● Original fixture snapshot                                              Sat 31 Oct 1:59 am  │                               │
+│      The Other Door      7 ││ │                                                                                              │                               │
+│▾ Characters                ││ │                                                                                              │                               │
+│▾ Places                    ││ │                                                                                              │                               │
+│▾ Front Matter              ││ │                                                                                              │                               │
+│  ▸ Manuscript Format       ││ │                                                                                              │                               │
+│  ▸ Paperback               ││ │                                                                                              │                               │
+│  ▸ Ebook                   ││ │                                                                                              │                               │
+│▾ Back Matter               ││ │                                                                                              │                               │
+│  ▸ Paperback               ││ │                                                                                              │                               │
+│  ▸ Ebook                   ││ │                                                                                              │                               │
+│▾ Notes                 259 ││ │                                                                                              │                               │
+│    Pin Practice        259 ││ │                                                                                              │                               │
+│▾ Research                  ││ │                                                                                              │                               │
+│  ▾ Sample Output           ││ │                                                                                              │                               │
+│▾ Template Sheets           ││ │                                                                                              │                               │
+│    Character Sketch        ││ │                                                                                              │                               │
+│    Setting Sketch          ││ │                                                                                              │                               │
+│▸ Trash                     ││ │                                                                                              │                               │
+│                            ││ │                                                                                              │                               │
+│                            ││ │                                                                                              │                               │
+│                            ││ │                                                                                              │                               │
+│                            ││ │                                                                                              │                               │
+│                            ││ │                                                                                              │                               │
+│                            ││ │                                                                                              │                               │
+└ n scene  c chapter  p part ┘│ │                                                                                              │                               │
+┌ F2 timer · ^D focus mode ──┐│ │                                                                                              │                               │
+│  ·                         ││ │                                                                                              │                               │
+│              ☀             ││ │ ↑↓ choose   ↵ what changed that session   s save this session now   esc close                │                               │
+│                   ▲        ││ └──────────────────────────────────────────────────────────────────────────────────────────────┘                               │
+│    ˇ ˇ           ▟█▙       ││                                                                                                                                │
+│                  █▪█       ││                                                                                                                                │
+│                  ███       ││                                                                                                                                │
+│          ▁▂▃▃▂▁▁▁█▪█▁▁     ││                                                                                                                                │
+│  ▁▁▂▃▄▅▆▇▇▇▇▇▇▇▇▇▇▇▇▇▇▆▄▂▁ ││                                                                                                                                │
+│▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔││                                                                                                                                │
+└──◂ pomodoro visualizer ▸───┘└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+ 12 / 80,000 ░░░░░░░░░░  today 1  ✓ saved  session saved: Friday night · Chapter One · 1 word  Esc menu  ^D focus mode  Tab pane  ^K find anything  F8 spelling

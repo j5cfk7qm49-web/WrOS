@@ -1,0 +1,32 @@
+{
+  "passed": true,
+  "tested_head": "6e16347d4c12448ebbef3f796253890909d0a006",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "16b4464a378a9e22697ff91cbb632197d83b7d530b942a8989e524fbc93593ae",
+    "file_count": 470,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "receipt_sha256": "3c7d8efb88630ebe3935742462e7e897e65b958142333918d1ce9d84eb817895",
+  "tested_binary_sha256": "329683347a4d0b88571ffbc52398396ca400c3256f7160743a621454084483d7",
+  "runner": "Isolated Debian chroot ordinary builder; external network isolation with loopback; corrected unshare without --fork and asserted normal signal defaults.",
+  "frames": [
+    {
+      "file": "docs/evidence/local-session-privacy-80x24.txt",
+      "sha256": "a183819d3956d0e59bd7efd0535df5346a3b300170f28cfc8edc0013062358c0"
+    },
+    {
+      "file": "docs/evidence/local-session-privacy-100x30.txt",
+      "sha256": "a0dcc749778b239bdc9f8086d4550be53393a85650953fd0199598a5bf7162f7"
+    },
+    {
+      "file": "docs/evidence/local-session-privacy-120x40.txt",
+      "sha256": "8eea690d9d9a6156fef3c699058dba4189fa554a8c60ef8533b8c975011e3957"
+    },
+    {
+      "file": "docs/evidence/local-session-privacy-160x50.txt",
+      "sha256": "d0f5ad6a486ae9d9b01b06f2e74c14947ed3c5511e8b719c2c17e401a7df1a82"
+    }
+  ],
+  "scope": "Real generated-book local Git history, empty disposable local bare remote and no transport traces on startup/save/quit/restart or adding a remote during writing; source/Undo/history retained. Not verified off-device backup/restore, optional-provider, image, installer, physical or release qualification."
+}

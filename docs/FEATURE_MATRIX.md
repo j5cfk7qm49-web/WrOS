@@ -7,7 +7,7 @@ Existing means audited baseline; Tested identifies automated/VM evidence, not pr
 | Area | Capability | Status | Verification | Detail |
 |---|---|---|---|---|
 | Baseline | Markdown novels, YAML frontmatter, parts/chapters/scenes | Existing | Upstream/current Rust tests | Preserved; no manuscript-format rewrite |
-| Baseline | Atomic autosave, dated history, recovery | Existing | Upstream/current failure and recovery tests | Local safety is not off-device backup |
+| Baseline | Atomic autosave, dated history, recovery | Existing | Upstream/current failure and recovery tests | Session snapshots remain local with a configured remote; no automatic startup/save/quit/restart pushes; local safety is not off-device backup |
 | Baseline | External-file conflicts and guarded mobile saves | Existing | Core sync and grimoire-app integration tests | Existing Android prototype; no iPhone client claim |
 | Baseline | Corkboard, find/replace, notes/TK, notebook names | Existing | Upstream/current tests | Keep existing conventions and shortcuts |
 | Baseline | Locale spelling and personal/notebook vocabulary | Existing | Upstream/current spelling tests | Preserved independently; optional Harper grammar does not replace Spellbook |

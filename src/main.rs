@@ -593,7 +593,6 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
         app.tick_lexicon();
         app.tick_prose_dashboard();
         app.tick_pdf();
-        app.tick_backup();
         app.tick_deck();
         app.music.drain();
         // The player shows its own notes; anywhere else, the status bar does.

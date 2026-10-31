@@ -17,7 +17,7 @@ Writing sessions keep a snapshot of the book each time you sit down to write, la
 
 The history is kept on **this computer**, outside the book's folder, where no sync service can damage it: in Grimoire's data folder (`~/.local/share/grimoire` on Linux, `~/Library/Application Support/grimoire` on a Mac, `%APPDATA%\grimoire` on Windows). Each computer keeps its own.
 
-If that history has a Git remote, sessions are sent to it in the background, so they're backed up off the computer too.
+Writing sessions stay local. A configured Git remote does not cause WrOS to push them on startup, save, quit or restart. Adding a remote is not consent to upload your manuscript. Local history is not an independent backup; the native verified backup/restore workflow remains unfinished.
 
 ## Older books
 

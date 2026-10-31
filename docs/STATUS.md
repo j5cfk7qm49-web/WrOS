@@ -1,5 +1,20 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Local writing history privacy (2026-10-30)
+
+The [API/network audit](API_AND_NETWORK_USE.md) found inherited automatic Git
+pushes on startup and session save when a remote was configured. A disposable
+compiled-app fixture confirmed its local bare remote received manuscript history
+merely by opening the book. WrOS now keeps session snapshots local and removes
+that background push path and its misleading backup status. Existing Git history,
+source bytes, authorship, Undo and ordinary saves remain in use. Focused strict
+Clippy and compiled four-size startup/save/quit/restart checks, plus a remote
+added during writing, passed. The [independent full Debian run](evidence/local-session-privacy-local.json) passed
+1077 Rust tests per configuration, 187 Python tests with zero skips, both Clippys and 21 gates. [Provenance](evidence/local-session-privacy-local-provenance.json) binds its source and tested binary.
+Optional music remains separate; no Google/Drive enrollment or verified native
+backup/restore is claimed.
+
+
 ## Missing shared-registry guard (2026-10-30)
 
 [Story identity checks](STORY_IDENTITIES.md) now stop missing/incomplete

@@ -1452,10 +1452,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                         .and_then(|s| s.battery_percent)
                         .map(|p| format!("{p}%"))
                         .unwrap_or_else(|| "unavailable; refresh in System settings".into()),
-                    Widget::Backup => app
-                        .backup_note
-                        .clone()
-                        .unwrap_or_else(|| "not configured; local save is not backup".into()),
+                    Widget::Backup => "not configured; local save is not backup".into(),
                     Widget::System => app
                         .deck
                         .snapshot

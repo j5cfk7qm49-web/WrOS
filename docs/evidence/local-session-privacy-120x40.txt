@@ -1,0 +1,40 @@
+┌ WRITINGDECK TUTORIAL ──────┐┌ Chapter One / The Brass Key ───────────────────────────────────────────────────────────┐
+│     ·   ✧    ✦    ✧   ·    ││        Added λ Original private writing. %% retained %%                                │
+│       ______ ☾ ______      ││                                                                                        │
+│     _/    ┌ WRITING SESSIONS ────────────────────────────────────────────────────────────────────────────┐           │
+│    // ≈≈≈ │ 2 sessions   local writing history · no automatic remote transmission                        │           │
+│   // ≈ ≈≈ │                                                                                              │           │
+│  //_______│ ● Friday night · Chapter One · 1 word                                    Sat 31 Oct 1:59 am  │           │
+│  `────────│ ● Original fixture snapshot                                              Sat 31 Oct 1:59 am  │           │
+│           │                                                                                              │           │
+│  Novel For│                                                                                              │           │
+│▾ Manuscrip│                                                                                              │           │
+│  ▾ Chapter│                                                                                              │           │
+│      The B│                                                                                              │           │
+│      The O│                                                                                              │           │
+│▾ Character│                                                                                              │           │
+│▾ Places   │                                                                                              │           │
+│▾ Front Mat│                                                                                              │           │
+│  ▸ Manuscr│                                                                                              │           │
+│  ▸ Paperba│                                                                                              │           │
+│  ▸ Ebook  │                                                                                              │           │
+│▾ Back Matt│                                                                                              │           │
+│  ▸ Paperba│                                                                                              │           │
+│  ▸ Ebook  │                                                                                              │           │
+│▾ Notes    │                                                                                              │           │
+│    Pin Pra│                                                                                              │           │
+│▾ Research │                                                                                              │           │
+│  ▾ Sample │                                                                                              │           │
+└ n scene  c│                                                                                              │           │
+┌ F2 timer ·│                                                                                              │           │
+│  ·        │                                                                                              │           │
+│           │                                                                                              │           │
+│           │                                                                                              │           │
+│    ˇ ˇ    │                                                                                              │           │
+│           │                                                                                              │           │
+│           │                                                                                              │           │
+│          ▁│ ↑↓ choose   ↵ what changed that session   s save this session now   esc close                │           │
+│  ▁▁▂▃▄▅▆▇▇└──────────────────────────────────────────────────────────────────────────────────────────────┘           │
+│▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔││                                                                                        │
+└──◂ pomodoro visualizer ▸───┘└────────────────────────────────────────────────────────────────────────────────────────┘
+ 12 / 80,000 ░░░░░░░░░░  today 1  ✓ saved  session saved: Friday night · Chapter One · 1 word   Esc menu  ^D focus mode

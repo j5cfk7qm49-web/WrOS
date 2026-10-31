@@ -1,5 +1,19 @@
 # Testing and verification
 
+## Local writing-session network boundary
+
+`test_local_session_privacy_pty.py` uses the real compiled app at 80x24,
+100x30, 120x40 and 160x50, an isolated HOME, generated Markdown/YAML and a
+disposable local bare Git remote. It proves startup, explicit local snapshot,
+quit and restart leave that remote empty and never invoke Git push/fetch/pull
+or transport commands. Local committed prose, history browsing and Undo are
+verified. A second case adds the remote during an open session. The old binary
+fails before the first edit because opening the book pushes its history.
+No external server, credentials or real manuscript is involved. Captures under
+`build/verification/local-session-privacy-screens` use
+`WRITINGDECK_CAPTURE_PTY=1`. Native verified backup/restore remains separate.
+
+
 ## Shared story registry recovery boundary
 
 `crates/grimoire-core/tests/story_identity.rs` checks lost/empty registries,
