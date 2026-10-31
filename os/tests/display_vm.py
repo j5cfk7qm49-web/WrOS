@@ -27,7 +27,12 @@ from writingdeck_source import fingerprint
 
 def digest(path):
     with path.open('rb') as source:
-        return hashlib.file_digest(source, 'sha256').hexdigest()
+        if hasattr(hashlib, 'file_digest'):
+            return hashlib.file_digest(source, 'sha256').hexdigest()
+        hasher = hashlib.sha256()
+        while chunk := source.read(65536):
+            hasher.update(chunk)
+        return hasher.hexdigest()
 
 
 def main():

@@ -150,7 +150,7 @@ def audit(base):
                         or package.data.get_content(relative) != (root/relative).read_bytes()):
                     raise ValueError('encrypted-target payload differs from offline archive: '+relative)
             with archive.open('rb') as stream:
-                checksum = hashlib.file_digest(stream, 'sha256').hexdigest()
+                checksum = sha256_stream(stream)
             encryption_archives[name] = {'version': control['Version'],
                 'file': archive.relative_to(base/'binary').as_posix(), 'sha256': checksum}
     missing = expected - packages
@@ -173,9 +173,18 @@ def require(condition, message):
         raise ValueError(message)
 
 
+def sha256_stream(stream):
+    if hasattr(hashlib, 'file_digest'):
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
+    hasher = hashlib.sha256()
+    while chunk := stream.read(65536):
+        hasher.update(chunk)
+    return hasher.hexdigest()
+
+
 def sha256_file(path):
     with Path(path).open('rb') as stream:
-        return hashlib.file_digest(stream, 'sha256').hexdigest()
+        return sha256_stream(stream)
 
 
 def run_tool(command, **kwargs):

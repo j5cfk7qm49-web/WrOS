@@ -400,7 +400,12 @@ out, version, version_source, name, iso, audit_path, smoke_dir, started, interim
 audit = json.load(open(audit_path))
 def digest(path):
     with open(path, 'rb') as stream:
-        return hashlib.file_digest(stream, 'sha256').hexdigest()
+        if hasattr(hashlib, 'file_digest'):
+            return hashlib.file_digest(stream, 'sha256').hexdigest()
+        hasher = hashlib.sha256()
+        while chunk := stream.read(65536):
+            hasher.update(chunk)
+        return hasher.hexdigest()
 iso_sha = digest(iso)
 if audit['iso']['sha256'] != iso_sha:
     raise SystemExit('audited ISO differs from the ISO being published')

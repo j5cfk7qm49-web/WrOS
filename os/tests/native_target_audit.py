@@ -105,7 +105,12 @@ def digest(path):
     require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022,
             'Trusted target payload required')
     with path.open('rb') as stream:
-        return hashlib.file_digest(stream, 'sha256').hexdigest()
+        if hasattr(hashlib, 'file_digest'):
+            return hashlib.file_digest(stream, 'sha256').hexdigest()
+        hasher = hashlib.sha256()
+        while chunk := stream.read(65536):
+            hasher.update(chunk)
+        return hasher.hexdigest()
 
 
 def fixture_guard(token):

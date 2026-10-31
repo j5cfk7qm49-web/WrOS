@@ -121,7 +121,12 @@ def digest(path):
     require(stat.S_ISREG(info.st_mode) and not stat.S_ISLNK(info.st_mode),
             f'regular file required: {path}')
     with Path(path).open('rb') as stream:
-        return hashlib.file_digest(stream, 'sha256').hexdigest()
+        if hasattr(hashlib, 'file_digest'):
+            return hashlib.file_digest(stream, 'sha256').hexdigest()
+        hasher = hashlib.sha256()
+        while chunk := stream.read(65536):
+            hasher.update(chunk)
+        return hasher.hexdigest()
 
 
 def trusted_file(path, executable=False):
