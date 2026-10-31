@@ -42,6 +42,6 @@ changes, malformed/stale diffs and bounds. Four-size UI and actual compiled-app
 checks cover second milestone/variant selection, default Cancel, explicit
 passage restore, help, hidden-input protection, retained unrelated writing,
 recovery/history, Undo and fresh-process restart. Stale source, backing and
-external/in-process metadata refusal are separately tested. Full source-bound
-Debian qualification is in progress; this does not complete character knowledge,
+external/in-process metadata refusal are separately tested. The [independent full Debian run](evidence/passage-restore-local.json) passed
+1072 Rust tests per configuration, 184 Python tests with zero skips, both Clippys and 21 gates. [Provenance and frames](evidence/passage-restore-local-provenance.json) bind its source and binary; this does not complete character knowledge,
 all M8/M9, large-load/power-loss or production OS qualification.

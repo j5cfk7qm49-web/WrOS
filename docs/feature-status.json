@@ -446,8 +446,8 @@
     {
       "area": "Long-form",
       "capability": "Named milestones/experimental variants/diff/selective restore",
-      "status": "Implemented",
-      "verification": "Bounded core, four-size UI and compiled-app selected-draft/passage/Cancel/help/Undo/restart; applied-source full run in progress",
+      "status": "Tested",
+      "verification": "Independent full Debian suite; bounded core and four-size compiled selected-draft/passage/Cancel/help/Undo/restart",
       "hardware_verified": false,
       "detail": "Captured reviewed saved identity/content, guarded one-change restore, recovery variant and dated history; no durable range indices"
     },

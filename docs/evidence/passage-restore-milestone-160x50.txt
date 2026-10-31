@@ -1,0 +1,50 @@
+┌Restore one reviewed passage──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│▸ Cancel — keep current writing                                                                                                                               │
+│  Restore this saved passage                                                                                                                                  │
+│A full recovery variant and dated history are kept before an actual change.                                                                                   │
+│↑↓/Tab choose  Enter confirm  Esc back  F1 help                                                                                                               │
+└─────────────────────────────────────────────────────────────────────────────────────────────                                                                 │
+│Middle retained words.                                                                                                                                        │
+│Added Last sentence. %% private original %%                                                                                                                   │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│Saved named milestone #2.                                                                                                                                     │
+│←→ passage  p review one  r restore scene  PgUp/PgDn scroll  Esc back                                                                                         │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
