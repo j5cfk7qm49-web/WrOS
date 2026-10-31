@@ -388,6 +388,15 @@ class PackageAwareAudit(unittest.TestCase):
             (root / 'usr/share/keyrings/debian-archive-keyring.gpg').unlink()
             with self.assertRaisesRegex(ValueError, 'missing or unsafe'):
                 module.audit(root)
+            # Unsafe symlink is refused
+            (root / 'usr/share/keyrings/debian-archive-keyring.gpg').symlink_to('/etc/passwd')
+            with self.assertRaisesRegex(ValueError, 'missing or unsafe'):
+                module.audit(root)
+            (root / 'usr/share/keyrings/debian-archive-keyring.gpg').unlink()
+            # Valid Debian 13 symlink to debian-archive-keyring.pgp is accepted
+            (root / 'usr/share/keyrings/debian-archive-keyring.pgp').write_bytes(b'pgp-keyring-data')
+            (root / 'usr/share/keyrings/debian-archive-keyring.gpg').symlink_to('debian-archive-keyring.pgp')
+            self.assertTrue(module.audit(root)['package']['valid'])
 
     def test_update_trust_inputs(self):
         keyring = synthetic_keyring()

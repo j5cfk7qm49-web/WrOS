@@ -334,7 +334,14 @@ def audit(root, fixture_fingerprints=None):
     update_actions = audit_polkit(root)
     update_units = audit_units(root)
     # APT still needs the Debian archive keyring for the base system; the update engine must not.
-    regular(root, 'usr/share/keyrings/debian-archive-keyring.gpg')
+    keyring_candidate = root / 'usr/share/keyrings/debian-archive-keyring.gpg'
+    if keyring_candidate.is_symlink():
+        target = keyring_candidate.readlink()
+        if target != Path('debian-archive-keyring.pgp') and target != (root / 'usr/share/keyrings/debian-archive-keyring.pgp'):
+            raise ValueError('missing or unsafe native session file: usr/share/keyrings/debian-archive-keyring.gpg')
+        regular(root, 'usr/share/keyrings/debian-archive-keyring.pgp')
+    else:
+        regular(root, 'usr/share/keyrings/debian-archive-keyring.gpg')
     update_signers = audit_trust(root, fixture_fingerprints)
     audit_no_private_keys(root)
     for name in ('restic', 'rclone'):
