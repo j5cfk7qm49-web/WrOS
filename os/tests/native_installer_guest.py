@@ -160,6 +160,72 @@ def validate_review_preseed(contents, installing=False):
             'Review fixture may only select the fresh disk, never unlock credentials or approve writes')
 
 
+def cleanup_target_stack(
+    identity,
+    target_root=DI/'target',
+    sysroot=Path('/sys/class/block'),
+    mountinfo_path=Path('/proc/self/mountinfo'),
+    swaps_path=Path('/proc/swaps'),
+    runner=None,
+):
+    """Retire any target mounts, active swaps, LVM LVs, and LUKS2 containers."""
+    if identity is None:
+        return {
+            'mounts_unmounted': [],
+            'swaps_disabled': [],
+            'mappers_closed': [],
+            'clean': True,
+        }
+    run_cmd = runner or command
+    mountinfo_text = mountinfo_path.read_text(encoding='utf-8') if mountinfo_path.exists() else ''
+    swaps_text = swaps_path.read_text(encoding='utf-8') if swaps_path.exists() else ''
+    plan = storage.teardown_plan(
+        identity,
+        mountinfo_text,
+        swaps_text,
+        target_root=str(target_root),
+        sysroot=sysroot,
+    )
+    unmounted = []
+    for mountpoint in plan['mounts']:
+        run_cmd('/bin/umount', mountpoint)
+        unmounted.append(mountpoint)
+    disabled_swaps = []
+    for swap in plan['swaps']:
+        require(storage.belongs_to_target(swap['block'], identity, sysroot=sysroot),
+                'Refusing to disable swap on non-target block device')
+        run_cmd('/sbin/swapoff', swap['path'])
+        disabled_swaps.append(swap['path'])
+    closed_mappers = []
+    for mapper in plan['mappers']:
+        require(storage.belongs_to_target(mapper['block'], identity, sysroot=sysroot),
+                'Refusing to close non-target device-mapper node')
+        if mapper['kind'] == 'crypt':
+            run_cmd('/sbin/cryptsetup', 'close', mapper['dm_name'])
+        else:
+            run_cmd('/sbin/dmsetup', 'remove', '--retry', mapper['dm_name'])
+        closed_mappers.append(mapper['dm_name'])
+    # Re-read state to verify zero leaked target mounts, swaps, or mappers.
+    after_mounts = storage.target_mountpoints(
+        mountinfo_path.read_text(encoding='utf-8') if mountinfo_path.exists() else '',
+        target_root=str(target_root),
+    )
+    after_swaps = storage.target_swaps(
+        swaps_path.read_text(encoding='utf-8') if swaps_path.exists() else '',
+        identity,
+        sysroot=sysroot,
+    )
+    after_mappers = storage.target_mapper_teardown_order(identity, sysroot=sysroot)
+    require(not after_mounts and not after_swaps and not after_mappers,
+            'Target mounts, swaps or device-mapper nodes remained active after cleanup')
+    return {
+        'mounts_unmounted': unmounted,
+        'swaps_disabled': disabled_swaps,
+        'mappers_closed': closed_mappers,
+        'clean': True,
+    }
+
+
 def stage_target_proof(token):
     source = (QA/'native_target_audit.py').read_text()
     require(0 < len(source.encode()) <= 65536, 'Bounded fixed target audit required')
@@ -244,6 +310,46 @@ def writing_readers_retired():
         except (FileNotFoundError, ProcessLookupError):
             pass
     return True
+
+
+def installer_readers_retired():
+    for process in Path('/proc').glob('[0-9]*'):
+        try:
+            if (process/'comm').read_text().strip() not in ('wros-installer', 'main-menu', 'cdebconf'):
+                continue
+            descriptor = os.pidfd_open(int(process.name))
+            try:
+                if not select.select([descriptor], [], [], 0)[0]:
+                    return False
+            finally:
+                os.close(descriptor)
+        except (FileNotFoundError, ProcessLookupError):
+            pass
+    return True
+
+
+def handoff_to_writing_session(
+    identity=None,
+    target_root=DI/'target',
+    sysroot=Path('/sys/class/block'),
+    mountinfo_path=Path('/proc/self/mountinfo'),
+    swaps_path=Path('/proc/swaps'),
+    runner=None,
+):
+    """Retire any installer target state and return tty1 to greetd writing session."""
+    run_cmd = runner or command
+    require(installer_readers_retired(), 'Installer frontend or backend is still running')
+    cleanup = cleanup_target_stack(
+        identity,
+        target_root=target_root,
+        sysroot=sysroot,
+        mountinfo_path=mountinfo_path,
+        swaps_path=swaps_path,
+        runner=run_cmd,
+    )
+    run_cmd('/bin/chvt', '1')
+    run_cmd('/usr/bin/systemctl', 'start', 'greetd.service')
+    return cleanup
 
 
 def worker(allow_synthetic_target=False, review=False, installing=False):
@@ -461,14 +567,23 @@ def worker(allow_synthetic_target=False, review=False, installing=False):
                         process.wait(timeout=3)
                     except subprocess.TimeoutExpired:
                         process.kill(); process.wait()
+            if identity is not None:
+                cleanup = cleanup_target_stack(identity)
+                record['target_cleanup'] = cleanup
+                state(record)
 
 
 def main():
     require(len(sys.argv) == 2 and sys.argv[1] in ('start', 'worker', 'start-target', 'worker-target',
-                                                'start-review', 'worker-review', 'start-install', 'worker-install', 'inspect'),
+                                                'start-review', 'worker-review', 'start-install', 'worker-install',
+                                                'handoff-writing', 'inspect'),
             'Fixed fixture operation required')
     if sys.argv[1] == 'inspect':
         diagnose()
+        return
+    if sys.argv[1] == 'handoff-writing':
+        _, identity = guard((QA/'fixture-target.json').exists())
+        handoff_to_writing_session(identity=identity)
         return
     installing = sys.argv[1].endswith('-install')
     review = installing or sys.argv[1].endswith('-review')

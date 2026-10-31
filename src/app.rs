@@ -1822,6 +1822,18 @@ impl App {
             self.paste_lexicon(&text);
             return;
         }
+        if self.overlay == Overlay::Deck(writingdeck::Page::Settings)
+            && matches!(
+                self.deck.shell.nav.current(),
+                shell::Route::BackupForm
+                    | shell::Route::WifiConnect
+                    | shell::Route::UpdateBundleForm
+            )
+        {
+            let text = self.clipboard_text();
+            self.paste(&text);
+            return;
+        }
         if !self.focus.is_editor() || self.open.is_none() {
             self.msg = "open a scene and click into it to paste".into();
             return;
@@ -2022,6 +2034,18 @@ impl App {
             && self.deck.shell.nav.current() == shell::Route::BackupForm
         {
             self.paste_backup_form(text);
+            return;
+        }
+        if self.overlay == Overlay::Deck(writingdeck::Page::Settings)
+            && self.deck.shell.nav.current() == shell::Route::WifiConnect
+        {
+            self.paste_wifi_form(text);
+            return;
+        }
+        if self.overlay == Overlay::Deck(writingdeck::Page::Settings)
+            && self.deck.shell.nav.current() == shell::Route::UpdateBundleForm
+        {
+            self.paste_update_form(text);
             return;
         }
         if matches!(self.overlay, Overlay::Checks { .. }) {

@@ -2,7 +2,9 @@
 
 The current candidate targets Debian 13 amd64. It adds a complete native
 encrypted project backup/restore workflow, optional rclone Google Drive
-connection, the local character-knowledge contribution, and installer hardening.
+connection, the local character-knowledge contribution, installer hardening, protected native Wi-Fi enrollment and durable backup retry. The
+[Argon integration](ARGON_INTEGRATION_2026-10-31.md) passed the full local software
+suite; production/device/provider boundaries remain explicit.
 It remains a development candidate: a passing software suite does not make the
 unqualified installation, update/recovery or physical-device work complete.
 
@@ -33,12 +35,12 @@ retain the exact source/executable identities and four terminal sizes.
 
 | Work | Current boundary |
 |---|---|
-| [Production installation](https://github.com/j5cfk7qm49-web/WrOS/issues/3) | Full native encrypted installation/first-boot and interruption qualification is still open. No physical disk is selected or changed by this release push. |
-| [Signed updates and recovery](https://github.com/j5cfk7qm49-web/WrOS/issues/5) | Cached package-plan views are implemented; signed update application, interrupted transactions, rollback and recovery boot remain unfinished. |
-| Native Wi-Fi enrollment | Scans/saved-profile views and radio controls exist. Protected new-network credential entry and ordinary connection management remain a major implementation gap. |
+| [Production installation](https://github.com/j5cfk7qm49-web/WrOS/issues/3) | Owned leaf-first target LUKS2/LVM/swap/mount teardown (`cleanup_target_stack`) and live writing-session handoff (`handoff_to_writing_session`) are implemented in `os/tests/fixture_storage.py` and `os/tests/native_installer_guest.py`. Full native encrypted installation/first-boot VM and physical qualification remain open. |
+| [Signed updates and recovery](https://github.com/j5cfk7qm49-web/WrOS/issues/5) | Cached APT plans, unprivileged signed-bundle inspection and filesystem/dpkg diagnostics exist. Update installation, offline boot transaction, dependency/freshness/downgrade policy and interruption/rescue recovery remain open; prototype privileged mutations were removed during review. See [gap list and return order](ARGON_INTEGRATION_2026-10-31.md). |
+| Native Wi-Fi enrollment | Protected new-network credential entry (`stdin` to `nmcli --ask`, redacted `Debug`/`Serialize`, volatile drop scrub), active-connection verification, disconnect, and UUID saved-profile reconnect/forget are implemented in source (Rust adapter and four-size native UI software checks passed; real NetworkManager/device acceptance pending). |
 | [Input/lock/power](https://github.com/j5cfk7qm49-web/WrOS/issues/4) | Manual lock has prior qualification; sleep/resume stays disabled pending its independent protocol and hardware acceptance. |
-| [Google account lifecycle](https://github.com/j5cfk7qm49-web/WrOS/issues/28) | Headless authorization import/private rclone storage is implemented. Live account/refresh/revocation tests and the complete credential/account service remain open. |
-| [Backup/sync](https://github.com/j5cfk7qm49-web/WrOS/issues/10) | Native encrypted snapshots and real local/rclone-fixture restore work. Live Drive restoration, a durable automatic queue, bidirectional synchronization and Docs round trips remain open. |
+| [Google account lifecycle](https://github.com/j5cfk7qm49-web/WrOS/issues/28) | Headless authorization import, private `google-account.json` lifecycle state, explicit verification (`check-google`), revocation vs offline classification, reauthorization and best-effort local credential removal (`disconnect-google`) are implemented. Live account acceptance and OS-wide secret vault remain open. |
+| [Backup/sync](https://github.com/j5cfk7qm49-web/WrOS/issues/10) | Native encrypted snapshots, real local/rclone-fixture restore, durable offline backup queue (`queue.json`) and interruption-safe deduplicating retry (`run-queue`) are implemented. Live Drive restoration, bidirectional synchronization and Docs round trips remain open. |
 | [Hardware and release qualification](https://github.com/j5cfk7qm49-web/WrOS/issues/13) | Target-device boot, Wi-Fi, keyboard, battery and power checks, release signing and corresponding-source/notices qualification remain required. |
 
 General Drive browsing, optional mobile workflows and other roadmap expansion

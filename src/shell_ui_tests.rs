@@ -242,9 +242,11 @@ fn native_read_only_system_views_keep_editor_state_and_failed_refresh_drops_stal
         desk.ctrl('z');
         assert_eq!(desk.app.editor.text(), original);
         assert_eq!(desk.app.view_position(Pane::Primary), position);
-        // Information rows cannot turn a scan result into a connection request.
+        // Selecting a scanned network opens the protected enrollment screen
+        // without transmitting credentials or connecting until confirmed.
         desk.key(KeyCode::Down);
         desk.key(KeyCode::Enter);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::WifiConnect);
         assert!(
             !calls
                 .lock()
@@ -252,6 +254,8 @@ fn native_read_only_system_views_keep_editor_state_and_failed_refresh_drops_stal
                 .iter()
                 .any(|r| matches!(r, Request::ConnectWifi { .. }))
         );
+        desk.key(KeyCode::Esc);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::WifiNetworks);
         fail.store(true, Ordering::Relaxed);
         desk.key(KeyCode::Home);
         desk.key(KeyCode::Enter);
@@ -856,5 +860,290 @@ fn power_waits_for_missing_sources_and_failed_document_claims_then_allows_explic
             original,
             "the retained original still has undo"
         );
+    }
+}
+
+#[test]
+fn native_wifi_enrollment_masks_credentials_handles_cancel_failure_and_success_preserving_both_editors()
+ {
+    use std::sync::{Arc, Mutex};
+    use writingdeck_sys::{Backend, Reply, Request, Simulated};
+    struct RecordedWifi(Arc<Mutex<Vec<Request>>>, Simulated);
+    impl Backend for RecordedWifi {
+        fn simulated(&self) -> bool {
+            true
+        }
+        fn request(&mut self, request: Request) -> anyhow::Result<Reply> {
+            self.0.lock().unwrap().push(request.clone());
+            self.1.request(request)
+        }
+    }
+    for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let (mut desk, note) = secondary_book(&format!("wifi-enroll-{width}"), width, height, true);
+        choose_secondary(&mut desk, &note);
+        desk.typed("Keep both editors during Wi-Fi enrollment. ");
+        desk.app
+            .with_editor_view(Pane::Primary, |app| app.editor.select((11, 5), (8, 3)));
+        desk.app.editor.select((9, 2), (6, 4));
+        desk.draw();
+        let original = desk.app.editor.text();
+        let primary = desk.app.view_position(Pane::Primary).unwrap();
+        let secondary = desk.app.view_position(Pane::Secondary).unwrap();
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        desk.app
+            .deck
+            .use_test_backend(Box::new(RecordedWifi(calls.clone(), Simulated::laptop())));
+
+        system_panel(&mut desk, 0);
+        wait_system(&mut desk);
+        for _ in 0..4 {
+            desk.key(KeyCode::Down);
+        }
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::WifiNetworks);
+
+        // Select WriterDeck-Cafe (row 2).
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        desk.draw();
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::WifiConnect);
+        assert!(desk.shows("WriterDeck-Cafe"));
+
+        // Paste and clipboard-paste secret into masked field; never rendered or leaked to editor.
+        desk.app.paste("PRIVATE_WIFI_SECRET_A");
+        desk.draw();
+        assert!(desk.shows("[hidden]"));
+        assert!(!desk.rows().join("\n").contains("PRIVATE_WIFI_SECRET_A"));
+        desk.app.clip = "_CLIP_SECRET_B".into();
+        desk.ctrl('v');
+        desk.draw();
+        assert!(!desk.rows().join("\n").contains("_CLIP_SECRET_B"));
+        assert_eq!(desk.app.editor.text(), original);
+
+        // Escape cancels and discards the password without calling ConnectWifi.
+        desk.key(KeyCode::Esc);
+        assert!(desk.app.deck.shell.wifi_form.is_none());
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::WifiNetworks);
+        assert!(
+            !calls
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|r| matches!(r, Request::ConnectWifi { .. }))
+        );
+
+        // Reopen WriterDeck-Cafe: test too-short password refusal before worker call.
+        desk.key(KeyCode::Enter);
+        desk.typed("short");
+        desk.key(KeyCode::Enter); // advances selection to Connect
+        desk.key(KeyCode::Enter); // submits
+        desk.draw();
+        assert!(desk.shows("8–63 bytes"));
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::WifiConnect);
+        assert!(
+            !calls
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|r| matches!(r, Request::ConnectWifi { .. }))
+        );
+
+        // Select password field, clear it, enter wrong-password, and verify failure recovery.
+        desk.key(KeyCode::Home);
+        desk.key(KeyCode::Delete);
+        desk.typed("wrong-password");
+        desk.key(KeyCode::Enter);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::WifiConnect);
+        assert!(desk.shows("authentication failed"));
+        assert!(
+            desk.app
+                .deck
+                .shell
+                .wifi_form
+                .as_ref()
+                .unwrap()
+                .password
+                .is_empty(),
+            "failed attempt clears the secret buffer for retry"
+        );
+        for req in calls.lock().unwrap().iter() {
+            assert!(!format!("{req:?}").contains("wrong-password"));
+            assert!(
+                !serde_json::to_string(req)
+                    .unwrap()
+                    .contains("wrong-password")
+            );
+        }
+
+        // Enter valid password and connect.
+        desk.key(KeyCode::Home);
+        desk.typed("correct-horse-battery");
+        desk.key(KeyCode::Enter);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::WifiNetworks);
+        assert!(desk.shows("Connected: WriterDeck-Cafe"));
+        for req in calls.lock().unwrap().iter() {
+            assert!(!format!("{req:?}").contains("correct-horse-battery"));
+            assert!(
+                !serde_json::to_string(req)
+                    .unwrap()
+                    .contains("correct-horse-battery")
+            );
+        }
+
+        // Connect to open network PublicLibrary without a password field.
+        desk.key(KeyCode::Home);
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::WifiConnect);
+        desk.key(KeyCode::Down); // move from default Cancel to Connect
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::WifiNetworks);
+        assert!(desk.shows("Connected: PublicLibrary"));
+
+        // Return to Network panel: disconnect and manage saved profiles.
+        desk.key(KeyCode::Esc);
+        desk.key(KeyCode::End);
+        desk.key(KeyCode::Up);
+        desk.key(KeyCode::Enter); // Disconnect active Wi-Fi
+        wait_system(&mut desk);
+        assert!(desk.shows("Wi-Fi disconnected"));
+
+        // Open Saved Wi-Fi profiles.
+        desk.key(KeyCode::Up);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::SavedWifi);
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::SavedWifiProfile);
+        desk.key(KeyCode::Enter); // Default is Cancel.
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::SavedWifi);
+
+        // Reconnect saved profile by UUID.
+        desk.key(KeyCode::Enter);
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::SavedWifi);
+        assert!(calls.lock().unwrap().contains(&Request::ActivateSavedWifi(
+            "00000000-0000-4000-8000-000000000001".into()
+        )));
+
+        // Forget saved profile by UUID.
+        desk.key(KeyCode::Enter);
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert!(calls.lock().unwrap().contains(&Request::ForgetWifi(
+            "00000000-0000-4000-8000-000000000001".into()
+        )));
+
+        for _ in 0..4 {
+            desk.key(KeyCode::Esc);
+        }
+        assert_eq!(desk.app.overlay, Overlay::None);
+        assert_eq!(desk.app.editor.text(), original);
+        assert_eq!(desk.app.view_position(Pane::Primary).unwrap(), primary);
+        assert_eq!(desk.app.view_position(Pane::Secondary).unwrap(), secondary);
+        assert_eq!(desk.app.focus, Focus::Secondary);
+        desk.ctrl('z');
+        assert_ne!(desk.app.editor.text(), original);
+    }
+}
+
+#[test]
+fn signed_bundle_inspection_and_recovery_diagnostics_preserve_both_editors_at_four_sizes() {
+    use std::sync::{Arc, Mutex};
+    use writingdeck_sys::{Backend, Reply, Request, Simulated};
+    struct UpdateBackend {
+        calls: Arc<Mutex<Vec<Request>>>,
+        simulator: Simulated,
+    }
+    impl Backend for UpdateBackend {
+        fn simulated(&self) -> bool {
+            true
+        }
+        fn request(&mut self, request: Request) -> anyhow::Result<Reply> {
+            self.calls.lock().unwrap().push(request.clone());
+            self.simulator.request(request)
+        }
+    }
+    for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let (mut desk, note) =
+            secondary_book(&format!("signed-updates-{width}"), width, height, true);
+        choose_secondary(&mut desk, &note);
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let mut sim = Simulated::laptop();
+        sim.recovery.interrupted_dpkg = true;
+        sim.recovery.unconfigured_packages = vec!["grimoire".into()];
+        desk.app.deck.use_test_backend(Box::new(UpdateBackend {
+            calls: calls.clone(),
+            simulator: sim,
+        }));
+        desk.typed("Primary update draft. ");
+        desk.typed("Secondary update notes. ");
+        let original = desk.app.editor.text();
+        let primary = desk.app.view_position(Pane::Primary).unwrap();
+        let secondary = desk.app.view_position(Pane::Secondary).unwrap();
+        system_panel(&mut desk, 5);
+        wait_system(&mut desk);
+        desk.choose("Inspect signed offline update bundle");
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::UpdateBundleForm);
+        desk.app.paste("relative/bundle");
+        desk.key(KeyCode::Enter);
+        desk.key(KeyCode::Enter);
+        assert!(desk.shows("absolute directory path"));
+        assert!(
+            !calls
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|r| matches!(r, Request::VerifyUpdateBundle { .. }))
+        );
+        desk.key(KeyCode::Home);
+        desk.key(KeyCode::Delete);
+        desk.app.paste("/media/usb/wros-signed-updates");
+        desk.key(KeyCode::Enter);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert!(desk.shows("SIMULATED signature inspection"));
+        assert!(
+            !desk
+                .app
+                .deck
+                .shell
+                .recovery
+                .as_ref()
+                .is_some_and(|r| r.staged_update)
+        );
+        desk.choose("Inspect filesystem and dpkg recovery");
+        wait_system(&mut desk);
+        assert!(desk.shows("ext4"));
+        assert!(desk.shows("Interrupted dpkg packages: grimoire"));
+        assert!(
+            calls
+                .lock()
+                .unwrap()
+                .iter()
+                .all(|r| !matches!(r, Request::RecoverUpdates | Request::CancelStagedUpdates))
+        );
+        for _ in 0..4 {
+            desk.key(KeyCode::Esc);
+        }
+        assert_eq!(desk.app.overlay, Overlay::None);
+        assert_eq!(desk.app.editor.text(), original);
+        assert_eq!(desk.app.view_position(Pane::Primary).unwrap(), primary);
+        assert_eq!(desk.app.view_position(Pane::Secondary).unwrap(), secondary);
+        assert_eq!(desk.app.focus, Focus::Secondary);
     }
 }

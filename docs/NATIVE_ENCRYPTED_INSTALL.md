@@ -79,6 +79,13 @@ must reject a wrong unlock key, unlock with the generated passphrase, reject a
 wrong login, and reach the installed non-root Grimoire session. These assertions
 are implemented; a full passing encrypted installation and boot are still pending.
 
-Production handoff, completion UI, owned post-write LUKS/LVM cleanup, embedding
-the capsule in deliverable media, Secure Boot and physical qualification remain
-open. The root helper here remains restricted to marked disposable QEMU guests.
+Owned post-write and interruption cleanup of target LUKS2/LVM/swap/mount state is
+now implemented in `os/tests/fixture_storage.py` (`target_mountpoints`,
+`target_swaps`, `target_mapper_teardown_order`, `teardown_plan`) and
+`os/tests/native_installer_guest.py` (`cleanup_target_stack`,
+`installer_readers_retired`, `handoff_to_writing_session`), unmounting target
+filesystems deepest-first, disabling target swap, removing LVM logical volumes,
+and closing LUKS2 containers while refusing non-target devices. Full encrypted
+installation/boot VM execution, embedding the capsule in deliverable media,
+Secure Boot and physical qualification remain open. The root helper here remains
+restricted to marked disposable QEMU guests.

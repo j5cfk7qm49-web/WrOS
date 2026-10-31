@@ -1,6 +1,6 @@
 //! Native setup, encrypted snapshots and restore-to-new-folder controls.
 use super::*;
-use crate::backup_service::{self as service, Request, Secret, Status};
+use crate::backup_service::{self as service, QueuedBackup, Request, Secret, Status};
 use zeroize::Zeroizing;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -96,6 +96,7 @@ impl Backups {
         }
     }
     pub fn request(&mut self, request: Request) {
+        self.tick();
         if self.job.is_some() {
             self.notice = "A backup operation is already running.".into();
             return;
@@ -108,6 +109,32 @@ impl Backups {
             Err(error) => self.notice = error,
         }
     }
+    fn sync_local_metadata(&mut self) {
+        let account_path = self.state.join("google-account.json");
+        if !account_path.is_symlink()
+            && let Ok(text) = fs::read_to_string(&account_path)
+            && let Ok(meta) = serde_json::from_str::<serde_json::Value>(&text)
+        {
+            if let Some(state) = meta.get("state").and_then(|v| v.as_str()) {
+                self.status.google_state = state.to_string();
+            }
+            if let Some(verified) = meta.get("verified_at").and_then(|v| v.as_str()) {
+                self.status.google_verified_at = verified.to_string();
+            }
+            if let Some(expiry) = meta.get("token_expiry").and_then(|v| v.as_str()) {
+                self.status.google_expiry = expiry.to_string();
+            }
+        }
+        let queue_path = self.state.join("queue.json");
+        if !queue_path.is_symlink()
+            && let Ok(text) = fs::read_to_string(&queue_path)
+            && let Ok(qdata) = serde_json::from_str::<serde_json::Value>(&text)
+            && let Some(items) = qdata.get("items")
+            && let Ok(parsed) = serde_json::from_value::<Vec<QueuedBackup>>(items.clone())
+        {
+            self.status.queued_backups = parsed;
+        }
+    }
     pub fn tick(&mut self) {
         let result = self.job.as_ref().map(|job| job.result.try_recv());
         match result {
@@ -117,6 +144,7 @@ impl Backups {
                 self.job = None;
             }
             Some(Ok(Err(error))) => {
+                self.sync_local_metadata();
                 self.notice = error;
                 self.job = None;
             }
@@ -180,6 +208,42 @@ impl App {
         self.deck.shell.backup.request(Request::Backup {
             project: self.project.root.to_string_lossy().into_owned(),
         });
+    }
+    pub fn request_project_backup_queue(&mut self) {
+        if self.deck.shell.backup.job.is_some() {
+            return;
+        }
+        if !self.commit_saves()
+            || self.project.dirty_count() != 0
+            || self.tree_stale
+            || !self.conflicts().is_empty()
+        {
+            self.deck.shell.backup.notice =
+                "Backup queue not started: save buffers and resolve source conflicts first.".into();
+            return;
+        }
+        self.save_deck();
+        self.deck.shell.backup.request(Request::Queue {
+            project: self.project.root.to_string_lossy().into_owned(),
+        });
+    }
+    pub fn request_run_backup_queue(&mut self) {
+        if self.deck.shell.backup.job.is_some() {
+            return;
+        }
+        // The queue can contain this open book. Apply the ordinary backup save
+        // and conflict gate before allowing its saved files to be transmitted.
+        if !self.commit_saves()
+            || self.project.dirty_count() != 0
+            || self.tree_stale
+            || !self.conflicts().is_empty()
+        {
+            self.deck.shell.backup.notice =
+                "Backup queue not started: save buffers and resolve source conflicts first.".into();
+            return;
+        }
+        self.save_deck();
+        self.deck.shell.backup.request(Request::RunQueue);
     }
     pub fn paste_backup_form(&mut self, text: &str) {
         let Some(form) = &mut self.deck.shell.backup.form else {

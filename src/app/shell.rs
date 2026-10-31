@@ -4,6 +4,7 @@ use super::*;
 use grimoire_core::tutorial;
 use serde::{Deserialize, Serialize};
 use wros_shell::{Navigation, Notices, Preferences};
+use zeroize::Zeroizing;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Category {
@@ -65,16 +66,108 @@ pub enum Route {
     Timezones,
     TimezoneConfirm,
     WifiNetworks,
+    WifiConnect,
     SavedWifi,
+    SavedWifiProfile,
     LocalAccounts,
     GoogleAccount,
+    GoogleDisconnectConfirm,
     GoogleDrive,
     SyncPanel,
     Backups,
     BackupForm,
     UpdatesView,
+    UpdateBundleForm,
     RecoveryView,
     StorageDevicesView,
+}
+
+pub struct WifiForm {
+    pub network: writingdeck_sys::WifiNetwork,
+    pub password: Zeroizing<String>,
+    pub selected: usize,
+}
+impl WifiForm {
+    pub fn requires_password(&self) -> bool {
+        !self.network.security.is_empty() && self.network.security != "--"
+    }
+    pub fn action_count(&self) -> usize {
+        if self.requires_password() {
+            if self.network.in_use { 4 } else { 3 }
+        } else if self.network.in_use {
+            3
+        } else {
+            2
+        }
+    }
+    pub fn rows(&self) -> Vec<String> {
+        if self.requires_password() {
+            let mut rows = vec![
+                format!(
+                    "Password (hidden): {}",
+                    if self.password.is_empty() {
+                        ""
+                    } else {
+                        "[hidden]"
+                    }
+                ),
+                "Cancel and return to Wi-Fi networks".into(),
+                format!("Connect to {}", self.network.ssid),
+            ];
+            if self.network.in_use {
+                rows.push("Disconnect current Wi-Fi connection".into());
+            }
+            rows.push(format!(
+                "Network: {} · Signal: {}% · Security: {}",
+                self.network.ssid, self.network.signal, self.network.security
+            ));
+            rows.push(
+                "WPA password: 8–63 bytes, or a 64-digit hexadecimal key. Input stays hidden."
+                    .into(),
+            );
+            rows.push("Before Connect, Escape discards this form and password.".into());
+            rows
+        } else {
+            let mut rows = vec![
+                "Cancel and return to Wi-Fi networks".into(),
+                format!("Connect to open network {}", self.network.ssid),
+            ];
+            if self.network.in_use {
+                rows.push("Disconnect current Wi-Fi connection".into());
+            }
+            rows.push(format!(
+                "Network: {} · Signal: {}% · Security: open",
+                self.network.ssid, self.network.signal
+            ));
+            rows.push("Open networks do not encrypt wireless traffic.".into());
+            rows
+        }
+    }
+}
+
+pub struct UpdateBundleForm {
+    pub bundle_dir: String,
+    pub selected: usize,
+}
+impl UpdateBundleForm {
+    pub fn rows(&self) -> Vec<String> {
+        vec![
+            format!("Signed update bundle path: {}", self.bundle_dir),
+            "Cancel and return without staging updates".into(),
+            "Verify signatures and contents (inspection only)".into(),
+            "Requires Debian gpgv verification of InRelease (or Release + Release.gpg),".into(),
+            "authenticated Packages SHA-256, and matching SHA-256 for every .deb archive.".into(),
+            "Create an encrypted Restic backup first; ext4 has no automatic snapshot rollback."
+                .into(),
+        ]
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum SavedWifiAction {
+    Cancel,
+    Connect,
+    Forget,
 }
 
 pub struct Shell {
@@ -94,12 +187,16 @@ pub struct Shell {
     pub timezone_query: String,
     pub timezone_choice: Option<String>,
     pub wifi_networks: Option<Vec<writingdeck_sys::WifiNetwork>>,
+    pub wifi_form: Option<WifiForm>,
     pub wifi_saved: Option<Vec<writingdeck_sys::SavedWifi>>,
+    pub wifi_saved_choice: Option<writingdeck_sys::SavedWifi>,
     pub local_accounts: Option<Vec<writingdeck_sys::LocalAccount>>,
     pub google_status: Option<writingdeck_sys::GoogleAccountStatus>,
     pub drive_files: Option<Vec<writingdeck_sys::RemoteFile>>,
     pub backups: Option<Vec<writingdeck_sys::ResticSnapshot>>,
     pub updates: Option<writingdeck_sys::UpdateInfo>,
+    pub update_form: Option<UpdateBundleForm>,
+    pub recovery: Option<writingdeck_sys::RecoveryInfo>,
     pub storage_devices: Option<Vec<writingdeck_sys::StorageDevice>>,
 }
 impl Shell {
@@ -127,12 +224,16 @@ impl Shell {
             timezone_query: String::new(),
             timezone_choice: None,
             wifi_networks: None,
+            wifi_form: None,
             wifi_saved: None,
+            wifi_saved_choice: None,
             local_accounts: None,
             google_status: None,
             drive_files: None,
             backups: None,
             updates: None,
+            update_form: None,
+            recovery: None,
             storage_devices: None,
         };
         let result = (|| -> Result<()> {
@@ -191,7 +292,14 @@ enum Choice {
     BackupRequest(crate::backup_service::Request),
     BackupForm(super::backup::FormKind, String),
     BackupNow,
+    BackupQueueNow,
     BackupCancel,
+    GoogleDisconnectResolve(bool),
+    WifiSelect(writingdeck_sys::WifiNetwork),
+    WifiDisconnect,
+    SavedWifiSelect(writingdeck_sys::SavedWifi),
+    SavedWifiResolve(SavedWifiAction),
+    UpdateBundleOpen,
     Open(Route),
     Action(Action),
     System(usize),
@@ -326,8 +434,9 @@ fn entries(app: &App) -> Vec<Entry> {
                         "Saved Wi-Fi profiles",
                         Choice::View(Route::SavedWifi, writingdeck_sys::Request::ListSavedWifi),
                     ),
+                    Entry::new("Disconnect active Wi-Fi", Choice::WifiDisconnect),
                     Entry::info(
-                        "New-network credentials · protected enrollment is not implemented",
+                        "Select a network in Scan Wi-Fi networks to connect or enter credentials.",
                     ),
                 ]),
                 Panel::Display => rows.extend([
@@ -407,12 +516,27 @@ fn entries(app: &App) -> Vec<Entry> {
                         "Preview cached package plan",
                         Choice::View(Route::UpdatesView, writingdeck_sys::Request::CheckUpdates),
                     ),
-                    Entry::info("Update installation and rollback are not available yet"),
+                    Entry::new(
+                        "Inspect signed offline update bundle",
+                        Choice::UpdateBundleOpen,
+                    ),
+                    Entry::info("Update installation is unavailable pending an offline transaction and recovery service."),
+                    Entry::new(
+                        "Inspect filesystem and dpkg recovery",
+                        Choice::View(Route::RecoveryView, writingdeck_sys::Request::RecoveryStatus),
+                    ),
+                    Entry::info(
+                        "Signed bundles require Debian GPG verification (InRelease + Packages + .deb SHA-256).",
+                    ),
                 ]),
-                Panel::Recovery => rows.push(Entry::new(
-                    "Recovery availability",
-                    Choice::Open(Route::RecoveryView),
-                )),
+                Panel::Recovery => rows.extend([
+                    Entry::new("Recovery availability", Choice::Open(Route::RecoveryView)),
+                    Entry::new(
+                        "Check filesystem and dpkg recovery status",
+                        Choice::View(Route::RecoveryView, writingdeck_sys::Request::RecoveryStatus),
+                    ),
+                    Entry::info("Native package repair is unavailable; use Debian rescue media."),
+                ]),
             }
             rows
         }
@@ -423,13 +547,16 @@ fn entries(app: &App) -> Vec<Entry> {
             )];
             if let Some(networks) = &app.deck.shell.wifi_networks {
                 for network in networks {
-                    rows.push(Entry::info(format!(
-                        "{}{}\nSignal: {}% · Security: {}",
-                        if network.in_use { "Connected: " } else { "" },
-                        network.ssid,
-                        network.signal,
-                        network.security
-                    )));
+                    rows.push(Entry::new(
+                        format!(
+                            "{}{}\nSignal: {}% · Security: {}",
+                            if network.in_use { "Connected: " } else { "" },
+                            network.ssid,
+                            network.signal,
+                            network.security
+                        ),
+                        Choice::WifiSelect(network.clone()),
+                    ));
                 }
                 if networks.is_empty() {
                     rows.push(Entry::info("No visible named Wi-Fi networks returned."));
@@ -438,10 +565,17 @@ fn entries(app: &App) -> Vec<Entry> {
                 rows.push(Entry::info("Scan unavailable; refresh to try again."));
             }
             rows.push(Entry::info(
-                "New-network credentials · protected enrollment is not implemented.",
+                "Select a network above to connect or enter protected credentials.",
             ));
             rows
         }
+        Route::WifiConnect => app
+            .deck
+            .shell
+            .wifi_form
+            .as_ref()
+            .map(|form| form.rows().into_iter().map(Entry::info).collect())
+            .unwrap_or_default(),
         Route::SavedWifi => {
             let mut rows = vec![Entry::new(
                 "Refresh saved profiles",
@@ -449,10 +583,10 @@ fn entries(app: &App) -> Vec<Entry> {
             )];
             if let Some(profiles) = &app.deck.shell.wifi_saved {
                 for profile in profiles {
-                    rows.push(Entry::info(format!(
-                        "{}\nUUID: {}",
-                        profile.name, profile.uuid
-                    )));
+                    rows.push(Entry::new(
+                        format!("{}\nUUID: {}", profile.name, profile.uuid),
+                        Choice::SavedWifiSelect(profile.clone()),
+                    ));
                 }
                 if profiles.is_empty() {
                     rows.push(Entry::info(
@@ -465,9 +599,39 @@ fn entries(app: &App) -> Vec<Entry> {
                 ));
             }
             rows.push(Entry::info(
-                "This view does not change or delete network profiles.",
+                "Select a saved profile to connect, reconnect or remove it by UUID.",
             ));
             rows
+        }
+        Route::SavedWifiProfile => {
+            let name = app
+                .deck
+                .shell
+                .wifi_saved_choice
+                .as_ref()
+                .map_or("unavailable", |p| p.name.as_str());
+            let uuid = app
+                .deck
+                .shell
+                .wifi_saved_choice
+                .as_ref()
+                .map_or("unavailable", |p| p.uuid.as_str());
+            vec![
+                Entry::new(
+                    "Cancel and keep saved profile unchanged",
+                    Choice::SavedWifiResolve(SavedWifiAction::Cancel),
+                ),
+                Entry::new(
+                    format!("Connect or reconnect {name}"),
+                    Choice::SavedWifiResolve(SavedWifiAction::Connect),
+                ),
+                Entry::new(
+                    format!("Forget saved profile {name}"),
+                    Choice::SavedWifiResolve(SavedWifiAction::Forget),
+                ),
+                Entry::info(format!("Profile: {name} · UUID: {uuid}")),
+                Entry::info("Operations target this exact 36-character NetworkManager UUID."),
+            ]
         }
         Route::LocalAccounts => {
             let mut rows = vec![Entry::new(
@@ -535,6 +699,17 @@ fn entries(app: &App) -> Vec<Entry> {
                     "Refresh cached package plan",
                     Choice::Read(writingdeck_sys::Request::CheckUpdates),
                 ),
+                Entry::new(
+                    "Inspect signed offline update bundle",
+                    Choice::UpdateBundleOpen,
+                ),
+                Entry::new(
+                    "Inspect filesystem and dpkg recovery",
+                    Choice::View(
+                        Route::RecoveryView,
+                        writingdeck_sys::Request::RecoveryStatus,
+                    ),
+                ),
                 Entry::info("Preview only. No package download or installation is performed."),
                 Entry::info("Repository freshness and recovery are unchecked."),
             ];
@@ -557,20 +732,73 @@ fn entries(app: &App) -> Vec<Entry> {
             }
             rows
         }
-        Route::GoogleAccount => vec![
-            Entry::info(if app.deck.shell.backup.status.google_connected {
+        Route::UpdateBundleForm => app
+            .deck
+            .shell
+            .update_form
+            .as_ref()
+            .map(|form| form.rows().into_iter().map(Entry::info).collect())
+            .unwrap_or_default(),
+        Route::GoogleAccount => {
+            let backup = &app.deck.shell.backup;
+            let mut rows = vec![Entry::info(if backup.status.google_connected {
                 "Google Drive credentials saved privately on this device"
             } else {
                 "Google Drive is not connected"
-            }),
-            Entry::new(
-                "Connect Google Drive",
-                Choice::BackupForm(super::backup::FormKind::Google, String::new()),
-            ),
-            Entry::new(
+            })];
+            if backup.status.google_connected {
+                if !backup.status.google_state.is_empty() {
+                    rows.push(Entry::info(format!(
+                        "Credential state: {}{}",
+                        backup.status.google_state,
+                        if backup.status.google_verified_at.is_empty() {
+                            String::new()
+                        } else {
+                            format!(" · verified {}", backup.status.google_verified_at)
+                        }
+                    )));
+                }
+                if !backup.status.google_expiry.is_empty() {
+                    rows.push(Entry::info(format!(
+                        "Token expiry: {}",
+                        backup.status.google_expiry
+                    )));
+                }
+                rows.push(Entry::new(
+                    "Verify Google Drive connection",
+                    Choice::BackupRequest(crate::backup_service::Request::CheckGoogle),
+                ));
+                rows.push(Entry::new(
+                    "Reauthorize Google Drive",
+                    Choice::BackupForm(super::backup::FormKind::Google, String::new()),
+                ));
+                rows.push(Entry::new(
+                    "Disconnect Google Drive and remove local credentials",
+                    Choice::Open(Route::GoogleDisconnectConfirm),
+                ));
+            } else {
+                rows.push(Entry::new(
+                    "Connect Google Drive",
+                    Choice::BackupForm(super::backup::FormKind::Google, String::new()),
+                ));
+            }
+            rows.push(Entry::new(
                 "Encrypted backups and restore",
                 Choice::Open(Route::Backups),
+            ));
+            rows
+        }
+        Route::GoogleDisconnectConfirm => vec![
+            Entry::new(
+                "Cancel and keep saved Google Drive credentials",
+                Choice::GoogleDisconnectResolve(false),
             ),
+            Entry::new(
+                "Disconnect and erase local Google Drive credentials",
+                Choice::GoogleDisconnectResolve(true),
+            ),
+            Entry::info("Local manuscripts, recovery keys and encrypted snapshots are preserved."),
+            Entry::info("Revoke access in your Google account settings to end the provider grant."),
         ],
         Route::GoogleDrive => vec![
             Entry::new(
@@ -619,7 +847,21 @@ fn entries(app: &App) -> Vec<Entry> {
                     "Recover an interrupted repository lock",
                     Choice::BackupRequest(Request::Unlock),
                 ),
+                Entry::new(
+                    "Queue saved project for offline backup",
+                    Choice::BackupQueueNow,
+                ),
+                Entry::new(
+                    "Run queued backups and retry interrupted jobs",
+                    Choice::BackupRequest(Request::RunQueue),
+                ),
             ];
+            if !backup.status.queued_backups.is_empty() {
+                rows.push(Entry::new(
+                    "Clear pending backup queue",
+                    Choice::BackupRequest(Request::ClearQueue),
+                ));
+            }
             // Keep action positions stable when an asynchronous job finishes.
             rows.insert(
                 0,
@@ -648,6 +890,24 @@ fn entries(app: &App) -> Vec<Entry> {
             } else {
                 "Google Drive is not connected"
             }));
+            if !backup.status.queued_backups.is_empty() {
+                rows.push(Entry::info(format!(
+                    "Queued offline backups: {} pending",
+                    backup.status.queued_backups.len()
+                )));
+                for item in &backup.status.queued_backups {
+                    rows.push(Entry::info(format!(
+                        "Queued: {} · attempts {}{}",
+                        item.label,
+                        item.attempts,
+                        if item.last_error.is_empty() {
+                            String::new()
+                        } else {
+                            format!(" · {}", item.last_error)
+                        }
+                    )));
+                }
+            }
             rows.push(Entry::info(
                 "Select a snapshot below to restore into a NEW folder.",
             ));
@@ -691,10 +951,54 @@ fn entries(app: &App) -> Vec<Entry> {
             .as_ref()
             .map(|form| form.rows().into_iter().map(Entry::info).collect())
             .unwrap_or_default(),
-        Route::RecoveryView => vec![
-            Entry::info("Recovery boot and restore are not qualified."),
-            Entry::info("Use the documented maintenance media."),
-        ],
+        Route::RecoveryView => {
+            let mut rows = vec![
+                Entry::new(
+                    "Check filesystem and dpkg recovery status",
+                    Choice::Read(writingdeck_sys::Request::RecoveryStatus),
+                ),
+                Entry::info("Native package repair is unavailable; use Debian rescue media."),
+                Entry::new(
+                    "Encrypted project backups and restore",
+                    Choice::Open(Route::Backups),
+                ),
+            ];
+            if let Some(info) = &app.deck.shell.recovery {
+                rows.push(Entry::info(&info.status));
+                rows.push(Entry::info(format!(
+                    "Root filesystem: {} · Device: {} · Separate /home: {}",
+                    info.root_filesystem,
+                    info.root_device,
+                    if info.separate_home { "yes" } else { "no" }
+                )));
+                rows.push(Entry::info(format!(
+                    "Automatic filesystem snapshot rollback: {}",
+                    if info.rollback_capable {
+                        "available"
+                    } else {
+                        "unavailable"
+                    }
+                )));
+                rows.push(Entry::info(&info.rollback_strategy));
+                if info.interrupted_dpkg {
+                    rows.push(Entry::info(format!(
+                        "Interrupted dpkg packages: {}",
+                        info.unconfigured_packages.join(", ")
+                    )));
+                }
+                if info.staged_update {
+                    rows.push(Entry::info(format!(
+                        "Staged offline update: {}",
+                        info.staged_packages.join(", ")
+                    )));
+                    rows.push(Entry::info("Update installation is unavailable pending an offline transaction and recovery service."));
+                }
+            } else {
+                rows.push(Entry::info("Recovery boot and restore are not qualified."));
+                rows.push(Entry::info("Use the documented maintenance media."));
+            }
+            rows
+        }
         Route::Timezones => {
             let mut rows = vec![Entry::info(format!(
                 "Filter: {} · type a city or region",
@@ -824,7 +1128,163 @@ impl App {
             Request::ListLocalAccounts => self.deck.shell.local_accounts = None,
             Request::ListStorageDevices => self.deck.shell.storage_devices = None,
             Request::CheckUpdates => self.deck.shell.updates = None,
+            Request::RecoveryStatus => self.deck.shell.recovery = None,
             Request::GetGoogleStatus => self.deck.shell.google_status = None,
+            _ => {}
+        }
+    }
+    pub fn paste_wifi_form(&mut self, text: &str) {
+        let Some(form) = &mut self.deck.shell.wifi_form else {
+            return;
+        };
+        if !form.requires_password() || form.selected != 0 {
+            return;
+        }
+        if form.password.len() + text.len() <= 64 && !text.chars().any(char::is_control) {
+            form.password.push_str(text);
+        }
+    }
+    pub fn paste_update_form(&mut self, text: &str) {
+        let Some(form) = &mut self.deck.shell.update_form else {
+            return;
+        };
+        if form.selected != 0 {
+            return;
+        }
+        if form.bundle_dir.len() + text.len() <= 512 && !text.chars().any(char::is_control) {
+            form.bundle_dir.push_str(text);
+        }
+    }
+    pub fn on_update_form_key(&mut self, key: Key) {
+        let Some(form) = &mut self.deck.shell.update_form else {
+            return;
+        };
+        match key {
+            Key::Home => form.selected = 0,
+            Key::Esc => {
+                self.deck.shell.update_form = None;
+                self.deck.shell.nav.back();
+            }
+            Key::Tab | Key::Down => form.selected = (form.selected + 1) % 3,
+            Key::Up => {
+                form.selected = if form.selected == 0 {
+                    2
+                } else {
+                    form.selected - 1
+                };
+            }
+            Key::Backspace if form.selected == 0 => {
+                form.bundle_dir.pop();
+            }
+            Key::Delete if form.selected == 0 => {
+                form.bundle_dir.clear();
+            }
+            Key::Char(c) if !c.is_control() && form.selected == 0 => {
+                self.paste_update_form(&c.to_string());
+            }
+            Key::Enter if form.selected == 0 => {
+                form.selected = 2;
+            }
+            Key::Enter if form.selected == 1 => {
+                self.deck.shell.update_form = None;
+                self.deck.shell.nav.back();
+            }
+            Key::Enter if form.selected == 2 => {
+                if self.deck.busy {
+                    return;
+                }
+                let bundle_dir = form.bundle_dir.trim().to_string();
+                if let Err(err) =
+                    writingdeck_sys::system_views::validate_update_bundle_path(&bundle_dir)
+                {
+                    self.deck.note = format!("Unavailable: {err}");
+                    self.deck.shell.notices.push(&self.deck.note);
+                    return;
+                }
+                self.deck
+                    .request(writingdeck_sys::Request::VerifyUpdateBundle { bundle_dir });
+            }
+            _ => {}
+        }
+    }
+    pub fn on_wifi_form_key(&mut self, key: Key) {
+        let Some(form) = &mut self.deck.shell.wifi_form else {
+            return;
+        };
+        let count = form.action_count();
+        let requires_password = form.requires_password();
+        match key {
+            Key::Home => form.selected = 0,
+            Key::Esc => {
+                self.deck.shell.wifi_form = None;
+                self.deck.shell.nav.back();
+            }
+            Key::Tab | Key::Down => form.selected = (form.selected + 1) % count,
+            Key::Up => {
+                form.selected = if form.selected == 0 {
+                    count.saturating_sub(1)
+                } else {
+                    form.selected - 1
+                };
+            }
+            Key::Backspace if requires_password && form.selected == 0 => {
+                form.password.pop();
+            }
+            Key::Delete if requires_password && form.selected == 0 => {
+                form.password.clear();
+            }
+            Key::Char(c) if !c.is_control() && requires_password && form.selected == 0 => {
+                self.paste_wifi_form(&c.to_string());
+            }
+            Key::Enter if requires_password && form.selected == 0 => {
+                form.selected = 2;
+            }
+            Key::Enter => {
+                let selected = form.selected;
+                let cancel_idx = if requires_password { 1 } else { 0 };
+                let connect_idx = if requires_password { 2 } else { 1 };
+                let disconnect_idx = if requires_password { 3 } else { 2 };
+                if selected == cancel_idx {
+                    self.deck.shell.wifi_form = None;
+                    self.deck.shell.nav.back();
+                    return;
+                }
+                if self.deck.busy {
+                    return;
+                }
+                if selected == disconnect_idx && form.network.in_use {
+                    self.deck.request(writingdeck_sys::Request::DisconnectWifi);
+                    return;
+                }
+                if selected == connect_idx {
+                    let ssid = form.network.ssid.clone();
+                    if let Err(err) = writingdeck_sys::system_views::validate_wifi_ssid(&ssid) {
+                        self.deck.note = format!("Unavailable: {err}");
+                        self.deck.shell.notices.push(&self.deck.note);
+                        return;
+                    }
+                    if requires_password {
+                        if let Err(err) =
+                            writingdeck_sys::system_views::validate_wifi_password(&form.password)
+                        {
+                            self.deck.note = format!("Unavailable: {err}");
+                            self.deck.shell.notices.push(&self.deck.note);
+                            return;
+                        }
+                        let secret = writingdeck_sys::WifiSecret::new(form.password.as_str());
+                        form.password = Zeroizing::new(String::new());
+                        self.deck.request(writingdeck_sys::Request::ConnectWifi {
+                            ssid,
+                            password: Some(secret),
+                        });
+                    } else {
+                        self.deck.request(writingdeck_sys::Request::ConnectWifi {
+                            ssid,
+                            password: None,
+                        });
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -837,6 +1297,9 @@ impl App {
         };
         self.deck.shell.origin = Some(origin);
         self.deck.shell.external = false;
+        self.deck.shell.wifi_form = None;
+        self.deck.shell.wifi_saved_choice = None;
+        self.deck.shell.update_form = None;
         self.deck.shell.nav.reset(Route::Settings);
         self.overlay = Overlay::Deck(writingdeck::Page::Settings);
         self.observe_deck(tutorial::Event::SystemOpened);
@@ -844,6 +1307,14 @@ impl App {
     pub fn on_settings_key(&mut self, key: Key) {
         if self.deck.shell.nav.current() == Route::BackupForm {
             self.on_backup_form_key(key);
+            return;
+        }
+        if self.deck.shell.nav.current() == Route::WifiConnect {
+            self.on_wifi_form_key(key);
+            return;
+        }
+        if self.deck.shell.nav.current() == Route::UpdateBundleForm {
+            self.on_update_form_key(key);
             return;
         }
         if self.deck.shell.nav.current() == Route::Timezones {
@@ -880,6 +1351,9 @@ impl App {
             Key::End => nav.select(rows.len().saturating_sub(1), rows.len()),
             Key::Esc | Key::Left => {
                 self.deck.shell.warm_wait = false;
+                self.deck.shell.wifi_form = None;
+                self.deck.shell.wifi_saved_choice = None;
+                self.deck.shell.update_form = None;
                 if !nav.back() {
                     self.deck.shell.save();
                     self.overlay = self.deck.shell.origin.take().unwrap_or(Overlay::None);
@@ -891,13 +1365,92 @@ impl App {
                     return;
                 };
                 match row.choice {
+                    Choice::BackupRequest(crate::backup_service::Request::RunQueue) => {
+                        self.request_run_backup_queue()
+                    }
                     Choice::BackupRequest(request) => self.deck.shell.backup.request(request),
                     Choice::BackupForm(kind, snapshot) => self.open_backup_form(kind, snapshot),
                     Choice::BackupNow => self.request_project_backup(),
+                    Choice::BackupQueueNow => self.request_project_backup_queue(),
                     Choice::BackupCancel => {
                         self.deck.shell.backup.job = None;
                         self.deck.shell.backup.notice = "Cancelling; refresh snapshots before retrying. Completed snapshots remain recoverable.".into();
                     }
+                    Choice::GoogleDisconnectResolve(false) => {
+                        self.deck.shell.nav.back();
+                    }
+                    Choice::GoogleDisconnectResolve(true) => {
+                        self.deck.shell.backup.tick();
+                        if self.deck.shell.backup.job.is_some() {
+                            self.deck.shell.backup.notice = "Wait for the current backup operation, then confirm disconnect again.".into();
+                            return;
+                        }
+                        self.deck.shell.nav.back();
+                        self.deck
+                            .shell
+                            .backup
+                            .request(crate::backup_service::Request::DisconnectGoogle);
+                    }
+                    Choice::WifiSelect(network) if !self.deck.busy => {
+                        if !network.security.is_empty()
+                            && network.security != "--"
+                            && !network
+                                .security
+                                .split_whitespace()
+                                .all(|kind| matches!(kind, "WPA1" | "WPA2" | "WPA3"))
+                        {
+                            self.deck.note = "This network needs enrollment beyond a personal WPA password; use a supported saved profile or another network.".into();
+                            self.deck.shell.notices.push(&self.deck.note);
+                            return;
+                        }
+                        self.deck.shell.wifi_form = Some(WifiForm {
+                            network,
+                            password: Zeroizing::new(String::new()),
+                            selected: 0,
+                        });
+                        self.deck.shell.nav.open(Route::WifiConnect);
+                    }
+                    Choice::WifiDisconnect if !self.deck.busy => {
+                        self.deck.request(writingdeck_sys::Request::DisconnectWifi);
+                    }
+                    Choice::SavedWifiSelect(profile) if !self.deck.busy => {
+                        self.deck.shell.wifi_saved_choice = Some(profile);
+                        self.deck.shell.nav.open(Route::SavedWifiProfile);
+                        self.deck.shell.nav.select(0, 5);
+                    }
+                    Choice::SavedWifiResolve(SavedWifiAction::Cancel) => {
+                        self.deck.shell.wifi_saved_choice = None;
+                        self.deck.shell.nav.back();
+                    }
+                    Choice::SavedWifiResolve(action) if !self.deck.busy => {
+                        if let Some(profile) = self.deck.shell.wifi_saved_choice.take() {
+                            self.deck.shell.nav.back();
+                            match action {
+                                SavedWifiAction::Cancel => {}
+                                SavedWifiAction::Connect => {
+                                    self.deck
+                                        .request(writingdeck_sys::Request::ActivateSavedWifi(
+                                            profile.uuid,
+                                        ))
+                                }
+                                SavedWifiAction::Forget => self
+                                    .deck
+                                    .request(writingdeck_sys::Request::ForgetWifi(profile.uuid)),
+                            }
+                        }
+                    }
+                    Choice::UpdateBundleOpen if !self.deck.busy => {
+                        self.deck.shell.update_form = Some(UpdateBundleForm {
+                            bundle_dir: String::new(),
+                            selected: 0,
+                        });
+                        self.deck.shell.nav.open(Route::UpdateBundleForm);
+                    }
+                    Choice::WifiSelect(_)
+                    | Choice::WifiDisconnect
+                    | Choice::SavedWifiSelect(_)
+                    | Choice::SavedWifiResolve(_)
+                    | Choice::UpdateBundleOpen => {}
                     Choice::Lock => self.request_console_lock(),
                     Choice::TimezoneOpen if !self.deck.busy => {
                         self.deck.shell.timezones = None;
@@ -932,6 +1485,9 @@ impl App {
                     | Choice::TimezoneResolve(true) => {}
                     Choice::Open(route) => {
                         self.deck.shell.nav.open(route);
+                        if route == Route::GoogleDisconnectConfirm {
+                            self.deck.shell.nav.select(0, 4);
+                        }
                         if matches!(route, Route::Backups | Route::GoogleAccount) {
                             self.deck
                                 .shell
@@ -1066,9 +1622,18 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
         Route::Timezones => "WrOS · Settings › Date and time › Timezone".into(),
         Route::TimezoneConfirm => "WrOS · Change timezone?".into(),
         Route::WifiNetworks => "WrOS · Settings › Wi-Fi networks".into(),
+        Route::WifiConnect => app
+            .deck
+            .shell
+            .wifi_form
+            .as_ref()
+            .map(|f| format!("WrOS · Connect Wi-Fi › {}", f.network.ssid))
+            .unwrap_or_else(|| "WrOS · Connect Wi-Fi".into()),
         Route::SavedWifi => "WrOS · Settings › Saved Wi-Fi profiles".into(),
+        Route::SavedWifiProfile => "WrOS · Saved Wi-Fi profile".into(),
         Route::LocalAccounts => "WrOS · Settings › Local accounts".into(),
         Route::GoogleAccount => "WrOS · Settings › Google account".into(),
+        Route::GoogleDisconnectConfirm => "WrOS · Disconnect Google Drive?".into(),
         Route::GoogleDrive => "WrOS · Settings › Google Drive".into(),
         Route::SyncPanel => "WrOS · Settings › Synchronization".into(),
         Route::Backups => "WrOS · Settings › Backups".into(),
@@ -1081,6 +1646,7 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
             .map(|form| format!("WrOS · {}", form.title()))
             .unwrap_or_else(|| "WrOS · Backups".into()),
         Route::UpdatesView => "WrOS · Settings › Cached package plan".into(),
+        Route::UpdateBundleForm => "WrOS · Inspect signed offline update".into(),
         Route::RecoveryView => "WrOS · Settings › Recovery".into(),
         Route::StorageDevicesView => "WrOS · Settings › Mounted filesystems".into(),
     };
@@ -1090,10 +1656,14 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
     if app.deck.simulated() {
         title = format!("SIMULATED · {title}");
     }
-    let note = if matches!(
+    let uses_backup_notice = matches!(
         app.deck.shell.nav.current(),
         Route::Backups | Route::BackupForm
-    ) {
+    ) || matches!(
+        app.deck.shell.nav.current(),
+        Route::GoogleAccount | Route::GoogleDisconnectConfirm
+    ) && !app.deck.shell.backup.notice.is_empty();
+    let note = if uses_backup_notice {
         app.deck.shell.backup.notice.as_str()
     } else if app.deck.busy {
         "System request pending; writing remains responsive"
@@ -1114,11 +1684,26 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
                     .form
                     .as_ref()
                     .map_or(0, |form| form.selected)
+            } else if app.deck.shell.nav.current() == Route::WifiConnect {
+                app.deck
+                    .shell
+                    .wifi_form
+                    .as_ref()
+                    .map_or(0, |form| form.selected)
+            } else if app.deck.shell.nav.current() == Route::UpdateBundleForm {
+                app.deck
+                    .shell
+                    .update_form
+                    .as_ref()
+                    .map_or(0, |form| form.selected)
             } else {
                 app.deck.shell.nav.selected()
             },
             notice: note,
-            hint: if app.deck.shell.nav.current() == Route::BackupForm {
+            hint: if matches!(
+                app.deck.shell.nav.current(),
+                Route::BackupForm | Route::WifiConnect | Route::UpdateBundleForm
+            ) {
                 "Type/paste field  Tab/↑↓ choose  Enter next/confirm  Esc cancel"
             } else {
                 "↑↓ choose  Enter open  Esc back  F1 help"

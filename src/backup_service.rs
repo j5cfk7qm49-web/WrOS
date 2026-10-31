@@ -35,6 +35,11 @@ pub enum Request {
     Backup {
         project: String,
     },
+    Queue {
+        project: String,
+    },
+    RunQueue,
+    ClearQueue,
     Restore {
         snapshot: String,
         destination: String,
@@ -47,6 +52,8 @@ pub enum Request {
     ConnectGoogle {
         authorization: Secret,
     },
+    CheckGoogle,
+    DisconnectGoogle,
 }
 
 #[derive(Default, Deserialize, Serialize)]
@@ -56,9 +63,30 @@ pub struct Status {
     pub repository: String,
     pub recovery_key: String,
     pub google_connected: bool,
+    #[serde(default)]
+    pub google_state: String,
+    #[serde(default)]
+    pub google_verified_at: String,
+    #[serde(default)]
+    pub google_expiry: String,
+    #[serde(default)]
+    pub queued_backups: Vec<QueuedBackup>,
     pub snapshots: Vec<Snapshot>,
     pub notice: String,
 }
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct QueuedBackup {
+    pub id: String,
+    pub project: String,
+    pub label: String,
+    pub queued_at: String,
+    pub attempts: u32,
+    pub last_error: String,
+    pub inventory_sha256: String,
+}
+
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Snapshot {

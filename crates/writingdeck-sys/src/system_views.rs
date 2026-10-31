@@ -1,6 +1,8 @@
 //! Bounded read-only views of maintained Debian services. None of these
 //! parsers infer successful authentication, backup, update or recovery.
-use crate::{LocalAccount, ResticSnapshot, SavedWifi, StorageDevice, UpdateInfo, WifiNetwork};
+use crate::{
+    LocalAccount, RecoveryInfo, ResticSnapshot, SavedWifi, StorageDevice, UpdateInfo, WifiNetwork,
+};
 use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 
@@ -212,6 +214,93 @@ pub fn updates(output: &str) -> Result<UpdateInfo> {
     })
 }
 
+pub fn recovery_status(output: &str) -> Result<RecoveryInfo> {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct RawRecovery {
+        root_filesystem: String,
+        root_device: String,
+        separate_home: bool,
+        rollback_capable: bool,
+        rollback_strategy: String,
+        interrupted_dpkg: bool,
+        unconfigured_packages: Vec<String>,
+        staged_update: bool,
+        staged_packages: Vec<String>,
+        status: String,
+    }
+    let raw: RawRecovery =
+        serde_json::from_str(output).context("invalid wros-update recovery reply")?;
+    ensure!(
+        !raw.root_filesystem.is_empty() && raw.root_filesystem.len() <= 64,
+        "invalid root filesystem name"
+    );
+    label(&raw.root_filesystem)?;
+    label(&raw.root_device)?;
+    label(&raw.rollback_strategy)?;
+    label(&raw.status)?;
+    ensure!(
+        raw.unconfigured_packages.len() <= 512 && raw.staged_packages.len() <= 512,
+        "recovery package list exceeds limit"
+    );
+    for pkg in &raw.unconfigured_packages {
+        label(pkg)?;
+    }
+    for pkg in &raw.staged_packages {
+        label(pkg)?;
+    }
+    if raw.root_filesystem == "ext4" {
+        ensure!(
+            !raw.rollback_capable,
+            "ext4 root filesystem cannot claim automatic snapshot rollback"
+        );
+    }
+    Ok(RecoveryInfo {
+        root_filesystem: raw.root_filesystem,
+        root_device: raw.root_device,
+        separate_home: raw.separate_home,
+        rollback_capable: raw.rollback_capable,
+        rollback_strategy: raw.rollback_strategy,
+        interrupted_dpkg: raw.interrupted_dpkg,
+        unconfigured_packages: raw.unconfigured_packages,
+        staged_update: raw.staged_update,
+        staged_packages: raw.staged_packages,
+        status: raw.status,
+    })
+}
+
+pub fn update_action_message(output: &str, expected_statuses: &[&str]) -> Result<String> {
+    let val: serde_json::Value =
+        serde_json::from_str(output).context("invalid wros-update reply")?;
+    let status = val["status"]
+        .as_str()
+        .context("missing wros-update status")?;
+    ensure!(
+        expected_statuses.contains(&status),
+        "unexpected wros-update transaction status"
+    );
+    let message = val["message"]
+        .as_str()
+        .context("missing wros-update message")?;
+    ensure!(!message.is_empty(), "empty wros-update message");
+    label(message)?;
+    Ok(message.to_string())
+}
+
+pub fn validate_update_bundle_path(path: &str) -> Result<()> {
+    ensure!(
+        path.starts_with('/')
+            && path != "/"
+            && path.len() <= 512
+            && !path.chars().any(char::is_control)
+            && !std::path::Path::new(path)
+                .components()
+                .any(|c| matches!(c, std::path::Component::ParentDir)),
+        "update bundle path must be an absolute directory path without '..' or control characters"
+    );
+    Ok(())
+}
+
 pub fn restic_snapshots(output: &str) -> Result<Vec<ResticSnapshot>> {
     ensure!(
         output.len() <= 1_048_576,
@@ -266,6 +355,26 @@ pub fn validate_saved_wifi_uuid(uuid: &str) -> Result<()> {
                 }
             }),
         "saved Wi-Fi profile operation requires an exact 36-char UUID"
+    );
+    Ok(())
+}
+
+pub fn validate_wifi_ssid(ssid: &str) -> Result<()> {
+    ensure!(
+        !ssid.is_empty()
+            && ssid.len() <= 32
+            && !ssid.starts_with('-')
+            && !ssid.chars().any(char::is_control),
+        "Wi-Fi network name must be 1–32 UTF-8 bytes without control characters or a leading dash"
+    );
+    Ok(())
+}
+
+pub fn validate_wifi_password(password: &str) -> Result<()> {
+    ensure!(
+        ((8..=63).contains(&password.len()) && !password.chars().any(char::is_control))
+            || (password.len() == 64 && password.bytes().all(|b| b.is_ascii_hexdigit())),
+        "Wi-Fi password must be 8–63 bytes, or an exact 64-digit hexadecimal WPA key"
     );
     Ok(())
 }
@@ -346,5 +455,30 @@ mod tests {
         );
         assert!(validate_saved_wifi_uuid("00000000-0000-4000-8000-000000000001").is_ok());
         assert!(validate_saved_wifi_uuid("ambiguous profile").is_err());
+        assert!(validate_wifi_ssid(" Desk:Main\\West ").is_ok());
+        assert!(validate_wifi_ssid("").is_err());
+        assert!(validate_wifi_ssid("--ask").is_err());
+        assert!(validate_wifi_ssid(&"a".repeat(33)).is_err());
+        assert!(validate_wifi_password("correct-horse-battery").is_ok());
+        assert!(validate_wifi_password("short").is_err());
+        assert!(validate_wifi_password("bad\npassword").is_err());
+        assert!(validate_wifi_password(&"a".repeat(63)).is_ok());
+        assert!(validate_wifi_password(&"A".repeat(64)).is_ok());
+        assert!(validate_wifi_password(&"z".repeat(64)).is_err());
+        assert!(validate_wifi_password(&"a".repeat(65)).is_err());
+        assert!(validate_update_bundle_path("/media/usb/wros-updates").is_ok());
+        assert!(validate_update_bundle_path("relative/path").is_err());
+        assert!(validate_update_bundle_path("/").is_err());
+        assert!(validate_update_bundle_path("/media/../etc").is_err());
+        let ext4_json = r#"{"root_filesystem":"ext4","root_device":"/dev/mapper/root","separate_home":false,"rollback_capable":false,"rollback_strategy":"ext4 has no snapshot rollback","interrupted_dpkg":false,"unconfigured_packages":[],"staged_update":false,"staged_packages":[],"status":"clean"}"#;
+        let rec = recovery_status(ext4_json).unwrap();
+        assert_eq!(rec.root_filesystem, "ext4");
+        assert!(!rec.rollback_capable);
+        assert!(
+            recovery_status(
+                &ext4_json.replace("\"rollback_capable\":false", "\"rollback_capable\":true")
+            )
+            .is_err()
+        );
     }
 }

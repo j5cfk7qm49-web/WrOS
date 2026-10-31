@@ -1,5 +1,36 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Protected Wi-Fi enrollment and Google/backup queue continuation (2026-10-31, locally software-qualified)
+
+Native Settings now implements protected Wi-Fi enrollment and ordinary connection
+management over maintained NetworkManager (`nmcli`): selecting a scanned network
+opens a modal connection screen (`Route::WifiConnect`) that masks passphrases,
+captures paste and clipboard input without touching either editor buffer, passes
+WPA passphrases exclusively via private `stdin` to `nmcli --ask` (`WifiSecret`
+redacts `Debug`, is omitted from `Serialize`, and overwrites memory on `Drop`),
+and verifies active Wi-Fi connection readback before reporting success. Open
+networks connect without a password prompt, active Wi-Fi connections can be
+disconnected without assuming an interface name, and saved Wi-Fi profiles can be
+reconnected or forgotten by exact 36-character UUID with Cancel-default
+confirmation (`Route::SavedWifiProfile`).
+
+The Google Drive account and encrypted backup integration (`os/scripts/wros-backup`,
+`src/backup_service.rs`, `src/app/backup.rs`, `src/app/shell.rs`) adds private
+credential lifecycle metadata (`google-account.json`, mode `0600`), explicit
+connection verification (`check-google`) that distinguishes revoked/expired OAuth
+grants (`reauthorization-required`) from offline transport failures (`offline`),
+atomic reauthorization, and Cancel-default credential disconnect (`disconnect-google`)
+that overwrites `rclone.conf` with zeros before unlinking while preserving local
+manuscripts and recovery keys. A durable offline backup queue (`queue.json`, mode
+`0600`) supports explicit offline project queueing (`queue`) and automatic queue
+retention when a backup is interrupted, with interruption-safe deduplicating
+retry (`run-queue`) that verifies an already-uploaded unverified snapshot in
+place before falling back to a fresh upload. The [complete local software receipt](evidence/argon-os-local.json) passed
+1099 Rust tests per overlapping configuration, 227 Python tests with zero skips,
+both strict Clippys and 21 gates. The [integration review and gap list](ARGON_INTEGRATION_2026-10-31.md)
+records corrections and the return order for unfinished release work. Signed update
+inspection is read-only; unsafe prototype staging/repair grants were removed.
+
 ## Encrypted backup and verified restore (2026-10-31)
 
 Native Settings integrates maintained Debian Restic and rclone for encrypted

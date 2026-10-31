@@ -145,7 +145,7 @@ pub fn command(mut args: impl Iterator<Item = String>) -> Result<()> {
 
 fn backup_command(mut args: impl Iterator<Item = String>) -> Result<()> {
     use crate::backup_service::{self, Request};
-    let usage = "grimoire wros backup status|list|unlock|create REPOSITORY|connect REPOSITORY KEY_FILE|snapshot PROJECT|restore SNAPSHOT NEW_FOLDER|export-key NEW_FILE";
+    let usage = "grimoire wros backup status|list|unlock|create REPOSITORY|connect REPOSITORY KEY_FILE|snapshot PROJECT|queue PROJECT|run-queue|clear-queue|restore SNAPSHOT NEW_FOLDER|export-key NEW_FILE|check-google|disconnect-google";
     let mut next = || args.next().ok_or_else(|| anyhow::anyhow!(usage));
     let request = match next()?.as_str() {
         "status" => Request::Status,
@@ -159,6 +159,9 @@ fn backup_command(mut args: impl Iterator<Item = String>) -> Result<()> {
             key: next()?,
         },
         "snapshot" => Request::Backup { project: next()? },
+        "queue" => Request::Queue { project: next()? },
+        "run-queue" => Request::RunQueue,
+        "clear-queue" => Request::ClearQueue,
         "restore" => Request::Restore {
             snapshot: next()?,
             destination: next()?,
@@ -167,6 +170,8 @@ fn backup_command(mut args: impl Iterator<Item = String>) -> Result<()> {
         "export-key" => Request::ExportKey {
             destination: next()?,
         },
+        "check-google" => Request::CheckGoogle,
+        "disconnect-google" => Request::DisconnectGoogle,
         _ => bail!(usage),
     };
     if args.next().is_some() {

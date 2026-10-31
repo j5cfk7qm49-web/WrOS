@@ -1,0 +1,54 @@
+{
+  "baseline_commit": "1b793b4ef37b71234ad3faa66c205e9c6bc6981c",
+  "import_commit": "3587151187b1289ad9c678ac0885afb0233bcca1",
+  "inputs": {
+    "1-WrOS-Argon.patch": {
+      "bytes": 260932,
+      "sha256": "63e873c6c44ffadad68f34d7d2f19ee91f6a1d7665fd9d6857d70c7f124e7529"
+    },
+    "2-WrOS-Argon-result.zip": {
+      "bytes": 16458468,
+      "sha256": "e6d9918d0e58778df417805eede277485c35ad3c1fe5ff73164283009e3e2917"
+    }
+  },
+  "verification": "passed local software qualification",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "f83fbdf9e9373b261fa4daba139a2bf5281a88bcdf942d0751b249ce68756eb3",
+    "file_count": 486,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "local_receipt_source_counter_note": "The local receipt selected two deleted, unstaged prototype policy names; its counter includes them but its byte hash excludes them. Staging their deletion changes only the counter; the verified SHA-256 is identical.",
+  "tested_binary_sha256": "c4bc3c364c6d273a259d7038d5bcd1f917f11bd19fe2708cd96fee201907b990",
+  "software_receipt": "docs/evidence/argon-os-local.json",
+  "software_receipt_sha256": "5abebf4ca0c134d068455b5e205b843ac94a20d6870b320586718e7e1330898d",
+  "runner": "Debian 13, Rust 1.99.1, CPython 3.13, non-root builder, isolated network namespace with loopback only",
+  "frames": [
+    {
+      "file": "docs/evidence/argon-os-backup-80x24.txt",
+      "sha256": "74cdb3740975c3c1155d069208c5f1b0ebd258adbb0a1261f26578257fc8b334"
+    },
+    {
+      "file": "docs/evidence/argon-os-backup-100x30.txt",
+      "sha256": "a9fe0c0e55317c60bf4e03818869403f61ae1ea53f6dbb776b8ecea73d21e18e"
+    },
+    {
+      "file": "docs/evidence/argon-os-backup-120x40.txt",
+      "sha256": "54fcece6e8bbd6beb942e348ceb4d31e2eeac5aeb1ace2dd3882fc0c67d1588c"
+    },
+    {
+      "file": "docs/evidence/argon-os-backup-160x50.txt",
+      "sha256": "70e472335723220822c3aea3bf5ae200a8c008ef0943e344c1e980ad12801e8c"
+    }
+  ],
+  "scope": "Protected Wi-Fi adapter and four-size editor UI, Google lifecycle fixtures, durable queue, real interrupted Restic upload/restore deduplication, real rclone local-alias transport, compiled-app queue/disconnect, 512 MiB cancellation, read-only signed bundle inspection, synthetic target cleanup, full writing regressions",
+  "real_google_account_used": false,
+  "manuscript_transmitted_to_a_provider": false,
+  "physical_or_full_encrypted_install_qualified": false,
+  "secret_scan": {
+    "tool": "Gitleaks 8.30.1",
+    "finding": "one generic-api-key match in a deterministic QEMU test nonce",
+    "file": "os/tests/test_native_installer_guest.py",
+    "resolution": "reviewed synthetic fixture; no real credential"
+  }
+}

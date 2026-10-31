@@ -549,10 +549,76 @@ impl App {
                     ) {
                         self.deck.request(Request::DisplayStatus);
                     }
+                    if let Request::ConnectWifi { ssid, .. } = &request {
+                        self.deck.shell.wifi_form = None;
+                        if let Some(networks) = &mut self.deck.shell.wifi_networks {
+                            for network in networks {
+                                network.in_use = &network.ssid == ssid;
+                            }
+                        }
+                        if matches!(self.overlay, Overlay::Deck(Page::Settings))
+                            && self.deck.shell.nav.current() == super::shell::Route::WifiConnect
+                        {
+                            self.deck.shell.nav.back();
+                        }
+                    }
+                    if matches!(request, Request::DisconnectWifi) {
+                        if let Some(networks) = &mut self.deck.shell.wifi_networks {
+                            for network in networks {
+                                network.in_use = false;
+                            }
+                        }
+                        if matches!(self.overlay, Overlay::Deck(Page::Settings))
+                            && self.deck.shell.nav.current() == super::shell::Route::WifiConnect
+                        {
+                            self.deck.shell.wifi_form = None;
+                            self.deck.shell.nav.back();
+                        }
+                    }
+                    if let Request::ForgetWifi(uuid) = &request
+                        && let Some(saved) = &mut self.deck.shell.wifi_saved
+                    {
+                        saved.retain(|s| &s.uuid != uuid);
+                    }
+                    if let Request::ActivateSavedWifi(uuid) = &request
+                        && let Some(profile) = self
+                            .deck
+                            .shell
+                            .wifi_saved
+                            .as_ref()
+                            .and_then(|s| s.iter().find(|p| &p.uuid == uuid))
+                            .cloned()
+                        && let Some(networks) = &mut self.deck.shell.wifi_networks
+                    {
+                        for network in networks {
+                            network.in_use = network.ssid == profile.name;
+                        }
+                    }
+                    if matches!(request, Request::VerifyUpdateBundle { .. }) {
+                        self.deck.shell.update_form = None;
+                        if matches!(self.overlay, Overlay::Deck(Page::Settings))
+                            && self.deck.shell.nav.current()
+                                == super::shell::Route::UpdateBundleForm
+                        {
+                            self.deck.shell.nav.back();
+                        }
+                    }
+                    if matches!(request, Request::CancelStagedUpdates)
+                        && let Some(recovery) = &mut self.deck.shell.recovery
+                    {
+                        recovery.staged_update = false;
+                        recovery.staged_packages.clear();
+                    }
+                    if matches!(request, Request::RecoverUpdates)
+                        && let Some(recovery) = &mut self.deck.shell.recovery
+                    {
+                        recovery.interrupted_dpkg = false;
+                        recovery.unconfigured_packages.clear();
+                    }
                 }
                 Ok(Reply::WifiScan(networks)) => {
                     self.deck.note = format!(
-                        "{} named Wi-Fi networks returned. Enrollment is not implemented.",
+                        "{} named Wi-Fi networks returned. Select a network to connect.",
                         networks.len()
                     );
                     self.deck.shell.wifi_networks = Some(networks);
@@ -575,6 +641,10 @@ impl App {
                 Ok(Reply::Updates(plan)) => {
                     self.deck.note = plan.status.clone();
                     self.deck.shell.updates = Some(plan);
+                }
+                Ok(Reply::Recovery(info)) => {
+                    self.deck.note = info.status.clone();
+                    self.deck.shell.recovery = Some(info);
                 }
                 Ok(Reply::GoogleStatus(status)) => {
                     self.deck.note = status.status_message.clone();
@@ -656,6 +726,11 @@ impl App {
                     self.deck.shell.warm_wait = false;
                     if matches!(request, Request::DisplayStatus) {
                         self.deck.shell.display = None;
+                    }
+                    if matches!(request, Request::ConnectWifi { .. })
+                        && let Some(form) = &mut self.deck.shell.wifi_form
+                    {
+                        form.password.clear();
                     }
                     self.deck.note = format!("Unavailable: {e}");
                     if matches!(self.overlay, Overlay::Deck(Page::KeyboardWait)) {

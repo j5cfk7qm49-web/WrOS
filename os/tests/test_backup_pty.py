@@ -158,6 +158,63 @@ class NativeBackupPTY(unittest.TestCase):
             finally:
                 terminal.close()
 
+    def test_offline_backup_queue_and_google_disconnect_confirmation_preserve_manuscript(self):
+        with tempfile.TemporaryDirectory(prefix='wros-backup-queue-pty-') as temporary:
+            base = Path(temporary)
+            project, home, primary = fixture(base)
+            original = primary.read_bytes()
+            state = home/'data/grimoire/wros/backup'
+            state.mkdir(parents=True, exist_ok=True, mode=0o700)
+            rclone_conf = state/'rclone.conf'
+            rclone_conf.write_bytes(b'[wros-google]\ntype = drive\ntoken = {"refresh_token":"SECRET"}\n')
+            rclone_conf.chmod(0o600)
+            account_json = state/'google-account.json'
+            account_json.write_text(json.dumps({
+                'version': 1,
+                'connected_at': '2026-10-31T04:00:00Z',
+                'verified_at': '2026-10-31T04:00:00Z',
+                'token_expiry': '2026-11-01T00:00:00Z',
+                'state': 'reauthorization-required',
+                'last_error': 'Google Drive authorization expired or was revoked.',
+            }) + '\n')
+            account_json.chmod(0o600)
+            terminal = TerminalProcess(project, home, 100, 30)
+            try:
+                terminal.shows('The Brass Key')
+                self.open_backups(terminal)
+                choose(terminal, 'Queue saved project for offline backup')
+                terminal.screen_shows('Project queued for encrypted backup (1 pending)')
+                self.assertTrue((state/'queue.json').is_file())
+                choose(terminal, 'New backup on a local drive')
+                repository = base/'queued-repository'
+                terminal.paste(str(repository))
+                terminal.send(b'\r\r')
+                terminal.screen_shows('Repository connected.')
+                choose(terminal, 'Run queued backups and retry interrupted jobs')
+                terminal.screen_shows('Completed all queued backups')
+                self.assertEqual(json.loads((state/'queue.json').read_text())['items'], [])
+                self.assertEqual(len(json.loads((state/'repository.json').read_text())['verified']), 1)
+                terminal.send(b'\x1b')
+                terminal.screen_shows('Settings › Accounts')
+                choose(terminal, 'Google account')
+                terminal.screen_shows('reauthorization-required')
+                terminal.until(lambda: terminal.output.endswith(b'\x1b[?25l')
+                               and 'Backup operation running' not in terminal.screen.text,
+                               'local Google account status refresh finished')
+                choose(terminal, 'Disconnect Google Drive and remove local credentials')
+                terminal.screen_shows('Cancel and keep saved Google Drive credentials')
+                terminal.send(b'\r')  # Default Cancel preserves credentials.
+                terminal.screen_shows('Settings › Google account')
+                self.assertTrue(rclone_conf.exists())
+                choose(terminal, 'Disconnect Google Drive and remove local credentials')
+                terminal.send(b'\x1b[B\r')  # Confirm disconnect.
+                terminal.screen_shows('Google Drive credentials removed')
+                self.assertFalse(rclone_conf.exists())
+                self.assertFalse(account_json.exists())
+                self.assertEqual(primary.read_bytes(), original)
+            finally:
+                terminal.close()
+
 
 if __name__ == '__main__':
     unittest.main()
