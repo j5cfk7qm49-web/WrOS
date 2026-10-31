@@ -26,6 +26,18 @@ mkdir -p "$dest/etc/live/config.conf.d" "$dest/usr/libexec" \
     "$dest/etc/wros" "$dest/usr/lib/wros-installer"
 install -m755 "$repo/os/scripts/wros-live-session" "$dest/usr/libexec/"
 install -m755 "$repo/os/scripts/wros-install-session" "$dest/usr/libexec/"
+# A dedicated locked identity keeps installation credentials outside the live
+# writer's UID. All account operations apply only to the checked staging root.
+if ! python3 - "$dest" <<'PYUID'
+from pathlib import Path
+import sys
+rows=Path(sys.argv[1], 'etc/passwd').read_text().splitlines()
+raise SystemExit(0 if any(row.startswith('_wros-installer:') for row in rows) else 1)
+PYUID
+then
+    useradd --root "$dest" --system --user-group --no-create-home \
+        --home-dir /nonexistent --shell /usr/sbin/nologin _wros-installer
+fi
 install -m755 "$repo/os/config/live/9998-wros-session" "$dest/lib/live/config/"
 install -m644 "$repo/os/config/live/live.conf" "$dest/etc/live/config.conf.d/90-wros.conf"
 install -m644 "$repo/os/config/live/greetd-live.conf" "$dest/etc/systemd/system/greetd.service.d/90-wros-live.conf"

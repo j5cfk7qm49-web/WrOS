@@ -6,7 +6,11 @@ fn main() {
         eprintln!(
             "WrOS installation frontend stopped: {reason}. Installation status must be checked by its supervisor."
         );
-        std::process::exit(1);
+        std::process::exit(if reason == "Installer cancelled" {
+            2
+        } else {
+            1
+        });
     }
 }
 #[cfg(not(target_os = "linux"))]

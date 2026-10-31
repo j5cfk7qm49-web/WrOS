@@ -74,7 +74,7 @@ class SignedUpdateTests(unittest.TestCase):
         pool_dir = bundle_dir / 'pool'
         pool_dir.mkdir(parents=True, exist_ok=True)
         deb_bytes = b'!<arch>\ndebian-binary   0           0     0     644     4         `\n2.0\n'
-        deb_rel = f'pool/grimoire_{version}_amd64.deb'
+        deb_rel = f'pool/grimoire_{version.split(":")[-1]}_amd64.deb'
         deb_path = bundle_dir / deb_rel
         deb_path.write_bytes(deb_bytes)
         deb_sha = hashlib.sha256(deb_bytes).hexdigest()
@@ -328,7 +328,8 @@ class SignedUpdateTests(unittest.TestCase):
 
 
 
-    def test_offline_boot_transaction_removes_trigger_early_and_records_durable_journal(self):
+    @mock.patch.object(update, 'plan_with_apt', return_value={})
+    def test_offline_boot_transaction_removes_trigger_early_and_records_durable_journal(self, planner):
         now = datetime(2026, 10, 31, 12, 0, 0, tzinfo=timezone.utc)
         with tempfile.TemporaryDirectory(prefix='wros-update-offline-') as tmp:
             root = Path(tmp)
@@ -343,7 +344,7 @@ class SignedUpdateTests(unittest.TestCase):
             bundle = root / 'bundle'
             self.build_signed_bundle(
                 bundle,
-                version='0.7.6',
+                version='1:0.7.6',
                 release_headers=(
                     'Date: Sat, 31 Oct 2026 11:00:00 UTC\n'
                     'Valid-Until: Sat, 07 Nov 2026 11:00:00 UTC\n'
@@ -403,7 +404,7 @@ class SignedUpdateTests(unittest.TestCase):
                 self.assertEqual(cmd[0], '/usr/bin/apt-get')
                 self.assertIn('--no-download', cmd)
                 status_file.write_text(
-                    'Package: grimoire\nStatus: install ok installed\nVersion: 0.7.6\n\n'
+                    'Package: grimoire\nStatus: install ok installed\nVersion: 1:0.7.6\n\n'
                 )
                 return subprocess.CompletedProcess(cmd, 0, stdout='installed\n', stderr='')
 
@@ -429,7 +430,7 @@ class SignedUpdateTests(unittest.TestCase):
             # 4. Failed/interrupted offline boot transaction still removes /system-update early
             # and records failure + interrupted dpkg packages in journal.json
             b_next = root / 'bundle-next'
-            self.build_signed_bundle(b_next, version='0.7.7')
+            self.build_signed_bundle(b_next, version='1:0.7.7')
             update.prepare_offline_transaction(
                 b_next,
                 keyring=self.keyring,
@@ -443,7 +444,7 @@ class SignedUpdateTests(unittest.TestCase):
             def fake_apt_interrupted(cmd):
                 self.assertFalse(trigger.exists() or trigger.is_symlink())
                 status_file.write_text(
-                    'Package: grimoire\nStatus: install ok half-configured\nVersion: 0.7.7\n\n'
+                    'Package: grimoire\nStatus: install ok half-configured\nVersion: 1:0.7.7\n\n'
                 )
                 return subprocess.CompletedProcess(cmd, 100, stdout='', stderr='dpkg interrupted\n')
 
@@ -474,6 +475,60 @@ class SignedUpdateTests(unittest.TestCase):
                      mock.patch.dict(update.os.environ, env, clear=True):
                     with self.assertRaisesRegex(ValueError, 'unavailable; no system changes'):
                         update.main(['run-offline-boot'])
+
+    def test_foreign_update_and_custom_application_paths_are_preserved(self):
+        with tempfile.TemporaryDirectory(prefix='wros-update-ownership-') as tmp:
+            root = Path(tmp)
+            stage = root/'state/staged'
+            stage.mkdir(parents=True)
+            archive = stage/'keep.deb'
+            archive.write_bytes(b'original rescue data')
+            trigger = root/'system-update'
+            trigger.symlink_to(root/'some-other-updater')
+            result = update.execute_offline_boot_transaction(
+                state_dir=root/'state', trigger_path=trigger, dpkg_dir=root/'dpkg',
+                runner=lambda cmd: self.fail('foreign trigger must not execute APT'))
+            self.assertEqual(result['status'], 'not-owned')
+            self.assertEqual(os.readlink(trigger), str(root/'some-other-updater'))
+            self.assertEqual(archive.read_bytes(), b'original rescue data')
+            trigger.unlink()
+            trigger.symlink_to(stage)
+            with self.assertRaisesRegex(ValueError, 'fixed system paths'):
+                update.execute_offline_boot_transaction(
+                    state_dir=root/'state', trigger_path=trigger, dpkg_dir=root/'dpkg')
+            self.assertTrue(trigger.is_symlink())
+
+    def test_real_apt_solver_refuses_missing_and_reverse_dependencies_without_host_changes(self):
+        with tempfile.TemporaryDirectory(prefix='wros-apt-plan-') as tmp:
+            root = Path(tmp)
+            dpkg_dir = root/'dpkg'
+            dpkg_dir.mkdir()
+            installed = dpkg_dir/'status'
+            installed.write_text('Package: wros-lib-fixture\nStatus: install ok installed\nArchitecture: all\nVersion: 1.0\nDescription: QA fixture\n\n')
+            stage = root/'stage'
+            stage.mkdir()
+            def package(name, version, depends=''):
+                tree = root/(name+version)
+                (tree/'DEBIAN').mkdir(parents=True)
+                (tree/'DEBIAN/control').write_text(
+                    f'Package: {name}\nVersion: {version}\nArchitecture: all\n'
+                    'Maintainer: QA <qa@wros.invalid>\nDescription: disposable offline solver fixture\n'
+                    + (f'Depends: {depends}\n' if depends else ''))
+                path = root/(name+'_'+version+'_all.deb')
+                subprocess.run(['/usr/bin/dpkg-deb', '--build', '--root-owner-group', str(tree), str(path)],
+                               check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return path, {'name': name, 'version': version}
+            app, app_meta = package('wros-app-fixture','1.0','wros-lib-fixture (>= 2.0)')
+            library, lib_meta = package('wros-lib-fixture','1:2.0')
+            before = installed.read_bytes()
+            with self.assertRaisesRegex(ValueError, 'APT could not resolve'):
+                update.plan_with_apt([app], [app_meta], dpkg_dir, stage)
+            plan = update.plan_with_apt([app, library], [app_meta, lib_meta], dpkg_dir, stage)
+            self.assertEqual(plan, {'wros-app-fixture':'1.0','wros-lib-fixture':'1:2.0'})
+            self.assertEqual(installed.read_bytes(), before)
+            installed.write_bytes(before + b'Package: wros-consumer-fixture\nStatus: install ok installed\nArchitecture: all\nVersion: 1.0\nDepends: wros-lib-fixture (= 1.0)\nDescription: QA reverse dependency\n\n')
+            with self.assertRaisesRegex(ValueError, 'APT could not resolve|removals|complete authenticated bundle'):
+                update.plan_with_apt([library], [lib_meta], dpkg_dir, stage)
 
 
 if __name__ == '__main__':

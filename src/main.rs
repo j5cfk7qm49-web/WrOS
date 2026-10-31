@@ -5,10 +5,10 @@ mod backup_service;
 mod books;
 #[cfg(target_os = "linux")]
 mod console_lock;
-#[cfg(target_os = "linux")]
-mod live_installer;
 mod help;
 mod library;
+#[cfg(target_os = "linux")]
+mod live_installer;
 mod music;
 mod palette;
 mod scene;
@@ -599,10 +599,8 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
                     app.deck.note = "Installer closed without completing installation; live writing session resumed.".into();
                     app.deck.shell.notices.push(&app.deck.note);
                 }
-                Ok(live_installer::Outcome::Failed(reason)) => {
-                    app.deck.note = format!(
-                        "Installer stopped ({reason}); target storage retired and live writing session resumed."
-                    );
+                Ok(live_installer::Outcome::Stopped) => {
+                    app.deck.note = "Installation did not complete. Target cleanup was verified; live writing session resumed.".into();
                     app.deck.shell.notices.push(&app.deck.note);
                 }
                 Err(error) => {

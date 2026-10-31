@@ -538,6 +538,53 @@ def acquire_posix_dpkg_locks(dpkg_dir=DEFAULT_DPKG_DIR):
             os.close(fd)
 
 
+def owned_trigger(trigger_path, staged_dir):
+    trigger_path = Path(trigger_path)
+    return trigger_path.is_symlink() and os.readlink(trigger_path) == str(Path(staged_dir))
+
+
+def apt_command(deb_paths, dpkg_dir, staged_dir, simulate=False):
+    empty_lists = Path(staged_dir)/'empty-lists'
+    empty_lists.mkdir(mode=0o700, exist_ok=True)
+    return ['/usr/bin/apt-get', *(['--simulate'] if simulate else []),
+            '--no-download', '--no-remove', '--yes',
+            '-o', 'Dir::Etc::sourcelist=/dev/null', '-o', 'Dir::Etc::sourceparts=-',
+            '-o', 'Dir::State::lists=' + str(empty_lists),
+            '-o', 'Dir::State::status=' + str(Path(dpkg_dir)/'status'),
+            '-o', 'Dir::Cache::archives=' + str(Path(staged_dir)/'packages'),
+            '-o', 'Dpkg::Options::=--force-confdef', '-o', 'Dpkg::Options::=--force-confold',
+            'install', *map(str, deb_paths)]
+
+
+def plan_with_apt(deb_paths, packages, dpkg_dir, staged_dir):
+    """Use maintained APT's real solver; no host sources, downloads or removals."""
+    result = subprocess.run(apt_command(deb_paths, dpkg_dir, staged_dir, simulate=True),
+                            stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                            timeout=60, env={'PATH':'/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL':'C'})
+    if result.returncode != 0 or len(result.stdout) > 2*1024*1024:
+        fail('APT could not resolve this exact offline bundle; no update applied')
+    expected = {pkg['name']: pkg['version'] for pkg in packages}
+    proposed = {}
+    for line in result.stdout.splitlines():
+        if line.startswith('Remv '):
+            fail('APT proposes package removals; update refused')
+        if line.startswith('Inst '):
+            match = re.match(r'Inst ([a-z0-9+.:~-]+)(?: \[[^\]]+\])? \((\S+)', line)
+            if match is None:
+                fail('unrecognized APT plan; update refused')
+            name, version = match.groups()
+            name = name.split(':', 1)[0]
+            if expected.get(name) != version:
+                fail('APT proposes packages outside the authenticated bundle')
+            proposed[name] = version
+    installed = load_installed_dpkg_database(dpkg_dir)
+    require_present = [name for name, version in expected.items()
+                       if installed.get(name, {}).get('version') != version]
+    if any(name not in proposed for name in require_present):
+        fail('APT did not propose the complete authenticated bundle')
+    return proposed
+
+
 def prepare_offline_transaction(
     bundle_dir,
     keyring=DEFAULT_KEYRING,
@@ -550,6 +597,8 @@ def prepare_offline_transaction(
     dpkg_dir = Path(dpkg_dir)
     state_dir = Path(state_dir)
     trigger_path = Path(trigger_path)
+    if trigger_path.exists() or trigger_path.is_symlink():
+        fail('another offline update is already pending; original preserved')
     interrupted, unconfigured = inspect_dpkg_state(dpkg_dir=dpkg_dir)
     if interrupted:
         detail = f' ({", ".join(unconfigured)})' if unconfigured else ''
@@ -561,7 +610,7 @@ def prepare_offline_transaction(
         if staged_dir.is_symlink():
             fail('unsafe symlinked update staging directory')
         if staged_dir.exists():
-            shutil.rmtree(staged_dir)
+            fail('existing staged archives require recovery; original preserved')
         packages_dir.mkdir(parents=True, mode=0o700)
         os.chmod(state_dir, 0o700)
         os.chmod(staged_dir, 0o700)
@@ -569,17 +618,21 @@ def prepare_offline_transaction(
         staged_entries = []
         for pkg in verified['packages']:
             src = Path(bundle_dir) / pkg['filename']
-            dst_name = f'{pkg["name"]}_{pkg["version"]}_{pkg["architecture"]}.deb'
+            dst_name = pkg['name'] + '_' + pkg['sha256'] + '.deb'
             if SAFE_REL_RE.fullmatch(dst_name) is None:
                 fail(f'unsafe staged archive filename: {dst_name}')
             dst = packages_dir / dst_name
-            data = read_regular_bytes(src, 512 * 1024 * 1024)
-            atomic_write(dst, data, mode=0o600)
+            descriptor = os.open(dst, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+            with os.fdopen(descriptor, 'wb') as target, regular_stream(src) as origin:
+                shutil.copyfileobj(origin, target, 1024*1024)
+                target.flush()
+                os.fsync(target.fileno())
             actual_sha, actual_size = sha256_file(dst)
             if actual_sha != pkg['sha256'] or actual_size != pkg['size']:
                 shutil.rmtree(staged_dir, ignore_errors=True)
                 fail('staged archive hash mismatch after copy')
             staged_entries.append(pkg | {'staged_filename': dst_name})
+        plan_with_apt([packages_dir/p['staged_filename'] for p in staged_entries], staged_entries, dpkg_dir, staged_dir)
         recorded_at = (now or datetime.now(timezone.utc)).isoformat()
         tx_id = secrets.token_hex(16)
         manifest = {
@@ -604,8 +657,6 @@ def prepare_offline_transaction(
             'packages': [f'{p["name"]} {p["version"]}' for p in staged_entries],
         }
         json_write(state_dir / 'journal.json', journal, mode=0o600)
-        if trigger_path.is_symlink() or trigger_path.is_file():
-            trigger_path.unlink()
         trigger_path.symlink_to(staged_dir)
         return manifest
 
@@ -626,6 +677,12 @@ def execute_offline_boot_transaction(
     manifest_path = staged_dir / 'manifest.json'
     journal_path = state_dir / 'journal.json'
     timestamp = (now or datetime.now(timezone.utc)).isoformat()
+    if not owned_trigger(trigger_path, staged_dir):
+        return {'status': 'not-owned'}
+    if runner is None and (os.geteuid() != 0 or dpkg_dir != DEFAULT_DPKG_DIR
+                           or state_dir != DEFAULT_STATE_DIR or trigger_path != DEFAULT_TRIGGER):
+        fail('real package application requires the fixed system paths and root service')
+
 
     # Mandatory per systemd.offline-updates(7): remove /system-update immediately
     # before package installation so a failed transaction never loops on reboot.
@@ -635,7 +692,7 @@ def execute_offline_boot_transaction(
 
     def record_failure(reason, tx_id='unknown', pkg_list=None):
         interrupted, unconfigured = inspect_dpkg_state(dpkg_dir=dpkg_dir)
-        shutil.rmtree(staged_dir, ignore_errors=True)
+        # Keep the authenticated archives available for offline rescue.
         failure_journal = {
             'version': 1,
             'transaction_id': tx_id,
@@ -654,98 +711,101 @@ def execute_offline_boot_transaction(
         json_write(journal_path, failure_journal, mode=0o600)
         fail(reason)
 
-    if not manifest_path.is_file() or manifest_path.is_symlink():
-        record_failure('missing or symlinked staged update manifest')
-    manifest = json.loads(read_regular_bytes(manifest_path, 262144).decode('utf-8'))
-    tx_id = str(manifest.get('transaction_id', 'unknown'))
-    packages = manifest.get('packages', [])
-    if manifest.get('verified') is not True or not packages:
-        record_failure('invalid staged update manifest', tx_id=tx_id)
-    pkg_labels = [f'{p["name"]} {p["version"]}' for p in packages]
+    def reject(reason, **context):
+        fail(reason)
 
-    interrupted_before, unconfigured_before = inspect_dpkg_state(dpkg_dir=dpkg_dir)
-    if interrupted_before:
-        record_failure(
-            f'dpkg already interrupted before offline update ({", ".join(unconfigured_before)})',
-            tx_id=tx_id,
-            pkg_list=pkg_labels,
-        )
-    for lock_name in ('lock-frontend', 'lock'):
-        locked, holder = posix_dpkg_lock_active(dpkg_dir / lock_name)
-        if locked:
-            record_failure(
-                f'dpkg POSIX lock {lock_name} is held by PID {holder}',
+    tx_id, pkg_labels = 'unknown', []
+    try:
+        if not manifest_path.is_file() or manifest_path.is_symlink():
+            reject('missing or symlinked staged update manifest')
+        manifest = json.loads(read_regular_bytes(manifest_path, 262144).decode('utf-8'))
+        tx_id = str(manifest.get('transaction_id', 'unknown'))
+        packages = manifest.get('packages', [])
+        if manifest.get('verified') is not True or not packages:
+            reject('invalid staged update manifest', tx_id=tx_id)
+        pkg_labels = [f'{p["name"]} {p["version"]}' for p in packages]
+
+        interrupted_before, unconfigured_before = inspect_dpkg_state(dpkg_dir=dpkg_dir)
+        if interrupted_before:
+            reject(
+                f'dpkg already interrupted before offline update ({", ".join(unconfigured_before)})',
                 tx_id=tx_id,
                 pkg_list=pkg_labels,
             )
+        for lock_name in ('lock-frontend', 'lock'):
+            locked, holder = posix_dpkg_lock_active(dpkg_dir / lock_name)
+            if locked:
+                reject(
+                    f'dpkg POSIX lock {lock_name} is held by PID {holder}',
+                    tx_id=tx_id,
+                    pkg_list=pkg_labels,
+                )
 
-    deb_paths = []
-    for pkg in packages:
-        staged_name = pkg.get('staged_filename', '')
-        if SAFE_REL_RE.fullmatch(staged_name) is None:
-            record_failure(f'unsafe staged filename: {staged_name!r}', tx_id=tx_id, pkg_list=pkg_labels)
-        deb_file = staged_dir / 'packages' / staged_name
-        if not deb_file.is_file() or deb_file.is_symlink():
-            record_failure(f'missing staged archive: {staged_name}', tx_id=tx_id, pkg_list=pkg_labels)
-        actual_sha, actual_size = sha256_file(deb_file)
-        if actual_sha != pkg.get('sha256') or actual_size != pkg.get('size'):
-            record_failure(f'staged archive {staged_name} failed SHA-256 verification', tx_id=tx_id, pkg_list=pkg_labels)
-        deb_paths.append(str(deb_file))
+        deb_paths = []
+        for pkg in packages:
+            staged_name = pkg.get('staged_filename', '')
+            if SAFE_REL_RE.fullmatch(staged_name) is None:
+                reject(f'unsafe staged filename: {staged_name!r}', tx_id=tx_id, pkg_list=pkg_labels)
+            deb_file = staged_dir / 'packages' / staged_name
+            if not deb_file.is_file() or deb_file.is_symlink():
+                reject(f'missing staged archive: {staged_name}', tx_id=tx_id, pkg_list=pkg_labels)
+            actual_sha, actual_size = sha256_file(deb_file)
+            if actual_sha != pkg.get('sha256') or actual_size != pkg.get('size'):
+                reject(f'staged archive {staged_name} failed SHA-256 verification', tx_id=tx_id, pkg_list=pkg_labels)
+            deb_paths.append(str(deb_file))
 
-    json_write(
-        journal_path,
-        {
+        json_write(
+            journal_path,
+            {
+                'version': 1,
+                'transaction_id': tx_id,
+                'status': 'applying',
+                'recorded_at_utc': timestamp,
+                'packages': pkg_labels,
+            },
+            mode=0o600,
+        )
+        apt_cmd = apt_command(deb_paths, dpkg_dir, staged_dir)
+        run_cmd = runner or (
+            lambda cmd: subprocess.run(
+                cmd,
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                timeout=1800,
+                env={
+                    'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
+                    'LC_ALL': 'C',
+                    'DEBIAN_FRONTEND': 'noninteractive',
+                },
+            )
+        )
+        try:
+            plan_with_apt(deb_paths, packages, dpkg_dir, staged_dir)
+            res = run_cmd(apt_cmd)
+            interrupted_after, unconfigured_after = inspect_dpkg_state(dpkg_dir=dpkg_dir)
+            if res.returncode != 0 or interrupted_after:
+                reject('offline apt-get transaction failed; authenticated archives retained for rescue', tx_id=tx_id, pkg_list=pkg_labels)
+            installed_after = load_installed_dpkg_database(dpkg_dir)
+            if any(installed_after.get(pkg['name'], {}).get('version') != pkg['version'] for pkg in packages):
+                reject('offline apt-get did not install the reviewed package versions', tx_id=tx_id, pkg_list=pkg_labels)
+        except Exception:
+            reject('offline apt-get transaction failed or was interrupted; authenticated archives retained for rescue', tx_id=tx_id, pkg_list=pkg_labels)
+
+        shutil.rmtree(staged_dir, ignore_errors=True)
+        completed_journal = {
             'version': 1,
             'transaction_id': tx_id,
-            'status': 'applying',
+            'status': 'applied',
             'recorded_at_utc': timestamp,
             'packages': pkg_labels,
-        },
-        mode=0o600,
-    )
-    apt_cmd = [
-        '/usr/bin/apt-get',
-        '--no-download',
-        '--yes',
-        '-o',
-        'Dpkg::Options::=--force-confdef',
-        '-o',
-        'Dpkg::Options::=--force-confold',
-        'install',
-        *deb_paths,
-    ]
-    run_cmd = runner or (
-        lambda cmd: subprocess.run(
-            cmd,
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            text=True,
-            timeout=1800,
-            env={
-                'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
-                'LC_ALL': 'C',
-                'DEBIAN_FRONTEND': 'noninteractive',
-            },
-        )
-    )
-    res = run_cmd(apt_cmd)
-    interrupted_after, unconfigured_after = inspect_dpkg_state(dpkg_dir=dpkg_dir)
-    if res.returncode != 0 or interrupted_after:
-        err = (getattr(res, 'stderr', '') or getattr(res, 'stdout', '') or f'exit {res.returncode}').strip()[:512]
-        record_failure(f'offline apt-get transaction failed: {err}', tx_id=tx_id, pkg_list=pkg_labels)
-
-    shutil.rmtree(staged_dir, ignore_errors=True)
-    completed_journal = {
-        'version': 1,
-        'transaction_id': tx_id,
-        'status': 'applied',
-        'recorded_at_utc': timestamp,
-        'packages': pkg_labels,
-        'interrupted_dpkg': False,
-        'unconfigured_packages': [],
-    }
-    json_write(journal_path, completed_journal, mode=0o600)
-    return completed_journal
+            'interrupted_dpkg': False,
+            'unconfigured_packages': [],
+        }
+        json_write(journal_path, completed_journal, mode=0o600)
+        return completed_journal
+    except Exception:
+        record_failure('offline apt-get transaction failed or was interrupted; authenticated archives retained for rescue', tx_id=tx_id, pkg_list=pkg_labels)
 
 
 def decode_mountinfo_path(token):
@@ -900,7 +960,15 @@ def main(argv=None):
             or os.environ.get('WROS_SYSTEMD_OFFLINE_UPDATE') != '1'
         ):
             fail('Update installation and package repair are unavailable; no system changes were made.')
-        result = execute_offline_boot_transaction()
+        ours = owned_trigger(DEFAULT_TRIGGER, DEFAULT_STATE_DIR/'staged')
+        try:
+            result = execute_offline_boot_transaction()
+        finally:
+            if ours and not owned_trigger(DEFAULT_TRIGGER, DEFAULT_STATE_DIR/'staged'):
+                subprocess.run(['/usr/bin/systemctl', '--no-block', 'reboot'],
+                               stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL, timeout=15, check=True,
+                               env={'PATH':'/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL':'C'})
     else:
         fail('Update installation and package repair are unavailable; no system changes were made.')
     print(json.dumps(result, sort_keys=True))

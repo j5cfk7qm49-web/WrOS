@@ -1,5 +1,8 @@
 # Argon integration and remaining release work — 2026-10-31
 
+The [installer/update receiving review](ARGON_INSTALLER_UPDATE_REVIEW_2026-10-31.md)
+supersedes the continuation claims below and records current fixes and return work.
+
 The ZIP-only contribution targets development `1b793b4`. Its original change
 report is retained in `ARGON_CHANGELOG.md`, and its imported source is retained
 in commit `3587151`. That report describes Argon's execution environment and
@@ -40,10 +43,10 @@ These are unfinished release tasks. Closing this integration does not close them
 1. **Production encrypted installer and first boot (#3):**
    - **Implemented in source (`os/scripts/wros-install-session`, `src/live_installer.rs`, `src/app/shell.rs`, `src/app/writingdeck.rs`, `os/scripts/stage-live-session.sh`, `tools/audit-live-session.py`):**
      supervised live-session handoff from `tty1` (`wros_input::Input::pause()`) to `wros-installer` on `tty7` over the maintained Debian `cdebconf` passthrough backend, Cancel-default confirmation (`Route::InstallerConfirm`), manuscript save/conflict gate (`App::request_live_installer`), in-target encrypted proof verification (`94wros-target-proof` / `97wros-target-finished`), and leaf-first target LUKS2/LVM/swap/mount teardown (`cleanup_target_stack` in both `worker()` `finally:` and host-namespace `ExecStopPost`).
-   - **Remaining qualification gap:** compile `grimoire` and `wros-installer` on the Debian 13 builder, rebuild the live-session image (`os/scripts/build-installer.sh --live`), and execute a complete encrypted installation + first boot on a freshly generated QEMU disk (`os/tests/native_installer_vm.py`), including refusal, cancellation and failure recovery. Never nominate a host disk for these tests.
+   - **Remaining qualification gap:** rebuild the live-session image (`os/scripts/build-installer.sh --live`), and execute a complete encrypted installation + first boot on a freshly generated QEMU disk (`os/tests/native_installer_vm.py`), including refusal, cancellation and failure recovery. Never nominate a host disk for these tests.
 2. **Signed update transaction and recovery (#5):**
    - **Implemented foundations and offline boot service (`os/scripts/wros-update`, `os/systemd/wros-offline-update.service`, `os/scripts/install-files.sh`, `os/tests/test_update.py`):**
-     sealed-copy `gpgv` signature verification (`InRelease` / `Release.gpg`), `Date:` / `Valid-Until:` freshness checks, `dpkg --compare-versions` anti-downgrade and `Depends`/`Pre-Depends`/`Conflicts`/`Breaks` evaluation against `dpkg/status`, POSIX `F_GETLK` lock inspection (`posix_dpkg_lock_active`), ordered exclusive `F_SETLK` lock acquisition (`acquire_posix_dpkg_locks` on `lock-frontend` then `lock`), durable transaction journal (`prepare_offline_transaction` and `execute_offline_boot_transaction` in `/var/lib/wros-update/journal.json`), early `/system-update` symlink removal before `apt-get --no-download` execution, and the systemd offline boot unit (`os/systemd/wros-offline-update.service` linked in `system-update.target.wants`).
+     sealed-copy `gpgv` signature verification (`InRelease` / `Release.gpg`), `Date:` / `Valid-Until:` freshness checks, `dpkg --compare-versions` anti-downgrade and `Depends`/`Pre-Depends`/`Conflicts`/`Breaks` evaluation against `dpkg/status`, POSIX `F_GETLK` lock inspection (`posix_dpkg_lock_active`), ordered exclusive `F_SETLK` lock acquisition (`acquire_posix_dpkg_locks` on `lock-frontend` then `lock`), durable transaction journal (`prepare_offline_transaction` and `execute_offline_boot_transaction` in `/var/lib/wros-update/journal.json`), early `/system-update` symlink removal before `apt-get --no-download` execution, and the systemd offline boot unit (`os/systemd/wros-offline-update.service` not enabled pending VM qualification).
    - **Remaining implementation & qualification gap (`crates/writingdeck-sys/src/linux.rs`, `os/scripts/wros-update`):**
      interactive root actions (`Request::StageUpdates`, `Request::CancelStagedUpdates`, `Request::RecoverUpdates`) remain refused in `crates/writingdeck-sys/src/linux.rs` and `os/scripts/wros-update` until disposable-VM offline-boot interruption, ext4/btrfs rescue recovery, and polkit privilege gates are independently qualified.
 3. **Wi-Fi service/device acceptance (#4):** qualify real NetworkManager password

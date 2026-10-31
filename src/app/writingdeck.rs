@@ -377,11 +377,13 @@ impl App {
                 .push("The live installer runs only from a WrOS live session.");
             return;
         }
-        if !self.deck.installer_available || self.deck.busy {
+        self.deck.shell.backup.tick();
+        if !self.deck.installer_available || self.deck.busy || self.deck.shell.backup.job.is_some()
+        {
             self.deck
                 .shell
                 .notices
-                .push("Live installer is unavailable or a system request is pending.");
+                .push("Live installer is unavailable or a system/backup operation is pending.");
             return;
         }
         if !self.commit_saves()

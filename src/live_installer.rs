@@ -22,7 +22,16 @@ use std::{path::Path, process::Command};
 pub enum Outcome {
     Completed,
     Cancelled,
-    Failed(String),
+    Stopped,
+}
+
+fn outcome(code: Option<i32>) -> Result<Outcome> {
+    match code {
+        Some(0) => Ok(Outcome::Completed),
+        Some(2) => Ok(Outcome::Cancelled),
+        Some(3) => Ok(Outcome::Stopped),
+        _ => bail!("Installer did not confirm safe target cleanup; writing input remains retired"),
+    }
 }
 
 pub fn available() -> bool {
@@ -93,6 +102,7 @@ pub fn handoff(
     })();
     std::panic::set_hook(previous_hook);
     let status = status_result?;
+    let outcome = outcome(status.code())?;
     if unsafe { libc::tcflush(0, libc::TCIFLUSH) } != 0 {
         bail!("Console input could not be cleared after installer handoff");
     }
@@ -111,10 +121,19 @@ pub fn handoff(
     input
         .resume(proof)
         .context("starting fresh writing input after installer handoff")?;
-    Ok(match status.code() {
-        Some(0) => Outcome::Completed,
-        Some(2) => Outcome::Cancelled,
-        Some(code) => Outcome::Failed(format!("exit {code}")),
-        None => Outcome::Failed("terminated by signal".into()),
-    })
+    Ok(outcome)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn only_cleanup_verified_completion_or_cancel_allows_input_to_resume() {
+        assert_eq!(outcome(Some(0)).unwrap(), Outcome::Completed);
+        assert_eq!(outcome(Some(2)).unwrap(), Outcome::Cancelled);
+        assert_eq!(outcome(Some(3)).unwrap(), Outcome::Stopped);
+        for code in [None, Some(1), Some(126), Some(127), Some(137)] {
+            assert!(outcome(code).is_err());
+        }
+    }
 }

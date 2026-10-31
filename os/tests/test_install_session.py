@@ -80,6 +80,9 @@ class InstallSessionSupervisorTests(unittest.TestCase):
         ):
             self.assertIn(flag, args)
         self.assertIn('/usr/bin/unshare', args)
+        self.assertNotIn('--pid', args)
+        self.assertNotIn('--fork', args)
+        self.assertIn('--propagation=private', args)
         self.assertEqual(
             args[-5:],
             ['/usr/libexec/wros-install-session', 'worker', '1000', '42', '987654'],
@@ -138,6 +141,8 @@ class InstallSessionSupervisorTests(unittest.TestCase):
             nvme_real = root / 'devices/nvme0n1'
             nvme_real.mkdir(parents=True)
             (nvme_real / 'ro').write_text('0\n')
+            for name, value in {'dev':'259:0', 'size':'33554432', 'diskseq':'42'}.items():
+                (nvme_real/name).write_text(value+'\n')
             (sysroot / 'nvme0n1').symlink_to(nvme_real, target_is_directory=True)
             part_real = nvme_real / 'nvme0n1p3'
             part_real.mkdir()
@@ -178,6 +183,19 @@ class InstallSessionSupervisorTests(unittest.TestCase):
             )
             add_dm('dm-1', ['dm-0'], 'wros--vg-root', 'LVM-abcd-root')
             add_dm('dm-2', ['dm-0'], 'wros--vg-swap_1', 'LVM-abcd-swap')
+
+            # A concurrently added mapper on another disk is outside installer
+            # ownership even though that disk is writable and was not mounted.
+            foreign = sysroot/'vdb'
+            foreign.mkdir()
+            for name, value in {'ro':'0','dev':'252:16','size':'33554432','diskseq':'77'}.items():
+                (foreign/name).write_text(value+'\n')
+            add_dm('dm-9', ['vdb'], 'foreign_crypt', 'CRYPT-LUKS2-foreign')
+            self.assertNotIn('foreign_crypt', [m['dm_name'] for m in supervisor.target_mapper_teardown_order(baseline, sysroot)])
+            (nvme_real/'diskseq').write_text('43\n')
+            with self.assertRaisesRegex(ValueError, 'identity changed'):
+                supervisor.is_writable_target_block('dm-1', baseline, sysroot)
+            (nvme_real/'diskseq').write_text('42\n')
 
             # Verify installed target state against the LUKS2 -> LVM chain
             proof = supervisor.verify_installed_target_state(
@@ -296,13 +314,13 @@ class InstallSessionSupervisorTests(unittest.TestCase):
                 ),
                 2,
             )
-            # 3. Interrupted or failed -> 1
+            # 3. Interrupted or failed with confirmed cleanup -> 3
             for state in ('interrupted', 'failed'):
                 self.assertEqual(
                     run_client_with_outcome(
                         {'outcome': state, 'target_verified': False, 'worker_cleanup': {'clean': True}}
                     ),
-                    1,
+                    3,
                 )
             # 4. Unverified cleanup raises ValueError even if outcome claims completed
             with self.assertRaisesRegex(ValueError, 'cleanup was not verified'):
@@ -310,6 +328,30 @@ class InstallSessionSupervisorTests(unittest.TestCase):
                     {'outcome': 'completed', 'target_verified': True, 'worker_cleanup': {'clean': False}},
                     cleanup_sets_verified=False,
                 )
+
+    def test_completion_proof_cannot_reuse_an_older_session_or_wrong_application(self):
+        expected = {'grimoire':'a'*64, 'wros-greeter':'b'*64, 'wros-installer':'c'*64}
+        nonce = 'ab'*16
+        proof = {'session_nonce':nonce, 'binary_sha256':expected, 'boot_payload_checked':True}
+        supervisor.validate_completion_identity(proof, nonce, expected)
+        for changed in ({'session_nonce':'cd'*16}, {'binary_sha256':{}}, {'boot_payload_checked':False}):
+            with self.subTest(changed=changed), self.assertRaises(ValueError):
+                supervisor.validate_completion_identity(proof | changed, nonce, expected)
+
+    def test_parent_loss_or_pid_reuse_refuses_automatic_return_to_writing(self):
+        child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])
+        try:
+            record = {'caller_pid': child.pid, 'caller_started': supervisor.birth(child.pid)}
+            self.assertTrue(supervisor.caller_still_owned(record))
+            self.assertFalse(supervisor.caller_still_owned(record | {'caller_started':'wrong'}))
+            child.terminate()
+            child.wait(timeout=5)
+            self.assertFalse(supervisor.caller_still_owned(record))
+            self.assertFalse(supervisor.caller_still_owned({}))
+        finally:
+            if child.poll() is None:
+                child.terminate()
+            child.wait(timeout=5)
 
 
 if __name__ == '__main__':

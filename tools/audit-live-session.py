@@ -52,6 +52,15 @@ def audit(root):
         if (root/name).exists() or (root/name).is_symlink():
             raise ValueError('Runtime live state leaked into immutable staging root: ' + name)
     accounts = [row.split(':') for row in (root/'etc/passwd').read_text().splitlines()]
+    installers = [row for row in accounts if len(row) == 7 and row[0] == '_wros-installer']
+    shadows = {row.split(':')[0]:row.split(':')[1] for row in (root/'etc/shadow').read_text().splitlines() if ':' in row}
+    if (len(installers) != 1 or not installers[0][2].isdigit()
+            or not installers[0][3].isdigit() or not 0 < int(installers[0][2]) < 1000
+            or not 0 < int(installers[0][3]) < 1000
+            or sum(len(row) == 7 and row[2] == installers[0][2] for row in accounts) != 1
+            or installers[0][5:] != ['/nonexistent', '/usr/sbin/nologin']
+            or not shadows.get('_wros-installer', '').startswith(('!', '*'))):
+        raise ValueError('Installer frontend requires a distinct locked system account')
     if any(row[0] == 'wros-live' or (len(row) == 7 and row[2] == '1000') for row in accounts):
         raise ValueError('Temporary live account leaked into immutable staging root')
     return {'passed': True, 'native_session': result,

@@ -119,6 +119,10 @@ class LiveSessionImage(unittest.TestCase):
     def fixture(root):
         from test_native_image import fixture
         fixture(root)
+        with (root/'etc/passwd').open('a') as output:
+            output.write('_wros-installer:x:994:994::/nonexistent:/usr/sbin/nologin\n')
+        with (root/'etc/shadow').open('a') as output:
+            output.write('_wros-installer:!:1:0:99999:7:::\n')
         files = {
             'os/scripts/writingdeck-session': 'usr/libexec/writingdeck-session',
             'os/scripts/wros-live-session': 'usr/libexec/wros-live-session',
@@ -176,6 +180,8 @@ class LiveSessionImage(unittest.TestCase):
             (root/'etc/sudoers.d/live').write_text('fixture only\n')
         mutations = {
             'runtime': runtime, 'installer runtime': installer_runtime, 'sudo': sudo,
+            'installer root uid': lambda r: (r/'etc/passwd').write_text((r/'etc/passwd').read_text().replace('_wros-installer:x:994:', '_wros-installer:x:0:')),
+            'installer unlocked': lambda r: (r/'etc/shadow').write_text((r/'etc/shadow').read_text().replace('_wros-installer:!:', '_wros-installer:$6$invalid:')),
             'live user': lambda r: (r/'etc/passwd').write_text((r/'etc/passwd').read_text()+'wros-live:x:1000:1000::/home/wros-live:/bin/bash\n'),
             'reserved uid': lambda r: (r/'etc/passwd').write_text((r/'etc/passwd').read_text()+'other:x:1000:1000::/home/other:/bin/bash\n'),
             'active getty generator': lambda r: (r/'etc/systemd/system-generators/live-config-getty-generator').unlink(),
