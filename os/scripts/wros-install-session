@@ -46,6 +46,23 @@ PRESEED = Path('/etc/wros/installer.preseed')
 PASSPHRASE_HOOK = Path('/usr/lib/wros-installer/native-crypto-passphrase')
 MODULE_SHA256 = 'be37dee7f39730b6369b54f72ac83a1ff27f9d59bcea10fed9fd11a0ea2adf18'
 BLOCK_NAME = re.compile(r'[A-Za-z0-9_.-]{1,128}')
+CAPSULE_NAME = 'native-installer'
+SHA256_TEXT = re.compile(r'[0-9a-f]{64}')
+# Capsule files that Debian's retrievers read at fixed media paths. The first
+# element is the capsule name, the second the path inside the private media view.
+CAPSULE_MEDIA_FILES = (
+    ('initrd.gz', 'install/initrd.gz'),
+    ('vmlinuz', 'install/vmlinuz'),
+    ('Packages', 'dists/trixie/main/debian-installer/binary-amd64/Packages'),
+    ('Packages.gz', 'dists/trixie/main/debian-installer/binary-amd64/Packages.gz'),
+    ('media-Release', 'dists/trixie/Release'),
+)
+# Capsule entries that must never be visible below native-installer/ in the
+# private media view: only the indexed archive subtree may be, or apt-cdrom
+# mistakes the authentication catalogs for flat repositories.
+CAPSULE_ONLY_VISIBLE = ('pool',)
+MAX_PACKAGE_INDEX_BYTES = 32 * 1024 * 1024
+MAX_CAPSULE_FILES = 4096
 ENV = {
     'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
     'LANG': 'C.UTF-8',
@@ -815,41 +832,206 @@ def verify_completion_proof(di_root, baseline):
     return proof
 
 
-def prepare_media_and_backend(work_dir, baseline):
+def capsule_name_ok(name):
+    return (isinstance(name, str) and 0 < len(name) <= 512
+            and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.+~:-]*(?:/[A-Za-z0-9][A-Za-z0-9_.+~:-]*)*', name) is not None)
+
+
+def load_capsule_manifest(capsule, kernel_release=None):
+    """Read and bound-check the embedded capsule's receipt; fail closed if absent."""
+    capsule = Path(capsule)
+    require(capsule.is_dir() and not capsule.is_symlink(),
+            'embedded native-installer capsule is missing from the live medium')
+    manifest_path = capsule / 'manifest.json'
+    require(manifest_path.is_file() and not manifest_path.is_symlink()
+            and manifest_path.lstat().st_size <= 4 * 1024 * 1024,
+            'embedded native-installer capsule manifest is missing')
+    manifest = json.loads(manifest_path.read_bytes())
+    require(isinstance(manifest, dict) and manifest.get('passed') is True
+            and manifest.get('kernel_release') == (kernel_release or os.uname().release)
+            and manifest.get('module_sha256') == MODULE_SHA256,
+            'embedded native-installer capsule manifest mismatch')
+    hashes = manifest.get('file_sha256')
+    require(isinstance(hashes, dict) and 0 < len(hashes) <= MAX_CAPSULE_FILES
+            and all(capsule_name_ok(name) and isinstance(value, str)
+                    and SHA256_TEXT.fullmatch(value) is not None
+                    for name, value in hashes.items()),
+            'embedded native-installer capsule manifest has no valid file hashes')
+    require(all(name in hashes for name, _ in CAPSULE_MEDIA_FILES)
+            and any(name.startswith('pool/') for name in hashes),
+            'embedded native-installer capsule manifest lacks required media files')
+    return manifest
+
+
+def capsule_pool_names(manifest):
+    return {name for name in manifest['file_sha256'] if name.startswith('pool/')}
+
+
+def parse_package_index(text):
+    """Return (Filename, SHA256, Size) for each stanza of a canonical Packages index.
+
+    This is an invariant check over the builder's authenticated index, not a
+    replacement package parser: each stanza must name exactly one archive.
+    """
+    entries = []
+    for block in re.split(r'\n[ \t]*\n', text.strip('\n')):
+        fields = {}
+        for line in block.splitlines():
+            if line[:1] in (' ', '\t'):
+                continue
+            key, separator, value = line.partition(':')
+            require(separator == ':' and key, 'malformed capsule package index line')
+            fields.setdefault(key, []).append(value.strip())
+        for key in ('Filename', 'SHA256'):
+            require(len(fields.get(key, ())) == 1, f'capsule package index stanza needs one {key}')
+        size = fields.get('Size', [None])[0]
+        require(SHA256_TEXT.fullmatch(fields['SHA256'][0]) is not None
+                and (size is None or size.isdigit()),
+                'malformed capsule package index entry')
+        entries.append((fields['Filename'][0], fields['SHA256'][0], None if size is None else int(size)))
+    return entries
+
+
+def indexed_archives(index, manifest):
+    """Cross-check the capsule Packages index against the manifest; return its archives."""
+    require(isinstance(index, bytes) and 0 < len(index) <= MAX_PACKAGE_INDEX_BYTES,
+            'bounded canonical capsule package index required')
+    hashes = manifest['file_sha256']
+    require(hashlib.sha256(index).hexdigest() == hashes['Packages'],
+            'capsule package index differs from its manifest')
+    entries = parse_package_index(index.decode('utf-8'))
+    expected = {f'{CAPSULE_NAME}/{name}' for name in capsule_pool_names(manifest)}
+    paths = [filename for filename, _, _ in entries]
+    require(len(paths) == len(expected) and set(paths) == expected,
+            'capsule package index paths differ from the capsule manifest')
+    archives = []
+    for filename, sha256, size in entries:
+        require(sha256 == hashes[filename.removeprefix(f'{CAPSULE_NAME}/')],
+                f'capsule package index hash differs from its manifest: {filename}')
+        archives.append({'path': filename, 'sha256': sha256, 'size': size})
+    return archives
+
+
+def capsule_pool_files(pool_dir):
+    """Names (pool/...) of the regular files below `pool_dir`; symlinks and specials refuse."""
+    pool_dir = Path(pool_dir)
+    require(pool_dir.is_dir() and not pool_dir.is_symlink(), f'capsule pool directory missing: {pool_dir}')
+    names = set()
+    for current, directories, files in os.walk(pool_dir, followlinks=False):
+        for entry in (*directories, *files):
+            path = Path(current) / entry
+            mode = path.lstat().st_mode
+            if stat.S_ISDIR(mode):
+                continue
+            require(stat.S_ISREG(mode), f'capsule pool contains a non-regular entry: {path.name}')
+            names.add('pool/' + path.relative_to(pool_dir).as_posix())
+            require(len(names) <= MAX_CAPSULE_FILES, 'excessive capsule pool')
+    return names
+
+
+def reject_symlink_components(root, relative):
+    current = Path(root)
+    for part in Path(relative).parts:
+        current = current / part
+        require(not current.is_symlink(), f'media layout must use regular files: {relative}')
+
+
+def copy_verified(source, destination, expected, root):
+    source, destination, root = Path(source), Path(destination), Path(root)
+    require(stat.S_ISREG(source.lstat().st_mode), f'capsule source is not a regular file: {source.name}')
+    relative = destination.relative_to(root)
+    reject_symlink_components(root, relative)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, destination, follow_symlinks=False)
+    require(digest(destination) == expected, f'capsule file hash mismatch after copy: {relative}')
+
+
+def stage_capsule_view(view, capsule, manifest):
+    """Populate the private media view with exactly the declared capsule payload.
+
+    The view's native-installer/ directory must already be an opaque overlay
+    directory (empty), so authentication catalogs, media-Release and the
+    Packages indexes of the lower layer cannot be scanned by apt-cdrom.
+    """
+    view, capsule = Path(view), Path(capsule)
+    hashes = manifest['file_sha256']
+    native = view / CAPSULE_NAME
+    require(native.is_dir() and not native.is_symlink() and not any(native.iterdir()),
+            'capsule catalogs are not hidden from the private media view')
+    present = capsule_pool_files(capsule / 'pool')
+    require(present == capsule_pool_names(manifest),
+            'capsule pool differs from its manifest (extra or missing archives)')
+    for name in sorted(present):
+        copy_verified(capsule / name, native / name, hashes[name], view)
+    for name, target in CAPSULE_MEDIA_FILES:
+        copy_verified(capsule / name, view / target, hashes[name], view)
+
+
+def verify_media_view(root, manifest, archives, media_info, squashfs_size):
+    """Check a nonrecursive view of the private medium the way Debian's retriever sees it."""
+    root = Path(root)
+    hashes = manifest['file_sha256']
+    for archive in archives:
+        reject_symlink_components(root, archive['path'])
+        path = root / archive['path']
+        require(path.is_file() and (archive['size'] is None or path.stat().st_size == archive['size'])
+                and digest(path) == archive['sha256'],
+                f'Debian media bind lost or altered an indexed package archive: {archive["path"]}')
+    for name, target in CAPSULE_MEDIA_FILES:
+        reject_symlink_components(root, target)
+        require(digest(root / target) == hashes[name],
+                f'private media view does not expose the matching capsule file: {target}')
+    native = root / CAPSULE_NAME
+    require(native.is_dir() and sorted(entry.name for entry in native.iterdir()) == list(CAPSULE_ONLY_VISIBLE),
+            'capsule authentication catalogs are visible in the private media view')
+    require(capsule_pool_files(native / 'pool') == capsule_pool_names(manifest),
+            'private media pool has extra or missing files')
+    require(not os.path.lexists(root / 'install/gtk/initrd.gz'),
+            'Debian GTK installer preference is visible in the private media view')
+    require((root / '.disk/info').read_bytes() == media_info
+            and (root / 'live/filesystem.squashfs').stat().st_size == squashfs_size,
+            'private media view lost the ordinary live payload')
+
+
+def build_media_view(work_dir):
+    """Create, verify and publish the private media view over the live medium."""
     work_dir = Path(work_dir)
     medium = MEDIUM.resolve(strict=True)
+    capsule = medium / CAPSULE_NAME
+    manifest = load_capsule_manifest(capsule)
+    archives = indexed_archives((capsule / 'Packages').read_bytes(), manifest)
+    media_info = (medium / '.disk/info').read_bytes()
+    squashfs_size = (medium / 'live/filesystem.squashfs').stat().st_size
     view = work_dir / 'medium'
     upper = work_dir / 'media-upper'
     overlay_work = work_dir / 'media-work'
     view.mkdir()
     upper.mkdir(mode=0o755)
     overlay_work.mkdir()
-    gtk = upper / 'install/gtk'
-    gtk.mkdir(parents=True)
-    os.setxattr(gtk, 'trusted.overlay.opaque', b'y')
+    # Opaque directories hide Debian's GTK preference and the capsule's
+    # authentication catalogs (apt-cdrom must not mistake them for flat repos).
+    for opaque in ('install/gtk', CAPSULE_NAME):
+        hidden = upper / opaque
+        hidden.mkdir(parents=True)
+        os.setxattr(hidden, 'trusted.overlay.opaque', b'y')
     options = f'nosuid,nodev,lowerdir={medium},upperdir={upper},workdir={overlay_work}'
     command('/bin/mount', '-t', 'overlay', '-o', options, 'overlay', str(view))
-    capsule = medium / 'native-installer'
-    if (capsule / 'manifest.json').is_file():
-        manifest = json.loads((capsule / 'manifest.json').read_bytes())
-        require(manifest.get('passed') is True
-                and manifest.get('kernel_release') == os.uname().release
-                and manifest.get('module_sha256') == MODULE_SHA256,
-                'embedded native-installer capsule manifest mismatch')
-        for name, target in [
-            ('initrd.gz', 'install/initrd.gz'),
-            ('vmlinuz', 'install/vmlinuz'),
-            ('Packages', 'dists/trixie/main/debian-installer/binary-amd64/Packages'),
-            ('Packages.gz', 'dists/trixie/main/debian-installer/binary-amd64/Packages.gz'),
-            ('media-Release', 'dists/trixie/Release'),
-        ]:
-            src = capsule / name
-            if src.is_file():
-                dst = view / target
-                dst.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(src, dst)
+    stage_capsule_view(view, capsule, manifest)
     bind(view, view, readonly=True)
+    # Debian base-installer later uses a nonrecursive CD bind, so verify the
+    # view through the same operation before any consumer sees it.
+    rebound = work_dir / 'media-rebound'
+    bind(view, rebound, readonly=True)
+    verify_media_view(rebound, manifest, archives, media_info, squashfs_size)
+    command('/bin/umount', str(rebound))
+    rebound.rmdir()
     bind(view, MEDIUM, readonly=True)
+    verify_media_view(MEDIUM, manifest, archives, media_info, squashfs_size)
+
+
+def prepare_media_and_backend(work_dir, baseline):
+    work_dir = Path(work_dir)
+    build_media_view(work_dir)
     launcher = Path('/usr/share/debian-installer-launcher')
     if (launcher / 'debconf_kernel.sh').is_file():
         staged_launcher = work_dir / 'launcher'
