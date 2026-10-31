@@ -1,3 +1,7 @@
+# WrOS is built on Debian: tracked text is LF in the index and in every checkout,
+# whatever core.autocrlf the contributor's Git for Windows uses. Binary files are
+# detected by content. The exemptions below come later and therefore still win.
+* text=auto eol=lf
 
 # Third-party license text must remain verbatim, including upstream whitespace.
 os/licenses/*.txt -whitespace
