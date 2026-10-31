@@ -77,8 +77,16 @@ or the update engine production-qualified from source inspection or mocked APT.
 
 ## Qualification
 
-Focused receiving checks pass compilation, strict Clippy, real APT solver tests,
-installer policy/storage/proof tests and four-size native confirmation/save-gate
-UI tests. Full source-aligned Debian software qualification is in progress.
-Historical named evidence remains intact. No host installation disk, real Google
-account or manuscript was used.
+The [complete local software run](evidence/installer-update-local.json) passed
+1,101 Rust tests per overlapping configuration (five/four explicitly ignored),
+240 Python tests with zero skips, both strict Clippys and 21 gates. The
+[independent CI receipt](evidence/installer-update-ci.json) passed the same test
+counts and both Clippys across 20 gates; the extra local gate audits the staged
+Wi-Fi payload. [CI provenance](evidence/installer-update-ci-provenance.json)
+binds run 41230828478, code head `0c48457` and its PR test merge to the same 492-file
+source SHA-256 `167b25c278108a9c09883c8bdc11b76dce2e17ab6c9bbdcef53c78c0b5bf1d5b`.
+The following documentation/evidence retention commit changes no qualified source
+or verifier inputs. [Local provenance and four-size backup regression frames](evidence/installer-update-local-provenance.json)
+retain the executed binary and original input hashes; those frames are not full
+installer VM evidence. Historical named evidence remains intact. No host
+installation disk, real Google account or manuscript was used.

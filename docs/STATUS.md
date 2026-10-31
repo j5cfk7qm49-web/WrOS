@@ -1,5 +1,24 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Live installer supervision and offline update planning (2026-10-31, software-qualified)
+
+The latest Argon source is integrated with receiving fixes for parent visibility,
+dedicated locked installer credential entry, single-target disk identity and
+cleanup, nonce-bound installed proof, and fail-closed input ownership. Update
+planning now runs the maintained APT solver against authenticated local archives;
+owned boot triggers, exact-version checks and retained failure archives support
+the pending recovery workflow. Native root update mutations and automatic offline
+boot activation remain disabled.
+
+The [local receipt](evidence/installer-update-local.json) passed 1,101 Rust tests
+per overlapping configuration, 240 Python tests with zero skips, both strict
+Clippys and 21 gates. [Independent CI](evidence/installer-update-ci.json) passed
+the same counts and both Clippys across 20 gates on the identical source. See the
+[receiving review and prioritized return list](ARGON_INSTALLER_UPDATE_REVIEW_2026-10-31.md).
+Actual production handoff/full encrypted installation and first boot, update
+application/interruption/rescue, live providers and physical acceptance remain
+open. Historical receipts below describe their named earlier baselines.
+
 ## Protected Wi-Fi enrollment and Google/backup queue continuation (2026-10-31, locally software-qualified)
 
 Native Settings now implements protected Wi-Fi enrollment and ordinary connection

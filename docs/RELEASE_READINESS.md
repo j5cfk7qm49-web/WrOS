@@ -5,8 +5,10 @@ encrypted project backup/restore workflow, optional rclone Google Drive
 connection, the local character-knowledge contribution, installer hardening,
 protected native Wi-Fi enrollment, durable backup retry, and the supervised
 production live-installer session handoff. The
-[Argon integration](ARGON_INTEGRATION_2026-10-31.md) passed the full local software
-suite for the `4eeca44` baseline; production/device/provider boundaries remain explicit.
+[installer/update receiving review](ARGON_INSTALLER_UPDATE_REVIEW_2026-10-31.md)
+records the corrected supervision, disk ownership and update planning. Full local
+and independent CI software qualification passed; production/device/provider
+boundaries remain explicit.
 It remains a development candidate: a passing software suite does not make the
 unqualified installation, update/recovery or physical-device work complete.
 
@@ -28,10 +30,13 @@ unqualified installation, update/recovery or physical-device work complete.
 The executed [software receipt](evidence/test-results.json) binds tests to source
 and the compiled binary. Results from previous source versions remain historical;
 only a fresh passing run establishes this candidate's software qualification.
-The [complete local run](evidence/release-readiness-local.json) passed 1094 Rust
-tests per configuration, 215 Python tests with zero skips, both strict Clippys
-and 21 gates. [Backup provenance and native frames](evidence/release-readiness-local-provenance.json)
-retain the exact source/executable identities and four terminal sizes.
+The [complete current local run](evidence/installer-update-local.json) passed
+1,101 Rust tests per overlapping configuration, 240 Python tests with zero skips,
+both strict Clippys and 21 gates. [Independent CI](evidence/installer-update-ci.json)
+passed the same test counts and both Clippys across 20 gates on the same source.
+[Local provenance and native backup regression frames](evidence/installer-update-local-provenance.json)
+retain the source/executable identities and four terminal sizes. These are
+software receipts, not a full production installation or update-recovery certificate.
 
 ## Remaining release-critical work
 

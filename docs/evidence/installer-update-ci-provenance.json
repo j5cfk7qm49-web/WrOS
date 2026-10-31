@@ -1,0 +1,17 @@
+{
+  "run_url": "https://github.com/j5cfk7qm49-web/WrOS/actions/runs/41230828478",
+  "run_id": 41230828478,
+  "artifact_id": 13053723573,
+  "artifact_sha256": "72badd1ce7d86a3d9e7304a362a4dce5d84a8221ea4dee27b0efff30a720912a",
+  "qualified_feature_head": "0c48457823e704b135a87711ca324d24b3e41496",
+  "qualified_pr_merge_head": "af4ad2c391a80b69f9a8da0ecd6d5240a3069988",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "167b25c278108a9c09883c8bdc11b76dce2e17ab6c9bbdcef53c78c0b5bf1d5b",
+    "file_count": 492,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "receipt_file": "docs/evidence/installer-update-ci.json",
+  "receipt_sha256": "a17604c4e9239734abde27c8fc09072661f955a31922b45711daf9ef129624b2",
+  "boundary": "Independent executed software qualification; no full production encrypted installation/first boot, update application/recovery, live provider or physical acceptance."
+}
