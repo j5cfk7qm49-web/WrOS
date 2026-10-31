@@ -1,0 +1,604 @@
+#!/usr/bin/python3 -I
+"""Narrow signed offline update verification, staging, and dpkg recovery helper.
+
+Never receives writing or account credentials. Cryptographically verifies
+Debian repository metadata (InRelease or Release + Release.gpg) with gpgv,
+authenticates the Packages index SHA-256 and byte length, and verifies every
+referenced .deb archive's SHA-256 and size before staging for systemd's
+system-update.target or applying non-interactively. Reports real filesystem
+layout (ext4 vs btrfs) honestly without claiming automatic snapshot rollback
+on ext4.
+"""
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import secrets
+import shutil
+import subprocess
+import sys
+
+LIMIT = 16 * 1024 * 1024
+DEFAULT_KEYRING = Path('/usr/share/keyrings/debian-archive-keyring.gpg')
+DEFAULT_STATE_DIR = Path('/var/lib/wros-update')
+DEFAULT_TRIGGER = Path('/system-update')
+DEFAULT_DPKG_DIR = Path('/var/lib/dpkg')
+PACKAGE_NAME_RE = re.compile(r'^[a-z0-9][a-z0-9+.-]{0,127}$')
+VERSION_RE = re.compile(r'^[0-9][A-Za-z0-9.+:~-]{0,127}$')
+ARCH_RE = re.compile(r'^[a-z0-9-]{2,32}$')
+HEX64_RE = re.compile(r'^[0-9a-f]{64}$')
+SAFE_REL_RE = re.compile(r'^[A-Za-z0-9._+-]+(?:/[A-Za-z0-9._+-]+)*\.deb$')
+
+
+def fail(message):
+    raise ValueError(message)
+
+
+def atomic_write(path, data, mode=0o600):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + '.' + secrets.token_hex(8) + '.tmp')
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, mode)
+    try:
+        with os.fdopen(descriptor, 'wb') as output:
+            output.write(data)
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, path)
+        parent = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(parent)
+        finally:
+            os.close(parent)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def json_write(path, value, mode=0o600):
+    atomic_write(path, (json.dumps(value, indent=2, sort_keys=True) + '\n').encode('utf-8'), mode)
+
+
+def read_regular_bytes(path, limit=LIMIT):
+    if path.is_symlink() or not path.is_file():
+        fail(f'missing or symlinked update file: {path.name}')
+    with path.open('rb') as stream:
+        data = stream.read(limit + 1)
+    if len(data) > limit:
+        fail(f'oversized update file: {path.name}')
+    return data
+
+
+def sha256_file(path):
+    if path.is_symlink() or not path.is_file():
+        fail(f'missing or symlinked archive: {path.name}')
+    digest = hashlib.sha256()
+    size = 0
+    with path.open('rb') as stream:
+        while chunk := stream.read(65536):
+            size += len(chunk)
+            if size > 1024 * 1024 * 1024:
+                fail(f'update archive exceeds 1 GiB limit: {path.name}')
+            digest.update(chunk)
+    return digest.hexdigest(), size
+
+
+def extract_inrelease_payload(raw_bytes):
+    text = raw_bytes.decode('utf-8', errors='strict')
+    if '\r' in text:
+        fail('InRelease must use LF line endings')
+    lines = text.splitlines()
+    if not lines or lines[0] != '-----BEGIN PGP SIGNED MESSAGE-----':
+        fail('invalid InRelease cleartext header')
+    idx = 1
+    while idx < len(lines) and lines[idx] != '':
+        idx += 1
+    if idx >= len(lines):
+        fail('InRelease missing header separator')
+    idx += 1
+    body = []
+    found_sig = False
+    while idx < len(lines):
+        line = lines[idx]
+        if line == '-----BEGIN PGP SIGNATURE-----':
+            found_sig = True
+            break
+        if line.startswith('- '):
+            line = line[2:]
+        body.append(line)
+        idx += 1
+    if not found_sig or not body:
+        fail('InRelease missing PGP signature block')
+    return '\n'.join(body) + '\n'
+
+
+def parse_release_sha256(release_text):
+    suite = ''
+    in_sha256 = False
+    entries = {}
+    for line in release_text.splitlines():
+        if line.startswith('Suite:'):
+            suite = line.partition(':')[2].strip()
+            in_sha256 = False
+        elif line.startswith('Codename:') and not suite:
+            suite = line.partition(':')[2].strip()
+            in_sha256 = False
+        elif line.startswith('SHA256:'):
+            in_sha256 = True
+        elif line.startswith(' ') and in_sha256:
+            parts = line.split()
+            if len(parts) != 3:
+                fail('malformed SHA256 entry in signed Release metadata')
+            digest, size_str, relpath = parts
+            if HEX64_RE.fullmatch(digest) is None or not size_str.isdigit():
+                fail('invalid SHA256 digest or byte count in signed Release metadata')
+            if relpath.startswith('/') or '..' in Path(relpath).parts:
+                fail('unsafe path in signed Release metadata')
+            entries[relpath] = (digest, int(size_str))
+        elif line and not line.startswith(' '):
+            in_sha256 = False
+    if not entries:
+        fail('signed Release metadata contains no SHA256 file entries')
+    return suite or 'debian', entries
+
+
+def parse_packages_index(packages_text):
+    if '\0' in packages_text or '\r' in packages_text:
+        fail('invalid Packages index encoding')
+    packages = []
+    seen_names = set()
+    seen_files = set()
+    for raw_stanza in packages_text.strip().split('\n\n'):
+        if not raw_stanza.strip():
+            continue
+        fields = {}
+        for line in raw_stanza.splitlines():
+            if line.startswith((' ', '\t')) or ':' not in line:
+                continue
+            key, _, value = line.partition(':')
+            fields[key.strip()] = value.strip()
+        name = fields.get('Package', '')
+        version = fields.get('Version', '')
+        arch = fields.get('Architecture', '')
+        filename = fields.get('Filename', '')
+        size_str = fields.get('Size', '')
+        sha256 = fields.get('SHA256', '')
+        if PACKAGE_NAME_RE.fullmatch(name) is None:
+            fail(f'invalid Debian package name in Packages: {name!r}')
+        if VERSION_RE.fullmatch(version) is None:
+            fail(f'invalid Debian package version in Packages: {version!r}')
+        if ARCH_RE.fullmatch(arch) is None:
+            fail(f'invalid Debian package architecture in Packages: {arch!r}')
+        if SAFE_REL_RE.fullmatch(filename) is None or '..' in Path(filename).parts:
+            fail(f'unsafe Debian archive path in Packages: {filename!r}')
+        if not size_str.isdigit() or int(size_str) <= 0:
+            fail(f'invalid Debian archive size in Packages: {size_str!r}')
+        if HEX64_RE.fullmatch(sha256) is None:
+            fail(f'invalid Debian archive SHA256 in Packages: {sha256!r}')
+        if name in seen_names or filename in seen_files:
+            fail(f'duplicate package or archive in Packages: {name}')
+        seen_names.add(name)
+        seen_files.add(filename)
+        packages.append({
+            'name': name,
+            'version': version,
+            'architecture': arch,
+            'filename': filename,
+            'size': int(size_str),
+            'sha256': sha256,
+        })
+    if not packages:
+        fail('signed Packages index contains no installable packages')
+    if len(packages) > 256:
+        fail('update bundle exceeds 256 package limit')
+    return packages
+
+
+def verify_gpgv(bundle_dir, keyring=DEFAULT_KEYRING):
+    keyring = Path(keyring)
+    if keyring.is_symlink() or not keyring.is_file():
+        fail(f'missing or symlinked update verification keyring: {keyring}')
+    inrelease = bundle_dir / 'InRelease'
+    release = bundle_dir / 'Release'
+    release_gpg = bundle_dir / 'Release.gpg'
+    if inrelease.exists():
+        raw = read_regular_bytes(inrelease, 1024 * 1024)
+        cmd = ['/usr/bin/gpgv', '--status-fd', '1', '--keyring', str(keyring), str(inrelease)]
+        release_text = extract_inrelease_payload(raw)
+    elif release.exists() and release_gpg.exists():
+        raw = read_regular_bytes(release, 1024 * 1024)
+        read_regular_bytes(release_gpg, 65536)
+        if b'\r' in raw:
+            fail('Release must use LF line endings')
+        cmd = ['/usr/bin/gpgv', '--status-fd', '1', '--keyring', str(keyring), str(release_gpg), str(release)]
+        release_text = raw.decode('utf-8', errors='strict')
+    else:
+        fail('update bundle requires signed InRelease or Release + Release.gpg')
+    result = subprocess.run(
+        cmd,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'},
+    )
+    if result.returncode != 0:
+        fail('GPG signature verification failed for update bundle')
+    goodsig = False
+    validsig = None
+    for line in result.stdout.splitlines():
+        if line.startswith('[GNUPG:] GOODSIG '):
+            goodsig = True
+        elif line.startswith('[GNUPG:] VALIDSIG '):
+            parts = line.split()
+            if len(parts) >= 3 and re.fullmatch(r'[0-9A-Fa-f]{16,64}', parts[2]):
+                validsig = parts[2].upper()
+    if not goodsig or not validsig:
+        fail('gpgv did not confirm a valid signature on update metadata')
+    return validsig, release_text
+
+
+def verify_bundle(bundle_dir, keyring=DEFAULT_KEYRING):
+    bundle_dir = Path(bundle_dir)
+    if not bundle_dir.is_absolute() or bundle_dir.is_symlink() or not bundle_dir.is_dir():
+        fail('update bundle path must be an existing non-symlink directory')
+    fingerprint, release_text = verify_gpgv(bundle_dir, keyring=keyring)
+    suite, release_entries = parse_release_sha256(release_text)
+    packages_rel = None
+    for candidate in ('Packages', 'main/binary-amd64/Packages'):
+        if candidate in release_entries and (bundle_dir / candidate).is_file():
+            packages_rel = candidate
+            break
+    if packages_rel is None:
+        fail('signed Release metadata does not authenticate a Packages index in this bundle')
+    packages_path = bundle_dir / packages_rel
+    expected_pkg_sha, expected_pkg_size = release_entries[packages_rel]
+    actual_pkg_sha, actual_pkg_size = sha256_file(packages_path)
+    if actual_pkg_sha != expected_pkg_sha or actual_pkg_size != expected_pkg_size:
+        fail('Packages index SHA-256 or byte size does not match signed Release metadata')
+    packages_raw = read_regular_bytes(packages_path, LIMIT)
+    packages = parse_packages_index(packages_raw.decode('utf-8', errors='strict'))
+    expected_files = set()
+    for pkg in packages:
+        deb_path = bundle_dir / pkg['filename']
+        for parent in deb_path.relative_to(bundle_dir).parents:
+            if parent != Path('.') and (bundle_dir / parent).is_symlink():
+                fail(f'symlinked directory in update bundle: {parent}')
+        actual_sha, actual_size = sha256_file(deb_path)
+        if actual_sha != pkg['sha256'] or actual_size != pkg['size']:
+            fail(f'archive {pkg["filename"]} failed SHA-256 or size check against signed Packages')
+        expected_files.add(deb_path.resolve())
+    for extra in bundle_dir.rglob('*.deb'):
+        if extra.is_symlink() or extra.resolve() not in expected_files:
+            fail(f'unindexed .deb archive refused in update bundle: {extra.name}')
+    return {
+        'verified': True,
+        'signer_fingerprint': fingerprint,
+        'suite': suite,
+        'package_count': len(packages),
+        'packages': packages,
+    }
+
+
+def decode_mountinfo_path(token):
+    return re.sub(r'\\([0-7]{3})', lambda m: chr(int(m.group(1), 8)), token)
+
+
+def parse_mountinfo(mountinfo_text):
+    mounts = {}
+    for line in mountinfo_text.splitlines():
+        if ' - ' not in line:
+            continue
+        left, _, right = line.partition(' - ')
+        left_parts = left.split()
+        right_parts = right.split()
+        if len(left_parts) < 5 or len(right_parts) < 2:
+            continue
+        mountpoint = decode_mountinfo_path(left_parts[4])
+        fstype = right_parts[0]
+        source = decode_mountinfo_path(right_parts[1])
+        mounts[mountpoint] = (fstype, source)
+    return mounts
+
+
+def inspect_dpkg_state(dpkg_dir=DEFAULT_DPKG_DIR):
+    dpkg_dir = Path(dpkg_dir)
+    status_file = dpkg_dir / 'status'
+    updates_dir = dpkg_dir / 'updates'
+    unconfigured = []
+    interrupted = False
+    if updates_dir.is_dir() and not updates_dir.is_symlink():
+        for entry in sorted(updates_dir.iterdir()):
+            if entry.name.isdigit() and entry.is_file() and entry.stat().st_size > 0:
+                interrupted = True
+    if status_file.is_file() and not status_file.is_symlink():
+        text = read_regular_bytes(status_file, LIMIT).decode('utf-8', errors='replace')
+        for stanza in text.split('\n\n'):
+            pkg_name = None
+            pkg_status = None
+            for line in stanza.splitlines():
+                if line.startswith('Package:'):
+                    pkg_name = line.partition(':')[2].strip()
+                elif line.startswith('Status:'):
+                    pkg_status = line.partition(':')[2].strip()
+            if pkg_name and pkg_status:
+                if pkg_status not in (
+                    'install ok installed',
+                    'deinstall ok config-files',
+                    'purge ok not-installed',
+                    'hold ok installed',
+                ):
+                    interrupted = True
+                    if pkg_name not in unconfigured:
+                        unconfigured.append(pkg_name)
+    return interrupted, sorted(unconfigured)
+
+
+def inspect_recovery(
+    mountinfo_text=None,
+    dpkg_dir=DEFAULT_DPKG_DIR,
+    state_dir=DEFAULT_STATE_DIR,
+    trigger_path=DEFAULT_TRIGGER,
+    root_dir=Path('/'),
+):
+    if mountinfo_text is None:
+        mountinfo_text = Path('/proc/self/mountinfo').read_text(encoding='utf-8', errors='replace')
+    mounts = parse_mountinfo(mountinfo_text)
+    root_fs, root_dev = mounts.get('/', ('unknown', 'unknown'))
+    separate_home = '/home' in mounts
+    snapshots_mounted = '/.snapshots' in mounts or (Path(root_dir) / '.snapshots').is_dir()
+    rollback_capable = bool(root_fs == 'btrfs' and separate_home and snapshots_mounted)
+    if rollback_capable:
+        strategy = (
+            'Root filesystem is btrfs with separate /home and /.snapshots: '
+            'system root snapshots can roll back OS packages without reverting /home manuscripts.'
+        )
+    elif root_fs == 'ext4':
+        strategy = (
+            'Root filesystem is ext4: automatic filesystem snapshot rollback is not available '
+            '(installing Snapper on ext4 does not provide rollback). Create an encrypted Restic '
+            'project backup before applying updates and use Debian live/rescue media for system recovery.'
+        )
+    else:
+        strategy = (
+            f'Root filesystem is {root_fs}: automatic filesystem rollback is not qualified on this layout. '
+            'Create an encrypted Restic project backup before applying updates.'
+        )
+    interrupted_dpkg, unconfigured = inspect_dpkg_state(dpkg_dir=dpkg_dir)
+    state_dir = Path(state_dir)
+    trigger_path = Path(trigger_path)
+    manifest_path = state_dir / 'staged/manifest.json'
+    staged_update = False
+    staged_packages = []
+    if manifest_path.is_file() and not manifest_path.is_symlink():
+        try:
+            manifest = json.loads(read_regular_bytes(manifest_path, 262144).decode('utf-8'))
+            if manifest.get('verified') is True and isinstance(manifest.get('packages'), list):
+                staged_packages = [
+                    f'{p["name"]} {p["version"]}'
+                    for p in manifest['packages']
+                    if isinstance(p, dict) and 'name' in p and 'version' in p
+                ]
+                staged_update = bool(
+                    staged_packages
+                    and (trigger_path.is_symlink() or trigger_path.exists() or (state_dir / 'staged/ready').is_file())
+                )
+        except Exception:
+            staged_update = False
+            staged_packages = []
+    parts = [
+        f'Root filesystem: {root_fs} '
+        + ('(btrfs snapshot rollback available)' if rollback_capable else '(no automatic filesystem rollback)'),
+        f'dpkg: {"interrupted (" + ", ".join(unconfigured) + ")" if interrupted_dpkg else "clean"}',
+        f'staged offline update: {len(staged_packages)} package(s)' if staged_update else 'no offline update staged',
+    ]
+    return {
+        'root_filesystem': root_fs,
+        'root_device': root_dev,
+        'separate_home': separate_home,
+        'rollback_capable': rollback_capable,
+        'rollback_strategy': strategy,
+        'interrupted_dpkg': interrupted_dpkg,
+        'unconfigured_packages': unconfigured,
+        'staged_update': staged_update,
+        'staged_packages': staged_packages,
+        'status': ' · '.join(parts) + '.',
+    }
+
+
+def stage_bundle(
+    bundle_dir,
+    keyring=DEFAULT_KEYRING,
+    state_dir=DEFAULT_STATE_DIR,
+    dpkg_dir=DEFAULT_DPKG_DIR,
+    trigger_path=DEFAULT_TRIGGER,
+):
+    interrupted, unconfigured = inspect_dpkg_state(dpkg_dir=dpkg_dir)
+    if interrupted:
+        detail = f' ({", ".join(unconfigured)})' if unconfigured else ''
+        fail(f'interrupted dpkg transaction{detail} must be recovered before staging updates')
+    verified = verify_bundle(bundle_dir, keyring=keyring)
+    state_dir = Path(state_dir)
+    staged_dir = state_dir / 'staged'
+    packages_dir = staged_dir / 'packages'
+    if staged_dir.is_symlink():
+        fail('unsafe symlinked update staging directory')
+    if staged_dir.exists():
+        shutil.rmtree(staged_dir)
+    packages_dir.mkdir(parents=True, mode=0o700)
+    os.chmod(state_dir, 0o700)
+    os.chmod(staged_dir, 0o700)
+    os.chmod(packages_dir, 0o700)
+    bundle_path = Path(bundle_dir)
+    staged_entries = []
+    for pkg in verified['packages']:
+        src = bundle_path / pkg['filename']
+        dst_name = f'{pkg["name"]}_{pkg["version"]}_{pkg["architecture"]}.deb'
+        if SAFE_REL_RE.fullmatch(dst_name) is None:
+            fail(f'unsafe staged archive name: {dst_name}')
+        dst = packages_dir / dst_name
+        data = read_regular_bytes(src, 512 * 1024 * 1024)
+        atomic_write(dst, data, mode=0o600)
+        copied_sha, copied_size = sha256_file(dst)
+        if copied_sha != pkg['sha256'] or copied_size != pkg['size']:
+            shutil.rmtree(staged_dir, ignore_errors=True)
+            fail('staged archive verification failed after copy')
+        staged_entries.append(pkg | {'staged_filename': dst_name})
+    manifest = {
+        'version': 1,
+        'verified': True,
+        'signer_fingerprint': verified['signer_fingerprint'],
+        'suite': verified['suite'],
+        'package_count': len(staged_entries),
+        'packages': staged_entries,
+    }
+    json_write(staged_dir / 'manifest.json', manifest, mode=0o600)
+    atomic_write(staged_dir / 'ready', b'staged\n', mode=0o600)
+    trigger_path = Path(trigger_path)
+    try:
+        if trigger_path.is_symlink() or trigger_path.is_file():
+            trigger_path.unlink()
+        trigger_path.symlink_to(staged_dir)
+    except OSError:
+        # In unprivileged test sandboxes where /system-update is not writable,
+        # staged/ready records the verified transaction state.
+        pass
+    names = ', '.join(f'{p["name"]} ({p["version"]})' for p in staged_entries)
+    return {
+        'status': 'staged',
+        'package_count': len(staged_entries),
+        'signer_fingerprint': verified['signer_fingerprint'],
+        'packages': [f'{p["name"]} {p["version"]}' for p in staged_entries],
+        'message': f'Verified and staged {len(staged_entries)} signed package(s) for offline update: {names}.',
+    }
+
+
+def cancel_staged(state_dir=DEFAULT_STATE_DIR, trigger_path=DEFAULT_TRIGGER):
+    state_dir = Path(state_dir)
+    trigger_path = Path(trigger_path)
+    staged_dir = state_dir / 'staged'
+    had_staged = staged_dir.exists() or trigger_path.is_symlink()
+    if trigger_path.is_symlink() or trigger_path.is_file():
+        try:
+            trigger_path.unlink()
+        except OSError:
+            pass
+    if staged_dir.is_symlink():
+        staged_dir.unlink()
+    elif staged_dir.exists():
+        shutil.rmtree(staged_dir)
+    return {
+        'status': 'cancelled' if had_staged else 'none',
+        'message': (
+            'Cancelled staged offline update and removed queued package archives.'
+            if had_staged
+            else 'No staged offline update was pending.'
+        ),
+    }
+
+
+def check_dpkg_lock_free(dpkg_dir=DEFAULT_DPKG_DIR):
+    dpkg_dir = Path(dpkg_dir)
+    for lock_name in ('lock-frontend', 'lock'):
+        lock_path = dpkg_dir / lock_name
+        if not lock_path.exists():
+            continue
+        if lock_path.is_symlink():
+            fail(f'unsafe symlinked dpkg lock: {lock_name}')
+        fd = os.open(lock_path, os.O_RDWR | os.O_CLOEXEC)
+        try:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                fail(f'another package manager holds {lock_path}; wait for it to finish')
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
+
+
+def recover_dpkg(dpkg_dir=DEFAULT_DPKG_DIR, runner=None):
+    dpkg_dir = Path(dpkg_dir)
+    interrupted, before_pkgs = inspect_dpkg_state(dpkg_dir=dpkg_dir)
+    if not interrupted:
+        return {
+            'status': 'clean',
+            'recovered_packages': [],
+            'message': 'dpkg package state is already clean; no interrupted transaction found.',
+        }
+    check_dpkg_lock_free(dpkg_dir=dpkg_dir)
+    run_cmd = runner or (
+        lambda cmd: subprocess.run(
+            cmd,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            env={
+                'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
+                'LC_ALL': 'C',
+                'DEBIAN_FRONTEND': 'noninteractive',
+            },
+        )
+    )
+    res = run_cmd(['/usr/bin/dpkg', '--admindir=' + str(dpkg_dir), '--configure', '-a'])
+    if res.returncode != 0:
+        err = (res.stderr or res.stdout or '').strip()[:512]
+        fail(f'dpkg recovery failed: {err or "exit " + str(res.returncode)}')
+    still_interrupted, remaining = inspect_dpkg_state(dpkg_dir=dpkg_dir)
+    if still_interrupted:
+        fail(f'dpkg state remains interrupted after recovery: {", ".join(remaining)}')
+    return {
+        'status': 'recovered',
+        'recovered_packages': before_pkgs,
+        'message': (
+            f'Recovered interrupted dpkg transaction ({", ".join(before_pkgs)}).'
+            if before_pkgs
+            else 'Recovered interrupted dpkg journal.'
+        ),
+    }
+
+
+def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    if not argv:
+        fail('usage: wros-update <recovery-status|verify-bundle|stage|cancel-staged|recover-dpkg> [args]')
+    op = argv[0]
+    keyring = Path(os.environ.get('WROS_UPDATE_KEYRING', str(DEFAULT_KEYRING)))
+    state_dir = Path(os.environ.get('WROS_UPDATE_STATE_DIR', str(DEFAULT_STATE_DIR)))
+    dpkg_dir = Path(os.environ.get('WROS_DPKG_ADMINDIR', str(DEFAULT_DPKG_DIR)))
+    trigger_path = Path(os.environ.get('WROS_UPDATE_TRIGGER', str(DEFAULT_TRIGGER)))
+    if op == 'recovery-status' and len(argv) == 1:
+        mountinfo_file = os.environ.get('WROS_MOUNTINFO_PATH')
+        mountinfo_text = Path(mountinfo_file).read_text(encoding='utf-8') if mountinfo_file else None
+        result = inspect_recovery(
+            mountinfo_text=mountinfo_text,
+            dpkg_dir=dpkg_dir,
+            state_dir=state_dir,
+            trigger_path=trigger_path,
+        )
+    elif op == 'verify-bundle' and len(argv) == 2:
+        result = verify_bundle(Path(argv[1]), keyring=keyring)
+    elif op == 'stage' and len(argv) == 2:
+        result = stage_bundle(
+            Path(argv[1]),
+            keyring=keyring,
+            state_dir=state_dir,
+            dpkg_dir=dpkg_dir,
+            trigger_path=trigger_path,
+        )
+    elif op == 'cancel-staged' and len(argv) == 1:
+        result = cancel_staged(state_dir=state_dir, trigger_path=trigger_path)
+    elif op == 'recover-dpkg' and len(argv) == 1:
+        result = recover_dpkg(dpkg_dir=dpkg_dir)
+    else:
+        fail('invalid wros-update operation or arguments')
+    print(json.dumps(result, sort_keys=True))
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main())
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(1) from None

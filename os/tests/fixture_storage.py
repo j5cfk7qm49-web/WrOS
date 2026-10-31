@@ -93,3 +93,124 @@ def belongs_to_target(name, identity, sysroot=Path('/sys/class/block')):
         return bool(dependencies) and all(inspect(item, ancestors | {block}) for item in dependencies)
 
     return inspect(name, set())
+
+
+def decode_proc_path(token):
+    return re.sub(r'\\([0-7]{3})', lambda m: chr(int(m.group(1), 8)), token)
+
+
+def target_mountpoints(mountinfo_text, target_root='/run/live/installer/target'):
+    """Return active mountpoints at or below target_root, ordered deepest-first."""
+    require(isinstance(target_root, str) and target_root.startswith('/') and target_root != '/',
+            'Invalid installer target root')
+    prefix = target_root.rstrip('/')
+    mounts = []
+    for line in mountinfo_text.splitlines():
+        if not line.strip():
+            continue
+        parts = line.split()
+        require(len(parts) >= 5, 'Malformed mountinfo line')
+        mountpoint = decode_proc_path(parts[4])
+        if mountpoint == prefix or mountpoint.startswith(prefix + '/'):
+            mounts.append(mountpoint)
+    # Sort deepest path first; preserve reverse discovery order for identical mountpoints.
+    indexed = list(enumerate(mounts))
+    indexed.sort(key=lambda item: (-len(Path(item[1]).parts), -len(item[1]), -item[0]))
+    return [item[1] for item in indexed]
+
+
+def target_mapper_teardown_order(identity, sysroot=Path('/sys/class/block')):
+    """Return target-owned dm-* devices ordered leaf-holders-first (LVM before LUKS)."""
+    # Verify target identity even if no dm-* devices exist yet.
+    belongs_to_target('vda', identity, sysroot)
+    dm_blocks = {}
+    for entry in sorted(sysroot.iterdir(), key=lambda p: p.name):
+        if not re.fullmatch(r'dm-[0-9]+', entry.name):
+            continue
+        if not belongs_to_target(entry.name, identity, sysroot):
+            continue
+        dm_name_path = entry/'dm/name'
+        require(dm_name_path.is_file(), f'Missing dm/name metadata for {entry.name}')
+        dm_name = field(dm_name_path, 128)
+        require(BLOCK_NAME.fullmatch(dm_name) is not None, f'Invalid dm/name for {entry.name}')
+        dm_uuid = field(entry/'dm/uuid', 256) if (entry/'dm/uuid').is_file() else ''
+        if dm_uuid.startswith('CRYPT-'):
+            kind = 'crypt'
+        elif dm_uuid.startswith('LVM-'):
+            kind = 'lvm'
+        else:
+            kind = 'dm'
+        slaves_dir = entry/'slaves'
+        dm_slaves = sorted(
+            s.name for s in slaves_dir.iterdir()
+            if re.fullmatch(r'dm-[0-9]+', s.name)
+        ) if slaves_dir.is_dir() else []
+        dm_blocks[entry.name] = {
+            'block': entry.name,
+            'dm_name': dm_name,
+            'dm_uuid': dm_uuid,
+            'kind': kind,
+            'dm_slaves': dm_slaves,
+        }
+    # Build holder counts: a device with 0 remaining active holders can be removed next.
+    holders_of = {name: set() for name in dm_blocks}
+    for name, info in dm_blocks.items():
+        for slave in info['dm_slaves']:
+            if slave in holders_of:
+                holders_of[slave].add(name)
+    ordered = []
+    remaining = dict(dm_blocks)
+    while remaining:
+        leaves = sorted(name for name in remaining if not holders_of[name])
+        require(leaves, 'Cyclic device-mapper holder graph on target')
+        for leaf in leaves:
+            info = remaining.pop(leaf)
+            for slave in info['dm_slaves']:
+                if slave in holders_of:
+                    holders_of[slave].discard(leaf)
+            ordered.append({
+                'block': info['block'],
+                'dm_name': info['dm_name'],
+                'dm_uuid': info['dm_uuid'],
+                'kind': info['kind'],
+            })
+    return ordered
+
+
+def target_swaps(swaps_text, identity, sysroot=Path('/sys/class/block')):
+    """Return active swap devices in /proc/swaps that belong exclusively to the target."""
+    belongs_to_target('vda', identity, sysroot)
+    dm_by_mapper_name = {}
+    for entry in sysroot.iterdir():
+        if re.fullmatch(r'dm-[0-9]+', entry.name) and (entry/'dm/name').is_file():
+            dm_by_mapper_name[field(entry/'dm/name', 128)] = entry.name
+    swaps = []
+    for index, line in enumerate(swaps_text.splitlines()):
+        if not line.strip() or (index == 0 and line.startswith('Filename')):
+            continue
+        parts = line.split()
+        require(len(parts) >= 2, 'Malformed /proc/swaps entry')
+        swap_path = decode_proc_path(parts[0])
+        if swap_path.startswith('/dev/mapper/'):
+            mapper_name = swap_path.removeprefix('/dev/mapper/')
+            block = dm_by_mapper_name.get(mapper_name)
+            require(block is not None, f'Unknown mapper swap device: {swap_path}')
+        elif swap_path.startswith('/dev/'):
+            block = swap_path.removeprefix('/dev/')
+        else:
+            raise ValueError(f'Unsupported swap path in fixture: {swap_path}')
+        require(belongs_to_target(block, identity, sysroot),
+                f'Refusing non-target swap device: {swap_path}')
+        swaps.append({'path': swap_path, 'block': block})
+    return swaps
+
+
+def teardown_plan(identity, mountinfo_text, swaps_text='',
+                  target_root='/run/live/installer/target',
+                  sysroot=Path('/sys/class/block')):
+    """Construct a complete, ordered teardown plan for target mounts, swaps, and dm devices."""
+    return {
+        'mounts': target_mountpoints(mountinfo_text, target_root=target_root),
+        'swaps': target_swaps(swaps_text, identity, sysroot=sysroot),
+        'mappers': target_mapper_teardown_order(identity, sysroot=sysroot),
+    }

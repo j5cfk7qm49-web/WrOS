@@ -86,6 +86,29 @@ def run(program, arguments, env, cwd=None):
         return output.read()
 
 
+def classify_rclone_failure(arguments, env):
+    """Run rclone and classify failure into auth-revoked vs offline without leaking stderr."""
+    with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as err_out:
+        result = subprocess.run(['/usr/bin/rclone', *arguments], env=env,
+                                stdin=subprocess.DEVNULL, stdout=output,
+                                stderr=err_out, timeout=1800)
+        if result.returncode == 0:
+            require(output.tell() <= MAX_JSON, 'Tool response exceeded the supported size; no verification claimed.')
+            output.seek(0)
+            return True, output.read(), ''
+        err_out.seek(0)
+        err_text = err_out.read(65536).decode('utf-8', errors='replace').lower()
+        for needle in ('invalid_grant', 'token has been expired or revoked', 'unauthorized',
+                       'invalid_client', '401 unauthorized', '403 forbidden', 'oauth2:'):
+            if needle in err_text:
+                return False, b'', 'reauthorization-required'
+        return False, b'', 'offline'
+
+
+def inventory_digest(inv):
+    return hashlib.sha256(json.dumps(inv, sort_keys=True).encode('utf-8')).hexdigest()
+
+
 def safe_new_path(value):
     require(isinstance(value, str) and len(value) <= 4096 and not any(ord(c) < 32 for c in value), 'Invalid destination path.')
     path = Path(value).expanduser()
@@ -175,6 +198,8 @@ class Service:
         require(info.st_uid == os.geteuid() and not info.st_mode & 0o077, 'Backup state directory must be private and owned by you.')
         self.config = state/'repository.json'
         self.google = state/'rclone.conf'
+        self.account = state/'google-account.json'
+        self.queue_path = state/'queue.json'
         self.env = {key: value for key, value in os.environ.items()
                     if not key.startswith(('RESTIC_', 'RCLONE_'))}
         self.env.update(PATH='/usr/bin:/bin', RCLONE_CONFIG=str(self.google),
@@ -185,9 +210,45 @@ class Service:
             require(set(value) == {'version', 'repository', 'key', 'verified'} and value['version'] == 1
                     and isinstance(value['verified'], dict), 'Unknown backup configuration; original preserved.')
             self.current = value
+        self.google_meta = None
+        if self.account.exists() or self.account.is_symlink():
+            meta = read_json(self.account)
+            require(isinstance(meta, dict) and meta.get('version') == 1
+                    and set(meta) <= {'version', 'connected_at', 'verified_at', 'token_expiry', 'state', 'last_error'}
+                    and meta.get('state') in ('connected', 'reauthorization-required', 'offline'),
+                    'Unknown Google account metadata; original preserved.')
+            self.google_meta = meta
+        self.queue = []
+        if self.queue_path.exists() or self.queue_path.is_symlink():
+            qdata = read_json(self.queue_path)
+            require(isinstance(qdata, dict) and qdata.get('version') == 1
+                    and isinstance(qdata.get('items'), list) and len(qdata['items']) <= 64,
+                    'Unknown backup queue metadata; original preserved.')
+            for item in qdata['items']:
+                require(isinstance(item, dict)
+                        and set(item) == {'id', 'project', 'label', 'queued_at', 'attempts', 'last_error', 'inventory_sha256'}
+                        and isinstance(item['id'], str) and re.fullmatch('[a-f0-9]{16}', item['id'])
+                        and isinstance(item['project'], str) and item['project'].startswith('/')
+                        and isinstance(item['label'], str)
+                        and isinstance(item['queued_at'], str)
+                        and isinstance(item['attempts'], int) and item['attempts'] >= 0
+                        and isinstance(item['last_error'], str)
+                        and isinstance(item['inventory_sha256'], str) and re.fullmatch('[a-f0-9]{64}', item['inventory_sha256']),
+                        'Invalid backup queue entry; original preserved.')
+            self.queue = qdata['items']
 
     def save(self):
         atomic_private(self.config, (json.dumps(self.current) + '\n').encode())
+
+    def save_account(self):
+        if self.google_meta is None:
+            if self.account.exists() and not self.account.is_symlink():
+                self.account.unlink()
+        else:
+            atomic_private(self.account, (json.dumps(self.google_meta) + '\n').encode())
+
+    def save_queue(self):
+        atomic_private(self.queue_path, (json.dumps({'version': 1, 'items': self.queue}) + '\n').encode())
 
     def repository(self, descriptor):
         require(isinstance(descriptor, str) and len(descriptor) <= 4096
@@ -255,10 +316,28 @@ class Service:
         return sorted(result, key=lambda item: item['time'], reverse=True)
 
     def status(self, notice='', refresh=True):
+        google_connected = (self.google.is_file() and not self.google.is_symlink()
+                            and not (self.google.lstat().st_mode & 0o077))
+        if not google_connected:
+            google_state = 'not-connected'
+            google_verified_at = ''
+            google_expiry = ''
+        elif self.google_meta:
+            google_state = self.google_meta.get('state', 'connected')
+            google_verified_at = self.google_meta.get('verified_at', '')
+            google_expiry = self.google_meta.get('token_expiry', '')
+        else:
+            google_state = 'connected'
+            google_verified_at = ''
+            google_expiry = ''
         return {'configured': self.current is not None,
                 'repository': self.current['repository'] if self.current else '',
                 'recovery_key': self.current['key'] if self.current else '',
-                'google_connected': self.google.is_file() and not self.google.is_symlink(),
+                'google_connected': google_connected,
+                'google_state': google_state,
+                'google_verified_at': google_verified_at,
+                'google_expiry': google_expiry,
+                'queued_backups': list(self.queue),
                 'snapshots': self.snapshots() if refresh else [], 'notice': notice}
 
     def restore_into(self, snapshot, target):
@@ -274,12 +353,102 @@ class Service:
         require(actual == expected['inventory'], 'Restored file names, bytes or SHA-256 hashes differ; restore is not verified.')
         return actual
 
-    def backup(self, project):
+    def validate_project_root(self, project):
         root = Path(project).resolve(strict=True)
         require(root.is_dir() and (root/'manuscript').is_dir(), 'Select a saved Grimoire project with a manuscript folder.')
         require(not (root/'.git').is_file(), 'A linked Git worktree cannot be backed up portably; use a self-contained book folder.')
         require(not (root/MANIFEST).exists() and not (root/MANIFEST).is_symlink(), 'Reserved backup manifest name already exists in the project.')
         require(not self.state.resolve().is_relative_to(root), 'Backup credentials/state must be outside the project.')
+        return root
+
+    def enqueue_project(self, root, inv, error_note=''):
+        digest = inventory_digest(inv)
+        label = ''.join(c for c in root.name if c.isprintable())[:80] or 'Book'
+        project_str = str(root)
+        for item in self.queue:
+            if item['project'] == project_str:
+                item['label'] = label
+                item['inventory_sha256'] = digest
+                item['queued_at'] = now()
+                if error_note:
+                    item['attempts'] += 1
+                    item['last_error'] = error_note[:256]
+                self.save_queue()
+                return item
+        require(len(self.queue) < 64, 'Offline backup queue is full (64 items maximum).')
+        entry = {
+            'id': secrets.token_hex(8),
+            'project': project_str,
+            'label': label,
+            'queued_at': now(),
+            'attempts': 1 if error_note else 0,
+            'last_error': error_note[:256],
+            'inventory_sha256': digest,
+        }
+        self.queue.append(entry)
+        self.save_queue()
+        return entry
+
+    def dequeue_project(self, root):
+        project_str = str(root)
+        before = len(self.queue)
+        self.queue = [item for item in self.queue if item['project'] != project_str]
+        if len(self.queue) != before:
+            self.save_queue()
+
+    def queue_backup(self, project):
+        root = self.validate_project_root(project)
+        original = inventory(root)
+        require(inventory(root) == original, 'Project changed while reading; save and retry.')
+        self.enqueue_project(root, original, '')
+        return self.status(
+            f'Project queued for encrypted backup ({len(self.queue)} pending). Run queued backups when your repository is reachable.',
+            refresh=False)
+
+    def clear_queue(self):
+        self.queue = []
+        self.save_queue()
+        return self.status('Cleared pending backup queue. Existing snapshots and manuscripts are unchanged.', refresh=False)
+
+    def run_queue(self):
+        require(self.current is not None, 'Set up a backup repository first.')
+        if not self.queue:
+            return self.status('No queued backups are pending.')
+        try:
+            self.restic(['unlock'])
+        except Exception:
+            pass
+        existing = self.snapshots()
+        for item in list(self.queue):
+            root = self.validate_project_root(item['project'])
+            original = inventory(root)
+            require(inventory(root) == original, 'Project changed while reading; save and retry.')
+            digest = inventory_digest(original)
+            # If an earlier attempt uploaded the snapshot before interruption
+            # prevented restore verification, verify that snapshot in place
+            # without creating a redundant upload.
+            recovered = False
+            for candidate in existing:
+                if candidate['project'] == item['label'] and not candidate['restore_checked_at']:
+                    with tempfile.TemporaryDirectory(prefix='wros-backup-verify-', dir=self.state) as temporary:
+                        restored = Path(temporary)/'restore-check'
+                        restored.mkdir(mode=0o700)
+                        try:
+                            actual = self.restore_into(candidate, restored)
+                        except Exception:
+                            continue
+                        if inventory_digest(actual) == digest:
+                            self.current['verified'][candidate['id']] = now()
+                            self.save()
+                            self.dequeue_project(root)
+                            recovered = True
+                            break
+            if not recovered:
+                self.backup(str(root))
+        return self.status('Completed all queued backups and verified every restored file hash.')
+
+    def backup(self, project):
+        root = self.validate_project_root(project)
         require(self.current is not None, 'Set up a backup repository first.')
         destination = self.repository(self.current['repository'])
         same_device = False
@@ -294,17 +463,22 @@ class Service:
             require(inventory(root) == original, 'Project changed during staging; save and retry. No snapshot verified.')
             (stage/MANIFEST).write_text(json.dumps({'version': 1, 'created': now(), 'inventory': original}), encoding='utf-8')
             label = ''.join(c for c in root.name if c.isprintable())[:80] or 'Book'
-            output = self.restic(['backup', '--tag', TAG, '--tag', 'project:' + label, '--host', 'wros', '--', str(stage)], stage)
-            summaries = [json.loads(line) for line in output.splitlines() if line.strip()]
-            identifier = next((row.get('snapshot_id') for row in summaries if row.get('message_type') == 'summary'), None)
-            require(identifier, 'Backup did not return a complete snapshot; no verification claimed.')
-            snapshot = next((row for row in self.snapshots() if row['id'].startswith(identifier)), None)
-            require(snapshot is not None, 'New snapshot cannot be found; no verification claimed.')
-            restored = Path(temporary)/'restore-check'
-            restored.mkdir(mode=0o700)
-            require(self.restore_into(snapshot, restored) == original, 'Restore check differs from the saved project.')
+            try:
+                output = self.restic(['backup', '--tag', TAG, '--tag', 'project:' + label, '--host', 'wros', '--', str(stage)], stage)
+                summaries = [json.loads(line) for line in output.splitlines() if line.strip()]
+                identifier = next((row.get('snapshot_id') for row in summaries if row.get('message_type') == 'summary'), None)
+                require(identifier, 'Backup did not return a complete snapshot; no verification claimed.')
+                snapshot = next((row for row in self.snapshots() if row['id'].startswith(identifier)), None)
+                require(snapshot is not None, 'New snapshot cannot be found; no verification claimed.')
+                restored = Path(temporary)/'restore-check'
+                restored.mkdir(mode=0o700)
+                require(self.restore_into(snapshot, restored) == original, 'Restore check differs from the saved project.')
+            except Exception as error:
+                self.enqueue_project(root, original, str(error))
+                raise
             self.current['verified'][snapshot['id']] = now()
             self.save()
+            self.dequeue_project(root)
         message = 'Backup verified by a complete restore; all file hashes match.'
         if same_device:
             message += ' Destination is on the same filesystem; keep an off-device copy too.'
@@ -360,9 +534,78 @@ class Service:
             quota = json.loads(run('/usr/bin/rclone', ['about', 'wros-google:', '--json'], env))
             require(isinstance(quota, dict) and 'total' in quota, 'Google Drive authorization could not be verified.')
             atomic_private(self.google, candidate.read_bytes())
+            ts = now()
+            self.google_meta = {
+                'version': 1,
+                'connected_at': ts,
+                'verified_at': ts,
+                'token_expiry': token['expiry'],
+                'state': 'connected',
+                'last_error': '',
+            }
+            self.save_account()
         finally:
             candidate.unlink(missing_ok=True)
         return self.status('Google Drive connected. Choose New Google Drive backup to create an encrypted repository.', refresh=False)
+
+    def check_google(self):
+        require(self.google.exists() or self.google.is_symlink(), 'Google Drive is not connected.')
+        private_file(self.google)
+        ok, payload, failure_kind = classify_rclone_failure(['about', 'wros-google:', '--json'], self.env)
+        ts = now()
+        if not ok:
+            base = self.google_meta or {
+                'version': 1,
+                'connected_at': ts,
+                'verified_at': '',
+                'token_expiry': '',
+            }
+            if failure_kind == 'reauthorization-required':
+                base['state'] = 'reauthorization-required'
+                base['last_error'] = 'Google Drive authorization expired or was revoked.'
+                self.google_meta = base
+                self.save_account()
+                raise ValueError('Google Drive authorization expired or was revoked. Reauthorize Google Drive or disconnect local credentials.')
+            base['state'] = 'offline'
+            base['last_error'] = 'Google Drive could not be reached.'
+            self.google_meta = base
+            self.save_account()
+            raise ValueError('Google Drive could not be reached. Local credentials remain saved; retry when online.')
+        quota = json.loads(payload)
+        require(isinstance(quota, dict) and 'total' in quota, 'Google Drive quota response was invalid.')
+        expiry = self.google_meta.get('token_expiry', '') if self.google_meta else ''
+        try:
+            parser = configparser.ConfigParser(interpolation=None)
+            parser.read_string(self.google.read_text(encoding='utf-8'))
+            if parser.has_option('wros-google', 'token'):
+                tok = json.loads(parser.get('wros-google', 'token'))
+                if isinstance(tok, dict) and isinstance(tok.get('expiry'), str):
+                    expiry = tok['expiry']
+        except Exception:
+            pass
+        self.google_meta = {
+            'version': 1,
+            'connected_at': (self.google_meta or {}).get('connected_at', ts),
+            'verified_at': ts,
+            'token_expiry': expiry,
+            'state': 'connected',
+            'last_error': '',
+        }
+        self.save_account()
+        return self.status('Google Drive connection verified; credentials are active.', refresh=False)
+
+    def disconnect_google(self):
+        require(not self.google.is_symlink(), 'Refusing to remove symlinked Google configuration.')
+        if self.google.exists():
+            private_file(self.google)
+            size = self.google.stat().st_size
+            write_private(self.google, b'\x00' * max(size, 64), exclusive=False)
+            self.google.unlink()
+        self.google_meta = None
+        self.save_account()
+        return self.status(
+            'Google Drive credentials removed from this device. Revoke access in your Google account settings to end the provider grant.',
+            refresh=False)
 
 
 def dispatch(service, request):
@@ -380,6 +623,12 @@ def dispatch(service, request):
         return service.configure(request['repository'], request['key'])
     if operation == 'backup':
         return service.backup(request['project'])
+    if operation == 'queue':
+        return service.queue_backup(request['project'])
+    if operation == 'run-queue':
+        return service.run_queue()
+    if operation == 'clear-queue':
+        return service.clear_queue()
     if operation == 'restore':
         if request.get('project'):
             target = safe_new_path(request['destination'])
@@ -390,6 +639,10 @@ def dispatch(service, request):
         return service.export_key(request['destination'])
     if operation == 'connect-google':
         return service.connect_google(request['authorization'])
+    if operation == 'check-google':
+        return service.check_google()
+    if operation == 'disconnect-google':
+        return service.disconnect_google()
     raise ValueError('Unsupported backup operation.')
 
 

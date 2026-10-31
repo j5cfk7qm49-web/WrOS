@@ -5,7 +5,7 @@ use crate::{Backend, PowerAction, Reply, Request, Snapshot};
 use anyhow::{Context, Result, bail};
 use std::{
     fs,
-    io::Read,
+    io::{Read, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     time::{Duration, Instant},
@@ -26,20 +26,42 @@ impl Invocation {
 }
 pub trait Runner: Send {
     fn run(&mut self, cmd: &Invocation) -> Result<String>;
+    fn run_with_input(&mut self, cmd: &Invocation, input: &[u8]) -> Result<String> {
+        let _ = input;
+        self.run(cmd)
+    }
 }
 #[derive(Default)]
 pub struct ProcessRunner;
 impl Runner for ProcessRunner {
     fn run(&mut self, cmd: &Invocation) -> Result<String> {
+        self.run_with_input(cmd, &[])
+    }
+    fn run_with_input(&mut self, cmd: &Invocation, input: &[u8]) -> Result<String> {
         let mut child = Command::new(cmd.program)
             .args(&cmd.args)
             .env("LC_ALL", "C")
             .env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
-            .stdin(Stdio::null())
+            .stdin(if input.is_empty() {
+                Stdio::null()
+            } else {
+                Stdio::piped()
+            })
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
             .with_context(|| format!("starting {} (is its package installed?)", cmd.program))?;
+        if !input.is_empty()
+            && let Some(mut stdin) = child.stdin.take()
+        {
+            if let Err(err) = stdin.write_all(input).and_then(|()| stdin.flush())
+                && err.kind() != std::io::ErrorKind::BrokenPipe
+            {
+                let _ = child.kill();
+                let _ = child.wait();
+                bail!("writing protected input to {} failed", cmd.program);
+            }
+        }
         // Drain pipes while waiting, with a bounded retained buffer.
         fn drain(mut pipe: impl Read) -> std::io::Result<Vec<u8>> {
             let mut kept = Vec::new();
@@ -204,6 +226,23 @@ fn timezone_status() -> Invocation {
         ],
     )
 }
+fn active_wifi_connections() -> Invocation {
+    Invocation::new(
+        "/usr/bin/nmcli",
+        &[
+            "--colors",
+            "no",
+            "-t",
+            "--escape",
+            "yes",
+            "-f",
+            "UUID,NAME,TYPE",
+            "connection",
+            "show",
+            "--active",
+        ],
+    )
+}
 fn percentage(now: u64, full: u64) -> Option<u8> {
     (u128::from(now) * 100)
         .checked_div(u128::from(full))
@@ -267,6 +306,42 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
                 "yes",
             ],
         ),
+        Request::ConnectWifi { ssid, password } => {
+            crate::system_views::validate_wifi_ssid(ssid)?;
+            if let Some(secret) = password {
+                crate::system_views::validate_wifi_password(secret.as_str())?;
+                Invocation::new(
+                    "/usr/bin/nmcli",
+                    &[
+                        "--colors", "no", "--ask", "--wait", "8", "device", "wifi", "connect", ssid,
+                    ],
+                )
+            } else {
+                Invocation::new(
+                    "/usr/bin/nmcli",
+                    &[
+                        "--colors", "no", "--wait", "8", "device", "wifi", "connect", ssid,
+                    ],
+                )
+            }
+        }
+        Request::ActivateSavedWifi(uuid) => {
+            crate::system_views::validate_saved_wifi_uuid(uuid)?;
+            Invocation::new(
+                "/usr/bin/nmcli",
+                &[
+                    "--colors",
+                    "no",
+                    "--wait",
+                    "8",
+                    "connection",
+                    "up",
+                    "uuid",
+                    uuid,
+                ],
+            )
+        }
+        Request::DisconnectWifi => active_wifi_connections(),
         Request::ListSavedWifi => Invocation::new(
             "/usr/bin/nmcli",
             &[
@@ -281,7 +356,45 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
                 "show",
             ],
         ),
+        Request::ForgetWifi(uuid) => {
+            crate::system_views::validate_saved_wifi_uuid(uuid)?;
+            Invocation::new(
+                "/usr/bin/nmcli",
+                &["--colors", "no", "connection", "delete", "uuid", uuid],
+            )
+        }
         Request::CheckUpdates => Invocation::new("/usr/bin/apt-get", &["-s", "dist-upgrade"]),
+        Request::RecoveryStatus => {
+            Invocation::new("/usr/libexec/wros-update", &["recovery-status"])
+        }
+        Request::StageUpdateBundle { bundle_dir } => {
+            crate::system_views::validate_update_bundle_path(bundle_dir)?;
+            Invocation::new(
+                "/usr/bin/pkexec",
+                &[
+                    "--disable-internal-agent",
+                    "/usr/libexec/wros-update",
+                    "stage",
+                    bundle_dir,
+                ],
+            )
+        }
+        Request::CancelStagedUpdates => Invocation::new(
+            "/usr/bin/pkexec",
+            &[
+                "--disable-internal-agent",
+                "/usr/libexec/wros-update",
+                "cancel-staged",
+            ],
+        ),
+        Request::RecoverUpdates => Invocation::new(
+            "/usr/bin/pkexec",
+            &[
+                "--disable-internal-agent",
+                "/usr/libexec/wros-update",
+                "recover-dpkg",
+            ],
+        ),
         Request::ListStorageDevices => Invocation::new(
             "/usr/bin/findmnt",
             &[
@@ -293,10 +406,7 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
                 "SOURCE,TARGET,SIZE,USED,AVAIL,USE%",
             ],
         ),
-        Request::ConnectWifi { .. }
-        | Request::DisconnectWifi
-        | Request::ForgetWifi(_)
-        | Request::ConnectGoogleAccount
+        Request::ConnectGoogleAccount
         | Request::DisconnectGoogleAccount
         | Request::ListGoogleDriveFiles
         | Request::MaterializeDriveFile { .. }
@@ -305,7 +415,6 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
         | Request::RestoreBackup { .. }
         | Request::VerifyBackups
         | Request::StageUpdates
-        | Request::RecoveryStatus
         | Request::RebootRecovery
         | Request::RebootFirmware => {
             bail!("this native workflow is not implemented; no action was performed")
@@ -404,6 +513,16 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
         }
     })
 }
+
+fn scrub_bytes(buf: &mut [u8]) {
+    for byte in buf {
+        unsafe {
+            std::ptr::write_volatile(byte, 0);
+        }
+    }
+    std::sync::atomic::compiler_fence(std::sync::atomic::Ordering::SeqCst);
+}
+
 impl<R: Runner> Backend for Linux<R> {
     fn request(&mut self, request: Request) -> Result<Reply> {
         if request == Request::Refresh {
@@ -428,6 +547,77 @@ impl<R: Runner> Backend for Linux<R> {
                 email: None,
                 status_message: "Google enrollment is not configured in this build.".into(),
             }));
+        }
+        if let Request::ConnectWifi { ssid, password } = &request {
+            let cmd = invocation(&request)?;
+            let run_result = if let Some(secret) = password {
+                let mut stdin_bytes = format!("{}\n", secret.as_str()).into_bytes();
+                let res = self.runner.run_with_input(&cmd, &stdin_bytes);
+                scrub_bytes(&mut stdin_bytes);
+                res.map_err(|e| {
+                    let redacted = e.to_string().replace(secret.as_str(), "[hidden]");
+                    anyhow::anyhow!("{redacted}")
+                })
+            } else {
+                self.runner.run(&cmd)
+            };
+            let output = run_result?;
+            if output.contains("Error:") {
+                bail!("Wi-Fi connection failed; check network credentials and signal");
+            }
+            let active_output = self.runner.run(&active_wifi_connections())?;
+            let active = crate::system_views::saved_wifi(&active_output)?;
+            if active.is_empty() {
+                bail!(
+                    "Wi-Fi connection could not be verified as active; check credentials and signal"
+                );
+            }
+            return Ok(Reply::Message(format!(
+                "Connected to Wi-Fi network {ssid}."
+            )));
+        }
+        if let Request::ActivateSavedWifi(uuid) = &request {
+            let cmd = invocation(&request)?;
+            let output = self.runner.run(&cmd)?;
+            if output.contains("Error:") {
+                bail!("saved Wi-Fi profile could not be activated");
+            }
+            let active_output = self.runner.run(&active_wifi_connections())?;
+            let active = crate::system_views::saved_wifi(&active_output)?;
+            if !active.iter().any(|p| &p.uuid == uuid) {
+                bail!("saved Wi-Fi profile activation could not be verified");
+            }
+            return Ok(Reply::Message(format!(
+                "Connected saved Wi-Fi profile {uuid}."
+            )));
+        }
+        if request == Request::DisconnectWifi {
+            let active_output = self.runner.run(&invocation(&request)?)?;
+            let active = crate::system_views::saved_wifi(&active_output)?;
+            if active.is_empty() {
+                bail!("no active Wi-Fi connection to disconnect");
+            }
+            for profile in &active {
+                self.runner.run(&Invocation::new(
+                    "/usr/bin/nmcli",
+                    &[
+                        "--colors",
+                        "no",
+                        "connection",
+                        "down",
+                        "uuid",
+                        &profile.uuid,
+                    ],
+                ))?;
+            }
+            return Ok(Reply::Message("Wi-Fi disconnected.".into()));
+        }
+        if let Request::ForgetWifi(uuid) = &request {
+            let cmd = invocation(&request)?;
+            self.runner.run(&cmd)?;
+            return Ok(Reply::Message(format!(
+                "Removed saved Wi-Fi profile {uuid}."
+            )));
         }
         let output = self.runner.run(&invocation(&request)?)?;
         if request == Request::ListTimezones {
@@ -502,6 +692,29 @@ impl<R: Runner> Backend for Linux<R> {
             Request::CheckUpdates => {
                 return Ok(Reply::Updates(crate::system_views::updates(&output)?));
             }
+            Request::RecoveryStatus => {
+                return Ok(Reply::Recovery(crate::system_views::recovery_status(
+                    &output,
+                )?));
+            }
+            Request::StageUpdateBundle { .. } => {
+                return Ok(Reply::Message(crate::system_views::update_action_message(
+                    &output,
+                    &["staged"],
+                )?));
+            }
+            Request::CancelStagedUpdates => {
+                return Ok(Reply::Message(crate::system_views::update_action_message(
+                    &output,
+                    &["cancelled", "none"],
+                )?));
+            }
+            Request::RecoverUpdates => {
+                return Ok(Reply::Message(crate::system_views::update_action_message(
+                    &output,
+                    &["recovered", "clean"],
+                )?));
+            }
             _ => {}
         }
         if matches!(request, Request::KeyboardPreview(_)) {
@@ -543,11 +756,22 @@ mod tests {
             storage: "/missing".into(),
         };
         for request in [
-            Request::ConnectWifi {
-                ssid: "any network".into(),
-            },
-            Request::DisconnectWifi,
             Request::ForgetWifi("ambiguous profile".into()),
+            Request::ActivateSavedWifi("not-a-uuid".into()),
+            Request::ConnectWifi {
+                ssid: "--invalid-flag".into(),
+                password: None,
+            },
+            Request::ConnectWifi {
+                ssid: "ValidSSID".into(),
+                password: Some(crate::WifiSecret::new("short")),
+            },
+            Request::StageUpdateBundle {
+                bundle_dir: "relative-bundle".into(),
+            },
+            Request::StageUpdateBundle {
+                bundle_dir: "/media/../etc".into(),
+            },
             Request::ConnectGoogleAccount,
             Request::DisconnectGoogleAccount,
             Request::ListGoogleDriveFiles,
@@ -565,13 +789,33 @@ mod tests {
             },
             Request::VerifyBackups,
             Request::StageUpdates,
-            Request::RecoveryStatus,
             Request::RebootRecovery,
             Request::RebootFirmware,
         ] {
             assert!(backend.request(request).is_err());
         }
         assert!(backend.runner.0.is_empty());
+        // Even with valid arguments, unverified Fake output ("disconnected:none")
+        // is refused by the readback/JSON verification checks.
+        assert!(
+            backend
+                .request(Request::ConnectWifi {
+                    ssid: "ValidSSID".into(),
+                    password: None,
+                })
+                .is_err()
+        );
+        assert!(backend.request(Request::DisconnectWifi).is_err());
+        assert!(backend.request(Request::RecoveryStatus).is_err());
+        assert!(
+            backend
+                .request(Request::StageUpdateBundle {
+                    bundle_dir: "/media/usb/wros-updates".into()
+                })
+                .is_err()
+        );
+        assert!(backend.request(Request::CancelStagedUpdates).is_err());
+        assert!(backend.request(Request::RecoverUpdates).is_err());
         let Reply::GoogleStatus(status) = backend.request(Request::GetGoogleStatus).unwrap() else {
             panic!()
         };
@@ -581,6 +825,203 @@ mod tests {
             backend.request(Request::ListLocalAccounts).is_err(),
             "missing passwd is an error, never a fabricated writer account"
         );
+    }
+    #[test]
+    fn signed_update_staging_recovery_status_and_dpkg_repair_use_fixed_verified_helper() {
+        use std::collections::VecDeque;
+        struct UpdateRunner {
+            replies: VecDeque<Result<&'static str, &'static str>>,
+            calls: Vec<Invocation>,
+        }
+        impl Runner for UpdateRunner {
+            fn run(&mut self, cmd: &Invocation) -> Result<String> {
+                self.calls.push(cmd.clone());
+                match self.replies.pop_front().unwrap() {
+                    Ok(out) => Ok(out.into()),
+                    Err(err) => bail!("{err}"),
+                }
+            }
+        }
+        let ext4_recovery = r#"{"root_filesystem":"ext4","root_device":"/dev/mapper/wros--vg-root","separate_home":false,"rollback_capable":false,"rollback_strategy":"Root filesystem is ext4: automatic filesystem snapshot rollback is not available (installing Snapper on ext4 does not provide rollback).","interrupted_dpkg":true,"unconfigured_packages":["grimoire"],"staged_update":false,"staged_packages":[],"status":"Root filesystem: ext4 (no automatic filesystem rollback) · dpkg: interrupted (grimoire) · no offline update staged."}"#;
+        let recovered_reply = r#"{"status":"recovered","recovered_packages":["grimoire"],"message":"Recovered interrupted dpkg transaction (grimoire)."}"#;
+        let staged_reply = r#"{"status":"staged","package_count":1,"signer_fingerprint":"ABCD1234","packages":["grimoire 0.7.6"],"message":"Verified and staged 1 signed package(s) for offline update: grimoire (0.7.6)."}"#;
+        let cancelled_reply = r#"{"status":"cancelled","message":"Cancelled staged offline update and removed queued package archives."}"#;
+        let mut backend = Linux {
+            runner: UpdateRunner {
+                replies: VecDeque::from([
+                    Ok(ext4_recovery),
+                    Ok(recovered_reply),
+                    Ok(staged_reply),
+                    Ok(cancelled_reply),
+                ]),
+                calls: Vec::new(),
+            },
+            sys: "/missing".into(),
+            etc: "/missing".into(),
+            storage: "/missing".into(),
+        };
+        let Reply::Recovery(info) = backend.request(Request::RecoveryStatus).unwrap() else {
+            panic!()
+        };
+        assert_eq!(info.root_filesystem, "ext4");
+        assert!(!info.rollback_capable);
+        assert!(info.interrupted_dpkg);
+        assert_eq!(info.unconfigured_packages, vec!["grimoire"]);
+        assert_eq!(backend.runner.calls[0].program, "/usr/libexec/wros-update");
+        assert_eq!(backend.runner.calls[0].args, ["recovery-status"]);
+
+        let msg = backend.request(Request::RecoverUpdates).unwrap();
+        assert_eq!(
+            msg,
+            Reply::Message("Recovered interrupted dpkg transaction (grimoire).".into())
+        );
+        assert_eq!(backend.runner.calls[1].program, "/usr/bin/pkexec");
+        assert_eq!(
+            backend.runner.calls[1].args,
+            [
+                "--disable-internal-agent",
+                "/usr/libexec/wros-update",
+                "recover-dpkg"
+            ]
+        );
+
+        let staged = backend
+            .request(Request::StageUpdateBundle {
+                bundle_dir: "/media/usb/wros-updates".into(),
+            })
+            .unwrap();
+        assert_eq!(
+            staged,
+            Reply::Message(
+                "Verified and staged 1 signed package(s) for offline update: grimoire (0.7.6)."
+                    .into()
+            )
+        );
+        assert_eq!(
+            backend.runner.calls[2].args,
+            [
+                "--disable-internal-agent",
+                "/usr/libexec/wros-update",
+                "stage",
+                "/media/usb/wros-updates"
+            ]
+        );
+
+        let cancelled = backend.request(Request::CancelStagedUpdates).unwrap();
+        assert_eq!(
+            cancelled,
+            Reply::Message(
+                "Cancelled staged offline update and removed queued package archives.".into()
+            )
+        );
+    }
+    #[test]
+    fn wifi_enrollment_passes_secret_on_stdin_never_argv_and_verifies_active_connection() {
+        use std::collections::VecDeque;
+        struct WifiRunner {
+            replies: VecDeque<Result<&'static str, &'static str>>,
+            calls: Vec<(Invocation, String)>,
+        }
+        impl Runner for WifiRunner {
+            fn run(&mut self, cmd: &Invocation) -> Result<String> {
+                self.run_with_input(cmd, &[])
+            }
+            fn run_with_input(&mut self, cmd: &Invocation, input: &[u8]) -> Result<String> {
+                self.calls
+                    .push((cmd.clone(), String::from_utf8_lossy(input).into_owned()));
+                match self.replies.pop_front().unwrap() {
+                    Ok(out) => Ok(out.into()),
+                    Err(err) => bail!("{err}"),
+                }
+            }
+        }
+        let uuid = "00000000-0000-4000-8000-000000000001";
+        let active_line = "00000000-0000-4000-8000-000000000001:WriterDeck-Cafe:802-11-wireless";
+        let mut backend = Linux {
+            runner: WifiRunner {
+                replies: VecDeque::from([
+                    Ok("Device 'wlan0' successfully activated."),
+                    Ok(active_line),
+                    Ok("Connection 'WriterDeck-Cafe' successfully activated."),
+                    Ok(active_line),
+                    Ok(active_line),
+                    Ok("Connection 'WriterDeck-Cafe' successfully deactivated."),
+                    Ok(
+                        "Connection 'WriterDeck-Cafe' (00000000-0000-4000-8000-000000000001) successfully deleted.",
+                    ),
+                ]),
+                calls: Vec::new(),
+            },
+            sys: "/missing".into(),
+            etc: "/missing".into(),
+            storage: "/missing".into(),
+        };
+        let secret = crate::WifiSecret::new("SUPER_SECRET_PSK_VALUE");
+        let reply = backend
+            .request(Request::ConnectWifi {
+                ssid: "WriterDeck-Cafe".into(),
+                password: Some(secret),
+            })
+            .unwrap();
+        assert_eq!(
+            reply,
+            Reply::Message("Connected to Wi-Fi network WriterDeck-Cafe.".into())
+        );
+        assert_eq!(backend.runner.calls[0].0.program, "/usr/bin/nmcli");
+        assert!(
+            backend.runner.calls[0]
+                .0
+                .args
+                .iter()
+                .all(|a| !a.contains("SUPER_SECRET_PSK_VALUE"))
+        );
+        assert!(
+            backend.runner.calls[0]
+                .0
+                .args
+                .contains(&"--ask".to_string())
+        );
+        assert_eq!(backend.runner.calls[0].1, "SUPER_SECRET_PSK_VALUE\n");
+
+        // Reconnect saved Wi-Fi by exact UUID and verify active state.
+        assert_eq!(
+            backend
+                .request(Request::ActivateSavedWifi(uuid.into()))
+                .unwrap(),
+            Reply::Message(format!("Connected saved Wi-Fi profile {uuid}."))
+        );
+        // Disconnect active Wi-Fi without assuming an interface name.
+        assert_eq!(
+            backend.request(Request::DisconnectWifi).unwrap(),
+            Reply::Message("Wi-Fi disconnected.".into())
+        );
+        // Forget saved Wi-Fi profile by UUID.
+        assert_eq!(
+            backend.request(Request::ForgetWifi(uuid.into())).unwrap(),
+            Reply::Message(format!("Removed saved Wi-Fi profile {uuid}."))
+        );
+
+        // Failed authentication redacts any echoed secret from the error.
+        let mut failing = Linux {
+            runner: WifiRunner {
+                replies: VecDeque::from([Err(
+                    "Secrets were required, rejected SUPER_SECRET_PSK_VALUE",
+                )]),
+                calls: Vec::new(),
+            },
+            sys: "/missing".into(),
+            etc: "/missing".into(),
+            storage: "/missing".into(),
+        };
+        let err = failing
+            .request(Request::ConnectWifi {
+                ssid: "WriterDeck-Cafe".into(),
+                password: Some(crate::WifiSecret::new("SUPER_SECRET_PSK_VALUE")),
+            })
+            .unwrap_err()
+            .to_string();
+        assert!(!err.contains("SUPER_SECRET_PSK_VALUE"));
+        assert!(err.contains("[hidden]"));
     }
     #[test]
     fn read_only_views_use_structured_fixed_commands_without_secrets_or_assumed_interfaces() {
@@ -624,6 +1065,18 @@ mod tests {
                 ))
                 .unwrap(),
             "  name  "
+        );
+        assert_eq!(
+            runner
+                .run_with_input(
+                    &Invocation::new(
+                        "/usr/bin/python3",
+                        &["-c", "import sys; print(sys.stdin.readline().strip())"]
+                    ),
+                    b"stdin-secret-line\n"
+                )
+                .unwrap(),
+            "stdin-secret-line"
         );
     }
     #[test]

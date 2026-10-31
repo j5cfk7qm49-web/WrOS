@@ -110,10 +110,10 @@
     {
       "area": "OS",
       "capability": "Signed OS/app updates, snapshots/rollback and offline bundles",
-      "status": "Planned",
-      "verification": "None",
+      "status": "In progress",
+      "verification": "Python GPG InRelease/Release.gpg + Packages + .deb SHA-256 chain, ext4/btrfs recovery and dpkg repair tests executed; Rust adapter and 4-size UI tests added (unrun in Rustless Argon environment)",
       "hardware_verified": false,
-      "detail": "Use apt plus a selected upstream snapshot mechanism"
+      "detail": "wros-update verifies signed bundles via gpgv, stages offline updates, repairs interrupted dpkg state and reports ext4 vs btrfs rollback honestly (no fake Snapper rollback on ext4); VM/hardware qualification open; issue 5"
     },
     {
       "area": "OS",
@@ -150,10 +150,10 @@
     {
       "area": "System",
       "capability": "In-app new-network credentials / secret agent",
-      "status": "Planned",
-      "verification": "None",
+      "status": "In progress",
+      "verification": "Source/UI/adapter tests added (unrun in Rust toolchain); passwords sent via private stdin to nmcli --ask and omitted from argv/Debug/Serialize",
       "hardware_verified": false,
-      "detail": "Never passwords in argv/logs"
+      "detail": "Protected credential entry, open/WPA connection, active-connection verification, saved-profile UUID reconnect/forget and disconnect implemented; local Rust/VM/hardware qualification pending"
     },
     {
       "area": "System",
@@ -513,7 +513,7 @@
       "status": "Tested",
       "verification": "Debian: 1094 Rust/config, 215 Python/zero skips, both Clippys and 21 gates; actual four-size native workflow and 512 MiB cancellation",
       "hardware_verified": false,
-      "detail": "Every completed backup is restored and hash checked; masked rclone Drive authorization; live provider acceptance and automatic queue remain open; see NATIVE_BACKUP.md"
+      "detail": "Every completed backup is restored and hash checked; masked rclone Drive authorization, durable offline backup queue and interruption-safe deduplicating retry implemented; live provider acceptance and Rust/PTY re-qualification pending; see NATIVE_BACKUP.md"
     },
     {
       "area": "Cloud",
@@ -607,9 +607,9 @@
       "area": "Accounts",
       "capability": "Native optional Google account linking and protected refresh credentials",
       "status": "In progress",
-      "verification": "Masked authorization form and private rclone config adapter; synthetic provider test only",
+      "verification": "Masked authorization form, private rclone/account lifecycle adapter, revocation/offline classification and zero-scrubbed disconnect; Python service unit tests passed, Rust/live qualification pending",
       "hardware_verified": false,
-      "detail": "Second-device rclone authorize flow with private per-user files; no mandatory cloud; real authorization/refresh/revocation acceptance remains issue 28"
+      "detail": "Second-device rclone authorize flow with private per-user files, connection verification, reauthorization and scrubbed disconnect; no mandatory cloud; real authorization/refresh/revocation acceptance remains issue 28"
     },
     {
       "area": "Storage",
@@ -641,7 +641,7 @@
       "status": "In progress",
       "verification": "Current Debian CI: 973 Rust/configuration, 165 Python/zero skips, both Clippys and 20 gates; six matching offline encryption archives/payloads, 11 focused checks, three actual live modes and shipped-frontend 16 GiB refusal guest passed 484.97 seconds",
       "hardware_verified": false,
-      "detail": "Shared Grimoire presentation, authenticated matching backend/pool and corrected live ISO qualified for live startup and default-No refusal. QA root launcher only; production handoff/completion, post-write LUKS/LVM cleanup and full encrypted target install/boot remain open"
+      "detail": "Shared Grimoire presentation, authenticated matching backend/pool, leaf-first target LUKS2/LVM/swap/mount cleanup and writing-session handoff implemented; Python fixture/cleanup tests passed; full encrypted target install/boot and physical qualification remain open"
     },
     {
       "area": "System",

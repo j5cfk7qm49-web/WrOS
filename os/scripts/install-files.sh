@@ -26,6 +26,7 @@ install -m 755 "$repo/os/scripts/writingdeck-keyboard" "$repo/os/scripts/writing
 install -m 755 "$repo/os/scripts/wros-display" "$dest/usr/libexec/"
 install -m 755 "$repo/os/scripts/wros-lock" "$dest/usr/libexec/"
 install -m 755 "$repo/os/scripts/wros-backup" "$dest/usr/libexec/"
+install -m 755 "$repo/os/scripts/wros-update" "$dest/usr/libexec/"
 # Build on the declared Debian builder; never ship the fake test DRM library.
 display_build=$(mktemp -d)
 trap 'rm -f -- "$display_build/wros-display-hw"; rmdir -- "$display_build"' EXIT
@@ -52,6 +53,8 @@ install -m 644 "$repo/os/config/50-wros-display.rules" "$dest/etc/polkit-1/rules
 install -m 644 "$repo/os/config/50-wros-timezone.rules" "$dest/etc/polkit-1/rules.d/"
 install -m 644 "$repo/os/config/50-wros-lock.rules" "$dest/etc/polkit-1/rules.d/"
 install -m 644 "$repo/os/config/org.wros.lock.policy" "$dest/usr/share/polkit-1/actions/"
+install -m 644 "$repo/os/config/50-wros-update.rules" "$dest/etc/polkit-1/rules.d/"
+install -m 644 "$repo/os/config/org.wros.update.policy" "$dest/usr/share/polkit-1/actions/"
 if [[ -e $dest/etc/pam.d/vlock || -L $dest/etc/pam.d/vlock ]]; then
     if [[ -L $dest/etc/pam.d/vlock ]] || ! cmp -s "$repo/os/config/vlock.pam" "$dest/etc/pam.d/vlock"; then
         echo 'Existing locker PAM configuration preserved; review it before staging this profile.' >&2; exit 2;

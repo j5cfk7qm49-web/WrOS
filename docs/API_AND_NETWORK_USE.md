@@ -65,7 +65,7 @@ explicitly validates authorization via `rclone about`; Drive repository creation
 snapshot refresh, backup, restore and stale-lock recovery explicitly invoke
 Restic's rclone backend and can contact Google Drive/Google token endpoints.
 No background startup, autosave, history or ordinary writing path starts these
-provider calls. Failed/offline jobs require an explicit retry.
+provider calls. Failed/offline backup jobs record the project in the local private queue (`queue.json`) and require an explicit retry (`run-queue` or `Create encrypted backup`). `check-google` and `disconnect-google` manage local Google Drive credentials explicitly.
 
 Authorization JSON travels only through the masked field and private stdin
 protocol, never command arguments, UI notices, manuscript files or diagnostic
@@ -83,7 +83,7 @@ The native backend invokes local `nmcli` (NetworkManager), `timedatectl`
 (systemd time service), `findmnt`, cached `apt-get -s dist-upgrade`,
 `brightnessctl` and explicit supported `systemctl` operations. It reads local
 account/status information. A cached APT simulation is not a repository refresh
-or installed update. Wi-Fi scanning is radio activity, not an internet API.
+or installed update. Wi-Fi scanning is radio activity, not an internet API. Native Wi-Fi connection and saved-profile management invoke `nmcli` explicitly on user confirmation, passing WPA passphrases only via private `stdin` to `nmcli --ask` and never in command arguments, `Debug` output, or serialized requests.
 
 General Drive browsing/materialization, cloud sync, update application and
 recovery/firmware operations remain unavailable and fail before their tools run.

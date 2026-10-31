@@ -664,6 +664,18 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
                 app.paste_backup_form(text);
                 continue;
             }
+            if app.overlay == Overlay::Deck(app::writingdeck::Page::Settings)
+                && app.deck.shell.nav.current() == app::shell::Route::WifiConnect
+            {
+                app.paste_wifi_form(text);
+                continue;
+            }
+            if app.overlay == Overlay::Deck(app::writingdeck::Page::Settings)
+                && app.deck.shell.nav.current() == app::shell::Route::UpdateStageForm
+            {
+                app.paste_update_form(text);
+                continue;
+            }
             if app.overlay == Overlay::Continuity {
                 app.paste_continuity(text);
                 continue;

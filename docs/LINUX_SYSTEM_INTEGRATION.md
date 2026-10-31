@@ -2,12 +2,13 @@
 
 ## Implemented boundary
 
-`writingdeck-sys::Backend` receives typed requests and returns snapshots, messages or keyboard-preview tokens. The TUI's single bounded worker performs commands; rendering/input only uses cached data. The Linux runner uses fixed absolute executable paths, argument vectors (never a shell), null stdin, an eight-second command deadline and a 64 KiB retained output cap. Missing packages, D-Bus, devices or authorization are errors/unavailable states, not success.
+`writingdeck-sys::Backend` receives typed requests and returns snapshots, messages or keyboard-preview tokens. The TUI's single bounded worker performs commands; rendering/input only uses cached data. The Linux runner uses fixed absolute executable paths, argument vectors (never a shell), bounded private stdin when required (`run_with_input`), an eight-second command deadline and a 64 KiB retained output cap. Missing packages, D-Bus, devices or authorization are errors/unavailable states, not success.
 
 | Capability | Current adapter | Verification / limit |
 |---|---|---|
 | Network status | `nmcli -t -f STATE,CONNECTIVITY general` | Linux parsing/interface tests and offline VM; no manuscript transmission |
 | Wi-Fi radio / scan | Explicit `nmcli radio wifi on/off`, `device wifi list --rescan yes` | Typed command tests; physical radio/SSID/connection tests pending |
+| Wi-Fi enrollment & profiles | `nmcli --ask --wait 8 device wifi connect <ssid>` (passphrase on private `stdin`, never argv), `connection up/down/delete uuid <uuid>`, active-connection readback | Redacted `WifiSecret` (`Debug`/`Serialize` skip + volatile drop scrub); Rust adapter + 4-size UI tests added (unrun in Rustless Argon environment); VM/hardware pending |
 | Battery | Read-only sysfs energy-weighted battery aggregation, capacity fallback | Missing-device/fixture tests; no physical discharge/charging test; UPower evaluated/installed but not yet queried by the adapter |
 | Brightness | Read sysfs; explicit `brightnessctl --class=backlight set N%` | 1–100 validation and no-device behavior; actual permissions/backlight pending |
 | Power saver | UI low-power setting plus explicit `powerprofilesctl set` | UI works independently; unsupported OS profile reported separately |
@@ -18,9 +19,9 @@
 | Timezone | Native searchable catalog, Cancel-default confirmation and `timedatectl --no-ask-password` with authoritative readback | [Narrow timezone action](NATIVE_TIMEZONE.md); clock/RTC/NTP controls remain unavailable |
 | Disk free / OS | `statvfs`, Debian release identity | Read-only |
 | Manual console lock | Fixed openvt/vlock-main/PAM handoff, systemd lifecycle, input retirement and reserved root tty8 | [Focused software and five-cycle guest passed](CONSOLE_LOCK.md); Debian CI passed; sleep remains disabled |
-| Sound, updates, restore | Design only | No fake success or broad root helper |
+| Signed updates & recovery | `/usr/libexec/wros-update` via polkit (`org.wros.update`): GPG `gpgv` bundle check (`InRelease`/`Release.gpg` -> `Packages` SHA-256 -> `.deb` SHA-256), `systemd-offline-update` staging/cancel, interrupted `dpkg --configure -a` repair, and `ext4` vs `btrfs` recovery inspection | Python GPG/staging/dpkg/filesystem tests executed; Rust adapter + 4-size UI tests added (unrun in Rustless Argon environment); never claims Snapper rollback on `ext4`; VM/hardware pending |
 
-New network credential entry, volume, account/first-run setup and updater/rollback remain open gates. Manual locking has separate software/guest qualification; physical security and sleep/resume remain open.
+Volume, general account/first-run setup and live VM update/rollback qualification remain open gates. Manual locking has separate software/guest qualification; physical security and sleep/resume remain open.
 
 ## Privileged keyboard interface
 
@@ -45,11 +46,11 @@ The wrapper checks UID and refuses root. Production uses an actual PAM login; th
 
 ## Future service contracts
 
-- Wi-Fi enrollment: a password-safe TTY/D-Bus secret agent, never argv/logging; explicit scan/connect consent.
+- Wi-Fi enrollment: implemented via private stdin to `nmcli --ask` with active-connection readback; live NetworkManager VM/hardware qualification remains open.
 - UPower/logind subscriptions if polling costs or multiple devices require them; cache status, no 4 Hz subprocess loop.
 - Volume/manual clock/NTP: narrow maintained APIs with validation, explicit capability discovery and recovery.
-- Updates: upstream signed apt packages plus a chosen upstream snapshot/rollback facility; no blanket passwordless apt/shell policy.
-- Backup worker: separate opt-in queue, secure credentials, hashes and conflict states; no access through the keyboard helper.
+- Updates: `wros-update` verifies signed Debian update bundles with `gpgv`, stages offline updates, repairs interrupted `dpkg` state and reports real `ext4` vs `btrfs` recovery capabilities; VM/hardware offline-update boot qualification remains open.
+- Backup worker: separate opt-in queue (`queue.json`), private Google credential lifecycle (`google-account.json`), hashes and conflict states; no access through the keyboard helper.
 
 Every new action needs denied/unavailable/timeout tests, a non-root path and a tutorial task before it is called implemented.
 
