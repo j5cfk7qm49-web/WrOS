@@ -1061,35 +1061,169 @@ fn native_wifi_enrollment_masks_credentials_handles_cancel_failure_and_success_p
     }
 }
 
+// ---- offline update review, staging, cancel and repair ---------------------
+
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicBool, Ordering},
+};
+use writingdeck_sys::{Backend, Reply, Request, Simulated, UpdateState};
+
+const MEDIA: &str = "/media/usb/wros-signed-updates";
+
+/// A simulated update helper shared with the test, recording every request.
+/// The flags make the "helper" lie or fail so the UI's read-back is observable.
+#[derive(Clone)]
+struct UpdateWorld {
+    sim: Arc<Mutex<Simulated>>,
+    calls: Arc<Mutex<Vec<Request>>>,
+    fail_stage: Arc<AtomicBool>,
+    cancel_is_noop: Arc<AtomicBool>,
+    repair_is_noop: Arc<AtomicBool>,
+}
+struct WorldBackend(UpdateWorld);
+impl Backend for WorldBackend {
+    fn simulated(&self) -> bool {
+        true
+    }
+    fn request(&mut self, request: Request) -> anyhow::Result<Reply> {
+        let world = &self.0;
+        world.calls.lock().unwrap().push(request.clone());
+        match &request {
+            Request::StageUpdates { .. } if world.fail_stage.load(Ordering::Relaxed) => {
+                anyhow::bail!("the helper could not write its journal")
+            }
+            Request::CancelStagedUpdates if world.cancel_is_noop.load(Ordering::Relaxed) => {
+                return Ok(Reply::Message("Cancelled (helper claim).".into()));
+            }
+            Request::RecoverUpdates if world.repair_is_noop.load(Ordering::Relaxed) => {
+                return Ok(Reply::Message("Repaired (helper claim).".into()));
+            }
+            _ => {}
+        }
+        world.sim.lock().unwrap().request(request)
+    }
+}
+impl UpdateWorld {
+    fn install(desk: &mut Desk) -> Self {
+        let world = Self {
+            sim: Arc::new(Mutex::new(Simulated::laptop())),
+            calls: Arc::default(),
+            fail_stage: Arc::default(),
+            cancel_is_noop: Arc::default(),
+            repair_is_noop: Arc::default(),
+        };
+        desk.app
+            .deck
+            .use_test_backend(Box::new(WorldBackend(world.clone())));
+        world
+    }
+    fn calls(&self) -> Vec<Request> {
+        self.calls.lock().unwrap().clone()
+    }
+    fn count(&self, wanted: impl Fn(&Request) -> bool) -> usize {
+        self.calls().iter().filter(|r| wanted(r)).count()
+    }
+    /// Requests that change the system: none may precede an explicit confirmation.
+    fn mutations(&self) -> usize {
+        self.count(|r| {
+            matches!(
+                r,
+                Request::StageUpdates { .. }
+                    | Request::CancelStagedUpdates
+                    | Request::RecoverUpdates
+                    | Request::Power(_)
+            )
+        })
+    }
+    fn stages(&self) -> Vec<(String, String)> {
+        self.calls()
+            .into_iter()
+            .filter_map(|r| match r {
+                Request::StageUpdates {
+                    bundle_dir,
+                    review_id,
+                } => Some((bundle_dir, review_id)),
+                _ => None,
+            })
+            .collect()
+    }
+    fn state(&self) -> UpdateState {
+        self.sim.lock().unwrap().recovery.update_state
+    }
+}
+
+fn wait_backup(desk: &mut Desk) {
+    let end = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while desk.app.deck.shell.backup.job.is_some() && std::time::Instant::now() < end {
+        desk.app.deck.shell.backup.tick();
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert!(desk.app.deck.shell.backup.job.is_none());
+    desk.draw();
+}
+
+/// Replace the backup service's answer with a known one, as if just read.
+fn set_backup(desk: &mut Desk, configured: bool, fresh: bool) {
+    let root = desk.app.project.root.to_string_lossy().into_owned();
+    let backup = &mut desk.app.deck.shell.backup;
+    backup.status.configured = configured;
+    backup.status_ok = true;
+    backup.status.snapshots = if fresh {
+        vec![crate::backup_service::Snapshot {
+            id: "a".repeat(64),
+            time: chrono::Utc::now().to_rfc3339(),
+            _path: root,
+            project: "Book".into(),
+            restore_checked_at: String::new(),
+        }]
+    } else {
+        vec![]
+    };
+    desk.draw();
+}
+
+fn review_by_path(desk: &mut Desk, path: &str) {
+    desk.choose("Review a signed update bundle by path");
+    assert_eq!(desk.app.deck.shell.nav.current(), Route::UpdateBundleForm);
+    desk.app.paste(path);
+    desk.key(KeyCode::Enter);
+    desk.key(KeyCode::Enter);
+    wait_system(desk);
+}
+
+fn reach_confirm(desk: &mut Desk) {
+    review_by_path(desk, MEDIA);
+    assert_eq!(desk.app.deck.shell.nav.current(), Route::UpdateReview);
+    desk.choose("Continue to confirmation");
+    assert_eq!(desk.app.deck.shell.nav.current(), Route::UpdateConfirm);
+    wait_backup(desk);
+}
+
+fn route(desk: &Desk) -> Route {
+    desk.app.deck.shell.nav.current()
+}
+
+/// Escape out of Settings entirely, whatever screen it is on.
+fn close_all(desk: &mut Desk) {
+    for _ in 0..10 {
+        if desk.app.overlay == Overlay::None {
+            return;
+        }
+        desk.key(KeyCode::Esc);
+    }
+    assert_eq!(desk.app.overlay, Overlay::None);
+}
+
+const SIZES: [(u16, u16); 4] = [(80, 24), (100, 30), (120, 40), (160, 50)];
+
 #[test]
-fn signed_bundle_inspection_and_recovery_diagnostics_preserve_both_editors_at_four_sizes() {
-    use std::sync::{Arc, Mutex};
-    use writingdeck_sys::{Backend, Reply, Request, Simulated};
-    struct UpdateBackend {
-        calls: Arc<Mutex<Vec<Request>>>,
-        simulator: Simulated,
-    }
-    impl Backend for UpdateBackend {
-        fn simulated(&self) -> bool {
-            true
-        }
-        fn request(&mut self, request: Request) -> anyhow::Result<Reply> {
-            self.calls.lock().unwrap().push(request.clone());
-            self.simulator.request(request)
-        }
-    }
-    for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+fn update_review_lists_signer_expiry_and_exact_changes_and_installs_nothing_at_four_sizes() {
+    for (width, height) in SIZES {
         let (mut desk, note) =
-            secondary_book(&format!("signed-updates-{width}"), width, height, true);
+            secondary_book(&format!("update-review-{width}"), width, height, true);
         choose_secondary(&mut desk, &note);
-        let calls = Arc::new(Mutex::new(Vec::new()));
-        let mut sim = Simulated::laptop();
-        sim.recovery.interrupted_dpkg = true;
-        sim.recovery.unconfigured_packages = vec!["grimoire".into()];
-        desk.app.deck.use_test_backend(Box::new(UpdateBackend {
-            calls: calls.clone(),
-            simulator: sim,
-        }));
+        let world = UpdateWorld::install(&mut desk);
         desk.typed("Primary update draft. ");
         desk.typed("Secondary update notes. ");
         let original = desk.app.editor.text();
@@ -1097,47 +1231,46 @@ fn signed_bundle_inspection_and_recovery_diagnostics_preserve_both_editors_at_fo
         let secondary = desk.app.view_position(Pane::Secondary).unwrap();
         system_panel(&mut desk, 5);
         wait_system(&mut desk);
-        desk.choose("Inspect signed offline update bundle");
-        assert_eq!(desk.app.deck.shell.nav.current(), Route::UpdateBundleForm);
-        desk.app.paste("relative/bundle");
-        desk.key(KeyCode::Enter);
-        desk.key(KeyCode::Enter);
-        assert!(desk.shows("absolute directory path"));
-        assert!(
-            !calls
-                .lock()
-                .unwrap()
-                .iter()
-                .any(|r| matches!(r, Request::VerifyUpdateBundle { .. }))
-        );
-        desk.key(KeyCode::Home);
-        desk.key(KeyCode::Delete);
-        desk.app.paste("/media/usb/wros-signed-updates");
-        desk.key(KeyCode::Enter);
-        desk.key(KeyCode::Enter);
+        // Opening the panel only reads status.
+        assert!(world.calls().iter().all(|r| *r == Request::RecoveryStatus));
+        assert!(desk.shows("Update state: idle"));
+        assert!(!desk.shows("unavailable pending"));
+
+        // Find media mounts and then reviews; the review lists every change.
+        desk.choose("Find update media");
         wait_system(&mut desk);
-        assert!(desk.shows("SIMULATED signature inspection"));
-        assert!(
-            !desk
-                .app
-                .deck
-                .shell
-                .recovery
-                .as_ref()
-                .is_some_and(|r| r.staged_update)
+        assert_eq!(
+            route(&desk),
+            Route::UpdateReview,
+            "{}",
+            desk.rows().join("\n")
         );
-        desk.choose("Inspect filesystem and dpkg recovery");
-        wait_system(&mut desk);
-        assert!(desk.shows("ext4"));
-        assert!(desk.shows("Interrupted dpkg packages: grimoire"));
-        assert!(
-            calls
-                .lock()
-                .unwrap()
-                .iter()
-                .all(|r| !matches!(r, Request::RecoverUpdates | Request::CancelStagedUpdates))
+        let calls = world.calls();
+        assert!(calls.contains(&Request::FindUpdateMedia));
+        assert!(calls.contains(&Request::ReviewUpdateBundle {
+            bundle_dir: "/run/wros-update/media/0".into()
+        }));
+        assert!(desk.shows("SIMULATED"));
+        assert!(desk.shows("Signed by key SIMULATED-NO-KEY-CHECKED"));
+        assert!(desk.shows("Valid until 2026-12-31"));
+        assert!(desk.shows("Upgrade wros: 0.1.0~rc1 → 0.1.0~rc2"));
+        assert!(desk.shows("Install wros-help: not installed → 0.1.0~rc2"));
+        assert!(desk.shows("2 package changes"));
+        // The safe row is the default and nothing has been staged.
+        assert!(desk.shows("▸ Back · do not install anything"));
+        assert_eq!(world.mutations(), 0);
+        assert_eq!(world.state(), UpdateState::Idle);
+
+        // Backing out drops the review: it must be authenticated again.
+        desk.key(KeyCode::Esc);
+        assert_eq!(
+            route(&desk),
+            Route::Panel(crate::app::shell::Panel::Updates)
         );
-        for _ in 0..4 {
+        assert!(desk.app.deck.shell.update_flow.review.is_none());
+        assert_eq!(world.mutations(), 0);
+
+        for _ in 0..3 {
             desk.key(KeyCode::Esc);
         }
         assert_eq!(desk.app.overlay, Overlay::None);
@@ -1146,6 +1279,567 @@ fn signed_bundle_inspection_and_recovery_diagnostics_preserve_both_editors_at_fo
         assert_eq!(desk.app.view_position(Pane::Secondary).unwrap(), secondary);
         assert_eq!(desk.app.focus, Focus::Secondary);
     }
+}
+
+#[test]
+fn update_path_entry_refuses_reserved_locations_without_sending_anything() {
+    for (width, height) in SIZES {
+        let mut desk = Desk::open(book(&format!("update-paths-{width}"), true), width, height);
+        let world = UpdateWorld::install(&mut desk);
+        system_panel(&mut desk, 5);
+        wait_system(&mut desk);
+        let before = world.calls().len();
+        desk.choose("Review a signed update bundle by path");
+        for (path, why) in [
+            ("relative/bundle", "absolute directory path"),
+            ("/etc", "update media"),
+            ("/var/lib/wros-update/public", "update media"),
+            ("/run/wros-update", "update media"),
+            ("/home/writer/novel", "update media"),
+            ("/media/../etc", "absolute directory path"),
+        ] {
+            desk.key(KeyCode::Home);
+            desk.key(KeyCode::Delete);
+            desk.app.paste(path);
+            desk.key(KeyCode::Enter);
+            desk.key(KeyCode::Enter);
+            assert!(!desk.app.deck.busy, "{path} was sent");
+            assert!(
+                desk.app.deck.note.contains(why),
+                "{path}: {}",
+                desk.app.deck.note
+            );
+            assert_eq!(route(&desk), Route::UpdateBundleForm);
+        }
+        assert_eq!(
+            world.calls().len(),
+            before,
+            "refused paths reached the worker"
+        );
+    }
+}
+
+#[test]
+fn update_confirmation_defaults_to_cancel_and_stages_only_after_every_gate_passes() {
+    for (width, height) in SIZES {
+        let (mut desk, note) =
+            secondary_book(&format!("update-confirm-{width}"), width, height, true);
+        choose_secondary(&mut desk, &note);
+        let world = UpdateWorld::install(&mut desk);
+        desk.typed("Draft before the update. ");
+        let original = desk.app.editor.text();
+        system_panel(&mut desk, 5);
+        wait_system(&mut desk);
+
+        // Default is Cancel: Enter on the untouched confirmation does nothing.
+        reach_confirm(&mut desk);
+        assert!(
+            desk.shows("▸ Cancel · do not install this update"),
+            "{}",
+            desk.rows().join("\n")
+        );
+        assert!(desk.shows("Stage this update"));
+        desk.key(KeyCode::Enter);
+        assert_eq!(
+            route(&desk),
+            Route::Panel(crate::app::shell::Panel::Updates)
+        );
+        assert_eq!(world.mutations(), 0);
+
+        // Backup recommended and configured, but none is fresh: refused.
+        reach_confirm(&mut desk);
+        set_backup(&mut desk, true, false);
+        assert!(desk.shows("Backup: none in the last 24 hours"));
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        assert_eq!(route(&desk), Route::UpdateConfirm);
+        assert_eq!(world.mutations(), 0, "staged without a fresh backup");
+        assert!(desk.app.deck.note.contains("no backup of this project"));
+
+        // A backup status that was never read is also refused (fail closed).
+        desk.app.deck.shell.backup.status_ok = false;
+        desk.key(KeyCode::Enter);
+        assert_eq!(world.mutations(), 0, "staged on unknown backup status");
+        wait_backup(&mut desk);
+
+        // Unsaved edits with a conflicting external change are refused.
+        set_backup(&mut desk, true, true);
+        assert!(desk.shows("Backup: fresh"));
+        close_all(&mut desk);
+        desk.typed("Unsaved edit before external conflict. ");
+        fs::write(&note, "External file modification.\n").unwrap();
+        system_panel(&mut desk, 5);
+        wait_system(&mut desk);
+        reach_confirm(&mut desk);
+        set_backup(&mut desk, true, true);
+        desk.app.deck.note.clear();
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        assert_eq!(
+            world.mutations(),
+            0,
+            "staged over unsaved or conflicting work"
+        );
+        assert!(
+            desk.app
+                .deck
+                .note
+                .contains("unsaved buffers or source conflicts"),
+            "{}",
+            desk.app.deck.note
+        );
+        assert_eq!(route(&desk), Route::UpdateConfirm);
+        assert_ne!(desk.app.editor.text(), original);
+    }
+
+    // A clean tree with a fresh backup stages exactly what was reviewed.
+    for (width, height) in SIZES {
+        let (mut desk, note) =
+            secondary_book(&format!("update-stage-{width}"), width, height, true);
+        choose_secondary(&mut desk, &note);
+        let world = UpdateWorld::install(&mut desk);
+        desk.typed("Primary draft kept through staging. ");
+        let original = desk.app.editor.text();
+        let primary = desk.app.view_position(Pane::Primary).unwrap();
+        let secondary = desk.app.view_position(Pane::Secondary).unwrap();
+        system_panel(&mut desk, 5);
+        wait_system(&mut desk);
+        reach_confirm(&mut desk);
+        let reviewed = desk
+            .app
+            .deck
+            .shell
+            .update_flow
+            .review
+            .clone()
+            .unwrap()
+            .review_id;
+        set_backup(&mut desk, true, true);
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert_eq!(world.stages(), [(MEDIA.to_string(), reviewed.clone())]);
+        assert_eq!(world.state(), UpdateState::Staged);
+        // The staged screen reflects what the system read back, not the reply.
+        assert_eq!(
+            route(&desk),
+            Route::UpdateStaged,
+            "{}",
+            desk.rows().join("\n")
+        );
+        assert!(desk.shows("System reports: update staged"));
+        assert!(desk.shows("Staged packages: wros, wros-help"));
+        assert!(desk.shows("▸ Not now · leave the update staged"));
+        assert!(
+            world.count(|r| *r == Request::RecoveryStatus) >= 2,
+            "status was not re-read after staging"
+        );
+        // Nothing restarted and the writing context is untouched.
+        assert_eq!(world.count(|r| matches!(r, Request::Power(_))), 0);
+        assert_eq!(desk.app.editor.text(), original);
+        assert_eq!(desk.app.view_position(Pane::Primary).unwrap(), primary);
+        assert_eq!(desk.app.view_position(Pane::Secondary).unwrap(), secondary);
+        assert!(desk.app.deck.shell.update_flow.review.is_none());
+    }
+}
+
+#[test]
+fn update_backup_not_set_up_does_not_block_but_is_shown_and_no_backup_is_never_called_fresh() {
+    let mut desk = Desk::open(book("update-no-backup", true), 100, 30);
+    let world = UpdateWorld::install(&mut desk);
+    system_panel(&mut desk, 5);
+    wait_system(&mut desk);
+    reach_confirm(&mut desk);
+    set_backup(&mut desk, false, false);
+    assert!(desk.shows("Backup: none is set up"));
+    desk.key(KeyCode::Down);
+    desk.key(KeyCode::Enter);
+    wait_system(&mut desk);
+    assert_eq!(world.stages().len(), 1);
+    assert_eq!(route(&desk), Route::UpdateStaged);
+}
+
+#[test]
+fn a_changed_bundle_returns_to_review_with_an_explanation_and_stages_only_the_new_id() {
+    for (width, height) in SIZES {
+        let mut desk = Desk::open(
+            book(&format!("update-changed-{width}"), true),
+            width,
+            height,
+        );
+        let world = UpdateWorld::install(&mut desk);
+        system_panel(&mut desk, 5);
+        wait_system(&mut desk);
+        reach_confirm(&mut desk);
+        set_backup(&mut desk, true, true);
+        let old = desk.app.deck.shell.update_flow.review.clone().unwrap();
+        // The media is swapped after the writer reviewed it.
+        world.sim.lock().unwrap().bundle_revision += 1;
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert_eq!(world.state(), UpdateState::Idle, "nothing may be staged");
+        assert_eq!(
+            route(&desk),
+            Route::UpdateReview,
+            "{}",
+            desk.rows().join("\n")
+        );
+        assert!(desk.shows("Changed since your last review"));
+        let shown = desk.app.deck.shell.update_flow.review.clone().unwrap();
+        assert_ne!(shown.review_id, old.review_id);
+        assert_eq!(shown.review_id, world.sim.lock().unwrap().review_id());
+        assert!(desk.shows("▸ Back · do not install anything"));
+        // Exactly one stage attempt, with the id the writer had approved.
+        assert_eq!(world.stages(), [(MEDIA.to_string(), old.review_id.clone())]);
+
+        // The writer approves the new list explicitly; only then is it staged.
+        desk.choose("Continue to confirmation");
+        wait_backup(&mut desk);
+        set_backup(&mut desk, true, true);
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert_eq!(world.stages().len(), 2);
+        assert_eq!(world.stages()[1].1, shown.review_id);
+        assert_eq!(world.state(), UpdateState::Staged);
+        assert_eq!(route(&desk), Route::UpdateStaged);
+    }
+}
+
+#[test]
+fn a_failed_stage_of_an_unchanged_update_says_so_and_stays_on_the_confirmation() {
+    let mut desk = Desk::open(book("update-stage-fails", true), 100, 30);
+    let world = UpdateWorld::install(&mut desk);
+    system_panel(&mut desk, 5);
+    wait_system(&mut desk);
+    reach_confirm(&mut desk);
+    set_backup(&mut desk, true, true);
+    world.fail_stage.store(true, Ordering::Relaxed);
+    desk.key(KeyCode::Down);
+    desk.key(KeyCode::Enter);
+    wait_system(&mut desk);
+    assert_eq!(world.state(), UpdateState::Idle);
+    assert_eq!(route(&desk), Route::UpdateConfirm);
+    let result = desk.app.deck.shell.update_flow.last_result.clone().unwrap();
+    assert!(
+        result.contains("the helper could not write its journal"),
+        "{result}"
+    );
+    assert!(result.contains("unchanged"), "{result}");
+    assert!(result.contains("nothing was installed"), "{result}");
+    assert!(desk.app.deck.shell.update_flow.recheck.is_none());
+    // The Cancel row is still the way out, and retrying works once the helper does.
+    world.fail_stage.store(false, Ordering::Relaxed);
+    set_backup(&mut desk, true, true);
+    desk.key(KeyCode::Enter);
+    wait_system(&mut desk);
+    assert_eq!(world.state(), UpdateState::Staged);
+}
+
+#[test]
+fn staged_update_restart_needs_saved_work_and_cancel_rereads_what_the_system_says() {
+    for (width, height) in SIZES {
+        let (mut desk, note) =
+            secondary_book(&format!("update-staged-{width}"), width, height, true);
+        choose_secondary(&mut desk, &note);
+        let world = UpdateWorld::install(&mut desk);
+        desk.typed("Words that must survive the restart request. ");
+        system_panel(&mut desk, 5);
+        wait_system(&mut desk);
+        reach_confirm(&mut desk);
+        set_backup(&mut desk, true, true);
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert_eq!(route(&desk), Route::UpdateStaged);
+
+        // "Not now" is the default and sends nothing; the staged update stays.
+        desk.key(KeyCode::Enter);
+        assert_eq!(
+            route(&desk),
+            Route::Panel(crate::app::shell::Panel::Updates)
+        );
+        assert_eq!(world.state(), UpdateState::Staged);
+        assert_eq!(world.mutations(), 1, "only the stage itself");
+        assert!(desk.shows("An update is staged"));
+
+        // Restart is refused while work is unsaved or conflicting.
+        close_all(&mut desk);
+        desk.typed("Unsaved edit. ");
+        fs::write(&note, "External change while an update is staged.\n").unwrap();
+        system_panel(&mut desk, 5);
+        wait_system(&mut desk);
+        desk.choose("An update is staged");
+        assert_eq!(route(&desk), Route::UpdateStaged);
+        desk.app.deck.note.clear();
+        desk.choose("Restart now to install the staged update");
+        assert_eq!(world.count(|r| matches!(r, Request::Power(_))), 0);
+        assert!(
+            desk.app
+                .deck
+                .note
+                .contains("unsaved buffers or source conflicts"),
+            "{}",
+            desk.app.deck.note
+        );
+    }
+
+    for (width, height) in SIZES {
+        let (mut desk, note) =
+            secondary_book(&format!("update-restart-{width}"), width, height, true);
+        choose_secondary(&mut desk, &note);
+        let world = UpdateWorld::install(&mut desk);
+        desk.typed("Saved words before restart. ");
+        system_panel(&mut desk, 5);
+        wait_system(&mut desk);
+        reach_confirm(&mut desk);
+        set_backup(&mut desk, true, true);
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert_eq!(route(&desk), Route::UpdateStaged);
+        desk.choose("Restart now to install the staged update");
+        wait_system(&mut desk);
+        assert_eq!(
+            world.count(|r| *r == Request::Power(writingdeck_sys::PowerAction::Restart)),
+            1
+        );
+        assert_eq!(desk.app.project.dirty_count(), 0, "work was saved first");
+
+        // A restart is only offered while the system confirms a staged update.
+        world.sim.lock().unwrap().recovery.update_state = UpdateState::Idle;
+        desk.app.refresh_recovery();
+        wait_system(&mut desk);
+        desk.choose("Restart now to install the staged update");
+        assert_eq!(
+            world.count(|r| matches!(r, Request::Power(_))),
+            1,
+            "restart requested without a confirmed staged update"
+        );
+    }
+}
+
+#[test]
+fn cancelling_a_staged_update_is_never_assumed_and_follows_the_readback() {
+    for (width, height) in SIZES {
+        let mut desk = Desk::open(book(&format!("update-cancel-{width}"), true), width, height);
+        let world = UpdateWorld::install(&mut desk);
+        system_panel(&mut desk, 5);
+        wait_system(&mut desk);
+        reach_confirm(&mut desk);
+        set_backup(&mut desk, true, true);
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert_eq!(route(&desk), Route::UpdateStaged);
+
+        // The helper claims success but nothing changed: the screens must say so.
+        world.cancel_is_noop.store(true, Ordering::Relaxed);
+        desk.choose("Cancel staged update");
+        wait_system(&mut desk);
+        assert_eq!(
+            desk.app
+                .deck
+                .shell
+                .recovery
+                .as_ref()
+                .map(|r| r.update_state),
+            Some(UpdateState::Staged),
+            "cancel optimistically cleared the cached status"
+        );
+        assert_eq!(
+            route(&desk),
+            Route::Panel(crate::app::shell::Panel::Updates)
+        );
+        assert!(desk.shows("An update is staged"));
+        assert!(desk.shows("Update state: staged"));
+
+        // A real cancel returns the system to idle and the screens follow.
+        world.cancel_is_noop.store(false, Ordering::Relaxed);
+        desk.choose("An update is staged");
+        desk.choose("Cancel staged update");
+        wait_system(&mut desk);
+        assert_eq!(world.state(), UpdateState::Idle);
+        assert_eq!(
+            desk.app
+                .deck
+                .shell
+                .recovery
+                .as_ref()
+                .map(|r| r.update_state),
+            Some(UpdateState::Idle)
+        );
+        assert!(!desk.shows("An update is staged"));
+        assert!(desk.shows("Last update result: SIMULATED: staged update cancelled"));
+        assert!(desk.app.deck.shell.update_flow.staged.is_none());
+    }
+}
+
+#[test]
+fn recovery_shows_update_state_and_repair_sits_behind_a_default_cancel_confirmation() {
+    for (width, height) in SIZES {
+        let (mut desk, note) =
+            secondary_book(&format!("update-repair-{width}"), width, height, true);
+        choose_secondary(&mut desk, &note);
+        let world = UpdateWorld::install(&mut desk);
+        {
+            let mut sim = world.sim.lock().unwrap();
+            sim.recovery.interrupted_dpkg = true;
+            sim.recovery.unconfigured_packages = vec!["grimoire".into()];
+            sim.recovery.update_state = UpdateState::Interrupted;
+        }
+        desk.typed("Writing kept through repair. ");
+        let original = desk.app.editor.text();
+        system_panel(&mut desk, 6);
+        wait_system(&mut desk);
+        desk.choose("Recovery status, repair and staged update");
+        wait_system(&mut desk);
+        assert_eq!(route(&desk), Route::RecoveryView);
+        assert!(desk.shows("Update state: interrupted"));
+        assert!(desk.shows("Interrupted dpkg packages: grimoire"));
+        assert!(desk.shows("ext4"));
+        assert!(!desk.shows("not qualified"));
+
+        // Repair: confirmation first, Cancel by default, nothing sent on Enter.
+        desk.choose("Repair interrupted update or packages");
+        assert_eq!(route(&desk), Route::RepairConfirm);
+        assert!(desk.shows("▸ Cancel · do not repair"));
+        desk.key(KeyCode::Enter);
+        assert_eq!(route(&desk), Route::RecoveryView);
+        assert_eq!(world.mutations(), 0);
+
+        // A repair the helper only claims is shown as still needed.
+        world.repair_is_noop.store(true, Ordering::Relaxed);
+        desk.choose("Repair interrupted update or packages");
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert_eq!(world.count(|r| *r == Request::RecoverUpdates), 1);
+        assert_eq!(route(&desk), Route::RecoveryView);
+        assert!(
+            desk.shows("Interrupted dpkg packages: grimoire"),
+            "repair optimistically cleared the cached status:\n{}",
+            desk.rows().join("\n")
+        );
+
+        // A real repair is followed by a fresh read of the system.
+        world.repair_is_noop.store(false, Ordering::Relaxed);
+        desk.choose("Repair interrupted update or packages");
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert_eq!(world.count(|r| *r == Request::RecoverUpdates), 2);
+        assert!(!desk.shows("Interrupted dpkg packages"));
+        assert!(desk.shows("Update state: recovered"));
+        assert!(desk.shows("Last result: SIMULATED: repair finished"));
+        for _ in 0..4 {
+            desk.key(KeyCode::Esc);
+        }
+        assert_eq!(desk.app.overlay, Overlay::None);
+        assert_eq!(desk.app.editor.text(), original);
+    }
+}
+
+#[test]
+fn recovery_during_apply_offers_no_cancel_or_repair() {
+    let mut desk = Desk::open(book("update-applying", true), 100, 30);
+    let world = UpdateWorld::install(&mut desk);
+    world.sim.lock().unwrap().recovery.update_state = UpdateState::Applying;
+    system_panel(&mut desk, 6);
+    wait_system(&mut desk);
+    desk.choose("Recovery status, repair and staged update");
+    wait_system(&mut desk);
+    assert!(desk.shows("Update state: applying"));
+    assert!(desk.shows("cannot be cancelled"));
+    assert!(!desk.shows("Cancel staged update"));
+    assert!(!desk.shows("Repair"));
+    // Even walking every row sends no mutating request.
+    for _ in 0..12 {
+        desk.key(KeyCode::Down);
+    }
+    assert_eq!(world.mutations(), 0);
+}
+
+#[test]
+fn update_failures_say_what_the_writer_can_do_next() {
+    let mut desk = Desk::open(book("update-errors", true), 100, 30);
+    let world = UpdateWorld::install(&mut desk);
+    system_panel(&mut desk, 5);
+    wait_system(&mut desk);
+
+    // No media inserted.
+    world.sim.lock().unwrap().media = None;
+    desk.choose("Find update media");
+    wait_system(&mut desk);
+    assert_eq!(
+        route(&desk),
+        Route::Panel(crate::app::shell::Panel::Updates)
+    );
+    assert!(desk.app.deck.note.contains("No update media found"));
+    assert!(desk.app.deck.note.contains("WROS-UPDATE"));
+    assert!(desk.shows("Last update result: No update media found"));
+
+    // A bundle the helper cannot authenticate.
+    struct Failing(Arc<Mutex<Vec<Request>>>);
+    impl Backend for Failing {
+        fn request(&mut self, request: Request) -> anyhow::Result<Reply> {
+            self.0.lock().unwrap().push(request.clone());
+            match request {
+                Request::ReviewUpdateBundle { .. } => {
+                    anyhow::bail!("the signature does not match a pinned WrOS key")
+                }
+                Request::FindUpdateMedia => anyhow::bail!("pkexec: Not authorized"),
+                other => Simulated::laptop().request(other),
+            }
+        }
+    }
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    desk.app
+        .deck
+        .use_test_backend(Box::new(Failing(seen.clone())));
+    review_by_path(&mut desk, MEDIA);
+    assert_eq!(
+        route(&desk),
+        Route::UpdateBundleForm,
+        "stays to correct the path"
+    );
+    let note = desk.app.deck.note.clone();
+    assert!(note.contains("Update not reviewed"), "{note}");
+    assert!(note.contains("signature does not match"), "{note}");
+    assert!(note.contains("Nothing was changed"), "{note}");
+    assert!(note.contains("try again"), "{note}");
+    desk.key(KeyCode::Esc);
+    desk.key(KeyCode::Home);
+    desk.choose("Find update media");
+    wait_system(&mut desk);
+    let note = desk.app.deck.note.clone();
+    assert!(note.contains("Not authorized"), "{note}");
+    assert!(note.contains("Nothing was mounted"), "{note}");
+    assert!(note.contains("enter a folder path"), "{note}");
+    assert!(
+        seen.lock()
+            .unwrap()
+            .iter()
+            .all(|r| !matches!(r, Request::StageUpdates { .. } | Request::Power(_)))
+    );
+}
+
+#[test]
+fn updates_and_recovery_without_a_service_do_not_claim_anything() {
+    let mut desk = Desk::open(book("update-no-service", true), 80, 24);
+    // No backend at all (as in a test session): opening the panels is harmless.
+    system_panel(&mut desk, 5);
+    assert!(!desk.app.deck.busy);
+    assert!(desk.app.deck.shell.recovery.is_none());
+    assert!(!desk.shows("An update is staged"));
+    desk.choose("Review a signed update bundle by path");
+    desk.app.paste(MEDIA);
+    desk.key(KeyCode::Enter);
+    desk.key(KeyCode::Enter);
+    assert!(!desk.app.deck.busy);
+    assert_eq!(route(&desk), Route::UpdateBundleForm);
+    assert!(desk.app.deck.shell.update_flow.review.is_none());
 }
 
 #[test]

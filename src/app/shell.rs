@@ -6,6 +6,9 @@ use serde::{Deserialize, Serialize};
 use wros_shell::{Navigation, Notices, Preferences};
 use zeroize::Zeroizing;
 
+mod update_flow;
+pub use update_flow::UpdateFlow;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Category {
     Writing,
@@ -78,7 +81,11 @@ pub enum Route {
     BackupForm,
     UpdatesView,
     UpdateBundleForm,
+    UpdateReview,
+    UpdateConfirm,
+    UpdateStaged,
     RecoveryView,
+    RepairConfirm,
     StorageDevicesView,
     InstallerConfirm,
 }
@@ -153,13 +160,14 @@ pub struct UpdateBundleForm {
 impl UpdateBundleForm {
     pub fn rows(&self) -> Vec<String> {
         vec![
-            format!("Signed update bundle path: {}", self.bundle_dir),
-            "Cancel and return without staging updates".into(),
-            "Verify signatures and contents (inspection only)".into(),
-            "Requires Debian gpgv verification of InRelease (or Release + Release.gpg),".into(),
-            "authenticated Packages SHA-256, and matching SHA-256 for every .deb archive.".into(),
-            "Create an encrypted Restic backup first; ext4 has no automatic snapshot rollback."
+            format!("Update folder on your media: {}", self.bundle_dir),
+            "Cancel and return without reviewing".into(),
+            "Review update · checks the signature, installs nothing".into(),
+            "Use a folder under /run/wros-update/media, /media, /run/media or /mnt.".into(),
+            "The review verifies the WrOS signature, the package list and every .deb checksum."
                 .into(),
+            "Nothing is installed until you confirm on a later screen.".into(),
+            "Create an encrypted backup first; ext4 has no automatic snapshot rollback.".into(),
         ]
     }
 }
@@ -197,6 +205,7 @@ pub struct Shell {
     pub backups: Option<Vec<writingdeck_sys::ResticSnapshot>>,
     pub updates: Option<writingdeck_sys::UpdateInfo>,
     pub update_form: Option<UpdateBundleForm>,
+    pub update_flow: UpdateFlow,
     pub recovery: Option<writingdeck_sys::RecoveryInfo>,
     pub storage_devices: Option<Vec<writingdeck_sys::StorageDevice>>,
 }
@@ -234,6 +243,7 @@ impl Shell {
             backups: None,
             updates: None,
             update_form: None,
+            update_flow: UpdateFlow::default(),
             recovery: None,
             storage_devices: None,
         };
@@ -301,6 +311,15 @@ enum Choice {
     SavedWifiSelect(writingdeck_sys::SavedWifi),
     SavedWifiResolve(SavedWifiAction),
     UpdateBundleOpen,
+    UpdateFindMedia,
+    UpdateContinue,
+    UpdateStage,
+    UpdateAbandon,
+    UpdateStagedOpen,
+    UpdateRestart,
+    UpdateCancelStaged,
+    RepairOpen,
+    RepairRun,
     Open(Route),
     Action(Action),
     System(usize),
@@ -528,32 +547,8 @@ fn entries(app: &App) -> Vec<Entry> {
                     Entry::new("Choose timezone", Choice::TimezoneOpen),
                     Entry::info("Manual clock / network time controls are not available yet"),
                 ]),
-                Panel::Updates => rows.extend([
-                    Entry::new(
-                        "Preview cached package plan",
-                        Choice::View(Route::UpdatesView, writingdeck_sys::Request::CheckUpdates),
-                    ),
-                    Entry::new(
-                        "Inspect signed offline update bundle",
-                        Choice::UpdateBundleOpen,
-                    ),
-                    Entry::info("Update installation is unavailable pending an offline transaction and recovery service."),
-                    Entry::new(
-                        "Inspect filesystem and dpkg recovery",
-                        Choice::View(Route::RecoveryView, writingdeck_sys::Request::RecoveryStatus),
-                    ),
-                    Entry::info(
-                        "Signed bundles require Debian GPG verification (InRelease + Packages + .deb SHA-256).",
-                    ),
-                ]),
-                Panel::Recovery => rows.extend([
-                    Entry::new("Recovery availability", Choice::Open(Route::RecoveryView)),
-                    Entry::new(
-                        "Check filesystem and dpkg recovery status",
-                        Choice::View(Route::RecoveryView, writingdeck_sys::Request::RecoveryStatus),
-                    ),
-                    Entry::info("Native package repair is unavailable; use Debian rescue media."),
-                ]),
+                Panel::Updates => rows.extend(update_flow::updates_panel(app)),
+                Panel::Recovery => rows.extend(update_flow::recovery_panel()),
             }
             rows
         }
@@ -717,11 +712,11 @@ fn entries(app: &App) -> Vec<Entry> {
                     Choice::Read(writingdeck_sys::Request::CheckUpdates),
                 ),
                 Entry::new(
-                    "Inspect signed offline update bundle",
+                    "Review a signed update bundle by path",
                     Choice::UpdateBundleOpen,
                 ),
                 Entry::new(
-                    "Inspect filesystem and dpkg recovery",
+                    "Recovery status, repair and staged update",
                     Choice::View(
                         Route::RecoveryView,
                         writingdeck_sys::Request::RecoveryStatus,
@@ -756,6 +751,10 @@ fn entries(app: &App) -> Vec<Entry> {
             .as_ref()
             .map(|form| form.rows().into_iter().map(Entry::info).collect())
             .unwrap_or_default(),
+        Route::UpdateReview => update_flow::review_rows(app),
+        Route::UpdateConfirm => update_flow::confirm_rows(app),
+        Route::UpdateStaged => update_flow::staged_rows(app),
+        Route::RepairConfirm => update_flow::repair_rows(),
         Route::GoogleAccount => {
             let backup = &app.deck.shell.backup;
             let mut rows = vec![Entry::info(if backup.status.google_connected {
@@ -968,54 +967,7 @@ fn entries(app: &App) -> Vec<Entry> {
             .as_ref()
             .map(|form| form.rows().into_iter().map(Entry::info).collect())
             .unwrap_or_default(),
-        Route::RecoveryView => {
-            let mut rows = vec![
-                Entry::new(
-                    "Check filesystem and dpkg recovery status",
-                    Choice::Read(writingdeck_sys::Request::RecoveryStatus),
-                ),
-                Entry::info("Native package repair is unavailable; use Debian rescue media."),
-                Entry::new(
-                    "Encrypted project backups and restore",
-                    Choice::Open(Route::Backups),
-                ),
-            ];
-            if let Some(info) = &app.deck.shell.recovery {
-                rows.push(Entry::info(&info.status));
-                rows.push(Entry::info(format!(
-                    "Root filesystem: {} · Device: {} · Separate /home: {}",
-                    info.root_filesystem,
-                    info.root_device,
-                    if info.separate_home { "yes" } else { "no" }
-                )));
-                rows.push(Entry::info(format!(
-                    "Automatic filesystem snapshot rollback: {}",
-                    if info.rollback_capable {
-                        "available"
-                    } else {
-                        "unavailable"
-                    }
-                )));
-                rows.push(Entry::info(&info.rollback_strategy));
-                if info.interrupted_dpkg {
-                    rows.push(Entry::info(format!(
-                        "Interrupted dpkg packages: {}",
-                        info.unconfigured_packages.join(", ")
-                    )));
-                }
-                if info.staged_update {
-                    rows.push(Entry::info(format!(
-                        "Staged offline update: {}",
-                        info.staged_packages.join(", ")
-                    )));
-                    rows.push(Entry::info("Update installation is unavailable pending an offline transaction and recovery service."));
-                }
-            } else {
-                rows.push(Entry::info("Recovery boot and restore are not qualified."));
-                rows.push(Entry::info("Use the documented maintenance media."));
-            }
-            rows
-        }
+        Route::RecoveryView => update_flow::recovery_rows(app),
         Route::Timezones => {
             let mut rows = vec![Entry::info(format!(
                 "Filter: {} · type a city or region",
@@ -1234,8 +1186,9 @@ impl App {
                     self.deck.shell.notices.push(&self.deck.note);
                     return;
                 }
+                self.deck.shell.update_flow.last_result = None;
                 self.deck
-                    .request(writingdeck_sys::Request::VerifyUpdateBundle { bundle_dir });
+                    .request(writingdeck_sys::Request::ReviewUpdateBundle { bundle_dir });
             }
             _ => {}
         }
@@ -1333,6 +1286,12 @@ impl App {
         self.deck.shell.wifi_form = None;
         self.deck.shell.wifi_saved_choice = None;
         self.deck.shell.update_form = None;
+        let flow = &mut self.deck.shell.update_flow;
+        flow.review = None;
+        flow.dir = None;
+        flow.recheck = None;
+        flow.stage_error = None;
+        flow.changed = None;
         self.deck.shell.nav.reset(Route::Settings);
         self.overlay = Overlay::Deck(writingdeck::Page::Settings);
         self.observe_deck(tutorial::Event::SystemOpened);
@@ -1387,6 +1346,13 @@ impl App {
                 self.deck.shell.wifi_form = None;
                 self.deck.shell.wifi_saved_choice = None;
                 self.deck.shell.update_form = None;
+                if nav.current() == Route::UpdateReview {
+                    // Backing out of a review drops it; it must be authenticated again.
+                    let flow = &mut self.deck.shell.update_flow;
+                    flow.review = None;
+                    flow.dir = None;
+                    flow.changed = None;
+                }
                 if !nav.back() {
                     self.deck.shell.save();
                     self.overlay = self.deck.shell.origin.take().unwrap_or(Overlay::None);
@@ -1484,6 +1450,15 @@ impl App {
                     | Choice::SavedWifiSelect(_)
                     | Choice::SavedWifiResolve(_)
                     | Choice::UpdateBundleOpen => {}
+                    Choice::UpdateFindMedia => self.update_find_media(),
+                    Choice::UpdateContinue => self.update_continue(),
+                    Choice::UpdateStage => self.update_stage(),
+                    Choice::UpdateAbandon => self.update_abandon(),
+                    Choice::UpdateStagedOpen => self.update_open_staged(),
+                    Choice::UpdateRestart => self.update_restart(),
+                    Choice::UpdateCancelStaged => self.update_cancel_staged(),
+                    Choice::RepairOpen => self.repair_open(),
+                    Choice::RepairRun => self.repair_run(),
                     Choice::Lock => self.request_console_lock(),
                     Choice::InstallerOpen if !self.deck.busy => {
                         self.deck.shell.nav.open(Route::InstallerConfirm);
@@ -1542,7 +1517,6 @@ impl App {
                         let availability = match route {
                             Route::GoogleDrive => Some("Drive browsing is not configured."),
                             Route::SyncPanel => Some("Synchronization is not configured."),
-                            Route::RecoveryView => Some("Recovery is not qualified."),
                             _ => None,
                         };
                         if let Some(message) = availability {
@@ -1552,7 +1526,13 @@ impl App {
                         if route == Route::WarmScreen && !self.deck.busy {
                             self.deck.request(writingdeck_sys::Request::DisplayStatus);
                         }
-                        if matches!(route, Route::Panel(_))
+                        if matches!(route, Route::Panel(Panel::Updates | Panel::Recovery)) {
+                            // These panels show what the update helper reports,
+                            // never a cached guess.
+                            if !self.deck.busy {
+                                self.refresh_recovery();
+                            }
+                        } else if matches!(route, Route::Panel(_))
                             && self.deck.snapshot.is_none()
                             && !self.deck.busy
                         {
@@ -1691,8 +1671,12 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
             .map(|form| format!("WrOS · {}", form.title()))
             .unwrap_or_else(|| "WrOS · Backups".into()),
         Route::UpdatesView => "WrOS · Settings › Cached package plan".into(),
-        Route::UpdateBundleForm => "WrOS · Inspect signed offline update".into(),
+        Route::UpdateBundleForm => "WrOS · Review signed offline update".into(),
+        Route::UpdateReview => "WrOS · Review signed update".into(),
+        Route::UpdateConfirm => "WrOS · Stage this update?".into(),
+        Route::UpdateStaged => "WrOS · Update staged".into(),
         Route::RecoveryView => "WrOS · Settings › Recovery".into(),
+        Route::RepairConfirm => "WrOS · Repair interrupted update?".into(),
         Route::StorageDevicesView => "WrOS · Settings › Mounted filesystems".into(),
         Route::InstallerConfirm => "WrOS · Start encrypted live installer?".into(),
     };

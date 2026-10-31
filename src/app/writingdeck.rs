@@ -583,6 +583,7 @@ impl App {
                     self.deck.snapshot = Some(s);
                 }
                 Ok(Reply::Message(message)) => {
+                    self.on_update_message(&request, &message);
                     self.deck.note = message;
                     if matches!(request, Request::KeyboardConfirm(_)) {
                         self.observe_deck(tutorial::Event::LayoutConfirmed);
@@ -638,27 +639,15 @@ impl App {
                             network.in_use = network.ssid == profile.name;
                         }
                     }
-                    if matches!(request, Request::VerifyUpdateBundle { .. }) {
-                        self.deck.shell.update_form = None;
-                        if matches!(self.overlay, Overlay::Deck(Page::Settings))
-                            && self.deck.shell.nav.current()
-                                == super::shell::Route::UpdateBundleForm
-                        {
-                            self.deck.shell.nav.back();
-                        }
-                    }
-                    if matches!(request, Request::CancelStagedUpdates)
-                        && let Some(recovery) = &mut self.deck.shell.recovery
-                    {
-                        recovery.staged_update = false;
-                        recovery.staged_packages.clear();
-                    }
-                    if matches!(request, Request::RecoverUpdates)
-                        && let Some(recovery) = &mut self.deck.shell.recovery
-                    {
-                        recovery.interrupted_dpkg = false;
-                        recovery.unconfigured_packages.clear();
-                    }
+                }
+                Ok(Reply::UpdateReview(review)) => {
+                    self.on_update_review(&request, review);
+                }
+                Ok(Reply::UpdateStaged(staged)) => {
+                    self.on_update_staged(staged);
+                }
+                Ok(Reply::UpdateMedia(media)) => {
+                    self.on_update_media(media);
                 }
                 Ok(Reply::WifiScan(networks)) => {
                     self.deck.note = format!(
@@ -687,7 +676,15 @@ impl App {
                     self.deck.shell.updates = Some(plan);
                 }
                 Ok(Reply::Recovery(info)) => {
-                    self.deck.note = info.status.clone();
+                    // A recent helper result stays on screen; the status read
+                    // back after it is shown in the Recovery and Updates views.
+                    self.deck.note = self
+                        .deck
+                        .shell
+                        .update_flow
+                        .last_result
+                        .clone()
+                        .unwrap_or_else(|| info.status.clone());
                     self.deck.shell.recovery = Some(info);
                 }
                 Ok(Reply::GoogleStatus(status)) => {
@@ -776,7 +773,9 @@ impl App {
                     {
                         form.password.clear();
                     }
-                    self.deck.note = format!("Unavailable: {e}");
+                    if !self.on_update_error(&request, &e) {
+                        self.deck.note = format!("Unavailable: {e}");
+                    }
                     if matches!(self.overlay, Overlay::Deck(Page::KeyboardWait)) {
                         self.overlay = Overlay::Deck(Page::Keyboard { sel: 0 });
                     }
