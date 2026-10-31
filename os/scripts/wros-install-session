@@ -1142,6 +1142,72 @@ def prepare_media_and_backend(work_dir, baseline):
             'installer chroot boot arguments were not filtered')
 
 
+BACKEND_EXIT_GRACE_SECONDS = 120.0
+FRONTEND_EXIT_GRACE_SECONDS = 10.0
+SUPERVISE_POLL_SECONDS = 0.05
+COMPLETED_BACKEND_EXIT_CODES = (0, 11)
+
+
+def supervise_installer(
+    frontend,
+    backend,
+    parent_exited,
+    baseline,
+    di_root=DI,
+    grace=None,
+    frontend_grace=None,
+    clock=time.monotonic,
+    sleep=time.sleep,
+    verify=None,
+):
+    """Wait for the installer to finish and judge it; return (outcome, reason, proof).
+
+    The cdebconf frontend exits 1 as soon as the backend disconnects, which on
+    Debian happens before finish-install has run the target-proof hooks and the
+    backend has exited. A frontend exit is therefore not a verdict: the backend
+    is given a bounded interval to exit, then judged. A completed installation
+    needs the fresh-nonce, selected-disk proof and a backend exit of 0 or 11.
+    """
+    grace = BACKEND_EXIT_GRACE_SECONDS if grace is None else grace
+    frontend_grace = FRONTEND_EXIT_GRACE_SECONDS if frontend_grace is None else frontend_grace
+    verify = verify_completion_proof if verify is None else verify
+    backend_deadline = frontend_deadline = None
+    cancel_checked = False
+    while True:
+        if parent_exited():
+            return 'interrupted', 'live writing session exited during installation', None
+        frontend_code, backend_code = frontend.poll(), backend.poll()
+        if frontend_code is not None and backend_code is not None:
+            break
+        now = clock()
+        if frontend_code is not None:
+            if frontend_code == 2 and not cancel_checked:
+                cancel_checked = True
+                if verify(di_root, baseline) is None:
+                    return 'cancelled', 'installer cancelled by user; no completed target verified', None
+            if backend_deadline is None:
+                backend_deadline = now + grace
+            if now >= backend_deadline:
+                return 'failed', (f'installer backend did not exit within {grace:g} s after the '
+                                  'frontend ended; no completed target accepted'), None
+        elif backend_code is not None:
+            if frontend_deadline is None:
+                frontend_deadline = now + frontend_grace
+            if now >= frontend_deadline:
+                break
+        sleep(SUPERVISE_POLL_SECONDS)
+    backend_code, frontend_code = backend.poll(), frontend.poll()
+    proof = verify(di_root, baseline)
+    if proof is not None:
+        if backend_code in COMPLETED_BACKEND_EXIT_CODES:
+            return 'completed', 'encrypted target installation verified', proof
+        return 'failed', (f'backend exited with code {backend_code}, not through the maintained '
+                          'finish path; no completed target accepted'), None
+    if frontend_code == 2:
+        return 'cancelled', 'installer cancelled by user; no completed target verified', None
+    return 'failed', 'installer backend or frontend stopped without a verified target', None
+
+
 def worker(uid, parent, started):
     secure_process()
     uid, parent = int(uid), int(parent)
@@ -1225,28 +1291,15 @@ def worker(uid, parent, started):
                 cwd='/',
             )
             os.close(fd)
-            interrupted_by_parent = False
-            while frontend.poll() is None and backend.poll() is None:
-                if select.select([parent_fd], [], [], 0)[0]:
-                    interrupted_by_parent = True
-                    break
-                time.sleep(0.05)
-            if interrupted_by_parent:
-                outcome = 'interrupted'
-                reason = 'live writing session exited during installation'
-            else:
-                proof = verify_completion_proof(DI, baseline)
-                if proof is not None:
-                    code = backend.wait(timeout=5)
-                    require(code in (0, 11), 'backend did not exit through maintained finish path')
-                    outcome = 'completed'
-                    reason = 'encrypted target installation verified'
-                elif frontend.poll() == 2:
-                    outcome = 'cancelled'
-                    reason = 'installer cancelled by user; no completed target verified'
-                else:
-                    outcome = 'failed'
-                    reason = 'installer backend or frontend stopped without a verified target'
+            outcome, reason, proof = supervise_installer(
+                frontend,
+                backend,
+                lambda: bool(select.select([parent_fd], [], [], 0)[0]),
+                baseline,
+            )
+    except Exception as exc:
+        outcome, reason, proof = 'failed', f'installer stopped before completion: {exc}', None
+        print(f'WrOS installer worker stopped: {exc}', file=sys.stderr)
     finally:
         os.close(parent_fd)
         for process in (backend, frontend):

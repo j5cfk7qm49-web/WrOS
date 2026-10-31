@@ -773,5 +773,194 @@ class PreflightTests(unittest.TestCase):
         mounted.assert_not_called()
 
 
+class FakeClock:
+    def __init__(self):
+        self.now = 0.0
+
+    def __call__(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.now += seconds
+
+
+class FakeProcess:
+    """Exits with `code` once the fake clock reaches `exit_at` (never when None)."""
+
+    def __init__(self, clock, exit_at, code):
+        self.clock, self.exit_at, self.code = clock, exit_at, code
+
+    @property
+    def returncode(self):
+        return self.poll()
+
+    def poll(self):
+        if self.exit_at is not None and self.clock.now >= self.exit_at:
+            return self.code
+        return None
+
+
+class EndOfInstallHandshakeTests(unittest.TestCase):
+    PROOF = {'passed': True, 'session_nonce': 'ab' * 16}
+
+    def judge(self, frontend_exit, backend_exit, proof_when_backend_done=True, parent_exits_at=None,
+              grace=None, frontend_grace=None, always_proof=False, verify=None):
+        clock = FakeClock()
+        frontend = FakeProcess(clock, *frontend_exit)
+        backend = FakeProcess(clock, *backend_exit)
+        verified = []
+
+        def default_verify(di_root, baseline):
+            verified.append(clock.now)
+            if always_proof or (proof_when_backend_done and backend.poll() is not None):
+                return dict(self.PROOF)
+            return None
+
+        verdict = supervisor.supervise_installer(
+            frontend, backend,
+            lambda: parent_exits_at is not None and clock.now >= parent_exits_at,
+            {'session_nonce': 'ab' * 16},
+            di_root=Path('/nonexistent'),
+            grace=grace, frontend_grace=frontend_grace,
+            clock=clock, sleep=clock.sleep,
+            verify=verify or default_verify,
+        )
+        return verdict, verified, clock
+
+    def test_default_grace_is_the_documented_configurable_constant(self):
+        self.assertEqual(supervisor.BACKEND_EXIT_GRACE_SECONDS, 120.0)
+        self.assertEqual(supervisor.COMPLETED_BACKEND_EXIT_CODES, (0, 11))
+
+    def test_frontend_disconnect_exit_before_a_slow_backend_finish_is_still_completed(self):
+        (outcome, reason, proof), verified, clock = self.judge((1.0, 1), (90.0, 0))
+        self.assertEqual((outcome, proof), ('completed', self.PROOF))
+        self.assertEqual(reason, 'encrypted target installation verified')
+        # The proof is only judged after the backend (and its finish hooks) ended.
+        self.assertTrue(verified and min(verified) >= 90.0)
+        self.assertGreaterEqual(clock.now, 90.0)
+
+    def test_backend_exit_11_and_0_complete_but_other_exits_do_not(self):
+        for code, outcome in ((0, 'completed'), (11, 'completed'), (1, 'failed'), (2, 'failed'),
+                              (10, 'failed'), (-9, 'failed')):
+            with self.subTest(code=code):
+                (got, reason, proof), _, _ = self.judge((1.0, 1), (5.0, code))
+                self.assertEqual(got, outcome)
+                self.assertEqual(proof is not None, outcome == 'completed')
+                if outcome == 'failed':
+                    self.assertIn(f'code {code}', reason)
+
+    def test_backend_that_never_exits_times_out_even_with_a_target_proof(self):
+        (outcome, reason, proof), verified, clock = self.judge((1.0, 1), (None, None), always_proof=True)
+        self.assertEqual((outcome, proof), ('failed', None))
+        self.assertIn('did not exit within 120 s', reason)
+        self.assertEqual(verified, [])
+        self.assertAlmostEqual(clock.now, 1.0 + 120.0, delta=0.2)
+        (outcome, reason, _), _, clock = self.judge((1.0, 1), (None, None), grace=7.5)
+        self.assertEqual(outcome, 'failed')
+        self.assertIn('7.5 s', reason)
+        self.assertLess(clock.now, 10)
+
+    def test_backend_finishing_without_a_target_is_failed_unless_the_user_cancelled(self):
+        (outcome, _, proof), _, _ = self.judge((1.0, 1), (4.0, 0), proof_when_backend_done=False)
+        self.assertEqual((outcome, proof), ('failed', None))
+        (outcome, reason, proof), _, _ = self.judge((1.0, 2), (4.0, 0), proof_when_backend_done=False)
+        self.assertEqual((outcome, proof), ('cancelled', None))
+        self.assertIn('cancelled', reason)
+
+    def test_user_cancel_does_not_wait_for_the_backend_grace(self):
+        (outcome, _, proof), _, clock = self.judge((3.0, 2), (None, None), proof_when_backend_done=False)
+        self.assertEqual((outcome, proof), ('cancelled', None))
+        self.assertLess(clock.now, 4)
+
+    def test_cancel_code_with_a_finished_target_still_waits_for_the_backend_exit(self):
+        (outcome, _, proof), _, clock = self.judge((3.0, 2), (40.0, 11), always_proof=True)
+        self.assertEqual(outcome, 'completed')
+        self.assertGreaterEqual(clock.now, 40.0)
+
+    def test_backend_finishing_first_gives_the_frontend_a_short_bounded_exit_interval(self):
+        (outcome, _, _), _, clock = self.judge((3.0, 1), (1.0, 0))
+        self.assertEqual(outcome, 'completed')
+        self.assertGreaterEqual(clock.now, 3.0)
+        (outcome, _, _), _, clock = self.judge((None, None), (1.0, 11), frontend_grace=4.0)
+        self.assertEqual(outcome, 'completed')
+        self.assertLess(clock.now, 7)
+        (outcome, _, _), _, _ = self.judge((None, None), (1.0, 1), frontend_grace=4.0)
+        self.assertEqual(outcome, 'failed')
+
+    def test_writing_session_exit_interrupts_before_during_and_after_the_grace_wait(self):
+        for exits_at in (0.0, 2.0, 60.0):
+            with self.subTest(exits_at=exits_at):
+                (outcome, reason, proof), _, _ = self.judge((1.0, 1), (None, None), parent_exits_at=exits_at,
+                                                           always_proof=True)
+                self.assertEqual((outcome, proof), ('interrupted', None))
+                self.assertIn('live writing session exited', reason)
+
+    def test_proof_verification_failures_propagate_instead_of_completing(self):
+        def stale(*_):
+            raise ValueError('stale installation completion proof')
+        with self.assertRaisesRegex(ValueError, 'stale installation'):
+            self.judge((1.0, 1), (2.0, 0), verify=stale)
+
+    def completion_files(self, root, proof):
+        (root / 'wros-target-proof').write_text(json.dumps(proof))
+        (root / 'wros-target-proof').chmod(0o600)
+        (root / 'wros-target-finished').write_text('completed\n')
+
+    def real_proof(self, **changes):
+        proof = {
+            'passed': True, 'root_locked': True, 'native_authentication_preserved': True,
+            'live_account_absent': True,
+            'encrypted_root_chain': {'format': 'LUKS2', 'partition': 'vda2', 'root': 'dm-1', 'crypt': 'dm-0'},
+            'session_nonce': 'ab' * 16,
+            'binary_sha256': {name: 'c' * 64 for name in ('grimoire', 'wros-greeter', 'wros-installer')},
+            'boot_payload_checked': True,
+        }
+        return proof | changes
+
+    def run_real_verification(self, proof, disk_ok=True):
+        directory = tempfile.TemporaryDirectory(prefix='wros-inst-proof-')
+        self.addCleanup(directory.cleanup)
+        root = Path(directory.name)
+        self.completion_files(root, proof)
+        real_lstat = Path.lstat
+
+        def as_root(path):
+            info = real_lstat(path)
+            values = list(info)
+            values[4] = 0
+            return os.stat_result(values)
+
+        selected = []
+
+        def writable(block, baseline):
+            selected.append(block)
+            return disk_ok
+
+        with mock.patch.object(supervisor.Path, 'lstat', as_root), \
+             mock.patch.object(supervisor, 'digest', return_value='c' * 64), \
+             mock.patch.object(supervisor, 'is_writable_target_block', writable):
+            verdict = self.judge_with_real_verify(root)
+        return verdict, selected
+
+    def judge_with_real_verify(self, root):
+        clock = FakeClock()
+        frontend, backend = FakeProcess(clock, 1.0, 1), FakeProcess(clock, 30.0, 0)
+        return supervisor.supervise_installer(
+            frontend, backend, lambda: False, {'session_nonce': 'ab' * 16}, di_root=root,
+            clock=clock, sleep=clock.sleep)
+
+    def test_completion_still_requires_fresh_nonce_and_selected_disk_ancestry(self):
+        (outcome, _, proof), selected = self.run_real_verification(self.real_proof())
+        self.assertEqual(outcome, 'completed')
+        self.assertEqual(selected, ['vda2'])
+        self.assertEqual(proof['session_nonce'], 'ab' * 16)
+        with self.assertRaisesRegex(ValueError, 'stale installation completion proof'):
+            self.run_real_verification(self.real_proof(session_nonce='cd' * 16))
+        with self.assertRaisesRegex(ValueError, 'outside selected disk'):
+            self.run_real_verification(self.real_proof(), disk_ok=False)
+        with self.assertRaisesRegex(ValueError, 'failed validation'):
+            self.run_real_verification(self.real_proof(passed=False))
+
+
 if __name__ == '__main__':
     unittest.main()
