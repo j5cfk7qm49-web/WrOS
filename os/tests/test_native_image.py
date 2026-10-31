@@ -41,7 +41,8 @@ def fixture(root):
             ('org.wros.lock.policy', 'usr/share/polkit-1/actions/org.wros.lock.policy'),
             ('vlock.pam', 'etc/pam.d/vlock'),
             ('60-wros-power-guard.conf', 'etc/systemd/logind.conf.d/60-wros-power-guard.conf'),
-            ('60-wros-sleep-guard.conf', 'etc/systemd/sleep.conf.d/60-wros-sleep-guard.conf')):
+            ('60-wros-sleep-guard.conf', 'etc/systemd/sleep.conf.d/60-wros-sleep-guard.conf'),
+            ('60-wros-no-connectivity-check.conf', 'etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf')):
         path = root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / 'os/config' / source, path)
@@ -88,6 +89,9 @@ class NativeImage(unittest.TestCase):
             'unavailable maintenance': lambda r: (r / 'etc/systemd/system/getty@tty2.service').symlink_to('/dev/null'),
             'altered service': lambda r: (r / 'etc/systemd/system/greetd.service').write_text('[Service]\nExecStart=/bin/sh\n'),
             'unprotected lid': lambda r: (r / 'etc/systemd/logind.conf.d/60-wros-power-guard.conf').unlink(),
+            'network probe enabled': lambda r: (r / 'etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf').unlink(),
+            'changed network probe': lambda r: (r / 'etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf').write_text(
+                '[connectivity]\nenabled=true\nuri=http://network-test.debian.org/nm\n'),
             'missing locker': lambda r: (r / 'usr/sbin/vlock-main').unlink(),
             'writable locker module': lambda r: (r / 'usr/lib/vlock/modules/all.so').chmod(0o777),
             'missing lock PAM': lambda r: (r / 'etc/pam.d/vlock').unlink(),

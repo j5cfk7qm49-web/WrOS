@@ -80,7 +80,8 @@ def audit(root):
             ('org.wros.lock.policy', 'usr/share/polkit-1/actions/org.wros.lock.policy'),
             ('vlock.pam', 'etc/pam.d/vlock'),
             ('60-wros-power-guard.conf', 'etc/systemd/logind.conf.d/60-wros-power-guard.conf'),
-            ('60-wros-sleep-guard.conf', 'etc/systemd/sleep.conf.d/60-wros-sleep-guard.conf')):
+            ('60-wros-sleep-guard.conf', 'etc/systemd/sleep.conf.d/60-wros-sleep-guard.conf'),
+            ('60-wros-no-connectivity-check.conf', 'etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf')):
         if regular(root, relative).read_bytes() != (REPO / 'os/config' / source).read_bytes():
             raise ValueError('native session policy differs from qualified source: ' + relative)
     enabled = root / 'etc/systemd/system/multi-user.target.wants/greetd.service'

@@ -5,3 +5,12 @@ d-i passwd/make-user boolean true
 d-i passwd/user-default-groups string audio cdrom dip video plugdev netdev sudo writingdeck
 # Copy the complete offline squashfs, including firmware and prose resources.
 d-i live-installer/enable boolean true
+# WrOS is offline-first: the installer must not reach a time server, an apt
+# mirror or Debian's package survey on its own, even on a machine that has a
+# network connection. Network setup itself (Wi-Fi provisioning) stays Debian's
+# interactive choice; these only stop unprompted traffic. All packages come
+# from the offline media pool.
+d-i clock-setup/ntp boolean false
+d-i apt-setup/use_mirror boolean false
+d-i apt-setup/services-select multiselect
+popularity-contest popularity-contest/participate boolean false

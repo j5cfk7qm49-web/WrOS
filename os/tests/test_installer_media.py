@@ -150,8 +150,19 @@ class InstallerMedia(unittest.TestCase):
         selections = [line.split(None, 3) for line in (ROOT / 'os/config/installer.preseed').read_text().splitlines()
                       if line.strip() and not line.startswith('#')]
         self.assertEqual({row[1] for row in selections}, {
-            'passwd/root-login', 'passwd/make-user', 'passwd/user-default-groups', 'live-installer/enable'})
-        values = {row[1]: row[3] for row in selections}
+            'passwd/root-login', 'passwd/make-user', 'passwd/user-default-groups', 'live-installer/enable',
+            'clock-setup/ntp', 'apt-setup/use_mirror', 'apt-setup/services-select',
+            'popularity-contest/participate'})
+        for row in selections:
+            self.assertFalse(row[1].startswith(('partman', 'grub-installer', 'netcfg/wireless')), row)
+            self.assertNotIn('password', row[1].replace('user-default', ''), row)
+            self.assertNotIn('confirm', row[1], row)
+        values = {row[1]: row[3] if len(row) > 3 else '' for row in selections}
+        # Nothing contacts a time server, mirror or package survey unprompted.
+        self.assertEqual(values['clock-setup/ntp'], 'false')
+        self.assertEqual(values['apt-setup/use_mirror'], 'false')
+        self.assertEqual(values['apt-setup/services-select'], '')
+        self.assertEqual(values['popularity-contest/participate'], 'false')
         self.assertEqual(values['passwd/root-login'], 'false')
         self.assertEqual(values['passwd/make-user'], 'true')
         self.assertIn('writingdeck', values['passwd/user-default-groups'].split())
