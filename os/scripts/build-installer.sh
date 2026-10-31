@@ -1,35 +1,61 @@
 #!/bin/bash
 # Build regular ISO artifacts only. Debian Installer owns the interactive disk,
 # encryption and account workflow; this builder never selects a target disk.
+#
+# Profiles:
+#   (default)  legacy Debian Installer media, audited and published here.
+#   --live     the production live-session image. It stops after 'lb binary'
+#              and leaves wros-live-amd64.hybrid.iso.capsule-less: that ISO has
+#              no native-installer capsule and is NOT a release. The ordered
+#              release driver (os/scripts/build-release-iso.sh) adds the capsule,
+#              re-masters the ISO, audits the real artifact and publishes it.
 set -euo pipefail
 repo=$(cd "$(dirname "$0")/../.." && pwd)
+usage='Usage: build-installer.sh [--live] [--build-dir DIR], as root in an isolated Debian 13 builder.'
 profile=installer
-if [[ $# == 1 && $1 == --live ]]; then
-    profile=live-session
-elif [[ $# != 0 ]]; then
-    echo 'Usage: build-installer.sh [--live], as root in an isolated Debian 13 builder.' >&2; exit 2
-fi
-[[ $EUID == 0 ]] || { echo 'Requires an isolated Debian 13 root builder.' >&2; exit 2; }
-for command in lb gpgv file zstd xorriso mksquashfs; do
-    command -v "$command" >/dev/null || { echo "Missing builder prerequisite: $command" >&2; exit 2; }
+build_dir=
+while [[ $# != 0 ]]; do
+    case $1 in
+        --live) profile=live-session; shift ;;
+        --build-dir)
+            [[ $# -ge 2 && $2 == /* ]] || { echo "$usage (DIR must be absolute)" >&2; exit 2; }
+            build_dir=$2; shift 2 ;;
+        *) echo "$usage" >&2; exit 2 ;;
+    esac
 done
+[[ $EUID == 0 ]] || { echo 'Requires an isolated Debian 13 root builder.' >&2; exit 2; }
+# Every prerequisite is checked here, before lb bootstrap spends minutes and
+# gigabytes of network on a build that cannot finish.
+missing=()
+for command in lb debootstrap gpgv file zstd xorriso mksquashfs unsquashfs cpio python3 sha256sum; do
+    command -v "$command" >/dev/null || missing+=("$command")
+done
+((${#missing[@]} == 0)) || { echo "Missing builder prerequisite(s): ${missing[*]}" >&2; exit 2; }
 python3 -c 'import debian.debfile' || { echo 'Missing builder prerequisite: python3-debian' >&2; exit 2; }
+# Debian 13 ships the binary keyring as .pgp; older layouts only have .gpg.
+keyring=
+for candidate in /usr/share/keyrings/debian-archive-keyring.pgp /usr/share/keyrings/debian-archive-keyring.gpg; do
+    [[ -s $candidate ]] && { keyring=$candidate; break; }
+done
+[[ -n $keyring ]] || { echo 'Missing builder prerequisite: debian-archive-keyring (.pgp or .gpg)' >&2; exit 2; }
 binary=${GRIMOIRE_BINARY:-$repo/target/debug/grimoire}
 [[ -x $binary ]] || { echo 'Build Grimoire first or set GRIMOIRE_BINARY.' >&2; exit 2; }
 greeter=${WROS_GREETER_BINARY:-$repo/target/debug/wros-greeter}
 [[ -x $greeter ]] || { echo 'Build wros-greeter first or set WROS_GREETER_BINARY.' >&2; exit 2; }
 image=wros-installer
 volume=WROS_INSTALL
+application='WrOS - Writer OS (experimental)'
 bootappend='boot=live components live-config.noautologin'
 if [[ $profile == live-session ]]; then
     installer=${WROS_INSTALLER_BINARY:-$repo/target/debug/wros-installer}
     [[ -x $installer ]] || { echo 'Build wros-installer first or set WROS_INSTALLER_BINARY.' >&2; exit 2; }
     image=wros-live
     volume=WROS_LIVE
+    application='WrOS - Writer OS (release candidate)'
     bootappend='boot=live components wros.live=1'
 fi
-base="$repo/build/$profile"
-[[ ! -L $repo/build && ! -L $base ]] || { echo 'Refusing symlinked build paths.' >&2; exit 2; }
+base=${build_dir:-$repo/build/$profile}
+[[ ! -L $repo/build && ! -L $base && ! -L $(dirname "$base") ]] || { echo 'Refusing symlinked build paths.' >&2; exit 2; }
 mkdir -p "$base"
 shopt -s nullglob dotglob
 entries=("$base"/*)
@@ -49,10 +75,14 @@ lb config --ignore-system-defaults --mode debian --distribution trixie \
     --mirror-binary-security https://security.debian.org/debian-security \
     --mirror-debian-installer https://deb.debian.org/debian \
     --uefi-secure-boot enable --image-name "$image" \
-    --iso-application 'WrOS - Writer OS (experimental)' --iso-volume "$volume" \
+    --iso-application "$application" --iso-volume "$volume" \
     --bootappend-live "$bootappend" \
     --bootappend-live-failsafe "$bootappend memtest noapic noapm nodma nomce nosmp nosplash vga=788" \
     --checksums sha256 --chroot-squashfs-compression-type zstd
+# Authenticate the Debian Installer kernel/initrd (signed InRelease -> SHA256SUMS)
+# before bootstrapping: the verified bytes are cached where live-build looks for
+# them, and a missing keyring or unreachable mirror fails here, not an hour in.
+python3 "$repo/tools/verify-debian-installer.py" cache/installer_debian-installer > installer-input-trust.json
 mkdir -p config/package-lists
 cp "$repo/os/config/packages.txt" config/package-lists/wros.list.chroot
 printf 'sudo\ngreetd\n' >> config/package-lists/wros.list.chroot
@@ -63,6 +93,12 @@ cp "$repo/os/config/encrypted-target-packages.txt" config/package-lists/wros-enc
 cp "$repo/os/config/encrypted-target-packages.txt" config/package-lists/wros-encryption.list.binary
 if [[ $profile == live-session ]]; then
     printf 'live-boot\nlive-config\nlive-config-systemd\nuser-setup\n' >> config/package-lists/wros.list.chroot
+    # live-build does not install Debian's launcher, yet wros-install-session sources
+    # its plugins/live and debconf_kernel.sh from the running live system. The plugin
+    # unpacks the installer initrd with cpio and stops its helpers with fuser (psmisc).
+    # The launcher itself depends on debconf, menu, psmisc, xterm and sudo (all
+    # in main); the audits pin the loaded launcher files by hash.
+    printf 'debian-installer-launcher\ncpio\npsmisc\n' >> config/package-lists/wros.list.chroot
 fi
 lb bootstrap
 lb chroot
@@ -86,16 +122,22 @@ fi
 # Do not copy any VM-only getty/probe/account into the installed filesystem.
 [[ ! -e chroot/etc/writingdeck/VM-DEMO-ONLY && ! -e chroot/etc/systemd/system/getty@tty1.service.d/writingdeck-vm.conf ]]
 python3 "$repo/tools/audit-wifi-image.py" chroot > wifi-rootfs.json
-python3 "$repo/tools/verify-debian-installer.py" cache/installer_debian-installer > installer-input-trust.json
 lb installer
 lb binary
+iso="$image-amd64.hybrid.iso"
+[[ -f $iso && ! -L $iso ]] || { echo "live-build did not produce $iso" >&2; exit 1; }
+if [[ $profile == live-session ]]; then
+    # Deliberately not a release: no capsule, no media audit, no release name.
+    mv "$iso" "$iso.capsule-less"
+    sha256sum "$iso.capsule-less" > "$iso.capsule-less.sha256"
+    echo "live-build tree complete at $base; $iso.capsule-less has no native-installer capsule and is not a release." >&2
+    exit 0
+fi
 # An ISO that has not passed the audit must never sit under its release name,
 # and a failed audit must not leave an empty media-audit.json behind: the QEMU
 # tests and manual flashing consume those names. Publish them only on success.
-iso="$image-amd64.hybrid.iso"
-[[ -f $iso && ! -L $iso ]] || { echo "live-build did not produce $iso" >&2; exit 1; }
 mv "$iso" "$iso.unaudited"
-if ! python3 "$repo/tools/audit-installer-media.py" "$base" > media-audit.json.partial; then
+if ! python3 "$repo/tools/audit-installer-media.py" "$base" --profile installer --iso "$iso.unaudited" > media-audit.json.partial; then
     mv media-audit.json.partial media-audit.FAILED.json
     echo "Media audit failed; $iso.unaudited is NOT a usable image. See media-audit.FAILED.json." >&2
     exit 1
@@ -103,4 +145,4 @@ fi
 mv media-audit.json.partial media-audit.json
 mv "$iso.unaudited" "$iso"
 sha256sum "$iso" > SHA256SUMS
-echo 'Experimental media built. VM install/cancel/interruption and hardware qualification are still required.'
+echo 'Legacy Debian Installer media built and its payload audited. Installation, update and hardware qualification are separate gates.'

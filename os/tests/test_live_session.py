@@ -1,4 +1,5 @@
 """Pure live-session planning and private files only; never host accounts/auth."""
+import hashlib
 import importlib.machinery
 import importlib.util
 import json
@@ -6,11 +7,16 @@ import os
 from pathlib import Path
 import stat
 import shutil
+import sys
 import tempfile
 import tomllib
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT/'tools'))
+import media_constants
+LAUNCHER_FIXTURE = b'synthetic launcher payload; the real files are pinned by hash in media_constants\n'
 loader = importlib.machinery.SourceFileLoader('wros_live_session', str(ROOT/'os/scripts/wros-live-session'))
 spec = importlib.util.spec_from_loader(loader.name, loader)
 live = importlib.util.module_from_spec(spec)
@@ -146,9 +152,14 @@ class LiveSessionImage(unittest.TestCase):
             path = root/target; path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT/source, path)
             path.chmod(0o755 if source.endswith(exec_sources) else 0o644)
-        for target in ('usr/bin/wros-installer','usr/bin/live-config','usr/lib/user-setup/user-setup-apply'):
+        for target in ('usr/bin/wros-installer','usr/bin/live-config','usr/lib/user-setup/user-setup-apply',
+                       *media_constants.LAUNCHER_RUNTIME):
             path = root/target; path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(b'fixture executable'); path.chmod(0o755)
+        # Synthetic launcher payload; audit() substitutes matching pins for the real package hashes.
+        for target, (_, mode) in media_constants.LAUNCHER_FILES.items():
+            path = root/target; path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(LAUNCHER_FIXTURE); path.chmod(mode)
         mask = root/'etc/systemd/system-generators/live-config-getty-generator'
         mask.parent.mkdir(parents=True); mask.symlink_to('/dev/null')
         for unit in ('getty@tty7.service', 'autovt@tty7.service'):
@@ -158,7 +169,10 @@ class LiveSessionImage(unittest.TestCase):
     def audit(root):
         spec = importlib.util.spec_from_file_location('wros_live_image_audit', ROOT/'tools/audit-live-session.py')
         module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
-        return module.audit(root)
+        pins = {name: (hashlib.sha256(LAUNCHER_FIXTURE).hexdigest(), mode)
+                for name, (_, mode) in media_constants.LAUNCHER_FILES.items()}
+        with mock.patch.dict(media_constants.LAUNCHER_FILES, pins):
+            return module.audit(root)
 
     def test_complete_immutable_profile_has_no_runtime_account_or_initial_session(self):
         with tempfile.TemporaryDirectory(prefix='wros-live-image-') as directory:
@@ -190,6 +204,10 @@ class LiveSessionImage(unittest.TestCase):
             'altered installer supervisor': lambda r: (r/'usr/libexec/wros-install-session').write_text('fixture\n'),
             'altered preseed': lambda r: (r/'etc/wros/installer.preseed').write_text('d-i partman/confirm boolean true\n'),
             'nonexecutable helper': lambda r: (r/'usr/libexec/wros-live-session').chmod(0o644),
+            'launcher plugin altered': lambda r: (r/'usr/share/debian-installer-launcher/plugins/live').write_bytes(b'other'),
+            'launcher kernel check missing': lambda r: (r/'usr/share/debian-installer-launcher/debconf_kernel.sh').unlink(),
+            'launcher kernel check not executable': lambda r: (r/'usr/share/debian-installer-launcher/debconf_kernel.sh').chmod(0o644),
+            'launcher unpack tool missing': lambda r: (r/'usr/bin/cpio').unlink(),
             'unexpected override': lambda r: (r/'etc/systemd/system/greetd.service.d/99-other.conf').write_text('[Service]\nExecStart=/bin/sh\n'),
         }
         for label, mutation in mutations.items():

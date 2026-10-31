@@ -15,7 +15,19 @@ from urllib.request import urlopen
 MIRROR = 'https://deb.debian.org/debian'
 RELEASE = MIRROR + '/dists/trixie'
 SUMS = 'main/installer-amd64/current/images/SHA256SUMS'
-KEYRING = '/usr/share/keyrings/debian-archive-keyring.gpg'
+# Debian 13 ships the binary keyring as .pgp; the .gpg name is a compatibility
+# link that the keyring package may drop. Accept either, preferring .pgp, and
+# refuse before any network fetch when neither exists.
+KEYRINGS = ('/usr/share/keyrings/debian-archive-keyring.pgp',
+            '/usr/share/keyrings/debian-archive-keyring.gpg')
+
+
+def archive_keyring():
+    for candidate in KEYRINGS:
+        path = Path(candidate)
+        if path.is_file() and path.stat().st_size > 0:
+            return str(path)
+    raise ValueError('Debian archive keyring (debian-archive-keyring .pgp or .gpg) is required')
 
 
 def release_hashes(text):
@@ -46,6 +58,7 @@ def fetch(url):
 
 def verify(cache):
     cache = Path(cache)
+    keyring = archive_keyring()
     if cache.is_symlink():
         raise ValueError('refusing symlinked installer cache')
     cache.mkdir(parents=True, exist_ok=True)
@@ -54,7 +67,7 @@ def verify(cache):
         signed_file = Path(tmp) / 'InRelease'
         plain = Path(tmp) / 'Release'
         signed_file.write_bytes(signed)
-        subprocess.run(['gpgv', '--keyring', KEYRING, '--output', str(plain), str(signed_file)], check=True)
+        subprocess.run(['gpgv', '--keyring', keyring, '--output', str(plain), str(signed_file)], check=True)
         release = plain.read_text()
     if 'Codename: trixie\n' not in release or 'Origin: Debian\n' not in release:
         raise ValueError('unexpected signed Debian release')

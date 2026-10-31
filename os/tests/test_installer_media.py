@@ -1,7 +1,13 @@
-"""Actual Debian package and authentication-policy checks; no disk installation."""
+import gzip
+import hashlib
 import importlib.util
+import json
+import os
 from pathlib import Path
+import re
+import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -205,3 +211,385 @@ class InstallerMedia(unittest.TestCase):
                 with self.assertRaises(subprocess.CalledProcessError):
                     trust.verify(cache)
             self.assertFalse((cache / 'verified-InRelease').exists())
+
+    @staticmethod
+    def make_openpgp_key(uid="WrOS Production Signer <release@wros.org>", is_secret=False, is_fixture=False):
+        dummy_mpi = (1024).to_bytes(2, 'big') + b'\x01' * 128 + (17).to_bytes(2, 'big') + b'\x01\x00\x01'
+        body = b'\x04\x00\x00\x00\x00\x01' + dummy_mpi
+        tag = 5 if is_secret else 6
+        key_hdr = bytes([0xC0 | tag, len(body)])
+        uid_str = "WrOS Fixture Key <test@example.invalid>" if is_fixture else uid
+        uid_bytes = uid_str.encode('utf-8')
+        uid_hdr = bytes([0xC0 | 13, len(uid_bytes)])
+        keyring_bytes = key_hdr + body + uid_hdr + uid_bytes
+        fpr = hashlib.sha1(b'\x99' + len(body).to_bytes(2, 'big') + body).hexdigest().upper()
+        return keyring_bytes, fpr
+
+    def test_verify_update_trust_requires_pinned_fingerprint_in_clean_keyring(self):
+        keyring_bytes, fpr = self.make_openpgp_key()
+        with tempfile.TemporaryDirectory(prefix='wros-trust-') as tmp:
+            tmp_path = Path(tmp)
+            keyring_file = tmp_path / 'wros-archive-keyring.gpg'
+            signers_file = tmp_path / 'update-signers'
+            keyring_file.write_bytes(keyring_bytes)
+            keyring_file.chmod(0o644)
+            signers_file.write_text(f"# Pinned release signer\n{fpr}\n")
+            signers_file.chmod(0o644)
+
+            # Valid keyring and signers
+            res = module.verify_update_trust(keyring_file, signers_file, required=True)
+            self.assertTrue(res['checked'])
+            self.assertIn(fpr, res['pinned_fingerprints'])
+            self.assertFalse(res['secret_key_material'])
+
+            # Reject secret key material
+            sec_bytes, sec_fpr = self.make_openpgp_key(is_secret=True)
+            keyring_file.write_bytes(sec_bytes)
+            signers_file.write_text(f"{sec_fpr}\n")
+            with self.assertRaisesRegex(ValueError, 'contains PRIVATE key material'):
+                module.verify_update_trust(keyring_file, signers_file, required=True)
+
+            # Reject fixture key in production update trust
+            fix_bytes, fix_fpr = self.make_openpgp_key(is_fixture=True)
+            keyring_file.write_bytes(fix_bytes)
+            signers_file.write_text(f"{fix_fpr}\n")
+            with self.assertRaisesRegex(ValueError, 'test/fixture key in production update trust'):
+                module.verify_update_trust(keyring_file, signers_file, required=True)
+
+            # Reject missing signer from keyring
+            keyring_file.write_bytes(keyring_bytes)
+            other_fpr = '0' * 40
+            signers_file.write_text(f"{other_fpr}\n")
+            with self.assertRaisesRegex(ValueError, 'pinned update signer is absent'):
+                module.verify_update_trust(keyring_file, signers_file, required=True)
+
+            # Reject group/world writable
+            signers_file.write_text(f"{fpr}\n")
+            keyring_file.chmod(0o666)
+            with self.assertRaisesRegex(ValueError, 'group/world writable'):
+                module.verify_update_trust(keyring_file, signers_file, required=True)
+            keyring_file.chmod(0o644)
+
+            # Check check_update_trust wrapper against staged rootfs
+            rootfs = tmp_path / 'rootfs'
+            dest_key = rootfs / 'usr/share/keyrings/wros-archive-keyring.gpg'
+            dest_signers = rootfs / 'usr/share/wros/update-signers'
+            dest_key.parent.mkdir(parents=True, exist_ok=True)
+            dest_signers.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(keyring_file, dest_key); dest_key.chmod(0o644)
+            shutil.copyfile(signers_file, dest_signers); dest_signers.chmod(0o644)
+            trust_res = module.check_update_trust(rootfs, required=True)
+            self.assertTrue(trust_res['checked'])
+
+    def test_boot_structure_validation_and_shape_comparison(self):
+        sample_report = """
+El Torito boot img :   1  BIOS  y  none  0x0000  0x00  4  2345
+El Torito img path :   1  /isolinux/isolinux.bin
+El Torito img opts :   1  boot-info-table isohybrid-suitable
+El Torito boot img :   2  UEFI  y  none  0x0000  0x00  5760  2400
+El Torito img path :   2  /boot/grub/efi.img
+System area summary: MBR isohybrid cyl-align-on GPT APM
+GPT start and size : 1 2048 100000
+GPT start and size : 2 102048 5760
+GPT partition path : 2 /boot/grub/efi.img
+"""
+        parsed = module.parse_boot_report(sample_report)
+        self.assertEqual(len(parsed['el_torito']), 2)
+        self.assertEqual(parsed['gpt_partitions'], 2)
+        self.assertIn('MBR', parsed['system_area'])
+        self.assertIn('GPT', parsed['system_area'])
+
+        with mock.patch.object(module, 'xorriso') as mock_xorriso:
+            mock_proc = mock.MagicMock()
+            mock_proc.stdout = sample_report.encode()
+            mock_proc.stderr = b""
+            mock_xorriso.return_value = mock_proc
+
+            iso_path = Path('/fake/test.iso')
+            structure = module.boot_structure(iso_path)
+            self.assertEqual(len(structure['el_torito']), 2)
+
+            # Compare against self baseline
+            module.same_boot_structure(structure, structure)
+
+            # Altered baseline partition count raises
+            altered = dict(structure, gpt_partitions=1)
+            with self.assertRaisesRegex(ValueError, 'Re-mastered ISO boot records differ'):
+                module.same_boot_structure(structure, altered)
+
+        # Missing BIOS entry raises
+        no_bios = """
+El Torito boot img :   1  UEFI  y  none  0x0000  0x00  5760  2400
+El Torito img path :   1  /boot/grub/efi.img
+System area summary: MBR isohybrid cyl-align-on GPT
+GPT start and size : 1 2048 100000
+GPT start and size : 2 102048 5760
+"""
+        with mock.patch.object(module, 'xorriso') as mock_xorriso:
+            mock_proc = mock.MagicMock()
+            mock_proc.stdout = no_bios.encode(); mock_proc.stderr = b""
+            mock_xorriso.return_value = mock_proc
+            with self.assertRaisesRegex(ValueError, 'no BIOS El Torito boot image'):
+                module.boot_structure(iso_path)
+
+    def test_squash_kernel_abi_detection_and_matching(self):
+        valid_listing = {
+            'boot/vmlinuz-6.12.113+deb13-amd64': ('-', None),
+            'usr/lib/modules/6.12.113+deb13-amd64': ('d', None),
+            'etc/debian_version': ('-', None),
+        }
+        self.assertEqual(module.squash_kernel_abi(valid_listing), '6.12.113+deb13-amd64')
+
+        # Multiple kernels rejected
+        multi_kernel = dict(valid_listing, **{'boot/vmlinuz-old': ('-', None)})
+        with self.assertRaisesRegex(ValueError, 'must contain exactly one kernel image'):
+            module.squash_kernel_abi(multi_kernel)
+
+        # Module mismatch rejected
+        mismatch_mod = {
+            'boot/vmlinuz-6.12.113+deb13-amd64': ('-', None),
+            'usr/lib/modules/other-kernel': ('d', None),
+        }
+        with self.assertRaisesRegex(ValueError, 'kernel modules .* do not match its kernel'):
+            module.squash_kernel_abi(mismatch_mod)
+
+    def test_deny_list_rejects_qa_files_autologin_and_insecure_auth(self):
+        with tempfile.TemporaryDirectory(prefix='wros-deny-') as tmp:
+            rootfs = Path(tmp)
+            (rootfs / 'etc').mkdir(parents=True, exist_ok=True)
+            (rootfs / 'etc/shadow').write_text('root:!:1:0:99999:7:::\n_greetd:!:1:0:99999:7:::\n')
+            (rootfs / 'etc/passwd').write_text('root:x:0:0:root:/root:/bin/bash\n_greetd:x:999:999::/nonexistent:/usr/sbin/nologin\n')
+            (rootfs / 'etc/sudoers').write_text('root ALL=(ALL:ALL) ALL\n')
+
+            listing = {'etc/debian_version': ('-', None)}
+            boot_configs = {'boot/grub/grub.cfg': 'linux /live/vmlinuz boot=live components wros.live=1\n'}
+
+            # Clean baseline passes
+            module.deny_list(rootfs, listing, boot_configs)
+
+            # QA artifact in listing fails
+            qa_listing = dict(listing, **{'etc/writingdeck/VM-DEMO-ONLY': ('-', None)})
+            with self.assertRaisesRegex(ValueError, 'QA/test file shipped'):
+                module.deny_list(rootfs, qa_listing, boot_configs)
+
+            # live sudoers file in listing fails
+            live_sudo = dict(listing, **{'etc/sudoers.d/live': ('-', None)})
+            with self.assertRaisesRegex(ValueError, 'live NOPASSWD sudoers file shipped'):
+                module.deny_list(rootfs, live_sudo, boot_configs)
+
+            # NOPASSWD in sudoers fails
+            (rootfs / 'etc/sudoers').write_text('writer ALL=(ALL) NOPASSWD: ALL\n')
+            with self.assertRaisesRegex(ValueError, 'passwordless sudo configured'):
+                module.deny_list(rootfs, listing, boot_configs)
+            (rootfs / 'etc/sudoers').write_text('root ALL=(ALL:ALL) ALL\n')
+
+            # autologin in boot configuration fails
+            autologin_boot = {'boot/grub/grub.cfg': 'linux /live/vmlinuz boot=live autologin\n'}
+            with self.assertRaisesRegex(ValueError, 'autologin requested in boot configuration'):
+                module.deny_list(rootfs, listing, autologin_boot)
+
+            # shell escape in boot configuration fails
+            shell_boot = {'boot/grub/grub.cfg': 'linux /live/vmlinuz append init=/bin/sh\n'}
+            with self.assertRaisesRegex(ValueError, 'shell-escape kernel parameter'):
+                module.deny_list(rootfs, listing, shell_boot)
+
+            # Unlocked root fails
+            (rootfs / 'etc/shadow').write_text('root:$6$hash:1:0:99999:7:::\n')
+            with self.assertRaisesRegex(ValueError, 'root account is not locked'):
+                module.deny_list(rootfs, listing, boot_configs)
+            (rootfs / 'etc/shadow').write_text('root:!:1:0:99999:7:::\n')
+
+            # Demo account in passwd fails
+            (rootfs / 'etc/passwd').write_text('writer:x:1000:1000:Writer:/home/writer:/bin/bash\n')
+            with self.assertRaisesRegex(ValueError, 'builder/demo/runtime account shipped'):
+                module.deny_list(rootfs, listing, boot_configs)
+
+    def test_compare_helpers_matches_repo_scripts(self):
+        with tempfile.TemporaryDirectory(prefix='wros-helpers-') as tmp:
+            rootfs = Path(tmp)
+            libexec = rootfs / 'usr/libexec'
+            libexec.mkdir(parents=True, exist_ok=True)
+
+            wanted = list(module.HELPERS_REQUIRED) + [n for n in module.HELPERS_IF_SOURCE if (ROOT / 'os/scripts' / n).is_file()]
+            for name in wanted:
+                source = ROOT / 'os/scripts' / name
+                dest = libexec / name
+                shutil.copyfile(source, dest)
+                dest.chmod(0o755)
+
+            # All match passes
+            res = module.compare_helpers(rootfs)
+            self.assertEqual(len(res), len(wanted))
+
+            # Missing helper raises
+            first = libexec / wanted[0]
+            first.unlink()
+            with self.assertRaisesRegex(ValueError, 'helper missing from the image'):
+                module.compare_helpers(rootfs)
+
+            # Non-executable helper raises
+            shutil.copyfile(ROOT / 'os/scripts' / wanted[0], first)
+            first.chmod(0o644)
+            with self.assertRaisesRegex(ValueError, 'not executable or is group/world writable'):
+                module.compare_helpers(rootfs)
+
+            # Modified helper raises
+            first.chmod(0o755)
+            first.write_bytes(b'#!/bin/sh\necho tampered\n')
+            with self.assertRaisesRegex(ValueError, 'helper differs from its source'):
+                module.compare_helpers(rootfs)
+
+    def test_build_release_iso_driver_invariants_and_step_ordering(self):
+        driver = ROOT / 'os/scripts/build-release-iso.sh'
+        self.assertTrue(driver.is_file(), 'build-release-iso.sh exists')
+        self.assertTrue(os.access(driver, os.X_OK), 'build-release-iso.sh is executable')
+
+        # Check syntax with bash -n
+        subprocess.run(['bash', '-n', str(driver)], check=True)
+
+        # Check --plan step list
+        output = subprocess.check_output(['bash', str(driver), '--plan'], text=True)
+        steps = output.strip().splitlines()
+        expected = ['binaries', 'prose-runtime', 'inputs', 'installer-frontend',
+                    'live-backend', 'live-image', 'native-pool', 'native-capsule',
+                    'remaster', 'audit', 'smoke-boot', 'publish']
+        self.assertEqual(steps, expected)
+
+        # Check publication integrity: atomic rename and receipt creation
+        script_text = driver.read_text()
+        self.assertIn('audit_media', script_text)
+        self.assertIn('publish_release', script_text)
+        self.assertIn('mv -- "$final.receipt.json.partial" "$final.receipt.json"', script_text)
+
+    def test_audit_capsule_structure_and_integrity(self):
+        sys.path.insert(0, str(ROOT / 'tools'))
+        import media_constants
+        abi = media_constants.qualified_kernel_abi()
+        fake_module_bytes = b'fake passthrough module content\n'
+        fake_mod_hash = hashlib.sha256(fake_module_bytes).hexdigest()
+
+        with tempfile.TemporaryDirectory(prefix='wros-capsule-') as tmp:
+            tmp_path = Path(tmp)
+            capsule = tmp_path / 'capsule'
+            capsule.mkdir(parents=True)
+
+            # Prepare initrd.gz containing passthrough.so
+            initrd_tree = tmp_path / 'initrd-tree'
+            so_file = initrd_tree / 'usr/lib/cdebconf/frontend/passthrough.so'
+            so_file.parent.mkdir(parents=True)
+            so_file.write_bytes(fake_module_bytes)
+            raw_cpio = subprocess.check_output(
+                ['cpio', '--create', '--format=newc', '--quiet'],
+                cwd=initrd_tree,
+                input=b'usr/lib/cdebconf/frontend/passthrough.so\n'
+            )
+            initrd_gz = gzip.compress(raw_cpio, mtime=0)
+            initrd_hash = hashlib.sha256(initrd_gz).hexdigest()
+            (capsule / 'initrd.gz').write_bytes(initrd_gz)
+
+            # Prepare vmlinuz
+            vmlinuz_bytes = b'synthetic test vmlinuz kernel image\n'
+            vmlinuz_hash = hashlib.sha256(vmlinuz_bytes).hexdigest()
+            (capsule / 'vmlinuz').write_bytes(vmlinuz_bytes)
+
+            # Prepare pool deb
+            deb_bytes = b'synthetic pool package archive\n'
+            deb_hash = hashlib.sha256(deb_bytes).hexdigest()
+            deb_file = capsule / 'pool/main/test.deb'
+            deb_file.parent.mkdir(parents=True)
+            deb_file.write_bytes(deb_bytes)
+
+            # Prepare Packages and Packages.gz
+            pkg_text = 'Package: test\nFilename: native-installer/pool/main/test.deb\n\n'
+            pkg_bytes = pkg_text.encode('utf-8')
+            pkg_hash = hashlib.sha256(pkg_bytes).hexdigest()
+            pkg_gz_bytes = gzip.compress(pkg_bytes, mtime=0)
+            pkg_gz_hash = hashlib.sha256(pkg_gz_bytes).hexdigest()
+            (capsule / 'Packages').write_bytes(pkg_bytes)
+            (capsule / 'Packages.gz').write_bytes(pkg_gz_bytes)
+
+            # Prepare media-Release
+            index_path = 'main/debian-installer/binary-amd64/Packages'
+            release_text = (
+                f"Origin: WrOS\nLabel: WrOS\nSuite: trixie\nCodename: trixie\nComponents: main\n"
+                f"SHA256:\n"
+                f" {pkg_hash} {len(pkg_bytes)} {index_path}\n"
+                f" {pkg_gz_hash} {len(pkg_gz_bytes)} {index_path}.gz\n"
+            )
+            release_bytes = release_text.encode('utf-8')
+            release_hash = hashlib.sha256(release_bytes).hexdigest()
+            (capsule / 'media-Release').write_bytes(release_bytes)
+
+            # Prepare backend-manifest.json
+            backend_manifest = {
+                'passed': True,
+                'architecture': 'amd64',
+                'kernel_version': abi,
+                'module_sha256': fake_mod_hash,
+                'kernel_sha256': vmlinuz_hash,
+                'initrd_sha256': initrd_hash
+            }
+            backend_mf_bytes = json.dumps(backend_manifest).encode('utf-8')
+            backend_mf_hash = hashlib.sha256(backend_mf_bytes).hexdigest()
+            (capsule / 'backend-manifest.json').write_bytes(backend_mf_bytes)
+
+            # Prepare pool-manifest.json
+            pool_manifest = {
+                'passed': True,
+                'kernel_abi': abi,
+                'package_count': 1,
+                'archives': [{'file': 'pool/main/test.deb', 'sha256': deb_hash, 'bytes': len(deb_bytes)}],
+                'generated_packages_sha256': pkg_hash,
+                'generated_packages_gz_sha256': pkg_gz_hash
+            }
+            pool_mf_bytes = json.dumps(pool_manifest).encode('utf-8')
+            pool_mf_hash = hashlib.sha256(pool_mf_bytes).hexdigest()
+            (capsule / 'pool-manifest.json').write_bytes(pool_mf_bytes)
+
+            # Prepare manifest.json
+            file_hashes = {
+                'vmlinuz': vmlinuz_hash,
+                'initrd.gz': initrd_hash,
+                'Packages': pkg_hash,
+                'Packages.gz': pkg_gz_hash,
+                'media-Release': release_hash,
+                'backend-manifest.json': backend_mf_hash,
+                'pool-manifest.json': pool_mf_hash,
+                'pool/main/test.deb': deb_hash
+            }
+            manifest = {
+                'passed': True,
+                'architecture': 'amd64',
+                'media_subdirectory': 'native-installer',
+                'kernel_release': abi,
+                'module_sha256': fake_mod_hash,
+                'module_observed_in_compressed_initrd': True,
+                'backend_kernel_matches_live_medium': True,
+                'pool_independently_revalidated': True,
+                'generated_media_release_debian_signed': False,
+                'file_sha256': file_hashes
+            }
+            (capsule / 'manifest.json').write_text(json.dumps(manifest))
+
+            # Audit with mocked module_sha256
+            with mock.patch.object(media_constants, 'module_sha256', return_value=fake_mod_hash):
+                res = module.audit_capsule(capsule, vmlinuz_hash, abi)
+                self.assertEqual(res['kernel_release'], abi)
+                self.assertEqual(res['package_count'], 1)
+
+                # Altered kernel raises
+                with self.assertRaisesRegex(ValueError, 'kernel differs from the live medium kernel'):
+                    module.audit_capsule(capsule, '0' * 64, abi)
+
+                # Altered manifest kernel_release raises
+                bad_manifest = dict(manifest, kernel_release='different-abi')
+                (capsule / 'manifest.json').write_text(json.dumps(bad_manifest))
+                with self.assertRaisesRegex(ValueError, 'differs from the squashfs kernel ABI'):
+                    module.audit_capsule(capsule, vmlinuz_hash, abi)
+                (capsule / 'manifest.json').write_text(json.dumps(manifest))
+
+                # Altered deb package raises
+                deb_file.write_bytes(b'tampered package bytes\n')
+                with self.assertRaisesRegex(ValueError, 'capsule file hash differs'):
+                    module.audit_capsule(capsule, vmlinuz_hash, abi)
+                deb_file.write_bytes(deb_bytes)

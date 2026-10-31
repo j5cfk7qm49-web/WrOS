@@ -6,8 +6,32 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import media_constants
+
+
+def audit_launcher(native, root):
+    """The supervisor sources plugins/live from the Debian launcher package.
+
+    live-build does not install it, so a live image without these exact files
+    cannot start the production installer. Presence, mode and bytes are pinned.
+    """
+    hashes = {}
+    for name, (expected, mode) in media_constants.LAUNCHER_FILES.items():
+        path = native.regular(root, name)
+        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+        if actual != expected:
+            raise ValueError('Debian installer launcher file differs from the pinned package: ' + name)
+        if path.stat().st_mode & 0o7777 != mode:
+            raise ValueError('Debian installer launcher file has unexpected permissions: ' + name)
+        hashes[name] = actual
+    for name in media_constants.LAUNCHER_RUNTIME:
+        if not os.access(native.regular(root, name), os.X_OK):
+            raise ValueError('Launcher runtime program missing from the live image: ' + name)
+    return hashes
 
 
 def audit(root):
@@ -38,6 +62,7 @@ def audit(root):
                  'usr/lib/wros-installer/native-crypto-passphrase'):
         if not os.access(native.regular(root, name), os.X_OK):
             raise ValueError('Missing live runtime executable: ' + name)
+    launcher = audit_launcher(native, root)
     dropins = root/'etc/systemd/system/greetd.service.d'
     if {p.name for p in dropins.glob('*.conf')} != {'90-wros-live.conf'}:
         raise ValueError('Unexpected native login override in the live profile')
@@ -66,6 +91,8 @@ def audit(root):
     return {'passed': True, 'native_session': result,
             'helper_sha256': hashlib.sha256((root/'usr/libexec/wros-live-session').read_bytes()).hexdigest(),
             'installer_supervisor_sha256': hashlib.sha256((root/'usr/libexec/wros-install-session').read_bytes()).hexdigest(),
+            'installer_launcher_version': media_constants.LAUNCHER_VERSION,
+            'installer_launcher_sha256': launcher,
             'temporary_account_absent': True, 'shipping_initial_session_absent': True,
             'stock_console_entry_generator_masked': True, 'installer_tty7_masked': True,
             'scope': 'Immutable live staging files only; no actual live boot, installed authentication or privileged installer qualification.'}

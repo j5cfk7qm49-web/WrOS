@@ -16,14 +16,18 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import subprocess
+import sys
 
 from debian.deb822 import Release
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import media_constants
 spec = importlib.util.spec_from_file_location('native_pool', ROOT/'tools/build-live-installer-pool.py')
 pool = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pool)
-MODULE_SHA256 = 'be37dee7f39730b6369b54f72ac83a1ff27f9d59bcea10fed9fd11a0ea2adf18'
+# Owned by os/scripts/wros-install-session, the code that enforces it at install time.
+MODULE_SHA256 = media_constants.module_sha256()
 INDEX = 'main/debian-installer/binary-amd64/Packages'
 
 
