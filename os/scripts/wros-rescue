@@ -1,0 +1,207 @@
+#!/bin/bash
+# wros-rescue: repair an installed WrOS system from the live ISO.
+#
+# Run as root from a terminal on the WrOS live ISO:  sudo wros-rescue [--device /dev/sdXN]
+# It finds the encrypted installed root, unlocks it with a passphrase typed at this
+# terminal, mounts it read-only to prove it is the right system, remounts it read-write at
+# a private /target, bind-mounts the pseudo filesystems, then runs the installed system's own
+# update repair engine inside a chroot.  The engine uses only the retained, re-authenticated
+# update archives and writes its journal there.  Everything is unmounted and locked again on
+# exit, including on error.  ext4 has no snapshot rollback: this repairs package state, it
+# does not undo an update.  See docs/RC_RESCUE.md.
+set -euo pipefail
+umask 077
+
+# WROS_RESCUE_TEST_PATH, WROS_RESCUE_TARGET and WROS_RESCUE_CMDLINE are test seams for the
+# stub-command unit tests; an operator already is root here, so they grant nothing.
+PATH=${WROS_RESCUE_TEST_PATH:-/usr/sbin:/usr/bin:/sbin:/bin}
+export PATH
+export LC_ALL=C
+unset BASH_ENV ENV
+
+readonly MAPPING=wros-rescue-root
+readonly TARGET=${WROS_RESCUE_TARGET:-/target}
+readonly CMDLINE=${WROS_RESCUE_CMDLINE:-/proc/cmdline}
+
+device=
+luks_open=0
+vg=
+vg_active=0
+mounted=()
+
+usage() {
+    printf 'Usage: wros-rescue [--device /dev/PARTITION]\n'
+    printf 'Repair an installed WrOS system from the live ISO (run as root on a terminal).\n'
+}
+
+note() {
+    printf '%s\n' "$*"
+}
+
+die() {
+    printf 'wros-rescue: %s\n' "$*" >&2
+    exit 1
+}
+
+release() {
+    local index
+    set +e
+    for ((index = ${#mounted[@]} - 1; index >= 0; index--)); do
+        umount "${mounted[index]}" 2>/dev/null || umount -l "${mounted[index]}" 2>/dev/null
+    done
+    mounted=()
+    if [[ $vg_active -eq 1 ]]; then
+        vgchange -an "$vg" >/dev/null 2>&1
+        vg_active=0
+    fi
+    if [[ $luks_open -eq 1 ]]; then
+        cryptsetup close "$MAPPING" >/dev/null 2>&1
+        luks_open=0
+    fi
+    set -e
+}
+
+on_exit() {
+    local status=$?
+    trap - EXIT
+    release
+    exit "$status"
+}
+trap on_exit EXIT
+trap 'exit 130' INT TERM HUP
+
+list_luks_partitions() {
+    lsblk -rn -o PATH,FSTYPE,TYPE | awk '$2 == "crypto_LUKS" && $3 == "part" { print $1 }'
+}
+
+push_mount() {
+    mounted+=("$1")
+}
+
+pop_mount() {
+    unset 'mounted[-1]'
+}
+
+while (($# > 0)); do
+    case $1 in
+        --device)
+            (($# >= 2)) || die '--device needs a partition path'
+            device=$2
+            shift 2
+            ;;
+        -h | --help)
+            usage
+            exit 0
+            ;;
+        *)
+            die "unknown argument: $1"
+            ;;
+    esac
+done
+
+[[ $(id -u) -eq 0 ]] || die 'must run as root (sudo wros-rescue) on the WrOS live ISO'
+grep -Eq '(^| )boot=live( |$)' "$CMDLINE" 2>/dev/null \
+    || die 'refusing to run: this is not the live ISO (boot=live missing). Boot the WrOS live media first.'
+[[ -t 0 && -t 1 ]] || die 'needs an interactive terminal; the disk passphrase is read from it'
+{ : </dev/tty; } 2>/dev/null || die 'no controlling terminal for the passphrase prompt'
+
+mapfile -t candidates < <(list_luks_partitions)
+if [[ -z $device ]]; then
+    case ${#candidates[@]} in
+        0) die 'no LUKS partition found; check the disk is attached' ;;
+        1) device=${candidates[0]} ;;
+        *) die "several LUKS partitions found (${candidates[*]}); choose one with --device" ;;
+    esac
+fi
+[[ $device =~ ^/dev/[A-Za-z0-9][A-Za-z0-9/_.-]*$ ]] || die 'unsupported device name'
+found=0
+for entry in "${candidates[@]}"; do
+    [[ $entry == "$device" ]] && found=1
+done
+((found == 1)) || die "$device is not a LUKS partition"
+cryptsetup isLuks "$device" || die "$device is not a LUKS container"
+if cryptsetup status "$MAPPING" >/dev/null 2>&1; then
+    die "$MAPPING is already open; close it first (cryptsetup close $MAPPING)"
+fi
+if mountpoint -q "$TARGET" 2>/dev/null; then
+    die "$TARGET is already a mount point"
+fi
+mkdir -p "$TARGET"
+chmod 0700 "$TARGET"
+[[ -z $(ls -A "$TARGET") ]] || die "$TARGET is not empty"
+
+luks_uuid=$(cryptsetup luksUUID "$device")
+[[ $luks_uuid =~ ^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$ ]] || die 'unexpected LUKS UUID'
+
+note "Unlocking $device. Type the disk passphrase when asked (it is never stored)."
+cryptsetup open --type luks --tries 3 "$device" "$MAPPING" </dev/tty || die 'could not unlock the disk'
+luks_open=1
+
+vg=$(pvs --noheadings -o vg_name "/dev/mapper/$MAPPING" 2>/dev/null | tr -d '[:space:]' || true)
+roots=()
+if [[ -n $vg ]]; then
+    [[ $vg =~ ^[A-Za-z0-9+_.-]+$ ]] || die 'unexpected LVM volume group name'
+    vgchange -ay "$vg" >/dev/null || die 'could not activate the LVM volume group'
+    vg_active=1
+    mapfile -t roots < <(lvs --noheadings -o lv_path "$vg" | tr -d ' ')
+else
+    roots=("/dev/mapper/$MAPPING")
+fi
+
+matches=()
+for candidate in "${roots[@]}"; do
+    [[ -n $candidate ]] || continue
+    [[ $(blkid -s TYPE -o value "$candidate" 2>/dev/null || true) == ext4 ]] || continue
+    mount -t ext4 -o ro,noload,nodev,nosuid "$candidate" "$TARGET" || continue
+    push_mount "$TARGET"
+    if [[ -f $TARGET/etc/writingdeck/release && -f $TARGET/etc/crypttab ]] \
+        && grep -Fq "UUID=$luks_uuid" "$TARGET/etc/crypttab"; then
+        matches+=("$candidate")
+    fi
+    umount "$TARGET"
+    pop_mount
+done
+((${#matches[@]} == 1)) || die "expected exactly one installed WrOS root on this disk, found ${#matches[@]}"
+root_device=${matches[0]}
+
+note "Found the installed system on $root_device; mounting it read-write at $TARGET."
+mount -t ext4 -o rw,nodev "$root_device" "$TARGET"
+push_mount "$TARGET"
+mount --make-private "$TARGET"
+for pseudo in dev dev/pts proc sys run; do
+    [[ -d $TARGET/$pseudo ]] || die "installed system is missing /$pseudo"
+done
+mount --bind /dev "$TARGET/dev"
+push_mount "$TARGET/dev"
+mount --bind /dev/pts "$TARGET/dev/pts"
+push_mount "$TARGET/dev/pts"
+mount -t proc proc "$TARGET/proc"
+push_mount "$TARGET/proc"
+mount -t sysfs sysfs "$TARGET/sys"
+push_mount "$TARGET/sys"
+mount -t tmpfs tmpfs "$TARGET/run"
+push_mount "$TARGET/run"
+
+if [[ ! -f $TARGET/usr/lib/wros-update/engine.py || ! -x $TARGET/usr/libexec/wros-update ]]; then
+    die 'the installed system has no WrOS update engine; follow the manual steps in docs/RC_RESCUE.md'
+fi
+if grep -Eq '^[^#]*[[:space:]]/boot/efi[[:space:]]' "$TARGET/etc/fstab" 2>/dev/null; then
+    if chroot "$TARGET" /usr/bin/mount /boot/efi 2>/dev/null; then
+        push_mount "$TARGET/boot/efi"
+    else
+        note 'warning: could not mount /boot/efi; boot-loader packages will not be touched by this repair.'
+    fi
+fi
+
+note 'Running the installed system update repair (retained authenticated archives only)...'
+status=0
+output=$(chroot "$TARGET" /usr/bin/env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C WROS_RESCUE=1 \
+    /usr/libexec/wros-update rescue-repair) || status=$?
+printf '%s\n' "$output"
+
+release
+sync
+if ((status != 0)); then
+    die 'repair did not succeed; the disk is unmounted and locked. See docs/RC_RESCUE.md for the next step.'
+fi
+note 'Repair finished; the disk is unmounted and locked. Remove the live media and reboot.'
