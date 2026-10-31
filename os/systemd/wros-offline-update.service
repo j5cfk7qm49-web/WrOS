@@ -1,10 +1,16 @@
 [Unit]
 Description=Apply verified WrOS offline package updates
-Documentation=https://www.freedesktop.org/software/systemd/man/248/systemd.offline-updates.html
+Documentation=man:systemd.offline-updates(7)
 DefaultDependencies=no
 Requires=sysinit.target
 After=sysinit.target system-update-pre.target
 Before=system-update.target shutdown.target
+# systemd-system-update-generator (systemd 257, Debian 13) redirects default.target to
+# system-update.target whenever /system-update or /etc/system-update exists, as any directory
+# entry: a dangling symlink, a symlink to any directory and a plain directory all trigger it.
+# It does NOT require /system-update -> /var/lib/system-update. WrOS therefore points the
+# symlink at its own staged directory (/system-update -> /var/lib/wros-update/staged), which also
+# lets this unit and the engine prove the marker is WrOS's and ignore a foreign updater's.
 ConditionPathIsSymbolicLink=/system-update
 
 [Service]
@@ -16,3 +22,6 @@ LimitCORE=0
 TimeoutStartSec=2100s
 StandardOutput=journal+console
 StandardError=journal+console
+
+[Install]
+WantedBy=system-update.target

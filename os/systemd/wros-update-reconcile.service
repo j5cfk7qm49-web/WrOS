@@ -1,0 +1,22 @@
+[Unit]
+Description=Reconcile an interrupted WrOS offline update
+Documentation=man:systemd.offline-updates(7)
+After=local-fs.target
+Before=multi-user.target getty.target greetd.service
+ConditionPathExists=/var/lib/wros-update
+
+[Service]
+Type=oneshot
+# Names a journal 'applying' transaction that has no running owner as interrupted, republishes
+# the public status and runs one bounded repair from retained authenticated archives. It never
+# reboots and never touches a foreign /system-update marker.
+Environment=WROS_SYSTEMD_RECONCILE=1
+ExecStart=/usr/libexec/wros-update reconcile
+ProtectHome=yes
+LimitCORE=0
+TimeoutStartSec=1900s
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
