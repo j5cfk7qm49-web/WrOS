@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 import unittest
 from unittest import mock
 
@@ -909,7 +910,7 @@ class EndOfInstallHandshakeTests(unittest.TestCase):
     def real_proof(self, **changes):
         proof = {
             'passed': True, 'root_locked': True, 'native_authentication_preserved': True,
-            'live_account_absent': True,
+            'live_account_absent': True, 'live_artifacts_absent': True,
             'encrypted_root_chain': {'format': 'LUKS2', 'partition': 'vda2', 'root': 'dm-1', 'crypt': 'dm-0'},
             'session_nonce': 'ab' * 16,
             'binary_sha256': {name: 'c' * 64 for name in ('grimoire', 'wros-greeter', 'wros-installer')},
@@ -960,6 +961,209 @@ class EndOfInstallHandshakeTests(unittest.TestCase):
             self.run_real_verification(self.real_proof(), disk_ok=False)
         with self.assertRaisesRegex(ValueError, 'failed validation'):
             self.run_real_verification(self.real_proof(passed=False))
+        with self.assertRaisesRegex(ValueError, 'failed validation'):
+            self.run_real_verification(self.real_proof(live_artifacts_absent=False))
+        stripped = self.real_proof()
+        stripped.pop('live_artifacts_absent')
+        with self.assertRaisesRegex(ValueError, 'failed validation'):
+            self.run_real_verification(stripped)
+
+
+class TargetHygieneTests(unittest.TestCase):
+    NONCE = 'ab' * 16
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory(prefix='wros-inst-hygiene-')
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name) / 'target'
+        for name in ('etc/greetd', 'etc/sudoers.d', 'etc/systemd/system', 'etc/live/config.conf.d',
+                     'usr/lib/live/config', 'var/lib/live', 'home/alice', 'run'):
+            (self.root / name).mkdir(parents=True)
+        (self.root / 'lib').symlink_to('usr/lib')
+        shutil.copyfile(ROOT / 'os/config/greetd.toml', self.root / 'etc/greetd/config.toml')
+        (self.root / 'etc/sudoers.d/README').write_text('# see sudoers(5)\n')
+
+    def put(self, relative, text='x\n'):
+        path = self.root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+        return path
+
+    def install_live_files(self):
+        self.put('etc/sudoers.d/live', 'wros-live ALL=(ALL) NOPASSWD: ALL\n')
+        self.put('etc/live/config.conf.d/90-wros.conf', 'LIVE_USERNAME="wros-live"\n')
+        self.put('lib/live/config/9998-wros-session', '#!/bin/sh\n')
+        self.put('etc/systemd/system/greetd.service.d/90-wros-live.conf',
+                 '[Service]\nEnvironment=WROS_GREETD_CONFIG=/etc/greetd/config.toml\n')
+        self.put('var/lib/live/config/wros-session', '')
+        wants = self.root / 'etc/systemd/system/multi-user.target.wants'
+        wants.mkdir()
+        (wants / 'live-config.service').symlink_to('/lib/systemd/system/live-config.service')
+
+    def test_clean_target_passes(self):
+        self.assertEqual(supervisor.verify_target_hygiene(self.root), {'live_artifacts_absent': True})
+        self.assertEqual(supervisor.purge_live_artifacts(self.root), [])
+
+    def test_every_staged_live_artifact_is_refused_then_purged_exactly_once(self):
+        for relative in supervisor.live_artifact_paths():
+            if relative.startswith('usr/'):
+                continue
+            with self.subTest(relative=relative):
+                self.put(relative)
+                with self.assertRaisesRegex(ValueError, 'persisted in installed target'):
+                    supervisor.verify_target_hygiene(self.root)
+                self.assertEqual(supervisor.purge_live_artifacts(self.root), ['/' + relative])
+                supervisor.verify_target_hygiene(self.root)
+        self.install_live_files()
+        with self.assertRaises(ValueError):
+            supervisor.verify_target_hygiene(self.root)
+        removed = supervisor.purge_live_artifacts(self.root)
+        self.assertIn('/etc/systemd/system/multi-user.target.wants/live-config.service', removed)
+        self.assertEqual(len(removed), 6)
+        supervisor.verify_target_hygiene(self.root)
+        self.assertEqual(supervisor.purge_live_artifacts(self.root), [])
+        # Only the named files go: the rest of the tree is untouched.
+        self.assertTrue((self.root / 'etc/sudoers.d/README').is_file())
+        self.assertTrue((self.root / 'etc/greetd/config.toml').is_file())
+        self.assertTrue((self.root / 'etc/live/config.conf.d').is_dir())
+
+    def test_purge_unlinks_symlinks_without_following_and_refuses_directories(self):
+        outside = Path(self.directory.name) / 'outside'
+        outside.write_text('keep\n')
+        (self.root / 'etc/sudoers.d/live').symlink_to(outside)
+        self.assertEqual(supervisor.purge_live_artifacts(self.root), ['/etc/sudoers.d/live'])
+        self.assertEqual(outside.read_text(), 'keep\n')
+        (self.root / 'etc/sudoers.d/live').mkdir()
+        (self.root / 'etc/sudoers.d/live/inner').write_text('x')
+        with self.assertRaisesRegex(ValueError, 'refusing to remove a directory'):
+            supervisor.purge_live_artifacts(self.root)
+        self.assertTrue((self.root / 'etc/sudoers.d/live/inner').exists())
+
+    def test_autologin_and_live_account_effects_are_refused_even_without_the_named_files(self):
+        cases = {
+            'greetd initial_session': ('etc/greetd/config.toml',
+                                       (ROOT / 'os/config/greetd.toml').read_text()
+                                       + '\n[initial_session]\ncommand = "/usr/libexec/writingdeck-session"\nuser = "alice"\n'),
+            'second greetd profile': ('etc/greetd/live.toml', '[initial_session]\ncommand = "x"\nuser = "u"\n'),
+            'live greetd override': ('etc/systemd/system/greetd.service.d/zz.conf',
+                                     '[Service]\nEnvironmentFile=-/run/wros-live/wros-live.env\n'),
+            'vendor greetd override': ('usr/lib/systemd/system/greetd.service.d/zz.conf',
+                                       '[Service]\nEnvironment=WROS_GREETD_CONFIG=/x\n'),
+            'getty autologin': ('etc/systemd/system/getty@tty1.service.d/override.conf',
+                                '[Service]\nExecStart=\nExecStart=-/sbin/agetty --autologin wros-live tty1\n'),
+            'sudoers for live user': ('etc/sudoers.d/90-anything', 'wros-live ALL=(ALL) NOPASSWD: ALL\n'),
+            'live-config account': ('etc/live/config.conf.d/10-user.conf', 'LIVE_USERNAME="x"\n'),
+            'live home': ('home/wros-live/.profile', 'x\n'),
+            'live marker': ('run/wros-live/session.json', '{}\n'),
+        }
+        for label, (relative, text) in cases.items():
+            with self.subTest(label):
+                path = self.put(relative, text)
+                with self.assertRaises(ValueError):
+                    supervisor.verify_target_hygiene(self.root)
+                path.unlink()
+                if relative.startswith(('home/wros-live', 'run/wros-live')):
+                    path.parent.rmdir()
+                supervisor.verify_target_hygiene(self.root)
+        (self.root / 'etc/sudoers.d/odd').symlink_to('/etc/passwd')
+        with self.assertRaisesRegex(ValueError, 'non-regular'):
+            supervisor.verify_target_hygiene(self.root)
+
+    def test_native_greetd_toml_is_valid_clean_input(self):
+        text = (ROOT / 'os/config/greetd.toml').read_text()
+        self.assertNotIn('initial_session', tomllib.loads(text))
+
+    def sysfs(self, root):
+        sysroot = root / 'sys'
+        for block, uid, slave in (('dm-1', 'LVM-root', 'dm-0'),
+                                  ('dm-0', 'CRYPT-LUKS2-0123456789abcdef0123456789abcdef-vda2_crypt', 'vda2')):
+            (sysroot / block / 'dm').mkdir(parents=True, exist_ok=True)
+            (sysroot / block / 'dm/uuid').write_text(uid + '\n')
+            (sysroot / block / 'slaves' / slave).mkdir(parents=True, exist_ok=True)
+        (sysroot / 'vda2').mkdir(exist_ok=True)
+        (sysroot / 'vda2/partition').write_text('2\n')
+        return sysroot
+
+    def verify_state(self, passwd_extra='', shadow_extra=''):
+        sysroot = self.sysfs(Path(self.directory.name))
+        luks = '01234567-89ab-cdef-0123-456789abcdef'
+        return supervisor.verify_installed_target_state(
+            passwd_text=('root:x:0:0:root:/root:/bin/bash\n'
+                         '_greetd:x:105:65534::/nonexistent:/usr/sbin/nologin\n'
+                         'alice:x:1000:1000:Alice:/home/alice:/bin/bash\n' + passwd_extra),
+            shadow_text=('root:!:19000:0:99999:7:::\n_greetd:!:19000:0:99999:7:::\n'
+                         'alice:$6$rounds=656000$saltsalt$hashedpasswordvalue:19000:0:99999:7:::\n'
+                         + shadow_extra),
+            group_text='sudo:x:27:alice\nwritingdeck:x:999:alice\n',
+            greetd_toml_text=(ROOT / 'os/config/greetd.toml').read_text(),
+            crypttab_text=f'vda2_crypt UUID={luks} none luks,discard\n',
+            fstab_text='/dev/mapper/wros--vg-root / ext4 errors=remount-ro 0 1\n',
+            root_block_name='dm-1',
+            sysroot=sysroot,
+        )
+
+    def test_account_state_rejects_live_identities_and_unlocked_installer_account(self):
+        self.assertTrue(self.verify_state()['passed'])
+        locked = '_wros-installer:x:996:996::/nonexistent:/usr/sbin/nologin\n'
+        self.assertTrue(self.verify_state(locked, '_wros-installer:!:19000:::::::\n')['passed'])
+        for name in ('wros-live', 'live', 'builder'):
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, 'temporary live or build account'):
+                self.verify_state(f'{name}:x:1001:1001::/home/{name}:/bin/bash\n')
+        with self.assertRaisesRegex(ValueError, 'locked root/greeter/installer'):
+            self.verify_state(locked, '_wros-installer:$6$x$y:19000:::::::\n')
+        with self.assertRaisesRegex(ValueError, 'no-login identity'):
+            self.verify_state('_wros-installer:x:996:996::/nonexistent:/bin/bash\n',
+                              '_wros-installer:!:19000:::::::\n')
+        with self.assertRaisesRegex(ValueError, 'no-login identity|unique'):
+            self.verify_state('_wros-installer:x:0:0::/nonexistent:/usr/sbin/nologin\n',
+                              '_wros-installer:!:19000:::::::\n')
+
+    def test_completion_hooks_run_hygiene_before_the_proof_and_refuse_pre_existing_hooks(self):
+        di_root = Path(self.directory.name) / 'di'
+        supervisor.stage_completion_hooks(di_root, self.NONCE)
+        hooks = sorted((di_root / 'usr/lib/finish-install.d').iterdir())
+        self.assertEqual([hook.name for hook in hooks],
+                         ['93wros-target-hygiene', '94wros-target-proof', '97wros-target-finished'])
+        hygiene = hooks[0].read_text()
+        self.assertIn(f'target-hygiene {self.NONCE}', hygiene)
+        self.assertIn('exit 10', hygiene)
+        self.assertNotIn('--pass-stdout', hygiene)
+        self.assertIn(f'target-audit {self.NONCE}', hooks[1].read_text())
+        for hook in hooks:
+            self.assertEqual(hook.stat().st_mode & 0o777, 0o755)
+            subprocess.run(['/bin/sh', '-n', str(hook)], check=True)
+        with self.assertRaisesRegex(ValueError, 'already exist'):
+            supervisor.stage_completion_hooks(di_root, self.NONCE)
+        (di_root / 'usr/lib/finish-install.d/94wros-target-proof').unlink()
+        (di_root / 'usr/lib/finish-install.d/97wros-target-finished').unlink()
+        with self.assertRaisesRegex(ValueError, 'already exist'):
+            supervisor.stage_completion_hooks(di_root, self.NONCE)
+
+    def test_hygiene_subcommand_is_reserved_for_the_target_hook_and_checks_its_nonce(self):
+        with mock.patch.object(supervisor.sys, 'argv', ['x', 'target-hygiene', self.NONCE]), \
+             mock.patch.dict(supervisor.os.environ, {'PKEXEC_UID': '1000'}, clear=True):
+            with self.assertRaisesRegex(ValueError, 'reserved'):
+                supervisor.main()
+        with mock.patch.object(supervisor.os, 'geteuid', return_value=0):
+            for bad in ('', 'AB' * 16, 'a' * 31, '../x'):
+                with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, 'session nonce'):
+                    supervisor.in_target_hygiene(bad)
+            with mock.patch.object(supervisor, 'purge_live_artifacts', return_value=['/etc/sudoers.d/live']) as purge, \
+                 mock.patch.object(supervisor, 'verify_target_hygiene', return_value={}) as verify, \
+                 mock.patch('builtins.print') as printed:
+                self.assertEqual(supervisor.in_target_hygiene(self.NONCE), 0)
+        purge.assert_called_once_with()
+        verify.assert_called_once_with()
+        self.assertIn('/etc/sudoers.d/live', printed.call_args.args[0])
+
+    def test_in_target_audit_runs_the_hygiene_check_and_the_proof_requires_its_result(self):
+        with mock.patch.object(supervisor.os, 'geteuid', return_value=0), \
+             mock.patch.object(supervisor, 'verify_target_hygiene',
+                               side_effect=ValueError('live session artifact persisted')), \
+             mock.patch.object(supervisor, 'verify_installed_target_state') as state:
+            with self.assertRaisesRegex(ValueError, 'live session artifact persisted'):
+                supervisor.in_target_audit(self.NONCE)
+        state.assert_not_called()
 
 
 if __name__ == '__main__':

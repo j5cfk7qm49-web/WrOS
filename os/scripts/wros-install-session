@@ -59,6 +59,18 @@ LAUNCHER_FILES = {
 # media view (about 160 MiB of capsule archives) and the installation's own
 # tmpfs and apt working set must all fit in available memory without swap.
 MIN_MEM_AVAILABLE_MIB = 3072
+# Live-session files the image stages that must not outlive installation in the
+# target (paths relative to the target root). purge_live_artifacts removes exactly
+# these in finish-install; verify_target_hygiene proves they and their effects
+# (autologin, live account, sudo rights, live-config activation) are gone.
+LIVE_TARGET_ARTIFACTS = (
+    'etc/sudoers.d/live',
+    'etc/live/config.conf.d/90-wros.conf',
+    'lib/live/config/9998-wros-session',
+    'etc/systemd/system/greetd.service.d/90-wros-live.conf',
+    'var/lib/live/config/wros-session',
+)
+FORBIDDEN_TARGET_ACCOUNTS = ('wros-live', 'live', 'builder')
 CAPSULE_NAME = 'native-installer'
 SHA256_TEXT = re.compile(r'[0-9a-f]{64}')
 # Capsule files that Debian's retrievers read at fixed media paths. The first
@@ -670,8 +682,12 @@ def verify_installed_target_state(
     require(all(len(row) == 7 for row in users)
             and len({row[0] for row in users}) == len(users),
             'unique target accounts required')
-    require(not any(row[0] in ('wros-live', 'builder') for row in users),
+    require(not any(row[0] in FORBIDDEN_TARGET_ACCOUNTS for row in users),
             'temporary live or build account persisted in installed target')
+    installer_rows = [row for row in users if row[0] == FRONTEND_USER]
+    require(all(row[2] not in ('0', '1000') and row[6].endswith(('/nologin', '/false'))
+                for row in installer_rows),
+            'installer frontend account must stay an unprivileged no-login identity in target')
     normal_users = [row for row in users if row[2] == '1000']
     require(len(normal_users) == 1 and normal_users[0][3] == '1000'
             and normal_users[0][5].startswith('/home/')
@@ -691,8 +707,9 @@ def verify_installed_target_state(
         secrets_map[row[0]] = row[1]
     require(secrets_map.get('root', '').startswith(('!', '*'))
             and secrets_map.get('_greetd', '').startswith(('!', '*'))
-            and secrets_map.get(installed_user, '').startswith(('$6$', '$y$')),
-            'locked root/greeter and hashed user password required in target')
+            and secrets_map.get(installed_user, '').startswith(('$6$', '$y$'))
+            and (not installer_rows or secrets_map.get(FRONTEND_USER, '').startswith(('!', '*'))),
+            'locked root/greeter/installer and hashed user password required in target')
     memberships = {
         row[0] for line in group_text.splitlines()
         if len(row := line.split(':')) == 4 and installed_user in row[3].split(',')
@@ -753,11 +770,96 @@ def verify_installed_target_state(
     }
 
 
+def live_artifact_paths():
+    return LIVE_TARGET_ARTIFACTS + tuple(
+        'usr/' + item for item in LIVE_TARGET_ARTIFACTS if item.startswith('lib/'))
+
+
+def live_config_links(root):
+    """Enablement links for live-config.service, including dangling ones."""
+    units = Path(root) / 'etc/systemd/system'
+    if not units.is_dir():
+        return []
+    return [wants / 'live-config.service'
+            for wants in sorted(units.iterdir())
+            if wants.name.endswith('.wants') and wants.is_dir() and not wants.is_symlink()
+            and os.path.lexists(wants / 'live-config.service')]
+
+
+def purge_live_artifacts(root=Path('/')):
+    """Remove only the live-session files the image stages; never recurse.
+
+    Runs inside the installed target (finish-install) so the copied live
+    configuration cannot become a persistent autologin, live account or
+    live-config trigger. Directories are refused rather than removed.
+    """
+    root = Path(root)
+    removed = []
+    candidates = [root / item for item in live_artifact_paths()]
+    candidates += live_config_links(root)
+    for path in candidates:
+        if not os.path.lexists(path):
+            continue
+        require(not stat.S_ISDIR(path.lstat().st_mode),
+                f'refusing to remove a directory where a live file was expected: {path}')
+        path.unlink()
+        removed.append('/' + path.relative_to(root).as_posix())
+    return removed
+
+
+def scan_text(path, limit=65536):
+    info = Path(path).lstat()
+    require(stat.S_ISREG(info.st_mode) and info.st_size <= limit,
+            f'unexpected non-regular or oversized configuration file: {path}')
+    return Path(path).read_text(encoding='utf-8', errors='replace')
+
+
+def verify_target_hygiene(root=Path('/')):
+    """Prove the installed target carries no live session, autologin or live-config trigger."""
+    root = Path(root)
+    for item in live_artifact_paths():
+        require(not os.path.lexists(root / item),
+                f'live session artifact persisted in installed target: /{item}')
+    require(not live_config_links(root),
+            'live-config.service is enabled in installed target')
+    require(not os.path.lexists(root / 'home/wros-live') and not os.path.lexists(root / 'run/wros-live'),
+            'live session home or marker persisted in installed target')
+    sudoers = root / 'etc/sudoers.d'
+    for entry in sorted(sudoers.iterdir()) if sudoers.is_dir() else ():
+        require(entry.name != 'live' and re.search(r'\bwros-live\b', scan_text(entry)) is None,
+                f'live account sudo rights persisted in installed target: {entry.name}')
+    for conf in sorted((root / 'etc/live').glob('**/*.conf')) if (root / 'etc/live').is_dir() else ():
+        require(re.search(r'\bwros-live\b|LIVE_USERNAME', scan_text(conf)) is None,
+                f'live-config account configuration persisted in installed target: {conf.name}')
+    for toml in sorted((root / 'etc/greetd').glob('*.toml')) if (root / 'etc/greetd').is_dir() else ():
+        require('initial_session' not in tomllib.loads(scan_text(toml)),
+                f'greetd initial_session (autologin) persisted in installed target: {toml.name}')
+    for base in ('etc', 'usr/lib'):
+        for conf in sorted((root / base / 'systemd/system/greetd.service.d').glob('*.conf')):
+            require(re.search(r'wros-live|WROS_GREETD_CONFIG|initial_session', scan_text(conf)) is None,
+                    f'live greetd override persisted in installed target: {conf.name}')
+    for pattern in ('getty@*.service.d', 'autovt@*.service.d', 'serial-getty@*.service.d',
+                    'console-getty.service.d'):
+        for conf in sorted((root / 'etc/systemd/system').glob(pattern + '/*.conf')):
+            require('autologin' not in scan_text(conf).lower(),
+                    f'console autologin persisted in installed target: {conf.name}')
+    return {'live_artifacts_absent': True}
+
+
+def in_target_hygiene(nonce):
+    require(os.geteuid() == 0 and re.fullmatch('[a-f0-9]{32}', nonce) is not None,
+            'in-target hygiene requires root and a session nonce')
+    removed = purge_live_artifacts()
+    verify_target_hygiene()
+    print(json.dumps({'live_artifacts_removed': removed}, sort_keys=True), flush=True)
+    return 0
+
+
 def in_target_audit(nonce):
     require(os.geteuid() == 0 and re.fullmatch('[a-f0-9]{32}', nonce) is not None, 'in-target audit requires root and a session nonce')
-    require(not Path('/etc/sudoers.d/live').exists()
-            and not Path('/etc/writingdeck/VM-DEMO-ONLY').exists(),
-            'live sudoers or VM demo marker leaked into target')
+    require(not Path('/etc/writingdeck/VM-DEMO-ONLY').exists(),
+            'VM demo marker leaked into target')
+    hygiene = verify_target_hygiene()
     root_dev = os.stat('/').st_dev
     root_block = Path(f'/sys/dev/block/{os.major(root_dev)}:{os.minor(root_dev)}').resolve(strict=True).name
     proof = verify_installed_target_state(
@@ -786,6 +888,7 @@ def in_target_audit(nonce):
             'live boot arguments persisted in installed GRUB configuration')
     loaders = [p for p in Path('/boot/efi/EFI').glob('*/*') if p.is_file() and p.suffix.lower() == '.efi']
     require(loaders, 'installed UEFI loaders are missing')
+    proof.update(hygiene)
     proof['session_nonce'] = nonce
     proof['binary_sha256'] = {name: digest(Path('/usr/bin')/name)
                               for name in ('grimoire','wros-greeter','wros-installer')}
@@ -798,10 +901,18 @@ def stage_completion_hooks(di_root, nonce):
     require(re.fullmatch("[a-f0-9]{32}", nonce) is not None, "invalid session nonce")
     directory = Path(di_root) / 'usr/lib/finish-install.d'
     directory.mkdir(parents=True, exist_ok=True)
+    hygiene_hook = directory / '93wros-target-hygiene'
     audit_hook = directory / '94wros-target-proof'
     finish_hook = directory / '97wros-target-finished'
-    require(not audit_hook.exists() and not finish_hook.exists(),
+    require(not hygiene_hook.exists() and not audit_hook.exists() and not finish_hook.exists(),
             'installer completion hooks already exist')
+    # Purge the copied live-session files first; the proof hook then audits them.
+    hygiene_hook.write_text(
+        '#!/bin/sh\nset -e\numask 077\n'
+        f'if in-target /usr/bin/python3 -I {SELF_PATH} target-hygiene {nonce}; then\n'
+        '  exit 0\nelse\n  exit 10\nfi\n',
+        encoding='utf-8',
+    )
     audit_hook.write_text(
         '#!/bin/sh\nset -e\numask 077\n'
         f'if in-target --pass-stdout /usr/bin/python3 -I {SELF_PATH} target-audit {nonce} > /wros-target-proof; then\n'
@@ -814,6 +925,7 @@ def stage_completion_hooks(di_root, nonce):
         'printf "completed\\n" > /wros-target-finished\n',
         encoding='utf-8',
     )
+    hygiene_hook.chmod(0o755)
     audit_hook.chmod(0o755)
     finish_hook.chmod(0o755)
 
@@ -841,6 +953,7 @@ def verify_completion_proof(di_root, baseline):
             and proof.get('root_locked') is True
             and proof.get('native_authentication_preserved') is True
             and proof.get('live_account_absent') is True
+            and proof.get('live_artifacts_absent') is True
             and proof.get('encrypted_root_chain', {}).get('format') == 'LUKS2',
             'target completion proof failed validation')
     require(is_writable_target_block(proof['encrypted_root_chain']['partition'], baseline), 'installed target is outside selected disk')
@@ -1016,6 +1129,9 @@ def build_media_view(work_dir):
     medium = MEDIUM.resolve(strict=True)
     capsule = medium / CAPSULE_NAME
     manifest = load_capsule_manifest(capsule)
+    index_info = (capsule / 'Packages').lstat()
+    require(stat.S_ISREG(index_info.st_mode) and 0 < index_info.st_size <= MAX_PACKAGE_INDEX_BYTES,
+            'bounded canonical capsule package index required')
     archives = indexed_archives((capsule / 'Packages').read_bytes(), manifest)
     media_info = (medium / '.disk/info').read_bytes()
     squashfs_size = (medium / 'live/filesystem.squashfs').stat().st_size
@@ -1434,6 +1550,9 @@ def main():
     if len(sys.argv) == 3 and sys.argv[1] == 'target-audit':
         require('PKEXEC_UID' not in os.environ, 'target audit is reserved for the installed-target hook')
         return in_target_audit(sys.argv[2])
+    if len(sys.argv) == 3 and sys.argv[1] == 'target-hygiene':
+        require('PKEXEC_UID' not in os.environ, 'target hygiene is reserved for the installed-target hook')
+        return in_target_hygiene(sys.argv[2])
     if len(sys.argv) in (2, 5) and sys.argv[1] in ('worker', 'cleanup'):
         require(os.geteuid() == 0 and os.getppid() == 1 and 'PKEXEC_UID' not in os.environ,
                 'service roles may only be invoked by systemd')
