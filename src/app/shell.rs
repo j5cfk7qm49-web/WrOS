@@ -80,6 +80,7 @@ pub enum Route {
     UpdateBundleForm,
     RecoveryView,
     StorageDevicesView,
+    InstallerConfirm,
 }
 
 pub struct WifiForm {
@@ -315,6 +316,8 @@ enum Choice {
     TimezoneChoose(String),
     TimezoneResolve(bool),
     Lock,
+    InstallerOpen,
+    InstallerResolve(bool),
 }
 struct Entry {
     label: String,
@@ -500,6 +503,20 @@ fn entries(app: &App) -> Vec<Entry> {
                             .and_then(|s| s.available_bytes)
                             .map_or("unknown".into(), |n| format!("{} MiB", n / (1024 * 1024)))
                     )));
+                    if app.deck.live_session && app.deck.installer_available {
+                        rows.push(Entry::new(
+                            "Install WrOS to disk · encrypted live installer",
+                            Choice::InstallerOpen,
+                        ));
+                    } else if app.deck.live_session {
+                        rows.push(Entry::info(
+                            "Live installer unavailable on this console or image",
+                        ));
+                    } else {
+                        rows.push(Entry::info(
+                            "System installed · live installer runs only from live media",
+                        ));
+                    }
                 }
                 Panel::DateTime => rows.extend([
                     Entry::info(format!(
@@ -1098,6 +1115,22 @@ fn entries(app: &App) -> Vec<Entry> {
                 ),
             ]
         }
+        Route::InstallerConfirm => vec![
+            Entry::new(
+                "Cancel and remain in the live writing session",
+                Choice::InstallerResolve(false),
+            ),
+            Entry::new(
+                "Start encrypted WrOS installer on console tty7",
+                Choice::InstallerResolve(true),
+            ),
+            Entry::info(
+                "Retires writing input on tty1 while the shared Grimoire installer runs on tty7.",
+            ),
+            Entry::info(
+                "Disk writes remain default-No inside the installer until you explicitly confirm.",
+            ),
+        ],
         Route::WarmPreview => vec![
             Entry::info(format!(
                 "Temporary display preview · {} seconds remaining",
@@ -1452,6 +1485,18 @@ impl App {
                     | Choice::SavedWifiResolve(_)
                     | Choice::UpdateBundleOpen => {}
                     Choice::Lock => self.request_console_lock(),
+                    Choice::InstallerOpen if !self.deck.busy => {
+                        self.deck.shell.nav.open(Route::InstallerConfirm);
+                        self.deck.shell.nav.select(0, 4);
+                    }
+                    Choice::InstallerResolve(false) => {
+                        self.deck.shell.nav.back();
+                    }
+                    Choice::InstallerResolve(true) if !self.deck.busy => {
+                        self.deck.shell.nav.back();
+                        self.request_live_installer();
+                    }
+                    Choice::InstallerOpen | Choice::InstallerResolve(true) => {}
                     Choice::TimezoneOpen if !self.deck.busy => {
                         self.deck.shell.timezones = None;
                         self.deck.shell.timezone_query.clear();
@@ -1649,6 +1694,7 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
         Route::UpdateBundleForm => "WrOS · Inspect signed offline update".into(),
         Route::RecoveryView => "WrOS · Settings › Recovery".into(),
         Route::StorageDevicesView => "WrOS · Settings › Mounted filesystems".into(),
+        Route::InstallerConfirm => "WrOS · Start encrypted live installer?".into(),
     };
     if app.deck.live_session {
         title.push_str(" · Live session");

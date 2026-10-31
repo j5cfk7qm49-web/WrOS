@@ -111,9 +111,9 @@
       "area": "OS",
       "capability": "Signed OS/app updates, snapshots/rollback and offline bundles",
       "status": "In progress",
-      "verification": "Real ephemeral GPG-signed metadata/Packages/archive verification and mutation-refusal tests; Rust/four-size UI software gates passed",
+      "verification": "Local and independent CI: 1101 Rust/configuration, 240 Python/zero skips, both Clippys; real APT solver, GPG metadata, POSIX locks and durable-journal tests",
       "hardware_verified": false,
-      "detail": "No update installation or automatic rollback: offline APT transaction, freshness/downgrade/dependency policy, boot service and interruption/rescue qualification remain open; see ARGON_INTEGRATION_2026-10-31.md"
+      "detail": "Foreign triggers preserved, authenticated archives retained on failure, APT refuses removals/unreviewed packages; native mutations and automatic boot activation disabled pending trust/recovery VM qualification"
     },
     {
       "area": "OS",
@@ -639,9 +639,9 @@
       "area": "OS",
       "capability": "Live WrOS installer TUI over Debian installation components",
       "status": "In progress",
-      "verification": "Prior live/default-No VM evidence plus current synthetic target mount/swap/LVM/LUKS cleanup tests; full encrypted installation and first boot remain pending",
+      "verification": "Local and independent CI: 1101 Rust/configuration, 240 Python/zero skips, both Clippys; four-size save/conflict UI, selected-disk/proof fixtures and actual systemd namespace probe",
       "hardware_verified": false,
-      "detail": "Shared native frontend and maintained Debian backend; leaf-first cleanup/handoff are QA fixtures only. Production launcher/supervisor/completion and full encrypted install/boot remain open"
+      "detail": "Live-only supervised installer with distinct locked frontend UID, owned single-disk cleanup and nonce/application/boot-bound proof; actual production handoff/full encrypted install and first-boot VM remain open"
     },
     {
       "area": "System",

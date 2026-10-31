@@ -1,0 +1,40 @@
+┌WrOS · Settings › Backups─────────────────────────────────────────────────────────────────────────────────────────────┐
+│  No backup operation is running                                                                                      │
+│  Create encrypted backup of this saved project                                                                       │
+│  Refresh snapshots                                                                                                   │
+│  New backup on a local drive                                                                                         │
+│  New backup on Google Drive                                                                                          │
+│  Connect existing repository and recovery key                                                                        │
+│  Connect Google Drive                                                                                                │
+│  Export recovery key                                                                                                 │
+│  Recover an interrupted repository lock                                                                              │
+│  Queue saved project for offline backup                                                                              │
+│  Run queued backups and retry interrupted jobs                                                                       │
+│  Destination: /tmp/wros-native-backup-jvr8o9jj/encrypted snapshots                                                   │
+│  Private recovery key: /tmp/wros-native-backup-jvr8o9jj/home/data/grimoire/wros/backup/recovery-9a875ad95bd5bcd3a11d6│
+│  Google Drive is not connected                                                                                       │
+│  Select a snapshot below to restore into a NEW folder.                                                               │
+│  Keep local backups on another device; folders can share the same disk.                                              │
+│  Restore verified and saved in /tmp/wros-native-backup-jv                                                            │
+│  r8o9jj/demo-restored-96dcfdde. Open that folder explicit                                                            │
+│  ly to review it.                                                                                                    │
+│▸ demo · 2026-10-31T18:49:19.915183253Z · 96dcfdde                                                                    │
+│  Restore checked: 2026-10-31T18:49:24.405955+00:00                                                                   │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│Restore verified and saved in /tmp/wros-native-backup-jvr8o9jj/demo-restored-96dcfdde. Open that folder explicitly to │
+│↑↓ choose  Enter open  Esc back  F1 help                                                                              │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

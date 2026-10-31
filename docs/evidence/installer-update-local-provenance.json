@@ -1,0 +1,65 @@
+{
+  "baseline_commit": "4eeca4403580c2ef239f8da262dcb201f48fe164",
+  "import_commit": "1974923500086999b62d939afa04a2c040bb1bb9",
+  "inputs": {
+    "1-WrOS-Argon.patch": {
+      "bytes": 195167,
+      "sha256": "11acdf383fbeaeafecc6e2821ba07a85ba27526e38261d52e7d3078bc86968d9"
+    },
+    "2-WrOS-Argon-result.zip": {
+      "bytes": 16497605,
+      "sha256": "cd62a21b5a656c6c09a5ae297e5626a9af2e7eaa71ea6d1a9fb87dbea24517cc"
+    }
+  },
+  "verification": "passed local software qualification",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "167b25c278108a9c09883c8bdc11b76dce2e17ab6c9bbdcef53c78c0b5bf1d5b",
+    "file_count": 492,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "tested_binary_sha256": "26f44283080813bc8fb2b2fc32764c0336f98f4ccee51fd53b0d8502b025d325",
+  "software_receipt": "docs/evidence/installer-update-local.json",
+  "software_receipt_sha256": "a9a3b07d129d4ab7e919fa91b93561ce90df025526c3a42b1fdbe2c74fea9fc1",
+  "runner": "Debian 13, Rust 1.99.1, CPython 3.13, non-root builder, isolated network namespace with loopback only",
+  "frames": [
+    {
+      "file": "docs/evidence/installer-update-backup-80x24.txt",
+      "sha256": "d5becb6f5267ce641ace75d64841df24b035eb259a536f9783184346b82a4f44"
+    },
+    {
+      "file": "docs/evidence/installer-update-backup-100x30.txt",
+      "sha256": "fae1372ab899389aa1824f04401365969b6e1af33898226155ce9b7b2fede26a"
+    },
+    {
+      "file": "docs/evidence/installer-update-backup-120x40.txt",
+      "sha256": "b0b6435547853359a579c3a3ab84949237a86fb4d4642a3c709f1141526d51f1"
+    },
+    {
+      "file": "docs/evidence/installer-update-backup-160x50.txt",
+      "sha256": "e6e047889ff358c1fc4e48948dff2ef1e8a8b46d28c22b9a6dfbbbeecb9335be"
+    }
+  ],
+  "scope": "Installer native confirmation/save/conflict UI at four sizes, fail-closed input outcomes, selected-disk ownership and proof fixtures, isolated-identity image audit, real APT solver on temporary status/deb files, signed metadata/POSIX locks and journal fixtures, complete writing/backup regression suite",
+  "real_google_account_used": false,
+  "manuscript_transmitted_to_a_provider": false,
+  "physical_or_full_encrypted_install_qualified": false,
+  "actual_update_application_qualified": false,
+  "process_namespace_probe": {
+    "host": "WSL Ubuntu systemd",
+    "exit_code": 0,
+    "corrected": {
+      "pid": 227367,
+      "ppid": 1,
+      "caller_visible": true
+    },
+    "original": {
+      "pid": 1,
+      "ppid": 0,
+      "caller_visible": false
+    },
+    "private_mount_and_UTS_checks_passed": true,
+    "host_hostname_preserved": true,
+    "disk_account_terminal_and_package_operations": false
+  }
+}

@@ -1147,3 +1147,72 @@ fn signed_bundle_inspection_and_recovery_diagnostics_preserve_both_editors_at_fo
         assert_eq!(desk.app.focus, Focus::Secondary);
     }
 }
+
+#[test]
+fn live_installer_handoff_confirmation_and_dirty_buffer_gate_preserve_both_editors_at_four_sizes() {
+    use writingdeck_sys::Simulated;
+    for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let (mut desk, note) =
+            secondary_book(&format!("live-installer-{width}"), width, height, true);
+        choose_secondary(&mut desk, &note);
+        desk.app
+            .deck
+            .use_test_backend(Box::new(Simulated::laptop()));
+        desk.typed("Live session draft before starting encrypted installer. ");
+        let original = desk.app.editor.text();
+        let primary = desk.app.view_position(Pane::Primary);
+        let secondary = desk.app.view_position(Pane::Secondary);
+
+        // Installed session (live_session == false) refuses live installer handoff.
+        desk.app.deck.live_session = false;
+        desk.app.deck.installer_available = true;
+        desk.app.request_live_installer();
+        assert!(!desk.app.deck.installer_requested);
+
+        // Enable live_session and open System > Storage (index 3).
+        desk.app.deck.live_session = true;
+        desk.app.deck.installer_available = true;
+        system_panel(&mut desk, 3);
+        wait_system(&mut desk);
+        desk.choose("Install WrOS to disk · encrypted live installer");
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::InstallerConfirm);
+        assert!(desk.shows("Cancel and remain in the live writing session"));
+
+        // Default selection is Cancel (row 0).
+        desk.key(KeyCode::Enter);
+        assert_eq!(
+            desk.app.deck.shell.nav.current(),
+            Route::Panel(crate::app::shell::Panel::Storage)
+        );
+        assert!(!desk.app.deck.installer_requested);
+
+        // Open confirmation again and choose Start encrypted WrOS installer (row 1).
+        desk.choose("Install WrOS to disk · encrypted live installer");
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        assert!(desk.app.deck.installer_requested);
+        assert_eq!(desk.app.editor.text(), original);
+        assert_eq!(desk.app.view_position(Pane::Primary), primary);
+        assert_eq!(desk.app.view_position(Pane::Secondary), secondary);
+
+        // Reset flag and verify source conflict blocks installer handoff.
+        desk.app.deck.installer_requested = false;
+        for _ in 0..3 {
+            desk.key(KeyCode::Esc);
+        }
+        assert_eq!(desk.app.overlay, Overlay::None);
+        desk.typed("Unsaved live edit with external conflict. ");
+        fs::write(&note, "External file modification on live storage.\n").unwrap();
+        desk.app.request_live_installer();
+        assert!(!desk.app.deck.installer_requested);
+        assert!(
+            desk.app
+                .deck
+                .shell
+                .notices
+                .latest()
+                .unwrap()
+                .contains("unsaved buffers or source conflicts")
+        );
+    }
+}

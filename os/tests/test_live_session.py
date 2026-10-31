@@ -119,22 +119,40 @@ class LiveSessionImage(unittest.TestCase):
     def fixture(root):
         from test_native_image import fixture
         fixture(root)
+        with (root/'etc/passwd').open('a') as output:
+            output.write('_wros-installer:x:994:994::/nonexistent:/usr/sbin/nologin\n')
+        with (root/'etc/shadow').open('a') as output:
+            output.write('_wros-installer:!:1:0:99999:7:::\n')
         files = {
             'os/scripts/writingdeck-session': 'usr/libexec/writingdeck-session',
             'os/scripts/wros-live-session': 'usr/libexec/wros-live-session',
+            'os/scripts/wros-install-session': 'usr/libexec/wros-install-session',
             'os/config/live/9998-wros-session': 'lib/live/config/9998-wros-session',
             'os/config/live/live.conf': 'etc/live/config.conf.d/90-wros.conf',
             'os/config/live/greetd-live.conf': 'etc/systemd/system/greetd.service.d/90-wros-live.conf',
+            'os/config/50-wros-installer.rules': 'etc/polkit-1/rules.d/50-wros-installer.rules',
+            'os/config/org.wros.installer.policy': 'usr/share/polkit-1/actions/org.wros.installer.policy',
+            'os/config/installer.preseed': 'etc/wros/installer.preseed',
+            'os/config/installer/native-crypto-passphrase': 'usr/lib/wros-installer/native-crypto-passphrase',
         }
+        exec_sources = (
+            'writingdeck-session',
+            'wros-live-session',
+            'wros-install-session',
+            '9998-wros-session',
+            'native-crypto-passphrase',
+        )
         for source, target in files.items():
             path = root/target; path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT/source, path)
-            path.chmod(0o755 if source.endswith(('writingdeck-session','wros-live-session','9998-wros-session')) else 0o644)
+            path.chmod(0o755 if source.endswith(exec_sources) else 0o644)
         for target in ('usr/bin/wros-installer','usr/bin/live-config','usr/lib/user-setup/user-setup-apply'):
             path = root/target; path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(b'fixture executable'); path.chmod(0o755)
         mask = root/'etc/systemd/system-generators/live-config-getty-generator'
         mask.parent.mkdir(parents=True); mask.symlink_to('/dev/null')
+        for unit in ('getty@tty7.service', 'autovt@tty7.service'):
+            (root/'etc/systemd/system'/unit).symlink_to('/dev/null')
 
     @staticmethod
     def audit(root):
@@ -148,21 +166,29 @@ class LiveSessionImage(unittest.TestCase):
             result = self.audit(root)
             self.assertTrue(result['passed'])
             self.assertTrue(result['temporary_account_absent'])
+            self.assertTrue(result['installer_tty7_masked'])
             self.assertFalse(result['native_session']['autologin'])
             self.assertNotIn('initial_session', tomllib.loads((root/'etc/greetd/config.toml').read_text()))
 
     def test_partial_altered_or_runtime_profiles_are_rejected(self):
         def runtime(root):
             (root/'run/wros-live').mkdir(parents=True)
+        def installer_runtime(root):
+            (root/'run/wros-installer').mkdir(parents=True)
         def sudo(root):
             (root/'etc/sudoers.d').mkdir()
             (root/'etc/sudoers.d/live').write_text('fixture only\n')
         mutations = {
-            'runtime': runtime, 'sudo': sudo,
+            'runtime': runtime, 'installer runtime': installer_runtime, 'sudo': sudo,
+            'installer root uid': lambda r: (r/'etc/passwd').write_text((r/'etc/passwd').read_text().replace('_wros-installer:x:994:', '_wros-installer:x:0:')),
+            'installer unlocked': lambda r: (r/'etc/shadow').write_text((r/'etc/shadow').read_text().replace('_wros-installer:!:', '_wros-installer:$6$invalid:')),
             'live user': lambda r: (r/'etc/passwd').write_text((r/'etc/passwd').read_text()+'wros-live:x:1000:1000::/home/wros-live:/bin/bash\n'),
             'reserved uid': lambda r: (r/'etc/passwd').write_text((r/'etc/passwd').read_text()+'other:x:1000:1000::/home/other:/bin/bash\n'),
             'active getty generator': lambda r: (r/'etc/systemd/system-generators/live-config-getty-generator').unlink(),
+            'unmasked tty7': lambda r: (r/'etc/systemd/system/getty@tty7.service').unlink(),
             'altered helper': lambda r: (r/'usr/libexec/wros-live-session').write_text('fixture\n'),
+            'altered installer supervisor': lambda r: (r/'usr/libexec/wros-install-session').write_text('fixture\n'),
+            'altered preseed': lambda r: (r/'etc/wros/installer.preseed').write_text('d-i partman/confirm boolean true\n'),
             'nonexecutable helper': lambda r: (r/'usr/libexec/wros-live-session').chmod(0o644),
             'unexpected override': lambda r: (r/'etc/systemd/system/greetd.service.d/99-other.conf').write_text('[Service]\nExecStart=/bin/sh\n'),
         }

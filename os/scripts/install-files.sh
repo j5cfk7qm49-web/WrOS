@@ -82,6 +82,12 @@ printf 'WRITINGDECK_VERSION=0.1.0-dev\nGRIMOIRE_BASE=0.7.5\nBASE_COMMIT=f3ca1e8\
 mkdir -p "$dest/etc/systemd/system/multi-user.target.wants"
 ln -sf ../writingdeck-keyboard.service "$dest/etc/systemd/system/multi-user.target.wants/writingdeck-keyboard.service"
 ln -sf ../wros-display.service "$dest/etc/systemd/system/multi-user.target.wants/wros-display.service"
+# The offline updater is not enabled until disposable-VM apply/interruption/rescue qualifies.
+if [[ -e $dest/etc/systemd/system/system-update.target.wants/wros-offline-update.service \
+   || -L $dest/etc/systemd/system/system-update.target.wants/wros-offline-update.service ]]; then
+    echo 'Unqualified offline-update activation present in staging root; review it before building.' >&2
+    exit 2
+fi
 # Manual locking does not qualify sleep/resume. Block automatic and explicit
 # sleep in the image as well as in the UI; logind's default lid action bypasses it.
 mkdir -p "$dest/etc/systemd/logind.conf.d" "$dest/etc/systemd/sleep.conf.d"

@@ -7,6 +7,8 @@ mod books;
 mod console_lock;
 mod help;
 mod library;
+#[cfg(target_os = "linux")]
+mod live_installer;
 mod music;
 mod palette;
 mod scene;
@@ -585,6 +587,27 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
             }
             app.deck.note = "Writing session unlocked; original editor context retained.".into();
             app.deck.shell.notices.push(&app.deck.note);
+        }
+        #[cfg(target_os = "linux")]
+        if std::mem::take(&mut app.deck.installer_requested) {
+            match live_installer::handoff(terminal, &mut events) {
+                Ok(live_installer::Outcome::Completed) => {
+                    app.deck.note = "Encrypted installation completed and target storage retired. Restart from Battery and power when ready.".into();
+                    app.deck.shell.notices.push(&app.deck.note);
+                }
+                Ok(live_installer::Outcome::Cancelled) => {
+                    app.deck.note = "Installer closed without completing installation; live writing session resumed.".into();
+                    app.deck.shell.notices.push(&app.deck.note);
+                }
+                Ok(live_installer::Outcome::Stopped) => {
+                    app.deck.note = "Installation did not complete. Target cleanup was verified; live writing session resumed.".into();
+                    app.deck.shell.notices.push(&app.deck.note);
+                }
+                Err(error) => {
+                    save_or_rescue(app);
+                    return Err(error);
+                }
+            }
         }
         app.autosave_tick();
         app.sync_tick();

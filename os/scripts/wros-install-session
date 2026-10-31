@@ -1,0 +1,1166 @@
+#!/usr/bin/python3 -I
+"""Supervised live-session handoff to the native WrOS encrypted installer.
+
+Runs only from the authenticated live session (boot=live wros.live=1) when
+invoked via pkexec by the active tty1 Grimoire process after its input reader
+has retired. Never accepts environment path overrides, target disk arguments,
+or preseeded credentials. Contains the frontend (tty7, UID 1000) and Debian
+Installer passthrough backend inside a transient systemd unit and private
+mount/UTS/IPC namespaces with systemd-owned process lifetime, verifies the installed encrypted target proof on
+completion, and retires all target mounts, swaps, LVM logical volumes, and
+LUKS2 containers on completion, cancellation, or interruption before returning
+console ownership to tty1.
+"""
+import ctypes
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import pwd
+import re
+import resource
+import secrets
+import select
+import shutil
+import socket
+import stat
+import struct
+import subprocess
+import sys
+import termios
+import time
+import tomllib
+
+VT_GETMODE, VT_GETSTATE = 0x5601, 0x5603
+USER, UID, GID, HOME = 'wros-live', 1000, 1000, '/home/wros-live'
+FRONTEND_USER = '_wros-installer'
+UNIT = 'wros-installer-session'
+RUN_DIR = Path('/run/wros-installer')
+LIVE_DIR = Path('/run/wros-live')
+MEDIUM = Path('/run/live/medium')
+DI = Path('/run/live/installer')
+FRONTEND = Path('/usr/bin/wros-installer')
+SELF_PATH = Path('/usr/libexec/wros-install-session')
+PRESEED = Path('/etc/wros/installer.preseed')
+PASSPHRASE_HOOK = Path('/usr/lib/wros-installer/native-crypto-passphrase')
+MODULE_SHA256 = 'be37dee7f39730b6369b54f72ac83a1ff27f9d59bcea10fed9fd11a0ea2adf18'
+BLOCK_NAME = re.compile(r'[A-Za-z0-9_.-]{1,128}')
+ENV = {
+    'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
+    'LANG': 'C.UTF-8',
+    'LC_ALL': 'C.UTF-8',
+    'HOME': '/nonexistent',
+    'TERM': 'linux',
+}
+PACKAGES = (
+    'cryptsetup', 'cryptsetup-bin', 'cryptsetup-initramfs', 'dmsetup',
+    'lvm2', 'systemd-cryptsetup', 'dosfstools', 'greetd', 'vlock',
+)
+EXPECTED_PRESEED = {
+    ('d-i', 'passwd/root-login'): ('boolean', 'false'),
+    ('d-i', 'passwd/make-user'): ('boolean', 'true'),
+    ('d-i', 'passwd/user-default-groups'): ('string', 'audio cdrom dip video plugdev netdev sudo writingdeck'),
+    ('d-i', 'live-installer/enable'): ('boolean', 'true'),
+    ('d-i', 'clock-setup/ntp'): ('boolean', 'false'),
+    ('d-i', 'apt-setup/use_mirror'): ('boolean', 'false'),
+    ('d-i', 'apt-setup/services-select'): ('multiselect', ''),
+    ('popularity-contest', 'popularity-contest/participate'): ('boolean', 'false'),
+}
+
+
+def require(condition, message='installer session precondition failed'):
+    if not condition:
+        raise ValueError(message)
+
+
+def digest(path):
+    info = Path(path).lstat()
+    require(stat.S_ISREG(info.st_mode) and not stat.S_ISLNK(info.st_mode),
+            f'regular file required: {path}')
+    with Path(path).open('rb') as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
+
+
+def trusted_file(path, executable=False):
+    path = Path(path)
+    info = path.lstat()
+    require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and not (info.st_mode & 0o022),
+            f'untrusted file metadata: {path}')
+    require(not executable or bool(info.st_mode & 0o111),
+            f'executable required: {path}')
+
+
+def atomic_json(path, value, mode=0o600):
+    path = Path(path)
+    path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+    temporary = path.with_name(f'.{path.name}.{secrets.token_hex(8)}.tmp')
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, mode)
+    try:
+        with os.fdopen(descriptor, 'wb') as stream:
+            stream.write((json.dumps(value, sort_keys=True) + '\n').encode('utf-8'))
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def field(path, limit=512):
+    with Path(path).open('r', encoding='ascii') as stream:
+        value = stream.read(limit + 1)
+    require(0 < len(value) <= limit, 'invalid sysfs metadata')
+    return value.strip()
+
+
+def secure_process():
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+    libc = ctypes.CDLL(None)
+    require(libc.prctl(4, 0, 0, 0, 0) == 0, 'process dump protection failed')
+
+
+def query(arguments, timeout=10):
+    reply = subprocess.run(
+        list(arguments),
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        env=ENV,
+        timeout=timeout,
+        check=True,
+    )
+    require(len(reply.stdout) <= 65536 and len(reply.stderr) <= 65536, 'oversized command reply')
+    return reply.stdout.decode('utf-8').strip()
+
+
+def command(*arguments):
+    subprocess.run(
+        list(arguments),
+        check=True,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        cwd='/',
+        env=ENV,
+    )
+
+
+def bind(source, target, readonly=False, recursive=False):
+    source, target = Path(source), Path(target)
+    if source.is_dir():
+        target.mkdir(parents=True, exist_ok=True)
+    else:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if not target.exists():
+            target.touch()
+    command('/bin/mount', '--rbind' if recursive else '--bind', str(source), str(target))
+    if readonly:
+        command('/bin/mount', '-o', 'remount,bind,ro', str(target))
+
+
+def session_allowed(values, uid=UID):
+    return all(values.get(key) == value for key, value in {
+        'User': str(uid),
+        'Active': 'yes',
+        'Remote': 'no',
+        'TTY': 'tty1',
+        'VTNr': '1',
+        'Seat': 'seat0',
+        'Type': 'tty',
+        'Class': 'user',
+    }.items())
+
+
+def validate_shipping_preseed(contents):
+    require(isinstance(contents, (bytes, bytearray)) and 0 < len(contents) <= 16384
+            and b'\0' not in contents and b'\r' not in contents,
+            'invalid shipping installer preseed')
+    parsed = {}
+    for line in contents.decode('utf-8').splitlines():
+        if not line.strip() or line.lstrip().startswith('#'):
+            continue
+        parts = line.split(None, 3)
+        if len(parts) == 3 and parts[2] == 'multiselect':
+            parts.append('')
+        require(len(parts) == 4, 'malformed shipping installer preseed line')
+        owner, key, kind, value = parts
+        require((owner, key) in EXPECTED_PRESEED and (owner, key) not in parsed,
+                f'unexpected shipping preseed key: {owner} {key}')
+        require(EXPECTED_PRESEED[(owner, key)] == (kind, value),
+                f'altered shipping preseed value for {key}')
+        parsed[(owner, key)] = (kind, value)
+    require(parsed == EXPECTED_PRESEED, 'incomplete shipping installer preseed')
+    return True
+
+
+def input_readers_retired(proc_root=Path('/proc')):
+    """Ensure no active wros-input or wros-installer reader competes for the console."""
+    for process in proc_root.glob('[0-9]*'):
+        try:
+            pid = int(process.name)
+            tasks_dir = process / 'task'
+            comm_paths = list(tasks_dir.glob('[0-9]*/comm')) if tasks_dir.is_dir() else [process / 'comm']
+            has_reader = any(
+                p.read_text().strip() in ('wros-input', 'wros-installer')
+                for p in comm_paths if p.is_file()
+            )
+            if not has_reader:
+                continue
+            descriptor = os.pidfd_open(pid)
+            try:
+                if not select.select([descriptor], [], [], 0)[0]:
+                    return False
+            finally:
+                os.close(descriptor)
+        except (FileNotFoundError, ProcessLookupError, PermissionError, ValueError):
+            continue
+    return True
+
+
+def caller_session(parent):
+    library = ctypes.CDLL('libsystemd.so.0')
+    library.sd_pid_get_session.argtypes = [ctypes.c_int, ctypes.POINTER(ctypes.c_void_p)]
+    library.sd_pid_get_session.restype = ctypes.c_int
+    pointer = ctypes.c_void_p()
+    require(library.sd_pid_get_session(parent, ctypes.byref(pointer)) >= 0 and pointer.value,
+            'caller logind session unavailable')
+    try:
+        name = ctypes.string_at(pointer).decode('ascii')
+        require(0 < len(name) <= 64 and name.isalnum(), 'invalid logind session identifier')
+        return name
+    finally:
+        libc = ctypes.CDLL(None)
+        libc.free.argtypes = [ctypes.c_void_p]
+        libc.free(pointer)
+
+
+def birth(pid):
+    return Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()[19]
+
+
+def console_state(fd=0):
+    return struct.unpack('HHH', fcntl.ioctl(fd, VT_GETSTATE, bytes(6)))
+
+
+def systemd_command(uid, parent, started):
+    require(type(uid) is int and uid == UID and type(parent) is int and parent > 1,
+            'invalid installer caller identity')
+    require(isinstance(started, str) and started.isascii() and started.isdigit() and len(started) <= 32,
+            'invalid caller start timestamp')
+    return [
+        '/usr/bin/systemd-run',
+        '--quiet',
+        '--wait',
+        '--collect',
+        '--service-type=exec',
+        f'--unit={UNIT}',
+        '--property=KillMode=control-group',
+        '--property=TimeoutStopSec=90s',
+        '--property=RuntimeMaxSec=7200s',
+        '--property=PrivateTmp=yes',
+        '--property=LimitCORE=0',
+        f'--property=ExecStopPost={SELF_PATH} cleanup',
+        '/usr/bin/unshare',
+        '--mount',
+        '--uts',
+        '--ipc',
+        '--propagation=private',
+        str(SELF_PATH),
+        'worker',
+        str(uid),
+        str(parent),
+        started,
+    ]
+
+
+def validate_caller():
+    require(os.geteuid() == 0 and len(sys.argv) == 1, 'root pkexec invocation required')
+    value = os.environ.get('PKEXEC_UID', '')
+    require(value == str(UID), 'only the live session account may start the installer')
+    parent = os.getppid()
+    require(parent > 1 and not Path('/etc/writingdeck/VM-DEMO-ONLY').exists(),
+            'installer unavailable in VM demo mode')
+    cmdline = Path('/proc/cmdline').read_text().split()
+    require([s for s in cmdline if s.startswith('boot=')] == ['boot=live']
+            and [s for s in cmdline if s.startswith('wros.live=')] == ['wros.live=1'],
+            'installer requires an active WrOS live boot')
+    session_file = LIVE_DIR / 'session.json'
+    trusted_file(session_file, executable=False)
+    marker = json.loads(session_file.read_bytes())
+    boot_id = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+    require(marker.get('uid') == UID and marker.get('user') == USER
+            and marker.get('home') == HOME and marker.get('boot_id') == boot_id,
+            'live session marker mismatch')
+    medium = MEDIUM.resolve(strict=True)
+    require((medium / 'live/filesystem.squashfs').is_file()
+            and bool(os.statvfs(medium).f_flag & os.ST_RDONLY),
+            'read-only live medium required')
+    for fd in (0, 1, 2):
+        require(os.isatty(fd) and os.fstat(fd).st_rdev == os.makedev(4, 1),
+                'installer handoff requires tty1')
+    for path in (
+        '/usr/bin/grimoire',
+        '/usr/bin/wros-installer',
+        str(SELF_PATH),
+        '/usr/bin/systemd-run',
+        '/usr/bin/chvt',
+        '/usr/bin/unshare',
+        '/usr/sbin/chroot',
+        str(PASSPHRASE_HOOK),
+    ):
+        trusted_file(path, executable=True)
+    frontend_account = pwd.getpwnam(FRONTEND_USER)
+    require(0 < frontend_account.pw_uid < UID and 0 < frontend_account.pw_gid < GID
+            and frontend_account.pw_dir == '/nonexistent'
+            and frontend_account.pw_shell == '/usr/sbin/nologin', 'isolated installer account required')
+    require(query(['/usr/bin/passwd', '-S', FRONTEND_USER]).split()[:2] == [FRONTEND_USER, 'L'],
+            'installer account must be locked')
+    trusted_file(PRESEED, executable=False)
+    validate_shipping_preseed(PRESEED.read_bytes())
+    require(os.path.samefile(f'/proc/{parent}/exe', '/usr/bin/grimoire'),
+            'caller must be /usr/bin/grimoire')
+    status = Path(f'/proc/{parent}/status').read_text()
+    users = next(line.split()[1:] for line in status.splitlines() if line.startswith('Uid:'))
+    require(users == [str(UID)] * 4, 'caller UID mismatch')
+    sid = caller_session(parent)
+    fields = query([
+        '/usr/bin/loginctl', '--no-pager', 'show-session', sid,
+        '-p', 'User', '-p', 'Active', '-p', 'Remote', '-p', 'TTY', '-p', 'VTNr',
+        '-p', 'Seat', '-p', 'Type', '-p', 'Class',
+    ])
+    require(session_allowed(dict(line.split('=', 1) for line in fields.splitlines()), UID),
+            'active local tty1 session required')
+    account = pwd.getpwnam(USER)
+    require(account.pw_uid == UID and account.pw_gid == GID and account.pw_dir == HOME,
+            'live account metadata mismatch')
+    require(query(['/usr/bin/passwd', '-S', USER]).split()[:2] == [USER, 'P'],
+            'live account password status invalid')
+    require(query(['/usr/bin/passwd', '-S', 'root']).split()[:2] == ['root', 'L'],
+            'root account must remain locked')
+    for name in ('getty@tty7.service', 'autovt@tty7.service'):
+        require(os.readlink('/etc/systemd/system/' + name) == '/dev/null',
+                f'{name} must be masked')
+    deadline = time.monotonic() + 5.0
+    while not input_readers_retired():
+        require(time.monotonic() < deadline, 'writing input reader has not retired')
+        time.sleep(0.05)
+    require(os.getppid() == parent, 'caller changed during validation')
+    return parent
+
+
+def decode_proc_path(token):
+    return re.sub(r'\\([0-7]{3})', lambda m: chr(int(m.group(1), 8)), token)
+
+
+def root_ancestors(block, sysroot=Path('/sys/class/block')):
+    """Return all root whole-disk block names underlying `block` in sysfs."""
+    visited = set()
+    roots = set()
+
+    def walk(name, chain):
+        require(isinstance(name, str) and name not in ('.', '..')
+                and BLOCK_NAME.fullmatch(name) is not None,
+                f'invalid block name: {name!r}')
+        require(len(chain) < 32 and name not in chain, 'cyclic sysfs block graph')
+        visited.add(name)
+        require(len(visited) <= 512, 'excessive sysfs block graph')
+        path = sysroot / name
+        require(path.is_dir(), f'missing sysfs block entry: {name}')
+        if (path / 'partition').exists():
+            parent_name = path.resolve().parent.name
+            walk(parent_name, chain | {name})
+            return
+        slaves_dir = path / 'slaves'
+        slaves = sorted(item.name for item in slaves_dir.iterdir()) if slaves_dir.is_dir() else []
+        if not slaves:
+            roots.add(name)
+            return
+        for slave in slaves:
+            walk(slave, chain | {name})
+
+    walk(block, set())
+    return roots
+
+
+def capture_storage_baseline(
+    sysroot=Path('/sys/class/block'),
+    mountinfo_path=Path('/proc/self/mountinfo'),
+    swaps_path=Path('/proc/swaps'),
+    target_root=DI / 'target',
+):
+    mountinfo_text = mountinfo_path.read_text(encoding='utf-8') if mountinfo_path.exists() else ''
+    require(not target_mountpoints(mountinfo_text, str(target_root)),
+            'installer target mountpoint is already active')
+    protected_disks = set()
+    baseline_dm = set()
+    for entry in sysroot.iterdir():
+        name = entry.name
+        if re.fullmatch(r'dm-[0-9]+', name):
+            baseline_dm.add(name)
+        if re.fullmatch(r'loop[0-9]+', name) or ((entry / 'ro').is_file() and field(entry / 'ro') == '1'):
+            protected_disks.update(root_ancestors(name, sysroot=sysroot))
+    # Protect pre-existing mapper ancestry as well as mounted aliases, which
+    # may be /dev/mapper/NAME or /dev/disk/by-uuid rather than kernel names.
+    for name in baseline_dm:
+        protected_disks.update(root_ancestors(name, sysroot=sysroot))
+    by_number = {field(entry/'dev'): entry.name for entry in sysroot.iterdir()
+                 if (entry/'dev').is_file()}
+    for line in mountinfo_text.splitlines():
+        if ' - ' not in line:
+            continue
+        left, _, right = line.partition(' - ')
+        source = decode_proc_path(right.split()[1])
+        block = by_number.get(left.split()[2])
+        if block is None and source.startswith('/dev/'):
+            name = source.removeprefix('/dev/')
+            require((sysroot/name).is_dir(), 'cannot identify a mounted block device; installer refused')
+            block = name
+        if block is not None:
+            protected_disks.update(root_ancestors(block, sysroot=sysroot))
+    swaps_text = swaps_path.read_text(encoding='utf-8') if swaps_path.exists() else ''
+    baseline_swaps = []
+    for index, line in enumerate(swaps_text.splitlines()):
+        if not line.strip() or (index == 0 and line.startswith('Filename')):
+            continue
+        baseline_swaps.append(decode_proc_path(line.split()[0]))
+    require(not baseline_swaps, 'active swap must be retired before starting installation')
+    candidates = []
+    for entry in sysroot.iterdir():
+        if (re.fullmatch(r'(?:sd|vd|xvd)[a-z]+|nvme[0-9]+n[0-9]+|mmcblk[0-9]+', entry.name)
+                and not (entry/'partition').exists() and entry.name not in protected_disks
+                and (entry/'ro').is_file() and field(entry/'ro') == '0'):
+            candidates.append(entry)
+    require(len(candidates) == 1, 'installation requires exactly one unmounted eligible target disk')
+    target = candidates[0]
+    identity = {key: field(target/key) for key in ('dev', 'size', 'diskseq')}
+    require(re.fullmatch(r'[0-9]+:[0-9]+', identity['dev']) is not None
+            and identity['size'].isdigit() and int(identity['size']) > 0
+            and identity['diskseq'].isdigit(), 'invalid target disk identity')
+    return {
+        'target_disk': target.name, 'target_identity': identity,
+        'protected_disks': sorted(protected_disks),
+        'baseline_dm': sorted(baseline_dm),
+        'baseline_swaps': sorted(set(baseline_swaps)),
+    }
+
+
+def is_writable_target_block(block, baseline, sysroot=Path('/sys/class/block')):
+    target = baseline.get('target_disk')
+    identity = baseline.get('target_identity')
+    require(isinstance(target, str) and isinstance(identity, dict)
+            and set(identity) == {'dev', 'size', 'diskseq'}, 'missing selected target identity')
+    for key, value in identity.items():
+        require(field(sysroot/target/key) == value, 'selected target disk identity changed')
+    roots = root_ancestors(block, sysroot=sysroot)
+    return (roots == {target} and target not in baseline.get('protected_disks', ())
+            and field(sysroot/target/'ro') == '0')
+
+
+def target_mountpoints(mountinfo_text, target_root='/run/live/installer/target'):
+    require(isinstance(target_root, str) and target_root.startswith('/') and target_root != '/',
+            'invalid installer target root')
+    prefix = target_root.rstrip('/')
+    mounts = []
+    for line in mountinfo_text.splitlines():
+        if not line.strip():
+            continue
+        parts = line.split()
+        require(len(parts) >= 5, 'malformed mountinfo line')
+        mountpoint = decode_proc_path(parts[4])
+        if mountpoint == prefix or mountpoint.startswith(prefix + '/'):
+            mounts.append(mountpoint)
+    indexed = list(enumerate(mounts))
+    indexed.sort(key=lambda item: (-len(Path(item[1]).parts), -len(item[1]), -item[0]))
+    return [item[1] for item in indexed]
+
+
+def target_mapper_teardown_order(baseline, sysroot=Path('/sys/class/block')):
+    dm_blocks = {}
+    for entry in sorted(sysroot.iterdir(), key=lambda p: p.name):
+        if not re.fullmatch(r'dm-[0-9]+', entry.name):
+            continue
+        if not is_writable_target_block(entry.name, baseline, sysroot=sysroot):
+            continue
+        dm_name_path = entry / 'dm/name'
+        require(dm_name_path.is_file(), f'missing dm/name metadata for {entry.name}')
+        dm_name = field(dm_name_path, 128)
+        require(BLOCK_NAME.fullmatch(dm_name) is not None, f'invalid dm/name for {entry.name}')
+        dm_uuid = field(entry / 'dm/uuid', 256) if (entry / 'dm/uuid').is_file() else ''
+        kind = 'crypt' if dm_uuid.startswith('CRYPT-') else ('lvm' if dm_uuid.startswith('LVM-') else 'dm')
+        slaves_dir = entry / 'slaves'
+        dm_slaves = sorted(
+            s.name for s in slaves_dir.iterdir()
+            if re.fullmatch(r'dm-[0-9]+', s.name)
+        ) if slaves_dir.is_dir() else []
+        dm_blocks[entry.name] = {
+            'block': entry.name,
+            'dm_name': dm_name,
+            'dm_uuid': dm_uuid,
+            'kind': kind,
+            'dm_slaves': dm_slaves,
+        }
+    holders_of = {name: set() for name in dm_blocks}
+    for name, info in dm_blocks.items():
+        for slave in info['dm_slaves']:
+            if slave in holders_of:
+                holders_of[slave].add(name)
+    ordered = []
+    remaining = dict(dm_blocks)
+    while remaining:
+        leaves = sorted(name for name in remaining if not holders_of[name])
+        require(leaves, 'cyclic device-mapper holder graph on target')
+        for leaf in leaves:
+            info = remaining.pop(leaf)
+            for slave in info['dm_slaves']:
+                if slave in holders_of:
+                    holders_of[slave].discard(leaf)
+            ordered.append({
+                'block': info['block'],
+                'dm_name': info['dm_name'],
+                'dm_uuid': info['dm_uuid'],
+                'kind': info['kind'],
+            })
+    return ordered
+
+
+def target_swaps(swaps_text, baseline, sysroot=Path('/sys/class/block')):
+    baseline_swaps = set(baseline.get('baseline_swaps', ()))
+    dm_by_mapper_name = {}
+    for entry in sysroot.iterdir():
+        if re.fullmatch(r'dm-[0-9]+', entry.name) and (entry / 'dm/name').is_file():
+            dm_by_mapper_name[field(entry / 'dm/name', 128)] = entry.name
+    swaps = []
+    for index, line in enumerate(swaps_text.splitlines()):
+        if not line.strip() or (index == 0 and line.startswith('Filename')):
+            continue
+        parts = line.split()
+        require(len(parts) >= 2, 'malformed /proc/swaps entry')
+        swap_path = decode_proc_path(parts[0])
+        if swap_path in baseline_swaps:
+            continue
+        if swap_path.startswith('/dev/mapper/'):
+            mapper_name = swap_path.removeprefix('/dev/mapper/')
+            block = dm_by_mapper_name.get(mapper_name)
+            require(block is not None, f'unknown mapper swap device: {swap_path}')
+        elif swap_path.startswith('/dev/'):
+            block = swap_path.removeprefix('/dev/')
+        else:
+            raise ValueError(f'unsupported swap path: {swap_path}')
+        require(is_writable_target_block(block, baseline, sysroot=sysroot),
+                f'refusing non-target swap device: {swap_path}')
+        swaps.append({'path': swap_path, 'block': block})
+    return swaps
+
+
+def teardown_plan(
+    baseline,
+    mountinfo_text,
+    swaps_text='',
+    target_root='/run/live/installer/target',
+    sysroot=Path('/sys/class/block'),
+):
+    return {
+        'mounts': target_mountpoints(mountinfo_text, target_root=target_root),
+        'swaps': target_swaps(swaps_text, baseline, sysroot=sysroot),
+        'mappers': target_mapper_teardown_order(baseline, sysroot=sysroot),
+    }
+
+
+def cleanup_target_stack(
+    baseline,
+    target_root=DI / 'target',
+    sysroot=Path('/sys/class/block'),
+    mountinfo_path=Path('/proc/self/mountinfo'),
+    swaps_path=Path('/proc/swaps'),
+    runner=None,
+):
+    run_cmd = runner or command
+    mountinfo_text = mountinfo_path.read_text(encoding='utf-8') if mountinfo_path.exists() else ''
+    swaps_text = swaps_path.read_text(encoding='utf-8') if swaps_path.exists() else ''
+    plan = teardown_plan(
+        baseline,
+        mountinfo_text,
+        swaps_text,
+        target_root=str(target_root),
+        sysroot=sysroot,
+    )
+    unmounted = []
+    for mountpoint in plan['mounts']:
+        run_cmd('/bin/umount', mountpoint)
+        unmounted.append(mountpoint)
+    disabled_swaps = []
+    for swap in plan['swaps']:
+        require(is_writable_target_block(swap['block'], baseline, sysroot=sysroot),
+                'refusing to disable swap on protected block device')
+        run_cmd('/sbin/swapoff', swap['path'])
+        disabled_swaps.append(swap['path'])
+    closed_mappers = []
+    for mapper in plan['mappers']:
+        require(is_writable_target_block(mapper['block'], baseline, sysroot=sysroot),
+                'refusing to close protected device-mapper node')
+        if mapper['kind'] == 'crypt':
+            run_cmd('/sbin/cryptsetup', 'close', mapper['dm_name'])
+        else:
+            run_cmd('/sbin/dmsetup', 'remove', '--retry', mapper['dm_name'])
+        closed_mappers.append(mapper['dm_name'])
+    after_mounts = target_mountpoints(
+        mountinfo_path.read_text(encoding='utf-8') if mountinfo_path.exists() else '',
+        target_root=str(target_root),
+    )
+    after_swaps = target_swaps(
+        swaps_path.read_text(encoding='utf-8') if swaps_path.exists() else '',
+        baseline,
+        sysroot=sysroot,
+    )
+    after_mappers = target_mapper_teardown_order(baseline, sysroot=sysroot)
+    require(not after_mounts and not after_swaps and not after_mappers,
+            'target mounts, swaps, or device-mapper nodes remained active after cleanup')
+    return {
+        'mounts_unmounted': unmounted,
+        'swaps_disabled': disabled_swaps,
+        'mappers_closed': closed_mappers,
+        'clean': True,
+    }
+
+
+def verify_installed_target_state(
+    passwd_text,
+    shadow_text,
+    group_text,
+    greetd_toml_text,
+    crypttab_text,
+    fstab_text,
+    root_block_name,
+    sysroot=Path('/sys/class/block'),
+):
+    users = [line.split(':') for line in passwd_text.splitlines() if line.strip()]
+    require(all(len(row) == 7 for row in users)
+            and len({row[0] for row in users}) == len(users),
+            'unique target accounts required')
+    require(not any(row[0] in ('wros-live', 'builder') for row in users),
+            'temporary live or build account persisted in installed target')
+    normal_users = [row for row in users if row[2] == '1000']
+    require(len(normal_users) == 1 and normal_users[0][3] == '1000'
+            and normal_users[0][5].startswith('/home/')
+            and not normal_users[0][6].endswith(('/nologin', '/false')),
+            'installed target requires one normal UID 1000 login account')
+    installed_user = normal_users[0][0]
+    greeters = [row for row in users if row[0] == '_greetd']
+    require(len(greeters) == 1 and int(greeters[0][2]) > 0
+            and greeters[0][5:] == ['/nonexistent', '/usr/sbin/nologin'],
+            'unprivileged native greeter required in target')
+    secrets_map = {}
+    for line in shadow_text.splitlines():
+        if not line.strip():
+            continue
+        row = line.split(':')
+        require(len(row) >= 2 and row[0] not in secrets_map, 'invalid target shadow entry')
+        secrets_map[row[0]] = row[1]
+    require(secrets_map.get('root', '').startswith(('!', '*'))
+            and secrets_map.get('_greetd', '').startswith(('!', '*'))
+            and secrets_map.get(installed_user, '').startswith(('$6$', '$y$')),
+            'locked root/greeter and hashed user password required in target')
+    memberships = {
+        row[0] for line in group_text.splitlines()
+        if len(row := line.split(':')) == 4 and installed_user in row[3].split(',')
+    }
+    require({'writingdeck', 'sudo'} <= memberships,
+            'installed user is missing writingdeck or sudo group membership')
+    config = tomllib.loads(greetd_toml_text)
+    require(config.get('terminal') == {'vt': 1, 'switch': True}
+            and 'initial_session' not in config
+            and config.get('default_session') == {'command': '/usr/bin/wros-greeter', 'user': '_greetd'},
+            'installed target must preserve native authenticated greetd config')
+    crypt_rows = [
+        line.split() for line in crypttab_text.splitlines()
+        if line.strip() and not line.lstrip().startswith('#')
+    ]
+    require(len(crypt_rows) == 1 and len(crypt_rows[0]) == 4,
+            'installed target requires one LUKS crypttab entry')
+    mapping, source, key, options = crypt_rows[0]
+    require(re.fullmatch(r'[A-Za-z0-9_-]{1,128}', mapping) is not None
+            and re.fullmatch(r'UUID=[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', source) is not None
+            and key == 'none' and 'luks' in options.split(','),
+            'target crypttab must use interactive LUKS UUID')
+    luks_uuid = source[5:]
+    fstab_rows = [
+        line.split() for line in fstab_text.splitlines()
+        if line.strip() and not line.lstrip().startswith('#')
+    ]
+    require(sum(len(row) >= 3 and row[1:3] == ['/', 'ext4'] for row in fstab_rows) == 1,
+            'installed target requires one ext4 root filesystem in fstab')
+    require(re.fullmatch(r'dm-[0-9]+', root_block_name) is not None,
+            'installed root must reside on an LVM device-mapper volume')
+    root_dm = sysroot / root_block_name
+    require((root_dm / 'dm/uuid').read_text().strip().startswith('LVM-'),
+            'installed root dm volume is not LVM')
+    children = list((root_dm / 'slaves').iterdir())
+    require(len(children) == 1 and re.fullmatch(r'dm-[0-9]+', children[0].name) is not None,
+            'installed root LVM volume requires one LUKS slave')
+    crypt_dm = sysroot / children[0].name
+    expected_crypt_uuid = f'CRYPT-LUKS2-{luks_uuid.replace("-", "")}-{mapping}'
+    require((crypt_dm / 'dm/uuid').read_text().strip() == expected_crypt_uuid,
+            'installed LUKS2 container UUID does not match crypttab')
+    leaves = list((crypt_dm / 'slaves').iterdir())
+    require(len(leaves) == 1 and (sysroot / leaves[0].name / 'partition').is_file(),
+            'installed LUKS2 container must reside on a target disk partition')
+    return {
+        'passed': True,
+        'installed_user': installed_user,
+        'root_locked': True,
+        'native_authentication_preserved': True,
+        'live_account_absent': True,
+        'luks_uuid': luks_uuid,
+        'encrypted_root_chain': {
+            'root': root_block_name,
+            'crypt': crypt_dm.name,
+            'partition': leaves[0].name,
+            'format': 'LUKS2',
+        },
+    }
+
+
+def in_target_audit(nonce):
+    require(os.geteuid() == 0 and re.fullmatch('[a-f0-9]{32}', nonce) is not None, 'in-target audit requires root and a session nonce')
+    require(not Path('/etc/sudoers.d/live').exists()
+            and not Path('/etc/writingdeck/VM-DEMO-ONLY').exists(),
+            'live sudoers or VM demo marker leaked into target')
+    root_dev = os.stat('/').st_dev
+    root_block = Path(f'/sys/dev/block/{os.major(root_dev)}:{os.minor(root_dev)}').resolve(strict=True).name
+    proof = verify_installed_target_state(
+        Path('/etc/passwd').read_text(encoding='utf-8'),
+        Path('/etc/shadow').read_text(encoding='utf-8'),
+        Path('/etc/group').read_text(encoding='utf-8'),
+        Path('/etc/greetd/config.toml').read_text(encoding='utf-8'),
+        Path('/etc/crypttab').read_text(encoding='utf-8'),
+        Path('/etc/fstab').read_text(encoding='utf-8'),
+        root_block,
+    )
+    for line in query(['/usr/bin/dpkg-query', '-W', '-f=${Package}\t${Status}\n', *PACKAGES], timeout=60).splitlines():
+        name, status = line.split('\t', 1)
+        require(name in PACKAGES and status == 'install ok installed',
+                f'missing required target package: {name}')
+    release = os.uname().release
+    initrd = Path(f'/boot/initrd.img-{release}')
+    entries = query(['/usr/bin/lsinitramfs', str(initrd)], timeout=60).splitlines()
+    require(any(name.endswith('sbin/cryptsetup') for name in entries)
+            and any(name.endswith('sbin/lvm') for name in entries)
+            and 'cryptroot/crypttab' in entries,
+            'installed initrd lacks cryptsetup/lvm support')
+    require(Path('/boot/vmlinuz-' + release).is_file(), 'installed kernel is missing')
+    grub = Path('/boot/grub/grub.cfg').read_text()
+    require(not any(flag in grub for flag in ('boot=live', 'wros.live=', 'wros.native_probe=')),
+            'live boot arguments persisted in installed GRUB configuration')
+    loaders = [p for p in Path('/boot/efi/EFI').glob('*/*') if p.is_file() and p.suffix.lower() == '.efi']
+    require(loaders, 'installed UEFI loaders are missing')
+    proof['session_nonce'] = nonce
+    proof['binary_sha256'] = {name: digest(Path('/usr/bin')/name)
+                              for name in ('grimoire','wros-greeter','wros-installer')}
+    proof['boot_payload_checked'] = True
+    print(json.dumps(proof, sort_keys=True), flush=True)
+    return 0
+
+
+def stage_completion_hooks(di_root, nonce):
+    require(re.fullmatch("[a-f0-9]{32}", nonce) is not None, "invalid session nonce")
+    directory = Path(di_root) / 'usr/lib/finish-install.d'
+    directory.mkdir(parents=True, exist_ok=True)
+    audit_hook = directory / '94wros-target-proof'
+    finish_hook = directory / '97wros-target-finished'
+    require(not audit_hook.exists() and not finish_hook.exists(),
+            'installer completion hooks already exist')
+    audit_hook.write_text(
+        '#!/bin/sh\nset -e\numask 077\n'
+        f'if in-target --pass-stdout /usr/bin/python3 -I {SELF_PATH} target-audit {nonce} > /wros-target-proof; then\n'
+        '  exit 0\nelse\n  exit 10\nfi\n',
+        encoding='utf-8',
+    )
+    finish_hook.write_text(
+        '#!/bin/sh\nset -e\numask 077\n'
+        'test -s /wros-target-proof || exit 10\n'
+        'printf "completed\\n" > /wros-target-finished\n',
+        encoding='utf-8',
+    )
+    audit_hook.chmod(0o755)
+    finish_hook.chmod(0o755)
+
+
+def validate_completion_identity(proof, nonce, expected):
+    require(proof.get('session_nonce') == nonce, 'stale installation completion proof')
+    require(proof.get('binary_sha256') == expected and proof.get('boot_payload_checked') is True,
+            'installed application or boot payload does not match this session')
+
+
+def verify_completion_proof(di_root, baseline):
+    di_root = Path(di_root)
+    proof_path = di_root / 'wros-target-proof'
+    finished_path = di_root / 'wros-target-finished'
+    if not finished_path.is_file() or not proof_path.is_file():
+        return None
+    info = proof_path.lstat()
+    require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and not (info.st_mode & 0o077)
+            and 0 < info.st_size <= 65536,
+            'untrusted target completion proof')
+    require(finished_path.read_text(encoding='utf-8') == 'completed\n',
+            'invalid target finish marker')
+    proof = json.loads(proof_path.read_bytes())
+    require(proof.get('passed') is True
+            and proof.get('root_locked') is True
+            and proof.get('native_authentication_preserved') is True
+            and proof.get('live_account_absent') is True
+            and proof.get('encrypted_root_chain', {}).get('format') == 'LUKS2',
+            'target completion proof failed validation')
+    require(is_writable_target_block(proof['encrypted_root_chain']['partition'], baseline), 'installed target is outside selected disk')
+    expected = {name: digest(Path('/usr/bin')/name) for name in ('grimoire','wros-greeter','wros-installer')}
+    validate_completion_identity(proof, baseline['session_nonce'], expected)
+    return proof
+
+
+def prepare_media_and_backend(work_dir, baseline):
+    work_dir = Path(work_dir)
+    medium = MEDIUM.resolve(strict=True)
+    view = work_dir / 'medium'
+    upper = work_dir / 'media-upper'
+    overlay_work = work_dir / 'media-work'
+    view.mkdir()
+    upper.mkdir(mode=0o755)
+    overlay_work.mkdir()
+    gtk = upper / 'install/gtk'
+    gtk.mkdir(parents=True)
+    os.setxattr(gtk, 'trusted.overlay.opaque', b'y')
+    options = f'nosuid,nodev,lowerdir={medium},upperdir={upper},workdir={overlay_work}'
+    command('/bin/mount', '-t', 'overlay', '-o', options, 'overlay', str(view))
+    capsule = medium / 'native-installer'
+    if (capsule / 'manifest.json').is_file():
+        manifest = json.loads((capsule / 'manifest.json').read_bytes())
+        require(manifest.get('passed') is True
+                and manifest.get('kernel_release') == os.uname().release
+                and manifest.get('module_sha256') == MODULE_SHA256,
+                'embedded native-installer capsule manifest mismatch')
+        for name, target in [
+            ('initrd.gz', 'install/initrd.gz'),
+            ('vmlinuz', 'install/vmlinuz'),
+            ('Packages', 'dists/trixie/main/debian-installer/binary-amd64/Packages'),
+            ('Packages.gz', 'dists/trixie/main/debian-installer/binary-amd64/Packages.gz'),
+            ('media-Release', 'dists/trixie/Release'),
+        ]:
+            src = capsule / name
+            if src.is_file():
+                dst = view / target
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(src, dst)
+    bind(view, view, readonly=True)
+    bind(view, MEDIUM, readonly=True)
+    launcher = Path('/usr/share/debian-installer-launcher')
+    if (launcher / 'debconf_kernel.sh').is_file():
+        staged_launcher = work_dir / 'launcher'
+        shutil.copytree(launcher, staged_launcher)
+        (staged_launcher / 'debconf_kernel.sh').rename(staged_launcher / 'kernel-upstream.sh')
+        (staged_launcher / 'debconf_kernel.sh').write_text(
+            '#!/bin/sh\nexport DEBIAN_FRONTEND=noninteractive\n'
+            'exec /usr/bin/debconf --frontend=noninteractive /bin/sh -x '
+            '/usr/share/debian-installer-launcher/kernel-upstream.sh\n',
+            encoding='utf-8',
+        )
+        (staged_launcher / 'debconf_kernel.sh').chmod(0o755)
+        bind(staged_launcher, launcher, readonly=True)
+        command('/bin/mount', '-o', 'remount,bind,ro,exec', str(launcher))
+    prepare_cmd = '. /usr/share/debian-installer-launcher/plugins/live; if live_prepare --text; then exit 0; else exit 1; fi'
+    prepare_log = work_dir / 'prepare.log'
+    with prepare_log.open('xb') as log:
+        prepare_log.chmod(0o600)
+        subprocess.run(
+            ['/bin/sh', '-ec', prepare_cmd],
+            check=True,
+            stdin=subprocess.DEVNULL,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            cwd='/',
+            env=ENV,
+        )
+    require(digest(DI / 'usr/lib/cdebconf/frontend/passthrough.so') == MODULE_SHA256,
+            'unpacked cdebconf passthrough transport hash mismatch')
+    require({p.name for p in (DI / 'lib/modules').iterdir()} == {os.uname().release},
+            'unpacked installer kernel modules do not match running live kernel')
+    require((DI / 'usr/lib/apt-setup/generators/40cdrom').is_file(),
+            'offline CD-ROM APT generator missing from installer backend')
+    shipping = PRESEED.read_bytes()
+    validate_shipping_preseed(shipping)
+    with (DI / 'preseed.cfg').open('ab') as preseed_out:
+        require(is_writable_target_block(baseline['target_disk'], baseline), 'target identity changed before backend setup')
+        selection = ('d-i partman-auto/disk string /dev/' + baseline['target_disk'] + '\n').encode('ascii')
+        preseed_out.write(b'\nd-i cdrom-detect/hybrid boolean true\n' + shipping + b'\n' + selection)
+    hook = DI / 'lib/partman/init.d/00wros-native-passphrase'
+    hook.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(PASSPHRASE_HOOK, hook)
+    hook.chmod(0o755)
+    stage_completion_hooks(DI, baseline['session_nonce'])
+    bind(MEDIUM, DI / 'cdrom', readonly=True, recursive=True)
+    for name in ('dev', 'dev/pts', 'proc', 'sys', 'tmp'):
+        bind(Path('/' + name), DI / name)
+    command('/bin/mount', '-t', 'tmpfs', '-o', 'mode=755,nosuid,nodev', 'tmpfs', str(DI / 'run'))
+    (DI / 'run/lock').mkdir()
+    (DI / 'run/systemd/journal').mkdir(parents=True)
+    sanitized = work_dir / 'cmdline'
+    sanitized.write_text('console=tty1\n', encoding='utf-8')
+    bind(sanitized, Path('/proc/cmdline'), readonly=True)
+    bind(sanitized, DI / 'proc/cmdline', readonly=True)
+    require((DI / 'proc/cmdline').read_bytes() == b'console=tty1\n',
+            'installer chroot boot arguments were not filtered')
+
+
+def worker(uid, parent, started):
+    secure_process()
+    uid, parent = int(uid), int(parent)
+    require(os.getppid() == 1 and uid == UID and parent > 1
+            and started.isascii() and started.isdigit(),
+            'worker must run directly under systemd with the caller PID visible')
+    baseline = json.loads((RUN_DIR / 'baseline.json').read_bytes())
+    parent_fd = os.pidfd_open(parent)
+    frontend = None
+    backend = None
+    outcome = 'failed'
+    reason = 'installer stopped before completion'
+    proof = None
+    cleanup_report = None
+    try:
+        require(birth(parent) == started and os.path.samefile(f'/proc/{parent}/exe', '/usr/bin/grimoire'),
+                'caller process changed before worker startup')
+        work_dir = RUN_DIR / 'work'
+        if work_dir.exists():
+            shutil.rmtree(work_dir)
+        work_dir.mkdir(mode=0o700)
+        prepare_media_and_backend(work_dir, baseline)
+        account = pwd.getpwnam(FRONTEND_USER)
+        require(0 < account.pw_uid < UID and 0 < account.pw_gid < GID, 'isolated frontend UID/GID required')
+        frontend_socket, backend_socket = socket.socketpair()
+        os.chown('/dev/tty7', account.pw_uid, account.pw_gid)
+        os.chmod('/dev/tty7', 0o600)
+        tty = os.open('/dev/tty7', os.O_RDWR | os.O_NOCTTY)
+
+        def frontend_setup():
+            os.setsid()
+            fcntl.ioctl(0, termios.TIOCSCTTY, 0)
+            os.setgroups([])
+            os.setgid(account.pw_gid)
+            os.setuid(account.pw_uid)
+
+        fd = fcntl.fcntl(backend_socket.fileno(), fcntl.F_DUPFD_CLOEXEC, 64)
+        require(64 <= fd < 1024, 'backend transport descriptor unavailable')
+        backend_socket.close()
+        backend_env = {
+            'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
+            'HOME': '/',
+            'TERM': 'linux',
+            'LANG': 'C.UTF-8',
+            'LIVE_INSTALLER_MODE': '1',
+            'DEBIAN_FRONTEND': 'passthrough',
+            'DEBCONF_READFD': str(fd),
+            'DEBCONF_WRITEFD': str(fd),
+            'MENU': '/usr/bin/main-menu',
+        }
+        log_path = work_dir / 'backend.log'
+        with log_path.open('xb') as log:
+            log_path.chmod(0o600)
+            frontend = subprocess.Popen(
+                [str(FRONTEND), '--frontend-fd', str(frontend_socket.fileno())],
+                stdin=tty,
+                stdout=tty,
+                stderr=tty,
+                pass_fds=(frontend_socket.fileno(),),
+                preexec_fn=frontend_setup,
+                env={
+                    'PATH': '/usr/bin:/bin',
+                    'TERM': 'linux',
+                    'HOME': account.pw_dir,
+                    'USER': account.pw_name,
+                    'LANG': 'C.UTF-8',
+                },
+                cwd='/',
+            )
+            frontend_socket.close()
+            os.close(tty)
+            command('/usr/bin/chvt', '7')
+            shell = '/sbin/debian-installer-startup; exec /lib/debian-installer/menu'
+            backend = subprocess.Popen(
+                ['/usr/sbin/chroot', str(DI), '/bin/sh', '-ec', shell],
+                stdin=subprocess.DEVNULL,
+                stdout=log,
+                stderr=log,
+                env=backend_env,
+                pass_fds=(fd,),
+                cwd='/',
+            )
+            os.close(fd)
+            interrupted_by_parent = False
+            while frontend.poll() is None and backend.poll() is None:
+                if select.select([parent_fd], [], [], 0)[0]:
+                    interrupted_by_parent = True
+                    break
+                time.sleep(0.05)
+            if interrupted_by_parent:
+                outcome = 'interrupted'
+                reason = 'live writing session exited during installation'
+            else:
+                proof = verify_completion_proof(DI, baseline)
+                if proof is not None:
+                    code = backend.wait(timeout=5)
+                    require(code in (0, 11), 'backend did not exit through maintained finish path')
+                    outcome = 'completed'
+                    reason = 'encrypted target installation verified'
+                elif frontend.poll() == 2:
+                    outcome = 'cancelled'
+                    reason = 'installer cancelled by user; no completed target verified'
+                else:
+                    outcome = 'failed'
+                    reason = 'installer backend or frontend stopped without a verified target'
+    finally:
+        os.close(parent_fd)
+        for process in (backend, frontend):
+            if process is not None and process.poll() is None:
+                process.terminate()
+        for process in (backend, frontend):
+            if process is not None:
+                try:
+                    process.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+        try:
+            cleanup_report = cleanup_target_stack(baseline)
+        except Exception as exc:
+            outcome = 'failed'
+            reason = f'target cleanup error: {exc}'
+            cleanup_report = {'clean': False, 'error': str(exc)}
+        atomic_json(
+            RUN_DIR / 'outcome.json',
+            {
+                'outcome': outcome,
+                'reason': reason,
+                'target_verified': proof is not None,
+                'target_proof': proof,
+                'worker_cleanup': cleanup_report,
+                'host_cleanup_verified': False,
+            },
+        )
+    return 0 if outcome in ('completed', 'cancelled') else 1
+
+
+def caller_still_owned(baseline):
+    try:
+        pid = int(baseline['caller_pid'])
+        if pid <= 1 or birth(pid) != baseline['caller_started']:
+            return False
+        descriptor = os.pidfd_open(pid)
+        try:
+            return not bool(select.select([descriptor], [], [], 0)[0])
+        finally:
+            os.close(descriptor)
+    except (OSError, KeyError, ValueError):
+        return False
+
+
+def cleanup():
+    secure_process()
+    baseline = {}
+    baseline_path = RUN_DIR / 'baseline.json'
+    host_cleanup = {'clean': True, 'mounts_unmounted': [], 'swaps_disabled': [], 'mappers_closed': []}
+    if baseline_path.is_file():
+        baseline = json.loads(baseline_path.read_bytes())
+        host_cleanup = cleanup_target_stack(baseline)
+    if Path('/dev/tty7').exists():
+        os.chown('/dev/tty7', 0, 0)
+        os.chmod('/dev/tty7', 0o600)
+    fd = os.open('/dev/tty1', os.O_RDWR | os.O_NOCTTY | os.O_CLOEXEC)
+    try:
+        active = console_state(fd)[0]
+        if active == 7:
+            require(caller_still_owned(baseline) and input_readers_retired(),
+                    'writing input ownership changed; automatic VT return refused')
+            query(['/usr/bin/chvt', '1'])
+            require(console_state(fd)[0] == 1, 'failed to restore active VT to tty1')
+    finally:
+        os.close(fd)
+    outcome_path = RUN_DIR / 'outcome.json'
+    if outcome_path.is_file():
+        record = json.loads(outcome_path.read_bytes())
+    else:
+        record = {
+            'outcome': 'failed',
+            'reason': 'worker exited before writing outcome',
+            'target_verified': False,
+            'target_proof': None,
+            'worker_cleanup': None,
+        }
+    record['host_cleanup'] = host_cleanup
+    record['host_cleanup_verified'] = bool(
+        host_cleanup.get('clean')
+        and (record.get('worker_cleanup') is None or record['worker_cleanup'].get('clean'))
+    )
+    atomic_json(outcome_path, record)
+    return 0
+
+
+def client(owner=0):
+    parent = validate_caller()
+    secure_process()
+    RUN_DIR.mkdir(mode=0o700, exist_ok=True)
+    info = RUN_DIR.lstat()
+    require(stat.S_ISDIR(info.st_mode) and info.st_uid == owner and (info.st_mode & 0o077) == 0,
+            'unsafe /run/wros-installer directory')
+    lock = os.open(RUN_DIR / 'owner', os.O_CREAT | os.O_NOFOLLOW | os.O_RDWR | os.O_CLOEXEC, 0o600)
+    with os.fdopen(lock, 'w'):
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        active, _, used = console_state(0)
+        require(active == 1 and not (used & (1 << 7)), 'tty7 is already in use')
+        baseline = capture_storage_snapshot()
+        baseline['session_nonce'] = secrets.token_hex(16)
+        baseline['caller_pid'] = parent
+        baseline['caller_started'] = birth(parent)
+        atomic_json(RUN_DIR / 'baseline.json', baseline)
+        (RUN_DIR / 'outcome.json').unlink(missing_ok=True)
+        arguments = systemd_command(UID, parent, birth(parent))
+        subprocess.run(
+            arguments,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env=ENV,
+            check=False,
+        )
+        outcome_path = RUN_DIR / 'outcome.json'
+        require(outcome_path.is_file(), 'installer session outcome missing')
+        record = json.loads(outcome_path.read_bytes())
+        require(record.get('host_cleanup_verified') is True,
+                'installer target cleanup was not verified')
+        if record.get('outcome') == 'completed' and record.get('target_verified') is True:
+            return 0
+        if record.get('outcome') == 'cancelled':
+            return 2
+        return 3  # failed installation, but host cleanup was positively verified
+
+
+def capture_storage_snapshot():
+    return capture_storage_baseline()
+
+
+def main():
+    if len(sys.argv) == 3 and sys.argv[1] == 'target-audit':
+        require('PKEXEC_UID' not in os.environ, 'target audit is reserved for the installed-target hook')
+        return in_target_audit(sys.argv[2])
+    if len(sys.argv) in (2, 5) and sys.argv[1] in ('worker', 'cleanup'):
+        require(os.geteuid() == 0 and os.getppid() == 1 and 'PKEXEC_UID' not in os.environ,
+                'service roles may only be invoked by systemd')
+        if len(sys.argv) == 5 and sys.argv[1] == 'worker':
+            return worker(*sys.argv[2:])
+        require(len(sys.argv) == 2 and sys.argv[1] == 'cleanup', 'invalid cleanup invocation')
+        return cleanup()
+    return client()
+
+
+if __name__ == '__main__':
+    try:
+        code = main()
+    except Exception as exc:
+        print(f'WrOS installer session stopped: {exc}', file=sys.stderr)
+        code = 1
+    raise SystemExit(code)
