@@ -69,6 +69,12 @@ unavailable and fail before their tools run. No successful OAuth enrollment,
 Drive API call or manuscript upload is fabricated. No telemetry or mandatory
 cloud service is introduced by these writing integrations.
 
+`crates/wros-google` (not yet linked into any shipped binary) will, once wired and only
+after the writer starts enrollment, contact `oauth2.googleapis.com` over HTTPS for the
+device-code, token and revoke endpoints. It requests only identity scopes plus
+`drive.file`/`drive.appdata`, sends no manuscript content, and stores the refresh token
+encrypted per local user.
+
 ## Verification
 
 Focused strict Clippy and compiled four-size local-session/privacy/Undo/restart

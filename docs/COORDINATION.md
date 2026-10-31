@@ -72,9 +72,19 @@ injectable transport and mock tests (enrollment, cancel, expiry, slow-down, revo
 offline, reboot, user isolation, log redaction), and an opt-in network gate so nothing
 connects before enrollment. The editor-side sync/backup engine stays in `grimoire-core`.
 
+**Status:** `crates/wros-google` implements the credential store (ChaCha20-Poly1305,
+per-user key, AAD bound to the user name, 0700/0600, no symlinks), the device flow state
+machine (scope allow-list, `interval`/`slow_down`, expiry, denial, cancel by drop, refresh
+distinguishing revocation from offline, revoke) and an HTTPS-only transport. It is covered
+by 16 unit tests with a mock transport. **Nothing links it yet**: `writingdeck-sys` still
+refuses the Google requests. The wiring needs (a) the owner's OAuth client id/secret as
+shipped configuration, and (b) agreement with the app on how the user code and
+verification URL reach the TUI (proposal: a new `Reply` carrying `user_code`,
+`verification_url`, `seconds_left`, polled by the app; no tokens ever cross the boundary).
+
 ## 5. Offline and telemetry rules the OS side enforces
 
 The installer preseed disables NTP, apt mirror, service selection and the popularity
 survey; the image disables NetworkManager's connectivity check; shipped crates make no
-outbound requests. Any new network feature must be opt-in, user-enrolled and listed in
+outbound requests, except `wros-google`'s HTTPS transport, which no binary calls yet. Any new network feature must be opt-in, user-enrolled and listed in
 `docs/API_AND_NETWORK_USE.md`.
