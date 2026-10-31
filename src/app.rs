@@ -30,6 +30,7 @@ use grimoire_core::settings::Settings;
 use grimoire_core::spell;
 
 mod aids;
+pub(crate) mod backup;
 pub(crate) mod checks;
 pub(crate) mod continuity;
 pub(crate) mod documents;
@@ -2015,6 +2016,12 @@ impl App {
         }
         if self.overlay == Overlay::Lexicon {
             self.paste_lexicon(text);
+            return;
+        }
+        if self.overlay == Overlay::Deck(writingdeck::Page::Settings)
+            && self.deck.shell.nav.current() == shell::Route::BackupForm
+        {
+            self.paste_backup_form(text);
             return;
         }
         if matches!(self.overlay, Overlay::Checks { .. }) {

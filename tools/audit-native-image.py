@@ -74,7 +74,8 @@ def audit(root):
     binaries = {}
     for relative in ('usr/sbin/greetd', 'usr/bin/wros-greeter', 'usr/bin/grimoire',
                      'usr/libexec/writingdeck-session', 'usr/libexec/writingdeck-keyboard',
-                     'usr/libexec/wros-lock', 'usr/bin/openvt', 'usr/bin/systemd-run', 'usr/bin/chvt'):
+                     'usr/libexec/wros-lock', 'usr/libexec/wros-backup', 'usr/bin/restic', 'usr/bin/rclone',
+                     'usr/bin/openvt', 'usr/bin/systemd-run', 'usr/bin/chvt'):
         path = regular(root, relative)
         if not path.stat().st_mode & 0o111 or path.stat().st_mode & 0o6022:
             raise ValueError('unsafe native session executable permissions: ' + relative)
@@ -97,6 +98,14 @@ def audit(root):
     binaries['usr/lib/x86_64-linux-gnu/security/pam_succeed_if.so'] = hashlib.sha256(pam_module.read_bytes()).hexdigest()
     if regular(root, 'usr/libexec/wros-lock').read_bytes() != (REPO / 'os/scripts/wros-lock').read_bytes():
         raise ValueError('manual-lock helper differs from qualified source')
+    if regular(root, 'usr/libexec/wros-backup').read_bytes() != (REPO / 'os/scripts/wros-backup').read_bytes():
+        raise ValueError('native backup helper differs from qualified source')
+    for name in ('restic', 'rclone'):
+        state = subprocess.check_output(['dpkg-query', '--admindir=' + str(root/'var/lib/dpkg'),
+                                         '-W', '-f=${Status}', name], text=True)
+        if state != 'install ok installed':
+            raise ValueError('maintained Debian backup package is not installed: ' + name)
+        regular(root, 'usr/share/doc/' + name + '/copyright')
     config = tomllib.loads(regular(root, 'etc/greetd/config.toml').read_text())
     if config != {'terminal': {'vt': 1, 'switch': True},
                   'general': {'source_profile': False},

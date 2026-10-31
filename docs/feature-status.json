@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "as_of": "2026-10-30",
+  "as_of": "2026-10-31",
   "release": "0.1.0-dev foundation + M3b + M4 + M5 + M6 + M7a + M7b software",
   "features": [
     {
@@ -509,11 +509,11 @@
     },
     {
       "area": "Cloud",
-      "capability": "Opt-in Drive OAuth, private credentials, upload queue, verified backup/restore",
-      "status": "Planned",
-      "verification": "None",
+      "capability": "Native encrypted local/Drive backup, private keys and restore into new folders",
+      "status": "Tested",
+      "verification": "Debian: 1094 Rust/config, 215 Python/zero skips, both Clippys and 21 gates; actual four-size native workflow and 512 MiB cancellation",
       "hardware_verified": false,
-      "detail": "Local state/fake-transport infrastructure can be built without credentials"
+      "detail": "Every completed backup is restored and hash checked; masked rclone Drive authorization; live provider acceptance and automatic queue remain open; see NATIVE_BACKUP.md"
     },
     {
       "area": "Cloud",
@@ -606,10 +606,10 @@
     {
       "area": "Accounts",
       "capability": "Native optional Google account linking and protected refresh credentials",
-      "status": "Planned",
-      "verification": "Provider flow/scope audit; no client registration or real account used",
+      "status": "In progress",
+      "verification": "Masked authorization form and private rclone config adapter; synthetic provider test only",
       "hardware_verified": false,
-      "detail": "Encrypted per-user credential service; no mandatory cloud or deprecated OOB flow; issue 28"
+      "detail": "Second-device rclone authorize flow with private per-user files; no mandatory cloud; real authorization/refresh/revocation acceptance remains issue 28"
     },
     {
       "area": "Storage",

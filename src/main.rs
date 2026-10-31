@@ -1,6 +1,7 @@
 //! grimoire — a terminal writing desk for novels.
 
 mod app;
+mod backup_service;
 mod books;
 #[cfg(target_os = "linux")]
 mod console_lock;
@@ -657,6 +658,12 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
         };
 
         if let Event::Paste(text) = &ev {
+            if app.overlay == Overlay::Deck(app::writingdeck::Page::Settings)
+                && app.deck.shell.nav.current() == app::shell::Route::BackupForm
+            {
+                app.paste_backup_form(text);
+                continue;
+            }
             if app.overlay == Overlay::Continuity {
                 app.paste_continuity(text);
                 continue;
@@ -994,6 +1001,9 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
             && k.code == KeyCode::Char('v'))
         && !(app.overlay == Overlay::Lexicon
             && app.lexicon.page == app::lexicon::Page::Query
+            && k.code == KeyCode::Char('v'))
+        && !(app.overlay == Overlay::Deck(app::writingdeck::Page::Settings)
+            && app.deck.shell.nav.current() == app::shell::Route::BackupForm
             && k.code == KeyCode::Char('v'))
         && !(matches!(
             app.overlay,

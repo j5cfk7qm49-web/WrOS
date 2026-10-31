@@ -71,12 +71,14 @@ pub enum Route {
     GoogleDrive,
     SyncPanel,
     Backups,
+    BackupForm,
     UpdatesView,
     RecoveryView,
     StorageDevicesView,
 }
 
 pub struct Shell {
+    pub backup: super::backup::Backups,
     pub nav: Navigation<Route>,
     pub notices: Notices,
     pub external: bool,
@@ -109,6 +111,7 @@ impl Shell {
             root.join(".grimoire/writingdeck/shell.json")
         };
         let mut state = Self {
+            backup: super::backup::Backups::new(root, background),
             nav: Navigation::new(Route::Settings),
             notices: Notices::default(),
             external: false,
@@ -185,6 +188,10 @@ impl Shell {
 }
 
 enum Choice {
+    BackupRequest(crate::backup_service::Request),
+    BackupForm(super::backup::FormKind, String),
+    BackupNow,
+    BackupCancel,
     Open(Route),
     Action(Action),
     System(usize),
@@ -293,13 +300,7 @@ fn entries(app: &App) -> Vec<Entry> {
                     writingdeck_sys::Request::ListLocalAccounts,
                 ),
             ),
-            Entry::new(
-                "Google account",
-                Choice::View(
-                    Route::GoogleAccount,
-                    writingdeck_sys::Request::GetGoogleStatus,
-                ),
-            ),
+            Entry::new("Google account", Choice::Open(Route::GoogleAccount)),
             Entry::new("Google Drive", Choice::Open(Route::GoogleDrive)),
             Entry::new("Synchronization", Choice::Open(Route::SyncPanel)),
             Entry::new("Backups", Choice::Open(Route::Backups)),
@@ -373,6 +374,10 @@ fn entries(app: &App) -> Vec<Entry> {
                     },
                 ]),
                 Panel::Storage => {
+                    rows.push(Entry::new(
+                        "Encrypted backups and restore",
+                        Choice::Open(Route::Backups),
+                    ));
                     rows.push(Entry::new(
                         "Mounted filesystems",
                         Choice::View(
@@ -553,24 +558,139 @@ fn entries(app: &App) -> Vec<Entry> {
             rows
         }
         Route::GoogleAccount => vec![
-            Entry::info(app.deck.shell.google_status.as_ref().map_or(
-                "Google enrollment is not configured in this build.",
-                |status| status.status_message.as_str(),
-            )),
-            Entry::info("No account has been linked or verified by this screen."),
+            Entry::info(if app.deck.shell.backup.status.google_connected {
+                "Google Drive credentials saved privately on this device"
+            } else {
+                "Google Drive is not connected"
+            }),
+            Entry::new(
+                "Connect Google Drive",
+                Choice::BackupForm(super::backup::FormKind::Google, String::new()),
+            ),
+            Entry::new(
+                "Encrypted backups and restore",
+                Choice::Open(Route::Backups),
+            ),
         ],
         Route::GoogleDrive => vec![
-            Entry::info("Google Drive browsing is not configured."),
-            Entry::info("No remote files have been fetched or cached."),
+            Entry::new(
+                "Encrypted Google Drive backups and restore",
+                Choice::Open(Route::Backups),
+            ),
+            Entry::info(
+                "General Drive file browsing and document synchronization are not implemented.",
+            ),
         ],
         Route::SyncPanel => vec![
             Entry::info("Conflict-safe synchronization is not implemented."),
             Entry::info("Local saves remain local."),
         ],
-        Route::Backups => vec![
-            Entry::info("Verified backup and restore are not configured."),
-            Entry::info("Local history is not an independent backup."),
-        ],
+        Route::Backups => {
+            use super::backup::FormKind;
+            use crate::backup_service::Request;
+            let backup = &app.deck.shell.backup;
+            let mut rows = vec![
+                Entry::new(
+                    "Create encrypted backup of this saved project",
+                    Choice::BackupNow,
+                ),
+                Entry::new("Refresh snapshots", Choice::BackupRequest(Request::List)),
+                Entry::new(
+                    "New backup on a local drive",
+                    Choice::BackupForm(FormKind::NewLocal, String::new()),
+                ),
+                Entry::new(
+                    "New backup on Google Drive",
+                    Choice::BackupForm(FormKind::NewDrive, String::new()),
+                ),
+                Entry::new(
+                    "Connect existing repository and recovery key",
+                    Choice::BackupForm(FormKind::Connect, String::new()),
+                ),
+                Entry::new(
+                    "Connect Google Drive",
+                    Choice::BackupForm(FormKind::Google, String::new()),
+                ),
+                Entry::new(
+                    "Export recovery key",
+                    Choice::BackupForm(FormKind::ExportKey, String::new()),
+                ),
+                Entry::new(
+                    "Recover an interrupted repository lock",
+                    Choice::BackupRequest(Request::Unlock),
+                ),
+            ];
+            // Keep action positions stable when an asynchronous job finishes.
+            rows.insert(
+                0,
+                if backup.job.is_some() {
+                    Entry::new("Cancel current backup operation", Choice::BackupCancel)
+                } else {
+                    Entry::info("No backup operation is running")
+                },
+            );
+            if backup.status.configured {
+                rows.push(Entry::info(format!(
+                    "Destination: {}",
+                    backup.status.repository
+                )));
+                rows.push(Entry::info(format!(
+                    "Private recovery key: {}",
+                    backup.status.recovery_key
+                )));
+            } else {
+                rows.push(Entry::info(
+                    "No repository configured. Choose a local drive or connect Google Drive.",
+                ));
+            }
+            rows.push(Entry::info(if backup.status.google_connected {
+                "Google Drive connection saved privately"
+            } else {
+                "Google Drive is not connected"
+            }));
+            rows.push(Entry::info(
+                "Select a snapshot below to restore into a NEW folder.",
+            ));
+            rows.push(Entry::info(
+                "Keep local backups on another device; folders can share the same disk.",
+            ));
+            // The fixed notice line is clipped at 80 columns. Keep the complete
+            // result, including recovery paths, available in the scrollable body.
+            let detail: Vec<char> = backup
+                .notice
+                .chars()
+                .map(|c| if c.is_control() { ' ' } else { c })
+                .collect();
+            let width = usize::from(app.screen.0.saturating_sub(8)).max(8) / 2;
+            for chunk in detail.chunks(width) {
+                rows.push(Entry::info(chunk.iter().collect::<String>()));
+            }
+            for snapshot in &backup.status.snapshots {
+                rows.push(Entry::new(
+                    format!(
+                        "{} · {} · {}\n{}",
+                        snapshot.project,
+                        snapshot.time,
+                        snapshot.id.get(..8).unwrap_or("unknown"),
+                        if snapshot.restore_checked_at.is_empty() {
+                            "Restore has not been checked on this device".into()
+                        } else {
+                            format!("Restore checked: {}", snapshot.restore_checked_at)
+                        }
+                    ),
+                    Choice::BackupForm(FormKind::Restore, snapshot.id.clone()),
+                ));
+            }
+            rows
+        }
+        Route::BackupForm => app
+            .deck
+            .shell
+            .backup
+            .form
+            .as_ref()
+            .map(|form| form.rows().into_iter().map(Entry::info).collect())
+            .unwrap_or_default(),
         Route::RecoveryView => vec![
             Entry::info("Recovery boot and restore are not qualified."),
             Entry::info("Use the documented maintenance media."),
@@ -722,6 +842,10 @@ impl App {
         self.observe_deck(tutorial::Event::SystemOpened);
     }
     pub fn on_settings_key(&mut self, key: Key) {
+        if self.deck.shell.nav.current() == Route::BackupForm {
+            self.on_backup_form_key(key);
+            return;
+        }
         if self.deck.shell.nav.current() == Route::Timezones {
             let query = &mut self.deck.shell.timezone_query;
             let changed = match key {
@@ -767,6 +891,13 @@ impl App {
                     return;
                 };
                 match row.choice {
+                    Choice::BackupRequest(request) => self.deck.shell.backup.request(request),
+                    Choice::BackupForm(kind, snapshot) => self.open_backup_form(kind, snapshot),
+                    Choice::BackupNow => self.request_project_backup(),
+                    Choice::BackupCancel => {
+                        self.deck.shell.backup.job = None;
+                        self.deck.shell.backup.notice = "Cancelling; refresh snapshots before retrying. Completed snapshots remain recoverable.".into();
+                    }
                     Choice::Lock => self.request_console_lock(),
                     Choice::TimezoneOpen if !self.deck.busy => {
                         self.deck.shell.timezones = None;
@@ -801,12 +932,15 @@ impl App {
                     | Choice::TimezoneResolve(true) => {}
                     Choice::Open(route) => {
                         self.deck.shell.nav.open(route);
+                        if matches!(route, Route::Backups | Route::GoogleAccount) {
+                            self.deck
+                                .shell
+                                .backup
+                                .request(crate::backup_service::Request::Status);
+                        }
                         let availability = match route {
                             Route::GoogleDrive => Some("Drive browsing is not configured."),
                             Route::SyncPanel => Some("Synchronization is not configured."),
-                            Route::Backups => {
-                                Some("Verified backup and restore are not configured.")
-                            }
                             Route::RecoveryView => Some("Recovery is not qualified."),
                             _ => None,
                         };
@@ -938,6 +1072,14 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
         Route::GoogleDrive => "WrOS · Settings › Google Drive".into(),
         Route::SyncPanel => "WrOS · Settings › Synchronization".into(),
         Route::Backups => "WrOS · Settings › Backups".into(),
+        Route::BackupForm => app
+            .deck
+            .shell
+            .backup
+            .form
+            .as_ref()
+            .map(|form| format!("WrOS · {}", form.title()))
+            .unwrap_or_else(|| "WrOS · Backups".into()),
         Route::UpdatesView => "WrOS · Settings › Cached package plan".into(),
         Route::RecoveryView => "WrOS · Settings › Recovery".into(),
         Route::StorageDevicesView => "WrOS · Settings › Mounted filesystems".into(),
@@ -948,7 +1090,12 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
     if app.deck.simulated() {
         title = format!("SIMULATED · {title}");
     }
-    let note = if app.deck.busy {
+    let note = if matches!(
+        app.deck.shell.nav.current(),
+        Route::Backups | Route::BackupForm
+    ) {
+        app.deck.shell.backup.notice.as_str()
+    } else if app.deck.busy {
         "System request pending; writing remains responsive"
     } else {
         app.deck.shell.notices.latest().unwrap_or(&app.deck.note)
@@ -960,9 +1107,22 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
         wros_shell::Menu {
             title: &title,
             rows: &rows,
-            selected: app.deck.shell.nav.selected(),
+            selected: if app.deck.shell.nav.current() == Route::BackupForm {
+                app.deck
+                    .shell
+                    .backup
+                    .form
+                    .as_ref()
+                    .map_or(0, |form| form.selected)
+            } else {
+                app.deck.shell.nav.selected()
+            },
             notice: note,
-            hint: "↑↓ choose  Enter open  Esc back  F1 help",
+            hint: if app.deck.shell.nav.current() == Route::BackupForm {
+                "Type/paste field  Tab/↑↓ choose  Enter next/confirm  Esc cancel"
+            } else {
+                "↑↓ choose  Enter open  Esc back  F1 help"
+            },
         },
         theme.into(),
     );

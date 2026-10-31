@@ -302,27 +302,21 @@ fn accounts_storage_and_package_views_are_read_only_and_do_not_offer_fake_cloud_
         desk.key(KeyCode::Enter);
         wait_system(&mut desk);
         assert_eq!(desk.app.deck.shell.nav.current(), Route::GoogleAccount);
-        assert!(desk.shows("not implemented"));
+        assert!(desk.shows("Google Drive is not connected"));
         desk.key(KeyCode::Enter);
         assert!(!desk.app.deck.busy);
-        for route in [
-            Route::GoogleDrive,
-            Route::SyncPanel,
-            Route::Backups,
-            Route::RecoveryView,
-        ] {
+        for route in [Route::GoogleDrive, Route::SyncPanel, Route::RecoveryView] {
             desk.app.deck.shell.nav.reset(route);
             desk.draw();
             assert!(!desk.app.deck.busy);
             assert!(!desk.shows("Connected via OAuth"));
             assert!(!desk.shows("Healthy"));
-            desk.key(KeyCode::Enter);
+            // Opening the view alone must not enroll or transmit anything.
             assert!(!desk.app.deck.busy);
         }
         system_panel(&mut desk, 3);
         wait_system(&mut desk);
-        desk.key(KeyCode::Down);
-        desk.key(KeyCode::Enter);
+        desk.choose("Mounted filesystems");
         wait_system(&mut desk);
         assert_eq!(desk.app.deck.shell.nav.current(), Route::StorageDevicesView);
         assert!(desk.shows("MiB free"));

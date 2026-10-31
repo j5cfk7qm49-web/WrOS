@@ -25,6 +25,7 @@ python3 "$repo/tools/stage-prose-runtime.py" "$dest" "$runtime"
 install -m 755 "$repo/os/scripts/writingdeck-keyboard" "$repo/os/scripts/writingdeck-session" "$dest/usr/libexec/"
 install -m 755 "$repo/os/scripts/wros-display" "$dest/usr/libexec/"
 install -m 755 "$repo/os/scripts/wros-lock" "$dest/usr/libexec/"
+install -m 755 "$repo/os/scripts/wros-backup" "$dest/usr/libexec/"
 # Build on the declared Debian builder; never ship the fake test DRM library.
 display_build=$(mktemp -d)
 trap 'rm -f -- "$display_build/wros-display-hw"; rmdir -- "$display_build"' EXIT

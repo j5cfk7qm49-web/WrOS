@@ -1,5 +1,12 @@
 # Changelog
 
+- Add native encrypted local/Google Drive project backups through Restic/rclone,
+  private recovery-key export/import, masked Google authorization, real
+  restore/hash verification for every completed snapshot, snapshot browsing,
+  cancellation, stale-lock recovery and safe restore into new folders.
+- Integrate installer password clearing, offline defaults, LF enforcement,
+  audited media publication and keyboard/power-policy hardening for release.
+
 - Add explicit character knowledge assertions to Continuity tracker (Issue #6),
   tracking Knows, Suspects, Unaware and Believes-otherwise states before or after
   scenes. Assertions bind to reviewed explicit facts, durable document identities,

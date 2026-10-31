@@ -35,6 +35,8 @@ libasound2t64
 libgcc-s1
 libdrm2
 git
+restic
+rclone
 less
 nano
 wordnet-base

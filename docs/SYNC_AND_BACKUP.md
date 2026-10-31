@@ -14,7 +14,14 @@ Pin metadata is now project-local alongside layout state. Include it in a consis
 
 Journal facts are bounded daily metadata; reflections remain ordinary source Markdown in Notes. Include both in consistent project backups. Facts are sampled model observations, not an edit ledger, immutable OS audit log or backup; pending observations are memory-only until retry and can be lost on crash/explicit forced exit. Guarded conflicts never replace existing facts. See [JOURNAL](JOURNAL.md).
 
-## Planned Drive backup (M9)
+## Native encrypted backup (M9)
+
+Native local/Google Drive encrypted snapshots and restore-to-new-folder controls
+are now implemented through maintained Restic/rclone. See the complete
+[native backup and recovery workflow](NATIVE_BACKUP.md) for setup, private recovery
+keys, masked Google authorization, source/manifest checks, limits and failure
+handling. Real Google acceptance, the automatic queue, bidirectional sync and
+Docs round trips remain separate. The following describes remaining cloud work.
 
 Prefer maintained rclone for explicit terminal OAuth enrollment rather than hardcoded client secrets. Verify the provider's supported current authorization flow; a browser on a trusted second device may be needed. Never ask users to paste access tokens into a manuscript or publish credentials. Keep rclone/account configuration private (0600), outside a synced project, with an optional secret store and revocation instructions.
 
@@ -30,7 +37,10 @@ Required round-trip fixture: Unicode, YAML unknown fields/comments, scene metada
 
 ## Status and credential gates
 
-No Google account was enrolled, no manuscript transmitted and no live restore/Docs round trip performed. Live authorization and provider behavior are **Blocked** on explicit credentials/consent when that milestone is reached; the local fake transport/queue/conflict infrastructure can be implemented without credentials. Those new adapters are currently **Planned**, not yet code.
+No Google account was enrolled or manuscript transmitted during implementation.
+Live provider acceptance remains **Blocked** on account consent. Native encrypted
+local/Drive backup adapters are implemented; automatic queues, bidirectional sync
+and Docs interoperability remain **Planned**.
 
 Current tests: upstream mobile/sync conflict, atomic save, deleted/unavailable file behavior and recovery tests. Future tests: fake transport interruption, hashes, replay-safe queue, restore-new-directory, conflict/tombstone handling and network-disabled writing. Tutorial lessons 36/37 remain unavailable until actual safe enrollment/restore/mobile workflows exist.
 

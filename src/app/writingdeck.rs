@@ -523,6 +523,7 @@ impl App {
         }
     }
     pub fn tick_deck(&mut self) {
+        self.deck.shell.backup.tick();
         self.tick_productivity();
         let result = self.deck.worker.as_ref().and_then(|w| w.rx.try_recv().ok());
         if let Some((request, result)) = result {
@@ -1139,7 +1140,14 @@ impl App {
             Widget::Sprint => self.run_action(Action::StartSprint),
             Widget::RecentScenes => self.open_palette(),
             Widget::Battery | Widget::System => self.open_system_settings(),
-            Widget::Backup => self.open_help(Some("sync")),
+            Widget::Backup => {
+                self.open_settings();
+                self.deck.shell.nav.open(super::shell::Route::Backups);
+                self.deck
+                    .shell
+                    .backup
+                    .request(crate::backup_service::Request::Status);
+            }
             Widget::Pins => self.open_pinboard(),
             Widget::Journal => self.open_journal(),
             Widget::Scratchpad => self.open_scratchpad(),
@@ -1452,7 +1460,18 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                         .and_then(|s| s.battery_percent)
                         .map(|p| format!("{p}%"))
                         .unwrap_or_else(|| "unavailable; refresh in System settings".into()),
-                    Widget::Backup => "not configured; local save is not backup".into(),
+                    Widget::Backup => {
+                        if app.deck.shell.backup.job.is_some() {
+                            "backup operation running".into()
+                        } else if app.deck.shell.backup.status.configured {
+                            format!(
+                                "encrypted repository · {} loaded snapshots",
+                                app.deck.shell.backup.status.snapshots.len()
+                            )
+                        } else {
+                            "set up encrypted backup and restore".into()
+                        }
+                    }
                     Widget::System => app
                         .deck
                         .snapshot

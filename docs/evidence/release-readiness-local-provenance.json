@@ -1,0 +1,41 @@
+{
+  "passed": true,
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "8419e7df4740396394a2aaa3685eb9780330f8b78664c167ebcae635a025fe49",
+    "file_count": 484,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "tested_binary_sha256": "449b74a5949650e8a25c1be12ff79eb59283f9fd5edc5f6fc682416b160aaf7f",
+  "software_receipt": "docs/evidence/release-readiness-local.json",
+  "software_receipt_sha256": "5855b251586fd3758dbf09e24ab8e31d23aee771bb2ae3dfcf9f08b454bb9250",
+  "runner": "Debian 13, Rust 1.99.1, CPython 3.13, ordinary builder account in a network namespace with loopback only.",
+  "frames": [
+    {
+      "file": "docs/evidence/backup-80x24.txt",
+      "sha256": "e3b5be91f33f69c175ca71272a0b20743fb538cc5f9762cede528893c51f1e45"
+    },
+    {
+      "file": "docs/evidence/backup-100x30.txt",
+      "sha256": "062903b67ddf1db35d93578ea1eb0dd7a228dfe584866e1f20ac170d4a204bd0"
+    },
+    {
+      "file": "docs/evidence/backup-120x40.txt",
+      "sha256": "953cddbd7c252955db8f3aa44704c90983b844208035229a034ba75a62bc4440"
+    },
+    {
+      "file": "docs/evidence/backup-160x50.txt",
+      "sha256": "d0b3bbc6d8ee3d9bb3539d1fde7bf203c0293e80cc74fc70b2a5040d3377c0c1"
+    }
+  ],
+  "backup_engine": "Debian restic 0.18.0-1+b4",
+  "transport": "Debian rclone 1.60.1+dfsg-4; actual serve-restic transport with a disposable local alias backend",
+  "real_google_account_used": false,
+  "manuscript_transmitted_to_a_provider": false,
+  "scope": "Native encrypted repository setup, full-project snapshots, actual restore and SHA-256 comparison, deleted-original/fresh-state recovery, private key export/import, masked credential ownership, 512 MiB cancellation and explicit retry. Four-size actual-binary original writing/Undo workflows. Installer hardening and character-knowledge regressions included in the complete software suites.",
+  "limits": [
+    "Not current ISO or full native encrypted-install qualification.",
+    "Not live Google authorization/refresh/revocation or Drive restoration.",
+    "Not signed updates, power-cut, physical keyboard, battery or hardware qualification."
+  ]
+}

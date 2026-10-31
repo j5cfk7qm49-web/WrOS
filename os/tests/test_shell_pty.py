@@ -42,16 +42,16 @@ class UnifiedShellPTY(unittest.TestCase):
                     terminal.send(b'\x1b')
                     terminal.screen_shows('▸ Local accounts')
                     for heading, message in [
-                        ('Google account', 'Google enrollment is not configured'),
-                        ('Google Drive', 'Google Drive browsing is not configured'),
+                        ('Google account', 'Google Drive is not connected'),
+                        ('Google Drive', 'General Drive file browsing'),
                         ('Synchronization', 'Conflict-safe synchronization is not implemented'),
-                        ('Backups', 'Verified backup and restore are not configured'),
+                        ('Backups', 'No repository configured'),
                     ]:
                         terminal.send(b'\x1b[B\r')
                         terminal.screen_shows('Settings › ' + heading)
                         terminal.screen_shows(message)
                         if heading == 'Backups':
-                            terminal.screen_shows('Local history is not an independent backup.')
+                            terminal.screen_shows('New backup on a local drive')
                             self.assertNotIn('Google enrollment', terminal.screen.text)
                         terminal.paste('AVAILABILITY-SCREEN-PASTE')
                         self.assertEqual(primary.read_bytes(), before)
