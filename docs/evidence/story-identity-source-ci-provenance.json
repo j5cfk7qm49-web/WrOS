@@ -1,0 +1,24 @@
+{
+  "passed": true,
+  "run_url": "https://github.com/j5cfk7qm49-web/WrOS/actions/runs/41154236698",
+  "run_id": 41154236698,
+  "artifact_id": 13024028057,
+  "archive_sha256": "1976ade85dbf6eb58825428a07bfe8ea9d24298311b0abe64bbb0d78efc1e5ec",
+  "receipt_sha256": "29a81da295ea378ec4c2378638c72383e152df09922481a40ec97bdc6f866935",
+  "reviewed_head": "91e49d0919a8ae022d5831b245173e4808a89afb",
+  "tested_head": "0cf03ba7db38287aab0e9c14dc39d46746473481",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "69dc7d10945380bd5591bfba17a10826e3cc9aa618ce5223ab53437af72d86b6",
+    "file_count": 469,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "verifier_inputs_match_independent_local": true,
+  "terminal_frame_sha256": {
+    "story-identity-80x24.txt": "07262e2a4ded29a0d479fabd8859db79250607e4d4607507b44281a57d515c7c",
+    "story-identity-100x30.txt": "8efc0a2a0c83f868255c56bd7ebb3524650947318583de513679f6328764e073",
+    "story-identity-120x40.txt": "854149c29ef3f79d3c1aaa1ddee58e73ea78ba72b9c3edf09e81ad8e8e412f0f",
+    "story-identity-160x50.txt": "4b89a065acabab38a03d7e25e92e696a98b8fd43b677021e1595a9831928310e"
+  },
+  "scope": "Shared identity safety guard and normal editor/recovery workflows with generated fixtures; not complete M8/M9, image, provider, installer, physical or release qualification."
+}

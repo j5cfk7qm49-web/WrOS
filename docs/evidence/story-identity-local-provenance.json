@@ -1,0 +1,32 @@
+{
+  "passed": true,
+  "tested_head": "91e49d0919a8ae022d5831b245173e4808a89afb",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "69dc7d10945380bd5591bfba17a10826e3cc9aa618ce5223ab53437af72d86b6",
+    "file_count": 469,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "receipt_sha256": "7155da07aa45397facecb8e6427a0fa0a2be4dc13fbd2c78cebb4d2f328383b5",
+  "tested_binary_sha256": "2c2dcfb5d7b0c75b135b10e37aa382493f6e49d2efef0679c782407cea463e44",
+  "runner": "Isolated Debian chroot ordinary builder; external network isolation with loopback; corrected unshare without --fork and asserted normal signal defaults.",
+  "frames": [
+    {
+      "file": "docs/evidence/story-identity-80x24.txt",
+      "sha256": "daa17e160df0f8adbfd78ab8b8cf3bc200a753adcadfd49789ab5abaacab9596"
+    },
+    {
+      "file": "docs/evidence/story-identity-100x30.txt",
+      "sha256": "fbd9a43c382f9b46348ece666739cabfbb783d0cd321e550f3cc079516040a12"
+    },
+    {
+      "file": "docs/evidence/story-identity-120x40.txt",
+      "sha256": "2c7c22cb33d410effe02d35dfbe48cf645c2ae06449bdcb6e8adacdfc1f4f1ad"
+    },
+    {
+      "file": "docs/evidence/story-identity-160x50.txt",
+      "sha256": "8175e04fedfd15a966836adf514fa06772ea77aae68d0ebe55311565377153dc"
+    }
+  ],
+  "scope": "Missing/incomplete shared identity refusal, normal editor save/Undo/help and explicit matching original-registry recovery; generated fixtures only. Not automatic identity reconstruction, cross-file transaction, complete M8/M9, image, provider, installer, physical or release qualification."
+}

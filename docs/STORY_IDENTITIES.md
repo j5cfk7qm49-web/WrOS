@@ -36,4 +36,5 @@ registries, cached allocation, book-wide facts and malformed/future/oversized
 dependencies. Actual app checks at 80x24, 100x30, 120x40 and 160x50 prove refusal
 before comparison/restore, unchanged scenes/sidecars, available ordinary writing,
 save/Undo/help, then correct-target restoration and Undo after an explicit
-original-registry recovery. Full source-bound Debian qualification is in progress.
+original-registry recovery. The [independent full Debian run](evidence/story-identity-local.json) passed
+1077 Rust tests per configuration, 185 Python tests with zero skips, both Clippys and 21 gates. [Provenance and frames](evidence/story-identity-local-provenance.json) bind its source and binary.
