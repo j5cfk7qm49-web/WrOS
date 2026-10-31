@@ -1,0 +1,46 @@
+#!/usr/bin/python3 -I
+"""pkexec launcher (org.wros.update.repair): bounded dpkg repair from retained authenticated archives.
+
+Takes no arguments.  Prints one JSON object; exits 1 when the result is "failed".
+"""
+import importlib.machinery
+import importlib.util
+import json
+import os
+import sys
+
+ENGINE = '/usr/lib/wros-update/engine.py'
+VERB = 'repair'
+SAFE_PATH = '/usr/sbin:/usr/bin:/sbin:/bin'
+
+
+def load_engine(path=None):
+    loader = importlib.machinery.SourceFileLoader('wros_update_engine', path or ENGINE)
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+
+
+def main(argv=None, environ=None, euid=None, engine_path=None, **seams):
+    argv = sys.argv[1:] if argv is None else argv
+    source = os.environ if environ is None else environ
+    pkexec_uid = source.get('PKEXEC_UID')
+    if environ is None:
+        os.environ.clear()
+        os.environ.update({'PATH': SAFE_PATH, 'LC_ALL': 'C'})
+    engine = load_engine(engine_path)
+    result = engine.launcher_main(VERB, argv, pkexec_uid, euid=euid, **seams)
+    print(json.dumps(result, sort_keys=True))
+    if result.get('status') == 'failed':
+        print(result.get('message', 'repair failed'), file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main())
+    except Exception as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(1) from None
