@@ -66,5 +66,6 @@ jobs:
             build/verification/passage-restore-screens/
             build/verification/story-identity-screens/
             build/verification/local-session-privacy-screens/
+            build/verification/knowledge-screens/
             docs/evidence/test-results.json
           if-no-files-found: warn

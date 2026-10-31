@@ -1,5 +1,11 @@
 # Changelog
 
+- Add explicit character knowledge assertions to Continuity tracker (Issue #6),
+  tracking Knows, Suspects, Unaware and Believes-otherwise states before or after
+  scenes. Assertions bind to reviewed explicit facts, durable document identities,
+  and exact source revisions with full retained version history, filtering,
+  archiving, source-opening and export isolation, without guessing from prose
+  or hallucinating contradictions.
 - Keep writing-session history local even when a Git remote is configured;
   remove automatic startup/save pushes and false background-backup status.
   Preserve original editor saves, session snapshots, authorship and Undo.

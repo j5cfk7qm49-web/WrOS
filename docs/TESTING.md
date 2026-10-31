@@ -1,5 +1,19 @@
 # Testing and verification
 
+## Character knowledge continuity tracking boundary
+
+`crates/grimoire-core/src/knowledge.rs` and `src/knowledge_ui_tests.rs` verify
+author-entered Knows/Suspects/Unaware/Believes-otherwise assertions bound to
+explicit facts, durable document identities, and scene points (Before/After).
+`test_knowledge_pty.py` uses the actual compiled app across four terminal sizes
+(80x24, 100x30, 120x40, 160x50), an isolated HOME, generated Markdown/YAML fixtures,
+and real TUI interactions. It tests creation, editing, retained version browsing (`v`),
+filtering (`/`), archiving (`d`/`h`), source viewing (`g`), and export isolation.
+Contradictions require explicit Knows vs Does not know assertions on the exact same
+fact, character, scene, point, and source revision; no knowledge or chronology is
+guessed from prose. Captures under `build/verification/knowledge-screens` use
+`WRITINGDECK_CAPTURE_PTY=1`.
+
 ## Local writing-session network boundary
 
 `test_local_session_privacy_pty.py` uses the real compiled app at 80x24,

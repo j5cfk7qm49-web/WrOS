@@ -13,7 +13,7 @@ chronology events and plot threads without guessing or hallucinating conflicts
 from prose.
 
 - Press `1` for **Facts**, `2` for **Timeline**, `3` for **Plot Threads**, and
-  `4` or `c` for **Contradictions & Suggestions**.
+  `4` or `c` for **Contradictions & Suggestions**. Press `5` for **Character knowledge**.
 - Press `n` on Facts, Timeline or Threads to add a new record. Use `Tab` or
   `Up`/`Down` to move between fields, `Left`/`Right` to cycle category,
   certainty or thread status, and `Enter` to save.
@@ -24,6 +24,45 @@ from prose.
   excluded from conflict checks.
 - Press `t` on a fact to cycle its certainty, or on a plot thread to cycle
   between Open, Resolved and Abandoned. Press `d` to remove the selected item.
+
+## Character knowledge
+
+Knowledge is an author-entered assertion about a selected explicit fact, a
+character, and **Before** or **After this scene**. WrOS does not infer what a
+character learned from prose, timeline order or another character's record.
+
+- In **Facts**, select the fact and press `g`. The active original scene and
+  reviewed fact are captured. Enter a character name; use `Tab`/`Up`/`Down`
+  between Character, Knowledge, Point and Notes. `Left`/`Right` cycles the
+  state or scene point. `Enter` saves; `Esc` cancels.
+- States are **Knows the stated fact**, **Suspects it**, **Does not know it**
+  and **Believes otherwise**. Describe a different belief in Notes before
+  saving that last state. This never edits the canonical fact or manuscript.
+- Press `5` for the active scene's records. `a` toggles all scenes, `/`
+  filters character names, and `h` includes archived records. Names match
+  exactly for conflict checks; the character filter is only a view.
+- `e` or `Enter` revises the selected record while its original source is
+  open. `d` archives or unarchives it; earlier versions are retained. `g`
+  opens the registered source through the normal editor.
+- `v` reviews the complete retained versions, including the fact's scope,
+  certainty, source context and notes, the scene revision and your knowledge
+  notes. `Page Up`/`Page Down` and `Home`/`End` scroll; `Esc` returns.
+
+Only explicit **Knows** versus **Does not know** assertions for the same exact
+character, reviewed fact, original scene, scene point and source revision are
+flagged as conflicting. Different scene points or revisions do not establish a
+contradiction. **Source revised** and **Fact changed/missing** preserve what you
+previously reviewed. Select the current fact and create a new reviewed record
+when the canonical fact has changed; older records and versions remain intact.
+
+Saving refuses changed source revisions/backing files, moved or missing source
+identities, changed facts, and externally changed or unsupported metadata.
+`knowledge.json` uses the existing guarded store and shared document registry.
+It is capped at 1 MiB, 4096 records and 64 prior versions per record; refusal
+preserves every old record. Character names are limited to 256 bytes and notes
+to 4096 bytes. More than 512 conflict pairs or a history view exceeding 256 KiB
+or 4096 source lines is refused as a whole. There is no silently partial review.
+Knowledge stays outside manuscript exports and does not earn typing credit.
 
 ## Draft milestones and scene variants
 
@@ -64,7 +103,7 @@ temporary and never replace the shared durable document IDs.
 
 The shared `.grimoire/writingdeck/review-notes.json` registry connects saved
 story data to its original documents. If it is lost, empty or incomplete while
-milestones, variants or continuity records still refer to its IDs, WrOS refuses
+milestones, variants, continuity or knowledge records still refer to its IDs, WrOS refuses
 to create replacement IDs or restore through them. It never guesses from the
 current outline order, scene titles or matching text. Your source and sidecars
 remain intact; ordinary writing, save, Undo and help remain available.

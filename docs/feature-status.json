@@ -430,10 +430,10 @@
     {
       "area": "Long-form",
       "capability": "Structured explicit continuity/timeline/knowledge/thread tracker",
-      "status": "Planned",
-      "verification": "None",
+      "status": "Tested",
+      "verification": "Debian software: 1083 Rust/config, 188 Python/zero skips, both Clippys; four-size compiled UI/restart",
       "hardware_verified": false,
-      "detail": "Definite contradictions require explicit facts"
+      "detail": "Fact/event/knowledge durable document IDs, explicit scopes, retained version history and guarded conflict review"
     },
     {
       "area": "Long-form",
@@ -687,7 +687,7 @@
       "capability": "Author-entered continuity facts, timeline and threads",
       "status": "Tested",
       "verification": "Full Debian suite; guarded source/UI regressions and four-size compiled writing workflows",
-      "detail": "Durable fact/event document IDs, explicit scopes, guarded persistence; complete knowledge tracking remains open",
+      "detail": "Durable fact/event document IDs, explicit scopes, guarded persistence; character knowledge fully integrated",
       "hardware_verified": false
     },
     {

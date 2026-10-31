@@ -1,0 +1,50 @@
+┌Character knowledge · retained versions───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│CURRENT RECORD                                                                                                                                                │
+│Wren λ · Does not know it · After this scene                                                                                                                  │
+│Scene: The Brass Key · document #1                                                                                                                            │
+│Source revision SHA-256: faace0d3212c185d800ab2a5e970b8db74f5c4099b7d1d0fb2f8c19b5c419f34                                                                     │
+│Fact #1 · Object · Key                                                                                                                                        │
+│Property: location = Archive                                                                                                                                  │
+│Certainty: Definite (Canon)                                                                                                                                   │
+│Single-value scope: canon                                                                                                                                     │
+│Fact source: document #1 · The Brass Key                                                                                                                      │
+│Fact notes: FACT_META_ONLY                                                                                                                                    │
+│Knowledge notes: KNOWLEDGE_META_ONLY                                                                                                                          │
+│Recorded: 2026-10-31T06:36:35.544214092+00:00 · Active                                                                                                        │
+│                                                                                                                                                              │
+│EARLIER VERSION 1                                                                                                                                             │
+│Wren λ · Knows the stated fact · After this scene                                                                                                             │
+│Scene: The Brass Key · document #1                                                                                                                            │
+│Source revision SHA-256: faace0d3212c185d800ab2a5e970b8db74f5c4099b7d1d0fb2f8c19b5c419f34                                                                     │
+│Fact #1 · Object · Key                                                                                                                                        │
+│Property: location = Archive                                                                                                                                  │
+│Certainty: Definite (Canon)                                                                                                                                   │
+│Single-value scope: canon                                                                                                                                     │
+│Fact source: document #1 · The Brass Key                                                                                                                      │
+│Fact notes: FACT_META_ONLY                                                                                                                                    │
+│Knowledge notes: KNOWLEDGE_META_ONLY                                                                                                                          │
+│Recorded: 2026-10-31T06:36:35.498540192+00:00 · Active                                                                                                        │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
+│Knowledge saved · 0 conflicting explicit assertions; records and earlier versions retained.                                                                   │
+│PgUp/PgDn Home/End scroll  Esc back  F1 help                                                                                                                  │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

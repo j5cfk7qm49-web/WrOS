@@ -8163,3 +8163,6 @@ mod footnote_context_ui_tests;
 
 #[path = "argon_writing_ui_tests.rs"]
 mod argon_writing_ui_tests;
+
+#[path = "knowledge_ui_tests.rs"]
+mod knowledge_ui_tests;

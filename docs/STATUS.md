@@ -1,5 +1,17 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Character knowledge continuity tracking (2026-10-30)
+
+[Character knowledge](../assets/help/39-continuity-and-milestones.md) adds explicit
+author-entered assertions about character knowledge to the Continuity tracker (Issue #6).
+Knowledge records are bound to reviewed facts, durable document identities, scene points
+(Before/After scene), and exact source revisions without guessing from prose or
+hallucinating contradictions. Only direct Knows versus Does-not-know conflicts for the
+same character, reviewed fact, scene point and revision are flagged. Retained version history,
+in-editor revision, archive/unarchive, character filtering and source opening preserve
+underlying manuscripts and exports. Core unit tests, four-size compiled writing workflows,
+PTY tests across four terminal sizes, warning-denying Clippys and documentation gates passed.
+
 ## Local writing history privacy (2026-10-30)
 
 The [API/network audit](API_AND_NETWORK_USE.md) found inherited automatic Git
@@ -36,7 +48,7 @@ original editor Undo and guarded source/metadata persistence remain in use.
 Focused core/UI and real four-size milestone/variant/help/Undo/restart tests
 passed; the [independent full Debian run](evidence/passage-restore-local.json) passed
 1072 Rust tests per configuration, 184 Python tests with zero skips, both Clippys and 21 gates. [Provenance](evidence/passage-restore-local-provenance.json) binds the tested source and binary.
-Character knowledge, broader preflight, paperback notes and full M8/M9 remain open.
+Broader preflight, paperback notes and full M8/M9 remain open.
 
 
 ## Native EPUB notes and third Argon review (2026-10-30)

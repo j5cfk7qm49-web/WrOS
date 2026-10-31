@@ -1,6 +1,7 @@
 //! Continuity tracker TUI workflow: explicit facts, chronology events, plot threads,
 //! and contradiction review without hallucinating contradictions.
 use super::*;
+mod knowledge_ui;
 use anyhow::{Result, ensure};
 use grimoire_core::{
     continuity::{Certainty, ContinuityStore, Contradiction, Fact, FactCategory, ThreadStatus},
@@ -21,6 +22,10 @@ pub enum Page {
     AddFact,
     AddEvent,
     AddThread,
+    Knowledge,
+    EditKnowledge,
+    KnowledgeDetail,
+    FilterKnowledge,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -57,6 +62,15 @@ pub struct ThreadDraft {
 
 pub struct Continuity {
     pub store: Option<Store<ContinuityStore>>,
+    knowledge: Option<Store<grimoire_core::knowledge::Knowledge>>,
+    knowledge_problem: String,
+    knowledge_conflicts: std::collections::BTreeSet<u64>,
+    knowledge_draft: Option<knowledge_ui::Draft>,
+    knowledge_all: bool,
+    knowledge_archived: bool,
+    knowledge_max_scroll: std::cell::Cell<u16>,
+    knowledge_filter: String,
+    knowledge_detail: Option<String>,
     pub nav: wros_shell::Navigation<Page>,
     pub notice: String,
     pub scroll: u16,
@@ -89,8 +103,24 @@ impl Continuity {
                 Vec::new(),
             ),
         };
-        Self {
+        let (knowledge, knowledge_problem) = match grimoire_core::knowledge::Knowledge::load(root) {
+            Ok(s) => (Some(s), String::new()),
+            Err(e) => (
+                None,
+                format!("Character knowledge unavailable; originals preserved: {e:#}"),
+            ),
+        };
+        let mut output = Self {
             store,
+            knowledge,
+            knowledge_problem,
+            knowledge_conflicts: std::collections::BTreeSet::new(),
+            knowledge_draft: None,
+            knowledge_all: false,
+            knowledge_archived: false,
+            knowledge_max_scroll: std::cell::Cell::new(0),
+            knowledge_filter: String::new(),
+            knowledge_detail: None,
             nav: wros_shell::Navigation::new(Page::Facts),
             notice,
             scroll: 0,
@@ -98,13 +128,19 @@ impl Continuity {
             fact_draft: None,
             event_draft: None,
             thread_draft: None,
-        }
+        };
+        output.refresh_knowledge();
+        output
     }
 
     pub fn typing(&self) -> bool {
         matches!(
             self.nav.current(),
-            Page::AddFact | Page::AddEvent | Page::AddThread
+            Page::AddFact
+                | Page::AddEvent
+                | Page::AddThread
+                | Page::EditKnowledge
+                | Page::FilterKnowledge
         )
     }
 
@@ -133,6 +169,7 @@ impl App {
     pub fn open_continuity(&mut self) {
         self.overlay = Overlay::Continuity;
         self.continuity.nav.reset(Page::Facts);
+        self.continuity.knowledge_draft = None;
         self.continuity.fact_draft = None;
         self.continuity.event_draft = None;
         self.continuity.thread_draft = None;
@@ -143,6 +180,13 @@ impl App {
     }
 
     pub fn paste_continuity(&mut self, text: &str) {
+        if matches!(
+            self.continuity.nav.current(),
+            Page::EditKnowledge | Page::FilterKnowledge
+        ) {
+            self.paste_knowledge(text);
+            return;
+        }
         let clean: String = text
             .chars()
             .map(|c| if c == '\n' || c == '\t' { ' ' } else { c })
@@ -324,6 +368,16 @@ impl App {
     pub fn on_continuity_key(&mut self, key: Key) {
         let page = self.continuity.nav.current();
         if key == Key::Esc {
+            if page == Page::FilterKnowledge {
+                self.continuity.nav.back();
+                let count = self
+                    .continuity
+                    .knowledge_visible(self.current_story_document_id())
+                    .len();
+                self.continuity.nav.select(0, count);
+                return;
+            }
+            self.continuity.knowledge_draft = None;
             self.continuity.fact_draft = None;
             self.continuity.event_draft = None;
             self.continuity.thread_draft = None;
@@ -331,6 +385,9 @@ impl App {
             if !self.continuity.nav.back() {
                 self.overlay = Overlay::None;
             }
+            return;
+        }
+        if self.on_knowledge_key(page, key) {
             return;
         }
         let result: Result<()> = (|| match (page, key) {
@@ -651,6 +708,9 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
     f.render_widget(Clear, area);
     let page = c.nav.current();
     match page {
+        Page::Knowledge | Page::EditKnowledge | Page::KnowledgeDetail | Page::FilterKnowledge => {
+            knowledge_ui::draw(f, app, area, theme)
+        }
         Page::Facts | Page::Timeline | Page::Threads | Page::Conflicts => {
             let rows: Vec<String> = match (&c.store, page) {
                 (Some(s), Page::Facts) => s
@@ -758,7 +818,11 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
                     rows: &rows,
                     selected: c.nav.selected(),
                     notice: &c.notice,
-                    hint: "1-4 tabs  n new  t status/certainty  d delete  c review conflicts  Esc close  F1 help",
+                    hint: if page == Page::Facts {
+                        "1-5 tabs  n new  g record knowledge  t certainty  d delete  F1 help"
+                    } else {
+                        "1-5 tabs  n new  t status  d delete  c conflicts  Esc close  F1 help"
+                    },
                 },
                 theme.into(),
             );
