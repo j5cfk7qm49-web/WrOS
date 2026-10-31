@@ -1,0 +1,8 @@
+# Primary-key fingerprints of keys that exist only for tests, VMs or demos.
+# Staging and the image audit refuse a production image whose update keyring or
+# signer pin contains any of them. One 40-hex fingerprint per line.
+#
+# Test harnesses here generate throwaway keys at run time, so they cannot be
+# listed; those are caught by the identity-word check in wros_packaging.py
+# (test, fixture, throwaway, ...). Append any long-lived non-production key a
+# driver commits or shares, so it can never be mistaken for the release signer.

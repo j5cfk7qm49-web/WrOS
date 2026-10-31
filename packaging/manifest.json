@@ -1,0 +1,104 @@
+{
+  "schema": 1,
+  "package": {
+    "name": "wros",
+    "architecture": "amd64",
+    "section": "misc",
+    "priority": "optional",
+    "maintainer": "WrOS maintainers <wros-maintainers@localhost.invalid>",
+    "depends": [
+      "apt", "dpkg", "gpgv", "kbd", "libasound2t64", "libdrm2", "libgcc-s1", "passwd", "pkexec",
+      "polkitd", "python3", "rclone", "restic", "systemd", "util-linux", "vlock"
+    ],
+    "summary": "WrOS installed-system integration (Writer's OS)",
+    "description": [
+      "Installed-system payload of WrOS, an offline-first Debian-based writing",
+      "appliance: the Grimoire writing application, the narrow privileged helper",
+      "launchers and their polkit policy, systemd units, keymaps and licence notices.",
+      "Signing keys, the update signer pin, live-session files and the target",
+      "account database are image inputs and are deliberately not owned by this",
+      "package."
+    ]
+  },
+  "grimoire_base": "0.7.5",
+  "upstream_base_commit": "f3ca1e8",
+  "notes": [
+    "dest paths are relative to the image root. class: code/config entries are compared byte-for-byte with the repository source by the image audit; doc entries are covered by the package md5sums only; binary/generated entries come from build inputs.",
+    "pending: true marks files owned by the in-flight update-engine workstream. Staging installs them when the source exists and warns when it does not; the image audit requires them either way. Clear the flag once the integrated tree carries them so the audit also compares them with the repository.",
+    "Only /etc/writingdeck/keyboard.json is a conffile: the writer's committed layout must survive an update. Policy, unit and drop-in files under /etc are intentionally ordinary package files so an authenticated update replaces them authoritatively."
+  ],
+  "files": [
+    {"dest": "usr/bin/grimoire", "generated": "binary:grimoire", "mode": "0755", "class": "binary", "strip": true},
+    {"dest": "usr/libexec/wros-display-hw", "generated": "binary:wros-display-hw", "mode": "0755", "class": "binary", "strip": true},
+
+    {"dest": "usr/libexec/writingdeck-keyboard", "source": "os/scripts/writingdeck-keyboard", "mode": "0755", "class": "code"},
+    {"dest": "usr/libexec/writingdeck-session", "source": "os/scripts/writingdeck-session", "mode": "0755", "class": "code"},
+    {"dest": "usr/libexec/wros-display", "source": "os/scripts/wros-display", "mode": "0755", "class": "code"},
+    {"dest": "usr/libexec/wros-lock", "source": "os/scripts/wros-lock", "mode": "0755", "class": "code"},
+    {"dest": "usr/libexec/wros-backup", "source": "os/scripts/wros-backup", "mode": "0755", "class": "code"},
+
+    {"dest": "usr/libexec/wros-update", "source": "os/scripts/wros-update", "mode": "0755", "class": "code", "pending": true},
+    {"dest": "usr/libexec/wros-update-stage", "source": "os/scripts/wros-update-stage", "mode": "0755", "class": "code", "pending": true},
+    {"dest": "usr/libexec/wros-update-cancel", "source": "os/scripts/wros-update-cancel", "mode": "0755", "class": "code", "pending": true},
+    {"dest": "usr/libexec/wros-update-repair", "source": "os/scripts/wros-update-repair", "mode": "0755", "class": "code", "pending": true},
+    {"dest": "usr/libexec/wros-update-media", "source": "os/scripts/wros-update-media", "mode": "0755", "class": "code", "pending": true},
+    {"dest": "usr/lib/wros-update/engine.py", "source_candidates": ["os/scripts/wros-update-engine.py", "os/scripts/wros_update_engine.py", "os/scripts/wros-update-engine"], "mode": "0644", "class": "code", "pending": true},
+    {"dest": "usr/share/polkit-1/actions/org.wros.update.policy", "source": "os/config/org.wros.update.policy", "mode": "0644", "class": "config", "pending": true},
+    {"dest": "etc/polkit-1/rules.d/50-wros-update.rules", "source": "os/config/50-wros-update.rules", "mode": "0644", "class": "config", "pending": true},
+
+    {"dest": "etc/profile.d/writingdeck.sh", "source": "os/config/writingdeck-profile.sh", "mode": "0644", "class": "config"},
+    {"dest": "etc/writingdeck/keyboard.json", "source": "os/config/keyboard.json", "mode": "0644", "class": "config", "conffile": true},
+    {"dest": "etc/writingdeck/release", "generated": "release", "mode": "0644", "class": "generated"},
+
+    {"dest": "etc/polkit-1/rules.d/50-writingdeck-keyboard.rules", "source": "os/config/50-writingdeck-keyboard.rules", "mode": "0644", "class": "config"},
+    {"dest": "usr/share/polkit-1/actions/org.writingdeck.keyboard.policy", "source": "os/config/org.writingdeck.keyboard.policy", "mode": "0644", "class": "config"},
+    {"dest": "etc/polkit-1/rules.d/50-wros-display.rules", "source": "os/config/50-wros-display.rules", "mode": "0644", "class": "config"},
+    {"dest": "usr/share/polkit-1/actions/org.wros.display.policy", "source": "os/config/org.wros.display.policy", "mode": "0644", "class": "config"},
+    {"dest": "etc/polkit-1/rules.d/50-wros-timezone.rules", "source": "os/config/50-wros-timezone.rules", "mode": "0644", "class": "config"},
+    {"dest": "etc/polkit-1/rules.d/50-wros-lock.rules", "source": "os/config/50-wros-lock.rules", "mode": "0644", "class": "config"},
+    {"dest": "usr/share/polkit-1/actions/org.wros.lock.policy", "source": "os/config/org.wros.lock.policy", "mode": "0644", "class": "config"},
+
+    {"dest": "etc/systemd/system/writingdeck-keyboard-revert.service", "source": "os/systemd/writingdeck-keyboard-revert.service", "mode": "0644", "class": "config"},
+    {"dest": "etc/systemd/system/writingdeck-keyboard-revert.timer", "source": "os/systemd/writingdeck-keyboard-revert.timer", "mode": "0644", "class": "config"},
+    {"dest": "etc/systemd/system/writingdeck-keyboard.service", "source": "os/systemd/writingdeck-keyboard.service", "mode": "0644", "class": "config"},
+    {"dest": "etc/systemd/system/wros-display-revert.service", "source": "os/systemd/wros-display-revert.service", "mode": "0644", "class": "config"},
+    {"dest": "etc/systemd/system/wros-display-revert.timer", "source": "os/systemd/wros-display-revert.timer", "mode": "0644", "class": "config"},
+    {"dest": "etc/systemd/system/wros-display.service", "source": "os/systemd/wros-display.service", "mode": "0644", "class": "config"},
+    {"dest": "etc/systemd/system/wros-offline-update.service", "source": "os/systemd/wros-offline-update.service", "mode": "0644", "class": "config", "pending": true},
+    {"dest": "etc/systemd/system/wros-update-reconcile.service", "source": "os/systemd/wros-update-reconcile.service", "mode": "0644", "class": "config", "pending": true},
+
+    {"dest": "etc/systemd/logind.conf.d/60-wros-power-guard.conf", "source": "os/config/60-wros-power-guard.conf", "mode": "0644", "class": "config"},
+    {"dest": "etc/systemd/sleep.conf.d/60-wros-sleep-guard.conf", "source": "os/config/60-wros-sleep-guard.conf", "mode": "0644", "class": "config"},
+    {"dest": "etc/systemd/system.conf.d/60-wros-reboot-guard.conf", "source": "os/config/60-wros-reboot-guard.conf", "mode": "0644", "class": "config"},
+    {"dest": "etc/sysctl.d/60-wros-sysrq.conf", "source": "os/config/60-wros-sysrq.conf", "mode": "0644", "class": "config"},
+    {"dest": "etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf", "source": "os/config/60-wros-no-connectivity-check.conf", "mode": "0644", "class": "config"},
+
+    {"generated": "keymaps", "dest_dir": "usr/share/writingdeck/keymaps", "names": ["qwerty.map", "colemak.map", "colemak-dh-ansi.map", "colemak-dh-iso.map"], "mode": "0644", "class": "generated"},
+
+    {"dest": "usr/share/doc/wros/copyright", "source": "packaging/copyright", "mode": "0644", "class": "doc"},
+    {"dest": "usr/share/doc/writingdeck/LICENSE-grimoire", "source": "LICENSE", "mode": "0644", "class": "doc"},
+    {"dest": "usr/share/doc/writingdeck/DICTIONARY-LICENSE", "source": "assets/dict/DICTIONARY-LICENSE", "mode": "0644", "class": "doc"},
+    {"glob": "docs/*.md", "dest_dir": "usr/share/doc/writingdeck", "mode": "0644", "class": "doc"},
+    {"glob": "docs/*licenses.json", "dest_dir": "usr/share/doc/writingdeck", "mode": "0644", "class": "doc"},
+    {"dest": "usr/share/doc/writingdeck/feature-status.json", "source": "docs/feature-status.json", "mode": "0644", "class": "doc"},
+    {"dest": "usr/share/doc/writingdeck/keyboard-reference.html", "source": "docs/keyboard-reference.html", "mode": "0644", "class": "doc"},
+    {"glob": "os/licenses/*.txt", "dest_dir": "usr/share/doc/writingdeck", "mode": "0644", "class": "doc"},
+    {"glob": "os/licenses/upstream/*.txt", "dest_dir": "usr/share/doc/writingdeck/upstream", "mode": "0644", "class": "doc"},
+    {"dest": "usr/share/doc/writingdeck/upstream-notice-sources.json", "source": "docs/upstream-notice-sources.json", "mode": "0644", "class": "doc"},
+    {"tree": "os/licenses/python", "dest_dir": "usr/share/doc/writingdeck/python", "class": "doc"},
+    {"dest": "usr/share/doc/writingdeck/python-tools-lock.json", "source": "docs/python-tools-lock.json", "mode": "0644", "class": "doc"},
+    {"dest": "usr/share/doc/writingdeck/python-tool-notices.json", "source": "docs/python-tool-notices.json", "mode": "0644", "class": "doc"}
+  ],
+  "enable": [
+    {"unit": "writingdeck-keyboard.service", "target": "multi-user.target", "verify_install_section": false},
+    {"unit": "wros-display.service", "target": "multi-user.target", "verify_install_section": false},
+    {"unit": "wros-offline-update.service", "target": "system-update.target", "verify_install_section": true, "pending": true},
+    {"unit": "wros-update-reconcile.service", "target": "multi-user.target", "verify_install_section": true, "pending": true}
+  ],
+  "update_polkit_actions": {
+    "org.wros.update.stage": "/usr/libexec/wros-update-stage",
+    "org.wros.update.cancel": "/usr/libexec/wros-update-cancel",
+    "org.wros.update.repair": "/usr/libexec/wros-update-repair",
+    "org.wros.update.media": "/usr/libexec/wros-update-media"
+  }
+}

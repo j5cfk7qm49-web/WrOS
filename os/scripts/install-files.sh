@@ -1,6 +1,20 @@
 #!/bin/bash
 # Stage appliance integration into a Debian root. Live-host installation is
 # deliberately NOT implemented by this script; never add an implicit '/' path.
+#
+# The installed-system WrOS payload is the Debian package 'wros' (packaging/manifest.json
+# is the single file list, shared with tools/build-wros-debs.py and the image audit).
+# This script builds that package from the repository (or takes a prebuilt one in
+# WROS_PACKAGE_DEB), installs it with dpkg so /var/lib/dpkg/status records it, and then
+# adds only what must not be package-owned: the update trust anchors, unit enablement
+# links, masks and the image profile marker.
+#
+# Build inputs (environment):
+#   WROS_UPDATE_KEYRING   binary OpenPGP keyring of the update signer(s)   (required)
+#   WROS_UPDATE_SIGNERS   pin file, one 40-hex primary fingerprint per line (required)
+#   WROS_PACKAGE_DEB      prebuilt wros_<os/VERSION>_amd64.deb              (optional)
+#   WROS_DISPLAY_HW_BINARY prebuilt wros-display-hw                         (optional)
+#   SOURCE_DATE_EPOCH, WROS_SOURCE_COMMIT                                   (optional; derived from git)
 set -euo pipefail
 repo=$(cd "$(dirname "$0")/../.." && pwd)
 dest=${1:?usage: install-files.sh STAGING_ROOT GRIMOIRE_BINARY}
@@ -14,93 +28,66 @@ dest=$(realpath "$dest")
 [[ $EUID == 0 && $dest != / && -f $dest/etc/debian_version && -x $binary ]] || {
     echo 'Requires root, an existing staged Debian root (not /), and a built binary.' >&2; exit 2;
 }
-mkdir -p "$dest/usr/bin" "$dest/usr/libexec" "$dest/etc/profile.d" "$dest/etc/writingdeck" \
-    "$dest/etc/wros" \
-    "$dest/etc/polkit-1/rules.d" "$dest/usr/share/polkit-1/actions" \
-    "$dest/usr/share/doc/writingdeck" "$dest/usr/share/writingdeck/keymaps" "$dest/etc/systemd/system"
-install -m 755 "$binary" "$dest/usr/bin/grimoire"
-strip "$dest/usr/bin/grimoire"
-runtime=${WRITINGDECK_PROSE_RUNTIME:-$repo/build/prose-runtime/runtime}
-python3 "$repo/tools/stage-prose-runtime.py" "$dest" "$runtime"
-install -m 755 "$repo/os/scripts/writingdeck-keyboard" "$repo/os/scripts/writingdeck-session" "$dest/usr/libexec/"
-install -m 755 "$repo/os/scripts/wros-display" "$dest/usr/libexec/"
-install -m 755 "$repo/os/scripts/wros-lock" "$dest/usr/libexec/"
-install -m 755 "$repo/os/scripts/wros-backup" "$dest/usr/libexec/"
-install -m 755 "$repo/os/scripts/wros-update" "$dest/usr/libexec/"
-# Build on the declared Debian builder; never ship the fake test DRM library.
-display_build=$(mktemp -d)
-trap 'rm -f -- "$display_build/wros-display-hw"; rmdir -- "$display_build"' EXIT
-read -r -a drm_cflags < <(pkg-config --cflags libdrm)
-read -r -a drm_libs < <(pkg-config --libs libdrm)
-cc -std=c11 -O2 -Wall -Wextra -Werror -D_FORTIFY_SOURCE=3 -fstack-protector-strong \
-    "${drm_cflags[@]}" "$repo/os/helpers/wros-display-hw.c" \
-    -Wl,-z,relro,-z,now -o "$display_build/wros-display-hw" "${drm_libs[@]}"
-install -m 755 "$display_build/wros-display-hw" "$dest/usr/libexec/"
-strip "$dest/usr/libexec/wros-display-hw"
-install -m 644 "$repo/os/config/writingdeck-profile.sh" "$dest/etc/profile.d/writingdeck.sh"
-# Reassembly/upgrades must not reset a committed layout.
-if [[ ! -e $dest/etc/writingdeck/keyboard.json && ! -L $dest/etc/writingdeck/keyboard.json ]]; then
-    install -m 644 "$repo/os/config/keyboard.json" "$dest/etc/writingdeck/keyboard.json"
-    if [[ $profile == installer ]]; then
-        # Debian Installer populates /etc/default/keyboard on the target later.
-        # Adopt that choice at first boot, never on an existing installation.
-        install -m 644 /dev/null "$dest/etc/writingdeck/installer-keyboard-pending"
-    fi
+packaging="$repo/packaging/wros_packaging.py"
+# Fail before touching the root: unset/empty/secret/mismatched/test update trust inputs.
+python3 "$packaging" check-trust
+version=$(python3 "$packaging" version)
+admindir="$dest/var/lib/dpkg"
+[[ -f $admindir/status ]] || { echo 'Staged root has no dpkg database.' >&2; exit 2; }
+installed=$(dpkg-query --admindir="$admindir" -W -f='${Version}' wros 2>/dev/null || true)
+if [[ -n $installed ]] && dpkg --compare-versions "$installed" gt "$version"; then
+    echo "Staged root already has a newer wros ($installed) than this tree ($version)." >&2; exit 2
 fi
-install -m 644 "$repo/os/config/50-writingdeck-keyboard.rules" "$dest/etc/polkit-1/rules.d/"
-install -m 644 "$repo/os/config/org.writingdeck.keyboard.policy" "$dest/usr/share/polkit-1/actions/"
-install -m 644 "$repo/os/config/50-wros-display.rules" "$dest/etc/polkit-1/rules.d/"
-install -m 644 "$repo/os/config/50-wros-timezone.rules" "$dest/etc/polkit-1/rules.d/"
-install -m 644 "$repo/os/config/50-wros-lock.rules" "$dest/etc/polkit-1/rules.d/"
-install -m 644 "$repo/os/config/org.wros.lock.policy" "$dest/usr/share/polkit-1/actions/"
+# Reassembly/upgrades must not reset a committed layout (keyboard.json is a conffile; the
+# first-boot adoption marker belongs only to a root that did not have one).
+fresh_layout=1
+if [[ -e $dest/etc/writingdeck/keyboard.json || -L $dest/etc/writingdeck/keyboard.json ]]; then fresh_layout=0; fi
 if [[ -e $dest/etc/pam.d/vlock || -L $dest/etc/pam.d/vlock ]]; then
     if [[ -L $dest/etc/pam.d/vlock ]] || ! cmp -s "$repo/os/config/vlock.pam" "$dest/etc/pam.d/vlock"; then
         echo 'Existing locker PAM configuration preserved; review it before staging this profile.' >&2; exit 2;
     fi
+fi
+work=$(mktemp -d)
+trap 'rm -rf -- "$work"' EXIT
+if [[ -n ${WROS_PACKAGE_DEB:-} ]]; then
+    deb=$WROS_PACKAGE_DEB
+    [[ -f $deb && ! -L $deb ]] || { echo 'WROS_PACKAGE_DEB is not a regular file.' >&2; exit 2; }
 else
+    mkdir "$work/bin" "$work/out"
+    install -m 755 "$binary" "$work/bin/grimoire"
+    args=(--binaries-dir "$work/bin" --version "$version" --output "$work/out")
+    if [[ -n ${WROS_DISPLAY_HW_BINARY:-} ]]; then args+=(--display-helper "$WROS_DISPLAY_HW_BINARY"); fi
+    python3 "$repo/tools/build-wros-debs.py" "${args[@]}" > "$work/build.json"
+    deb="$work/out/wros_${version}_amd64.deb"
+fi
+[[ $(dpkg-deb --field "$deb" Package) == wros && $(dpkg-deb --field "$deb" Version) == "$version" \
+   && $(dpkg-deb --field "$deb" Architecture) == amd64 ]] || {
+    echo "Package is not wros $version amd64; refusing to stage it." >&2; exit 2; }
+# --force-confold keeps an existing writer layout; --no-triggers leaves unrelated pending
+# triggers of the base system exactly as they were.
+mkdir -p "$dest/var/log"
+dpkg --root="$dest" --log="$dest/var/log/dpkg.log" --force-confold --force-unsafe-io --no-triggers --install "$deb"
+[[ $(dpkg-query --admindir="$admindir" -W -f='${Version}\t${Status}' wros) == "$version"$'\t''install ok installed' ]] || {
+    echo 'wros is not recorded as installed after dpkg.' >&2; exit 1; }
+runtime=${WRITINGDECK_PROSE_RUNTIME:-$repo/build/prose-runtime/runtime}
+python3 "$repo/tools/stage-prose-runtime.py" "$dest" "$runtime"
+printf 'IMAGE_PROFILE=%s\n' "$profile" > "$dest/etc/writingdeck/image-profile"
+chmod 644 "$dest/etc/writingdeck/image-profile"
+if [[ $fresh_layout == 1 && $profile == installer ]]; then
+    # Debian Installer populates /etc/default/keyboard on the target later.
+    # Adopt that choice at first boot, never on an existing installation.
+    install -m 644 /dev/null "$dest/etc/writingdeck/installer-keyboard-pending"
+fi
+if [[ ! -e $dest/etc/pam.d/vlock && ! -L $dest/etc/pam.d/vlock ]]; then
     install -m 644 "$repo/os/config/vlock.pam" "$dest/etc/pam.d/vlock"
 fi
-install -m 644 "$repo/os/config/org.wros.display.policy" "$dest/usr/share/polkit-1/actions/"
-install -m 644 "$repo/os/systemd/"* "$dest/etc/systemd/system/"
-"$repo/os/scripts/generate-keymaps.sh" "$dest/usr/share/writingdeck/keymaps"
-install -m 644 "$repo/LICENSE" "$dest/usr/share/doc/writingdeck/LICENSE-grimoire"
-install -m 644 "$repo/assets/dict/DICTIONARY-LICENSE" "$dest/usr/share/doc/writingdeck/DICTIONARY-LICENSE"
-# Debian package copyright files remain in the image; no upstream notices stripped.
-for f in "$repo"/docs/*.md "$repo"/docs/*licenses.json "$repo"/docs/feature-status.json \
-    "$repo"/docs/keyboard-reference.html "$repo"/os/licenses/*.txt; do
-    [[ ! -f $f ]] || install -m 644 "$f" "$dest/usr/share/doc/writingdeck/"
-done
-# Retain exact omitted upstream notices as well as the combined notice bundle.
-mkdir -p "$dest/usr/share/doc/writingdeck/upstream"
-install -m 644 "$repo"/os/licenses/upstream/*.txt "$dest/usr/share/doc/writingdeck/upstream/"
-install -m 644 "$repo/docs/upstream-notice-sources.json" "$dest/usr/share/doc/writingdeck/"
-# Retain every pinned Python notice and its machine-readable source inventory.
-cp -a "$repo/os/licenses/python" "$dest/usr/share/doc/writingdeck/"
-install -m 644 "$repo/docs/python-tools-lock.json" "$repo/docs/python-tool-notices.json" \
-    "$dest/usr/share/doc/writingdeck/"
-printf 'WRITINGDECK_VERSION=0.1.0-dev\nGRIMOIRE_BASE=0.7.5\nBASE_COMMIT=f3ca1e8\nIMAGE_PROFILE=%s\n' "$profile" > "$dest/etc/writingdeck/release"
-mkdir -p "$dest/etc/systemd/system/multi-user.target.wants"
-ln -sf ../writingdeck-keyboard.service "$dest/etc/systemd/system/multi-user.target.wants/writingdeck-keyboard.service"
-ln -sf ../wros-display.service "$dest/etc/systemd/system/multi-user.target.wants/wros-display.service"
-# The offline updater is not enabled until disposable-VM apply/interruption/rescue qualifies.
-if [[ -e $dest/etc/systemd/system/system-update.target.wants/wros-offline-update.service \
-   || -L $dest/etc/systemd/system/system-update.target.wants/wros-offline-update.service ]]; then
-    echo 'Unqualified offline-update activation present in staging root; review it before building.' >&2
-    exit 2
-fi
+# Trust anchors are image inputs, never package-owned: an update must not be able to replace
+# the keys that authenticate updates.
+python3 "$packaging" install-trust "$dest"
+# Enable units only when the installed unit file itself declares the target.
+python3 "$packaging" enable-units "$dest"
 # Manual locking does not qualify sleep/resume. Block automatic and explicit
 # sleep in the image as well as in the UI; logind's default lid action bypasses it.
-mkdir -p "$dest/etc/systemd/logind.conf.d" "$dest/etc/systemd/sleep.conf.d"
-install -m 644 "$repo/os/config/60-wros-power-guard.conf" "$dest/etc/systemd/logind.conf.d/"
-install -m 644 "$repo/os/config/60-wros-sleep-guard.conf" "$dest/etc/systemd/sleep.conf.d/"
-# Keyboard-initiated reboots must not skip the save-on-exit the Power page relies on.
-mkdir -p "$dest/etc/systemd/system.conf.d" "$dest/etc/sysctl.d"
-install -m 644 "$repo/os/config/60-wros-reboot-guard.conf" "$dest/etc/systemd/system.conf.d/"
-install -m 644 "$repo/os/config/60-wros-sysrq.conf" "$dest/etc/sysctl.d/"
-# Debian's NetworkManager may ship a connectivity check that requests a Debian
-# URL every few minutes. WrOS makes no unsolicited outbound requests.
-mkdir -p "$dest/etc/NetworkManager/conf.d"
-install -m 644 "$repo/os/config/60-wros-no-connectivity-check.conf" "$dest/etc/NetworkManager/conf.d/"
 for unit in sleep suspend hibernate hybrid-sleep suspend-then-hibernate; do
     ln -sf /dev/null "$dest/etc/systemd/system/$unit.target"
 done

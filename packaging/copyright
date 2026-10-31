@@ -1,0 +1,15 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: WrOS
+Comment: This package ships the WrOS installed-system integration: the Grimoire
+ writing application binary, the privileged helper launchers, polkit policy,
+ systemd units, keymaps and the licence/notice bundle. The licence of the
+ Grimoire sources is in /usr/share/doc/writingdeck/LICENSE-grimoire; bundled
+ third-party licences and the machine-readable inventories are alongside it in
+ /usr/share/doc/writingdeck/ (see software-licenses.json, content-licenses.json,
+ upstream/ and python/). Debian packages in the image keep their own copyright
+ files under /usr/share/doc/<package>/.
+
+Files: *
+Copyright: 2026 Josh King and WrOS contributors
+License: MIT
+ The full MIT licence text is in /usr/share/doc/writingdeck/LICENSE-grimoire.
