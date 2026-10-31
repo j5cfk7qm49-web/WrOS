@@ -1,5 +1,21 @@
 # Testing and verification
 
+## EPUB note validation
+
+The Debian verifier additionally requires `epubcheck` and `default-jre-headless`.
+`test_epub_footnotes.py` invokes the actual compiled CLI and the packaged JAR
+through Java, requires a clean validator report without skipped coverage, and
+checks same-file note/return links, private exclusions, scene-local definitions,
+multiple paragraphs and unchanged source. Its compiled TUI workflow covers
+80x24, 100x30, 120x40 and 160x50, offline help, review/export, Undo and restart.
+Set `WRITINGDECK_CAPTURE_PTY=1` to retain packages/validator receipts in
+`build/verification/epub-footnotes` and four frames in `epub-footnote-screens`.
+These are build/test components; no OS image or all-reader/accessibility
+qualification is implied. [Scope and limits](EPUB_FOOTNOTES.md) stay explicit.
+The older manuscript PTY refusal now explicitly selects unsupported Paperback;
+it retains Word-only no-credit and actual PDF completion checks for lesson 34.
+
+
 ## Manuscript page-footnote rendering
 
 The Debian verifier requires `libreoffice-writer-nogui`, `poppler-utils` and

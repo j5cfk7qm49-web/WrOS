@@ -1,0 +1,50 @@
+┌ WRITINGDECK TUTORIAL ──────┐┌ Chapter One / The Brass Key ───────────────────────────────────────────────────────────────────────────────────────────────────┐
+│     ✧   ·    ✧    ✦   ✧    ││                            Added λ Intro[^a].                                                                                  │
+│       ______ ☾ ______      ││                                                                                                                                │
+│     _/      ╲│╱      \_    ││                            [^a]: A café note. %% PRIVATE_EPUB_SECRET %%                                                        │
+│    // ≈≈≈ ≈≈ │ ≈≈ ≈≈≈ \\   ││                                                                                                                                │
+│   // ≈ ≈≈ ✧  │  ✧ ≈≈ ≈ \\  ││                                                                                                                                │
+│  //__________│__________\\ ││                                                                                                                                │
+│  `───────────┴───────────' ││                                                                                                                                │
+│                            ││                                                                                                                                │
+│  Novel Format              ││                                                                                                                                │
+│▾ Manuscript             14 ││                                                                                                                                │
+│  ▾ Chapter One          14 ││                                                                                                                                │
+│      The Brass Key       7 ││                                                                                                                                │
+│      The Other Door      7 ││                                                                                                                                │
+│▾ Characters                ││                                                                                                                                │
+│▾ Places                    ││         ┌ EXPORT FOR READERS ──────────────────────────────────────────────────────────┐                                       │
+│▾ Front Matter              ││         │ ✓ exports/writingdeck-tutorial.epub  3 KB                                    │                                       │
+│  ▸ Manuscript Format       ││         │                                                                              │                                       │
+│  ▸ Paperback               ││         │ 1 chapter · 14 words · 3 manuscript pages                                    │                                       │
+│  ▸ Ebook                   ││         │                                                                              │                                       │
+│▾ Back Matter               ││         │                                                                              │                                       │
+│  ▸ Paperback               ││         │                                                                              │                                       │
+│  ▸ Ebook                   ││         │                                                                              │                                       │
+│▾ Notes                 259 ││         │                                                                              │                                       │
+│    Pin Practice        259 ││         │                                                                              │                                       │
+│▾ Research                  ││         │                                                                              │                                       │
+│  ▾ Sample Output           ││         │                                                                              │                                       │
+│▾ Template Sheets           ││         │                                                                              │                                       │
+│    Character Sketch        ││         │                                                                              │                                       │
+│    Setting Sketch          ││         │                                                                              │                                       │
+│▸ Trash                     ││         │                                                                              │                                       │
+│                            ││         │                                                                              │                                       │
+│                            ││         │                                                                              │                                       │
+│                            ││         │ any key closes                                                               │                                       │
+│                            ││         └──────────────────────────────────────────────────────────────────────────────┘                                       │
+│                            ││                                                                                                                                │
+│                            ││                                                                                                                                │
+└ n scene  c chapter  p part ┘│                                                                                                                                │
+┌ F2 timer · ^D focus mode ──┐│                                                                                                                                │
+│                            ││                                                                                                                                │
+│              ☀             ││                                                                                                                                │
+│                   ▲        ││                                                                                                                                │
+│    ˇ ˇ           ▟█▙       ││                                                                                                                                │
+│                  █▪█       ││                                                                                                                                │
+│                  ███       ││                                                                                                                                │
+│          ▁▂▃▃▂▁▁▁█▪█▁▁     ││                                                                                                                                │
+│  ▁▁▂▃▄▅▆▇▇▇▇▇▇▇▇▇▇▇▇▇▇▆▄▂▁ ││                                                                                                                                │
+│▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔││                                                                                                                                │
+└──◂ pomodoro visualizer ▸───┘└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+ 14 / 80,000 ░░░░░░░░░░  today 1  ✓ saved  exported 1 file to exports/      Esc menu  ^D focus mode  Tab pane  ^K find anything  F8 spelling  ^F find  ^T notes

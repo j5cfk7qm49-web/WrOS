@@ -1,0 +1,41 @@
+{
+  "passed": true,
+  "tested_head": "a0778a36d644c3da7ee3d1931df41ddb1b0518ac",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "7b70157e601d421535bb7649a4974c800f61da5ebc46d9948d609ae50309aa8b",
+    "file_count": 466,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "receipt_sha256": "c0e00dc7b2a789d5aaa8848527d308fbf63602326cfa2ee0a3e9043a3d3c5c18",
+  "tested_binary_sha256": "b54fbeac800bf982aff4c6e8ee59c5477b621bc9c74068ef3249c3622cabcdf3",
+  "runner": "Isolated Debian chroot ordinary builder; external network isolation with loopback. Corrected unshare --net --mount without --fork and asserted normal signal defaults.",
+  "artifacts": [
+    {
+      "file": "docs/evidence/epub-footnotes-render.json",
+      "sha256": "d42db681e51682a41e8f6ac02a7a0c3ccad947c3d422f5a98a13741070aa59bf"
+    },
+    {
+      "file": "docs/evidence/epub-footnotes-epubcheck.json",
+      "sha256": "a9c2104b41b09a4d0e9fb943a597c8739f2cfb58c730f7335fb4649c6a5c7c4c"
+    },
+    {
+      "file": "docs/evidence/epub-footnotes-80x24.txt",
+      "sha256": "4d760c7aa7775a21fc571af3010a25f07a924f4fe4a5efaf8533637d1a351e1e"
+    },
+    {
+      "file": "docs/evidence/epub-footnotes-100x30.txt",
+      "sha256": "a8cd3a94bbc51fb492da669a2bc8989d84deba850899b62601fca1c47275496a"
+    },
+    {
+      "file": "docs/evidence/epub-footnotes-120x40.txt",
+      "sha256": "635e96a0e708d1abf3a1e8d9c23da2d44e3211e11424aab0e9bf6b8a488c1988"
+    },
+    {
+      "file": "docs/evidence/epub-footnotes-160x50.txt",
+      "sha256": "a951d7774c91ccbe84377f63c907793b8c32397843fce13d3e6e4dcecb584fa7"
+    }
+  ],
+  "word_pdf_page_pngs_identical_to_previously_visually_reviewed_fixtures": true,
+  "scope": "Bounded native EPUB notes, preserved manuscript Word/PDF and generated writing fixtures. Not full M8/M9, all readers/accessibility, image refresh, provider, installer, physical hardware or release qualification."
+}

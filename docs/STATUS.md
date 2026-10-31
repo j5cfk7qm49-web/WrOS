@@ -1,5 +1,17 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Native EPUB notes and third Argon review (2026-10-30)
+
+The [third contribution review](ARGON_THIRD_REVIEW_2026-10-30.md) retains the
+current shared identity and Word/PDF implementation. Its two writing regressions
+are integrated with corrections to the milestone fixture and real guarded APIs.
+[Native EPUB footnotes](EPUB_FOOTNOTES.md) now use the same public-source parser,
+the maintained HTML renderer, same-file note/return links and preserved paragraphs.
+Actual EPUBCheck, four-size edit/export/help/Undo/restart, Word/PDF pagination
+regressions and strict no-audio Clippy passed. The [independent full Debian run](evidence/epub-footnotes-local.json) passed
+1065 Rust tests per configuration, 182 Python tests with zero skips, both Clippys and 21 gates. [Provenance](evidence/epub-footnotes-local-provenance.json) binds its source and binary. Paperback notes, broader preflight, full M8/M9 and OS/release gates
+remain open; earlier paragraphs retain their historical scope.
+
 ## Manuscript page footnotes (2026-10-30)
 
 [Manuscript Word/PDF notes](MANUSCRIPT_FOOTNOTES.md) now have real OOXML parts

@@ -1,0 +1,24 @@
+┌ WRITINGDECK TUTORIAL ──────┐┌ Chapter One / The Brass Key ───────────────────┐
+│  Novel Format              ││  Added λ Intro[^a].                            │
+│▾┌ EXPORT FOR READERS ──────────────────────────────────────────────────────┐ │
+│ │ ✓ exports/writingdeck-tutorial.epub  3 KB                                │ │
+│ │                                                                          │ │
+│ │ 1 chapter · 14 words · 3 manuscript pages                                │ │
+│▾│                                                                          │ │
+│▾│                                                                          │ │
+│▾│                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+└ │                                                                          │ │
+┌ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │ any key closes                                                           │ │
+│▔└──────────────────────────────────────────────────────────────────────────┘ │
+└──◂ pomodoro visualizer ▸───┘└────────────────────────────────────────────────┘
+ 14 / 80,000 ░░░░░░░░░░  today 1  ✓ saved  exported 1 file to exports/

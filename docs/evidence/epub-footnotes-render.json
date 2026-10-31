@@ -1,0 +1,9 @@
+{
+  "passed": true,
+  "epub_sha256": "55b60e3294fb118ff7c8edd4f8b6d4080f78a49f634daba90919a45ce87227d1",
+  "source_sha256": "206238bb2d11d8f746fb7e565e848195ee1443dbcb3371bee3e221607b5ffac4",
+  "references": 5,
+  "source_preserved": true,
+  "validator_stdout": "No errors or warnings detected.\nEpub Name: /tmp/wros-epub-notes-cs86tvaz/book/exports/epub-notes-fixture.epub\nProcess duration: 5431ms\nMessages: 0 fatals / 0 errors / 0 warnings / 0 infos\n\nEPUBCheck completed\n",
+  "validator_stderr": ""
+}

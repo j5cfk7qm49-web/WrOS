@@ -30,7 +30,7 @@ class ManuscriptFootnotePTY(unittest.TestCase):
                     changed=before.replace('λ Intro','Added λ Intro')
                     terminal.until(lambda:primary.read_bytes()==changed.encode(),'original edit saved')
                     terminal.send(b'\x0bExport for readers\r');terminal.screen_shows('EXPORT FOR READERS')
-                    terminal.send(b'x');terminal.screen_shows("couldn't export")
+                    terminal.send(b'\x1b[B'*2+b' '+b'x');terminal.screen_shows("couldn't export")
                     self.assertFalse((project/'exports').exists());self.assertFalse(completed())
                     terminal.send(b'\x1b');terminal.until(lambda:'EXPORT FOR READERS' not in terminal.screen.text,'failed export dismissed')
                     terminal.send(b'\x0bExport for readers\r');terminal.screen_shows('EXPORT FOR READERS')

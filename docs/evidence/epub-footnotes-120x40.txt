@@ -1,0 +1,40 @@
+┌ WRITINGDECK TUTORIAL ──────┐┌ Chapter One / The Brass Key ───────────────────────────────────────────────────────────┐
+│     ✧   ·    ✧    ✦   ✧    ││        Added λ Intro[^a].                                                              │
+│       ______ ☾ ______      ││                                                                                        │
+│     _/      ╲│╱      \_    ││        [^a]: A café note. %% PRIVATE_EPUB_SECRET %%                                    │
+│    // ≈≈≈ ≈≈ │ ≈≈ ≈≈≈ \\   ││                                                                                        │
+│   // ≈ ≈≈ ✧  │  ✧ ≈≈ ≈ \\  ││                                                                                        │
+│  //__________│__________\\ ││                                                                                        │
+│  `───────────┴───────────' ││                                                                                        │
+│                            ││                                                                                        │
+│  Novel Format              ││                                                                                        │
+│▾ Manuscript       ┌ EXPORT FOR READERS ──────────────────────────────────────────────────────────┐                   │
+│  ▾ Chapter One    │ ✓ exports/writingdeck-tutorial.epub  3 KB                                    │                   │
+│      The Brass Key│                                                                              │                   │
+│      The Other Doo│ 1 chapter · 14 words · 3 manuscript pages                                    │                   │
+│▾ Characters       │                                                                              │                   │
+│▾ Places           │                                                                              │                   │
+│▾ Front Matter     │                                                                              │                   │
+│  ▸ Manuscript Form│                                                                              │                   │
+│  ▸ Paperback      │                                                                              │                   │
+│  ▸ Ebook          │                                                                              │                   │
+│▾ Back Matter      │                                                                              │                   │
+│  ▸ Paperback      │                                                                              │                   │
+│  ▸ Ebook          │                                                                              │                   │
+│▾ Notes            │                                                                              │                   │
+│    Pin Practice   │                                                                              │                   │
+│▾ Research         │                                                                              │                   │
+│  ▾ Sample Output  │                                                                              │                   │
+└ n scene  c chapter│                                                                              │                   │
+┌ F2 timer · ^D focu│ any key closes                                                               │                   │
+│                   └──────────────────────────────────────────────────────────────────────────────┘                   │
+│              ☀             ││                                                                                        │
+│                   ▲        ││                                                                                        │
+│    ˇ ˇ           ▟█▙       ││                                                                                        │
+│                  █▪█       ││                                                                                        │
+│                  ███       ││                                                                                        │
+│          ▁▂▃▃▂▁▁▁█▪█▁▁     ││                                                                                        │
+│  ▁▁▂▃▄▅▆▇▇▇▇▇▇▇▇▇▇▇▇▇▇▆▄▂▁ ││                                                                                        │
+│▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔││                                                                                        │
+└──◂ pomodoro visualizer ▸───┘└────────────────────────────────────────────────────────────────────────────────────────┘
+ 14 / 80,000 ░░░░░░░░░░  today 1  ✓ saved  exported 1 file to exports/                Esc menu  ^D focus mode  Tab pane
