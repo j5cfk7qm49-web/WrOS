@@ -1,0 +1,19 @@
+[Unit]
+Description=Apply verified WrOS offline package updates
+Documentation=https://www.freedesktop.org/software/systemd/man/248/systemd.offline-updates.html
+DefaultDependencies=no
+After=sysinit.target local-fs.target
+Before=system-update.target shutdown.target
+ConditionPathExists=/system-update
+OnFailure=reboot.target
+
+[Service]
+Type=oneshot
+Environment=WROS_SYSTEMD_OFFLINE_UPDATE=1
+ExecStart=/usr/libexec/wros-update run-offline-boot
+SuccessAction=reboot
+ProtectHome=yes
+LimitCORE=0
+TimeoutStartSec=1800s
+StandardOutput=journal+console
+StandardError=journal+console

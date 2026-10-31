@@ -21,11 +21,18 @@ assert not any(line.split(':')[0]=='wros-live' for line in (root/'etc/passwd').r
 PY
 mkdir -p "$dest/etc/live/config.conf.d" "$dest/usr/libexec" \
     "$dest/lib/live/config" "$dest/etc/systemd/system/greetd.service.d" \
-    "$dest/etc/systemd/system-generators" "$dest/usr/bin"
+    "$dest/etc/systemd/system-generators" "$dest/usr/bin" \
+    "$dest/etc/polkit-1/rules.d" "$dest/usr/share/polkit-1/actions" \
+    "$dest/etc/wros" "$dest/usr/lib/wros-installer"
 install -m755 "$repo/os/scripts/wros-live-session" "$dest/usr/libexec/"
+install -m755 "$repo/os/scripts/wros-install-session" "$dest/usr/libexec/"
 install -m755 "$repo/os/config/live/9998-wros-session" "$dest/lib/live/config/"
 install -m644 "$repo/os/config/live/live.conf" "$dest/etc/live/config.conf.d/90-wros.conf"
 install -m644 "$repo/os/config/live/greetd-live.conf" "$dest/etc/systemd/system/greetd.service.d/90-wros-live.conf"
+install -m644 "$repo/os/config/50-wros-installer.rules" "$dest/etc/polkit-1/rules.d/"
+install -m644 "$repo/os/config/org.wros.installer.policy" "$dest/usr/share/polkit-1/actions/"
+install -m644 "$repo/os/config/installer.preseed" "$dest/etc/wros/installer.preseed"
+install -m755 "$repo/os/config/installer/native-crypto-passphrase" "$dest/usr/lib/wros-installer/native-crypto-passphrase"
 install -m755 "$binary" "$dest/usr/bin/wros-installer"
 mask="$dest/etc/systemd/system-generators/live-config-getty-generator"
 if [[ -e $mask || -L $mask ]]; then
@@ -33,5 +40,8 @@ if [[ -e $mask || -L $mask ]]; then
 else
     ln -s /dev/null "$mask"
 fi
+for unit in getty@tty7.service autovt@tty7.service; do
+    ln -sf /dev/null "$dest/etc/systemd/system/$unit"
+done
 systemctl --root="$dest" enable live-config.service
 echo 'Live session components staged. Account and initial session must be created only in the live boot overlay.'

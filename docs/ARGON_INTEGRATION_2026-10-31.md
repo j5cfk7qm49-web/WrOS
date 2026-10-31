@@ -18,47 +18,50 @@ original implementation, rather than the final reviewed behavior.
   Queue execution is explicit and backs up the latest saved files; queueing
   records intent and does not freeze another copy of the manuscript.
 - Keep update functionality read-only: cached APT plan, signed bundle content
-  inspection and filesystem/dpkg diagnostics. The submitted staging code created
+  inspection (`Date:` / `Valid-Until:` freshness, `dpkg --compare-versions`
+  anti-downgrade and dependency/conflict checks, POSIX `F_GETLK` lock inspection)
+  and filesystem/dpkg diagnostics. The submitted staging code created
   `/system-update` without an installer service. Its package lock check used
   `flock` rather than dpkg's POSIX locks, privileged paths/keyring could be chosen
   through environment overrides, signature verification reopened mutable input,
   and the eight-second parent deadline could interrupt package repair. Remove
   the privilege grants and mutation entry points. Authenticate the exact private
   metadata bytes parsed and never infer bootable rollback from btrfs directories.
-- Installer teardown remains in marked disposable-QEMU qualification tooling.
-  It is not a production launcher or a completed install/first-boot qualification.
+- Production installer supervision (`os/scripts/wros-install-session` and
+  `src/live_installer.rs`) is now implemented alongside the marked disposable-QEMU
+  qualification tooling (`os/tests/fixture_storage.py`,
+  `os/tests/native_installer_guest.py`). Full QEMU encrypted installation and
+  first-boot execution remain required to qualify the workflow.
 
 ## Gap list and return order
 
 These are unfinished release tasks. Closing this integration does not close them.
 
-1. **Production encrypted installer and first boot (#3):** implement the normal
-   supervised session handoff, completion/interruption outcomes and target-stack
-   retirement using the existing native frontend and maintained Debian backend.
-   Then execute a complete installation/boot on a freshly generated QEMU disk,
-   including refusal, cancellation and failure recovery. Never nominate a host
-   disk for these tests. The submitted cleanup helpers are supporting fixtures.
-2. **Signed update transaction and recovery (#5):** return after Wi-Fi/backup
-   integration passes. Use one maintained APT transaction path, real dependency
-   resolution, trusted/fresh repository metadata, anti-downgrade policy and a
-   durable review/apply journal. Add the actual offline boot service, exclusive
-   package-manager coordination, early owned-trigger removal, failure reporting
-   and rescue recovery. Exercise interruptions in a disposable VM before enabling
-   mutations. ext4 needs a tested rescue strategy; neither Snapper installation
-   nor a btrfs `.snapshots` directory establishes rollback.
+1. **Production encrypted installer and first boot (#3):**
+   - **Implemented in source (`os/scripts/wros-install-session`, `src/live_installer.rs`, `src/app/shell.rs`, `src/app/writingdeck.rs`, `os/scripts/stage-live-session.sh`, `tools/audit-live-session.py`):**
+     supervised live-session handoff from `tty1` (`wros_input::Input::pause()`) to `wros-installer` on `tty7` over the maintained Debian `cdebconf` passthrough backend, Cancel-default confirmation (`Route::InstallerConfirm`), manuscript save/conflict gate (`App::request_live_installer`), in-target encrypted proof verification (`94wros-target-proof` / `97wros-target-finished`), and leaf-first target LUKS2/LVM/swap/mount teardown (`cleanup_target_stack` in both `worker()` `finally:` and host-namespace `ExecStopPost`).
+   - **Remaining qualification gap:** compile `grimoire` and `wros-installer` on the Debian 13 builder, rebuild the live-session image (`os/scripts/build-installer.sh --live`), and execute a complete encrypted installation + first boot on a freshly generated QEMU disk (`os/tests/native_installer_vm.py`), including refusal, cancellation and failure recovery. Never nominate a host disk for these tests.
+2. **Signed update transaction and recovery (#5):**
+   - **Implemented foundations and offline boot service (`os/scripts/wros-update`, `os/systemd/wros-offline-update.service`, `os/scripts/install-files.sh`, `os/tests/test_update.py`):**
+     sealed-copy `gpgv` signature verification (`InRelease` / `Release.gpg`), `Date:` / `Valid-Until:` freshness checks, `dpkg --compare-versions` anti-downgrade and `Depends`/`Pre-Depends`/`Conflicts`/`Breaks` evaluation against `dpkg/status`, POSIX `F_GETLK` lock inspection (`posix_dpkg_lock_active`), ordered exclusive `F_SETLK` lock acquisition (`acquire_posix_dpkg_locks` on `lock-frontend` then `lock`), durable transaction journal (`prepare_offline_transaction` and `execute_offline_boot_transaction` in `/var/lib/wros-update/journal.json`), early `/system-update` symlink removal before `apt-get --no-download` execution, and the systemd offline boot unit (`os/systemd/wros-offline-update.service` linked in `system-update.target.wants`).
+   - **Remaining implementation & qualification gap (`crates/writingdeck-sys/src/linux.rs`, `os/scripts/wros-update`):**
+     interactive root actions (`Request::StageUpdates`, `Request::CancelStagedUpdates`, `Request::RecoverUpdates`) remain refused in `crates/writingdeck-sys/src/linux.rs` and `os/scripts/wros-update` until disposable-VM offline-boot interruption, ext4/btrfs rescue recovery, and polkit privilege gates are independently qualified.
 3. **Wi-Fi service/device acceptance (#4):** qualify real NetworkManager password
    input, invalid credentials, missing services, radio loss, reconnect/disconnect
-   and cancellation against a test access point. Existing adapter/UI tests do
-   not emulate a wireless driver. Enterprise enrollment remains a distinct flow.
+   and cancellation against a test access point (`crates/writingdeck-sys/src/linux.rs`,
+   `src/app/shell.rs`). Existing adapter/UI tests do not emulate a wireless driver.
+   Enterprise enrollment remains a distinct flow.
 4. **Google provider and credential protection (#28, #10):** explicit live-account
    authorization/refresh/revocation, offline retry and cross-device restored hashes
-   remain required. Private files and best-effort overwrite are not an encrypted
-   credential vault or guaranteed secure deletion. Obtain account/data consent
-   before live testing. Keep two-way sync, Drive browsing and Docs round trips
-   separate from encrypted repository backup.
+   remain required (`os/scripts/wros-backup`, `src/backup_service.rs`, `src/app/backup.rs`).
+   Private files and best-effort overwrite are not an encrypted credential vault
+   or guaranteed secure deletion. Obtain account/data consent before live testing.
+   Keep two-way sync, Drive browsing and Docs round trips separate from encrypted
+   repository backup.
 5. **Power and release device acceptance (#4, #13, #27):** preserve disabled
-   suspend until lock-before-sleep/resume qualifies. Target hardware, power-cut
-   recovery, current media/source inventories and release signing remain open.
+   suspend (`crates/writingdeck-sys/src/lib.rs`, `os/config/60-wros-sleep-guard.conf`)
+   until lock-before-sleep/resume qualifies. Target hardware, power-cut recovery,
+   current media/source inventories and release signing remain open.
 
 ## Qualification
 

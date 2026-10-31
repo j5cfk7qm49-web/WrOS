@@ -2,9 +2,11 @@
 
 The current candidate targets Debian 13 amd64. It adds a complete native
 encrypted project backup/restore workflow, optional rclone Google Drive
-connection, the local character-knowledge contribution, installer hardening, protected native Wi-Fi enrollment and durable backup retry. The
+connection, the local character-knowledge contribution, installer hardening,
+protected native Wi-Fi enrollment, durable backup retry, and the supervised
+production live-installer session handoff. The
 [Argon integration](ARGON_INTEGRATION_2026-10-31.md) passed the full local software
-suite; production/device/provider boundaries remain explicit.
+suite for the `4eeca44` baseline; production/device/provider boundaries remain explicit.
 It remains a development candidate: a passing software suite does not make the
 unqualified installation, update/recovery or physical-device work complete.
 
@@ -35,8 +37,8 @@ retain the exact source/executable identities and four terminal sizes.
 
 | Work | Current boundary |
 |---|---|
-| [Production installation](https://github.com/j5cfk7qm49-web/WrOS/issues/3) | Owned leaf-first target LUKS2/LVM/swap/mount teardown (`cleanup_target_stack`) and live writing-session handoff (`handoff_to_writing_session`) are implemented in `os/tests/fixture_storage.py` and `os/tests/native_installer_guest.py`. Full native encrypted installation/first-boot VM and physical qualification remain open. |
-| [Signed updates and recovery](https://github.com/j5cfk7qm49-web/WrOS/issues/5) | Cached APT plans, unprivileged signed-bundle inspection and filesystem/dpkg diagnostics exist. Update installation, offline boot transaction, dependency/freshness/downgrade policy and interruption/rescue recovery remain open; prototype privileged mutations were removed during review. See [gap list and return order](ARGON_INTEGRATION_2026-10-31.md). |
+| [Production installation](https://github.com/j5cfk7qm49-web/WrOS/issues/3) | Production live-session installer supervisor (`os/scripts/wros-install-session`), Polkit live-user authorization (`os/config/50-wros-installer.rules`, `os/config/org.wros.installer.policy`), live-image staging/auditing (`os/scripts/stage-live-session.sh`, `tools/audit-live-session.py`), and native Grimoire console handoff (`src/live_installer.rs`, `Route::InstallerConfirm` in `src/app/shell.rs`) are implemented with owned leaf-first target LUKS2/LVM/swap/mount teardown and in-target encrypted proof verification. Complete installation/first-boot execution on a freshly generated QEMU disk and physical hardware qualification remain open. |
+| [Signed updates and recovery](https://github.com/j5cfk7qm49-web/WrOS/issues/5) | Cached APT plans, read-only signed-bundle verification (`gpgv`), metadata freshness (`Date:` / `Valid-Until:`), `dpkg --compare-versions` anti-downgrade and dependency/conflict checks, POSIX `F_GETLK`/`F_SETLK` dpkg lock coordination, durable offline transaction journal (`prepare_offline_transaction` / `execute_offline_boot_transaction`), early `/system-update` trigger removal, and `os/systemd/wros-offline-update.service` are implemented. Interactive root actions remain refused (`crates/writingdeck-sys/src/linux.rs`) pending disposable-VM interruption and rescue recovery qualification. See [gap list and return order](ARGON_INTEGRATION_2026-10-31.md). |
 | Native Wi-Fi enrollment | Protected new-network credential entry (`stdin` to `nmcli --ask`, redacted `Debug`/`Serialize`, volatile drop scrub), active-connection verification, disconnect, and UUID saved-profile reconnect/forget are implemented in source (Rust adapter and four-size native UI software checks passed; real NetworkManager/device acceptance pending). |
 | [Input/lock/power](https://github.com/j5cfk7qm49-web/WrOS/issues/4) | Manual lock has prior qualification; sleep/resume stays disabled pending its independent protocol and hardware acceptance. |
 | [Google account lifecycle](https://github.com/j5cfk7qm49-web/WrOS/issues/28) | Headless authorization import, private `google-account.json` lifecycle state, explicit verification (`check-google`), revocation vs offline classification, reauthorization and best-effort local credential removal (`disconnect-google`) are implemented. Live account acceptance and OS-wide secret vault remain open. |

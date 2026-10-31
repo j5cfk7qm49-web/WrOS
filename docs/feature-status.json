@@ -111,9 +111,9 @@
       "area": "OS",
       "capability": "Signed OS/app updates, snapshots/rollback and offline bundles",
       "status": "In progress",
-      "verification": "Real ephemeral GPG-signed metadata/Packages/archive verification and mutation-refusal tests; Rust/four-size UI software gates passed",
+      "verification": "Real ephemeral GPG-signed metadata/Packages/archive verification, Date/Valid-Until freshness, dpkg --compare-versions anti-downgrade/dependency, POSIX F_GETLK/F_SETLK lock, early /system-update trigger removal, durable journal and mutation-refusal Python tests executed; Rust/four-size UI software gates in baseline",
       "hardware_verified": false,
-      "detail": "No update installation or automatic rollback: offline APT transaction, freshness/downgrade/dependency policy, boot service and interruption/rescue qualification remain open; see ARGON_INTEGRATION_2026-10-31.md"
+      "detail": "Signed-bundle signature/freshness/anti-downgrade/dependency/POSIX-lock checks, durable offline transaction journal and wros-offline-update.service implemented; interactive root mutations remain refused pending VM interruption/rescue qualification; see ARGON_INTEGRATION_2026-10-31.md"
     },
     {
       "area": "OS",
@@ -625,7 +625,7 @@
       "status": "In progress",
       "verification": "928 Rust/configuration, 96 Python/zero skips, both Clippys and 18 gates; real VM driver refusal, polkit and native UI passed",
       "hardware_verified": false,
-      "detail": "1000–6500K, initial 2200K, strength/Off, calibration retention and independent preview rollback implemented; physical and transition qualification open; issue 30"
+      "detail": "1000\u20136500K, initial 2200K, strength/Off, calibration retention and independent preview rollback implemented; physical and transition qualification open; issue 30"
     },
     {
       "area": "OS",
@@ -639,9 +639,9 @@
       "area": "OS",
       "capability": "Live WrOS installer TUI over Debian installation components",
       "status": "In progress",
-      "verification": "Prior live/default-No VM evidence plus current synthetic target mount/swap/LVM/LUKS cleanup tests; full encrypted installation and first boot remain pending",
+      "verification": "Prior live/default-No VM evidence plus Python unit tests for wros-install-session supervisor, live-image staging/tty7 masks, and target LUKS2/LVM/swap/mount cleanup; Rust 4-size handoff/conflict-gate UI test added (unrun pending Debian Rust toolchain)",
       "hardware_verified": false,
-      "detail": "Shared native frontend and maintained Debian backend; leaf-first cleanup/handoff are QA fixtures only. Production launcher/supervisor/completion and full encrypted install/boot remain open"
+      "detail": "Supervised production handoff (src/live_installer.rs, os/scripts/wros-install-session), Cancel-default confirmation, target LUKS2/LVM/swap/mount retirement, and in-target encrypted proof implemented; full QEMU encrypted install/first-boot and physical qualification remain open"
     },
     {
       "area": "System",
