@@ -73,5 +73,5 @@ cloud service is introduced by these writing integrations.
 
 Focused strict Clippy and compiled four-size local-session/privacy/Undo/restart
 workflows passed, including a remote added while the editor was running. The
-original startup-transfer failure is retained privately. Full applied-source
-Debian qualification is in progress; source-bound evidence will be linked here.
+original startup-transfer failure is retained privately. The [independent full Debian run](evidence/local-session-privacy-local.json) passed
+1077 Rust tests per configuration, 187 Python tests with zero skips, both Clippys and 21 gates. [Provenance and frames](evidence/local-session-privacy-local-provenance.json) bind its source and tested binary.

@@ -9,7 +9,8 @@ merely by opening the book. WrOS now keeps session snapshots local and removes
 that background push path and its misleading backup status. Existing Git history,
 source bytes, authorship, Undo and ordinary saves remain in use. Focused strict
 Clippy and compiled four-size startup/save/quit/restart checks, plus a remote
-added during writing, passed. Full applied-source Debian qualification is in progress.
+added during writing, passed. The [independent full Debian run](evidence/local-session-privacy-local.json) passed
+1077 Rust tests per configuration, 187 Python tests with zero skips, both Clippys and 21 gates. [Provenance](evidence/local-session-privacy-local-provenance.json) binds its source and tested binary.
 Optional music remains separate; no Google/Drive enrollment or verified native
 backup/restore is claimed.
 

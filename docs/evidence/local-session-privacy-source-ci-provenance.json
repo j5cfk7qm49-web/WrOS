@@ -1,0 +1,24 @@
+{
+  "passed": true,
+  "run_url": "https://github.com/j5cfk7qm49-web/WrOS/actions/runs/41157329933",
+  "run_id": 41157329933,
+  "artifact_id": 13025917089,
+  "archive_sha256": "adf4b113237dffe2ceeb9740cd905567d2607b42d63d7f7eb812f5d6395f9cb1",
+  "receipt_sha256": "c20ef8a2c9cf9c99ffebda38794dc72c4b8e95982288e33d8cb5ac36ab3eb4b4",
+  "reviewed_head": "6e16347d4c12448ebbef3f796253890909d0a006",
+  "tested_head": "922d7fac26d0d9fd2f97e53742a34a5a479b238d",
+  "source_fingerprint": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "16b4464a378a9e22697ff91cbb632197d83b7d530b942a8989e524fbc93593ae",
+    "file_count": 470,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests; no generated evidence/docs/builds"
+  },
+  "verifier_inputs_match_independent_local": true,
+  "terminal_frame_sha256": {
+    "local-session-privacy-80x24.txt": "c299a128425d4813dd55940adddf5f1f7fd4cf810df39556974a5777cc5dd591",
+    "local-session-privacy-100x30.txt": "a6bf61bf4d36beb9af39770046e179102f10e3f80663e14e6e7d444d93ca7aee",
+    "local-session-privacy-120x40.txt": "95f11958c07e994b8ac09cdb81d654a95a119999eabfff9953599467bf5b3ba6",
+    "local-session-privacy-160x50.txt": "45c8be1fe626764c6a7b4b0b195171ea5cca8cf218042bbb869eb74a0185fc34"
+  },
+  "scope": "Local writing-history privacy and retained original source/history/Undo with disposable local remote; not verified off-device backup/restore, provider, image, installer, physical or release qualification."
+}
