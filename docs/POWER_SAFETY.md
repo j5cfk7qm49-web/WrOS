@@ -70,7 +70,13 @@ stages explicit `ignore` actions for lid, power/reboot/sleep keys and idle,
 disables all four systemd sleep modes and masks the five sleep targets. See the
 Debian [logind contract](https://manpages.debian.org/trixie/systemd/logind.conf.5.en.html)
 and [sleep configuration](https://manpages.debian.org/trixie/systemd/systemd-sleep.conf.5.en.html).
-The media audit requires those policies; fresh installed-boot checks require
+The media audit parses the staged drop-ins and requires each of those keys to have
+its exact value (a weakened file fails even when copied faithfully). Keyboard reboot
+paths are covered too: `CtrlAltDelBurstAction=none` stops the seven-press
+`reboot-force` burst and `kernel.sysrq = 0` disables the Magic SysRq chords. A single
+Ctrl-Alt-Del press still takes systemd's orderly reboot, so the editor's SIGTERM
+save-on-exit runs, but it does not pass through the Power page's conflict review.
+Fresh installed-boot checks require
 masked targets and logind `CanSuspend` returning a documented denial (`no` or
 `na`), without requesting sleep. The installed guest returned `no`; the exact
 response is retained, rather than relabeled as hardware unavailability. This does not protect against administrator changes, direct privileged

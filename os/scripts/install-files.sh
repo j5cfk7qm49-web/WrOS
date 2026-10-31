@@ -85,6 +85,14 @@ ln -sf ../wros-display.service "$dest/etc/systemd/system/multi-user.target.wants
 mkdir -p "$dest/etc/systemd/logind.conf.d" "$dest/etc/systemd/sleep.conf.d"
 install -m 644 "$repo/os/config/60-wros-power-guard.conf" "$dest/etc/systemd/logind.conf.d/"
 install -m 644 "$repo/os/config/60-wros-sleep-guard.conf" "$dest/etc/systemd/sleep.conf.d/"
+# Keyboard-initiated reboots must not skip the save-on-exit the Power page relies on.
+mkdir -p "$dest/etc/systemd/system.conf.d" "$dest/etc/sysctl.d"
+install -m 644 "$repo/os/config/60-wros-reboot-guard.conf" "$dest/etc/systemd/system.conf.d/"
+install -m 644 "$repo/os/config/60-wros-sysrq.conf" "$dest/etc/sysctl.d/"
+# Debian's NetworkManager may ship a connectivity check that requests a Debian
+# URL every few minutes. WrOS makes no unsolicited outbound requests.
+mkdir -p "$dest/etc/NetworkManager/conf.d"
+install -m 644 "$repo/os/config/60-wros-no-connectivity-check.conf" "$dest/etc/NetworkManager/conf.d/"
 for unit in sleep suspend hibernate hybrid-sleep suspend-then-hibernate; do
     ln -sf /dev/null "$dest/etc/systemd/system/$unit.target"
 done

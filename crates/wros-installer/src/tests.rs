@@ -155,6 +155,38 @@ fn back_is_only_offered_when_supported_and_clears_secret_answers() {
     assert!(session.active().unwrap().answer.is_empty());
 }
 #[test]
+fn backing_up_inside_a_batch_clears_every_password_so_a_retyped_one_cannot_double() {
+    let mut session = Session::default();
+    for line in [
+        "DATA fixture/pass type password",
+        "INPUT high fixture/pass",
+        "DATA fixture/again type password",
+        "INPUT high fixture/again",
+        "DATA fixture/name type string",
+        "INPUT high fixture/name",
+    ] {
+        send(&mut session, line);
+    }
+    session.command("GO").unwrap();
+    for c in "secret".chars() {
+        session.active_mut().unwrap().type_char(c);
+    }
+    assert!(session.advance().is_none());
+    for c in "secret".chars() {
+        session.active_mut().unwrap().type_char(c);
+    }
+    assert!(session.back().is_none());
+    assert_eq!(session.current, 0);
+    assert!(session.active().unwrap().answer.is_empty());
+    assert!(session.advance().is_none());
+    assert!(session.active().unwrap().answer.is_empty());
+    // Retyping both gives exactly the typed value, not the earlier one appended.
+    for c in "secret".chars() {
+        session.active_mut().unwrap().type_char(c);
+    }
+    assert_eq!(session.active().unwrap().answer.as_str(), "secret");
+}
+#[test]
 fn multiple_fields_wait_for_the_final_enter_and_keep_canonical_commas() {
     let mut session = Session::default();
     for line in [
