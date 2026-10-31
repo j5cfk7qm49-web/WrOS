@@ -56,16 +56,20 @@ class Gpg:
                               stdout=kwargs.pop('stdout', subprocess.DEVNULL),
                               stderr=subprocess.DEVNULL, **kwargs)
 
-    def make_key(self, name):
+    def make_key(self, name, with_subkey=True):
+        """with_subkey: certify-only primary plus a signing subkey; else one sign+cert primary."""
         email = f'{name}@wros.invalid'
-        self.run('--passphrase', '', '--pinentry-mode', 'loopback', '--quick-generate-key', email, 'rsa2048', 'cert', '0')
+        usage = 'cert' if with_subkey else 'sign,cert'
+        self.run('--passphrase', '', '--pinentry-mode', 'loopback', '--quick-generate-key', email, 'rsa2048', usage, '0')
         listing = self.run('--with-colons', '--list-keys', email, stdout=subprocess.PIPE, text=True).stdout
         primary = next(line.split(':')[9] for line in listing.splitlines() if line.startswith('fpr:'))
-        self.run('--passphrase', '', '--pinentry-mode', 'loopback', '--quick-add-key', primary, 'rsa2048', 'sign', '0')
-        listing = self.run('--with-colons', '--list-keys', '--with-subkey-fingerprint', email,
-                           stdout=subprocess.PIPE, text=True).stdout
-        fprs = [line.split(':')[9] for line in listing.splitlines() if line.startswith('fpr:')]
-        self.keys[name] = {'email': email, 'primary': primary, 'subkey': fprs[1]}
+        subkey = None
+        if with_subkey:
+            self.run('--passphrase', '', '--pinentry-mode', 'loopback', '--quick-add-key', primary, 'rsa2048', 'sign', '0')
+            listing = self.run('--with-colons', '--list-keys', '--with-subkey-fingerprint', email,
+                               stdout=subprocess.PIPE, text=True).stdout
+            subkey = [line.split(':')[9] for line in listing.splitlines() if line.startswith('fpr:')][1]
+        self.keys[name] = {'email': email, 'primary': primary, 'subkey': subkey}
         return self.keys[name]
 
     def export(self, names, path):
@@ -74,7 +78,7 @@ class Gpg:
 
     def sign_clear(self, text, name, subkey=True):
         key = self.keys[name]
-        signer = key['subkey'] + '!' if subkey else key['primary']
+        signer = key['subkey'] + '!' if subkey and key['subkey'] else key['primary']
         return subprocess.run(['/usr/bin/gpg', '--batch', '--yes', '--pinentry-mode', 'loopback', '--passphrase', '',
                                '--local-user', signer, '--clearsign'],
                               input=text, text=True, env=self.env, check=True,
@@ -82,7 +86,7 @@ class Gpg:
 
     def sign_detached(self, data, name, subkey=True):
         key = self.keys[name]
-        signer = key['subkey'] + '!' if subkey else key['primary']
+        signer = key['subkey'] + '!' if subkey and key['subkey'] else key['primary']
         return subprocess.run(['/usr/bin/gpg', '--batch', '--yes', '--pinentry-mode', 'loopback', '--passphrase', '',
                                '--local-user', signer, '--detach-sign'],
                               input=data, env=self.env, check=True,
@@ -101,6 +105,7 @@ def shared_gpg():
         gpg = Gpg()
         gpg.make_key('archive')
         gpg.make_key('other')
+        gpg.make_key('solo', with_subkey=False)
         _SHARED['gpg'] = gpg
     return _SHARED['gpg']
 

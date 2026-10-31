@@ -50,6 +50,8 @@ class SignedUpdateTests(unittest.TestCase):
         version='0.7.6',
         extra_pkg_fields='',
         release_headers='',
+        signer='archive',
+        subkey=True,
     ):
         pool_dir = bundle_dir / 'pool'
         pool_dir.mkdir(parents=True, exist_ok=True)
@@ -80,9 +82,9 @@ class SignedUpdateTests(unittest.TestCase):
         )
         if detached:
             (bundle_dir / 'Release').write_bytes(release_text.encode('utf-8'))
-            (bundle_dir / 'Release.gpg').write_bytes(self.gpg.sign_detached(release_text.encode('utf-8'), 'archive'))
+            (bundle_dir / 'Release.gpg').write_bytes(self.gpg.sign_detached(release_text.encode('utf-8'), signer, subkey=subkey))
         else:
-            (bundle_dir / 'InRelease').write_text(self.gpg.sign_clear(release_text, 'archive'))
+            (bundle_dir / 'InRelease').write_text(self.gpg.sign_clear(release_text, signer, subkey=subkey))
 
     def test_verify_bundle_accepts_valid_inrelease_and_detached_release_signatures(self):
         for detached in (False, True):
@@ -96,6 +98,35 @@ class SignedUpdateTests(unittest.TestCase):
                 self.assertEqual(verified['packages'][0]['name'], 'grimoire')
                 self.assertEqual(verified['packages'][0]['version'], '0.7.6')
                 self.assertEqual(verified['signer_fingerprint'], self.gpg.keys['archive']['primary'].upper())
+
+    def test_bundle_signed_directly_by_primary_key_without_subkey(self):
+        solo_sys = support.SystemFixture(
+            self.gpg,
+            keyring_names=('archive', 'solo'),
+            signers=[self.gpg.keys['solo']['primary']],
+        )
+        self.addCleanup(solo_sys.cleanup)
+        for detached in (False, True):
+            with self.subTest(detached=detached), tempfile.TemporaryDirectory(prefix='wros-bundle-solo-') as tmp:
+                bundle = Path(tmp) / 'bundle'
+                self.build_signed_bundle(bundle, detached=detached, signer='solo', subkey=False)
+                verified = update.verify_bundle(
+                    bundle,
+                    keyring=solo_sys.keyring,
+                    signers=solo_sys.signers,
+                    host_arch='amd64',
+                )
+                self.assertTrue(verified['verified'])
+                self.assertEqual(verified['signer_fingerprint'], self.gpg.keys['solo']['primary'].upper())
+
+                # Unpinned primary key signature is refused
+                with self.assertRaisesRegex(ValueError, 'update signature is not from a pinned WrOS signing key'):
+                    update.verify_bundle(
+                        bundle,
+                        keyring=solo_sys.keyring,
+                        signers=self.signers,
+                        host_arch='amd64',
+                    )
 
     def test_tampered_deb_packages_signature_or_unindexed_deb_fails_closed(self):
         with tempfile.TemporaryDirectory(prefix='wros-bundle-tamper-') as tmp:
