@@ -214,9 +214,10 @@ def compile_display_helper(repo, output):
                             text=True).stdout.split()
     libs = subprocess.run(['pkg-config', '--libs', 'libdrm'], check=True, capture_output=True,
                           text=True).stdout.split()
-    subprocess.run(['cc', '-std=c11', '-O2', '-Wall', '-Wextra', '-Werror', '-D_FORTIFY_SOURCE=3',
-                    '-fstack-protector-strong', *cflags, str(repo / 'os/helpers/wros-display-hw.c'),
-                    '-Wl,-z,relro,-z,now', '-o', str(output), *libs], check=True)
+    subprocess.run(['cc', '-std=c11', '-O2', '-Wall', '-Wextra', '-Werror', '-U_FORTIFY_SOURCE',
+                    '-D_FORTIFY_SOURCE=3', '-fstack-protector-strong', *cflags,
+                    str(repo / 'os/helpers/wros-display-hw.c'), '-Wl,-z,relro,-z,now', '-o',
+                    str(output), *libs], check=True)
 
 
 def generate_keymaps(repo, output):

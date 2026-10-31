@@ -55,4 +55,6 @@ if __name__ == '__main__':
         sys.exit(main())
     except (ValueError, OSError, subprocess.SubprocessError) as exc:
         detail = getattr(exc, 'stderr', None)
-        sys.exit('build-wros-debs: ' + str(exc) + (' ' + detail.decode(errors='replace') if detail else ''))
+        if detail and not isinstance(detail, str):
+            detail = detail.decode(errors='replace')
+        sys.exit('build-wros-debs: ' + str(exc) + (f' {detail}' if detail else ''))
