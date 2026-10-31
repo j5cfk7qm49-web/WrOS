@@ -154,7 +154,7 @@ enum TreeStep {
 
 /// What an App starts from that doesn't live in the book: the music, theme
 /// and settings files in ~/.config, and whether to start its background
-/// work (loading the dictionary, backing up writing sessions).
+/// work (loading the dictionary and keeping local writing sessions).
 pub struct Setup {
     pub music: music::Config,
     pub theme: Theme,
@@ -306,9 +306,6 @@ pub struct App {
     last_resume: Option<(PathBuf, usize)>,
     /// Session history is on for this book (checked once at launch).
     pub sessions_on: bool,
-    /// A background push of saved sessions, and how the last one went.
-    backup_rx: Option<std::sync::mpsc::Receiver<sessions::PushOutcome>>,
-    pub backup_note: Option<String>,
     /// A PDF being made from the manuscript, off the main thread.
     /// PDFs being made off the main thread by LibreOffice: which one ("PDF",
     /// "paperback PDF") and how it went, one message each.
@@ -941,8 +938,6 @@ impl App {
             manual_scroll: false,
             last_resume: None,
             sessions_on: false,
-            backup_rx: None,
-            backup_note: None,
             pdf_job: None,
             footnote_export_pending: None,
             office: None,
@@ -973,9 +968,6 @@ impl App {
             app.sessions_on = setup.background
                 && sessions::git_available()
                 && sessions::is_enabled(&app.project.root);
-            if app.sessions_on {
-                app.back_up();
-            }
             let items = recovery::pending(&app.project);
             if !items.is_empty() {
                 app.overlay = Overlay::Recover { items, sel: 0 };
@@ -1729,7 +1721,7 @@ impl App {
             return false;
         }
         if self.sessions_on && sessions::has_writing(&self.project.root) {
-            // Local and quick; backing up happens next launch.
+            // Keep this local snapshot even when a Git remote is configured.
             let _ = sessions::commit_session(&self.project.root, chrono::Local::now());
         }
         true
@@ -3277,41 +3269,6 @@ impl App {
 
     // ---- writing sessions ------------------------------------------------
 
-    /// Push saved sessions off-site in the background, if there's a remote.
-    fn back_up(&mut self) {
-        if self.backup_rx.is_some() {
-            return;
-        }
-        let root = self.project.root.clone();
-        let (tx, rx) = std::sync::mpsc::channel();
-        std::thread::spawn(move || {
-            // No upstream yet (a remote just connected) counts as "not pushed".
-            if sessions::has_remote(&root) && sessions::unpushed(&root).is_none_or(|n| n > 0) {
-                let _ = tx.send(sessions::push(&root));
-            }
-        });
-        self.backup_rx = Some(rx);
-    }
-
-    pub fn tick_backup(&mut self) {
-        if let Some(rx) = &self.backup_rx {
-            match rx.try_recv() {
-                Ok(outcome) => {
-                    self.backup_note = Some(match outcome {
-                        sessions::PushOutcome::Pushed => "backed up ✓".into(),
-                        sessions::PushOutcome::NoRemote => {
-                            "no remote — sessions stay on this computer".into()
-                        }
-                        sessions::PushOutcome::Failed(why) => format!("couldn't back up: {why}"),
-                    });
-                    self.backup_rx = None;
-                }
-                Err(std::sync::mpsc::TryRecvError::Disconnected) => self.backup_rx = None,
-                Err(std::sync::mpsc::TryRecvError::Empty) => {}
-            }
-        }
-    }
-
     /// Save this session as a snapshot now. Returns its label.
     fn save_session(&mut self) -> Option<String> {
         if !self.commit_saves() {
@@ -3328,10 +3285,7 @@ impl App {
             .ok()
             .flatten();
         match sessions::commit_session(&root, chrono::Local::now()) {
-            Ok(Some(_)) => {
-                self.back_up();
-                label
-            }
+            Ok(Some(_)) => label,
             Ok(None) => {
                 self.msg = "nothing new since the last session".into();
                 None
@@ -3367,19 +3321,7 @@ impl App {
                     .ok()
                     .flatten()
                     .filter(|l| l.contains(" · "));
-                let backup = if !sessions::has_remote(&root) {
-                    "only on this computer — connect a remote (git remote add origin …) to back sessions up".to_string()
-                } else if self.backup_rx.is_some() {
-                    "backing up…".to_string()
-                } else {
-                    match (sessions::unpushed(&root), &self.backup_note) {
-                        (Some(0), _) => "backed up ✓".to_string(),
-                        (_, Some(note)) if note.starts_with("couldn't") => note.clone(),
-                        (None, _) => "not backed up yet — it happens in the background".to_string(),
-                        (Some(1), _) => "1 session waiting to back up".to_string(),
-                        (Some(n), _) => format!("{n} sessions waiting to back up"),
-                    }
-                };
+                let backup = "local writing history · no automatic remote transmission".to_string();
                 self.overlay = Overlay::Sessions {
                     list,
                     sel: 0,

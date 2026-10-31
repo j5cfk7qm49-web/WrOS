@@ -17,7 +17,7 @@
       "status": "Existing",
       "verification": "Upstream/current failure and recovery tests",
       "hardware_verified": false,
-      "detail": "Local safety is not off-device backup"
+      "detail": "Session snapshots remain local with a configured remote; no automatic startup/save/quit/restart pushes; local safety is not off-device backup"
     },
     {
       "area": "Baseline",

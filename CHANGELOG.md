@@ -1,5 +1,9 @@
 # Changelog
 
+- Keep writing-session history local even when a Git remote is configured;
+  remove automatic startup/save pushes and false background-backup status.
+  Preserve original editor saves, session snapshots, authorship and Undo.
+
 ## WrOS development — reviewed Argon writing contribution (2026-10-30)
 
 - Integrated Argon's continuity, milestone/variant and chapter-reading work
