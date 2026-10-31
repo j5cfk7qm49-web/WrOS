@@ -6,6 +6,7 @@ from html.parser import HTMLParser
 import json
 from pathlib import Path
 import re
+import subprocess
 import sys
 from urllib.parse import unquote
 
@@ -20,6 +21,40 @@ def check(ok, message):
 
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+BOM_TREES = ('os/', 'tools/', '.github/', 'docs/')
+
+def line_ending_errors(root):
+    """Tracked text must be LF in the index; BOMs are refused in infrastructure trees.
+
+    `git diff --check` only sees unstaged edits, so a committed CRLF script would
+    pass it on a clean CI checkout. Paths marked -text in .gitattributes (retained
+    upstream bytes) are exempt. Returns [] when git metadata is unavailable.
+    """
+    try:
+        listing = subprocess.run(['git', '-C', str(root), 'ls-files', '--eol', '-z'],
+                                 capture_output=True, check=True, timeout=120).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+    errors = []
+    for entry in listing.split(b'\0'):
+        if not entry:
+            continue
+        info, _, name = entry.partition(b'\t')
+        fields = info.decode().split()
+        path = name.decode()
+        if len(fields) < 3 or '-text' in fields[2]:
+            continue
+        index_eol = fields[0]
+        if index_eol in ('i/crlf', 'i/mixed'):
+            errors.append(f'{path}: {index_eol[2:]} line endings in the index (WrOS requires LF)')
+        if index_eol in ('i/lf', 'i/crlf', 'i/mixed', 'i/none') and path.startswith(BOM_TREES):
+            file = Path(root)/path
+            if file.is_file() and not file.is_symlink():
+                with file.open('rb') as handle:
+                    if handle.read(3) == b'\xef\xbb\xbf':
+                        errors.append(f'{path}: UTF-8 byte-order mark')
+    return errors
 
 def load(name):
     try:
@@ -40,6 +75,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--require-current-evidence', action='store_true', help='also reject stale-source or failed software/VM evidence')
     args=parser.parse_args()
+    ERRORS.extend(line_ending_errors(ROOT))
     for name in REQUIRED + ['STATUS']:
         check((DOCS/(name+'.md')).is_file(), f'missing {name}.md')
     for path in DOCS.glob('*.md'):

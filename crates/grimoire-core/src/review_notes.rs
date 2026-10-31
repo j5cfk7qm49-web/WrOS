@@ -294,6 +294,16 @@ impl Validate for ReviewNotes {
         )? {
             referenced.extend(value.variants.iter().map(|v| v.scene_id));
         }
+        if let Some(value) =
+            dependency::<crate::knowledge::Knowledge>(root, crate::knowledge::PATH)?
+        {
+            for entry in &value.entries {
+                for version in std::iter::once(&entry.current).chain(&entry.previous) {
+                    referenced.insert(version.document_id);
+                    referenced.extend(version.fact.scene_id);
+                }
+            }
+        }
         for id in referenced {
             ensure!(
                 known.contains(&id),

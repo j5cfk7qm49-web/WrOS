@@ -13,7 +13,7 @@
       "license": "MIT",
       "edition": "0.1.0-dev",
       "file": "crates/grimoire-core/assets/writingdeck/tutorial.json",
-      "sha256": "d94abd5b72d589398fa3d5856687f20fcfba1a1753948641e5e1506f82b88294",
+      "sha256": "26eeeeb730f81f07a469ff63dadd12d4794f809dfda999b549b267718483c2a4",
       "item_count": 40,
       "license_notice": "LICENSE",
       "modifications": "Original 39 lessons plus supplemental grammar lesson 40; M7b enables real dictionary/prose/voice review events. No third-party exercise text."

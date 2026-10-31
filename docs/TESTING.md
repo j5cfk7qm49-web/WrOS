@@ -1,5 +1,47 @@
 # Testing and verification
 
+## Native encrypted backup boundary (2026-10-31)
+
+The [complete Debian run](evidence/release-readiness-local.json) passed 1094 Rust
+tests per configuration, 215 Python tests with zero skips, both strict Clippys
+and 21 gates. [Provenance](evidence/release-readiness-local-provenance.json)
+records the exact source, tested executable, engines and native screen frames.
+
+`os/tests/test_backup.py` exercises actual Debian Restic repositories: encrypted
+snapshot creation, complete restore/hash checks, deleted-original/fresh-state
+recovery-key import, refused existing destinations, no-replacement publication,
+changed-source/symlink refusal, invalid-manifest staging, wrong keys and preserved
+unknown settings. An actual rclone serve-restic/local-alias fixture qualifies the
+transport and missing-remote failures without claiming Google acceptance.
+
+`src/backup_ui_tests.rs` checks all four terminal sizes, masked pasted/clipboard
+credentials, cancellation, hidden-editor ownership, source conflicts and retained
+positions/Undo. `os/tests/test_backup_pty.py` drives the actual compiled app's
+native setup, snapshot, restore, existing-target refusal and Undo at all four
+sizes; it also cancels a real 512 MiB staging operation and retries successfully.
+These use only disposable projects/repositories and isolated HOME/state with no
+network route. Image policy tests require the exact backup helper, maintained
+Restic/rclone executables, installed package state and notices.
+
+No real Google token, account or manuscript is used. Authorization, token refresh,
+provider interruption/revocation and cross-device Google restore remain separate
+live gates. These checks do not certify a current ISO, encrypted install, signed
+updates or physical hardware. See [backup scope](NATIVE_BACKUP.md).
+
+## Character knowledge continuity tracking boundary
+
+`crates/grimoire-core/src/knowledge.rs` and `src/knowledge_ui_tests.rs` verify
+author-entered Knows/Suspects/Unaware/Believes-otherwise assertions bound to
+explicit facts, durable document identities, and scene points (Before/After).
+`test_knowledge_pty.py` uses the actual compiled app across four terminal sizes
+(80x24, 100x30, 120x40, 160x50), an isolated HOME, generated Markdown/YAML fixtures,
+and real TUI interactions. It tests creation, editing, retained version browsing (`v`),
+filtering (`/`), archiving (`d`/`h`), source viewing (`g`), and export isolation.
+Contradictions require explicit Knows vs Does not know assertions on the exact same
+fact, character, scene, point, and source revision; no knowledge or chronology is
+guessed from prose. Captures under `build/verification/knowledge-screens` use
+`WRITINGDECK_CAPTURE_PTY=1`.
+
 ## Local writing-session network boundary
 
 `test_local_session_privacy_pty.py` uses the real compiled app at 80x24,

@@ -1,0 +1,24 @@
+{
+  "passed": true,
+  "tested_binary_sha256": "7c8cc59b6586919f9ff2caf727f9e1d7f291c1ae8d3f0540c2c5ca84f81fba2d",
+  "runner": "Debian software qualification; actual non-root compiled app, new demo/HOME only; four terminal sizes.",
+  "frames": [
+    {
+      "file": "docs/evidence/knowledge-80x24.txt",
+      "sha256": "f188da2d00232394e2882751af99f55b1128e0cad7fc9efe0dda04d3c91a67e3"
+    },
+    {
+      "file": "docs/evidence/knowledge-100x30.txt",
+      "sha256": "35062ba93d8810d66685f7b6bab4ccd52c064c4b3565ca4c0dead72024114cb2"
+    },
+    {
+      "file": "docs/evidence/knowledge-120x40.txt",
+      "sha256": "1de1889713c779e3bc7d9299b99fe7b5ccd3ab22130684a0281de19467c14981"
+    },
+    {
+      "file": "docs/evidence/knowledge-160x50.txt",
+      "sha256": "8dafd7f1549bd27d75129f55e13d046c819e8a7d403c25d22e26fc615ba9827f"
+    }
+  ],
+  "scope": "Explicit character knowledge tracking (Knows, Suspects, Unaware, Believes-otherwise) bound to explicit facts, scene points (Before/After), durable document identities, and scene revisions. In-editor revision, retained versions, archive, filter, source opening and export isolation across four terminal sizes. Not physical keyboard, laptop, power-cut, signed release or provider qualification."
+}

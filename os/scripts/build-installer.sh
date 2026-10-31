@@ -66,6 +66,16 @@ if [[ $profile == live-session ]]; then
 fi
 lb bootstrap
 lb chroot
+if [[ $profile == live-session ]]; then
+    # The live session, its backend and the offline pool are all built for one
+    # kernel ABI. An unpinned linux-image-amd64 can float past it after a Debian
+    # point release; refuse here instead of failing at staging much later.
+    abi=$(sed -n "/^ABI = '/{s/^ABI = '//;s/'$//;p}" "$repo/tools/build-live-installer-pool.py")
+    [[ -n $abi ]] || { echo 'Cannot read the qualified live kernel ABI.' >&2; exit 1; }
+    kernels=(chroot/boot/vmlinuz-*)
+    [[ ${#kernels[@]} == 1 && ${kernels[0]} == "chroot/boot/vmlinuz-$abi" ]] || {
+        echo "Live kernel drifted from the qualified $abi: ${kernels[*]}" >&2; exit 1; }
+fi
 chroot chroot groupadd --system writingdeck
 bash "$repo/os/scripts/install-files.sh" "$base/chroot" "$binary" installer
 bash "$repo/os/scripts/stage-greeter.sh" "$base/chroot" "$greeter"
@@ -79,6 +89,18 @@ python3 "$repo/tools/audit-wifi-image.py" chroot > wifi-rootfs.json
 python3 "$repo/tools/verify-debian-installer.py" cache/installer_debian-installer > installer-input-trust.json
 lb installer
 lb binary
-python3 "$repo/tools/audit-installer-media.py" "$base" > media-audit.json
-sha256sum "$image-amd64.hybrid.iso" > SHA256SUMS
+# An ISO that has not passed the audit must never sit under its release name,
+# and a failed audit must not leave an empty media-audit.json behind: the QEMU
+# tests and manual flashing consume those names. Publish them only on success.
+iso="$image-amd64.hybrid.iso"
+[[ -f $iso && ! -L $iso ]] || { echo "live-build did not produce $iso" >&2; exit 1; }
+mv "$iso" "$iso.unaudited"
+if ! python3 "$repo/tools/audit-installer-media.py" "$base" > media-audit.json.partial; then
+    mv media-audit.json.partial media-audit.FAILED.json
+    echo "Media audit failed; $iso.unaudited is NOT a usable image. See media-audit.FAILED.json." >&2
+    exit 1
+fi
+mv media-audit.json.partial media-audit.json
+mv "$iso.unaudited" "$iso"
+sha256sum "$iso" > SHA256SUMS
 echo 'Experimental media built. VM install/cancel/interruption and hardware qualification are still required.'

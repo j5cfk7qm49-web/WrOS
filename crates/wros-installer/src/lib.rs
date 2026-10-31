@@ -283,6 +283,15 @@ impl Session {
             return None;
         }
         if self.current > 0 {
+            // The screen shows a constant placeholder for secrets, so a retained
+            // answer would silently grow when retyped. Re-enter the whole set.
+            for tag in &self.queued {
+                if let Some(q) = self.questions.get_mut(tag)
+                    && q.kind == Kind::Password
+                {
+                    q.answer.zeroize();
+                }
+            }
             self.current -= 1;
             return None;
         }

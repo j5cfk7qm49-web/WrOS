@@ -63,3 +63,5 @@ pub mod milestones;
 pub mod preflight;
 pub mod speech;
 mod story_state;
+
+pub mod knowledge;

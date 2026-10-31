@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Read-only native login, manual-lock payload and power-policy image gate."""
 import argparse
+import configparser
 import hashlib
 import json
 import os
@@ -17,6 +18,42 @@ def regular(root, relative):
     if path.is_symlink() or not path.is_file() or path.stat().st_size == 0:
         raise ValueError('missing or unsafe native session file: ' + relative)
     return path
+
+
+LOGIND_POLICY = {key: 'ignore' for key in (
+    'HandlePowerKey', 'HandlePowerKeyLongPress', 'HandleRebootKey', 'HandleRebootKeyLongPress',
+    'HandleSuspendKey', 'HandleSuspendKeyLongPress', 'HandleHibernateKey', 'HandleHibernateKeyLongPress',
+    'HandleLidSwitch', 'HandleLidSwitchExternalPower', 'HandleLidSwitchDocked', 'IdleAction')}
+SLEEP_POLICY = {key: 'no' for key in (
+    'AllowSuspend', 'AllowHibernation', 'AllowHybridSleep', 'AllowSuspendThenHibernate')}
+# (staged path, section, required values). Checked on the staged bytes themselves, so a
+# weakened source file cannot pass merely by being copied faithfully.
+POLICY_VALUES = (
+    ('etc/systemd/logind.conf.d/60-wros-power-guard.conf', 'Login', LOGIND_POLICY),
+    ('etc/systemd/sleep.conf.d/60-wros-sleep-guard.conf', 'Sleep', SLEEP_POLICY),
+    ('etc/systemd/system.conf.d/60-wros-reboot-guard.conf', 'Manager', {'CtrlAltDelBurstAction': 'none'}),
+    ('etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf', 'connectivity', {'enabled': 'false'}),
+)
+
+
+def policy_values(root):
+    for relative, section, required in POLICY_VALUES:
+        parser = configparser.ConfigParser(strict=False, interpolation=None)
+        parser.optionxform = str
+        parser.read_string(regular(root, relative).read_text())
+        actual = dict(parser.items(section)) if parser.has_section(section) else {}
+        for key, value in required.items():
+            if actual.get(key, '').strip().lower() != value:
+                raise ValueError(f'native policy value {key}={value} missing or weakened in {relative}')
+    sysctl = {}
+    for row in regular(root, 'etc/sysctl.d/60-wros-sysrq.conf').read_text().splitlines():
+        row = row.strip()
+        if row and not row.startswith(('#', ';')) and '=' in row:
+            key, _, value = row.partition('=')
+            sysctl[key.strip()] = value.strip()
+    if sysctl.get('kernel.sysrq') != '0':
+        raise ValueError('native policy value kernel.sysrq=0 missing or weakened')
+
 
 
 def audit(root):
@@ -37,7 +74,8 @@ def audit(root):
     binaries = {}
     for relative in ('usr/sbin/greetd', 'usr/bin/wros-greeter', 'usr/bin/grimoire',
                      'usr/libexec/writingdeck-session', 'usr/libexec/writingdeck-keyboard',
-                     'usr/libexec/wros-lock', 'usr/bin/openvt', 'usr/bin/systemd-run', 'usr/bin/chvt'):
+                     'usr/libexec/wros-lock', 'usr/libexec/wros-backup', 'usr/bin/restic', 'usr/bin/rclone',
+                     'usr/bin/openvt', 'usr/bin/systemd-run', 'usr/bin/chvt'):
         path = regular(root, relative)
         if not path.stat().st_mode & 0o111 or path.stat().st_mode & 0o6022:
             raise ValueError('unsafe native session executable permissions: ' + relative)
@@ -60,6 +98,14 @@ def audit(root):
     binaries['usr/lib/x86_64-linux-gnu/security/pam_succeed_if.so'] = hashlib.sha256(pam_module.read_bytes()).hexdigest()
     if regular(root, 'usr/libexec/wros-lock').read_bytes() != (REPO / 'os/scripts/wros-lock').read_bytes():
         raise ValueError('manual-lock helper differs from qualified source')
+    if regular(root, 'usr/libexec/wros-backup').read_bytes() != (REPO / 'os/scripts/wros-backup').read_bytes():
+        raise ValueError('native backup helper differs from qualified source')
+    for name in ('restic', 'rclone'):
+        state = subprocess.check_output(['dpkg-query', '--admindir=' + str(root/'var/lib/dpkg'),
+                                         '-W', '-f=${Status}', name], text=True)
+        if state != 'install ok installed':
+            raise ValueError('maintained Debian backup package is not installed: ' + name)
+        regular(root, 'usr/share/doc/' + name + '/copyright')
     config = tomllib.loads(regular(root, 'etc/greetd/config.toml').read_text())
     if config != {'terminal': {'vt': 1, 'switch': True},
                   'general': {'source_profile': False},
@@ -73,6 +119,7 @@ def audit(root):
             or int(accounts[0][2]) == 0 or not accounts[0][6].endswith(('/nologin', '/false'))
             or len(passwords) != 1 or not passwords[0].startswith(('!', '*'))):
         raise ValueError('native greeter service account must be non-root, locked and nonlogin')
+    policy_values(root)
     for source, relative in (
             ('greetd.service', 'etc/systemd/system/greetd.service'),
             ('51-wros-greeter-keyboard.rules', 'etc/polkit-1/rules.d/51-wros-greeter-keyboard.rules'),
@@ -80,7 +127,10 @@ def audit(root):
             ('org.wros.lock.policy', 'usr/share/polkit-1/actions/org.wros.lock.policy'),
             ('vlock.pam', 'etc/pam.d/vlock'),
             ('60-wros-power-guard.conf', 'etc/systemd/logind.conf.d/60-wros-power-guard.conf'),
-            ('60-wros-sleep-guard.conf', 'etc/systemd/sleep.conf.d/60-wros-sleep-guard.conf')):
+            ('60-wros-sleep-guard.conf', 'etc/systemd/sleep.conf.d/60-wros-sleep-guard.conf'),
+            ('60-wros-no-connectivity-check.conf', 'etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf'),
+            ('60-wros-reboot-guard.conf', 'etc/systemd/system.conf.d/60-wros-reboot-guard.conf'),
+            ('60-wros-sysrq.conf', 'etc/sysctl.d/60-wros-sysrq.conf')):
         if regular(root, relative).read_bytes() != (REPO / 'os/config' / source).read_bytes():
             raise ValueError('native session policy differs from qualified source: ' + relative)
     enabled = root / 'etc/systemd/system/multi-user.target.wants/greetd.service'
@@ -100,6 +150,7 @@ def audit(root):
             'vlock_package_version': locker[0], 'manual_lock_payload_present': True,
             'native_tty1_login': True, 'autologin': False, 'greeter_account_locked': True,
             'sleep_targets_masked': list(SLEEP_TARGETS), 'automatic_power_actions_disabled': True,
+            'keyboard_reboot_chords_guarded': True, 'unsolicited_network_checks_disabled': True,
             'secure_locking_verified': False, 'physical_hardware_verified': False}
 
 

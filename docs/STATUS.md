@@ -1,5 +1,43 @@
 # Status — WrOS (Writer’s OS) 0.1.0-dev, through M7b software
 
+## Encrypted backup and verified restore (2026-10-31)
+
+Native Settings integrates maintained Debian Restic and rclone for encrypted
+project snapshots, local or Google Drive destinations, recovery-key export/import,
+snapshot listing, explicit stale-lock recovery and restore into a new folder.
+Every completed backup is restored and its complete file/empty-directory inventory
+and SHA-256 hashes compared before a restore-checked receipt is recorded. Source
+changes, symlinks, unavailable data, tool failures and existing restore targets
+refuse verification. Credentials stay outside project folders in private per-user
+files. Background operations can be cancelled and never replace an active book.
+
+Google connection accepts the masked authorization response from maintained
+`rclone authorize drive` on a trusted computer and verifies it with Google's
+quota endpoint before retaining credentials. This is a headless second-device
+authorization flow, not an embedded browser or a live-account qualification.
+Opening Settings is offline. Drive access occurs only on explicit connection,
+repository setup, snapshot refresh, backup, restore or stale-lock recovery.
+There is no automatic upload queue, general Drive browser, bidirectional sync or
+Google Docs round-trip implementation. See [backup workflow](SYNC_AND_BACKUP.md).
+The [complete Debian software receipt](evidence/release-readiness-local.json)
+passed 1094 Rust tests per configuration, 215 Python tests with zero skips,
+both strict Clippys and 21 gates. [Provenance and four-size native frames](evidence/release-readiness-local-provenance.json)
+bind the tested source and executable. A real 512 MiB cancellation/retry and
+actual rclone serve-restic/local-alias transport passed. Current ISO, live Google,
+signed update/recovery and physical qualification are not implied.
+
+## Character knowledge continuity tracking (2026-10-30)
+
+[Character knowledge](../assets/help/39-continuity-and-milestones.md) adds explicit
+author-entered assertions about character knowledge to the Continuity tracker (Issue #6).
+Knowledge records are bound to reviewed facts, durable document identities, scene points
+(Before/After scene), and exact source revisions without guessing from prose or
+hallucinating contradictions. Only direct Knows versus Does-not-know conflicts for the
+same character, reviewed fact, scene point and revision are flagged. Retained version history,
+in-editor revision, archive/unarchive, character filtering and source opening preserve
+underlying manuscripts and exports. Core unit tests, four-size compiled writing workflows,
+PTY tests across four terminal sizes, warning-denying Clippys and documentation gates passed.
+
 ## Local writing history privacy (2026-10-30)
 
 The [API/network audit](API_AND_NETWORK_USE.md) found inherited automatic Git
@@ -36,7 +74,7 @@ original editor Undo and guarded source/metadata persistence remain in use.
 Focused core/UI and real four-size milestone/variant/help/Undo/restart tests
 passed; the [independent full Debian run](evidence/passage-restore-local.json) passed
 1072 Rust tests per configuration, 184 Python tests with zero skips, both Clippys and 21 gates. [Provenance](evidence/passage-restore-local-provenance.json) binds the tested source and binary.
-Character knowledge, broader preflight, paperback notes and full M8/M9 remain open.
+Broader preflight, paperback notes and full M8/M9 remain open.
 
 
 ## Native EPUB notes and third Argon review (2026-10-30)

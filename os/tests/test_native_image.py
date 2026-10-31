@@ -18,13 +18,19 @@ def fixture(root):
         output.write('\n\nPackage: greetd\nStatus: install ok installed\nArchitecture: amd64\n'
                      'Version: 0.10.3-4\nMaintainer: Fixture <fixture@example.invalid>\n'
                      'Description: synthetic policy fixture\n')
+        for name in ('restic', 'rclone'):
+            output.write('\nPackage: ' + name + '\nStatus: install ok installed\nArchitecture: amd64\n'
+                         'Version: 1\nMaintainer: Fixture <fixture@example.invalid>\n'
+                         'Description: synthetic backup policy fixture\n')
         output.write('\nPackage: vlock\nStatus: install ok installed\nArchitecture: amd64\n'
                      'Version: 2.2.2-12\nMaintainer: Fixture <fixture@example.invalid>\n'
                      'Description: synthetic policy fixture\n')
     for relative in ('usr/sbin/greetd', 'usr/bin/wros-greeter', 'usr/bin/grimoire',
                      'usr/libexec/writingdeck-session', 'usr/libexec/writingdeck-keyboard',
                      'etc/pam.d/greetd', 'usr/share/doc/greetd/copyright', 'usr/share/doc/vlock/copyright',
-                     'usr/libexec/wros-lock', 'usr/bin/openvt', 'usr/bin/systemd-run', 'usr/bin/chvt', 'usr/sbin/vlock-main',
+                     'usr/libexec/wros-lock', 'usr/libexec/wros-backup', 'usr/bin/restic', 'usr/bin/rclone',
+                     'usr/share/doc/restic/copyright', 'usr/share/doc/rclone/copyright',
+                     'usr/bin/openvt', 'usr/bin/systemd-run', 'usr/bin/chvt', 'usr/sbin/vlock-main',
                      'usr/lib/x86_64-linux-gnu/security/pam_succeed_if.so',
                      'usr/lib/vlock/modules/all.so', 'usr/lib/vlock/modules/nosysrq.so'):
         path = root / relative
@@ -33,6 +39,7 @@ def fixture(root):
         path.chmod(0o755 if relative.startswith('usr/') and 'copyright' not in relative else 0o644)
     (root / 'usr/sbin/vlock-main').chmod(0o4755)
     shutil.copyfile(ROOT / 'os/scripts/wros-lock', root / 'usr/libexec/wros-lock')
+    shutil.copyfile(ROOT / 'os/scripts/wros-backup', root / 'usr/libexec/wros-backup')
     for source, relative in (
             ('greetd.toml', 'etc/greetd/config.toml'),
             ('greetd.service', 'etc/systemd/system/greetd.service'),
@@ -41,7 +48,10 @@ def fixture(root):
             ('org.wros.lock.policy', 'usr/share/polkit-1/actions/org.wros.lock.policy'),
             ('vlock.pam', 'etc/pam.d/vlock'),
             ('60-wros-power-guard.conf', 'etc/systemd/logind.conf.d/60-wros-power-guard.conf'),
-            ('60-wros-sleep-guard.conf', 'etc/systemd/sleep.conf.d/60-wros-sleep-guard.conf')):
+            ('60-wros-sleep-guard.conf', 'etc/systemd/sleep.conf.d/60-wros-sleep-guard.conf'),
+            ('60-wros-no-connectivity-check.conf', 'etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf'),
+            ('60-wros-reboot-guard.conf', 'etc/systemd/system.conf.d/60-wros-reboot-guard.conf'),
+            ('60-wros-sysrq.conf', 'etc/sysctl.d/60-wros-sysrq.conf')):
         path = root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / 'os/config' / source, path)
@@ -69,7 +79,7 @@ class NativeImage(unittest.TestCase):
             self.assertEqual(result['greetd_package_version'], '0.10.3-4')
             self.assertEqual(result['vlock_package_version'], '2.2.2-12')
             self.assertTrue(result['manual_lock_payload_present'])
-            self.assertEqual(len(result['binary_sha256']), 13)
+            self.assertEqual(len(result['binary_sha256']), 16)
 
     def test_unsafe_native_session_cannot_pass_even_with_all_requested_packages(self):
         mutations = {
@@ -83,11 +93,20 @@ class NativeImage(unittest.TestCase):
             'writable greeter': lambda r: (r / 'usr/bin/wros-greeter').chmod(0o777),
             'missing PAM': lambda r: (r / 'etc/pam.d/greetd').unlink(),
             'missing notice': lambda r: (r / 'usr/share/doc/greetd/copyright').unlink(),
+            'missing backup engine': lambda r: (r / 'usr/bin/restic').unlink(),
+            'missing cloud engine': lambda r: (r / 'usr/bin/rclone').unlink(),
+            'missing backup notice': lambda r: (r / 'usr/share/doc/restic/copyright').unlink(),
+            'changed backup integration': lambda r: (r / 'usr/libexec/wros-backup').write_text('not the qualified integration'),
             'disabled service': lambda r: (r / 'etc/systemd/system/multi-user.target.wants/greetd.service').unlink(),
             'no tty1 mask': lambda r: (r / 'etc/systemd/system/getty@tty1.service').unlink(),
             'unavailable maintenance': lambda r: (r / 'etc/systemd/system/getty@tty2.service').symlink_to('/dev/null'),
             'altered service': lambda r: (r / 'etc/systemd/system/greetd.service').write_text('[Service]\nExecStart=/bin/sh\n'),
             'unprotected lid': lambda r: (r / 'etc/systemd/logind.conf.d/60-wros-power-guard.conf').unlink(),
+            'reboot burst allowed': lambda r: (r / 'etc/systemd/system.conf.d/60-wros-reboot-guard.conf').unlink(),
+            'sysrq left on': lambda r: (r / 'etc/sysctl.d/60-wros-sysrq.conf').unlink(),
+            'network probe enabled': lambda r: (r / 'etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf').unlink(),
+            'changed network probe': lambda r: (r / 'etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf').write_text(
+                '[connectivity]\nenabled=true\nuri=http://network-test.debian.org/nm\n'),
             'missing locker': lambda r: (r / 'usr/sbin/vlock-main').unlink(),
             'writable locker module': lambda r: (r / 'usr/lib/vlock/modules/all.so').chmod(0o777),
             'missing lock PAM': lambda r: (r / 'etc/pam.d/vlock').unlink(),
@@ -107,6 +126,34 @@ class NativeImage(unittest.TestCase):
                 mutate(root)
                 with self.assertRaises((ValueError, OSError)):
                     module.audit(root)
+
+    def test_weakened_policy_values_are_refused_even_when_the_file_is_present(self):
+        # A faithful copy of a weakened source file must still fail: values are checked, not just bytes.
+        weaken = {
+            'etc/systemd/logind.conf.d/60-wros-power-guard.conf': [
+                ('HandleLidSwitchDocked=ignore', 'HandleLidSwitchDocked=suspend'),
+                ('HandleHibernateKey=ignore', ''),
+                ('IdleAction=ignore', 'IdleAction=poweroff'),
+                ('HandlePowerKeyLongPress=ignore', 'HandlePowerKeyLongPress=poweroff')],
+            'etc/systemd/sleep.conf.d/60-wros-sleep-guard.conf': [
+                ('AllowHybridSleep=no', 'AllowHybridSleep=yes'),
+                ('AllowSuspend=no', '[Sleep]')],
+            'etc/systemd/system.conf.d/60-wros-reboot-guard.conf': [
+                ('CtrlAltDelBurstAction=none', 'CtrlAltDelBurstAction=reboot-force')],
+            'etc/sysctl.d/60-wros-sysrq.conf': [('kernel.sysrq = 0', 'kernel.sysrq = 1')],
+            'etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf': [('enabled=false', 'enabled=true')],
+        }
+        for relative, edits in weaken.items():
+            for old, new in edits:
+                with self.subTest(relative=relative, old=old), tempfile.TemporaryDirectory(prefix='wros-native-weak-') as tmp:
+                    root = Path(tmp)
+                    fixture(root)
+                    path = root / relative
+                    text = path.read_text()
+                    self.assertIn(old, text)
+                    path.write_text(text.replace(old, new))
+                    with self.assertRaisesRegex(ValueError, 'policy value'):
+                        module.audit(root)
 
     def test_live_root_and_symlinked_image_are_refused(self):
         with self.assertRaisesRegex(ValueError, 'never the live root'):

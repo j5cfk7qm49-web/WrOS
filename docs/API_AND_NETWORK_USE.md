@@ -34,7 +34,7 @@ Adding a remote is not treated as consent to send manuscript history.
 The upstream core library's explicit `sessions::push` helper is retained for
 compatibility/tests; WrOS has no application call site for it. The sessions
 screen does not label local commits or cached tracking refs as a verified backup.
-Native verified backup/restore remains unfinished. Separately configured sync
+Native encrypted backup/restore is now explicit through the workflow below. Separately configured sync
 clients and external Git tools operate outside this application workflow.
 
 ## Optional music
@@ -55,6 +55,28 @@ Relevant implementation is in `src/music/{mod,setup,ytm,spotify}.rs` and
 `src/library.rs`. Source host settings can select another machine; loopback is
 the YouTube companion default, not a guarantee for every configuration.
 
+## Explicit encrypted backup and Google Drive
+
+`src/app/backup.rs`, `src/backup_service.rs` and the unprivileged
+`os/scripts/wros-backup` adapter invoke maintained Restic for encrypted repositories
+and rclone for the optional Drive backend. Opening Settings reads local state
+only. Local repository backup/restore uses local filesystem IO. Google connection
+explicitly validates authorization via `rclone about`; Drive repository creation,
+snapshot refresh, backup, restore and stale-lock recovery explicitly invoke
+Restic's rclone backend and can contact Google Drive/Google token endpoints.
+No background startup, autosave, history or ordinary writing path starts these
+provider calls. Failed/offline jobs require an explicit retry.
+
+Authorization JSON travels only through the masked field and private stdin
+protocol, never command arguments, UI notices, manuscript files or diagnostic
+logs. Dedicated rclone configuration/recovery keys are private per-user files
+outside projects. Restic encrypts staged project content and metadata before
+upload. Rclone owns OAuth token refresh. The entire project folder (including
+private notes and project metadata) is included by explicit backup; export's
+private-note exclusion policy does not apply to disaster-recovery backups.
+No real account was enrolled or manuscript transmitted during qualification.
+See [scope and recovery](NATIVE_BACKUP.md).
+
 ## Debian integration and unavailable services
 
 The native backend invokes local `nmcli` (NetworkManager), `timedatectl`
@@ -63,9 +85,10 @@ The native backend invokes local `nmcli` (NetworkManager), `timedatectl`
 account/status information. A cached APT simulation is not a repository refresh
 or installed update. Wi-Fi scanning is radio activity, not an internet API.
 
-Native Google sign-in, Drive browsing/materialization, cloud sync, verified
-backup/restore, update application and recovery/firmware operations remain
-unavailable and fail before their tools run. No successful OAuth enrollment,
+General Drive browsing/materialization, cloud sync, update application and
+recovery/firmware operations remain unavailable and fail before their tools run.
+The separate backup adapter provides explicit authorization/backup/restore;
+the old general-purpose system request variants remain unavailable. No successful OAuth enrollment,
 Drive API call or manuscript upload is fabricated. No telemetry or mandatory
 cloud service is introduced by these writing integrations.
 

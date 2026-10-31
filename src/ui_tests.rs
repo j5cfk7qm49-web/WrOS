@@ -3209,7 +3209,7 @@ fn writingdeck_dashboard_is_navigable_at_required_terminal_sizes() {
         d.key(KeyCode::F(12));
         assert!(d.shows("WrOS"));
         assert!(d.shows("Resume writing"));
-        assert!(d.shows("local save is not backup"));
+        assert!(d.shows("encrypted backup"));
         d.key(KeyCode::End);
         assert!(d.shows("▸ Configure widgets"));
         d.key(KeyCode::Enter);
@@ -8163,3 +8163,9 @@ mod footnote_context_ui_tests;
 
 #[path = "argon_writing_ui_tests.rs"]
 mod argon_writing_ui_tests;
+
+#[path = "knowledge_ui_tests.rs"]
+mod knowledge_ui_tests;
+
+#[path = "backup_ui_tests.rs"]
+mod backup_ui_tests;

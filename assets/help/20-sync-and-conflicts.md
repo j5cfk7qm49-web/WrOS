@@ -1,5 +1,24 @@
 # Sync & conflicts
 
+## Encrypted backups and restore
+
+WrOS settings → Accounts → Backups creates encrypted Restic snapshots on a local
+backup drive or Google Drive. Export the recovery key to a private separate
+device: losing it makes the backup unreadable. Connect Google Drive using the
+masked authorization JSON returned by `rclone authorize drive` on a trusted
+computer. Ordinary editing and opening Settings stay offline.
+
+Create encrypted backup saves both buffers and refuses source conflicts. It
+stages a consistent saved project, creates an encrypted snapshot, restores it,
+and compares every file name, size and SHA-256 before reporting success. Select
+a snapshot to restore into a NEW folder; existing destinations are refused.
+Connect existing repository and recovery key works after losing the original
+machine. A same-disk folder is not protection from losing that disk. Refresh
+snapshots explicitly after reconnecting; use stale-lock recovery after a crash.
+Cancel stops the operation and preserves the active manuscript. Delete clears a
+setup field. Automatic cloud queues, two-way sync and Docs round trips remain
+unavailable. Full guidance: docs/NATIVE_BACKUP.md in the installed documentation.
+
 A book is a folder, so any sync service carries it: Dropbox, Google Drive, pCloud, Box, OneDrive, iCloud Drive. Grimoire makes sure none of them can cost you words.
 
 ## Two devices change one scene

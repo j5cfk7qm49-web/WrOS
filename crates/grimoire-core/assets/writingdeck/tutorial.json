@@ -214,7 +214,7 @@
     "title": "Continuity tracking",
     "help_topic": "continuity",
     "event": "ContinuityReviewed",
-    "instructions": "In the safe demo, open Continuity tracker from Writing tools or the palette. Press n to record an explicit character or world fact with a Subject, Property and Value, then press 4 (or c) to review Contradictions & Suggestions. Definite conflicts require two Definite facts sharing an explicit scope; unscoped changes suggest review without hallucinating contradictions."
+    "instructions": "In the safe demo, open Continuity tracker from Writing tools or the palette. Press n to record an explicit character or world fact with a Subject, Property and Value, then press 4 (or c) to review Contradictions & Suggestions. Definite conflicts require two Definite facts sharing an explicit scope; unscoped changes suggest review without hallucinating contradictions. Optional: return to Facts, select the fact and press g to record a character's knowledge Before or After the active scene. Tab moves fields, Left/Right cycles state or point, Enter saves, 5 opens Character knowledge, v reviews retained versions, d archives and g opens the original source. These optional actions do not replace the lesson's actual fact-and-conflict review event."
   },
   {
     "id": 32,

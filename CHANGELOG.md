@@ -1,5 +1,18 @@
 # Changelog
 
+- Add native encrypted local/Google Drive project backups through Restic/rclone,
+  private recovery-key export/import, masked Google authorization, real
+  restore/hash verification for every completed snapshot, snapshot browsing,
+  cancellation, stale-lock recovery and safe restore into new folders.
+- Integrate installer password clearing, offline defaults, LF enforcement,
+  audited media publication and keyboard/power-policy hardening for release.
+
+- Add explicit character knowledge assertions to Continuity tracker (Issue #6),
+  tracking Knows, Suspects, Unaware and Believes-otherwise states before or after
+  scenes. Assertions bind to reviewed explicit facts, durable document identities,
+  and exact source revisions with full retained version history, filtering,
+  archiving, source-opening and export isolation, without guessing from prose
+  or hallucinating contradictions.
 - Keep writing-session history local even when a Git remote is configured;
   remove automatic startup/save pushes and false background-backup status.
   Preserve original editor saves, session snapshots, authorship and Undo.

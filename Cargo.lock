@@ -2624,6 +2624,7 @@ dependencies = [
  "writingdeck-sys",
  "wros-input",
  "wros-shell",
+ "zeroize",
 ]
 
 [[package]]

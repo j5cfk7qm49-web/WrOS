@@ -1,0 +1,425 @@
+#!/usr/bin/python3 -I
+"""Unprivileged native backup adapter. Restic owns encryption and repository IO.
+
+One JSON request on stdin, one bounded JSON response. No shell, polkit, scheduled
+network, deletion/pruning, mounted manuscripts, or restore over an existing book.
+"""
+import configparser
+import ctypes
+from datetime import datetime, timezone
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import secrets
+import signal
+import stat
+import subprocess
+import sys
+import tempfile
+
+MAX_FILES = 100_000
+MAX_BYTES = 5 * 1024**3
+MAX_JSON = 2 * 1024**2
+MANIFEST = '.wros-backup-manifest.json'
+TAG = 'wros-project-v1'
+
+
+def now():
+    return datetime.now(timezone.utc).isoformat()
+
+
+def require(condition, message):
+    if not condition:
+        raise ValueError(message)
+
+
+def private_file(path):
+    info = path.lstat()
+    require(stat.S_ISREG(info.st_mode) and info.st_uid == os.geteuid()
+            and not info.st_mode & 0o077, 'Recovery/configuration file must be private and owned by you.')
+    return path
+
+
+def read_json(path):
+    private_file(path)
+    require(path.stat().st_size <= MAX_JSON, 'Configuration is too large; original preserved.')
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
+def write_private(path, contents, exclusive=False):
+    flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW
+    flags |= os.O_EXCL if exclusive else os.O_TRUNC
+    with os.fdopen(os.open(path, flags, 0o600), 'wb') as stream:
+        stream.write(contents)
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
+def atomic_private(path, contents):
+    temp = path.with_name('.' + path.name + '-' + secrets.token_hex(8))
+    try:
+        write_private(temp, contents, exclusive=True)
+        os.replace(temp, path)
+        directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    finally:
+        temp.unlink(missing_ok=True)
+
+
+def run(program, arguments, env, cwd=None):
+    # Raw upstream output can contain filenames or OAuth responses. It never
+    # enters native notices, logs, argv diagnostics, or the response protocol.
+    with tempfile.TemporaryFile() as output:
+        result = subprocess.run([program, *arguments], env=env, cwd=cwd,
+                                stdin=subprocess.DEVNULL, stdout=output,
+                                stderr=subprocess.DEVNULL, timeout=1800)
+        require(result.returncode == 0,
+                f'{Path(program).name} did not complete. Check connectivity, recovery key, free space and repository locks; retry explicitly.')
+        require(output.tell() <= MAX_JSON, 'Tool response exceeded the supported size; no verification claimed.')
+        output.seek(0)
+        return output.read()
+
+
+def safe_new_path(value):
+    require(isinstance(value, str) and len(value) <= 4096 and not any(ord(c) < 32 for c in value), 'Invalid destination path.')
+    path = Path(value).expanduser()
+    require(path.is_absolute() and path.name not in ('', '.', '..'), 'Choose an absolute path with a new folder/file name.')
+    require(not path.exists() and not path.is_symlink(), 'Destination already exists; choose a NEW name. Nothing overwritten.')
+    return path.parent.resolve(strict=True) / path.name
+
+
+def publish_directory(source, target):
+    # rename() can replace an existing empty directory. Use the kernel's
+    # no-replacement operation, including if another process creates the target.
+    libc = ctypes.CDLL(None, use_errno=True)
+    result = libc.renameat2(-100, os.fsencode(source), -100, os.fsencode(target), 1)
+    if result:
+        raise OSError(ctypes.get_errno(), 'Restore destination could not be published; existing paths preserved.')
+    fd = os.open(target.parent, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def inventory(root, copy_to=None):
+    files, directories, total = {}, [], 0
+    def visit(directory, prefix='', depth=0):
+        nonlocal total
+        require(depth <= 64, 'Project nesting exceeds the supported backup depth.')
+        for name in sorted(os.listdir(directory)):
+            relative = prefix + name
+            require(len(files) + len(directories) < MAX_FILES, 'Project exceeds 100,000 backup entries.')
+            info = os.stat(name, dir_fd=directory, follow_symlinks=False)
+            require(not stat.S_ISLNK(info.st_mode), 'Project contains a symbolic link; resolve it before backup. No partial backup is verified.')
+            if stat.S_ISDIR(info.st_mode):
+                directories.append(relative)
+                if copy_to:
+                    (copy_to/relative).mkdir(mode=0o700)
+                child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
+                try:
+                    opened = os.fstat(child)
+                    require((opened.st_dev, opened.st_ino) == (info.st_dev, info.st_ino), 'Project changed while reading; retry after saving.')
+                    visit(child, relative + '/', depth + 1)
+                finally:
+                    os.close(child)
+            else:
+                require(stat.S_ISREG(info.st_mode), 'Project contains a special file; no backup is verified.')
+                total += info.st_size
+                require(total <= MAX_BYTES, 'Project exceeds the supported 5 GiB backup size.')
+                digest, size = hashlib.sha256(), 0
+                source = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+                with os.fdopen(source, 'rb') as stream:
+                    opened = os.fstat(stream.fileno())
+                    require(stat.S_ISREG(opened.st_mode) and (opened.st_dev, opened.st_ino) == (info.st_dev, info.st_ino),
+                            'Project changed while reading; retry after saving.')
+                    target = (copy_to/relative).open('xb') if copy_to else None
+                    try:
+                        while chunk := stream.read(1024 * 1024):
+                            size += len(chunk)
+                            require(size <= info.st_size, 'Project changed while reading; retry after saving.')
+                            digest.update(chunk)
+                            if target:
+                                target.write(chunk)
+                        if target:
+                            target.flush()
+                            os.fsync(target.fileno())
+                    finally:
+                        if target:
+                            target.close()
+                    after = os.fstat(stream.fileno())
+                    require(size == info.st_size and (info.st_mtime_ns, info.st_ctime_ns) == (after.st_mtime_ns, after.st_ctime_ns),
+                            'Project changed while reading; retry after saving.')
+                files[relative] = {'bytes': size, 'sha256': digest.hexdigest()}
+    source = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        visit(source)
+    finally:
+        os.close(source)
+    return {'files': files, 'directories': directories, 'bytes': total}
+
+
+class Service:
+    def __init__(self, state):
+        self.state = state
+        require(state.is_absolute(), 'Backup state must be an absolute private directory.')
+        require(not state.is_symlink(), 'Backup state directory cannot be a symbolic link.')
+        state.mkdir(parents=True, exist_ok=True, mode=0o700)
+        info = state.stat()
+        require(info.st_uid == os.geteuid() and not info.st_mode & 0o077, 'Backup state directory must be private and owned by you.')
+        self.config = state/'repository.json'
+        self.google = state/'rclone.conf'
+        self.env = {key: value for key, value in os.environ.items()
+                    if not key.startswith(('RESTIC_', 'RCLONE_'))}
+        self.env.update(PATH='/usr/bin:/bin', RCLONE_CONFIG=str(self.google),
+                        RESTIC_CACHE_DIR=str(state/'cache'), GOMAXPROCS='2')
+        self.current = None
+        if self.config.exists() or self.config.is_symlink():
+            value = read_json(self.config)
+            require(set(value) == {'version', 'repository', 'key', 'verified'} and value['version'] == 1
+                    and isinstance(value['verified'], dict), 'Unknown backup configuration; original preserved.')
+            self.current = value
+
+    def save(self):
+        atomic_private(self.config, (json.dumps(self.current) + '\n').encode())
+
+    def repository(self, descriptor):
+        require(isinstance(descriptor, str) and len(descriptor) <= 4096
+                and not any(ord(c) < 32 for c in descriptor), 'Invalid backup destination.')
+        if descriptor.startswith('drive:'):
+            folder = descriptor[6:]
+            require(folder and not folder.startswith('/') and all(p not in ('', '.', '..') for p in folder.split('/')),
+                    'Choose a relative Google Drive folder, for example drive:WrOS-Backups.')
+            private_file(self.google)
+            return 'rclone:wros-google:' + folder
+        path = Path(descriptor).expanduser()
+        require(path.is_absolute(), 'Choose an absolute local folder or drive:WrOS-Backups.')
+        if path.exists():
+            require(path.is_dir() and not path.is_symlink(), 'Repository must be a regular directory.')
+            return str(path.resolve(strict=True))
+        return str(safe_new_path(str(path)))
+
+    def restic(self, arguments, cwd=None, config=None):
+        config = config or self.current
+        require(config is not None, 'Set up or connect a backup repository first.')
+        private_file(Path(config['key']))
+        repository = self.repository(config['repository'])
+        return run('/usr/bin/restic', ['--repo', repository, '--password-file', config['key'],
+                                     '--json', '--quiet', *arguments], self.env, cwd)
+
+    def configure(self, repository, key=None):
+        self.repository(repository)  # Refuse unsupported endpoints before IO.
+        key_path = self.state/('recovery-' + secrets.token_hex(16) + '.key')
+        if key:
+            source = Path(key).expanduser()
+            require(not source.is_symlink() and source.is_file() and source.stat().st_size <= 4096,
+                    'Select a regular recovery key file (at most 4096 bytes).')
+            secret = source.read_bytes()
+            require(16 <= len(secret.strip()) <= 4096 and b'\0' not in secret, 'Recovery key file is invalid.')
+        else:
+            if not repository.startswith('drive:'):
+                safe_new_path(repository)
+            secret = (secrets.token_hex(32) + '\n').encode()
+        write_private(key_path, secret, exclusive=True)
+        config = {'version': 1, 'repository': repository, 'key': str(key_path), 'verified': {}}
+        # On failure keep the generated key: a remote init might have succeeded
+        # before a connection failed. Never silently abandon its recovery key.
+        try:
+            self.restic(['snapshots'] if key else ['init'], config=config)
+        except Exception:
+            raise ValueError('Repository setup incomplete. Recovery key retained at ' + str(key_path) + '; reconnect using that file after correcting the destination or connection.') from None
+        self.current = config
+        self.save()
+        return self.status('Repository connected. Export your recovery key to a separate safe device before relying on this backup.')
+
+    def snapshots(self):
+        if not self.current:
+            return []
+        rows = json.loads(self.restic(['snapshots', '--tag', TAG])) or []
+        require(isinstance(rows, list) and len(rows) <= 1000, 'Repository exceeds 1,000 supported snapshots; use Restic maintenance tools.')
+        result = []
+        for row in rows:
+            identifier = row.get('id', '')
+            require(re.fullmatch('[a-f0-9]{64}', identifier), 'Invalid snapshot identity; refresh refused.')
+            paths = row.get('paths', [])
+            require(len(paths) == 1 and isinstance(paths[0], str) and paths[0].startswith('/'), 'Unsupported snapshot paths.')
+            result.append({'id': identifier, 'time': row['time'], 'path': paths[0],
+                           'project': next((t[8:] for t in row.get('tags', []) if t.startswith('project:')), 'Book'),
+                           'restore_checked_at': self.current['verified'].get(identifier, '')})
+        return sorted(result, key=lambda item: item['time'], reverse=True)
+
+    def status(self, notice='', refresh=True):
+        return {'configured': self.current is not None,
+                'repository': self.current['repository'] if self.current else '',
+                'recovery_key': self.current['key'] if self.current else '',
+                'google_connected': self.google.is_file() and not self.google.is_symlink(),
+                'snapshots': self.snapshots() if refresh else [], 'notice': notice}
+
+    def restore_into(self, snapshot, target):
+        self.restic(['restore', snapshot['id'] + ':' + snapshot['path'], '--target', str(target), '--verify', '--overwrite', 'never'])
+        manifest = target/MANIFEST
+        require(manifest.is_file() and not manifest.is_symlink() and manifest.stat().st_size <= 32 * 1024**2,
+                'Snapshot manifest missing or unsafe; restore is not verified.')
+        expected = json.loads(manifest.read_text(encoding='utf-8'))
+        require(isinstance(expected, dict) and expected.get('version') == 1 and 'inventory' in expected,
+                'Unsupported backup manifest; restore is not verified.')
+        manifest.unlink()
+        actual = inventory(target)
+        require(actual == expected['inventory'], 'Restored file names, bytes or SHA-256 hashes differ; restore is not verified.')
+        return actual
+
+    def backup(self, project):
+        root = Path(project).resolve(strict=True)
+        require(root.is_dir() and (root/'manuscript').is_dir(), 'Select a saved Grimoire project with a manuscript folder.')
+        require(not (root/'.git').is_file(), 'A linked Git worktree cannot be backed up portably; use a self-contained book folder.')
+        require(not (root/MANIFEST).exists() and not (root/MANIFEST).is_symlink(), 'Reserved backup manifest name already exists in the project.')
+        require(not self.state.resolve().is_relative_to(root), 'Backup credentials/state must be outside the project.')
+        require(self.current is not None, 'Set up a backup repository first.')
+        destination = self.repository(self.current['repository'])
+        same_device = False
+        if not destination.startswith('rclone:'):
+            repo = Path(destination)
+            require(not repo.is_relative_to(root) and not root.is_relative_to(repo), 'Backup repository and manuscript must be separate directories.')
+            same_device = repo.stat().st_dev == root.stat().st_dev
+        with tempfile.TemporaryDirectory(prefix='wros-backup-', dir=self.state) as temporary:
+            stage = Path(temporary)/'book'
+            stage.mkdir(mode=0o700)
+            original = inventory(root, stage)
+            require(inventory(root) == original, 'Project changed during staging; save and retry. No snapshot verified.')
+            (stage/MANIFEST).write_text(json.dumps({'version': 1, 'created': now(), 'inventory': original}), encoding='utf-8')
+            label = ''.join(c for c in root.name if c.isprintable())[:80] or 'Book'
+            output = self.restic(['backup', '--tag', TAG, '--tag', 'project:' + label, '--host', 'wros', '--', str(stage)], stage)
+            summaries = [json.loads(line) for line in output.splitlines() if line.strip()]
+            identifier = next((row.get('snapshot_id') for row in summaries if row.get('message_type') == 'summary'), None)
+            require(identifier, 'Backup did not return a complete snapshot; no verification claimed.')
+            snapshot = next((row for row in self.snapshots() if row['id'].startswith(identifier)), None)
+            require(snapshot is not None, 'New snapshot cannot be found; no verification claimed.')
+            restored = Path(temporary)/'restore-check'
+            restored.mkdir(mode=0o700)
+            require(self.restore_into(snapshot, restored) == original, 'Restore check differs from the saved project.')
+            self.current['verified'][snapshot['id']] = now()
+            self.save()
+        message = 'Backup verified by a complete restore; all file hashes match.'
+        if same_device:
+            message += ' Destination is on the same filesystem; keep an off-device copy too.'
+        return self.status(message)
+
+    def restore(self, identifier, destination):
+        require(re.fullmatch('[a-f0-9]{64}', identifier or ''), 'Choose an exact snapshot from the refreshed list.')
+        target = safe_new_path(destination)
+        require(not target.is_relative_to(self.state.resolve()), 'Restore outside backup state/credentials.')
+        if self.current and not self.current['repository'].startswith('drive:'):
+            require(not target.is_relative_to(Path(self.repository(self.current['repository']))), 'Restore outside the repository.')
+        snapshot = next((row for row in self.snapshots() if row['id'] == identifier), None)
+        require(snapshot is not None, 'Snapshot no longer available; refresh the list.')
+        stage = Path(tempfile.mkdtemp(prefix='.wros-restore-incomplete-', dir=target.parent))
+        try:
+            self.restore_into(snapshot, stage)
+            publish_directory(stage, target)
+        except Exception:
+            # Preserve interrupted/failed restores under an explicit incomplete
+            # name. Nothing is opened as a verified restored book automatically.
+            raise ValueError('Restore incomplete; original book unchanged. Review ' + str(stage)) from None
+        self.current['verified'][identifier] = now()
+        self.save()
+        return self.status('Restore verified and saved in ' + str(target) + '. Open that folder explicitly to review it.')
+
+    def export_key(self, destination):
+        require(self.current is not None, 'Connect a repository first.')
+        target = safe_new_path(destination)
+        require(not target.is_relative_to(self.state.resolve()), 'Keep the recovery copy outside this machine backup state.')
+        if not self.current['repository'].startswith('drive:'):
+            require(not target.is_relative_to(Path(self.repository(self.current['repository']))), 'Keep the recovery key separate from the encrypted repository.')
+        source = private_file(Path(self.current['key']))
+        write_private(target, source.read_bytes(), exclusive=True)
+        return self.status('Recovery key exported to ' + str(target) + '. Keep it private and separate from the repository.', refresh=False)
+
+    def connect_google(self, authorization):
+        require(isinstance(authorization, str) and len(authorization) <= 32768, 'Authorization response is too large.')
+        token = json.loads(authorization)
+        require(isinstance(token, dict) and isinstance(token.get('access_token'), str)
+                and isinstance(token.get('refresh_token'), str) and token['refresh_token']
+                and isinstance(token.get('expiry'), str), 'Paste the authorization JSON returned by rclone authorize drive.')
+        config = configparser.ConfigParser(interpolation=None)
+        config['wros-google'] = {'type': 'drive', 'token': json.dumps(token), 'scope': 'drive'}
+        import io
+        output = io.StringIO()
+        config.write(output)
+        candidate = self.state/('google-' + secrets.token_hex(8) + '.conf')
+        try:
+            write_private(candidate, output.getvalue().encode(), exclusive=True)
+            env = dict(self.env, RCLONE_CONFIG=str(candidate))
+            # Explicit enrollment alone contacts Google. Do not call providers
+            # when merely opening Settings/status or running local backups.
+            quota = json.loads(run('/usr/bin/rclone', ['about', 'wros-google:', '--json'], env))
+            require(isinstance(quota, dict) and 'total' in quota, 'Google Drive authorization could not be verified.')
+            atomic_private(self.google, candidate.read_bytes())
+        finally:
+            candidate.unlink(missing_ok=True)
+        return self.status('Google Drive connected. Choose New Google Drive backup to create an encrypted repository.', refresh=False)
+
+
+def dispatch(service, request):
+    operation = request.get('operation')
+    if operation == 'status':
+        return service.status(refresh=False)
+    if operation == 'list':
+        return service.status('Snapshot list refreshed.')
+    if operation == 'unlock':
+        service.restic(['unlock'])
+        return service.status('Stale repository locks removed. Active operations remain protected; retry your backup explicitly.')
+    if operation == 'init':
+        return service.configure(request['repository'])
+    if operation == 'connect':
+        return service.configure(request['repository'], request['key'])
+    if operation == 'backup':
+        return service.backup(request['project'])
+    if operation == 'restore':
+        if request.get('project'):
+            target = safe_new_path(request['destination'])
+            require(not target.is_relative_to(Path(request['project']).resolve(strict=True)),
+                    'Restore outside the active project so the original book remains unchanged.')
+        return service.restore(request['snapshot'], request['destination'])
+    if operation == 'export-key':
+        return service.export_key(request['destination'])
+    if operation == 'connect-google':
+        return service.connect_google(request['authorization'])
+    raise ValueError('Unsupported backup operation.')
+
+
+def main():
+    require(os.geteuid() != 0, 'Run backup as your normal writing account, never root.')
+    def interrupted(signum, frame):
+        raise InterruptedError('Backup interrupted')
+    signal.signal(signal.SIGTERM, interrupted)
+    request_bytes = sys.stdin.buffer.read(65537)
+    require(len(request_bytes) <= 65536, 'Backup request is too large.')
+    request = json.loads(request_bytes)
+    state = Path(os.environ.get('WROS_BACKUP_STATE_DIR', str(Path(os.environ.get('XDG_DATA_HOME', str(Path.home()/'.local/share')))/'grimoire/wros/backup')))
+    service = Service(state)
+    lock = os.open(state/'operation.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        # Read after acquiring the cross-process operation lock.
+        service = Service(state)
+        result = dispatch(service, request)
+        print(json.dumps({'ok': True, 'data': result}), flush=True)
+    finally:
+        os.close(lock)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as error:
+        # Never echo parse errors, upstream output, or arbitrary request text:
+        # authorization JSON and secrets are only allowed on the input side.
+        message = str(error) if isinstance(error, ValueError) and not isinstance(error, json.JSONDecodeError) else 'Backup operation unavailable. Check settings, permissions, connection and free space, then retry.'
+        print(json.dumps({'ok': False, 'error': message}), flush=True)
+        sys.exit(1)

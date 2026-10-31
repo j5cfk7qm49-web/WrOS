@@ -65,3 +65,15 @@ for this visual check; the preceding acceptance run retains ordinary status outp
 This remains an explicitly staged experimental image profile. It is separate
 from installer keyboard recovery, early LUKS prompts, secure session locking,
 sleep/resume and physical keyboard qualification. Suspend remains unavailable.
+
+## Release follow-ups (2026-10-31, issue 69)
+
+The helper now preserves Debian keyboards with nonempty XKBOPTIONS or a model
+other than empty/pc105 rather than discarding those choices. A distinct unchanged
+layout refusal lets the greeter return to login after a refused preview, while
+uncertain failures still require resolution. Stale systemd rollback invocations
+cannot retire a newer unexpired preview; cancellation/expiry stop its timer and
+explicit cancellation still reverts immediately. A missing initial configuration
+also adopts the installer's supported choice. New controlled helper/greeter
+regressions cover these paths. The historical guest records above are unchanged;
+the real Debian-installer-question and current-image/hardware gates remain open.

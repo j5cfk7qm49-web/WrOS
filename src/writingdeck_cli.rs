@@ -40,6 +40,7 @@ pub fn command(mut args: impl Iterator<Item = String>) -> Result<()> {
             );
         }
         Some("prose") => prose_command(args)?,
+        Some("backup") => backup_command(args)?,
         Some("lexicon") => {
             let query = args
                 .next()
@@ -139,6 +140,51 @@ pub fn command(mut args: impl Iterator<Item = String>) -> Result<()> {
         ),
         Some(other) => bail!("unknown WritingDeck command {other}; try grimoire writingdeck help"),
     }
+    Ok(())
+}
+
+fn backup_command(mut args: impl Iterator<Item = String>) -> Result<()> {
+    use crate::backup_service::{self, Request};
+    let usage = "grimoire wros backup status|list|unlock|create REPOSITORY|connect REPOSITORY KEY_FILE|snapshot PROJECT|restore SNAPSHOT NEW_FOLDER|export-key NEW_FILE";
+    let mut next = || args.next().ok_or_else(|| anyhow::anyhow!(usage));
+    let request = match next()?.as_str() {
+        "status" => Request::Status,
+        "list" => Request::List,
+        "unlock" => Request::Unlock,
+        "create" => Request::Init {
+            repository: next()?,
+        },
+        "connect" => Request::Connect {
+            repository: next()?,
+            key: next()?,
+        },
+        "snapshot" => Request::Backup { project: next()? },
+        "restore" => Request::Restore {
+            snapshot: next()?,
+            destination: next()?,
+            project: None,
+        },
+        "export-key" => Request::ExportKey {
+            destination: next()?,
+        },
+        _ => bail!(usage),
+    };
+    if args.next().is_some() {
+        bail!(usage);
+    }
+    let cancelled = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    #[cfg(target_os = "linux")]
+    let signals = [libc::SIGINT, libc::SIGTERM]
+        .into_iter()
+        .map(|signal| signal_hook::flag::register(signal, cancelled.clone()))
+        .collect::<std::io::Result<Vec<_>>>()?;
+    let outcome = backup_service::execute(&request, &cancelled);
+    #[cfg(target_os = "linux")]
+    for signal in signals {
+        signal_hook::low_level::unregister(signal);
+    }
+    let status = outcome.map_err(anyhow::Error::msg)?;
+    println!("{}", serde_json::to_string_pretty(&status)?);
     Ok(())
 }
 
