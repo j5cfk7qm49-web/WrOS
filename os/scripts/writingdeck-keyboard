@@ -18,12 +18,17 @@ LAYOUTS = ("qwerty", "colemak", "colemak-dh-ansi", "colemak-dh-iso")
 INITIAL = {"version": 1, "layout": "qwerty", "generation": "initial"}
 
 
+class PreservedSystemLayout(ValueError):
+    """A refusal before any keyboard change, distinct from an uncertain failure."""
+
+
 def installer_layout(path):
     """Read Debian's data file without sourcing shell or expanding anything."""
     if path.is_symlink() or not path.is_file() or path.stat().st_size > 65536:
         raise ValueError("missing or unsafe Debian keyboard configuration")
     values = {}
-    assignment = re.compile(r'''\s*(XKBLAYOUT|XKBVARIANT)\s*=\s*(?:"([^"\n]*)"|'([^'\n]*)'|([^#\s]*))\s*(?:#.*)?''')
+    names = ('XKBLAYOUT', 'XKBVARIANT', 'XKBMODEL', 'XKBOPTIONS')
+    assignment = re.compile(r'''\s*(XKBLAYOUT|XKBVARIANT|XKBMODEL|XKBOPTIONS)\s*=\s*(?:"([^"\n]*)"|'([^'\n]*)'|([^#\s]*))\s*(?:#.*)?''')
     for line in path.read_text().splitlines():
         if not line.strip() or line.lstrip().startswith('#'):
             continue
@@ -33,9 +38,11 @@ def installer_layout(path):
             if name in values:
                 raise ValueError("duplicate Debian keyboard setting")
             values[name] = next(value for value in match.groups()[1:] if value is not None)
-        elif line.lstrip().startswith(('XKBLAYOUT', 'XKBVARIANT')):
+        elif line.lstrip().startswith(names):
             raise ValueError("invalid Debian keyboard setting")
     if values.get('XKBLAYOUT') != 'us' or 'XKBVARIANT' not in values:
+        return None
+    if values.get('XKBMODEL', '') not in ('', 'pc105') or values.get('XKBOPTIONS', ''):
         return None
     return {'': 'qwerty', 'colemak': 'colemak', 'colemak_dh': 'colemak-dh-ansi',
             'colemak_dh_iso': 'colemak-dh-iso'}.get(values['XKBVARIANT'])
@@ -97,7 +104,7 @@ class KeyboardManager:
 
     def saved(self):
         if not self.config.exists():
-            return {"layout": "qwerty", "generation": "initial"}
+            return dict(INITIAL)
         value = json.loads(self.config.read_text())
         if value.get("layout") not in LAYOUTS:
             raise ValueError("invalid committed keyboard configuration; use recovery shell")
@@ -114,16 +121,24 @@ class KeyboardManager:
     def timer(self, verb):
         self.run(["/usr/bin/systemctl", verb, "writingdeck-keyboard-revert.timer"])
 
-    def rollback(self):
+    def rollback(self, force=False):
         if not self.pending.exists():
             return {"status": "no-preview"}
         p = json.loads(self.pending.read_text())
         saved = self.saved()
+        # A cancelled timer's service can already be waiting on our lock. It
+        # must not retire a newer preview whose independent deadline is future.
+        if not force and saved.get("generation") != p["token"] and self.clock() < p["deadline"]:
+            return {"status": "not-expired"}
         # Confirmation is a durable commit point. A crash after rename but
         # before timer cancellation must not undo a committed layout.
         if saved.get("generation") != p["token"]:
             self.load(saved["layout"])
         self.pending.unlink()
+        try:
+            self.timer("stop")
+        except Exception:
+            pass
         return {"status": "reverted-or-already-committed", "layout": saved["layout"]}
 
     def command(self, verb, value=None):
@@ -138,12 +153,15 @@ class KeyboardManager:
             if value not in LAYOUTS:
                 raise ValueError("unregistered layout")
             if not self.adopt_installer():
-                raise ValueError("Debian's selected keyboard is preserved; preview requires a supported US/QWERTY or Colemak layout in /etc/default/keyboard")
+                reason = "Debian's selected keyboard is preserved; preview requires a supported US/QWERTY or Colemak layout in /etc/default/keyboard"
+                if self.pending.exists():
+                    raise ValueError(reason)
+                raise PreservedSystemLayout(reason)
             if self.pending.exists():
                 p = json.loads(self.pending.read_text())
                 if self.clock() < p["deadline"]:
                     raise ValueError("a preview is already active; confirm or cancel it first")
-                self.rollback()
+                self.rollback(force=True)
             self.saved()  # Validate before changing anything.
             p = {"token": secrets.token_hex(16), "layout": value, "deadline": self.clock() + 15}
             atomic_json(self.pending, p)
@@ -152,7 +170,7 @@ class KeyboardManager:
                 self.timer("restart")
                 self.load(value)
             except Exception:
-                self.rollback()
+                self.rollback(force=True)
                 raise
             return {"token": p["token"], "seconds": max(0, int(p["deadline"] - self.clock()))}
         if verb not in ("confirm", "cancel"):
@@ -165,7 +183,7 @@ class KeyboardManager:
         if not isinstance(value, str) or not secrets.compare_digest(value, p["token"]):
             raise ValueError("invalid preview token")
         if verb == "cancel" or self.clock() >= p["deadline"]:
-            self.rollback()
+            self.rollback(force=True)
             if verb == "confirm":
                 raise ValueError("preview expired and was reverted")
             return {"status": "cancelled"}
@@ -201,6 +219,10 @@ def main():
 if __name__ == "__main__":
     try:
         main()
+    except PreservedSystemLayout as exc:
+        print(json.dumps({"status": "preserved-system-layout", "preview_available": False}))
+        print(str(exc), file=sys.stderr)
+        sys.exit(3)
     except Exception as exc:
         print(str(exc), file=sys.stderr)
         sys.exit(1)

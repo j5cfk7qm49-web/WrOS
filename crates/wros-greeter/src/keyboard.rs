@@ -136,6 +136,13 @@ impl Keyboard {
             .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(bytes).ok());
         let success = parsed.is_some_and(|value| match command {
             Command::Preview(_) => {
+                if value.get("status").and_then(|v| v.as_str()) == Some("preserved-system-layout")
+                    && value.get("preview_available").and_then(|v| v.as_bool()) == Some(false)
+                {
+                    self.verified = true;
+                    self.notice = "System keyboard preserved. Escape returns to login";
+                    return true;
+                }
                 let token = value.get("token").and_then(|v| v.as_str());
                 let seconds = value.get("seconds").and_then(|v| v.as_u64());
                 if let (Some(token), Some(seconds @ 0..=15)) = (token, seconds)
@@ -239,7 +246,9 @@ pub fn execute(command: &Command) -> Result<Vec<u8>, &'static str> {
         return Err("Invalid keyboard response");
     }
     let status = child.wait().map_err(|_| "Keyboard process failed")?;
-    if !status.success() {
+    // Exit 3 is the helper's explicit, unchanged-system-layout refusal. Other
+    // failures remain uncertain and cannot return the user to authentication.
+    if !status.success() && !(status.code() == Some(3) && matches!(command, Command::Preview(_))) {
         return Err(match status.code() {
             Some(126 | 127) => "Keyboard authorization unavailable. Use maintenance",
             _ => "Keyboard helper failed. Use maintenance",
@@ -267,6 +276,39 @@ mod tests {
             keyboard.enter(now + Duration::from_secs(3)),
             Some(Command::Cancel(_))
         ));
+    }
+    #[test]
+    fn preserved_system_keyboard_allows_return_to_login_without_a_preview() {
+        let mut keyboard = Keyboard {
+            open: true,
+            ..Keyboard::default()
+        };
+        let now = Instant::now();
+        let command = keyboard.enter(now).unwrap();
+        keyboard.receive(
+            &command,
+            Ok(br#"{"status":"preserved-system-layout","preview_available":false}"#),
+            now,
+        );
+        assert!(!keyboard.is_busy());
+        assert!(keyboard.preview.is_none());
+        assert!(keyboard.notice.contains("preserved"));
+        assert!(keyboard.escape().is_none());
+        assert!(!keyboard.open);
+    }
+    #[test]
+    fn preserved_layout_notice_cannot_acknowledge_an_uncertain_cancel() {
+        let mut keyboard = Keyboard::default();
+        let now = Instant::now();
+        preview(&mut keyboard, now);
+        let cancel = keyboard.escape().unwrap();
+        keyboard.receive(
+            &cancel,
+            Ok(br#"{"status":"preserved-system-layout","preview_available":false}"#),
+            now,
+        );
+        keyboard.escape();
+        assert!(keyboard.open);
     }
     #[test]
     fn timeout_reverts_and_login_waits_for_acknowledgment() {
