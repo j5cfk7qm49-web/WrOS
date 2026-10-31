@@ -167,6 +167,28 @@ class InstallerMedia(unittest.TestCase):
         self.assertEqual(values['passwd/make-user'], 'true')
         self.assertIn('writingdeck', values['passwd/user-default-groups'].split())
 
+    def test_build_publishes_iso_and_audit_only_after_the_audit_passes(self):
+        script = (ROOT / 'os/scripts/build-installer.sh').read_text()
+        tail = script[script.index('\nlb binary'):]
+        audit = tail.index('audit-installer-media.py')
+        # The release names appear only after the audit, never as its input or output.
+        self.assertLess(tail.index('mv "$iso" "$iso.unaudited"'), audit)
+        self.assertIn('> media-audit.json.partial', tail)
+        self.assertNotIn('> media-audit.json\n', tail)
+        self.assertLess(audit, tail.index('mv media-audit.json.partial media-audit.json'))
+        self.assertLess(tail.index('mv media-audit.json.partial media-audit.json'),
+                        tail.index('mv "$iso.unaudited" "$iso"'))
+        self.assertLess(tail.index('mv "$iso.unaudited" "$iso"'), tail.index('sha256sum "$iso" > SHA256SUMS'))
+        self.assertIn('exit 1', tail[audit:tail.index('mv media-audit.json.partial media-audit.json')])
+
+    def test_live_build_refuses_a_kernel_that_drifted_from_the_qualified_abi(self):
+        script = (ROOT / 'os/scripts/build-installer.sh').read_text()
+        pool = (ROOT / 'tools/build-live-installer-pool.py').read_text()
+        self.assertRegex(pool, r"(?m)^ABI = '[0-9.]+\+deb13-amd64'$")
+        self.assertIn('tools/build-live-installer-pool.py', script)
+        self.assertLess(script.index('lb chroot'), script.index('Live kernel drifted'))
+        self.assertLess(script.index('Live kernel drifted'), script.index('stage-live-session.sh'))
+
     def test_hash_chain_rejects_tampering_and_uses_only_signed_sha256_section(self):
         digest = 'a' * 64
         release = f'MD5Sum:\n deadbeef 3 wrong\nSHA256:\n {digest} 12 expected\nSHA512:\n ignored 6 wrong\n'
