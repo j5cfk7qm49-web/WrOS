@@ -6995,6 +6995,7 @@ dependencies = [
  "ring",
  "serde",
  "serde_json",
+ "ureq",
  "zeroize",
 ]
 

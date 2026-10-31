@@ -6,9 +6,11 @@
 //! boot and login never depend on it.
 
 pub mod device;
+pub mod http;
 pub mod store;
 
 pub use device::{DeviceFlow, Flow, PollOutcome, Transport};
+pub use http::HttpsTransport;
 pub use store::{Credentials, CredentialStore};
 
 /// Scopes the device flow can grant and WrOS is willing to request. Restricted
