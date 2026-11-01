@@ -561,6 +561,9 @@ def phase_install(ctx):
     m = boot_live(ctx, 'install', 'cdrom', target=target, serial_token=token, memory=4096)
     g = live_login(ctx, m)
     assert_live_state(ctx, g, 'install')
+    rc, hashes = g.run('sha256sum /usr/bin/grimoire /usr/bin/wros-greeter /usr/bin/wros-installer', 30)
+    live_hashes = {line.split()[1]: line.split()[0] for line in hashes.split('\n') if line.strip()}
+    ctx.result['live_binary_sha256'] = live_hashes
     grim_open_settings(g)
     grim_to_panel(g, r'Storage')
     g.choose(r'Install WrOS to disk')
@@ -607,7 +610,7 @@ def phase_install(ctx):
     (ctx.dir / 'install-state.json').write_text(json.dumps({
         'disk': str(target), 'vars': str(ctx.dir / 'install-OVMF_VARS.fd'), 'secrets': str(secrets_path),
         'serial': fixture_serial(token), 'layout': 'colemak', 'run_dir': str(ctx.dir),
-        'username': 'writer'}, indent=1) + '\n')
+        'username': 'writer', 'binary_sha256': live_hashes}, indent=1) + '\n')
     ctx.result['passed'] = True
 
 
@@ -709,6 +712,16 @@ def greeter_login(ctx, g, m, user, password, layout, *, wrong_first=True):
     g.wait_vcs(1, r'Resume writing|WrOS', 90, what='grimoire-home')
 
 
+def secret_scan(ctx, g, secrets_):
+    """Generated secrets must not appear in logs, the journal or the installer logs of the target."""
+    g.shell.put('/dev/shm/rcpat', '\n'.join(secrets_.values()) + '\n', '0600')
+    rc, out = g.run('grep -rIlF -f /dev/shm/rcpat /var/log /var/lib/wros-update /etc 2>/dev/null | head; '
+                    'journalctl -b --no-pager 2>/dev/null | grep -cF -f /dev/shm/rcpat; shred -u /dev/shm/rcpat', 120, check=False)
+    ctx.result['secret_scan_output'] = out.strip()
+    lines = [l for l in out.strip().split('\n') if l.strip()]
+    ctx.check('no generated secret in /var/log, /etc or the journal', lines == ['0'], lines)
+
+
 def phase_installed_boot(ctx):
     st = load_state(ctx.args.install_run)
     secrets_ = json.loads(Path(st['secrets']).read_text())
@@ -740,6 +753,16 @@ def phase_installed_boot(ctx):
     ctx.check('wros package is 0.1.0~rc1', re.search(r'^wros\s+0\.1\.0~rc1', out, re.M) is not None, out[:300])
     ctx.check('root is locked', re.search(r'root L', out) is not None)
     ctx.check('installed keyboard config is Colemak', re.search(r'XKBVARIANT="?colemak', out) is not None, out)
+    rc, kb = g.run('cat /etc/writingdeck/keyboard.json; echo; test -e /etc/writingdeck/installer-keyboard-pending && echo PENDING_STILL_PRESENT; '
+                   'lsinitramfs /boot/initrd.img-$(uname -r) | grep -ci keymap; '
+                   'sha256sum /usr/bin/grimoire /usr/bin/wros-greeter /usr/bin/wros-installer; '
+                   'systemctl is-active live-config.service wros-live-session.service 2>&1; ls /run/wros-live 2>&1', 60, check=False)
+    ctx.result['installed_keyboard_and_hashes'] = kb
+    ctx.check('greeter keyboard adopted Colemak and the pending marker is gone',
+              re.search(r'"layout": ?"colemak"', kb) is not None and 'PENDING_STILL_PRESENT' not in kb, kb[:500])
+    ctx.check('installed binaries equal the live image binaries',
+              all(('%s  %s' % (h, n)) in kb for n, h in st.get('binary_sha256', {}).items()) and bool(st.get('binary_sha256')), kb)
+    ctx.check('no live runtime state on the installed system', 'No such file' in kb.split('wros-live-session.service')[-1] or 'inactive' in kb, kb[-300:])
     # writing round trip
     phrase = 'rcboot' + secrets.token_hex(5)
     m.key('esc')
@@ -777,6 +800,7 @@ def phase_installed_boot(ctx):
     ctx.check('tty2 maintenance login works and sudo needs the password', True)
     m.shot('tty2-maintenance')
     m.key('ctrl', 'alt', 'f1')
+    secret_scan(ctx, g, secrets_)
     ctx.check('no secret in serial transcript', not any(m.serial.contains(v) for v in secrets_.values()))
     g.run('poweroff', 20, check=False)
     try:
