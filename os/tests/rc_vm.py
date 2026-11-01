@@ -487,6 +487,13 @@ class Shell:
         if isinstance(data, str):
             data = data.encode()
         encoded = base64.b64encode(data).decode()
+        if len(encoded) > 6000:
+            # a long heredoc overruns the serial tty (XOFF stalls the socket); send acknowledged chunks instead
+            self.run('umask 077; : > %s.b64' % path, 30)
+            for i in range(0, len(encoded), 3000):
+                self.run("printf %%s '%s' >> %s.b64" % (encoded[i:i + 3000], path), 30)
+            self.run('umask 077; base64 -d %s.b64 > %s && rm -f %s.b64 && chmod %s %s && sha256sum %s' % (path, path, path, mode, path, path), 60)
+            return
         tag = 'RCEND' + secrets.token_hex(4)
         body = '\n'.join(encoded[i:i + 400] for i in range(0, len(encoded), 400))
         self.serial.send("umask 077; base64 -d > %s <<'%s'\n%s\n%s\n" % (path, tag, body, tag))
