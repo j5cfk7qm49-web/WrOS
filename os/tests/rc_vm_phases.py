@@ -1764,7 +1764,7 @@ def phase_rescue(ctx):
     g = live_login(ctx, m)
     rc, out = g.run('command -v wros-rescue; ls -l /usr/sbin/wros-rescue /usr/libexec/wros-rescue 2>&1; sudo -n wros-rescue --help 2>&1 | head -20', 30, check=False)
     ctx.result['rescue_tool'] = out
-    ctx.check('wros-rescue is present on the live image', out.strip().startswith('/'), out)
+    ctx.check('wros-rescue is present on the live image', re.search(r'^-rwxr-xr-x .* /usr/sbin/wros-rescue$', out, re.M) is not None, out)
     g.shell.put('/tmp/rchead.sh', LUKS_DEV + chr(10) + 'echo $dev; dd if=$dev bs=1M count=16 2>/dev/null | sha256sum' + chr(10), '0644')
     head = 'sudo -n sh /tmp/rchead.sh'
     rc, header = g.run(head, 60)
