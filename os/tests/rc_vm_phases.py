@@ -744,11 +744,14 @@ def fetch_guest_file(g, path):
 
 
 def diagnose(ctx, g, secrets_):
-    """Collect the installer's logs and the left-behind state without touching the VM, scan every
-    collected file for the generated secrets (all layout readings), quarantine any that match."""
+    """Collect the installer's logs and the left-behind state without touching the VM. Every item is
+    scanned for the generated secrets (all layout readings) the moment it is collected; a file that
+    matches is written to diag-quarantine/ instead (never to the run dir top level / evidence)."""
     ctx.step('diagnose-start')
-    diag = {}
-    names = {}
+    nl = chr(10)
+    variants = secret_variants(secrets_, ctx.args.layout)
+    leaks, written, sources = [], [], {}
+    quarantine = ctx.dir / 'diag-quarantine'
 
     def keep(label, data):
         if isinstance(data, str):
@@ -756,65 +759,77 @@ def diagnose(ctx, g, secrets_):
         fname = 'diag-' + re.sub(r'[^A-Za-z0-9._-]+', '_', label.strip('/'))
         if not fname.endswith(('.log', '.json', '.txt')):
             fname += '.txt'
-        diag[fname] = data
-        return fname
-
-    for n in (7, 1):
-        keep('vcs%d-final-screen' % n, chr(10).join(g.vcs(n)))
-    g.m.shot('diagnose-screen')
-    commands = {
-        'swaps': 'cat /proc/swaps',
-        'dmsetup-tree': 'sudo -n dmsetup ls --tree; echo; sudo -n dmsetup info -c',
-        'lsblk': 'lsblk -o NAME,TYPE,FSTYPE,SIZE,MOUNTPOINTS',
-        'findmnt-target': 'findmnt -R /run/live/installer/target; echo rc=$?',
-        'mounts-installer': 'grep -a installer /proc/self/mountinfo',
-        'installer-tree': 'sudo -n find /run/wros-installer -ls 2>&1',
-        'installer-var-log': 'sudo -n ls -la /run/live/installer/var/log 2>&1',
-        'target-apt-sources': 'sudo -n sh -c "ls -la /run/live/installer/target/etc/apt/ 2>&1; for f in /run/live/installer/target/etc/apt/sources.list /run/live/installer/target/etc/apt/sources.list.d/*; do echo == $f; cat $f 2>&1; done"',
-        'installer-apt-sources': 'sudo -n sh -c "for f in /run/live/installer/etc/apt/sources.list /run/live/installer/etc/apt/sources.list.d/*; do echo == $f; cat $f 2>&1; done"',
-        'unit-status': 'systemctl status wros-installer-session.service --no-pager -l 2>&1 | head -60',
-        'unit-journal': 'sudo -n journalctl -b --no-pager -u wros-installer-session.service 2>&1',
-        'journal-installer-grep': 'sudo -n journalctl -b --no-pager 2>&1 | grep -a -i -E "wros-install|wros-installer|pkexec|backend|di-run|installer" | head -400',
-        'dmesg-tail': 'sudo -n dmesg | tail -80',
-    }
-    for label, command in commands.items():
-        rc, out = g.run(command, 120, check=False)
-        keep(label, 'rc=%d\n%s' % (rc, out))
-    rc, listing = g.run("sudo -n find /run/wros-installer -type f \\( -name '*.log' -o -name 'outcome.json' -o -name 'baseline.json' \\) -size -50000k", 60, check=False)
-    wanted = [l.strip() for l in listing.splitlines() if l.strip().startswith('/run/wros-installer/')]
-    ctx.step('diagnose-installer-files', files=wanted)
-    wanted += ['/run/live/installer/var/log/syslog', '/run/live/installer/var/log/partman']
-    for path in wanted:
-        data = fetch_guest_file(g, path)
-        if data is None:
-            keep('missing-' + path, 'absent in the guest: %s\n' % path)
-            continue
-        names[keep(path, data)] = path
-    syslog = diag.get('diag-run_live_installer_var_log_syslog.txt', b'').decode('utf-8', 'replace').split(chr(10))
-    if syslog != ['']:
-        hits = ['%d:%s' % (i + 1, l) for i, l in enumerate(syslog) if DIAG_GREP.search(l)]
-        keep('syslog-grep', chr(10).join(hits) + chr(10))
-    variants = secret_variants(secrets_, ctx.args.layout)
-    leaks = []
-    quarantine = ctx.dir / 'diag-quarantine'
-    for fname, data in sorted(diag.items()):
         found = []
         for name, forms_ in variants.items():
             for form_ in forms_:
                 needle = form_.encode()
                 if needle in data:
-                    for number, line in enumerate(data.split(chr(10).encode()), 1):
+                    for number, line in enumerate(data.split(nl.encode()), 1):
                         if needle in line:
                             found.append((name, number))
         if found:
             quarantine.mkdir(exist_ok=True)
             (quarantine / fname).write_bytes(data)
             leaks.append({'file': fname, 'secret': sorted({n for n, _ in found}), 'lines': sorted({ln for _, ln in found})[:20]})
+            ctx.log('SECRET LEAK in %s lines %s' % (fname, sorted({ln for _, ln in found})[:20]))
         else:
             (ctx.dir / fname).write_bytes(data)
-    ctx.result['diagnose'] = {'files': sorted(f for f in diag if not any(l['file'] == f for l in leaks)),
-                              'leaked_files': leaks, 'sources': names}
-    ctx.step('diagnose-done', files=len(diag), leaks=leaks)
+            written.append(fname)
+        return fname
+
+    def sh(label, command, timeout=90):
+        try:
+            rc, out = g.run('{ %s; } </dev/null' % command, timeout, check=False)
+            keep(label, 'rc=%d%s%s' % (rc, nl, out))
+        except Exception as error:
+            keep(label, 'COLLECTION FAILED: %s%s' % (error, nl))
+            try:
+                g.m.serial.send(chr(3) + nl)       # free a wedged shell
+                time.sleep(2)
+            except Exception:
+                pass
+
+    # the installer's own files first: they are the evidence that matters most
+    sh('installer-tree', "sudo -n find /run/wros-installer -ls 2>&1 | grep -a -v 'media-upper/native-installer/pool\\|media-upper/install'")
+    rc, listing = g.run("{ sudo -n find /run/wros-installer -type f \\( -name '*.log' -o -name 'outcome.json' -o -name 'baseline.json' -o -name cmdline \\) -size -50000k; } </dev/null", 60, check=False)
+    wanted = [l.strip() for l in listing.splitlines() if l.strip().startswith('/run/wros-installer/')]
+    ctx.step('diagnose-installer-files', files=wanted)
+    for path in wanted + ['/run/live/installer/var/log/syslog', '/run/live/installer/var/log/partman',
+                          '/var/log/syslog', '/var/log/installer/syslog', '/var/log/partman']:
+        try:
+            data = fetch_guest_file(g, path)
+        except Exception as error:
+            keep('failed-' + path, 'COLLECTION FAILED: %s%s' % (error, nl))
+            continue
+        if data is None:
+            keep('missing-' + path, 'absent in the guest: %s%s' % (path, nl))
+            continue
+        sources[keep(path, data)] = path
+        if path.endswith('syslog'):
+            lines = data.decode('utf-8', 'replace').split(nl)
+            keep(path + '-grep', nl.join('%d:%s' % (i + 1, l) for i, l in enumerate(lines) if DIAG_GREP.search(l)) + nl)
+    for n in (7, 1):
+        keep('vcs%d-final-screen' % n, nl.join(g.vcs(n)))
+    g.m.shot('diagnose-screen')
+    commands = {
+        'swaps': 'cat /proc/swaps',
+        'dmsetup-tree': 'sudo -n dmsetup ls --tree; echo; sudo -n dmsetup info -c',
+        'lsblk': 'lsblk -o NAME,TYPE,FSTYPE,SIZE,MOUNTPOINTS',
+        'findmnt-target': 'findmnt -R /run/live/installer/target; echo rc=$?',
+        'mountinfo-installer-and-target': 'grep -a -E "installer|/target|vg-|mapper" /proc/self/mountinfo',
+        'installer-root-listing': 'sudo -n ls -la /run/live /run/live/installer /run/live/installer/target 2>&1 | head -80',
+        'recent-files': "sudo -n find /var /tmp /run /root /home -mmin -30 -type f -not -path '/run/wros-installer/work/media-upper/*' -not -path '/var/lib/dpkg/*' -not -path '/var/lib/apt/*' -printf '%TT %p %s\\n' 2>/dev/null | sort | tail -200",
+        'syslog-candidates': "sudo -n find / -xdev \\( -name syslog -o -name partman -o -name 'syslog.*' -o -name 'debian-installer*' -o -name 'wros-install*' \\) -not -path '/proc/*' 2>/dev/null | head -60",
+        'target-and-installer-apt-sources': 'sudo -n cat /run/live/installer/target/etc/apt/sources.list /run/live/installer/target/etc/apt/sources.list.d/* /run/live/installer/etc/apt/sources.list 2>&1 | head -60',
+        'unit-status': 'systemctl status wros-installer-session.service --no-pager -l 2>&1 | head -60',
+        'unit-journal': 'sudo -n journalctl -b --no-pager -u wros-installer-session.service 2>&1',
+        'journal-installer-grep': 'sudo -n journalctl -b --no-pager 2>&1 | grep -a -i -E "wros-install|pkexec|backend|di-run|installer|cryptsetup|swap" | tail -400',
+        'dmesg-tail': 'sudo -n dmesg | tail -100',
+    }
+    for label, command in commands.items():
+        sh(label, command, 120)
+    ctx.result['diagnose'] = {'files': sorted(written), 'leaked_files': leaks, 'sources': sources}
+    ctx.step('diagnose-done', files=len(written), leaks=leaks)
 
 
 # ----------------------------------------------------------------------------- installed boot
