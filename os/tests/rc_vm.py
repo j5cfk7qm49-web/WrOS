@@ -100,8 +100,10 @@ _QWERTY_POSITIONS = {'q': 'q', 'w': 'w', 'e': 'e', 'r': 'r', 't': 't', 'y': 'y',
                      'v': 'v', 'b': 'b', 'n': 'n', 'm': 'm'}
 # What Colemak prints for each US-QWERTY physical key (unshifted).
 _COLEMAK_BY_POSITION = dict(zip('qwertyuiopasdfghjkl;zxcvbnm', 'qwfpgjluy;arstdhneiozxcvbkm'))
-# Colemak-DH (ANSI): the same except for the d/h/b/v/m/k positions.
-_COLEMAK_DH_BY_POSITION = dict(zip('qwertyuiopasdfghjkl;zxcvbnm', 'qwfpbjluy;arstgmneiozxcdvkh'))
+# us(colemak_dh) as xkeyboard-config defines it (the installer's "Colemak Mod-DH (ANSI)"): DH home/top rows plus
+# the angle mod on the bottom row (US z/x/c/v/b keys print x/c/d/v/z). Measured from the console map in the
+# installer: keycodes 44-48 give x c d v z. (Without the angle mod it would be z x c d v.)
+_COLEMAK_DH_BY_POSITION = dict(zip('qwertyuiopasdfghjkl;zxcvbnm', 'qwfpbjluy;arstgmneioxcdvzkh'))
 
 
 def _remap(table):

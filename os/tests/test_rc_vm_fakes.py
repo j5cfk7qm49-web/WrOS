@@ -103,7 +103,7 @@ class ConsoleMap(unittest.TestCase):
         good = {str(code): ph.SYMBOL_NAMES.get(vm.LAYOUT_KEYS['colemak_dh'][q][0], vm.LAYOUT_KEYS['colemak_dh'][q][0])
                 for code, q in ph.KEYCODE_QCODES.items()}
         self.assertEqual(ph.console_map_mismatches(good, 'colemak_dh'), [])
-        bad = dict(good, **{'46': 'd'})            # qwerty c key printing d (an angle-mod map)
+        bad = dict(good, **{'44': 'z'})            # qwerty z key printing z (no angle mod)
         report = ph.console_map_mismatches(bad, 'colemak_dh')
         self.assertEqual(len(report), 1)
-        self.assertIn('keycode 46', report[0])
+        self.assertIn('keycode 44', report[0])
