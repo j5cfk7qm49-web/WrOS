@@ -1017,7 +1017,7 @@ def unlock(ctx, m, secrets_, layout, *, wrong_first=True, after_reset=None):
         # the real passphrase typed as if the keyboard were US QWERTY: with a correct non-US map it must fail
         m.type_text(secrets_['luks'] + '\n', 'us' if layout != 'us' else layout)
         try:
-            text = m.wait_screen(r'No key available|incorrect|try again', 120, name='unlock-wrong')
+            text = m.wait_screen(r'No key a.ailable|bad password|incorrect|try again', 120, name='unlock-wrong')
         except TimeoutError:
             m.shot('unlock-qwerty-accepted-or-unclear')
             raise Failure('QWERTY-typed passphrase was not rejected at the LUKS prompt (initramfs layout disagrees with the installer layout?)')
