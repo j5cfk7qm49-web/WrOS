@@ -765,8 +765,7 @@ def hold_for_operator(ctx, g, seconds=1800):
     Ends on a line `quit`, an outcome.json appearing, or the time limit."""
     cmd, out = ctx.dir / 'cmd.txt', ctx.dir / 'out.txt'
     cmd.write_text('')
-    out.write_text('HOLD %s
-' % ctx.dir)
+    out.write_text('HOLD %s' % ctx.dir + chr(10))
     ctx.step('hold-for-operator', seconds=seconds)
     done, deadline = 0, time.monotonic() + seconds
     while time.monotonic() < deadline:
