@@ -1758,6 +1758,8 @@ def phase_rescue(ctx):
         rc, before = gp.run(INITRD_FACTS, 30, check=False)
         ctx.result['initrd_before'] = before
         make_initramfs_trigger_pending(ctx, gp)
+        rc, stz = gp.run("grep -A12 '^Package: initramfs-tools$' /var/lib/dpkg/status | head -14; ls -la /var/lib/dpkg/updates; cat /var/lib/dpkg/triggers/Unincorp /var/lib/dpkg/triggers/File | head -20", 30, check=False)
+        ctx.result['status_stanza_before_poweroff'] = stz
         gp.run('sync; poweroff', 20, check=False)
         mp.wait_exit(120)
         ctx.step('prep-powered-off')
