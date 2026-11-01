@@ -1695,11 +1695,63 @@ def phase_audit(ctx):
     ctx.result['passed'] = rc == 0
 
 
+INITRD_FACTS = ("ls -l --time-style=full-iso /boot/initrd.img-*; stat -c '%Y %n' /boot/initrd.img-*; sha256sum /boot/initrd.img-*; "
+                "findmnt -n -o TARGET,SOURCE /boot")
+
+
+def make_initramfs_trigger_pending(ctx, g):
+    """Leave initramfs-tools with a pending trigger, the way an interrupted package step does. Returns the method."""
+    status_cmd = "dpkg-query -W -f='${Status}' initramfs-tools"
+    attempts = []
+    rc, out = g.run("dpkg-trigger update-initramfs; echo AUDIT-BEGIN; dpkg --audit; echo AUDIT-END; " + status_cmd
+                    + "; echo; ls -l /var/lib/dpkg/triggers/ 2>&1", 60, check=False)
+    attempts.append(out)
+    status = out.split('AUDIT-END')[-1].strip().splitlines()[0] if 'AUDIT-END' in out else ''
+    method = 'dpkg-trigger update-initramfs'
+    if status.strip() == 'install ok installed':
+        # the trigger was only queued in Unincorp: write the state dpkg itself records for a pending trigger
+        script = (
+            "import re\n"
+            "p='/var/lib/dpkg/status'\n"
+            "t=open(p).read()\n"
+            "parts=t.split('\\n\\n')\n"
+            "for i,s in enumerate(parts):\n"
+            " if s.startswith('Package: initramfs-tools\\n'):\n"
+            "  s=s.replace('Status: install ok installed','Status: install ok triggers-pending')\n"
+            "  if 'Triggers-Pending:' not in s:\n"
+            "   s=s.rstrip('\\n')+'\\nTriggers-Pending: update-initramfs'\n"
+            "  parts[i]=s\n"
+            "open(p,'w').write('\\n\\n'.join(parts))\n"
+            "print('EDITED')\n")
+        g.shell.put('/tmp/rctrig.py', script, '0644')
+        rc, out2 = g.run("python3 /tmp/rctrig.py; echo AUDIT-BEGIN; dpkg --audit; echo AUDIT-END; " + status_cmd + "; echo", 60, check=False)
+        attempts.append(out2)
+        status = out2.split('AUDIT-END')[-1].strip().splitlines()[0] if 'AUDIT-END' in out2 else ''
+        method = 'dpkg-trigger left it queued; status entry set to triggers-pending'
+    ctx.result['trigger_attempts'] = attempts
+    ctx.result['trigger_method'] = method
+    ctx.result['initramfs_tools_status_before_rescue'] = status
+    ctx.check('initramfs-tools is not "install ok installed" before the rescue', status.strip() != 'install ok installed' and bool(status.strip()), attempts)
+    return method
+
+
 def phase_rescue(ctx):
+    unfinished = getattr(ctx.args, 'unfinished', False)
     st = load_state(ctx.args.install_run)
     secrets_ = json.loads(Path(st['secrets']).read_text())
+    layout = st['layout']
     overlay = ctx.dir / 'disk.qcow2'
     vm.create_overlay(ctx.args.base_disk or st['disk'], overlay)
+    before = None
+    if unfinished:
+        mp = boot_installed(ctx, st, 'prep', disk=overlay, fmt='qcow2')
+        gp = session_ready(ctx, mp, st, secrets_, layout, greeter=False)
+        rc, before = gp.run(INITRD_FACTS, 30, check=False)
+        ctx.result['initrd_before'] = before
+        make_initramfs_trigger_pending(ctx, gp)
+        gp.run('sync; poweroff', 20, check=False)
+        mp.wait_exit(120)
+        ctx.step('prep-powered-off')
     m = vm.Machine(ctx.dir, 'rescue', memory=3072)
     ctx.machines.append(m)
     m.firmware(vm.fresh_vars(ctx.dir, 'rescue-OVMF_VARS.fd'))
@@ -1743,21 +1795,51 @@ def phase_rescue(ctx):
             ctx.step('rescue-passphrase-sent')
     ctx.check('wros-rescue finished', code is not None)
     ctx.result['rescue_exit_code'] = code
-    ctx.result['rescue_output_tail'] = s.tail(4000)
+    tail = s.tail(4000)
+    ctx.result['rescue_output_tail'] = tail
+    ctx.result['rescue_output_lines_of_interest'] = [ln for ln in tail.splitlines()
+                                                     if re.search(r'rename|/boot|Unlock|Found the installed|[Rr]epair|"status"|warning|refus|mount', ln)]
     ctx.check('passphrase was requested by wros-rescue', sent)
-    ctx.check('wros-rescue finished with exit 0', code == 0, ctx.result['rescue_output_tail'][-1500:])
-    rc, state = g.run("sudo -n sh -c 'ls /dev/mapper; grep -c /target /proc/mounts'", 20, check=False)
-    ctx.check('no mapping or target mount left open', 'wros-rescue-root' not in state, state)
+    ctx.check('wros-rescue finished with exit 0', code == 0, tail[-1500:])
+    ctx.check('rescue did not warn about /boot/efi', 'could not mount /boot/efi' not in tail, tail[-600:])
+    want = 'recovered' if unfinished else 'clean'
+    ctx.check('rescue-repair status is "%s"' % want, ('"status": "%s"' % want) in tail, tail[-800:])
+    rc, state = g.run("sudo -n sh -c 'ls /dev/mapper; echo TARGETMOUNTS=$(grep -c /target /proc/mounts)'", 20, check=False)
+    ctx.result['after_rescue_live_state'] = state
+    entries = [x.strip() for x in state.split('TARGETMOUNTS=')[0].split() if x.strip()]
+    mounts = state.split('TARGETMOUNTS=')[-1].strip().splitlines()[0] if 'TARGETMOUNTS=' in state else '?'
+    ctx.check('only /dev/mapper/control remains and no /target mount is left', entries == ['control'] and mounts == '0', state)
     rc, header2 = g.run(head, 60)
     ctx.check('LUKS header unchanged', header == header2, (header, header2))
     ctx.check('no secret in serial transcript', not s.contains(secrets_['luks']))
     g.run('sudo -n /sbin/poweroff', 20, check=False)
     m.wait_exit(120)
     m2 = boot_installed(ctx, st, 'after-rescue', disk=overlay, fmt='qcow2', reboot=True)
-    g2 = session_ready(ctx, m2, st, secrets_, st['layout'])
-    rc, out = g2.run('dpkg-query -W wros; dpkg --audit; echo DONE', 30, check=False)
+    g2 = session_ready(ctx, m2, st, secrets_, layout)
+    probe = (INITRD_FACTS + "; echo FACTS-END; dpkg --audit; echo AUDIT_DONE; dpkg-query -W -f='${Status}' initramfs-tools; echo; "
+             "mkdir -p /mnt/rcroot; mount --bind / /mnt/rcroot; echo ROOTBOOT-BEGIN; ls -la /mnt/rcroot/boot; echo ROOTBOOT-END; umount /mnt/rcroot; "
+             "dpkg-query -W wros")
+    rc, out = g2.run(probe, 60, check=False)
     ctx.result['after_rescue_state'] = out
-    ctx.check('disk boots and logs in after rescue', 'wros' in out)
+    ctx.check('disk boots, unlocks with the Colemak-DH passphrase and logs in after rescue', 'wros' in out)
+    audit = out.split('FACTS-END')[-1].split('AUDIT_DONE')[0]
+    ctx.check('dpkg --audit is clean after rescue', not audit.replace('dpkg-query', '').strip(), audit)
+    status_line = out.split('AUDIT_DONE')[-1].strip().splitlines()[0] if 'AUDIT_DONE' in out else ''
+    ctx.check('initramfs-tools is fully installed after rescue', status_line.strip() == 'install ok installed', status_line)
+    rootboot = out.split('ROOTBOOT-BEGIN')[-1].split('ROOTBOOT-END')[0]
+    ctx.check("the root filesystem's own /boot has no initrd (nothing was written under the unmounted /boot)", 'initrd' not in rootboot, rootboot)
+    if unfinished:
+        def facts(text):
+            mtimes = dict((n, int(t)) for t, n in re.findall(r'^(\d{9,}) (/boot/initrd\.img-\S+)$', text, re.M))
+            hashes = dict((n, h) for h, n in re.findall(r'^([0-9a-f]{64})  (/boot/initrd\.img-\S+)$', text, re.M))
+            return mtimes, hashes
+        mt0, h0 = facts(before)
+        mt1, h1 = facts(out.split('FACTS-END')[0])
+        ctx.result['initrd_mtime_hash_before'] = {'mtime': mt0, 'sha256': h0}
+        ctx.result['initrd_mtime_hash_after'] = {'mtime': mt1, 'sha256': h1}
+        ctx.check('/boot initrd was rebuilt: newer mtime and a different hash',
+                  bool(mt0) and all(mt1.get(n, 0) > t for n, t in mt0.items()) and all(h1.get(n) not in (None, h) for n, h in h0.items()),
+                  (mt0, mt1, h0, h1))
     ctx.result['passed'] = True
 
 
@@ -1783,6 +1865,7 @@ def main():
     parser.add_argument('--hint-wait', type=int, default=900)
     parser.add_argument('--apply-wait', type=int, default=1500)
     parser.add_argument('--cut-at', default='9', help='powercut: seconds after the passphrase is typed')
+    parser.add_argument('--unfinished', action='store_true', help='rescue: leave initramfs-tools trigger-pending first (repair path)')
     parser.add_argument('--hold', action='store_true', help='on a stage failure keep the VM up for read-only operator commands (cmd.txt)')
     parser.add_argument('--diagnose', action='store_true', help='install phase: collect installer logs and state read-only before stopping')
     args = parser.parse_args()
