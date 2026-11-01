@@ -1301,7 +1301,13 @@ def phase_update(ctx):
         ctx.result['passed'] = True
         return
 
-    stage_update(ctx, g, layout)
+    try:
+        stage_update(ctx, g, layout)
+    except Failure:
+        if getattr(ctx.args, 'hold', False):
+            ctx.step('holding-after-failure')
+            hold_for_operator(ctx, g, 1500)
+        raise
 
     if variant == 'cancel':
         g.choose(r'Cancel staged update')
@@ -1713,6 +1719,7 @@ def main():
     parser.add_argument('--media-fs', default='ext4', choices=['ext4', 'vfat'])
     parser.add_argument('--cut-delay', default='2')
     parser.add_argument('--hint-wait', type=int, default=900)
+    parser.add_argument('--hold', action='store_true', help='on a stage failure keep the VM up for read-only operator commands (cmd.txt)')
     parser.add_argument('--diagnose', action='store_true', help='install phase: collect installer logs and state read-only before stopping')
     args = parser.parse_args()
     if os.geteuid() == 0:
