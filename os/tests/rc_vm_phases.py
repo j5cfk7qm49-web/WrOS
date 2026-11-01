@@ -766,6 +766,18 @@ def secret_variants(secrets_, typed_layout):
     return variants
 
 
+def secret_readings(value, typed_layout):
+    """{layout name: the string those physical keys produce under that layout}; labels only, for diagnosis."""
+    chords = vm.keystrokes(value, typed_layout)
+    out = {}
+    for layout, table in vm.LAYOUT_KEYS.items():
+        text = ''
+        for chord in chords:
+            text += table[chord[1]][1] if chord[0] == 'shift' else table[chord[0]][0]
+        out[layout] = text
+    return out
+
+
 def fetch_guest_file(g, path):
     """Whole file as bytes over the serial shell (gzip+base64, read-only), or None when absent."""
     rc, out = g.run("sudo -n sh -c 'if [ -f %s ]; then gzip -c %s | base64 -w0; echo; else echo MISSING; fi'" % (path, path),
@@ -1379,6 +1391,23 @@ def phase_peek(ctx):
     g = live_login(ctx, m)
     g.shell.put('/dev/shm/rckey', secrets_['luks'], '0600')
     g.shell.put('/tmp/rcopen.sh', OPEN_LUKS_SCRIPT, '0644')
+    # DIAGNOSIS (labelled): which reading of the typed physical keys is the real passphrase?
+    typed = ctx.args.layout
+    readings = secret_readings(secrets_['luks'], typed)
+    g.shell.put('/tmp/rctest.sh', LUKS_DEV + chr(10) + 'cryptsetup open --test-passphrase --key-file "$1" $dev; echo rc=$?' + chr(10), '0644')
+    matches = []
+    for layout, text in readings.items():
+        g.shell.put('/dev/shm/rckey_try', text, '0600')
+        rc, res = g.run('sudo -n sh /tmp/rctest.sh /dev/shm/rckey_try', 60, check=False)
+        ok = 'rc=0' in res
+        ctx.step('luks-reading-test', typed_as=typed, read_as=layout, opens=ok)
+        if ok:
+            matches.append(layout)
+            g.shell.put('/dev/shm/rckey', text, '0600')
+    g.run('shred -u /dev/shm/rckey_try', 20, check=False)
+    ctx.result['luks_opened_by_reading'] = matches
+    if not matches:
+        raise Failure('no reading of the typed keys opens the volume')
     rc, out = g.run('sudo -n sh /tmp/rcopen.sh rcpeek --readonly', 120)
     ctx.result['peek_lsblk'] = out
     rc, out2 = g.run('ls /dev/mapper', 20)
