@@ -1035,6 +1035,7 @@ def unlock(ctx, m, secrets_, layout, *, wrong_first=True, after_reset=None):
     m.shot('unlock-prompt')
     ctx.step('unlock-prompt-seen', screen=text[-300:])
     ctx.check('unlock prompt is on tty1 only (no QA console argument)', True)
+    time.sleep(3)  # let askpass switch the tty to no-echo: keys typed earlier are flushed and echoed on screen
     if wrong_first:
         # the real passphrase typed as if the keyboard were US QWERTY: with a correct non-US map it must fail
         m.type_text(secrets_['luks'] + '\n', 'us' if layout != 'us' else layout)
@@ -1046,7 +1047,9 @@ def unlock(ctx, m, secrets_, layout, *, wrong_first=True, after_reset=None):
         m.shot('unlock-rejected')
         ctx.result['unlock_wrong_screen'] = text[-400:]
         ctx.check('wrong passphrase rejected', True)
-        m.wait_screen(r'Please unlock disk', 120, name='unlock-again')
+        # a NEW prompt after the error text: the first prompt line is still on the screen and must not satisfy this
+        m.wait_screen(r'(?s)Please unlock disk.*Please unlock disk', 120, name='unlock-again')
+        time.sleep(3)
     m.type_text(secrets_['luks'] + '\n', layout)
     ctx.step('luks-typed', layout=layout)
 
