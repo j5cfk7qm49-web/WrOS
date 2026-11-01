@@ -24,7 +24,7 @@
   "upstream_base_commit": "f3ca1e8",
   "notes": [
     "dest paths are relative to the image root. class: code/config entries are compared byte-for-byte with the repository source by the image audit; doc entries are covered by the package md5sums only; binary/generated entries come from build inputs.",
-    "pending: true marks files owned by the in-flight update-engine workstream. Staging installs them when the source exists and warns when it does not; the image audit requires them either way. Clear the flag once the integrated tree carries them so the audit also compares them with the repository.",
+    "pending: true would mark files of a workstream not yet merged (staging warns instead of failing). No entry is pending: the update engine is integrated, so a missing source fails staging and the audit compares every file with the repository.",
     "Only /etc/writingdeck/keyboard.json is a conffile: the writer's committed layout must survive an update. Policy, unit and drop-in files under /etc are intentionally ordinary package files so an authenticated update replaces them authoritatively."
   ],
   "files": [
@@ -37,14 +37,14 @@
     {"dest": "usr/libexec/wros-lock", "source": "os/scripts/wros-lock", "mode": "0755", "class": "code"},
     {"dest": "usr/libexec/wros-backup", "source": "os/scripts/wros-backup", "mode": "0755", "class": "code"},
 
-    {"dest": "usr/libexec/wros-update", "source": "os/scripts/wros-update", "mode": "0755", "class": "code", "pending": true},
-    {"dest": "usr/libexec/wros-update-stage", "source": "os/scripts/wros-update-stage", "mode": "0755", "class": "code", "pending": true},
-    {"dest": "usr/libexec/wros-update-cancel", "source": "os/scripts/wros-update-cancel", "mode": "0755", "class": "code", "pending": true},
-    {"dest": "usr/libexec/wros-update-repair", "source": "os/scripts/wros-update-repair", "mode": "0755", "class": "code", "pending": true},
-    {"dest": "usr/libexec/wros-update-media", "source": "os/scripts/wros-update-media", "mode": "0755", "class": "code", "pending": true},
-    {"dest": "usr/lib/wros-update/engine.py", "source_candidates": ["os/scripts/wros-update-engine.py", "os/scripts/wros_update_engine.py", "os/scripts/wros-update-engine"], "mode": "0644", "class": "code", "pending": true},
-    {"dest": "usr/share/polkit-1/actions/org.wros.update.policy", "source": "os/config/org.wros.update.policy", "mode": "0644", "class": "config", "pending": true},
-    {"dest": "etc/polkit-1/rules.d/50-wros-update.rules", "source": "os/config/50-wros-update.rules", "mode": "0644", "class": "config", "pending": true},
+    {"dest": "usr/libexec/wros-update", "source": "os/scripts/wros-update", "mode": "0755", "class": "code"},
+    {"dest": "usr/libexec/wros-update-stage", "source": "os/scripts/wros-update-stage", "mode": "0755", "class": "code"},
+    {"dest": "usr/libexec/wros-update-cancel", "source": "os/scripts/wros-update-cancel", "mode": "0755", "class": "code"},
+    {"dest": "usr/libexec/wros-update-repair", "source": "os/scripts/wros-update-repair", "mode": "0755", "class": "code"},
+    {"dest": "usr/libexec/wros-update-media", "source": "os/scripts/wros-update-media", "mode": "0755", "class": "code"},
+    {"dest": "usr/lib/wros-update/engine.py", "source": "os/scripts/wros-update-engine.py", "mode": "0644", "class": "code"},
+    {"dest": "usr/share/polkit-1/actions/org.wros.update.policy", "source": "os/config/org.wros.update.policy", "mode": "0644", "class": "config"},
+    {"dest": "etc/polkit-1/rules.d/50-wros-update.rules", "source": "os/config/50-wros-update.rules", "mode": "0644", "class": "config"},
 
     {"dest": "etc/profile.d/writingdeck.sh", "source": "os/config/writingdeck-profile.sh", "mode": "0644", "class": "config"},
     {"dest": "etc/writingdeck/keyboard.json", "source": "os/config/keyboard.json", "mode": "0644", "class": "config", "conffile": true},
@@ -64,8 +64,8 @@
     {"dest": "etc/systemd/system/wros-display-revert.service", "source": "os/systemd/wros-display-revert.service", "mode": "0644", "class": "config"},
     {"dest": "etc/systemd/system/wros-display-revert.timer", "source": "os/systemd/wros-display-revert.timer", "mode": "0644", "class": "config"},
     {"dest": "etc/systemd/system/wros-display.service", "source": "os/systemd/wros-display.service", "mode": "0644", "class": "config"},
-    {"dest": "etc/systemd/system/wros-offline-update.service", "source": "os/systemd/wros-offline-update.service", "mode": "0644", "class": "config", "pending": true},
-    {"dest": "etc/systemd/system/wros-update-reconcile.service", "source": "os/systemd/wros-update-reconcile.service", "mode": "0644", "class": "config", "pending": true},
+    {"dest": "etc/systemd/system/wros-offline-update.service", "source": "os/systemd/wros-offline-update.service", "mode": "0644", "class": "config"},
+    {"dest": "etc/systemd/system/wros-update-reconcile.service", "source": "os/systemd/wros-update-reconcile.service", "mode": "0644", "class": "config"},
 
     {"dest": "etc/systemd/logind.conf.d/60-wros-power-guard.conf", "source": "os/config/60-wros-power-guard.conf", "mode": "0644", "class": "config"},
     {"dest": "etc/systemd/sleep.conf.d/60-wros-sleep-guard.conf", "source": "os/config/60-wros-sleep-guard.conf", "mode": "0644", "class": "config"},
@@ -92,8 +92,8 @@
   "enable": [
     {"unit": "writingdeck-keyboard.service", "target": "multi-user.target", "verify_install_section": false},
     {"unit": "wros-display.service", "target": "multi-user.target", "verify_install_section": false},
-    {"unit": "wros-offline-update.service", "target": "system-update.target", "verify_install_section": true, "pending": true},
-    {"unit": "wros-update-reconcile.service", "target": "multi-user.target", "verify_install_section": true, "pending": true}
+    {"unit": "wros-offline-update.service", "target": "system-update.target", "verify_install_section": true},
+    {"unit": "wros-update-reconcile.service", "target": "multi-user.target", "verify_install_section": true}
   ],
   "update_polkit_actions": {
     "org.wros.update.stage": "/usr/libexec/wros-update-stage",

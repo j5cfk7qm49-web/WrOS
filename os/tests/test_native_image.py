@@ -1,4 +1,6 @@
 """Real staged-dpkg and policy mutations; no root, services or host state."""
+import contextlib
+import dataclasses
 import hashlib
 import importlib.util
 from pathlib import Path
@@ -171,14 +173,41 @@ def install_trust(root, keyring, fingerprint):
         path.chmod(mode)
 
 
-def replace_package_file(root, relative, data):
-    """Change a package-owned file *and* its dpkg md5sum, so only the targeted rule can object."""
+# dest -> bytes a test declares to be the qualified repository source (see qualify=True below).
+QUALIFIED = {}
+
+
+def replace_package_file(root, relative, data, qualify=False):
+    """Change a package-owned file *and* its dpkg md5sum. With qualify=True the new bytes also stand in
+    for the repository source, so a semantic rule (keyring use, polkit actions) is what must object
+    rather than the byte comparison with the repository, which has its own tests."""
+    if qualify:
+        QUALIFIED[relative] = data
     path = root / relative
     path.write_bytes(data)
     sums = root / 'var/lib/dpkg/info/wros.md5sums'
     rows = [row for row in sums.read_text().splitlines() if not row.endswith('  ' + relative)]
     rows.append('%s  %s' % (hashlib.md5(data).hexdigest(), relative))
     sums.write_text('\n'.join(sorted(rows, key=lambda r: r.split('  ', 1)[1])) + '\n')
+
+
+@contextlib.contextmanager
+def qualified_sources(scratch):
+    """Serve QUALIFIED bytes as the repository source of those package paths, for this audit only."""
+    real = module.packaging.expand
+
+    def expand(*args, **kwargs):
+        specs = []
+        for spec in real(*args, **kwargs):
+            if spec.dest in QUALIFIED and spec.source is not None:
+                source = scratch / ('qualified-' + spec.dest.replace('/', '_'))
+                source.write_bytes(QUALIFIED[spec.dest])
+                spec = dataclasses.replace(spec, source=source)
+            specs.append(spec)
+        return specs
+
+    with mock.patch.object(module.packaging, 'expand', expand):
+        yield
 
 
 class NativeImage(unittest.TestCase):
@@ -301,7 +330,8 @@ def is_wros(stanza):
 class PackageAwareAudit(unittest.TestCase):
     def refused(self, mutate, pattern, **audit_arguments):
         tmp, root, info = staged_image()
-        with tmp:
+        QUALIFIED.clear()
+        with tmp, qualified_sources(Path(tmp.name)):
             mutate(root, info)
             with self.assertRaisesRegex(ValueError, pattern):
                 module.audit(root, **audit_arguments)
@@ -400,7 +430,7 @@ class PackageAwareAudit(unittest.TestCase):
         for relative in ('usr/libexec/wros-update', 'usr/libexec/wros-update-stage', 'usr/lib/wros-update/engine.py'):
             with self.subTest(relative=relative):
                 self.refused(lambda r, i, relative=relative: replace_package_file(
-                    r, relative, b'KEYRING = "/usr/share/keyrings/debian-archive-keyring.gpg"\n'),
+                    r, relative, b'KEYRING = "/usr/share/keyrings/debian-archive-keyring.gpg"\n', qualify=True),
                     'Debian archive keyring')
         # APT still needs the base keyring: its absence is refused too.
         tmp, root, info = staged_image()
@@ -494,11 +524,11 @@ class PackageAwareAudit(unittest.TestCase):
             'keyboard unit not enabled': (lambda r, i: (
                 r / 'etc/systemd/system/multi-user.target.wants/writingdeck-keyboard.service').unlink(), 'not enabled'),
             'offline unit without [Install]': (lambda r, i: replace_package_file(
-                r, offline, b'[Unit]\nDescription=x\n[Service]\nExecStart=/bin/true\n'), 'does not declare'),
+                r, offline, b'[Unit]\nDescription=x\n[Service]\nExecStart=/bin/true\n', qualify=True), 'does not declare'),
             'offline unit wanted by the wrong target': (lambda r, i: replace_package_file(
-                r, offline, b'[Install]\nWantedBy=multi-user.target\n'), 'does not declare'),
+                r, offline, b'[Install]\nWantedBy=multi-user.target\n', qualify=True), 'does not declare'),
             'reconcile unit for the wrong target': (lambda r, i: replace_package_file(
-                r, reconcile, b'[Install]\nWantedBy=system-update.target\n'), 'does not declare'),
+                r, reconcile, b'[Install]\nWantedBy=system-update.target\n', qualify=True), 'does not declare'),
             'link points elsewhere': (relink(offline_link, '../other.service'), 'not enabled'),
             'link is masked': (relink(reconcile_link, '/dev/null'), 'not enabled'),
         }
@@ -522,19 +552,19 @@ class PackageAwareAudit(unittest.TestCase):
 
         cases = {
             'extra action': (lambda r, i: replace_package_file(r, policy, text.replace(
-                '</policyconfig>', action('org.wros.update.shell') + '</policyconfig>').encode()), 'not exactly'),
+                '</policyconfig>', action('org.wros.update.shell') + '</policyconfig>').encode(), qualify=True), 'not exactly'),
             'missing action': (lambda r, i: replace_package_file(r, policy, text.replace(
-                'org.wros.update.media', 'org.wros.update.other').encode()), 'not exactly'),
+                'org.wros.update.media', 'org.wros.update.other').encode(), qualify=True), 'not exactly'),
             'wrong exec path': (lambda r, i: replace_package_file(r, policy, text.replace(
-                '/usr/libexec/wros-update-cancel', '/usr/libexec/wros-update').encode()), 'exec path'),
+                '/usr/libexec/wros-update-cancel', '/usr/libexec/wros-update').encode(), qualify=True), 'exec path'),
             'implicit yes': (lambda r, i: replace_package_file(r, policy, text.replace(
-                '<allow_active>no', '<allow_active>yes', 1).encode()), 'default to no'),
+                '<allow_active>no', '<allow_active>yes', 1).encode(), qualify=True), 'default to no'),
             'duplicate action': (lambda r, i: replace_package_file(r, policy, text.replace(
-                '</policyconfig>', action('org.wros.update.stage') + '</policyconfig>').encode()), 'duplicate'),
+                '</policyconfig>', action('org.wros.update.stage') + '</policyconfig>').encode(), qualify=True), 'duplicate'),
             'update action in another policy file': (hidden, 'not exactly'),
             'rules not group-restricted': (lambda r, i: replace_package_file(
                 r, rules, b'polkit.addRule(function(a, s) { if (a.id.indexOf("org.wros.update.") == 0) '
-                          b'return polkit.Result.YES; });\n'), 'restrict'),
+                          b'return polkit.Result.YES; });\n', qualify=True), 'restrict'),
             'policy missing': (lambda r, i: (r / policy).unlink(), 'missing'),
         }
         for name, (mutate, pattern) in cases.items():

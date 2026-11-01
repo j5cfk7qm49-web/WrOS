@@ -32,6 +32,24 @@ def tool_available(name):
     return shutil.which(name) is not None
 
 
+def pseudo_root_prefix():
+    """Command prefix that runs install-files.sh as (pseudo-)root: nothing when already root, otherwise an
+    unprivileged user namespace, so the non-root qualification account exercises staging too. None when
+    neither is possible."""
+    if os.geteuid() == 0:
+        return []
+    # A chrooted caller may not create a user namespace (EPERM), so fakeroot is the fallback; the
+    # script only needs file ownership and dpkg --root, which fakeroot fakes.
+    for prefix in (['unshare', '--user', '--map-root-user', '--'], ['fakeroot', '--']):
+        if tool_available(prefix[0]) and subprocess.run(prefix + ['sh', '-c', 'test "$(id -u)" = 0'],
+                                                        capture_output=True).returncode == 0:
+            return prefix
+    return None
+
+
+PSEUDO_ROOT = pseudo_root_prefix()
+
+
 def copy_repo(destination):
     """The subset of the checkout the packaging path reads, as an editable copy."""
     destination = Path(destination)
@@ -268,25 +286,25 @@ class Builder(unittest.TestCase):
                 packaging.build_deb(binaries_dir=Path(other) / 'nope', version='0.1.0~rc1', output_dir=other,
                                     repo=ROOT, keymaps_dir=keymaps, commit='a' * 40, epoch=EPOCH)
 
-    def test_missing_repository_source_is_an_error_but_a_pending_one_is_a_warning(self):
-        with tempfile.TemporaryDirectory(prefix='wros-pending-') as other:
+    def test_every_missing_repository_source_is_an_error_including_the_update_engine(self):
+        with tempfile.TemporaryDirectory(prefix='wros-missing-') as other:
             other = Path(other)
             repo = copy_repo(other / 'repo')
             binaries, keymaps = stub_inputs(other)
-            (repo / 'os/config/60-wros-sysrq.conf').unlink()
-            with self.assertRaisesRegex(packaging.PackagingError, 'missing source file'):
-                build(repo, other / 'out', binaries, keymaps)
-            shutil.copyfile(ROOT / 'os/config/60-wros-sysrq.conf', repo / 'os/config/60-wros-sysrq.conf')
-            add_update_engine(repo)
             full = build(repo, other / 'full', binaries, keymaps)
-            (repo / 'os/scripts/wros-update-stage').unlink()
-            (repo / 'os/systemd/wros-update-reconcile.service').unlink()
-            partial = build(repo, other / 'partial', binaries, keymaps)
-            names = lambda deb: {row.split()[-1] for row in run('dpkg-deb', '--contents', str(deb)).stdout.splitlines()}
-            self.assertIn('./usr/libexec/wros-update-stage', names(full))
-            self.assertNotIn('./usr/libexec/wros-update-stage', names(partial))
-            self.assertNotIn('./etc/systemd/system/wros-update-reconcile.service', names(partial))
-            self.assertIn('./usr/lib/wros-update/engine.py', names(partial))
+            names = {row.split()[-1] for row in run('dpkg-deb', '--contents', str(full)).stdout.splitlines()}
+            for packaged in ('./usr/libexec/wros-update-stage', './usr/lib/wros-update/engine.py',
+                             './etc/systemd/system/wros-update-reconcile.service'):
+                self.assertIn(packaged, names)
+            for index, relative in enumerate(('os/config/60-wros-sysrq.conf', 'os/scripts/wros-update-stage',
+                                              'os/scripts/wros-update-engine.py',
+                                              'os/systemd/wros-update-reconcile.service')):
+                with self.subTest(missing=relative):
+                    saved = (repo / relative).read_bytes()
+                    (repo / relative).unlink()
+                    with self.assertRaisesRegex(packaging.PackagingError, 'missing source file'):
+                        build(repo, other / ('out%d' % index), binaries, keymaps)
+                    (repo / relative).write_bytes(saved)
 
     @unittest.skipUnless(tool_available('cc') and tool_available('pkg-config')
                          and subprocess.run(['pkg-config', '--exists', 'libdrm']).returncode == 0,
@@ -650,7 +668,7 @@ class ManifestData(unittest.TestCase):
                 packaging.source_date_epoch(tmp, {})
 
 
-@unittest.skipUnless(os.geteuid() == 0, 'install-files.sh stages into a root and requires (pseudo-)root')
+@unittest.skipUnless(PSEUDO_ROOT is not None, 'install-files.sh stages into a root and needs root or a user namespace')
 @unittest.skipUnless(tool_available('dpkg-deb') and tool_available('gpg'), 'needs the Debian packaging tools')
 class StageIntoRoot(unittest.TestCase):
     """os/scripts/install-files.sh against a throwaway Debian-shaped root and a throwaway repository copy."""
@@ -694,7 +712,7 @@ class StageIntoRoot(unittest.TestCase):
         return repo, root, env, work
 
     def stage(self, repo, root, env, work, profile='installer'):
-        return subprocess.run(['bash', str(repo / 'os/scripts/install-files.sh'), str(root), str(work / 'grimoire'),
+        return subprocess.run([*PSEUDO_ROOT, 'bash', str(repo / 'os/scripts/install-files.sh'), str(root), str(work / 'grimoire'),
                                profile], capture_output=True, text=True, env=env)
 
     def test_staging_installs_the_package_trust_anchors_and_enabled_units(self):
@@ -799,16 +817,18 @@ class StageIntoRoot(unittest.TestCase):
         self.assertIn('no [Install]', result.stderr)
         self.assertFalse((root / 'etc/systemd/system/system-update.target.wants').exists())
 
-    def test_absent_update_engine_files_are_tolerated_while_the_tree_lacks_them(self):
-        repo, root, env, work = self.prepare(engine=False)
-        (repo / 'os/systemd/wros-offline-update.service').write_bytes(
-            native.PLACEHOLDERS['etc/systemd/system/wros-offline-update.service'])
-        result = self.stage(repo, root, env, work)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn('pending file not in this tree', result.stderr)
-        self.assertIn('pending unit not present', result.stderr)
-        self.assertFalse((root / 'usr/libexec/wros-update-stage').exists())
-        self.assertFalse((root / 'etc/systemd/system/multi-user.target.wants/wros-update-reconcile.service').exists())
+    def test_missing_update_engine_files_are_refused_now_that_the_engine_is_integrated(self):
+        for relative in ('os/scripts/wros-update-stage', 'os/scripts/wros-update-engine.py',
+                         'os/systemd/wros-update-reconcile.service'):
+            with self.subTest(missing=relative):
+                repo, root, env, work = self.prepare(engine=False)
+                (repo / relative).unlink()
+                result = self.stage(repo, root, env, work)
+                self.assertNotEqual(result.returncode, 0, result.stderr)
+                self.assertIn('missing source file', result.stderr)
+                self.assertNotIn('pending', result.stderr)
+                self.assertFalse((root / 'usr/libexec/wros-update-stage').exists())
+                self.assertFalse((root / 'etc/systemd/system/multi-user.target.wants/wros-update-reconcile.service').exists())
 
     def test_downgrade_and_wrong_prebuilt_package_and_live_root_are_refused(self):
         repo, root, env, work = self.prepare()
