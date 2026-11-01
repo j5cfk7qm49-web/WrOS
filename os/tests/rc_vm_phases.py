@@ -572,6 +572,7 @@ def run_installer(ctx, g, secrets_, *, after_action=None, stuck_seconds=1500, de
     acted = None
     last_sig, last_change = None, time.monotonic()
     seen_vt7 = False
+    menu_since = None
     steps = []
     while True:
         ctx.guard()
@@ -594,6 +595,19 @@ def run_installer(ctx, g, secrets_, *, after_action=None, stuck_seconds=1500, de
             if time.monotonic() - last_change > stuck_seconds:
                 raise Failure('installer screen unchanged for %ds' % stuck_seconds)
             time.sleep(2)
+            continue
+        if 'Choose the next step in the install process' in form.raw:
+            # d-i main menu: Debian's default is "Finish the installation", but the supervisor judges the
+            # install only after the installer exits. Never press anything here; give it time to exit on
+            # its own, then stop driving and let the caller judge (and diagnose) the state.
+            menu_since = menu_since or time.monotonic()
+            if time.monotonic() - menu_since > 150:
+                ctx.result['installer_stuck_at_main_menu'] = form.raw
+                ctx.step('installer-stuck-at-main-menu', seconds=150)
+                m.shot('stuck-main-menu')
+                ctx.result['installer_steps'] = steps
+                return snap
+            time.sleep(3)
             continue
         decision = forms.decide(form, rule_list)
         if decision is None:
