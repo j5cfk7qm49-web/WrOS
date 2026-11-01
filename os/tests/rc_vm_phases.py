@@ -1526,8 +1526,10 @@ def phase_audit(ctx):
     for mountpoint, device in sorted(mounts, key=lambda x: len(x[0])):
         g.run("sudo -n sh -c 'mkdir -p /mnt/rc%s && mount %s /mnt/rc%s'" % (mountpoint, device, mountpoint), 30)
     ctx.check('/boot and /boot/efi mounted from fstab', len(mounts) == 2, mounts)
-    for d in ('proc', 'sys', 'dev', 'run'):
+    for d in ('proc', 'sys', 'dev'):
         g.run('sudo -n mount --rbind /%s /mnt/rc/%s' % (d, d), 30)
+    # a fresh /run: binding the live system's /run would plant its /run/wros-live marker in the target and trip the hygiene proof
+    g.run('sudo -n mount -t tmpfs -o mode=755 tmpfs /mnt/rc/run', 30)
     # carry the candidate script into a scratch path inside the target (never over the installed copy)
     g.shell.put('/dev/shm/cand-script', script, '0600')
     g.run("sudo -n sh -c 'mkdir -p /mnt/rc/root/rc-audit-scratch && cp /dev/shm/cand-script /mnt/rc/root/rc-audit-scratch/wros-install-session "
