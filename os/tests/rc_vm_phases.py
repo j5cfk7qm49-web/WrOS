@@ -1700,19 +1700,27 @@ INITRD_FACTS = ("ls -l --time-style=full-iso /boot/initrd.img-*; stat -c '%Y %n'
 
 
 def make_initramfs_trigger_pending(ctx, g):
+    nl = chr(10)
     """Leave initramfs-tools with a pending trigger, the way an interrupted package step does. Returns the method."""
     status_cmd = "dpkg-query -W -f='${Status}' initramfs-tools"
     attempts = []
-    out = ''
-    method = None
-    for by in ('initramfs-tools', 'kbd', 'dpkg'):
-        rc, out = g.run("dpkg-trigger --by-package=%s update-initramfs; echo AUDIT-BEGIN; dpkg --audit; echo AUDIT-END; " % by + status_cmd
-                        + "; echo; ls -l /var/lib/dpkg/triggers/Unincorp 2>&1", 60, check=False)
-        attempts.append('--by-package=%s' % by + chr(10) + out)
-        st_line = out.split('AUDIT-END')[-1].strip().splitlines()[0] if 'AUDIT-END' in out else ''
-        if st_line.strip() != 'install ok installed' and st_line.strip():
-            method = 'dpkg-trigger --by-package=%s update-initramfs' % by
-            break
+    # A real dpkg-written unfinished state: a tiny local package whose postinst activates update-initramfs,
+    # installed with --no-triggers, so dpkg records initramfs-tools as triggers-pending in its status file.
+    control = nl.join(['Package: rcprobe', 'Version: 1', 'Architecture: all', 'Maintainer: qa <qa@example.invalid>',
+                       'Description: qa probe that activates update-initramfs', ''])
+    postinst = nl.join(['#!/bin/sh', 'set -e', 'if [ "$1" = configure ]; then dpkg-trigger update-initramfs; fi', 'exit 0', ''])
+    g.run('mkdir -p /tmp/rcp/DEBIAN', 20)
+    g.shell.put('/tmp/rcp/DEBIAN/control', control, '0644')
+    g.shell.put('/tmp/rcp/DEBIAN/postinst', postinst, '0755')
+    rc, out = g.run("dpkg-deb --build /tmp/rcp /tmp/rcprobe.deb >/dev/null && dpkg --no-triggers -i /tmp/rcprobe.deb 2>&1 | tail -5; echo AUDIT-BEGIN; dpkg --audit; echo AUDIT-END; "
+                    + status_cmd + "; echo; grep -A2 '^Package: initramfs-tools$' /var/lib/dpkg/status", 120, check=False)
+    attempts.append(out)
+    st_line = out.split('AUDIT-END')[-1].strip().splitlines()[0] if 'AUDIT-END' in out else ''
+    method = 'dpkg --no-triggers -i of a local package whose postinst runs dpkg-trigger update-initramfs'
+    if st_line.strip() == 'install ok installed':
+        method = None
+    out_last = out
+    out = out_last
     status = out.split('AUDIT-END')[-1].strip().splitlines()[0] if 'AUDIT-END' in out else ''
     if method is None:
         method = 'dpkg-trigger could not leave it pending'
