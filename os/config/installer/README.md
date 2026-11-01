@@ -77,7 +77,7 @@ Colemak Mod-DH (ANSI/ISO); these are the variants `writingdeck-keyboard` adopts.
   each must produce. Regenerate with `tools/generate-installer-keymaps.py
   CONSOLE_SETUP_UDEB os/config/installer/keymaps`. `build-live-backend.sh`
   regenerates from the udebs it actually used and fails on any difference.
-- `S21wros-keymaps` runs after `S20templates`. It appends the maps, checks each
+- `S21wros-keymaps` (in the merged-usr `/usr/lib/debian-installer-startup.d`) runs after `S20templates`. It appends the maps, checks each
   one through the installer's own `ckbcomp-mini` byte for byte, and only then
   loads the extended question. Otherwise the stock list stays, so a passphrase is
   never typed under a map the installer could not load.

@@ -62,7 +62,7 @@ dpkg-deb --root-owner-group -Zxz --build "$package" build/localudebs/wros-cdebco
 
 # Colemak for the keymap question and the installed initramfs; see os/config/installer/README.md.
 keymaps="$dest/keymaps-package"
-mkdir -p "$keymaps/DEBIAN" "$keymaps/lib/debian-installer-startup.d" "$keymaps/usr/lib/finish-install.d" \
+mkdir -p "$keymaps/DEBIAN" "$keymaps/usr/lib/debian-installer-startup.d" "$keymaps/usr/lib/finish-install.d" \
     "$keymaps/usr/share/wros-keymaps"
 cat > "$keymaps/DEBIAN/control" <<'CONTROL'
 Package: wros-installer-keymaps
@@ -74,7 +74,7 @@ Maintainer: WrOS project
 Depends: console-setup-udeb (= 1.242~deb13u1), console-setup-pc-ekmap (= 1.242~deb13u1), cdebconf-udeb
 Description: WrOS Colemak keymaps for the maintained Debian installer keymap question
 CONTROL
-install -m755 "$repo/os/config/installer/keymaps/S21wros-keymaps" "$keymaps/lib/debian-installer-startup.d/"
+install -m755 "$repo/os/config/installer/keymaps/S21wros-keymaps" "$keymaps/usr/lib/debian-installer-startup.d/"
 install -m755 "$repo/os/config/installer/keymaps/13wros-initramfs-keymap" "$keymaps/usr/lib/finish-install.d/"
 install -m644 "$repo/os/config/installer/keymaps/xkb-keymap.templates" "$repo/os/config/installer/keymaps/colemak.ekmap.gz" \
     "$repo/os/config/installer/keymaps/keymaps.sha256" "$keymaps/usr/share/wros-keymaps/"
@@ -137,7 +137,7 @@ with tempfile.TemporaryDirectory() as fresh:
     for name in ('xkb-keymap.templates','colemak.ekmap.gz','keymaps.sha256'):
         assert digest(Path(fresh)/name)==digest(committed/name),'regenerate os/config/installer/keymaps: '+name
 assert any(Path(n).name.startswith('wros-installer-keymaps') for n in udebs)
-keymap_files={'lib/debian-installer-startup.d/S21wros-keymaps':committed/'S21wros-keymaps',
+keymap_files={'usr/lib/debian-installer-startup.d/S21wros-keymaps':committed/'S21wros-keymaps',
               'usr/lib/finish-install.d/13wros-initramfs-keymap':committed/'13wros-initramfs-keymap',
               **{'usr/share/wros-keymaps/'+n:committed/n for n in ('xkb-keymap.templates','colemak.ekmap.gz','keymaps.sha256')}}
 for packed_path,source in keymap_files.items():
