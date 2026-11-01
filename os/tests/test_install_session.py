@@ -1116,12 +1116,15 @@ class TargetHygieneTests(unittest.TestCase):
         (sysroot / 'vda2/partition').write_text('2\n')
         return sysroot
 
-    def verify_state(self, passwd_extra='', shadow_extra=''):
+    # Debian greetd 0.10.3-4's own account row, as the installed system really has it.
+    GREETER = '_greetd:x:101:102::/var/lib/greetd:/usr/sbin/nologin\n'
+
+    def verify_state(self, passwd_extra='', shadow_extra='', greeter=GREETER):
         sysroot = self.sysfs(Path(self.directory.name))
         luks = '01234567-89ab-cdef-0123-456789abcdef'
         return supervisor.verify_installed_target_state(
             passwd_text=('root:x:0:0:root:/root:/bin/bash\n'
-                         '_greetd:x:105:65534::/nonexistent:/usr/sbin/nologin\n'
+                         + greeter +
                          'alice:x:1000:1000:Alice:/home/alice:/bin/bash\n' + passwd_extra),
             shadow_text=('root:!:19000:0:99999:7:::\n_greetd:!:19000:0:99999:7:::\n'
                          'alice:$6$rounds=656000$saltsalt$hashedpasswordvalue:19000:0:99999:7:::\n'
@@ -1149,6 +1152,39 @@ class TargetHygieneTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'no-login identity|unique'):
             self.verify_state('_wros-installer:x:0:0::/nonexistent:/usr/sbin/nologin\n',
                               '_wros-installer:!:19000:::::::\n')
+
+    def test_greeter_account_must_be_an_unprivileged_nonlogin_identity(self):
+        self.assertTrue(self.verify_state()['passed'])
+        self.assertTrue(self.verify_state(greeter='_greetd:x:105:65534::/nonexistent:/usr/sbin/nologin\n')['passed'])
+        for bad in ('_greetd:x:0:0::/var/lib/greetd:/usr/sbin/nologin\n',
+                    '_greetd:x:1000:1000::/var/lib/greetd:/usr/sbin/nologin\n',
+                    '_greetd:x:101:102::/var/lib/greetd:/bin/bash\n',
+                    '_greetd:x:ab:102::/var/lib/greetd:/usr/sbin/nologin\n',
+                    self.GREETER * 2, ''):
+            # A UID 1000 or duplicated greeter is already refused by the account checks before it.
+            with self.subTest(bad=bad), self.assertRaisesRegex(
+                    ValueError, 'unprivileged native greeter|one normal UID 1000|unique target accounts'):
+                self.verify_state(greeter=bad)
+
+    def test_a_failed_finish_hook_marks_the_failure_and_the_supervisor_ends_with_its_reason(self):
+        di_root = Path(self.directory.name) / 'di'
+        supervisor.stage_completion_hooks(di_root, self.NONCE)
+        for hook in sorted((di_root / 'usr/lib/finish-install.d').iterdir()):
+            self.assertIn(f'printf "%s\\n" {hook.name} > /wros-target-failed\n  exit 10\n', hook.read_text())
+        self.assertIsNone(supervisor.completion_failure(di_root))
+        (di_root / 'var/log').mkdir(parents=True)
+        (di_root / 'var/log/syslog').write_text(
+            'Nov  1 08:59:03 finish-install: info: Running /usr/lib/finish-install.d/94wros-target-proof\n'
+            'Nov  1 08:59:03 in-target: WrOS installer session stopped: unprivileged native greeter required in target\n')
+        (di_root / 'wros-target-failed').write_text('94wros-target-proof\n')
+        reason = 'installer finish step 94wros-target-proof failed: unprivileged native greeter required in target'
+        self.assertEqual(supervisor.completion_failure(di_root), reason)
+        clock = FakeClock()
+        # Debian's main menu keeps both processes alive; the marker still ends the session.
+        frontend, backend = FakeProcess(clock, 10_000.0, 1), FakeProcess(clock, 10_000.0, 0)
+        verdict = supervisor.supervise_installer(frontend, backend, lambda: False, {'session_nonce': 'ab' * 16},
+                                                 di_root=di_root, clock=clock, sleep=clock.sleep)
+        self.assertEqual(verdict, ('failed', reason, None))
 
     def test_completion_hooks_run_hygiene_before_the_proof_and_refuse_pre_existing_hooks(self):
         di_root = Path(self.directory.name) / 'di'

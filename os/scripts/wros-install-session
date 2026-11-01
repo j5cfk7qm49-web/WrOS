@@ -704,9 +704,11 @@ def verify_installed_target_state(
             and not normal_users[0][6].endswith(('/nologin', '/false')),
             'installed target requires one normal UID 1000 login account')
     installed_user = normal_users[0][0]
+    # Same contract as the image audit: Debian's greetd creates _greetd with home
+    # /var/lib/greetd, so the home is not part of it; the shadow row is checked below.
     greeters = [row for row in users if row[0] == '_greetd']
-    require(len(greeters) == 1 and int(greeters[0][2]) > 0
-            and greeters[0][5:] == ['/nonexistent', '/usr/sbin/nologin'],
+    require(len(greeters) == 1 and greeters[0][2].isdigit() and int(greeters[0][2]) > 0
+            and greeters[0][2] != '1000' and greeters[0][6].endswith(('/nologin', '/false')),
             'unprivileged native greeter required in target')
     secrets_map = {}
     for line in shadow_text.splitlines():
@@ -917,27 +919,56 @@ def stage_completion_hooks(di_root, nonce):
     require(not hygiene_hook.exists() and not audit_hook.exists() and not finish_hook.exists(),
             'installer completion hooks already exist')
     # Purge the copied live-session files first; the proof hook then audits them.
+    # finish-install treats a failing hook as "go back" and shows Debian's main menu, so each
+    # failure also leaves a marker the supervisor turns into a failed outcome.
+    def failed(hook):
+        return f'  printf "%s\\n" {hook} > {TARGET_FAILED_MARKER}\n  exit 10\n'
     hygiene_hook.write_text(
         '#!/bin/sh\nset -e\numask 077\n'
         f'if in-target /usr/bin/python3 -I {SELF_PATH} target-hygiene {nonce}; then\n'
-        '  exit 0\nelse\n  exit 10\nfi\n',
+        f'  exit 0\nelse\n{failed(hygiene_hook.name)}fi\n',
         encoding='utf-8',
     )
     audit_hook.write_text(
         '#!/bin/sh\nset -e\numask 077\n'
         f'if in-target --pass-stdout /usr/bin/python3 -I {SELF_PATH} target-audit {nonce} > /wros-target-proof; then\n'
-        '  exit 0\nelse\n  exit 10\nfi\n',
+        f'  exit 0\nelse\n{failed(audit_hook.name)}fi\n',
         encoding='utf-8',
     )
     finish_hook.write_text(
         '#!/bin/sh\nset -e\numask 077\n'
-        'test -s /wros-target-proof || exit 10\n'
+        f'if ! test -s /wros-target-proof; then\n{failed(finish_hook.name)}fi\n'
         'printf "completed\\n" > /wros-target-finished\n',
         encoding='utf-8',
     )
     hygiene_hook.chmod(0o755)
     audit_hook.chmod(0o755)
     finish_hook.chmod(0o755)
+
+
+TARGET_FAILED_MARKER = '/wros-target-failed'
+STOPPED_PREFIX = 'WrOS installer session stopped: '
+
+
+def completion_failure(di_root):
+    """The failed WrOS finish hook and its own reason, or None while no hook has failed."""
+    di_root = Path(di_root)
+    marker = di_root / TARGET_FAILED_MARKER.lstrip('/')
+    try:
+        info = marker.lstat()
+    except OSError:
+        return None
+    hook = marker.read_text(encoding='utf-8', errors='replace').strip()[:64] if stat.S_ISREG(info.st_mode) else ''
+    detail = ''
+    try:
+        with (di_root / 'var/log/syslog').open('rb') as log:
+            log.seek(max(0, log.seek(0, os.SEEK_END) - 65536))
+            for line in log.read().decode('utf-8', 'replace').splitlines():
+                if STOPPED_PREFIX in line:
+                    detail = line.split(STOPPED_PREFIX, 1)[1].strip()[:300]
+    except OSError:
+        pass
+    return f'installer finish step {hook or "unknown"} failed' + (f': {detail}' if detail else '')
 
 
 def validate_completion_identity(proof, nonce, expected):
@@ -1302,6 +1333,9 @@ def supervise_installer(
     while True:
         if parent_exited():
             return 'interrupted', 'live writing session exited during installation', None
+        failure = completion_failure(di_root)
+        if failure is not None:
+            return 'failed', failure, None
         frontend_code, backend_code = frontend.poll(), backend.poll()
         if frontend_code is not None and backend_code is not None:
             break
