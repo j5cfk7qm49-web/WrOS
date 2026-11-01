@@ -815,9 +815,20 @@ def finish_failure_injection(ctx, g, target, kill):
         screen = g.screen(1)
         ctx.check('Grimoire says installation did not complete', 'did not complete' in screen, screen[-400:])
     else:
-        ctx.check('outcome is interrupted', (outcome or {}).get('outcome') == 'interrupted', outcome)
-        ctx.check('VT7 stays active (no auto-return after writer death)', last['active_vt'] == 'tty7', last['active_vt'])
-        ctx.check('no new writer on tty1', not any(p['comm'] in ('grimoire', 'wros-input') for p in last['procs']), last['procs'])
+        rc, jr = g.run("sudo -n journalctl -u wros-installer-session --no-pager -o short-monotonic 2>&1 | tail -60 | cut -c1-220", 30, check=False)
+        ctx.result['installer_unit_journal'] = jr
+        names = set(p['comm'] for p in last['procs'])
+        ctx.check('outcome is interrupted with verified host cleanup',
+                  (outcome or {}).get('outcome') == 'interrupted' and (outcome or {}).get('host_cleanup_verified') is True, outcome)
+        ctx.check('the active VT shows the greeter (greetd and wros-greeter alive), not a writer',
+                  last['active_vt'] == 'tty1' and {'greetd', 'wros-greeter'} <= names and not names & {'grimoire', 'wros-input'}, (last['active_vt'], sorted(names)))
+        ctx.check('no grimoire and no wros-input process at any sample after the kill',
+                  not any(set(row[2]) & {'grimoire', 'wros-input'} for row in vt_history), vt_history)
+        early = [row for row in vt_history if row[1] == 'tty1' and row[3]]
+        ctx.check('the installer did not issue the VT switch: tty1 was already active while target mappers were still open (its chvt runs only after the target stack is cleaned)',
+                  bool(early), vt_history)
+        ctx.result['vt_return_refused_in_journal'] = 'automatic VT return refused' in jr
+        ctx.check('the installer journal shows no VT-restore failure', 'failed to restore active VT' not in jr, jr[-600:])
     ctx.check('no target mappers, mounts or swap left', not [x for x in last['mappers'] if x != 'control'] and not last['target_mounts'] and not last['swaps'])
     ctx.check('no d-i or installer-session process survives after the outcome is written', not survivors.strip(), survivors)
     rc, tree = g.run("ps -eo pid,ppid,stat,comm,args --no-headers | awk '$5 !~ /^[[]/' | cut -c1-150 | head -80", 30, check=False)
