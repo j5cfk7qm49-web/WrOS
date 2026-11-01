@@ -363,15 +363,21 @@ try:
     connection = socket.socket(socket.AF_UNIX); connection.settimeout(30); connection.connect(qmp_path)
     connection.recv(65536); qmp(connection, 'qmp_capabilities')
     time.sleep(max(8, seconds // 5))
-    first, _ = frame(connection, 'early')
+    first, menu_lit = frame(connection, 'early')
+    # The live menu waits without a timeout (live-build's default); choose its default entry
+    # as a person would, so the late frame shows whether that entry actually boots.
+    reply = qmp(connection, 'send-key', keys=[{'type': 'qcode', 'data': 'ret'}])
+    if 'error' in reply:
+        raise RuntimeError(reply['error']['desc'])
     time.sleep(seconds)
     last, lit = frame(connection, 'late')
     alive = process.poll() is None
     text = open(log, 'rb').read().decode('latin-1')
     started = f'BdsDxe: starting Boot' in text and ('DVD-ROM' in text if mode == 'cdrom' else 'USB' in text)
-    result.update(firmware_started_medium_loader=started, machine_alive=alive, display_changed=first != last,
+    result.update(firmware_started_medium_loader=started, machine_alive=alive, menu_lit=menu_lit,
+                  default_entry_selected=True, display_changed=first != last,
                   display_lit=lit, early_frame_sha256=first, late_frame_sha256=last)
-    if started and alive and lit and first != last:
+    if started and alive and menu_lit and lit and first != last:
         result['status'] = 'passed'
 except Exception as error:   # any QMP/qemu failure is a failed smoke boot, never a pass
     result['error'] = str(error)
