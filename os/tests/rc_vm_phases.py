@@ -1366,14 +1366,34 @@ def phase_update(ctx):
         m.kill()
         ctx.step('power-cut', resets=m.qmp.count('RESET'))
         m2 = boot_installed(ctx, st, 'after-cut', disk=overlay, fmt='qcow2', reboot=True)
-        g2 = session_ready(ctx, m2, st, secrets_, layout)
+        # a cut before the apply began leaves the trigger in place: the next boot applies the update again and
+        # reboots by itself, which needs a second unlock. Either path is legitimate; record which one happened.
+        unlock(ctx, m2, secrets_, layout, wrong_first=False)
+        deadline2 = time.monotonic() + 150
+        rebooted_again = False
+        while time.monotonic() < deadline2:
+            if m2.serial.contains('login: '):
+                break
+            if m2.qmp.count('RESET') > 0:
+                rebooted_again = True
+                unlock(ctx, m2, secrets_, layout, wrong_first=False, after_reset=m2.qmp.count('RESET'))
+                break
+            time.sleep(1)
+        ctx.step('after-cut-boot', applied_again_and_rebooted=rebooted_again)
+        ctx.result['after_cut_reapplied_and_rebooted'] = rebooted_again
+        g2 = Guest(ctx, m2, root_via_sudo=False)
+        g2.shell.login(st['username'], secrets_['login'], 600)
+        g2.become_root(secrets_['login'])
+        g2.shell.put('/tmp/rcg.py', GUEST.read_bytes(), '0644')
+        greeter_login(ctx, g2, m2, st['username'], secrets_['login'], layout, wrong_first=False)
+        resets_after_login = m2.qmp.count('RESET')
         rc, out = g2.run('dpkg-query -W wros; cat /etc/writingdeck/release; cat /var/lib/wros-update/public/status.json; dpkg --audit; echo AUDIT_DONE', 60, check=False)
         ctx.result['after_cut_state'] = out
         rc, jr = g2.run("sudo -n cat /var/lib/wros-update/journal.jsonl 2>/dev/null | python3 -c \"import sys,json;print([json.loads(l).get('state') for l in sys.stdin if l.strip()])\"; sudo -n journalctl -b -1 --no-pager 2>/dev/null | grep -a -c 'wros-offline-update'", 30, check=False)
         ctx.result['cut_journal_states'] = jr
         ctx.step('cut-classification', journal_states_and_prev_boot_unit_lines=jr)
         time.sleep(90)
-        ctx.check('no reboot loop after the power cut', m2.qmp.count('RESET') == 0)
+        ctx.check('no reboot loop after the power cut (at most the one apply reboot, then stable)', m2.qmp.count('RESET') == resets_after_login and resets_after_login <= 1, m2.qmp.count('RESET'))
         updates_panel(ctx, g2, layout)
         screen = g2.screen(1)
         m2.shot('after-cut-updates-panel')
