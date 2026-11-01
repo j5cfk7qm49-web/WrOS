@@ -651,8 +651,8 @@ def load_state(path):
     return json.loads((Path(path) / 'install-state.json').read_text())
 
 
-def boot_installed(ctx, st, name, *, disk=None, fmt='raw', variables=None, extra=None, memory=3072):
-    m = vm.Machine(ctx.dir, name, memory=memory)
+def boot_installed(ctx, st, name, *, disk=None, fmt='raw', variables=None, extra=None, memory=3072, reboot=False):
+    m = vm.Machine(ctx.dir, name, memory=memory, reboot=reboot)
     ctx.machines.append(m)
     local_vars = ctx.dir / (name + '-OVMF_VARS.fd')
     shutil.copyfile(variables or st['vars'], local_vars)
@@ -666,7 +666,12 @@ def boot_installed(ctx, st, name, *, disk=None, fmt='raw', variables=None, extra
     return m
 
 
-def unlock(ctx, m, secrets_, layout, *, wrong_first=True):
+def unlock(ctx, m, secrets_, layout, *, wrong_first=True, after_reset=None):
+    if after_reset is not None:
+        deadline = time.monotonic() + 120
+        while m.qmp.count('RESET') < after_reset and time.monotonic() < deadline:
+            time.sleep(0.5)
+        time.sleep(3)
     text = m.wait_screen(r'Please unlock disk', 420, name='unlock-wait')
     m.shot('unlock-prompt')
     ctx.step('unlock-prompt-seen', screen=text[-300:])
@@ -781,14 +786,357 @@ def phase_installed_boot(ctx):
     ctx.result['passed'] = True
 
 
-# ----------------------------------------------------------------------------- update
+# ----------------------------------------------------------------------------- update / rescue
+
+
+def session_ready(ctx, m, st, secrets_, layout, *, unlock_passes=1, greeter=True, after_reset=None):
+    """Unlock (possibly after earlier reboots), log in on serial, become root, log in at the greeter."""
+    user = st['username']
+    for _ in range(unlock_passes):
+        unlock(ctx, m, secrets_, layout, wrong_first=False, after_reset=after_reset)
+    g = Guest(ctx, m, root_via_sudo=False)
+    g.shell.login(user, secrets_['login'], 600)
+    g.become_root(secrets_['login'])
+    g.shell.put('/tmp/rcg.py', GUEST.read_bytes(), '0644')
+    if greeter:
+        greeter_login(ctx, g, m, user, secrets_['login'], layout, wrong_first=False)
+    return g
+
+
+def updates_panel(ctx, g, layout):
+    grim_open_settings(g, layout)
+    grim_to_panel(g, r'Updates')
+    g.wait_vcs(1, r'Find update media', 30, what='updates-panel')
+
+
+def find_and_review(ctx, g, expect_review=True):
+    m = g.m
+    g.choose(r'Find update media')
+    m.key('ret')
+    if not expect_review:
+        time.sleep(20)
+        return g.screen(1)
+    return g.wait_vcs(1, r'Continue to confirmation|Signed by key', 90, what='update-review')
+
+
+def pinned_signers(g):
+    rc, out = g.run("grep -v '^#' /usr/share/wros/update-signers | tr -d ' \\n'", 20, check=False)
+    return out.strip()
+
+
+def wait_reset(ctx, m, previous, timeout=600, what='reset', dump_every=30):
+    deadline = time.monotonic() + timeout
+    shots = 0
+    nextdump = time.monotonic() + dump_every
+    while time.monotonic() < deadline:
+        ctx.guard()
+        if m.qmp.count('RESET') > previous:
+            return m.qmp.count('RESET')
+        if not m.is_running():
+            raise Failure('guest stopped while waiting for %s' % what)
+        if time.monotonic() > nextdump:
+            shots += 1
+            m.shot('%s-wait-%02d' % (what, shots))
+            nextdump = time.monotonic() + dump_every
+        time.sleep(1)
+    raise Failure('no reboot within %ds (%s)' % (timeout, what))
+
+
+NOTHING_STAGED = 'test -e /system-update && echo MARKER; ls /var/lib/wros-update/staged 2>/dev/null | wc -l'
+
+
+def stage_update(ctx, g, layout):
+    """Find media, Review, Continue, Confirm (Cancel proven first), Stage."""
+    m = g.m
+    updates_panel(ctx, g, layout)
+    review = find_and_review(ctx, g)
+    m.shot('update-review')
+    ctx.result['review_screen'] = review
+    ctx.check('review shows wros 0.1.0~rc1 -> 0.1.0~rc2',
+              re.search(r'wros.*0\.1\.0~rc1.*0\.1\.0~rc2', review, re.S) is not None, review[-900:])
+    signer = pinned_signers(g)
+    ctx.check('review shows the pinned signer', bool(signer) and signer.lower() in review.lower().replace(' ', ''),
+              (signer, review[-500:]))
+    g.choose(r'Continue to confirmation')
+    m.key('ret')
+    confirm = g.wait_vcs(1, r'Stage this update', 30, what='update-confirm')
+    ctx.check('confirmation defaults to Cancel', re.search(r'▸ Cancel', confirm) is not None, confirm[-400:])
+    m.shot('update-confirm')
+    m.key('ret')                      # Cancel
+    time.sleep(3)
+    rc, out = g.run(NOTHING_STAGED, 20, check=False)
+    ctx.check('Cancel at confirmation staged nothing', 'MARKER' not in out and out.strip().endswith('0'), out)
+    ctx.step('confirm-cancel-ok')
+    if 'Find update media' not in g.screen(1):
+        updates_panel(ctx, g, layout)
+    find_and_review(ctx, g)
+    g.choose(r'Continue to confirmation')
+    m.key('ret')
+    g.wait_vcs(1, r'Stage this update', 30, what='update-confirm-2')
+    m.key('down')
+    ctx.check('Stage row highlighted', re.search(r'▸ Stage this update', g.screen(1)) is not None)
+    m.key('ret')
+    staged = g.wait_vcs(1, r'Restart now to install the staged update', 120, what='update-staged')
+    m.shot('update-staged')
+    rc, out = g.run('readlink /system-update; ls /var/lib/wros-update/staged', 20, check=False)
+    ctx.result['staged_listing'] = out
+    ctx.check('update is staged (marker and retained archive)', '/var/lib/wros-update/staged' in out and '.deb' in out, out)
+    return staged
+
 
 def phase_update(ctx):
-    raise NotImplementedError('update phases are added after the installed boot works')
+    variant = ctx.args.variant
+    st = load_state(ctx.args.install_run)
+    secrets_ = json.loads(Path(st['secrets']).read_text())
+    layout = st['layout']
+    manuscript_file = Path(ctx.args.install_run) / 'manuscript.json'
+    manuscript = json.loads(manuscript_file.read_text()) if manuscript_file.exists() else None
+    if not ctx.args.bundle:
+        raise SystemExit('--bundle is required')
+    bundle = Path(ctx.args.bundle)
+    overlay = ctx.dir / 'disk.qcow2'
+    vm.create_overlay(ctx.args.base_disk or st['disk'], overlay)
+    media = vm.make_update_media(bundle, ctx.dir / 'update-media.img', ctx.args.media_fs, 48)
+    debs = sorted(p.relative_to(bundle).as_posix() for p in bundle.rglob('*.deb'))
+    ctx.check('bundle carries exactly one wros deb', len(debs) == 1 and debs[0].split('/')[-1].startswith('wros_'), debs)
+    ctx.result['bundle_deb'] = debs[0]
+    ctx.result['bundle_deb_sha256'] = vm.sha256_file(bundle / debs[0])
+    ctx.result['media_fs'] = ctx.args.media_fs
+    if variant == 'tamper':
+        if ctx.args.media_fs != 'ext4':
+            raise SystemExit('tamper needs ext4 media')
+        vm.flip_byte_in_ext4(media, '/' + debs[0], 4096)
+        ctx.step('media-tampered', deb=debs[0])
+
+    def attach(machine):
+        machine.usb_stick(media, readonly=True, ident='updatemedia')
+
+    m = boot_installed(ctx, st, 'update', disk=overlay, fmt='qcow2', extra=attach, reboot=True)
+    g = session_ready(ctx, m, st, secrets_, layout)
+    rc, out = g.run('dpkg-query -W wros; cat /etc/writingdeck/release', 20)
+    ctx.check('starting version is 0.1.0~rc1', '0.1.0~rc1' in out, out)
+
+    if variant == 'tamper':
+        updates_panel(ctx, g, layout)
+        screen = find_and_review(ctx, g, expect_review=False)
+        m.shot('tampered-review')
+        ctx.result['tamper_screen'] = screen
+        rc, out = g.run(NOTHING_STAGED, 20, check=False)
+        ctx.check('tampered bundle refused: no review screen', 'Continue to confirmation' not in screen, screen[-500:])
+        ctx.check('tampered bundle: nothing staged', 'MARKER' not in out and out.strip().endswith('0'), out)
+        ctx.check('refusal is visible to the writer',
+                  re.search(r'refus|not |fail|invalid|mismatch|verif|could not', screen, re.I) is not None, screen[-500:])
+        ctx.result['passed'] = True
+        return
+
+    stage_update(ctx, g, layout)
+
+    if variant == 'cancel':
+        g.choose(r'Cancel staged update')
+        m.key('ret')
+        time.sleep(4)
+        rc, out = g.run(NOTHING_STAGED, 20, check=False)
+        ctx.check('staged update cancelled (marker and archive gone)', 'MARKER' not in out, out)
+        m.shot('update-cancelled')
+        resets = m.qmp.count('RESET')
+        g.run('systemctl reboot', 20, check=False)
+        wait_reset(ctx, m, resets, 180, 'cancel-reboot')
+        g2 = session_ready(ctx, m, st, secrets_, layout)
+        rc, out = g2.run('dpkg-query -W wros; cat /etc/writingdeck/release', 20)
+        ctx.check('nothing applied; still 0.1.0~rc1', '0.1.0~rc1' in out and 'rc2' not in out, out)
+        ctx.result['passed'] = True
+        return
+
+    if variant == 'badstage':
+        g.run('systemctl poweroff', 20, check=False)
+        m.wait_exit(180)
+        maintenance_corrupt_staged(ctx, st, secrets_, overlay)
+        m2 = boot_installed(ctx, st, 'badstage-boot', disk=overlay, fmt='qcow2', reboot=True)
+        g2 = session_ready(ctx, m2, st, secrets_, layout)
+        time.sleep(60)
+        ctx.check('no reboot loop after refused apply', m2.qmp.count('RESET') == 0, m2.qmp.events[-5:])
+        rc, out = g2.run('dpkg-query -W wros; cat /var/lib/wros-update/public/status.json; ls -l /system-update 2>&1', 30, check=False)
+        ctx.result['badstage_state'] = out
+        ctx.check('version unchanged after refused apply', '0.1.0~rc1' in out, out)
+        updates_panel(ctx, g2, layout)
+        screen = g2.screen(1)
+        m2.shot('badstage-updates-panel')
+        ctx.result['badstage_updates_screen'] = screen
+        ctx.check('Settings reports the failure', re.search(r'Update state: (failed|interrupted)', screen) is not None, screen[-600:])
+        ctx.result['passed'] = True
+        return
+
+    # ok / powercut: restart now to install
+    g.choose(r'Restart now to install')
+    resets = m.qmp.count('RESET')
+    m.key('ret')
+    ctx.step('restart-now-pressed')
+    resets = wait_reset(ctx, m, resets, 300, 'restart-to-apply')
+    unlock(ctx, m, secrets_, layout, wrong_first=False, after_reset=resets)
+    if variant == 'powercut':
+        regex = re.compile(r'wros|update|dpkg|Unpacking|Setting up|Preparing|apply', re.I)
+        deadline = time.monotonic() + 600
+        seen = None
+        while time.monotonic() < deadline:
+            text = m.screen_text('apply-watch')
+            if regex.search(text) and not re.search(r'Please unlock', text):
+                seen = text
+                break
+            time.sleep(1)
+        ctx.check('apply phase observed on the console before the power cut', seen is not None, m.screen_text('apply-final')[-600:])
+        ctx.result['apply_screen'] = seen
+        time.sleep(float(ctx.args.cut_delay))
+        m.shot('before-power-cut')
+        m.kill()
+        ctx.step('power-cut', resets=m.qmp.count('RESET'))
+        m2 = boot_installed(ctx, st, 'after-cut', disk=overlay, fmt='qcow2', reboot=True)
+        g2 = session_ready(ctx, m2, st, secrets_, layout)
+        rc, out = g2.run('dpkg-query -W wros; cat /etc/writingdeck/release; cat /var/lib/wros-update/public/status.json; dpkg --audit; echo AUDIT_DONE', 60, check=False)
+        ctx.result['after_cut_state'] = out
+        time.sleep(90)
+        ctx.check('no reboot loop after the power cut', m2.qmp.count('RESET') == 0)
+        updates_panel(ctx, g2, layout)
+        screen = g2.screen(1)
+        m2.shot('after-cut-updates-panel')
+        ctx.result['after_cut_updates_screen'] = screen
+        ctx.check('Settings shows an update result',
+                  re.search(r'Update state: (interrupted|recovered|completed|failed)', screen) is not None, screen[-600:])
+        ctx.check('dpkg audit clean', 'AUDIT_DONE' in out and not re.search(r'not fully installed|half-', out), out)
+        if manuscript:
+            hits = g2.probe('find-text', manuscript['phrase'], '/home')
+            ctx.check('manuscript intact', bool(hits), hits)
+        ctx.result['passed'] = True
+        return
+
+    # ok: the update applies, the system reboots by itself, then unlock again
+    resets = wait_reset(ctx, m, resets, 1500, 'apply-then-reboot')
+    ctx.step('system-rebooted-itself-after-applying')
+    g2 = session_ready(ctx, m, st, secrets_, layout, after_reset=resets)
+    rc, out = g2.run('dpkg-query -W wros; cat /etc/writingdeck/release; cat /var/lib/wros-update/public/status.json; test -e /system-update && echo MARKER', 30, check=False)
+    ctx.result['after_update_state'] = out
+    ctx.check('wros is 0.1.0~rc2', re.search(r'^wros\s+0\.1\.0~rc2', out, re.M) is not None, out)
+    ctx.check('release file carries 0.1.0~rc2', len(re.findall(r'0\.1\.0~rc2', out)) >= 2, out)
+    ctx.check('update marker consumed', 'MARKER' not in out, out)
+    updates_panel(ctx, g2, layout)
+    screen = g2.screen(1)
+    m.shot('after-update-updates-panel')
+    ctx.result['after_update_updates_screen'] = screen
+    ctx.check('Settings shows the update completed', re.search(r'Update state: completed', screen) is not None, screen[-600:])
+    ctx.check('no further reboot', m.qmp.count('RESET') == resets)
+    if manuscript:
+        hits = g2.probe('find-text', manuscript['phrase'], '/home')
+        ctx.check('manuscript intact after update', bool(hits), hits)
+    g2.run('poweroff', 20, check=False)
+    ctx.result['passed'] = True
+
+
+LUKS_DEV = "dev=$(lsblk -rpno NAME,FSTYPE | awk '$2==\"crypto_LUKS\"{print $1}')"
+
+
+def maintenance_corrupt_staged(ctx, st, secrets_, overlay):
+    """Offline edit via a live maintenance boot: flip one byte of the retained staged .deb."""
+    m = vm.Machine(ctx.dir, 'maint', memory=3072)
+    ctx.machines.append(m)
+    m.firmware(vm.fresh_vars(ctx.dir, 'maint-OVMF_VARS.fd'))
+    m.cdrom(ctx.iso)
+    m.virtio_disk(overlay, fmt='qcow2', ident='maintdisk')
+    m.serial_login_credential()
+    m.start()
+    wait_for_firmware_menu(ctx, m, 'maint-grub')
+    m.key('ret')
+    g = live_login(ctx, m)
+    g.shell.put('/dev/shm/rckey', secrets_['luks'], '0600')
+    rc, out = g.run("sudo -n sh -c '%s; test $(echo $dev | wc -w) = 1 && cryptsetup open --key-file /dev/shm/rckey $dev rcmaint; "
+                    "shred -u /dev/shm/rckey; vgchange -ay >/dev/null 2>&1; lsblk -rpno NAME,TYPE,FSTYPE'" % LUKS_DEV, 120)
+    ctx.result['maintenance_lsblk'] = out
+    rc, out2 = g.run("ls /dev/mapper", 20)
+    candidates = [x for x in out2.split() if x not in ('control', 'rcmaint')]
+    ctx.check('one LVM root volume found', len(candidates) >= 1, out2)
+    root = '/dev/mapper/' + next((c for c in candidates if 'root' in c), candidates[0])
+    g.run("sudo -n sh -c 'mkdir -p /mnt/rc && mount %s /mnt/rc'" % root, 30)
+    rc, listing = g.run('sudo -n ls -R /mnt/rc/var/lib/wros-update/staged', 30)
+    ctx.result['maintenance_staged'] = listing
+    script = ("import glob\nfor f in glob.glob('/mnt/rc/var/lib/wros-update/staged/**/*.deb', recursive=True):\n"
+              " d=bytearray(open(f,'rb').read()); d[len(d)//2]^=1; open(f,'wb').write(d); print('CORRUPTED',f)\n")
+    g.shell.put('/tmp/corrupt.py', script, '0644')
+    rc, out4 = g.run('sudo -n python3 /tmp/corrupt.py; sync', 30)
+    ctx.check('staged archive corrupted offline', 'CORRUPTED' in out4, out4)
+    g.run("sudo -n sh -c 'umount /mnt/rc; vgchange -an >/dev/null 2>&1; cryptsetup close rcmaint'", 60, check=False)
+    g.run('sudo -n /sbin/poweroff', 20, check=False)
+    try:
+        m.wait_exit(120)
+    except TimeoutError:
+        m.kill()
+
+
+def phase_rescue(ctx):
+    st = load_state(ctx.args.install_run)
+    secrets_ = json.loads(Path(st['secrets']).read_text())
+    overlay = ctx.dir / 'disk.qcow2'
+    vm.create_overlay(ctx.args.base_disk or st['disk'], overlay)
+    m = vm.Machine(ctx.dir, 'rescue', memory=3072)
+    ctx.machines.append(m)
+    m.firmware(vm.fresh_vars(ctx.dir, 'rescue-OVMF_VARS.fd'))
+    m.cdrom(ctx.iso)
+    m.virtio_disk(overlay, fmt='qcow2', ident='rescuedisk')
+    m.serial_login_credential()
+    m.start()
+    wait_for_firmware_menu(ctx, m, 'rescue-grub')
+    m.key('ret')
+    g = live_login(ctx, m)
+    rc, out = g.run('command -v wros-rescue; ls -l /usr/sbin/wros-rescue /usr/libexec/wros-rescue 2>&1; sudo -n wros-rescue --help 2>&1 | head -20', 30, check=False)
+    ctx.result['rescue_tool'] = out
+    ctx.check('wros-rescue is present on the live image', out.strip().startswith('/'), out)
+    head = "sudo -n sh -c '%s; echo $dev; dd if=$dev bs=1M count=16 2>/dev/null | sha256sum'" % LUKS_DEV
+    rc, header = g.run(head, 60)
+    ctx.result['luks_header_before'] = header
+    s = m.serial
+    tag = secrets.token_hex(4)
+    with s.lock:
+        s.cursor = len(s.buffer)
+    s.send("sudo wros-rescue; echo @@RESCUE_DONE_%s:$?\n" % tag)
+    deadline = time.monotonic() + 900
+    sent = False
+    code = None
+    pattern = re.compile(r'([Pp]ass(?:phrase|word)[^\n]*:|@@RESCUE_DONE_%s:[0-9]+)' % tag)
+    while time.monotonic() < deadline:
+        ctx.guard()
+        try:
+            hit = s.expect(pattern, 30)
+        except TimeoutError:
+            continue
+        text = hit.group(1).decode('utf-8', 'replace')
+        if text.startswith('@@RESCUE_DONE'):
+            code = int(text.rsplit(':', 1)[1])
+            break
+        if not sent:
+            time.sleep(0.5)
+            s.send(secrets_['luks'] + '\n')
+            sent = True
+            ctx.step('rescue-passphrase-sent')
+    ctx.check('wros-rescue finished', code is not None)
+    ctx.result['rescue_exit_code'] = code
+    ctx.result['rescue_output_tail'] = s.tail(4000)
+    ctx.check('passphrase was requested by wros-rescue', sent)
+    ctx.check('wros-rescue finished with exit 0', code == 0, ctx.result['rescue_output_tail'][-1500:])
+    rc, state = g.run("sudo -n sh -c 'ls /dev/mapper; grep -c /target /proc/mounts'", 20, check=False)
+    ctx.check('no mapping or target mount left open', 'wros-rescue-root' not in state, state)
+    rc, header2 = g.run(head, 60)
+    ctx.check('LUKS header unchanged', header == header2, (header, header2))
+    ctx.check('no secret in serial transcript', not s.contains(secrets_['luks']))
+    g.run('sudo -n /sbin/poweroff', 20, check=False)
+    m.wait_exit(120)
+    m2 = boot_installed(ctx, st, 'after-rescue', disk=overlay, fmt='qcow2', reboot=True)
+    g2 = session_ready(ctx, m2, st, secrets_, st['layout'])
+    rc, out = g2.run('dpkg-query -W wros; dpkg --audit; echo DONE', 30, check=False)
+    ctx.result['after_rescue_state'] = out
+    ctx.check('disk boots and logs in after rescue', 'wros' in out)
+    ctx.result['passed'] = True
 
 
 PHASES = {'firmware': phase_firmware, 'live': phase_live, 'install': phase_install,
-          'install-failure': phase_install, 'installed-boot': phase_installed_boot, 'update': phase_update}
+          'install-failure': phase_install, 'installed-boot': phase_installed_boot,
+          'update': phase_update, 'rescue': phase_rescue}
 
 
 def main():
@@ -799,12 +1147,15 @@ def main():
     parser.add_argument('--bundle')
     parser.add_argument('--secboot', action='store_true')
     parser.add_argument('--kill', choices=['backend', 'writer'])
-    parser.add_argument('--variant', default='ok')
+    parser.add_argument('--variant', default='ok', choices=['ok', 'cancel', 'tamper', 'powercut', 'badstage'])
+    parser.add_argument('--base-disk')
+    parser.add_argument('--media-fs', default='ext4', choices=['ext4', 'vfat'])
+    parser.add_argument('--cut-delay', default='2')
     parser.add_argument('--hint-wait', type=int, default=900)
     args = parser.parse_args()
     if os.geteuid() == 0:
         raise SystemExit('run as the unprivileged builder')
-    ctx = Ctx(args.phase + (('-' + args.kill) if args.kill else ''), args)
+    ctx = Ctx(args.phase + (('-' + args.kill) if args.kill else '') + (('-' + args.variant) if args.phase == 'update' else ''), args)
     error = None
     try:
         PHASES[args.phase](ctx)

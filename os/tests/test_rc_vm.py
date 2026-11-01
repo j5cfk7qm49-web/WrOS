@@ -158,5 +158,6 @@ class Ocr(unittest.TestCase):
         self.assertEqual(got[2], 'WrOS login: 0123456789 [hidden]')
 
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

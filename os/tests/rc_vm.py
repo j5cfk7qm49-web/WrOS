@@ -14,6 +14,7 @@ import gzip
 import hashlib
 import json
 import os
+import queue
 import re
 import secrets
 import shutil
@@ -156,25 +157,71 @@ def generated_secret(layout='colemak', length=24):
 
 
 class Qmp:
+    """One persistent QMP connection (QEMU serves a single client): commands plus a
+    timestamped event list, so RESET/SHUTDOWN events are not lost between calls."""
+
     def __init__(self, path):
         self.path = str(path)
+        self.sock = None
+        self.file = None
+        self.events = []
+        self.replies = queue.Queue()
+        self.lock = threading.Lock()
+
+    def _connect(self):
+        sock = socket.socket(socket.AF_UNIX)
+        sock.settimeout(15)
+        sock.connect(self.path)
+        file = sock.makefile('rwb', buffering=0)
+        json.loads(file.readline())
+        file.write(json.dumps({'execute': 'qmp_capabilities'}).encode() + b'\n')
+        while True:
+            message = json.loads(file.readline())
+            if 'return' in message:
+                break
+        sock.settimeout(None)
+        self.sock, self.file = sock, file
+        while not self.replies.empty():
+            self.replies.get_nowait()
+        threading.Thread(target=self._reader, args=(file,), daemon=True).start()
+
+    def _reader(self, file):
+        try:
+            while True:
+                line = file.readline()
+                if not line:
+                    break
+                message = json.loads(line)
+                if 'event' in message:
+                    self.events.append((time.monotonic(), message['event'], message.get('data')))
+                else:
+                    self.replies.put(message)
+        except (OSError, ValueError):
+            pass
+        finally:
+            self.replies.put(None)
+            if self.file is file:
+                self.sock = self.file = None
 
     def command(self, name, **arguments):
-        with socket.socket(socket.AF_UNIX) as connection:
-            connection.settimeout(15)
-            connection.connect(self.path)
-            stream = connection.makefile('rwb', buffering=0)
-            json.loads(stream.readline())
-            for message in ({'execute': 'qmp_capabilities'}, {'execute': name, 'arguments': arguments}):
-                stream.write(json.dumps(message).encode() + b'\n')
-                while True:
-                    reply = json.loads(stream.readline())
-                    if 'error' in reply:
-                        raise RuntimeError('QMP %s: %s' % (name, reply['error']))
-                    if 'return' in reply:
-                        last = reply['return']
-                        break
-            return last
+        with self.lock:
+            if self.sock is None:
+                self._connect()
+            while not self.replies.empty():
+                self.replies.get_nowait()
+            self.file.write(json.dumps({'execute': name, 'arguments': arguments}).encode() + b'\n')
+            try:
+                reply = self.replies.get(timeout=60)
+            except queue.Empty:
+                raise RuntimeError('QMP %s: no reply' % name)
+            if reply is None:
+                raise RuntimeError('QMP %s: connection closed' % name)
+            if 'error' in reply:
+                raise RuntimeError('QMP %s: %s' % (name, reply['error']))
+            return reply.get('return')
+
+    def count(self, event):
+        return sum(1 for _, name, _ in self.events if name == event)
 
     def send_key(self, qcodes, hold=40):
         self.command('send-key', keys=[{'type': 'qcode', 'data': q} for q in qcodes], **{'hold-time': hold})
@@ -406,7 +453,8 @@ class Shell:
 
     def run(self, command, timeout=60, check=True, quiet_secret=None):
         tag = secrets.token_hex(6)
-        self.serial.send('echo @@S%s; %s\necho @@E%s:$?\n' % (tag, command, tag))
+        # printf '\n...' keeps the end marker at a line start even when the command's output has no final newline
+        self.serial.send("echo @@S%s; %s\nrc_=$?; printf '\\n@@E%s:%%s\\n' $rc_\n" % (tag, command, tag))
         match = self.serial.expect(re.compile(r'^@@E%s:([0-9]+)\r?$' % tag, re.M), timeout, consume=False)
         with self.serial.lock:
             blob = bytes(self.serial.buffer)
@@ -441,10 +489,11 @@ class Machine:
     """One disposable QEMU instance. Builds an explicit command line (recorded in
     `command` for the result.json), never attaches a host disk and never a NIC."""
 
-    def __init__(self, run, name, memory=4096, smp=2, accel='kvm'):
+    def __init__(self, run, name, memory=4096, smp=2, accel='kvm', reboot=False):
         self.run = Path(run)
         self.name = name
         self.memory, self.smp, self.accel = memory, smp, accel
+        self.reboot = reboot
         self.serial_sock = self.run / (name + '-serial.sock')
         self.qmp_sock = self.run / (name + '-qmp.sock')
         self.args = []
@@ -504,7 +553,7 @@ class Machine:
         cpu = 'host' if self.accel == 'kvm' else 'Nehalem'
         return (['qemu-system-x86_64', '-name', self.name, '-accel', self.accel, '-machine', 'q35',
                  '-cpu', cpu, '-m', str(self.memory), '-smp', str(self.smp), '-nic', 'none',
-                 '-display', 'none', '-vga', 'std', '-no-reboot', '-boot', 'menu=off',
+                 '-display', 'none', '-vga', 'std'] + ([] if self.reboot else ['-no-reboot']) + ['-boot', 'menu=off',
                  '-serial', 'unix:%s,server=on,wait=off' % self.serial_sock,
                  '-qmp', 'unix:%s,server=on,wait=off' % self.qmp_sock] + smbios + self.args)
 
