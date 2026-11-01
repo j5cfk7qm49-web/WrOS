@@ -51,8 +51,12 @@ def parse_form(lines):
     form.description = '\n'.join(head)
     form.body = form.description
     rows = []
-    for l in cleaned[first:]:
-        if not l or re.search(r'↑↓|Enter continue|F1 help|PgUp', l):
+    body = [l for l in cleaned[first:] if l]
+    help_at = [i for i, l in enumerate(body) if re.match(r'F1 help', l)]
+    if help_at and help_at[0] > 0 and not body[help_at[0] - 1].startswith(MARK):
+        del body[help_at[0] - 1]      # the title line printed just above the key-help footer
+    for l in body:
+        if re.search(r'↑↓|Enter continue|F1 help|PgUp', l):
             continue
         rows.append(l.split(MARK, 1)[1].strip() if MARK in l else l)
     form.rows = rows
