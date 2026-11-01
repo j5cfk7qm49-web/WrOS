@@ -1394,7 +1394,17 @@ def phase_update(ctx):
         return
 
     # ok: the update applies, the system reboots by itself, then unlock again
-    resets = wait_reset(ctx, m, resets, 1500, 'apply-then-reboot')
+    try:
+        resets = wait_reset(ctx, m, resets, int(getattr(ctx.args, 'apply_wait', 1500)), 'apply-then-reboot')
+    except Failure:
+        if getattr(ctx.args, 'hold', False):
+            ctx.step('holding-after-apply-wait-failure')
+            m.shot('apply-wait-timeout')
+            gh = Guest(ctx, m, root_via_sudo=False)
+            gh.shell.login(st['username'], secrets_['login'], 120)
+            gh.become_root(secrets_['login'])
+            hold_for_operator(ctx, gh, 1500)
+        raise
     ctx.step('system-rebooted-itself-after-applying')
     g2 = session_ready(ctx, m, st, secrets_, layout, after_reset=resets)
     rc, out = g2.run('dpkg-query -W wros; cat /etc/writingdeck/release; cat /var/lib/wros-update/public/status.json; test -e /system-update && echo MARKER', 30, check=False)
@@ -1726,6 +1736,7 @@ def main():
     parser.add_argument('--media-fs', default='ext4', choices=['ext4', 'vfat'])
     parser.add_argument('--cut-delay', default='2')
     parser.add_argument('--hint-wait', type=int, default=900)
+    parser.add_argument('--apply-wait', type=int, default=1500)
     parser.add_argument('--hold', action='store_true', help='on a stage failure keep the VM up for read-only operator commands (cmd.txt)')
     parser.add_argument('--diagnose', action='store_true', help='install phase: collect installer logs and state read-only before stopping')
     args = parser.parse_args()
