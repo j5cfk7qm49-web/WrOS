@@ -39,6 +39,11 @@ LIVE_USER, LIVE_PASSWORD = 'wros-live', 'live'   # Debian's public live credenti
 TARGET_BYTES = 16 * 1024 ** 3
 
 
+def harness_commit():
+    path = Path(__file__).resolve().parents[2] / 'HARNESS_COMMIT'
+    return path.read_text().strip() if path.exists() else 'unknown'
+
+
 class Failure(Exception):
     pass
 
@@ -53,13 +58,19 @@ class Ctx:
         self.log_file = open(self.dir / 'driver.log', 'a')
         self.iso = Path(args.iso).resolve() if getattr(args, 'iso', None) else None
         self.result = {'phase': phase, 'passed': False, 'steps': [], 'assertions': [], 'failed_assertion': None,
-                       'harness_commit': (Path(__file__).resolve().parents[2] / 'HARNESS_COMMIT').read_text().strip()
-                       if (Path(__file__).resolve().parents[2] / 'HARNESS_COMMIT').exists() else 'unknown',
-                       'release_commit': os.environ.get('WROS_RC_COMMIT', ''),
+                       'harness_commit': harness_commit(),
+                       'release_commit': None,
                        'machines': [], 'started': stamp}
         if self.iso:
             self.result['iso'] = str(self.iso)
             self.result['iso_sha256_before'] = vm.sha256_file(self.iso)
+            receipt = Path(getattr(args, 'receipt', None) or str(self.iso).rsplit('.', 1)[0] + '.receipt.json')
+            if receipt.is_file():
+                data = json.loads(receipt.read_text())
+                self.result['release_commit'] = data.get('git_commit')
+                self.result['receipt'] = str(receipt)
+                self.result['receipt_sha256'] = vm.sha256_file(receipt)
+                self.result['receipt_binaries_sha256'] = data.get('binaries')
         self.machines = []
         self.started = time.monotonic()
 
@@ -69,9 +80,9 @@ class Ctx:
         self.log_file.write(line + '\n')
         self.log_file.flush()
 
-    def step(self, name, **data):
-        self.result['steps'].append({'t': round(time.monotonic() - self.started, 1), 'step': name, **data})
-        self.log('STEP ' + name + (' ' + json.dumps(data, default=str)[:300] if data else ''))
+    def step(self, label, **data):
+        self.result['steps'].append({'t': round(time.monotonic() - self.started, 1), 'step': label, **data})
+        self.log('STEP ' + label + (' ' + json.dumps(data, default=str)[:300] if data else ''))
 
     def check(self, name, condition, detail=None):
         self.result['assertions'].append({'name': name, 'ok': bool(condition), 'detail': detail})
@@ -261,9 +272,9 @@ def assert_live_state(ctx, g, media):
     ctx.check('no QA serial console argument', 'console=ttyS' not in out.split('UEFI')[0])
     ctx.check('booted via UEFI firmware', 'UEFI' in out)
     ctx.check('live medium mounted read-only', re.search(r'/dev/\S+\s+\S+\s+ro[,\s]', out) is not None, out[-300:])
+    wanted = ('User=1000', 'Active=yes', 'Remote=no', 'TTY=tty1', 'VTNr=1', 'Seat=seat0', 'Type=tty', 'Class=user')
     ctx.check('autologin session is the tty1 user session',
-              re.search(r'User=1000 Active=yes Remote=no TTY=tty1 VTNr=1 Seat=seat0 Type=tty Class=user', out) is not None
-              or re.search(r'Active=yes.*Remote=no.*TTY=tty1.*VTNr=1.*Seat=seat0.*Type=tty.*Class=user', out) is not None, out[-600:])
+              any(all(token in line.split() for token in wanted) for line in out.split(chr(10))), out[-600:])
     screen = g.wait_vcs(1, r'Live session', 240, what='live-home')
     ctx.check('Grimoire live home visible on tty1', 'Resume writing' in screen or 'Live session' in screen, screen[-400:])
     m = g.m
@@ -1167,6 +1178,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('phase', choices=sorted(PHASES))
     parser.add_argument('--iso')
+    parser.add_argument('--receipt')
     parser.add_argument('--install-run')
     parser.add_argument('--bundle')
     parser.add_argument('--secboot', action='store_true')

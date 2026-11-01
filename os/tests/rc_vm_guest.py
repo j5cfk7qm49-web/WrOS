@@ -19,7 +19,7 @@ WATCH = {'grimoire', 'wros-input', 'wros-greeter', 'agetty', 'wros-installer', '
 
 
 def emit(obj):
-    print('RCJSON' + json.dumps(obj, separators=(',', ':')), flush=True)
+    print('RCJSON' + json.dumps(obj, separators=(',', ':'), ensure_ascii=False), flush=True)
 
 
 def vcs(n):

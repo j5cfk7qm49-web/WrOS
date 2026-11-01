@@ -454,7 +454,9 @@ class Shell:
     def run(self, command, timeout=60, check=True, quiet_secret=None):
         tag = secrets.token_hex(6)
         # printf '\n...' keeps the end marker at a line start even when the command's output has no final newline
-        self.serial.send("echo @@S%s; %s\nrc_=$?; printf '\\n@@E%s:%%s\\n' $rc_\n" % (tag, command, tag))
+        command = command.rstrip().rstrip(';')
+        # ONE line: sudo's pty relay swallows input already queued on the tty, so a second line would be lost.
+        self.serial.send("echo @@S%s; { %s; }; rc_=$?; printf '\\n@@E%s:%%s\\n' $rc_\n" % (tag, command, tag))
         match = self.serial.expect(re.compile(r'^@@E%s:([0-9]+)\r?$' % tag, re.M), timeout, consume=False)
         with self.serial.lock:
             blob = bytes(self.serial.buffer)
