@@ -85,3 +85,13 @@ class FakeGuest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class SecretVariants(unittest.TestCase):
+    def test_variants_cover_layout_misreads(self):
+        import rc_vm_phases as ph
+        variants = ph.secret_variants({'luks': 'abcdef0123'}, 'dvorak')['luks']
+        self.assertIn('abcdef0123', variants)
+        # the same physical keys read as US QWERTY give a different string that must also be scanned for
+        self.assertTrue(any(v != 'abcdef0123' for v in variants))
+        self.assertIn(''.join(vm.US_KEYS[c[0]][0] for c in vm.keystrokes('abcdef0123', 'dvorak')), variants)

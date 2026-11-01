@@ -18,6 +18,8 @@ Hard rules: no NIC, only freshly created disposable images, generated secrets on
 no QA kernel arguments (the serial channel is a QEMU SMBIOS credential).
 """
 import argparse
+import base64
+import gzip
 import json
 import os
 import re
@@ -647,6 +649,8 @@ def phase_install(ctx):
     snap = run_installer(ctx, g, secrets_, after_action=failure_hook)
     if kill:
         return finish_failure_injection(ctx, g, target, kill)
+    if getattr(ctx.args, 'diagnose', False):
+        diagnose(ctx, g, secrets_)
     outcome = snap['run_files'].get('outcome.json', {})
     ctx.result['outcome'] = outcome
     m.shot('install-complete')
@@ -701,6 +705,116 @@ def finish_failure_injection(ctx, g, target, kill):
     ctx.check('no target mappers, mounts or swap left', not [x for x in last['mappers'] if x != 'control'] and not last['target_mounts'] and not last['swaps'])
     g.run('sudo -n /sbin/poweroff', 20, check=False)
     ctx.result['passed'] = True
+
+
+# ----------------------------------------------------------------------------- failure diagnosis (read-only)
+
+DIAG_GREP = re.compile(r'(?i:error|fail|apt|dpkg|systemd-cryptsetup|pkgsel|base-installer|retriever|udeb|pool)|E:')
+
+
+def secret_variants(secrets_, typed_layout):
+    """Every string a generated secret could appear as: as intended, and as the same physical keys
+    would be read under each other layout (a layout mismatch between typing and the guest)."""
+    variants = {}
+    for name, value in secrets_.items():
+        chords = vm.keystrokes(value, typed_layout)
+        forms_ = {value}
+        for layout, table in vm.LAYOUT_KEYS.items():
+            text = ''
+            for chord in chords:
+                if chord == ['ret']:
+                    text += chr(10)
+                elif chord[0] == 'shift':
+                    text += table[chord[1]][1]
+                else:
+                    text += table[chord[0]][0]
+            forms_.add(text)
+        variants[name] = sorted(forms_)
+    return variants
+
+
+def fetch_guest_file(g, path):
+    """Whole file as bytes over the serial shell (gzip+base64, read-only), or None when absent."""
+    rc, out = g.run("sudo -n sh -c 'if [ -f %s ]; then gzip -c %s | base64 -w0; echo; else echo MISSING; fi'" % (path, path),
+                    300, check=False)
+    text = out.strip()
+    if rc != 0 or text == 'MISSING' or not text:
+        return None
+    return gzip.decompress(base64.b64decode(text.splitlines()[-1]))
+
+
+def diagnose(ctx, g, secrets_):
+    """Collect the installer's logs and the left-behind state without touching the VM, scan every
+    collected file for the generated secrets (all layout readings), quarantine any that match."""
+    ctx.step('diagnose-start')
+    diag = {}
+    names = {}
+
+    def keep(label, data):
+        if isinstance(data, str):
+            data = data.encode('utf-8', 'replace')
+        fname = 'diag-' + re.sub(r'[^A-Za-z0-9._-]+', '_', label.strip('/'))
+        if not fname.endswith(('.log', '.json', '.txt')):
+            fname += '.txt'
+        diag[fname] = data
+        return fname
+
+    for n in (7, 1):
+        keep('vcs%d-final-screen' % n, chr(10).join(g.vcs(n)))
+    g.m.shot('diagnose-screen')
+    commands = {
+        'swaps': 'cat /proc/swaps',
+        'dmsetup-tree': 'sudo -n dmsetup ls --tree; echo; sudo -n dmsetup info -c',
+        'lsblk': 'lsblk -o NAME,TYPE,FSTYPE,SIZE,MOUNTPOINTS',
+        'findmnt-target': 'findmnt -R /run/live/installer/target; echo rc=$?',
+        'mounts-installer': 'grep -a installer /proc/self/mountinfo',
+        'installer-tree': 'sudo -n find /run/wros-installer -ls 2>&1',
+        'installer-var-log': 'sudo -n ls -la /run/live/installer/var/log 2>&1',
+        'target-apt-sources': 'sudo -n sh -c "ls -la /run/live/installer/target/etc/apt/ 2>&1; for f in /run/live/installer/target/etc/apt/sources.list /run/live/installer/target/etc/apt/sources.list.d/*; do echo == $f; cat $f 2>&1; done"',
+        'installer-apt-sources': 'sudo -n sh -c "for f in /run/live/installer/etc/apt/sources.list /run/live/installer/etc/apt/sources.list.d/*; do echo == $f; cat $f 2>&1; done"',
+        'unit-status': 'systemctl status wros-installer-session.service --no-pager -l 2>&1 | head -60',
+        'unit-journal': 'sudo -n journalctl -b --no-pager -u wros-installer-session.service 2>&1',
+        'journal-installer-grep': 'sudo -n journalctl -b --no-pager 2>&1 | grep -a -i -E "wros-install|wros-installer|pkexec|backend|di-run|installer" | head -400',
+        'dmesg-tail': 'sudo -n dmesg | tail -80',
+    }
+    for label, command in commands.items():
+        rc, out = g.run(command, 120, check=False)
+        keep(label, 'rc=%d\n%s' % (rc, out))
+    rc, listing = g.run("sudo -n find /run/wros-installer -type f \\( -name '*.log' -o -name 'outcome.json' -o -name 'baseline.json' \\) -size -50000k", 60, check=False)
+    wanted = [l.strip() for l in listing.splitlines() if l.strip().startswith('/run/wros-installer/')]
+    ctx.step('diagnose-installer-files', files=wanted)
+    wanted += ['/run/live/installer/var/log/syslog', '/run/live/installer/var/log/partman']
+    for path in wanted:
+        data = fetch_guest_file(g, path)
+        if data is None:
+            keep('missing-' + path, 'absent in the guest: %s\n' % path)
+            continue
+        names[keep(path, data)] = path
+    syslog = diag.get('diag-run_live_installer_var_log_syslog.txt', b'').decode('utf-8', 'replace').split(chr(10))
+    if syslog != ['']:
+        hits = ['%d:%s' % (i + 1, l) for i, l in enumerate(syslog) if DIAG_GREP.search(l)]
+        keep('syslog-grep', chr(10).join(hits) + chr(10))
+    variants = secret_variants(secrets_, ctx.args.layout)
+    leaks = []
+    quarantine = ctx.dir / 'diag-quarantine'
+    for fname, data in sorted(diag.items()):
+        found = []
+        for name, forms_ in variants.items():
+            for form_ in forms_:
+                needle = form_.encode()
+                if needle in data:
+                    for number, line in enumerate(data.split(chr(10).encode()), 1):
+                        if needle in line:
+                            found.append((name, number))
+        if found:
+            quarantine.mkdir(exist_ok=True)
+            (quarantine / fname).write_bytes(data)
+            leaks.append({'file': fname, 'secret': sorted({n for n, _ in found}), 'lines': sorted({ln for _, ln in found})[:20]})
+        else:
+            (ctx.dir / fname).write_bytes(data)
+    ctx.result['diagnose'] = {'files': sorted(f for f in diag if not any(l['file'] == f for l in leaks)),
+                              'leaked_files': leaks, 'sources': names}
+    ctx.step('diagnose-done', files=len(diag), leaks=leaks)
 
 
 # ----------------------------------------------------------------------------- installed boot
@@ -1225,6 +1339,7 @@ def main():
     parser.add_argument('--media-fs', default='ext4', choices=['ext4', 'vfat'])
     parser.add_argument('--cut-delay', default='2')
     parser.add_argument('--hint-wait', type=int, default=900)
+    parser.add_argument('--diagnose', action='store_true', help='install phase: collect installer logs and state read-only before stopping')
     args = parser.parse_args()
     if os.geteuid() == 0:
         raise SystemExit('run as the unprivileged builder')
