@@ -1311,6 +1311,16 @@ def phase_update(ctx):
     ctx.result['passed'] = True
 
 
+OPEN_LUKS_SCRIPT = """dev=$(lsblk -rpno NAME,FSTYPE | awk '$2=="crypto_LUKS"{print $1}')
+test "$(echo $dev | wc -w)" = 1 || { echo "LUKS device count: $dev"; exit 3; }
+cryptsetup open $2 --key-file /dev/shm/rckey $dev $1
+rc=$?
+shred -u /dev/shm/rckey
+vgchange -ay >/dev/null 2>&1
+lsblk -rpno NAME,TYPE,FSTYPE
+exit $rc
+"""
+
 LUKS_DEV = "dev=$(lsblk -rpno NAME,FSTYPE | awk '$2==\"crypto_LUKS\"{print $1}')"
 
 
@@ -1327,8 +1337,8 @@ def maintenance_corrupt_staged(ctx, st, secrets_, overlay):
     m.key('ret')
     g = live_login(ctx, m)
     g.shell.put('/dev/shm/rckey', secrets_['luks'], '0600')
-    rc, out = g.run("sudo -n sh -c '%s; test $(echo $dev | wc -w) = 1 && cryptsetup open --key-file /dev/shm/rckey $dev rcmaint; "
-                    "shred -u /dev/shm/rckey; vgchange -ay >/dev/null 2>&1; lsblk -rpno NAME,TYPE,FSTYPE'" % LUKS_DEV, 120)
+    g.shell.put('/tmp/rcopen.sh', OPEN_LUKS_SCRIPT, '0644')
+    rc, out = g.run('sudo -n sh /tmp/rcopen.sh rcmaint', 120)
     ctx.result['maintenance_lsblk'] = out
     rc, out2 = g.run("ls /dev/mapper", 20)
     candidates = [x for x in out2.split() if x not in ('control', 'rcmaint')]
@@ -1368,8 +1378,8 @@ def phase_peek(ctx):
     m.key('ret')
     g = live_login(ctx, m)
     g.shell.put('/dev/shm/rckey', secrets_['luks'], '0600')
-    rc, out = g.run("sudo -n sh -c '%s; test $(echo $dev | wc -w) = 1 && cryptsetup open --readonly --key-file /dev/shm/rckey $dev rcpeek; "
-                    "shred -u /dev/shm/rckey; vgchange -ay >/dev/null 2>&1; lsblk -rpno NAME,TYPE,FSTYPE'" % LUKS_DEV, 120)
+    g.shell.put('/tmp/rcopen.sh', OPEN_LUKS_SCRIPT, '0644')
+    rc, out = g.run('sudo -n sh /tmp/rcopen.sh rcpeek --readonly', 120)
     ctx.result['peek_lsblk'] = out
     rc, out2 = g.run('ls /dev/mapper', 20)
     candidates = [x for x in out2.split() if x not in ('control', 'rcpeek')]
@@ -1415,7 +1425,8 @@ def phase_rescue(ctx):
     rc, out = g.run('command -v wros-rescue; ls -l /usr/sbin/wros-rescue /usr/libexec/wros-rescue 2>&1; sudo -n wros-rescue --help 2>&1 | head -20', 30, check=False)
     ctx.result['rescue_tool'] = out
     ctx.check('wros-rescue is present on the live image', out.strip().startswith('/'), out)
-    head = "sudo -n sh -c '%s; echo $dev; dd if=$dev bs=1M count=16 2>/dev/null | sha256sum'" % LUKS_DEV
+    g.shell.put('/tmp/rchead.sh', LUKS_DEV + chr(10) + 'echo $dev; dd if=$dev bs=1M count=16 2>/dev/null | sha256sum' + chr(10), '0644')
+    head = 'sudo -n sh /tmp/rchead.sh'
     rc, header = g.run(head, 60)
     ctx.result['luks_header_before'] = header
     s = m.serial
