@@ -293,8 +293,7 @@ def make_target(ctx, name='target.img', size=TARGET_BYTES):
 
 def on_dashboard(g):
     lines = g.vcs(1)
-    return bool(lines) and 'Resume writing' in '
-'.join(lines) and 'GRIMOIRE' not in lines[0]
+    return bool(lines) and 'Resume writing' in '\n'.join(lines) and 'GRIMOIRE' not in lines[0]
 
 
 def grim_dashboard(g):
