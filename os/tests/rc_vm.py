@@ -115,7 +115,18 @@ def _remap(table):
     return keys
 
 
-LAYOUT_KEYS = {'us': US_KEYS, 'colemak': _remap(_COLEMAK_BY_POSITION),
+_DVORAK = {
+    'q': ("'", '"'), 'w': (',', '<'), 'e': ('.', '>'), 'r': ('p', 'P'), 't': ('y', 'Y'), 'y': ('f', 'F'),
+    'u': ('g', 'G'), 'i': ('c', 'C'), 'o': ('r', 'R'), 'p': ('l', 'L'), 'bracket_left': ('/', '?'),
+    'bracket_right': ('=', '+'), 'a': ('a', 'A'), 's': ('o', 'O'), 'd': ('e', 'E'), 'f': ('u', 'U'),
+    'g': ('i', 'I'), 'h': ('d', 'D'), 'j': ('h', 'H'), 'k': ('t', 'T'), 'l': ('n', 'N'),
+    'semicolon': ('s', 'S'), 'apostrophe': ('-', '_'), 'z': (';', ':'), 'x': ('q', 'Q'), 'c': ('j', 'J'),
+    'v': ('k', 'K'), 'b': ('x', 'X'), 'n': ('b', 'B'), 'm': ('m', 'M'), 'comma': ('w', 'W'),
+    'dot': ('v', 'V'), 'slash': ('z', 'Z'), 'minus': ('[', '{'), 'equal': (']', '}')}
+DVORAK_KEYS = dict(US_KEYS)
+DVORAK_KEYS.update(_DVORAK)
+
+LAYOUT_KEYS = {'us': US_KEYS, 'dvorak': DVORAK_KEYS, 'colemak': _remap(_COLEMAK_BY_POSITION),
                'colemak_dh': _remap(_COLEMAK_DH_BY_POSITION)}
 
 

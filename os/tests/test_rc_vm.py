@@ -45,6 +45,13 @@ class KeyboardLayouts(unittest.TestCase):
             self.assertRegex(secret, '^[0-9a-f]{24}$')
             self.assertTrue(vm.wrong_layout_differs(secret, 'colemak'))
 
+    def test_dvorak_positions(self):
+        self.assertEqual(vm.keystrokes('def', 'dvorak'), [['h'], ['d'], ['y']])
+        self.assertEqual(vm.keystrokes('-', 'dvorak'), [['apostrophe']])
+        self.assertEqual(vm.keystrokes(':', 'dvorak'), [['shift', 'z']])
+        chords = [tuple(c) for c in vm.keystrokes('abcdefghijklmnopqrstuvwxyz', 'dvorak')]
+        self.assertEqual(len(set(chords)), 26)
+
     def test_untypeable_character_raises(self):
         with self.assertRaises(ValueError):
             vm.keystrokes('é', 'colemak')

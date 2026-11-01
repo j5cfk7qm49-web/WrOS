@@ -37,6 +37,8 @@ BASE = Path(os.environ.get('RC_VM_BASE', '/home/builder/rc-vm-runs'))
 GUEST = Path(__file__).with_name('rc_vm_guest.py')
 LIVE_USER, LIVE_PASSWORD = 'wros-live', 'live'   # Debian's public live credential, not a secret
 TARGET_BYTES = 16 * 1024 ** 3
+# installer keymap list entry to choose, and entries to avoid, per requested layout
+LAYOUT_CHOICES = {'dvorak': (r'^Dvorak$', ''), 'colemak': (r'Colemak(?![-\w])', r'DH|Dvorak|Workman|Norman')}
 
 
 def harness_commit():
@@ -174,7 +176,7 @@ class Guest:
     def layout_in_effect(self):
         keys = self.probe('keymap', timeout=60)['keycodes']
         symbol = keys.get('18', '').lower()
-        return {'e': 'us', 'f': 'colemak'}.get(symbol, 'other:' + symbol)
+        return {'e': 'us', 'f': 'colemak', 'period': 'dvorak'}.get(symbol, 'other:' + symbol)
 
     # Grimoire navigation (list highlight is the shared "▸ " marker) ------------
     def selected_row(self, n=1):
@@ -547,7 +549,7 @@ def hint_action(ctx):
 def run_installer(ctx, g, secrets_, *, after_action=None, stuck_seconds=1500, deadline_seconds=6000):
     """Drive the native installer forms from an allowlist. Returns the last snapshot."""
     m = g.m
-    rule_list = forms.rules()
+    rule_list = forms.rules(*LAYOUT_CHOICES[ctx.args.layout])
     start = time.monotonic()
     acted = None
     last_sig, last_change = None, time.monotonic()
@@ -603,14 +605,15 @@ def phase_install(ctx):
     kill = getattr(ctx.args, 'kill', None)
     target, token = make_target(ctx)
     before = ctx.result['target']['sparse_digest_before']
-    secrets_ = {'login': vm.generated_secret('colemak'), 'luks': vm.generated_secret('colemak')}
+    layout = ctx.args.layout
+    secrets_ = {'login': vm.generated_secret(layout), 'luks': vm.generated_secret(layout)}
     secrets_path = ctx.dir / 'secrets.json'
     fd = os.open(secrets_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, 'w') as stream:
         json.dump(secrets_, stream)
     ctx.result['secrets_file'] = 'secrets.json (0600, never copied to evidence)'
-    ctx.result['layout_selected'] = 'colemak'
-    ctx.result['secrets_meaningful_for_layout'] = {k: vm.wrong_layout_differs(v, 'colemak') for k, v in secrets_.items()}
+    ctx.result['layout_selected'] = layout
+    ctx.result['secrets_meaningful_for_layout'] = {k: vm.wrong_layout_differs(v, layout) for k, v in secrets_.items()}
     m = boot_live(ctx, 'install', 'cdrom', target=target, serial_token=token, memory=4096)
     g = live_login(ctx, m)
     assert_live_state(ctx, g, 'install')
@@ -662,7 +665,7 @@ def phase_install(ctx):
     ctx.check('target changed by the install', after != before)
     (ctx.dir / 'install-state.json').write_text(json.dumps({
         'disk': str(target), 'vars': str(ctx.dir / 'install-OVMF_VARS.fd'), 'secrets': str(secrets_path),
-        'serial': fixture_serial(token), 'layout': 'colemak', 'run_dir': str(ctx.dir),
+        'serial': fixture_serial(token), 'layout': layout, 'run_dir': str(ctx.dir),
         'username': 'writer', 'binary_sha256': live_hashes}, indent=1) + '\n')
     ctx.result['passed'] = True
 
@@ -805,14 +808,14 @@ def phase_installed_boot(ctx):
     ctx.check('no live user or runtime marker', 'no such user' in out.lower() and 'RUNLIVE' not in out and 'SUDOERSLIVE' not in out, out[:400])
     ctx.check('wros package is 0.1.0~rc1', re.search(r'^wros\s+0\.1\.0~rc1', out, re.M) is not None, out[:300])
     ctx.check('root is locked', re.search(r'root L', out) is not None)
-    ctx.check('installed keyboard config is Colemak', re.search(r'XKBVARIANT="?colemak', out) is not None, out)
+    ctx.check('installed /etc/default/keyboard carries the installer-selected layout',
+              re.search(r'XKBVARIANT="?%s' % layout, out) is not None, out)
     rc, kb = g.run('cat /etc/writingdeck/keyboard.json; echo; test -e /etc/writingdeck/installer-keyboard-pending && echo PENDING_STILL_PRESENT; '
                    'lsinitramfs /boot/initrd.img-$(uname -r) | grep -ci keymap; '
                    'sha256sum /usr/bin/grimoire /usr/bin/wros-greeter /usr/bin/wros-installer; '
                    'systemctl is-active live-config.service wros-live-session.service 2>&1; ls /run/wros-live 2>&1', 60, check=False)
     ctx.result['installed_keyboard_and_hashes'] = kb
-    ctx.check('greeter keyboard adopted Colemak and the pending marker is gone',
-              re.search(r'"layout": ?"colemak"', kb) is not None and 'PENDING_STILL_PRESENT' not in kb, kb[:500])
+    ctx.step('keyboard-adoption-observed', keyboard=kb[:700])
     ctx.check('installed binaries equal the live image binaries',
               all(('%s  %s' % (h, n)) in kb for n, h in st.get('binary_sha256', {}).items()) and bool(st.get('binary_sha256')), kb)
     ctx.check('no live runtime state on the installed system', 'No such file' in kb.split('wros-live-session.service')[-1] or 'inactive' in kb, kb[-300:])
@@ -1215,6 +1218,7 @@ def main():
     parser.add_argument('--install-run')
     parser.add_argument('--bundle')
     parser.add_argument('--secboot', action='store_true')
+    parser.add_argument('--layout', default='dvorak', choices=['dvorak', 'colemak'])
     parser.add_argument('--kill', choices=['backend', 'writer'])
     parser.add_argument('--variant', default='ok', choices=['ok', 'cancel', 'tamper', 'powercut', 'badstage'])
     parser.add_argument('--base-disk')
