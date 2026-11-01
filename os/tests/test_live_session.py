@@ -140,6 +140,7 @@ class LiveSessionImage(unittest.TestCase):
             'os/config/org.wros.installer.policy': 'usr/share/polkit-1/actions/org.wros.installer.policy',
             'os/config/installer.preseed': 'etc/wros/installer.preseed',
             'os/config/installer/native-crypto-passphrase': 'usr/lib/wros-installer/native-crypto-passphrase',
+            'os/scripts/wros-rescue': 'usr/sbin/wros-rescue',
         }
         exec_sources = (
             'writingdeck-session',
@@ -147,6 +148,7 @@ class LiveSessionImage(unittest.TestCase):
             'wros-install-session',
             '9998-wros-session',
             'native-crypto-passphrase',
+            'wros-rescue',
         )
         for source, target in files.items():
             path = root/target; path.parent.mkdir(parents=True, exist_ok=True)
@@ -194,6 +196,8 @@ class LiveSessionImage(unittest.TestCase):
             (root/'etc/sudoers.d/live').write_text('fixture only\n')
         mutations = {
             'runtime': runtime, 'installer runtime': installer_runtime, 'sudo': sudo,
+            'rescue tool missing': lambda r: (r/'usr/sbin/wros-rescue').unlink(),
+            'rescue tool altered': lambda r: (r/'usr/sbin/wros-rescue').write_text('#!/bin/sh\nexit 0\n'),
             'installer root uid': lambda r: (r/'etc/passwd').write_text((r/'etc/passwd').read_text().replace('_wros-installer:x:994:', '_wros-installer:x:0:')),
             'installer unlocked': lambda r: (r/'etc/shadow').write_text((r/'etc/shadow').read_text().replace('_wros-installer:!:', '_wros-installer:$6$invalid:')),
             'live user': lambda r: (r/'etc/passwd').write_text((r/'etc/passwd').read_text()+'wros-live:x:1000:1000::/home/wros-live:/bin/bash\n'),

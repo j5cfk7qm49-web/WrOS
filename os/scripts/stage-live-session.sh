@@ -26,6 +26,8 @@ mkdir -p "$dest/etc/live/config.conf.d" "$dest/usr/libexec" \
     "$dest/etc/wros" "$dest/usr/lib/wros-installer"
 install -m755 "$repo/os/scripts/wros-live-session" "$dest/usr/libexec/"
 install -m755 "$repo/os/scripts/wros-install-session" "$dest/usr/libexec/"
+# Live-media rescue for an installed system (docs/RC_RESCUE.md): `sudo wros-rescue`.
+install -D -m755 "$repo/os/scripts/wros-rescue" "$dest/usr/sbin/wros-rescue"
 # A dedicated locked identity keeps installation credentials outside the live
 # writer's UID. All account operations apply only to the checked staging root.
 if ! python3 - "$dest" <<'PYUID'

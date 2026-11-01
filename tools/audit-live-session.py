@@ -51,6 +51,7 @@ def audit(root):
         'os/config/org.wros.installer.policy': 'usr/share/polkit-1/actions/org.wros.installer.policy',
         'os/config/installer.preseed': 'etc/wros/installer.preseed',
         'os/config/installer/native-crypto-passphrase': 'usr/lib/wros-installer/native-crypto-passphrase',
+        'os/scripts/wros-rescue': 'usr/sbin/wros-rescue',
     }
     for source, name in files.items():
         path = native.regular(root, name)
@@ -59,7 +60,7 @@ def audit(root):
     for name in ('usr/bin/wros-installer', 'usr/bin/live-config', 'usr/lib/user-setup/user-setup-apply',
                  'usr/libexec/wros-live-session', 'usr/libexec/wros-install-session',
                  'lib/live/config/9998-wros-session',
-                 'usr/lib/wros-installer/native-crypto-passphrase'):
+                 'usr/lib/wros-installer/native-crypto-passphrase', 'usr/sbin/wros-rescue'):
         if not os.access(native.regular(root, name), os.X_OK):
             raise ValueError('Missing live runtime executable: ' + name)
     launcher = audit_launcher(native, root)
