@@ -153,6 +153,29 @@ class SignedUpdateTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'unindexed .deb archive refused'):
                 self.verify(b3)
 
+            # 3b. An ext4 stick's root-only lost+found: skipped by the writer's review only.
+            b3b = root / 'ext4-lost-found'
+            self.build_signed_bundle(b3b)
+            lost = b3b / 'lost+found'
+            lost.mkdir()
+            lost.chmod(0)
+            hidden = b3b / 'pool/hidden'
+            try:
+                self.verify(b3b)
+                hidden.mkdir()
+                hidden.chmod(0)
+                with self.assertRaisesRegex(ValueError, 'unreadable directory in update bundle: pool/hidden'):
+                    self.verify(b3b)
+            finally:
+                lost.chmod(0o700)
+                if hidden.exists():
+                    hidden.chmod(0o700)
+            hidden.rmdir()
+            # Root's staging scan can read lost+found, so a .deb hidden there is still refused.
+            (lost / 'rogue_1.0_amd64.deb').write_bytes(b'rogue')
+            with self.assertRaisesRegex(ValueError, 'unindexed .deb archive refused'):
+                self.verify(b3b)
+
             # 4. Unsigned / wrong keyring
             b4 = root / 'unsigned'
             self.build_signed_bundle(b4)

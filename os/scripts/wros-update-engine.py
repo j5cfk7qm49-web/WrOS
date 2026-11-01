@@ -342,6 +342,13 @@ class BundleDir:
                             try:
                                 child = os.open(entry.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
                                                 dir_fd=descriptor)
+                            except PermissionError:
+                                # mkfs.ext4 puts a root-only lost+found on every ext4 stick. The
+                                # writer's review cannot read it; staging re-verifies as root, which
+                                # can, so a .deb hidden there is still refused before anything stages.
+                                if prefix == () and entry.name == 'lost+found':
+                                    continue
+                                fail(f'unreadable directory in update bundle: {rel}')
                             except OSError:
                                 fail(f'symlinked directory in update bundle: {rel}')
                             pending.append(((*prefix, entry.name), child))
