@@ -1543,6 +1543,24 @@ def phase_audit(ctx):
     ctx.result['target_audit_output'] = audit
     (ctx.dir / 'target-audit-output.txt').write_text('exit code %d' % rc + chr(10) + audit)
     ctx.step('target-audit-ran', exit_code=rc, output=audit[:1500])
+    # DRY-RUN-ONLY diagnostic, labelled: the same script with the 64 KiB command-reply limit raised in a scratch copy,
+    # to learn whether anything after the first failing check would also fail. Never a pass for the product.
+    relax = ("p = '/mnt/rc/root/rc-audit-scratch/'" + chr(10) + "d = open(p + 'wros-install-session').read()" + chr(10)
+             + "n = d.replace('len(reply.stdout) <= 65536', 'len(reply.stdout) <= 67108864')" + chr(10)
+             + "assert n != d" + chr(10) + "open(p + 'relaxed', 'w').write(n)" + chr(10))
+    g.shell.put('/tmp/relax.py', relax, '0644')
+    g.run('sudo -n python3 /tmp/relax.py && sudo -n chmod 0700 /mnt/rc/root/rc-audit-scratch/relaxed', 20)
+    rc_d, diff = g.run("sudo -n diff /mnt/rc/root/rc-audit-scratch/wros-install-session /mnt/rc/root/rc-audit-scratch/relaxed", 20, check=False)
+    ctx.result['relaxed_copy_diff'] = diff
+    nonce2 = secrets.token_hex(16)
+    rc_r, audit2 = g.run('sudo -n chroot /mnt/rc /usr/bin/python3 -I /root/rc-audit-scratch/relaxed target-audit %s 2>&1' % nonce2, 180, check=False)
+    ctx.result['relaxed_audit_exit_code'] = rc_r
+    ctx.result['relaxed_audit_output'] = audit2
+    (ctx.dir / 'target-audit-relaxed-limit-output.txt').write_text('DRY-RUN-ONLY (reply limit raised in a scratch copy); exit code %d' % rc_r + chr(10) + diff + chr(10) + audit2)
+    ctx.step('target-audit-relaxed-ran', exit_code=rc_r, output=audit2[:1800])
+    rc_s, size = g.run("sudo -n chroot /mnt/rc sh -c 'lsinitramfs /boot/initrd.img-$(uname -r) | wc -lc'", 60, check=False)
+    ctx.result['lsinitramfs_lines_bytes'] = size
+    ctx.step('lsinitramfs-size', size=size)
     facts = {
         'conf-d-wros-keymap': 'ls -la /mnt/rc/etc/initramfs-tools/conf.d/; echo ---; cat /mnt/rc/etc/initramfs-tools/conf.d/wros-keymap 2>&1',
         'etc-default-keyboard': 'cat /mnt/rc/etc/default/keyboard',
@@ -1554,7 +1572,10 @@ def phase_audit(ctx):
         (ctx.dir / ('audit-%s.txt' % label)).write_text(text)
         ctx.step('audit-' + label, rc=rc2, head=text[:400])
     g.run("sudo -n sh -c 'umount -R /mnt/rc; vgchange -an >/dev/null 2>&1; cryptsetup close vda3_crypt; shred -u /dev/shm/cand-script'", 90, check=False)
-    g.run('sudo -n /sbin/poweroff', 20, check=False)
+    try:
+        g.run('sudo -n /sbin/poweroff', 20, check=False)
+    except Exception:
+        pass
     try:
         m.wait_exit(120)
     except TimeoutError:
