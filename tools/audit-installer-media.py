@@ -159,7 +159,7 @@ def audit(base):
     missing = set(encryption) - encryption_archives.keys()
     if missing:
         raise ValueError('installer media missing matching offline encryption packages: '+', '.join(sorted(missing)))
-    return {'schema_version': 1, 'passed': True, 'installed_rootfs_wifi': result,
+    return {'schema_version': 1, 'passed': True, 'build_tree': str(base.resolve()), 'installed_rootfs_wifi': result,
             'native_session': native_result,
             'installer_firmware_packages': sorted(packages), 'vm_profile_absent': True,
             'encrypted_target_packages': encryption, 'offline_encryption_archives': encryption_archives,
@@ -612,15 +612,34 @@ def source_identity():
     return {'git_commit': commit, 'git_dirty': dirty, 'source_fingerprint': fingerprint()}
 
 
+def tree_gate(base):
+    """The tree gate reads the root-owned staging chroot (polkitd makes /etc/polkit-1/rules.d
+    root:polkitd 0750), so it must run as root; an unprivileged run would misread denied paths."""
+    require(os.geteuid() == 0, 'the tree gate reads the root-owned live-build chroot: run --tree-only as root')
+    result = audit(base)
+    result['tree_gate_uid'] = 0
+    return result
+
+
+def load_tree_result(path, base):
+    """A tree-gate result written by a root --tree-only run of this tool for the same build tree."""
+    require(path.is_file() and not path.is_symlink(), 'tree-gate result is missing or a symlink')
+    tree = json.loads(path.read_text())
+    require(isinstance(tree, dict) and tree.get('passed') is True and tree.get('tree_gate_uid') == 0,
+            'tree-gate result did not pass as root')
+    require(tree.get('build_tree') == str(Path(base).resolve()), 'tree-gate result is for a different build tree')
+    return tree
+
+
 def audit_release(base, iso, profile='live-session', binaries=None, baseline=None, scratch=None, interim=False,
-                  identity=True):
+                  identity=True, tree_result=None):
     """Tree gate plus the real ISO. Raises ValueError unless everything holds."""
     base, iso = Path(base), Path(iso)
     require(profile in PROFILES, 'unknown profile')
     require(iso.is_file() and not iso.is_symlink(), 'ISO to audit is missing or a symlink')
     live = profile == 'live-session'
     require(binaries or not live, 'the live profile needs the input binaries (--binary NAME=PATH)')
-    tree = audit(base)
+    tree = load_tree_result(Path(tree_result), base) if tree_result is not None else audit(base)
     own = scratch is None
     scratch = Path(tempfile.mkdtemp(prefix='wros-media-audit-')) if own else Path(scratch)
     scratch.mkdir(parents=True, exist_ok=True)
@@ -703,6 +722,10 @@ def main():
                         help='input binary (grimoire, wros-greeter, wros-installer) the squashfs must contain')
     parser.add_argument('--scratch', type=Path, help='work directory (default: a temporary directory)')
     parser.add_argument('--interim', action='store_true', help='allow absent update-trust inputs (never for the RC)')
+    parser.add_argument('--tree-only', action='store_true',
+                        help='run only the tree gate on the root-owned build chroot (must run as root)')
+    parser.add_argument('--tree-result', type=Path,
+                        help='use a passed root --tree-only result for this build tree instead of re-reading the chroot')
     args = parser.parse_args()
     try:
         if args.check_update_inputs:
@@ -716,13 +739,16 @@ def main():
         for item in args.binary:
             name, _, path = item.partition('=')
             binaries[name] = Path(path)
-        if args.iso is None:
+        if args.tree_only:
+            result = tree_gate(args.build_tree)
+        elif args.iso is None:
             if args.profile == 'live-session':
                 raise ValueError('the live profile audits the real ISO: pass --iso')
             result = audit(args.build_tree)
         else:
             result = audit_release(args.build_tree, args.iso, args.profile, binaries, args.baseline_iso,
-                                   args.scratch, args.interim, identity=args.profile == 'live-session')
+                                   args.scratch, args.interim, identity=args.profile == 'live-session',
+                                   tree_result=args.tree_result)
         print(json.dumps(result, indent=2))
     except (ValueError, OSError, subprocess.SubprocessError, KeyError, json.JSONDecodeError) as exc:
         raise SystemExit(str(exc)) from None

@@ -461,6 +461,40 @@ GPT start and size : 2 102048 5760
         self.assertIn('publish_release', script_text)
         self.assertIn('mv -- "$final.receipt.json.partial" "$final.receipt.json"', script_text)
 
+    def test_tree_gate_runs_as_root_and_its_result_is_bound_to_the_build_tree(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp) / 'live'
+            base.mkdir()
+            with mock.patch.object(module.os, 'geteuid', return_value=1000):
+                with self.assertRaisesRegex(ValueError, 'run --tree-only as root'):
+                    module.tree_gate(base)
+            passed = {'passed': True, 'tree_gate_uid': 0, 'build_tree': str(base.resolve())}
+            result = Path(tmp) / 'tree-audit.json'
+            result.write_text(json.dumps(passed))
+            self.assertEqual(module.load_tree_result(result, base)['build_tree'], str(base.resolve()))
+            for name, value in {'failed': dict(passed, passed=False),
+                                'unprivileged': dict(passed, tree_gate_uid=1000),
+                                'other tree': dict(passed, build_tree='/elsewhere')}.items():
+                with self.subTest(name=name):
+                    result.write_text(json.dumps(value))
+                    with self.assertRaises(ValueError):
+                        module.load_tree_result(result, base)
+            link = Path(tmp) / 'link.json'
+            link.symlink_to(result)
+            with self.assertRaisesRegex(ValueError, 'symlink'):
+                module.load_tree_result(link, base)
+            with self.assertRaisesRegex(ValueError, 'missing'):
+                module.load_tree_result(Path(tmp) / 'absent.json', base)
+
+    def test_driver_runs_the_tree_gate_as_root_before_the_unprivileged_iso_audit(self):
+        script = (ROOT / 'os/scripts/build-release-iso.sh').read_text()
+        body = script[script.index('audit_media() {'):script.index('step_audit() {')]
+        tree = body.index('--tree-only')
+        self.assertNotIn('as_builder', body[body.rindex('\n', 0, tree):tree])
+        self.assertLess(tree, body.index('as_builder python3 -I "$repo/tools/audit-installer-media.py"'))
+        self.assertIn('--tree-result "$build/tree-audit.json"', body)
+        self.assertIn('return 1', body[tree:body.index('as_builder python3')])
+
     def test_audit_capsule_structure_and_integrity(self):
         sys.path.insert(0, str(ROOT / 'tools'))
         import media_constants

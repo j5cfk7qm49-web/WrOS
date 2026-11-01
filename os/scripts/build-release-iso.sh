@@ -283,9 +283,22 @@ audit_media() {   # exits non-zero unless the real ISO passes; writes the audit 
         --binary "grimoire=$cargo_target/release/grimoire"
         --binary "wros-greeter=$cargo_target/release/wros-greeter"
         --binary "wros-installer=$cargo_target/release/wros-installer"
-        --scratch "$build/audit-scratch")
+        --scratch "$build/audit-scratch"
+        --tree-result "$build/tree-audit.json")
     ((interim == 0)) || args+=(--interim)
-    rm -rf "$build/audit-scratch"
+    rm -rf "$build/audit-scratch" "$build/tree-audit.json"
+    # The tree gate reads the root-owned staging chroot (polkitd keeps /etc/polkit-1/rules.d
+    # root:polkitd 0750), so it runs as root and read-only; the ISO bytes are audited unprivileged.
+    if python3 -I "$repo/tools/audit-installer-media.py" "$live" --tree-only > "$build/tree-audit.json.partial" 2> "$json.err"; then
+        chmod 0644 "$build/tree-audit.json.partial"
+        mv "$build/tree-audit.json.partial" "$build/tree-audit.json"
+    else
+        rm -f "$build/tree-audit.json.partial"
+        : > "${json%.json}.FAILED.json"
+        cp "$json.err" "${json%.json}.FAILED.txt"
+        echo "media audit FAILED (tree gate): $(tail -n 3 "$json.err" | tr '\n' ' ')" >&2
+        return 1
+    fi
     if as_builder python3 -I "$repo/tools/audit-installer-media.py" "$live" "${args[@]}" > "$json.partial" 2> "$json.err"; then
         mv "$json.partial" "$json"
         rm -f "$json.err"
@@ -478,7 +491,7 @@ step_publish() {
 main() {
     local resume=0 plan=0 preflight_only=0
     interim=0; drift=0; resumed=0
-    local allow_dirty=0 build_arg= output_arg=
+    local allow_dirty=0 build_arg='' output_arg=''
     while (($# != 0)); do
         case $1 in
             --build-dir) [[ $# -ge 2 && $2 == /* ]] || die '--build-dir needs an absolute path' 2; build_arg=$2; shift 2 ;;

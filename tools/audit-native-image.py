@@ -117,6 +117,9 @@ def audit_package(root):
         path = root / row.lstrip('/')
         try:
             info = path.lstat()
+        except PermissionError:
+            raise ValueError('package-owned path cannot be read by this audit (permission denied; '
+                             'audit a root-owned tree as root): ' + row) from None
         except OSError:
             raise ValueError('package-owned path is missing on disk: ' + row) from None
         if stat.S_ISDIR(info.st_mode):

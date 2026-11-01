@@ -6,6 +6,7 @@ import shutil
 import stat
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location('native_image', ROOT / 'tools/audit-native-image.py')
@@ -375,6 +376,25 @@ class PackageAwareAudit(unittest.TestCase):
         for name, (mutate, pattern) in cases.items():
             with self.subTest(name=name):
                 self.refused(mutate, pattern)
+
+    def test_an_unreadable_package_path_is_reported_as_unreadable_not_missing(self):
+        # Debian's polkitd keeps /etc/polkit-1/rules.d root:polkitd 0750: an unprivileged audit of a
+        # root-owned tree gets EACCES there, which must never be reported as a missing file.
+        tmp, root, info = staged_image()
+        with tmp:
+            denied = root / 'etc/polkit-1/rules.d/50-writingdeck-keyboard.rules'
+            self.assertTrue(denied.is_file())
+            real_lstat = Path.lstat
+
+            def lstat(path, *args, **kwargs):
+                if path == denied:
+                    raise PermissionError(13, 'Permission denied', str(path))
+                return real_lstat(path, *args, **kwargs)
+
+            with mock.patch.object(Path, 'lstat', lstat):
+                with self.assertRaisesRegex(ValueError, 'cannot be read by this audit.*permission denied') as raised:
+                    module.audit(root)
+            self.assertNotIn('missing', str(raised.exception))
 
     def test_update_engine_may_not_consult_the_debian_archive_keyring(self):
         for relative in ('usr/libexec/wros-update', 'usr/libexec/wros-update-stage', 'usr/lib/wros-update/engine.py'):
