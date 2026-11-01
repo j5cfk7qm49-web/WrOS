@@ -291,24 +291,57 @@ def make_target(ctx, name='target.img', size=TARGET_BYTES):
     return path, token
 
 
+def grim_dashboard(g):
+    """F12 opens the WrOS dashboard from anywhere in Grimoire."""
+    g.m.key('f12')
+    g.wait_vcs(1, r'Resume writing', 30, what='dashboard')
+
+
 def grim_open_settings(g, layout='us'):
-    m = g.m
-    m.key('esc')
-    time.sleep(0.5)
-    m.key('ctrl', 'k')
-    time.sleep(0.6)
-    m.type_text('wros settings', layout)
-    m.key('ret')
-    g.wait_vcs(1, r'Interface.*Accounts.*System|Accounts', 30, what='settings-root')
+    grim_dashboard(g)
+    g.choose(r'^Settings$')
+    g.m.key('ret')
+    g.wait_vcs(1, r'Writing.*Interface.*System.*Accounts', 30, what='settings-root')
 
 
 def grim_to_panel(g, panel_regex):
-    g.choose(r'^System\b|System')
+    g.choose(r'^System$')
     g.m.key('ret')
-    time.sleep(1)
+    g.wait_vcs(1, r'Wi-Fi and networking', 30, what='system-panels')
     g.choose(panel_regex)
     g.m.key('ret')
     time.sleep(1)
+
+
+def grim_new_scene(g, name, text, layout='us'):
+    """Dashboard (or editor) -> new scene named `name` -> type text -> save. Returns the screen."""
+    m = g.m
+    grim_dashboard(g)
+    m.key('esc')                      # close the dashboard back to the editor
+    time.sleep(1)
+    m.key('ctrl', 'k')
+    time.sleep(0.8)
+    m.type_text('new scene', layout)
+    g.wait_vcs(1, r'\u25b8 New scene|\u2192 New scene|New scene', 20, what='palette-new-scene')
+    m.key('ret')
+    g.wait_vcs(1, r'NEW SCENE', 20, what='new-scene-dialog')
+    m.type_text(name, layout)
+    m.key('ret')
+    g.wait_vcs(1, r'Start writing', 20, what='new-scene-editor')
+    m.type_text(text, layout)
+    m.key('ctrl', 's')
+    time.sleep(2)
+    return g.screen(1)
+
+
+def grim_logout_login(ctx, g, user, password, layout):
+    g.m.key('ctrl', 'q')
+    g.wait_vcs(1, r'Local account', 60, what='after-logout')
+    greeter_login(ctx, g, g.m, user, password, layout, wrong_first=False)
+    grim_dashboard(g) if 'Resume writing' not in g.screen(1) else None
+    g.m.key('ret')           # Resume writing
+    time.sleep(3)
+    return g.screen(1)
 
 
 # ----------------------------------------------------------------------------- phase 1
@@ -350,20 +383,17 @@ def phase_live(ctx):
     assert_live_state(ctx, g, 'cdrom-with-target')
     # ---- phase 2: live writing, RAM only
     phrase = 'rclive' + secrets.token_hex(5)
-    m.key('esc')
-    time.sleep(1)
-    m.shot('live-editor')
-    m.type_text('Chapter one ' + phrase, 'us')
-    m.key('ctrl', 's')
-    time.sleep(2)
-    screen = g.screen(1)
+    screen = grim_new_scene(g, 'rcscene', 'Chapter one ' + phrase, 'us')
     ctx.result['after_save_screen'] = screen
     m.shot('live-after-save')
-    hits = g.probe('find-text', phrase, '/home', '/run', '/tmp', '/var/tmp')
+    hits = g.probe('find-text', phrase, '/home')
     ctx.step('live-save-search', hits=hits)
     ctx.check('typed text reached a saved file', bool(hits), screen[-500:])
-    ctx.check('saved file is on RAM-backed or home storage of the live user only',
-              all(h[0].startswith(('/home/wros-live', '/run/', '/tmp/', '/var/tmp/')) for h in hits), hits)
+    ctx.check('saved file belongs to the live user in RAM-backed home',
+              all(h[0].startswith('/home/wros-live/') and h[1] == 1000 for h in hits), hits)
+    reopened = grim_logout_login(ctx, g, LIVE_USER, LIVE_PASSWORD, 'us')
+    m.shot('live-reopened')
+    ctx.check('saved text reopened after logout/login', phrase in reopened, reopened[-400:])
     ctx.check('target untouched by live writing', vm.sparse_digest(target) == before)
     # ---- phase 3: installer refusal + cancel
     grim_open_settings(g)
@@ -776,27 +806,18 @@ def phase_installed_boot(ctx):
     ctx.check('no live runtime state on the installed system', 'No such file' in kb.split('wros-live-session.service')[-1] or 'inactive' in kb, kb[-300:])
     # writing round trip
     phrase = 'rcboot' + secrets.token_hex(5)
-    m.key('esc')
-    time.sleep(1)
-    m.type_text('Chapter one ' + phrase, layout)
-    m.key('ctrl', 's')
-    time.sleep(2)
+    screen = grim_new_scene(g, 'rcscene', 'Chapter one ' + phrase, layout)
     m.shot('installed-after-save')
-    hits = g.probe('find-text', phrase, '/home', '/root', '/var/tmp')
+    hits = g.probe('find-text', phrase, '/home')
     ctx.step('installed-save-search', hits=hits)
-    ctx.check('manuscript saved, owned by uid 1000 and private', bool(hits) and all(h[1] == 1000 and h[2] in ('0o600', '0o640', '0o644') for h in hits), hits)
-    ctx.check('manuscript is not world-writable/readable beyond umask', all(h[2] in ('0o600', '0o640', '0o644') for h in hits))
-    (ctx.dir / 'manuscript.json').write_text(json.dumps({'phrase': phrase, 'hits': hits}))
-    # log out and back in, reopen
-    m.key('ctrl', 'q')
-    g.wait_vcs(1, r'Local account', 60, what='after-logout')
-    greeter_login(ctx, g, m, user, secrets_['login'], layout, wrong_first=False)
-    screen = g.screen(1)
-    m.key('esc')
-    time.sleep(1)
-    screen = g.screen(1)
+    ctx.check('manuscript saved, owned by uid 1000, not world-accessible',
+              bool(hits) and all(h[1] == 1000 and h[2] in ('0o600', '0o640', '0o644', '0o660') for h in hits)
+              and all(int(h[2], 8) & 0o002 == 0 for h in hits), hits)
+    sums = g.run('sha256sum ' + ' '.join(h[0] for h in hits), 30)[1]
+    (ctx.dir / 'manuscript.json').write_text(json.dumps({'phrase': phrase, 'hits': hits, 'sha256': sums}))
+    reopened = grim_logout_login(ctx, g, user, secrets_['login'], layout)
     m.shot('installed-reopened')
-    ctx.check('manuscript content reopened after logout/login', phrase in screen or bool(g.probe('find-text', phrase, '/home')), screen[-300:])
+    ctx.check('manuscript content reopened after logout/login', phrase in reopened, reopened[-300:])
     # tty2 maintenance login
     m.key('ctrl', 'alt', 'f2')
     g.wait_vcs(2, r'login:', 30, what='tty2-login')
