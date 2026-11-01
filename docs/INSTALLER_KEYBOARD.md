@@ -53,6 +53,12 @@ Mutable fixtures now support a native Linux artifacts directory after an
 observed live-file read failure on the Windows mount. Failed runs remain retained.
 The fixture refuses to replace any existing local-bottom `ORDER` file.
 
+Debian Installer's own keymap list has no Colemak entry, so this path was
+unreachable from the real installer until the `wros-installer-keymaps` udeb
+(see `os/config/installer/README.md`) added Colemak and Colemak Mod-DH
+(ANSI/ISO) to it and set `KEYMAP=y` for the installed initramfs, so the disk
+passphrase prompt uses the same layout as the installer.
+
 Issue #24 and installer #3 remain open until their actual guest/installer
 acceptance passes. QWERTY/Colemak-DH physical ANSI/ISO, modifier, recovery and
 suspend/resume checks still require authorized hardware.

@@ -1,0 +1,10 @@
+#!/bin/sh
+# WrOS: load the installed console keymap in the initramfs, so the disk passphrase
+# prompt uses the layout the passphrase was typed in during installation. Debian
+# ships KEYMAP=n. live-installer's 14remove-live-packages regenerates the initramfs
+# right after this, with the keyboard configuration already copied to /target.
+set -e
+target=${WROS_KEYMAPS_ROOT:-}/target
+mkdir -p "$target/etc/initramfs-tools/conf.d"
+printf '%s\n' '# WrOS installer: load /etc/default/keyboard before the disk passphrase prompt.' \
+	'KEYMAP=y' > "$target/etc/initramfs-tools/conf.d/wros-keymap"

@@ -59,12 +59,32 @@ Description: WrOS framed passthrough transport for the maintained Debian install
 CONTROL
 install -m644 "$frontend/passthrough.so" "$package/usr/lib/cdebconf/frontend/"
 dpkg-deb --root-owner-group -Zxz --build "$package" build/localudebs/wros-cdebconf-passthrough.udeb
+
+# Colemak for the keymap question and the installed initramfs; see os/config/installer/README.md.
+keymaps="$dest/keymaps-package"
+mkdir -p "$keymaps/DEBIAN" "$keymaps/lib/debian-installer-startup.d" "$keymaps/usr/lib/finish-install.d" \
+    "$keymaps/usr/share/wros-keymaps"
+cat > "$keymaps/DEBIAN/control" <<'CONTROL'
+Package: wros-installer-keymaps
+Version: 1.242~deb13u1+wros1
+Architecture: all
+Section: debian-installer
+Priority: optional
+Maintainer: WrOS project
+Depends: console-setup-udeb (= 1.242~deb13u1), console-setup-pc-ekmap (= 1.242~deb13u1), cdebconf-udeb
+Description: WrOS Colemak keymaps for the maintained Debian installer keymap question
+CONTROL
+install -m755 "$repo/os/config/installer/keymaps/S21wros-keymaps" "$keymaps/lib/debian-installer-startup.d/"
+install -m755 "$repo/os/config/installer/keymaps/13wros-initramfs-keymap" "$keymaps/usr/lib/finish-install.d/"
+install -m644 "$repo/os/config/installer/keymaps/xkb-keymap.templates" "$repo/os/config/installer/keymaps/colemak.ekmap.gz" \
+    "$repo/os/config/installer/keymaps/keymaps.sha256" "$keymaps/usr/share/wros-keymaps/"
+dpkg-deb --root-owner-group -Zxz --build "$keymaps" build/localudebs/wros-installer-keymaps.udeb
 cd build
 cat > config/local <<CONFIG
 LINUX_KERNEL_ABI = 6.12.113+deb13
 DRM_DIR = $dest/kernel/usr/lib/modules/6.12.113+deb13-amd64/kernel/drivers/gpu/drm
 DRIVERS_DIR = $dest/kernel/usr/lib/modules/6.12.113+deb13-amd64/kernel/drivers
-EXTRAS += wros-cdebconf-passthrough apt-cdrom-setup
+EXTRAS += wros-cdebconf-passthrough wros-installer-keymaps apt-cdrom-setup
 CONFIG
 keyring=/usr/share/keyrings/debian-archive-keyring.pgp
 [[ -f $keyring ]] || keyring=/usr/share/keyrings/debian-archive-keyring.gpg
@@ -105,6 +125,24 @@ assert cdrom_generator.is_file() and cdrom_generator.stat().st_mode & 0o111
 packed_generator=subprocess.check_output(['cpio','-i','--to-stdout','--quiet',
     'usr/lib/apt-setup/generators/40cdrom'],input=image)
 assert hashlib.sha256(packed_generator).hexdigest()==digest(cdrom_generator)
+# The committed Colemak overlay must be exactly what the shipped console-setup udebs and the
+# builder's ckbcomp generate now, and every hook and data file must be in the packed initrd.
+import importlib.util,tempfile
+spec=importlib.util.spec_from_file_location('keymaps',repo/'tools/generate-installer-keymaps.py')
+keymaps=importlib.util.module_from_spec(spec);spec.loader.exec_module(keymaps)
+committed=repo/'os/config/installer/keymaps'
+[console_setup]=sorted((build/'apt.udeb/cache/archives').glob('console-setup-udeb_1.242~deb13u1_all.udeb'))
+with tempfile.TemporaryDirectory() as fresh:
+    keymaps.generate(console_setup,fresh)
+    for name in ('xkb-keymap.templates','colemak.ekmap.gz','keymaps.sha256'):
+        assert digest(Path(fresh)/name)==digest(committed/name),'regenerate os/config/installer/keymaps: '+name
+assert any(Path(n).name.startswith('wros-installer-keymaps') for n in udebs)
+keymap_files={'lib/debian-installer-startup.d/S21wros-keymaps':committed/'S21wros-keymaps',
+              'usr/lib/finish-install.d/13wros-initramfs-keymap':committed/'13wros-initramfs-keymap',
+              **{'usr/share/wros-keymaps/'+n:committed/n for n in ('xkb-keymap.templates','colemak.ekmap.gz','keymaps.sha256')}}
+for packed_path,source in keymap_files.items():
+    packed=subprocess.check_output(['cpio','-i','--to-stdout','--quiet',packed_path],input=image)
+    assert hashlib.sha256(packed).hexdigest()==digest(source),'initrd lacks '+packed_path
 manifest={'passed':True,'upstream':'Debian Installer','version':'20250803+deb13u7',
           'architecture':'amd64','kernel_version':version,'kernel_bytes_match_signed_debian_package':True,
           'source_descriptor_sha256':digest(dsc),'source_archive_sha256':digest(archive),
@@ -114,6 +152,8 @@ manifest={'passed':True,'upstream':'Debian Installer','version':'20250803+deb13u
           'offline_cdrom_apt_provider':'apt-cdrom-setup',
           'offline_cdrom_apt_generator_sha256':digest(cdrom_generator),
           'offline_cdrom_apt_generator_observed_in_compressed_initrd':True,
+          'installer_keymaps':{n:digest(committed/n) for n in ('xkb-keymap.templates','colemak.ekmap.gz','keymaps.sha256')},
+          'installer_keymaps_observed_in_compressed_initrd':True,
           'profile_patch_sha256':digest(repo/'os/config/installer/debian-installer-initrd-profile.patch'),
           'frontend_build_manifest_sha256':digest(frontend/'manifest.json'),
           'recipe_sha256':digest(repo/'os/scripts/build-live-backend.sh'),

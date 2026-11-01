@@ -1,0 +1,31 @@
+#!/bin/sh
+# WrOS: offer Debian's us(colemak), us(colemak_dh) and us(colemak_dh_iso) in the
+# installer's keymap question. Runs after S20templates. The choices are added only
+# once the installer itself loads each map byte for byte as generated, so a typed
+# passphrase can never be set under a map the installer could not actually load.
+root=${WROS_KEYMAPS_ROOT:-}
+data=$root/usr/share/wros-keymaps
+ekmap=$root/usr/share/console-setup/pc105.ekmap.gz
+
+say () {
+	logger -t wros-keymaps "$*" 2>/dev/null || echo "wros-keymaps: $*" >&2
+}
+
+offer () {
+	[ -f "$ekmap" ] || { say "no $ekmap; Colemak not offered"; return 1; }
+	if ! zcat "$ekmap" | grep -q '^us:colemak::'; then
+		cat "$data/colemak.ekmap.gz" >> "$ekmap" || return 1
+	fi
+	while read -r sum variant; do
+		actual=$(ckbcomp-mini us "$variant" | sha256sum)
+		if [ "${actual%% *}" != "$sum" ]; then
+			say "us($variant) does not load as generated; Colemak not offered"
+			return 1
+		fi
+	done < "$data/keymaps.sha256"
+	debconf-loadtemplate d-i "$data/xkb-keymap.templates"
+}
+
+if offer; then
+	say 'Colemak keymaps offered'
+fi

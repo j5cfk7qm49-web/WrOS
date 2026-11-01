@@ -61,3 +61,26 @@ Debian Security kernel/initrd, using retained upstream build machinery and an
 explicit initrd-only dependency profile. See the [component recipe and actual
 image backend evidence](../../../docs/LIVE_INSTALLER_IMAGE.md). This does not
 expose a privileged launcher or complete a live ISO.
+
+## Colemak in the keymap question
+
+Debian's keymap question (`keyboard-configuration/xkb-keymap` in
+console-setup-udeb 1.242~deb13u1) offers Dvorak but not Colemak, and the
+installer's precompiled console maps (`pc105.ekmap.gz`) have no Colemak entry.
+The local `wros-installer-keymaps` udeb adds Debian's own `us(colemak)`,
+`us(colemak_dh)` and `us(colemak_dh_iso)`, listed after Chinese as Colemak and
+Colemak Mod-DH (ANSI/ISO); these are the variants `writingdeck-keyboard` adopts.
+
+- `keymaps/` holds the generated overlay: the maintained question with the
+  three choices inserted at the same position in every translated Choices field,
+  the three maps from `ckbcomp -compact`, and the exact `ckbcomp-mini` output
+  each must produce. Regenerate with `tools/generate-installer-keymaps.py
+  CONSOLE_SETUP_UDEB os/config/installer/keymaps`. `build-live-backend.sh`
+  regenerates from the udebs it actually used and fails on any difference.
+- `S21wros-keymaps` runs after `S20templates`. It appends the maps, checks each
+  one through the installer's own `ckbcomp-mini` byte for byte, and only then
+  loads the extended question. Otherwise the stock list stays, so a passphrase is
+  never typed under a map the installer could not load.
+- `13wros-initramfs-keymap` sets `KEYMAP=y` on the target (Debian ships `n`)
+  just before live-installer's `14remove-live-packages` regenerates the
+  initramfs, so the disk passphrase prompt uses the installation's layout.
