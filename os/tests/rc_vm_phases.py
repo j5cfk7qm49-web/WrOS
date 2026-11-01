@@ -1484,6 +1484,84 @@ def phase_peek(ctx):
     ctx.result['passed'] = True
 
 
+def phase_audit(ctx):
+    """Dry run of the in-target proof on a real installed disk: unlock a qcow2 overlay of the kept disk, mount it
+    read-write on the overlay with /boot and /boot/efi, bind /proc /sys /dev /run, drop a candidate supervisor script
+    in a scratch path and run `target-audit`. The kept disk is never written."""
+    run = Path(ctx.args.install_run)
+    secrets_ = json.loads((run / 'secrets.json').read_text())
+    script_dir = Path('/home/builder/rc-script')
+    script = (script_dir / 'wros-install-session').read_bytes()
+    expect = (script_dir / 'SHA256_WINDOWS_SIDE').read_text().strip()
+    got = vm.sha256_file(script_dir / 'wros-install-session')
+    ctx.result['candidate_script'] = {'commit': (script_dir / 'COMMIT').read_text().strip(), 'sha256': got, 'sha256_windows_side': expect}
+    ctx.check('candidate script hash equals the Windows-side file', got == expect, (got, expect))
+    overlay = ctx.dir / 'disk.qcow2'
+    vm.create_overlay(run / 'target.img', overlay)
+    base_before = vm.sha256_file(run / 'target.img') if (run / 'target.img').stat().st_size < (1 << 20) else None
+    m = vm.Machine(ctx.dir, 'audit', memory=3072)
+    ctx.machines.append(m)
+    m.firmware(vm.fresh_vars(ctx.dir, 'audit-OVMF_VARS.fd'))
+    m.cdrom(ctx.iso)
+    m.virtio_disk(overlay, fmt='qcow2', ident='auditdisk')
+    m.serial_login_credential()
+    m.start()
+    wait_for_firmware_menu(ctx, m, 'audit-grub')
+    m.key('ret')
+    g = live_login(ctx, m)
+    g.shell.put('/tmp/rcopen.sh', OPEN_LUKS_SCRIPT, '0644')
+    g.shell.put('/dev/shm/rckey', secrets_['luks'], '0600')
+    rc, out = g.run('sudo -n sh /tmp/rcopen.sh rcaudit', 120)
+    rc, out2 = g.run('ls /dev/mapper', 20)
+    candidates = [x for x in out2.split() if x not in ('control', 'rcaudit')]
+    root = '/dev/mapper/' + next((c for c in candidates if 'root' in c), candidates[0])
+    g.run("sudo -n sh -c 'mkdir -p /mnt/rc && mount %s /mnt/rc'" % root, 30)
+    rc, fstab = g.run('sudo -n cat /mnt/rc/etc/fstab', 20)
+    ctx.result['target_fstab'] = fstab
+    mounts = []
+    for line in fstab.splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and not line.lstrip().startswith('#') and parts[1] in ('/boot', '/boot/efi'):
+            mounts.append((parts[1], parts[0]))
+    for mountpoint, device in sorted(mounts, key=lambda x: len(x[0])):
+        g.run("sudo -n sh -c 'mkdir -p /mnt/rc%s && mount %s /mnt/rc%s'" % (mountpoint, device, mountpoint), 30)
+    ctx.check('/boot and /boot/efi mounted from fstab', len(mounts) == 2, mounts)
+    for d in ('proc', 'sys', 'dev', 'run'):
+        g.run('sudo -n mount --rbind /%s /mnt/rc/%s' % (d, d), 30)
+    # carry the candidate script into a scratch path inside the target (never over the installed copy)
+    g.shell.put('/dev/shm/cand-script', script, '0600')
+    g.run("sudo -n sh -c 'mkdir -p /mnt/rc/root/rc-audit-scratch && cp /dev/shm/cand-script /mnt/rc/root/rc-audit-scratch/wros-install-session "
+          "&& chmod 0700 /mnt/rc/root/rc-audit-scratch/wros-install-session'", 20)
+    rc, sums = g.run('sudo -n sha256sum /mnt/rc/root/rc-audit-scratch/wros-install-session /mnt/rc/usr/libexec/wros-install-session', 20)
+    ctx.result['script_hashes_in_target'] = sums
+    ctx.check('scratch copy carries the candidate hash', got in sums.splitlines()[0], sums)
+    nonce = secrets.token_hex(16)
+    rc, audit = g.run('sudo -n chroot /mnt/rc /usr/bin/python3 -I /root/rc-audit-scratch/wros-install-session target-audit %s 2>&1' % nonce, 180, check=False)
+    ctx.result['target_audit_exit_code'] = rc
+    ctx.result['target_audit_output'] = audit
+    (ctx.dir / 'target-audit-output.txt').write_text('exit code %d' % rc + chr(10) + audit)
+    ctx.step('target-audit-ran', exit_code=rc, output=audit[:1500])
+    facts = {
+        'conf-d-wros-keymap': 'ls -la /mnt/rc/etc/initramfs-tools/conf.d/; echo ---; cat /mnt/rc/etc/initramfs-tools/conf.d/wros-keymap 2>&1',
+        'etc-default-keyboard': 'cat /mnt/rc/etc/default/keyboard',
+        'initramfs-filtered': 'for f in /mnt/rc/boot/initrd.img-*; do echo "== $f"; chroot /mnt/rc lsinitramfs ${f#/mnt/rc} | grep -i -E "keymap|console-setup|cryptroot|keyboard|kbd|loadkeys"; done 2>&1',
+        'installer-syslog-grep-wros-keymaps': 'ls -la /mnt/rc/var/log/installer/ 2>&1; grep -a -n "wros-keymaps" /mnt/rc/var/log/installer/syslog 2>&1',
+    }
+    for label, command in facts.items():
+        rc2, text = g.run("sudo -n sh -c '%s'" % command.replace("'", "'" + chr(92) + "''"), 90, check=False)
+        (ctx.dir / ('audit-%s.txt' % label)).write_text(text)
+        ctx.step('audit-' + label, rc=rc2, head=text[:400])
+    g.run("sudo -n sh -c 'umount -R /mnt/rc; vgchange -an >/dev/null 2>&1; cryptsetup close rcaudit; shred -u /dev/shm/cand-script'", 90, check=False)
+    g.run('sudo -n /sbin/poweroff', 20, check=False)
+    try:
+        m.wait_exit(120)
+    except TimeoutError:
+        m.kill()
+    overlay.unlink()
+    ctx.step('overlay-discarded')
+    ctx.result['passed'] = rc == 0
+
+
 def phase_rescue(ctx):
     st = load_state(ctx.args.install_run)
     secrets_ = json.loads(Path(st['secrets']).read_text())
@@ -1552,7 +1630,7 @@ def phase_rescue(ctx):
 
 PHASES = {'firmware': phase_firmware, 'live': phase_live, 'install': phase_install,
           'install-failure': phase_install, 'installed-boot': phase_installed_boot,
-          'update': phase_update, 'rescue': phase_rescue, 'peek': phase_peek}
+          'update': phase_update, 'rescue': phase_rescue, 'peek': phase_peek, 'audit': phase_audit}
 
 
 def main():
