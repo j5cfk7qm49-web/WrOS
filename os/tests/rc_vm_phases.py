@@ -1309,6 +1309,9 @@ def phase_update(ctx):
         m.type_text('/mnt/rcbundle', layout)
         time.sleep(1)
         m.shot('reviewpath-typed')
+        m.key('ret')                       # Enter in the field moves to the 'Review update' row
+        time.sleep(1)
+        g.wait_vcs(1, r'▸ Review update', 20, what='reviewpath-row')
         m.key('ret')
         screen = g.wait_vcs(1, r'Continue to confirmation|Signed by key|not reviewed|refus', 90, what='reviewpath-result')
         m.shot('reviewpath-result')
