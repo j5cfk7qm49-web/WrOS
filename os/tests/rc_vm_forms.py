@@ -122,7 +122,7 @@ def rules(layout_choice=r'Colemak(?![-\w])', avoid=r'DH|Dvorak|Workman|Norman'):
         Rule('new-label', r'Create new empty partition table on this device\?', ('yes',), ('boolean',), r'vda'),
         Rule('partition-finish', r'overview of your currently configured partitions',
              ('select', r'Finish partitioning and write changes to disk', ''), ('select',), r'vda'),
-        Rule('write-disks', r'Write the changes to disks\?', ('yes',), ('boolean',), r'vda'),
+        Rule('write-disks', r'Write the changes to disks\?', ('yes',), ('boolean',), r'vda|LVM VG debian-vg'),  # list window can scroll the vda line off; vda is the only attached disk
         Rule('mirror', r'Use a network mirror\?', ('no',), ('boolean',)),
         Rule('grub-only-os', r'Install the GRUB boot loader to your primary drive\?', ('yes',), ('boolean',), r'only operating system'),
         Rule('grub-nvram', r'Update NVRAM variables to automatically boot into Debian\?', ('yes',), ('boolean',)),
