@@ -409,6 +409,24 @@ def masked_by_etc(rootfs, relative):
     return mask.is_symlink() and os.readlink(mask) == '/dev/null'
 
 
+STOCK_INSTALLER_MENUS = ('boot/grub/install.cfg', 'boot/grub/install_start.cfg', 'isolinux/install.cfg')
+
+
+def check_live_boot_menu(boot_configs):
+    """The live medium's menus boot only the live system (tools/live-boot-menu.py): WrOS installs
+    from the live session, and a stock Debian Installer entry would install plain Debian."""
+    for name in STOCK_INSTALLER_MENUS:
+        require(name not in boot_configs, f'stock Debian Installer menu file on the live medium: {name}')
+    entries = []
+    for name, text in sorted(boot_configs.items()):
+        for marker in ('/install/', 'file=/cdrom', 'preseed'):
+            require(marker not in text, f'{name} boots the stock Debian Installer ({marker})')
+        entries += re.findall(r'^menuentry "([^"]+)"', text, re.MULTILINE)
+        entries += re.findall(r'^\s*menu label \^?(.+)$', text, re.MULTILINE)
+    require(any(entry.startswith('Start WrOS') for entry in entries), 'no "Start WrOS" boot entry')
+    return {'entries': entries}
+
+
 def deny_list(rootfs, listing, boot_configs):
     """Every QA/test leftover the shipped image must not carry. Returns nothing or raises."""
     problems = []
@@ -710,6 +728,7 @@ def audit_release(base, iso, profile='live-session', binaries=None, baseline=Non
                     'the live profile must compare grimoire, wros-greeter and wros-installer')
             require(boot_configs and any('wros.live=1' in text and 'boot=live' in text for text in boot_configs.values()),
                     'no boot entry requests boot=live wros.live=1')
+            result['boot_menu'] = check_live_boot_menu(boot_configs)
             live_audit = load_tool('live_audit', 'audit-live-session.py')
             result['live_session'] = live_audit.audit(rootfs)
             # The unprivileged extraction above cannot carry setuid; prove it from the squashfs bytes.

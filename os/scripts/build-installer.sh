@@ -65,7 +65,7 @@ lb config --ignore-system-defaults --mode debian --distribution trixie \
     --architecture amd64 --archive-areas 'main non-free-firmware' \
     --binary-image iso-hybrid --bootloaders 'syslinux grub-efi' \
     --debian-installer live --debian-installer-distribution trixie \
-    --debian-installer-gui false --debian-installer-preseedfile "$repo/os/config/installer.preseed" \
+    --debian-installer-gui false \
     --firmware-binary true --firmware-chroot false --apt-recommends false \
     --apt-secure true --security true --updates true --memtest none \
     --mirror-bootstrap https://deb.debian.org/debian \
@@ -83,6 +83,12 @@ lb config --ignore-system-defaults --mode debian --distribution trixie \
 # before bootstrapping: the verified bytes are cached where live-build looks for
 # them, and a missing keyring or unreachable mirror fails here, not an hour in.
 python3 "$repo/tools/verify-debian-installer.py" cache/installer_debian-installer > installer-input-trust.json
+if [[ $profile == installer ]]; then
+    # --debian-installer-preseedfile takes a path on the medium, not on the builder. Debian
+    # Installer loads /preseed.cfg from its own initrd, which config/includes.installer fills.
+    mkdir -p config/includes.installer
+    cp "$repo/os/config/installer.preseed" config/includes.installer/preseed.cfg
+fi
 mkdir -p config/package-lists
 cp "$repo/os/config/packages.txt" config/package-lists/wros.list.chroot
 printf 'sudo\ngreetd\n' >> config/package-lists/wros.list.chroot
@@ -127,6 +133,14 @@ lb binary
 iso="$image-amd64.hybrid.iso"
 [[ -f $iso && ! -L $iso ]] || { echo "live-build did not produce $iso" >&2; exit 1; }
 if [[ $profile == live-session ]]; then
+    # WrOS installs from the live session; live-build's stock Debian Installer entries would
+    # only install plain Debian. Rewrite the menus, then remake the checksums and the ISO
+    # from the same tree, exactly as the release remaster does.
+    python3 -I "$repo/tools/live-boot-menu.py" binary
+    rm -f .build/binary_checksums .build/binary_iso "$iso"
+    lb binary_checksums
+    lb binary_iso
+    [[ -f $iso && ! -L $iso ]] || { echo "live-build did not remake $iso" >&2; exit 1; }
     # Deliberately not a release: no capsule, no media audit, no release name.
     mv "$iso" "$iso.capsule-less"
     sha256sum "$iso.capsule-less" > "$iso.capsule-less.sha256"
