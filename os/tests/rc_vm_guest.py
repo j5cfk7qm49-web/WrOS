@@ -74,8 +74,8 @@ def processes():
 
 def run(*cmd, timeout=10):
     try:
-        done = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        return done.stdout.strip()
+        done = subprocess.run(cmd, capture_output=True, timeout=timeout)
+        return done.stdout.decode('utf-8', 'replace').strip()
     except (OSError, subprocess.SubprocessError):
         return None
 
