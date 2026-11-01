@@ -1709,7 +1709,7 @@ def make_initramfs_trigger_pending(ctx, g):
     control = nl.join(['Package: rcprobe', 'Version: 1', 'Architecture: all', 'Maintainer: qa <qa@example.invalid>',
                        'Description: qa probe that activates update-initramfs', ''])
     postinst = nl.join(['#!/bin/sh', 'set -e', 'if [ "$1" = configure ]; then dpkg-trigger update-initramfs; fi', 'exit 0', ''])
-    g.run('mkdir -p /tmp/rcp/DEBIAN', 20)
+    g.run('mkdir -p /tmp/rcp/DEBIAN && chmod 755 /tmp/rcp /tmp/rcp/DEBIAN', 20)
     g.shell.put('/tmp/rcp/DEBIAN/control', control, '0644')
     g.shell.put('/tmp/rcp/DEBIAN/postinst', postinst, '0755')
     rc, out = g.run("dpkg-deb --build /tmp/rcp /tmp/rcprobe.deb >/dev/null && dpkg --no-triggers -i /tmp/rcprobe.deb 2>&1 | tail -5; echo AUDIT-BEGIN; dpkg --audit; echo AUDIT-END; "
