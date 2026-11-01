@@ -86,7 +86,9 @@ class Rule:
     requires: str = ''      # extra regex that must also match (e.g. target identity)
 
     def matches(self, form):
-        if self.kinds and form.kind not in self.kinds:
+        # a list whose marked row is the last (or only) row has no rows after it and parses as 'string'
+        kinds = self.kinds + ('string',) if 'select' in self.kinds and 'string' not in self.kinds else self.kinds
+        if kinds and form.kind not in kinds:
             return False
         if not re.search(self.pattern, form.raw, re.I | re.S):
             return False
@@ -109,7 +111,7 @@ def rules(layout_choice=r'Colemak(?![-\w])', avoid=r'DH|Dvorak|Workman|Norman'):
         Rule('weak-password', r'(weak|short|dictionary).{0,60}password|Use weak password', ('wait',), ('boolean',)),
         Rule('timezone', r'Select your time zone', ('enter',), ('select',)),
         Rule('partition-method', r'Partitioning method', ('select', r'Guided - use entire disk and set up encrypted LVM', ''), ('select',)),
-        Rule('select-disk', r'Select disk to partition', ('select', r'vda|virtio', ''), ('select',)),
+        Rule('select-disk', r'Select disk to partition', ('select', r'vda|virtio', ''), ('select', 'string')),   # a single-disk list renders as one marked row
         Rule('partition-scheme', r'Partitioning scheme', ('enter',), ('select',)),
         Rule('erase-no', r'(Erase data|erase).{0,80}(disk|vda)', ('no',), ('boolean',)),
         Rule('luks-1', r'Encryption passphrase', ('secret', 'luks'), ('password',)),
