@@ -782,6 +782,43 @@ fn live_session_uses_shared_surfaces_and_never_requests_personal_lock() {
 }
 
 #[test]
+fn live_media_opens_on_the_dashboard_with_install_chosen_and_confirms_before_installing() {
+    for (width, height) in [(80, 24), (160, 50)] {
+        let mut desk = Desk::open(
+            book(&format!("live-install-row-{width}"), true),
+            width,
+            height,
+        );
+        // An installed system's dashboard has no install row and keeps its action order.
+        desk.key(KeyCode::F(12));
+        desk.draw();
+        assert!(!desk.shows("Install WrOS to disk"));
+        desk.key(KeyCode::Esc);
+
+        desk.app.deck.live_session = true;
+        desk.app.deck.installer_available = true;
+        desk.app.overlay = Overlay::None;
+        desk.app.init_writingdeck(true);
+        desk.draw();
+        assert!(desk.shows("Try WrOS here, or choose Install WrOS to disk"));
+        assert!(desk.shows("▸ Install WrOS to disk"));
+
+        // Enter opens the installer confirmation, whose default is to stay in the live session.
+        desk.key(KeyCode::Enter);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::InstallerConfirm);
+        desk.key(KeyCode::Enter);
+        assert!(!desk.app.deck.installer_requested);
+
+        // Without an installer on this console the row is absent, as in Settings > Storage.
+        desk.app.deck.installer_available = false;
+        desk.app.overlay = Overlay::None;
+        desk.key(KeyCode::F(12));
+        desk.draw();
+        assert!(!desk.shows("Install WrOS to disk"));
+    }
+}
+
+#[test]
 fn power_waits_for_missing_sources_and_failed_document_claims_then_allows_explicit_retry() {
     use std::sync::{Arc, Mutex};
     use writingdeck_sys::{Backend, PowerAction, Reply, Request, Simulated};

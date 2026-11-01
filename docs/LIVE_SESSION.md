@@ -32,12 +32,14 @@ WrOS disables its personal screen-lock action in both the interface and the
 privileged lock helper. Installed sessions retain the existing lock path.
 Sleep remains disabled pending separate qualification.
 
-The native installer frontend is staged for further integration. This profile
-does not yet provide the privileged in-session installer supervisor. The
-separate Debian Installer boot entry remains the available installation path;
-the native frontend's protocol tests do not certify an installation from the
-live writing desk. Matching in-session kernel/backend components and a complete
-offline package pool must be integrated before that path can be enabled.
+WrOS installs from the live session. The boot menu offers only `Start WrOS (try
+it, or install it from the dashboard)`, its fail-safe variant and Utilities:
+`tools/live-boot-menu.py` removes live-build's stock Debian Installer entries,
+which would install plain Debian, and the media audit refuses a live medium that
+still carries them. Debian Installer's files stay on the medium for the native
+installer. The live session opens on the dashboard with `Install WrOS to disk`
+chosen; it and System > Storage both lead to the installer confirmation, whose
+default is to stay in the live session.
 
 `tools/audit-live-session.py` checks the immutable staged profile. Unit tests
 exercise account/boot selection, manual-entry options, publication ordering,

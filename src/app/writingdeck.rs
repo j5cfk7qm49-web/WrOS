@@ -410,8 +410,22 @@ impl App {
                 self.focus = self.editor_focus();
             }
             // Recovered words always take precedence over onboarding/dashboard.
-            if self.deck.state.launch_dashboard && matches!(self.overlay, Overlay::None) {
+            // Live media always opens on the dashboard with its install row chosen.
+            let install = home_actions(&self.deck).first() == Some(&HomeAction::InstallWros);
+            if (self.deck.state.launch_dashboard || install)
+                && matches!(self.overlay, Overlay::None)
+            {
                 self.open_dashboard();
+                if install {
+                    let widgets = self
+                        .deck
+                        .state
+                        .dashboard
+                        .iter()
+                        .filter(|w| w.visible)
+                        .count();
+                    self.overlay = Overlay::Deck(Page::Home { sel: widgets });
+                }
             }
         }
     }
@@ -832,7 +846,8 @@ impl App {
                     .map(|(i, _)| i)
                     .collect();
                 let n = widgets.len();
-                if nav(key, &mut sel, n + 7) {
+                let actions = home_actions(&self.deck);
+                if nav(key, &mut sel, n + actions.len()) {
                     self.overlay = Overlay::Deck(Page::Home { sel });
                     return;
                 }
@@ -871,18 +886,23 @@ impl App {
                         if sel < n {
                             self.open_widget(self.deck.state.dashboard[widgets[sel]].widget);
                         } else {
-                            match sel - n {
-                                0 => self.overlay = Overlay::None,
-                                1 => self.run_action(Action::Goals),
-                                2 => self.run_action(Action::Progress),
-                                3 => {
+                            match actions[sel - n] {
+                                HomeAction::InstallWros => self.open_installer_confirm(),
+                                HomeAction::Resume => self.overlay = Overlay::None,
+                                HomeAction::Goals => self.run_action(Action::Goals),
+                                HomeAction::Progress => self.run_action(Action::Progress),
+                                HomeAction::Workspaces => {
                                     self.overlay = Overlay::Deck(Page::Workspaces {
                                         sel: self.deck.state.selected,
                                     })
                                 }
-                                4 => self.open_settings(),
-                                5 => self.overlay = Overlay::Deck(Page::Tutorial { sel: 0 }),
-                                _ => self.overlay = Overlay::Deck(Page::Widgets { sel: 0 }),
+                                HomeAction::Settings => self.open_settings(),
+                                HomeAction::Tutorial => {
+                                    self.overlay = Overlay::Deck(Page::Tutorial { sel: 0 })
+                                }
+                                HomeAction::Widgets => {
+                                    self.overlay = Overlay::Deck(Page::Widgets { sel: 0 })
+                                }
                             }
                         }
                     }
@@ -1399,6 +1419,52 @@ impl App {
         }
     }
 }
+/// The dashboard's action rows, after its widgets. One list feeds both drawing and Enter.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum HomeAction {
+    /// Live media only, and listed first: installing is what most people boot the stick for.
+    InstallWros,
+    Resume,
+    Goals,
+    Progress,
+    Workspaces,
+    Settings,
+    Tutorial,
+    Widgets,
+}
+
+impl HomeAction {
+    pub fn label(self) -> &'static str {
+        match self {
+            HomeAction::InstallWros => "Install WrOS to disk",
+            HomeAction::Resume => "Resume writing",
+            HomeAction::Goals => "Goals",
+            HomeAction::Progress => "Progress",
+            HomeAction::Workspaces => "Workspaces",
+            HomeAction::Settings => "Settings",
+            HomeAction::Tutorial => "Interactive tutorial",
+            HomeAction::Widgets => "Configure widgets",
+        }
+    }
+}
+
+pub fn home_actions(deck: &Deck) -> Vec<HomeAction> {
+    let install = deck.live_session && deck.installer_available;
+    install
+        .then_some(HomeAction::InstallWros)
+        .into_iter()
+        .chain([
+            HomeAction::Resume,
+            HomeAction::Goals,
+            HomeAction::Progress,
+            HomeAction::Workspaces,
+            HomeAction::Settings,
+            HomeAction::Tutorial,
+            HomeAction::Widgets,
+        ])
+        .collect()
+}
+
 fn nav(key: Key, sel: &mut usize, len: usize) -> bool {
     if len == 0 {
         return false;
@@ -1444,11 +1510,15 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     match page {
         Page::Settings => unreachable!("shared shell draws Settings"),
         Page::Home { sel } => {
-            title = format!(
-                "{} · {}",
-                app.project.meta.title,
-                app.deck.state.current().name
-            );
+            title = if home_actions(&app.deck).first() == Some(&HomeAction::InstallWros) {
+                "Try WrOS here, or choose Install WrOS to disk to keep it".into()
+            } else {
+                format!(
+                    "{} · {}",
+                    app.project.meta.title,
+                    app.deck.state.current().name
+                )
+            };
             selected = Some(*sel);
             for w in app.deck.state.dashboard.iter().filter(|w| w.visible) {
                 let value = match w.widget {
@@ -1600,16 +1670,9 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                 rows.push(format!("{:<21} {}", w.widget.name(), value));
             }
             rows.extend(
-                [
-                    "Resume writing",
-                    "Goals",
-                    "Progress",
-                    "Workspaces",
-                    "Settings",
-                    "Interactive tutorial",
-                    "Configure widgets",
-                ]
-                .map(str::to_string),
+                home_actions(&app.deck)
+                    .into_iter()
+                    .map(|a| a.label().to_string()),
             );
             hint = "↑↓ choose  Enter open  h hide widget  J/K reorder  w widgets  p Pins  j Journal  s Scratchpad  o Handoff  Esc";
         }

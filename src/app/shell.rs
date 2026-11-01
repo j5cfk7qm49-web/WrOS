@@ -1296,6 +1296,20 @@ impl App {
         self.overlay = Overlay::Deck(writingdeck::Page::Settings);
         self.observe_deck(tutorial::Event::SystemOpened);
     }
+    /// The live dashboard's install row: Settings opened straight on the installer
+    /// confirmation, whose default is still to cancel.
+    pub fn open_installer_confirm(&mut self) {
+        if !self.deck.live_session || !self.deck.installer_available || self.deck.busy {
+            self.deck
+                .shell
+                .notices
+                .push("Live installer is unavailable or a system/backup operation is pending.");
+            return;
+        }
+        self.open_settings();
+        self.deck.shell.nav.open(Route::InstallerConfirm);
+        self.deck.shell.nav.select(0, 4);
+    }
     pub fn on_settings_key(&mut self, key: Key) {
         if self.deck.shell.nav.current() == Route::BackupForm {
             self.on_backup_form_key(key);
