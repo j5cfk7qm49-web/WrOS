@@ -634,6 +634,14 @@ def run_installer(ctx, g, secrets_, *, after_action=None, stuck_seconds=1500, de
         if after_action and after_action(snap, form, steps):
             ctx.result['installer_steps'] = steps
             return snap
+        if ('frontend stopped' in form.raw or 'Running exit-installer' in form.raw) and time.monotonic() - last_change > 120                 and snap['installer_unit'] == 'active' and 'outcome.json' not in snap['run_files']:
+            # the product promised a verdict within its grace periods (10 s frontend, 120 s backend); keep the
+            # VM alive and let the caller diagnose instead of waiting out the generic 25 minute limit
+            ctx.result['installer_stalled_after_finish'] = form.raw
+            ctx.step('installer-stalled-after-finish', seconds=120)
+            m.shot('stalled-after-finish')
+            ctx.result['installer_steps'] = steps
+            return snap
         if sig == acted:
             if time.monotonic() - last_change > stuck_seconds:
                 raise Failure('installer screen unchanged for %ds' % stuck_seconds)
@@ -727,6 +735,8 @@ def phase_install(ctx):
         return finish_failure_injection(ctx, g, target, kill)
     if getattr(ctx.args, 'diagnose', False):
         diagnose(ctx, g, secrets_)
+        if ctx.result.get('installer_stalled_after_finish'):
+            hold_for_operator(ctx, g)
     outcome = snap['run_files'].get('outcome.json', {})
     ctx.result['outcome'] = outcome
     m.shot('install-complete')
@@ -748,6 +758,29 @@ def phase_install(ctx):
         'serial': fixture_serial(token), 'layout': layout, 'run_dir': str(ctx.dir),
         'username': 'writer', 'binary_sha256': live_hashes}, indent=1) + '\n')
     ctx.result['passed'] = True
+
+
+def hold_for_operator(ctx, g, seconds=1800):
+    """After a stall: keep the VM up and run read-only shell lines appended to <run>/cmd.txt, replies in out.txt.
+    Ends on a line `quit`, an outcome.json appearing, or the time limit."""
+    cmd, out = ctx.dir / 'cmd.txt', ctx.dir / 'out.txt'
+    cmd.write_text('')
+    out.write_text('HOLD %s
+' % ctx.dir)
+    ctx.step('hold-for-operator', seconds=seconds)
+    done, deadline = 0, time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        lines = cmd.read_text().split(chr(10))
+        while done < len(lines) - 1:
+            line = lines[done].strip()
+            done += 1
+            if line == 'quit':
+                return
+            if line:
+                rc, text = g.run('{ %s; } </dev/null' % line, 120, check=False)
+                with open(out, 'a') as stream:
+                    stream.write('>>> %s%s[rc=%s]%s%s%s' % (line, chr(10), rc, chr(10), text, chr(10)))
+        time.sleep(2)
 
 
 def finish_failure_injection(ctx, g, target, kill):
@@ -938,6 +971,10 @@ def diagnose(ctx, g, secrets_):
         'unit-journal': 'sudo -n journalctl -b --no-pager -u wros-installer-session.service 2>&1',
         'journal-installer-grep': 'sudo -n journalctl -b --no-pager 2>&1 | grep -a -i -E "wros-install|pkexec|backend|di-run|installer|cryptsetup|swap" | tail -400',
         'dmesg-tail': 'sudo -n dmesg | tail -100',
+        'ps-wchan': 'ps -eo pid,ppid,stat,wchan:32,etimes,args --forest | cut -c1-220',
+        'ps-installer-stacks': "for p in $(pgrep -f 'wros-install|debian-installer|main-menu|di-run|exit-installer|cryptsetup|umount|apt|dpkg|systemd-run'); do echo \"== $p $(tr '\0' ' ' </proc/$p/cmdline | cut -c1-160)\"; sudo -n cat /proc/$p/wchan; echo; sudo -n cat /proc/$p/stack 2>&1 | head -12; ls -l /proc/$p/fd 2>/dev/null | head -12; done",
+        'unit-show': 'systemctl show wros-installer-session.service -p MainPID,ActiveState,SubState,ExecMainStatus,ControlPID,Result 2>&1',
+        'run-wros-installer-ls': 'sudo -n ls -la --time-style=full-iso /run/wros-installer /run/wros-installer/work 2>&1 | head -60',
     }
     for label, command in commands.items():
         sh(label, command, 120)
