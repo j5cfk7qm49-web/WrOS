@@ -1407,17 +1407,19 @@ def phase_update(ctx):
         raise
     ctx.step('system-rebooted-itself-after-applying')
     g2 = session_ready(ctx, m, st, secrets_, layout, after_reset=resets)
-    rc, out = g2.run('dpkg-query -W wros; cat /etc/writingdeck/release; cat /var/lib/wros-update/public/status.json; test -e /system-update && echo MARKER', 30, check=False)
+    rc, out = g2.run('dpkg-query -W wros; cat /etc/writingdeck/release; cat /var/lib/wros-update/public/status.json; test -e /system-update && echo MARKER; dpkg --audit; echo AUDIT_DONE; sudo -n ls /var/lib/wros-update/staged 2>&1 | head -3', 30, check=False)
     ctx.result['after_update_state'] = out
     ctx.check('wros is 0.1.0~rc2', re.search(r'^wros\s+0\.1\.0~rc2', out, re.M) is not None, out)
     ctx.check('release file carries 0.1.0~rc2', len(re.findall(r'0\.1\.0~rc2', out)) >= 2, out)
     ctx.check('update marker consumed', 'MARKER' not in out, out)
+    ctx.check('dpkg audit clean after the update', 'AUDIT_DONE' in out and not re.search(r'not fully installed|half-|unconfigured', out.split('AUDIT_DONE')[0].split('MARKER')[-1]), out[-400:])
     updates_panel(ctx, g2, layout)
     screen = g2.screen(1)
     m.shot('after-update-updates-panel')
     ctx.result['after_update_updates_screen'] = screen
     ctx.check('Settings shows the update completed', re.search(r'Update state: completed', screen) is not None, screen[-600:])
-    ctx.check('no further reboot', m.qmp.count('RESET') == resets)
+    time.sleep(60)
+    ctx.check('no reboot loop (no further reboot after 60 s)', m.qmp.count('RESET') == resets)
     if manuscript:
         hits = g2.probe('find-text', manuscript['phrase'], '/home')
         ctx.check('manuscript intact after update', bool(hits), hits)
