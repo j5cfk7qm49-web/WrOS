@@ -1451,6 +1451,7 @@ def phase_peek(ctx):
         if ok:
             matches.append(layout)
             g.shell.put('/dev/shm/rckey', text, '0600')
+            break
     g.run('shred -u /dev/shm/rckey_try', 20, check=False)
     ctx.result['luks_opened_by_reading'] = matches
     if not matches:
