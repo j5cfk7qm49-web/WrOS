@@ -115,7 +115,8 @@ def keymap():
     dump = run('dumpkeys', '-1', timeout=20) or ''
     result = {}
     for line in dump.splitlines():
-        match = re.match(r'keycode\s+(\d+)\s*=\s*(\S+)', line)
+        # dumpkeys -1 prints "plain<TAB>keycode  18 = +e"; only the unshifted plane identifies the layout
+        match = re.match(r'plain\s+keycode\s+(\d+)\s*=\s*\+?(\S+)', line)
         if match and match.group(1) in ('16', '17', '18', '19', '20', '30', '31', '32', '33', '34'):
             result[match.group(1)] = match.group(2)
     return {'keycodes': result, 'kbd_file': text('/etc/default/keyboard')}
