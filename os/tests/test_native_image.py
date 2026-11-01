@@ -226,6 +226,24 @@ class NativeImage(unittest.TestCase):
             self.assertIn('usr/libexec/wros-update', result['binary_sha256'])
             self.assertIn('usr/bin/gpgv', result['binary_sha256'])
 
+    def test_locker_setuid_is_required_as_root_and_tolerated_only_when_dropped_by_extraction(self):
+        with tempfile.TemporaryDirectory(prefix='wros-native-setuid-') as tmp:
+            root = Path(tmp)
+            fixture(root)
+            locker = root / 'usr/sbin/vlock-main'
+            locker.chmod(0o755)
+            with mock.patch.object(module, 'strict_ownership', return_value=False):
+                self.assertTrue(module.audit(root)['passed'])
+            with mock.patch.object(module, 'strict_ownership', return_value=True):
+                with self.assertRaisesRegex(ValueError, 'vlock-main mode must match'):
+                    module.audit(root)
+            for mode in (0o2755, 0o6755, 0o4711):
+                locker.chmod(mode)
+                with self.subTest(mode=oct(mode)), \
+                        mock.patch.object(module, 'strict_ownership', return_value=False):
+                    with self.assertRaisesRegex(ValueError, 'vlock-main mode must match'):
+                        module.audit(root)
+
     def test_unsafe_native_session_cannot_pass_even_with_all_requested_packages(self):
         mutations = {
             'autologin': lambda r: (r / 'etc/greetd/config.toml').write_text(

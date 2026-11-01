@@ -353,6 +353,22 @@ GPT start and size : 2 102048 5760
         with self.assertRaisesRegex(ValueError, 'kernel modules .* do not match its kernel'):
             module.squash_kernel_abi(mismatch_mod)
 
+    def test_squash_mode_reads_setuid_and_owner_from_the_real_squashfs(self):
+        with tempfile.TemporaryDirectory(prefix='wros-squash-mode-') as tmp:
+            source = Path(tmp) / 'root'
+            (source / 'usr/sbin').mkdir(parents=True)
+            locker = source / 'usr/sbin/vlock-main'
+            locker.write_bytes(b'\x7fELF synthetic locker\n')
+            for mode, expected in ((0o4755, '-rwsr-xr-x'), (0o755, '-rwxr-xr-x')):
+                locker.chmod(mode)
+                image = Path(tmp) / f'{mode:o}.squashfs'
+                subprocess.run(['mksquashfs', str(source), str(image), '-all-root', '-quiet', '-no-progress'],
+                               check=True, stdout=subprocess.DEVNULL)
+                with self.subTest(mode=oct(mode)):
+                    self.assertEqual(module.squash_mode(image, 'usr/sbin/vlock-main'), (expected, 'root/root'))
+            with self.assertRaisesRegex(ValueError, 'no entry for usr/sbin/missing'):
+                module.squash_mode(image, 'usr/sbin/missing')
+
     def test_deny_list_rejects_qa_files_autologin_and_insecure_auth(self):
         with tempfile.TemporaryDirectory(prefix='wros-deny-') as tmp:
             rootfs = Path(tmp)

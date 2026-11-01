@@ -318,7 +318,10 @@ def audit(root, fixture_fingerprints=None):
         mode = path.stat().st_mode
         if not mode & 0o111 or mode & 0o022 or (relative != 'usr/sbin/vlock-main' and mode & 0o6000):
             raise ValueError('unsafe maintained locker permissions: ' + relative)
-        if relative == 'usr/sbin/vlock-main' and mode & 0o7777 != 0o4755:
+        # An unprivileged extraction (unsquashfs as a normal user) drops setuid; the media
+        # audit then proves the bit from the squashfs listing instead.
+        allowed = (0o4755,) if strict_ownership() else (0o4755, 0o755)
+        if relative == 'usr/sbin/vlock-main' and mode & 0o7777 not in allowed:
             raise ValueError('maintained vlock-main mode must match the Debian package')
         binaries[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
     regular(root, 'usr/share/doc/vlock/copyright')

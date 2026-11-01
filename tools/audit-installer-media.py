@@ -285,6 +285,16 @@ def squash_cat(squashfs, path):
     return run_tool(['unsquashfs', '-cat', str(squashfs), path], timeout=600).stdout
 
 
+def squash_mode(squashfs, path):
+    """(permissions, owner/group) of one entry as stored in the real squashfs, e.g. ('-rwsr-xr-x', 'root/root')."""
+    output = run_tool(['unsquashfs', '-ll', str(squashfs), path], timeout=600).stdout.decode('utf-8', 'surrogateescape')
+    for line in output.splitlines():
+        fields = line.split(None, 2)
+        if len(fields) == 3 and line.endswith(' squashfs-root/' + path):
+            return fields[0], fields[1]
+    raise ValueError('squashfs has no entry for ' + path)
+
+
 def squash_extract(squashfs, destination):
     """Extract the whole filesystem; device nodes cannot be made unprivileged and are not needed."""
     process = subprocess.run(['unsquashfs', '-no-progress', '-ignore-errors', '-no-xattrs', '-d', str(destination), str(squashfs)],
@@ -702,6 +712,9 @@ def audit_release(base, iso, profile='live-session', binaries=None, baseline=Non
                     'no boot entry requests boot=live wros.live=1')
             live_audit = load_tool('live_audit', 'audit-live-session.py')
             result['live_session'] = live_audit.audit(rootfs)
+            # The unprivileged extraction above cannot carry setuid; prove it from the squashfs bytes.
+            require(squash_mode(squashfs, 'usr/sbin/vlock-main') == ('-rwsr-xr-x', 'root/root'),
+                    'maintained vlock-main in the squashfs is not setuid root as the Debian package ships it')
             result['squashfs']['helpers'] = compare_helpers(rootfs)
             result['squashfs']['launcher_version'] = check_launcher_package(rootfs)
             result['update_trust'] = check_update_trust(rootfs, required=not interim)
