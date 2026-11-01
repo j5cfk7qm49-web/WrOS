@@ -40,7 +40,9 @@ GUEST = Path(__file__).with_name('rc_vm_guest.py')
 LIVE_USER, LIVE_PASSWORD = 'wros-live', 'live'   # Debian's public live credential, not a secret
 TARGET_BYTES = 16 * 1024 ** 3
 # installer keymap list entry to choose, and entries to avoid, per requested layout
-LAYOUT_CHOICES = {'dvorak': (r'^Dvorak$', ''), 'colemak': (r'Colemak(?![-\w])', r'DH|Dvorak|Workman|Norman')}
+LAYOUT_CHOICES = {'dvorak': (r'^Dvorak$', ''), 'colemak': (r'^Colemak$', ''),
+                  'colemak_dh': (r'^Colemak Mod-DH \(ANSI\)$', '')}
+KEYMAP_ROWS_EXPECTED = [r'^Colemak$', r'^Colemak Mod-DH \(ANSI\)$', r'^Colemak Mod-DH \(ISO\)$']
 
 
 def harness_commit():
@@ -177,8 +179,9 @@ class Guest:
 
     def layout_in_effect(self):
         keys = self.probe('keymap', timeout=60)['keycodes']
-        symbol = keys.get('18', '').lower()
-        return {'e': 'us', 'f': 'colemak', 'period': 'dvorak'}.get(symbol, 'other:' + symbol)
+        pair = (keys.get('18', '').lower(), keys.get('20', '').lower())
+        found = {('e', 't'): 'us', ('period', 'y'): 'dvorak', ('f', 'g'): 'colemak', ('f', 'b'): 'colemak_dh'}
+        return found.get(pair, 'other:%s,%s' % pair)
 
     # Grimoire navigation (list highlight is the shared "▸ " marker) ------------
     def selected_row(self, n=1):
@@ -499,9 +502,22 @@ def apply_action(ctx, g, m, form, rule, action, secrets_, layout_wanted):
     elif name == 'select':
         want, avoid = action[1], action[2]
         current = form
+        seen_rows = []
         for _ in range(500):
             sel = current.selected
+            for row in [sel] + list(current.rows):
+                if row and row not in seen_rows:
+                    seen_rows.append(row)
             if re.search(want, sel, re.I) and not (avoid and re.search(avoid, sel, re.I)):
+                if rule.name == 'keyboard-layout':
+                    ctx.result['keymap_rows_seen'] = seen_rows
+                    if ctx.args.layout.startswith('colemak'):
+                        for expected in KEYMAP_ROWS_EXPECTED:
+                            ctx.check('installer keymap list offers %s' % expected.strip('^$').replace('\\', ''),
+                                      any(re.search(expected, r) for r in seen_rows), seen_rows[-12:])
+                        i = [k for k, r in enumerate(seen_rows) if r == 'Colemak']
+                        ctx.check('Colemak entries follow Chinese in the list',
+                                  bool(i) and i[0] > 0 and seen_rows[i[0] - 1].startswith('Chinese'), seen_rows[max(0, i[0] - 2):i[0] + 3] if i else seen_rows[-8:])
                 m.key('ret')
                 ctx.step('selected', rule=rule.name, choice=sel)
                 return
@@ -659,7 +675,7 @@ def phase_install(ctx):
     m.shot('install-complete')
     ctx.check('installer outcome is completed', outcome.get('outcome') == 'completed', outcome)
     ctx.check('host cleanup verified', outcome.get('host_cleanup_verified') is True, outcome)
-    ctx.check('target proof present', bool(outcome.get('target_verified') or outcome.get('target_proof')), outcome)
+    ctx.check('target_verified is true', outcome.get('target_verified') is True, outcome)
     screen = g.wait_vcs(1, r'Encrypted installation completed|installation completed', 120, what='completion-note')
     ctx.step('completion-note', screen=screen[-600:])
     ctx.check('no secret in serial transcript', not any(m.serial.contains(v) for v in secrets_.values()))
@@ -818,7 +834,7 @@ def diagnose(ctx, g, secrets_):
 
     # the installer's own files first: they are the evidence that matters most
     sh('installer-tree', "sudo -n find /run/wros-installer -ls 2>&1 | grep -a -v 'media-upper/native-installer/pool\\|media-upper/install'")
-    rc, listing = g.run("{ sudo -n find /run/wros-installer -type f \\( -name '*.log' -o -name 'outcome.json' -o -name 'baseline.json' -o -name cmdline \\) -size -50000k; } </dev/null", 60, check=False)
+    rc, listing = g.run("{ sudo -n find /run/wros-installer -type f \\( -name '*.log' -o -name 'outcome.json' -o -name 'baseline.json' -o -name cmdline -o -name 'installer-syslog' -o -name 'installer-partman' \\) -size -50000k; } </dev/null", 60, check=False)
     wanted = [l.strip() for l in listing.splitlines() if l.strip().startswith('/run/wros-installer/')]
     ctx.step('diagnose-installer-files', files=wanted)
     g.run('sudo -n pkill -f rc-poll.sh; true', 20, check=False)
@@ -893,8 +909,13 @@ def unlock(ctx, m, secrets_, layout, *, wrong_first=True, after_reset=None):
     ctx.step('unlock-prompt-seen', screen=text[-300:])
     ctx.check('unlock prompt is on tty1 only (no QA console argument)', True)
     if wrong_first:
-        m.type_text('definitely-not-the-passphrase\n', layout)
-        text = m.wait_screen(r'No key available|incorrect|try again', 120, name='unlock-wrong')
+        # the real passphrase typed as if the keyboard were US QWERTY: with a correct non-US map it must fail
+        m.type_text(secrets_['luks'] + '\n', 'us' if layout != 'us' else layout)
+        try:
+            text = m.wait_screen(r'No key available|incorrect|try again', 120, name='unlock-wrong')
+        except TimeoutError:
+            m.shot('unlock-qwerty-accepted-or-unclear')
+            raise Failure('QWERTY-typed passphrase was not rejected at the LUKS prompt (initramfs layout disagrees with the installer layout?)')
         m.shot('unlock-rejected')
         ctx.result['unlock_wrong_screen'] = text[-400:]
         ctx.check('wrong passphrase rejected', True)
@@ -909,7 +930,7 @@ def greeter_login(ctx, g, m, user, password, layout, *, wrong_first=True):
     if wrong_first:
         m.type_text(user + '\n', layout)
         g.wait_vcs(1, r'\[hidden\]', 30, what='greeter-password-prompt')
-        m.type_text('definitely-wrong\n', layout)
+        m.type_text(password + '\n', 'us' if layout != 'us' else layout)    # QWERTY reading of the real password
         screen = g.wait_vcs(1, r'Login was not accepted', 60, what='greeter-rejected')
         m.shot('greeter-rejected')
         ctx.check('wrong greeter password rejected', True)
@@ -966,7 +987,20 @@ def phase_installed_boot(ctx):
     ctx.check('wros package is 0.1.0~rc1', re.search(r'^wros\s+0\.1\.0~rc1', out, re.M) is not None, out[:300])
     ctx.check('root is locked', re.search(r'root L', out) is not None)
     ctx.check('installed /etc/default/keyboard carries the installer-selected layout',
-              re.search(r'XKBVARIANT="?%s' % layout, out) is not None, out)
+              (re.search(r'XKBVARIANT="?colemak', out) is not None) if layout.startswith('colemak')
+              else (re.search(r'XKBVARIANT="?%s' % layout, out) is not None), out)
+    rc, facts = g.run('echo "--- /etc/default/keyboard"; cat /etc/default/keyboard; echo "--- conf.d/wros-keymap"; cat /etc/initramfs-tools/conf.d/wros-keymap 2>&1; '
+                      'echo "--- initramfs keymap/console files"; lsinitramfs /boot/initrd.img-$(uname -r) | grep -i -E "keymap|console-setup|keyboard|kbd|loadkeys|setupcon" ; '
+                      'echo "--- installer syslog wros-keymaps"; grep -a -n "wros-keymaps" /var/log/installer/syslog 2>&1 | head -20; '
+                      'echo "--- writingdeck-keyboard"; cat /etc/writingdeck/keyboard.json 2>&1; echo; ls -la /etc/writingdeck/installer-keyboard-pending 2>&1; '
+                      'systemctl show -p Result,ExecMainStatus,ActiveState writingdeck-keyboard.service; journalctl -b --no-pager -u writingdeck-keyboard.service 2>&1 | tail -30; '
+                      'echo "--- console keymap"; dumpkeys -1 2>/dev/null | grep -a -E "^plain\\s+keycode +(16|17|18|19|20) "', 90, check=False)
+    ctx.result['keyboard_facts'] = facts
+    (ctx.dir / 'keyboard-facts.txt').write_text(facts)
+    ctx.check('installer syslog records the Colemak keymaps being offered', 'Colemak keymaps offered' in facts or not layout.startswith('colemak'), facts[:600])
+    ctx.check('conf.d/wros-keymap carries KEYMAP=y', 'KEYMAP=y' in facts.split('--- initramfs')[0].split('--- conf.d/wros-keymap')[-1], facts[:600])
+    installed_layout = g.layout_in_effect()
+    ctx.step('console-keymap-after-login', layout=installed_layout)
     rc, kb = g.run('cat /etc/writingdeck/keyboard.json; echo; test -e /etc/writingdeck/installer-keyboard-pending && echo PENDING_STILL_PRESENT; '
                    'lsinitramfs /boot/initrd.img-$(uname -r) | grep -ci keymap; '
                    'sha256sum /usr/bin/grimoire /usr/bin/wros-greeter /usr/bin/wros-installer; '
@@ -975,6 +1009,11 @@ def phase_installed_boot(ctx):
     ctx.step('keyboard-adoption-observed', keyboard=kb[:700])
     ctx.check('installed binaries equal the live image binaries',
               all(('%s  %s' % (h, n)) in kb for n, h in st.get('binary_sha256', {}).items()) and bool(st.get('binary_sha256')), kb)
+    receipt_bins = ctx.result.get('receipt_binaries_sha256') or {}
+    want = {'/usr/bin/' + n: v.get('squashfs_sha256') for n, v in receipt_bins.items() if isinstance(v, dict)}
+    ctx.result['installed_vs_receipt'] = want
+    ctx.check('installed binaries equal the receipt squashfs hashes',
+              bool(want) and all(('%s  %s' % (h, n)) in kb for n, h in want.items() if h), want)
     ctx.check('no live runtime state on the installed system', 'No such file' in kb.split('wros-live-session.service')[-1] or 'inactive' in kb, kb[-300:])
     # writing round trip
     phrase = 'rcboot' + secrets.token_hex(5)
@@ -1375,7 +1414,7 @@ def main():
     parser.add_argument('--install-run')
     parser.add_argument('--bundle')
     parser.add_argument('--secboot', action='store_true')
-    parser.add_argument('--layout', default='dvorak', choices=['dvorak', 'colemak'])
+    parser.add_argument('--layout', default='dvorak', choices=['dvorak', 'colemak', 'colemak_dh'])
     parser.add_argument('--kill', choices=['backend', 'writer'])
     parser.add_argument('--variant', default='ok', choices=['ok', 'cancel', 'tamper', 'powercut', 'badstage'])
     parser.add_argument('--base-disk')

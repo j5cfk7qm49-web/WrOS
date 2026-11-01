@@ -130,6 +130,8 @@ def rules(layout_choice=r'Colemak(?![-\w])', avoid=r'DH|Dvorak|Workman|Norman'):
         Rule('no-interfaces', r'No network interfaces detected', ('enter',), ('note',)),
         Rule('no-ethernet', r'No Ethernet card was found on the system|Ethernet card not found', ('enter',), ('note', 'select')),
         Rule('ethernet-driver', r'Driver needed by your Ethernet card', ('select', r'no ethernet card', ''), ('select',)),
+        Rule('grub-device', r'Device for boot loader installation', ('select', r'/dev/vda', ''), ('select', 'string')),
+        Rule('scan-media', r'Scan another CD or DVD\?', ('no',), ('boolean',)),
         Rule('installation-complete', r'Installation complete', ('enter',), ('note',)),
     ]
 
