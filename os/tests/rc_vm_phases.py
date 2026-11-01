@@ -1393,14 +1393,24 @@ def phase_peek(ctx):
     g.shell.put('/tmp/rcopen.sh', OPEN_LUKS_SCRIPT, '0644')
     # DIAGNOSIS (labelled): which reading of the typed physical keys is the real passphrase?
     typed = ctx.args.layout
-    readings = secret_readings(secrets_['luks'], typed)
+    readings = {}
+    for which in ('luks', 'login'):
+        for typed_as in ('colemak_dh', 'colemak', 'dvorak', 'us'):
+            try:
+                for read_as, text in secret_readings(secrets_[which], typed_as).items():
+                    for suffix, tag in (('', ''), (chr(10), '+newline')):
+                        readings.setdefault(text + suffix, []).append('%s typed-as-%s read-as-%s%s' % (which, typed_as, read_as, tag))
+            except ValueError:
+                pass
+    readings = {labels[0] + (' (+%d same string)' % (len(labels) - 1) if len(labels) > 1 else ''): text for text, labels in readings.items()}
     g.shell.put('/tmp/rctest.sh', LUKS_DEV + chr(10) + 'cryptsetup open --test-passphrase --key-file "$1" $dev; echo rc=$?' + chr(10), '0644')
     matches = []
     for layout, text in readings.items():
         g.shell.put('/dev/shm/rckey_try', text, '0600')
         rc, res = g.run('sudo -n sh /tmp/rctest.sh /dev/shm/rckey_try', 60, check=False)
         ok = 'rc=0' in res
-        ctx.step('luks-reading-test', typed_as=typed, read_as=layout, opens=ok)
+        if ok:
+            ctx.step('luks-reading-test', candidate=layout, opens=ok)
         if ok:
             matches.append(layout)
             g.shell.put('/dev/shm/rckey', text, '0600')
