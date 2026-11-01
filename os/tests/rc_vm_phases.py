@@ -291,10 +291,25 @@ def make_target(ctx, name='target.img', size=TARGET_BYTES):
     return path, token
 
 
+def on_dashboard(g):
+    lines = g.vcs(1)
+    return bool(lines) and 'Resume writing' in '
+'.join(lines) and 'GRIMOIRE' not in lines[0]
+
+
 def grim_dashboard(g):
-    """F12 opens the WrOS dashboard from anywhere in Grimoire."""
-    g.m.key('f12')
+    """Show the WrOS dashboard (F12 toggles it, so only press it from the editor)."""
+    if not on_dashboard(g):
+        g.m.key('f12')
     g.wait_vcs(1, r'Resume writing', 30, what='dashboard')
+
+
+def grim_editor(g):
+    """Return to the editor (Esc closes the dashboard; in the editor Esc would open the menu)."""
+    if on_dashboard(g):
+        g.m.key('esc')
+        time.sleep(1)
+    g.wait_vcs(1, r'GRIMOIRE', 20, what='editor')
 
 
 def grim_open_settings(g, layout='us'):
@@ -316,9 +331,7 @@ def grim_to_panel(g, panel_regex):
 def grim_new_scene(g, name, text, layout='us'):
     """Dashboard (or editor) -> new scene named `name` -> type text -> save. Returns the screen."""
     m = g.m
-    grim_dashboard(g)
-    m.key('esc')                      # close the dashboard back to the editor
-    time.sleep(1)
+    grim_editor(g)
     m.key('ctrl', 'k')
     time.sleep(0.8)
     m.type_text('new scene', layout)
@@ -338,7 +351,7 @@ def grim_logout_login(ctx, g, user, password, layout):
     g.m.key('ctrl', 'q')
     g.wait_vcs(1, r'Local account', 60, what='after-logout')
     greeter_login(ctx, g, g.m, user, password, layout, wrong_first=False)
-    grim_dashboard(g) if 'Resume writing' not in g.screen(1) else None
+    grim_dashboard(g)
     g.m.key('ret')           # Resume writing
     time.sleep(3)
     return g.screen(1)
