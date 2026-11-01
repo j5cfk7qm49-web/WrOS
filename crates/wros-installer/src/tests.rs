@@ -282,11 +282,18 @@ fn nested_debconf_progress_after_stop_never_ends_the_frontend() {
     assert_eq!((progress.min, progress.max, progress.value), (0, 100, 0));
     send(&mut session, "PROGRESS START 0 0 never/registered");
     let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
-    let theme = wros_shell::grimoire_theme::presets().into_iter().next().unwrap();
+    let theme = wros_shell::grimoire_theme::presets()
+        .into_iter()
+        .next()
+        .unwrap();
     terminal
         .draw(|f| ui::render(f, &session, &theme, 0, false))
         .unwrap();
-    for line in ["PROGRESS REGION 0 5", "PROGRESS SET x", "PROGRESS START 5 1 t"] {
+    for line in [
+        "PROGRESS REGION 0 5",
+        "PROGRESS SET x",
+        "PROGRESS START 5 1 t",
+    ] {
         assert!(session.command(line).is_err(), "{line}");
     }
 }

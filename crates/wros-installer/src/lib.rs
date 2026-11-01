@@ -489,7 +489,9 @@ impl Session {
                 }
             }
             ["INFO", tag] => {
-                if let (Some(progress), Some(q)) = (self.progress.as_mut(), self.questions.get(*tag)) {
+                if let (Some(progress), Some(q)) =
+                    (self.progress.as_mut(), self.questions.get(*tag))
+                {
                     progress.detail = q.description.clone();
                 }
             }
