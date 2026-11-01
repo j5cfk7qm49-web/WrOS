@@ -1295,6 +1295,32 @@ def phase_update(ctx):
     ctx.result['engine_fix_probe'] = eng
     ctx.check('installed update engine contains the media permission fix (dmask=0022,fmask=0133)', 'dmask=0022,fmask=0133' in eng, eng)
 
+    if variant == 'reviewpath':
+        # supplementary: "Review a signed update bundle by path" with media the writer mounted themselves
+        rc, out = g.run("sudo -n mkdir -p /mnt/rcbundle && sudo -n mount -o ro,nodev,nosuid,noexec /dev/sda /mnt/rcbundle && ls /mnt/rcbundle && stat -c '%a %U %n' /mnt /mnt/rcbundle", 30)
+        ctx.result['manual_mount'] = out
+        updates_panel(ctx, g, layout)
+        g.choose(r'Review a signed update bundle by path')
+        m.key('ret')
+        time.sleep(2)
+        first = g.screen(1)
+        m.shot('reviewpath-prompt')
+        ctx.result['reviewpath_prompt_screen'] = first
+        m.type_text('/mnt/rcbundle', layout)
+        time.sleep(1)
+        m.shot('reviewpath-typed')
+        m.key('ret')
+        screen = g.wait_vcs(1, r'Continue to confirmation|Signed by key|not reviewed|refus', 90, what='reviewpath-result')
+        m.shot('reviewpath-result')
+        ctx.result['reviewpath_result_screen'] = screen
+        ctx.check('path review shows wros 0.1.0~rc1 -> 0.1.0~rc2', re.search(r'wros.*0\.1\.0~rc1.*0\.1\.0~rc2', screen, re.S) is not None, screen[-900:])
+        signer = pinned_signers(g)
+        ctx.check('path review shows the pinned signer', bool(signer) and signer.lower() in screen.lower().replace(' ', ''), (signer, screen[-500:]))
+        rc, out = g.run(NOTHING_STAGED, 20, check=False)
+        ctx.check('review by path staged nothing', 'MARKER' not in out and out.strip().endswith('0'), out)
+        ctx.result['passed'] = True
+        return
+
     if variant == 'tamper':
         updates_panel(ctx, g, layout)
         screen = find_and_review(ctx, g, expect_review=False)
@@ -1747,7 +1773,7 @@ def main():
     parser.add_argument('--secboot', action='store_true')
     parser.add_argument('--layout', default='dvorak', choices=['dvorak', 'colemak', 'colemak_dh'])
     parser.add_argument('--kill', choices=['backend', 'writer'])
-    parser.add_argument('--variant', default='ok', choices=['ok', 'cancel', 'tamper', 'powercut', 'badstage'])
+    parser.add_argument('--variant', default='ok', choices=['ok', 'cancel', 'tamper', 'powercut', 'badstage', 'reviewpath'])
     parser.add_argument('--base-disk')
     parser.add_argument('--media-fs', default='ext4', choices=['ext4', 'vfat'])
     parser.add_argument('--cut-delay', default='2')
