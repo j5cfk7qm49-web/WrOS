@@ -19,7 +19,9 @@ export PATH
 export LC_ALL=C
 unset BASH_ENV ENV
 
-readonly MAPPING=wros-rescue-root
+# Unlocked under this name until crypttab is readable, then renamed to the crypttab name:
+# Debian's cryptsetup initramfs hook only finds the root's mapping under that name.
+mapping=wros-rescue-root
 readonly TARGET=${WROS_RESCUE_TARGET:-/target}
 readonly CMDLINE=${WROS_RESCUE_CMDLINE:-/proc/cmdline}
 
@@ -55,7 +57,7 @@ release() {
         vg_active=0
     fi
     if [[ $luks_open -eq 1 ]]; then
-        cryptsetup close "$MAPPING" >/dev/null 2>&1
+        cryptsetup close "$mapping" >/dev/null 2>&1
         luks_open=0
     fi
     set -e
@@ -120,8 +122,8 @@ for entry in "${candidates[@]}"; do
 done
 ((found == 1)) || die "$device is not a LUKS partition"
 cryptsetup isLuks "$device" || die "$device is not a LUKS container"
-if cryptsetup status "$MAPPING" >/dev/null 2>&1; then
-    die "$MAPPING is already open; close it first (cryptsetup close $MAPPING)"
+if cryptsetup status "$mapping" >/dev/null 2>&1; then
+    die "$mapping is already open; close it first (cryptsetup close $mapping)"
 fi
 if mountpoint -q "$TARGET" 2>/dev/null; then
     die "$TARGET is already a mount point"
@@ -134,10 +136,10 @@ luks_uuid=$(cryptsetup luksUUID "$device")
 [[ $luks_uuid =~ ^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$ ]] || die 'unexpected LUKS UUID'
 
 note "Unlocking $device. Type the disk passphrase when asked (it is never stored)."
-cryptsetup open --type luks --tries 3 "$device" "$MAPPING" </dev/tty || die 'could not unlock the disk'
+cryptsetup open --type luks --tries 3 "$device" "$mapping" </dev/tty || die 'could not unlock the disk'
 luks_open=1
 
-vg=$(pvs --noheadings -o vg_name "/dev/mapper/$MAPPING" 2>/dev/null | tr -d '[:space:]' || true)
+vg=$(pvs --noheadings -o vg_name "/dev/mapper/$mapping" 2>/dev/null | tr -d '[:space:]' || true)
 roots=()
 if [[ -n $vg ]]; then
     [[ $vg =~ ^[A-Za-z0-9+_.-]+$ ]] || die 'unexpected LVM volume group name'
@@ -145,24 +147,48 @@ if [[ -n $vg ]]; then
     vg_active=1
     mapfile -t roots < <(lvs --noheadings -o lv_path "$vg" | tr -d ' ')
 else
-    roots=("/dev/mapper/$MAPPING")
+    roots=("/dev/mapper/$mapping")
 fi
 
 matches=()
+crypt_names=()
 for candidate in "${roots[@]}"; do
     [[ -n $candidate ]] || continue
     [[ $(blkid -s TYPE -o value "$candidate" 2>/dev/null || true) == ext4 ]] || continue
     mount -t ext4 -o ro,noload,nodev,nosuid "$candidate" "$TARGET" || continue
     push_mount "$TARGET"
-    if [[ -f $TARGET/etc/writingdeck/release && -f $TARGET/etc/crypttab ]] \
-        && grep -Fq "UUID=$luks_uuid" "$TARGET/etc/crypttab"; then
-        matches+=("$candidate")
+    if [[ -f $TARGET/etc/writingdeck/release && -f $TARGET/etc/crypttab ]]; then
+        name=$(awk -v source="UUID=$luks_uuid" '$1 !~ /^#/ && $2 == source { print $1; exit }' "$TARGET/etc/crypttab")
+        if [[ -n $name ]]; then
+            matches+=("$candidate")
+            crypt_names+=("$name")
+        fi
     fi
     umount "$TARGET"
     pop_mount
 done
 ((${#matches[@]} == 1)) || die "expected exactly one installed WrOS root on this disk, found ${#matches[@]}"
 root_device=${matches[0]}
+crypt_name=${crypt_names[0]}
+[[ $crypt_name =~ ^[A-Za-z0-9_.+-]{1,64}$ ]] || die 'unexpected mapping name in the installed crypttab'
+
+if [[ $crypt_name != "$mapping" ]]; then
+    if dmsetup info "$crypt_name" >/dev/null 2>&1; then
+        die "$crypt_name is already in use on this live system; close it first"
+    fi
+    # Rename only while nothing is stacked on it, then bring the volume group back.
+    if [[ $vg_active -eq 1 ]]; then
+        vgchange -an "$vg" >/dev/null || die 'could not deactivate the LVM volume group for renaming'
+        vg_active=0
+    fi
+    dmsetup rename "$mapping" "$crypt_name" || die "could not name the unlocked disk $crypt_name"
+    [[ $root_device == "/dev/mapper/$mapping" ]] && root_device=/dev/mapper/$crypt_name
+    mapping=$crypt_name
+    if [[ -n $vg ]]; then
+        vgchange -ay "$vg" >/dev/null || die 'could not activate the LVM volume group'
+        vg_active=1
+    fi
+fi
 
 note "Found the installed system on $root_device; mounting it read-write at $TARGET."
 mount -t ext4 -o rw,nodev "$root_device" "$TARGET"
@@ -184,6 +210,14 @@ push_mount "$TARGET/run"
 
 if [[ ! -f $TARGET/usr/lib/wros-update/engine.py || ! -x $TARGET/usr/libexec/wros-update ]]; then
     die 'the installed system has no WrOS update engine; follow the manual steps in docs/RC_RESCUE.md'
+fi
+# The guided encrypted install keeps /boot on its own partition. Without it, kernel,
+# initramfs and GRUB writes would land in the root filesystem's empty /boot, and /boot/efi
+# would have no mountpoint at all.
+if grep -Eq '^[^#]*[[:space:]]/boot[[:space:]]' "$TARGET/etc/fstab" 2>/dev/null; then
+    chroot "$TARGET" /usr/bin/mount /boot 2>/dev/null \
+        || die 'could not mount the installed /boot; refusing to repair onto the root filesystem instead'
+    push_mount "$TARGET/boot"
 fi
 if grep -Eq '^[^#]*[[:space:]]/boot/efi[[:space:]]' "$TARGET/etc/fstab" 2>/dev/null; then
     if chroot "$TARGET" /usr/bin/mount /boot/efi 2>/dev/null; then

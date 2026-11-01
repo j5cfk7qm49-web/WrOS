@@ -54,7 +54,7 @@ The `wros-rescue` script automates the safe mounting, chroot execution, and clea
    - Scans block devices (`lsblk`) for partitions with type `crypto_LUKS`.
    - If multiple LUKS partitions are detected, prompts the operator to specify `--device /dev/sdXN`.
    - Prompts for the disk encryption passphrase interactively. The passphrase is typed directly to `cryptsetup` and is never saved or logged.
-   - Unlocks the container as `/dev/mapper/wros-rescue-root`.
+   - Unlocks the container as `/dev/mapper/wros-rescue-root` until the installed system's name for it is known.
 
 3. **LVM & Root Identification**:
    - If LVM is present, activates the volume group (`vgchange -ay <vg>`).
@@ -62,6 +62,10 @@ The `wros-rescue` script automates the safe mounting, chroot execution, and clea
      - Checks `/etc/writingdeck/release` exists.
      - Confirms `/etc/crypttab` references the matching LUKS UUID.
    - Requires exactly one matching WrOS root volume.
+   - Renames the unlocked mapping to the name `/etc/crypttab` gives it (for example
+     `vda3_crypt`), deactivating and reactivating the volume group around the rename. Debian's
+     cryptsetup initramfs hook only finds the root's mapping under that name; an initramfs
+     rebuilt under any other name may not be able to unlock the disk at the next boot.
 
 4. **Private Target Mounting & Chroot Preparation**:
    - Mounts the target filesystem read-write under a private target `/target` (`mount -t ext4 -o rw,nodev`).
@@ -71,7 +75,10 @@ The `wros-rescue` script automates the safe mounting, chroot execution, and clea
      - `/proc` -> `/target/proc`
      - `/sys` -> `/target/sys`
      - `/run` -> `/target/run` (tmpfs)
-   - Mounts `/boot/efi` inside the chroot if an EFI System Partition is defined in `/etc/fstab`.
+   - Mounts `/boot` inside the chroot when `/etc/fstab` lists it (the guided encrypted install
+     always keeps `/boot` on its own partition), and refuses to continue if that fails, so no
+     kernel, initramfs or GRUB file is written to the root filesystem's empty `/boot`.
+   - Then mounts `/boot/efi` inside the chroot if an EFI System Partition is defined in `/etc/fstab`.
 
 5. **Executing Update Repair**:
    - Verifies presence of the installed system's update engine (`/usr/lib/wros-update/engine.py` and `/usr/libexec/wros-update`).
@@ -84,25 +91,33 @@ The `wros-rescue` script automates the safe mounting, chroot execution, and clea
 
 6. **Automatic Cleanup & Teardown**:
    - Regardless of whether the repair succeeds or fails (via `trap ... EXIT`):
-     - Unmounts all bind mounts and `/boot/efi` in reverse order.
+     - Unmounts all bind mounts, `/boot/efi` and `/boot` in reverse order.
      - Unmounts `/target`.
      - Deactivates LVM volume groups (`vgchange -an`).
-     - Closes the LUKS mapping (`cryptsetup close wros-rescue-root`).
+     - Closes the LUKS mapping under whichever name it has at that point.
    - Leaves no mounts or decrypted cryptographic devices open.
 
 ## 4. Manual Fallback Procedure
 
 If `wros-rescue` cannot run automatically (e.g. if `/usr/lib/wros-update/engine.py` is damaged), the operator can perform manual recovery from the Live ISO:
 
-1. Unlock the LUKS partition:
+1. Unlock the LUKS partition under the name the installed system uses for it. That name is
+   the first field of the root's line in its `/etc/crypttab` (the guided install uses the
+   partition name plus `_crypt`, for example `vda3_crypt` or `nvme0n1p3_crypt`). Debian's
+   cryptsetup initramfs hook only finds the root under that name, so `update-initramfs`
+   below must run with it:
    ```bash
-   sudo cryptsetup open /dev/sdXN wros-manual-root
+   sudo cryptsetup open /dev/sdXN sdXN_crypt
    ```
+   If you are unsure, open it under any name, mount the root read-only, read
+   `/etc/crypttab`, unmount, deactivate LVM, then `sudo dmsetup rename <any-name> <crypttab-name>`.
 2. If LVM is used:
    ```bash
    sudo vgscan && sudo vgchange -ay
    ```
-3. Mount root and pseudo-filesystems:
+3. Mount root, `/boot`, `/boot/efi` and the pseudo-filesystems. The guided encrypted install
+   keeps `/boot` on its own partition: mount it before `/boot/efi`, or initramfs and GRUB
+   updates are written to the root filesystem's empty `/boot`:
    ```bash
    sudo mkdir -p /target
    sudo mount /dev/mapper/<root-volume> /target
@@ -111,7 +126,8 @@ If `wros-rescue` cannot run automatically (e.g. if `/usr/lib/wros-update/engine.
    sudo mount -t proc proc /target/proc
    sudo mount -t sysfs sysfs /target/sys
    sudo mount -t tmpfs tmpfs /target/run
-   sudo mount /dev/sdX1 /target/boot/efi  # if EFI system partition exists
+   sudo chroot /target mount /boot       # its own partition on the guided install
+   sudo chroot /target mount /boot/efi   # if an EFI system partition exists
    ```
 4. Enter chroot:
    ```bash
@@ -129,5 +145,5 @@ If `wros-rescue` cannot run automatically (e.g. if `/usr/lib/wros-update/engine.
    ```bash
    sudo umount -R /target
    sudo vgchange -an  # if LVM used
-   sudo cryptsetup close wros-manual-root
+   sudo cryptsetup close <crypttab-name>
    ```
