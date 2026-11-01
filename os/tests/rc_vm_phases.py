@@ -530,10 +530,12 @@ def apply_action(ctx, g, m, form, rule, action, secrets_, layout_wanted):
     elif name == 'fill':
         for _ in range(len(form.selected) + 2):
             m.key('backspace', gap=0.05)
+        verify_console_map(ctx, g)
         m.type_text(action[1], layout_in_effect_safe(g))
         m.key('ret')
     elif name == 'secret':
         ctx.check('password field is masked', form.selected == '[hidden]', form.raw[-200:])
+        verify_console_map(ctx, g)
         effective = layout_in_effect_safe(g)
         ctx.result.setdefault('secret_entries', []).append({'rule': rule.name, 'layout_in_effect': effective})
         m.type_text(secrets_[action[1]], effective)
@@ -542,6 +544,41 @@ def apply_action(ctx, g, m, form, rule, action, secrets_, layout_wanted):
         m.key('ret')
     else:
         raise Failure('unknown action ' + str(action))
+
+
+KEYCODE_QCODES = dict(zip(
+    list(range(16, 28)) + list(range(30, 41)) + list(range(44, 54)),
+    ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', 'bracket_left', 'bracket_right',
+     'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'semicolon', 'apostrophe',
+     'z', 'x', 'c', 'v', 'b', 'n', 'm', 'comma', 'dot', 'slash']))
+SYMBOL_NAMES = {';': 'semicolon', ',': 'comma', '.': 'period', '/': 'slash', "'": 'apostrophe',
+                '[': 'bracketleft', ']': 'bracketright', '-': 'minus', '=': 'equal'}
+
+
+def console_map_mismatches(keycodes, layout):
+    """Compare the kernel console's unshifted letter/punctuation keys with the layout table the harness types by."""
+    table = vm.LAYOUT_KEYS[layout]
+    bad = []
+    for code, qcode in sorted(KEYCODE_QCODES.items()):
+        plain = table[qcode][0]
+        want = SYMBOL_NAMES.get(plain, plain)
+        got = keycodes.get(str(code), '').lstrip('+').lower()
+        if got != want:
+            bad.append('keycode %d (US %s): console gives %r, harness expects %r' % (code, qcode, got, want))
+    return bad
+
+
+def verify_console_map(ctx, g):
+    """Once per run, before anything is typed in a non-US layout: the console map must equal the table we type by."""
+    if ctx.result.get('console_map_verified') or ctx.args.layout == 'us':
+        return
+    keycodes = g.probe('keymap', timeout=60)['keycodes']
+    bad = console_map_mismatches(keycodes, ctx.args.layout)
+    ctx.result['console_map_keycodes'] = keycodes
+    ctx.result['console_map_mismatches'] = bad
+    if bad:
+        raise Failure('console keymap differs from the %s table the harness types by:%s%s' % (ctx.args.layout, chr(10), chr(10).join(bad)))
+    ctx.result['console_map_verified'] = True
 
 
 def layout_in_effect_safe(g):

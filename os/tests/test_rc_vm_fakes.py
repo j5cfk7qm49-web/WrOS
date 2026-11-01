@@ -95,3 +95,15 @@ class SecretVariants(unittest.TestCase):
         # the same physical keys read as US QWERTY give a different string that must also be scanned for
         self.assertTrue(any(v != 'abcdef0123' for v in variants))
         self.assertIn(''.join(vm.US_KEYS[c[0]][0] for c in vm.keystrokes('abcdef0123', 'dvorak')), variants)
+
+
+class ConsoleMap(unittest.TestCase):
+    def test_mismatch_report(self):
+        import rc_vm_phases as ph
+        good = {str(code): ph.SYMBOL_NAMES.get(vm.LAYOUT_KEYS['colemak_dh'][q][0], vm.LAYOUT_KEYS['colemak_dh'][q][0])
+                for code, q in ph.KEYCODE_QCODES.items()}
+        self.assertEqual(ph.console_map_mismatches(good, 'colemak_dh'), [])
+        bad = dict(good, **{'46': 'd'})            # qwerty c key printing d (an angle-mod map)
+        report = ph.console_map_mismatches(bad, 'colemak_dh')
+        self.assertEqual(len(report), 1)
+        self.assertIn('keycode 46', report[0])
