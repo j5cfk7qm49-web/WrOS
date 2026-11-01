@@ -721,7 +721,8 @@ def phase_install(ctx):
             return False
         wrote = any(s['rule'] in ('write-lvm', 'write-crypt', 'write-disks', 'partition-finish') for s in steps)
         mapped = [x for x in snap['mappers'] if x != 'control']
-        if wrote and (mapped or snap['target_mounts']):
+        need_mounts = getattr(ctx.args, 'kill_when', 'mapper') == 'mounted'
+        if wrote and (mapped or snap['target_mounts']) and (snap['target_mounts'] or not need_mounts):
             ctx.step('failure-injection-point', kill=kill, mappers=mapped, mounts=snap['target_mounts'])
             if kill == 'backend':
                 g.run("sudo -n pkill -KILL -x main-menu; sudo -n pkill -KILL -x debian-installer-startup; true", 20, check=False)
@@ -814,7 +815,7 @@ def finish_failure_injection(ctx, g, target, kill):
     rc, survivors = g.run("ps -eo pid,ppid,stat,comm,args | grep -E 'main-menu|debconf|partman|anna|udpkg|in[.]d-i|debian-installer|log-output|apt-install|di-run|wros-install-session' | grep -v -E 'grep|pkill'; true", 30, check=False)
     ctx.result['surviving_installer_processes'] = survivors
     ctx.check('no d-i or installer-session process survives after the outcome is written', not survivors.strip(), survivors)
-    rc, tree = g.run("ps -eo pid,ppid,stat,comm | head -80", 30, check=False)
+    rc, tree = g.run("ps -eo pid,ppid,stat,comm,args --no-headers | awk '$5 !~ /^[[]/' | cut -c1-150 | head -80", 30, check=False)
     ctx.result['process_list_after_outcome'] = tree
     g.run('sudo -n /sbin/poweroff', 20, check=False)
     ctx.result['passed'] = True
@@ -1882,6 +1883,7 @@ def main():
     parser.add_argument('--secboot', action='store_true')
     parser.add_argument('--layout', default='dvorak', choices=['dvorak', 'colemak', 'colemak_dh'])
     parser.add_argument('--kill', choices=['backend', 'writer'])
+    parser.add_argument('--kill-when', default='mapper', choices=['mapper', 'mounted'], help='failure injection point: first mapper, or once the target is mounted')
     parser.add_argument('--variant', default='ok', choices=['ok', 'cancel', 'tamper', 'powercut', 'badstage', 'reviewpath'])
     parser.add_argument('--base-disk')
     parser.add_argument('--media-fs', default='ext4', choices=['ext4', 'vfat'])
