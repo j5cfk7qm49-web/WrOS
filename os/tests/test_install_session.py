@@ -253,6 +253,8 @@ class InstallSessionSupervisorTests(unittest.TestCase):
             )
             commands = []
 
+            teardown = ('/usr/bin/timeout', '--kill-after=10', '120', '/usr/bin/env', 'DM_DISABLE_UDEV=1')
+
             def fake_runner(*args):
                 commands.append(args)
                 if args[0] == '/bin/umount':
@@ -264,7 +266,7 @@ class InstallSessionSupervisorTests(unittest.TestCase):
                     mountinfo.write_text('\n'.join(kept) + '\n')
                 elif args[0] == '/sbin/swapoff':
                     swaps.write_text('Filename\tType\tSize\tUsed\tPriority\n')
-                elif args[0] in ('/sbin/dmsetup', '/sbin/cryptsetup'):
+                elif '/sbin/dmsetup' in args or '/sbin/cryptsetup' in args:
                     dm_target = args[-1]
                     for dm_dir in list(sysroot.glob('dm-*')):
                         if (dm_dir / 'dm/name').read_text().strip() == dm_target:
@@ -286,11 +288,14 @@ class InstallSessionSupervisorTests(unittest.TestCase):
                     ('/bin/umount', '/run/live/installer/target/boot'),
                     ('/bin/umount', '/run/live/installer/target'),
                     ('/sbin/swapoff', '/dev/dm-2'),
-                    ('/sbin/dmsetup', 'remove', '--retry', 'wros--vg-root'),
-                    ('/sbin/dmsetup', 'remove', '--retry', 'wros--vg-swap_1'),
-                    ('/sbin/cryptsetup', 'close', 'nvme0n1p3_crypt'),
+                    # The worker's private IPC namespace hides libdevmapper's udev cookie from
+                    # udev, so every removal runs without udev sync and under a timeout.
+                    (*teardown, '/sbin/dmsetup', 'remove', '--retry', 'wros--vg-root'),
+                    (*teardown, '/sbin/dmsetup', 'remove', '--retry', 'wros--vg-swap_1'),
+                    (*teardown, '/sbin/cryptsetup', 'close', 'nvme0n1p3_crypt'),
                 ],
             )
+            self.assertIn('--ipc', supervisor.systemd_command(supervisor.UID, 4242, '1'))
 
 
     def test_failed_installs_keep_the_installer_logs_bounded_root_only_and_without_links(self):

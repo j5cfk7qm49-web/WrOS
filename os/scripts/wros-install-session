@@ -625,6 +625,21 @@ def teardown_plan(
     }
 
 
+MAPPER_TEARDOWN_SECONDS = '120'
+
+
+def mapper_teardown(*arguments):
+    """A device-mapper removal that can neither wait on udev nor hang the session.
+
+    The worker runs in its own IPC namespace (unshare --ipc), where libdevmapper's udev
+    cookie semaphore is invisible to udev: dmsetup and cryptsetup removed the device and
+    then waited for an acknowledgement that could never come. DM_DISABLE_UDEV=1 makes
+    libdevmapper finish the removal itself; the timeout turns any other block into a
+    reported cleanup failure."""
+    return ('/usr/bin/timeout', '--kill-after=10', MAPPER_TEARDOWN_SECONDS,
+            '/usr/bin/env', 'DM_DISABLE_UDEV=1', *arguments)
+
+
 def cleanup_target_stack(
     baseline,
     target_root=DI / 'target',
@@ -659,9 +674,9 @@ def cleanup_target_stack(
         require(is_writable_target_block(mapper['block'], baseline, sysroot=sysroot),
                 'refusing to close protected device-mapper node')
         if mapper['kind'] == 'crypt':
-            run_cmd('/sbin/cryptsetup', 'close', mapper['dm_name'])
+            run_cmd(*mapper_teardown('/sbin/cryptsetup', 'close', mapper['dm_name']))
         else:
-            run_cmd('/sbin/dmsetup', 'remove', '--retry', mapper['dm_name'])
+            run_cmd(*mapper_teardown('/sbin/dmsetup', 'remove', '--retry', mapper['dm_name']))
         closed_mappers.append(mapper['dm_name'])
     after_mounts = target_mountpoints(
         mountinfo_path.read_text(encoding='utf-8') if mountinfo_path.exists() else '',
