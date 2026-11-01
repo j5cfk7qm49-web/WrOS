@@ -16,6 +16,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import tomllib
 import unittest
 from unittest import mock
@@ -312,6 +313,23 @@ class InstallSessionSupervisorTests(unittest.TestCase):
             self.assertFalse((work / 'installer-partman').exists())
             # An existing file is never overwritten or followed.
             self.assertEqual(supervisor.keep_installer_logs(work, di_root=di_root, limit=32), [])
+
+    def test_the_backends_whole_process_group_is_ended_before_cleanup(self):
+        source = (ROOT / 'os/scripts/wros-install-session').read_text()
+        self.assertIn("start_new_session=True,  # its own process group", source)
+        self.assertLess(source.index('stop_process_group(backend)'), source.index('keep_installer_logs(RUN_DIR'))
+        # A leader that exits on TERM leaves children behind; one group also ignores TERM.
+        for script, grace in (('sleep 60 & sleep 60 & wait', 5.0),
+                              ('trap "" TERM; sleep 60 & sleep 60 & wait', 0.5)):
+            with self.subTest(script=script):
+                process = subprocess.Popen(['/bin/sh', '-c', script], start_new_session=True)
+                time.sleep(0.2)
+                self.assertTrue(supervisor.stop_process_group(process, grace=grace))
+                with self.assertRaises(ProcessLookupError):
+                    os.killpg(process.pid, 0)
+        finished = subprocess.Popen(['/bin/true'], start_new_session=True)
+        finished.wait()
+        self.assertTrue(supervisor.stop_process_group(finished))
 
     def test_client_and_cleanup_outcomes_completed_cancelled_interrupted_and_unverified_refusal(self):
         import json

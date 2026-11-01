@@ -23,6 +23,7 @@ import resource
 import secrets
 import select
 import shutil
+import signal
 import socket
 import stat
 import struct
@@ -1469,6 +1470,7 @@ def worker(uid, parent, started):
                 env=backend_env,
                 pass_fds=(fd,),
                 cwd='/',
+                start_new_session=True,  # its own process group, so cleanup can end all of it
             )
             os.close(fd)
             outcome, reason, proof = supervise_installer(
@@ -1492,6 +1494,10 @@ def worker(uid, parent, started):
                 except subprocess.TimeoutExpired:
                     process.kill()
                     process.wait()
+        # The backend's children (apt and dpkg in the target, partman, cryptsetup) outlive the
+        # backend itself and would keep the target busy during cleanup.
+        if backend is not None:
+            stop_process_group(backend)
         if outcome != 'completed':
             keep_installer_logs(RUN_DIR / 'work')
         try:
@@ -1513,6 +1519,27 @@ def worker(uid, parent, started):
             },
         )
     return 0 if outcome in ('completed', 'cancelled') else 1
+
+
+PROCESS_GROUP_GRACE_SECONDS = 5.0
+
+
+def stop_process_group(process, grace=PROCESS_GROUP_GRACE_SECONDS, clock=time.monotonic, sleep=time.sleep):
+    """End every process left in a started process's group: TERM, then KILL, each bounded."""
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        try:
+            os.killpg(process.pid, sig)
+        except ProcessLookupError:
+            return True
+        deadline = clock() + grace
+        while clock() < deadline:
+            process.poll()  # reap the leader, or its zombie keeps the group alive
+            try:
+                os.killpg(process.pid, 0)
+            except ProcessLookupError:
+                return True
+            sleep(0.05)
+    return False
 
 
 INSTALLER_LOG_LIMIT = 8 * 1024 * 1024
