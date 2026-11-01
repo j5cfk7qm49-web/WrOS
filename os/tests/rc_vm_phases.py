@@ -631,6 +631,9 @@ def phase_install(ctx):
     m.key('ret')
     g.wait_vcs(7, r'WrOS . Install', 240, what='installer-first-form')
     ctx.step('installer-started')
+    if getattr(ctx.args, 'diagnose', False):
+        start_syslog_poller(g)
+        ctx.step('diagnose-syslog-poller-started')
 
     def failure_hook(snap, form, steps):
         if not kill:
@@ -743,6 +746,30 @@ def fetch_guest_file(g, path):
     return gzip.decompress(base64.b64decode(text.splitlines()[-1]))
 
 
+# Read-only snapshotter: the debian-installer root (/run/live/installer, with its syslog) lives only in the
+# installer worker's private mount namespace and vanishes when the worker exits, so a post-mortem finds
+# nothing. A short-lived `nsenter -m ... cat` once a second copies the syslog to RAM; nothing stays in the
+# namespace between copies. Diagnosis only (--diagnose), never part of a qualification pass.
+POLL_SCRIPT = """#!/bin/sh
+while :; do
+  P=$(systemctl show -p MainPID --value wros-installer-session.service 2>/dev/null)
+  if [ -n "$P" ] && [ "$P" != 0 ]; then
+    nsenter -m -t "$P" cat /run/live/installer/var/log/syslog > /dev/shm/rc-syslog.new 2>/dev/null \\
+      && mv /dev/shm/rc-syslog.new /dev/shm/rc-syslog.snap
+    nsenter -m -t "$P" cat /run/live/installer/var/log/partman > /dev/shm/rc-partman.new 2>/dev/null \\
+      && mv /dev/shm/rc-partman.new /dev/shm/rc-partman.snap
+  fi
+  sleep 1
+done
+"""
+
+
+def start_syslog_poller(g):
+    g.shell.put('/dev/shm/rc-poll.sh', POLL_SCRIPT, '0700')
+    g.run('setsid sudo -n sh /dev/shm/rc-poll.sh </dev/null >/dev/null 2>&1 & true', 20, check=False)
+
+
+
 def diagnose(ctx, g, secrets_):
     """Collect the installer's logs and the left-behind state without touching the VM. Every item is
     scanned for the generated secrets (all layout readings) the moment it is collected; a file that
@@ -794,7 +821,8 @@ def diagnose(ctx, g, secrets_):
     rc, listing = g.run("{ sudo -n find /run/wros-installer -type f \\( -name '*.log' -o -name 'outcome.json' -o -name 'baseline.json' -o -name cmdline \\) -size -50000k; } </dev/null", 60, check=False)
     wanted = [l.strip() for l in listing.splitlines() if l.strip().startswith('/run/wros-installer/')]
     ctx.step('diagnose-installer-files', files=wanted)
-    for path in wanted + ['/run/live/installer/var/log/syslog', '/run/live/installer/var/log/partman',
+    g.run('sudo -n pkill -f rc-poll.sh; true', 20, check=False)
+    for path in wanted + ['/dev/shm/rc-syslog.snap', '/dev/shm/rc-partman.snap', '/run/live/installer/var/log/syslog', '/run/live/installer/var/log/partman',
                           '/var/log/syslog', '/var/log/installer/syslog', '/var/log/partman']:
         try:
             data = fetch_guest_file(g, path)
@@ -805,7 +833,7 @@ def diagnose(ctx, g, secrets_):
             keep('missing-' + path, 'absent in the guest: %s%s' % (path, nl))
             continue
         sources[keep(path, data)] = path
-        if path.endswith('syslog'):
+        if path.endswith(('syslog', 'rc-syslog.snap')):
             lines = data.decode('utf-8', 'replace').split(nl)
             keep(path + '-grep', nl.join('%d:%s' % (i + 1, l) for i, l in enumerate(lines) if DIAG_GREP.search(l)) + nl)
     for n in (7, 1):
