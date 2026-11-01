@@ -146,7 +146,13 @@ class Guest:
         self.prefix = ''
 
     def run(self, command, timeout=60, check=True):
-        return self.shell.run(command, timeout, check)
+        try:
+            return self.shell.run(command, timeout, check)
+        except RuntimeError as error:
+            # a power-off command legitimately ends the guest before its end marker can be read
+            if 'poweroff' in command and 'guest stopped' in str(error):
+                return 0, ''
+            raise
 
     def probe(self, *args, timeout=90):
         rc, out = self.shell.run('%spython3 -I /tmp/rcg.py %s' % (self.prefix, ' '.join(args)), timeout, check=True)
