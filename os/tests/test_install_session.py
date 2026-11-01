@@ -1153,6 +1153,18 @@ class TargetHygieneTests(unittest.TestCase):
             self.verify_state('_wros-installer:x:0:0::/nonexistent:/usr/sbin/nologin\n',
                               '_wros-installer:!:19000:::::::\n')
 
+    def test_queries_stay_bounded_but_a_real_initramfs_listing_fits(self):
+        # 1772 entries / 105210 bytes: lsinitramfs on the installed system of the real RC install.
+        listing = ['/bin/sh', '-c', 'head -c 105210 /dev/zero | tr "\\0" a']
+        with self.assertRaisesRegex(ValueError, 'oversized command reply'):
+            supervisor.query(listing)
+        self.assertEqual(len(supervisor.query(listing, limit=supervisor.INITRAMFS_LISTING_LIMIT)), 105210)
+        with self.assertRaisesRegex(ValueError, 'oversized command reply'):
+            supervisor.query(['/bin/sh', '-c', 'head -c 9000000 /dev/zero | tr "\\0" a'],
+                             limit=supervisor.INITRAMFS_LISTING_LIMIT)
+        source = (ROOT / 'os/scripts/wros-install-session').read_text()
+        self.assertIn("query(['/usr/bin/lsinitramfs', str(initrd)], timeout=60, limit=INITRAMFS_LISTING_LIMIT)", source)
+
     def test_greeter_account_must_be_an_unprivileged_nonlogin_identity(self):
         self.assertTrue(self.verify_state()['passed'])
         self.assertTrue(self.verify_state(greeter='_greetd:x:105:65534::/nonexistent:/usr/sbin/nologin\n')['passed'])

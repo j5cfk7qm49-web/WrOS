@@ -166,7 +166,12 @@ def secure_process():
     require(libc.prctl(4, 0, 0, 0, 0) == 0, 'process dump protection failed')
 
 
-def query(arguments, timeout=10):
+QUERY_LIMIT = 65536
+# A real installed initramfs lists about 1800 files (105 KB); keep a bound well above that.
+INITRAMFS_LISTING_LIMIT = 8 * 1024 * 1024
+
+
+def query(arguments, timeout=10, limit=QUERY_LIMIT):
     reply = subprocess.run(
         list(arguments),
         stdin=subprocess.DEVNULL,
@@ -175,7 +180,7 @@ def query(arguments, timeout=10):
         timeout=timeout,
         check=True,
     )
-    require(len(reply.stdout) <= 65536 and len(reply.stderr) <= 65536, 'oversized command reply')
+    require(len(reply.stdout) <= limit and len(reply.stderr) <= QUERY_LIMIT, 'oversized command reply')
     return reply.stdout.decode('utf-8').strip()
 
 
@@ -889,7 +894,7 @@ def in_target_audit(nonce):
                 f'missing required target package: {name}')
     release = os.uname().release
     initrd = Path(f'/boot/initrd.img-{release}')
-    entries = query(['/usr/bin/lsinitramfs', str(initrd)], timeout=60).splitlines()
+    entries = query(['/usr/bin/lsinitramfs', str(initrd)], timeout=60, limit=INITRAMFS_LISTING_LIMIT).splitlines()
     require(any(name.endswith('sbin/cryptsetup') for name in entries)
             and any(name.endswith('sbin/lvm') for name in entries)
             and 'cryptroot/crypttab' in entries,
