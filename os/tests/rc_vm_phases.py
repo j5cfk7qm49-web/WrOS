@@ -1214,7 +1214,7 @@ def wait_reset(ctx, m, previous, timeout=600, what='reset', dump_every=30):
     raise Failure('no reboot within %ds (%s)' % (timeout, what))
 
 
-NOTHING_STAGED = 'test -e /system-update && echo MARKER; ls /var/lib/wros-update/staged 2>/dev/null | wc -l'
+NOTHING_STAGED = 'test -e /system-update && echo MARKER; sudo -n ls /var/lib/wros-update/staged 2>/dev/null | wc -l'
 
 
 def stage_update(ctx, g, layout):
@@ -1254,7 +1254,7 @@ def stage_update(ctx, g, layout):
     m.key('ret')
     staged = g.wait_vcs(1, r'Restart now to install the staged update', 120, what='update-staged')
     m.shot('update-staged')
-    rc, out = g.run('readlink /system-update; ls /var/lib/wros-update/staged', 20, check=False)
+    rc, out = g.run("readlink /system-update; sudo -n find /var/lib/wros-update/staged -name '*.deb'", 20, check=False)
     ctx.result['staged_listing'] = out
     ctx.check('update is staged (marker and retained archive)', '/var/lib/wros-update/staged' in out and '.deb' in out, out)
     return staged
