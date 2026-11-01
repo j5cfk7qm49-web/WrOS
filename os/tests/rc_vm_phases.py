@@ -1511,9 +1511,9 @@ def phase_audit(ctx):
     g = live_login(ctx, m)
     g.shell.put('/tmp/rcopen.sh', OPEN_LUKS_SCRIPT, '0644')
     g.shell.put('/dev/shm/rckey', secrets_['luks'], '0600')
-    rc, out = g.run('sudo -n sh /tmp/rcopen.sh rcaudit', 120)
+    rc, out = g.run('sudo -n sh /tmp/rcopen.sh vda3_crypt', 120)
     rc, out2 = g.run('ls /dev/mapper', 20)
-    candidates = [x for x in out2.split() if x not in ('control', 'rcaudit')]
+    candidates = [x for x in out2.split() if x not in ('control', 'vda3_crypt')]
     root = '/dev/mapper/' + next((c for c in candidates if 'root' in c), candidates[0])
     g.run("sudo -n sh -c 'mkdir -p /mnt/rc && mount %s /mnt/rc'" % root, 30)
     rc, fstab = g.run('sudo -n cat /mnt/rc/etc/fstab', 20)
@@ -1553,7 +1553,7 @@ def phase_audit(ctx):
         rc2, text = g.run("sudo -n sh -c '%s'" % command.replace("'", "'" + chr(92) + "''"), 90, check=False)
         (ctx.dir / ('audit-%s.txt' % label)).write_text(text)
         ctx.step('audit-' + label, rc=rc2, head=text[:400])
-    g.run("sudo -n sh -c 'umount -R /mnt/rc; vgchange -an >/dev/null 2>&1; cryptsetup close rcaudit; shred -u /dev/shm/cand-script'", 90, check=False)
+    g.run("sudo -n sh -c 'umount -R /mnt/rc; vgchange -an >/dev/null 2>&1; cryptsetup close vda3_crypt; shred -u /dev/shm/cand-script'", 90, check=False)
     g.run('sudo -n /sbin/poweroff', 20, check=False)
     try:
         m.wait_exit(120)
