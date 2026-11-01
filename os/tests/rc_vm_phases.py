@@ -789,6 +789,7 @@ def finish_failure_injection(ctx, g, target, kill):
     m = g.m
     deadline = time.monotonic() + 300
     outcome, last = None, None
+    vt_history = []
     while time.monotonic() < deadline:
         try:
             snap = g.snap()
@@ -797,13 +798,17 @@ def finish_failure_injection(ctx, g, target, kill):
             time.sleep(3)
             continue
         last = snap
+        vt_history.append([round(time.monotonic() - deadline + 300, 1), snap['active_vt'], sorted(set(p['comm'] for p in snap['procs'] if p['comm'] in ('grimoire', 'wros-input', 'wros-greeter', 'greetd', 'wros-installer'))), [x for x in snap['mappers'] if x != 'control']])
         outcome = snap['run_files'].get('outcome.json', outcome)
         if outcome and not [x for x in snap['mappers'] if x != 'control']:
             break
         time.sleep(3)
     ctx.result['outcome'] = outcome
+    ctx.result['vt_history'] = vt_history
     ctx.result['final_snapshot'] = {k: last[k] for k in ('active_vt', 'procs', 'mappers', 'target_mounts', 'swaps', 'installer_unit')} if last else None
     m.shot('after-failure')
+    rc, survivors = g.run("ps -eo pid,ppid,stat,comm,args | grep -E 'main-menu|debconf|partman|anna|udpkg|in[.]d-i|debian-installer|log-output|apt-install|di-run|wros-install-session' | grep -v -E 'grep|pkill'; true", 30, check=False)
+    ctx.result['surviving_installer_processes'] = survivors
     if kill == 'backend':
         ctx.check('outcome is failed with verified cleanup', (outcome or {}).get('outcome') == 'failed' and (outcome or {}).get('host_cleanup_verified') is True, outcome)
         ctx.check('VT1 restored with a fresh writer', last['active_vt'] == 'tty1' and any(p['comm'] == 'wros-input' for p in last['procs']), last['active_vt'])
@@ -814,8 +819,6 @@ def finish_failure_injection(ctx, g, target, kill):
         ctx.check('VT7 stays active (no auto-return after writer death)', last['active_vt'] == 'tty7', last['active_vt'])
         ctx.check('no new writer on tty1', not any(p['comm'] in ('grimoire', 'wros-input') for p in last['procs']), last['procs'])
     ctx.check('no target mappers, mounts or swap left', not [x for x in last['mappers'] if x != 'control'] and not last['target_mounts'] and not last['swaps'])
-    rc, survivors = g.run("ps -eo pid,ppid,stat,comm,args | grep -E 'main-menu|debconf|partman|anna|udpkg|in[.]d-i|debian-installer|log-output|apt-install|di-run|wros-install-session' | grep -v -E 'grep|pkill'; true", 30, check=False)
-    ctx.result['surviving_installer_processes'] = survivors
     ctx.check('no d-i or installer-session process survives after the outcome is written', not survivors.strip(), survivors)
     rc, tree = g.run("ps -eo pid,ppid,stat,comm,args --no-headers | awk '$5 !~ /^[[]/' | cut -c1-150 | head -80", 30, check=False)
     ctx.result['process_list_after_outcome'] = tree
