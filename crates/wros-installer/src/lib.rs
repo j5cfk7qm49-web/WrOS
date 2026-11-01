@@ -451,53 +451,47 @@ impl Session {
             _ => Err("Unsupported installer command"),
         }
     }
+    /// Progress is display only and follows cdebconf 0.280's frontend contract: SET, STEP and
+    /// INFO are accepted with or without a started bar (nested in-target debconf clients send
+    /// them after their own STOP), values are clamped rather than refused, and an empty range is
+    /// allowed. Only text that is not a progress command at all ends the frontend.
     fn progress_command(&mut self, args: &str) -> Result<()> {
         let words: Vec<_> = args.split_whitespace().collect();
         let number = |s: &str| s.parse::<i64>().map_err(|_| "Invalid installer progress");
         match words.as_slice() {
             ["START", min, max, tag] => {
                 let (min, max) = (number(min)?, number(max)?);
-                if min < 0 || max <= min || max > i32::MAX as i64 {
+                if min < 0 || max < min || max > i32::MAX as i64 {
                     return Err("Invalid installer progress range");
                 }
-                let q = self
+                let (title, detail) = self
                     .questions
                     .get(*tag)
-                    .ok_or("Unknown installer progress title")?;
+                    .map(|q| (q.description.clone(), q.detail.clone()))
+                    .unwrap_or_default();
                 self.progress = Some(Progress {
                     min,
                     max,
                     value: min,
-                    title: q.description.clone(),
-                    detail: q.detail.clone(),
+                    title,
+                    detail,
                 });
             }
             ["SET", value] | ["STEP", value] => {
-                let progress = self
-                    .progress
-                    .as_mut()
-                    .ok_or("Installer progress not started")?;
                 let value = number(value)?;
-                let value = if words[0] == "STEP" {
-                    progress.value.saturating_add(value)
-                } else {
-                    value
-                };
-                if !(progress.min..=progress.max).contains(&value) {
-                    return Err("Installer progress outside range");
+                if let Some(progress) = self.progress.as_mut() {
+                    let value = if words[0] == "STEP" {
+                        progress.value.saturating_add(value)
+                    } else {
+                        value
+                    };
+                    progress.value = value.clamp(progress.min, progress.max);
                 }
-                progress.value = value;
             }
             ["INFO", tag] => {
-                let q = self
-                    .questions
-                    .get(*tag)
-                    .ok_or("Unknown installer progress information")?;
-                let progress = self
-                    .progress
-                    .as_mut()
-                    .ok_or("Installer progress not started")?;
-                progress.detail = q.description.clone();
+                if let (Some(progress), Some(q)) = (self.progress.as_mut(), self.questions.get(*tag)) {
+                    progress.detail = q.description.clone();
+                }
             }
             ["STOP"] => self.progress = None,
             _ => return Err("Invalid installer progress command"),

@@ -230,7 +230,9 @@ fn progress_and_long_explanations_share_the_grimoire_palette() {
     }
     assert_eq!(session.progress.as_ref().unwrap().value, 7);
     assert!(session.progress.as_ref().unwrap().detail.contains('\n'));
-    assert!(session.command("PROGRESS SET 11").is_err());
+    send(&mut session, "PROGRESS SET 11");
+    assert_eq!(session.progress.as_ref().unwrap().value, 10);
+    send(&mut session, "PROGRESS SET 7");
     for theme in wros_shell::grimoire_theme::presets() {
         for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
             let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
@@ -252,6 +254,41 @@ fn progress_and_long_explanations_share_the_grimoire_palette() {
     }
     send(&mut session, "PROGRESS STOP");
     assert!(session.progress.is_none());
+}
+#[test]
+fn nested_debconf_progress_after_stop_never_ends_the_frontend() {
+    // grub-installer's bar is stopped by the in-target debconf-apt-progress client, which then
+    // keeps reporting; cdebconf accepts all of it, so the native frontend must too.
+    let mut session = Session::default();
+    for line in [
+        "DATA grub-installer/progress/title type text",
+        "DATA grub-installer/progress/title description Install the GRUB boot loader",
+        "DATA debconf-apt-progress/info type text",
+        "DATA debconf-apt-progress/info description Retrieving packages",
+        "PROGRESS START 0 6 grub-installer/progress/title",
+        "PROGRESS STOP",
+        "PROGRESS SET 3",
+        "PROGRESS STEP 1",
+        "PROGRESS INFO debconf-apt-progress/info",
+        "PROGRESS INFO never/registered",
+        "PROGRESS START 0 0 never/registered",
+        "PROGRESS STEP 5",
+        "PROGRESS START 0 100 grub-installer/progress/title",
+        "PROGRESS SET -4",
+    ] {
+        send(&mut session, line);
+    }
+    let progress = session.progress.as_ref().unwrap();
+    assert_eq!((progress.min, progress.max, progress.value), (0, 100, 0));
+    send(&mut session, "PROGRESS START 0 0 never/registered");
+    let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+    let theme = wros_shell::grimoire_theme::presets().into_iter().next().unwrap();
+    terminal
+        .draw(|f| ui::render(f, &session, &theme, 0, false))
+        .unwrap();
+    for line in ["PROGRESS REGION 0 5", "PROGRESS SET x", "PROGRESS START 5 1 t"] {
+        assert!(session.command(line).is_err(), "{line}");
+    }
 }
 #[test]
 fn malformed_unknown_oversized_or_unapproved_input_cannot_advance() {

@@ -135,7 +135,11 @@ pub fn render(
                 .scroll((scroll, 0)),
             text,
         );
-        let ratio = (progress.value - progress.min) as f64 / (progress.max - progress.min) as f64;
+        let ratio = if progress.max > progress.min {
+            (progress.value - progress.min) as f64 / (progress.max - progress.min) as f64
+        } else {
+            1.0
+        };
         frame.render_widget(
             Gauge::default()
                 .ratio(ratio.clamp(0., 1.))
