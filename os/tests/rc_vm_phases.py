@@ -1462,7 +1462,7 @@ def phase_peek(ctx):
     root = '/dev/mapper/' + next((c for c in candidates if 'root' in c), candidates[0])
     g.run("sudo -n sh -c 'mkdir -p /mnt/rc && mount -o ro,noload %s /mnt/rc'" % root, 30)
     commands = {
-        'passwd-system-accounts': "awk -F: '$3>=100 || $1==\"root\"' /mnt/rc/etc/passwd; echo; grep -n greetd /mnt/rc/etc/passwd /mnt/rc/etc/group",
+        'passwd-system-accounts': "grep -E '^(root|_greetd|writer|rc|_wros-installer|wros-live|greetd|build[a-z]*):' /mnt/rc/etc/passwd; echo; grep -n greetd /mnt/rc/etc/group; echo; cut -d: -f1,3,6,7 /mnt/rc/etc/passwd | tail -12",
         'greetd-config': 'cat /mnt/rc/etc/greetd/config.toml; ls -la /mnt/rc/etc/greetd',
         'keyboard': 'cat /mnt/rc/etc/default/keyboard; cat /mnt/rc/etc/initramfs-tools/conf.d/wros-keymap 2>&1; ls -la /mnt/rc/etc/writingdeck',
         'target-markers': 'ls -la /mnt/rc/wros-target-* /mnt/rc/etc/writingdeck 2>&1; cat /mnt/rc/etc/crypttab; cat /mnt/rc/etc/fstab',
