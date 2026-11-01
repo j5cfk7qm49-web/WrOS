@@ -1698,15 +1698,22 @@ def find_update_media(*, runner=None, media_root=DEFAULT_MEDIA_ROOT, mountinfo_t
         if any(source == path for path, _ in candidates) and Path(mountpoint).parent == media_root:
             return {'status': 'mounted', 'path': mountpoint}
     path, fstype = sorted(candidates)[0]
-    media_root.mkdir(parents=True, mode=0o755, exist_ok=True)
+    # The launchers run under umask 077, which turns a requested 0755 into 0700; the review
+    # runs as the writer and must traverse to the bundle, so set the modes explicitly.
+    created = [p for p in (*reversed(media_root.parents), media_root) if not p.exists()]
+    media_root.mkdir(parents=True, exist_ok=True)
+    for directory in dict.fromkeys((*created, media_root)):
+        os.chmod(directory, 0o755)
     for index in range(16):
         target = media_root / str(index)
         if str(target) not in mounts and not target.exists():
             break
     else:
         fail('too many update media mounts')
-    target.mkdir(mode=0o755)
-    options = 'ro,nodev,nosuid,noexec' + (',noload' if fstype == 'ext4' else '')
+    target.mkdir()
+    os.chmod(target, 0o755)
+    # vfat has no owners or modes of its own: without masks it takes the helper's umask.
+    options = 'ro,nodev,nosuid,noexec' + {'ext4': ',noload', 'vfat': ',dmask=0022,fmask=0133'}.get(fstype, '')
     mounted = run(['/usr/bin/mount', '-t', fstype, '-o', options, '--', path, str(target)])
     if mounted.returncode != 0:
         target.rmdir()

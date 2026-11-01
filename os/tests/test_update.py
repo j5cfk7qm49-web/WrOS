@@ -498,5 +498,46 @@ class SignedUpdateTests(unittest.TestCase):
                 update.plan_with_apt([library], [lib_meta], dpkg_dir, stage)
 
 
+class UpdateMediaTests(unittest.TestCase):
+    """find_update_media runs inside the pkexec launchers, which set umask 077."""
+
+    def find(self, media_root, fstype):
+        calls = []
+
+        def runner(command):
+            calls.append(command)
+            if command[0] == '/usr/bin/lsblk':
+                return subprocess.CompletedProcess(command, 0, f'/dev/sdb1 {fstype} WROS-UPDATE part\n', '')
+            return subprocess.CompletedProcess(command, 0, '', '')
+
+        previous = os.umask(0o077)
+        try:
+            result = update.find_update_media(runner=runner, media_root=media_root, mountinfo_text='')
+        finally:
+            os.umask(previous)
+        return result, calls[-1]
+
+    def test_the_writer_can_traverse_to_mounted_media_despite_the_launcher_umask(self):
+        with tempfile.TemporaryDirectory(prefix='wros-media-') as tmp:
+            media_root = Path(tmp) / 'run/wros-update/media'
+            result, mount = self.find(media_root, 'ext4')
+            self.assertEqual(result, {'status': 'mounted', 'path': str(media_root / '0')})
+            for directory in (media_root.parent, media_root, media_root / '0'):
+                self.assertEqual(directory.stat().st_mode & 0o777, 0o755, directory)
+            self.assertEqual(mount[:5], ['/usr/bin/mount', '-t', 'ext4', '-o', 'ro,nodev,nosuid,noexec,noload'])
+            # A second medium in the same boot reuses the root and still gets a 0755 mountpoint.
+            media_root.chmod(0o700)
+            result, _ = self.find(media_root, 'iso9660')
+            self.assertEqual(result['path'], str(media_root / '1'))
+            self.assertEqual(media_root.stat().st_mode & 0o777, 0o755)
+            self.assertEqual((media_root / '1').stat().st_mode & 0o777, 0o755)
+            self.assertEqual(Path(tmp).stat().st_mode & 0o777, 0o700)  # pre-existing parents untouched
+
+    def test_vfat_media_is_readable_without_inheriting_the_umask(self):
+        with tempfile.TemporaryDirectory(prefix='wros-media-') as tmp:
+            _, mount = self.find(Path(tmp) / 'media', 'vfat')
+            self.assertEqual(mount[4], 'ro,nodev,nosuid,noexec,dmask=0022,fmask=0133')
+
+
 if __name__ == '__main__':
     unittest.main()
