@@ -1359,25 +1359,9 @@ def phase_update(ctx):
     resets = wait_reset(ctx, m, resets, 300, 'restart-to-apply')
     unlock(ctx, m, secrets_, layout, wrong_first=False, after_reset=resets)
     if variant == 'powercut':
-        # the apply takes only a few seconds: sample the framebuffer as fast as it can be read and log every
-        # distinct screen so the cut point can be named in the report
-        regex = re.compile(r'Unpacking|Setting up|Preparing to unpack|dpkg|apt-get|Apply verified|offline update|wros-offline', re.I)
-        t0 = time.monotonic()
-        deadline = t0 + float(getattr(ctx.args, 'watch_seconds', 45))
-        seen, last_text, trail = None, None, []
-        while time.monotonic() < deadline:
-            text = m.screen_text('apply-watch')
-            flat = re.sub(r'\s+', ' ', text).strip()
-            if flat != last_text:
-                trail.append({'t': round(time.monotonic() - t0, 2), 'text': flat[:300]})
-                last_text = flat
-            if regex.search(text):
-                seen = text
-                break
-        (ctx.dir / 'apply-watch-trail.json').write_text(json.dumps(trail, indent=1))
-        ctx.check('apply phase observed on the console before the power cut', seen is not None, trail[-3:])
-        ctx.result['apply_screen'] = seen
-        time.sleep(float(ctx.args.cut_delay))
+        # the offline apply runs a few seconds after the unlock (the console font is unreadable to the OCR, so the
+        # cut point is timed from the unlock and classified afterwards from the durable update journal)
+        time.sleep(float(ctx.args.cut_at))
         m.shot('before-power-cut')
         m.kill()
         ctx.step('power-cut', resets=m.qmp.count('RESET'))
@@ -1385,6 +1369,9 @@ def phase_update(ctx):
         g2 = session_ready(ctx, m2, st, secrets_, layout)
         rc, out = g2.run('dpkg-query -W wros; cat /etc/writingdeck/release; cat /var/lib/wros-update/public/status.json; dpkg --audit; echo AUDIT_DONE', 60, check=False)
         ctx.result['after_cut_state'] = out
+        rc, jr = g2.run("sudo -n cat /var/lib/wros-update/journal.jsonl 2>/dev/null | python3 -c \"import sys,json;print([json.loads(l).get('state') for l in sys.stdin if l.strip()])\"; sudo -n journalctl -b -1 --no-pager 2>/dev/null | grep -a -c 'wros-offline-update'", 30, check=False)
+        ctx.result['cut_journal_states'] = jr
+        ctx.step('cut-classification', journal_states_and_prev_boot_unit_lines=jr)
         time.sleep(90)
         ctx.check('no reboot loop after the power cut', m2.qmp.count('RESET') == 0)
         updates_panel(ctx, g2, layout)
@@ -1746,7 +1733,7 @@ def main():
     parser.add_argument('--cut-delay', default='2')
     parser.add_argument('--hint-wait', type=int, default=900)
     parser.add_argument('--apply-wait', type=int, default=1500)
-    parser.add_argument('--watch-seconds', type=int, default=45)
+    parser.add_argument('--cut-at', default='9', help='powercut: seconds after the passphrase is typed')
     parser.add_argument('--hold', action='store_true', help='on a stage failure keep the VM up for read-only operator commands (cmd.txt)')
     parser.add_argument('--diagnose', action='store_true', help='install phase: collect installer logs and state read-only before stopping')
     args = parser.parse_args()
