@@ -86,8 +86,8 @@ class Forms(unittest.TestCase):
 
     def test_real_string_form_with_footer_title(self):
         # captured from the real installer: empty field renders as a bare marker, footer title above F1 help
-        text = screen('Full name for the new user:', 'A user account will be created.', '▸ ',
-                      'Set up users and passwords · 1 of 1', '↑↓ choose  Enter continue  Esc back  F1 help')
+        text = screen('┌WrOS · Install────────', 'Full name for the new user:', 'A user account will be created.', '▸ ',
+                      'Set up users and passwords · 1 of 1', '↑↓ choose  Enter continue  Esc back  F1 help', '└─────────')
         form = forms.parse_form(text)
         self.assertEqual(form.kind, 'string')
         self.assertEqual(forms.decide(form, forms.rules())[1], ('fill', 'RC Writer'))

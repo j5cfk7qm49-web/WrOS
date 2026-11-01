@@ -29,6 +29,8 @@ def parse_form(lines):
     for line in lines:
         # panel borders and padding
         stripped = line.strip().strip('│┃|').strip()
+        if stripped[:1] in ('┌', '└', '├'):
+            continue
         cleaned.append(stripped + ' ' if stripped == MARK.strip() else stripped)
     raw = '\n'.join(l for l in cleaned if l)
     form = Form(raw=raw)
