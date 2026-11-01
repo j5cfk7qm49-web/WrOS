@@ -114,6 +114,7 @@ def make_deb(directory, name, version, arch='all', depends='', provides='', extr
     directory = Path(directory)
     tree = directory / f'tree-{name}-{version.replace(":", "_")}'
     (tree / 'DEBIAN').mkdir(parents=True)
+    (tree / 'DEBIAN').chmod(0o755)  # dpkg-deb refuses a control directory a strict umask left 0700
     control = (f'Package: {name}\nVersion: {version}\nArchitecture: {arch}\n'
                'Maintainer: QA <qa@wros.invalid>\nDescription: disposable update fixture\n')
     if depends:

@@ -1587,6 +1587,14 @@ def repair_locked(store, *, dpkg_dir, trigger_path, keyring, signers, run, when,
         store.publish(trigger_path)
         return {'status': 'failed', 'message': reason + '. Boot the WrOS live media and run wros-rescue.'}
     note = 'repaired with ' + ' then '.join(steps)
+    if details is None and store.staged.is_dir():
+        # dpkg --configure -a alone may have finished the interrupted transaction: if the retained,
+        # re-authenticated archives are exactly what is now installed, the update is complete.
+        try:
+            details = revalidate_staged(store.staged, keyring=keyring, signers=signers, dpkg_dir=dpkg_dir,
+                                        now=when, host_arch=host_arch, last_applied=None, mode='repair')
+        except (ValueError, OSError):
+            details = None
     if details is not None:
         installed = load_installed_dpkg_database(dpkg_dir)
         if all(installed.get(p['name'], {}).get('version') == p['version'] for p in details['packages']):
@@ -1875,6 +1883,20 @@ def launcher_main(verb, argv, pkexec_uid, *, euid=None, runner=None, **paths):
     return find_update_media(runner=runner, **{k: v for k, v in paths.items() if k in ('media_root', 'mountinfo_text')})
 
 
+def continue_boot_after_failure(run=None):
+    """A failed or unverified offline update is never followed by an automatic reboot, but the
+    system must not stay in system-update.target with no login. Its trigger is already gone, so
+    continue this boot into multi-user.target: wros-update-reconcile runs before greetd, and the
+    writer sees the failure and the Repair action in Settings."""
+    run = run or subprocess.run
+    try:
+        run(['/usr/bin/systemctl', '--no-block', 'isolate', 'multi-user.target'],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=15, check=False, env=safe_env())
+    except (OSError, subprocess.SubprocessError):
+        pass  # best effort: the journal already records the failure and the trigger is removed
+
+
 def reserved_role(environ, marker):
     """run-offline-boot and reconcile exist only for systemd PID 1 children; never via pkexec."""
     if (os.geteuid() != 0 or os.getppid() != 1 or 'PKEXEC_UID' in environ
@@ -1901,7 +1923,12 @@ def main(argv=None, environ=None):
     elif argv == ['run-offline-boot']:
         reserved_role(environ, 'WROS_SYSTEMD_OFFLINE_UPDATE')
         ours = owned_trigger(DEFAULT_TRIGGER, DEFAULT_STATE_DIR / 'staged')
-        result = execute_offline_boot_transaction()
+        try:
+            result = execute_offline_boot_transaction()
+        except ValueError:
+            if ours:
+                continue_boot_after_failure()
+            raise
         if ours and result.get('status') == 'completed':
             # Reboot only after a verified, fully completed transaction; never for failed,
             # foreign or unverified ones (the operator or reconcile handles those).

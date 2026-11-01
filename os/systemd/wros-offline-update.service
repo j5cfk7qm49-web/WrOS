@@ -12,6 +12,9 @@ Before=system-update.target shutdown.target
 # symlink at its own staged directory (/system-update -> /var/lib/wros-update/staged), which also
 # lets this unit and the engine prove the marker is WrOS's and ignore a foreign updater's.
 ConditionPathIsSymbolicLink=/system-update
+# On success the engine reboots into the updated system. On a failed or unverified
+# transaction it never reboots: the trigger is already removed and the engine isolates
+# multi-user.target, so wros-update-reconcile runs and the writer reaches a login.
 
 [Service]
 Type=oneshot
