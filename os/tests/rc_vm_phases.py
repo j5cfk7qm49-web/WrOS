@@ -1224,6 +1224,10 @@ def stage_update(ctx, g, layout):
     review = find_and_review(ctx, g)
     m.shot('update-review')
     ctx.result['review_screen'] = review
+    rc, modes = g.run("stat -c '%U:%G %a %n' /run/wros-update /run/wros-update/media /run/wros-update/media/*; findmnt -n -o TARGET,SOURCE,FSTYPE,OPTIONS /run/wros-update/media/0; sudo -n -u writer ls /run/wros-update/media/0 | head -3", 30, check=False)
+    ctx.result['media_dir_modes'] = modes
+    ctx.step('media-dir-modes', modes=modes)
+    ctx.check('media directories are traversable by the writer (0755)', re.search(r'root:root 755 /run/wros-update$', modes, re.M) is not None and re.search(r'root:root 755 /run/wros-update/media$', modes, re.M) is not None, modes)
     ctx.check('review shows wros 0.1.0~rc1 -> 0.1.0~rc2',
               re.search(r'wros.*0\.1\.0~rc1.*0\.1\.0~rc2', review, re.S) is not None, review[-900:])
     signer = pinned_signers(g)
@@ -1287,6 +1291,9 @@ def phase_update(ctx):
     g = session_ready(ctx, m, st, secrets_, layout)
     rc, out = g.run('dpkg-query -W wros; cat /etc/writingdeck/release', 20)
     ctx.check('starting version is 0.1.0~rc1', '0.1.0~rc1' in out, out)
+    rc, eng = g.run("f=$(grep -rl 'def find_update_media' /usr/libexec /usr/lib /usr/share 2>/dev/null | head -1); echo $f; grep -n 'dmask=0022,fmask=0133' $f; grep -n '0o755' $f | head -5; sha256sum $f", 30, check=False)
+    ctx.result['engine_fix_probe'] = eng
+    ctx.check('installed update engine contains the media permission fix (dmask=0022,fmask=0133)', 'dmask=0022,fmask=0133' in eng, eng)
 
     if variant == 'tamper':
         updates_panel(ctx, g, layout)
