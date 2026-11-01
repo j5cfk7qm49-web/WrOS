@@ -588,17 +588,21 @@ def target_swaps(swaps_text, baseline, sysroot=Path('/sys/class/block')):
         swap_path = decode_proc_path(parts[0])
         if swap_path in baseline_swaps:
             continue
-        if swap_path.startswith('/dev/mapper/'):
-            mapper_name = swap_path.removeprefix('/dev/mapper/')
-            block = dm_by_mapper_name.get(mapper_name)
+        # The kernel prints the path as seen from the reader's root: /dev/... normally,
+        # /run/live/installer/dev/... from inside the installer root, and /mapper/... or
+        # /<block> from a namespace that cannot reach the installer's /dev mount.
+        name = next(swap_path.removeprefix(prefix) for prefix in ('/dev/', f'{DI}/dev/', '/')
+                    if swap_path.startswith(prefix))
+        if name.startswith('mapper/'):
+            block = dm_by_mapper_name.get(name.removeprefix('mapper/'))
             require(block is not None, f'unknown mapper swap device: {swap_path}')
-        elif swap_path.startswith('/dev/'):
-            block = swap_path.removeprefix('/dev/')
         else:
-            raise ValueError(f'unsupported swap path: {swap_path}')
+            require(re.fullmatch(r'[a-z][a-z0-9-]*', name) is not None and (sysroot / name).is_dir(),
+                    f'unsupported swap path: {swap_path}')
+            block = name
         require(is_writable_target_block(block, baseline, sysroot=sysroot),
                 f'refusing non-target swap device: {swap_path}')
-        swaps.append({'path': swap_path, 'block': block})
+        swaps.append({'path': swap_path, 'block': block, 'device': f'/dev/{block}'})
     return swaps
 
 
@@ -642,7 +646,8 @@ def cleanup_target_stack(
     for swap in plan['swaps']:
         require(is_writable_target_block(swap['block'], baseline, sysroot=sysroot),
                 'refusing to disable swap on protected block device')
-        run_cmd('/sbin/swapoff', swap['path'])
+        # The kernel node exists in every mount namespace; the listed path may not.
+        run_cmd('/sbin/swapoff', swap['device'])
         disabled_swaps.append(swap['path'])
     closed_mappers = []
     for mapper in plan['mappers']:
@@ -1433,11 +1438,14 @@ def worker(uid, parent, started):
                 except subprocess.TimeoutExpired:
                     process.kill()
                     process.wait()
+        if outcome != 'completed':
+            keep_installer_logs(RUN_DIR / 'work')
         try:
             cleanup_report = cleanup_target_stack(baseline)
         except Exception as exc:
+            # The installer's own verdict comes first; a cleanup failure is added, never substituted.
+            reason = f'{reason}; then target cleanup error: {exc}'
             outcome = 'failed'
-            reason = f'target cleanup error: {exc}'
             cleanup_report = {'clean': False, 'error': str(exc)}
         atomic_json(
             RUN_DIR / 'outcome.json',
@@ -1451,6 +1459,37 @@ def worker(uid, parent, started):
             },
         )
     return 0 if outcome in ('completed', 'cancelled') else 1
+
+
+INSTALLER_LOG_LIMIT = 8 * 1024 * 1024
+
+
+def keep_installer_logs(work_dir, di_root=DI, limit=INSTALLER_LOG_LIMIT):
+    """Copy the Debian installer's syslog and partman log out of the worker's private mount
+    namespace before it ends; otherwise a failed installation leaves nothing to diagnose.
+    Root-only, bounded to the newest *limit* bytes, never following links. Best effort."""
+    kept = []
+    for name in ('syslog', 'partman'):
+        try:
+            source = os.open(di_root / 'var/log' / name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        except OSError:
+            continue
+        try:
+            info = os.fstat(source)
+            if not stat.S_ISREG(info.st_mode):
+                continue
+            os.lseek(source, max(0, info.st_size - limit), os.SEEK_SET)
+            data = os.read(source, limit)
+            target = os.open(work_dir / f'installer-{name}', os.O_WRONLY | os.O_CREAT | os.O_EXCL
+                             | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+            with os.fdopen(target, 'wb') as output:
+                output.write(data)
+            kept.append(name)
+        except OSError as exc:
+            print(f'WrOS installer log {name} not kept: {exc}', file=sys.stderr)
+        finally:
+            os.close(source)
+    return kept
 
 
 def caller_still_owned(baseline):

@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import select
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -223,6 +224,22 @@ class InstallSessionSupervisorTests(unittest.TestCase):
             self.assertEqual(proof['installed_user'], 'alice')
             self.assertEqual(proof['encrypted_root_chain']['format'], 'LUKS2')
 
+            # The real guided install lists its swap from inside the installer root, and the
+            # host namespace sees the same swap relative to the unreachable devtmpfs mount.
+            header = 'Filename\tType\tSize\tUsed\tPriority\n'
+            for listed in ('/run/live/installer/dev/mapper/wros--vg-swap_1', '/mapper/wros--vg-swap_1',
+                           '/dev/mapper/wros--vg-swap_1', '/dev/dm-2', '/dm-2'):
+                with self.subTest(listed=listed):
+                    found = supervisor.target_swaps(f'{header}{listed}\tpartition\t823292\t0\t-2\n',
+                                                    baseline, sysroot=sysroot)
+                    self.assertEqual(found, [{'path': listed, 'block': 'dm-2', 'device': '/dev/dm-2'}])
+            for listed, message in (('/run/live/installer/dev/mapper/foreign_crypt', 'refusing non-target'),
+                                    ('/mapper/not-a-mapper', 'unknown mapper'),
+                                    ('/swapfile', 'unsupported swap path'),
+                                    ('/run/live/installer/target/swapfile', 'unsupported swap path')):
+                with self.subTest(listed=listed), self.assertRaisesRegex(ValueError, message):
+                    supervisor.target_swaps(f'{header}{listed}\tfile\t1024\t0\t-2\n', baseline, sysroot=sysroot)
+
             # Simulate active target mounts and swap during/after installation
             mountinfo.write_text(
                 mountinfo.read_text()
@@ -268,13 +285,28 @@ class InstallSessionSupervisorTests(unittest.TestCase):
                     ('/bin/umount', '/run/live/installer/target/boot/efi'),
                     ('/bin/umount', '/run/live/installer/target/boot'),
                     ('/bin/umount', '/run/live/installer/target'),
-                    ('/sbin/swapoff', '/dev/mapper/wros--vg-swap_1'),
+                    ('/sbin/swapoff', '/dev/dm-2'),
                     ('/sbin/dmsetup', 'remove', '--retry', 'wros--vg-root'),
                     ('/sbin/dmsetup', 'remove', '--retry', 'wros--vg-swap_1'),
                     ('/sbin/cryptsetup', 'close', 'nvme0n1p3_crypt'),
                 ],
             )
 
+
+    def test_failed_installs_keep_the_installer_logs_bounded_root_only_and_without_links(self):
+        with tempfile.TemporaryDirectory(prefix='wros-inst-logs-') as directory:
+            di_root, work = Path(directory) / 'di', Path(directory) / 'work'
+            (di_root / 'var/log').mkdir(parents=True)
+            work.mkdir(mode=0o700)
+            (di_root / 'var/log/syslog').write_bytes(b'early line\n' + b'x' * 64 + b'\nlast line\n')
+            (di_root / 'var/log/partman').symlink_to('/etc/shadow')
+            self.assertEqual(supervisor.keep_installer_logs(work, di_root=di_root, limit=32), ['syslog'])
+            kept = work / 'installer-syslog'
+            self.assertEqual(kept.read_bytes(), (b'x' * 64 + b'\nlast line\n')[-32:])
+            self.assertEqual(stat.S_IMODE(kept.stat().st_mode), 0o600)
+            self.assertFalse((work / 'installer-partman').exists())
+            # An existing file is never overwritten or followed.
+            self.assertEqual(supervisor.keep_installer_logs(work, di_root=di_root, limit=32), [])
 
     def test_client_and_cleanup_outcomes_completed_cancelled_interrupted_and_unverified_refusal(self):
         import json
