@@ -1350,6 +1350,53 @@ def maintenance_corrupt_staged(ctx, st, secrets_, overlay):
         m.kill()
 
 
+def phase_peek(ctx):
+    """Read-only look at the installed filesystem of a (failed or finished) install run, via a qcow2
+    overlay and a live maintenance boot. Never reads shadow, never prints a secret."""
+    run = Path(ctx.args.install_run)
+    secrets_ = json.loads((run / 'secrets.json').read_text())
+    overlay = ctx.dir / 'disk.qcow2'
+    vm.create_overlay(run / 'target.img', overlay)
+    m = vm.Machine(ctx.dir, 'peek', memory=3072)
+    ctx.machines.append(m)
+    m.firmware(vm.fresh_vars(ctx.dir, 'peek-OVMF_VARS.fd'))
+    m.cdrom(ctx.iso)
+    m.virtio_disk(overlay, fmt='qcow2', ident='peekdisk')
+    m.serial_login_credential()
+    m.start()
+    wait_for_firmware_menu(ctx, m, 'peek-grub')
+    m.key('ret')
+    g = live_login(ctx, m)
+    g.shell.put('/dev/shm/rckey', secrets_['luks'], '0600')
+    rc, out = g.run("sudo -n sh -c '%s; test $(echo $dev | wc -w) = 1 && cryptsetup open --readonly --key-file /dev/shm/rckey $dev rcpeek; "
+                    "shred -u /dev/shm/rckey; vgchange -ay >/dev/null 2>&1; lsblk -rpno NAME,TYPE,FSTYPE'" % LUKS_DEV, 120)
+    ctx.result['peek_lsblk'] = out
+    rc, out2 = g.run('ls /dev/mapper', 20)
+    candidates = [x for x in out2.split() if x not in ('control', 'rcpeek')]
+    root = '/dev/mapper/' + next((c for c in candidates if 'root' in c), candidates[0])
+    g.run("sudo -n sh -c 'mkdir -p /mnt/rc && mount -o ro,noload %s /mnt/rc'" % root, 30)
+    commands = {
+        'passwd-system-accounts': "awk -F: '$3>=100 || $1==\"root\"' /mnt/rc/etc/passwd; echo; grep -n greetd /mnt/rc/etc/passwd /mnt/rc/etc/group",
+        'greetd-config': 'cat /mnt/rc/etc/greetd/config.toml; ls -la /mnt/rc/etc/greetd',
+        'keyboard': 'cat /mnt/rc/etc/default/keyboard; cat /mnt/rc/etc/initramfs-tools/conf.d/wros-keymap 2>&1; ls -la /mnt/rc/etc/writingdeck',
+        'target-markers': 'ls -la /mnt/rc/wros-target-* /mnt/rc/etc/writingdeck 2>&1; cat /mnt/rc/etc/crypttab; cat /mnt/rc/etc/fstab',
+        'installer-logs': 'ls -la /mnt/rc/var/log/installer 2>&1; grep -a -n "wros-keymaps" /mnt/rc/var/log/installer/syslog 2>&1 | head',
+        'release': 'cat /mnt/rc/etc/writingdeck/release 2>&1; ls /mnt/rc/var/lib/dpkg/info | grep -i -E "^(wros|greetd)" | head',
+        'finish-hooks-left-in-target': 'ls -la /mnt/rc/usr/lib/finish-install.d 2>&1 | head',
+    }
+    for label, command in commands.items():
+        rc, text = g.run("sudo -n sh -c '%s'" % command.replace("'", "'\''"), 60, check=False)
+        (ctx.dir / ('peek-%s.txt' % label)).write_text(text)
+        ctx.step('peek-' + label, rc=rc, head=text[:300])
+    g.run("sudo -n sh -c 'umount /mnt/rc; vgchange -an >/dev/null 2>&1; cryptsetup close rcpeek'", 60, check=False)
+    g.run('sudo -n /sbin/poweroff', 20, check=False)
+    try:
+        m.wait_exit(120)
+    except TimeoutError:
+        m.kill()
+    ctx.result['passed'] = True
+
+
 def phase_rescue(ctx):
     st = load_state(ctx.args.install_run)
     secrets_ = json.loads(Path(st['secrets']).read_text())
@@ -1417,7 +1464,7 @@ def phase_rescue(ctx):
 
 PHASES = {'firmware': phase_firmware, 'live': phase_live, 'install': phase_install,
           'install-failure': phase_install, 'installed-boot': phase_installed_boot,
-          'update': phase_update, 'rescue': phase_rescue}
+          'update': phase_update, 'rescue': phase_rescue, 'peek': phase_peek}
 
 
 def main():
