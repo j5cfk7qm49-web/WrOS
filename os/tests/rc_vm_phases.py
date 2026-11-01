@@ -811,6 +811,11 @@ def finish_failure_injection(ctx, g, target, kill):
         ctx.check('VT7 stays active (no auto-return after writer death)', last['active_vt'] == 'tty7', last['active_vt'])
         ctx.check('no new writer on tty1', not any(p['comm'] in ('grimoire', 'wros-input') for p in last['procs']), last['procs'])
     ctx.check('no target mappers, mounts or swap left', not [x for x in last['mappers'] if x != 'control'] and not last['target_mounts'] and not last['swaps'])
+    rc, survivors = g.run("ps -eo pid,ppid,stat,comm,args | grep -E 'main-menu|debconf|partman|anna|udpkg|in[.]d-i|debian-installer|log-output|apt-install|di-run|wros-install-session' | grep -v -E 'grep|pkill'; true", 30, check=False)
+    ctx.result['surviving_installer_processes'] = survivors
+    ctx.check('no d-i or installer-session process survives after the outcome is written', not survivors.strip(), survivors)
+    rc, tree = g.run("ps -eo pid,ppid,stat,comm | head -80", 30, check=False)
+    ctx.result['process_list_after_outcome'] = tree
     g.run('sudo -n /sbin/poweroff', 20, check=False)
     ctx.result['passed'] = True
 
