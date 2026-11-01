@@ -119,6 +119,7 @@ def rules(layout_choice=r'Colemak(?![-\w])', avoid=r'DH|Dvorak|Workman|Norman'):
         Rule('grub-only-os', r'Install the GRUB boot loader to your primary drive\?', ('yes',), ('boolean',), r'only operating system'),
         Rule('grub-nvram', r'Update NVRAM variables to automatically boot into Debian\?', ('yes',), ('boolean',)),
         Rule('grub-removable', r'Force GRUB installation to the EFI removable media path\?', ('no',), ('boolean',)),
+        Rule('no-interfaces', r'No network interfaces detected', ('enter',), ('note',)),
         Rule('no-ethernet', r'No Ethernet card was found on the system|Ethernet card not found', ('enter',), ('note', 'select')),
         Rule('ethernet-driver', r'Driver needed by your Ethernet card', ('select', r'no ethernet card', ''), ('select',)),
         Rule('installation-complete', r'Installation complete', ('enter',), ('note',)),
