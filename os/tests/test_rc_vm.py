@@ -87,11 +87,11 @@ class Forms(unittest.TestCase):
     def test_real_string_form_with_footer_title(self):
         # captured from the real installer: empty field renders as a bare marker, footer title above F1 help
         text = screen('Full name for the new user:', 'A user account will be created.', '▸ ',
-                      'Set up users and passwords', 'F1 help')
+                      'Set up users and passwords · 1 of 1', '↑↓ choose  Enter continue  Esc back  F1 help')
         form = forms.parse_form(text)
         self.assertEqual(form.kind, 'string')
         self.assertEqual(forms.decide(form, forms.rules())[1], ('fill', 'RC Writer'))
-        prefilled = forms.parse_form(screen('Hostname:', '▸ debian', 'Configure the network', 'F1 help'))
+        prefilled = forms.parse_form(screen('Hostname:', '▸ debian', 'Configure the network · 1 of 1', '↑↓ choose  Enter continue  Esc back  F1 help'))
         self.assertEqual(prefilled.kind, 'string')
 
     def test_unknown_form_is_not_answered(self):
