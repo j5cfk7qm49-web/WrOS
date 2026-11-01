@@ -1359,16 +1359,23 @@ def phase_update(ctx):
     resets = wait_reset(ctx, m, resets, 300, 'restart-to-apply')
     unlock(ctx, m, secrets_, layout, wrong_first=False, after_reset=resets)
     if variant == 'powercut':
-        regex = re.compile(r'wros|update|dpkg|Unpacking|Setting up|Preparing|apply', re.I)
-        deadline = time.monotonic() + 600
-        seen = None
+        # the apply takes only a few seconds: sample the framebuffer as fast as it can be read and log every
+        # distinct screen so the cut point can be named in the report
+        regex = re.compile(r'Unpacking|Setting up|Preparing to unpack|dpkg|apt-get|Apply verified|offline update|wros-offline', re.I)
+        t0 = time.monotonic()
+        deadline = t0 + float(getattr(ctx.args, 'watch_seconds', 45))
+        seen, last_text, trail = None, None, []
         while time.monotonic() < deadline:
             text = m.screen_text('apply-watch')
-            if regex.search(text) and not re.search(r'Please unlock', text):
+            flat = re.sub(r'\s+', ' ', text).strip()
+            if flat != last_text:
+                trail.append({'t': round(time.monotonic() - t0, 2), 'text': flat[:300]})
+                last_text = flat
+            if regex.search(text):
                 seen = text
                 break
-            time.sleep(1)
-        ctx.check('apply phase observed on the console before the power cut', seen is not None, m.screen_text('apply-final')[-600:])
+        (ctx.dir / 'apply-watch-trail.json').write_text(json.dumps(trail, indent=1))
+        ctx.check('apply phase observed on the console before the power cut', seen is not None, trail[-3:])
         ctx.result['apply_screen'] = seen
         time.sleep(float(ctx.args.cut_delay))
         m.shot('before-power-cut')
@@ -1739,6 +1746,7 @@ def main():
     parser.add_argument('--cut-delay', default='2')
     parser.add_argument('--hint-wait', type=int, default=900)
     parser.add_argument('--apply-wait', type=int, default=1500)
+    parser.add_argument('--watch-seconds', type=int, default=45)
     parser.add_argument('--hold', action='store_true', help='on a stage failure keep the VM up for read-only operator commands (cmd.txt)')
     parser.add_argument('--diagnose', action='store_true', help='install phase: collect installer logs and state read-only before stopping')
     args = parser.parse_args()
