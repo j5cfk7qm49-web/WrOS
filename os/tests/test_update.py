@@ -390,7 +390,12 @@ class SignedUpdateTests(unittest.TestCase):
                 states_during_apt.append((trigger.exists() or trigger.is_symlink(),
                                          [r['state'] for r in update.Store(state_dir).records()]))
                 self.assertEqual(cmd[0], '/usr/bin/apt-get')
-                self.assertIn('--no-download', cmd)
+                # apt 3.0 refuses local .deb paths under --no-download ("Pathname to install is
+                # not absolute"); offline comes from having no sources at all.
+                self.assertNotIn('--no-download', cmd)
+                for option in ('Dir::Etc::sourcelist=/dev/null', 'Dir::Etc::sourceparts=-'):
+                    self.assertIn(option, cmd)
+                self.assertTrue(all(arg.startswith('/') for arg in cmd[cmd.index('install') + 1:]))
                 status_file.write_text(
                     'Package: grimoire\nStatus: install ok installed\nVersion: 1:0.7.6\n\n'
                 )

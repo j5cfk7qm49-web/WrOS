@@ -928,6 +928,11 @@ def owned_trigger(trigger_path, staged_dir):
 def apt_command(deb_paths, dpkg_dir, work_dir, simulate=False):
     """APT's own solver and transaction engine, offline: no sources, no downloads, no removals.
 
+    Offline comes from an empty source list: the only archives APT can fetch are the staged
+    .deb files named by absolute path, which it copies from disk. --no-download is not used
+    because APT 3.0 then refuses such paths outright ("Pathname to install is not absolute"),
+    which failed every real apply while the simulation still passed.
+
     Scratch (list state, archive dir with its lock/partial) lives in work_dir, outside the
     staged tree, so applying never mutates authenticated staged bytes.
     """
@@ -938,7 +943,7 @@ def apt_command(deb_paths, dpkg_dir, work_dir, simulate=False):
     empty_lists.mkdir(mode=0o700, exist_ok=True)
     archives.mkdir(mode=0o700, exist_ok=True)
     return ['/usr/bin/apt-get', *(['--simulate'] if simulate else []),
-            '--no-download', '--no-remove', '--yes',
+            '--no-remove', '--yes',
             '-o', 'Dir::Etc::sourcelist=/dev/null', '-o', 'Dir::Etc::sourceparts=-',
             '-o', 'Dir::State::lists=' + str(empty_lists),
             '-o', 'Dir::State::status=' + str(Path(dpkg_dir) / 'status'),
