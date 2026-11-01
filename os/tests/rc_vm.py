@@ -604,6 +604,11 @@ class Machine:
         self.qmp.send_key(list(qcodes), hold)
         time.sleep(gap)
 
+    def ctrl(self, letter, layout='us'):
+        """Ctrl+<letter> as the application sees it: press the physical key that produces `letter` on `layout`."""
+        chord = keystrokes(letter, layout)[0]
+        self.key('ctrl', *chord)
+
     def type_text(self, text, layout='us', gap=0.12):
         for chord in keystrokes(text, layout):
             self.qmp.send_key(chord, 40)

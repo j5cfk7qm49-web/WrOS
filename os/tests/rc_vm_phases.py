@@ -344,7 +344,7 @@ def grim_new_scene(g, name, text, layout='us'):
     """Dashboard (or editor) -> new scene named `name` -> type text -> save. Returns the screen."""
     m = g.m
     grim_editor(g)
-    m.key('ctrl', 'k')
+    m.ctrl('k', layout)
     time.sleep(0.8)
     m.type_text('new scene', layout)
     g.wait_vcs(1, r'\u25b8 New scene|\u2192 New scene|New scene', 20, what='palette-new-scene')
@@ -354,13 +354,13 @@ def grim_new_scene(g, name, text, layout='us'):
     m.key('ret')
     g.wait_vcs(1, r'Start writing', 20, what='new-scene-editor')
     m.type_text(text, layout)
-    m.key('ctrl', 's')
+    m.ctrl('s', layout)
     time.sleep(2)
     return g.screen(1)
 
 
 def grim_logout_login(ctx, g, user, password, layout):
-    g.m.key('ctrl', 'q')
+    g.m.ctrl('q', layout)
     g.wait_vcs(1, r'Local account', 60, what='after-logout')
     greeter_login(ctx, g, g.m, user, password, layout, wrong_first=False)
     grim_dashboard(g)
