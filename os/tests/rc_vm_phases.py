@@ -1598,13 +1598,14 @@ def phase_peek(ctx):
         'passwd-system-accounts': "grep -E '^(root|_greetd|writer|rc|_wros-installer|wros-live|greetd|build[a-z]*):' /mnt/rc/etc/passwd; echo; grep -n greetd /mnt/rc/etc/group; echo; cut -d: -f1,3,6,7 /mnt/rc/etc/passwd | tail -12",
         'greetd-config': 'cat /mnt/rc/etc/greetd/config.toml; ls -la /mnt/rc/etc/greetd',
         'keyboard': 'cat /mnt/rc/etc/default/keyboard; cat /mnt/rc/etc/initramfs-tools/conf.d/wros-keymap 2>&1; ls -la /mnt/rc/etc/writingdeck',
+        'initramfs-keymap': 'ls -la /mnt/rc/etc/console-setup /mnt/rc/etc/initramfs-tools/hooks /mnt/rc/etc/initramfs-tools/conf.d 2>&1; cat /mnt/rc/etc/initramfs-tools/conf.d/* 2>&1 | head -30; zcat /mnt/rc/etc/console-setup/cached_*.kmap.gz 2>/dev/null | grep -c keycode; ls -la /mnt/rc/boot 2>&1',
         'target-markers': 'ls -la /mnt/rc/wros-target-* /mnt/rc/etc/writingdeck 2>&1; cat /mnt/rc/etc/crypttab; cat /mnt/rc/etc/fstab',
         'installer-logs': 'ls -la /mnt/rc/var/log/installer 2>&1; grep -a -n "wros-keymaps" /mnt/rc/var/log/installer/syslog 2>&1 | head',
         'release': 'cat /mnt/rc/etc/writingdeck/release 2>&1; ls /mnt/rc/var/lib/dpkg/info | grep -i -E "^(wros|greetd)" | head',
         'finish-hooks-left-in-target': 'ls -la /mnt/rc/usr/lib/finish-install.d 2>&1 | head',
     }
     for label, command in commands.items():
-        rc, text = g.run("sudo -n sh -c '%s'" % command.replace("'", "'\''"), 60, check=False)
+        rc, text = g.run("sudo -n sh -c '%s'" % command.replace("'", "'" + chr(92) + "''"), 60, check=False)
         (ctx.dir / ('peek-%s.txt' % label)).write_text(text)
         ctx.step('peek-' + label, rc=rc, head=text[:300])
     g.run("sudo -n sh -c 'umount /mnt/rc; vgchange -an >/dev/null 2>&1; cryptsetup close rcpeek'", 60, check=False)
