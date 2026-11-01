@@ -32,6 +32,9 @@ def vcs(n):
     chars = [chr(c) if 0 < c < 0x110000 and not (0xd800 <= c < 0xe000) else ' '
              for c in struct.unpack('<%dI' % (len(raw) // 4), raw)]
     lines = [''.join(chars[i * cols:(i + 1) * cols]).rstrip() for i in range(rows)]
+    # The console font maps the list marker U+25B8 and arrows U+2192/U+25BA/U+25B6 to one glyph, so
+    # /dev/vcsu may report either; normalise a leading marker to U+25B8.
+    lines = [re.sub('^([│┃| ]{0,2})[→►▶] ', lambda m: m.group(1) + '▸ ', line) for line in lines]
     return {'rows': rows, 'cols': cols, 'lines': lines}
 
 
