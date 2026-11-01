@@ -70,6 +70,10 @@ FIXTURE_KEY_WORDS = re.compile(r'(?i)\b(test|fixture|throwaway|insecure|example\
 CONFIG_SCAN_ROOTS = ('etc', 'usr/lib/systemd/system', 'usr/lib/systemd/system-generators',
                      'usr/lib/systemd/user', 'usr/share/polkit-1', 'usr/lib/wros-installer',
                      'usr/lib/wros-update', 'usr/share/wros')
+# Package-owned systemd units and generators and the /etc entry that masks each one.
+SYSTEMD_MASKABLE = {'usr/lib/systemd/system-generators': 'etc/systemd/system-generators',
+                    'usr/lib/systemd/system': 'etc/systemd/system',
+                    'usr/lib/systemd/user': 'etc/systemd/user'}
 MAX_TEXT = 2 * 1024 * 1024
 
 
@@ -385,6 +389,16 @@ def text_files(root, relatives):
             yield path.relative_to(root).as_posix(), data.decode('utf-8', 'replace')
 
 
+def masked_by_etc(rootfs, relative):
+    """True only for a top-level package unit or generator that /etc masks with a /dev/null symlink."""
+    parent, _, name = relative.rpartition('/')
+    override = SYSTEMD_MASKABLE.get(parent)
+    if override is None:
+        return False
+    mask = rootfs / override / name
+    return mask.is_symlink() and os.readlink(mask) == '/dev/null'
+
+
 def deny_list(rootfs, listing, boot_configs):
     """Every QA/test leftover the shipped image must not carry. Returns nothing or raises."""
     problems = []
@@ -397,7 +411,7 @@ def deny_list(rootfs, listing, boot_configs):
         active = [l for l in text.splitlines() if l.strip() and not l.lstrip().startswith(('#', ';'))]
         if relative.startswith(('etc/sudoers',)) and any(NOPASSWD.match(l) for l in active):
             problems.append('passwordless sudo configured: ' + relative)
-        if any(AUTOLOGIN_ACTIVE.search(l) for l in active):
+        if any(AUTOLOGIN_ACTIVE.search(l) for l in active) and not masked_by_etc(rootfs, relative):
             problems.append('autologin/initial-session configured outside /run/wros-live/greetd.toml: ' + relative)
         if QA_TEXT.search(text):
             problems.append('QA marker or fixture credential text in: ' + relative)

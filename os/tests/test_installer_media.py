@@ -393,6 +393,35 @@ GPT start and size : 2 102048 5760
             with self.assertRaisesRegex(ValueError, 'shell-escape kernel parameter'):
                 module.deny_list(rootfs, listing, shell_boot)
 
+            # A package autologin generator fails unless /etc masks it with /dev/null
+            generators = rootfs / 'usr/lib/systemd/system-generators'
+            generators.mkdir(parents=True)
+            generator = generators / 'live-config-getty-generator'
+            generator.write_text('#!/bin/sh\nExecStart=-/sbin/agetty --autologin user\n')
+            with self.assertRaisesRegex(ValueError, 'autologin/initial-session configured outside'):
+                module.deny_list(rootfs, listing, boot_configs)
+            etc_generators = rootfs / 'etc/systemd/system-generators'
+            etc_generators.mkdir(parents=True)
+            mask = etc_generators / 'live-config-getty-generator'
+            mask.symlink_to('/tmp/not-a-mask')
+            with self.assertRaisesRegex(ValueError, 'autologin/initial-session configured outside'):
+                module.deny_list(rootfs, listing, boot_configs)
+            mask.unlink()
+            mask.symlink_to('/dev/null')
+            module.deny_list(rootfs, listing, boot_configs)
+            # A mask never hides QA text, and only covers the top-level unit it names
+            generator.write_text('#!/bin/sh\nwros-qa- --autologin user\n')
+            with self.assertRaisesRegex(ValueError, 'QA marker or fixture credential text'):
+                module.deny_list(rootfs, listing, boot_configs)
+            generator.write_text('#!/bin/sh\nExecStart=-/sbin/agetty --autologin user\n')
+            nested = generators / 'live-config-getty-generator.d'
+            nested.mkdir()
+            (nested / 'override').write_text('ExecStart=-/sbin/agetty --autologin user\n')
+            with self.assertRaisesRegex(ValueError, 'autologin/initial-session configured outside'):
+                module.deny_list(rootfs, listing, boot_configs)
+            shutil.rmtree(rootfs / 'usr')
+            shutil.rmtree(rootfs / 'etc/systemd')
+
             # Unlocked root fails
             (rootfs / 'etc/shadow').write_text('root:$6$hash:1:0:99999:7:::\n')
             with self.assertRaisesRegex(ValueError, 'root account is not locked'):
