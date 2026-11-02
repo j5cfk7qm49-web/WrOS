@@ -609,6 +609,20 @@ class UnitEnablement(unittest.TestCase):
 
 
 class ManifestData(unittest.TestCase):
+    def test_the_video_group_may_write_only_the_screen_backlight(self):
+        specs = {spec.dest: spec for spec in packaging.expand(packaging.load_manifest(ROOT), ROOT)}
+        rule = specs['usr/lib/udev/rules.d/90-wros-backlight.rules']
+        self.assertEqual(rule.mode, 0o644)
+        lines = [line for line in (ROOT / 'os/config/90-wros-backlight.rules').read_text().splitlines()
+                 if line and not line.startswith('#')]
+        self.assertEqual(lines, [
+            'ACTION=="add", SUBSYSTEM=="backlight", '
+            'RUN+="/usr/bin/chgrp video /sys/class/backlight/%k/brightness", '
+            'RUN+="/usr/bin/chmod g+w /sys/class/backlight/%k/brightness"'])
+        for groups in ((ROOT / 'os/config/live/live.conf').read_text(),
+                       (ROOT / 'os/config/installer.preseed').read_text()):
+            self.assertRegex(groups, r'(user-default-groups|DEFAULT_GROUPS)\S*[ ="][^\n]*\bvideo\b')
+
     def test_manifest_is_internally_consistent(self):
         manifest = packaging.load_manifest(ROOT)
         specs = packaging.expand(manifest, ROOT)
