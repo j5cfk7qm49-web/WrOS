@@ -273,6 +273,8 @@ class Service:
         self.google = state/'rclone.conf'
         self.account = state/'google-account.json'
         self.queue_path = state/'queue.json'
+        # book folder -> its latest verified snapshot; restic only knows the staging copy.
+        self.latest_path = state/'latest.json'
         self.env = {key: value for key, value in os.environ.items()
                     if not key.startswith(('RESTIC_', 'RCLONE_'))}
         self.env.update(PATH='/usr/bin:/bin', RCLONE_CONFIG=str(self.google),
@@ -415,7 +417,40 @@ class Service:
                 'google_verified_at': google_verified_at,
                 'google_expiry': google_expiry,
                 'queued_backups': list(self.queue),
-                'snapshots': self.snapshots() if refresh else [], 'notice': notice}
+                'snapshots': self.named_snapshots() if refresh else self.latest_snapshots(), 'notice': notice}
+
+    def named_snapshots(self):
+        """The refreshed list as shown: a snapshot this computer recorded names its book's folder
+        (restic itself only knows the staging copy; restore keeps using that)."""
+        folders = {entry['id']: root for root, entry in self.latest().items()}
+        return [row | {'path': folders.get(row['id'], row['path'])} for row in self.snapshots()]
+
+    def latest(self):
+        """{book folder: {'id', 'time', 'project'}}; an unreadable record is treated as empty."""
+        try:
+            private_file(self.latest_path)
+            value = json.loads(self.latest_path.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            return {}
+        if not isinstance(value, dict):
+            return {}
+        return {root: entry for root, entry in value.items()
+                if isinstance(entry, dict) and {'id', 'time', 'project'} <= set(entry)}
+
+    def record_latest(self, root, snapshot):
+        record = self.latest()
+        record[str(root)] = {'id': snapshot['id'], 'time': snapshot['time'], 'project': root.name}
+        atomic_private(self.latest_path, json.dumps(record, sort_keys=True).encode())
+
+    def latest_snapshots(self):
+        """Each book's latest verified snapshot under its real folder, without contacting the repository."""
+        if not self.current:
+            return []
+        verified = self.current['verified']
+        return sorted(({'id': entry['id'], 'time': entry['time'], 'path': root, 'project': entry['project'],
+                        'restore_checked_at': verified[entry['id']]}
+                       for root, entry in self.latest().items() if entry['id'] in verified),
+                      key=lambda item: item['time'], reverse=True)
 
     def restore_into(self, snapshot, target, phase='Checking the snapshot by restoring it'):
         self.restic(['restore', snapshot['id'] + ':' + snapshot['path'], '--target', str(target), '--verify', '--overwrite', 'never'],
@@ -565,6 +600,7 @@ class Service:
             require(self.restore_into(snapshot, restored) == original, 'Restore check differs from the saved project.')
             self.current['verified'][snapshot['id']] = now()
             self.save()
+            self.record_latest(root, snapshot)
             self.dequeue_project(root)
         message = 'Backup verified by a complete restore; all file hashes match.'
         if same_device:

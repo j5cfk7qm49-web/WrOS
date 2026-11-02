@@ -195,6 +195,21 @@ class EncryptedBackup(unittest.TestCase):
         self.assertNotIn(b'PRIVATE_', result.stdout + result.stderr)
         self.assertIn('only the JSON', json.loads(result.stdout)['error'])
 
+    def test_status_names_each_books_latest_verified_snapshot_by_its_real_folder_offline(self):
+        # The update gate asks for status without contacting the repository, and looks for a
+        # snapshot of exactly this book's folder; restic itself only knows the staging copy.
+        self.initialize()
+        self.assertEqual(self.service.status(refresh=False)['snapshots'], [])
+        made = self.service.backup(str(self.project))
+        identifier = made['snapshots'][0]['id']
+        with mock.patch.object(module, 'run', side_effect=AssertionError('status must stay offline')):
+            offline = module.Service(self.service.state).status(refresh=False)['snapshots']
+        self.assertEqual([(s['id'], s['path'], s['project']) for s in offline],
+                         [(identifier, str(self.project.resolve()), self.project.name)])
+        self.assertTrue(offline[0]['restore_checked_at'])
+        self.assertEqual(made['snapshots'][0]['path'], str(self.project.resolve()))
+        self.assertEqual(stat.S_IMODE((self.service.state / 'latest.json').stat().st_mode), 0o600)
+
     def test_backup_reports_each_step_and_restic_progress_without_file_names(self):
         import contextlib, io
         self.initialize()
