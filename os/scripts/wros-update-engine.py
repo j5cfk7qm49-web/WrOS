@@ -22,6 +22,7 @@ from pathlib import Path
 import re
 import secrets
 import shutil
+import ssl
 import stat
 import struct
 import subprocess
@@ -516,12 +517,17 @@ def verify_signed_metadata(meta, keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNER
         package_keyring = PACKAGE_KEYRING
     extra = []
     if package_keyring is not None and os.path.lexists(package_keyring):
+        # A bad package keyring is set aside, never given to gpgv: it lends no trust, and an
+        # update signed by the pinned primary (which could repair it) still verifies.
         package_keyring = Path(package_keyring)
-        require_trusted_file(package_keyring, 'packaged update keyring')
-        primaries = keyring_primary_fingerprints(package_keyring.read_bytes())
-        if not primaries or set(primaries) - set(pins):
-            fail('update keyring holds a primary key the signer pin does not name')
-        extra = ['--keyring', str(package_keyring)]
+        try:
+            require_trusted_file(package_keyring, 'packaged update keyring')
+            primaries = keyring_primary_fingerprints(package_keyring.read_bytes())
+            if not primaries or set(primaries) - set(pins):
+                fail('update keyring holds a primary key the signer pin does not name')
+            extra = ['--keyring', str(package_keyring)]
+        except (OSError, ValueError) as exc:
+            print(f'wros-update: ignoring {package_keyring}: {exc}', file=sys.stderr)
     if 'InRelease' in meta:
         names = ['InRelease']
         cmd_tail = ['InRelease']
@@ -1958,21 +1964,24 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def http_get(url, limit, opener=None, timeout=ONLINE_TIMEOUT):
-    """GET with a size cap. Network and HTTP failures raise OSError (URLError)."""
+def http_get(url, limit, opener=None, timeout=ONLINE_TIMEOUT, seen=None):
+    """GET with a size cap. Network and HTTP failures raise OSError (URLError). `seen` receives
+    the server's Date header, to tell a lapsed signature from a wrong local clock."""
     opener = opener or urllib.request.build_opener(_NoRedirect)
     with opener.open(url, timeout=timeout) as response:
         if getattr(response, 'status', 200) != 200:
             raise urllib.error.URLError(f'HTTP {response.status}')
+        if seen is not None:
+            seen['date'] = response.headers.get('Date')
         data = response.read(limit + 1)
     if len(data) > limit:
         fail('update server response exceeds the expected size')
     return data
 
 
-def read_online_metadata(base_url, *, now, keyring, signers, package_keyring, opener):
+def read_online_metadata(base_url, *, now, keyring, signers, package_keyring, opener, seen=None):
     """Signed InRelease and the Packages index it authenticates, from the update server."""
-    inrelease = http_get(base_url + 'InRelease', 1024 * 1024, opener)
+    inrelease = http_get(base_url + 'InRelease', 1024 * 1024, opener, seen=seen)
     _, release_text = verify_signed_metadata({'InRelease': inrelease}, keyring=keyring, signers=signers,
                                              package_keyring=package_keyring)
     release = parse_release(release_text, now=now)
@@ -1989,21 +1998,55 @@ def read_online_metadata(base_url, *, now, keyring, signers, package_keyring, op
 
 
 CLOCK_FAILURES = ('Date is in the future', 'has expired (Valid-Until passed)')
+# No correct clock reads earlier than this release. Before it, gpgv refuses the signing key
+# as created in the future and TLS refuses certificates: the clock is at fault, not the files.
+CLOCK_FLOOR = datetime(2026, 11, 1, tzinfo=timezone.utc)
+SERVER_CLOCK_TOLERANCE = timedelta(hours=1)
+CLOCK_TLS_CODES = (9, 10)  # X509_V_ERR_CERT_NOT_YET_VALID, X509_V_ERR_CERT_HAS_EXPIRED
+
+
+def tls_clock_failure(exc):
+    """A TLS certificate refused as not yet valid or expired: the local clock is wrong."""
+    reason = getattr(exc, 'reason', exc)
+    return isinstance(reason, ssl.SSLCertVerificationError) and getattr(reason, 'verify_code', None) in CLOCK_TLS_CODES
+
+
+def server_agrees(seen, moment):
+    """The update server's Date header is within an hour of this clock."""
+    try:
+        server = parsedate_to_datetime(seen.get('date') or '')
+    except (TypeError, ValueError):
+        return False
+    return server.tzinfo is not None and abs(server - moment) <= SERVER_CLOCK_TOLERANCE
 
 
 def check_online(*, base_url=ONLINE_URL, now=None, dpkg_dir=DEFAULT_DPKG_DIR, keyring=DEFAULT_KEYRING,
                  signers=DEFAULT_SIGNERS, package_keyring=None, opener=None):
     """Unprivileged: is a newer signed WrOS published? Fetches only InRelease and Packages."""
-    reads = clock(now).astimezone().strftime('%Y-%m-%d %H:%M')
+    moment = clock(now)
+    reads = moment.astimezone().strftime('%Y-%m-%d %H:%M')
     installed = load_installed_dpkg_database(dpkg_dir=dpkg_dir).get('wros', {}).get('version')
     result = {'status': 'invalid', 'version': None, 'installed': installed, 'clock': reads}
+    seen = {}
     try:
         _, _, _, _, wros = read_online_metadata(base_url, now=now, keyring=keyring, signers=signers,
-                                                package_keyring=package_keyring, opener=opener)
-    except (OSError, TimeoutError):
-        return result | {'status': 'unreachable'}
+                                                package_keyring=package_keyring, opener=opener, seen=seen)
+    except (OSError, TimeoutError) as exc:
+        wrong = tls_clock_failure(exc) or moment < CLOCK_FLOOR
+        return result | {'status': 'clock' if wrong else 'unreachable'}
     except ValueError as exc:
-        return result | {'status': 'clock' if any(text in str(exc) for text in CLOCK_FAILURES) else 'invalid'}
+        text = str(exc)
+        if 'Packages index SHA-256' in text:
+            status = 'unreachable'  # mid-publish: the signed index and its Packages disagree for a while
+        elif moment < CLOCK_FLOOR:
+            status = 'clock'
+        elif 'has expired (Valid-Until passed)' in text and server_agrees(seen, moment):
+            status = 'expired'  # this clock is right; the server stopped re-signing
+        elif any(failure in text for failure in CLOCK_FAILURES):
+            status = 'clock'
+        else:
+            status = 'invalid'
+        return result | {'status': status}
     newer = installed is None or compare_dpkg_versions(wros['version'], 'gt', installed)
     return result | {'status': 'available' if newer else 'current', 'version': wros['version']}
 
@@ -2012,7 +2055,17 @@ def fetch_online(*, base_url=ONLINE_URL, cache=ONLINE_CACHE, now=None, dpkg_dir=
                  keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNERS, package_keyring=None, host_arch=None,
                  opener=None):
     """Root (via wros-update-fetch): download a newer signed update into the cache, checking every
-    archive against the signed index, and publish the folder only once the whole bundle verifies."""
+    archive against the signed index, and publish the folder only once the whole bundle verifies.
+    The launcher's umask is 077; review reads the result unprivileged, so it is published 0755/0644."""
+    previous = os.umask(0o022)
+    try:
+        return _fetch_online(base_url=base_url, cache=cache, now=now, dpkg_dir=dpkg_dir, keyring=keyring,
+                             signers=signers, package_keyring=package_keyring, host_arch=host_arch, opener=opener)
+    finally:
+        os.umask(previous)
+
+
+def _fetch_online(*, base_url, cache, now, dpkg_dir, keyring, signers, package_keyring, host_arch, opener):
     try:
         inrelease, relative, packages_raw, packages, wros = read_online_metadata(
             base_url, now=now, keyring=keyring, signers=signers, package_keyring=package_keyring, opener=opener)
@@ -2023,7 +2076,8 @@ def fetch_online(*, base_url=ONLINE_URL, cache=ONLINE_CACHE, now=None, dpkg_dir=
         fail(f'WrOS is already up to date ({installed})')
     cache = Path(cache)
     cache.mkdir(parents=True, exist_ok=True)
-    os.chmod(cache, 0o755)
+    for directory in (cache.parent, cache):  # may predate this umask
+        os.chmod(directory, 0o755)
     target = cache / hashlib.sha256(inrelease).hexdigest()[:16]
     partial = cache / ('.partial-' + secrets.token_hex(8))
     partial.mkdir(mode=0o755)
@@ -2083,7 +2137,8 @@ def launcher_main(verb, argv, pkexec_uid, *, euid=None, runner=None, **paths):
     if verb == 'fetch':
         if argv:
             fail('usage: wros-update-fetch')
-        return fetch_online(**{k: v for k, v in paths.items() if k in ('cache', 'now', 'dpkg_dir', 'keyring', 'signers')})
+        return fetch_online(**{k: v for k, v in paths.items()
+                               if k in ('base_url', 'cache', 'now', 'dpkg_dir', 'keyring', 'signers', 'host_arch')})
     if argv != ['mount']:
         fail('usage: wros-update-media mount')
     return find_update_media(runner=runner, **{k: v for k, v in paths.items() if k in ('media_root', 'mountinfo_text')})

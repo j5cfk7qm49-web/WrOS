@@ -249,12 +249,23 @@ class SignedUpdateTests(unittest.TestCase):
             verified = update.verify_bundle(bundle, keyring=image, signers=self.signers, host_arch='amd64',
                                             package_keyring=package)
             self.assertEqual(verified['signer_fingerprint'], primary)
-            # A second primary in the package keyring is refused before gpgv runs.
+            # A second primary in the package keyring: the keyring is set aside (never given to
+            # gpgv), so it lends no trust, but updates the image keyring can check still work.
             both = tmp / 'both.gpg'
             self.gpg.export(['archive', 'other'], both)
-            with self.assertRaisesRegex(ValueError, 'primary key the signer pin does not name'):
-                update.verify_bundle(bundle, keyring=image, signers=self.signers, host_arch='amd64',
-                                     package_keyring=both)
+            import contextlib
+            import io
+            for keyring, outcome in ((image, 'GPG signature verification failed'), (package, None)):
+                warned = io.StringIO()
+                with self.subTest(keyring=keyring.name), contextlib.redirect_stderr(warned):
+                    if outcome:
+                        with self.assertRaisesRegex(ValueError, outcome):
+                            update.verify_bundle(bundle, keyring=keyring, signers=self.signers, host_arch='amd64',
+                                                 package_keyring=both)
+                    else:
+                        update.verify_bundle(bundle, keyring=keyring, signers=self.signers, host_arch='amd64',
+                                             package_keyring=both)
+                self.assertIn('primary key the signer pin does not name', warned.getvalue())
 
     def test_a_trigger_queued_only_in_unincorp_is_unfinished_dpkg_work(self):
         # dpkg-trigger outside a dpkg run queues work in triggers/Unincorp and
@@ -639,6 +650,14 @@ class OnlineUpdateTests(unittest.TestCase):
             path.unlink()
         for path in (cls.site / 'corrupt/pool').iterdir():
             path.write_bytes(b'x' * path.stat().st_size)
+        # Signed weeks ago and lapsed by real time: CI stopped re-signing.
+        lapsed = datetime.now(timezone.utc) - timedelta(days=40)
+        support.write_bundle(cls.site / 'lapsed', [deb], cls.gpg,
+                             headers=support.fresh_headers(lapsed, date_ago=timedelta(0), valid_for=timedelta(days=21)))
+        # A signature that no longer matches its text.
+        shutil.copytree(cls.site / 'missing', cls.site / 'badsig')
+        signed = cls.site / 'badsig/InRelease'
+        signed.write_text(signed.read_text().replace('Suite: wros-updates', 'Suite: wros-updatez'))
 
         class Quiet(http.server.SimpleHTTPRequestHandler):
             def log_message(self, *args):
@@ -679,8 +698,43 @@ class OnlineUpdateTests(unittest.TestCase):
             port = closed.getsockname()[1]
         self.assertEqual(update.check_online(base_url=f'http://127.0.0.1:{port}/', **self.system('0.1.0~rc2'))['status'],
                          'unreachable')
+        # An index that does not match its signature yet (Pages caches mid-publish): try later.
         self.assertEqual(update.check_online(base_url=self.url + 'tampered/', **self.system('0.1.0~rc2'))['status'],
+                         'unreachable')
+        self.assertEqual(update.check_online(base_url=self.url + 'badsig/', **self.system('0.1.0~rc2'))['status'],
                          'invalid')
+
+    def test_clock_reports_name_the_clock_only_when_the_clock_is_at_fault(self):
+        # A clock reset to the past makes gpgv refuse keys "created in the future": the clock, not the files.
+        old = datetime(2001, 1, 1, tzinfo=timezone.utc)
+        self.assertEqual(update.check_online(base_url=self.url + 'badsig/', now=old, **self.system('0.1.0~rc2'))['status'],
+                         'clock')
+        # A signature that lapsed while this clock agrees with the server's: the server's fault.
+        self.assertEqual(update.check_online(base_url=self.url + 'lapsed/', **self.system('0.1.0~rc2'))['status'],
+                         'expired')
+        # TLS refusing a certificate as not yet valid (9) or expired (10) means the clock.
+        import ssl
+        for code, clock_fault in ((9, True), (10, True), (20, False)):
+            error = ssl.SSLCertVerificationError(1, 'certificate verify failed')
+            error.verify_code = code
+            with self.subTest(code=code):
+                self.assertEqual(update.tls_clock_failure(update.urllib.error.URLError(error)), clock_fault)
+
+    def test_the_root_fetch_helper_leaves_a_bundle_the_writer_can_review(self):
+        import stat
+        previous = os.umask(0o022)
+        try:
+            with tempfile.TemporaryDirectory(prefix='wros-online-root-') as tmp:
+                cache = Path(tmp) / 'cache' / 'wros-update' / 'online'
+                # The pkexec launcher runs with umask 077; review then reads the bundle unprivileged.
+                result = update.launcher_main('fetch', [], '1000', euid=0, base_url=self.url, cache=cache,
+                                              **self.system('0.1.0~rc2'))
+                fetched = Path(result['path'])
+                for path in (cache.parent, cache, fetched, *fetched.rglob('*')):
+                    with self.subTest(path=path.name):
+                        self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o755 if path.is_dir() else 0o644)
+        finally:
+            os.umask(previous)
 
     def test_fetch_online_publishes_only_a_verified_newer_bundle(self):
         with tempfile.TemporaryDirectory(prefix='wros-online-cache-') as tmp:
