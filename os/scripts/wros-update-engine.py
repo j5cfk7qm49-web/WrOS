@@ -32,6 +32,7 @@ LIMIT = 16 * 1024 * 1024
 ARCHIVE_LIMIT = 1024 * 1024 * 1024
 DEFAULT_KEYRING = Path('/usr/share/keyrings/wros-archive-keyring.gpg')
 DEFAULT_SIGNERS = Path('/usr/share/wros/update-signers')
+PACKAGE_KEYRING = Path('/usr/share/wros/update-keyring.gpg')
 DEFAULT_STATE_DIR = Path('/var/lib/wros-update')
 DEFAULT_TRIGGER = Path('/system-update')
 DEFAULT_DPKG_DIR = Path('/var/lib/dpkg')
@@ -444,8 +445,60 @@ def load_pinned_signers(path=DEFAULT_SIGNERS):
     return pins
 
 
-def verify_signed_metadata(meta, keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNERS):
-    """gpgv against the WrOS keyring only, then compare the PRIMARY fingerprint to the pins.
+def keyring_primary_fingerprints(data):
+    """V4 primary-key fingerprints in a binary OpenPGP keyring, in order. gpg is not
+    installed on WrOS (only gpgv), so the packets are walked here."""
+    primaries, index = [], 0
+    while index < len(data):
+        header = data[index]
+        if not header & 0x80:
+            fail('update keyring is not a binary OpenPGP keyring')
+        if header & 0x40:  # new format
+            tag = header & 0x3F
+            if index + 1 >= len(data):
+                fail('truncated update keyring')
+            first = data[index + 1]
+            if first < 192:
+                length, index = first, index + 2
+            elif first < 224:
+                if index + 2 >= len(data):
+                    fail('truncated update keyring')
+                length, index = ((first - 192) << 8) + data[index + 2] + 192, index + 3
+            elif first == 255:
+                if index + 5 >= len(data):
+                    fail('truncated update keyring')
+                length, index = int.from_bytes(data[index + 2:index + 6], 'big'), index + 6
+            else:
+                fail('partial-length OpenPGP packets are not supported in the update keyring')
+        else:  # old format
+            tag, kind = (header >> 2) & 0x0F, header & 0x03
+            if kind == 3:
+                fail('indeterminate-length OpenPGP packets are not supported in the update keyring')
+            size = (1, 2, 4)[kind]
+            if index + size >= len(data):
+                fail('truncated update keyring')
+            length, index = int.from_bytes(data[index + 1:index + 1 + size], 'big'), index + 1 + size
+        if index + length > len(data):
+            fail('truncated update keyring')
+        body = data[index:index + length]
+        index += length
+        if tag in (5, 7):
+            fail('update keyring contains secret key material')
+        if tag == 6:
+            if body[:1] != b'\x04':
+                fail('update keyring holds a non-v4 primary key')
+            primaries.append(hashlib.sha1(b'\x99' + len(body).to_bytes(2, 'big') + body,
+                                          usedforsecurity=False).hexdigest().upper())
+    return primaries
+
+
+def verify_signed_metadata(meta, keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNERS, package_keyring=None):
+    """gpgv against the WrOS keyrings only, then compare the PRIMARY fingerprint to the pins.
+
+    The image keyring and pin are image inputs no package can replace. A `wros`
+    package may add PACKAGE_KEYRING to bring a new signing subkey, but only if every
+    primary key in it is pinned. With the system keyring, the package keyring is used
+    by default; callers passing their own keyring opt in explicitly.
 
     meta is {'InRelease': bytes} or {'Release': bytes, 'Release.gpg': bytes}; the very
     bytes verified are the bytes parsed.  Returns (primary_fingerprint, release_text).
@@ -453,6 +506,16 @@ def verify_signed_metadata(meta, keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNER
     pins = load_pinned_signers(signers)
     keyring = Path(keyring)
     require_trusted_file(keyring, 'update verification keyring')
+    if package_keyring is None and keyring == DEFAULT_KEYRING:
+        package_keyring = PACKAGE_KEYRING
+    extra = []
+    if package_keyring is not None and os.path.lexists(package_keyring):
+        package_keyring = Path(package_keyring)
+        require_trusted_file(package_keyring, 'packaged update keyring')
+        primaries = keyring_primary_fingerprints(package_keyring.read_bytes())
+        if not primaries or set(primaries) - set(pins):
+            fail('update keyring holds a primary key the signer pin does not name')
+        extra = ['--keyring', str(package_keyring)]
     if 'InRelease' in meta:
         names = ['InRelease']
         cmd_tail = ['InRelease']
@@ -468,7 +531,7 @@ def verify_signed_metadata(meta, keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNER
         for name in names:
             (directory / name).write_bytes(meta[name])
         result = subprocess.run(
-            ['/usr/bin/gpgv', '--status-fd', '1', '--keyring', str(keyring), *cmd_tail],
+            ['/usr/bin/gpgv', '--status-fd', '1', '--keyring', str(keyring), *extra, *cmd_tail],
             cwd=directory,
             stdin=subprocess.DEVNULL,
             capture_output=True,
@@ -773,9 +836,11 @@ def select_packages_entry(release_entries):
     fail('signed Release metadata does not authenticate a Packages index in this bundle')
 
 
-def verify_open_bundle(bundle, *, keyring, signers, dpkg_dir, now, host_arch, last_applied, suites):
+def verify_open_bundle(bundle, *, keyring, signers, dpkg_dir, now, host_arch, last_applied, suites,
+                       package_keyring=None):
     meta = read_signed_metadata(bundle)
-    fingerprint, release_text = verify_signed_metadata(meta, keyring=keyring, signers=signers)
+    fingerprint, release_text = verify_signed_metadata(meta, keyring=keyring, signers=signers,
+                                                       package_keyring=package_keyring)
     release = parse_release(release_text, now=now, suites=suites)
     if last_applied is not None and release.get('date') <= last_applied:
         fail('update bundle is not newer than the last applied update (replay refused)')
@@ -841,10 +906,11 @@ def public_view(raw):
 
 
 def verify_bundle(bundle_dir, keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNERS, dpkg_dir=None, now=None,
-                  host_arch=None, last_applied=None, strict_path=False, suites=PINNED_SUITES):
+                  host_arch=None, last_applied=None, strict_path=False, suites=PINNED_SUITES, package_keyring=None):
     with BundleDir(bundle_dir, strict=strict_path) as bundle:
         raw = verify_open_bundle(bundle, keyring=keyring, signers=signers, dpkg_dir=dpkg_dir, now=now,
-                                 host_arch=host_arch, last_applied=last_applied, suites=suites)
+                                 host_arch=host_arch, last_applied=last_applied, suites=suites,
+                                 package_keyring=package_keyring)
     return public_view(raw)
 
 

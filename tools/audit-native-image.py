@@ -199,6 +199,15 @@ def audit_trust(root, fixture_fingerprints=None):
                                                       fixture_fingerprints)
     except (packaging.PackagingError, UnicodeDecodeError) as exc:
         raise ValueError('update trust: ' + str(exc)) from None
+    # The wros package may bring a signing subkey, never another root of trust.
+    if os.path.lexists(root / packaging.PACKAGE_KEYRING_DEST):
+        packaged = regular(root, packaging.PACKAGE_KEYRING_DEST).read_bytes()
+        try:
+            primaries = packaging.inspect_keyring(packaged)['primaries']
+        except packaging.PackagingError as exc:
+            raise ValueError('packaged update keyring: ' + str(exc)) from None
+        if not primaries or set(primaries) - set(pinned):
+            raise ValueError('update-keyring.gpg holds a primary key the image pin does not name')
     return pinned
 
 

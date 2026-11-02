@@ -163,13 +163,18 @@ def fixture(root, signer_uid=SIGNER_UID):
     template.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(ROOT / 'os/config/apt/debian.sources', template)
     keyring, fingerprint = synthetic_keyring(signer_uid)
-    install_trust(root, keyring, fingerprint)
+    # As in a real image, the image pin also names the primary of the package's keyring.
+    install_trust(root, keyring + RELEASE_KEYRING, [fingerprint, RELEASE_PRIMARY])
     return {'fingerprint': fingerprint, 'files': files}
 
 
-def install_trust(root, keyring, fingerprint):
+RELEASE_KEYRING = (ROOT / 'os/config/update-trust/wros-archive-keyring.gpg').read_bytes()
+RELEASE_PRIMARY = (ROOT / 'os/config/update-trust/update-signers').read_text().split()[0]
+
+
+def install_trust(root, keyring, fingerprints):
     for relative, data, mode in ((packaging.KEYRING_DEST, keyring, 0o644),
-                                 (packaging.SIGNERS_DEST, packaging.pin_file_text([fingerprint]).encode(), 0o644)):
+                                 (packaging.SIGNERS_DEST, packaging.pin_file_text(fingerprints).encode(), 0o644)):
         path = root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.parent.chmod(0o755)
@@ -388,7 +393,7 @@ class PackageAwareAudit(unittest.TestCase):
             result = module.audit(root)
             self.assertEqual(result['wros_package']['name'], 'wros')
             self.assertEqual(result['wros_package']['version'], packaging.read_version(ROOT))
-            self.assertEqual(result['update_signers'], [info['fingerprint']])
+            self.assertEqual(result['update_signers'], [info['fingerprint'], RELEASE_PRIMARY])
             self.assertEqual(result['update_units_enabled'], [
                 'writingdeck-keyboard.service', 'wros-display.service',
                 'wros-offline-update.service', 'wros-update-reconcile.service'])
@@ -520,7 +525,7 @@ class PackageAwareAudit(unittest.TestCase):
             'malformed pin': (set_pin('not-a-fingerprint\n'), 'not a 40-hex'),
             'short pin': (set_pin('ABCD\n'), 'not a 40-hex'),
             'pin of another key': (set_pin(other[1] + '\n'), 'not a primary key'),
-            'keyring has an unpinned key': (set_keyring(keyring[0] + other[0]), 'does not name'),
+            'keyring has an unpinned key': (set_keyring(keyring[0] + RELEASE_KEYRING + other[0]), 'does not name'),
             'secret key in keyring': (set_keyring(keyring[0] + packet(7, b'secret subkey')), 'secret key material'),
             'secret primary in keyring': (set_keyring(packet(5, b'\x04secret') + packet(13, b'x')),
                                           'secret key material'),
@@ -537,6 +542,15 @@ class PackageAwareAudit(unittest.TestCase):
         for name, (mutate, pattern) in cases.items():
             with self.subTest(name=name):
                 self.refused(mutate, pattern)
+
+    def test_the_package_keyring_may_hold_only_primaries_the_image_pins(self):
+        tmp, root, info = staged_image()
+        with tmp:
+            module.audit(root)
+            synthetic, fingerprint = synthetic_keyring()
+            install_trust(root, synthetic, [fingerprint])
+            with self.assertRaisesRegex(ValueError, 'update-keyring.gpg holds a primary key the image pin does not name'):
+                module.audit(root)
 
     def test_fixture_keys_are_refused_by_identity_and_by_fingerprint(self):
         for uid in ('WrOS Test Archive <archive@wros.invalid>', 'fixture key', 'Throwaway signer', 'disposable-VM'):

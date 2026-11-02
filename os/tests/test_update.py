@@ -228,6 +228,34 @@ class SignedUpdateTests(unittest.TestCase):
             self.assertTrue(btrfs_info['separate_home'])
             self.assertFalse(btrfs_info['rollback_capable'])
 
+    def test_package_keyring_adds_a_signing_subkey_but_never_another_primary(self):
+        with tempfile.TemporaryDirectory(prefix='wros-package-keyring-') as tmp:
+            tmp = Path(tmp)
+            bundle = tmp / 'bundle'
+            self.build_signed_bundle(bundle)  # signed by the archive key's subkey
+            primary = self.gpg.keys['archive']['primary'].upper()
+            image = tmp / 'image-keyring.gpg'
+            self.gpg.run('--output', str(image), '--export-filter', 'drop-subkey=usage =~ s',
+                         '--export', self.gpg.keys['archive']['email'])
+            package = tmp / 'update-keyring.gpg'
+            self.gpg.export(['archive'], package)
+            self.assertEqual(update.keyring_primary_fingerprints(package.read_bytes()), [primary])
+            self.assertEqual(update.keyring_primary_fingerprints(image.read_bytes()), [primary])
+            # rc1: the image keyring alone cannot check a subkey signature.
+            with self.assertRaisesRegex(ValueError, 'GPG signature verification failed'):
+                update.verify_bundle(bundle, keyring=image, signers=self.signers, host_arch='amd64',
+                                     package_keyring=tmp / 'absent.gpg')
+            # rc2: the package's keyring brings the subkey.
+            verified = update.verify_bundle(bundle, keyring=image, signers=self.signers, host_arch='amd64',
+                                            package_keyring=package)
+            self.assertEqual(verified['signer_fingerprint'], primary)
+            # A second primary in the package keyring is refused before gpgv runs.
+            both = tmp / 'both.gpg'
+            self.gpg.export(['archive', 'other'], both)
+            with self.assertRaisesRegex(ValueError, 'primary key the signer pin does not name'):
+                update.verify_bundle(bundle, keyring=image, signers=self.signers, host_arch='amd64',
+                                     package_keyring=both)
+
     def test_a_trigger_queued_only_in_unincorp_is_unfinished_dpkg_work(self):
         # dpkg-trigger outside a dpkg run queues work in triggers/Unincorp and
         # leaves every status entry "install ok installed" until dpkg next runs.

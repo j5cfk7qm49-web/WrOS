@@ -609,6 +609,23 @@ class UnitEnablement(unittest.TestCase):
 
 
 class ManifestData(unittest.TestCase):
+    def test_the_package_keyring_carries_only_the_pinned_primary(self):
+        specs = {spec.dest: spec for spec in packaging.expand(packaging.load_manifest(ROOT), ROOT)}
+        self.assertEqual(specs[packaging.PACKAGE_KEYRING_DEST].mode, 0o644)
+        self.assertNotIn(packaging.KEYRING_DEST, specs)
+        self.assertNotIn(packaging.SIGNERS_DEST, specs)
+        self.assertEqual(packaging.check_package_keyring(ROOT), ['B9F5B97C9370239CC07B425F2CB426FC6D27CA65'])
+        with tempfile.TemporaryDirectory(prefix='wros-pkg-keyring-') as tmp:
+            repo = Path(tmp)
+            trust = repo / 'os/config/update-trust'
+            trust.mkdir(parents=True)
+            shutil.copyfile(ROOT / 'os/config/update-trust/update-signers', trust / 'update-signers')
+            extra, _ = native.synthetic_keyring(seed=b'extra')
+            (trust / 'wros-archive-keyring.gpg').write_bytes(
+                (ROOT / 'os/config/update-trust/wros-archive-keyring.gpg').read_bytes() + extra)
+            with self.assertRaisesRegex(packaging.PackagingError, 'signer pin does not name'):
+                packaging.check_package_keyring(repo)
+
     def test_the_video_group_may_write_only_the_screen_backlight(self):
         specs = {spec.dest: spec for spec in packaging.expand(packaging.load_manifest(ROOT), ROOT)}
         rule = specs['usr/lib/udev/rules.d/90-wros-backlight.rules']
@@ -720,6 +737,9 @@ class StageIntoRoot(unittest.TestCase):
         keyring.write_bytes(self.keys.public(self.fpr))
         signers = work / 'signers'
         signers.write_text('# RC signer\n' + self.fpr + '\n')
+        # The repository copy's package keyring belongs to the same signer the image pins.
+        shutil.copyfile(keyring, repo / 'os/config/update-trust/wros-archive-keyring.gpg')
+        shutil.copyfile(signers, repo / 'os/config/update-trust/update-signers')
         env = {**ENV, 'WROS_UPDATE_KEYRING': str(keyring), 'WROS_UPDATE_SIGNERS': str(signers),
                'WROS_DISPLAY_HW_BINARY': str(work / 'display-hw'), 'SOURCE_DATE_EPOCH': str(EPOCH),
                'WROS_SOURCE_COMMIT': 'c' * 40, 'HOME': str(work)}

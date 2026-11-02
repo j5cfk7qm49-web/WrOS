@@ -85,7 +85,8 @@ if [[ ! -e $dest/etc/pam.d/vlock && ! -L $dest/etc/pam.d/vlock ]]; then
     install -m 644 "$repo/os/config/vlock.pam" "$dest/etc/pam.d/vlock"
 fi
 # Trust anchors are image inputs, never package-owned: an update must not be able to replace
-# the keys that authenticate updates.
+# the keys that authenticate updates. The package's own /usr/share/wros/update-keyring.gpg
+# may only add subkeys of these pinned primaries (the engine and the audit refuse others).
 python3 "$packaging" install-trust "$dest"
 # Enable units only when the installed unit file itself declares the target.
 python3 "$packaging" enable-units "$dest"

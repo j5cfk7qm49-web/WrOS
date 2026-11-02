@@ -79,6 +79,14 @@ the repository secret `WROS_UPDATE_SIGNING_SUBKEY` (with its passphrase in
 and should then be moved to offline storage. *(My call: reuse the pinned key
 rather than a new root, which would need its own offline re-keying update.)*
 
+**As built (ruling during rc2):** the image keyring and pin stay image-owned
+exactly as before. The `wros` package adds a second keyring,
+`/usr/share/wros/update-keyring.gpg` (primary + signing subkey); the engine
+passes it to `gpgv` only after refusing it if any primary in it is unpinned,
+the package build refuses it unless its primaries equal the committed pin, and
+the image audit refuses it unless the image pin names its primaries. `apt`'s
+`Signed-By` uses the package keyring. The paragraph below is the original plan.
+
 **Trust anchor rule, changed deliberately.** *(My call, flagged to the
 writer.)* `gpgv` can only check a subkey signature if the subkey's public half
 is in `/usr/share/keyrings/wros-archive-keyring.gpg`, and rc1's keyring

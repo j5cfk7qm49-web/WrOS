@@ -32,6 +32,9 @@ FINGERPRINT_RE = re.compile(r'^[0-9A-Fa-f]{40}\Z')
 COMMIT_RE = re.compile(r'^[0-9a-f]{7,64}\Z')
 KEYRING_DEST = 'usr/share/keyrings/wros-archive-keyring.gpg'
 SIGNERS_DEST = 'usr/share/wros/update-signers'
+# The package's own keyring: the pinned primary plus the CI signing subkey. The engine
+# refuses it unless every primary in it is pinned; the image keyring and pin stay image inputs.
+PACKAGE_KEYRING_DEST = 'usr/share/wros/update-keyring.gpg'
 MAX_KEYRING = 1024 * 1024
 # A UID containing one of these words marks a throwaway/test identity. Tests in
 # this repository generate such keys at run time, so no static fingerprint list
@@ -283,6 +286,7 @@ def build_deb(*, binaries_dir, version, output_dir, repo=REPO, keymaps_dir=None,
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     specs = expand(manifest, repo)
+    check_package_keyring(repo)
     with tempfile.TemporaryDirectory(prefix='wros-deb-') as tmp:
         tmp = Path(tmp)
         binaries = tmp / 'binaries'
@@ -472,6 +476,15 @@ def check_trust_material(keyring_bytes, pin_text, fixtures=None):
             raise PackagingError('update key identity %r looks like a test/fixture key; refusing production media'
                                  % uid)
     return pinned, info['uids']
+
+
+def check_package_keyring(repo=REPO):
+    """The committed package keyring must hold exactly the committed pinned primary."""
+    trust = Path(repo) / 'os/config/update-trust'
+    keyring = _read_input(trust / 'wros-archive-keyring.gpg', 'package update keyring')
+    pin = _read_input(trust / 'update-signers', 'package update signer pin')
+    pinned, _ = check_trust_material(keyring, pin.decode('utf-8'))
+    return pinned
 
 
 def pin_file_text(fingerprints):
