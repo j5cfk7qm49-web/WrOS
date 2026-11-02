@@ -53,6 +53,38 @@ class TagVersion(unittest.TestCase):
                 publish.tag_version(tag, tree)
 
 
+class BundleSigningKey(unittest.TestCase):
+    def test_ci_signs_with_the_subkey_and_use_primary_signs_with_the_pinned_primary(self):
+        import subprocess
+        gpg = support.shared_gpg()
+        # Shaped like the real WrOS key: a primary that can sign, plus a CI signing subkey.
+        if 'release' not in gpg.keys:
+            key = gpg.make_key('release', with_subkey=False)
+            gpg.run('--passphrase', '', '--pinentry-mode', 'loopback', '--quick-add-key', key['primary'],
+                    'rsa2048', 'sign', '0')
+            listing = gpg.run('--with-colons', '--list-keys', '--with-subkey-fingerprint', key['email'],
+                              stdout=subprocess.PIPE, text=True).stdout
+            key['subkey'] = [line.split(':')[9] for line in listing.splitlines() if line.startswith('fpr:')][1]
+        key = gpg.keys['release']
+        with tempfile.TemporaryDirectory(prefix='wros-bundle-key-') as tmp:
+            tmp = Path(tmp)
+            deb = support.make_deb(tmp, 'wros', '0.1.0~rc3', arch='amd64')
+            keyring = tmp / 'keyring.gpg'
+            gpg.export(['release'], keyring)
+            for extra, expected in (([], key['subkey']), (['--use-primary'], key['primary'])):
+                with self.subTest(extra=extra):
+                    out = tmp / ('bundle' + ''.join(extra))
+                    subprocess.run([sys.executable, '-I', str(ROOT / 'tools/build-update-bundle.py'), str(deb),
+                                    '--out', str(out), '--gnupg-home', str(gpg.home), '--key-id', key['primary'],
+                                    '--expect-fingerprint', key['primary'], *extra],
+                                   check=True, capture_output=True, env=gpg.env)
+                    status = subprocess.run(['/usr/bin/gpgv', '--status-fd', '1', '--keyring', str(keyring),
+                                             'InRelease'], cwd=out, capture_output=True, text=True).stdout
+                    signing = next(line.split()[2] for line in status.splitlines()
+                                   if line.startswith('[GNUPG:] VALIDSIG'))
+                    self.assertEqual(signing.upper(), expected.upper())
+
+
 class PublishedPackage(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

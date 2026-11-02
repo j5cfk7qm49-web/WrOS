@@ -117,6 +117,9 @@ def parse_args(argv):
     parser.add_argument('--origin', default='WrOS')
     parser.add_argument('--date', help='Release Date as ISO 8601 UTC (default: SOURCE_DATE_EPOCH or now)')
     parser.add_argument('--valid-days', type=int, default=14, help='days of validity, 1 to 30 (default 14)')
+    parser.add_argument('--use-primary', action='store_true',
+                        help='sign with the primary key itself, not a signing subkey: for machines whose '
+                             'keyring predates the subkey (rc1 learns it from rc2)')
     return parser.parse_args(argv)
 
 
@@ -194,7 +197,9 @@ def build(args):
                    f'Date: {rfc2822(moment)}\nValid-Until: {rfc2822(until)}\nArchitectures: amd64\n'
                    f'SHA256:\n {hashlib.sha256(packages_bytes).hexdigest()} {len(packages_bytes)} Packages\n')
         (staging / 'Release').write_text(release, encoding='utf-8')
-        signing = [GPG, '--homedir', str(gnupg_home), '--batch', '--yes', '--local-user', actual]
+        # gpg picks a signing subkey when one exists; '!' forces the primary.
+        signer = actual + '!' if args.use_primary else actual
+        signing = [GPG, '--homedir', str(gnupg_home), '--batch', '--yes', '--local-user', signer]
         run([*signing, '--clearsign', '--output', str(staging / 'InRelease'), str(staging / 'Release')])
         run([*signing, '--detach-sign', '--output', str(staging / 'Release.gpg'), str(staging / 'Release')])
 
