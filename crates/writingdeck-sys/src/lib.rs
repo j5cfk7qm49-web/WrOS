@@ -370,6 +370,8 @@ pub struct Simulated {
     /// What the simulated update server reports, and where a fetch lands.
     pub online: Option<OnlineUpdate>,
     pub fetched: Option<String>,
+    /// What the simulated fetch helper refuses with, if anything.
+    pub fetch_error: Option<String>,
     preview: Option<String>,
     display_preview: Option<(String, display::Warmth)>,
     warmth: display::Warmth,
@@ -422,6 +424,7 @@ impl Default for Simulated {
             media: Some("/run/wros-update/media/0".into()),
             online: None,
             fetched: None,
+            fetch_error: None,
             preview: None,
             display_preview: None,
             warmth: display::Warmth::default(),
@@ -696,6 +699,9 @@ impl Backend for Simulated {
                 },
             ))),
             Request::FetchOnlineUpdate => {
+                if let Some(error) = &self.fetch_error {
+                    bail!("{error}");
+                }
                 let path = self
                     .fetched
                     .clone()

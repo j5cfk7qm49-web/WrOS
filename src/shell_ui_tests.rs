@@ -872,15 +872,41 @@ fn online_update_available_alerts_once_and_update_opens_the_existing_review() {
     desk.app.tick_deck();
     assert!(!desk.app.deck.busy);
     desk.app.deck.online_updates = true;
+    // The first check waits for Wi-Fi to come up after login.
+    desk.app.tick_deck();
+    assert!(
+        !desk.app.deck.busy,
+        "no check the moment the session starts"
+    );
+    let first = desk.app.deck.shell.update_flow.online_next.unwrap();
+    let wait = first.duration_since(std::time::SystemTime::now()).unwrap();
+    assert!(
+        wait > std::time::Duration::from_secs(60) && wait <= std::time::Duration::from_secs(120)
+    );
+    // Never while a keyboard or display preview waits for confirmation.
+    desk.app.deck.shell.update_flow.online_next = Some(std::time::SystemTime::now());
+    desk.app.open_settings();
+    desk.app.deck.shell.warm_preview = Some((
+        "token".into(),
+        std::time::Instant::now() + std::time::Duration::from_secs(60),
+    ));
+    desk.app.tick_deck();
+    assert!(!desk.app.deck.busy, "no check during a preview");
+    desk.app.deck.shell.warm_preview = None;
+    desk.app.overlay = Overlay::None;
     desk.app.tick_deck();
     wait_system(&mut desk);
     assert_eq!(
         desk.app.msg,
         "WrOS 0.1.0~rc3 is available · Settings › Updates"
     );
+    assert!(desk.app.deck.note.ends_with("WrOS 0.1.0~rc3 is available"));
     desk.app.msg.clear();
     desk.app.tick_deck();
     assert!(!desk.app.deck.busy, "checks at most once a day");
+    let next = desk.app.deck.shell.update_flow.online_next.unwrap();
+    let wait = next.duration_since(std::time::SystemTime::now()).unwrap();
+    assert!(wait > std::time::Duration::from_secs(23 * 3600));
     system_panel(&mut desk, 5);
     wait_system(&mut desk);
     assert!(desk.shows("    WrOS 0.1.0~rc3 is available"));
@@ -899,6 +925,10 @@ fn online_update_clock_and_offline_states_never_alert() {
             "Couldn't check for WrOS updates: this computer's clock may be wrong (it reads 2001-01-01 00:00).",
         ),
         ("unreachable", "Couldn't reach the WrOS update server"),
+        (
+            "expired",
+            "The WrOS update server's signature has expired; WrOS will check again later",
+        ),
         ("current", "WrOS is up to date (0.1.0~rc2)"),
     ] {
         let mut desk = Desk::open(book(&format!("online-{status}"), true), 140, 30);
@@ -906,14 +936,55 @@ fn online_update_clock_and_offline_states_never_alert() {
             .deck
             .use_test_backend(Box::new(online_backend(status, None)));
         desk.app.deck.online_updates = true;
+        desk.app.deck.shell.update_flow.online_next = Some(std::time::SystemTime::now());
         desk.app.tick_deck();
         wait_system(&mut desk);
         assert!(!desk.app.msg.contains("is available"), "{status}");
+        // A failed check tries again within the hour, not tomorrow.
+        let wait = desk
+            .app
+            .deck
+            .shell
+            .update_flow
+            .online_next
+            .unwrap()
+            .duration_since(std::time::SystemTime::now())
+            .unwrap();
+        if status == "current" {
+            assert!(wait > std::time::Duration::from_secs(23 * 3600));
+        } else {
+            assert!(wait <= std::time::Duration::from_secs(3600), "{status}");
+        }
         system_panel(&mut desk, 5);
         wait_system(&mut desk);
         assert!(desk.shows(text), "{status}: {}", desk.rows().join("\n"));
         assert!(!desk.shows("Update WrOS to"));
     }
+}
+
+#[test]
+fn update_wros_when_already_current_says_so_without_network_advice() {
+    let mut desk = Desk::open(book("online-already-current", true), 120, 30);
+    let mut sim = online_backend("available", Some("0.1.0~rc3"));
+    sim.fetched = None;
+    sim.fetch_error = Some("WrOS is already up to date (0.1.0~rc3)".into());
+    desk.app.deck.use_test_backend(Box::new(sim));
+    desk.app.deck.online_updates = true;
+    desk.app.deck.shell.update_flow.online_next = Some(std::time::SystemTime::now());
+    desk.app.tick_deck();
+    wait_system(&mut desk);
+    system_panel(&mut desk, 5);
+    wait_system(&mut desk);
+    desk.key(KeyCode::Home);
+    desk.choose("Update WrOS to 0.1.0~rc3");
+    wait_system(&mut desk);
+    assert!(
+        desk.shows("WrOS is up to date"),
+        "{}",
+        desk.rows().join("\n")
+    );
+    assert!(!desk.shows("Update WrOS to"));
+    assert!(!desk.shows("Check the network"));
 }
 
 #[test]

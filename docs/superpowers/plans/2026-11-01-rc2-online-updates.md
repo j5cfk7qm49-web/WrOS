@@ -147,5 +147,6 @@ Work in WSL against `/home/aegeorge/rc-keys/gnupg`; nothing secret enters the re
 
 Runs when rc3 (plain-text Drive sync) is ready; recorded here so the pipeline is proven end to end.
 
+- [ ] **Step 0 (from the rc2 review):** scheduled workflows run only from the default branch, and the `github-pages` environment deploys only from it by default. With the writer's go-ahead: merge `development` (with `release-updates.yml`) into `main`; in the `github-pages` environment allow deployments from `v*` tags; load the subkey secret (Task 3 Step 4). GitHub disables schedules after 60 days without repository activity: the laptop then shows "the WrOS update server's signature has expired", and re-enabling the workflow (or any push) resumes re-signing.
 - [ ] **Step 1:** With the writer's go-ahead, enable GitHub Pages (Actions source) and run the workflow by hand with `scratch: true`; confirm `updates-scratch/InRelease` verifies with the committed keyring.
 - [ ] **Step 2:** Tag `v0.1.0-rc3`; confirm Pages serves it, the laptop alerts at login, and Update WrOS installs at restart.

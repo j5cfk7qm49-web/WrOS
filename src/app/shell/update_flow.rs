@@ -5,6 +5,7 @@
 //! are never assumed: after cancel, repair or staging the recovery status is
 //! read again and the screens show what the system reported.
 use super::*;
+use std::time::SystemTime;
 use writingdeck_sys::{PowerAction, Request, UpdatePackage, UpdateReview, UpdateState};
 
 /// Screens that belong to the update flow. Leaving the flow pops back past all
@@ -36,12 +37,18 @@ pub struct UpdateFlow {
     pub last_result: Option<String>,
     /// What the WrOS update server reported last, when, and which version was announced.
     pub online: Option<writingdeck_sys::OnlineUpdate>,
-    pub online_checked: Option<Instant>,
+    /// When to ask the update server next. Wall-clock time, so a suspended laptop
+    /// still checks once a day of real time.
+    pub online_next: Option<SystemTime>,
     pub online_alerted: Option<String>,
 }
 
+/// After login, give Wi-Fi time to connect before the first check.
+const ONLINE_FIRST_CHECK: Duration = Duration::from_secs(90);
 /// How often a running installed session asks the update server again.
 const ONLINE_CHECK_EVERY: Duration = Duration::from_secs(24 * 60 * 60);
+/// Offline, a wrong clock or a lapsed server signature: try again sooner.
+const ONLINE_RETRY: Duration = Duration::from_secs(60 * 60);
 
 /// The Updates panel's description of the last online check.
 fn online_line(online: Option<&writingdeck_sys::OnlineUpdate>) -> String {
@@ -57,6 +64,9 @@ fn online_line(online: Option<&writingdeck_sys::OnlineUpdate>) -> String {
             online.clock
         ),
         ("unreachable", _, _) => "Couldn't reach the WrOS update server".into(),
+        ("expired", _, _) => {
+            "The WrOS update server's signature has expired; WrOS will check again later".into()
+        }
         _ => "The WrOS update server's files didn't verify; nothing was downloaded".into(),
     }
 }
@@ -502,14 +512,18 @@ impl App {
     }
     /// After login and then daily, in an installed appliance session only.
     pub(crate) fn tick_online_updates(&mut self) {
-        let due = self
-            .deck
-            .shell
-            .update_flow
-            .online_checked
-            .is_none_or(|at| at.elapsed() >= ONLINE_CHECK_EVERY);
-        if self.deck.online_updates && due && !self.deck.busy {
-            self.deck.shell.update_flow.online_checked = Some(Instant::now());
+        if !self.deck.online_updates {
+            return;
+        }
+        let now = SystemTime::now();
+        let Some(next) = self.deck.shell.update_flow.online_next else {
+            self.deck.shell.update_flow.online_next = Some(now + ONLINE_FIRST_CHECK);
+            return;
+        };
+        // A pending keyboard or display preview owns the system worker until it is confirmed.
+        let previewing = self.deck.preview.is_some() || self.deck.shell.warm_preview.is_some();
+        if now >= next && !self.deck.busy && !previewing {
+            self.deck.shell.update_flow.online_next = Some(now + ONLINE_CHECK_EVERY);
             self.deck.request(Request::CheckOnlineUpdates);
         }
     }
@@ -518,7 +532,7 @@ impl App {
             self.update_notice("A system request is still running. Wait for it, then try again.");
             return;
         }
-        self.deck.shell.update_flow.online_checked = Some(Instant::now());
+        self.deck.shell.update_flow.online_next = Some(SystemTime::now() + ONLINE_CHECK_EVERY);
         self.deck.request(Request::CheckOnlineUpdates);
     }
     pub(super) fn update_online_fetch(&mut self) {
@@ -541,6 +555,10 @@ impl App {
             self.deck.shell.notices.push(&alert);
             self.msg = alert;
         }
+        if matches!(online.status.as_str(), "unreachable" | "clock" | "expired") {
+            self.deck.shell.update_flow.online_next = Some(SystemTime::now() + ONLINE_RETRY);
+        }
+        self.deck.note = online_line(Some(&online));
         self.deck.shell.update_flow.online = Some(online);
     }
     pub(crate) fn on_online_update_fetched(&mut self, path: String) {
@@ -826,12 +844,27 @@ impl App {
         match request {
             Request::CheckOnlineUpdates => {
                 // Silent: the Updates panel says the server could not be reached.
-                self.deck.shell.update_flow.online = Some(writingdeck_sys::OnlineUpdate {
+                let online = writingdeck_sys::OnlineUpdate {
                     status: "unreachable".into(),
                     version: None,
                     installed: None,
                     clock: String::new(),
-                });
+                };
+                let flow = &mut self.deck.shell.update_flow;
+                flow.online_next = Some(SystemTime::now() + ONLINE_RETRY);
+                self.deck.note = online_line(Some(&online));
+                self.deck.shell.update_flow.online = Some(online);
+            }
+            Request::FetchOnlineUpdate if error.contains("already up to date") => {
+                // apt or another session installed it meanwhile: nothing to fetch, nothing wrong.
+                let flow = &mut self.deck.shell.update_flow;
+                if let Some(online) = &mut flow.online {
+                    online.status = "current".into();
+                    online.installed = online.version.take();
+                }
+                let text = online_line(flow.online.as_ref());
+                flow.last_result = Some(text.clone());
+                self.update_notice(text);
             }
             Request::FetchOnlineUpdate => {
                 let text = format!(

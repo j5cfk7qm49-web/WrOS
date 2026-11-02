@@ -491,7 +491,15 @@ pub fn online_update(output: &str) -> Result<crate::OnlineUpdate> {
     let raw: crate::OnlineUpdate = serde_json::from_value(serde_json::Value::Object(object))
         .context("invalid wros-update check-online reply")?;
     ensure!(
-        ["available", "current", "clock", "unreachable", "invalid"].contains(&raw.status.as_str()),
+        [
+            "available",
+            "current",
+            "clock",
+            "expired",
+            "unreachable",
+            "invalid"
+        ]
+        .contains(&raw.status.as_str()),
         "unknown online update status"
     );
     for value in [&raw.version, &raw.installed].into_iter().flatten() {

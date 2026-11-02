@@ -34,7 +34,9 @@ Prompt: ship a bootable installable ISO plus an authenticated update and rescue 
    Arbitrary writer-typed paths are accepted only under `/run/wros-update/media/`, `/media/`,
    `/run/media/` and `/mnt/`. **Online (rc2):** `.github/workflows/release-updates.yml` publishes
    the same signed bundle format to `https://j5cfk7qm49-web.github.io/WrOS/updates/` from `v*`
-   tags (re-signed weekly, 21 days valid). `wros-update-fetch` downloads it into
+   tags (re-signed weekly, 21 days valid; schedules run only from the default branch and GitHub
+   pauses them after 60 days without repository activity, which computers report as "the WrOS
+   update server's signature has expired"). `wros-update-fetch` downloads it into
    `/var/cache/wros-update/online/<id>`, which is reviewed exactly like media. The same folder
    is a flat apt repository (`/etc/apt/sources.list.d/wros.sources`).
 6. **Cancellation boundary**: cancel is possible while `staged` (before the reboot that
