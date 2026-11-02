@@ -640,6 +640,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
                     "Revision notes · Open"
                 },
                 rows: &rows,
+                kinds: &[],
                 selected: r.nav.selected(),
                 notice: &r.notice,
                 hint: "↑↓ choose  Enter review  n new  f filter  r reload  Esc back  F1 help",

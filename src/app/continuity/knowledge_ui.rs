@@ -592,6 +592,7 @@ pub(super) fn draw(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
                 wros_shell::Menu {
                     title: &title,
                     rows: &rows,
+                    kinds: &[],
                     selected: c.nav.selected(),
                     notice: &c.notice,
                     hint: "e edit  d archive  v history  g source  / filter  a all  h archived  F1 help",

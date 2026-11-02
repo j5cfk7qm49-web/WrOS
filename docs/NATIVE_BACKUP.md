@@ -32,6 +32,13 @@ and WrOS, choose **Connect existing repository and recovery key**, select the
 repository and your separately retained recovery file, refresh snapshots, and
 restore into a new folder. This works without the original project or WrOS state.
 
+While an operation runs, the row under **Cancel current backup operation** shows
+its step (checking, copying, encrypting and saving, restoring, comparing), the
+percentage Restic reports for the long steps, and the time taken. When nothing
+runs, that row shows the newest listed snapshot and any queued backups. The
+helper runs in a session of its own with no terminal, so Restic can never hand
+the writing console to the rclone it starts for Drive.
+
 Cancel stops the operation's process group. After a crash, use **Recover an
 interrupted repository lock** to remove only Restic's stale locks, refresh
 snapshots, and retry. A completed snapshot whose verification was interrupted
@@ -67,6 +74,17 @@ before replacing its dedicated private rclone configuration. Existing credential
 survive failure. Rclone owns refresh-token handling. Its default Drive
 authorization requests Drive access; use a dedicated Google account if that
 scope is unsuitable.
+
+The WrOS console has no clipboard to paste from. Instead, save only that JSON
+as `wros-drive-token.json` on a USB stick labelled `WROS-UPDATE` and choose
+**Connect Google Drive from a file on a USB stick**. WrOS mounts the stick
+read-only through the update helper and fills in the path, or you can type the
+path of any file you can read. The backup helper reads the file as you, at most
+32 KiB, refuses symbolic links and never shows its contents. A Windows editor's
+byte-order mark and line endings, and a `token = {...}` line copied from an
+existing `rclone.conf`, are accepted. Validation is the same as for a pasted
+response. Delete the file from the stick afterwards. A token made with your own
+rclone `client_id` will not refresh here; authorize again without one.
 
 Use a destination such as `drive:WrOS-Backups`. Restic encrypts content and
 snapshot metadata before rclone transmits repository objects. Active manuscripts

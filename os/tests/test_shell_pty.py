@@ -114,8 +114,8 @@ class UnifiedShellPTY(unittest.TestCase):
                     terminal.screen_shows('▸ Wi-Fi and networking')
                     terminal.send(b'\x1b[B\x1b[B\r')
                     terminal.screen_shows('Low-power interface and OS request')
-                    terminal.send(b'\x1b[B\x1b[B\x1b[B\r')
-                    terminal.screen_shows('Suspend unavailable: secure screen locking')
+                    # Unavailable Suspend is a description shown with the panel, never a choice.
+                    terminal.screen_shows('    Suspend unavailable: secure screen locking')
                     terminal.paste('Power settings paste must never reach prose.')
                     self.assertEqual(primary.read_bytes(), before)
                     terminal.send(b'\x1b')

@@ -655,6 +655,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
                         "Draft Milestones & Variants · 2 Active Scene Variants"
                     },
                     rows: &rows,
+                    kinds: &[],
                     selected: m.nav.selected(),
                     notice: &m.notice,
                     hint: "1 Milestones  2 Scene Variants  n new  Enter diff/restore  Esc close  F1 help",
@@ -722,6 +723,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
                 wros_shell::Menu {
                     title: "Restore one reviewed passage",
                     rows: &rows,
+                    kinds: &[],
                     selected: m.nav.selected(),
                     notice: "A full recovery variant and dated history are kept before an actual change.",
                     hint: "↑↓/Tab choose  Enter confirm  Esc back  F1 help",

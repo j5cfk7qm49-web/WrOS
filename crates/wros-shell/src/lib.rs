@@ -137,6 +137,54 @@ impl<R: Copy + Eq> Navigation<R> {
             .saturating_add_signed(amount)
             .min(count - 1);
     }
+    /// Move `amount` options up or down, passing over descriptions.
+    pub fn move_among(&mut self, amount: isize, kinds: &[RowKind], count: usize) {
+        let mut at = settle(self.selected, kinds, count);
+        for _ in 0..amount.unsigned_abs() {
+            let next = if amount < 0 {
+                (0..at).rev().find(|&i| choosable(kinds, i))
+            } else {
+                (at + 1..count).find(|&i| choosable(kinds, i))
+            };
+            match next {
+                Some(i) => at = i,
+                None => break,
+            }
+        }
+        self.selected = at;
+    }
+    /// Off a description onto the nearest option, preferring the one below.
+    pub fn settle(&mut self, kinds: &[RowKind], count: usize) {
+        self.selected = settle(self.selected, kinds, count);
+    }
+}
+
+/// What a menu row is, so an option never looks like the text describing it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RowKind {
+    /// Does something when chosen.
+    Option,
+    /// Opens another screen; drawn with a trailing ›.
+    Opens,
+    /// Describes or reports; dimmed, indented, never selected.
+    Info,
+}
+
+fn choosable(kinds: &[RowKind], index: usize) -> bool {
+    kinds.get(index) != Some(&RowKind::Info)
+}
+
+/// The option at or after `index`, else the nearest before it. A menu with
+/// no options keeps `index` (clamped), so its rows can still be read.
+pub fn settle(index: usize, kinds: &[RowKind], count: usize) -> usize {
+    if count == 0 {
+        return 0;
+    }
+    let index = index.min(count - 1);
+    (index..count)
+        .find(|&i| choosable(kinds, i))
+        .or_else(|| (0..index).rev().find(|&i| choosable(kinds, i)))
+        .unwrap_or(index)
 }
 
 #[derive(Debug, Default)]
@@ -186,6 +234,8 @@ impl Default for Theme {
 pub struct Menu<'a> {
     pub title: &'a str,
     pub rows: &'a [String],
+    /// One per row; rows past its end are options.
+    pub kinds: &'a [RowKind],
     pub selected: usize,
     pub notice: &'a str,
     pub hint: &'a str,
@@ -197,7 +247,14 @@ pub fn render_menu(frame: &mut Frame, area: Rect, menu: Menu<'_>, theme: Theme) 
     let rows = menu
         .rows
         .iter()
-        .map(|row| ListItem::new(row.as_str()))
+        .enumerate()
+        .map(|(i, row)| match menu.kinds.get(i) {
+            Some(RowKind::Info) => {
+                ListItem::new(format!("  {row}")).style(Style::default().fg(theme.dim))
+            }
+            Some(RowKind::Opens) => ListItem::new(format!("{row} ›")),
+            _ => ListItem::new(row.as_str()),
+        })
         .collect::<Vec<_>>();
     let mut selected = ListState::default().with_selected(
         (!rows.is_empty()).then_some(menu.selected.min(rows.len().saturating_sub(1))),
@@ -260,6 +317,63 @@ mod tests {
         assert_eq!(nav.selected(), 7);
         nav.move_by(1, 2);
         assert_eq!(nav.selected(), 1);
+    }
+    #[test]
+    fn the_cursor_moves_only_among_options_and_never_rests_on_a_description() {
+        use RowKind::{Info, Opens, Option as Act};
+        let kinds = [Info, Act, Info, Info, Opens, Info];
+        let mut nav = Navigation::new(0u8);
+        nav.settle(&kinds, 6);
+        assert_eq!(nav.selected(), 1);
+        nav.move_among(1, &kinds, 6);
+        assert_eq!(nav.selected(), 4);
+        nav.move_among(1, &kinds, 6);
+        assert_eq!(nav.selected(), 4);
+        nav.move_among(-10, &kinds, 6);
+        assert_eq!(nav.selected(), 1);
+        nav.select(5, 6);
+        nav.settle(&kinds, 6);
+        assert_eq!(nav.selected(), 4);
+        // Rows without a kind are options, as in menus that never describe.
+        nav.select(0, 3);
+        nav.move_among(2, &[], 3);
+        assert_eq!(nav.selected(), 2);
+        // A menu of descriptions only keeps its place rather than vanishing.
+        nav.select(1, 2);
+        nav.move_among(1, &[Info, Info], 2);
+        assert_eq!(nav.selected(), 1);
+    }
+    #[test]
+    fn descriptions_are_dim_and_indented_and_options_that_open_screens_are_marked() {
+        let theme = Theme::default();
+        assert_ne!(theme.dim, theme.text);
+        let mut terminal =
+            ratatui::Terminal::new(ratatui::backend::TestBackend::new(40, 8)).unwrap();
+        let rows = ["Cancel".to_string(), "Details".into(), "Explains it".into()];
+        terminal
+            .draw(|frame| {
+                render_menu(
+                    frame,
+                    frame.area(),
+                    Menu {
+                        title: "T",
+                        rows: &rows,
+                        kinds: &[RowKind::Option, RowKind::Opens, RowKind::Info],
+                        selected: 0,
+                        notice: "",
+                        hint: "",
+                    },
+                    theme,
+                )
+            })
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        let line = |y| (1..40).map(|x| buffer[(x, y)].symbol()).collect::<String>();
+        assert!(line(1).starts_with("▸ Cancel "), "{}", line(1));
+        assert!(line(2).starts_with("  Details ›"), "{}", line(2));
+        assert!(line(3).starts_with("    Explains it"), "{}", line(3));
+        assert_eq!(buffer[(5, 3)].fg, theme.dim);
+        assert_eq!(buffer[(3, 2)].fg, theme.text);
     }
     #[test]
     fn history_is_bounded_but_retains_the_entry_route() {
@@ -332,6 +446,7 @@ mod tests {
                         Menu {
                             title: "WrOS settings",
                             rows: &rows,
+                            kinds: &[],
                             selected: 39,
                             notice: "offline",
                             hint: "Esc back",

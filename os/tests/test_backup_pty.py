@@ -14,7 +14,11 @@ from test_secondary_pty import BINARY, ROOT, TerminalProcess
 def choose(terminal, text):
     terminal.send(b'\x1b[H')
     complete = lambda: terminal.output.endswith(b'\x1b[?25l')
-    terminal.until(lambda: complete() and '▸' in terminal.screen.text.splitlines()[1], 'Home selects the first native menu row')
+    # Home selects the first option, which can sit below a description row.
+    first = lambda: next((i for i, row in enumerate(terminal.screen.text.splitlines()) if '▸' in row), None)
+    terminal.until(lambda: complete() and first() is not None and not any(
+        row.strip() and '▸' not in row and not row.lstrip('│').startswith('    ')
+        for row in terminal.screen.text.splitlines()[1:first()]), 'Home selects the first native menu option')
     for _ in range(30):
         terminal.until(lambda: '▸' in terminal.screen.text, 'selected native menu row')
         if any('▸ ' + text in row for row in terminal.screen.text.splitlines()):
@@ -155,6 +159,44 @@ class NativeBackupPTY(unittest.TestCase):
                 terminal.screen_shows('Backup verified by a complete restore')
                 self.assertEqual(primary.read_bytes(), source)
                 self.assertEqual(len(json.loads((state/'repository.json').read_text())['verified']), 1)
+            finally:
+                terminal.close()
+
+    def test_a_drive_backup_never_takes_the_writing_console_from_the_editor(self):
+        # Restic hands its terminal's foreground to the rclone it starts for a
+        # Drive repository. On a login console that left the editor's input
+        # reader with EIO on the next key, and the session ended mid-backup.
+        # rclone keeps this "Drive" in a local folder; Google is never contacted.
+        with tempfile.TemporaryDirectory(prefix='wros-backup-console-') as temporary:
+            base = Path(temporary)
+            project, home, primary = fixture(base)
+            source = primary.read_bytes()
+            payload = project/'research/console-fixture.bin'
+            payload.parent.mkdir(exist_ok=True)
+            payload.write_bytes(os.urandom(48 * 1024**2))
+            state = home/'data/grimoire/wros/backup'
+            state.mkdir(parents=True, mode=0o700)
+            (base/'drive').mkdir()
+            config = state/'rclone.conf'
+            config.write_text(f'[wros-google]\ntype = alias\nremote = {base/"drive"}\n')
+            config.chmod(0o600)
+            env = dict(os.environ, HOME=str(home), XDG_DATA_HOME=str(home/'data'), XDG_CONFIG_HOME=str(home/'config'))
+            subprocess.run([str(BINARY), 'wros', 'backup', 'create', 'drive:WrOS-Test'],
+                           env=env, capture_output=True, check=True, timeout=60)
+            terminal = TerminalProcess(project, home, 80, 24)
+            try:
+                terminal.shows('The Brass Key')
+                self.open_backups(terminal)
+                choose(terminal, 'Create encrypted backup')
+                rclone = lambda: subprocess.run(['pgrep', '-x', 'rclone'], capture_output=True).returncode == 0
+                terminal.until(rclone, 'restic started rclone for the Drive repository', timeout=60)
+                terminal.screen_shows('Working: Encrypting and saving the snapshot')
+                terminal.send(b'\x1b[B')
+                terminal.until(lambda: 'Backup verified by a complete restore' in terminal.screen.text or terminal.process.poll() is not None,
+                               'Drive backup finished with the editor still running', timeout=120)
+                self.assertIsNone(terminal.process.poll(), terminal.output[-400:])
+                terminal.screen_shows('Backup verified by a complete restore')
+                self.assertEqual(primary.read_bytes(), source)
             finally:
                 terminal.close()
 

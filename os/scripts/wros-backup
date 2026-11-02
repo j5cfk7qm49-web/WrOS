@@ -19,6 +19,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 
 MAX_FILES = 100_000
 MAX_BYTES = 5 * 1024**3
@@ -86,6 +87,49 @@ def run(program, arguments, env, cwd=None):
         return output.read()
 
 
+def progress(phase, percent=None):
+    """One line on stderr for the native app: a fixed step name and, when
+    restic reports it, a fraction. Never a file name or tool output."""
+    row = {'phase': phase}
+    if isinstance(percent, (int, float)) and not isinstance(percent, bool):
+        row['percent'] = round(min(max(float(percent), 0.0), 1.0), 4)
+    sys.stderr.write(json.dumps({'progress': row}) + '\n')
+    sys.stderr.flush()
+
+
+def run_reporting(program, arguments, env, cwd, phase):
+    """As run(), reporting restic's status lines as progress. They are never
+    kept, so a long operation cannot reach the response size limit."""
+    progress(phase)
+    kept, size = [], 0
+    process = subprocess.Popen([program, *arguments], env=dict(env, RESTIC_PROGRESS_FPS='0.5'), cwd=cwd,
+                               stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    timer = threading.Timer(1800, process.kill)
+    timer.start()
+    try:
+        for line in process.stdout:
+            try:
+                row = json.loads(line)
+            except ValueError:
+                row = None
+            if isinstance(row, dict) and row.get('message_type') == 'status':
+                progress(phase, row.get('percent_done'))
+                continue
+            size += len(line)
+            require(size <= MAX_JSON, 'Tool response exceeded the supported size; no verification claimed.')
+            kept.append(line)
+        returncode = process.wait()
+    finally:
+        timer.cancel()
+        if process.poll() is None:
+            process.kill()
+            process.wait()
+        process.stdout.close()
+    require(returncode == 0,
+            f'{Path(program).name} did not complete. Check connectivity, recovery key, free space and repository locks; retry explicitly.')
+    return b''.join(kept)
+
+
 def classify_rclone_failure(arguments, env):
     """Run rclone and classify failure into auth-revoked vs offline without leaking stderr."""
     with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as err_out:
@@ -97,12 +141,41 @@ def classify_rclone_failure(arguments, env):
             output.seek(0)
             return True, output.read(), ''
         err_out.seek(0)
-        err_text = err_out.read(65536).decode('utf-8', errors='replace').lower()
-        for needle in ('invalid_grant', 'token has been expired or revoked', 'unauthorized',
-                       'invalid_client', '401 unauthorized'):
-            if needle in err_text:
-                return False, b'', 'reauthorization-required'
-        return False, b'', 'offline'
+        return False, b'', rclone_failure_kind(err_out.read(65536).decode('utf-8', errors='replace'))
+
+
+def rclone_failure_kind(err_text):
+    """Which problem rclone's private error output describes; the text itself is never shown."""
+    err_text = err_text.lower()
+    kinds = (
+        ('reauthorization-required', ('invalid_grant', 'token has been expired or revoked', 'unauthorized',
+                                      'invalid_client', '401 unauthorized')),
+        # A clock far off makes every certificate look expired or not yet valid.
+        ('clock', ('certificate has expired or is not yet valid', 'certificate is not yet valid',
+                   'certificate has expired')),
+        ('offline', ('no such host', 'network is unreachable', 'connection refused', 'i/o timeout',
+                     'temporary failure in name resolution', 'tls handshake timeout',
+                     'context deadline exceeded', 'no route to host', 'connection reset')),
+    )
+    for kind, needles in kinds:
+        if any(needle in err_text for needle in needles):
+            return kind
+    return 'unknown'
+
+
+def clock_message():
+    return (f"This computer's clock says {datetime.now().astimezone().strftime('%Y-%m-%d %H:%M')}, so secure connections to Google fail. "
+            'Set the date and time in Settings > System > Date and time, then retry.')
+
+
+def google_connect_failure(kind):
+    return {
+        'reauthorization-required': 'Google refused this authorization: it expired, was revoked or was made '
+                                    'with your own client_id. Run rclone authorize drive again and use the new response.',
+        'clock': clock_message(),
+        'offline': 'WrOS could not reach Google. Check Wi-Fi in Settings > System > Wi-Fi and networking, then retry.',
+    }.get(kind, 'rclone could not connect to Google Drive for an unrecognized reason. '
+                'Existing credentials are unchanged; retry, or authorize again.')
 
 
 def inventory_digest(inv):
@@ -267,13 +340,15 @@ class Service:
             return str(path.resolve(strict=True))
         return str(safe_new_path(str(path)))
 
-    def restic(self, arguments, cwd=None, config=None):
+    def restic(self, arguments, cwd=None, config=None, phase=None):
         config = config or self.current
         require(config is not None, 'Set up or connect a backup repository first.')
         private_file(Path(config['key']))
         repository = self.repository(config['repository'])
-        return run('/usr/bin/restic', ['--repo', repository, '--password-file', config['key'],
-                                     '--json', '--quiet', *arguments], self.env, cwd)
+        common = ['--repo', repository, '--password-file', config['key'], '--json']
+        if phase:
+            return run_reporting('/usr/bin/restic', [*common, *arguments], self.env, cwd, phase)
+        return run('/usr/bin/restic', [*common, '--quiet', *arguments], self.env, cwd)
 
     def configure(self, repository, key=None):
         self.repository(repository)  # Refuse unsupported endpoints before IO.
@@ -342,8 +417,9 @@ class Service:
                 'queued_backups': list(self.queue),
                 'snapshots': self.snapshots() if refresh else [], 'notice': notice}
 
-    def restore_into(self, snapshot, target):
-        self.restic(['restore', snapshot['id'] + ':' + snapshot['path'], '--target', str(target), '--verify', '--overwrite', 'never'])
+    def restore_into(self, snapshot, target, phase='Checking the snapshot by restoring it'):
+        self.restic(['restore', snapshot['id'] + ':' + snapshot['path'], '--target', str(target), '--verify', '--overwrite', 'never'],
+                    phase=phase)
         manifest = target/MANIFEST
         require(manifest.is_file() and not manifest.is_symlink() and manifest.stat().st_size <= 32 * 1024**2,
                 'Snapshot manifest missing or unsafe; restore is not verified.')
@@ -351,6 +427,7 @@ class Service:
         require(isinstance(expected, dict) and expected.get('version') == 1 and 'inventory' in expected,
                 'Unsupported backup manifest; restore is not verified.')
         manifest.unlink()
+        progress('Comparing every restored file')
         actual = inventory(target)
         require(actual == expected['inventory'], 'Restored file names, bytes or SHA-256 hashes differ; restore is not verified.')
         return actual
@@ -452,6 +529,7 @@ class Service:
     def backup(self, project):
         root = self.validate_project_root(project)
         require(self.current is not None, 'Set up a backup repository first.')
+        progress('Checking the saved project')
         original = inventory(root)
         queued = self.enqueue_project(root, original)
         try:
@@ -470,11 +548,13 @@ class Service:
         with tempfile.TemporaryDirectory(prefix='wros-backup-', dir=self.state) as temporary:
             stage = Path(temporary)/'book'
             stage.mkdir(mode=0o700)
+            progress('Copying the project to private staging')
             require(inventory(root, stage) == original, 'Project changed before staging; save and retry.')
             require(inventory(root) == original, 'Project changed during staging; save and retry. No snapshot verified.')
             (stage/MANIFEST).write_text(json.dumps({'version': 1, 'created': now(), 'inventory': original}), encoding='utf-8')
             label = ''.join(c for c in root.name if c.isprintable())[:80] or 'Book'
-            output = self.restic(['backup', '--tag', TAG, '--tag', 'project:' + label, '--tag', 'queue:' + queued['id'], '--host', 'wros', '--', str(stage)], stage)
+            output = self.restic(['backup', '--tag', TAG, '--tag', 'project:' + label, '--tag', 'queue:' + queued['id'], '--host', 'wros', '--', str(stage)], stage,
+                                 phase='Encrypting and saving the snapshot')
             summaries = [json.loads(line) for line in output.splitlines() if line.strip()]
             identifier = next((row.get('snapshot_id') for row in summaries if row.get('message_type') == 'summary'), None)
             require(identifier, 'Backup did not return a complete snapshot; no verification claimed.')
@@ -501,7 +581,7 @@ class Service:
         require(snapshot is not None, 'Snapshot no longer available; refresh the list.')
         stage = Path(tempfile.mkdtemp(prefix='.wros-restore-incomplete-', dir=target.parent))
         try:
-            self.restore_into(snapshot, stage)
+            self.restore_into(snapshot, stage, phase="Restoring the snapshot")
             publish_directory(stage, target)
         except Exception:
             # Preserve interrupted/failed restores under an explicit incomplete
@@ -538,7 +618,9 @@ class Service:
             env = dict(self.env, RCLONE_CONFIG=str(candidate))
             # Explicit enrollment alone contacts Google. Do not call providers
             # when merely opening Settings/status or running local backups.
-            quota = json.loads(run('/usr/bin/rclone', ['about', 'wros-google:', '--json'], env))
+            ok, payload, failure_kind = classify_rclone_failure(['about', 'wros-google:', '--json'], env)
+            require(ok, google_connect_failure(failure_kind))
+            quota = json.loads(payload)
             require(isinstance(quota, dict) and 'total' in quota, 'Google Drive authorization could not be verified.')
             atomic_private(self.google, candidate.read_bytes())
             ts = now()
@@ -573,6 +655,8 @@ class Service:
                 self.google_meta = base
                 self.save_account()
                 raise ValueError('Google Drive authorization expired or was revoked. Reauthorize Google Drive or disconnect local credentials.')
+            if failure_kind == 'clock':
+                raise ValueError(clock_message() + ' Local credentials remain saved.')
             base['state'] = 'offline'
             base['last_error'] = 'Google Drive could not be reached.'
             self.google_meta = base
@@ -615,6 +699,36 @@ class Service:
             refresh=False)
 
 
+AUTHORIZATION_LIMIT = 32768
+
+
+def read_authorization_file(path):
+    """The rclone authorize JSON saved as a file, for a console with no clipboard. Read as the
+    writer and never echoed. A Windows editor's byte-order mark and line ending are accepted,
+    and so is a `token = {...}` line copied out of an existing rclone.conf."""
+    require(isinstance(path, str) and path.startswith('/'), 'Enter the authorization file as an absolute path.')
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    except OSError:
+        raise ValueError('Cannot open the authorization file. Check the path and that the drive is inserted.') from None
+    if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+        os.close(descriptor)
+        raise ValueError('The authorization file must be a regular file.')
+    with os.fdopen(descriptor, 'rb') as stream:
+        data = stream.read(AUTHORIZATION_LIMIT + 1)
+    require(len(data) <= AUTHORIZATION_LIMIT, 'Authorization response is too large.')
+    try:
+        text = data.decode('utf-8-sig').strip()
+    except UnicodeDecodeError:
+        raise ValueError('The authorization file is not the text returned by rclone authorize drive.') from None
+    text = re.sub(r'^token\s*=\s*', '', text)
+    try:
+        json.loads(text)
+    except json.JSONDecodeError:
+        raise ValueError('The authorization file does not hold only the JSON returned by rclone authorize drive.') from None
+    return text
+
+
 def dispatch(service, request):
     operation = request.get('operation')
     if operation == 'status':
@@ -646,6 +760,8 @@ def dispatch(service, request):
         return service.export_key(request['destination'])
     if operation == 'connect-google':
         return service.connect_google(request['authorization'])
+    if operation == 'connect-google-file':
+        return service.connect_google(read_authorization_file(request['path']))
     if operation == 'check-google':
         return service.check_google()
     if operation == 'disconnect-google':

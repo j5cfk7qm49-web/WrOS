@@ -198,6 +198,7 @@ impl Keyboard {
             wros_shell::Menu {
                 title: "WrOS · Login keyboard",
                 rows: &rows,
+                kinds: &[],
                 selected: self.selected,
                 notice: self.notice,
                 hint: "Up/Down: layout  Enter: preview/keep  Esc: revert/back  Ctrl+Alt+F2: maintenance",

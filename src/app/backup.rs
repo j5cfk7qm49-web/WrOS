@@ -11,7 +11,10 @@ pub enum FormKind {
     Restore,
     ExportKey,
     Google,
+    GoogleFile,
 }
+/// What the file form looks for on a mounted `WROS-UPDATE` stick.
+pub const GOOGLE_TOKEN_FILE: &str = "wros-drive-token.json";
 pub struct Form {
     pub kind: FormKind,
     fields: [Zeroizing<String>; 2],
@@ -19,7 +22,7 @@ pub struct Form {
     snapshot: String,
 }
 impl Form {
-    fn field_count(&self) -> usize {
+    pub(crate) fn field_count(&self) -> usize {
         if self.kind == FormKind::Connect { 2 } else { 1 }
     }
     fn secret(&self) -> bool {
@@ -33,6 +36,7 @@ impl Form {
             FormKind::Restore => "Restore snapshot into a NEW folder",
             FormKind::ExportKey => "Export recovery key to a safe separate place",
             FormKind::Google => "Connect Google Drive from a trusted computer",
+            FormKind::GoogleFile => "Connect Google Drive from a file on a USB stick",
         }
     }
     pub fn rows(&self) -> Vec<String> {
@@ -46,6 +50,7 @@ impl Form {
             FormKind::Restore => &["New folder (absolute path)"],
             FormKind::ExportKey => &["New recovery key file (absolute path)"],
             FormKind::Google => &["Paste authorization JSON (hidden)"],
+            FormKind::GoogleFile => &["Authorization file (absolute path)"],
         };
         let mut rows = labels
             .iter()
@@ -66,6 +71,15 @@ impl Form {
             rows.push("On a trusted computer: rclone authorize drive".into());
             rows.push("Approve in your browser; paste the returned JSON here.".into());
             rows.push("Stored privately outside manuscripts. Escape discards it.".into());
+        } else if self.kind == FormKind::GoogleFile {
+            rows.push("On a trusted computer: rclone authorize drive, then save only".into());
+            rows.push(format!(
+                "the returned JSON as {GOOGLE_TOKEN_FILE} on a stick labelled WROS-UPDATE."
+            ));
+            rows.push(
+                "The stick is mounted read-only and the path filled in; or type a path.".into(),
+            );
+            rows.push("Delete the file from the stick once Google Drive is connected.".into());
         } else if matches!(self.kind, FormKind::NewLocal | FormKind::NewDrive) {
             rows.push("Creates an encrypted repository and a private recovery key.".into());
             rows.push("Export the key separately; losing it makes backups unreadable.".into());
@@ -217,6 +231,38 @@ impl App {
             snapshot,
         });
         self.deck.shell.nav.open(super::shell::Route::BackupForm);
+        if kind == FormKind::GoogleFile {
+            // The update helper's read-only WROS-UPDATE mount; its reply fills in the path.
+            self.deck.request(writingdeck_sys::Request::FindUpdateMedia);
+        }
+    }
+    /// The update helper's reply while the file form is open. Returns false when the form is
+    /// not open, so the update flow handles the reply instead.
+    pub(crate) fn on_google_file_media(&mut self, media: Result<Option<String>, &str>) -> bool {
+        let open = self.deck.shell.nav.current() == super::shell::Route::BackupForm;
+        let Some(form) = self
+            .deck
+            .shell
+            .backup
+            .form
+            .as_mut()
+            .filter(|f| open && f.kind == FormKind::GoogleFile)
+        else {
+            return false;
+        };
+        self.deck.shell.backup.notice = match media {
+            Ok(Some(path)) => {
+                if form.fields[0].is_empty() {
+                    form.fields[0].push_str(&format!("{path}/{GOOGLE_TOKEN_FILE}"));
+                }
+                format!("Stick mounted read-only at {path}. Check the path, then confirm.")
+            }
+            Ok(None) => "No stick labelled WROS-UPDATE was found. Type the file's path.".into(),
+            Err(error) => {
+                format!("Could not look for a WROS-UPDATE stick: {error}. Type the file's path.")
+            }
+        };
+        true
     }
     pub fn request_project_backup(&mut self) {
         if self.deck.shell.backup.job.is_some() {
@@ -341,6 +387,9 @@ impl App {
                     },
                     FormKind::Google => Request::ConnectGoogle {
                         authorization: Secret(std::mem::take(&mut form.fields[0])),
+                    },
+                    FormKind::GoogleFile => Request::ConnectGoogleFile {
+                        path: form.fields[0].to_string(),
                     },
                 };
                 self.deck.shell.nav.back();

@@ -352,6 +352,63 @@ impl Entry {
     fn info(label: impl Into<String>) -> Self {
         Self::new(label, Choice::Information)
     }
+    fn kind(&self) -> wros_shell::RowKind {
+        match self.choice {
+            Choice::Information => wros_shell::RowKind::Info,
+            Choice::Open(_)
+            | Choice::View(..)
+            | Choice::BackupForm(..)
+            | Choice::TimezoneOpen
+            | Choice::InstallerOpen
+            | Choice::UpdateBundleOpen
+            | Choice::UpdateStagedOpen
+            | Choice::RepairOpen => wros_shell::RowKind::Opens,
+            _ => wros_shell::RowKind::Option,
+        }
+    }
+}
+
+/// When the newest listed snapshot was taken, and what is still queued.
+fn backup_overview(status: &crate::backup_service::Status) -> String {
+    let newest = match status.snapshots.iter().map(|s| s.time.as_str()).max() {
+        Some(time) => format!(
+            "Newest snapshot: {}",
+            time.get(..16).unwrap_or(time).replace('T', " ")
+        ),
+        None => "No snapshots listed yet; refresh snapshots to check".into(),
+    };
+    match status.queued_backups.len() {
+        0 => newest,
+        1 => format!("{newest} · 1 queued backup waiting"),
+        n => format!("{newest} · {n} queued backups waiting"),
+    }
+}
+
+/// Forms list their fields and buttons as descriptions and move their own
+/// cursor; the first `options` rows are the ones it moves among.
+fn form_options(app: &App) -> Option<usize> {
+    let shell = &app.deck.shell;
+    match shell.nav.current() {
+        Route::BackupForm => shell.backup.form.as_ref().map(|f| f.field_count() + 1),
+        Route::WifiConnect => shell.wifi_form.as_ref().map(|f| f.action_count()),
+        Route::UpdateBundleForm => shell.update_form.as_ref().map(|_| 3),
+        _ => None,
+    }
+}
+
+fn kinds(app: &App, rows: &[Entry]) -> Vec<wros_shell::RowKind> {
+    match form_options(app) {
+        Some(options) => (0..rows.len())
+            .map(|i| {
+                if i < options {
+                    wros_shell::RowKind::Option
+                } else {
+                    wros_shell::RowKind::Info
+                }
+            })
+            .collect(),
+        None => rows.iter().map(Entry::kind).collect(),
+    }
 }
 
 fn entries(app: &App) -> Vec<Entry> {
@@ -789,6 +846,10 @@ fn entries(app: &App) -> Vec<Entry> {
                     Choice::BackupForm(super::backup::FormKind::Google, String::new()),
                 ));
                 rows.push(Entry::new(
+                    "Reauthorize Google Drive from a file on a USB stick",
+                    Choice::BackupForm(super::backup::FormKind::GoogleFile, String::new()),
+                ));
+                rows.push(Entry::new(
                     "Disconnect Google Drive and remove local credentials",
                     Choice::Open(Route::GoogleDisconnectConfirm),
                 ));
@@ -796,6 +857,10 @@ fn entries(app: &App) -> Vec<Entry> {
                 rows.push(Entry::new(
                     "Connect Google Drive",
                     Choice::BackupForm(super::backup::FormKind::Google, String::new()),
+                ));
+                rows.push(Entry::new(
+                    "Connect Google Drive from a file on a USB stick",
+                    Choice::BackupForm(super::backup::FormKind::GoogleFile, String::new()),
                 ));
             }
             rows.push(Entry::new(
@@ -856,6 +921,10 @@ fn entries(app: &App) -> Vec<Entry> {
                     Choice::BackupForm(FormKind::Google, String::new()),
                 ),
                 Entry::new(
+                    "Connect Google Drive from a file on a USB stick",
+                    Choice::BackupForm(FormKind::GoogleFile, String::new()),
+                ),
+                Entry::new(
                     "Export recovery key",
                     Choice::BackupForm(FormKind::ExportKey, String::new()),
                 ),
@@ -886,6 +955,14 @@ fn entries(app: &App) -> Vec<Entry> {
                 } else {
                     Entry::info("No backup operation is running")
                 },
+            );
+            // Always present, so positions stay stable here too.
+            rows.insert(
+                1,
+                Entry::info(match &backup.job {
+                    Some(job) => job.status_line(),
+                    None => backup_overview(&backup.status),
+                }),
             );
             if backup.status.configured {
                 rows.push(Entry::info(format!(
@@ -1347,14 +1424,21 @@ impl App {
             return;
         }
         let rows = entries(self);
+        let kinds = kinds(self, &rows);
         let nav = &mut self.deck.shell.nav;
         match key {
-            Key::Up => nav.move_by(-1, rows.len()),
-            Key::Down => nav.move_by(1, rows.len()),
-            Key::PageUp => nav.move_by(-10, rows.len()),
-            Key::PageDown => nav.move_by(10, rows.len()),
-            Key::Home => nav.select(0, rows.len()),
-            Key::End => nav.select(rows.len().saturating_sub(1), rows.len()),
+            Key::Up => nav.move_among(-1, &kinds, rows.len()),
+            Key::Down => nav.move_among(1, &kinds, rows.len()),
+            Key::PageUp => nav.move_among(-10, &kinds, rows.len()),
+            Key::PageDown => nav.move_among(10, &kinds, rows.len()),
+            Key::Home => {
+                nav.select(0, rows.len());
+                nav.settle(&kinds, rows.len());
+            }
+            Key::End => {
+                nav.select(rows.len().saturating_sub(1), rows.len());
+                nav.settle(&kinds, rows.len());
+            }
             Key::Esc | Key::Left => {
                 self.deck.shell.warm_wait = false;
                 self.deck.shell.wifi_form = None;
@@ -1374,6 +1458,7 @@ impl App {
             }
             Key::Enter | Key::Right => {
                 nav.select(nav.selected(), rows.len());
+                nav.settle(&kinds, rows.len());
                 let Some(row) = rows.into_iter().nth(nav.selected()) else {
                     return;
                 };
@@ -1648,7 +1733,9 @@ impl App {
 }
 
 pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
-    let rows = entries(app)
+    let entries = entries(app);
+    let kinds = kinds(app, &entries);
+    let rows = entries
         .into_iter()
         .map(|entry| entry.label)
         .collect::<Vec<_>>();
@@ -1721,6 +1808,7 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
         wros_shell::Menu {
             title: &title,
             rows: &rows,
+            kinds: &kinds,
             selected: if app.deck.shell.nav.current() == Route::BackupForm {
                 app.deck
                     .shell
@@ -1741,7 +1829,7 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
                     .as_ref()
                     .map_or(0, |form| form.selected)
             } else {
-                app.deck.shell.nav.selected()
+                wros_shell::settle(app.deck.shell.nav.selected(), &kinds, rows.len())
             },
             notice: note,
             hint: if matches!(

@@ -390,10 +390,14 @@ pub(super) fn recovery_rows(app: &App) -> Vec<Entry> {
     )));
     rows.push(info(&recovery.rollback_strategy));
     if recovery.interrupted_dpkg {
-        rows.push(info(format!(
-            "Interrupted dpkg packages: {}",
-            recovery.unconfigured_packages.join(", ")
-        )));
+        rows.push(info(if recovery.unconfigured_packages.is_empty() {
+            "Interrupted dpkg work: queued package triggers".to_string()
+        } else {
+            format!(
+                "Interrupted dpkg packages: {}",
+                recovery.unconfigured_packages.join(", ")
+            )
+        }));
     }
     if !recovery.staged_packages.is_empty() {
         rows.push(info(format!(
@@ -586,6 +590,9 @@ impl App {
     // ---- replies, called from the system-worker result loop -------------------
 
     pub(crate) fn on_update_media(&mut self, media: Option<String>) {
+        if self.on_google_file_media(Ok(media.clone())) {
+            return;
+        }
         match media {
             None => {
                 let text = "No update media found. Insert the disc or drive labelled WROS-UPDATE, then try again, or enter a folder path.";
@@ -727,11 +734,13 @@ impl App {
     pub(crate) fn on_update_error(&mut self, request: &Request, error: &str) -> bool {
         match request {
             Request::FindUpdateMedia => {
-                let text = format!(
-                    "Could not look for update media: {error}. Nothing was mounted. You can still enter a folder path."
-                );
-                self.deck.shell.update_flow.last_result = Some(text.clone());
-                self.update_notice(text);
+                if !self.on_google_file_media(Err(error)) {
+                    let text = format!(
+                        "Could not look for update media: {error}. Nothing was mounted. You can still enter a folder path."
+                    );
+                    self.deck.shell.update_flow.last_result = Some(text.clone());
+                    self.update_notice(text);
+                }
             }
             Request::ReviewUpdateBundle { .. } => {
                 let flow = &mut self.deck.shell.update_flow;

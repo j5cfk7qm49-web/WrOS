@@ -136,16 +136,15 @@ class EncryptedBackup(unittest.TestCase):
     def test_google_tokens_never_enter_arguments_and_are_committed_only_after_validation(self):
         token = {'access_token': 'PRIVATE_ACCESS_FIXTURE', 'refresh_token': 'PRIVATE_REFRESH_FIXTURE',
                  'expiry': '2099-01-01T00:00:00Z', 'token_type': 'Bearer'}
-        def provider(program, args, env, cwd=None):
-            self.assertEqual(program, '/usr/bin/rclone')
+        def provider(args, env):
             self.assertEqual(args, ['about', 'wros-google:', '--json'])
             self.assertNotIn('PRIVATE_', ' '.join(args))
             candidate = Path(env['RCLONE_CONFIG'])
             self.assertEqual(stat.S_IMODE(candidate.stat().st_mode), 0o600)
             self.assertIn('PRIVATE_REFRESH_FIXTURE', candidate.read_text())
             self.assertFalse(self.service.google.exists())
-            return b'{"total":123456,"used":0}'
-        with mock.patch.object(module, 'run', side_effect=provider):
+            return True, b'{"total":123456,"used":0}', ''
+        with mock.patch.object(module, 'classify_rclone_failure', side_effect=provider):
             result = self.service.connect_google(json.dumps(token))
         self.assertTrue(result['google_connected'])
         self.assertEqual(result['google_state'], 'connected')
@@ -153,7 +152,7 @@ class EncryptedBackup(unittest.TestCase):
         self.assertEqual(stat.S_IMODE(self.service.account.stat().st_mode), 0o600)
         self.assertNotIn('PRIVATE_', json.dumps(result))
         before = self.service.google.read_bytes()
-        with mock.patch.object(module, 'run', side_effect=ValueError('Provider unavailable')):
+        with mock.patch.object(module, 'classify_rclone_failure', return_value=(False, b'', 'offline')):
             with self.assertRaises(ValueError):
                 self.service.connect_google(json.dumps(token))
         self.assertEqual(self.service.google.read_bytes(), before)
@@ -162,10 +161,94 @@ class EncryptedBackup(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.service.repository(descriptor)
 
+    def test_google_authorization_file_from_windows_connects_and_bad_files_never_echo(self):
+        token = {'access_token': 'PRIVATE_ACCESS_FIXTURE', 'refresh_token': 'PRIVATE_REFRESH_FIXTURE',
+                 'expiry': '2099-01-01T00:00:00Z', 'token_type': 'Bearer'}
+        stick = self.base/'stick'
+        stick.mkdir()
+        # Notepad's byte-order mark and CRLF, and a token line copied out of an rclone.conf.
+        for name, data in (('notepad.json', b'\xef\xbb\xbf' + json.dumps(token).encode() + b'\r\n'),
+                           ('from-conf.json', b'token = ' + json.dumps(token).encode() + b'\n')):
+            (stick/name).write_bytes(data)
+            self.assertEqual(json.loads(module.read_authorization_file(str(stick/name))), token)
+            with mock.patch.object(module, 'classify_rclone_failure', return_value=(True, b'{"total":123456,"used":0}', '')):
+                result = module.dispatch(self.service, {'operation': 'connect-google-file', 'path': str(stick/name)})
+            self.assertTrue(result['google_connected'])
+            self.assertIn('PRIVATE_REFRESH_FIXTURE', self.service.google.read_text())
+            self.assertNotIn('PRIVATE_', json.dumps(result))
+        (stick/'broken.json').write_text('PRIVATE_NOT_JSON')
+        (stick/'large.json').write_bytes(b' ' * (module.AUTHORIZATION_LIMIT + 1))
+        (stick/'link.json').symlink_to(stick/'notepad.json')
+        for path, message in ((str(stick/'broken.json'), 'only the JSON'),
+                              (str(stick/'large.json'), 'too large'),
+                              (str(stick/'link.json'), 'Cannot open'),
+                              (str(stick), 'regular file'),
+                              (str(stick/'missing.json'), 'Cannot open'),
+                              ('relative.json', 'absolute path')):
+            with self.subTest(path=path), self.assertRaisesRegex(ValueError, message) as caught:
+                module.read_authorization_file(path)
+            self.assertNotIn('PRIVATE_', str(caught.exception))
+        env = dict(os.environ, XDG_DATA_HOME=str(self.base/'data'))
+        request = json.dumps({'operation': 'connect-google-file', 'path': str(stick/'broken.json')}).encode()
+        result = subprocess.run(['/usr/bin/python3', '-I', str(SCRIPT)], input=request, capture_output=True, env=env)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn(b'PRIVATE_', result.stdout + result.stderr)
+        self.assertIn('only the JSON', json.loads(result.stdout)['error'])
+
+    def test_backup_reports_each_step_and_restic_progress_without_file_names(self):
+        import contextlib, io
+        self.initialize()
+        (self.project/'research/large.bin').write_bytes(os.urandom(8 * 1024**2))
+        stream = io.StringIO()
+        with contextlib.redirect_stderr(stream):
+            result = self.service.backup(str(self.project))
+        self.assertTrue(result['snapshots'][0]['restore_checked_at'])
+        rows = [json.loads(line)['progress'] for line in stream.getvalue().splitlines()]
+        phases = [row['phase'] for row in rows]
+        steps = ['Checking the saved project', 'Copying the project to private staging',
+                 'Encrypting and saving the snapshot', 'Checking the snapshot by restoring it',
+                 'Comparing every restored file']
+        self.assertEqual([p for i, p in enumerate(phases) if i == 0 or phases[i - 1] != p], steps)
+        for row in rows:
+            self.assertLessEqual(set(row), {'phase', 'percent'})
+            self.assertTrue(0 <= row.get('percent', 0) <= 1)
+        for private in ('A book with spaces', 'reference.bin', 'large.bin', 'manuscript'):
+            self.assertNotIn(private, stream.getvalue())
+
+    def test_google_connection_failures_say_which_problem_without_echoing_rclone(self):
+        kinds = (
+            ('oauth2: cannot fetch token: 400 Bad Request Response: {"error": "invalid_grant"}', 'reauthorization-required'),
+            ('Failed to create file system: couldn\'t find root directory ID: Get "https://www.googleapis.com/drive/v3/files/root": '
+             'tls: failed to verify certificate: x509: certificate has expired or is not yet valid: current time 2001-01-01T00:00:00Z', 'clock'),
+            ('dial tcp: lookup www.googleapis.com: no such host', 'offline'),
+            ('dial tcp 142.250.1.95:443: connect: network is unreachable', 'offline'),
+            ('PRIVATE_SOMETHING_ELSE went wrong', 'unknown'),
+        )
+        for text, kind in kinds:
+            with self.subTest(kind=kind):
+                self.assertEqual(module.rclone_failure_kind(text), kind)
+        token = {'access_token': 'PRIVATE_ACCESS_FIXTURE', 'refresh_token': 'PRIVATE_REFRESH_FIXTURE',
+                 'expiry': '2099-01-01T00:00:00Z', 'token_type': 'Bearer'}
+        for kind, message in (('reauthorization-required', 'Google refused this authorization'),
+                              ('clock', "This computer's clock says"),
+                              ('offline', 'could not reach Google'),
+                              ('unknown', 'rclone could not connect')):
+            with self.subTest(kind=kind), \
+                    mock.patch.object(module, 'classify_rclone_failure', return_value=(False, b'', kind)), \
+                    self.assertRaisesRegex(ValueError, message) as caught:
+                self.service.connect_google(json.dumps(token))
+            self.assertNotIn('PRIVATE_', str(caught.exception))
+            self.assertFalse(self.service.google.exists())
+        with mock.patch.object(module, 'classify_rclone_failure', return_value=(True, b'{"total":1,"used":0}', '')):
+            self.service.connect_google(json.dumps(token))
+        with mock.patch.object(module, 'classify_rclone_failure', return_value=(False, b'', 'clock')), \
+                self.assertRaisesRegex(ValueError, "This computer's clock says"):
+            self.service.check_google()
+
     def test_google_credential_lifecycle_check_revocation_reauthorize_and_disconnect_scrub(self):
         token_a = {'access_token': 'PRIVATE_ACCESS_A', 'refresh_token': 'PRIVATE_REFRESH_A',
                    'expiry': '2026-11-01T00:00:00Z', 'token_type': 'Bearer'}
-        with mock.patch.object(module, 'run', return_value=b'{"total":1000,"used":10}'):
+        with mock.patch.object(module, 'classify_rclone_failure', return_value=(True, b'{"total":1000,"used":10}', '')):
             self.service.connect_google(json.dumps(token_a))
         self.assertTrue(self.service.google.is_file())
         self.assertTrue(self.service.account.is_file())
@@ -188,7 +271,7 @@ class EncryptedBackup(unittest.TestCase):
         # Reauthorizing with a fresh grant restores 'connected' state.
         token_b = {'access_token': 'PRIVATE_ACCESS_B', 'refresh_token': 'PRIVATE_REFRESH_B',
                    'expiry': '2027-01-01T00:00:00Z', 'token_type': 'Bearer'}
-        with mock.patch.object(module, 'run', return_value=b'{"total":2000,"used":20}'):
+        with mock.patch.object(module, 'classify_rclone_failure', return_value=(True, b'{"total":2000,"used":20}', '')):
             status = reloaded.connect_google(json.dumps(token_b))
         self.assertEqual(status['google_state'], 'connected')
         self.assertEqual(status['google_expiry'], '2027-01-01T00:00:00Z')

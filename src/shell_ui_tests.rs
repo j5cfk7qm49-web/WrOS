@@ -230,10 +230,8 @@ fn native_read_only_system_views_keep_editor_state_and_failed_refresh_drops_stal
         let position = desk.app.view_position(Pane::Primary);
         system_panel(&mut desk, 0);
         wait_system(&mut desk);
-        for _ in 0..4 {
-            desk.key(KeyCode::Down);
-        }
-        desk.key(KeyCode::Enter);
+        desk.key(KeyCode::Home);
+        desk.choose("Scan Wi-Fi networks");
         wait_system(&mut desk);
         assert_eq!(desk.app.deck.shell.nav.current(), Route::WifiNetworks);
         assert!(desk.shows("WrOS-Studio"));
@@ -435,11 +433,9 @@ fn open_warm(desk: &mut Desk) {
     wait_system(desk);
     assert_eq!(desk.app.deck.shell.nav.current(), Route::WarmScreen);
 }
+/// Choose the option at `row` of the screen's rows (descriptions included).
 fn choose_warm_row(desk: &mut Desk, row: usize) {
-    desk.key(KeyCode::Home);
-    for _ in 0..row {
-        desk.key(KeyCode::Down);
-    }
+    desk.app.deck.shell.nav.select(row, 64);
     desk.key(KeyCode::Enter);
 }
 
@@ -590,9 +586,14 @@ fn unavailable_suspend_never_reaches_the_worker_and_retains_editors_at_four_size
             .use_test_backend(Box::new(Recorded(calls.clone(), Simulated::laptop())));
         system_panel(&mut desk, 2);
         wait_system(&mut desk);
-        choose_warm_row(&mut desk, 3); // Native Power: unavailable Suspend row.
+        // Native Power: unavailable Suspend is a description the cursor never reaches.
+        desk.key(KeyCode::Home);
+        for _ in 0..12 {
+            assert!(!desk.shows("▸ Suspend unavailable"));
+            desk.key(KeyCode::Down);
+        }
         assert_eq!(desk.app.overlay, Overlay::Deck(Page::Settings));
-        assert!(desk.shows("secure screen locking"));
+        assert!(desk.shows("  Suspend unavailable: secure screen locking"));
         close_settings(&mut desk);
         desk.app.overlay = Overlay::Deck(Page::System { sel: 8 });
         desk.key(KeyCode::Enter);
@@ -819,6 +820,70 @@ fn live_media_opens_on_the_dashboard_with_install_chosen_and_confirms_before_ins
 }
 
 #[test]
+fn settings_descriptions_are_never_chosen_and_options_show_where_they_lead() {
+    let mut desk = Desk::open(book("menu-row-kinds", true), 100, 30);
+    desk.app.open_settings();
+    desk.draw();
+    assert!(desk.shows("▸ Writing ›"), "{}", desk.rows().join("\n"));
+
+    // Backups opens with a description first: the cursor starts on the first option.
+    desk.app.deck.shell.nav.open(Route::Backups);
+    desk.draw();
+    assert!(desk.shows("    No backup operation is running"));
+    assert!(!desk.shows("▸ No backup operation is running"));
+    desk.key(KeyCode::Up);
+    assert!(!desk.shows("▸ No backup operation is running"));
+
+    // Confirmations keep Cancel first; End and Down stop on the last option.
+    desk.app.deck.live_session = true;
+    desk.app.deck.installer_available = true;
+    desk.app.overlay = Overlay::None;
+    desk.app.open_installer_confirm();
+    desk.draw();
+    assert!(desk.shows("▸ Cancel and remain in the live writing session"));
+    desk.key(KeyCode::End);
+    desk.key(KeyCode::Down);
+    assert!(desk.shows("▸ Start encrypted WrOS installer on console tty7"));
+    assert!(desk.shows("    Retires writing input on tty1"));
+    desk.key(KeyCode::Home);
+    desk.key(KeyCode::Enter);
+    assert!(!desk.app.deck.installer_requested);
+}
+
+#[test]
+fn a_running_backup_shows_its_step_percentage_and_time_under_cancel() {
+    use crate::backup_service::{Job, Progress};
+    let mut desk = Desk::open(book("backup-progress", true), 100, 30);
+    desk.app.open_settings();
+    desk.app.deck.shell.nav.open(Route::Backups);
+    desk.app.deck.shell.backup.job = Some(Job::running_for_test(Some(Progress {
+        phase: "Encrypting and saving the snapshot".into(),
+        percent: Some(0.42),
+    })));
+    desk.draw();
+    assert!(desk.shows("▸ Cancel current backup operation"));
+    assert!(desk.shows("    Working: Encrypting and saving the snapshot · 42% · 0 s"));
+    desk.app.deck.shell.backup.job = Some(Job::running_for_test(None));
+    desk.draw();
+    assert!(desk.shows("    Working: starting · 0 s"));
+    desk.app.deck.shell.backup.job = None;
+    desk.draw();
+    assert!(!desk.shows("Working:"));
+    assert!(desk.shows("    No snapshots listed yet; refresh snapshots to check"));
+    let status = &mut desk.app.deck.shell.backup.status;
+    status.snapshots.push(crate::backup_service::Snapshot {
+        id: "a".repeat(64),
+        time: "2026-11-01T11:26:50.59245339-08:00".into(),
+        _path: "/book".into(),
+        project: "Book".into(),
+        restore_checked_at: String::new(),
+    });
+    status.queued_backups.push(Default::default());
+    desk.draw();
+    assert!(desk.shows("    Newest snapshot: 2026-11-01 11:26 · 1 queued backup waiting"));
+}
+
+#[test]
 fn power_waits_for_missing_sources_and_failed_document_claims_then_allows_explicit_retry() {
     use std::sync::{Arc, Mutex};
     use writingdeck_sys::{Backend, PowerAction, Reply, Request, Simulated};
@@ -933,10 +998,8 @@ fn native_wifi_enrollment_masks_credentials_handles_cancel_failure_and_success_p
 
         system_panel(&mut desk, 0);
         wait_system(&mut desk);
-        for _ in 0..4 {
-            desk.key(KeyCode::Down);
-        }
-        desk.key(KeyCode::Enter);
+        desk.key(KeyCode::Home);
+        desk.choose("Scan Wi-Fi networks");
         wait_system(&mut desk);
         assert_eq!(desk.app.deck.shell.nav.current(), Route::WifiNetworks);
 
@@ -1048,15 +1111,14 @@ fn native_wifi_enrollment_masks_credentials_handles_cancel_failure_and_success_p
 
         // Return to Network panel: disconnect and manage saved profiles.
         desk.key(KeyCode::Esc);
-        desk.key(KeyCode::End);
-        desk.key(KeyCode::Up);
-        desk.key(KeyCode::Enter); // Disconnect active Wi-Fi
+        desk.key(KeyCode::Home);
+        desk.choose("Disconnect active Wi-Fi");
         wait_system(&mut desk);
         assert!(desk.shows("Wi-Fi disconnected"));
 
         // Open Saved Wi-Fi profiles.
-        desk.key(KeyCode::Up);
-        desk.key(KeyCode::Enter);
+        desk.key(KeyCode::Home);
+        desk.choose("Saved Wi-Fi profiles");
         wait_system(&mut desk);
         assert_eq!(desk.app.deck.shell.nav.current(), Route::SavedWifi);
         desk.key(KeyCode::Down);
@@ -1796,6 +1858,61 @@ fn recovery_during_apply_offers_no_cancel_or_repair() {
         desk.key(KeyCode::Down);
     }
     assert_eq!(world.mutations(), 0);
+}
+
+#[test]
+fn google_token_file_form_fills_in_the_mounted_stick_and_never_reviews_it_as_an_update() {
+    use crate::app::backup::FormKind;
+    let mut desk = Desk::open(book("google-token-file", true), 100, 30);
+    let world = UpdateWorld::install(&mut desk);
+    desk.app.open_settings();
+    desk.app.deck.shell.nav.open(Route::Backups);
+    desk.app
+        .open_backup_form(FormKind::GoogleFile, String::new());
+    wait_system(&mut desk);
+    let rows = desk.app.deck.shell.backup.form.as_ref().unwrap().rows();
+    assert_eq!(
+        rows[0],
+        "Authorization file (absolute path): /run/wros-update/media/0/wros-drive-token.json"
+    );
+    assert!(
+        desk.app
+            .deck
+            .shell
+            .backup
+            .notice
+            .starts_with("Stick mounted read-only at /run/wros-update/media/0.")
+    );
+    assert_eq!(route(&desk), Route::BackupForm);
+    assert!(world.calls().contains(&Request::FindUpdateMedia));
+    assert_eq!(
+        world.count(|r| matches!(r, Request::ReviewUpdateBundle { .. })),
+        0
+    );
+
+    // Without a stick the path stays empty for typing, and Escape still discards the form.
+    desk.key(KeyCode::Esc);
+    world.sim.lock().unwrap().media = None;
+    desk.app
+        .open_backup_form(FormKind::GoogleFile, String::new());
+    wait_system(&mut desk);
+    assert!(
+        desk.app
+            .deck
+            .shell
+            .backup
+            .notice
+            .starts_with("No stick labelled WROS-UPDATE")
+    );
+    desk.app.paste("/home/writer/token.json");
+    let rows = desk.app.deck.shell.backup.form.as_ref().unwrap().rows();
+    assert_eq!(
+        rows[0],
+        "Authorization file (absolute path): /home/writer/token.json"
+    );
+    desk.key(KeyCode::Esc);
+    assert!(desk.app.deck.shell.backup.form.is_none());
+    assert_eq!(route(&desk), Route::Backups);
 }
 
 #[test]

@@ -321,6 +321,7 @@ pub fn render(frame: &mut ratatui::Frame, conversation: &Conversation) {
         wros_shell::Menu {
             title: "WrOS · Sign in",
             rows: &rows,
+            kinds: &[],
             selected: 0,
             notice: conversation.notice,
             hint: if conversation.phase == Phase::Username {

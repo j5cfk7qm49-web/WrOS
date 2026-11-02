@@ -268,6 +268,7 @@ pub(super) fn draw_footnotes(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         wros_shell::Menu {
             title: "Footnotes · Original Markdown",
             rows: &labels,
+            kinds: &[],
             selected: *sel,
             notice: &app.msg,
             hint: "↑↓ choose  v read  Enter reference  d definition  Esc back  F1 help",

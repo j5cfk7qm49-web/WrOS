@@ -816,6 +816,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
                 wros_shell::Menu {
                     title,
                     rows: &rows,
+                    kinds: &[],
                     selected: c.nav.selected(),
                     notice: &c.notice,
                     hint: if page == Page::Facts {

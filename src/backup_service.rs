@@ -52,6 +52,10 @@ pub enum Request {
     ConnectGoogle {
         authorization: Secret,
     },
+    /// The same authorization JSON, read by the helper from a file (a console has no clipboard).
+    ConnectGoogleFile {
+        path: String,
+    },
     CheckGoogle,
     DisconnectGoogle,
 }
@@ -105,10 +109,77 @@ struct Response {
     error: Option<String>,
 }
 
+/// The step a running operation reported last, and how far restic got.
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Progress {
+    pub phase: String,
+    #[serde(default)]
+    pub percent: Option<f64>,
+}
+
+/// A helper stderr line, if it is a well-formed progress report. Anything
+/// else (a traceback, tool noise) is never shown.
+fn parse_progress(line: &str) -> Option<Progress> {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Line {
+        progress: Progress,
+    }
+    let Line { progress } = serde_json::from_str(line).ok()?;
+    let fair = !progress.phase.is_empty()
+        && progress.phase.chars().count() <= 80
+        && !progress.phase.chars().any(char::is_control)
+        && progress
+            .percent
+            .is_none_or(|p| p.is_finite() && (0.0..=1.0).contains(&p));
+    fair.then_some(progress)
+}
+
+fn describe(progress: Option<&Progress>, elapsed: Duration) -> String {
+    let seconds = elapsed.as_secs();
+    let time = if seconds < 60 {
+        format!("{seconds} s")
+    } else {
+        format!("{} min {:02} s", seconds / 60, seconds % 60)
+    };
+    match progress {
+        Some(Progress {
+            phase,
+            percent: Some(p),
+        }) => format!("Working: {phase} · {:.0}% · {time}", p * 100.0),
+        Some(Progress { phase, .. }) => format!("Working: {phase} · {time}"),
+        None => format!("Working: starting · {time}"),
+    }
+}
+
+type Shared = Arc<std::sync::Mutex<Option<Progress>>>;
+
 pub struct Job {
     pub result: Receiver<Result<Status, String>>,
     cancelled: Arc<AtomicBool>,
     thread: Option<std::thread::JoinHandle<()>>,
+    progress: Shared,
+    started: Instant,
+}
+impl Job {
+    /// What the operation is doing now, for the Backups screen.
+    pub fn status_line(&self) -> String {
+        let progress = self.progress.lock().ok().and_then(|p| p.clone());
+        describe(progress.as_ref(), self.started.elapsed())
+    }
+    #[cfg(test)]
+    pub fn running_for_test(progress: Option<Progress>) -> Self {
+        let (sender, result) = mpsc::sync_channel(1);
+        std::mem::forget(sender);
+        Self {
+            result,
+            cancelled: Arc::default(),
+            thread: None,
+            progress: Arc::new(std::sync::Mutex::new(progress)),
+            started: Instant::now(),
+        }
+    }
 }
 impl Drop for Job {
     fn drop(&mut self) {
@@ -122,10 +193,17 @@ pub fn spawn(request: Request, state: std::path::PathBuf) -> Result<Job, String>
     let cancelled = Arc::new(AtomicBool::new(false));
     let worker_cancelled = cancelled.clone();
     let (sender, result) = mpsc::sync_channel(1);
+    let progress = Shared::default();
+    let worker_progress = progress.clone();
     let thread = std::thread::Builder::new()
         .name("wros-backup".into())
         .spawn(move || {
-            let outcome = execute_in(&request, &worker_cancelled, Some(state));
+            let outcome = execute_in(
+                &request,
+                &worker_cancelled,
+                Some(state),
+                Some(worker_progress),
+            );
             let _ = sender.send(outcome);
         })
         .map_err(|_| "Backup worker unavailable".to_owned())?;
@@ -133,12 +211,14 @@ pub fn spawn(request: Request, state: std::path::PathBuf) -> Result<Job, String>
         result,
         cancelled,
         thread: Some(thread),
+        progress,
+        started: Instant::now(),
     })
 }
 
 #[cfg(unix)]
 fn terminate(child: &mut std::process::Child) {
-    // Only the fresh process group created below, never a caller-supplied PID.
+    // Only the fresh session's process group created below, never a caller-supplied PID.
     unsafe {
         libc::kill(-(child.id() as i32), libc::SIGTERM);
     }
@@ -160,12 +240,13 @@ fn terminate(child: &mut std::process::Child) {
 }
 
 pub fn execute(request: &Request, cancelled: &AtomicBool) -> Result<Status, String> {
-    execute_in(request, cancelled, None)
+    execute_in(request, cancelled, None, None)
 }
 fn execute_in(
     request: &Request,
     cancelled: &AtomicBool,
     state: Option<std::path::PathBuf>,
+    progress: Option<Shared>,
 ) -> Result<Status, String> {
     let unavailable =
         || "Backup service unavailable; install the WrOS Restic/rclone integration.".to_owned();
@@ -187,11 +268,23 @@ fn execute_in(
         .arg(script)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null());
+        .stderr(Stdio::piped());
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
-        command.process_group(0);
+        // A session of its own with no controlling terminal. Restic gives the
+        // terminal's foreground to the rclone it starts for Drive; on the
+        // writing console the editor's input reader then failed on the next
+        // key and the login session ended. As session leader its PID is also
+        // the process group `terminate` signals.
+        unsafe {
+            command.pre_exec(|| {
+                if libc::setsid() == -1 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                Ok(())
+            });
+        }
     }
     let mut child = command.spawn().map_err(|_| unavailable())?;
     if child
@@ -203,6 +296,24 @@ fn execute_in(
     {
         terminate(&mut child);
         return Err(unavailable());
+    }
+    // Progress lines only; the stream is drained so the helper never blocks.
+    if let Some(stderr) = child.stderr.take() {
+        std::thread::spawn(move || {
+            use std::io::BufRead;
+            for line in std::io::BufReader::new(stderr.take(16 * 1024 * 1024))
+                .split(b'\n')
+                .map_while(Result::ok)
+            {
+                if let (Some(shared), Some(step)) = (
+                    &progress,
+                    std::str::from_utf8(&line).ok().and_then(parse_progress),
+                ) && let Ok(mut current) = shared.lock()
+                {
+                    *current = Some(step);
+                }
+            }
+        });
     }
     let stdout = child.stdout.take().ok_or_else(unavailable)?;
     let reader = std::thread::spawn(move || {
@@ -240,5 +351,57 @@ fn execute_in(
         response.data.ok_or_else(unavailable)
     } else {
         Err(response.error.unwrap_or_else(unavailable))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_well_formed_progress_lines_are_shown() {
+        assert_eq!(
+            parse_progress(
+                r#"{"progress": {"phase": "Encrypting and saving the snapshot", "percent": 0.4213}}"#
+            ),
+            Some(Progress {
+                phase: "Encrypting and saving the snapshot".into(),
+                percent: Some(0.4213)
+            })
+        );
+        assert_eq!(
+            parse_progress(r#"{"progress": {"phase": "Comparing every restored file"}}"#)
+                .unwrap()
+                .percent,
+            None
+        );
+        let long = format!(r#"{{"progress": {{"phase": "{}"}}}}"#, "a".repeat(200));
+        for line in [
+            "Traceback (most recent call last):",
+            r#"{"ok": true}"#,
+            r#"{"progress": {"phase": ""}}"#,
+            r#"{"progress": {"phase": "x\u001b[2J"}}"#,
+            r#"{"progress": {"phase": "x", "percent": 1.5}}"#,
+            r#"{"progress": {"phase": "x", "file": "chapter.md"}}"#,
+            &long,
+        ] {
+            assert_eq!(parse_progress(line), None, "{line}");
+        }
+    }
+
+    #[test]
+    fn progress_reads_as_a_step_a_percentage_and_the_time_taken() {
+        let step = Progress {
+            phase: "Encrypting and saving the snapshot".into(),
+            percent: Some(0.42),
+        };
+        assert_eq!(
+            describe(Some(&step), Duration::from_secs(65)),
+            "Working: Encrypting and saving the snapshot · 42% · 1 min 05 s"
+        );
+        assert_eq!(
+            describe(None, Duration::from_secs(7)),
+            "Working: starting · 7 s"
+        );
     }
 }
