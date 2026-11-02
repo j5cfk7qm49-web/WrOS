@@ -122,7 +122,7 @@ def load_engine():
 
 def check_bundle(tar, outdir, version, *, keyring=KEYRING, pin=PIN):
     """Unpack a release's bundle into the new directory OUTDIR and verify it as a WrOS computer would."""
-    outdir = Path(outdir)
+    outdir = Path(outdir).absolute()  # the engine opens only absolute bundle paths
     outdir.mkdir(parents=True)
     try:
         with tarfile.open(tar) as archive:
@@ -134,8 +134,16 @@ def check_bundle(tar, outdir, version, *, keyring=KEYRING, pin=PIN):
         raise ValueError(f'the bundle could not be unpacked safely: {exc}') from None
     engine = load_engine()
     engine.TRUSTED_UID = os.geteuid()
-    verified = engine.verify_bundle(outdir, keyring=Path(keyring), signers=Path(pin), host_arch='amd64',
-                                    package_keyring=Path('/nonexistent'))
+    # Private copies of the committed trust: the engine demands files only this user can change.
+    with tempfile.TemporaryDirectory(prefix='wros-trust-') as trust:
+        trusted = []
+        for source in (keyring, pin):
+            copy = Path(trust) / Path(source).name
+            copy.write_bytes(Path(source).read_bytes())
+            copy.chmod(0o644)
+            trusted.append(copy)
+        verified = engine.verify_bundle(outdir, keyring=trusted[0], signers=trusted[1], host_arch='amd64',
+                                        package_keyring=Path('/nonexistent'))
     published = {p['name']: p['version'] for p in verified['packages']}.get('wros')
     if published != version:
         raise ValueError(f'the bundle publishes wros {published}, not {version}')

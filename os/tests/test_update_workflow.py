@@ -141,6 +141,20 @@ class CheckBundle(unittest.TestCase):
     def test_a_release_bundle_is_served_only_as_a_wros_computer_would_accept_it(self):
         good = self.tar(self.base / 'good', 'good.tar')
         _, out = self.check(good)
+        # The workflow names its output relative to the checkout.
+        here = os.getcwd()
+        try:
+            os.chdir(tempfile.mkdtemp(prefix='checkout-', dir=self.base))
+            publish.check_bundle(good, Path('site/updates'), '0.1.0~rc3', keyring=self.keyring, pin=self.pin)
+            self.assertTrue(Path('site/updates/InRelease').is_file())
+        finally:
+            os.chdir(here)
+        # The checkout's owner and modes are the runner's business: the committed trust still applies.
+        loose = self.base / 'loose-keyring.gpg'
+        loose.write_bytes(self.keyring.read_bytes())
+        loose.chmod(0o666)
+        out = Path(tempfile.mkdtemp(prefix='site-', dir=self.base)) / 'updates'
+        publish.check_bundle(good, out, '0.1.0~rc3', keyring=loose, pin=self.pin)
         self.assertEqual((out / 'pool' / self.deb.name).read_bytes(), self.deb.read_bytes())
         self.assertTrue((out / 'InRelease').is_file())
         with self.assertRaisesRegex(ValueError, 'publishes'):
