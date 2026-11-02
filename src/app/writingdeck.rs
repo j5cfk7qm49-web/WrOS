@@ -589,6 +589,7 @@ impl App {
         self.deck.shell.backup.tick();
         self.tick_productivity();
         self.tick_online_updates();
+        self.tick_sync();
         let result = self.deck.worker.as_ref().and_then(|w| w.rx.try_recv().ok());
         if let Some((request, result)) = result {
             self.deck.busy = false;

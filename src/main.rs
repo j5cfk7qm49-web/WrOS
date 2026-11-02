@@ -14,6 +14,7 @@ mod palette;
 mod scene;
 mod scenery;
 mod shutdown;
+mod sync_service;
 mod theme;
 mod ui;
 mod visualizer;

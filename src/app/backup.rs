@@ -97,11 +97,74 @@ pub struct Backups {
     pub form: Option<Form>,
     pub notice: String,
     pub job: Option<service::Job>,
+    pub sync: SyncState,
     /// True once a backup-service reply has been read since `status_ok` was
     /// last cleared. The update gate clears it before asking for fresh status
     /// so a stale or never-loaded status can never be mistaken for "no backups".
     pub status_ok: bool,
 }
+/// Readable Google Drive sync of the open book.
+#[derive(Default)]
+pub struct SyncState {
+    pub job: Option<service::Job<crate::sync_service::Reply>>,
+    /// The operation the running job performs, so its reply is handled right.
+    pub running: Option<crate::sync_service::Request>,
+    pub last: Option<Result<crate::sync_service::Reply, String>>,
+    /// When the next sync is due; `None` until the open book is first seen.
+    pub next: Option<std::time::Instant>,
+    /// Whether the book had unsaved words at the last tick (a save ends that).
+    pub saw_dirty: bool,
+    /// Test seam: a stand-in helper and its environment.
+    pub script: Option<PathBuf>,
+    pub env: Vec<(&'static str, PathBuf)>,
+}
+/// Every few minutes while sync is on, and shortly after each save.
+pub const SYNC_EVERY: std::time::Duration = std::time::Duration::from_secs(5 * 60);
+pub const SYNC_AFTER_SAVE: std::time::Duration = std::time::Duration::from_secs(10);
+
+impl SyncState {
+    /// One line on where sync stands, for the Backups screen.
+    pub fn line(&self) -> String {
+        if let Some(job) = &self.job {
+            return job.status_line().replacen("Working:", "Syncing:", 1);
+        }
+        match &self.last {
+            None => "Not synced yet".into(),
+            Some(Err(error)) => format!("Sync did not finish: {error}"),
+            Some(Ok(reply)) => match reply.status.as_str() {
+                "synced" => {
+                    let when = reply
+                        .synced_at
+                        .as_deref()
+                        .and_then(|t| chrono::DateTime::parse_from_rfc3339(t).ok())
+                        .map(|t| t.with_timezone(&chrono::Local).format("%H:%M").to_string())
+                        .unwrap_or_else(|| "just now".into());
+                    let mut line = format!(
+                        "Synced {when} · {} up, {} down, {} deleted",
+                        reply.uploaded, reply.downloaded, reply.deleted
+                    );
+                    match reply.pending.len() {
+                        0 => {}
+                        1 => line.push_str(" · 1 file needs merging"),
+                        n => line.push_str(&format!(" · {n} files need merging")),
+                    }
+                    line
+                }
+                "confirm" => format!("Stopped: this sync would delete {} files", reply.deletes),
+                "offline" => "Waiting: Google Drive could not be reached".into(),
+                _ => reply.message.clone(),
+            },
+        }
+    }
+    /// Deletions the last run stopped for, if it did.
+    pub fn confirm_deletes(&self) -> Option<u32> {
+        match &self.last {
+            Some(Ok(reply)) if reply.status == "confirm" => Some(reply.deletes),
+            _ => None,
+        }
+    }
+}
+
 /// How recent a project snapshot must be to count as a backup taken for an update.
 pub const FRESH_BACKUP_HOURS: i64 = 24;
 impl Backups {
@@ -263,6 +326,90 @@ impl App {
             }
         };
         true
+    }
+    /// Sync is on for the open book once `wros-sync enable` recorded its identity.
+    pub(crate) fn sync_enabled(&self) -> bool {
+        self.project.root.join(".grimoire/sync.json").is_file()
+    }
+    pub(crate) fn request_sync(&mut self, request: crate::sync_service::Request) {
+        let sync = &mut self.deck.shell.backup.sync;
+        if sync.job.is_some() {
+            return;
+        }
+        let Some(script) = sync.script.clone().or_else(crate::sync_service::script) else {
+            sync.last = Some(Err(
+                "the WrOS Google Drive sync helper is not installed".into()
+            ));
+            return;
+        };
+        match crate::sync_service::spawn(request.clone(), script, sync.env.clone()) {
+            Ok(job) => {
+                sync.job = Some(job);
+                sync.running = Some(request);
+            }
+            Err(error) => sync.last = Some(Err(error)),
+        }
+    }
+    pub(crate) fn request_sync_run(&mut self, allow_deletes: bool) {
+        let project = self.project.root.to_string_lossy().into_owned();
+        self.request_sync(crate::sync_service::Request::Sync {
+            project,
+            allow_deletes,
+        });
+    }
+    pub(crate) fn request_sync_switch(&mut self, on: bool) {
+        let project = self.project.root.to_string_lossy().into_owned();
+        self.request_sync(if on {
+            crate::sync_service::Request::Enable { project }
+        } else {
+            crate::sync_service::Request::Disable { project }
+        });
+    }
+    /// Collect a finished run, and start one when due: on opening a book that
+    /// syncs, shortly after a save, and every few minutes. Never with unsaved words.
+    pub(crate) fn tick_sync(&mut self) {
+        use crate::sync_service::Request as Sync;
+        let sync = &mut self.deck.shell.backup.sync;
+        let finished = sync
+            .job
+            .as_ref()
+            .and_then(|job| match job.result.try_recv() {
+                Ok(result) => Some(result),
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    Some(Err("the sync worker stopped".to_string()))
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => None,
+            });
+        if let Some(result) = finished {
+            sync.job = None;
+            match (sync.running.take(), result) {
+                (Some(Sync::Enable { .. }), Ok(_)) => self.request_sync_run(false),
+                (Some(Sync::Disable { .. }), result) => {
+                    sync.next = None;
+                    sync.last = Some(result);
+                }
+                (_, result) => {
+                    sync.next = Some(std::time::Instant::now() + SYNC_EVERY);
+                    sync.last = Some(result);
+                }
+            }
+            return;
+        }
+        if !self.sync_enabled() {
+            return;
+        }
+        let dirty = self.project.dirty_count() > 0;
+        let sync = &mut self.deck.shell.backup.sync;
+        let now = std::time::Instant::now();
+        if sync.saw_dirty && !dirty {
+            let soon = now + SYNC_AFTER_SAVE;
+            sync.next = Some(sync.next.map_or(soon, |next| next.min(soon)));
+        }
+        sync.saw_dirty = dirty;
+        let next = *sync.next.get_or_insert(now);
+        if !dirty && sync.job.is_none() && now >= next {
+            self.request_sync_run(false);
+        }
     }
     pub fn request_project_backup(&mut self) {
         if self.deck.shell.backup.job.is_some() {

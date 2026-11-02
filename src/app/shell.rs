@@ -304,6 +304,9 @@ enum Choice {
     BackupForm(super::backup::FormKind, String),
     BackupNow,
     BackupQueueNow,
+    SyncSwitch(bool),
+    SyncNow,
+    SyncConfirmDeletes,
     BackupCancel,
     GoogleDisconnectResolve(bool),
     WifiSelect(writingdeck_sys::WifiNetwork),
@@ -995,6 +998,30 @@ fn entries(app: &App) -> Vec<Entry> {
             } else {
                 "Google Drive is not connected"
             }));
+            if backup.status.google_connected {
+                if app.sync_enabled() {
+                    rows.push(Entry::new("Sync now", Choice::SyncNow));
+                    if let Some(deletes) = backup.sync.confirm_deletes() {
+                        rows.push(Entry::new(
+                            format!("Sync and delete {deletes} files"),
+                            Choice::SyncConfirmDeletes,
+                        ));
+                    }
+                    rows.push(Entry::info(backup.sync.line()));
+                    rows.push(Entry::new(
+                        "Stop syncing this book",
+                        Choice::SyncSwitch(false),
+                    ));
+                } else {
+                    rows.push(Entry::new(
+                        "Sync this book with Google Drive (readable files)",
+                        Choice::SyncSwitch(true),
+                    ));
+                    rows.push(Entry::info(
+                        "Readable copies in Drive are not encrypted: anyone with access to your Google account can read them.",
+                    ));
+                }
+            }
             if !backup.status.queued_backups.is_empty() {
                 rows.push(Entry::info(format!(
                     "Queued offline backups: {} pending",
@@ -1481,6 +1508,9 @@ impl App {
                     Choice::BackupRequest(request) => self.deck.shell.backup.request(request),
                     Choice::BackupForm(kind, snapshot) => self.open_backup_form(kind, snapshot),
                     Choice::BackupNow => self.request_project_backup(),
+                    Choice::SyncSwitch(on) => self.request_sync_switch(on),
+                    Choice::SyncNow => self.request_sync_run(false),
+                    Choice::SyncConfirmDeletes => self.request_sync_run(true),
                     Choice::BackupQueueNow => self.request_project_backup_queue(),
                     Choice::BackupCancel => {
                         self.deck.shell.backup.job = None;

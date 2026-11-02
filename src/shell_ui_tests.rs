@@ -962,6 +962,113 @@ fn online_update_clock_and_offline_states_never_alert() {
     }
 }
 
+/// A stand-in wros-sync: records each request, answers from `<dir>/<operation>.json`,
+/// and on enable writes the book's sync identity as the real helper does.
+fn sync_stub(desk: &mut Desk, sync_reply: &str) -> std::path::PathBuf {
+    let dir = desk.root.join(".sync-stub");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("wros-sync"),
+        "import json, os, sys\nfrom pathlib import Path\n\
+         request = json.load(sys.stdin)\nhere = Path(os.environ['STUB_DIR'])\n\
+         with open(here / 'log', 'a') as log:\n    log.write(json.dumps(request) + '\\n')\n\
+         if request['operation'] == 'enable':\n\
+         \x20   (Path(request['project']) / '.grimoire').mkdir(exist_ok=True)\n\
+         \x20   (Path(request['project']) / '.grimoire/sync.json').write_text('{}')\n\
+         print((here / (request['operation'] + '.json')).read_text())\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("enable.json"),
+        r#"{"ok":true,"data":{"status":"enabled","message":"Syncing.","drive_folder":"Book"}}"#,
+    )
+    .unwrap();
+    std::fs::write(dir.join("sync.json"), sync_reply).unwrap();
+    let sync = &mut desk.app.deck.shell.backup.sync;
+    sync.script = Some(dir.join("wros-sync"));
+    sync.env = vec![("STUB_DIR", dir.clone())];
+    desk.app.deck.shell.backup.status.google_connected = true;
+    dir
+}
+
+fn wait_sync(desk: &mut Desk) {
+    let end = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    loop {
+        desk.app.tick_deck();
+        let sync = &desk.app.deck.shell.backup.sync;
+        if (sync.job.is_none() && sync.running.is_none()) || std::time::Instant::now() > end {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    desk.draw();
+}
+
+fn sync_log(dir: &std::path::Path) -> Vec<serde_json::Value> {
+    std::fs::read_to_string(dir.join("log"))
+        .unwrap_or_default()
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect()
+}
+
+#[test]
+fn switching_sync_on_enables_the_book_then_syncs_and_shows_the_result() {
+    let mut desk = Desk::open(book("sync-on", true), 120, 40);
+    let dir = sync_stub(
+        &mut desk,
+        r#"{"ok":true,"data":{"status":"synced","uploaded":1,"downloaded":2,"deleted":0,"message":"Synced."}}"#,
+    );
+    desk.app.open_settings();
+    desk.app.deck.shell.nav.open(Route::Backups);
+    desk.draw();
+    assert!(desk.shows("Readable copies in Drive are not encrypted"));
+    desk.key(KeyCode::Home);
+    desk.choose("Sync this book with Google Drive (readable files)");
+    wait_sync(&mut desk);
+    wait_sync(&mut desk);
+    let ops: Vec<_> = sync_log(&dir)
+        .iter()
+        .map(|r| r["operation"].clone())
+        .collect();
+    assert_eq!(ops, ["enable", "sync"]);
+    assert!(desk.shows("    Synced "), "{}", desk.rows().join("\n"));
+    assert!(desk.shows("1 up, 2 down, 0 deleted"));
+    assert!(desk.shows("Stop syncing this book"));
+    let next = desk.app.deck.shell.backup.sync.next.unwrap();
+    assert!(next > std::time::Instant::now() + std::time::Duration::from_secs(4 * 60));
+}
+
+#[test]
+fn a_save_brings_the_next_sync_forward_and_the_delete_guard_asks_first() {
+    let mut desk = Desk::open(book("sync-guard", true), 120, 40);
+    let dir = sync_stub(
+        &mut desk,
+        r#"{"ok":true,"data":{"status":"confirm","deletes":7,"message":"Stopped: this sync would delete 7 files."}}"#,
+    );
+    std::fs::create_dir_all(desk.root.join(".grimoire")).unwrap();
+    std::fs::write(desk.root.join(".grimoire/sync.json"), "{}").unwrap();
+    // Opening a book that syncs runs a sync straight away.
+    wait_sync(&mut desk);
+    wait_sync(&mut desk);
+    assert_eq!(sync_log(&dir).len(), 1);
+    desk.app.open_settings();
+    desk.app.deck.shell.nav.open(Route::Backups);
+    desk.draw();
+    assert!(desk.shows("    Stopped: this sync would delete 7 files"));
+    desk.key(KeyCode::Home);
+    desk.choose("Sync and delete 7 files");
+    wait_sync(&mut desk);
+    assert_eq!(sync_log(&dir).last().unwrap()["allow_deletes"], true);
+    // A save (unsaved words, then none) brings the next sync to within ten seconds.
+    let sync = &mut desk.app.deck.shell.backup.sync;
+    sync.next = Some(std::time::Instant::now() + std::time::Duration::from_secs(300));
+    sync.saw_dirty = true;
+    desk.app.tick_deck();
+    let next = desk.app.deck.shell.backup.sync.next.unwrap();
+    assert!(next <= std::time::Instant::now() + std::time::Duration::from_secs(10));
+}
+
 #[test]
 fn update_wros_when_already_current_says_so_without_network_advice() {
     let mut desk = Desk::open(book("online-already-current", true), 120, 30);

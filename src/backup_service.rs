@@ -153,21 +153,23 @@ fn describe(progress: Option<&Progress>, elapsed: Duration) -> String {
     }
 }
 
-type Shared = Arc<std::sync::Mutex<Option<Progress>>>;
+pub(crate) type Shared = Arc<std::sync::Mutex<Option<Progress>>>;
 
-pub struct Job {
-    pub result: Receiver<Result<Status, String>>,
+pub struct Job<T = Status> {
+    pub result: Receiver<Result<T, String>>,
     cancelled: Arc<AtomicBool>,
     thread: Option<std::thread::JoinHandle<()>>,
     progress: Shared,
     started: Instant,
 }
-impl Job {
+impl<T> Job<T> {
     /// What the operation is doing now, for the Backups screen.
     pub fn status_line(&self) -> String {
         let progress = self.progress.lock().ok().and_then(|p| p.clone());
         describe(progress.as_ref(), self.started.elapsed())
     }
+}
+impl Job {
     #[cfg(test)]
     pub fn running_for_test(progress: Option<Progress>) -> Self {
         let (sender, result) = mpsc::sync_channel(1);
@@ -181,7 +183,7 @@ impl Job {
         }
     }
 }
-impl Drop for Job {
+impl<T> Drop for Job<T> {
     fn drop(&mut self) {
         self.cancelled.store(true, Ordering::Relaxed);
         if let Some(thread) = self.thread.take() {
@@ -190,23 +192,27 @@ impl Drop for Job {
     }
 }
 pub fn spawn(request: Request, state: std::path::PathBuf) -> Result<Job, String> {
+    spawn_work("wros-backup", move |cancelled, progress| {
+        execute_in(&request, cancelled, Some(state), Some(progress))
+    })
+}
+
+/// Run `work` on a worker thread of its own, with cancellation and progress.
+pub(crate) fn spawn_work<T: Send + 'static>(
+    name: &str,
+    work: impl FnOnce(&AtomicBool, Shared) -> Result<T, String> + Send + 'static,
+) -> Result<Job<T>, String> {
     let cancelled = Arc::new(AtomicBool::new(false));
     let worker_cancelled = cancelled.clone();
     let (sender, result) = mpsc::sync_channel(1);
     let progress = Shared::default();
     let worker_progress = progress.clone();
     let thread = std::thread::Builder::new()
-        .name("wros-backup".into())
+        .name(name.into())
         .spawn(move || {
-            let outcome = execute_in(
-                &request,
-                &worker_cancelled,
-                Some(state),
-                Some(worker_progress),
-            );
-            let _ = sender.send(outcome);
+            let _ = sender.send(work(&worker_cancelled, worker_progress));
         })
-        .map_err(|_| "Backup worker unavailable".to_owned())?;
+        .map_err(|_| format!("{name} worker unavailable"))?;
     Ok(Job {
         result,
         cancelled,
@@ -259,9 +265,42 @@ fn execute_in(
         return Err(unavailable());
     };
     let input = Zeroizing::new(serde_json::to_vec(request).map_err(|_| unavailable())?);
+    let env: Vec<(&str, std::path::PathBuf)> = state
+        .map(|state| ("WROS_BACKUP_STATE_DIR", state))
+        .into_iter()
+        .collect();
+    let bytes = run_helper(
+        &script,
+        &input,
+        &env,
+        cancelled,
+        progress,
+        &unavailable(),
+        "Backup cancelled; no completed restore or verification claimed. Refresh snapshots before retrying.",
+    )?;
+    let response: Response = serde_json::from_slice(&bytes).map_err(|_| unavailable())?;
+    if response.ok {
+        response.data.ok_or_else(unavailable)
+    } else {
+        Err(response.error.unwrap_or_else(unavailable))
+    }
+}
+
+/// Run a WrOS JSON helper with `input` on stdin: in a session of its own with no
+/// terminal, progress lines read from stderr, cancellable. Returns its stdout.
+pub(crate) fn run_helper(
+    script: &std::path::Path,
+    input: &[u8],
+    env: &[(&str, std::path::PathBuf)],
+    cancelled: &AtomicBool,
+    progress: Option<Shared>,
+    unavailable: &str,
+    cancelled_message: &str,
+) -> Result<Vec<u8>, String> {
+    let unavailable = || unavailable.to_owned();
     let mut command = Command::new("/usr/bin/python3");
-    if let Some(state) = state {
-        command.env("WROS_BACKUP_STATE_DIR", state);
+    for (key, value) in env {
+        command.env(key, value);
     }
     command
         .args(["-I"])
@@ -291,7 +330,7 @@ fn execute_in(
         .stdin
         .take()
         .ok_or_else(unavailable)?
-        .write_all(&input)
+        .write_all(input)
         .is_err()
     {
         terminate(&mut child);
@@ -328,7 +367,7 @@ fn execute_in(
         if cancelled.load(Ordering::Relaxed) || start.elapsed() >= Duration::from_secs(1900) {
             terminate(&mut child);
             let _ = reader.join();
-            return Err("Backup cancelled; no completed restore or verification claimed. Refresh snapshots before retrying.".into());
+            return Err(cancelled_message.into());
         }
         match child.try_wait() {
             Ok(Some(_)) => break,
@@ -346,12 +385,7 @@ fn execute_in(
     if bytes.len() > 2 * 1024 * 1024 {
         return Err(unavailable());
     }
-    let response: Response = serde_json::from_slice(&bytes).map_err(|_| unavailable())?;
-    if response.ok {
-        response.data.ok_or_else(unavailable)
-    } else {
-        Err(response.error.unwrap_or_else(unavailable))
-    }
+    Ok(bytes)
 }
 
 #[cfg(test)]
