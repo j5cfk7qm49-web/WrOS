@@ -101,6 +101,16 @@ copy-on-write filesystems. A real account,
 provider interruption/refresh/revocation and cross-device Drive restore still
 require live acceptance; local and synthetic-provider tests do not establish them.
 
+## Readable copies in Google Drive
+
+Encrypted backups cannot be read in Drive. To also keep plain Markdown copies there,
+connect Google Drive, open the book and choose **Sync this book with Google Drive
+(readable files)** in Settings › Backups. Anyone with access to the Google account can
+read those copies. While on, the Backups screen shows the last result ("Synced 14:02 ·
+1 up, 0 down, 0 deleted"), **Sync now**, and **Stop syncing this book**, which leaves
+the Drive copies in place. See [sync](SYNC_AND_BACKUP.md#readable-google-drive-sync) for
+history, conflicts and the delete guard.
+
 ## Maintenance CLI
 
 `grimoire wros backup status` reads local configuration without provider access.

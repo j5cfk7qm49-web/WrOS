@@ -5,9 +5,15 @@ Real gpg/gpgv and a local HTTP server stand in for GitHub Pages; nothing is publ
 import functools
 import http.server
 import importlib.util
+import io
+import os
 from pathlib import Path
+import re
+import subprocess
 import sys
+import tarfile
 import tempfile
+import textwrap
 import threading
 import unittest
 
@@ -33,7 +39,13 @@ class Workflow(unittest.TestCase):
             self.assertIn(needle, WORKFLOW)
         # Only the signing subkey is ever imported; no primary secret or passphrase-free primary.
         self.assertNotIn('PRIMARY', WORKFLOW.upper().replace('PRIMARY FINGERPRINT', ''))
-        self.assertEqual(WORKFLOW.count('secrets.'), 1)
+        self.assertEqual(set(re.findall(r'secrets\.(\w+)', WORKFLOW)), {'WROS_UPDATE_SIGNING_SUBKEY'})
+        # Without the subkey nothing is signed in CI: a release's own bundle is checked, then served as it is.
+        for needle in ("if: steps.plan.outputs.sign == 'true'", "if: steps.plan.outputs.release != ''",
+                       'tools/publish-updates.py check-bundle', 'releases/download/$RELEASE/wros-updates.tar'):
+            self.assertIn(needle, WORKFLOW)
+        self.assertEqual(WORKFLOW.count("if: steps.plan.outputs.sign == 'true'"), 2)
+        self.assertEqual(WORKFLOW.count("if: steps.plan.outputs.deploy == 'true'"), 2)
 
     def test_apt_source_points_at_the_fixed_url_with_the_package_keyring(self):
         self.assertEqual((ROOT / 'os/config/apt/wros.sources').read_text(), (
@@ -42,6 +54,111 @@ class Workflow(unittest.TestCase):
             'Suites: ./\n'
             'Signed-By: /usr/share/wros/update-keyring.gpg\n'))
         self.assertIn(publish.UPDATE_URL, WORKFLOW)
+
+
+TREE = (ROOT / 'os/VERSION').read_text().splitlines()[0].strip()
+TAG = 'v' + TREE.replace('~', '-')
+
+
+def plan(event, *, ref='', signing=False, scratch=False, release=''):
+    """Run the workflow's 'Plan this run' step as GitHub would, returning its outputs."""
+    block = WORKFLOW.split('- name: Plan this run', 1)[1].split('\n      - ', 1)[0]
+    script = textwrap.dedent(block.split('run: |\n', 1)[1])
+    with tempfile.TemporaryDirectory(prefix='wros-plan-') as tmp:
+        output = Path(tmp) / 'output'
+        output.touch()
+        env = {'PATH': os.environ['PATH'], 'GITHUB_EVENT_NAME': event, 'GITHUB_REF_NAME': ref,
+               'GITHUB_OUTPUT': str(output), 'SIGNING': 'true' if signing else 'false',
+               'SCRATCH': 'true' if scratch else 'false', 'RELEASE': release}
+        result = subprocess.run(['bash', '-c', script], cwd=ROOT, env=env, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise ValueError(result.stderr)
+        return dict(line.split('=', 1) for line in output.read_text().splitlines())
+
+
+class Plan(unittest.TestCase):
+    def test_without_the_subkey_a_release_is_served_from_its_asset_and_nothing_else_deploys(self):
+        cases = [
+            # event, options -> build, release, sign, deploy
+            (('push', dict(ref=TAG, signing=True)), ('updates', '', 'true', 'true')),
+            (('push', dict(ref=TAG)), ('', TAG, 'false', 'true')),
+            (('schedule', dict(signing=True)), ('', '', 'true', 'true')),
+            (('schedule', {}), ('', '', 'false', 'false')),
+            (('workflow_dispatch', dict(scratch=True, signing=True)), ('updates-scratch', '', 'true', 'true')),
+            (('workflow_dispatch', dict(scratch=True)), ('', '', 'false', 'false')),
+            (('workflow_dispatch', dict(release=TAG, signing=True)), ('', TAG, 'false', 'true')),
+            (('workflow_dispatch', dict(release=TAG)), ('', TAG, 'false', 'true')),
+        ]
+        for (event, options), expected in cases:
+            with self.subTest(event=event, **options):
+                out = plan(event, **options)
+                self.assertEqual((out['build'], out['release'], out['sign'], out['deploy']), expected)
+        self.assertEqual(plan('push', ref=TAG)['version'], TREE)
+        # A release must name the version in the tree it is published from.
+        with self.assertRaisesRegex(ValueError, 'os/VERSION'):
+            plan('workflow_dispatch', release='v9.9.9')
+
+
+class CheckBundle(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.gpg = support.shared_gpg()
+        cls.tmp = tempfile.TemporaryDirectory(prefix='wros-check-bundle-')
+        base = Path(cls.tmp.name)
+        (base / 'debs').mkdir()
+        cls.deb = support.make_deb(base / 'debs', 'wros', '0.1.0~rc3', arch='amd64')
+        support.write_bundle(base / 'good', [cls.deb], cls.gpg)
+        support.write_bundle(base / 'foreign', [cls.deb], cls.gpg, signer='other')
+        cls.keyring = base / 'keyring.gpg'
+        cls.gpg.export(['archive'], cls.keyring)
+        cls.pin = base / 'update-signers'
+        cls.pin.write_text(cls.gpg.keys['archive']['primary'].upper() + '\n')
+        cls.base = base
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def tar(self, bundle, name, *, replace=None, extra=None):
+        path = self.base / name
+        with tarfile.open(path, 'w') as tar:
+            for file in sorted(Path(bundle).rglob('*')):
+                rel = file.relative_to(bundle).as_posix()
+                if replace and rel in replace:
+                    info = tarfile.TarInfo(rel)
+                    info.size = len(replace[rel])
+                    tar.addfile(info, io.BytesIO(replace[rel]))
+                else:
+                    tar.add(file, arcname=rel, recursive=False)
+            for info, data in extra or ():
+                tar.addfile(info, io.BytesIO(data) if data is not None else None)
+        return path
+
+    def check(self, tar, version='0.1.0~rc3'):
+        out = Path(tempfile.mkdtemp(prefix='site-', dir=self.base)) / 'updates'
+        return publish.check_bundle(tar, out, version, keyring=self.keyring, pin=self.pin), out
+
+    def test_a_release_bundle_is_served_only_as_a_wros_computer_would_accept_it(self):
+        good = self.tar(self.base / 'good', 'good.tar')
+        _, out = self.check(good)
+        self.assertEqual((out / 'pool' / self.deb.name).read_bytes(), self.deb.read_bytes())
+        self.assertTrue((out / 'InRelease').is_file())
+        with self.assertRaisesRegex(ValueError, 'publishes'):
+            self.check(good, version='0.1.0~rc4')
+        with self.assertRaises(ValueError):
+            self.check(self.tar(self.base / 'foreign', 'foreign.tar'))
+        with self.assertRaises(ValueError):
+            self.check(self.tar(self.base / 'good', 'tampered.tar',
+                                replace={f'pool/{self.deb.name}': self.deb.read_bytes() + b'x'}))
+        escape = tarfile.TarInfo('../escape')
+        escape.size = 1
+        with self.assertRaises(ValueError):
+            self.check(self.tar(self.base / 'good', 'escape.tar', extra=[(escape, b'x')]))
+        self.assertFalse((self.base / 'escape').exists())
+        link = tarfile.TarInfo('Packages.link')
+        link.type, link.linkname = tarfile.SYMTYPE, 'Packages'
+        with self.assertRaises(ValueError):
+            self.check(self.tar(self.base / 'good', 'link.tar', extra=[(link, None)]))
 
 
 class TagVersion(unittest.TestCase):

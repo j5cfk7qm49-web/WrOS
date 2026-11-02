@@ -7,15 +7,24 @@
                            if its InRelease verifies against the committed keyring with the
                            pinned primary and the .deb matches the signed index; print its
                            path, or nothing when nothing is published yet
+  check-bundle TAR OUTDIR VERSION
+                           unpack a bundle signed outside CI (a release asset) into OUTDIR
+                           and verify it as a WrOS computer would: the committed keyring and
+                           pin, the signed index, every package, and that it publishes VERSION
 
-CI never signs a package it cannot trace to an earlier signature by the pinned key.
+CI never signs a package it cannot trace to an earlier signature by the pinned key, and
+serves a bundle signed elsewhere only unchanged and only after checking it.
 """
 import argparse
 import hashlib
+import importlib.machinery
+import importlib.util
+import os
 from pathlib import Path
 import re
 import subprocess
 import sys
+import tarfile
 import tempfile
 import urllib.error
 import urllib.request
@@ -103,6 +112,36 @@ def published_deb(base_url, outdir, *, keyring=KEYRING, pin=None):
     return path
 
 
+def load_engine():
+    path = REPO / 'os/scripts/wros-update-engine.py'
+    loader = importlib.machinery.SourceFileLoader('wros_update_engine_for_publish', str(path))
+    module = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
+    loader.exec_module(module)
+    return module
+
+
+def check_bundle(tar, outdir, version, *, keyring=KEYRING, pin=PIN):
+    """Unpack a release's bundle into the new directory OUTDIR and verify it as a WrOS computer would."""
+    outdir = Path(outdir)
+    outdir.mkdir(parents=True)
+    try:
+        with tarfile.open(tar) as archive:
+            for member in archive.getmembers():
+                if not (member.isfile() or member.isdir()):
+                    raise ValueError(f'the bundle holds something other than files: {member.name}')
+            archive.extractall(outdir, filter='data')
+    except tarfile.TarError as exc:
+        raise ValueError(f'the bundle could not be unpacked safely: {exc}') from None
+    engine = load_engine()
+    engine.TRUSTED_UID = os.geteuid()
+    verified = engine.verify_bundle(outdir, keyring=Path(keyring), signers=Path(pin), host_arch='amd64',
+                                    package_keyring=Path('/nonexistent'))
+    published = {p['name']: p['version'] for p in verified['packages']}.get('wros')
+    if published != version:
+        raise ValueError(f'the bundle publishes wros {published}, not {version}')
+    return verified
+
+
 def main(argv):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest='command', required=True)
@@ -111,9 +150,16 @@ def main(argv):
     published = commands.add_parser('published')
     published.add_argument('url')
     published.add_argument('outdir', type=Path)
+    check = commands.add_parser('check-bundle')
+    check.add_argument('tar', type=Path)
+    check.add_argument('outdir', type=Path)
+    check.add_argument('version')
     args = parser.parse_args(argv)
     if args.command == 'version':
         print(tag_version(args.tag, (REPO / 'os/VERSION').read_text().splitlines()[0].strip()))
+    elif args.command == 'check-bundle':
+        verified = check_bundle(args.tar, args.outdir, args.version)
+        print(f"verified wros {args.version}, signed by {verified['signer_fingerprint']}")
     else:
         path = published_deb(args.url, args.outdir)
         if path is not None:

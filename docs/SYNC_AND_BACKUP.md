@@ -8,7 +8,7 @@
 4. **Bidirectional sync:** compare versions, detect conflicts and preserve both sides. A simple upload/copy command is not this protocol.
 5. **Google Docs interoperability:** a separate import/export/round-trip question, not implied by storing Markdown files in Drive.
 
-Current cloud-related code detects known synced folders and preserves external edits/conflict copies. `grimoire-app` has stamp-checked mobile save APIs and the Android Tauri prototype uses them. There is no completed Google OAuth/Drive queue, iPhone client or safe Docs round trip in WritingDeck.
+Current cloud-related code detects known synced folders and preserves external edits/conflict copies. `grimoire-app` has stamp-checked mobile save APIs and the Android Tauri prototype uses them. WrOS also keeps readable Markdown copies of a book in Google Drive in step with the computer (below). There is no iPhone client or safe Docs round trip in WritingDeck.
 
 Pin metadata is now project-local alongside layout state. Include it in a consistent project backup, but it never substitutes for the source Markdown files. Guarded pin-state conflicts are reported and require explicit metadata reload/relink; cards do not create a second source text to synchronize. See [PINS](PINS.md).
 
@@ -20,14 +20,39 @@ Native local/Google Drive encrypted snapshots and restore-to-new-folder controls
 are now implemented through maintained Restic/rclone. See the complete
 [native backup and recovery workflow](NATIVE_BACKUP.md) for setup, private recovery
 keys, masked Google authorization, source/manifest checks, limits and failure
-handling. Real Google acceptance, the automatic queue, bidirectional sync and
-Docs round trips remain separate. The following describes remaining cloud work.
+handling. Real Google acceptance, the automatic queue and Docs round trips remain
+separate. The following describes remaining cloud work.
 
 Prefer maintained rclone for explicit terminal OAuth enrollment rather than hardcoded client secrets. Verify the provider's supported current authorization flow; a browser on a trusted second device may be needed. Never ask users to paste access tokens into a manuscript or publish credentials. Keep rclone/account configuration private (0600), outside a synced project, with an optional secret store and revocation instructions.
 
 Opt-in backup jobs stage a consistent saved revision, create versioned content, record a cryptographic SHA-256 manifest, upload only after explicit enrollment, verify the remote result and support a restore to a **new directory**. An interrupted job is resumable/idempotent and never relabeled verified until the hash/restore checks pass. Encryption before upload and recovery-secret custody require an explicit threat-model decision. Low-power/offline states keep the queue without blocking input.
 
 Use rclone `copy`/versioned immutable destinations for initial backup evaluation, not a blind `sync --delete` of the only good copy. Bidirectional synchronization needs a base-version ledger, tombstone/conflict policy and safe application through existing guarded saves; never overwrite a dirty editor because a cloud watcher noticed a file.
+
+## Readable Google Drive sync
+
+Per book, opt-in: Settings › Backups › **Sync this book with Google Drive (readable files)**.
+The book's Markdown files are copied, unencrypted, to `WrOS/<book>/` in the connected
+Drive, and edits made there come back. The app syncs when the book opens, 10 seconds
+after a save and every 5 minutes while it is open, never with unsaved words.
+
+- **Base versions.** A private ledger (`$XDG_DATA_HOME/grimoire/wros/sync/<project>/`)
+  records the version both sides last agreed on, by MD5. A file changed on one side is
+  copied to the other; the first sync of a book never deletes.
+- **History.** Any version a sync replaces or deletes, on either side, first moves to
+  `WrOS-History/<book>/<date>/<path> (<time> from WrOS|from Drive)` in Drive.
+- **Conflicts.** A file changed on both sides keeps the WrOS version in place and
+  parks Drive's as `<name> (from Drive, <date> <time>).md` beside it; that file pauses
+  until merged. Edits to different paragraphs merge by themselves; where both sides
+  changed the same paragraph the writer picks theirs, Drive's or both, clash by clash.
+- **Delete guard.** A sync that would delete more than 5 files, or empty either side,
+  stops and asks (**Sync and delete N files**).
+- **Safe writes.** A local file is replaced only if it still matches what the sync read;
+  an edit made meanwhile is left for the next run. Offline runs simply wait.
+
+The book's identity is `.grimoire/sync.json` plus a `.wros-sync.json` marker in the Drive
+folder, so a second computer can join the same folder later. Encrypted backups are
+unchanged and remain the recovery path.
 
 ## Mobile and Google Docs evaluation
 
@@ -39,8 +64,8 @@ Required round-trip fixture: Unicode, YAML unknown fields/comments, scene metada
 
 No Google account was enrolled or manuscript transmitted during implementation.
 Live provider acceptance remains **Blocked** on account consent. Native encrypted
-local/Drive backup adapters are implemented; automatic queues, bidirectional sync
-and Docs interoperability remain **Planned**.
+local/Drive backup adapters and per-book readable Drive sync are implemented;
+automatic backup queues and Docs interoperability remain **Planned**.
 
 Current tests: upstream mobile/sync conflict, atomic save, deleted/unavailable file behavior and recovery tests. Future tests: fake transport interruption, hashes, replay-safe queue, restore-new-directory, conflict/tombstone handling and network-disabled writing. Tutorial lessons 36/37 remain unavailable until actual safe enrollment/restore/mobile workflows exist.
 

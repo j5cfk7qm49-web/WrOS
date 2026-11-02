@@ -7,6 +7,11 @@ name: release-updates
 # Pages replaces the whole site on every deploy, so each run republishes the live
 # updates/ folder: a tag builds it, any other run re-signs the package already there
 # (after checking it against the committed keyring and pin).
+#
+# Until the WROS_UPDATE_SIGNING_SUBKEY secret is set, CI signs nothing: a release tag
+# (or a dispatch naming one) serves the release's wros-updates.tar asset, signed offline
+# with the pinned key, unchanged and only after checking it; other runs deploy nothing,
+# so Pages keeps serving the last deploy.
 
 on:
   push:
@@ -19,6 +24,10 @@ on:
         description: Also build this ref into updates-scratch/ (updates/ is only re-signed)
         type: boolean
         default: true
+      release:
+        description: Serve this release tag's wros-updates.tar as updates/ (signed offline), instead
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -52,19 +61,42 @@ jobs:
       - name: Plan this run
         id: plan
         shell: bash
+        env:
+          SIGNING: ${{ secrets.WROS_UPDATE_SIGNING_SUBKEY != '' }}
+          SCRATCH: ${{ inputs.scratch }}
+          RELEASE: ${{ inputs.release }}
         run: |
           set -euo pipefail
           build=''
           version=''
+          release=''
           if [ "$GITHUB_EVENT_NAME" = push ]; then
-            build=updates
             version=$(python3 tools/publish-updates.py version "$GITHUB_REF_NAME")
-          elif [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ "${{ inputs.scratch }}" = true ]; then
+            if [ "$SIGNING" = true ]; then build=updates; else release=$GITHUB_REF_NAME; fi
+          elif [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ -n "$RELEASE" ]; then
+            version=$(python3 tools/publish-updates.py version "$RELEASE")
+            release=$RELEASE
+          elif [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ "$SCRATCH" = true ] && [ "$SIGNING" = true ]; then
             build=updates-scratch
             version=$(head -n1 os/VERSION)
           fi
-          echo "build=$build" >> "$GITHUB_OUTPUT"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          sign=false
+          deploy=false
+          if [ -n "$release" ]; then
+            deploy=true
+          elif [ "$SIGNING" = true ]; then
+            sign=true
+            deploy=true
+          else
+            echo "::notice::No signing subkey: nothing is signed or deployed; Pages keeps the last deploy"
+          fi
+          {
+            echo "build=$build"
+            echo "version=$version"
+            echo "release=$release"
+            echo "sign=$sign"
+            echo "deploy=$deploy"
+          } >> "$GITHUB_OUTPUT"
       - name: Pinned Rust toolchain
         if: steps.plan.outputs.build != ''
         shell: bash
@@ -83,7 +115,28 @@ jobs:
           mkdir -p out/bin out/new
           cp target/release/grimoire out/bin/
           python3 -I tools/build-wros-debs.py --binaries-dir out/bin --version "$VERSION" --output out/new
+      - name: Serve the release's offline-signed bundle
+        if: steps.plan.outputs.release != ''
+        shell: bash
+        env:
+          RELEASE: ${{ steps.plan.outputs.release }}
+          VERSION: ${{ steps.plan.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p out site
+          # The tag can arrive a moment before its release asset does.
+          for attempt in $(seq 1 30); do
+            if curl -fsSL --proto '=https' -o out/wros-updates.tar \
+                "https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE/wros-updates.tar"; then
+              break
+            fi
+            [ "$attempt" -lt 30 ] || { echo "no wros-updates.tar on release $RELEASE" >&2; exit 1; }
+            sleep 20
+          done
+          python3 -I tools/publish-updates.py check-bundle out/wros-updates.tar site/updates "$VERSION"
+          find site -type f | sort
       - name: Import the CI signing subkey
+        if: steps.plan.outputs.sign == 'true'
         shell: bash
         env:
           SUBKEY: ${{ secrets.WROS_UPDATE_SIGNING_SUBKEY }}
@@ -94,6 +147,7 @@ jobs:
           printf '%s\n' "$SUBKEY" | gpg --batch --import
           echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
       - name: Sign into the site
+        if: steps.plan.outputs.sign == 'true'
         shell: bash
         env:
           BUILD: ${{ steps.plan.outputs.build }}
@@ -116,6 +170,8 @@ jobs:
           fi
           find site -type f | sort
       - uses: actions/upload-pages-artifact@v3
+        if: steps.plan.outputs.deploy == 'true'
         with:
           path: site
       - uses: actions/deploy-pages@v4
+        if: steps.plan.outputs.deploy == 'true'

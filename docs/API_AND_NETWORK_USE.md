@@ -77,6 +77,16 @@ private-note exclusion policy does not apply to disaster-recovery backups.
 No real account was enrolled or manuscript transmitted during qualification.
 See [scope and recovery](NATIVE_BACKUP.md).
 
+## Readable Google Drive sync
+
+`src/sync_service.rs` runs the unprivileged `/usr/libexec/wros-sync` helper, which
+uses the backup's rclone configuration (`lsjson --hash`, `copyto`, `moveto`, `cat`,
+`rcat`) against the `WrOS/` and `WrOS-History/` folders of the connected Drive. Nothing
+is contacted until the writer turns sync on for a book; then the app syncs that book
+when it opens, 10 seconds after a save and every 5 minutes while it is open, sending
+only files that changed since the last agreed version. Those copies are not encrypted.
+Offline runs fail quietly and wait for the next one; nothing queues.
+
 ## Debian integration and unavailable services
 
 The native backend invokes local `nmcli` (NetworkManager), `timedatectl`
@@ -103,9 +113,9 @@ downloads until the writer chooses Settings › Updates › Update WrOS, which
 fetches that update's `.deb` from the same address. Debian's `apt-daily` timers
 also read that address, through `/etc/apt/sources.list.d/wros.sources`.
 
-General Drive browsing/materialization, cloud sync, update application and
+General Drive browsing/materialization, update application and
 recovery/firmware operations remain unavailable and fail before their tools run.
-The separate backup adapter provides explicit authorization/backup/restore;
+The separate backup and sync adapters provide explicit authorization/backup/restore and opt-in sync;
 the old general-purpose system request variants remain unavailable. No successful OAuth enrollment,
 Drive API call or manuscript upload is fabricated. No telemetry or mandatory
 cloud service is introduced by these writing integrations.
