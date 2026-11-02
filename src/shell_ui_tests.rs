@@ -925,6 +925,7 @@ fn online_update_clock_and_offline_states_never_alert() {
             "Couldn't check for WrOS updates: this computer's clock may be wrong (it reads 2001-01-01 00:00).",
         ),
         ("unreachable", "Couldn't reach the WrOS update server"),
+        ("unpublished", "No WrOS updates have been published yet"),
         (
             "expired",
             "The WrOS update server's signature has expired; WrOS will check again later",

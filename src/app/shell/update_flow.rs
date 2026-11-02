@@ -64,6 +64,7 @@ fn online_line(online: Option<&writingdeck_sys::OnlineUpdate>) -> String {
             online.clock
         ),
         ("unreachable", _, _) => "Couldn't reach the WrOS update server".into(),
+        ("unpublished", _, _) => "No WrOS updates have been published yet".into(),
         ("expired", _, _) => {
             "The WrOS update server's signature has expired; WrOS will check again later".into()
         }
@@ -555,7 +556,10 @@ impl App {
             self.deck.shell.notices.push(&alert);
             self.msg = alert;
         }
-        if matches!(online.status.as_str(), "unreachable" | "clock" | "expired") {
+        if matches!(
+            online.status.as_str(),
+            "unreachable" | "unpublished" | "clock" | "expired"
+        ) {
             self.deck.shell.update_flow.online_next = Some(SystemTime::now() + ONLINE_RETRY);
         }
         self.deck.note = online_line(Some(&online));

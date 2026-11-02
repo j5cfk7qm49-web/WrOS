@@ -698,6 +698,9 @@ class OnlineUpdateTests(unittest.TestCase):
             port = closed.getsockname()[1]
         self.assertEqual(update.check_online(base_url=f'http://127.0.0.1:{port}/', **self.system('0.1.0~rc2'))['status'],
                          'unreachable')
+        # The server answers but nothing is published there yet.
+        self.assertEqual(update.check_online(base_url=self.url + 'nothing-yet/', **self.system('0.1.0~rc2'))['status'],
+                         'unpublished')
         # An index that does not match its signature yet (Pages caches mid-publish): try later.
         self.assertEqual(update.check_online(base_url=self.url + 'tampered/', **self.system('0.1.0~rc2'))['status'],
                          'unreachable')

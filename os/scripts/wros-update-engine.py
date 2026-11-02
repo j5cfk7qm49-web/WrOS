@@ -2032,6 +2032,8 @@ def check_online(*, base_url=ONLINE_URL, now=None, dpkg_dir=DEFAULT_DPKG_DIR, ke
         _, _, _, _, wros = read_online_metadata(base_url, now=now, keyring=keyring, signers=signers,
                                                 package_keyring=package_keyring, opener=opener, seen=seen)
     except (OSError, TimeoutError) as exc:
+        if getattr(exc, 'code', None) == 404 and str(getattr(exc, 'url', '')).endswith('/InRelease'):
+            return result | {'status': 'unpublished'}  # the server answered: nothing is published there yet
         wrong = tls_clock_failure(exc) or moment < CLOCK_FLOOR
         return result | {'status': 'clock' if wrong else 'unreachable'}
     except ValueError as exc:

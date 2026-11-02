@@ -497,6 +497,7 @@ pub fn online_update(output: &str) -> Result<crate::OnlineUpdate> {
             "clock",
             "expired",
             "unreachable",
+            "unpublished",
             "invalid"
         ]
         .contains(&raw.status.as_str()),
