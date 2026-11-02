@@ -97,7 +97,10 @@ def stub_inputs(base):
     return binaries, keymaps
 
 
-def build(repo, out, binaries, keymaps, version='0.1.0~rc1', commit='a' * 40, epoch=EPOCH):
+TREE = (ROOT / 'os/VERSION').read_text().splitlines()[0]
+
+
+def build(repo, out, binaries, keymaps, version=TREE, commit='a' * 40, epoch=EPOCH):
     return packaging.build_deb(binaries_dir=binaries, version=version, output_dir=out, repo=repo,
                                keymaps_dir=keymaps, commit=commit, epoch=epoch)
 
@@ -192,7 +195,7 @@ class Builder(unittest.TestCase):
         provided |= {'apt', 'dpkg', 'libgcc-s1', 'passwd', 'util-linux', 'systemd'}
         for dependency in fields['Depends'].split(', '):
             self.assertIn(dependency, provided, 'depends on something the image does not provide')
-        self.assertEqual(self.deb.name, 'wros_0.1.0~rc1_amd64.deb')
+        self.assertEqual(self.deb.name, f'wros_{TREE}_amd64.deb')
         archive = run('ar', 't', str(self.deb)).stdout.split()
         self.assertEqual(archive, ['debian-binary', 'control.tar.xz', 'data.tar.xz'])
 
@@ -239,7 +242,7 @@ class Builder(unittest.TestCase):
         extract = self.base / 'extract3'
         run('dpkg-deb', '-x', str(self.deb), str(extract))
         self.assertEqual((extract / 'etc/writingdeck/release').read_text(),
-                         'WRITINGDECK_VERSION=0.1.0~rc1\nWROS_COMMIT=' + 'a' * 40 + '\nBUILD_DATE=2023-11-14\n'
+                         f'WRITINGDECK_VERSION={TREE}\nWROS_COMMIT=' + 'a' * 40 + '\nBUILD_DATE=2023-11-14\n'
                          'GRIMOIRE_BASE=0.7.5\nBASE_COMMIT=f3ca1e8\n')
 
     def test_a_newer_version_builds_from_modified_inputs_and_orders_after_the_baseline(self):
@@ -334,7 +337,7 @@ class Builder(unittest.TestCase):
                  '--output', out, '--commit', 'a' * 40, '--source-date-epoch', str(EPOCH)],
                 check=True, capture_output=True, text=True)
             info = json.loads(result.stdout)
-            self.assertEqual((info['package'], info['version'], info['architecture']), ('wros', '0.1.0~rc1', 'amd64'))
+            self.assertEqual((info['package'], info['version'], info['architecture']), ('wros', TREE, 'amd64'))
             self.assertEqual(Path(info['path']).read_bytes(), self.deb.read_bytes())
             self.assertEqual(info['sha256'], hashlib.sha256(self.deb.read_bytes()).hexdigest())
             newer = subprocess.run(
@@ -359,7 +362,7 @@ class DpkgRootInstall(unittest.TestCase):
         cls.tmp = tempfile.TemporaryDirectory(prefix='wros-dpkg-')
         cls.base = Path(cls.tmp.name)
         binaries, keymaps = stub_inputs(cls.base)
-        cls.rc1 = build(ROOT, cls.base / 'out1', binaries, keymaps)
+        cls.rc1 = build(ROOT, cls.base / 'out1', binaries, keymaps, version='0.1.0~rc1')
         repo = copy_repo(cls.base / 'repo2')
         (repo / 'os/config/60-wros-sysrq.conf').write_bytes(
             (ROOT / 'os/config/60-wros-sysrq.conf').read_bytes() + b'# rc2\n')
@@ -677,8 +680,8 @@ class ManifestData(unittest.TestCase):
                 self.assertIn(entry.name, packaged_sources, 'unpackaged config ' + entry.name)
 
     def test_version_is_the_single_source(self):
-        self.assertEqual((ROOT / 'os/VERSION').read_text(), '0.1.0~rc1\n')
-        self.assertEqual(packaging.read_version(ROOT), '0.1.0~rc1')
+        self.assertEqual((ROOT / 'os/VERSION').read_text(), '0.1.0~rc2\n')
+        self.assertEqual(packaging.read_version(ROOT), '0.1.0~rc2')
         for bad in ('', '1:2', 'v1', '1 2', '1\t2'):
             with self.assertRaises(packaging.PackagingError):
                 packaging.check_version(bad)
@@ -753,9 +756,9 @@ class StageIntoRoot(unittest.TestCase):
         repo, root, env, work = self.prepare()
         result = self.stage(repo, root, env, work)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(installed_version(root), '0.1.0~rc1')
+        self.assertEqual(installed_version(root), TREE)
         release = (root / 'etc/writingdeck/release').read_text()
-        self.assertEqual(release, 'WRITINGDECK_VERSION=0.1.0~rc1\nWROS_COMMIT=' + 'c' * 40
+        self.assertEqual(release, f'WRITINGDECK_VERSION={TREE}\nWROS_COMMIT=' + 'c' * 40
                          + '\nBUILD_DATE=2023-11-14\nGRIMOIRE_BASE=0.7.5\nBASE_COMMIT=f3ca1e8\n')
         self.assertEqual((root / 'etc/writingdeck/image-profile').read_text(), 'IMAGE_PROFILE=installer\n')
         self.assertTrue((root / 'etc/writingdeck/installer-keyboard-pending').is_file())
@@ -784,7 +787,7 @@ class StageIntoRoot(unittest.TestCase):
         # The audit reads sources from its own repository copy, whose engine files are the stand-ins.
         loaded.loader.exec_module(audit)
         self.assertEqual(audit.REPO, repo)
-        self.assertEqual(audit.audit_package(root)['version'], '0.1.0~rc1')
+        self.assertEqual(audit.audit_package(root)['version'], TREE)
         audit.audit_update_engine(root)
         self.assertEqual(audit.audit_trust(root, fixture_fingerprints=set()), [self.fpr])
         self.assertEqual(audit.audit_units(root), ['writingdeck-keyboard.service', 'wros-display.service',
@@ -874,10 +877,10 @@ class StageIntoRoot(unittest.TestCase):
         self.assertIn('newer wros', result.stderr)
         repo, root, env, work = self.prepare()
         binaries, keymaps = stub_inputs(work)
-        wrong = build(ROOT, work / 'prebuilt', binaries, keymaps, version='0.1.0~rc2')
+        wrong = build(ROOT, work / 'prebuilt', binaries, keymaps, version='0.1.0~rc9')
         result = self.stage(repo, root, {**env, 'WROS_PACKAGE_DEB': str(wrong)}, work)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn('not wros 0.1.0~rc1', result.stderr)
+        self.assertIn(f'not wros {TREE}', result.stderr)
         self.assertFalse((root / 'usr/bin/grimoire').exists())
         result = self.stage(repo, Path('/'), env, work)
         self.assertEqual(result.returncode, 2)
