@@ -6,6 +6,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 module = importlib.machinery.SourceFileLoader('wros_sync', str(ROOT / 'os/scripts/wros-sync')).load_module()
@@ -144,6 +145,102 @@ class Sync(unittest.TestCase):
         self.assertTrue((self.remote / 'notes/n0.md').exists())
         self.assertEqual(self.sync(allow_deletes=True)['deleted'], 6)
         self.assertFalse((self.remote / 'notes/n0.md').exists())
+
+    def test_saves_during_upload_do_not_change_the_uploaded_merge_base(self):
+        self.service.enable(str(self.book))
+        self.sync()
+        scene = 'manuscript/01-Part/01-Scene.md'
+        local, remote = self.book / scene, self.remote / scene
+        uploaded = 'Opening, revised.\n\nMiddle.\n\nEnd.\n'
+        during = uploaded + '\nWords saved during the upload.\n'
+        latest = during + '\nMore words saved as the upload finished.\n'
+        local.write_text(uploaded)
+        rclone = self.service.rclone
+
+        def writer_saves(*arguments, **kwargs):
+            if arguments[0] == 'copyto' and arguments[-1] == module.REMOTE + f'WrOS/My Book/{scene}':
+                local.write_text(during)
+                result = rclone(*arguments, **kwargs)
+                local.write_text(latest)
+                return result
+            return rclone(*arguments, **kwargs)
+
+        with mock.patch.object(self.service, 'rclone', side_effect=writer_saves):
+            self.assertEqual(self.sync()['uploaded'], 1)
+        self.assertEqual(remote.read_text(), uploaded)
+        self.assertEqual(local.read_text(), latest)
+        home = self.service.state / self.service.identity(self.book)['project_id']
+        self.assertEqual((home / 'base' / scene).read_text(), uploaded)
+        self.assertEqual(json.loads((home / 'base.json').read_text())[scene], module.digests(remote)[0])
+
+        # A later phone edit must merge against what actually reached Drive,
+        # never against the newer words that only exist on this computer.
+        remote.write_text(uploaded.replace('Middle.', 'Middle, edited on the phone.'))
+        pending = self.sync()['pending'][0]
+        self.assertEqual(Path(pending['merge_base']).read_text(), uploaded)
+        self.assertEqual(local.read_text(), latest)
+
+    def test_a_save_before_upload_staging_skips_the_stale_plan(self):
+        self.service.enable(str(self.book))
+        self.sync()
+        scene = 'manuscript/01-Part/01-Scene.md'
+        local, remote = self.book / scene, self.remote / scene
+        before = remote.read_text()
+        local.write_text('Scanned revision.\n')
+        apply = self.service.apply
+
+        def writer_saves(root, folder, home, base, relative, action, *arguments):
+            if relative == scene and action == 'upload':
+                local.write_text('Newer revision saved after the scan.\n')
+            return apply(root, folder, home, base, relative, action, *arguments)
+
+        with mock.patch.object(self.service, 'apply', side_effect=writer_saves):
+            result = self.sync()
+        self.assertEqual(result['skipped'], [scene])
+        self.assertEqual(result['uploaded'], 0)
+        self.assertEqual(remote.read_text(), before)
+        self.assertEqual(self.sync()['uploaded'], 1)
+        self.assertEqual(remote.read_text(), local.read_text())
+
+    def test_a_save_while_adopting_an_equal_version_cannot_become_the_merge_base(self):
+        self.service.enable(str(self.book))
+        self.sync()
+        scene = 'manuscript/01-Part/01-Scene.md'
+        local, remote = self.book / scene, self.remote / scene
+        shared = 'The same saved edit on both sides.\n'
+        local.write_text(shared)
+        remote.write_text(shared)
+        remember = self.service.remember
+
+        def writer_saves(home, base, relative, md5, source=None):
+            if relative == scene:
+                local.write_text(shared + '\nNew words only saved here.\n')
+            return remember(home, base, relative, md5, source)
+
+        with mock.patch.object(self.service, 'remember', side_effect=writer_saves):
+            self.sync()
+        home = self.service.state / self.service.identity(self.book)['project_id']
+        self.assertFalse((home / 'base' / scene).exists(), 'an unchecked text base must not be kept')
+        self.assertEqual(json.loads((home / 'base.json').read_text())[scene], module.digests(remote)[0])
+        remote.write_text('A later edit on the phone.\n')
+        pending = self.sync()['pending'][0]
+        self.assertIsNone(pending['merge_base'], 'both copies remain available for a manual settlement')
+
+    def test_an_inconsistent_base_from_an_older_run_is_not_used_for_merging(self):
+        self.service.enable(str(self.book))
+        self.sync()
+        scene = 'manuscript/01-Part/01-Scene.md'
+        local, remote = self.book / scene, self.remote / scene
+        mine = 'Local words not yet uploaded.\n'
+        theirs = 'A separate edit on the phone.\n'
+        local.write_text(mine)
+        remote.write_text(theirs)
+        home = self.service.state / self.service.identity(self.book)['project_id']
+        (home / 'base' / scene).write_text(mine)
+        pending = self.sync()['pending'][0]
+        self.assertIsNone(pending['merge_base'])
+        self.assertEqual(local.read_text(), mine)
+        self.assertEqual((self.book / pending['parked']).read_text(), theirs)
 
     def test_an_emptied_drive_folder_deletes_nothing_locally(self):
         self.service.enable(str(self.book))

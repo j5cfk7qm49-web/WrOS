@@ -128,6 +128,15 @@ impl App {
     }
 
     fn open_merge(&mut self, copy: PathBuf) {
+        // Build "Mine" from the saved editor buffers, rather than the older
+        // disk text that settling would otherwise overwrite those words with.
+        if !self.commit_saves() {
+            return;
+        }
+        if self.project.dirty_count() != 0 || self.tree_stale {
+            self.msg = "merge is waiting for saved words and source changes to be re-read".into();
+            return;
+        }
         let Some(pieces) = self.merge_pieces(&copy) else {
             self.msg = "this copy can't be merged; take it, keep the scene, or keep both".into();
             return;

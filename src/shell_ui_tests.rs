@@ -1165,6 +1165,55 @@ fn a_clash_waits_for_the_writer_and_merges_paragraph_by_paragraph() {
 }
 
 #[test]
+fn a_manual_drive_merge_keeps_unsaved_words_when_the_writer_chooses_mine() {
+    let root = book("sync-merge-unsaved", true);
+    let (scene, parked, pending) = parked_drive_edit(
+        &root,
+        "---\ntitle: Scene One\n---\n\nFirst.\n\nSecond.\n",
+        "---\ntitle: Scene One\n---\n\nFirst, mine.\n\nSecond.\n",
+        "---\ntitle: Scene One\n---\n\nFirst, theirs.\n\nSecond, theirs.\n",
+    );
+    let mut desk = Desk::open(root, 120, 40);
+    desk.app.deck.shell.backup.sync.pending = vec![pending];
+    // The conflict screen opens the original scene, even when the parked copy
+    // sorted first on launch. Return to it and type before autosave runs.
+    desk.app.open_conflicts();
+    desk.key(KeyCode::Enter);
+    desk.key(KeyCode::Esc);
+    desk.key(KeyCode::Esc);
+    assert_eq!(
+        desk.app
+            .open
+            .map(|i| desk.app.project.nodes[i].path.clone()),
+        Some(scene.clone())
+    );
+    desk.app.focus = Focus::Editor;
+    desk.typed("Unsaved words. ");
+    assert!(desk.app.project.dirty_count() > 0);
+    assert!(
+        !std::fs::read_to_string(&scene)
+            .unwrap()
+            .contains("Unsaved words.")
+    );
+    desk.app.open_conflicts();
+    desk.key(KeyCode::Enter);
+    desk.key(KeyCode::Char('4'));
+    assert!(desk.shows("Unsaved words."), "{}", desk.rows().join("\n"));
+    desk.key(KeyCode::Char('1'));
+    assert_eq!(
+        std::fs::read_to_string(&scene).unwrap(),
+        "---\ntitle: Scene One\n---\n\nUnsaved words. First, mine.\n\nSecond, theirs.\n"
+    );
+    assert!(!parked.exists());
+    desk.app.focus = Focus::Tree;
+    desk.ctrl('z');
+    assert_eq!(
+        std::fs::read_to_string(&scene).unwrap(),
+        "---\ntitle: Scene One\n---\n\nUnsaved words. First, mine.\n\nSecond.\n"
+    );
+}
+
+#[test]
 fn update_wros_when_already_current_says_so_without_network_advice() {
     let mut desk = Desk::open(book("online-already-current", true), 120, 30);
     let mut sim = online_backend("available", Some("0.1.0~rc3"));

@@ -24,10 +24,12 @@ import json
 import os
 from pathlib import Path
 import secrets
+import shutil
 import signal
 import stat
 import subprocess
 import sys
+import tempfile
 import uuid
 
 REMOTE = 'wros-google:'
@@ -312,9 +314,14 @@ class Service:
         base[relative] = md5
         copy = home / 'base' / relative
         if source is not None and is_text(relative, source.stat().st_size):
-            write_private(copy, source.read_bytes())
-        elif copy.exists():
-            copy.unlink()
+            # A live local file can change after the scan or a download. Only
+            # keep text that actually matches the agreed version's hash.
+            with source.open('rb') as stream:
+                data = stream.read(TEXT_LIMIT + 1)
+            if is_text(relative, len(data)) and hashlib.md5(data, usedforsecurity=False).hexdigest() == md5:
+                write_private(copy, data)
+                return
+        copy.unlink(missing_ok=True)
 
     def download_to(self, folder, relative, directory):
         """Drive's file into a hidden temporary sibling; returns its path."""
@@ -340,11 +347,23 @@ class Service:
             (home / 'base' / relative).unlink(missing_ok=True)
             return None
         if action == 'upload':
-            if remote_md5 is not None:
-                self.rclone('moveto', live, self.history(folder, relative, 'Drive', stamp))
-            self.rclone('copyto', str(local), live)
-            self.remember(home, base, relative, local_md5, local)
-            return 'uploaded'
+            # Upload and remember the same private snapshot. The writer can
+            # save again while rclone runs without changing either version.
+            with tempfile.TemporaryDirectory(prefix='.upload-', dir=home) as staging:
+                snapshot = Path(staging) / local.name
+                fd = os.open(local, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+                with os.fdopen(fd, 'rb') as source:
+                    require(stat.S_ISREG(os.fstat(source.fileno()).st_mode),
+                            f'Only ordinary files sync; refusing {relative}.')
+                    with snapshot.open('xb') as destination:
+                        shutil.copyfileobj(source, destination)
+                if digests(snapshot)[0] != local_md5:
+                    return 'skipped'
+                if remote_md5 is not None:
+                    self.rclone('moveto', live, self.history(folder, relative, 'Drive', stamp))
+                self.rclone('copyto', str(snapshot), live)
+                self.remember(home, base, relative, local_md5, snapshot)
+                return 'uploaded'
         if action == 'delete_remote':
             self.rclone('moveto', live, self.history(folder, relative, 'Drive', stamp))
             base.pop(relative, None)
@@ -387,9 +406,13 @@ class Service:
             entry = {'path': relative, 'parked': parked.as_posix(), 'merge_base': None}
             previous = home / 'base' / relative
             if is_text(relative, (root / parked).stat().st_size) and previous.exists():
-                merge_base = home / 'merge-base' / relative
-                write_private(merge_base, previous.read_bytes())
-                entry['merge_base'] = str(merge_base)
+                # Older runs may have cached text from a concurrent save.
+                # An inconsistent base must leave both versions for the writer.
+                data = previous.read_bytes()
+                if hashlib.md5(data, usedforsecurity=False).hexdigest() == base.get(relative):
+                    merge_base = home / 'merge-base' / relative
+                    write_private(merge_base, data)
+                    entry['merge_base'] = str(merge_base)
             # Drive's version becomes the base: once settled, the writer's result uploads.
             self.remember(home, base, relative, remote_md5, root / parked)
             return entry
