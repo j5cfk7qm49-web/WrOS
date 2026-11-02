@@ -1,0 +1,437 @@
+#!/usr/bin/python3 -I
+"""Unprivileged two-way readable sync of the open book with Google Drive.
+
+One JSON request on stdin, one JSON response on stdout, progress lines on stderr.
+rclone owns Google access through the private `wros-google` remote of the backup
+settings. Each run compares every file's last-synced base, its local state and its
+Drive state:
+
+* a change on one side is copied to the other; the version it replaces goes to
+  WrOS-History/<book>/<date>/ first, so nothing is lost;
+* a file changed on both sides keeps the writer's version, Drive's is parked beside
+  it as "<name> (from Drive, <date time>)", and the file pauses until it is settled;
+* more than five deletions, or a side found empty, stop the run and ask;
+* a local file is replaced only if it still matches what this run read (the same
+  compare-and-swap Grimoire applies to Dropbox and Syncthing folders), so words
+  typed meanwhile are never overwritten.
+
+Hidden files and folders (.grimoire, .git) and parked copies never sync.
+"""
+from datetime import datetime, timezone
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import secrets
+import signal
+import stat
+import subprocess
+import sys
+import uuid
+
+REMOTE = 'wros-google:'
+LIVE = 'WrOS'
+HISTORY = 'WrOS-History'
+MARKER = '.wros-sync.json'
+MAX_FILES = 100_000
+MAX_BYTES = 5 * 1024**3
+MAX_JSON = 2 * 1024**2
+DELETE_LIMIT = 5
+TEXT_SUFFIXES = ('.md', '.markdown', '.txt', '.toml', '.yaml', '.yml')
+TEXT_LIMIT = 8 * 1024**2
+
+
+def require(condition, message):
+    if not condition:
+        raise ValueError(message)
+
+
+def progress(phase, percent=None):
+    row = {'phase': phase}
+    if percent is not None:
+        row['percent'] = round(min(max(float(percent), 0.0), 1.0), 4)
+    sys.stderr.write(json.dumps({'progress': row}) + '\n')
+    sys.stderr.flush()
+
+
+def write_private(path, data):
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    temp = path.with_name('.' + path.name + '-' + secrets.token_hex(6))
+    fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, 'wb') as stream:
+        stream.write(data)
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temp, path)
+
+
+def read_json(path, default):
+    try:
+        info = path.lstat()
+        if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_JSON:
+            return default
+        return json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return default
+
+
+def digests(path):
+    md5, sha = hashlib.md5(usedforsecurity=False), hashlib.sha256()
+    with open(path, 'rb') as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+            md5.update(chunk)
+            sha.update(chunk)
+    return md5.hexdigest(), sha.hexdigest()
+
+
+def is_parked(name):
+    return ' (from ' in Path(name).stem
+
+
+def synced_name(relative):
+    """Hidden names at any depth and parked copies never sync."""
+    parts = relative.split('/')
+    return not any(part.startswith('.') for part in parts) and not is_parked(parts[-1])
+
+
+def is_text(relative, size):
+    return relative.lower().endswith(TEXT_SUFFIXES) and size <= TEXT_LIMIT
+
+
+def scan_local(root):
+    """{relative path: md5} of the book's synced files. Symlinks and special files are refused."""
+    files, total = {}, 0
+    for directory, folders, names in os.walk(root):
+        here = Path(directory)
+        folders[:] = sorted(f for f in folders if not f.startswith('.'))
+        for name in sorted(names):
+            path = here / name
+            relative = path.relative_to(root).as_posix()
+            if not synced_name(relative):
+                continue
+            info = path.lstat()
+            require(stat.S_ISREG(info.st_mode), f'Only ordinary files sync; refusing {relative}.')
+            total += info.st_size
+            require(len(files) < MAX_FILES and total <= MAX_BYTES,
+                    'This book is larger than the supported 5 GiB / 100,000 files.')
+            files[relative] = digests(path)[0]
+        for folder in folders:
+            require(not (here / folder).is_symlink(), f'Linked folders are not synced: {folder}.')
+    return files
+
+
+def plan(base, local, remote, first):
+    """[(path, action)] for every path, from the md5 each side had at the last sync."""
+    actions = []
+    for path in sorted(set(base) | set(local) | set(remote)):
+        b, l, r = base.get(path), local.get(path), remote.get(path)
+        if l == r:
+            action = 'forget' if l is None else ('none' if l == b else 'adopt')
+        elif first:
+            action = 'upload' if r is None else ('download' if l is None else 'park')
+        elif r == b:
+            action = 'delete_remote' if l is None else 'upload'
+        elif l == b:
+            action = 'delete_local' if r is None else 'download'
+        elif l is None:
+            action = 'download'  # deleted here, changed in Drive: keep the change
+        elif r is None:
+            action = 'upload'  # deleted in Drive, changed here: keep the change
+        else:
+            action = 'park'
+        actions.append((path, action))
+    return actions
+
+
+class Offline(Exception):
+    pass
+
+
+class Service:
+    def __init__(self, state, backup_state):
+        self.state = Path(state)
+        self.state.mkdir(parents=True, exist_ok=True, mode=0o700)
+        self.config = Path(backup_state) / 'rclone.conf'
+        self.env = {k: v for k, v in os.environ.items() if not k.startswith('RCLONE_')}
+        self.env.update(PATH='/usr/bin:/bin', RCLONE_CONFIG=str(self.config))
+        self.before_replace = None  # test seam: called just before a local file is replaced
+
+    # ------------------------------------------------------------- rclone
+
+    def rclone(self, *arguments, data=None, check=True):
+        result = subprocess.run(['/usr/bin/rclone', '--retries', '1', '--low-level-retries', '2', *arguments],
+                                env=self.env, input=data, stdin=None if data is not None else subprocess.DEVNULL,
+                                capture_output=True, timeout=900)
+        if check and result.returncode != 0:
+            text = result.stderr.decode('utf-8', 'replace').lower()
+            if any(n in text for n in ('invalid_grant', 'unauthorized', 'token has been expired or revoked')):
+                raise ValueError('Google Drive authorization expired or was revoked. Reauthorize Google Drive '
+                                 'in Settings › Accounts › Backups.')
+            raise Offline('Google Drive could not be reached; nothing changed for the files not yet done.')
+        return result
+
+    def scan_remote(self, folder):
+        result = self.rclone('lsjson', '-R', '--hash', '--files-only', '--no-mimetype',
+                             REMOTE + f'{LIVE}/{folder}', check=False)
+        if result.returncode != 0:
+            text = result.stderr.decode('utf-8', 'replace').lower()
+            if 'directory not found' in text:
+                return {}
+            self.rclone('lsjson', REMOTE + LIVE)  # raises Offline or an authorization error
+            raise Offline('Google Drive could not be listed; nothing changed.')
+        rows = json.loads(result.stdout or b'[]')
+        remote = {}
+        for row in rows:
+            path = row.get('Path', '')
+            if synced_name(path):
+                remote[path] = (row.get('Hashes') or {}).get('md5') or (row.get('Hashes') or {}).get('MD5')
+        return remote
+
+    # ------------------------------------------------------------- identity
+
+    def identity(self, root):
+        value = read_json(root / '.grimoire/sync.json', None)
+        if isinstance(value, dict) and value.get('version') == 1 and value.get('project_id') and value.get('drive_folder'):
+            return value
+        return None
+
+    def marker(self, folder):
+        result = self.rclone('cat', REMOTE + f'{LIVE}/{folder}/{MARKER}', check=False)
+        if result.returncode != 0:
+            return None
+        try:
+            return json.loads(result.stdout).get('project_id')
+        except (ValueError, AttributeError):
+            return 'unreadable'
+
+    def write_marker(self, folder, project_id):
+        self.rclone('rcat', REMOTE + f'{LIVE}/{folder}/{MARKER}',
+                    data=json.dumps({'version': 1, 'project_id': project_id}).encode())
+
+    def book(self, project):
+        root = Path(project).resolve(strict=True)
+        require(root.is_dir() and (root / 'manuscript').is_dir(), 'Open a saved Grimoire book first.')
+        require(self.config.is_file() and not self.config.is_symlink(), 'Connect Google Drive first.')
+        return root
+
+    def enable(self, project):
+        root = self.book(project)
+        existing = self.identity(root)
+        project_id = existing['project_id'] if existing else str(uuid.uuid4())
+        folder = existing['drive_folder'] if existing else None
+        if folder is None:
+            label = ''.join(c for c in root.name if c.isprintable() and c not in '/\\')[:80] or 'Book'
+            for n in range(1, 10):
+                candidate = label if n == 1 else f'{label} ({n})'
+                owner = self.marker(candidate)
+                if owner in (None, project_id):
+                    folder = candidate
+                    break
+            require(folder is not None, 'Too many Drive folders already have this book\'s name.')
+        self.write_marker(folder, project_id)
+        identity = {'version': 1, 'project_id': project_id, 'drive_folder': folder}
+        target = root / '.grimoire/sync.json'
+        target.parent.mkdir(exist_ok=True)
+        temp = target.with_name('.sync.json-' + secrets.token_hex(6))
+        temp.write_text(json.dumps(identity, indent=2) + '\n', encoding='utf-8')
+        os.replace(temp, target)
+        return {'status': 'enabled', 'drive_folder': folder, 'message': f'Syncing with Google Drive › {LIVE}/{folder}.'}
+
+    def disable(self, project):
+        root = Path(project).resolve(strict=True)
+        (root / '.grimoire/sync.json').unlink(missing_ok=True)
+        return {'status': 'disabled', 'message': 'This book no longer syncs. Files in Google Drive are kept.'}
+
+    # ------------------------------------------------------------- one run
+
+    def sync(self, project, allow_deletes=False):
+        root = self.book(project)
+        identity = self.identity(root)
+        require(identity is not None, 'Sync is not switched on for this book.')
+        folder, project_id = identity['drive_folder'], identity['project_id']
+        home = self.state / project_id
+        home.mkdir(exist_ok=True, mode=0o700)
+        base = read_json(home / 'base.json', {})
+        pending = [p for p in read_json(home / 'pending.json', []) if (root / p['parked']).exists()]
+        summary = {'status': 'synced', 'uploaded': 0, 'downloaded': 0, 'deleted': 0, 'parked': [], 'skipped': [],
+                   'deletes': 0, 'pending': pending, 'message': ''}
+        try:
+            progress('Comparing with Google Drive')
+            owner = self.marker(folder)
+            if owner not in (None, project_id):
+                return summary | {'status': 'refused',
+                                  'message': f'Drive folder {LIVE}/{folder} belongs to another WrOS book or computer.'}
+            if owner is None:
+                self.write_marker(folder, project_id)
+            local = scan_local(root)
+            remote = self.scan_remote(folder)
+            paused = {p['path'] for p in pending}
+            actions = [(path, action) for path, action in plan(base, local, remote, first=not base)
+                       if path not in paused]
+            deletes = sum(action in ('delete_local', 'delete_remote') for _, action in actions)
+            emptied = bool(base) and (not local or not remote)
+            if deletes and (deletes > DELETE_LIMIT or emptied) and not allow_deletes:
+                return summary | {'status': 'confirm', 'deletes': deletes,
+                                  'message': f'Stopped: this sync would delete {deletes} files.'}
+            work = [(p, a) for p, a in actions if a not in ('none',)]
+            stamp = datetime.now().astimezone()
+            for index, (path, action) in enumerate(work):
+                progress('Syncing with Google Drive', index / max(len(work), 1))
+                done = self.apply(root, folder, home, base, path, action, local.get(path), remote.get(path), stamp)
+                if done == 'skipped':
+                    summary['skipped'].append(path)
+                elif isinstance(done, dict):
+                    pending.append(done)
+                    summary['parked'].append(done['parked'])
+                elif done:
+                    summary[done] += 1
+                write_private(home / 'base.json', json.dumps(base, sort_keys=True).encode())
+                write_private(home / 'pending.json', json.dumps(pending).encode())
+        except Offline as exc:
+            return summary | {'status': 'offline', 'message': str(exc)}
+        # Merge bases of settled files are no longer needed.
+        live = {p['merge_base'] for p in pending if p.get('merge_base')}
+        for stale in (home / 'merge-base').rglob('*') if (home / 'merge-base').is_dir() else ():
+            if stale.is_file() and str(stale) not in live:
+                stale.unlink()
+        summary['pending'] = pending
+        summary['synced_at'] = datetime.now(timezone.utc).isoformat()
+        summary['message'] = (f"Synced: {summary['uploaded']} up, {summary['downloaded']} down, "
+                              f"{summary['deleted']} deleted" + (f", {len(pending)} to merge" if pending else '') + '.')
+        return summary
+
+    # ------------------------------------------------------------- actions
+
+    def history(self, folder, relative, side, stamp):
+        path = Path(relative)
+        name = f'{path.stem} ({stamp:%H-%M-%S} from {side}){path.suffix}'
+        return REMOTE + f'{HISTORY}/{folder}/{stamp:%Y-%m-%d}/' + (path.parent / name).as_posix()
+
+    def remember(self, home, base, relative, md5, source=None):
+        base[relative] = md5
+        copy = home / 'base' / relative
+        if source is not None and is_text(relative, source.stat().st_size):
+            write_private(copy, source.read_bytes())
+        elif copy.exists():
+            copy.unlink()
+
+    def download_to(self, folder, relative, directory):
+        """Drive's file into a hidden temporary sibling; returns its path."""
+        directory.mkdir(parents=True, exist_ok=True)
+        temp = directory / ('.wros-sync-' + secrets.token_hex(8))
+        self.rclone('copyto', REMOTE + f'{LIVE}/{folder}/{relative}', str(temp))
+        return temp
+
+    def unchanged(self, path, expected):
+        """Does the local file still hold what this run read (or still not exist)?"""
+        if expected is None:
+            return not os.path.lexists(path)
+        return path.is_file() and not path.is_symlink() and digests(path)[0] == expected
+
+    def apply(self, root, folder, home, base, relative, action, local_md5, remote_md5, stamp):
+        local = root / relative
+        live = REMOTE + f'{LIVE}/{folder}/{relative}'
+        if action == 'adopt':
+            self.remember(home, base, relative, local_md5, local)
+            return None
+        if action == 'forget':
+            base.pop(relative, None)
+            (home / 'base' / relative).unlink(missing_ok=True)
+            return None
+        if action == 'upload':
+            if remote_md5 is not None:
+                self.rclone('moveto', live, self.history(folder, relative, 'Drive', stamp))
+            self.rclone('copyto', str(local), live)
+            self.remember(home, base, relative, local_md5, local)
+            return 'uploaded'
+        if action == 'delete_remote':
+            self.rclone('moveto', live, self.history(folder, relative, 'Drive', stamp))
+            base.pop(relative, None)
+            return 'deleted'
+        if action == 'delete_local':
+            self.rclone('copyto', str(local), self.history(folder, relative, 'WrOS', stamp))
+            if self.before_replace:
+                self.before_replace(local)
+            if not self.unchanged(local, local_md5):
+                return 'skipped'
+            local.unlink()
+            base.pop(relative, None)
+            return 'deleted'
+        if action == 'download':
+            temp = self.download_to(folder, relative, local.parent)
+            try:
+                if digests(temp)[0] != remote_md5 and remote_md5:
+                    return 'skipped'
+                if local_md5 is not None:
+                    self.rclone('copyto', str(local), self.history(folder, relative, 'WrOS', stamp))
+                if self.before_replace:
+                    self.before_replace(local)
+                if not self.unchanged(local, local_md5):
+                    return 'skipped'
+                os.replace(temp, local)
+            finally:
+                if temp.exists():
+                    temp.unlink()
+            self.remember(home, base, relative, remote_md5, local)
+            return 'downloaded'
+        if action == 'park':
+            temp = self.download_to(folder, relative, local.parent)
+            path = Path(relative)
+            parked = path.with_name(f'{path.stem} (from Drive, {stamp:%Y-%m-%d %H-%M}){path.suffix}')
+            n = 2
+            while (root / parked).exists():
+                parked = path.with_name(f'{path.stem} (from Drive, {stamp:%Y-%m-%d %H-%M}) {n}{path.suffix}')
+                n += 1
+            os.replace(temp, root / parked)
+            entry = {'path': relative, 'parked': parked.as_posix(), 'merge_base': None}
+            previous = home / 'base' / relative
+            if is_text(relative, (root / parked).stat().st_size) and previous.exists():
+                merge_base = home / 'merge-base' / relative
+                write_private(merge_base, previous.read_bytes())
+                entry['merge_base'] = str(merge_base)
+            # Drive's version becomes the base: once settled, the writer's result uploads.
+            self.remember(home, base, relative, remote_md5, root / parked)
+            return entry
+        raise ValueError(f'unknown sync action {action}')
+
+
+def main():
+    require(os.geteuid() != 0, 'Run sync as your normal writing account, never root.')
+    def interrupted(signum, frame):
+        raise InterruptedError('Sync interrupted')
+    signal.signal(signal.SIGTERM, interrupted)
+    request = json.loads(sys.stdin.buffer.read(65537))
+    data_home = Path(os.environ.get('XDG_DATA_HOME', str(Path.home() / '.local/share')))
+    backup_state = Path(os.environ.get('WROS_BACKUP_STATE_DIR', str(data_home / 'grimoire/wros/backup')))
+    state = Path(os.environ.get('WROS_SYNC_STATE_DIR', str(data_home / 'grimoire/wros/sync')))
+    service = Service(state, backup_state)
+    lock = os.open(state / 'operation.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        operation, project = request.get('operation'), request.get('project')
+        require(isinstance(project, str) and project.startswith('/'), 'Choose a book folder.')
+        if operation == 'enable':
+            result = service.enable(project)
+        elif operation == 'disable':
+            result = service.disable(project)
+        elif operation == 'sync':
+            result = service.sync(project, allow_deletes=request.get('allow_deletes') is True)
+        else:
+            raise ValueError('Unknown sync operation.')
+        print(json.dumps({'ok': True, 'data': result}), flush=True)
+    finally:
+        os.close(lock)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except BlockingIOError:
+        print(json.dumps({'ok': False, 'error': 'A sync is already running.'}), flush=True)
+        sys.exit(1)
+    except Exception as error:
+        message = str(error) if isinstance(error, ValueError) and not isinstance(error, json.JSONDecodeError) \
+            else 'Sync unavailable. Check the Google Drive connection and free space, then retry.'
+        print(json.dumps({'ok': False, 'error': message}), flush=True)
+        sys.exit(1)
