@@ -312,6 +312,8 @@ enum Choice {
     SavedWifiResolve(SavedWifiAction),
     UpdateBundleOpen,
     UpdateFindMedia,
+    UpdateOnlineCheck,
+    UpdateOnlineFetch,
     UpdateContinue,
     UpdateStage,
     UpdateAbandon,
@@ -1560,6 +1562,8 @@ impl App {
                     | Choice::SavedWifiResolve(_)
                     | Choice::UpdateBundleOpen => {}
                     Choice::UpdateFindMedia => self.update_find_media(),
+                    Choice::UpdateOnlineCheck => self.update_online_check(),
+                    Choice::UpdateOnlineFetch => self.update_online_fetch(),
                     Choice::UpdateContinue => self.update_continue(),
                     Choice::UpdateStage => self.update_stage(),
                     Choice::UpdateAbandon => self.update_abandon(),

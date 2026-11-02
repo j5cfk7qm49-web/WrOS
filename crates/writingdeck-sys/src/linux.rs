@@ -18,6 +18,9 @@ pub const STAGE_TIMEOUT_SECS: u64 = 900;
 pub const REPAIR_TIMEOUT_SECS: u64 = 900;
 pub const CANCEL_TIMEOUT_SECS: u64 = 60;
 pub const MEDIA_TIMEOUT_SECS: u64 = 60;
+pub const ONLINE_CHECK_TIMEOUT_SECS: u64 = 30;
+/// Downloading a whole update over a slow connection.
+pub const ONLINE_FETCH_TIMEOUT_SECS: u64 = 900;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Invocation {
@@ -470,6 +473,16 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
             &["mount"],
             MEDIA_TIMEOUT_SECS,
         ),
+        // Unprivileged: signed metadata only, from the fixed URL in the engine.
+        Request::CheckOnlineUpdates => {
+            Invocation::new("/usr/libexec/wros-update", &["check-online"])
+                .with_timeout(ONLINE_CHECK_TIMEOUT_SECS)
+        }
+        Request::FetchOnlineUpdate => Invocation::update_launcher(
+            "/usr/libexec/wros-update-fetch",
+            &[],
+            ONLINE_FETCH_TIMEOUT_SECS,
+        ),
         Request::CancelStagedUpdates => {
             Invocation::update_launcher("/usr/libexec/wros-update-cancel", &[], CANCEL_TIMEOUT_SECS)
         }
@@ -816,6 +829,16 @@ impl<R: Runner> Backend for Linux<R> {
                 return Ok(Reply::UpdateMedia(crate::system_views::update_media(
                     &output,
                 )?));
+            }
+            Request::CheckOnlineUpdates => {
+                return Ok(Reply::OnlineUpdate(crate::system_views::online_update(
+                    &output,
+                )?));
+            }
+            Request::FetchOnlineUpdate => {
+                return Ok(Reply::OnlineUpdateFetched(
+                    crate::system_views::online_fetch(&output)?,
+                ));
             }
             Request::CancelStagedUpdates => {
                 return Ok(Reply::Message(crate::system_views::update_action_message(

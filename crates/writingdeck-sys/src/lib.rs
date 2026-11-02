@@ -81,6 +81,17 @@ pub struct Snapshot {
     pub warnings: Vec<String>,
 }
 
+/// What `wros-update check-online` found on the update server.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OnlineUpdate {
+    /// available, current, clock, unreachable or invalid.
+    pub status: String,
+    pub version: Option<String>,
+    pub installed: Option<String>,
+    /// The time this computer read when it checked, `YYYY-MM-DD HH:MM`.
+    pub clock: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WifiNetwork {
     pub ssid: String,
@@ -288,6 +299,10 @@ pub enum Request {
     },
     /// Ask the narrow privileged helper to mount `WROS-UPDATE` media read-only.
     FindUpdateMedia,
+    /// Unprivileged: is a newer signed WrOS published on the fixed update server?
+    CheckOnlineUpdates,
+    /// The narrow privileged helper downloads and verifies the newer update.
+    FetchOnlineUpdate,
     VerifyUpdateBundle {
         bundle_dir: String,
     },
@@ -325,6 +340,9 @@ pub enum Reply {
     UpdateStaged(UpdateStaged),
     /// Mounted update media path, or `None` when no `WROS-UPDATE` media exists.
     UpdateMedia(Option<String>),
+    OnlineUpdate(OnlineUpdate),
+    /// Verified downloaded update folder, ready for the ordinary review.
+    OnlineUpdateFetched(String),
     Recovery(RecoveryInfo),
     StorageDevices(Vec<StorageDevice>),
 }
@@ -349,6 +367,9 @@ pub struct Simulated {
     pub bundle_revision: u32,
     /// Path returned by the simulated media mount, if any media is "present".
     pub media: Option<String>,
+    /// What the simulated update server reports, and where a fetch lands.
+    pub online: Option<OnlineUpdate>,
+    pub fetched: Option<String>,
     preview: Option<String>,
     display_preview: Option<(String, display::Warmth)>,
     warmth: display::Warmth,
@@ -399,6 +420,8 @@ impl Default for Simulated {
             },
             bundle_revision: 1,
             media: Some("/run/wros-update/media/0".into()),
+            online: None,
+            fetched: None,
             preview: None,
             display_preview: None,
             warmth: display::Warmth::default(),
@@ -664,6 +687,22 @@ impl Backend for Simulated {
                 Ok(Reply::UpdateReview(self.simulated_review()))
             }
             Request::FindUpdateMedia => Ok(Reply::UpdateMedia(self.media.clone())),
+            Request::CheckOnlineUpdates => Ok(Reply::OnlineUpdate(self.online.clone().unwrap_or(
+                OnlineUpdate {
+                    status: "unreachable".into(),
+                    version: None,
+                    installed: None,
+                    clock: String::new(),
+                },
+            ))),
+            Request::FetchOnlineUpdate => {
+                let path = self
+                    .fetched
+                    .clone()
+                    .ok_or_else(|| anyhow::anyhow!("SIMULATED: no update server"))?;
+                system_views::validate_update_bundle_path(&path)?;
+                Ok(Reply::OnlineUpdateFetched(path))
+            }
             Request::StageUpdates {
                 bundle_dir,
                 review_id,

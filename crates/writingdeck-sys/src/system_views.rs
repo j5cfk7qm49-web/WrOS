@@ -485,6 +485,55 @@ pub fn update_staged(output: &str, expected_review_id: &str) -> Result<UpdateSta
 }
 
 /// Strict parse of `wros-update-media mount`.
+/// `wros-update check-online`: a known status, and a version only when one was read.
+pub fn online_update(output: &str) -> Result<crate::OnlineUpdate> {
+    let object = helper_object(output, "wros-update check-online")?;
+    let raw: crate::OnlineUpdate = serde_json::from_value(serde_json::Value::Object(object))
+        .context("invalid wros-update check-online reply")?;
+    ensure!(
+        ["available", "current", "clock", "unreachable", "invalid"].contains(&raw.status.as_str()),
+        "unknown online update status"
+    );
+    for value in [&raw.version, &raw.installed].into_iter().flatten() {
+        ensure!(
+            !value.is_empty()
+                && value.len() <= 64
+                && value
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || ".+~:-".contains(c)),
+            "invalid version in online update reply"
+        );
+    }
+    ensure!(
+        raw.status != "available" || raw.version.is_some(),
+        "online update reply names no version"
+    );
+    label(&raw.clock)?;
+    Ok(raw)
+}
+
+/// `wros-update-fetch`: the verified folder, which must be in the online cache.
+pub fn online_fetch(output: &str) -> Result<String> {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct RawFetch {
+        status: String,
+        path: String,
+        version: String,
+    }
+    let object = helper_object(output, "wros-update-fetch")?;
+    let raw: RawFetch = serde_json::from_value(serde_json::Value::Object(object))
+        .context("invalid wros-update-fetch reply")?;
+    ensure!(raw.status == "fetched", "wros-update-fetch did not fetch");
+    label(&raw.version)?;
+    validate_update_bundle_path(&raw.path)?;
+    ensure!(
+        raw.path.starts_with(ONLINE_UPDATE_PREFIX),
+        "downloaded update is outside the online update cache"
+    );
+    Ok(raw.path)
+}
+
 pub fn update_media(output: &str) -> Result<Option<String>> {
     #[derive(Deserialize)]
     #[serde(deny_unknown_fields)]

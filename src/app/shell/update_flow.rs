@@ -34,6 +34,31 @@ pub struct UpdateFlow {
     pub staged: Option<writingdeck_sys::UpdateStaged>,
     /// Text of the last helper result or failure, kept visible after readback.
     pub last_result: Option<String>,
+    /// What the WrOS update server reported last, when, and which version was announced.
+    pub online: Option<writingdeck_sys::OnlineUpdate>,
+    pub online_checked: Option<Instant>,
+    pub online_alerted: Option<String>,
+}
+
+/// How often a running installed session asks the update server again.
+const ONLINE_CHECK_EVERY: Duration = Duration::from_secs(24 * 60 * 60);
+
+/// The Updates panel's description of the last online check.
+fn online_line(online: Option<&writingdeck_sys::OnlineUpdate>) -> String {
+    let Some(online) = online else {
+        return "Not checked for WrOS updates yet".into();
+    };
+    match (online.status.as_str(), &online.version, &online.installed) {
+        ("available", Some(version), _) => format!("WrOS {version} is available"),
+        ("current", _, Some(installed)) => format!("WrOS is up to date ({installed})"),
+        ("current", _, None) => "WrOS is up to date".into(),
+        ("clock", _, _) => format!(
+            "Couldn't check for WrOS updates: this computer's clock may be wrong (it reads {}).",
+            online.clock
+        ),
+        ("unreachable", _, _) => "Couldn't reach the WrOS update server".into(),
+        _ => "The WrOS update server's files didn't verify; nothing was downloaded".into(),
+    }
 }
 
 /// Backup state relative to a review that recommends one.
@@ -74,7 +99,25 @@ fn plural(n: usize, one: &str, many: &str) -> String {
 
 /// Rows of System › Updates after the shared refresh row.
 pub(super) fn updates_panel(app: &App) -> Vec<Entry> {
-    let mut rows = vec![
+    let online = app.deck.shell.update_flow.online.as_ref();
+    let mut rows = vec![info(online_line(online))];
+    if let Some(writingdeck_sys::OnlineUpdate {
+        status,
+        version: Some(version),
+        ..
+    }) = online
+        && status == "available"
+    {
+        rows.push(Entry::new(
+            format!("Update WrOS to {version}"),
+            Choice::UpdateOnlineFetch,
+        ));
+    }
+    rows.push(Entry::new(
+        "Check for WrOS updates",
+        Choice::UpdateOnlineCheck,
+    ));
+    rows.extend([
         Entry::new(
             "Preview cached package plan",
             Choice::View(Route::UpdatesView, Request::CheckUpdates),
@@ -87,7 +130,7 @@ pub(super) fn updates_panel(app: &App) -> Vec<Entry> {
             "Review a signed update bundle by path",
             Choice::UpdateBundleOpen,
         ),
-    ];
+    ]);
     if confirmed_staged(app) {
         rows.push(Entry::new(
             "An update is staged · restart to install it, or cancel it",
@@ -105,7 +148,7 @@ pub(super) fn updates_panel(app: &App) -> Vec<Entry> {
         rows.push(info(format!("Last update result: {result}")));
     }
     rows.push(info(
-        "Updates install only from signed offline bundles; nothing is downloaded.",
+        "WrOS updates come signed from the WrOS update server or on update media.",
     ));
     rows.push(info(
         "You review who signed it and every package change before anything is staged.",
@@ -457,6 +500,54 @@ impl App {
     pub(super) fn update_abandon(&mut self) {
         self.leave_update_flow();
     }
+    /// After login and then daily, in an installed appliance session only.
+    pub(crate) fn tick_online_updates(&mut self) {
+        let due = self
+            .deck
+            .shell
+            .update_flow
+            .online_checked
+            .is_none_or(|at| at.elapsed() >= ONLINE_CHECK_EVERY);
+        if self.deck.online_updates && due && !self.deck.busy {
+            self.deck.shell.update_flow.online_checked = Some(Instant::now());
+            self.deck.request(Request::CheckOnlineUpdates);
+        }
+    }
+    pub(super) fn update_online_check(&mut self) {
+        if self.deck.busy {
+            self.update_notice("A system request is still running. Wait for it, then try again.");
+            return;
+        }
+        self.deck.shell.update_flow.online_checked = Some(Instant::now());
+        self.deck.request(Request::CheckOnlineUpdates);
+    }
+    pub(super) fn update_online_fetch(&mut self) {
+        if self.deck.busy {
+            self.update_notice("A system request is still running. Wait for it, then try again.");
+            return;
+        }
+        self.deck.shell.update_flow.last_result = None;
+        self.update_notice("Downloading the WrOS update and checking its signature…");
+        self.deck.request(Request::FetchOnlineUpdate);
+    }
+    pub(crate) fn on_online_update(&mut self, online: writingdeck_sys::OnlineUpdate) {
+        let flow = &mut self.deck.shell.update_flow;
+        if online.status == "available"
+            && let Some(version) = &online.version
+            && flow.online_alerted.as_ref() != Some(version)
+        {
+            flow.online_alerted = Some(version.clone());
+            let alert = format!("WrOS {version} is available · Settings › Updates");
+            self.deck.shell.notices.push(&alert);
+            self.msg = alert;
+        }
+        self.deck.shell.update_flow.online = Some(online);
+    }
+    pub(crate) fn on_online_update_fetched(&mut self, path: String) {
+        // Downloaded and verified; the ordinary review shows who signed it and what changes.
+        self.deck
+            .request(Request::ReviewUpdateBundle { bundle_dir: path });
+    }
     pub(super) fn update_find_media(&mut self) {
         if self.deck.busy {
             self.update_notice("A system request is still running. Wait for it, then try again.");
@@ -733,6 +824,22 @@ impl App {
     /// the request was an update request and has been handled.
     pub(crate) fn on_update_error(&mut self, request: &Request, error: &str) -> bool {
         match request {
+            Request::CheckOnlineUpdates => {
+                // Silent: the Updates panel says the server could not be reached.
+                self.deck.shell.update_flow.online = Some(writingdeck_sys::OnlineUpdate {
+                    status: "unreachable".into(),
+                    version: None,
+                    installed: None,
+                    clock: String::new(),
+                });
+            }
+            Request::FetchOnlineUpdate => {
+                let text = format!(
+                    "WrOS update not downloaded: {error}. Nothing was installed. Check the network, then try again."
+                );
+                self.deck.shell.update_flow.last_result = Some(text.clone());
+                self.update_notice(text);
+            }
             Request::FindUpdateMedia => {
                 if !self.on_google_file_media(Err(error)) {
                     let text = format!(

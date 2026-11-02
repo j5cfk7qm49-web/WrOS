@@ -125,6 +125,8 @@ pub struct Deck {
     pub lock_available: bool,
     pub installer_available: bool,
     pub live_session: bool,
+    /// An installed appliance session checks the WrOS update server after login and daily.
+    pub online_updates: bool,
     pub lock_requested: bool,
     pub installer_requested: bool,
     worker: Option<Worker>,
@@ -242,6 +244,9 @@ impl Deck {
             snapshot: None,
             note: warnings.join("; "),
             busy: false,
+            online_updates: background
+                && !live_session
+                && std::env::var_os("WRITINGDECK_OS").is_some(),
             live_session,
             lock_available: {
                 #[cfg(target_os = "linux")]
@@ -583,6 +588,7 @@ impl App {
     pub fn tick_deck(&mut self) {
         self.deck.shell.backup.tick();
         self.tick_productivity();
+        self.tick_online_updates();
         let result = self.deck.worker.as_ref().and_then(|w| w.rx.try_recv().ok());
         if let Some((request, result)) = result {
             self.deck.busy = false;
@@ -662,6 +668,12 @@ impl App {
                 }
                 Ok(Reply::UpdateMedia(media)) => {
                     self.on_update_media(media);
+                }
+                Ok(Reply::OnlineUpdate(online)) => {
+                    self.on_online_update(online);
+                }
+                Ok(Reply::OnlineUpdateFetched(path)) => {
+                    self.on_online_update_fetched(path);
                 }
                 Ok(Reply::WifiScan(networks)) => {
                     self.deck.note = format!(

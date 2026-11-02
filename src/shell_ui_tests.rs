@@ -324,8 +324,8 @@ fn accounts_storage_and_package_views_are_read_only_and_do_not_offer_fake_cloud_
         assert!(desk.shows("MiB free"));
         system_panel(&mut desk, 5);
         wait_system(&mut desk);
-        desk.key(KeyCode::Down);
-        desk.key(KeyCode::Enter);
+        desk.key(KeyCode::Home);
+        desk.choose("Preview cached package plan");
         wait_system(&mut desk);
         assert_eq!(desk.app.deck.shell.nav.current(), Route::UpdatesView);
         assert!(desk.shows("No package download"));
@@ -848,6 +848,72 @@ fn settings_descriptions_are_never_chosen_and_options_show_where_they_lead() {
     desk.key(KeyCode::Home);
     desk.key(KeyCode::Enter);
     assert!(!desk.app.deck.installer_requested);
+}
+
+fn online_backend(status: &str, version: Option<&str>) -> writingdeck_sys::Simulated {
+    let mut sim = writingdeck_sys::Simulated::laptop();
+    sim.online = Some(writingdeck_sys::OnlineUpdate {
+        status: status.into(),
+        version: version.map(Into::into),
+        installed: Some("0.1.0~rc2".into()),
+        clock: "2001-01-01 00:00".into(),
+    });
+    sim.fetched = Some("/var/cache/wros-update/online/0123456789abcdef".into());
+    sim
+}
+
+#[test]
+fn online_update_available_alerts_once_and_update_opens_the_existing_review() {
+    let mut desk = Desk::open(book("online-update", true), 100, 30);
+    desk.app
+        .deck
+        .use_test_backend(Box::new(online_backend("available", Some("0.1.0~rc3"))));
+    // Only an installed appliance session checks; tests and the live session never do.
+    desk.app.tick_deck();
+    assert!(!desk.app.deck.busy);
+    desk.app.deck.online_updates = true;
+    desk.app.tick_deck();
+    wait_system(&mut desk);
+    assert_eq!(
+        desk.app.msg,
+        "WrOS 0.1.0~rc3 is available · Settings › Updates"
+    );
+    desk.app.msg.clear();
+    desk.app.tick_deck();
+    assert!(!desk.app.deck.busy, "checks at most once a day");
+    system_panel(&mut desk, 5);
+    wait_system(&mut desk);
+    assert!(desk.shows("    WrOS 0.1.0~rc3 is available"));
+    desk.key(KeyCode::Home);
+    desk.choose("Update WrOS to 0.1.0~rc3");
+    wait_system(&mut desk);
+    wait_system(&mut desk);
+    assert_eq!(route(&desk), Route::UpdateReview);
+}
+
+#[test]
+fn online_update_clock_and_offline_states_never_alert() {
+    for (status, text) in [
+        (
+            "clock",
+            "Couldn't check for WrOS updates: this computer's clock may be wrong (it reads 2001-01-01 00:00).",
+        ),
+        ("unreachable", "Couldn't reach the WrOS update server"),
+        ("current", "WrOS is up to date (0.1.0~rc2)"),
+    ] {
+        let mut desk = Desk::open(book(&format!("online-{status}"), true), 140, 30);
+        desk.app
+            .deck
+            .use_test_backend(Box::new(online_backend(status, None)));
+        desk.app.deck.online_updates = true;
+        desk.app.tick_deck();
+        wait_system(&mut desk);
+        assert!(!desk.app.msg.contains("is available"), "{status}");
+        system_panel(&mut desk, 5);
+        wait_system(&mut desk);
+        assert!(desk.shows(text), "{status}: {}", desk.rows().join("\n"));
+        assert!(!desk.shows("Update WrOS to"));
+    }
 }
 
 #[test]
