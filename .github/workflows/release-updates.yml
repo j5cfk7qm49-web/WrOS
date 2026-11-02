@@ -1,0 +1,121 @@
+name: release-updates
+
+# Online WrOS updates: build the wros package, sign it with the CI signing subkey only,
+# and publish it to GitHub Pages as a flat apt repository the update engine also reads.
+# Design: docs/superpowers/specs/2026-11-01-online-wros-updates-design.md
+#
+# Pages replaces the whole site on every deploy, so each run republishes the live
+# updates/ folder: a tag builds it, any other run re-signs the package already there
+# (after checking it against the committed keyring and pin).
+
+on:
+  push:
+    tags: ['v*']
+  schedule:
+    - cron: '17 6 * * 1'  # weekly re-sign: Valid-Until (21 days) never lapses
+  workflow_dispatch:
+    inputs:
+      scratch:
+        description: Also build this ref into updates-scratch/ (updates/ is only re-signed)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: wros-updates-pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    container: debian:13-slim
+    timeout-minutes: 60
+    environment: github-pages
+    env:
+      CARGO_HOME: /opt/cargo
+      RUSTUP_HOME: /opt/rustup
+      DEBIAN_FRONTEND: noninteractive
+      UPDATE_URL: https://j5cfk7qm49-web.github.io/WrOS/updates/
+    steps:
+      - name: Debian prerequisites
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends build-essential pkg-config libasound2-dev libssl-dev libdrm-dev \
+            python3 python3-debian ca-certificates curl git gnupg gpgv dpkg-dev console-setup keyboard-configuration
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Plan this run
+        id: plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          build=''
+          version=''
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            build=updates
+            version=$(python3 tools/publish-updates.py version "$GITHUB_REF_NAME")
+          elif [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ "${{ inputs.scratch }}" = true ]; then
+            build=updates-scratch
+            version=$(head -n1 os/VERSION)
+          fi
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Pinned Rust toolchain
+        if: steps.plan.outputs.build != ''
+        shell: bash
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+          sh /tmp/rustup-init.sh -y --no-modify-path --profile minimal --default-toolchain 1.99.1
+      - name: Build the wros package
+        if: steps.plan.outputs.build != ''
+        shell: bash
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+        run: |
+          set -euo pipefail
+          export PATH="/opt/cargo/bin:$PATH"
+          cargo build --release --locked --no-default-features -p grimoire-tui
+          mkdir -p out/bin out/new
+          cp target/release/grimoire out/bin/
+          python3 -I tools/build-wros-debs.py --binaries-dir out/bin --version "$VERSION" --output out/new
+      - name: Import the CI signing subkey
+        shell: bash
+        env:
+          SUBKEY: ${{ secrets.WROS_UPDATE_SIGNING_SUBKEY }}
+        run: |
+          set -euo pipefail
+          export GNUPGHOME="$RUNNER_TEMP/gnupg"
+          install -d -m 700 "$GNUPGHOME"
+          printf '%s\n' "$SUBKEY" | gpg --batch --import
+          echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
+      - name: Sign into the site
+        shell: bash
+        env:
+          BUILD: ${{ steps.plan.outputs.build }}
+        run: |
+          set -euo pipefail
+          PIN=$(grep -v '^#' os/config/update-trust/update-signers | tr -d ' \n')
+          sign() {
+            python3 -I tools/build-update-bundle.py "$1" --out "$2" --gnupg-home "$GNUPGHOME" \
+              --key-id "$PIN" --expect-fingerprint "$PIN" --valid-days 21
+          }
+          mkdir -p site out/live
+          if [ "$BUILD" = updates ]; then
+            sign out/new/wros_*_amd64.deb site/updates
+          else
+            live=$(python3 tools/publish-updates.py published "$UPDATE_URL" out/live)
+            if [ -n "$live" ]; then sign "$live" site/updates; fi
+          fi
+          if [ "$BUILD" = updates-scratch ]; then
+            sign out/new/wros_*_amd64.deb site/updates-scratch
+          fi
+          find site -type f | sort
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - uses: actions/deploy-pages@v4

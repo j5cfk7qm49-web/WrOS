@@ -94,6 +94,15 @@ from them. Nothing installs automatically; `sudo apt upgrade` applies Debian
 updates. Settings › Date and time only reads `timedatectl show` for its
 network time row.
 
+An installed WrOS (not the live session) checks for WrOS updates once after
+login and then at most daily: `wros-update check-online` downloads the signed
+`InRelease` and `Packages` index from
+`https://j5cfk7qm49-web.github.io/WrOS/updates/` (GitHub Pages) and sends
+nothing beyond the HTTPS request. A newer signed version shows a notice; nothing
+downloads until the writer chooses Settings › Updates › Update WrOS, which
+fetches that update's `.deb` from the same address. Debian's `apt-daily` timers
+also read that address, through `/etc/apt/sources.list.d/wros.sources`.
+
 General Drive browsing/materialization, cloud sync, update application and
 recovery/firmware operations remain unavailable and fail before their tools run.
 The separate backup adapter provides explicit authorization/backup/restore;
