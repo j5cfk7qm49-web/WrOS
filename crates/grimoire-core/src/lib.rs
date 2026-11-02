@@ -24,6 +24,7 @@ pub mod journal;
 pub mod lexicon;
 pub mod manuscript;
 pub mod measure;
+pub mod merge;
 pub mod names;
 pub mod notes;
 pub mod paths;
