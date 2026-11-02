@@ -840,6 +840,30 @@ def purge_live_artifacts(root=Path('/')):
     return removed
 
 
+DEBIAN_SOURCES_TEMPLATE = 'usr/share/wros/apt/debian.sources'
+DEBIAN_SOURCES = 'etc/apt/sources.list.d/debian.sources'
+
+
+def debian_sources_template(root):
+    template = Path(root) / DEBIAN_SOURCES_TEMPLATE
+    require(not template.is_symlink() and template.is_file(),
+            'Debian sources template missing or not a regular file')
+    return template.read_bytes()
+
+
+def install_debian_sources(root=Path('/')):
+    """Copy the image's Debian online sources into the target. Runs after the offline
+    install's only `apt-get update`, so the installer itself never goes online."""
+    root = Path(root)
+    data = debian_sources_template(root)
+    target = root / DEBIAN_SOURCES
+    target.parent.mkdir(parents=True, exist_ok=True)
+    partial = target.with_name('.' + target.name + '.partial')
+    partial.write_bytes(data)
+    os.chmod(partial, 0o644)
+    os.replace(partial, target)
+
+
 def scan_text(path, limit=65536):
     info = Path(path).lstat()
     require(stat.S_ISREG(info.st_mode) and info.st_size <= limit,
@@ -876,6 +900,11 @@ def verify_target_hygiene(root=Path('/')):
         for conf in sorted((root / 'etc/systemd/system').glob(pattern + '/*.conf')):
             require('autologin' not in scan_text(conf).lower(),
                     f'console autologin persisted in installed target: {conf.name}')
+    sources = root / DEBIAN_SOURCES
+    require(not sources.is_symlink() and sources.is_file()
+            and stat.S_IMODE(sources.stat().st_mode) == 0o644
+            and sources.read_bytes() == debian_sources_template(root),
+            'Debian sources not installed on the target')
     return {'live_artifacts_absent': True}
 
 
@@ -883,6 +912,7 @@ def in_target_hygiene(nonce):
     require(os.geteuid() == 0 and re.fullmatch('[a-f0-9]{32}', nonce) is not None,
             'in-target hygiene requires root and a session nonce')
     removed = purge_live_artifacts()
+    install_debian_sources()
     verify_target_hygiene()
     print(json.dumps({'live_artifacts_removed': removed}, sort_keys=True), flush=True)
     return 0

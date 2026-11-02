@@ -71,6 +71,11 @@ pub struct Snapshot {
     pub charging: Option<bool>,
     pub brightness_percent: Option<u8>,
     pub timezone: Option<String>,
+    /// timedated's NTP setting and whether the clock is synchronized yet.
+    #[serde(default)]
+    pub network_time: Option<bool>,
+    #[serde(default)]
+    pub time_synchronized: Option<bool>,
     pub available_bytes: Option<u64>,
     pub keyboard: Option<String>,
     pub warnings: Vec<String>,
@@ -441,6 +446,8 @@ impl Simulated {
                 charging: Some(false),
                 brightness_percent: Some(50),
                 timezone: Some("America/Los_Angeles".into()),
+                network_time: Some(true),
+                time_synchronized: Some(false),
                 available_bytes: Some(8 * 1024 * 1024 * 1024),
                 keyboard: Some("qwerty".into()),
                 warnings: vec![],

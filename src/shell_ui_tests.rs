@@ -851,6 +851,27 @@ fn settings_descriptions_are_never_chosen_and_options_show_where_they_lead() {
 }
 
 #[test]
+fn date_time_panel_says_whether_the_clock_is_set_from_the_network() {
+    let mut desk = Desk::open(book("network-time", true), 100, 30);
+    desk.app.deck.simulate();
+    system_panel(&mut desk, 4);
+    wait_system(&mut desk);
+    assert!(desk.shows("    Network time: on · not yet synchronized"));
+    assert!(!desk.shows("not available yet"));
+    for (ntp, synced, text) in [
+        (Some(true), Some(true), "Network time: on · synchronized"),
+        (Some(false), Some(false), "Network time: off"),
+        (None, None, "Network time: unknown"),
+    ] {
+        let snapshot = desk.app.deck.snapshot.as_mut().unwrap();
+        snapshot.network_time = ntp;
+        snapshot.time_synchronized = synced;
+        desk.draw();
+        assert!(desk.shows(text), "{text}");
+    }
+}
+
+#[test]
 fn a_running_backup_shows_its_step_percentage_and_time_under_cancel() {
     use crate::backup_service::{Job, Progress};
     let mut desk = Desk::open(book("backup-progress", true), 100, 30);

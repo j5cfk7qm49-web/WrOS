@@ -285,6 +285,21 @@ def audit_no_private_keys(root):
                     raise ValueError('OpenPGP secret key material present: ' + shown)
 
 
+DEBIAN_SOURCES_TEMPLATE = 'usr/share/wros/apt/debian.sources'
+
+
+def audit_network_sources(root):
+    """Debian's online sources template, byte for byte, and network time for installs."""
+    if regular(root, DEBIAN_SOURCES_TEMPLATE).read_bytes() != (REPO / 'os/config/apt/debian.sources').read_bytes():
+        raise ValueError('image debian.sources template differs from os/config/apt/debian.sources')
+    regular(root, 'usr/share/keyrings/debian-archive-keyring.pgp')
+    status = subprocess.run([
+        'dpkg-query', '--admindir=' + str(root / 'var/lib/dpkg'), '-W',
+        '-f=${Status}', 'systemd-timesyncd'], capture_output=True, text=True).stdout
+    if status != 'install ok installed':
+        raise ValueError('systemd-timesyncd is not installed in the image')
+
+
 def audit(root, fixture_fingerprints=None):
     root = Path(root)
     if root.is_symlink() or root.resolve() == Path('/'):
@@ -394,6 +409,7 @@ def audit(root, fixture_fingerprints=None):
     maintenance = root / 'etc/systemd/system/getty@tty2.service'
     if maintenance.is_symlink() and os.readlink(maintenance) == '/dev/null':
         raise ValueError('authenticated tty2 maintenance must remain available')
+    audit_network_sources(root)
     return {'schema_version': 3, 'scope': 'Staged native session/manual-lock payload/power policy/update trust; not runtime locking or update qualification',
             'passed': True, 'greetd_package_version': package[0], 'binary_sha256': binaries,
             'wros_package': package_summary, 'update_signers': update_signers,

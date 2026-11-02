@@ -121,12 +121,13 @@ def fixture(root, signer_uid=SIGNER_UID):
         for name in ('restic', 'rclone'):
             output.write(dpkg_stanza(name, '1').replace('synthetic policy fixture', 'synthetic backup policy fixture'))
         output.write(dpkg_stanza('vlock', '2.2.2-12'))
+        output.write(dpkg_stanza('systemd-timesyncd', '257.9-1~deb13u1'))
         output.write(dpkg_stanza('wros', version, 'Depends: ' + ', '.join(manifest['package']['depends']) + '\n'
                                  'Conffiles:\n /etc/writingdeck/keyboard.json 0\n'))
     for relative in ('usr/sbin/greetd', 'usr/bin/wros-greeter',
                      'etc/pam.d/greetd', 'usr/share/doc/greetd/copyright', 'usr/share/doc/vlock/copyright',
                      'usr/bin/restic', 'usr/bin/rclone', 'usr/bin/gpgv',
-                     'usr/share/keyrings/debian-archive-keyring.gpg',
+                     'usr/share/keyrings/debian-archive-keyring.gpg', 'usr/share/keyrings/debian-archive-keyring.pgp',
                      'usr/share/doc/restic/copyright', 'usr/share/doc/rclone/copyright',
                      'usr/bin/openvt', 'usr/bin/systemd-run', 'usr/bin/chvt', 'usr/sbin/vlock-main',
                      'usr/lib/x86_64-linux-gnu/security/pam_succeed_if.so',
@@ -158,6 +159,9 @@ def fixture(root, signer_uid=SIGNER_UID):
     for name in ('getty@tty1.service', 'getty@tty8.service', 'autovt@tty8.service',
                  *(target + '.target' for target in module.SLEEP_TARGETS)):
         (root / 'etc/systemd/system' / name).symlink_to('/dev/null')
+    template = root / 'usr/share/wros/apt/debian.sources'
+    template.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(ROOT / 'os/config/apt/debian.sources', template)
     keyring, fingerprint = synthetic_keyring(signer_uid)
     install_trust(root, keyring, fingerprint)
     return {'fingerprint': fingerprint, 'files': files}
@@ -225,6 +229,30 @@ class NativeImage(unittest.TestCase):
             self.assertEqual(len(result['binary_sha256']), 18)
             self.assertIn('usr/libexec/wros-update', result['binary_sha256'])
             self.assertIn('usr/bin/gpgv', result['binary_sha256'])
+
+    def test_debian_sources_template_and_network_time_are_required(self):
+        with tempfile.TemporaryDirectory(prefix='wros-native-sources-') as tmp:
+            root = Path(tmp)
+            fixture(root)
+            self.assertTrue(module.audit(root)['passed'])
+            template = root / 'usr/share/wros/apt/debian.sources'
+            original = template.read_bytes()
+            self.assertEqual(original, (ROOT / 'os/config/apt/debian.sources').read_bytes())
+            template.write_bytes(original.replace(b'trixie-updates', b'trixie-backports'))
+            with self.assertRaisesRegex(ValueError, 'debian.sources'):
+                module.audit(root)
+            template.unlink()
+            with self.assertRaisesRegex(ValueError, 'debian.sources'):
+                module.audit(root)
+            template.write_bytes(original)
+            (root / 'usr/share/keyrings/debian-archive-keyring.pgp').unlink()
+            with self.assertRaisesRegex(ValueError, 'debian-archive-keyring.pgp'):
+                module.audit(root)
+            (root / 'usr/share/keyrings/debian-archive-keyring.pgp').write_text('synthetic\n')
+            edit_status(root, lambda stanzas: [s for s in stanzas
+                                               if not s.lstrip('\n').startswith('Package: systemd-timesyncd\n')])
+            with self.assertRaisesRegex(ValueError, 'systemd-timesyncd'):
+                module.audit(root)
 
     def test_locker_setuid_is_required_as_root_and_tolerated_only_when_dropped_by_extraction(self):
         with tempfile.TemporaryDirectory(prefix='wros-native-setuid-') as tmp:

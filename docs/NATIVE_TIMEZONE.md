@@ -20,6 +20,12 @@ custom privileged helper, password prompt or grant for setting the clock, RTC,
 NTP, arbitrary commands or general administration. Those date/time controls are
 still unavailable. No network is required to select an installed timezone.
 
+Above the timezone, a row reads `Network time: on · synchronized`, `on · not
+yet synchronized`, `off` or `unknown`, from `timedatectl show --property=NTP
+--property=NTPSynchronized`. New installs ship `systemd-timesyncd`, so the
+clock follows the network once online; an rc1 install gets it with
+`sudo apt install systemd-timesyncd && sudo timedatectl set-ntp true`.
+
 Timezone changes affect future local dates; historical writing records retain
 their recorded dates/offsets. The existing tutorial's SystemOpened event proves
 navigation only, not that a timezone was changed. Offline help includes an

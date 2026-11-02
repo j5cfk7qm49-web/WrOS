@@ -595,6 +595,17 @@ fn entries(app: &App) -> Vec<Entry> {
                     }
                 }
                 Panel::DateTime => rows.extend([
+                    Entry::info(
+                        match (
+                            status.and_then(|s| s.network_time),
+                            status.and_then(|s| s.time_synchronized),
+                        ) {
+                            (Some(true), Some(true)) => "Network time: on · synchronized",
+                            (Some(true), _) => "Network time: on · not yet synchronized",
+                            (Some(false), _) => "Network time: off",
+                            (None, _) => "Network time: unknown",
+                        },
+                    ),
                     Entry::info(format!(
                         "Timezone: {}",
                         status
@@ -602,7 +613,6 @@ fn entries(app: &App) -> Vec<Entry> {
                             .unwrap_or("unknown")
                     )),
                     Entry::new("Choose timezone", Choice::TimezoneOpen),
-                    Entry::info("Manual clock / network time controls are not available yet"),
                 ]),
                 Panel::Updates => rows.extend(update_flow::updates_panel(app)),
                 Panel::Recovery => rows.extend(update_flow::recovery_panel()),

@@ -1037,6 +1037,11 @@ class TargetHygieneTests(unittest.TestCase):
         (self.root / 'lib').symlink_to('usr/lib')
         shutil.copyfile(ROOT / 'os/config/greetd.toml', self.root / 'etc/greetd/config.toml')
         (self.root / 'etc/sudoers.d/README').write_text('# see sudoers(5)\n')
+        self.template = self.root / 'usr/share/wros/apt/debian.sources'
+        self.template.parent.mkdir(parents=True)
+        shutil.copyfile(ROOT / 'os/config/apt/debian.sources', self.template)
+        self.sources = self.root / 'etc/apt/sources.list.d/debian.sources'
+        supervisor.install_debian_sources(self.root)
 
     def put(self, relative, text='x\n'):
         path = self.root / relative
@@ -1054,6 +1059,35 @@ class TargetHygieneTests(unittest.TestCase):
         wants = self.root / 'etc/systemd/system/multi-user.target.wants'
         wants.mkdir()
         (wants / 'live-config.service').symlink_to('/lib/systemd/system/live-config.service')
+
+    def test_hygiene_installs_debian_sources_from_the_image_template(self):
+        self.assertEqual(self.sources.read_bytes(), self.template.read_bytes())
+        self.assertEqual(stat.S_IMODE(self.sources.stat().st_mode), 0o644)
+        supervisor.install_debian_sources(self.root)
+        self.assertEqual(self.sources.read_bytes(), self.template.read_bytes())
+        self.assertEqual(sorted(p.name for p in self.sources.parent.iterdir()), ['debian.sources'])
+        supervisor.verify_target_hygiene(self.root)
+
+    def test_hygiene_refuses_a_missing_or_symlinked_template(self):
+        self.sources.unlink()
+        original = self.template.read_bytes()
+        self.template.unlink()
+        with self.assertRaisesRegex(ValueError, 'template'):
+            supervisor.install_debian_sources(self.root)
+        elsewhere = self.root / 'elsewhere.sources'
+        elsewhere.write_bytes(original)
+        self.template.symlink_to(elsewhere)
+        with self.assertRaisesRegex(ValueError, 'template'):
+            supervisor.install_debian_sources(self.root)
+        self.assertEqual(list(self.sources.parent.iterdir()), [])
+
+    def test_target_proof_rejects_missing_or_edited_sources(self):
+        self.sources.write_bytes(self.template.read_bytes() + b'# edited\n')
+        with self.assertRaisesRegex(ValueError, 'Debian sources'):
+            supervisor.verify_target_hygiene(self.root)
+        self.sources.unlink()
+        with self.assertRaisesRegex(ValueError, 'Debian sources'):
+            supervisor.verify_target_hygiene(self.root)
 
     def test_clean_target_passes(self):
         self.assertEqual(supervisor.verify_target_hygiene(self.root), {'live_artifacts_absent': True})
@@ -1252,10 +1286,12 @@ class TargetHygieneTests(unittest.TestCase):
                 with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, 'session nonce'):
                     supervisor.in_target_hygiene(bad)
             with mock.patch.object(supervisor, 'purge_live_artifacts', return_value=['/etc/sudoers.d/live']) as purge, \
+                 mock.patch.object(supervisor, 'install_debian_sources') as sources, \
                  mock.patch.object(supervisor, 'verify_target_hygiene', return_value={}) as verify, \
                  mock.patch('builtins.print') as printed:
                 self.assertEqual(supervisor.in_target_hygiene(self.NONCE), 0)
         purge.assert_called_once_with()
+        sources.assert_called_once_with()
         verify.assert_called_once_with()
         self.assertIn('/etc/sudoers.d/live', printed.call_args.args[0])
 

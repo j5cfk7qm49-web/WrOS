@@ -38,6 +38,7 @@ git
 restic
 rclone
 gpgv
+systemd-timesyncd
 debian-archive-keyring
 less
 nano

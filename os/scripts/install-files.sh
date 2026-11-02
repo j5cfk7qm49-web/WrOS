@@ -78,6 +78,9 @@ if [[ $fresh_layout == 1 && $profile == installer ]]; then
     # Adopt that choice at first boot, never on an existing installation.
     install -m 644 /dev/null "$dest/etc/writingdeck/installer-keyboard-pending"
 fi
+# Debian's online sources: a template only. The installer's target hygiene copies it to
+# /etc/apt/sources.list.d after the offline install, never onto the live medium itself.
+install -D -m 644 "$repo/os/config/apt/debian.sources" "$dest/usr/share/wros/apt/debian.sources"
 if [[ ! -e $dest/etc/pam.d/vlock && ! -L $dest/etc/pam.d/vlock ]]; then
     install -m 644 "$repo/os/config/vlock.pam" "$dest/etc/pam.d/vlock"
 fi

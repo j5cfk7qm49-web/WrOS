@@ -210,6 +210,19 @@ impl<R: Runner> Linux<R> {
             Ok(zone) if crate::timezone::validate(&zone).is_ok() => s.timezone = Some(zone),
             _ => s.warnings.push("Timezone service unavailable".into()),
         }
+        // A failed read leaves both unknown rather than claiming either state.
+        if let Ok(text) = self.runner.run(&Invocation::new(
+            "/usr/bin/timedatectl",
+            &[
+                "--no-ask-password",
+                "--no-pager",
+                "show",
+                "--property=NTP",
+                "--property=NTPSynchronized",
+            ],
+        )) {
+            (s.network_time, s.time_synchronized) = parse_time_sync(&text);
+        }
         if let Ok(v) = fs::read_to_string(self.etc.join("writingdeck/keyboard.json")) {
             s.keyboard = serde_json::from_str::<serde_json::Value>(&v)
                 .ok()
@@ -262,6 +275,20 @@ impl<R: Runner> Linux<R> {
         s
     }
 }
+/// `NTP=` and `NTPSynchronized=` from `timedatectl show`; anything but yes/no is unknown.
+fn parse_time_sync(text: &str) -> (Option<bool>, Option<bool>) {
+    let value = |key: &str| {
+        text.lines()
+            .find_map(|line| line.strip_prefix(key)?.strip_prefix('='))
+            .and_then(|v| match v.trim() {
+                "yes" => Some(true),
+                "no" => Some(false),
+                _ => None,
+            })
+    };
+    (value("NTP"), value("NTPSynchronized"))
+}
+
 fn timezone_status() -> Invocation {
     Invocation::new(
         "/usr/bin/timedatectl",
@@ -833,6 +860,19 @@ mod tests {
             self.0.push(c.clone());
             Ok("disconnected:none".into())
         }
+    }
+    #[test]
+    fn parse_time_sync_reads_yes_no_and_ignores_anything_else() {
+        assert_eq!(
+            parse_time_sync("NTP=yes\nNTPSynchronized=no\n"),
+            (Some(true), Some(false))
+        );
+        assert_eq!(
+            parse_time_sync("NTPSynchronized=yes\nNTP=no\n"),
+            (Some(false), Some(true))
+        );
+        assert_eq!(parse_time_sync("NTP=maybe\n"), (None, None));
+        assert_eq!(parse_time_sync(""), (None, None));
     }
     #[test]
     fn unfinished_mutations_cannot_invoke_tools_or_fabricate_service_success() {

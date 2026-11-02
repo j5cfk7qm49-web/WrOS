@@ -85,6 +85,15 @@ The native backend invokes local `nmcli` (NetworkManager), `timedatectl`
 account/status information. A cached APT simulation is not a repository refresh
 or installed update. Wi-Fi scanning is radio activity, not an internet API. Native Wi-Fi connection and saved-profile management invoke `nmcli` explicitly on user confirmation, passing WPA passphrases only via private `stdin` to `nmcli --ask` and never in command arguments, `Debug` output, or serialized requests.
 
+New installs keep the clock from the network and can fetch Debian updates.
+`systemd-timesyncd` contacts Debian's NTP pool (`*.debian.pool.ntp.org`) on its
+own while online, sending only NTP time requests. The installer writes Debian's
+online sources (`deb.debian.org`, `security.debian.org`) only after the offline
+install finishes, and Debian's `apt-daily` timers then refresh package indexes
+from them. Nothing installs automatically; `sudo apt upgrade` applies Debian
+updates. Settings › Date and time only reads `timedatectl show` for its
+network time row.
+
 General Drive browsing/materialization, cloud sync, update application and
 recovery/firmware operations remain unavailable and fail before their tools run.
 The separate backup adapter provides explicit authorization/backup/restore;
