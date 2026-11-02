@@ -114,6 +114,10 @@ pub struct SyncState {
     pub next: Option<std::time::Instant>,
     /// Whether the book had unsaved words at the last tick (a save ends that).
     pub saw_dirty: bool,
+    /// Files a sync parked Drive's version beside, until they are settled.
+    pub pending: Vec<crate::sync_service::Pending>,
+    /// Parked copies already announced as needing a merge.
+    pub announced: Vec<String>,
     /// Test seam: a stand-in helper and its environment.
     pub script: Option<PathBuf>,
     pub env: Vec<(&'static str, PathBuf)>,
@@ -390,11 +394,19 @@ impl App {
                 }
                 (_, result) => {
                     sync.next = Some(std::time::Instant::now() + SYNC_EVERY);
+                    if let Ok(reply) = &result {
+                        sync.pending = reply.pending.clone();
+                        if reply.downloaded + reply.deleted > 0 || !reply.pending.is_empty() {
+                            self.tree_stale = true;
+                        }
+                    }
+                    let sync = &mut self.deck.shell.backup.sync;
                     sync.last = Some(result);
                 }
             }
             return;
         }
+        self.merge_pending();
         if !self.sync_enabled() {
             return;
         }
@@ -409,6 +421,64 @@ impl App {
         let next = *sync.next.get_or_insert(now);
         if !dirty && sync.job.is_none() && now >= next {
             self.request_sync_run(false);
+        }
+    }
+    /// Merge each parked Drive copy whose changes do not clash, once the book is
+    /// re-read and saved; announce the ones that clash. Copies settled
+    /// elsewhere drop out.
+    fn merge_pending(&mut self) {
+        if self.deck.shell.backup.sync.pending.is_empty()
+            || self.tree_stale
+            || self.project.dirty_count() > 0
+        {
+            return;
+        }
+        let root = self.project.root.clone();
+        self.deck
+            .shell
+            .backup
+            .sync
+            .pending
+            .retain(|p| root.join(&p.parked).exists());
+        for pending in self.deck.shell.backup.sync.pending.clone() {
+            let copy = root.join(&pending.parked);
+            let Some(ci) = self.project.nodes.iter().position(|n| n.path == copy) else {
+                continue; // not in the tree yet
+            };
+            let Some(base) = pending
+                .merge_base
+                .as_ref()
+                .and_then(|b| fs::read_to_string(b).ok())
+            else {
+                continue; // no shared version: settled by hand in Conflicts
+            };
+            let (Ok(mine), Ok(theirs)) = (
+                fs::read_to_string(root.join(&pending.path)),
+                fs::read_to_string(&copy),
+            ) else {
+                continue;
+            };
+            let pieces = grimoire_core::merge::three_way(&base, &mine, &theirs);
+            if grimoire_core::merge::clashes(&pieces) == 0 {
+                let text = grimoire_core::merge::assemble(&pieces, &[]);
+                self.finish_merge(copy, text, true);
+            } else if !self
+                .deck
+                .shell
+                .backup
+                .sync
+                .announced
+                .contains(&pending.parked)
+            {
+                let title = self.original_of(ci).map_or_else(
+                    || self.project.nodes[ci].title.clone(),
+                    |o| self.project.nodes[o].title.clone(),
+                );
+                self.msg = format!(
+                    "{title} needs merging: WrOS and Drive changed the same paragraph · settle it in Conflicts"
+                );
+                self.deck.shell.backup.sync.announced.push(pending.parked);
+            }
         }
     }
     pub fn request_project_backup(&mut self) {

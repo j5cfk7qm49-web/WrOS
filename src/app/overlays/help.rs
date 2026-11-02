@@ -55,7 +55,7 @@ impl App {
             Overlay::Themes { .. } | Overlay::Custom { .. } => "themes",
             Overlay::Sources { .. } | Overlay::Player { .. } => "music",
             Overlay::Export { .. } | Overlay::Look { .. } | Overlay::Author { .. } => "compile",
-            Overlay::Conflicts { .. } | Overlay::Settle { .. } => "sync",
+            Overlay::Conflicts { .. } | Overlay::Settle { .. } | Overlay::Merge { .. } => "sync",
             Overlay::Cork { .. } => "corkboard",
             Overlay::History { .. } | Overlay::Recover { .. } => "history",
             Overlay::Pins | Overlay::PinCategory { .. } => "pins",

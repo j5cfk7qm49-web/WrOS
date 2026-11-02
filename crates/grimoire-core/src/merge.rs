@@ -100,6 +100,11 @@ fn resolve(base: &[String], mine: &[String], theirs: &[String], pieces: &mut Vec
         take(theirs, pieces);
     } else if theirs == base || mine == theirs {
         take(mine, pieces);
+    } else if base.len() > 1 && mine.len() == base.len() && theirs.len() == base.len() {
+        // Neighbouring edits, paragraph for paragraph: ask only where both changed.
+        for i in 0..base.len() {
+            resolve(&base[i..=i], &mine[i..=i], &theirs[i..=i], pieces);
+        }
     } else {
         pieces.push(Piece::Clash(Clash {
             mine: mine.join("\n\n"),
@@ -217,6 +222,20 @@ mod tests {
             "A\n\nB mine\n\nB theirs\n\nC\n"
         );
         assert_eq!(assemble(&pieces, &[Choice::Mine]), "A\n\nB mine\n\nC\n");
+    }
+
+    #[test]
+    fn neighbouring_edits_ask_only_about_the_paragraph_both_changed() {
+        let pieces = three_way(
+            "A\n\nB\n\nC\n",
+            "A mine\n\nB\n\nC\n",
+            "A theirs\n\nB theirs\n\nC\n",
+        );
+        assert_eq!(clashes(&pieces), 1);
+        assert_eq!(
+            assemble(&pieces, &[Choice::Mine]),
+            "A mine\n\nB theirs\n\nC\n"
+        );
     }
 
     #[test]

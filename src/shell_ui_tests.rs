@@ -1069,6 +1069,100 @@ fn a_save_brings_the_next_sync_forward_and_the_delete_guard_asks_first() {
     assert!(next <= std::time::Instant::now() + std::time::Duration::from_secs(10));
 }
 
+/// A scene changed in WrOS and in Drive since `base`, with Drive's version parked
+/// beside it by a sync, as `wros-sync` leaves it. Returns (scene, parked copy).
+fn parked_drive_edit(
+    root: &std::path::Path,
+    base: &str,
+    mine: &str,
+    theirs: &str,
+) -> (
+    std::path::PathBuf,
+    std::path::PathBuf,
+    crate::sync_service::Pending,
+) {
+    let scene = first_scene(root);
+    std::fs::write(&scene, mine).unwrap();
+    let stem = scene.file_stem().unwrap().to_string_lossy().into_owned();
+    let parked = scene.with_file_name(format!("{stem} (from Drive, 2026-11-02 09-30).md"));
+    std::fs::write(&parked, theirs).unwrap();
+    let merge_base = root.join(".sync-merge-base.md");
+    std::fs::write(&merge_base, base).unwrap();
+    let relative =
+        |p: &std::path::Path| p.strip_prefix(root).unwrap().to_string_lossy().into_owned();
+    let pending = crate::sync_service::Pending {
+        path: relative(&scene),
+        parked: relative(&parked),
+        merge_base: Some(merge_base.to_string_lossy().into_owned()),
+    };
+    (scene, parked, pending)
+}
+
+#[test]
+fn a_drive_edit_to_other_paragraphs_merges_itself_without_moving_the_screen() {
+    let root = book("sync-automerge", true);
+    let (scene, parked, pending) = parked_drive_edit(
+        &root,
+        "---\ntitle: Scene One\n---\n\nFirst.\n\nSecond.\n",
+        "---\ntitle: Scene One\n---\n\nFirst, mine.\n\nSecond.\n",
+        "---\ntitle: Scene One\n---\n\nFirst.\n\nSecond, theirs.\n",
+    );
+    let mut desk = Desk::open(root, 120, 40);
+    desk.app.open_settings();
+    desk.app.deck.shell.backup.sync.pending = vec![pending];
+    desk.app.tick_deck();
+    desk.draw();
+    assert_eq!(
+        std::fs::read_to_string(&scene).unwrap(),
+        "---\ntitle: Scene One\n---\n\nFirst, mine.\n\nSecond, theirs.\n",
+        "{}",
+        desk.app.msg
+    );
+    assert!(!parked.exists(), "the parked copy goes to the trash");
+    assert!(
+        desk.app.msg.contains("merged Drive's edits"),
+        "{}",
+        desk.app.msg
+    );
+    assert_eq!(desk.app.overlay, Overlay::Deck(Page::Settings));
+    assert!(desk.app.deck.shell.backup.sync.pending.is_empty());
+}
+
+#[test]
+fn a_clash_waits_for_the_writer_and_merges_paragraph_by_paragraph() {
+    let root = book("sync-clash", true);
+    let (scene, parked, pending) = parked_drive_edit(
+        &root,
+        "---\ntitle: Scene One\n---\n\nFirst.\n\nSecond.\n",
+        "---\ntitle: Scene One\n---\n\nFirst, mine.\n\nSecond.\n",
+        "---\ntitle: Scene One\n---\n\nFirst, theirs.\n\nSecond, theirs.\n",
+    );
+    let mut desk = Desk::open(root, 120, 40);
+    desk.app.deck.shell.backup.sync.pending = vec![pending];
+    desk.app.tick_deck();
+    assert!(parked.exists(), "a clash never settles itself");
+    assert!(desk.app.msg.contains("needs merging"), "{}", desk.app.msg);
+    desk.app.open_conflicts();
+    desk.key(KeyCode::Enter);
+    desk.draw();
+    assert!(desk.shows("Merge paragraph by paragraph"));
+    desk.key(KeyCode::Char('4'));
+    desk.draw();
+    assert!(desk.shows("Clash 1 of 1"), "{}", desk.rows().join("\n"));
+    assert!(desk.shows("First, mine.") && desk.shows("First, theirs."));
+    desk.key(KeyCode::Char('3'));
+    assert_eq!(
+        std::fs::read_to_string(&scene).unwrap(),
+        "---\ntitle: Scene One\n---\n\nFirst, mine.\n\nFirst, theirs.\n\nSecond, theirs.\n"
+    );
+    assert!(!parked.exists());
+    desk.ctrl('z');
+    assert_eq!(
+        std::fs::read_to_string(&scene).unwrap(),
+        "---\ntitle: Scene One\n---\n\nFirst, mine.\n\nSecond.\n"
+    );
+}
+
 #[test]
 fn update_wros_when_already_current_says_so_without_network_advice() {
     let mut desk = Desk::open(book("online-already-current", true), 120, 30);

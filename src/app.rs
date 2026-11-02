@@ -582,6 +582,12 @@ pub enum Overlay {
         copy: PathBuf,
         sel: usize,
     },
+    /// A Drive copy merged paragraph by paragraph: each clash, one at a time.
+    Merge {
+        copy: PathBuf,
+        pieces: Vec<grimoire_core::merge::Piece>,
+        choices: Vec<grimoire_core::merge::Choice>,
+    },
     /// The help: a topic list and the article picked from it. Typing
     /// searches; `reading` is the article having the keys. `back` is the box
     /// it was opened over, put back when it closes.

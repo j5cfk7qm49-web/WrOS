@@ -3,6 +3,7 @@
 //! or keep both. Nothing is deleted; every choice undoes with Ctrl-Z.
 
 use super::*;
+use grimoire_core::merge::{self, Choice, Piece};
 use grimoire_core::project::Settle;
 
 /// The three ways to settle one, in the order they're offered.
@@ -76,25 +77,131 @@ impl App {
     }
 
     pub(super) fn on_settle_key(&mut self, key: Key) {
-        let Overlay::Settle { copy, sel } = &mut self.overlay else {
+        let Overlay::Settle { copy, .. } = &self.overlay else {
             return;
         };
-        if list_nav(key, sel, CHOICES.len(), RING) {
+        let copy = copy.clone();
+        let mergeable = self.merge_base_of(&copy).is_some();
+        let Overlay::Settle { sel, .. } = &mut self.overlay else {
+            return;
+        };
+        if list_nav(key, sel, CHOICES.len() + usize::from(mergeable), RING) {
             return;
         }
         let pick = match key {
             Key::Enter => Some(*sel),
-            Key::Char(c @ '1'..='3') => Some(c as usize - '1' as usize),
+            Key::Char(c @ '1'..='4') => Some(c as usize - '1' as usize),
             _ => None,
         };
-        let copy = copy.clone();
-        if let Some(i) = pick {
-            self.settle_copy(copy, CHOICES[i]);
-            return;
+        match pick {
+            Some(3) if mergeable => return self.open_merge(copy),
+            Some(i) if i < CHOICES.len() => return self.settle_copy(copy, CHOICES[i]),
+            _ => {}
         }
         if key == Key::Esc {
             self.close_beside_of(&copy);
             self.overlay = Overlay::Conflicts { sel: 0 };
+        }
+    }
+
+    /// The private last-shared version a sync kept for this Drive copy, if any.
+    pub(crate) fn merge_base_of(&self, copy: &Path) -> Option<PathBuf> {
+        let root = &self.project.root;
+        self.deck
+            .shell
+            .backup
+            .sync
+            .pending
+            .iter()
+            .find(|p| root.join(&p.parked) == copy)
+            .and_then(|p| p.merge_base.as_ref().map(PathBuf::from))
+    }
+
+    /// Paragraph pieces of the scene against the Drive copy, from their shared base.
+    fn merge_pieces(&self, copy: &Path) -> Option<Vec<Piece>> {
+        let base = std::fs::read_to_string(self.merge_base_of(copy)?).ok()?;
+        let ci = self.project.nodes.iter().position(|n| n.path == copy)?;
+        let original = self.original_of(ci)?;
+        let mine = std::fs::read_to_string(&self.project.nodes[original].path).ok()?;
+        let theirs = std::fs::read_to_string(copy).ok()?;
+        Some(merge::three_way(&base, &mine, &theirs))
+    }
+
+    fn open_merge(&mut self, copy: PathBuf) {
+        let Some(pieces) = self.merge_pieces(&copy) else {
+            self.msg = "this copy can't be merged; take it, keep the scene, or keep both".into();
+            return;
+        };
+        if merge::clashes(&pieces) == 0 {
+            let text = merge::assemble(&pieces, &[]);
+            return self.finish_merge(copy, text, false);
+        }
+        self.overlay = Overlay::Merge {
+            copy,
+            pieces,
+            choices: Vec::new(),
+        };
+    }
+
+    pub(super) fn on_merge_key(&mut self, key: Key) {
+        let Overlay::Merge {
+            copy,
+            pieces,
+            choices,
+        } = &mut self.overlay
+        else {
+            return;
+        };
+        let choice = match key {
+            Key::Char('1') => Choice::Mine,
+            Key::Char('2') => Choice::Theirs,
+            Key::Char('3') => Choice::Both,
+            Key::Esc => {
+                let copy = copy.clone();
+                self.overlay = Overlay::Settle { copy, sel: 0 };
+                return;
+            }
+            _ => return,
+        };
+        choices.push(choice);
+        if choices.len() == merge::clashes(pieces) {
+            let text = merge::assemble(pieces, choices);
+            let copy = copy.clone();
+            self.finish_merge(copy, text, false);
+        }
+    }
+
+    /// The merged text goes into the copy, then the copy is taken: the scene's
+    /// own words go to its history first, and one Ctrl-Z undoes it all.
+    pub(crate) fn finish_merge(&mut self, copy: PathBuf, text: String, automatic: bool) {
+        if let Err(e) = std::fs::write(&copy, &text) {
+            self.msg = format!("left both as they were: {e}");
+            return;
+        }
+        let before = self.overlay.clone();
+        self.settle_copy(copy.clone(), Settle::TakeCopy);
+        if !copy.exists() {
+            let title = self
+                .project
+                .nodes
+                .iter()
+                .position(|n| n.path.with_extension("") == copy.with_extension(""))
+                .map(|i| self.project.nodes[i].title.clone());
+            let root = self.project.root.clone();
+            self.deck
+                .shell
+                .backup
+                .sync
+                .pending
+                .retain(|p| root.join(&p.parked) != copy);
+            let m = self.mod_label();
+            self.msg = format!(
+                "merged Drive's edits{} · {m}Z undoes",
+                title.map_or_else(String::new, |t| format!(" into {t}"))
+            );
+        }
+        if automatic {
+            self.overlay = before;
         }
     }
 
@@ -180,6 +287,64 @@ impl App {
         };
         self.msg = said;
     }
+}
+
+pub(super) fn draw_merge(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
+    let Overlay::Merge {
+        pieces, choices, ..
+    } = &app.overlay
+    else {
+        return;
+    };
+    let total = merge::clashes(pieces);
+    let Some(clash) = pieces
+        .iter()
+        .filter_map(|p| match p {
+            Piece::Clash(c) => Some(c),
+            Piece::Same(_) => None,
+        })
+        .nth(choices.len())
+    else {
+        return;
+    };
+    let box_area = centred(area, 84, area.height.saturating_sub(4).min(24));
+    f.render_widget(Clear, box_area);
+    let block = pane_block("MERGE", true, t);
+    let inner = block.inner(box_area);
+    f.render_widget(block, box_area);
+    let iw = inner.width as usize;
+    let room = (inner.height as usize).saturating_sub(7) / 2;
+    let mut lines = vec![
+        Line::from(Span::styled(
+            format!(
+                " Clash {} of {total}: WrOS and Drive changed this paragraph differently.",
+                choices.len() + 1
+            ),
+            Style::default().fg(t.text),
+        )),
+        Line::from(""),
+        Line::from(Span::styled(" 1  Yours", Style::default().fg(t.accent))),
+    ];
+    for text in [&clash.mine, &clash.theirs] {
+        for line in text.lines().take(room.max(1)) {
+            lines.push(Line::from(Span::styled(
+                format!("    {}", truncate(line, iw.saturating_sub(5))),
+                Style::default().fg(t.text),
+            )));
+        }
+        if std::ptr::eq(text, &clash.mine) {
+            lines.push(Line::from(Span::styled(
+                " 2  Drive's",
+                Style::default().fg(t.accent),
+            )));
+        }
+    }
+    lines.push(Line::from(""));
+    lines.push(hint_line(
+        " 1 yours   2 Drive's   3 both, yours first   esc back",
+        t,
+    ));
+    f.render_widget(Paragraph::new(lines), inner);
 }
 
 /// How much longer or shorter the copy is than its scene, in words.
@@ -305,7 +470,7 @@ pub(super) fn draw_settle(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     } else {
         format!(" The {label} of {title} ({}).", difference(app, ci))
     };
-    let choices = [
+    let mut choices = vec![
         (
             format!("Take the {label}"),
             "the scene's own words go to its history",
@@ -319,6 +484,12 @@ pub(super) fn draw_settle(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             "the copy becomes a scene of its own, right after it",
         ),
     ];
+    if app.merge_base_of(copy).is_some() {
+        choices.push((
+            "Merge paragraph by paragraph".to_string(),
+            "keep each side's changes; choose where both changed",
+        ));
+    }
     let mut lines = vec![
         Line::from(Span::styled(
             truncate(&intro, iw),
