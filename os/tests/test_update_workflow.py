@@ -46,6 +46,11 @@ class Workflow(unittest.TestCase):
             self.assertIn(needle, WORKFLOW)
         self.assertEqual(WORKFLOW.count("if: steps.plan.outputs.sign == 'true'"), 2)
         self.assertEqual(WORKFLOW.count("if: steps.plan.outputs.deploy == 'true'"), 2)
+        # Pages serves exactly what this run built: a folder the repository does not have.
+        served = re.search(r'upload-pages-artifact@v3\n.*\n\s+with:\n\s+path: (\S+)', WORKFLOW).group(1)
+        self.assertEqual(served, 'out/pages')
+        self.assertFalse((ROOT / served).exists())
+        self.assertNotIn(' site', WORKFLOW.replace('the whole site', '').replace('into the site', ''))
 
     def test_apt_source_points_at_the_fixed_url_with_the_package_keyring(self):
         self.assertEqual((ROOT / 'os/config/apt/wros.sources').read_text(), (
