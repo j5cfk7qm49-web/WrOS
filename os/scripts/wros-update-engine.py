@@ -1745,6 +1745,11 @@ def inspect_dpkg_state(dpkg_dir=DEFAULT_DPKG_DIR):
         for entry in sorted(updates_dir.iterdir()):
             if entry.name.isdigit() and entry.is_file() and entry.stat().st_size > 0:
                 interrupted = True
+    # A trigger queued here is not in the status file until dpkg next runs;
+    # `dpkg --configure -a` incorporates and processes it.
+    unincorp = dpkg_dir / 'triggers' / 'Unincorp'
+    if unincorp.is_file() and not unincorp.is_symlink() and unincorp.stat().st_size > 0:
+        interrupted = True
     if status_file.is_file() and not status_file.is_symlink():
         text = read_regular_bytes(status_file, LIMIT).decode('utf-8', errors='replace')
         for stanza in text.split('\n\n'):
@@ -1807,7 +1812,7 @@ def inspect_recovery(
     parts = [
         f'Root filesystem: {root_fs} '
         + ('(btrfs snapshot rollback available)' if rollback_capable else '(no automatic filesystem rollback)'),
-        f'dpkg: {"interrupted (" + ", ".join(unconfigured) + ")" if interrupted_dpkg else "clean"}',
+        f'dpkg: {"interrupted (" + (", ".join(unconfigured) or "queued triggers") + ")" if interrupted_dpkg else "clean"}',
         f'staged offline update: {len(staged_packages)} package(s)' if staged_update else 'no offline update staged',
     ]
     last_state = public.get('last_state')

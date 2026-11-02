@@ -228,6 +228,25 @@ class SignedUpdateTests(unittest.TestCase):
             self.assertTrue(btrfs_info['separate_home'])
             self.assertFalse(btrfs_info['rollback_capable'])
 
+    def test_a_trigger_queued_only_in_unincorp_is_unfinished_dpkg_work(self):
+        # dpkg-trigger outside a dpkg run queues work in triggers/Unincorp and
+        # leaves every status entry "install ok installed" until dpkg next runs.
+        with tempfile.TemporaryDirectory(prefix='wros-unincorp-') as tmp:
+            dpkg_dir = Path(tmp)
+            (dpkg_dir / 'status').write_text(
+                'Package: initramfs-tools\nStatus: install ok installed\nVersion: 0.148\n\n'
+            )
+            triggers = dpkg_dir / 'triggers'
+            triggers.mkdir()
+            (triggers / 'Unincorp').write_text('')
+            self.assertEqual(update.inspect_dpkg_state(dpkg_dir), (False, []))
+            (triggers / 'Unincorp').write_text('update-initramfs initramfs-tools\n')
+            self.assertEqual(update.inspect_dpkg_state(dpkg_dir), (True, []))
+            # A symlink is never followed, as for the status file.
+            (triggers / 'Unincorp').unlink()
+            (triggers / 'Unincorp').symlink_to(dpkg_dir / 'status')
+            self.assertEqual(update.inspect_dpkg_state(dpkg_dir), (False, []))
+
     def test_prototype_mutations_and_environment_overrides_cannot_change_system_state(self):
         with tempfile.TemporaryDirectory(prefix='wros-update-readonly-') as tmp:
             marker = Path(tmp)/'system-update'
