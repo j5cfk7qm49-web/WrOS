@@ -516,9 +516,16 @@ pub fn update_media(output: &str) -> Result<Option<String>> {
 /// Directory in which the privileged media verb mounts `WROS-UPDATE` media.
 pub const MANAGED_MEDIA_PREFIX: &str = "/run/wros-update/media/";
 
-/// Prefixes under which a writer-typed update bundle path is accepted.
-pub const UPDATE_MEDIA_PREFIXES: [&str; 4] =
-    [MANAGED_MEDIA_PREFIX, "/media/", "/run/media/", "/mnt/"];
+/// Where the root fetch helper publishes a verified online update.
+pub const ONLINE_UPDATE_PREFIX: &str = "/var/cache/wros-update/online/";
+/// Prefixes under which an update bundle path is accepted.
+pub const UPDATE_MEDIA_PREFIXES: [&str; 5] = [
+    MANAGED_MEDIA_PREFIX,
+    "/media/",
+    "/run/media/",
+    "/mnt/",
+    ONLINE_UPDATE_PREFIX,
+];
 
 pub fn validate_update_bundle_path(path: &str) -> Result<()> {
     ensure!(
@@ -541,7 +548,7 @@ pub fn validate_update_bundle_path(path: &str) -> Result<()> {
             && !path.ends_with('/')
             && !path.contains("//")
             && !path.split('/').any(|part| part == "."),
-        "update bundle must be a folder on update media under /run/wros-update/media, /media, /run/media or /mnt"
+        "update bundle must be a folder on update media under /run/wros-update/media, /media, /run/media or /mnt, or a downloaded WrOS update"
     );
     Ok(())
 }
@@ -700,6 +707,11 @@ mod tests {
         ] {
             assert!(validate_review_id(bad).is_err(), "{bad:?}");
         }
+        // The engine downloads online updates here; it reviews that folder like media.
+        assert!(
+            validate_update_bundle_path("/var/cache/wros-update/online/0123456789abcdef").is_ok()
+        );
+        assert!(validate_update_bundle_path("/var/cache/wros-update/x").is_err());
         for prefix in UPDATE_MEDIA_PREFIXES {
             assert!(validate_update_bundle_path(&format!("{prefix}x")).is_ok());
             // The prefix directory itself is not a bundle.

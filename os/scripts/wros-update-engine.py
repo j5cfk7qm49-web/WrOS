@@ -27,6 +27,8 @@ import struct
 import subprocess
 import sys
 import tempfile
+import urllib.error
+import urllib.request
 
 LIMIT = 16 * 1024 * 1024
 ARCHIVE_LIMIT = 1024 * 1024 * 1024
@@ -39,7 +41,11 @@ DEFAULT_DPKG_DIR = Path('/var/lib/dpkg')
 DEFAULT_MEDIA_ROOT = Path('/run/wros-update/media')
 MEDIA_LABEL = 'WROS-UPDATE'
 MEDIA_FILESYSTEMS = ('ext4', 'vfat', 'iso9660')
-ALLOWED_MEDIA_PREFIXES = ('/run/wros-update/media/', '/media/', '/run/media/', '/mnt/')
+# Online updates are downloaded by the root fetch helper into ONLINE_CACHE, which is reviewed like media.
+ONLINE_URL = 'https://j5cfk7qm49-web.github.io/WrOS/updates/'
+ONLINE_CACHE = Path('/var/cache/wros-update/online')
+ONLINE_TIMEOUT = 10
+ALLOWED_MEDIA_PREFIXES = ('/run/wros-update/media/', '/media/', '/run/media/', '/mnt/', '/var/cache/wros-update/online/')
 PINNED_ORIGIN = 'WrOS'
 PINNED_SUITES = ('wros-updates',)
 ACCEPTED_ARCHITECTURES = ('amd64', 'all')
@@ -1940,7 +1946,113 @@ def review_bundle(bundle_dir, *, keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNER
 
 # ------------------------------------------------------------------ entry code
 
-LAUNCHER_VERBS = ('stage', 'cancel', 'repair', 'media')
+LAUNCHER_VERBS = ('stage', 'cancel', 'repair', 'media', 'fetch')
+
+
+# ----------------------------------------------------------- online updates
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """The update URL is fixed; a redirect anywhere else is refused, not followed."""
+
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+def http_get(url, limit, opener=None, timeout=ONLINE_TIMEOUT):
+    """GET with a size cap. Network and HTTP failures raise OSError (URLError)."""
+    opener = opener or urllib.request.build_opener(_NoRedirect)
+    with opener.open(url, timeout=timeout) as response:
+        if getattr(response, 'status', 200) != 200:
+            raise urllib.error.URLError(f'HTTP {response.status}')
+        data = response.read(limit + 1)
+    if len(data) > limit:
+        fail('update server response exceeds the expected size')
+    return data
+
+
+def read_online_metadata(base_url, *, now, keyring, signers, package_keyring, opener):
+    """Signed InRelease and the Packages index it authenticates, from the update server."""
+    inrelease = http_get(base_url + 'InRelease', 1024 * 1024, opener)
+    _, release_text = verify_signed_metadata({'InRelease': inrelease}, keyring=keyring, signers=signers,
+                                             package_keyring=package_keyring)
+    release = parse_release(release_text, now=now)
+    relative = select_packages_entry(release['entries'])
+    expected_sha, expected_size = release['entries'][relative]
+    packages_raw = http_get(base_url + relative, 4 * 1024 * 1024, opener)
+    if hashlib.sha256(packages_raw).hexdigest() != expected_sha or len(packages_raw) != expected_size:
+        fail('Packages index SHA-256 or byte size does not match signed Release metadata')
+    packages = parse_packages_index(packages_raw.decode('utf-8', errors='strict'))
+    wros = next((p for p in packages if p['name'] == 'wros'), None)
+    if wros is None:
+        fail('the signed update index lists no wros package')
+    return inrelease, relative, packages_raw, packages, wros
+
+
+CLOCK_FAILURES = ('Date is in the future', 'has expired (Valid-Until passed)')
+
+
+def check_online(*, base_url=ONLINE_URL, now=None, dpkg_dir=DEFAULT_DPKG_DIR, keyring=DEFAULT_KEYRING,
+                 signers=DEFAULT_SIGNERS, package_keyring=None, opener=None):
+    """Unprivileged: is a newer signed WrOS published? Fetches only InRelease and Packages."""
+    reads = clock(now).astimezone().strftime('%Y-%m-%d %H:%M')
+    installed = load_installed_dpkg_database(dpkg_dir=dpkg_dir).get('wros', {}).get('version')
+    result = {'status': 'invalid', 'version': None, 'installed': installed, 'clock': reads}
+    try:
+        _, _, _, _, wros = read_online_metadata(base_url, now=now, keyring=keyring, signers=signers,
+                                                package_keyring=package_keyring, opener=opener)
+    except (OSError, TimeoutError):
+        return result | {'status': 'unreachable'}
+    except ValueError as exc:
+        return result | {'status': 'clock' if any(text in str(exc) for text in CLOCK_FAILURES) else 'invalid'}
+    newer = installed is None or compare_dpkg_versions(wros['version'], 'gt', installed)
+    return result | {'status': 'available' if newer else 'current', 'version': wros['version']}
+
+
+def fetch_online(*, base_url=ONLINE_URL, cache=ONLINE_CACHE, now=None, dpkg_dir=DEFAULT_DPKG_DIR,
+                 keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNERS, package_keyring=None, host_arch=None,
+                 opener=None):
+    """Root (via wros-update-fetch): download a newer signed update into the cache, checking every
+    archive against the signed index, and publish the folder only once the whole bundle verifies."""
+    try:
+        inrelease, relative, packages_raw, packages, wros = read_online_metadata(
+            base_url, now=now, keyring=keyring, signers=signers, package_keyring=package_keyring, opener=opener)
+    except (OSError, TimeoutError):
+        fail('could not download the update index from the WrOS update server')
+    installed = load_installed_dpkg_database(dpkg_dir=dpkg_dir).get('wros', {}).get('version')
+    if installed is not None and not compare_dpkg_versions(wros['version'], 'gt', installed):
+        fail(f'WrOS is already up to date ({installed})')
+    cache = Path(cache)
+    cache.mkdir(parents=True, exist_ok=True)
+    os.chmod(cache, 0o755)
+    target = cache / hashlib.sha256(inrelease).hexdigest()[:16]
+    partial = cache / ('.partial-' + secrets.token_hex(8))
+    partial.mkdir(mode=0o755)
+    try:
+        (partial / 'InRelease').write_bytes(inrelease)
+        (partial / relative).parent.mkdir(parents=True, exist_ok=True)
+        (partial / relative).write_bytes(packages_raw)
+        for pkg in packages:
+            try:
+                data = http_get(base_url + pkg['filename'], pkg['size'], opener, timeout=60)
+            except (OSError, TimeoutError):
+                fail(f'could not download {Path(pkg["filename"]).name} from the WrOS update server')
+            if len(data) != pkg['size'] or hashlib.sha256(data).hexdigest() != pkg['sha256']:
+                fail(f'archive {pkg["filename"]} failed SHA-256 or size check against signed Packages')
+            destination = partial / pkg['filename']
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(data)
+        verify_bundle(partial, keyring=keyring, signers=signers, dpkg_dir=dpkg_dir, now=now,
+                      host_arch=host_arch, package_keyring=package_keyring)
+        if target.exists():
+            shutil.rmtree(target)
+        os.replace(partial, target)
+    except BaseException:
+        shutil.rmtree(partial, ignore_errors=True)
+        raise
+    for older in cache.iterdir():
+        if older != target and older.is_dir() and re.fullmatch('[0-9a-f]{16}', older.name):
+            shutil.rmtree(older, ignore_errors=True)
+    return {'status': 'fetched', 'path': str(target), 'version': wros['version']}
 
 
 def launcher_main(verb, argv, pkexec_uid, *, euid=None, runner=None, **paths):
@@ -1968,6 +2080,10 @@ def launcher_main(verb, argv, pkexec_uid, *, euid=None, runner=None, **paths):
         if argv:
             fail('usage: wros-update-repair')
         return repair_updates(runner=runner, **paths)
+    if verb == 'fetch':
+        if argv:
+            fail('usage: wros-update-fetch')
+        return fetch_online(**{k: v for k, v in paths.items() if k in ('cache', 'now', 'dpkg_dir', 'keyring', 'signers')})
     if argv != ['mount']:
         fail('usage: wros-update-media mount')
     return find_update_media(runner=runner, **{k: v for k, v in paths.items() if k in ('media_root', 'mountinfo_text')})
@@ -1999,6 +2115,8 @@ def main(argv=None, environ=None):
     environ = os.environ if environ is None else environ
     if argv == ['recovery-status']:
         result = inspect_recovery()
+    elif argv == ['check-online']:
+        result = check_online()
     elif len(argv) == 2 and argv[0] == 'review':
         result = review_bundle(argv[1])
     elif len(argv) == 2 and argv[0] == 'verify-bundle':

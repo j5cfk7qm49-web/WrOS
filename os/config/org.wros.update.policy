@@ -27,4 +27,10 @@
     <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>no</allow_active></defaults>
     <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/wros-update-media</annotate>
   </action>
+  <action id="org.wros.update.fetch">
+    <description>Download the newest signed WrOS update from the fixed WrOS update server</description>
+    <message>Authorize downloading a WrOS update</message>
+    <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>no</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/wros-update-fetch</annotate>
+  </action>
 </policyconfig>

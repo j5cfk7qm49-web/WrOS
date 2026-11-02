@@ -334,6 +334,8 @@ class Transactions(unittest.TestCase):
             'cancel with arguments': ('cancel', ['now'], '1000', 0, 'usage'),
             'repair with arguments': ('repair', ['--force'], '1000', 0, 'usage'),
             'media without mount': ('media', [], '1000', 0, 'usage'),
+            'fetch with a url': ('fetch', ['https://elsewhere.example/'], '1000', 0, 'usage'),
+            'fetch without polkit': ('fetch', [], None, 0, 'through polkit'),
             'unknown verb': ('shell', [], '1000', 0, 'unavailable'),
         }
         for name, (verb, argv, uid, euid, pattern) in cases.items():

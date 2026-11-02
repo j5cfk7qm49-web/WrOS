@@ -1,7 +1,7 @@
 #!/usr/bin/python3 -I
 """Entry point for the WrOS update engine: unprivileged verbs and the two systemd roles.
 
-Verbs: recovery-status, review <abs-dir>, verify-bundle <abs-dir>.  run-offline-boot and
+Verbs: recovery-status, check-online, review <abs-dir>, verify-bundle <abs-dir>.  run-offline-boot and
 reconcile are reserved for systemd and refuse a pkexec caller.  Everything else fails
 closed.  The engine is a root-owned module at a fixed path (-I ignores the environment
 and this directory), and it is the only code that decides.

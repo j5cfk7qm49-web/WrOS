@@ -4,7 +4,7 @@ Uses real /usr/bin/gpg, /usr/bin/gpgv, /usr/bin/dpkg --compare-versions, and
 POSIX fcntl record locks against disposable temporary keyrings and directories;
 no host system packages or root paths are modified.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import os
 from pathlib import Path
@@ -612,6 +612,94 @@ class UpdateMediaTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='wros-media-') as tmp:
             _, mount = self.find(Path(tmp) / 'media', 'vfat')
             self.assertEqual(mount[4], 'ro,nodev,nosuid,noexec,dmask=0022,fmask=0133')
+
+
+class OnlineUpdateTests(unittest.TestCase):
+    """check_online / fetch_online against a local HTTP server serving signed bundles."""
+
+    @classmethod
+    def setUpClass(cls):
+        import functools
+        import http.server
+        import shutil
+        import threading
+        cls.gpg = support.shared_gpg()
+        cls.tmp = tempfile.TemporaryDirectory(prefix='wros-online-')
+        base = Path(cls.tmp.name)
+        (base / 'debs').mkdir()
+        deb = support.make_deb(base / 'debs', 'wros', '0.1.0~rc3', arch='amd64')
+        cls.site = base / 'site'
+        support.write_bundle(cls.site, [deb], cls.gpg)
+        # Variants under the same server: tampered index, missing archive, corrupt archive.
+        for name in ('tampered', 'missing', 'corrupt'):
+            shutil.copytree(cls.site, cls.site / name, ignore=shutil.ignore_patterns('tampered', 'missing', 'corrupt'))
+        packages = cls.site / 'tampered/Packages'
+        packages.write_text(packages.read_text().replace('0.1.0~rc3', '0.1.0~rc9'))
+        for path in (cls.site / 'missing/pool').iterdir():
+            path.unlink()
+        for path in (cls.site / 'corrupt/pool').iterdir():
+            path.write_bytes(b'x' * path.stat().st_size)
+
+        class Quiet(http.server.SimpleHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+        cls.server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Quiet, directory=str(cls.site)))
+        threading.Thread(target=cls.server.serve_forever, daemon=True).start()
+        cls.url = f'http://127.0.0.1:{cls.server.server_port}/'
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+        cls.server.server_close()
+        cls.tmp.cleanup()
+
+    def system(self, installed):
+        status = (f'Package: wros\nStatus: install ok installed\nArchitecture: amd64\nVersion: {installed}\n\n'
+                  if installed else '')
+        fixture = support.SystemFixture(self.gpg, status=status)
+        self.addCleanup(fixture.cleanup)
+        return {'keyring': fixture.keyring, 'signers': fixture.signers, 'dpkg_dir': fixture.dpkg}
+
+    def test_check_online_reports_available_current_clock_and_unreachable(self):
+        result = update.check_online(base_url=self.url, **self.system('0.1.0~rc2'))
+        self.assertEqual((result['status'], result['version'], result['installed']), ('available', '0.1.0~rc3', '0.1.0~rc2'))
+        for installed in ('0.1.0~rc3', '0.1.0'):
+            with self.subTest(installed=installed):
+                self.assertEqual(update.check_online(base_url=self.url, **self.system(installed))['status'], 'current')
+        for shift in (timedelta(days=40), -timedelta(days=2)):
+            with self.subTest(shift=shift):
+                moment = datetime.now(timezone.utc) + shift
+                result = update.check_online(base_url=self.url, now=moment, **self.system('0.1.0~rc2'))
+                self.assertEqual(result['status'], 'clock')
+                self.assertEqual(result['clock'], moment.astimezone().strftime('%Y-%m-%d %H:%M'))
+        import socket
+        with socket.socket() as closed:
+            closed.bind(('127.0.0.1', 0))
+            port = closed.getsockname()[1]
+        self.assertEqual(update.check_online(base_url=f'http://127.0.0.1:{port}/', **self.system('0.1.0~rc2'))['status'],
+                         'unreachable')
+        self.assertEqual(update.check_online(base_url=self.url + 'tampered/', **self.system('0.1.0~rc2'))['status'],
+                         'invalid')
+
+    def test_fetch_online_publishes_only_a_verified_newer_bundle(self):
+        with tempfile.TemporaryDirectory(prefix='wros-online-cache-') as tmp:
+            cache = Path(tmp) / 'online'
+            for variant, pattern in (('missing/', 'download'), ('corrupt/', 'SHA-256'), ('tampered/', 'Packages')):
+                with self.subTest(variant=variant), self.assertRaisesRegex(ValueError, pattern):
+                    update.fetch_online(base_url=self.url + variant, cache=cache, **self.system('0.1.0~rc2'))
+                self.assertEqual(list(cache.iterdir()) if cache.exists() else [], [])
+            with self.assertRaisesRegex(ValueError, 'already up to date'):
+                update.fetch_online(base_url=self.url, cache=cache, **self.system('0.1.0~rc3'))
+            self.assertEqual(list(cache.iterdir()), [])
+            system = self.system('0.1.0~rc2')
+            fetched = Path(update.fetch_online(base_url=self.url, cache=cache, **system)['path'])
+            self.assertEqual(fetched.parent, cache)
+            self.assertEqual(sorted(p.name for p in fetched.iterdir()), ['InRelease', 'Packages', 'pool'])
+            verified = update.verify_bundle(fetched, keyring=system['keyring'], signers=system['signers'],
+                                            host_arch='amd64')
+            self.assertEqual([p['version'] for p in verified['packages']], ['0.1.0~rc3'])
+            self.assertTrue(update.check_bundle_path('/var/cache/wros-update/online/' + fetched.name))
 
 
 if __name__ == '__main__':
