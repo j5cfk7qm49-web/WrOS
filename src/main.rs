@@ -211,6 +211,7 @@ fn main() -> Result<()> {
     let stranded = project::restore_stranded(&root);
     let project = Project::load(&root).context("loading project")?;
     let mut app = App::new(project)?;
+    app.underline_colour = std::env::var("TERM").as_deref() != Ok("linux");
     if let Some(m) = opening_msg {
         app.msg = m;
     }

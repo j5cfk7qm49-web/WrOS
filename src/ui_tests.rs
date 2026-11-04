@@ -780,6 +780,37 @@ fn scene_text(d: &Desk) -> String {
 }
 
 #[test]
+fn the_linux_console_marks_words_without_underline_colours_it_would_misread() {
+    use ratatui::style::Color;
+    let mut d = spelling_desk("spell-console", "Teh cat sat after the word.");
+    let cell = |d: &Desk, needle: &str| {
+        let (x, y) = at(d, needle);
+        d.term.backend().buffer()[(x, y)].clone()
+    };
+    // A desktop terminal draws a coloured underline.
+    let word = cell(&d, "Teh cat");
+    assert!(word.modifier.contains(Modifier::UNDERLINED));
+    assert_eq!(word.underline_color, d.app.theme.warn);
+    // The Linux console reads ESC[58;...m as faint, blink and font switches that
+    // stick to everything after the word: there the mark is a plain underline in colour.
+    d.app.underline_colour = false;
+    d.draw();
+    let word = cell(&d, "Teh cat");
+    assert!(word.modifier.contains(Modifier::UNDERLINED));
+    assert_eq!(word.fg, d.app.theme.warn);
+    let buffer = d.term.backend().buffer();
+    assert!(
+        buffer
+            .content()
+            .iter()
+            .all(|c| c.underline_color == Color::Reset)
+    );
+    let after = cell(&d, "cat sat");
+    assert_eq!(after.fg, d.app.theme.text);
+    assert!(!after.modifier.contains(Modifier::UNDERLINED));
+}
+
+#[test]
 fn clicking_a_misspelt_word_offers_its_fixes_and_one_undo_takes_one_back() {
     let mut d = spelling_desk("spell-fix", "Teh cat sat.");
     click(&mut d, "Teh cat");

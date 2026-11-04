@@ -905,6 +905,17 @@ fn draw_music(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
     f.render_widget(Paragraph::new(lines), inner);
 }
 
+/// A word a check marked: underlined in `colour`. Where the terminal has no
+/// underline colours (the Linux console), the word itself takes the colour.
+fn marked(st: Style, colour: ratatui::style::Color, underline_colour: bool) -> Style {
+    let st = st.add_modifier(Modifier::UNDERLINED);
+    if underline_colour {
+        st.underline_color(colour)
+    } else {
+        st.fg(colour)
+    }
+}
+
 fn draw_editor(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
     let focused = app.view_is_focused();
     let mut title = app.open_title();
@@ -1020,10 +1031,7 @@ fn draw_editor(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
             // per prose view. Spelling retains its own layer and dictionary.
             if let Some(spans) = check_spans.get(&r.line) {
                 for &(s, e) in spans {
-                    paint(s, e, &|st| {
-                        st.underline_color(t.moon)
-                            .add_modifier(Modifier::UNDERLINED)
-                    });
+                    paint(s, e, &|st| marked(st, t.moon, app.underline_colour));
                 }
             }
             // Misspellings: a warn-coloured underline, never on the word being typed.
@@ -1032,10 +1040,7 @@ fn draw_editor(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
                     App::misspellings_outside_marks(app.misspellings(r.line), &marks[r.line])
                 });
                 for &(s, e) in bad.iter() {
-                    paint(s, e, &|st| {
-                        st.underline_color(t.warn)
-                            .add_modifier(Modifier::UNDERLINED)
-                    });
+                    paint(s, e, &|st| marked(st, t.warn, app.underline_colour));
                 }
             }
             if let Some((from, to)) = app.editor.row_selection(r) {
