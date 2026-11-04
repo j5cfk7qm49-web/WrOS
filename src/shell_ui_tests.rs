@@ -2120,9 +2120,16 @@ fn an_app_only_update_installs_now_and_restarts_only_the_writing_app() {
     desk.choose("Stage this update");
     wait_system(&mut desk);
     assert_eq!(route(&desk), Route::UpdateStaged);
-    assert!(!desk.shows("Install now"), "{}
-{:?}", desk.rows().join("
-"), desk.app.deck.shell.update_flow.staged);
+    assert!(
+        !desk.shows("Install now"),
+        "{}
+{:?}",
+        desk.rows().join(
+            "
+"
+        ),
+        desk.app.deck.shell.update_flow.staged
+    );
     assert!(!desk.app.deck.app_restart_requested);
 
     // One press with restart: an app-only update installs now instead of rebooting.
