@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Finish linking WrOS</title>
+<style>
+  body { font: 18px/1.5 system-ui, sans-serif; margin: 0 16px; padding: 32px 0; background: #111; color: #eee; }
+  a.button { display: inline-block; padding: 16px 28px; font-size: 20px; background: #3b6; color: #000; border-radius: 10px; text-decoration: none; }
+  .note { color: #aaa; font-size: 15px; }
+</style>
+</head>
+<body>
+<h1>Finish linking WrOS</h1>
+<p id="status">Reading Google's answer…</p>
+<p id="finish" hidden><a class="button" id="go" href="#">Finish linking</a></p>
+<p class="note" id="note" hidden>Sends Google's approval to your laptop over your Wi-Fi. It only works
+together with the laptop that showed the code.</p>
+<script>
+// Google returns here with ?code=…&state=<address>. The code is useless without the secret
+// half of the PKCE pair, which never leaves the laptop. Safari only lets a secure page open
+// the laptop's local address after a tap, hence the button.
+(function () {
+  const status = document.getElementById('status');
+  const params = new URLSearchParams(location.search);
+  history.replaceState(null, '', location.pathname);  // keep the code out of history and tab sync
+  if (params.get('error')) {
+    status.textContent = params.get('error') === 'access_denied'
+      ? 'Linking was cancelled. Scan the code on the laptop to try again.'
+      : 'Google could not link WrOS (' + params.get('error') + '). Scan the code on the laptop to try again.';
+    return;
+  }
+  const code = params.get('code') || '';
+  const state = params.get('state') || '';
+  if (!/^[\x21-\x7e]{10,512}$/.test(code) || !/^[A-Za-z0-9_-]{8}$/.test(state)) {
+    status.textContent = 'This page needs the link from Google. Scan the code on the laptop to start.';
+    return;
+  }
+  const bytes = Array.from(atob(state.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+  const [a, b, c, d] = bytes;
+  const port = bytes[4] * 256 + bytes[5];
+  // Only a laptop on the local network, never an address on the internet.
+  if (!(a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)) || port < 1024) {
+    status.textContent = 'This link does not point at a laptop on your network.';
+    return;
+  }
+  document.getElementById('go').href =
+    'http://' + [a, b, c, d].join('.') + ':' + port + '/linked?code=' + encodeURIComponent(code);
+  status.textContent = 'Google said yes. One last step:';
+  document.getElementById('finish').hidden = false;
+  document.getElementById('note').hidden = false;
+})();
+</script>
+</body>
+</html>
