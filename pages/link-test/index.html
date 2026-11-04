@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>WrOS link test</title>
+<style>
+  body { font: 18px/1.5 system-ui, sans-serif; margin: 0 16px; padding: 32px 0; background: #111; color: #eee; }
+  h1 { font-size: 22px; }
+  a.button { display: inline-block; padding: 12px 20px; background: #3b6; color: #000; border-radius: 8px; text-decoration: none; }
+  .note { color: #aaa; font-size: 15px; }
+</style>
+</head>
+<body>
+<h1>WrOS link test</h1>
+<p id="status">Reading the link…</p>
+<p id="manual" hidden><a class="button" id="go" href="#">Send to the laptop</a></p>
+<p class="note">A WrOS test: this page only passes a random test number from this phone to a laptop on your Wi-Fi.
+No sign-in, no data.</p>
+<script>
+// The link's fragment is "<nonce>.<address>": a random test number, then the laptop's private
+// IPv4 address and port packed into 6 bytes, base64url. The fragment never reaches the server.
+(function () {
+  const status = document.getElementById('status');
+  const fail = (why) => { status.textContent = 'This link is not a WrOS test link (' + why + ').'; };
+  const parts = location.hash.slice(1).split('.');
+  if (parts.length !== 2 || !/^[A-Za-z0-9_-]{16,64}$/.test(parts[0]) || !/^[A-Za-z0-9_-]{8}$/.test(parts[1])) {
+    return fail('wrong shape');
+  }
+  const bytes = Array.from(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+  const [a, b, c, d] = bytes;
+  const port = bytes[4] * 256 + bytes[5];
+  // Only a laptop on the local network, never an address on the internet.
+  const privateAddress = a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+  if (!privateAddress || port < 1024) {
+    return fail('not a local address');
+  }
+  const target = 'http://' + [a, b, c, d].join('.') + ':' + port + '/linked?n=' + parts[0];
+  status.textContent = 'Sending to the laptop at ' + [a, b, c, d].join('.') + '…';
+  const go = document.getElementById('go');
+  go.href = target;
+  setTimeout(() => {
+    document.getElementById('manual').hidden = false;
+    status.textContent = 'If nothing happened, tap the button.';
+  }, 3000);
+  location.replace(target);
+})();
+</script>
+</body>
+</html>

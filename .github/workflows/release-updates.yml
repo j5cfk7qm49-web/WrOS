@@ -15,7 +15,7 @@ name: release-updates
 
 on:
   push:
-    tags: ['v*']
+    tags: ['v*', '!v*-linktest*']  # a -linktest tag only carries the link test page; dispatch it by hand
   schedule:
     - cron: '17 6 * * 1'  # weekly re-sign: Valid-Until (21 days) never lapses
   workflow_dispatch:
@@ -168,6 +168,14 @@ jobs:
           if [ "$BUILD" = updates-scratch ]; then
             sign out/new/wros_*_amd64.deb out/pages/updates-scratch
           fi
+          find out/pages -type f | sort
+      - name: Static pages
+        if: steps.plan.outputs.deploy == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/pages
+          cp -r pages/. out/pages/
           find out/pages -type f | sort
       - uses: actions/upload-pages-artifact@v3
         if: steps.plan.outputs.deploy == 'true'
