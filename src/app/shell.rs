@@ -384,6 +384,7 @@ enum Choice {
     UpdateOnlineFetch,
     UpdateContinue,
     UpdateStage,
+    UpdateBackupThenStage(bool),
     UpdateAbandon,
     UpdateStagedOpen,
     UpdateRestart,
@@ -1976,6 +1977,9 @@ impl App {
                     Choice::UpdateOnlineFetch => self.update_online_fetch(),
                     Choice::UpdateContinue => self.update_continue(),
                     Choice::UpdateStage => self.update_stage(),
+                    Choice::UpdateBackupThenStage(restart) => {
+                        self.update_backup_then_stage(restart)
+                    }
                     Choice::UpdateAbandon => self.update_abandon(),
                     Choice::UpdateStagedOpen => self.update_open_staged(),
                     Choice::UpdateRestart => self.update_restart(),

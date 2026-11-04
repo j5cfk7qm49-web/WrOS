@@ -633,6 +633,7 @@ impl App {
     }
     pub fn tick_deck(&mut self) {
         self.deck.shell.backup.tick();
+        self.tick_update_chain();
         self.tick_productivity();
         self.tick_online_updates();
         self.tick_sync();
@@ -759,6 +760,7 @@ impl App {
                         .clone()
                         .unwrap_or_else(|| info.status.clone());
                     self.deck.shell.recovery = Some(info);
+                    self.on_recovery_for_chain();
                 }
                 Ok(Reply::GoogleStatus(status)) => {
                     self.deck.note = status.status_message.clone();

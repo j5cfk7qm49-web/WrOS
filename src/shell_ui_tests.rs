@@ -1949,6 +1949,134 @@ fn update_confirmation_defaults_to_cancel_and_stages_only_after_every_gate_passe
     }
 }
 
+/// Stand in for the backup helper: the next backup answers with `result`.
+fn backup_answers(desk: &mut Desk, result: Result<bool, &str>) {
+    let root = desk.app.project.root.to_string_lossy().into_owned();
+    let mut status = crate::backup_service::Status {
+        configured: true,
+        ..Default::default()
+    };
+    let result = result.map(|fresh| {
+        if fresh {
+            status.snapshots = vec![crate::backup_service::Snapshot {
+                id: "b".repeat(64),
+                time: chrono::Utc::now().to_rfc3339(),
+                _path: root,
+                project: "Book".into(),
+                restore_checked_at: String::new(),
+            }];
+        }
+        status
+    });
+    let result = result.map_err(str::to_string);
+    desk.app.deck.shell.backup.job =
+        Some(crate::backup_service::spawn_work("test-backup", move |_, _| result).unwrap());
+}
+
+/// Tick the app until the back-up-then-stage chain has nothing left to do.
+fn wait_chain(desk: &mut Desk) {
+    let end = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    while (desk.app.deck.shell.update_flow.chain.is_some() || desk.app.deck.busy)
+        && std::time::Instant::now() < end
+    {
+        desk.app.tick_deck();
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    assert!(
+        desk.app.deck.shell.update_flow.chain.is_none(),
+        "{:?}: {}",
+        desk.app.deck.shell.update_flow.chain,
+        desk.app.deck.note
+    );
+    desk.draw();
+}
+
+#[test]
+fn back_up_then_stage_stages_only_after_a_verified_backup_and_restarts_only_when_confirmed() {
+    // A backup that fails stages nothing and says which step stopped.
+    let mut desk = Desk::open(book("update-chain-fail", true), 100, 30);
+    let world = UpdateWorld::install(&mut desk);
+    system_panel(&mut desk, 5);
+    wait_system(&mut desk);
+    reach_confirm(&mut desk);
+    set_backup(&mut desk, true, false);
+    assert!(
+        desk.shows("Back up, then stage"),
+        "{}",
+        desk.rows().join("\n")
+    );
+    assert!(desk.shows("Back up, stage and restart"));
+    desk.choose("Back up, then stage");
+    assert!(desk.app.deck.shell.update_flow.chain.is_some());
+    backup_answers(&mut desk, Err("Google Drive could not be reached"));
+    wait_chain(&mut desk);
+    assert_eq!(world.mutations(), 0, "staged without a verified backup");
+    assert!(
+        desk.app
+            .deck
+            .note
+            .contains("The backup did not finish, so nothing was staged"),
+        "{}",
+        desk.app.deck.note
+    );
+    assert!(
+        desk.app
+            .deck
+            .note
+            .contains("Google Drive could not be reached")
+    );
+
+    // A verified backup stages exactly the reviewed update, and nothing restarts.
+    let reviewed = desk
+        .app
+        .deck
+        .shell
+        .update_flow
+        .review
+        .clone()
+        .unwrap()
+        .review_id;
+    desk.choose("Back up, then stage");
+    backup_answers(&mut desk, Ok(true));
+    wait_chain(&mut desk);
+    assert_eq!(world.stages(), [(MEDIA.to_string(), reviewed)]);
+    assert_eq!(route(&desk), Route::UpdateStaged);
+    assert_eq!(world.count(|r| matches!(r, Request::Power(_))), 0);
+
+    // The restart variant restarts once the system reports the update staged.
+    let mut desk = Desk::open(book("update-chain-restart", true), 100, 30);
+    let world = UpdateWorld::install(&mut desk);
+    desk.typed("Words saved before the restart. ");
+    system_panel(&mut desk, 5);
+    wait_system(&mut desk);
+    reach_confirm(&mut desk);
+    set_backup(&mut desk, true, false);
+    desk.choose("Back up, stage and restart");
+    backup_answers(&mut desk, Ok(true));
+    wait_chain(&mut desk);
+    assert_eq!(world.stages().len(), 1);
+    assert_eq!(world.state(), UpdateState::Staged);
+    assert_eq!(
+        world.count(|r| *r == Request::Power(writingdeck_sys::PowerAction::Restart)),
+        1,
+        "{}",
+        desk.app.deck.note
+    );
+    assert_eq!(desk.app.project.dirty_count(), 0, "words were saved first");
+
+    // A backup that finished but left no fresh snapshot is not trusted either.
+    let mut desk = Desk::open(book("update-chain-stale", true), 100, 30);
+    let world = UpdateWorld::install(&mut desk);
+    system_panel(&mut desk, 5);
+    wait_system(&mut desk);
+    reach_confirm(&mut desk);
+    set_backup(&mut desk, true, false);
+    desk.choose("Back up, stage and restart");
+    backup_answers(&mut desk, Ok(false));
+    wait_chain(&mut desk);
+    assert_eq!(world.mutations(), 0);
+}
+
 #[test]
 fn update_backup_not_set_up_does_not_block_but_is_shown_and_no_backup_is_never_called_fresh() {
     let mut desk = Desk::open(book("update-no-backup", true), 100, 30);

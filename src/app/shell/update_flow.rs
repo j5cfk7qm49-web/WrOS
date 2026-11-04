@@ -41,6 +41,22 @@ pub struct UpdateFlow {
     /// still checks once a day of real time.
     pub online_next: Option<SystemTime>,
     pub online_alerted: Option<String>,
+    /// A one-press "back up, then stage" (and maybe restart) still under way.
+    pub chain: Option<Chain>,
+}
+
+/// Where a one-press back-up-then-stage stands. Each step starts only after the
+/// one before it verifiably finished; any failure ends the chain.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Chain {
+    BackingUp {
+        restart: bool,
+    },
+    Staging {
+        restart: bool,
+    },
+    /// Staged; waiting for the system to report it before restarting.
+    Confirming,
 }
 
 /// After login, give Wi-Fi time to connect before the first check.
@@ -288,6 +304,23 @@ pub(super) fn confirm_rows(app: &App) -> Vec<Entry> {
             "Stage this update · it installs at your next restart",
             Choice::UpdateStage,
         ),
+    ];
+    if review.backup_recommended
+        && app.deck.shell.backup.status_ok
+        && app.deck.shell.backup.status.configured
+    {
+        rows.extend([
+            Entry::new(
+                "Back up, then stage · a new verified backup first",
+                Choice::UpdateBackupThenStage(false),
+            ),
+            Entry::new(
+                "Back up, stage and restart · installs it right away",
+                Choice::UpdateBackupThenStage(true),
+            ),
+        ]);
+    }
+    rows.extend([
         info(format!(
             "{} signed by key {}, valid until {}.",
             plural(review.packages.len(), "package change", "package changes"),
@@ -297,7 +330,7 @@ pub(super) fn confirm_rows(app: &App) -> Vec<Entry> {
         info(
             "Staging installs nothing yet. You choose when to restart, and can cancel until then.",
         ),
-    ];
+    ]);
     rows.extend(gate_lines(app, review).into_iter().map(info));
     rows
 }
@@ -648,6 +681,95 @@ impl App {
             review_id: review.review_id,
         });
     }
+    /// One press: a new verified backup of this book, then stage, then maybe restart.
+    pub(super) fn update_backup_then_stage(&mut self, restart: bool) {
+        if self.deck.shell.update_flow.review.is_none() {
+            self.update_notice("No reviewed update to stage. Go back and review a bundle.");
+            return;
+        }
+        if self.deck.busy {
+            self.update_notice("A system request is still running. Wait for it, then try again.");
+            return;
+        }
+        self.deck.shell.backup.tick();
+        if self.deck.shell.backup.job.is_some() {
+            self.update_notice(
+                "A backup operation is already running. Wait for it, then try again.",
+            );
+            return;
+        }
+        if !self.writing_is_safe() {
+            self.update_notice(
+                "Not started: unsaved buffers or source conflicts need attention. Return to writing, save and resolve them, then try again.",
+            );
+            return;
+        }
+        self.request_project_backup();
+        if self.deck.shell.backup.job.is_none() {
+            let why = self.deck.shell.backup.notice.clone();
+            self.update_notice(format!("Not started: {why}"));
+            return;
+        }
+        self.deck.shell.update_flow.chain = Some(Chain::BackingUp { restart });
+        self.update_notice(if restart {
+            "Backing up this book; then the update is staged and WrOS restarts to install it."
+        } else {
+            "Backing up this book; then the update is staged."
+        });
+    }
+    /// Move a back-up-then-stage on once its current step has finished.
+    pub(crate) fn tick_update_chain(&mut self) {
+        if self.deck.shell.update_flow.chain == Some(Chain::Confirming) && !self.deck.busy {
+            // The read-back after staging is not sent while another request runs: ask until answered.
+            if self.deck.shell.recovery.is_none() {
+                self.refresh_recovery();
+            } else {
+                self.on_recovery_for_chain();
+            }
+            return;
+        }
+        let Some(Chain::BackingUp { restart }) = self.deck.shell.update_flow.chain else {
+            return;
+        };
+        if self.deck.shell.backup.job.is_some() {
+            return;
+        }
+        let now = chrono::Utc::now();
+        if self
+            .deck
+            .shell
+            .backup
+            .fresh_snapshot(&self.project.root, now)
+            .is_none()
+        {
+            self.deck.shell.update_flow.chain = None;
+            let why = self.deck.shell.backup.notice.clone();
+            self.update_notice(format!(
+                "The backup did not finish, so nothing was staged: {why}"
+            ));
+            return;
+        }
+        self.deck.shell.update_flow.chain = Some(Chain::Staging { restart });
+        self.update_stage();
+        if !self.deck.busy {
+            // Staging refused before sending anything; its notice says why.
+            self.deck.shell.update_flow.chain = None;
+        }
+    }
+    /// The system's status was read back: restart if a chained update is staged.
+    pub(crate) fn on_recovery_for_chain(&mut self) {
+        if self.deck.shell.update_flow.chain != Some(Chain::Confirming) || self.deck.busy {
+            return;
+        }
+        self.deck.shell.update_flow.chain = None;
+        if confirmed_staged(self) {
+            self.update_restart();
+        } else {
+            self.update_notice(
+                "Staged, but the system has not confirmed it, so WrOS did not restart. Check Recovery status.",
+            );
+        }
+    }
     pub(super) fn update_open_staged(&mut self) {
         self.deck.shell.nav.open(Route::UpdateStaged);
         self.deck.shell.nav.select(0, 3);
@@ -806,6 +928,12 @@ impl App {
         };
         let showing = self.in_update_flow();
         let flow = &mut self.deck.shell.update_flow;
+        flow.chain = match flow.chain {
+            Some(Chain::Staging { restart: true }) if staged.restart_required => {
+                Some(Chain::Confirming)
+            }
+            _ => None,
+        };
         flow.staged = Some(staged);
         flow.last_result = Some(text.clone());
         self.update_notice(text);
@@ -910,6 +1038,7 @@ impl App {
                 review_id,
             } => {
                 let flow = &mut self.deck.shell.update_flow;
+                flow.chain = None;
                 flow.stage_error = Some(error.to_string());
                 flow.recheck = Some(review_id.clone());
                 self.update_notice(format!(
