@@ -56,6 +56,7 @@ pub struct Reading {
     pub at: usize,
     pub voice: String,
     pub queue: Vec<(PathBuf, String)>,
+    pub history: Vec<(PathBuf, String)>,
     pub source_path: PathBuf,
     pub source_revision: (u64, u64),
 }
@@ -2054,6 +2055,18 @@ impl App {
             self.paste_update_form(text);
             return;
         }
+        if self.overlay == Overlay::Deck(writingdeck::Page::Settings)
+            && self.deck.shell.nav.current() == shell::Route::ManualClock
+        {
+            self.paste_clock_form(text);
+            return;
+        }
+        if self.overlay == Overlay::Deck(writingdeck::Page::Settings)
+            && self.deck.shell.nav.current() == shell::Route::KeyboardWizard
+        {
+            self.paste_keyboard_wizard(text);
+            return;
+        }
         if matches!(self.overlay, Overlay::Checks { .. }) {
             self.msg = "Writing checks is a reader; pasted commands ignored.".into();
             return;
@@ -2302,6 +2315,7 @@ impl App {
             Action::Continuity => self.open_continuity(),
             Action::Milestones => self.open_milestones(),
             Action::ReadChapterAloud => self.start_chapter_reading(),
+            Action::ReadManuscriptAloud => self.start_manuscript_reading(),
             Action::ReviewNotes => self.open_review_notes(),
             Action::Productivity => self.open_productivity(productivity::Page::Overview),
             Action::MeasuredGoals => self.open_productivity(productivity::Page::Goals),
@@ -5206,7 +5220,7 @@ impl App {
             ("Start a new book…".into(), Action::NewBook),
             ("Open another book…".into(), Action::OpenBook),
             (row("Settings", "›"), Action::Submenu(Sub::Settings)),
-            (row("WritingDeck dashboard", "(F12)"), Action::Dashboard),
+            (row("WrOS dashboard", "(F12)"), Action::Dashboard),
             (row("Help & about", "›"), Action::Submenu(Sub::Help)),
             (row("Quit Grimoire", &format!("({m}Q)")), Action::Quit),
         ];
@@ -5307,6 +5321,7 @@ impl App {
                 (row("Reset the timer", "(F3)"), Action::TimerReset),
                 ("Read aloud".into(), Action::ReadAloud),
                 ("Read chapter aloud".into(), Action::ReadChapterAloud),
+                ("Read manuscript aloud".into(), Action::ReadManuscriptAloud),
                 (row("Music player…", "(F7)"), Action::MusicPlayer),
                 (
                     row("Editable secondary pane", "(F11)"),
@@ -5377,7 +5392,7 @@ impl App {
             Action::MusicPlayer => self.music.enabled,
             Action::FocusMode => writing || self.focus_mode,
             Action::BesidePicker => writing,
-            Action::ReadAloud => writing,
+            Action::ReadAloud | Action::ReadChapterAloud | Action::ReadManuscriptAloud => writing,
             Action::FindInScene => writing,
             Action::Italic | Action::Bold => writing,
             Action::Details => writing,

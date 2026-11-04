@@ -378,9 +378,7 @@ fn native_timezone_filter_cancel_confirmation_and_failure_keep_the_original_edit
         let position = desk.app.view_position(Pane::Primary);
         system_panel(&mut desk, 4);
         wait_system(&mut desk);
-        desk.key(KeyCode::Down);
-        desk.key(KeyCode::Down);
-        desk.key(KeyCode::Enter);
+        desk.choose("Choose timezone");
         wait_system(&mut desk);
         assert_eq!(desk.app.deck.shell.nav.current(), Route::Timezones);
         desk.typed("tokyo");
@@ -2471,5 +2469,232 @@ fn live_installer_handoff_confirmation_and_dirty_buffer_gate_preserve_both_edito
                 .unwrap()
                 .contains("unsaved buffers or source conflicts")
         );
+    }
+}
+
+#[test]
+fn manual_clock_form_default_cancel_and_verified_apply_preserve_both_editors_at_four_sizes() {
+    use std::sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    };
+    use writingdeck_sys::{Backend, Reply, Request, Simulated};
+    struct ClockBackend {
+        calls: Arc<Mutex<Vec<Request>>>,
+        fail: Arc<AtomicBool>,
+        simulator: Simulated,
+    }
+    impl Backend for ClockBackend {
+        fn request(&mut self, request: Request) -> anyhow::Result<Reply> {
+            self.calls.lock().unwrap().push(request.clone());
+            if matches!(request, Request::SetLocalClock(_)) && self.fail.load(Ordering::Relaxed) {
+                anyhow::bail!("clock authorization unavailable");
+            }
+            self.simulator.request(request)
+        }
+    }
+    for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let (mut desk, note) =
+            secondary_book(&format!("manual-clock-{width}"), width, height, true);
+        choose_secondary(&mut desk, &note);
+        let calls = Arc::new(Mutex::new(vec![]));
+        let fail = Arc::new(AtomicBool::new(false));
+        desk.app.deck.use_test_backend(Box::new(ClockBackend {
+            calls: calls.clone(),
+            fail: fail.clone(),
+            simulator: Simulated::laptop(),
+        }));
+        desk.typed("Original manual clock draft. ");
+        let original = desk.app.editor.text();
+        let primary = desk.app.view_position(Pane::Primary);
+        let secondary = desk.app.view_position(Pane::Secondary);
+
+        system_panel(&mut desk, 4);
+        wait_system(&mut desk);
+        desk.choose("Set the clock by hand (turns network time off)");
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::ManualClock);
+
+        // Invalid datetime is rejected before opening confirmation.
+        desk.app.paste("2026-13-40 99:00");
+        desk.key(KeyCode::Enter);
+        desk.key(KeyCode::Enter);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::ManualClock);
+        assert!(desk.shows("Unavailable:"));
+
+        // Valid datetime advances to default-Cancel confirmation.
+        desk.key(KeyCode::Home);
+        desk.key(KeyCode::Delete);
+        desk.app.paste("2026-11-01 09:30");
+        desk.key(KeyCode::Enter);
+        desk.key(KeyCode::Enter);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::ManualClockConfirm);
+        assert!(desk.shows("Cancel manual clock change"));
+        desk.key(KeyCode::Enter); // Default Cancel sends no SetLocalClock request.
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::ManualClock);
+        assert!(
+            !calls
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|r| matches!(r, Request::SetLocalClock(_)))
+        );
+
+        // Confirm with simulated failure keeps the confirmation route open.
+        desk.key(KeyCode::Enter);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::ManualClockConfirm);
+        desk.key(KeyCode::Down);
+        fail.store(true, Ordering::Relaxed);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert!(desk.shows("clock authorization unavailable"));
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::ManualClockConfirm);
+
+        // Confirm with working service applies and returns to DateTime panel.
+        fail.store(false, Ordering::Relaxed);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert_eq!(
+            desk.app.deck.shell.nav.current(),
+            Route::Panel(crate::app::shell::Panel::DateTime)
+        );
+        assert!(desk.shows("Clock set to 2026-11-01 09:30:00; network time is off"));
+        // Network time can be switched back on from the same panel.
+        wait_system(&mut desk);
+        assert!(desk.shows("Network time: off"));
+        desk.choose("Use network time again (sets the clock automatically)");
+        wait_system(&mut desk);
+        assert!(
+            calls
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|r| matches!(r, Request::UseNetworkTime))
+        );
+        assert!(desk.shows("Network time is on"));
+        wait_system(&mut desk);
+        assert!(desk.shows("Network time: on"));
+        assert!(!desk.shows("Use network time again"));
+        assert_eq!(desk.app.editor.text(), original);
+        assert_eq!(desk.app.view_position(Pane::Primary), primary);
+        assert_eq!(desk.app.view_position(Pane::Secondary), secondary);
+    }
+}
+
+#[test]
+fn sound_and_volume_panel_controls_and_keyboard_wizard_alias_registration_preserve_both_editors_at_four_sizes()
+ {
+    use writingdeck_sys::Simulated;
+    for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let (mut desk, note) =
+            secondary_book(&format!("sound-kbd-wizard-{width}"), width, height, true);
+        choose_secondary(&mut desk, &note);
+        desk.app
+            .deck
+            .use_test_backend(Box::new(Simulated::laptop()));
+        desk.typed("Draft preserved across sound and keyboard wizard. ");
+        let original = desk.app.editor.text();
+        let primary = desk.app.view_position(Pane::Primary);
+        let secondary = desk.app.view_position(Pane::Secondary);
+
+        // Interface > First-run keyboard layout wizard.
+        desk.app.open_settings();
+        desk.draw();
+        desk.key(KeyCode::Home);
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        assert_eq!(
+            desk.app.deck.shell.nav.current(),
+            Route::Category(Category::Interface)
+        );
+        desk.choose("First-run keyboard layout wizard · registered maps only");
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::KeyboardWizard);
+        desk.key(KeyCode::Enter); // Cycle base layout from QWERTY to Colemak.
+        assert!(desk.shows("Colemak (home-row ARST / NEIO)"));
+        desk.key(KeyCode::Down); // Select alias field.
+        desk.app.paste("writer-colemak");
+        desk.key(KeyCode::Enter); // Advances to Register local alias row.
+        desk.key(KeyCode::Enter); // Registers alias.
+        assert_eq!(desk.app.deck.shell.custom_keymaps.len(), 1);
+        assert_eq!(desk.app.deck.shell.custom_keymaps[0].name, "writer-colemak");
+        desk.key(KeyCode::Esc);
+        assert_eq!(
+            desk.app.deck.shell.nav.current(),
+            Route::Category(Category::Interface)
+        );
+
+        if cfg!(feature = "audio") {
+            desk.key(KeyCode::Esc);
+            desk.key(KeyCode::Down);
+            desk.key(KeyCode::Enter);
+            assert_eq!(
+                desk.app.deck.shell.nav.current(),
+                Route::Category(Category::System)
+            );
+            desk.choose("Sound and volume");
+            wait_system(&mut desk);
+            assert_eq!(desk.app.deck.shell.nav.current(), Route::SoundView);
+            assert_eq!(
+                desk.app
+                    .deck
+                    .shell
+                    .audio_status
+                    .as_ref()
+                    .and_then(|a| a.volume_percent),
+                Some(70)
+            );
+            desk.choose("Volume +10%");
+            wait_system(&mut desk);
+            assert_eq!(
+                desk.app
+                    .deck
+                    .shell
+                    .audio_status
+                    .as_ref()
+                    .and_then(|a| a.volume_percent),
+                Some(80)
+            );
+            desk.choose("Mute sound output");
+            wait_system(&mut desk);
+            assert_eq!(
+                desk.app.deck.shell.audio_status.as_ref().map(|a| a.muted),
+                Some(true)
+            );
+        }
+
+        assert_eq!(desk.app.editor.text(), original);
+        assert_eq!(desk.app.view_position(Pane::Primary), primary);
+        assert_eq!(desk.app.view_position(Pane::Secondary), secondary);
+    }
+}
+
+#[test]
+fn pre_sleep_lock_protocol_verification_enforces_save_gate_and_keeps_hardware_suspend_disabled_at_four_sizes()
+ {
+    use writingdeck_sys::Simulated;
+    for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let (mut desk, note) =
+            secondary_book(&format!("pre-sleep-lock-{width}"), width, height, true);
+        choose_secondary(&mut desk, &note);
+        desk.app
+            .deck
+            .use_test_backend(Box::new(Simulated::laptop()));
+        desk.typed("Draft preserved across pre-sleep lock verification. ");
+        let original = desk.app.editor.text();
+        let primary = desk.app.view_position(Pane::Primary);
+        let secondary = desk.app.view_position(Pane::Secondary);
+
+        desk.app.deck.lock_available = true;
+        system_panel(&mut desk, 2);
+        wait_system(&mut desk);
+        // A readiness check, not a writer's choice: sleep stays off until lock-before-sleep ships.
+        assert!(!desk.shows("Verify pre-sleep lock readiness"));
+        let check = desk.app.verify_pre_sleep_lock_protocol().unwrap();
+        assert!(check.buffers_saved && check.input_retired_ready && check.lock_handoff_armed);
+        assert!(!check.suspend_permitted);
+        assert!(check.message.contains("Suspend unavailable"));
+
+        assert_eq!(desk.app.editor.text(), original);
+        assert_eq!(desk.app.view_position(Pane::Primary), primary);
+        assert_eq!(desk.app.view_position(Pane::Secondary), secondary);
     }
 }

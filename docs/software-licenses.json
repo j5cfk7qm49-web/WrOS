@@ -4091,7 +4091,7 @@
       "declared_license": "MIT",
       "repository": "https://github.com/kelsierbot/GrimoireTUI",
       "used_in_linux_no_audio_build": false,
-      "source": "WritingDeck workspace",
+      "source": "WrOS workspace",
       "notice_files": [
         {
           "file": "LICENSE",
@@ -4106,7 +4106,7 @@
       "declared_license": "MIT",
       "repository": "https://github.com/kelsierbot/GrimoireTUI",
       "used_in_linux_no_audio_build": true,
-      "source": "WritingDeck workspace",
+      "source": "WrOS workspace",
       "notice_files": [
         {
           "file": "LICENSE",
@@ -4121,7 +4121,7 @@
       "declared_license": "MIT",
       "repository": "https://github.com/kelsierbot/GrimoireTUI",
       "used_in_linux_no_audio_build": true,
-      "source": "WritingDeck workspace",
+      "source": "WrOS workspace",
       "notice_files": [
         {
           "file": "LICENSE",
@@ -11662,7 +11662,7 @@
       "declared_license": "MIT",
       "repository": null,
       "used_in_linux_no_audio_build": true,
-      "source": "WritingDeck workspace",
+      "source": "WrOS workspace",
       "notice_files": [
         {
           "file": "LICENSE",
@@ -11677,7 +11677,7 @@
       "declared_license": "MIT",
       "repository": null,
       "used_in_linux_no_audio_build": false,
-      "source": "WritingDeck workspace",
+      "source": "WrOS workspace",
       "notice_files": [
         {
           "file": "LICENSE",
@@ -11692,7 +11692,7 @@
       "declared_license": "MIT",
       "repository": null,
       "used_in_linux_no_audio_build": true,
-      "source": "WritingDeck workspace",
+      "source": "WrOS workspace",
       "notice_files": [
         {
           "file": "LICENSE",
@@ -11707,7 +11707,7 @@
       "declared_license": "MIT",
       "repository": null,
       "used_in_linux_no_audio_build": false,
-      "source": "WritingDeck workspace",
+      "source": "WrOS workspace",
       "notice_files": [
         {
           "file": "LICENSE",
@@ -11722,7 +11722,7 @@
       "declared_license": "MIT",
       "repository": null,
       "used_in_linux_no_audio_build": true,
-      "source": "WritingDeck workspace",
+      "source": "WrOS workspace",
       "notice_files": [
         {
           "file": "LICENSE",

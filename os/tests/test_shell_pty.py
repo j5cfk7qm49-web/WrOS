@@ -44,7 +44,7 @@ class UnifiedShellPTY(unittest.TestCase):
                     for heading, message in [
                         ('Google account', 'Google Drive is not connected'),
                         ('Google Drive', 'General Drive file browsing'),
-                        ('Synchronization', 'Conflict-safe synchronization is not implemented'),
+                        ('Synchronization', 'Readable Google Drive sync is set per book'),
                         ('Backups', 'No repository configured'),
                     ]:
                         terminal.send(b'\x1b[B\r')

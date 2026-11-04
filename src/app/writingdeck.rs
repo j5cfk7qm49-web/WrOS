@@ -85,7 +85,7 @@ impl Worker {
     }
 }
 const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 22] = [
-    (ShortcutAction::Dashboard, "WritingDeck dashboard"),
+    (ShortcutAction::Dashboard, "WrOS dashboard"),
     (ShortcutAction::SystemSettings, "System settings"),
     (ShortcutAction::Tutorial, "Interactive tutorial"),
     (ShortcutAction::Outline, "Toggle outline"),
@@ -178,6 +178,7 @@ impl Deck {
             Widget::Achievements,
             Widget::DailyChallenges,
             Widget::StorySpark,
+            Widget::Revision,
         ] {
             if !state.dashboard.iter().any(|w| w.widget == widget) {
                 state.dashboard.push(workspaces::WidgetConfig {
@@ -373,6 +374,51 @@ impl App {
         }
         self.save_deck();
         self.deck.lock_requested = true;
+    }
+    /// Readiness for lock-before-sleep. Not offered in the menu while suspend stays
+    /// disabled; the lock-before-sleep work calls it before any suspend.
+    #[cfg_attr(not(test), expect(dead_code, reason = "used once suspend is enabled"))]
+    pub fn verify_pre_sleep_lock_protocol(
+        &mut self,
+    ) -> std::result::Result<writingdeck_sys::PreSleepLockCheck, String> {
+        if self.deck.live_session {
+            let msg = "Pre-sleep lock refused: live sessions have no personal screen lock.";
+            self.deck.note = msg.into();
+            self.deck.shell.notices.push(msg);
+            return Err(msg.into());
+        }
+        self.deck.shell.backup.tick();
+        if !self.deck.lock_available || self.deck.busy || self.deck.shell.backup.job.is_some() {
+            let msg = "Pre-sleep lock refused: console locker unavailable or a system/backup request is pending.";
+            self.deck.note = msg.into();
+            self.deck.shell.notices.push(msg);
+            return Err(msg.into());
+        }
+        if !self.commit_saves()
+            || self.project.dirty_count() != 0
+            || self.tree_stale
+            || !self.conflicts().is_empty()
+        {
+            let msg = "Pre-sleep lock refused: unsaved buffers or source conflicts need attention.";
+            self.deck.note = msg.into();
+            self.deck.shell.notices.push(msg);
+            return Err(msg.into());
+        }
+        self.save_deck();
+        self.deck.lock_requested = true;
+        let check = writingdeck_sys::PreSleepLockCheck {
+            buffers_saved: true,
+            input_retired_ready: true,
+            lock_handoff_armed: true,
+            suspend_permitted: false,
+            message: format!(
+                "Pre-sleep lock verified and armed on tty8; {}",
+                writingdeck_sys::SUSPEND_UNAVAILABLE
+            ),
+        };
+        self.deck.note = check.message.clone();
+        self.deck.shell.notices.push(&self.deck.note);
+        Ok(check)
     }
     pub fn request_live_installer(&mut self) {
         if !self.deck.live_session {
@@ -752,6 +798,39 @@ impl App {
                         self.deck.shell.nav.back();
                         self.deck.shell.nav.back();
                     }
+                }
+                Ok(Reply::LocalClock(time)) => {
+                    self.deck.note = format!(
+                        "Clock set to {time}; network time is off until you switch it back on{}.",
+                        if self.deck.snapshot.as_ref().is_some_and(|s| s.simulated) {
+                            " (simulated)"
+                        } else {
+                            ""
+                        }
+                    );
+                    self.deck
+                        .snapshot
+                        .get_or_insert_with(Snapshot::default)
+                        .network_time = Some(false);
+                    if matches!(self.overlay, Overlay::Deck(Page::Settings))
+                        && self.deck.shell.nav.current() == super::shell::Route::ManualClockConfirm
+                    {
+                        self.deck.shell.clock_choice = None;
+                        self.deck.shell.clock_form = None;
+                        self.deck.shell.nav.back();
+                        self.deck.shell.nav.back();
+                    }
+                }
+                Ok(Reply::NetworkTime) => {
+                    self.deck.note =
+                        "Network time is on; the clock sets itself whenever WrOS is online.".into();
+                    let snapshot = self.deck.snapshot.get_or_insert_with(Snapshot::default);
+                    snapshot.network_time = Some(true);
+                    snapshot.time_synchronized = None;
+                }
+                Ok(Reply::Audio(audio)) => {
+                    self.deck.note = audio.message.clone();
+                    self.deck.shell.audio_status = Some(audio);
                 }
                 Ok(Reply::DisplayStatus(status)) => {
                     self.deck.shell.warmth = status.warmth;
@@ -1310,6 +1389,7 @@ impl App {
             Widget::Achievements => self.run_action(Action::Achievements),
             Widget::DailyChallenges => self.run_action(Action::DailyChallenges),
             Widget::StorySpark => self.open_spark(),
+            Widget::Revision => self.run_action(Action::ProseDashboard),
         }
     }
     fn start_tutorial_demo(&mut self) {
@@ -1358,6 +1438,12 @@ impl App {
         match id {
             1 => self.open_dashboard(),
             2 => self.overlay = Overlay::Deck(Page::Keyboard { sel: 0 }),
+            3 => {
+                self.overlay = Overlay::NewBook {
+                    buf: String::new(),
+                    shape: project::Template::Novel,
+                };
+            }
             4 => {
                 self.overlay = Overlay::None;
                 self.focus = self.editor_focus();
@@ -1423,6 +1509,10 @@ impl App {
             32 => self.open_review_notes(),
             33 => self.open_history(),
             34 | 35 => self.run_action(Action::Export),
+            37 => {
+                self.open_settings();
+                self.deck.shell.nav.open(super::shell::Route::SyncPanel);
+            }
             38 => self.open_system_settings(),
             39 => {
                 self.open_help(Some("history"));
@@ -1607,6 +1697,23 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                         }
                     }
                     Widget::StorySpark => app.spark.summary.clone(),
+                    Widget::Revision => format!(
+                        "{} continuity · {} notes · Enter opens Revision tools",
+                        app.continuity
+                            .store
+                            .as_ref()
+                            .map_or(0, |s| s.value.facts.len()),
+                        app.review_notes.store.as_ref().map_or(0, |s| {
+                            s.value
+                                .notes
+                                .iter()
+                                .filter(|n| {
+                                    n.current.status
+                                        != grimoire_core::annotations::AnnotationStatus::Resolved
+                                })
+                                .count()
+                        })
+                    ),
                     Widget::RecentScenes => app.deck.recent.clone(),
                     Widget::Scratchpad => app
                         .workflow

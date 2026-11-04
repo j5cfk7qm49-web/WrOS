@@ -22,7 +22,7 @@ FEATURES = {'single-scene', 'multi-scene', 'continuous-time', 'time-jumps',
             'nonvisual-only', 'first-person', 'third-person', 'nonlinear-order', 'linear-order'}
 GENRES = {'realist', 'speculative', 'mystery', 'adventure', 'romance', 'family',
           'satire', 'political', 'historical'}
-ATTRIBUTION = ('WritingDeck contributors. Original AI-assisted drafting and agent editorial review; '
+ATTRIBUTION = ('WrOS contributors. Original AI-assisted drafting and agent editorial review; '
                'MIT to the extent rights subsist. No exclusive-copyright or independent-human-review claim.')
 
 def sha(data):

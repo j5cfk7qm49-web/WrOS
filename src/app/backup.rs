@@ -1,6 +1,6 @@
 //! Native setup, encrypted snapshots and restore-to-new-folder controls.
 use super::*;
-use crate::backup_service::{self as service, QueuedBackup, Request, Secret, Status};
+use crate::backup_service::{self as service, DriveEntry, QueuedBackup, Request, Secret, Status};
 use zeroize::Zeroizing;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -12,6 +12,8 @@ pub enum FormKind {
     ExportKey,
     Google,
     GoogleFile,
+    DriveBrowse,
+    DriveMaterialize,
 }
 /// What the file form looks for on a mounted `WROS-UPDATE` stick.
 pub const GOOGLE_TOKEN_FILE: &str = "wros-drive-token.json";
@@ -37,6 +39,8 @@ impl Form {
             FormKind::ExportKey => "Export recovery key to a safe separate place",
             FormKind::Google => "Connect Google Drive from a trusted computer",
             FormKind::GoogleFile => "Connect Google Drive from a file on a USB stick",
+            FormKind::DriveBrowse => "Browse app-scoped Google Drive folder",
+            FormKind::DriveMaterialize => "Materialize Google Drive item into a NEW local path",
         }
     }
     pub fn rows(&self) -> Vec<String> {
@@ -51,6 +55,11 @@ impl Form {
             FormKind::ExportKey => &["New recovery key file (absolute path)"],
             FormKind::Google => &["Paste authorization JSON (hidden)"],
             FormKind::GoogleFile => &["Authorization file (absolute path)"],
+            FormKind::DriveBrowse => &["Google Drive folder (drive:Folder)"],
+            FormKind::DriveMaterialize => &[
+                "Remote Drive item (drive:Folder/Name)",
+                "New local path (absolute)",
+            ],
         };
         let mut rows = labels
             .iter()
@@ -85,6 +94,12 @@ impl Form {
             rows.push("Export the key separately; losing it makes backups unreadable.".into());
         } else if self.kind == FormKind::Restore {
             rows.push("Existing folders are refused. Every restored file is hash checked.".into());
+        } else if self.kind == FormKind::DriveBrowse {
+            rows.push(
+                "Uses non-sensitive folder-scoped drive.file access (not broad root Drive).".into(),
+            );
+        } else if self.kind == FormKind::DriveMaterialize {
+            rows.push("Creates an independent local copy; active manuscripts stay local.".into());
         }
         rows
     }
@@ -241,6 +256,20 @@ impl Backups {
         {
             self.status.queued_backups = parsed;
         }
+        let browser_path = self.state.join("drive-browser.json");
+        if !browser_path.is_symlink()
+            && let Ok(text) = fs::read_to_string(&browser_path)
+            && let Ok(bdata) = serde_json::from_str::<serde_json::Value>(&text)
+        {
+            if let Some(folder) = bdata.get("folder").and_then(|v| v.as_str()) {
+                self.status.drive_folder = folder.to_string();
+            }
+            if let Some(entries) = bdata.get("entries")
+                && let Ok(parsed) = serde_json::from_value::<Vec<DriveEntry>>(entries.clone())
+            {
+                self.status.drive_entries = parsed;
+            }
+        }
     }
     pub fn tick(&mut self) {
         let result = self.job.as_ref().map(|job| job.result.try_recv());
@@ -289,11 +318,37 @@ impl App {
                 .to_string_lossy()
                 .into_owned(),
             FormKind::Connect => self.deck.shell.backup.status.repository.clone(),
+            FormKind::DriveBrowse => {
+                if self.deck.shell.backup.status.drive_folder.is_empty() {
+                    "drive:WrOS-Library".into()
+                } else {
+                    self.deck.shell.backup.status.drive_folder.clone()
+                }
+            }
+            FormKind::DriveMaterialize => {
+                if snapshot.is_empty() {
+                    "drive:WrOS-Library/".into()
+                } else {
+                    snapshot.clone()
+                }
+            }
             _ => String::new(),
+        };
+        let second = if kind == FormKind::DriveMaterialize && !snapshot.is_empty() {
+            let item_name = snapshot.rsplit('/').next().unwrap_or("materialized");
+            self.project
+                .root
+                .parent()
+                .unwrap_or(Path::new("/tmp"))
+                .join(format!("drive-{item_name}"))
+                .to_string_lossy()
+                .into_owned()
+        } else {
+            String::new()
         };
         self.deck.shell.backup.form = Some(Form {
             kind,
-            fields: [Zeroizing::new(first), Zeroizing::new(String::new())],
+            fields: [Zeroizing::new(first), Zeroizing::new(second)],
             selected: 0,
             snapshot,
         });
@@ -607,6 +662,14 @@ impl App {
                     },
                     FormKind::GoogleFile => Request::ConnectGoogleFile {
                         path: form.fields[0].to_string(),
+                    },
+                    FormKind::DriveBrowse => Request::DriveList {
+                        folder: form.fields[0].to_string(),
+                    },
+                    FormKind::DriveMaterialize => Request::DriveMaterialize {
+                        remote: form.fields[0].to_string(),
+                        destination: form.fields[1].to_string(),
+                        project: Some(self.project.root.to_string_lossy().into_owned()),
                     },
                 };
                 self.deck.shell.nav.back();

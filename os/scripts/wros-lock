@@ -122,6 +122,53 @@ def console_state():
     return struct.unpack('HHH', fcntl.ioctl(0, VT_GETSTATE, bytes(6)))
 
 
+def input_reader_retired(parent, proc_root=Path("/proc")):
+    """Verify that the editor parent has no running --wros-input-reader child (crates/wros-input)."""
+    tasks_dir = proc_root / str(parent) / "task"
+    if not tasks_dir.is_dir():
+        return False
+    for children_file in tasks_dir.glob("*/children"):
+        for pid in children_file.read_text().split():
+            cmdline_file = proc_root / pid / "cmdline"
+            try:
+                cmdline = cmdline_file.read_bytes()
+            except OSError:
+                continue
+            if b"--wros-input-reader" in cmdline:
+                return False
+    return True
+
+
+def evaluate_pre_sleep_lock(uid, parent, started, sysrq, sleep_enabled=False,
+                            proc_root=Path("/proc"), sleep_conf=Path("/etc/systemd/sleep.conf.d/60-wros-sleep-guard.conf"),
+                            locker_ready=False, pam_unlocked=False):
+    """Software lock-before-sleep protocol (#4) with hardware suspend kept disabled (#32)."""
+    require(type(uid) is int and 0 < uid < 2**31 and type(parent) is int and parent > 1)
+    require(isinstance(started, str) and started.isascii() and started.isdigit() and len(started) <= 32)
+    require(type(sysrq) is int and 0 <= sysrq < 2**32)
+    if not input_reader_retired(parent, proc_root=proc_root):
+        raise ValueError("writing input reader is still active; lock-before-sleep refused")
+    if not locker_ready:
+        raise ValueError("tty8 vlock-main VT_PROCESS ownership not established; sleep refused")
+    if sleep_enabled:
+        raise ValueError("Suspend unavailable: secure screen locking has not been qualified.")
+    allow_suspend = "no"
+    if sleep_conf.is_file() and not sleep_conf.is_symlink():
+        for line in sleep_conf.read_text().splitlines():
+            if line.strip().startswith("AllowSuspend="):
+                allow_suspend = line.split("=", 1)[1].strip().lower()
+    require(allow_suspend == "no")
+    return {
+        "status": "lock-verified-sleep-disabled",
+        "tty": 8,
+        "input_retired": True,
+        "locker_ready": True,
+        "pam_unlocked": bool(pam_unlocked),
+        "sleep_permitted": False,
+        "reason": "Suspend unavailable: secure screen locking has not been qualified.",
+    }
+
+
 def ready(child):
     # Do not open tty8 before openvt has acquired it: that would make the
     # maintained allocator correctly reject an already-used console.

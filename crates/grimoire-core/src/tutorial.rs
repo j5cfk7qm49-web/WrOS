@@ -17,6 +17,7 @@ use std::{
 pub enum Event {
     DashboardOpened,
     LayoutConfirmed,
+    NovelCreated,
     TextEdited,
     SecondaryEdited,
     PinCreated,
@@ -64,6 +65,7 @@ impl Event {
                 | Self::VoiceProfileCompared
                 | Self::DashboardOpened
                 | Self::LayoutConfirmed
+                | Self::NovelCreated
                 | Self::OutlineToggled
                 | Self::FocusEntered
                 | Self::WorkspaceSelected
@@ -214,7 +216,7 @@ pub fn create_demo(root: &Path) -> Result<()> {
     )?;
     project::scaffold_with(
         root,
-        Some("WritingDeck Tutorial"),
+        Some("WrOS Tutorial"),
         &project::Template::Blank.shape(),
     )?;
     let p = project::Project::load(root)?;
@@ -279,6 +281,9 @@ mod tests {
         assert!(!p.observe(Event::ManuscriptFootnotesExported, false));
         assert!(p.observe(Event::ManuscriptFootnotesExported, true));
         assert!(p.completed.contains(&34));
+        p.start(3).unwrap();
+        assert!(p.observe(Event::NovelCreated, false));
+        assert!(p.completed.contains(&3));
     }
     #[test]
     fn demo_cannot_overwrite_an_existing_project_and_progress_round_trips() {

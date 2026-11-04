@@ -21,7 +21,7 @@ pub trait Validate {
 pub fn checked(root: &Path, relative: &Path) -> Result<PathBuf> {
     crate::workspaces::relative(relative)?;
     if !relative.starts_with(".grimoire/writingdeck") {
-        bail!("not WritingDeck metadata");
+        bail!("not WrOS metadata");
     }
     let root = fs::canonicalize(root)?;
     let path = root.join(relative);

@@ -20,6 +20,15 @@ use serde::{Deserialize, Serialize};
 pub const SUSPEND_UNAVAILABLE: &str =
     "Suspend unavailable: secure screen locking has not been qualified.";
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PreSleepLockCheck {
+    pub buffers_saved: bool,
+    pub input_retired_ready: bool,
+    pub lock_handoff_armed: bool,
+    pub suspend_permitted: bool,
+    pub message: String,
+}
+
 /// Protected Wi-Fi passphrase. Never written to Debug output, command-line
 /// arguments, or public serialized requests, and overwritten on drop.
 #[derive(Clone, Default)]
@@ -223,6 +232,25 @@ pub struct UpdateStaged {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AudioStatus {
+    pub available: bool,
+    pub volume_percent: Option<u8>,
+    pub muted: bool,
+    pub message: String,
+}
+
+impl Default for AudioStatus {
+    fn default() -> Self {
+        Self {
+            available: true,
+            volume_percent: Some(70),
+            muted: false,
+            message: "SIMULATED mixer: Master 70% unmuted (hardware unchanged)".into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StorageDevice {
     pub filesystem: String,
     pub mountpoint: String,
@@ -260,6 +288,12 @@ pub enum Request {
     PowerSave(bool),
     ListTimezones,
     SetTimezone(String),
+    SetLocalClock(String),
+    /// Hand the clock back to network time after a manual setting.
+    UseNetworkTime,
+    AudioStatus,
+    SetVolume(u8),
+    SetMute(bool),
     KeyboardPreview(keyboard::Layout),
     KeyboardConfirm(String),
     KeyboardCancel(String),
@@ -320,6 +354,9 @@ pub enum Reply {
     Message(String),
     Timezones(Vec<String>),
     Timezone(String),
+    LocalClock(String),
+    NetworkTime,
+    Audio(AudioStatus),
     KeyboardPreview {
         token: String,
         seconds: u64,
@@ -372,6 +409,8 @@ pub struct Simulated {
     pub fetched: Option<String>,
     /// What the simulated fetch helper refuses with, if anything.
     pub fetch_error: Option<String>,
+    pub local_clock: String,
+    pub audio: AudioStatus,
     preview: Option<String>,
     display_preview: Option<(String, display::Warmth)>,
     warmth: display::Warmth,
@@ -425,6 +464,8 @@ impl Default for Simulated {
             online: None,
             fetched: None,
             fetch_error: None,
+            local_clock: "2026-10-31 12:00:00".into(),
+            audio: AudioStatus::default(),
             preview: None,
             display_preview: None,
             warmth: display::Warmth::default(),
@@ -466,7 +507,7 @@ impl Simulated {
         Self {
             snapshot: Snapshot {
                 simulated: true,
-                os: "WritingDeck OS simulator".into(),
+                os: "WrOS (Writer's OS) simulator".into(),
                 network: Some("offline (simulated)".into()),
                 battery_percent: Some(76),
                 charging: Some(false),
@@ -503,6 +544,38 @@ impl Backend for Simulated {
                 timezone::validate(&zone)?;
                 self.snapshot.timezone = Some(zone.clone());
                 Ok(Reply::Timezone(zone))
+            }
+            Request::SetLocalClock(ts) => {
+                let normalized = timezone::validate_local_datetime(&ts)?;
+                self.local_clock = normalized.clone();
+                self.snapshot.network_time = Some(false);
+                Ok(Reply::LocalClock(normalized))
+            }
+            Request::UseNetworkTime => {
+                self.snapshot.network_time = Some(true);
+                Ok(Reply::NetworkTime)
+            }
+            Request::AudioStatus => Ok(Reply::Audio(self.audio.clone())),
+            Request::SetVolume(volume) => {
+                if volume > 100 {
+                    bail!("volume must be 0..=100");
+                }
+                self.audio.volume_percent = Some(volume);
+                self.audio.muted = false;
+                self.audio.message =
+                    format!("SIMULATED mixer: Master {volume}% unmuted (hardware unchanged)");
+                Ok(Reply::Audio(self.audio.clone()))
+            }
+            Request::SetMute(muted) => {
+                self.audio.muted = muted;
+                self.audio.message = format!(
+                    "SIMULATED mixer: Master {} {} (hardware unchanged)",
+                    self.audio
+                        .volume_percent
+                        .map_or_else(|| "unavailable".into(), |v| format!("{v}%")),
+                    if muted { "muted" } else { "unmuted" }
+                );
+                Ok(Reply::Audio(self.audio.clone()))
             }
             Request::Power(PowerAction::Suspend) => bail!(SUSPEND_UNAVAILABLE),
             Request::DisplayStatus => Ok(Reply::DisplayStatus(display::Status {

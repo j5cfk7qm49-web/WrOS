@@ -30,4 +30,4 @@ The development host and built guest are Debian 13.7. The recipe uses signed `tr
 
 This is a **reproducible workflow**, not yet a bit-for-bit reproducible release. Default security repositories evolve; package resolution, filesystem timestamps/UUID metadata and build toolchain must be pinned/normalized for identical bytes. A reviewed snapshot mirror can be passed using `DEBIAN_MIRROR`; actual package inventory and image checksum are always emitted. Snapshot date/valid-until handling, apt source export and signed image release metadata remain release gates. Do not disable package signature verification to obtain reproducibility.
 
-The current firmware image is unsigned and requires Secure Boot disabled in the VM. A physical installation should retain Debian's supported signed shim/GRUB/kernel chain until a separately tested WritingDeck signing policy exists.
+The current firmware image is unsigned and requires Secure Boot disabled in the VM. A physical installation should retain Debian's supported signed shim/GRUB/kernel chain until a separately tested WrOS signing policy exists.

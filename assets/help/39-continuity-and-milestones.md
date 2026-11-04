@@ -116,8 +116,9 @@ lost registry, certify a backup or make cross-process metadata changes atomic.
 
 ## Read chapter aloud
 
-Choose **Read chapter aloud** in the command palette or Writing tools to queue
-the current scene and following included scenes in the same chapter. During
-read-aloud, press `Space` to pause or resume, `Left`/`Right` to step by
-sentence, `m` to mark the highlighted sentence in **Revision notes**, or `n` to
-advance to the next queued scene.
+Choose **Read chapter aloud** or **Read manuscript aloud** in the command
+palette or Writing tools to queue the current scene and following included
+scenes in the chapter or across the manuscript. During read-aloud, press
+`Space` to pause or resume, `Left`/`Right` to step by sentence, `m` to mark the
+highlighted sentence in **Revision notes**, `n` for the next queued scene, or
+`p` for the previous scene.

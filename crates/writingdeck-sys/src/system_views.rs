@@ -1,7 +1,7 @@
 //! Bounded read-only views of maintained Debian services. None of these
 //! parsers infer successful authentication, backup, update or recovery.
 use crate::{
-    LocalAccount, RecoveryInfo, ResticSnapshot, SavedWifi, StorageDevice, UpdateInfo,
+    AudioStatus, LocalAccount, RecoveryInfo, ResticSnapshot, SavedWifi, StorageDevice, UpdateInfo,
     UpdatePackage, UpdateReview, UpdateStaged, UpdateState, WifiNetwork,
 };
 use anyhow::{Context, Result, ensure};
@@ -39,9 +39,9 @@ fn fields(line: &str, count: usize) -> Result<Vec<String>> {
 }
 
 pub fn wifi_scan(output: &str) -> Result<Vec<WifiNetwork>> {
-    let mut networks = Vec::new();
+    let mut networks: Vec<WifiNetwork> = Vec::new();
     for (index, line) in output.lines().enumerate() {
-        ensure!(index < 512, "Wi-Fi list exceeds limit");
+        ensure!(index < 2048, "Wi-Fi list exceeds limit");
         let p = fields(line, 4)?;
         ensure!(
             matches!(p[0].as_str(), "*" | ""),
@@ -52,12 +52,30 @@ pub fn wifi_scan(output: &str) -> Result<Vec<WifiNetwork>> {
         if p[1].is_empty() {
             continue;
         } // hidden networks are not enrollment targets
-        networks.push(WifiNetwork {
-            ssid: p[1].clone(),
-            signal,
-            security: p[3].clone(),
-            in_use: p[0] == "*",
-        });
+        let in_use = p[0] == "*";
+        if let Some(existing) = networks
+            .iter_mut()
+            .find(|n| n.ssid == p[1] && n.security == p[3])
+        {
+            existing.in_use |= in_use;
+            existing.signal = existing.signal.max(signal);
+            continue;
+        }
+        if networks.len() < 256 {
+            networks.push(WifiNetwork {
+                ssid: p[1].clone(),
+                signal,
+                security: p[3].clone(),
+                in_use,
+            });
+        } else if in_use && let Some(pos) = networks.iter().rposition(|n| !n.in_use) {
+            networks[pos] = WifiNetwork {
+                ssid: p[1].clone(),
+                signal,
+                security: p[3].clone(),
+                in_use,
+            };
+        }
     }
     Ok(networks)
 }
@@ -689,6 +707,90 @@ pub fn validate_wifi_password(password: &str) -> Result<()> {
     Ok(())
 }
 
+pub fn parse_clock_reply(output: &str, expected: &str) -> Result<String> {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct ClockReply {
+        status: String,
+        local_time: String,
+        ntp: bool,
+    }
+    let reply: ClockReply =
+        serde_json::from_str(output).context("invalid wros-clock reply JSON")?;
+    ensure!(
+        reply.status == "applied" && !reply.ntp,
+        "local clock update was not confirmed with NTP disabled"
+    );
+    let normalized = crate::timezone::validate_local_datetime(&reply.local_time)?;
+    ensure!(
+        normalized == expected,
+        "local clock readback did not match the requested time"
+    );
+    Ok(normalized)
+}
+
+/// The clock helper's reply after handing the clock back to network time.
+pub fn parse_network_time_reply(output: &str) -> Result<()> {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct NetworkTimeReply {
+        status: String,
+        ntp: bool,
+    }
+    let reply: NetworkTimeReply =
+        serde_json::from_str(output).context("invalid wros-clock reply JSON")?;
+    ensure!(
+        reply.status == "applied" && reply.ntp,
+        "network time was not confirmed on"
+    );
+    Ok(())
+}
+
+pub fn parse_amixer_status(output: &str) -> Result<AudioStatus> {
+    ensure!(
+        output.len() <= 65_536 && !output.trim().is_empty(),
+        "empty or oversized mixer reply"
+    );
+    let mut volume_percent = None;
+    let mut muted = false;
+    let mut saw_switch = false;
+    for line in output.lines() {
+        let mut rest = line;
+        while let Some(open) = rest.find('[') {
+            let after = &rest[open + 1..];
+            let Some(close) = after.find(']') else {
+                break;
+            };
+            let token = &after[..close];
+            if let Some(num) = token.strip_suffix('%')
+                && let Ok(v) = num.parse::<u8>()
+                && v <= 100
+            {
+                volume_percent = Some(v);
+            } else if token == "off" {
+                muted = true;
+                saw_switch = true;
+            } else if token == "on" {
+                saw_switch = true;
+            }
+            rest = &after[close + 1..];
+        }
+    }
+    let volume = volume_percent.context("mixer reply contained no percentage")?;
+    if !saw_switch {
+        muted = volume == 0;
+    }
+    Ok(AudioStatus {
+        available: true,
+        volume_percent: Some(volume),
+        muted,
+        message: format!(
+            "ALSA Master mixer: {volume}% · {}",
+            if muted { "muted" } else { "unmuted" }
+        ),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -698,6 +800,10 @@ mod tests {
         assert_eq!(rows[0].ssid, " Desk:Main\\West ");
         assert!(rows[0].in_use);
         assert_eq!(rows[1].ssid, "--"); // this can be a real SSID
+        let dedup = wifi_scan(":Campus:40:WPA2\n*:Campus:85:WPA2\n:Campus:60:WPA2").unwrap();
+        assert_eq!(dedup.len(), 1);
+        assert!(dedup[0].in_use);
+        assert_eq!(dedup[0].signal, 85);
         for bad in [
             "*:Desk:bogus:WPA2",
             "*:Desk:101:WPA2",

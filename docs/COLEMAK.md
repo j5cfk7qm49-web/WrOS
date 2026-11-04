@@ -22,7 +22,7 @@ boundaries; a new installer ISO with this correction still needs qualification.
 
 ## Important scope
 
-This switcher targets an installed WritingDeck **Linux virtual console tty1**. It does not change a remote SSH client's keyboard or a conventional desktop terminal's XKB/Wayland configuration. Use the desktop compositor's supported settings or the SSH client's OS in those cases. Changing loadkeys in a desktop terminal is not the correct fix.
+This switcher targets an installed WrOS **Linux virtual console tty1**. It does not change a remote SSH client's keyboard or a conventional desktop terminal's XKB/Wayland configuration. Use the desktop compositor's supported settings or the SSH client's OS in those cases. Changing loadkeys in a desktop terminal is not the correct fix.
 
 The baseline application already normalizes AltGr, receives Unicode and terminal escape sequences, and uses logical-character shortcuts. New aliases protect existing bindings and never intercept unmodified prose letters. Raw physical-key shortcuts cannot be implemented reliably through a generic Linux tty byte stream; do not infer hardware positions from characters. Function keys/arrow keys offer layout-independent navigation.
 

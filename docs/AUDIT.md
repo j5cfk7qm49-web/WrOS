@@ -1,6 +1,6 @@
 # GrimoireTUI audit
 
-Audit date: 2026-10-24. Baseline: **v0.7.5**, commit `f3ca1e8f1cb09b714e71046e8ed991051793d33a`, MIT. Findings below describe that baseline, not hypothetical README features. See [FEATURE_MATRIX](FEATURE_MATRIX.md) for the additive WritingDeck implementation and verification state.
+Audit date: 2026-10-24. Baseline: **v0.7.5**, commit `f3ca1e8f1cb09b714e71046e8ed991051793d33a`, MIT. Findings below describe that baseline, not hypothetical README features. See [FEATURE_MATRIX](FEATURE_MATRIX.md) for the additive WrOS implementation and verification state.
 
 ## Executive finding
 
@@ -30,7 +30,7 @@ A book is an ordinary directory with `novel.toml`, `manuscript/`, notes/notebook
 
 Baseline `BesidePane` and `CodexPane` provide references, scrolling and links. **They are not independent simultaneously editable document buffers.** Opening one for writing changes the main editor. Do not advertise these as the requested F11 editing engine.
 
-`Ctrl-D` already exists as focus mode. The audited renderer could still place an open reference alongside the manuscript in focus mode. WritingDeck now tightens both rendering and focus traversal so references remain stored but invisible and unfocusable. The upstream shortcut is retained, not reassigned.
+`Ctrl-D` already exists as focus mode. The audited renderer could still place an open reference alongside the manuscript in focus mode. WrOS now tightens both rendering and focus traversal so references remain stored but invisible and unfocusable. The upstream shortcut is retained, not reassigned.
 
 ## Data safety and sessions
 
@@ -66,7 +66,7 @@ There is no audited genuine Markdown `[^id]` to OOXML footnote implementation in
 
 ## Input/guard-test contracts
 
-F1 help, F2-F3 timer, F4-F7 music, F8 spelling and F9 themes are established. F10-F12 were unassigned at baseline. WritingDeck now uses F10 for outline, F11 for the tested M3b independent editable secondary buffer, and F12 for home. This is a fork addition, not an upstream capability at the audited base.
+F1 help, F2-F3 timer, F4-F7 music, F8 spelling and F9 themes are established. F10-F12 were unassigned at baseline. WrOS now uses F10 for outline, F11 for the tested M3b independent editable secondary buffer, and F12 for home. This is a fork addition, not an upstream capability at the audited base.
 
 The following tests remain authoritative, not obstacles to delete:
 

@@ -119,7 +119,7 @@ pub fn catalog() -> &'static [Exercise] {
         .expect("compiled original challenge bank");
         assert_eq!(bank.version, 1);
         assert_eq!(bank.license, "MIT");
-        assert_eq!(bank.source, "WritingDeck original exercises");
+        assert_eq!(bank.source, "WrOS original exercises");
         let mut ids = BTreeSet::new();
         let mut texts = BTreeSet::new();
         for e in &bank.exercises {

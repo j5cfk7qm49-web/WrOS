@@ -89,6 +89,7 @@ pub enum Action {
     Continuity,
     Milestones,
     ReadChapterAloud,
+    ReadManuscriptAloud,
     ReviewNotes,
     Scratchpad,
     Handoff,
@@ -199,7 +200,12 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
     let m = app.mod_label();
     let part = app.project.meta.part_noun();
     let mut v = vec![
-        Entry::new("WritingDeck dashboard", "F12", Action::Dashboard),
+        Entry {
+            label: "WrOS dashboard".into(),
+            detail: "WrOS home screen".into(),
+            key: "F12".into(),
+            action: Action::Dashboard,
+        },
         Entry::new("WrOS settings", "", Action::Settings),
         Entry::new("System settings", "", Action::SystemSettings),
         Entry::new("Workspaces", "", Action::Workspaces),
@@ -450,6 +456,7 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
         Entry::new("Continuity tracker", "", Action::Continuity),
         Entry::new("Draft milestones", "", Action::Milestones),
         Entry::new("Read chapter aloud", "", Action::ReadChapterAloud),
+        Entry::new("Read manuscript aloud", "", Action::ReadManuscriptAloud),
         Entry::new("Revision notes", "", Action::ReviewNotes),
     ]);
     // Every help topic, so "help sync" goes straight to it.

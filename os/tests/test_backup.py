@@ -438,6 +438,55 @@ class EncryptedBackup(unittest.TestCase):
         self.assertEqual(self.service.current['verified'], before)
         self.assertEqual(module.inventory(self.project), original)
 
+    def test_drive_folder_scoped_browsing_and_explicit_local_materialization(self):
+        # Broad root Drive browsing and path traversal are refused before any rclone call.
+        for bad in ('drive:', 'drive:/', 'drive:..', 'drive:WrOS-Library/../secret', '/local/path'):
+            with self.assertRaisesRegex(ValueError, 'folder|drive:'):
+                self.service.drive_list(bad)
+
+        # Connect synthetic Google configuration.
+        module.write_private(self.service.google, b'[wros-google]\ntype = drive\nscope = drive.file\n', exclusive=True)
+        listing_json = json.dumps([
+            {'Name': 'Outline.md', 'Path': 'Outline.md', 'Size': 25, 'ModTime': '2026-10-31T10:00:00Z', 'IsDir': False},
+            {'Name': 'ResearchFolder', 'Path': 'ResearchFolder', 'Size': 0, 'ModTime': '2026-10-31T09:00:00Z', 'IsDir': True},
+        ]).encode('utf-8')
+        with mock.patch.object(module, 'classify_rclone_failure', return_value=(True, listing_json, '')) as rclone_mock:
+            status = self.service.drive_list('drive:WrOS-Library')
+        rclone_mock.assert_called_once()
+        self.assertEqual(rclone_mock.call_args[0][0], ['lsjson', 'wros-google:WrOS-Library'])
+        self.assertEqual(status['drive_folder'], 'drive:WrOS-Library')
+        self.assertEqual(len(status['drive_entries']), 2)
+        self.assertEqual(status['drive_entries'][0]['name'], 'ResearchFolder')
+        self.assertTrue(status['drive_entries'][0]['is_dir'])
+        self.assertEqual(status['drive_entries'][1]['name'], 'Outline.md')
+        self.assertFalse(status['drive_entries'][1]['cached'])
+
+        # Materializing inside the open project or over an existing path is refused.
+        with self.assertRaisesRegex(ValueError, 'outside the currently open project'):
+            self.service.drive_materialize('drive:WrOS-Library/Outline.md', str(self.project / 'Outline.md'), str(self.project))
+        existing_file = self.base / 'already-here.md'
+        existing_file.write_text('keep me', encoding='utf-8')
+        with self.assertRaisesRegex(ValueError, 'already exists'):
+            self.service.drive_materialize('drive:WrOS-Library/Outline.md', str(existing_file), str(self.project))
+
+        # Materialize to a new local path and verify cache status updates.
+        dest = self.base / 'materialized-outline.md'
+        def fake_copyto(args, env):
+            self.assertEqual(args[:2], ['copyto', 'wros-google:WrOS-Library/Outline.md'])
+            Path(args[2]).write_bytes(b'# Materialized Outline\n\n1. Act One\n')
+            return True, b'', ''
+
+        with mock.patch.object(module, 'classify_rclone_failure', side_effect=fake_copyto):
+            mat = self.service.drive_materialize('drive:WrOS-Library/Outline.md', str(dest), str(self.project))
+        self.assertEqual(dest.read_bytes(), b'# Materialized Outline\n\n1. Act One\n')
+        self.assertTrue(any(e['name'] == 'Outline.md' and e['cached'] for e in mat['drive_entries']))
+
+        # Revoked or offline errors update google_meta state cleanly.
+        with mock.patch.object(module, 'classify_rclone_failure', return_value=(False, b'', 'reauthorization-required')):
+            with self.assertRaisesRegex(ValueError, 'expired or was revoked'):
+                self.service.drive_list('drive:WrOS-Library')
+        self.assertEqual(self.service.google_meta['state'], 'reauthorization-required')
+
 
 if __name__ == '__main__':
     unittest.main()

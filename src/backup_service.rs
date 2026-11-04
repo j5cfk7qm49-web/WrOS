@@ -58,6 +58,15 @@ pub enum Request {
     },
     CheckGoogle,
     DisconnectGoogle,
+    DriveList {
+        folder: String,
+    },
+    DriveMaterialize {
+        remote: String,
+        destination: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        project: Option<String>,
+    },
 }
 
 #[derive(Default, Deserialize, Serialize)]
@@ -75,8 +84,23 @@ pub struct Status {
     pub google_expiry: String,
     #[serde(default)]
     pub queued_backups: Vec<QueuedBackup>,
+    #[serde(default)]
+    pub drive_folder: String,
+    #[serde(default)]
+    pub drive_entries: Vec<DriveEntry>,
     pub snapshots: Vec<Snapshot>,
     pub notice: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DriveEntry {
+    pub path: String,
+    pub name: String,
+    pub size: u64,
+    pub modified: String,
+    pub is_dir: bool,
+    pub cached: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]

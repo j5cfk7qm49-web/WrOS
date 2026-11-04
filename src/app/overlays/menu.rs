@@ -369,8 +369,12 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "continuity",
         ),
         Action::ReadChapterAloud => (
-            "Queue the open scene and following manuscript scenes for continuous offline read-aloud.",
+            "Queue the open scene and following chapter scenes for continuous offline read-aloud.",
             "continuity",
+        ),
+        Action::ReadManuscriptAloud => (
+            "Queue the open scene and all following manuscript scenes across chapters for offline read-aloud.",
+            "revision",
         ),
         Action::ReviewNotes => (
             "Passage-anchored local comments, guarded revision review and explicit re-anchoring",

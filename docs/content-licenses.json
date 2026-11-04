@@ -6,28 +6,28 @@
   "bundled": [
     {
       "id": "writingdeck-original-tutorial",
-      "title": "WritingDeck tutorial instructions",
+      "title": "WrOS tutorial instructions",
       "creators": [
-        "WritingDeck contributors"
+        "WrOS contributors"
       ],
       "license": "MIT",
       "edition": "0.1.0-dev",
       "file": "crates/grimoire-core/assets/writingdeck/tutorial.json",
-      "sha256": "26eeeeb730f81f07a469ff63dadd12d4794f809dfda999b549b267718483c2a4",
+      "sha256": "73197c69c3c70636eb35fa3cf16c379c9ac7d95a1011d35bcf1a897ad04bf1c2",
       "item_count": 40,
       "license_notice": "LICENSE",
       "modifications": "Original 39 lessons plus supplemental grammar lesson 40; M7b enables real dictionary/prose/voice review events. No third-party exercise text."
     },
     {
       "id": "writingdeck-original-demo",
-      "title": "WritingDeck safe tutorial scenes",
+      "title": "WrOS safe tutorial scenes",
       "creators": [
-        "WritingDeck contributors"
+        "WrOS contributors"
       ],
       "license": "MIT",
       "edition": "0.1.0-dev",
       "file": "crates/grimoire-core/src/tutorial.rs",
-      "sha256": "885c7c43fae9872f0f02ec154a7d31cf5d74a7be08a63b9da19b39e24dd1b3ae",
+      "sha256": "a89fa9b841a4559472fa93d219faf1539ef1e60158053d40462b230075fe703f",
       "item_count": 2,
       "license_notice": "LICENSE",
       "modifications": "Original demo scene strings embedded in the creation function"
@@ -36,26 +36,26 @@
       "id": "writingdeck-original-productivity",
       "title": "Thirty original M5 productivity and fiction exercises",
       "creators": [
-        "WritingDeck contributors"
+        "WrOS contributors"
       ],
       "license": "MIT",
       "edition": "M5 bank v1, 2026-10-25",
       "file": "crates/grimoire-core/assets/writingdeck/productivity-challenges.json",
-      "sha256": "d9e7c321a82f8652fba3e0f8c71829386fa070fd83c91c18f879b2dfb81a3ece",
+      "sha256": "3ad70868d1d003e0ac477c1c3aac3684357a00bf425dc663ba47b7a30f1a1dbf",
       "item_count": 30,
       "license_notice": "LICENSE",
       "modifications": "Original instructions in ten categories; no third-party exercise text; not the M6 1000-plot corpus"
     },
     {
       "id": "writingdeck-original-m6",
-      "title": "WritingDeck original Story Spark plots and exercises",
+      "title": "WrOS original Story Spark plots and exercises",
       "creators": [
-        "WritingDeck contributors (AI-assisted original drafting and agent editorial review)"
+        "WrOS contributors (AI-assisted original drafting and agent editorial review)"
       ],
       "license": "MIT",
       "edition": "writingdeck-original-1",
       "file": "crates/grimoire-core/assets/writingdeck/spark-corpus.json",
-      "sha256": "129d60922e14058557d49a8f1599ecd3ce1efec2e1c71a03f200911537147854",
+      "sha256": "c25c81986d87784fd404047f27591fb0f68961120c6cb043634b41f676ecb1e4",
       "item_count": 1131,
       "license_notice": "LICENSE",
       "modifications": "1047 accepted independently worded plot situations and 84 new exercises; 1051 literal plot draft IDs retained, four held for substantive overlap. Original AI-assisted wording, MIT to extent rights subsist. No exclusive copyright, independent human editorial review, or legal attestation claimed. Source file/line/hash provenance in each record and docs/spark-corpus-manifest.json."
@@ -205,7 +205,7 @@
       "id": "independent-constraints",
       "title": "Independently worded constraint exercises",
       "creators": [
-        "WritingDeck contributors (future)"
+        "WrOS contributors (future)"
       ],
       "edition": "No third-party prompt-list text ingested",
       "source_url": null,

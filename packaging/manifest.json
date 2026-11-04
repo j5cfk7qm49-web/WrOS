@@ -36,6 +36,7 @@
     {"dest": "usr/libexec/wros-display", "source": "os/scripts/wros-display", "mode": "0755", "class": "code"},
     {"dest": "usr/libexec/wros-lock", "source": "os/scripts/wros-lock", "mode": "0755", "class": "code"},
     {"dest": "usr/libexec/wros-backup", "source": "os/scripts/wros-backup", "mode": "0755", "class": "code"},
+    {"dest": "usr/libexec/wros-clock", "source": "os/scripts/wros-clock", "mode": "0755", "class": "code"},
 
     {"dest": "usr/libexec/wros-update", "source": "os/scripts/wros-update", "mode": "0755", "class": "code"},
     {"dest": "usr/libexec/wros-update-stage", "source": "os/scripts/wros-update-stage", "mode": "0755", "class": "code"},
@@ -60,6 +61,8 @@
     {"dest": "usr/lib/udev/rules.d/90-wros-backlight.rules", "source": "os/config/90-wros-backlight.rules", "mode": "0644", "class": "config"},
     {"dest": "usr/share/polkit-1/actions/org.wros.display.policy", "source": "os/config/org.wros.display.policy", "mode": "0644", "class": "config"},
     {"dest": "etc/polkit-1/rules.d/50-wros-timezone.rules", "source": "os/config/50-wros-timezone.rules", "mode": "0644", "class": "config"},
+    {"dest": "etc/polkit-1/rules.d/50-wros-clock.rules", "source": "os/config/50-wros-clock.rules", "mode": "0644", "class": "config"},
+    {"dest": "usr/share/polkit-1/actions/org.wros.clock.policy", "source": "os/config/org.wros.clock.policy", "mode": "0644", "class": "config"},
     {"dest": "etc/polkit-1/rules.d/50-wros-lock.rules", "source": "os/config/50-wros-lock.rules", "mode": "0644", "class": "config"},
     {"dest": "usr/share/polkit-1/actions/org.wros.lock.policy", "source": "os/config/org.wros.lock.policy", "mode": "0644", "class": "config"},
 

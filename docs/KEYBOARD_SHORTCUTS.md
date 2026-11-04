@@ -10,7 +10,7 @@ The upstream shortcuts remain functional. `assets/help/24-every-key.md` is the c
 | F8 / F9 | Spelling suggestions / themes |
 | **F10** | Toggle left outline column |
 | **F11** | Choose/show/hide the independent editable secondary pane; menu/palette chooses a replacement |
-| **F12** | WritingDeck home dashboard |
+| **F12** | WrOS home dashboard |
 | **Ctrl-D** | Strict focus; same established shortcut, tightened hiding/focus behavior |
 | Tab / Shift-Tab | Cycle visible panes; never a hidden outline/secondary/reference |
 | Ctrl-K | Existing command palette, including home/system/workspaces/tutorial/Pinboard actions |

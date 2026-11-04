@@ -88,6 +88,10 @@ pub enum Route {
     RepairConfirm,
     StorageDevicesView,
     InstallerConfirm,
+    ManualClock,
+    ManualClockConfirm,
+    SoundView,
+    KeyboardWizard,
 }
 
 pub struct WifiForm {
@@ -172,6 +176,57 @@ impl UpdateBundleForm {
     }
 }
 
+pub struct ClockForm {
+    pub datetime: String,
+    pub selected: usize,
+}
+impl ClockForm {
+    pub fn rows(&self) -> Vec<String> {
+        vec![
+            format!(
+                "Local date and time (YYYY-MM-DD HH:MM[:SS]): {}",
+                self.datetime
+            ),
+            "Cancel and keep current local clock".into(),
+            "Review manual clock change · default-Cancel confirmation next".into(),
+            "Sets local system time via org.wros.clock with network time (NTP) kept off.".into(),
+            "Existing writing records keep their recorded timestamps.".into(),
+        ]
+    }
+}
+
+pub struct KeyboardWizardForm {
+    pub base_index: usize,
+    pub alias_name: String,
+    pub selected: usize,
+}
+impl KeyboardWizardForm {
+    pub fn rows(
+        &self,
+        custom_maps: &[writingdeck_sys::keyboard::CustomMapRegistration],
+    ) -> Vec<String> {
+        let base = writingdeck_sys::keyboard::Layout::ALL[self.base_index].clone();
+        let mut rows = vec![
+            format!("Base layout: {} · {}", base.label(), base.description()),
+            format!("Registered alias name (optional): {}", self.alias_name),
+            "Cycle base layout (QWERTY / Colemak / Colemak-DH)".into(),
+            "Preview base layout · 15-second hardware-level rollback".into(),
+            "Register local alias for this base layout".into(),
+            "Cancel and return to Interface settings".into(),
+            "Arbitrary keymap compilation stays disabled; custom maps alias verified layouts."
+                .into(),
+        ];
+        for reg in custom_maps {
+            rows.push(format!(
+                "Registered alias: {} → {}",
+                reg.name,
+                reg.base.id()
+            ));
+        }
+        rows
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum SavedWifiAction {
     Cancel,
@@ -208,6 +263,11 @@ pub struct Shell {
     pub update_flow: UpdateFlow,
     pub recovery: Option<writingdeck_sys::RecoveryInfo>,
     pub storage_devices: Option<Vec<writingdeck_sys::StorageDevice>>,
+    pub clock_form: Option<ClockForm>,
+    pub clock_choice: Option<String>,
+    pub audio_status: Option<writingdeck_sys::AudioStatus>,
+    pub custom_keymaps: Vec<writingdeck_sys::keyboard::CustomMapRegistration>,
+    pub keyboard_wizard: Option<KeyboardWizardForm>,
 }
 impl Shell {
     pub fn load(root: &Path, background: bool) -> Self {
@@ -246,6 +306,11 @@ impl Shell {
             update_flow: UpdateFlow::default(),
             recovery: None,
             storage_devices: None,
+            clock_form: None,
+            clock_choice: None,
+            audio_status: None,
+            custom_keymaps: Vec::new(),
+            keyboard_wizard: None,
         };
         let result = (|| -> Result<()> {
             if state.path.is_symlink() {
@@ -342,6 +407,11 @@ enum Choice {
     Lock,
     InstallerOpen,
     InstallerResolve(bool),
+    ClockOpen,
+    ClockResolve(bool),
+    SoundVolume(i16),
+    SoundMuteToggle,
+    KeyboardWizardOpen,
 }
 struct Entry {
     label: String,
@@ -474,16 +544,29 @@ fn entries(app: &App) -> Vec<Entry> {
                         "Keyboard layout · QWERTY / Colemak / Colemak-DH",
                         Choice::System(4),
                     ),
+                    Entry::new(
+                        "First-run keyboard layout wizard · registered maps only",
+                        Choice::KeyboardWizardOpen,
+                    ),
                     Entry::new("Keyboard shortcuts", Choice::System(11)),
                     Entry::info("Accessibility and notifications · more controls planned"),
                 ]);
             }
             rows
         }
-        Route::Category(Category::System) => Panel::ALL
-            .into_iter()
-            .map(|panel| Entry::new(panel.label(), Choice::Open(Route::Panel(panel))))
-            .collect(),
+        Route::Category(Category::System) => {
+            let mut rows: Vec<Entry> = Panel::ALL
+                .into_iter()
+                .map(|panel| Entry::new(panel.label(), Choice::Open(Route::Panel(panel))))
+                .collect();
+            if cfg!(feature = "audio") {
+                rows.push(Entry::new(
+                    "Sound and volume",
+                    Choice::View(Route::SoundView, writingdeck_sys::Request::AudioStatus),
+                ));
+            }
+            rows
+        }
         Route::Category(Category::Accounts) => vec![
             Entry::new(
                 "Local accounts",
@@ -599,26 +682,38 @@ fn entries(app: &App) -> Vec<Entry> {
                         ));
                     }
                 }
-                Panel::DateTime => rows.extend([
-                    Entry::info(
-                        match (
-                            status.and_then(|s| s.network_time),
-                            status.and_then(|s| s.time_synchronized),
-                        ) {
-                            (Some(true), Some(true)) => "Network time: on · synchronized",
-                            (Some(true), _) => "Network time: on · not yet synchronized",
-                            (Some(false), _) => "Network time: off",
-                            (None, _) => "Network time: unknown",
-                        },
-                    ),
-                    Entry::info(format!(
-                        "Timezone: {}",
-                        status
-                            .and_then(|s| s.timezone.as_deref())
-                            .unwrap_or("unknown")
-                    )),
-                    Entry::new("Choose timezone", Choice::TimezoneOpen),
-                ]),
+                Panel::DateTime => {
+                    rows.extend([
+                        Entry::info(
+                            match (
+                                status.and_then(|s| s.network_time),
+                                status.and_then(|s| s.time_synchronized),
+                            ) {
+                                (Some(true), Some(true)) => "Network time: on · synchronized",
+                                (Some(true), _) => "Network time: on · not yet synchronized",
+                                (Some(false), _) => "Network time: off",
+                                (None, _) => "Network time: unknown",
+                            },
+                        ),
+                        Entry::info(format!(
+                            "Timezone: {}",
+                            status
+                                .and_then(|s| s.timezone.as_deref())
+                                .unwrap_or("unknown")
+                        )),
+                        Entry::new("Choose timezone", Choice::TimezoneOpen),
+                        Entry::new(
+                            "Set the clock by hand (turns network time off)",
+                            Choice::ClockOpen,
+                        ),
+                    ]);
+                    if status.and_then(|s| s.network_time) == Some(false) {
+                        rows.push(Entry::new(
+                            "Use network time again (sets the clock automatically)",
+                            Choice::Read(writingdeck_sys::Request::UseNetworkTime),
+                        ));
+                    }
+                }
                 Panel::Updates => rows.extend(update_flow::updates_panel(app)),
                 Panel::Recovery => rows.extend(update_flow::recovery_panel()),
             }
@@ -896,18 +991,65 @@ fn entries(app: &App) -> Vec<Entry> {
             Entry::info("Local manuscripts, recovery keys and encrypted snapshots are preserved."),
             Entry::info("Revoke access in your Google account settings to end the provider grant."),
         ],
-        Route::GoogleDrive => vec![
-            Entry::new(
-                "Encrypted Google Drive backups and restore",
-                Choice::Open(Route::Backups),
-            ),
-            Entry::info(
-                "General Drive file browsing and document synchronization are not implemented.",
-            ),
-        ],
+        Route::GoogleDrive => {
+            use super::backup::FormKind;
+            let backup = &app.deck.shell.backup;
+            let mut rows = vec![
+                Entry::new(
+                    "Browse app-scoped Google Drive folder",
+                    Choice::BackupForm(FormKind::DriveBrowse, String::new()),
+                ),
+                Entry::new(
+                    "Materialize Drive item into a NEW local path",
+                    Choice::BackupForm(FormKind::DriveMaterialize, String::new()),
+                ),
+                Entry::new(
+                    "Encrypted Google Drive backups and restore",
+                    Choice::Open(Route::Backups),
+                ),
+                Entry::info(
+                    "General Drive file browsing requires restricted scopes; WrOS uses folder-scoped drive.file access.",
+                ),
+                Entry::info(
+                    "Active manuscripts stay local; materialization creates an independent local copy.",
+                ),
+            ];
+            if !backup.status.drive_folder.is_empty() {
+                rows.push(Entry::info(format!(
+                    "Current folder scope: {}",
+                    backup.status.drive_folder
+                )));
+            }
+            for entry in &backup.status.drive_entries {
+                rows.push(Entry::new(
+                    format!(
+                        "{} · {} · {} bytes\n{}{}",
+                        entry.name,
+                        if entry.is_dir { "folder" } else { "file" },
+                        entry.size,
+                        if entry.cached {
+                            "Cached locally"
+                        } else {
+                            "Remote only"
+                        },
+                        if entry.modified.is_empty() {
+                            String::new()
+                        } else {
+                            format!(" · {}", entry.modified)
+                        }
+                    ),
+                    Choice::BackupForm(FormKind::DriveMaterialize, entry.path.clone()),
+                ));
+            }
+            rows
+        }
         Route::SyncPanel => vec![
-            Entry::info("Conflict-safe synchronization is not implemented."),
-            Entry::info("Local saves remain local."),
+            Entry::info("Readable Google Drive sync is set per book, in Settings › Backups."),
+            Entry::info(if app.sync_enabled() {
+                "This book syncs with Google Drive; Backups shows its latest result."
+            } else {
+                "This book is not synced; its words stay on this computer and in encrypted backups."
+            }),
         ],
         Route::Backups => {
             use super::backup::FormKind;
@@ -1217,6 +1359,83 @@ fn entries(app: &App) -> Vec<Entry> {
             Entry::new("Keep these display settings", Choice::WarmResolve(true)),
             Entry::info("The independent system timer restores unconfirmed changes if WrOS exits."),
         ],
+        Route::ManualClock => app
+            .deck
+            .shell
+            .clock_form
+            .as_ref()
+            .map(|form| form.rows().into_iter().map(Entry::info).collect())
+            .unwrap_or_default(),
+        Route::ManualClockConfirm => vec![
+            Entry::new("Cancel manual clock change", Choice::ClockResolve(false)),
+            Entry::new(
+                format!(
+                    "Set local clock to {}",
+                    app.deck
+                        .shell
+                        .clock_choice
+                        .as_deref()
+                        .unwrap_or("unavailable")
+                ),
+                Choice::ClockResolve(true),
+            ),
+            Entry::info(
+                "Network time stays off until you switch it back on. Existing writing records keep their recorded dates.",
+            ),
+        ],
+        Route::SoundView => {
+            let mut rows = vec![Entry::new(
+                "Refresh sound status",
+                Choice::Read(writingdeck_sys::Request::AudioStatus),
+            )];
+            if let Some(audio) = &app.deck.shell.audio_status {
+                rows.push(Entry::info(format!(
+                    "Output: {} · Volume: {} · Muted: {}",
+                    if audio.available {
+                        "available"
+                    } else {
+                        "unavailable"
+                    },
+                    audio
+                        .volume_percent
+                        .map_or("unavailable".into(), |v| format!("{v}%")),
+                    if audio.muted { "yes" } else { "no" }
+                )));
+                rows.push(Entry::info(&audio.message));
+                if audio.available {
+                    rows.push(Entry::new("Volume -10%", Choice::SoundVolume(-10)));
+                    rows.push(Entry::new("Volume +10%", Choice::SoundVolume(10)));
+                    rows.push(Entry::new(
+                        if audio.muted {
+                            "Unmute sound output"
+                        } else {
+                            "Mute sound output"
+                        },
+                        Choice::SoundMuteToggle,
+                    ));
+                }
+            } else {
+                rows.push(Entry::info(
+                    "Sound status unavailable; refresh to check local mixer.",
+                ));
+            }
+            rows.push(Entry::info(
+                "No-audio builds omit sound controls; writing never depends on audio hardware.",
+            ));
+            rows
+        }
+        Route::KeyboardWizard => app
+            .deck
+            .shell
+            .keyboard_wizard
+            .as_ref()
+            .map(|form| {
+                form.rows(&app.deck.shell.custom_keymaps)
+                    .into_iter()
+                    .map(Entry::info)
+                    .collect()
+            })
+            .unwrap_or_default(),
     }
 }
 
@@ -1231,6 +1450,7 @@ impl App {
             Request::CheckUpdates => self.deck.shell.updates = None,
             Request::RecoveryStatus => self.deck.shell.recovery = None,
             Request::GetGoogleStatus => self.deck.shell.google_status = None,
+            Request::AudioStatus => self.deck.shell.audio_status = None,
             _ => {}
         }
     }
@@ -1254,6 +1474,152 @@ impl App {
         }
         if form.bundle_dir.len() + text.len() <= 512 && !text.chars().any(char::is_control) {
             form.bundle_dir.push_str(text);
+        }
+    }
+    pub fn paste_clock_form(&mut self, text: &str) {
+        let Some(form) = &mut self.deck.shell.clock_form else {
+            return;
+        };
+        if form.selected != 0 {
+            return;
+        }
+        if form.datetime.len() + text.len() <= 32 && !text.chars().any(char::is_control) {
+            form.datetime.push_str(text);
+        }
+    }
+    pub fn on_clock_form_key(&mut self, key: Key) {
+        let Some(form) = &mut self.deck.shell.clock_form else {
+            return;
+        };
+        match key {
+            Key::Home => form.selected = 0,
+            Key::Esc => {
+                self.deck.shell.clock_form = None;
+                self.deck.shell.nav.back();
+            }
+            Key::Tab | Key::Down => form.selected = (form.selected + 1) % 3,
+            Key::Up => {
+                form.selected = if form.selected == 0 {
+                    2
+                } else {
+                    form.selected - 1
+                };
+            }
+            Key::Backspace if form.selected == 0 => {
+                form.datetime.pop();
+            }
+            Key::Delete if form.selected == 0 => {
+                form.datetime.clear();
+            }
+            Key::Char(c) if !c.is_control() && form.selected == 0 => {
+                self.paste_clock_form(&c.to_string());
+            }
+            Key::Enter if form.selected == 0 => {
+                form.selected = 2;
+            }
+            Key::Enter if form.selected == 1 => {
+                self.deck.shell.clock_form = None;
+                self.deck.shell.nav.back();
+            }
+            Key::Enter if form.selected == 2 => {
+                let candidate = form.datetime.trim().to_string();
+                match writingdeck_sys::timezone::validate_local_datetime(&candidate) {
+                    Ok(normalized) => {
+                        self.deck.shell.clock_choice = Some(normalized);
+                        self.deck.shell.nav.open(Route::ManualClockConfirm);
+                        self.deck.shell.nav.select(0, 3);
+                    }
+                    Err(err) => {
+                        self.deck.note = format!("Unavailable: {err}");
+                        self.deck.shell.notices.push(&self.deck.note);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    pub fn paste_keyboard_wizard(&mut self, text: &str) {
+        let Some(form) = &mut self.deck.shell.keyboard_wizard else {
+            return;
+        };
+        if form.selected != 1 {
+            return;
+        }
+        if form.alias_name.len() + text.len() <= 32 && !text.chars().any(char::is_control) {
+            form.alias_name.push_str(text);
+        }
+    }
+    pub fn on_keyboard_wizard_key(&mut self, key: Key) {
+        let Some(form) = &mut self.deck.shell.keyboard_wizard else {
+            return;
+        };
+        match key {
+            Key::Home => form.selected = 0,
+            Key::Esc => {
+                self.deck.shell.keyboard_wizard = None;
+                self.deck.shell.nav.back();
+            }
+            Key::Tab | Key::Down => form.selected = (form.selected + 1) % 6,
+            Key::Up => {
+                form.selected = if form.selected == 0 {
+                    5
+                } else {
+                    form.selected - 1
+                };
+            }
+            Key::Backspace if form.selected == 1 => {
+                form.alias_name.pop();
+            }
+            Key::Delete if form.selected == 1 => {
+                form.alias_name.clear();
+            }
+            Key::Char(c) if !c.is_control() && form.selected == 1 => {
+                self.paste_keyboard_wizard(&c.to_string());
+            }
+            Key::Enter if form.selected == 0 || form.selected == 2 => {
+                form.base_index =
+                    (form.base_index + 1) % writingdeck_sys::keyboard::Layout::ALL.len();
+            }
+            Key::Enter if form.selected == 1 => {
+                form.selected = 4;
+            }
+            Key::Enter if form.selected == 3 => {
+                if self.deck.busy {
+                    return;
+                }
+                let base = writingdeck_sys::keyboard::Layout::ALL[form.base_index].clone();
+                self.deck.shell.external = true;
+                self.deck
+                    .request(writingdeck_sys::Request::KeyboardPreview(base));
+                if self.deck.busy {
+                    self.overlay = Overlay::Deck(writingdeck::Page::KeyboardWait);
+                }
+            }
+            Key::Enter if form.selected == 4 => {
+                let base = writingdeck_sys::keyboard::Layout::ALL[form.base_index].clone();
+                let name = form.alias_name.trim().to_string();
+                match writingdeck_sys::keyboard::CustomMapRegistration::new(&name, base.clone()) {
+                    Ok(reg) => {
+                        self.deck
+                            .shell
+                            .custom_keymaps
+                            .retain(|existing| existing.name != reg.name);
+                        self.deck.shell.custom_keymaps.push(reg);
+                        self.deck.note =
+                            format!("Registered keyboard alias '{name}' for {}.", base.id());
+                        self.deck.shell.notices.push(&self.deck.note);
+                    }
+                    Err(err) => {
+                        self.deck.note = format!("Unavailable: {err}");
+                        self.deck.shell.notices.push(&self.deck.note);
+                    }
+                }
+            }
+            Key::Enter if form.selected == 5 => {
+                self.deck.shell.keyboard_wizard = None;
+                self.deck.shell.nav.back();
+            }
+            _ => {}
         }
     }
     pub fn on_update_form_key(&mut self, key: Key) {
@@ -1402,6 +1768,9 @@ impl App {
         self.deck.shell.wifi_form = None;
         self.deck.shell.wifi_saved_choice = None;
         self.deck.shell.update_form = None;
+        self.deck.shell.clock_form = None;
+        self.deck.shell.clock_choice = None;
+        self.deck.shell.keyboard_wizard = None;
         let flow = &mut self.deck.shell.update_flow;
         flow.review = None;
         flow.dir = None;
@@ -1437,6 +1806,14 @@ impl App {
         }
         if self.deck.shell.nav.current() == Route::UpdateBundleForm {
             self.on_update_form_key(key);
+            return;
+        }
+        if self.deck.shell.nav.current() == Route::ManualClock {
+            self.on_clock_form_key(key);
+            return;
+        }
+        if self.deck.shell.nav.current() == Route::KeyboardWizard {
+            self.on_keyboard_wizard_key(key);
             return;
         }
         if self.deck.shell.nav.current() == Route::Timezones {
@@ -1483,6 +1860,9 @@ impl App {
                 self.deck.shell.wifi_form = None;
                 self.deck.shell.wifi_saved_choice = None;
                 self.deck.shell.update_form = None;
+                self.deck.shell.clock_form = None;
+                self.deck.shell.clock_choice = None;
+                self.deck.shell.keyboard_wizard = None;
                 if nav.current() == Route::UpdateReview {
                     // Backing out of a review drops it; it must be authenticated again.
                     let flow = &mut self.deck.shell.update_flow;
@@ -1646,6 +2026,60 @@ impl App {
                     Choice::TimezoneOpen
                     | Choice::TimezoneChoose(_)
                     | Choice::TimezoneResolve(true) => {}
+                    Choice::ClockOpen if !self.deck.busy => {
+                        self.deck.shell.clock_form = Some(ClockForm {
+                            datetime: String::new(),
+                            selected: 0,
+                        });
+                        self.deck.shell.clock_choice = None;
+                        self.deck.shell.nav.open(Route::ManualClock);
+                    }
+                    Choice::ClockResolve(false) => {
+                        self.deck.shell.clock_choice = None;
+                        self.deck.shell.nav.back();
+                    }
+                    Choice::ClockResolve(true) if !self.deck.busy => {
+                        if let Some(dt) = self.deck.shell.clock_choice.clone() {
+                            self.deck
+                                .request(writingdeck_sys::Request::SetLocalClock(dt));
+                        }
+                    }
+                    Choice::ClockOpen | Choice::ClockResolve(true) => {}
+                    Choice::SoundVolume(delta) if !self.deck.busy => {
+                        if let Some(audio) = &self.deck.shell.audio_status
+                            && audio.available
+                            && let Some(current) = audio.volume_percent
+                        {
+                            let next = (i16::from(current) + delta).clamp(0, 100) as u8;
+                            self.deck.request(writingdeck_sys::Request::SetVolume(next));
+                        } else {
+                            self.deck.note =
+                                "No supported sound output is available; volume unchanged.".into();
+                            self.deck.shell.notices.push(&self.deck.note);
+                        }
+                    }
+                    Choice::SoundMuteToggle if !self.deck.busy => {
+                        if let Some(audio) = &self.deck.shell.audio_status
+                            && audio.available
+                        {
+                            self.deck
+                                .request(writingdeck_sys::Request::SetMute(!audio.muted));
+                        } else {
+                            self.deck.note =
+                                "No supported sound output is available; mute unchanged.".into();
+                            self.deck.shell.notices.push(&self.deck.note);
+                        }
+                    }
+                    Choice::SoundVolume(_) | Choice::SoundMuteToggle => {}
+                    Choice::KeyboardWizardOpen if !self.deck.busy => {
+                        self.deck.shell.keyboard_wizard = Some(KeyboardWizardForm {
+                            base_index: 0,
+                            alias_name: String::new(),
+                            selected: 0,
+                        });
+                        self.deck.shell.nav.open(Route::KeyboardWizard);
+                    }
+                    Choice::KeyboardWizardOpen => {}
                     Choice::Open(route) => {
                         self.deck.shell.nav.open(route);
                         if route == Route::GoogleDisconnectConfirm {
@@ -1659,7 +2093,7 @@ impl App {
                         }
                         let availability = match route {
                             Route::GoogleDrive => Some("Drive browsing is not configured."),
-                            Route::SyncPanel => Some("Synchronization is not configured."),
+                            Route::SyncPanel => None,
                             _ => None,
                         };
                         if let Some(message) = availability {
@@ -1824,6 +2258,10 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
         Route::RepairConfirm => "WrOS · Repair interrupted update?".into(),
         Route::StorageDevicesView => "WrOS · Settings › Mounted filesystems".into(),
         Route::InstallerConfirm => "WrOS · Start encrypted live installer?".into(),
+        Route::ManualClock => "WrOS · Settings › Date and time › Manual clock".into(),
+        Route::ManualClockConfirm => "WrOS · Set local clock?".into(),
+        Route::SoundView => "WrOS · Settings › System › Sound and volume".into(),
+        Route::KeyboardWizard => "WrOS · Settings › Interface › Keyboard layout wizard".into(),
     };
     if app.deck.live_session {
         title.push_str(" · Live session");
@@ -1872,13 +2310,29 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
                     .update_form
                     .as_ref()
                     .map_or(0, |form| form.selected)
+            } else if app.deck.shell.nav.current() == Route::ManualClock {
+                app.deck
+                    .shell
+                    .clock_form
+                    .as_ref()
+                    .map_or(0, |form| form.selected)
+            } else if app.deck.shell.nav.current() == Route::KeyboardWizard {
+                app.deck
+                    .shell
+                    .keyboard_wizard
+                    .as_ref()
+                    .map_or(0, |form| form.selected)
             } else {
                 wros_shell::settle(app.deck.shell.nav.selected(), &kinds, rows.len())
             },
             notice: note,
             hint: if matches!(
                 app.deck.shell.nav.current(),
-                Route::BackupForm | Route::WifiConnect | Route::UpdateBundleForm
+                Route::BackupForm
+                    | Route::WifiConnect
+                    | Route::UpdateBundleForm
+                    | Route::ManualClock
+                    | Route::KeyboardWizard
             ) {
                 "Type/paste field  Tab/↑↓ choose  Enter next/confirm  Esc cancel"
             } else {

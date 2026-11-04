@@ -447,3 +447,116 @@ fn argon_continuity_fact_timeline_thread_flow_preserves_editor_at_four_sizes() {
         assert!(loaded.value.facts[0].scene_id.is_some());
     }
 }
+
+#[test]
+fn multi_scene_and_chapter_read_through_with_mark_for_revision_and_scene_navigation_at_four_sizes()
+{
+    for (w, h) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let root = book(&format!("argon-multi-scene-read-{w}"), true);
+        let first = first_scene(&root);
+        fs::write(
+            &first,
+            "Chapter one opening sentence. Second sentence here.\n",
+        )
+        .unwrap();
+        let ch1_second = first.parent().unwrap().join("02-Second.md");
+        fs::write(&ch1_second, "Chapter one second scene sentence.\n").unwrap();
+        let ch2_dir = root.join("manuscript/02-Chapter-Two");
+        fs::create_dir_all(&ch2_dir).unwrap();
+        let ch2_first = ch2_dir.join("01-Opening.md");
+        fs::write(
+            &ch2_first,
+            "Chapter two opening sentence across boundary.\n",
+        )
+        .unwrap();
+
+        let mut reader = Desk::open(root.clone(), w, h);
+        reader.app.run_action(palette::Action::Open(first.clone()));
+        reader.app.run_action(palette::Action::ReadManuscriptAloud);
+        reader.draw();
+        assert_eq!(reader.app.reading.as_ref().unwrap().queue.len(), 2);
+        assert!(reader.shows("(+2 scenes)"), "{}", reader.status());
+        if w >= 120 {
+            assert!(reader.shows("n next scene"));
+        }
+        reader.key(KeyCode::Char('m'));
+        assert_eq!(
+            ReviewNotes::load(&reader.root).unwrap().value.notes.len(),
+            1
+        );
+        // Step forward to scene 2 in Chapter 1, then scene 1 in Chapter 2.
+        reader.key(KeyCode::Char('n'));
+        assert_eq!(
+            reader.app.project.nodes[reader.app.open.unwrap()].path,
+            ch1_second
+        );
+        assert_eq!(reader.app.reading.as_ref().unwrap().history.len(), 1);
+        if w >= 120 {
+            assert!(reader.shows("n/p next/prev scene"), "{}", reader.status());
+        }
+        reader.key(KeyCode::Char('n'));
+        assert_eq!(
+            reader.app.project.nodes[reader.app.open.unwrap()].path,
+            ch2_first
+        );
+        reader.key(KeyCode::Char('m'));
+        assert_eq!(
+            ReviewNotes::load(&reader.root).unwrap().value.notes.len(),
+            2
+        );
+        // Step backward with 'p' to ch1_second, then back to first.
+        reader.key(KeyCode::Char('p'));
+        assert_eq!(
+            reader.app.project.nodes[reader.app.open.unwrap()].path,
+            ch1_second
+        );
+        reader.key(KeyCode::Char('p'));
+        assert_eq!(
+            reader.app.project.nodes[reader.app.open.unwrap()].path,
+            first
+        );
+        reader.key(KeyCode::Esc);
+        assert_eq!(
+            fs::read_to_string(&first).unwrap(),
+            "Chapter one opening sentence. Second sentence here.\n"
+        );
+    }
+}
+
+#[test]
+fn dashboard_revision_widget_and_lesson_three_novel_creation_work_at_four_sizes() {
+    for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let root = book(&format!("rev-widget-l3-{width}"), true);
+        let new_name = format!("created-novel-{width}-{}", std::process::id());
+        let created_dir = root.parent().unwrap().join(&new_name);
+        let _ = fs::remove_dir_all(&created_dir);
+        let mut desk = Desk::open(root.clone(), width, height);
+        desk.app.open_dashboard();
+        desk.draw();
+        assert!(
+            desk.app
+                .deck
+                .state
+                .dashboard
+                .iter()
+                .any(|w| w.widget == grimoire_core::workspaces::Widget::Revision && w.visible)
+        );
+        desk.choose("Revision diagnostics");
+        assert_eq!(desk.app.overlay, Overlay::ProseDashboard);
+        desk.key(KeyCode::Esc);
+
+        // Lesson 3 starts NewBook and completes only when a new novel is created in a separate directory.
+        desk.app.deck.progress.start(3).unwrap();
+        desk.app.overlay = Overlay::NewBook {
+            buf: new_name,
+            shape: grimoire_core::project::Template::Novel,
+        };
+        desk.key(KeyCode::Enter);
+        assert!(desk.app.deck.progress.completed.contains(&3));
+        let orig_tutorial = grimoire_core::tutorial::Store::load(&root).unwrap();
+        assert!(orig_tutorial.progress.completed.contains(&3));
+        let new_tutorial = grimoire_core::tutorial::Store::load(&created_dir).unwrap();
+        assert!(new_tutorial.progress.completed.contains(&3));
+        let _ = fs::remove_dir_all(&created_dir);
+    }
+}

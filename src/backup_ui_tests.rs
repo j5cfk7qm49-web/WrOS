@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     app::{backup::FormKind, shell::Route, writingdeck::Page},
-    backup_service::QueuedBackup,
+    backup_service::{DriveEntry, QueuedBackup},
 };
 use grimoire_core::documents::Pane;
 
@@ -150,6 +150,62 @@ fn google_account_lifecycle_and_offline_queue_views_preserve_both_editors_at_all
         assert!(desk.shows("Queue saved project for offline backup"));
         assert!(desk.shows("Run queued backups and retry interrupted jobs"));
         assert!(desk.shows("Clear pending backup queue"));
+
+        desk.key(KeyCode::Esc);
+        desk.key(KeyCode::Esc);
+        desk.key(KeyCode::Esc);
+        assert_eq!(desk.app.overlay, Overlay::None);
+        assert_eq!(desk.app.editor.text(), text);
+        assert_eq!(desk.app.view_position(Pane::Primary), primary);
+        assert_eq!(desk.app.view_position(Pane::Secondary), secondary);
+        desk.ctrl('z');
+        assert_ne!(desk.app.editor.text(), text);
+    }
+}
+
+#[test]
+fn drive_folder_browser_materialization_and_sync_forms_preserve_both_editors_at_all_sizes() {
+    for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let (mut desk, note) =
+            secondary_book(&format!("drive-browser-{width}"), width, height, true);
+        choose_secondary(&mut desk, &note);
+        desk.typed("Original Drive browser and sync context. ");
+        desk.app.editor.select((10, 3), (8, 7));
+        desk.draw();
+        let text = desk.app.editor.text();
+        let primary = desk.app.view_position(Pane::Primary);
+        let secondary = desk.app.view_position(Pane::Secondary);
+
+        desk.app.open_settings();
+        desk.app.deck.shell.nav.open(Route::GoogleDrive);
+        desk.app.deck.shell.backup.status.drive_folder = "drive:WrOS-Library".into();
+        desk.app.deck.shell.backup.status.drive_entries = vec![DriveEntry {
+            path: "drive:WrOS-Library/Outline.md".into(),
+            name: "Outline.md".into(),
+            size: 1024,
+            modified: "2026-10-31T10:00:00Z".into(),
+            is_dir: false,
+            cached: true,
+        }];
+        desk.draw();
+        assert!(desk.shows("Browse app-scoped Google Drive folder"));
+        assert!(desk.shows("General Drive file browsing requires restricted scopes"));
+        assert!(desk.shows("Outline.md"));
+
+        desk.app.open_backup_form(
+            FormKind::DriveMaterialize,
+            "drive:WrOS-Library/Outline.md".into(),
+        );
+        desk.draw();
+        assert!(desk.shows("Materialize Google Drive item into a NEW local path"));
+        desk.key(KeyCode::Esc);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::GoogleDrive);
+
+        // Sync itself is the per-book readable Drive sync in Backups.
+        desk.app.deck.shell.nav.open(Route::SyncPanel);
+        desk.draw();
+        assert!(desk.shows("Readable Google Drive sync is set per book"));
+        assert!(desk.shows("This book is not synced"));
 
         desk.key(KeyCode::Esc);
         desk.key(KeyCode::Esc);

@@ -1471,6 +1471,36 @@ fn export_says_what_tks_are_left_before_it_writes_anything() {
 }
 
 #[test]
+fn unified_export_preflight_validates_links_assets_footnotes_privacy_and_continuity_at_four_sizes()
+{
+    for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let root = book(&format!("unified-preflight-{width}"), true);
+        let scene = first_scene(&root);
+        let original = fs::read_to_string(&scene).unwrap();
+        fs::write(
+            &scene,
+            format!(
+                "{original}\nSee [[UnresolvedPlace]] and ![missing](assets/absent.png).\nUnclosed %% comment here.\n"
+            ),
+        )
+        .unwrap();
+        let mut d = Desk::open(root.clone(), width, height);
+        d.app.open_export();
+        d.key(KeyCode::Char('p'));
+        assert!(d.shows("EXPORT PREFLIGHT"));
+        assert!(d.shows("Loaded source snapshot"));
+        d.key(KeyCode::End);
+        assert!(d.shows("UnresolvedPlace"));
+        assert!(d.shows("assets/absent.png"));
+        assert!(d.shows("is never closed"));
+        assert!(!root.join("exports").exists());
+        d.key(KeyCode::Esc);
+        assert!(d.shows("EXPORT FOR READERS"));
+        d.key(KeyCode::Esc);
+    }
+}
+
+#[test]
 fn export_preflight_reviews_selected_source_without_writing_at_four_sizes() {
     for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
         let root = book(&format!("preflight-{width}"), true);

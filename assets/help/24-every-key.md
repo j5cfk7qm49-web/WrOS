@@ -34,7 +34,7 @@
 | `F9` | themes |
 | `F10` | show or hide the outline |
 | `F11` | show or hide an independent editable document |
-| `F12` | WritingDeck dashboard |
+| `F12` | WrOS home screen |
 
 ## The outline
 
@@ -125,7 +125,7 @@ Click to place the cursor, drag to select, and click or right-click an underline
 
 Type to search every topic. `Esc` clears the search, then closes the help. In a narrow window the article has the whole box, and `Esc` steps back from it to the topics first.
 
-## Writing journal (WritingDeck)
+## Writing journal (WrOS)
 
 Open Writing journal in Ctrl-K or Writing tools, or press j on the dashboard. These are modal reader controls, never ordinary editor letter remappings.
 
@@ -141,7 +141,7 @@ Open Writing journal in Ctrl-K or Writing tools, or press j on the dashboard. Th
 
 Bracketed/clipboard paste in the reader is ignored. Known unavailable/non-UTF-8 manuscript totals are not fabricated, and note-only saves are not manuscript-writing events. See Writing journal help for sampled-checkpoint limits and force-exit warnings.
 
-## Scratchpad, handoff and explicit starters (WritingDeck)
+## Scratchpad, handoff and explicit starters (WrOS)
 
 Ctrl-K remains reachable from read-only Pinboard, Writing journal, Scratchpad and Session handoff, as well as ordinary writing. Reader prose/clipboard paste never executes letter commands.
 

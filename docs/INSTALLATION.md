@@ -17,7 +17,7 @@ cargo run --locked --no-default-features -- /path/to/existing/book
 cargo run --locked --no-default-features -- new /path/to/new/book
 ```
 
-F12 reaches WritingDeck without changing your desktop keyboard, login, NetworkManager configuration or power state. Status reads may report missing system services. Actions occur only when explicitly requested and authorized by the host. Do not invoke a power action merely as a development test; use the simulator.
+F12 reaches WrOS without changing your desktop keyboard, login, NetworkManager configuration or power state. Status reads may report missing system services. Actions occur only when explicitly requested and authorized by the host. Do not invoke a power action merely as a development test; use the simulator.
 
 ```sh
 cargo run --locked --no-default-features -- writingdeck status --simulate
@@ -70,7 +70,7 @@ need additional drivers or a newer supported kernel. Physical acceptance must
 record chipset/PCI or USB ID, firmware, connection, reboot and suspend/resume.
 Bundling packages is not a claim that every laptop adapter has been tested.
 
-Until a WritingDeck installer is implemented and qualified, use Debian's maintained installer for storage, firmware, LUKS, accounts and bootloader. Back up independently and verify restoration first. Select the intended disk only after reviewing its model/serial/partitions. Use the installer's explicit destructive confirmation; this planner cannot provide permission.
+Until the WrOS installer is implemented and qualified, use Debian's maintained installer for storage, firmware, LUKS, accounts and bootloader. Back up independently and verify restoration first. Select the intended disk only after reviewing its model/serial/partitions. Use the installer's explicit destructive confirmation; this planner cannot provide permission.
 
 Recommended production decisions, still requiring integration tests:
 

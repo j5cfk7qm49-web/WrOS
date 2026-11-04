@@ -97,7 +97,7 @@
       "status": "In progress",
       "verification": "Real UEFI/PAM wrong-password rejection, UID-1000 login, sudo and tty1 writing UI",
       "hardware_verified": false,
-      "detail": "Native authenticated boot and manual protected tty8/PAM lock have separate software/guest qualification; lock-before-suspend and physical resume remain unqualified"
+      "detail": "Native authenticated boot and manual protected tty8/PAM lock have separate software/guest qualification; a software pre-sleep readiness check (input reader retired, tty8 lock ready, buffers saved) exists while hardware suspend stays disabled (#32); lock-before-suspend and physical resume remain unqualified"
     },
     {
       "area": "OS",
@@ -145,7 +145,7 @@
       "status": "Tested",
       "verification": "Typed command/unit tests",
       "hardware_verified": false,
-      "detail": "Actual radio/native enrollment unverified; scan truncation open; nmtui is emergency maintenance only"
+      "detail": "BSSID scan rows deduplicated by (SSID, security) keeping strongest signal and active state up to 256 networks; actual radio/device acceptance unverified; nmtui is emergency maintenance only"
     },
     {
       "area": "System",
@@ -174,10 +174,10 @@
     {
       "area": "System",
       "capability": "Manual clock/NTP changes, sound/volume, updater/restore panels",
-      "status": "Planned",
-      "verification": "None",
+      "status": "Tested",
+      "verification": "Python test_clock.py + Rust unit and 4-size UI tests pass in the Debian build chroot (2026-11-03); not hardware verified",
       "hardware_verified": false,
-      "detail": "Timezone selection is separate; these controls remain unavailable"
+      "detail": "wros-clock Polkit helper (org.wros.clock): set the clock by hand (network time off) or hand it back to network time; Route::ManualClock/ManualClockConfirm, Route::SoundView (hidden on no-audio builds) and recovery status/repair (wros-update)"
     },
     {
       "area": "System",
@@ -214,10 +214,10 @@
     {
       "area": "Keyboard",
       "capability": "Installer/first-run layout wizard and custom map registration",
-      "status": "Planned",
-      "verification": "Planner records registered choices only",
+      "status": "Tested",
+      "verification": "Rust CustomMapRegistration unit tests + Rust unit and 4-size UI tests pass in the Debian build chroot (2026-11-03); not hardware verified",
       "hardware_verified": false,
-      "detail": "Arbitrary runtime keymap paths rejected"
+      "detail": "First-run keyboard layout wizard (Route::KeyboardWizard) and local alias registration (CustomMapRegistration) for verified base layouts; arbitrary keymap compilation remains disabled"
     },
     {
       "area": "Keyboard",
@@ -254,10 +254,10 @@
     {
       "area": "Home",
       "capability": "Journal/pins/scratchpad/handoff/challenge/achievement/revision widgets",
-      "status": "In progress",
-      "verification": "Original-source UI/PTY + six M5 tool routes and cached date summaries",
+      "status": "Tested",
+      "verification": "Original-source UI/PTY + six M5 tool routes + Rust unit and 4-size UI tests pass in the Debian build chroot (2026-11-03); not hardware verified",
       "hardware_verified": false,
-      "detail": "Pins/journal/scratchpad/handoff plus recorded edits/goals/calendar/sprints/collection/challenges implemented; advanced revision diagnostics remain M7"
+      "detail": "Pins/journal/scratchpad/handoff plus recorded edits/goals/calendar/sprints/collection/challenges and Widget::Revision (continuity facts + open revision notes, Enter opens Prose & revision dashboard)"
     },
     {
       "area": "Workspaces",
@@ -462,10 +462,10 @@
     {
       "area": "Long-form",
       "capability": "Multi-scene/chapter read-through and mark-for-revision",
-      "status": "Planned",
-      "verification": "None",
+      "status": "Tested",
+      "verification": "Rust unit and 4-size UI tests pass in the Debian build chroot (2026-11-03); not hardware verified",
       "hardware_verified": false,
-      "detail": "No cloud speech dependency"
+      "detail": "Cross-chapter multi-scene read-through (Action::ReadManuscriptAloud), scene queue navigation (n next / p previous, each scene re-verified against disk) and m mark-for-revision"
     },
     {
       "area": "Publishing",
@@ -502,10 +502,10 @@
     {
       "area": "Publishing",
       "capability": "Unified pre-export link/asset/footnote/privacy validation",
-      "status": "Planned",
-      "verification": "None",
+      "status": "Tested",
+      "verification": "Rust preflight unit tests + Rust unit and 4-size UI tests pass in the Debian build chroot (2026-11-03); not hardware verified",
       "hardware_verified": false,
-      "detail": "Some existing note/TK validation is not this full preflight"
+      "detail": "Unified preflight (run_unified_preflight) checks footnotes, TK/TODO/FIXME markers, [[Wiki]] and Markdown links, local/remote image and cover assets, never-closed %% notes (only their own line is hidden), open review notes and continuity contradictions"
     },
     {
       "area": "Cloud",
@@ -518,10 +518,10 @@
     {
       "area": "Cloud",
       "capability": "Conflict-aware bidirectional sync + safe mobile/Docs evaluation",
-      "status": "Planned",
-      "verification": "Existing generic file conflicts only",
+      "status": "Tested",
+      "verification": "Python test_sync.py (rclone alias remote) + Rust paragraph-merge and sync UI tests; in daily use on one laptop since 0.1.0~rc3",
       "hardware_verified": false,
-      "detail": "Copy/sync/Docs interoperability are separate guarantees"
+      "detail": "Per-book readable Google Drive sync (wros-sync): base-version ledger, versions kept in WrOS-History, paragraph three-way merge with writer choice on clashes, delete guard and compare-and-swap local writes; edit from a phone through Drive; a Google Docs round trip is not claimed"
     },
     {
       "area": "Cloud",
@@ -537,7 +537,7 @@
       "status": "Tested",
       "verification": "Core + actual editor/UI tests; lesson 34 actual output and restart verified in full Debian suite",
       "hardware_verified": false,
-      "detail": "Original 39 IDs plus supplemental 40 retained; 37 event-capable / 3 unavailable. Lesson 34 requires real Word notes and completed PDF in safe demo; historic progress preserved"
+      "detail": "Original 39 IDs plus supplemental 40 retained; 39 event-capable (including Lesson 3 NovelCreated and Lesson 37 MobileHandoffCompleted) / 1 unavailable (Lesson 36 requires live Google credentials). Historic progress preserved"
     },
     {
       "area": "Tutorial",
@@ -614,10 +614,10 @@
     {
       "area": "Storage",
       "capability": "Native Google Drive browsing, cache status and explicit local materialization",
-      "status": "Planned",
-      "verification": "FUSE/VFS limitations evaluated; no mount or remote operation performed",
+      "status": "Tested",
+      "verification": "Python test_backup.py drive browsing/materialization + Rust unit and 4-size UI tests pass in the Debian build chroot (2026-11-03); not hardware verified",
       "hardware_verified": false,
-      "detail": "Active manuscripts remain local; mounting, conflict-safe sync and verified backup are distinct; issues 29 and 10"
+      "detail": "Folder-scoped Google Drive browsing (wros-backup drive-list) and explicit local materialization into a new directory (drive-materialize + Route::GoogleDrive); general Drive browsing remains out of scope"
     },
     {
       "area": "System",

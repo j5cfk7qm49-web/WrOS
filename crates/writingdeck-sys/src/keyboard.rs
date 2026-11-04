@@ -26,6 +26,26 @@ impl Layout {
             Self::ColemakDhIso => "colemak-dh-iso",
         }
     }
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Qwerty => "QWERTY (US standard)",
+            Self::Colemak => "Colemak (home-row ARST / NEIO)",
+            Self::ColemakDhAnsi => "Colemak-DH ANSI (US physical row)",
+            Self::ColemakDhIso => "Colemak-DH ISO (angle-mod ISO key)",
+        }
+    }
+    pub fn description(&self) -> &'static str {
+        match self {
+            Self::Qwerty => "Standard US QWERTY layout; home row ASDF / JKL;.",
+            Self::Colemak => "Classic Colemak; home row ARST D H NEIO; preserves ZXCV positions.",
+            Self::ColemakDhAnsi => {
+                "Colemak-DH for standard ANSI boards; moves D and H to comfortable index-finger positions."
+            }
+            Self::ColemakDhIso => {
+                "Colemak-DH for ISO boards with the extra angle-mod key beside Left Shift."
+            }
+        }
+    }
     pub fn validate(&self) -> Result<()> {
         Ok(())
     }
@@ -34,6 +54,49 @@ impl Layout {
             .into_iter()
             .find(|v| v.id() == id)
             .ok_or_else(|| anyhow::anyhow!("unregistered keyboard layout: {id}"))
+    }
+}
+
+/// A writer-named custom keyboard profile mapped strictly to one of the four
+/// registered root-owned console keymaps (`Layout::ALL`). Arbitrary runtime
+/// keymap paths (`.map`, `/`, `..`) are always refused.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CustomMapRegistration {
+    pub name: String,
+    pub base: Layout,
+}
+
+impl CustomMapRegistration {
+    pub fn new(name: impl Into<String>, base: Layout) -> Result<Self> {
+        let item = Self {
+            name: name.into().trim().to_ascii_lowercase(),
+            base,
+        };
+        item.validate()?;
+        Ok(item)
+    }
+
+    pub fn validate(&self) -> Result<()> {
+        self.base.validate()?;
+        let n = self.name.as_str();
+        if n.is_empty()
+            || n.len() > 32
+            || n.starts_with('-')
+            || n.ends_with('-')
+            || n.ends_with(".map")
+            || !n
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+        {
+            bail!(
+                "custom map name must be 1..32 lowercase letters, digits or hyphens (arbitrary runtime keymap paths are refused)"
+            );
+        }
+        if Layout::ALL.iter().any(|l| l.id() == n) {
+            bail!("custom map name cannot shadow a built-in layout identifier");
+        }
+        Ok(())
     }
 }
 
@@ -82,6 +145,28 @@ mod tests {
         }
         for s in ["../../etc/shadow", "us;reboot", "--help", ""] {
             assert!(Layout::parse(s).is_err());
+        }
+    }
+    #[test]
+    fn custom_map_registration_accepts_registered_choices_and_refuses_runtime_paths() {
+        let reg = CustomMapRegistration::new("writer-ansi", Layout::ColemakDhAnsi).unwrap();
+        assert_eq!(reg.name, "writer-ansi");
+        assert_eq!(reg.base, Layout::ColemakDhAnsi);
+        for bad in [
+            "",
+            "/usr/share/writingdeck/keymaps/qwerty.map",
+            "../custom.map",
+            "custom.map",
+            "qwerty",
+            "colemak",
+            "-leading",
+            "trailing-",
+            "bad;shell",
+        ] {
+            assert!(
+                CustomMapRegistration::new(bad, Layout::Qwerty).is_err(),
+                "{bad:?}"
+            );
         }
     }
 }

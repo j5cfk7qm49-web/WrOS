@@ -36,9 +36,10 @@ pub enum Widget {
     Achievements,
     DailyChallenges,
     StorySpark,
+    Revision,
 }
 impl Widget {
-    pub const ALL: [Self; 21] = [
+    pub const ALL: [Self; 22] = [
         Self::Resume,
         Self::Manuscript,
         Self::DailyGoal,
@@ -60,6 +61,7 @@ impl Widget {
         Self::Achievements,
         Self::DailyChallenges,
         Self::StorySpark,
+        Self::Revision,
     ];
     pub fn name(self) -> &'static str {
         match self {
@@ -84,6 +86,7 @@ impl Widget {
             Self::Achievements => "Milestone collection",
             Self::DailyChallenges => "Daily challenges",
             Self::StorySpark => "Story Spark",
+            Self::Revision => "Revision diagnostics",
         }
     }
 }
@@ -172,7 +175,7 @@ impl State {
     pub fn validate(&self) -> Result<()> {
         if self.version != 3 {
             bail!(
-                "unsupported WritingDeck layout version {}; file preserved",
+                "unsupported WrOS layout version {}; file preserved",
                 self.version
             );
         }

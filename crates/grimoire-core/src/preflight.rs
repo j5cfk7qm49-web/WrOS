@@ -1,12 +1,15 @@
 //! Read-only publishing review of supplied scene bodies and optional story models.
-//! Checks footnotes, editorial markers, internal wiki links, empty scenes,
+//! Checks footnotes, editorial markers, internal wiki links, Markdown links,
+//! image/cover assets, unclosed `%%` comment delimiters, empty scenes,
 //! unresolved revision notes, and explicit continuity contradictions.
 use crate::annotations::AnnotationStore;
 use crate::continuity::ContinuityStore;
 use crate::footnotes::analyze_footnotes;
+use crate::review_notes::ReviewNotes;
 use anyhow::{Result, ensure};
 use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 use std::collections::BTreeSet;
+use std::path::Path;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PreflightSeverity {
@@ -69,6 +72,15 @@ impl PreflightReport {
     }
 }
 
+#[derive(Default)]
+pub struct PreflightContext<'a> {
+    pub continuity: Option<&'a ContinuityStore>,
+    pub annotations: Option<&'a AnnotationStore>,
+    pub review_notes: Option<&'a ReviewNotes>,
+    pub known_targets: Option<&'a BTreeSet<String>>,
+    pub project_root: Option<&'a Path>,
+}
+
 /// Inspect scene bodies supplied by a compile-scope adapter. The caller
 /// selects included scenes and binds IDs/revisions; this does not read files.
 pub fn run_preflight(
@@ -87,6 +99,25 @@ pub fn run_preflight_with_targets(
     annotations: Option<&AnnotationStore>,
     known_targets: Option<&BTreeSet<String>>,
 ) -> Result<PreflightReport> {
+    run_unified_preflight(
+        scenes,
+        &PreflightContext {
+            continuity,
+            annotations,
+            review_notes: None,
+            known_targets,
+            project_root: None,
+        },
+    )
+}
+
+/// Unified pre-export preflight covering footnotes, editorial markers (TK/TODO/FIXME),
+/// internal wiki and Markdown links, local/remote image assets, unclosed `%%` comment
+/// delimiters, open revision annotations, and continuity contradictions.
+pub fn run_unified_preflight(
+    scenes: &[(usize, String, String)],
+    ctx: &PreflightContext<'_>,
+) -> Result<PreflightReport> {
     ensure!(
         scenes.len() <= 512,
         "preflight scene limit exceeded; no partial report"
@@ -102,7 +133,10 @@ pub fn run_preflight_with_targets(
             "invalid or duplicate preflight scene identity"
         );
     }
-    if let Some(store) = annotations {
+    if let Some(store) = ctx.annotations {
+        crate::statefile::Validate::validate(store)?;
+    }
+    if let Some(store) = ctx.review_notes {
         crate::statefile::Validate::validate(store)?;
     }
     let mut report = PreflightReport {
@@ -133,6 +167,16 @@ pub fn run_preflight_with_targets(
                 "Structure",
                 None,
                 "Scene has no counted prose words.".into(),
+            )?;
+        }
+        if let Some(line) = unclosed_comment_delimiter_line(content) {
+            add(
+                PreflightSeverity::Warning,
+                "Privacy",
+                Some(line),
+                format!(
+                    "The '%%' note on line {line} is never closed: only the rest of that line is hidden, and the lines after it will be exported."
+                ),
             )?;
         }
         let notes = analyze_footnotes(content);
@@ -178,7 +222,7 @@ pub fn run_preflight_with_targets(
                 format!("Unresolved TK/TODO/FIXME marker on line {line}."),
             )?;
         }
-        if let Some(targets) = known_targets {
+        if let Some(targets) = ctx.known_targets {
             for (line, target) in unresolved_wiki_links(content, targets)? {
                 add(
                     PreflightSeverity::Warning,
@@ -188,7 +232,12 @@ pub fn run_preflight_with_targets(
                 )?;
             }
         }
-        if let Some(store) = annotations {
+        for (severity, category, line, message) in
+            inspect_markdown_links_and_assets(content, ctx.known_targets, ctx.project_root)?
+        {
+            add(severity, category, Some(line), message)?;
+        }
+        if let Some(store) = ctx.annotations {
             let count = store
                 .annotations
                 .iter()
@@ -206,8 +255,33 @@ pub fn run_preflight_with_targets(
                 )?;
             }
         }
+        if let Some(store) = ctx.review_notes {
+            let normalized = title.replace('\\', "/");
+            if let Some(doc) = store
+                .documents
+                .iter()
+                .find(|d| d.path == normalized && !d.needs_reconnect)
+            {
+                let count = store
+                    .notes
+                    .iter()
+                    .filter(|n| {
+                        n.current.document_id == doc.id
+                            && n.current.status != crate::annotations::AnnotationStatus::Resolved
+                    })
+                    .count();
+                if count > 0 {
+                    add(
+                        PreflightSeverity::Notice,
+                        "Revisions",
+                        None,
+                        format!("{count} unresolved revision note(s) attached to this scene."),
+                    )?;
+                }
+            }
+        }
     }
-    if let Some(store) = continuity {
+    if let Some(store) = ctx.continuity {
         for conflict in store.check_contradictions()? {
             ensure!(
                 report.issues.len() < 512,
@@ -232,6 +306,176 @@ pub fn run_preflight_with_targets(
         }
     }
     Ok(report)
+}
+
+/// The line of the first `%%` that is never closed. Grimoire hides an unclosed
+/// note only to the end of its line (`notes::note_ranges`), so the lines after
+/// it export. Markers are paired exactly as export pairs them; one inside code
+/// is not reported.
+fn unclosed_comment_delimiter_line(content: &str) -> Option<usize> {
+    let mut code = Vec::new();
+    let mut block = None;
+    for (event, range) in Parser::new_ext(content, Options::ENABLE_FOOTNOTES).into_offset_iter() {
+        match event {
+            Event::Start(Tag::CodeBlock(_)) => block = Some(range.start),
+            Event::End(TagEnd::CodeBlock) => {
+                if let Some(from) = block.take() {
+                    code.push(from..range.end);
+                }
+            }
+            Event::Code(_) => code.push(range),
+            _ => {}
+        }
+    }
+    let mut from = 0;
+    while let Some(open) = content[from..].find("%%").map(|i| from + i) {
+        match content[open + 2..].find("%%") {
+            Some(close) => from = open + 2 + close + 2,
+            None if code.iter().any(|r| r.contains(&open)) => from = open + 2,
+            None => return Some(content[..open].bytes().filter(|&b| b == b'\n').count() + 1),
+        }
+    }
+    None
+}
+
+fn safe_project_asset(root: &Path, relative: &str) -> bool {
+    let clean = relative.split(['#', '?']).next().unwrap_or("").trim();
+    if clean.is_empty() || clean.starts_with('/') || clean.contains('\\') {
+        return false;
+    }
+    let rel_path = Path::new(clean);
+    if rel_path.components().any(|c| {
+        matches!(
+            c,
+            std::path::Component::ParentDir
+                | std::path::Component::RootDir
+                | std::path::Component::Prefix(_)
+        )
+    }) {
+        return false;
+    }
+    let Ok(canon_root) = std::fs::canonicalize(root) else {
+        return false;
+    };
+    let candidate = root.join(rel_path);
+    let Ok(meta) = std::fs::symlink_metadata(&candidate) else {
+        return false;
+    };
+    if meta.file_type().is_symlink() || !meta.is_file() {
+        return false;
+    }
+    std::fs::canonicalize(&candidate).is_ok_and(|c| c.starts_with(&canon_root))
+}
+
+fn inspect_markdown_links_and_assets(
+    content: &str,
+    known_targets: Option<&BTreeSet<String>>,
+    project_root: Option<&Path>,
+) -> Result<Vec<(PreflightSeverity, &'static str, usize, String)>> {
+    let mut masked = content.as_bytes().to_vec();
+    for (a, b) in crate::notes::note_ranges(content) {
+        for byte in &mut masked[a..b] {
+            if *byte != b'\n' && *byte != b'\r' {
+                *byte = b' ';
+            }
+        }
+    }
+    let parsed = String::from_utf8(masked).expect("complete UTF-8 ranges masked with ASCII");
+    let mut out = Vec::new();
+    for (event, range) in Parser::new_ext(&parsed, Options::ENABLE_FOOTNOTES).into_offset_iter() {
+        match event {
+            Event::Start(Tag::Link { dest_url, .. }) => {
+                let dest = dest_url.trim();
+                let line = content[..range.start]
+                    .bytes()
+                    .filter(|&b| b == b'\n')
+                    .count()
+                    + 1;
+                if dest.is_empty() {
+                    ensure!(
+                        out.len() < 512,
+                        "link/asset review limit exceeded; no partial report"
+                    );
+                    out.push((
+                        PreflightSeverity::Warning,
+                        "Links",
+                        line,
+                        format!("Empty Markdown link destination on line {line}."),
+                    ));
+                } else if !dest.starts_with("http://")
+                    && !dest.starts_with("https://")
+                    && !dest.starts_with("mailto:")
+                    && !dest.starts_with('#')
+                {
+                    let base = dest.split(['#', '?']).next().unwrap_or("").trim();
+                    let matched_target = known_targets.is_some_and(|targets| {
+                        targets.contains(&base.to_lowercase())
+                            || Path::new(base)
+                                .file_stem()
+                                .and_then(|s| s.to_str())
+                                .is_some_and(|s| targets.contains(&s.to_lowercase()))
+                    });
+                    let matched_file =
+                        project_root.is_some_and(|root| safe_project_asset(root, base));
+                    if (known_targets.is_some() || project_root.is_some())
+                        && !matched_target
+                        && !matched_file
+                    {
+                        ensure!(
+                            out.len() < 512 && dest.len() <= 4096,
+                            "link/asset review limit exceeded; no partial report"
+                        );
+                        out.push((
+                            PreflightSeverity::Warning,
+                            "Links",
+                            line,
+                            format!("Unresolved link target '{dest}' on line {line}."),
+                        ));
+                    }
+                }
+            }
+            Event::Start(Tag::Image { dest_url, .. }) => {
+                let dest = dest_url.trim();
+                let line = content[..range.start]
+                    .bytes()
+                    .filter(|&b| b == b'\n')
+                    .count()
+                    + 1;
+                ensure!(
+                    out.len() < 512 && dest.len() <= 4096,
+                    "link/asset review limit exceeded; no partial report"
+                );
+                if dest.is_empty() {
+                    out.push((
+                        PreflightSeverity::Error,
+                        "Assets",
+                        line,
+                        format!("Image has an empty asset path on line {line}."),
+                    ));
+                } else if dest.starts_with("http://") || dest.starts_with("https://") {
+                    out.push((
+                        PreflightSeverity::Warning,
+                        "Assets",
+                        line,
+                        format!(
+                            "Remote image URL '{dest}' on line {line} cannot be bundled offline."
+                        ),
+                    ));
+                } else if let Some(root) = project_root
+                    && !safe_project_asset(root, dest)
+                {
+                    out.push((
+                        PreflightSeverity::Error,
+                        "Assets",
+                        line,
+                        format!("Missing or outside-project image asset '{dest}' on line {line}."),
+                    ));
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(out)
 }
 
 fn unresolved_wiki_links(
@@ -339,7 +583,11 @@ mod tests {
 
     #[test]
     fn editorial_markers_follow_existing_private_note_and_token_rules() {
-        let scenes=vec![(1,"Scene".into(),"Atka Toolkit TODOS FIXMEable. %% TK TODO FIXME %%\n`TODO TK`\n\n```\nFIXME TK\n```\n\nTKTK and TODO here.".into())];
+        let scenes = vec![(
+            1,
+            "Scene".into(),
+            "Atka Toolkit TODOS FIXMEable. %% TK TODO FIXME %%\n`TODO TK`\n\n```\nFIXME TK\n```\n\nTKTK and TODO here.".into(),
+        )];
         let report = run_preflight(&scenes, None, None).unwrap();
         assert_eq!(
             report.warnings_count(),
@@ -347,6 +595,7 @@ mod tests {
             "one public editorial line, no substring/code/private false positives"
         );
     }
+
     #[test]
     fn empty_scenes_keep_revision_notices_and_invalid_inputs_never_look_clean() {
         let mut annotations = AnnotationStore::default();
@@ -445,6 +694,107 @@ mod tests {
             Some(6)
         );
         assert!(footnotes.iter().all(|i| i.scene_id == Some(7)));
+    }
+
+    #[test]
+    fn an_unclosed_note_marker_warns_that_the_lines_after_it_export() {
+        // Grimoire hides an unclosed %% only to the end of its line; the lines after export.
+        assert_eq!(
+            unclosed_comment_delimiter_line(
+                "Prose.
+%% meant to span
+these lines
+"
+            ),
+            Some(2)
+        );
+        for quiet in [
+            "Prose %% closed %% here.
+",
+            "Prose %% a note
+across lines %% ends.
+",
+            "Rate: `100%%` exactly.
+",
+            "```
+fenced %% code
+```
+",
+            "No markers at all.
+",
+        ] {
+            assert_eq!(unclosed_comment_delimiter_line(quiet), None, "{quiet:?}");
+        }
+    }
+
+    #[test]
+    fn unified_preflight_validates_markdown_links_assets_unclosed_delimiters_and_review_notes() {
+        let root =
+            std::env::temp_dir().join(format!("wros-unified-preflight-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("assets")).unwrap();
+        std::fs::write(root.join("assets/map.png"), b"png").unwrap();
+
+        let mut review_notes = ReviewNotes::default();
+        let anchor = crate::review_notes::Anchor::capture("The map was torn.", 0, 7).unwrap();
+        review_notes
+            .add("manuscript/01-Scene.md", anchor, "check map detail".into())
+            .unwrap();
+
+        let targets = BTreeSet::from(["known-node".to_string()]);
+        let text = "The map was torn. See [empty]() and [broken](missing.md) and [ok](assets/map.png).\n\
+                    ![ok](assets/map.png) ![missing](assets/absent.png) ![remote](https://example.invalid/img.png)\n\
+                    Unclosed %% secret tail";
+        let scenes = vec![(1, "manuscript/01-Scene.md".into(), text.into())];
+        let report = run_unified_preflight(
+            &scenes,
+            &PreflightContext {
+                continuity: None,
+                annotations: None,
+                review_notes: Some(&review_notes),
+                known_targets: Some(&targets),
+                project_root: Some(&root),
+            },
+        )
+        .unwrap();
+
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|i| i.category == "Privacy" && i.line == Some(3))
+        );
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|i| i.category == "Links" && i.message.contains("Empty Markdown link"))
+        );
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|i| i.category == "Links" && i.message.contains("missing.md"))
+        );
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|i| i.category == "Assets" && i.message.contains("assets/absent.png"))
+        );
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|i| i.category == "Assets" && i.message.contains("Remote image URL"))
+        );
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|i| i.category == "Revisions" && i.message.contains("1 unresolved"))
+        );
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

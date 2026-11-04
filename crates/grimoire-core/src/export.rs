@@ -235,7 +235,62 @@ pub fn preflight(p: &Project, opts: &ExportOptions) -> Result<ExportPreflight> {
             (i, place, n.body.clone())
         })
         .collect::<Vec<_>>();
-    let report = crate::preflight::run_preflight(&scenes, None, None)?;
+    let mut known_targets = std::collections::BTreeSet::new();
+    for (idx, n) in p.nodes.iter().enumerate() {
+        if !p.in_trash(idx) {
+            known_targets.insert(n.title.to_lowercase());
+            if let Ok(rel) = n.path.strip_prefix(&p.root) {
+                known_targets.insert(rel.to_string_lossy().replace('\\', "/").to_lowercase());
+                if let Some(stem) = rel.file_stem().and_then(|s| s.to_str()) {
+                    known_targets.insert(stem.to_lowercase());
+                }
+            }
+        }
+    }
+    let continuity = if crate::continuity::ContinuityStore::path(&p.root).exists() {
+        Some(crate::continuity::ContinuityStore::load(&p.root)?)
+    } else {
+        None
+    };
+    let annotations = if crate::annotations::AnnotationStore::path(&p.root).exists() {
+        Some(crate::annotations::AnnotationStore::load(&p.root)?)
+    } else {
+        None
+    };
+    let review_notes = if p.root.join(crate::review_notes::PATH).exists() {
+        Some(crate::review_notes::ReviewNotes::load(&p.root)?)
+    } else {
+        None
+    };
+    let mut report = crate::preflight::run_unified_preflight(
+        &scenes,
+        &crate::preflight::PreflightContext {
+            continuity: continuity.as_ref().map(|s| &s.value),
+            annotations: annotations.as_ref().map(|s| &s.value),
+            review_notes: review_notes.as_ref().map(|s| &s.value),
+            known_targets: Some(&known_targets),
+            project_root: Some(&p.root),
+        },
+    )?;
+    if (opts.epub || opts.paperback)
+        && !p.meta.ebook.cover.trim().is_empty()
+        && find_cover(p).is_none()
+    {
+        if report.issues.len() >= 512 {
+            bail!("preflight issue limit exceeded; no partial report");
+        }
+        report.issues.push(crate::preflight::PreflightIssue {
+            severity: crate::preflight::PreflightSeverity::Error,
+            category: "Assets".into(),
+            scene_id: None,
+            scene_title: Some("novel.toml".into()),
+            line: None,
+            message: format!(
+                "Configured ebook cover '{}' is missing or is not a valid JPEG/PNG inside the project.",
+                p.meta.ebook.cover.trim()
+            ),
+        });
+    }
     let unsupported_footnotes = if opts.docx || opts.pdf || opts.epub || opts.paperback {
         unsupported_footnote_locations(p, &selected, opts)
     } else {

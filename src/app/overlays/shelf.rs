@@ -182,8 +182,17 @@ impl App {
             self.msg = format!("couldn't start a book at {}: {e:#}", books::pretty(&root));
             return;
         }
+        self.observe_deck(grimoire_core::tutorial::Event::NovelCreated);
+        let completed_lesson_3 = self.deck.progress.completed.contains(&3);
         self.overlay = Overlay::None;
         if self.open_book(&root) {
+            if completed_lesson_3 {
+                self.deck.progress.completed.insert(3);
+                if let Ok(mut store) = grimoire_core::tutorial::Store::load(&self.project.root) {
+                    store.progress.completed.insert(3);
+                    let _ = store.save();
+                }
+            }
             self.msg = format!(
                 "{} is ready ({}) · this first page shows how a book is laid out · Tab to read it, Esc for the menu",
                 self.project.meta.title,

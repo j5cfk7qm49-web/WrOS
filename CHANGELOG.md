@@ -1,5 +1,14 @@
 # Changelog
 
+- Integrate the reviewed Argon contribution (2026-11-03): read the whole manuscript
+  aloud across chapters with n/p scene navigation; one pre-export check for links,
+  images, covers, never-closed %% notes, review notes and continuity; a Revision
+  widget on the home screen; the Creating a novel lesson; Google Drive browsing and
+  copying an item into a new local folder; sound and volume, a keyboard layout
+  wizard, and setting the clock by hand with a way back to network time.
+  Argon's folder sync, sync on save and mobile handoff were left out: the per-book
+  readable Drive sync covers them. Remaining on-screen "WritingDeck" text is WrOS.
+
 - Add native encrypted local/Google Drive project backups through Restic/rclone,
   private recovery-key export/import, masked Google authorization, real
   restore/hash verification for every completed snapshot, snapshot browsing,

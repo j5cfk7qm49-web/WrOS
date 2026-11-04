@@ -17,7 +17,7 @@ Preserve upstream Markdown/YAML, atomic saves, conflict checks, history, resume 
 
 ```text
 UEFI / Debian GRUB -> maintained Debian kernel + initramfs -> systemd
-  -> console-setup -> WritingDeck committed keymap -> tty1 PAM login
+  -> console-setup -> WrOS committed keymap -> tty1 PAM login
   -> non-root writingdeck-session -> grimoire
        |
        + Ratatui + App (existing editor/autosave/history/conflicts)
@@ -75,7 +75,7 @@ This slice is not the full requested OS. See [FEATURE_MATRIX](FEATURE_MATRIX.md)
 | Frozen daily assignments/acceptance/completion/rerolls | `.grimoire/writingdeck/challenges/YYYY-MM-DD.json` | Schema v1; civil date + zone/offset/profile/source stamps; explicit measured/self-report evidence |
 | Spark corpus | Compiled original `spark-corpus.json`, immutable identified TSV sources/decision manifest | Original AI-assisted wording; version/text/file hashes, license/attribution; no human/legal attestation |
 | Spark reference history/settings/exports | `.grimoire/writingdeck/spark/state.json` | Schema 1; guarded 1 MiB; history 128/favorites 64/dismissals 128/recent 12/receipts 256; no prompt or manuscript body |
-| Fixed Spark daily / optional assignment | `spark/daily/YYYY-MM-DD.json` / `spark/assignments/YYYY-MM-DD.json` beneath WritingDeck metadata | Original IANA date/zone/version frozen; optional explicit assign/accept/self-report, not measured M5 IDs |
+| Fixed Spark daily / optional assignment | `spark/daily/YYYY-MM-DD.json` / `spark/assignments/YYYY-MM-DD.json` beneath WrOS metadata | Original IANA date/zone/version frozen; optional explicit assign/accept/self-report, not measured M5 IDs |
 | Spark original outputs | `notes/sparks/*.md`, workflow scratch source, `manuscript/98-Spark-*-experiment.md` | Prepared → exclusive create → ready; edited originals retained; independent scene initially empty and compile-excluded; no cross-file power-cut transaction |
 | Tutorial progress | `.grimoire/writingdeck/tutorial.json` | Schema v1; verified event, skip and replay state; guarded save |
 | Shortcut aliases | `paths::data_dir()/writingdeck/shortcuts.json` | Per-machine v1; conflicts/unreadable files are not overwritten |

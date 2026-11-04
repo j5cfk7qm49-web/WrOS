@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import re
 import secrets
+import shutil
 import signal
 import stat
 import subprocess
@@ -275,6 +276,8 @@ class Service:
         self.queue_path = state/'queue.json'
         # book folder -> its latest verified snapshot; restic only knows the staging copy.
         self.latest_path = state/'latest.json'
+        self.drive_browser_path = state/'drive-browser.json'
+        self.drive_cache = state/'drive-cache'
         self.env = {key: value for key, value in os.environ.items()
                     if not key.startswith(('RESTIC_', 'RCLONE_'))}
         self.env.update(PATH='/usr/bin:/bin', RCLONE_CONFIG=str(self.google),
@@ -312,6 +315,15 @@ class Service:
                         and isinstance(item['inventory_sha256'], str) and re.fullmatch('[a-f0-9]{64}', item['inventory_sha256']),
                         'Invalid backup queue entry; original preserved.')
             self.queue = qdata['items']
+        self.drive_folder = 'drive:WrOS-Library'
+        self.drive_entries = []
+        if self.drive_browser_path.exists() or self.drive_browser_path.is_symlink():
+            bdata = read_json(self.drive_browser_path)
+            require(isinstance(bdata, dict) and bdata.get('version') == 1
+                    and set(bdata) <= {'version', 'folder', 'entries'},
+                    'Unknown Drive browser metadata; original preserved.')
+            self.drive_folder = str(bdata.get('folder', 'drive:WrOS-Library'))
+            self.drive_entries = list(bdata.get('entries', []))
 
     def save(self):
         atomic_private(self.config, (json.dumps(self.current) + '\n').encode())
@@ -325,6 +337,13 @@ class Service:
 
     def save_queue(self):
         atomic_private(self.queue_path, (json.dumps({'version': 1, 'items': self.queue}) + '\n').encode())
+
+    def save_drive_browser(self):
+        atomic_private(self.drive_browser_path, (json.dumps({
+            'version': 1,
+            'folder': self.drive_folder,
+            'entries': self.drive_entries,
+        }) + '\n').encode())
 
     def repository(self, descriptor):
         require(isinstance(descriptor, str) and len(descriptor) <= 4096
@@ -417,6 +436,8 @@ class Service:
                 'google_verified_at': google_verified_at,
                 'google_expiry': google_expiry,
                 'queued_backups': list(self.queue),
+                'drive_folder': self.drive_folder,
+                'drive_entries': list(self.drive_entries),
                 'snapshots': self.named_snapshots() if refresh else self.latest_snapshots(), 'notice': notice}
 
     def named_snapshots(self):
@@ -735,6 +756,134 @@ class Service:
             refresh=False)
 
 
+
+    def _record_google_failure(self, failure_kind):
+        ts = now()
+        base = self.google_meta or {
+            'version': 1,
+            'connected_at': ts,
+            'verified_at': '',
+            'token_expiry': '',
+        }
+        if failure_kind == 'reauthorization-required':
+            base['state'] = 'reauthorization-required'
+            base['last_error'] = 'Google Drive authorization expired or was revoked.'
+            self.google_meta = base
+            self.save_account()
+            raise ValueError('Google Drive authorization expired or was revoked. Reauthorize Google Drive or disconnect local credentials.')
+        base['state'] = 'offline'
+        base['last_error'] = 'Google Drive could not be reached.'
+        self.google_meta = base
+        self.save_account()
+        raise ValueError('Google Drive could not be reached. Local credentials remain saved; retry when online.')
+
+    def _validate_drive_subpath(self, descriptor, require_item=False):
+        require(isinstance(descriptor, str) and len(descriptor) <= 1024
+                and not any(ord(c) < 32 for c in descriptor), 'Invalid Google Drive folder or path.')
+        require(descriptor.startswith('drive:'), 'Use a folder-scoped Google Drive path starting with drive: (broad root Drive browsing requires restricted scopes).')
+        sub = descriptor[6:].strip('/')
+        parts = [p for p in sub.split('/') if p]
+        require(parts and all(p not in ('.', '..') and '\0' not in p and '\\' not in p for p in parts),
+                'Choose a named Google Drive folder such as drive:WrOS-Library (root Drive browsing requires restricted scopes).')
+        if require_item:
+            require(len(parts) >= 2, 'Specify a file or project inside an app-scoped Drive folder, for example drive:WrOS-Library/Notes.md.')
+        return '/'.join(parts)
+
+    def drive_list(self, folder):
+        sub = self._validate_drive_subpath(folder, require_item=False)
+        require(self.google.exists() or self.google.is_symlink(), 'Connect Google Drive first.')
+        private_file(self.google)
+        ok, payload, failure_kind = classify_rclone_failure(['lsjson', 'wros-google:' + sub], self.env)
+        if not ok:
+            self._record_google_failure(failure_kind)
+        rows = json.loads(payload) if payload.strip() else []
+        require(isinstance(rows, list) and len(rows) <= 1000, 'Google Drive folder exceeds 1,000 supported entries.')
+        entries = []
+        for row in rows:
+            require(isinstance(row, dict), 'Invalid Google Drive entry metadata.')
+            name = str(row.get('Name') or row.get('Path') or '').strip()
+            require(name and '/' not in name and name not in ('.', '..') and not any(ord(c) < 32 for c in name),
+                    'Unsupported Google Drive entry name.')
+            is_dir = bool(row.get('IsDir', False))
+            size = int(row.get('Size', 0)) if not is_dir and int(row.get('Size', 0)) >= 0 else 0
+            modified = str(row.get('ModTime', ''))[:32]
+            rel_path = f'{sub}/{name}'
+            cache_marker = self.drive_cache / (rel_path + '.json')
+            cached = False
+            if cache_marker.is_file() and not cache_marker.is_symlink():
+                try:
+                    cmeta = read_json(cache_marker)
+                    cached = cmeta.get('size') == size and cmeta.get('modified') == modified
+                except Exception:
+                    cached = False
+            entries.append({
+                'path': 'drive:' + rel_path,
+                'name': name,
+                'size': size,
+                'modified': modified,
+                'is_dir': is_dir,
+                'cached': cached,
+            })
+        entries.sort(key=lambda e: (not e['is_dir'], e['name'].lower()))
+        self.drive_folder = 'drive:' + sub
+        self.drive_entries = entries
+        self.save_drive_browser()
+        return self.status(f'Listed {len(entries)} item(s) in drive:{sub} (non-sensitive folder-scoped access).', refresh=False)
+
+    def drive_materialize(self, remote, destination, project=None):
+        sub = self._validate_drive_subpath(remote, require_item=True)
+        target = safe_new_path(destination)
+        require(not target.is_relative_to(self.state.resolve()), 'Materialize outside backup state and credentials.')
+        if project:
+            require(not target.is_relative_to(Path(project).resolve(strict=True)),
+                    'Materialize into a new path outside the currently open project; active manuscripts stay local.')
+        require(self.google.exists() or self.google.is_symlink(), 'Connect Google Drive first.')
+        private_file(self.google)
+        stage = Path(tempfile.mkdtemp(prefix='.wros-drive-materialize-', dir=target.parent))
+        try:
+            payload_path = stage / target.name
+            ok, _, failure_kind = classify_rclone_failure(['copyto', 'wros-google:' + sub, str(payload_path)], self.env)
+            if not ok:
+                self._record_google_failure(failure_kind)
+            require(payload_path.exists() and not payload_path.is_symlink(), 'Remote item was not found or is unsafe.')
+            info = payload_path.lstat()
+            if stat.S_ISDIR(info.st_mode):
+                inv = inventory(payload_path)
+                size = inv['bytes']
+                publish_directory(payload_path, target)
+            elif stat.S_ISREG(info.st_mode):
+                require(info.st_size <= MAX_BYTES, 'Materialized file exceeds the supported 5 GiB limit.')
+                size = info.st_size
+                os.link(payload_path, target)
+                payload_path.unlink()
+                fd = os.open(target.parent, os.O_RDONLY | os.O_DIRECTORY)
+                try:
+                    os.fsync(fd)
+                finally:
+                    os.close(fd)
+            else:
+                raise ValueError('Materialized item is not a regular file or directory.')
+        finally:
+            shutil.rmtree(stage, ignore_errors=True)
+        cache_marker = self.drive_cache / (sub + '.json')
+        cache_marker.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        matched_mod = next((e['modified'] for e in self.drive_entries if e['path'] == 'drive:' + sub), '')
+        atomic_private(cache_marker, (json.dumps({
+            'version': 1,
+            'remote': 'drive:' + sub,
+            'local_target': str(target),
+            'size': size,
+            'modified': matched_mod,
+            'materialized_at': now(),
+        }) + '\n').encode())
+        for entry in self.drive_entries:
+            if entry['path'] == 'drive:' + sub:
+                entry['cached'] = True
+        self.save_drive_browser()
+        return self.status(f'Materialized drive:{sub} to {target}. Active manuscripts stay local; open the new local copy explicitly.', refresh=False)
+
+
+
 AUTHORIZATION_LIMIT = 32768
 
 
@@ -802,6 +951,10 @@ def dispatch(service, request):
         return service.check_google()
     if operation == 'disconnect-google':
         return service.disconnect_google()
+    if operation == 'drive-list':
+        return service.drive_list(request['folder'])
+    if operation == 'drive-materialize':
+        return service.drive_materialize(request['remote'], request['destination'], request.get('project'))
     raise ValueError('Unsupported backup operation.')
 
 

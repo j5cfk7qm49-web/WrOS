@@ -1,59 +1,87 @@
 //! Reading the scene (or chapter/multi-scene queue) aloud: the sentence being
 //! read is highlighted on the page, and a line along the bottom says what the
-//! keys do. Pressing `m` marks the current sentence for revision; `n` advances
-//! to the next queued scene.
+//! keys do. Pressing `m` marks the current sentence for revision; `n` and `p`
+//! step forward and backward across queued scenes.
 
 use super::*;
 use crate::voice::{self, Engine, Event};
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ReadingScope {
+    Scene,
+    Chapter,
+    Manuscript,
+}
+
 impl App {
     /// Read the open scene aloud from the sentence the cursor is in.
     pub fn start_reading(&mut self) {
-        self.start_reading_with_queue(false);
+        self.start_reading_with_scope(ReadingScope::Scene);
     }
 
-    /// Read from the active scene through the remaining manuscript scenes in order.
+    /// Read from the active scene through the remaining scenes of the current chapter.
     pub fn start_chapter_reading(&mut self) {
-        self.start_reading_with_queue(true);
+        self.start_reading_with_scope(ReadingScope::Chapter);
     }
 
-    fn start_reading_with_queue(&mut self, queue_following: bool) {
+    /// Read from the active scene through all remaining compiled manuscript scenes across chapters.
+    pub fn start_manuscript_reading(&mut self) {
+        self.start_reading_with_scope(ReadingScope::Manuscript);
+    }
+
+    fn start_reading_with_scope(&mut self, scope: ReadingScope) {
         let Some(current) = self.open else {
             self.msg = "open a scene to read it aloud".into();
             return;
         };
-        if queue_following && !self.project.nodes[current].in_manuscript {
-            self.msg = "Open a manuscript scene for chapter read-through.".into();
+        if scope != ReadingScope::Scene && !self.project.nodes[current].in_manuscript {
+            self.msg = match scope {
+                ReadingScope::Chapter => "Open a manuscript scene for chapter read-through.".into(),
+                ReadingScope::Manuscript => {
+                    "Open a manuscript scene for manuscript read-through.".into()
+                }
+                ReadingScope::Scene => unreachable!(),
+            };
             return;
         }
         self.flush();
         let parent = self.parents.get(current).copied().flatten();
-        let queue = if queue_following {
-            grimoire_core::revision::scenes_in_order(&self.project)
-                .into_iter()
-                .skip_while(|i| *i != current)
-                .skip(1)
-                .take_while(|i| self.parents.get(*i).copied().flatten() == parent)
-                .filter(|idx| {
-                    let n = &self.project.nodes[*idx];
-                    n.in_manuscript
-                        && n.compile
-                        && n.kind == Kind::Scene
-                        && !self.project.in_trash(*idx)
-                        && !voice::sentences(&n.body.lines().map(String::from).collect::<Vec<_>>())
+        let queue = match scope {
+            ReadingScope::Scene => Vec::new(),
+            ReadingScope::Chapter | ReadingScope::Manuscript => {
+                let iter = grimoire_core::revision::scenes_in_order(&self.project)
+                    .into_iter()
+                    .skip_while(|i| *i != current)
+                    .skip(1);
+                let indices: Vec<usize> = if scope == ReadingScope::Chapter {
+                    iter.take_while(|i| self.parents.get(*i).copied().flatten() == parent)
+                        .collect()
+                } else {
+                    iter.collect()
+                };
+                indices
+                    .into_iter()
+                    .filter(|idx| {
+                        let n = &self.project.nodes[*idx];
+                        n.in_manuscript
+                            && n.compile
+                            && n.kind == Kind::Scene
+                            && !self.project.in_trash(*idx)
+                            && !voice::sentences(
+                                &n.body.lines().map(String::from).collect::<Vec<_>>(),
+                            )
                             .is_empty()
-                })
-                .map(|idx| {
-                    (
-                        self.project.nodes[idx].path.clone(),
-                        grimoire_core::diagnostics::hex_digest(
-                            self.project.nodes[idx].body.as_bytes(),
-                        ),
-                    )
-                })
-                .collect()
-        } else {
-            Vec::new()
+                    })
+                    .map(|idx| {
+                        (
+                            self.project.nodes[idx].path.clone(),
+                            grimoire_core::diagnostics::hex_digest(
+                                self.project.nodes[idx].body.as_bytes(),
+                            ),
+                        )
+                    })
+                    .collect()
+            }
         };
         let sentences = voice::sentences(&self.editor.lines);
         if sentences.is_empty() {
@@ -85,6 +113,7 @@ impl App {
             at: from,
             voice: name.clone(),
             queue,
+            history: Vec::new(),
             source_path: self.project.nodes[current].path.clone(),
             source_revision: self.editor.revision_stamp(),
         });
@@ -94,14 +123,13 @@ impl App {
         self.msg = format!("reading aloud · {name}");
     }
 
-    fn advance_reading_queue(&mut self) -> bool {
-        let next_scene = self
-            .reading
-            .as_mut()
-            .and_then(|r| (!r.queue.is_empty()).then(|| r.queue.remove(0)));
-        let Some((path, expected)) = next_scene else {
-            return false;
-        };
+    fn verify_and_open_reading_scene(
+        &mut self,
+        path: PathBuf,
+        expected: String,
+        queue: Vec<(PathBuf, String)>,
+        history: Vec<(PathBuf, String)>,
+    ) -> bool {
         let Some(idx) = self.project.nodes.iter().position(|n| n.path == path) else {
             return false;
         };
@@ -116,11 +144,6 @@ impl App {
         {
             return false;
         }
-        let remaining = self
-            .reading
-            .as_ref()
-            .map(|r| r.queue.clone())
-            .unwrap_or_default();
         self.reading = None;
         self.open_scene(idx);
         if self.open != Some(idx)
@@ -147,7 +170,8 @@ impl App {
             sentences,
             at: 0,
             voice: name.clone(),
-            queue: remaining,
+            queue,
+            history,
             source_path: path,
             source_revision: self.editor.revision_stamp(),
         });
@@ -159,6 +183,75 @@ impl App {
             self.project.nodes[idx].title, name
         );
         true
+    }
+
+    fn current_reading_entry(&self) -> Option<(PathBuf, String)> {
+        let r = self.reading.as_ref()?;
+        if r.source_revision != self.editor.revision_stamp() {
+            return None;
+        }
+        let idx = self.open?;
+        let node = &self.project.nodes[idx];
+        if node.path != r.source_path
+            || node.seen.is_none()
+            || grimoire_core::sync::Fingerprint::read(&node.path) != node.seen
+        {
+            return None;
+        }
+        let digest = grimoire_core::diagnostics::hex_digest(self.editor.text().as_bytes());
+        if grimoire_core::diagnostics::hex_digest(node.body.as_bytes()) != digest {
+            return None;
+        }
+        Some((r.source_path.clone(), digest))
+    }
+
+    fn advance_reading_queue(&mut self) -> bool {
+        let current_entry = self.current_reading_entry();
+        let next_scene = self
+            .reading
+            .as_mut()
+            .and_then(|r| (!r.queue.is_empty()).then(|| r.queue.remove(0)));
+        let Some((path, expected)) = next_scene else {
+            return false;
+        };
+        let Some(current_entry) = current_entry else {
+            return false;
+        };
+        let remaining = self
+            .reading
+            .as_ref()
+            .map(|r| r.queue.clone())
+            .unwrap_or_default();
+        let mut history = self
+            .reading
+            .as_ref()
+            .map(|r| r.history.clone())
+            .unwrap_or_default();
+        history.push(current_entry);
+        self.verify_and_open_reading_scene(path, expected, remaining, history)
+    }
+
+    fn previous_reading_scene(&mut self) -> bool {
+        let current_entry = self.current_reading_entry();
+        let prev_scene = self.reading.as_mut().and_then(|r| r.history.pop());
+        let Some((path, expected)) = prev_scene else {
+            return false;
+        };
+        let Some(current_entry) = current_entry else {
+            return false;
+        };
+        let mut queue = self
+            .reading
+            .as_ref()
+            .map(|r| r.queue.clone())
+            .unwrap_or_default();
+        queue.insert(0, current_entry);
+        let history = self
+            .reading
+            .as_ref()
+            .map(|r| r.history.clone())
+            .unwrap_or_default();
+        self.verify_and_open_reading_scene(path, expected, queue, history)
     }
 
     fn mark_reading_sentence_for_revision(&mut self) {
@@ -262,6 +355,11 @@ impl App {
                     self.stop_reading("that's the end of the queued scenes");
                 }
             }
+            Key::Char('p') => {
+                if !self.previous_reading_scene() {
+                    self.stop_reading("that's the start of the queued scenes");
+                }
+            }
             _ => self.stop_reading("stopped reading"),
         }
     }
@@ -337,35 +435,43 @@ pub(super) fn draw_reading(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             if r.queue.len() == 1 { "" } else { "s" }
         )
     };
+    let mut hints = String::from(if r.reader.paused {
+        "space go on  ← → sentence  m mark note"
+    } else {
+        "space pause  ← → sentence  m mark note"
+    });
+    hints.push_str(match (!r.queue.is_empty(), !r.history.is_empty()) {
+        (true, true) => "  n/p next/prev scene",
+        (true, false) => "  n next scene",
+        (false, true) => "  p prev scene",
+        (false, false) => "",
+    });
+    hints.push_str("  esc stop");
+    let state = if r.reader.paused {
+        "paused"
+    } else {
+        "reading aloud"
+    };
+    let place = format!(
+        " · sentence {} of {}{}",
+        r.at + 1,
+        r.sentences.len(),
+        queue_note
+    );
+    // The voice was named when reading began; drop it before the keys run off the edge.
+    let voice = format!(" · {}", r.voice);
+    let used = 3 + state.chars().count() + place.chars().count() + 3 + hints.chars().count();
+    let voice = if used + voice.chars().count() <= usize::from(row.width) {
+        voice
+    } else {
+        String::new()
+    };
     let mut spans = vec![
         Span::styled(" ♪ ", Style::default().fg(t.accent)),
-        Span::styled(
-            if r.reader.paused {
-                "paused"
-            } else {
-                "reading aloud"
-            },
-            Style::default().fg(t.accent),
-        ),
-        Span::styled(
-            format!(
-                " · sentence {} of {}{} · {}   ",
-                r.at + 1,
-                r.sentences.len(),
-                queue_note,
-                r.voice
-            ),
-            Style::default().fg(t.dim),
-        ),
+        Span::styled(state, Style::default().fg(t.accent)),
+        Span::styled(format!("{place}{voice}   "), Style::default().fg(t.dim)),
     ];
-    spans.extend(hint_spans(
-        if r.reader.paused {
-            "space go on   ← → sentence   m mark note   esc stop"
-        } else {
-            "space pause   ← → sentence   m mark note   esc stop"
-        },
-        t,
-    ));
+    spans.extend(hint_spans(&hints, t));
     f.render_widget(Paragraph::new(Line::from(spans)), row);
 }
 

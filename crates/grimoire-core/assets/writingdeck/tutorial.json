@@ -4,7 +4,7 @@
     "title": "Starting the OS",
     "help_topic": "writingdeck",
     "event": "DashboardOpened",
-    "instructions": "Open the WritingDeck home screen with F12. Use Resume writing to return to your manuscript. On the appliance, tty1 starts this interface after login."
+    "instructions": "Open the WrOS home screen with F12. Use Resume writing to return to your manuscript. On the appliance, tty1 starts this interface after login."
   },
   {
     "id": 2,
@@ -17,8 +17,8 @@
     "id": 3,
     "title": "Creating a novel",
     "help_topic": "books",
-    "event": null,
-    "instructions": "Create a new novel in a separate folder. This lesson will observe successful creation rather than merely opening a dialog."
+    "event": "NovelCreated",
+    "instructions": "Create a new novel in a separate folder. This lesson observes successful creation in a separate directory rather than merely opening a dialog."
   },
   {
     "id": 4,
@@ -256,7 +256,7 @@
     "title": "Mobile access",
     "help_topic": "sync",
     "event": null,
-    "instructions": "Use a conflict-safe Markdown handoff; do not assume Google Docs round-trips metadata. Planned."
+    "instructions": "Turn on readable Google Drive sync for a book in Settings › Backups, then edit its Markdown files from Drive on a phone. Edits come back to WrOS; a paragraph changed on both sides waits for you to merge it. Converting to Google Docs is not a safe round trip."
   },
   {
     "id": 38,

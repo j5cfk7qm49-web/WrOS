@@ -1,4 +1,4 @@
-# Original WritingDeck exercises; MIT to the extent rights subsist; AI-assisted original drafting. Completion is self-reported, not machine quality judgment.
+# Original WrOS exercises; MIT to the extent rights subsist; AI-assisted original drafting. Completion is self-reported, not machine quality judgment.
 # stable_id|category|difficulty|minutes|work_mode|requires|excludes|title|instructions
 wd-x-0001|dialogue|1|15|drafting|dialogue-only|narration-only,no-spoken-dialogue|An answer with two jobs|Write a conversation in spoken lines only. Give one speaker a practical question and the other a reason to answer a different emotional question. Let the mismatch change what they decide, without explanatory narration.
 wd-x-0002|dialogue|2|20|drafting|dialogue-only|narration-only,no-spoken-dialogue|The useful misunderstanding|Write only spoken dialogue between people who understand the same word differently. Both meanings must remain reasonable. End with a practical choice that exposes the difference rather than a speech explaining the misunderstanding.

@@ -1,0 +1,92 @@
+#!/usr/bin/python3 -I
+"""Narrow privileged local-clock helper for WrOS.
+
+Sets the local system clock by hand (network time off), or hands it back to
+network time. Reachable only through
+polkit's org.wros.clock action for an active local writingdeck group member.
+"""
+from datetime import datetime
+import json
+import os
+import re
+import subprocess
+import sys
+
+TIMESTAMP_RE = re.compile(r'^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})\Z')
+TIMEDATECTL = '/usr/bin/timedatectl'
+ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'}
+
+
+def validate_timestamp(value):
+    if not isinstance(value, str) or not TIMESTAMP_RE.match(value):
+        raise ValueError('Invalid local timestamp; expected YYYY-MM-DD HH:MM:SS.')
+    try:
+        parsed = datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
+    except ValueError as exc:
+        raise ValueError('Invalid calendar date or time.') from exc
+    if not (2020 <= parsed.year <= 2099):
+        raise ValueError('Year out of supported range (2020..2099).')
+    return parsed.strftime('%Y-%m-%d %H:%M:%S')
+
+
+def require_polkit_caller(euid=None, environ=None):
+    euid = os.geteuid() if euid is None else euid
+    environ = os.environ if environ is None else environ
+    if euid != 0:
+        raise ValueError('wros-clock must run as root through pkexec.')
+    pkexec_uid = environ.get('PKEXEC_UID', '')
+    if not pkexec_uid.isdigit() or not (1000 <= int(pkexec_uid) < 65534):
+        raise ValueError('wros-clock requires an authenticated non-root polkit caller.')
+    return int(pkexec_uid)
+
+
+def run_timedatectl(args, runner=None):
+    cmd = [TIMEDATECTL, '--no-ask-password', '--no-pager', *args]
+    if runner is not None:
+        return runner(cmd)
+    res = subprocess.run(cmd, env=ENV, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=8, check=True)
+    return res.stdout.strip()
+
+
+def apply_local_clock(timestamp, runner=None, euid=None, environ=None):
+    require_polkit_caller(euid=euid, environ=environ)
+    normalized = validate_timestamp(timestamp)
+    ntp_before = run_timedatectl(['--value', '--property=NTP', 'show'], runner=runner)
+    if ntp_before.strip().lower() not in ('no', 'false', '0'):
+        run_timedatectl(['set-ntp', 'false'], runner=runner)
+    run_timedatectl(['set-time', normalized], runner=runner)
+    ntp_after = run_timedatectl(['--value', '--property=NTP', 'show'], runner=runner)
+    if ntp_after.strip().lower() not in ('no', 'false', '0'):
+        raise ValueError('NTP remained active; manual clock change could not be verified.')
+    return {'status': 'applied', 'local_time': normalized, 'ntp': False}
+
+
+def use_network_time(runner=None, euid=None, environ=None):
+    """Hand the clock back to network time after a manual setting."""
+    require_polkit_caller(euid=euid, environ=environ)
+    run_timedatectl(['set-ntp', 'true'], runner=runner)
+    ntp_after = run_timedatectl(['--value', '--property=NTP', 'show'], runner=runner)
+    if ntp_after.strip().lower() not in ('yes', 'true', '1'):
+        raise ValueError('Network time did not switch on; the clock is unchanged.')
+    return {'status': 'applied', 'ntp': True}
+
+
+def main(argv=None):
+    argv = sys.argv if argv is None else argv
+    if len(argv) == 2 and argv[1] == 'network-time':
+        result = use_network_time()
+    elif len(argv) == 3 and argv[1] == 'set-time':
+        result = apply_local_clock(argv[2])
+    else:
+        raise ValueError('Usage: wros-clock set-time "YYYY-MM-DD HH:MM:SS" | wros-clock network-time')
+    print(json.dumps(result), flush=True)
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except Exception as exc:
+        msg = str(exc) if isinstance(exc, ValueError) else 'Local clock update failed; system time unchanged.'
+        print(json.dumps({'status': 'failed', 'message': msg}), flush=True)
+        sys.exit(1)

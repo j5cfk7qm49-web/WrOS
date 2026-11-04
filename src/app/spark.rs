@@ -263,7 +263,7 @@ impl App {
                 }else{rows.push("No optional Spark assigned. a result action explicitly assigns one; opening this page does not.".into());}
             },
             Page::Provenance=>{
-                rows.push("Original WritingDeck content: MIT to the extent rights subsist. AI-assisted drafting and agent editorial review; no exclusive copyright or independent human/legal attestation.".into());
+                rows.push("Original WrOS content: MIT to the extent rights subsist. AI-assisted drafting and agent editorial review; no exclusive copyright or independent human/legal attestation.".into());
                 if let (Some(engine),Some(result))=(&self.spark.engine,self.spark.result()){
                     rows.push(format!("Corpus {} · seed {} · counter {}..{} · pool receipt {}",result.corpus_version,result.seed,result.counter_start,result.counter_end,result.pool_sha256));
                     rows.push("Replay uses exact component IDs/hashes; resampling additionally needs the selection state's recent/dismissed/filter context. Hashes do not authenticate imported history.".into());

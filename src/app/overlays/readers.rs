@@ -159,7 +159,7 @@ impl App {
                 let mut lines = vec![
                     format!("Loaded source snapshot · {} scenes · {} words", report.total_scenes, report.total_words),
                     format!("{} errors · {} warnings · {} notices", report.errors_count(), report.warnings_count(), report.notices_count()),
-                    "Footnotes, public TK/TODO/FIXME markers and empty-source notices only; no link, continuity, revision or rendered-page checks.".into(),
+                    "Unified preflight: footnotes, public TK/TODO/FIXME markers, links, local assets, unclosed %% notes, continuity and revision notes.".into(),
                     "Review is read-only. Esc returns to export; reopen to refresh.".into(),
                     String::new(),
                 ];

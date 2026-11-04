@@ -58,7 +58,7 @@ def main():
                         'crate_archive_sha256': upstream['crate_archive_sha256'],
                         'local_patch': upstream['local_patch'], 'local_patch_sha256': upstream['local_patch_sha256'],
                         'scope': 'Retained upstream MIT crate with an explicit WrOS patch; not original WrOS code.'}
-        source = package.get('source') or (vendored['upstream_repository'] + ' (retained patched upstream crate)' if vendored else 'WritingDeck workspace')
+        source = package.get('source') or (vendored['upstream_repository'] + ' (retained patched upstream crate)' if vendored else 'WrOS workspace')
         records.append({'name': package['name'], 'version': package['version'], 'declared_license': package.get('license'),
                         'repository': package.get('repository'), 'used_in_linux_no_audio_build': selected, 'source': source,
                         'notice_files': texts, 'retained_upstream_notice_source': retained_record,

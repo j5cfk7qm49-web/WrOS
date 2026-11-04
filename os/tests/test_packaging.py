@@ -259,6 +259,8 @@ class Builder(unittest.TestCase):
             self.assertEqual(packaging.deb_field(newer, 'Version'), '0.1.0~rc2')
             run('dpkg', '--compare-versions', '0.1.0~rc1', 'lt', '0.1.0~rc2', env=ENV)
             run('dpkg', '--compare-versions', '0.1.0~rc2', 'lt', '0.1.0', env=ENV)
+            run('dpkg', '--compare-versions', '0.1.0', 'lt', '0.1.1~dev1', env=ENV)
+            run('dpkg', '--compare-versions', '0.1.1~dev1', 'lt', '0.1.1', env=ENV)
             new_x, old_x = other / 'new', self.base / 'old-x'
             run('dpkg-deb', '-x', str(newer), str(new_x))
             run('dpkg-deb', '-x', str(self.deb), str(old_x))

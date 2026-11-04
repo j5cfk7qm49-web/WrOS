@@ -69,7 +69,7 @@ class HeadlessCLI(unittest.TestCase):
         state.write_text('{"version":999,"selected":0,"workspaces":[],"dashboard":[],"launch_dashboard":false,"low_power":false}\n')
         before = self.hashes(demo)
         result = self.run_cli('check-config', demo, ok=False)
-        self.assertIn('unsupported WritingDeck', result.stderr)
+        self.assertIn('unsupported WrOS', result.stderr)
         self.assertEqual(self.hashes(demo), before)
 
     def test_pin_metadata_validation_is_read_only_and_future_or_unknown_data_survives(self):

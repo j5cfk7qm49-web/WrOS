@@ -363,6 +363,38 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
                 &["--no-ask-password", "--no-pager", "set-timezone", zone],
             )
         }
+        Request::SetLocalClock(ts) => {
+            let normalized = crate::timezone::validate_local_datetime(ts)?;
+            Invocation::new(
+                "/usr/bin/pkexec",
+                &[
+                    "--disable-internal-agent",
+                    "/usr/libexec/wros-clock",
+                    "set-time",
+                    &normalized,
+                ],
+            )
+        }
+        Request::UseNetworkTime => Invocation::new(
+            "/usr/bin/pkexec",
+            &[
+                "--disable-internal-agent",
+                "/usr/libexec/wros-clock",
+                "network-time",
+            ],
+        ),
+        Request::AudioStatus => Invocation::new("/usr/bin/amixer", &["sget", "Master"]),
+        Request::SetVolume(vol) => {
+            if *vol > 100 {
+                bail!("volume must be 0..=100");
+            }
+            let arg = format!("{vol}%");
+            Invocation::new("/usr/bin/amixer", &["sset", "Master", &arg, "unmute"])
+        }
+        Request::SetMute(muted) => Invocation::new(
+            "/usr/bin/amixer",
+            &["sset", "Master", if *muted { "mute" } else { "unmute" }],
+        ),
         Request::Wifi(on) => Invocation::new(
             "/usr/bin/nmcli",
             &["radio", "wifi", if *on { "on" } else { "off" }],
@@ -744,6 +776,23 @@ impl<R: Runner> Backend for Linux<R> {
                 bail!("timezone change could not be verified; refresh current status");
             }
             return Ok(Reply::Timezone(actual));
+        }
+        if let Request::SetLocalClock(expected) = &request {
+            let expected_norm = crate::timezone::validate_local_datetime(expected)?;
+            let actual = crate::system_views::parse_clock_reply(&output, &expected_norm)?;
+            return Ok(Reply::LocalClock(actual));
+        }
+        if matches!(request, Request::UseNetworkTime) {
+            crate::system_views::parse_network_time_reply(&output)?;
+            return Ok(Reply::NetworkTime);
+        }
+        if matches!(
+            request,
+            Request::AudioStatus | Request::SetVolume(_) | Request::SetMute(_)
+        ) {
+            return Ok(Reply::Audio(crate::system_views::parse_amixer_status(
+                &output,
+            )?));
         }
         if matches!(request, Request::DisplayStatus) {
             let status: crate::display::Status =

@@ -700,6 +700,18 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
                 app.paste_update_form(text);
                 continue;
             }
+            if app.overlay == Overlay::Deck(app::writingdeck::Page::Settings)
+                && app.deck.shell.nav.current() == app::shell::Route::ManualClock
+            {
+                app.paste_clock_form(text);
+                continue;
+            }
+            if app.overlay == Overlay::Deck(app::writingdeck::Page::Settings)
+                && app.deck.shell.nav.current() == app::shell::Route::KeyboardWizard
+            {
+                app.paste_keyboard_wizard(text);
+                continue;
+            }
             if app.overlay == Overlay::Continuity {
                 app.paste_continuity(text);
                 continue;
@@ -1039,7 +1051,14 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
             && app.lexicon.page == app::lexicon::Page::Query
             && k.code == KeyCode::Char('v'))
         && !(app.overlay == Overlay::Deck(app::writingdeck::Page::Settings)
-            && app.deck.shell.nav.current() == app::shell::Route::BackupForm
+            && matches!(
+                app.deck.shell.nav.current(),
+                app::shell::Route::BackupForm
+                    | app::shell::Route::WifiConnect
+                    | app::shell::Route::UpdateBundleForm
+                    | app::shell::Route::ManualClock
+                    | app::shell::Route::KeyboardWizard
+            )
             && k.code == KeyCode::Char('v'))
         && !(matches!(
             app.overlay,

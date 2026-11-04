@@ -1,5 +1,6 @@
 """Pure privilege/argv/session validation; never opens or changes a host VT."""
 import importlib.machinery
+import re
 from pathlib import Path
 import unittest
 from unittest import mock
@@ -75,3 +76,58 @@ class ConsoleLockBoundary(unittest.TestCase):
                  mock.patch.object(module, 'worker', side_effect=AssertionError('must not run a service role')):
                 with self.assertRaises(ValueError):
                     module.main()
+
+    def test_lock_before_sleep_requires_input_reader_retired_and_tty8_vlock_ready(self):
+        import tempfile
+        with tempfile.TemporaryDirectory(prefix="wros-lock-sleep-") as tmp:
+            proc = Path(tmp) / "proc"
+            task_dir = proc / "42" / "task" / "42"
+            task_dir.mkdir(parents=True)
+            (task_dir / "children").write_text("99\n")
+            worker_dir = proc / "99"
+            worker_dir.mkdir(parents=True)
+            # The argument the editor really starts its input reader with (crates/wros-input).
+            rust = (ROOT / 'crates/wros-input/src/linux.rs').read_text()
+            argument = re.search(r'pub const WORKER_ARGUMENT: &str = "([^"]+)";', rust).group(1)
+            (worker_dir / "cmdline").write_bytes(b"/usr/bin/grimoire\0" + argument.encode() + b"\x0042\0")
+            sleep_conf = Path(tmp) / "60-wros-sleep-guard.conf"
+            sleep_conf.write_text("[Sleep]\nAllowSuspend=no\n")
+
+            self.assertFalse(module.input_reader_retired(42, proc_root=proc))
+            with self.assertRaisesRegex(ValueError, "input reader is still active"):
+                module.evaluate_pre_sleep_lock(
+                    1000, 42, "12345", 0, sleep_enabled=False,
+                    proc_root=proc, sleep_conf=sleep_conf, locker_ready=True
+                )
+
+            # Once input worker is retired, tty8 locker readiness is still required.
+            (task_dir / "children").write_text("")
+            self.assertTrue(module.input_reader_retired(42, proc_root=proc))
+            with self.assertRaisesRegex(ValueError, "tty8 vlock-main"):
+                module.evaluate_pre_sleep_lock(
+                    1000, 42, "12345", 0, sleep_enabled=False,
+                    proc_root=proc, sleep_conf=sleep_conf, locker_ready=False
+                )
+
+            # With input retired and tty8 locker ready, software lock-before-sleep verifies cleanly while keeping sleep disabled (#32).
+            res = module.evaluate_pre_sleep_lock(
+                1000, 42, "12345", 0, sleep_enabled=False,
+                proc_root=proc, sleep_conf=sleep_conf, locker_ready=True, pam_unlocked=True
+            )
+            self.assertEqual(res["status"], "lock-verified-sleep-disabled")
+            self.assertTrue(res["input_retired"])
+            self.assertTrue(res["locker_ready"])
+            self.assertFalse(res["sleep_permitted"])
+
+            # Requesting actual sleep_enabled=True or weakening AllowSuspend=no is refused.
+            with self.assertRaisesRegex(ValueError, "Suspend unavailable"):
+                module.evaluate_pre_sleep_lock(
+                    1000, 42, "12345", 0, sleep_enabled=True,
+                    proc_root=proc, sleep_conf=sleep_conf, locker_ready=True
+                )
+            sleep_conf.write_text("[Sleep]\nAllowSuspend=yes\n")
+            with self.assertRaises(ValueError):
+                module.evaluate_pre_sleep_lock(
+                    1000, 42, "12345", 0, sleep_enabled=False,
+                    proc_root=proc, sleep_conf=sleep_conf, locker_ready=True
+                )

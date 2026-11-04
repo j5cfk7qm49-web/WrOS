@@ -72,7 +72,7 @@ pub const TOPICS: &[Topic] = &[
     topic!("settings", "Settings", "23-settings.md"),
     topic!("keys", "Every key", "24-every-key.md"),
     topic!("license", "License", "25-license.md"),
-    topic!("writingdeck", "WritingDeck OS", "28-writingdeck.md"),
+    topic!("writingdeck", "WrOS (Writer's OS)", "28-writingdeck.md"),
     topic!("pins", "Sticky-note pins", "29-pins.md"),
     topic!("story-spark", "Offline Story Spark", "34-story-spark.md"),
     topic!("journal", "Writing journal", "30-journal.md"),
