@@ -398,7 +398,8 @@ class PackageAwareAudit(unittest.TestCase):
                 'writingdeck-keyboard.service', 'wros-display.service',
                 'wros-offline-update.service', 'wros-update-reconcile.service'])
             self.assertEqual(result['update_polkit_actions'], [
-                'org.wros.update.cancel', 'org.wros.update.fetch', 'org.wros.update.media', 'org.wros.update.repair', 'org.wros.update.stage'])
+                'org.wros.update.apply', 'org.wros.update.cancel', 'org.wros.update.fetch', 'org.wros.update.media',
+                'org.wros.update.repair', 'org.wros.update.stage'])
             self.assertFalse(result['update_engine_uses_debian_keyring'])
             self.assertTrue(result['private_key_material_absent'])
 

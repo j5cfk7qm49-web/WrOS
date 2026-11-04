@@ -17,6 +17,7 @@ pub const REVIEW_TIMEOUT_SECS: u64 = 180;
 pub const STAGE_TIMEOUT_SECS: u64 = 900;
 pub const REPAIR_TIMEOUT_SECS: u64 = 900;
 pub const CANCEL_TIMEOUT_SECS: u64 = 60;
+pub const APPLY_TIMEOUT_SECS: u64 = 900;
 pub const MEDIA_TIMEOUT_SECS: u64 = 60;
 pub const ONLINE_CHECK_TIMEOUT_SECS: u64 = 30;
 /// Downloading a whole update over a slow connection.
@@ -518,6 +519,9 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
         Request::CancelStagedUpdates => {
             Invocation::update_launcher("/usr/libexec/wros-update-cancel", &[], CANCEL_TIMEOUT_SECS)
         }
+        Request::ApplyStagedUpdate => {
+            Invocation::update_launcher("/usr/libexec/wros-update-apply", &[], APPLY_TIMEOUT_SECS)
+        }
         Request::RecoverUpdates => {
             Invocation::update_launcher("/usr/libexec/wros-update-repair", &[], REPAIR_TIMEOUT_SECS)
         }
@@ -888,6 +892,11 @@ impl<R: Runner> Backend for Linux<R> {
                 return Ok(Reply::OnlineUpdateFetched(
                     crate::system_views::online_fetch(&output)?,
                 ));
+            }
+            Request::ApplyStagedUpdate => {
+                return Ok(Reply::UpdateApplied(crate::system_views::update_applied(
+                    &output,
+                )?));
             }
             Request::CancelStagedUpdates => {
                 return Ok(Reply::Message(crate::system_views::update_action_message(

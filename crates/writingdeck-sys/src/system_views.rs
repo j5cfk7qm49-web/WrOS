@@ -1,8 +1,8 @@
 //! Bounded read-only views of maintained Debian services. None of these
 //! parsers infer successful authentication, backup, update or recovery.
 use crate::{
-    AudioStatus, LocalAccount, RecoveryInfo, ResticSnapshot, SavedWifi, StorageDevice, UpdateInfo,
-    UpdatePackage, UpdateReview, UpdateStaged, UpdateState, WifiNetwork,
+    AudioStatus, LocalAccount, RecoveryInfo, ResticSnapshot, SavedWifi, StorageDevice,
+    UpdateApplied, UpdateInfo, UpdatePackage, UpdateReview, UpdateStaged, UpdateState, WifiNetwork,
 };
 use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
@@ -499,6 +499,45 @@ pub fn update_staged(output: &str, expected_review_id: &str) -> Result<UpdateSta
         review_id: raw.review_id,
         packages: raw.packages,
         restart_required: raw.restart_required,
+    })
+}
+
+fn valid_transaction_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 64
+        && id
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || b"._-".contains(&c))
+}
+
+/// Strict parse of `wros-update-apply`: only a completed install counts.
+pub fn update_applied(output: &str) -> Result<UpdateApplied> {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct RawApplied {
+        status: String,
+        transaction_id: String,
+        packages: Vec<String>,
+    }
+    let object = helper_object(output, "wros-update-apply")?;
+    let raw: RawApplied = serde_json::from_value(serde_json::Value::Object(object))
+        .context("invalid wros-update-apply reply")?;
+    ensure!(raw.status == "completed", "the update was not installed");
+    ensure!(
+        valid_transaction_id(&raw.transaction_id),
+        "invalid update transaction identity"
+    );
+    ensure!(
+        raw.packages.len() <= 1024
+            && raw
+                .packages
+                .iter()
+                .all(|p| p.len() <= 200 && p.chars().all(|c| c.is_ascii_graphic() || c == ' ')),
+        "invalid installed package list"
+    );
+    Ok(UpdateApplied {
+        transaction_id: raw.transaction_id,
+        packages: raw.packages,
     })
 }
 

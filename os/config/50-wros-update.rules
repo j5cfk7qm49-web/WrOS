@@ -1,9 +1,9 @@
-// Only the five fixed validated update helpers; never a general command or device grant.
+// Only the six fixed validated update helpers; never a general command or device grant.
 // The in-app confirmation screen (default Cancel) is the human gate.
 polkit.addRule(function(action, subject) {
     var actions = ["org.wros.update.stage", "org.wros.update.cancel",
                    "org.wros.update.repair", "org.wros.update.media",
-                   "org.wros.update.fetch"];
+                   "org.wros.update.fetch", "org.wros.update.apply"];
     if (actions.indexOf(action.id) >= 0 && subject.local && subject.active &&
         subject.isInGroup("writingdeck")) {
         return polkit.Result.YES;

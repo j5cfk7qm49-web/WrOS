@@ -336,6 +336,8 @@ class Transactions(unittest.TestCase):
             'media without mount': ('media', [], '1000', 0, 'usage'),
             'fetch with a url': ('fetch', ['https://elsewhere.example/'], '1000', 0, 'usage'),
             'fetch without polkit': ('fetch', [], None, 0, 'through polkit'),
+            'apply with arguments': ('apply', ['--force'], '1000', 0, 'usage'),
+            'apply without polkit': ('apply', [], None, 0, 'through polkit'),
             'unknown verb': ('shell', [], '1000', 0, 'unavailable'),
         }
         for name, (verb, argv, uid, euid, pattern) in cases.items():

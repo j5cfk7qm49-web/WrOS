@@ -129,6 +129,8 @@ pub struct Deck {
     pub online_updates: bool,
     pub lock_requested: bool,
     pub installer_requested: bool,
+    /// An app-only update is installed: save, then start the new writing app in place.
+    pub app_restart_requested: bool,
     worker: Option<Worker>,
     enable_system: bool,
     pub preview: Option<(String, KeyboardLayout, Instant)>,
@@ -271,6 +273,7 @@ impl Deck {
             },
             lock_requested: false,
             installer_requested: false,
+            app_restart_requested: false,
             worker: None,
             enable_system: background,
             preview: None,
@@ -713,6 +716,9 @@ impl App {
                 }
                 Ok(Reply::UpdateStaged(staged)) => {
                     self.on_update_staged(staged);
+                }
+                Ok(Reply::UpdateApplied(applied)) => {
+                    self.on_update_applied(applied);
                 }
                 Ok(Reply::UpdateMedia(media)) => {
                     self.on_update_media(media);

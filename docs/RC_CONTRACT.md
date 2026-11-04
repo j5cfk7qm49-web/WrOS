@@ -53,7 +53,7 @@ Prompt: ship a bootable installable ISO plus an authenticated update and rescue 
 
 Entry points, all root:root 0755 (`/usr/libexec/`): `wros-update` (engine + unprivileged verbs),
 `wros-update-stage`, `wros-update-cancel`, `wros-update-repair`, `wros-update-media`,
-`wros-update-fetch` (thin pkexec launchers: exact argc, strict tokens, `PKEXEC_UID` present, sanitized env, import
+`wros-update-fetch`, `wros-update-apply` (thin pkexec launchers: exact argc, strict tokens, `PKEXEC_UID` present, sanitized env, import
 the engine from `/usr/lib/wros-update/engine.py`). `run-offline-boot` and `reconcile` refuse
 `PKEXEC_UID`.
 
@@ -63,8 +63,15 @@ JSON on stdout (UTF-8, one object, no secrets):
   `{"status":"reviewed","review_id":"<64 hex>","signer":"<fpr>","suite":"..","date":"..","valid_until":"..",
     "packages":[{"name","from_version"|null,"to_version","action":"install|upgrade|reinstall"}],
     "removals":[],"backup_recommended":true}`; `review_id = sha256(InRelease||0x00||Packages)`.
-* `wros-update-stage <abs-dir> <review_id>` -> `{"status":"staged","transaction_id","review_id","packages":N,"restart_required":true}`;
-  refuses if the freshly verified `review_id` differs.
+* `wros-update-stage <abs-dir> <review_id>` -> `{"status":"staged","transaction_id","review_id","packages":N,"restart_required":bool}`;
+  refuses if the freshly verified `review_id` differs. `restart_required` is false only for an app-only
+  update: an upgrade of the installed `wros` alone, with the same relationships, config-file list and no
+  maintainer scripts, whose added, changed or removed files are all the app (`/usr/bin/grimoire`), the
+  helpers it runs unprivileged (`wros-backup`, `wros-sync`), docs, or `/etc/writingdeck/release`.
+* `wros-update-apply` -> `{"status":"completed","transaction_id","packages":["name version"]}`: installs an
+  app-only staged update now through the same journaled transaction as the offline boot, after checking
+  again against the live dpkg database; otherwise it refuses and the update stays staged for the restart.
+  The app then saves and re-executes `/usr/bin/grimoire` in place, keeping the login session.
 * `wros-update-cancel` -> `{"status":"cancelled"|"none","message"}`.
 * `wros-update-repair` -> `{"status":"recovered"|"clean"|"failed","message"}`.
 * `wros-update-media mount` -> `{"status":"mounted","path":"/run/wros-update/media/0"}` | `{"status":"none"}`.

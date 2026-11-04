@@ -561,3 +561,54 @@ fn simulated_backend_models_review_stage_cancel_and_repair_with_labelled_text() 
             .is_err()
     );
 }
+
+#[test]
+fn installing_a_staged_update_now_runs_the_apply_helper_and_reports_what_it_installed() {
+    let fakes = Fakes::new();
+    fakes.helper(
+        "wros-update-apply",
+        &echo(
+            r#"{"status":"completed","transaction_id":"tx-live.1","packages":["wros 0.1.0~rc4"]}"#,
+        ),
+    );
+    let mut backend = fakes.backend();
+    let Reply::UpdateApplied(applied) = backend.request(Request::ApplyStagedUpdate).unwrap() else {
+        panic!("expected applied");
+    };
+    assert_eq!(applied.transaction_id, "tx-live.1");
+    assert_eq!(applied.packages, ["wros 0.1.0~rc4"]);
+    let seen = &backend.runner.seen[0];
+    assert_eq!(seen.program, "/usr/bin/pkexec");
+    assert_eq!(
+        seen.args,
+        ["--disable-internal-agent", "/usr/libexec/wros-update-apply"]
+    );
+    assert_eq!(seen.timeout, Duration::from_secs(900));
+
+    // Anything but a completed install is a failure, never a success to restart on.
+    for reply in [
+        r#"{"status":"busy"}"#,
+        r#"{"status":"not-owned"}"#,
+        r#"{"status":"completed","transaction_id":"tx 1","packages":[]}"#,
+        r#"{"status":"completed","transaction_id":"tx-1","packages":[],"extra":1}"#,
+    ] {
+        let other = Fakes::new();
+        other.helper("wros-update-apply", &echo(reply));
+        assert!(
+            other.backend().request(Request::ApplyStagedUpdate).is_err(),
+            "{reply}"
+        );
+    }
+    // The engine's refusal (it needs a restart) reaches the writer as the helper's words.
+    let refusing = Fakes::new();
+    refusing.helper(
+        "wros-update-apply",
+        "echo 'this update needs a restart to install (it changes /usr/libexec/wros-update)' >&2; exit 1",
+    );
+    let error = refusing
+        .backend()
+        .request(Request::ApplyStagedUpdate)
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("needs a restart"), "{error}");
+}

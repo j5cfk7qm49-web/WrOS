@@ -337,14 +337,23 @@ pub(super) fn confirm_rows(app: &App) -> Vec<Entry> {
 
 pub(super) fn staged_rows(app: &App) -> Vec<Entry> {
     let flow = &app.deck.shell.update_flow;
-    let mut rows = vec![
-        Entry::new("Not now · leave the update staged", Choice::UpdateAbandon),
+    let mut rows = vec![Entry::new(
+        "Not now · leave the update staged",
+        Choice::UpdateAbandon,
+    )];
+    if flow.staged.as_ref().is_some_and(|s| !s.restart_required) {
+        rows.push(Entry::new(
+            "Install now · only the writing app restarts",
+            Choice::UpdateApplyNow,
+        ));
+    }
+    rows.extend([
         Entry::new(
             "Restart now to install the staged update",
             Choice::UpdateRestart,
         ),
         Entry::new("Cancel staged update", Choice::UpdateCancelStaged),
-    ];
+    ]);
     match &app.deck.shell.recovery {
         Some(recovery) => {
             rows.push(info(format!(
@@ -762,7 +771,16 @@ impl App {
             return;
         }
         self.deck.shell.update_flow.chain = None;
-        if confirmed_staged(self) {
+        let app_only = self
+            .deck
+            .shell
+            .update_flow
+            .staged
+            .as_ref()
+            .is_some_and(|s| !s.restart_required);
+        if confirmed_staged(self) && app_only {
+            self.update_apply_now();
+        } else if confirmed_staged(self) {
             self.update_restart();
         } else {
             self.update_notice(
@@ -799,6 +817,50 @@ impl App {
         self.save_deck();
         self.deck.shell.update_flow.last_result = None;
         self.deck.request(Request::Power(PowerAction::Restart));
+    }
+    /// Install an app-only staged update now; the engine re-checks that it is.
+    pub(super) fn update_apply_now(&mut self) {
+        if self.deck.busy {
+            self.update_notice("A system request is still running. Wait for it, then try again.");
+            return;
+        }
+        if !confirmed_staged(self) {
+            self.update_notice(
+                "Not installing: the system has not confirmed a staged update. Refresh Recovery status first.",
+            );
+            return;
+        }
+        self.deck.shell.backup.tick();
+        if self.deck.shell.backup.job.is_some() {
+            self.update_notice("Not installing yet: a backup operation is still running.");
+            return;
+        }
+        if !self.writing_is_safe() {
+            self.update_notice(
+                "Not installing: unsaved buffers or source conflicts need attention. Return to writing to review them.",
+            );
+            return;
+        }
+        self.save_deck();
+        self.deck.shell.update_flow.last_result = None;
+        self.deck.request(Request::ApplyStagedUpdate);
+    }
+    /// Installed: the running app is the old one, so restart it in place.
+    pub(crate) fn on_update_applied(&mut self, applied: writingdeck_sys::UpdateApplied) {
+        let text = format!(
+            "Installed {}; restarting the writing app.",
+            if applied.packages.is_empty() {
+                "the update".to_string()
+            } else {
+                applied.packages.join(", ")
+            }
+        );
+        let flow = &mut self.deck.shell.update_flow;
+        flow.staged = None;
+        flow.chain = None;
+        flow.last_result = Some(text.clone());
+        self.update_notice(text);
+        self.deck.app_restart_requested = true;
     }
     pub(super) fn update_cancel_staged(&mut self) {
         if self.deck.busy {
@@ -929,9 +991,7 @@ impl App {
         let showing = self.in_update_flow();
         let flow = &mut self.deck.shell.update_flow;
         flow.chain = match flow.chain {
-            Some(Chain::Staging { restart: true }) if staged.restart_required => {
-                Some(Chain::Confirming)
-            }
+            Some(Chain::Staging { restart: true }) => Some(Chain::Confirming),
             _ => None,
         };
         flow.staged = Some(staged);
@@ -1058,6 +1118,15 @@ impl App {
                     flow.last_result = Some(text.clone());
                     self.update_notice(text);
                 }
+            }
+            Request::ApplyStagedUpdate => {
+                self.deck.shell.update_flow.chain = None;
+                let text = format!(
+                    "Not installed now: {error}. The update is still staged; restart to install it."
+                );
+                self.deck.shell.update_flow.last_result = Some(text.clone());
+                self.refresh_recovery();
+                self.update_notice(text);
             }
             Request::CancelStagedUpdates => {
                 let text = format!(

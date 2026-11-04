@@ -2078,6 +2078,77 @@ fn back_up_then_stage_stages_only_after_a_verified_backup_and_restarts_only_when
 }
 
 #[test]
+fn an_app_only_update_installs_now_and_restarts_only_the_writing_app() {
+    use writingdeck_sys::PowerAction;
+    let mut desk = Desk::open(book("update-live", true), 100, 30);
+    let world = UpdateWorld::install(&mut desk);
+    world.sim.lock().unwrap().staged_live = true;
+    system_panel(&mut desk, 5);
+    wait_system(&mut desk);
+    reach_confirm(&mut desk);
+    set_backup(&mut desk, true, true);
+    desk.choose("Stage this update");
+    wait_system(&mut desk);
+    assert_eq!(route(&desk), Route::UpdateStaged);
+    assert!(
+        desk.shows("Install now · only the writing app restarts"),
+        "{}",
+        desk.rows().join("\n")
+    );
+    desk.choose("Install now");
+    wait_system(&mut desk);
+    assert_eq!(world.count(|r| *r == Request::ApplyStagedUpdate), 1);
+    assert_eq!(world.count(|r| matches!(r, Request::Power(_))), 0);
+    assert!(
+        desk.app.deck.app_restart_requested,
+        "{}",
+        desk.app.deck.note
+    );
+    assert!(
+        desk.app.deck.note.contains("restarting the writing app"),
+        "{}",
+        desk.app.deck.note
+    );
+
+    // An update that needs a restart never offers to install now.
+    let mut desk = Desk::open(book("update-not-live", true), 100, 30);
+    let _world = UpdateWorld::install(&mut desk);
+    system_panel(&mut desk, 5);
+    wait_system(&mut desk);
+    reach_confirm(&mut desk);
+    set_backup(&mut desk, true, true);
+    desk.choose("Stage this update");
+    wait_system(&mut desk);
+    assert_eq!(route(&desk), Route::UpdateStaged);
+    assert!(!desk.shows("Install now"), "{}
+{:?}", desk.rows().join("
+"), desk.app.deck.shell.update_flow.staged);
+    assert!(!desk.app.deck.app_restart_requested);
+
+    // One press with restart: an app-only update installs now instead of rebooting.
+    let mut desk = Desk::open(book("update-live-chain", true), 100, 30);
+    let world = UpdateWorld::install(&mut desk);
+    world.sim.lock().unwrap().staged_live = true;
+    system_panel(&mut desk, 5);
+    wait_system(&mut desk);
+    reach_confirm(&mut desk);
+    set_backup(&mut desk, true, false);
+    desk.choose("Back up, stage and restart");
+    backup_answers(&mut desk, Ok(true));
+    wait_chain(&mut desk);
+    assert_eq!(world.count(|r| *r == Request::ApplyStagedUpdate), 1);
+    assert_eq!(
+        world.count(|r| *r == Request::Power(PowerAction::Restart)),
+        0
+    );
+    assert!(
+        desk.app.deck.app_restart_requested,
+        "{}",
+        desk.app.deck.note
+    );
+}
+
+#[test]
 fn update_backup_not_set_up_does_not_block_but_is_shown_and_no_backup_is_never_called_fresh() {
     let mut desk = Desk::open(book("update-no-backup", true), 100, 30);
     let world = UpdateWorld::install(&mut desk);

@@ -231,6 +231,13 @@ pub struct UpdateStaged {
     pub restart_required: bool,
 }
 
+/// A staged app-only update installed while WrOS runs.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UpdateApplied {
+    pub transaction_id: String,
+    pub packages: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AudioStatus {
     pub available: bool,
@@ -341,6 +348,8 @@ pub enum Request {
         bundle_dir: String,
     },
     CancelStagedUpdates,
+    /// Install the staged update now; the engine refuses unless it is app-only.
+    ApplyStagedUpdate,
     RecoverUpdates,
     RecoveryStatus,
     RebootRecovery,
@@ -375,6 +384,7 @@ pub enum Reply {
     Updates(UpdateInfo),
     UpdateReview(UpdateReview),
     UpdateStaged(UpdateStaged),
+    UpdateApplied(UpdateApplied),
     /// Mounted update media path, or `None` when no `WROS-UPDATE` media exists.
     UpdateMedia(Option<String>),
     OnlineUpdate(OnlineUpdate),
@@ -406,6 +416,8 @@ pub struct Simulated {
     pub media: Option<String>,
     /// What the simulated update server reports, and where a fetch lands.
     pub online: Option<OnlineUpdate>,
+    /// Whether the simulated staged update changes only the writing app.
+    pub staged_live: bool,
     pub fetched: Option<String>,
     /// What the simulated fetch helper refuses with, if anything.
     pub fetch_error: Option<String>,
@@ -462,6 +474,7 @@ impl Default for Simulated {
             bundle_revision: 1,
             media: Some("/run/wros-update/media/0".into()),
             online: None,
+            staged_live: false,
             fetched: None,
             fetch_error: None,
             local_clock: "2026-10-31 12:00:00".into(),
@@ -806,7 +819,7 @@ impl Backend for Simulated {
                     transaction_id: "simulated-transaction-0001".into(),
                     review_id,
                     packages: review.packages.len(),
-                    restart_required: true,
+                    restart_required: !self.staged_live,
                 }))
             }
             Request::VerifyUpdateBundle { bundle_dir } => {
@@ -814,6 +827,21 @@ impl Backend for Simulated {
                 Ok(Reply::Message(format!(
                     "SIMULATED signature inspection of {bundle_dir}; no files verified or packages installed."
                 )))
+            }
+            Request::ApplyStagedUpdate => {
+                if self.recovery.update_state != UpdateState::Staged || !self.staged_live {
+                    bail!("SIMULATED: this update needs a restart to install; it stays staged");
+                }
+                let packages = self.recovery.staged_packages.clone();
+                self.recovery.update_state = UpdateState::Idle;
+                self.recovery.staged_update = false;
+                self.recovery.staged_packages.clear();
+                self.recovery.status =
+                    "SIMULATED recovery status: last update installed while running.".into();
+                Ok(Reply::UpdateApplied(UpdateApplied {
+                    transaction_id: "simulated-transaction-0001".into(),
+                    packages,
+                }))
             }
             Request::CancelStagedUpdates => {
                 if self.recovery.update_state == UpdateState::Staged {

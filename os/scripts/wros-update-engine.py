@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 import fcntl
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -27,6 +28,7 @@ import stat
 import struct
 import subprocess
 import sys
+import tarfile
 import tempfile
 import urllib.error
 import urllib.request
@@ -1286,6 +1288,118 @@ def package_labels(entries):
     return [f'{p["name"]} {p["version"]}' for p in entries]
 
 
+# -------------------------------------------------------- app-only updates
+
+DPKG_DEB = '/usr/bin/dpkg-deb'
+# Files an update may add, change or remove and still install while WrOS runs: the
+# writing app, the unprivileged helpers it runs itself, its docs and the version file.
+LIVE_APPLY_FILES = ('usr/bin/grimoire', 'usr/libexec/wros-backup', 'usr/libexec/wros-sync',
+                    'etc/writingdeck/release')
+LIVE_APPLY_PREFIXES = ('usr/share/doc/',)
+# Control fields that must not change: relationships and the package's shape.
+LIVE_APPLY_FIELDS = ('Architecture', 'Pre-Depends', 'Depends', 'Recommends', 'Breaks', 'Conflicts',
+                     'Provides', 'Replaces', 'Essential', 'Multi-Arch')
+CONTROL_MEMBERS = {'control', 'md5sums', 'conffiles'}
+
+
+def control_fields_from(text):
+    fields, key = {}, None
+    for line in text.splitlines():
+        if line.startswith((' ', '\t')) and key:
+            fields[key] += '\n' + line
+        elif ':' in line:
+            key, _, value = line.partition(':')
+            key = key.strip()
+            fields[key] = value.strip()
+    return fields
+
+
+def installed_fields(dpkg_dir, name):
+    status_file = Path(dpkg_dir) / 'status'
+    text = read_regular_bytes(status_file, LIMIT).decode('utf-8', errors='replace')
+    for stanza in text.split('\n\n'):
+        fields = control_fields_from(stanza)
+        if fields.get('Package') == name and fields.get('Status') in ('install ok installed', 'hold ok installed'):
+            return fields
+    return None
+
+
+def deb_control_members(deb_path):
+    """The control archive's files of an already verified .deb, by name."""
+    result = subprocess.run([DPKG_DEB, '--ctrl-tarfile', str(deb_path)], stdin=subprocess.DEVNULL,
+                            capture_output=True, timeout=60, env=safe_env())
+    if result.returncode != 0 or len(result.stdout) > LIMIT:
+        fail('cannot read the staged package control data')
+    members = {}
+    with tarfile.open(fileobj=io.BytesIO(result.stdout)) as archive:
+        for member in archive.getmembers():
+            name = member.name[2:] if member.name.startswith('./') else member.name
+            if member.isdir() and name in ('', '.'):
+                continue
+            if not member.isfile() or '/' in name:
+                members[name or member.name] = None
+                continue
+            members[name] = archive.extractfile(member).read()
+    return members
+
+
+def md5_entries(text):
+    entries = {}
+    for line in text.splitlines():
+        digest, _, path = line.partition('  ')
+        if not path or re.fullmatch(r'[0-9a-f]{32}', digest) is None:
+            raise ValueError('malformed md5sums line')
+        entries[path.lstrip('/')] = digest
+    return entries
+
+
+def live_path(path):
+    return path in LIVE_APPLY_FILES or path.startswith(LIVE_APPLY_PREFIXES)
+
+
+def live_apply_check(packages, deb_paths, dpkg_dir):
+    """(True, '') when this update may install now and restart only the writing app.
+
+    Conservative by construction: anything not proven app-only waits for the
+    offline restart, which is always safe.
+    """
+    if len(packages) != 1 or len(deb_paths) != 1:
+        return False, 'it changes more than the wros package'
+    package = packages[0]
+    if package.get('name') != 'wros' or package.get('action') != 'upgrade':
+        return False, 'it is not an upgrade of the installed wros package'
+    try:
+        installed = installed_fields(dpkg_dir, 'wros')
+        if installed is None:
+            return False, 'the installed wros package is not recorded'
+        info = Path(dpkg_dir) / 'info'
+        old_files = md5_entries(read_regular_bytes(info / 'wros.md5sums', LIMIT).decode('utf-8'))
+        conffiles_path = info / 'wros.conffiles'
+        old_conffiles = (read_regular_bytes(conffiles_path, LIMIT).decode('utf-8')
+                         if os.path.lexists(conffiles_path) else '')
+        members = deb_control_members(deb_paths[0])
+        if set(members) - CONTROL_MEMBERS or any(members[n] is None for n in members):
+            return False, 'it carries maintainer scripts or other control data'
+        new = control_fields_from(members['control'].decode('utf-8'))
+        new_files = md5_entries(members.get('md5sums', b'').decode('utf-8'))
+        new_conffiles = members.get('conffiles', b'').decode('utf-8')
+    except (OSError, ValueError, UnicodeDecodeError, tarfile.TarError):
+        return False, 'its files could not be compared with the installed package'
+    for field in LIVE_APPLY_FIELDS:
+        if new.get(field, '') != installed.get(field, ''):
+            return False, f'its {field} field changes'
+    if set(old_conffiles.split()) != set(new_conffiles.split()):
+        return False, 'its configuration files change'
+    if not old_files or not new_files:
+        return False, 'its files could not be compared with the installed package'
+    changed = sorted(path for path in old_files.keys() | new_files.keys()
+                     if old_files.get(path) != new_files.get(path))
+    outside = [path for path in changed if not live_path(path)]
+    if outside:
+        return False, f'it changes /{outside[0]}'
+    return True, ''
+
+
 def stage_update(bundle_dir, review_id, *, keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNERS,
                  dpkg_dir=DEFAULT_DPKG_DIR, state_dir=DEFAULT_STATE_DIR, trigger_path=DEFAULT_TRIGGER,
                  now=None, host_arch=None, allowed_prefixes=ALLOWED_MEDIA_PREFIXES, suites=PINNED_SUITES):
@@ -1337,6 +1451,8 @@ def stage_update(bundle_dir, review_id, *, keyring=DEFAULT_KEYRING, signers=DEFA
                         'filename': pkg['filename'], 'size': pkg['size'], 'sha256': pkg['sha256'],
                         'staged_filename': staged_name, 'action': raw['actions'][pkg['name']],
                     })
+                live, live_reason = live_apply_check(
+                    staged_entries, [partial / 'packages' / e['staged_filename'] for e in staged_entries], dpkg_dir)
                 metadata_hashes = {}
                 for name, data in [*raw['meta'].items(), ('Packages', raw['packages_raw'])]:
                     descriptor = os.open(partial / 'metadata' / name,
@@ -1361,6 +1477,8 @@ def stage_update(bundle_dir, review_id, *, keyring=DEFAULT_KEYRING, signers=DEFA
                     'metadata': metadata_hashes,
                     'package_count': len(staged_entries),
                     'packages': staged_entries,
+                    'live_apply': live,
+                    'live_apply_reason': live_reason,
                 }
                 json_write(partial / 'manifest.json', manifest)
                 for directory in (partial / 'packages', partial / 'metadata', partial):
@@ -1395,7 +1513,7 @@ def stage_update(bundle_dir, review_id, *, keyring=DEFAULT_KEYRING, signers=DEFA
             raise
         store.publish(trigger_path)
     return {'status': 'staged', 'transaction_id': tx_id, 'review_id': raw['review_id'],
-            'packages': len(staged_entries), 'restart_required': True}
+            'packages': len(staged_entries), 'restart_required': not live}
 
 
 def cancel_staged(*, state_dir=DEFAULT_STATE_DIR, trigger_path=DEFAULT_TRIGGER, now=None):
@@ -1544,6 +1662,25 @@ def execute_offline_boot_transaction(state_dir=DEFAULT_STATE_DIR, trigger_path=D
                                      dpkg_dir=DEFAULT_DPKG_DIR, runner=None, now=None,
                                      keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNERS, host_arch=None):
     """Offline apply: revalidate retained bytes, journal 'applying' BEFORE the trigger goes, run APT."""
+    return apply_staged_transaction(state_dir=state_dir, trigger_path=trigger_path, dpkg_dir=dpkg_dir,
+                                    runner=runner, now=now, keyring=keyring, signers=signers,
+                                    host_arch=host_arch, live=False)
+
+
+def apply_staged_now(state_dir=DEFAULT_STATE_DIR, trigger_path=DEFAULT_TRIGGER, dpkg_dir=DEFAULT_DPKG_DIR,
+                     runner=None, now=None, keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNERS, host_arch=None):
+    """Install an app-only staged update now, through the same journaled transaction as boot.
+
+    Refused unless staging recorded it as app-only AND it still is against the dpkg
+    database right now; then the update stays staged for the restart.
+    """
+    return apply_staged_transaction(state_dir=state_dir, trigger_path=trigger_path, dpkg_dir=dpkg_dir,
+                                    runner=runner, now=now, keyring=keyring, signers=signers,
+                                    host_arch=host_arch, live=True)
+
+
+def apply_staged_transaction(*, state_dir, trigger_path, dpkg_dir, runner, now, keyring, signers, host_arch,
+                             live):
     store = Store(state_dir)
     trigger_path = Path(trigger_path)
     dpkg_dir = Path(dpkg_dir)
@@ -1592,7 +1729,16 @@ def execute_offline_boot_transaction(state_dir=DEFAULT_STATE_DIR, trigger_path=D
             tx_id, packages = details['tx_id'], details['packages']
             labels = package_labels(packages)
             deb_paths = [staged_dir / 'packages' / p['staged_filename'] for p in packages]
+            if live:
+                acting = [p | {'action': details['actions'].get(p['name'])} for p in packages]
+                still, reason = live_apply_check(acting, deb_paths, dpkg_dir)
+                if details['manifest'].get('live_apply') is not True or not still:
+                    fail(f'this update needs a restart to install ({reason or "it was staged for one"})')
             plan_with_apt(deb_paths, packages, dpkg_dir, store.work)
+        except ValueError as exc:
+            if live:
+                raise  # nothing was journaled or removed: it stays staged for the restart
+            record_failure(f'staged update revalidation failed: {exc}')
         except Exception as exc:
             record_failure(f'staged update revalidation failed: {exc}')
 
@@ -1952,7 +2098,7 @@ def review_bundle(bundle_dir, *, keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNER
 
 # ------------------------------------------------------------------ entry code
 
-LAUNCHER_VERBS = ('stage', 'cancel', 'repair', 'media', 'fetch')
+LAUNCHER_VERBS = ('stage', 'cancel', 'repair', 'media', 'fetch', 'apply')
 
 
 # ----------------------------------------------------------- online updates
@@ -2136,6 +2282,12 @@ def launcher_main(verb, argv, pkexec_uid, *, euid=None, runner=None, **paths):
         if argv:
             fail('usage: wros-update-repair')
         return repair_updates(runner=runner, **paths)
+    if verb == 'apply':
+        if argv:
+            fail('usage: wros-update-apply')
+        return apply_staged_now(runner=runner, **{k: v for k, v in paths.items()
+                                                  if k in ('state_dir', 'trigger_path', 'dpkg_dir', 'keyring',
+                                                           'signers', 'host_arch', 'now')})
     if verb == 'fetch':
         if argv:
             fail('usage: wros-update-fetch')

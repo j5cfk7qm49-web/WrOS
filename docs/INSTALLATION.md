@@ -91,7 +91,13 @@ In the disposable VM, passwords are locked, so normal authenticated recovery log
 
 ## Updates and offline behavior
 
-Use Debian apt/signatures and retain a known-good kernel; no custom package manager. In-app update staging, offline signed bundles and snapshot/rollback automation are **Planned**, not implemented by the image builder. Keep novel data separate from OS snapshots. A failed package download must not affect offline writing. The prototype does not promise automatic rollback or silently run unattended updates while you type.
+WrOS updates are signed, reviewed and installed through apt; nothing installs while you type. WrOS checks the update server after login and daily, and Settings › Updates shows a newer version. Review it, then choose how to install:
+
+- **Stage this update** installs it at the next restart.
+- **Back up, then stage** makes a new verified backup of the open book first; **Back up, stage and restart** also restarts once the system confirms the update is staged.
+- An update that changes only the writing app offers **Install now · only the writing app restarts**: it installs while WrOS runs, then the app saves and restarts in place without logging you out. Anything touching permissions, system services, startup or the update engine still waits for a restart.
+
+ext4 has no snapshot rollback, so keep the book backed up; a failed update can be repaired from Settings › Updates › Recovery. A failed download never affects offline writing.
 
 ## M3b application check after a development build
 

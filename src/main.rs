@@ -274,7 +274,36 @@ fn main() -> Result<()> {
     let _ = execute!(std::io::stdout(), DisableMouseCapture);
     let _ = execute!(std::io::stdout(), PopKeyboardEnhancementFlags);
     ratatui::restore();
+    if res.is_ok() && RESTART_APP.load(std::sync::atomic::Ordering::SeqCst) {
+        return restart_app();
+    }
     res
+}
+
+/// Set when an installed app-only update means the running binary is the old one.
+static RESTART_APP: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Replace this process with the newly installed app, keeping the login session:
+/// the session runs `exec /usr/bin/grimoire`, so exiting would end it. The old
+/// binary's path now names a deleted file, so the installed path is used.
+#[cfg(unix)]
+fn restart_app() -> Result<()> {
+    use std::os::unix::process::CommandExt;
+    let installed = Path::new("/usr/bin/grimoire");
+    let program = if std::env::var_os("WRITINGDECK_OS").is_some() && installed.is_file() {
+        installed.to_path_buf()
+    } else {
+        std::env::current_exe().context("finding the writing app")?
+    };
+    let error = std::process::Command::new(program)
+        .args(std::env::args_os().skip(1))
+        .exec();
+    Err(error).context("starting the updated writing app; log in again to use it")
+}
+
+#[cfg(not(unix))]
+fn restart_app() -> Result<()> {
+    Ok(())
 }
 
 const EXPORT_USAGE: &str = "grimoire export [dir] [--docx] [--pdf] [--paperback [--trim 6x9]] \
@@ -574,6 +603,12 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
     });
 
     loop {
+        // An app-only update was installed: save, then hand over to the new app.
+        if std::mem::take(&mut app.deck.app_restart_requested) {
+            save_or_rescue(app);
+            RESTART_APP.store(true, std::sync::atomic::Ordering::SeqCst);
+            return Ok(());
+        }
         // Closing the window or being told to stop: save, then go.
         if shutdown::requested() {
             save_or_rescue(app);
