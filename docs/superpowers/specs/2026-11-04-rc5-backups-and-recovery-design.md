@@ -178,8 +178,11 @@ fresh install, linking again from the phone takes about a minute (section 1). Re
   healthy and the mark clears. If two boots in a row end without that report,
   the next boot goes back to the previous version before the login screen and
   says so after login.
-- The first rollback is possible from the update after rc5: rc5's own install
-  is done by rc4's engine, which keeps nothing.
+- rc5's own install is done by rc4's engine, which keeps nothing. When rc5
+  arrived as an online update, its verified download is still in the cache, and
+  rc5 adopts it as the installed version at the next boot (only if it is exactly
+  the update `replay.json` records as applied), so going back from rc6 reaches
+  rc5. After an install from media the first rollback is from the update after rc6.
 
 ### 5. Recovery boot
 

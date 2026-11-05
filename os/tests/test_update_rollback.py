@@ -175,5 +175,47 @@ class GoBack(Kept):
         self.assertEqual(self.manifest_versions('installed'), ['0.1.0~rc2'])
         self.assertFalse((self.system.state / 'previous').exists())
 
+
+class AdoptFromCache(Kept):
+    """An engine that kept nothing (rc4) leaves the online download cache: the next engine adopts it."""
+
+    def setUp(self):
+        super().setUp()
+        self.install('one', '0.1.0~rc2', timedelta(hours=2))
+        # What rc4 leaves behind: no kept tree, only the online cache of the bundle it installed.
+        update.shutil.rmtree(self.system.state / 'installed')
+        self.cache = self.system.state.parent / 'online-cache'
+        self.cache.mkdir()
+        update.shutil.copytree(self.media / 'one', self.cache / ('ab' * 8))
+
+    def reconcile(self):
+        return update.reconcile(runner=self.installer(version='0.1.0~rc2'), now=self.now + timedelta(days=3),
+                                cache=self.cache, **self.paths())
+
+    def test_the_cached_bundle_of_the_installed_update_becomes_installed(self):
+        self.reconcile()
+        self.assertEqual(self.manifest_versions('installed'), ['0.1.0~rc2'])
+        replay = json.loads((self.system.state / 'replay.json').read_text())
+        kept = json.loads((self.system.state / 'installed/manifest.json').read_text())
+        self.assertEqual(kept['review_id'], replay['review_id'])
+        # It is then the previous version once the next update installs.
+        self.install('two', '0.1.0~rc3', timedelta(hours=1))
+        self.assertEqual(self.manifest_versions('previous'), ['0.1.0~rc2'])
+        self.assertEqual(update.stage_rollback(now=self.now + timedelta(minutes=20), **self.paths())['status'],
+                         'staged')
+
+    def test_a_cached_bundle_that_is_not_the_one_applied_is_ignored(self):
+        update.shutil.rmtree(self.cache / ('ab' * 8))
+        self.bundle('other', version='0.1.0~rc2', date_ago=timedelta(minutes=90))
+        update.shutil.copytree(self.media / 'other', self.cache / ('cd' * 8))
+        self.reconcile()
+        self.assertFalse((self.system.state / 'installed').exists())
+
+    def test_nothing_is_adopted_when_a_tree_is_already_kept(self):
+        self.install('two', '0.1.0~rc3', timedelta(hours=1))
+        before = (self.system.state / 'installed/manifest.json').read_bytes()
+        self.reconcile()
+        self.assertEqual((self.system.state / 'installed/manifest.json').read_bytes(), before)
+
 if __name__ == '__main__':
     unittest.main()

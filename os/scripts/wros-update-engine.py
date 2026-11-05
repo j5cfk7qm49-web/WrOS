@@ -1511,54 +1511,7 @@ def stage_update(bundle_dir, review_id, *, keyring=DEFAULT_KEYRING, signers=DEFA
                                          host_arch=host_arch, last_applied=last_applied, suites=suites)
                 if raw['review_id'] != review_id:
                     fail('update bundle changed since it was reviewed; review it again')
-                partial.mkdir(mode=0o700)
-                (partial / 'packages').mkdir(mode=0o700)
-                (partial / 'metadata').mkdir(mode=0o700)
-                staged_entries = []
-                for pkg in raw['packages']:
-                    staged_name = f'{pkg["name"]}_{pkg["sha256"]}.deb'
-                    if SAFE_REL_RE.fullmatch(staged_name) is None:
-                        fail(f'unsafe staged archive filename: {staged_name}')
-                    digest, size = bundle.copy(pkg['filename'], partial / 'packages' / staged_name)
-                    if digest != pkg['sha256'] or size != pkg['size']:
-                        fail('staged archive hash mismatch after copy')
-                    staged_entries.append({
-                        'name': pkg['name'], 'version': pkg['version'], 'architecture': pkg['architecture'],
-                        'filename': pkg['filename'], 'size': pkg['size'], 'sha256': pkg['sha256'],
-                        'staged_filename': staged_name, 'action': raw['actions'][pkg['name']],
-                    })
-                live, live_reason = live_apply_check(
-                    staged_entries, [partial / 'packages' / e['staged_filename'] for e in staged_entries], dpkg_dir)
-                metadata_hashes = {}
-                for name, data in [*raw['meta'].items(), ('Packages', raw['packages_raw'])]:
-                    descriptor = os.open(partial / 'metadata' / name,
-                                         os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
-                    with os.fdopen(descriptor, 'wb') as target:
-                        target.write(data)
-                        target.flush()
-                        os.fsync(target.fileno())
-                    metadata_hashes[name] = hashlib.sha256(data).hexdigest()
-                manifest = {
-                    'version': MANIFEST_VERSION,
-                    'transaction_id': tx_id,
-                    'review_id': raw['review_id'],
-                    'verified': True,
-                    'recorded_at_utc': when.isoformat(),
-                    'signer_fingerprint': raw['fingerprint'],
-                    'suite': raw['release']['suite'],
-                    'release_date': raw['release']['date'].isoformat(),
-                    'valid_until': raw['release']['valid_until'].isoformat(),
-                    'packages_rel': raw['packages_rel'],
-                    'packages_digest': metadata_hashes['Packages'],
-                    'metadata': metadata_hashes,
-                    'package_count': len(staged_entries),
-                    'packages': staged_entries,
-                    'live_apply': live,
-                    'live_apply_reason': live_reason,
-                }
-                json_write(partial / 'manifest.json', manifest)
-                for directory in (partial / 'packages', partial / 'metadata', partial):
-                    fsync_dir(directory)
+                staged_entries, live = write_tree(bundle, raw, partial, tx_id, when, dpkg_dir)
             # APT's solver runs without our POSIX locks held (it takes its own).
             plan_with_apt([partial / 'packages' / e['staged_filename'] for e in staged_entries],
                           staged_entries, dpkg_dir, store.work)
@@ -1590,6 +1543,99 @@ def stage_update(bundle_dir, review_id, *, keyring=DEFAULT_KEYRING, signers=DEFA
         store.publish(trigger_path)
     return {'status': 'staged', 'transaction_id': tx_id, 'review_id': raw['review_id'],
             'packages': len(staged_entries), 'restart_required': not live}
+
+
+def write_tree(bundle, raw, partial, tx_id, when, dpkg_dir):
+    """Copy a verified open bundle into the private kept layout: packages/, metadata/, manifest.json."""
+    partial.mkdir(mode=0o700)
+    (partial / 'packages').mkdir(mode=0o700)
+    (partial / 'metadata').mkdir(mode=0o700)
+    entries = []
+    for pkg in raw['packages']:
+        staged_name = f'{pkg["name"]}_{pkg["sha256"]}.deb'
+        if SAFE_REL_RE.fullmatch(staged_name) is None:
+            fail(f'unsafe staged archive filename: {staged_name}')
+        digest, size = bundle.copy(pkg['filename'], partial / 'packages' / staged_name)
+        if digest != pkg['sha256'] or size != pkg['size']:
+            fail('staged archive hash mismatch after copy')
+        entries.append({
+            'name': pkg['name'], 'version': pkg['version'], 'architecture': pkg['architecture'],
+            'filename': pkg['filename'], 'size': pkg['size'], 'sha256': pkg['sha256'],
+            'staged_filename': staged_name, 'action': raw['actions'][pkg['name']],
+        })
+    live, live_reason = live_apply_check(
+        entries, [partial / 'packages' / e['staged_filename'] for e in entries], dpkg_dir)
+    metadata_hashes = {}
+    for name, data in [*raw['meta'].items(), ('Packages', raw['packages_raw'])]:
+        descriptor = os.open(partial / 'metadata' / name,
+                             os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+        with os.fdopen(descriptor, 'wb') as target:
+            target.write(data)
+            target.flush()
+            os.fsync(target.fileno())
+        metadata_hashes[name] = hashlib.sha256(data).hexdigest()
+    manifest = {
+        'version': MANIFEST_VERSION,
+        'transaction_id': tx_id,
+        'review_id': raw['review_id'],
+        'verified': True,
+        'recorded_at_utc': when.isoformat(),
+        'signer_fingerprint': raw['fingerprint'],
+        'suite': raw['release']['suite'],
+        'release_date': raw['release']['date'].isoformat(),
+        'valid_until': raw['release']['valid_until'].isoformat(),
+        'packages_rel': raw['packages_rel'],
+        'packages_digest': metadata_hashes['Packages'],
+        'metadata': metadata_hashes,
+        'package_count': len(entries),
+        'packages': entries,
+        'live_apply': live,
+        'live_apply_reason': live_reason,
+    }
+    json_write(partial / 'manifest.json', manifest)
+    for directory in (partial / 'packages', partial / 'metadata', partial):
+        fsync_dir(directory)
+    return entries, live
+
+
+def adopt_cached_install(store, *, cache, keyring, signers, dpkg_dir, host_arch, when, suites=PINNED_SUITES):
+    """Keep the installed update when the engine that installed it kept nothing (rc4 and earlier).
+
+    That engine deleted its staged tree, but an online update leaves its verified download in the
+    cache. The cached bundle is adopted as installed/ only when it is exactly the update
+    replay.json records as applied (same review id) and its packages are what dpkg has installed.
+    It is verified as of its own release date: it was valid when it was installed.
+    """
+    if os.path.lexists(store.installed) or not os.path.lexists(store.replay_path) or not Path(cache).is_dir():
+        return False
+    try:
+        replay = json.loads(read_regular_bytes(store.replay_path, 4096).decode('utf-8'))
+        applied_id, tx_id = replay['review_id'], replay['transaction_id']
+        applied_date = parse_iso(replay['date'], 'last applied')
+    except (ValueError, KeyError, TypeError, OSError):
+        return False
+    if HEX64_RE.fullmatch(str(applied_id)) is None or HEX32_RE.fullmatch(str(tx_id)) is None:
+        return False
+    for candidate in sorted(Path(cache).iterdir()):
+        if candidate.is_symlink() or not candidate.is_dir() or re.fullmatch('[0-9a-f]{16}', candidate.name) is None:
+            continue
+        partial = store.dir / f'staged.{tx_id}.partial'
+        try:
+            with BundleDir(candidate, strict=True) as bundle, acquire_posix_dpkg_locks(dpkg_dir):
+                raw = verify_open_bundle(bundle, keyring=keyring, signers=signers, dpkg_dir=dpkg_dir,
+                                         now=applied_date + timedelta(minutes=1), host_arch=host_arch,
+                                         last_applied=None, suites=suites)
+                if raw['review_id'] != applied_id:
+                    continue
+                if any(raw['installed'].get(p['name'], {}).get('version') != p['version'] for p in raw['packages']):
+                    continue
+                write_tree(bundle, raw, partial, tx_id, when, dpkg_dir)
+            os.rename(partial, store.installed)
+            fsync_dir(store.dir)
+            return True
+        except (ValueError, OSError):
+            shutil.rmtree(partial, ignore_errors=True)
+    return False
 
 
 def stage_rollback(*, keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNERS, dpkg_dir=DEFAULT_DPKG_DIR,
@@ -2048,7 +2094,8 @@ def repair_updates(*, state_dir=DEFAULT_STATE_DIR, dpkg_dir=DEFAULT_DPKG_DIR, tr
 
 
 def reconcile(*, state_dir=DEFAULT_STATE_DIR, dpkg_dir=DEFAULT_DPKG_DIR, trigger_path=DEFAULT_TRIGGER,
-              keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNERS, runner=None, now=None, host_arch=None):
+              keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNERS, runner=None, now=None, host_arch=None,
+              cache=ONLINE_CACHE):
     """Normal-boot reconcile: name an orphaned 'applying' transaction, republish status, bounded repair.
 
     Never reboots and never touches a foreign /system-update.
@@ -2071,6 +2118,8 @@ def reconcile(*, state_dir=DEFAULT_STATE_DIR, dpkg_dir=DEFAULT_DPKG_DIR, trigger
                                        keyring=keyring, signers=signers, run=runner or default_runner,
                                        when=when, host_arch=host_arch)
                 return result
+            adopt_cached_install(store, cache=cache, keyring=keyring, signers=signers, dpkg_dir=dpkg_dir,
+                                 host_arch=host_arch, when=when)
             store.publish(trigger_path, records)
             return {'status': 'idle', 'message': 'Update state is consistent.'}
     except StateBusy:
