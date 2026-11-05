@@ -488,5 +488,77 @@ class EncryptedBackup(unittest.TestCase):
         self.assertEqual(self.service.google_meta['state'], 'reauthorization-required')
 
 
+
+class Retention(unittest.TestCase):
+    """Automatic snapshots: all from the last 7 days, the newest of each day to 90 days, of each week after."""
+
+    NOW = module.datetime(2026, 11, 5, 12, 0, tzinfo=module.timezone.utc)
+
+    def row(self, ident, days_ago, hours=0, tags=('wros-project-v1', 'project:Novel', 'auto')):
+        moment = self.NOW - module.timedelta(days=days_ago, hours=hours)
+        # restic writes nanoseconds and a local offset.
+        return {'id': ident, 'time': moment.astimezone(module.timezone(module.timedelta(hours=1)))
+                .isoformat().replace('+01:00', '.123456789+01:00'), 'tags': list(tags)}
+
+    def test_the_schedule_keeps_a_week_then_days_then_weeks(self):
+        rows = [self.row('week-a', 1), self.row('week-b', 1, 2), self.row('week-c', 6, 23),
+                self.row('day-new', 10, 1), self.row('day-old', 10, 5), self.row('day-other', 11),
+                self.row('wk-new', 120), self.row('wk-old', 121), self.row('wk-other', 130)]
+        # 120 and 121 days ago share an ISO week here; 130 days ago does not.
+        self.assertEqual(module.iso_week(self.NOW - module.timedelta(days=120)),
+                         module.iso_week(self.NOW - module.timedelta(days=121)))
+        self.assertEqual(sorted(module.retention_forget(rows, self.NOW)), ['day-old', 'wk-old'])
+
+    def test_restic_times_keep_their_microseconds(self):
+        moment = module.restic_time('2026-11-05T13:00:00.123456789+01:00')
+        self.assertEqual((moment.hour, moment.microsecond, moment.utcoffset()),
+                         (13, 123456, module.timedelta(hours=1)))
+
+    def test_manual_snapshots_and_other_books_are_never_forgotten(self):
+        rows = [self.row('manual', 200, tags=('wros-project-v1', 'project:Novel')),
+                self.row('manual-2', 200, 1, tags=('wros-project-v1', 'project:Novel')),
+                self.row('mine', 200, 2), self.row('other-book', 200, 3,
+                                                   tags=('wros-project-v1', 'project:Other', 'auto'))]
+        self.assertEqual(module.retention_forget(rows, self.NOW), [])
+
+
+class AutomaticBackup(unittest.TestCase):
+    setUp = EncryptedBackup.setUp
+    initialize = EncryptedBackup.initialize
+
+    def test_an_automatic_backup_is_verified_tagged_and_prunes_only_older_automatic_ones(self):
+        self.initialize()
+        manual = self.service.backup(str(self.project))['snapshots'][0]['id']
+        first = self.service.backup(str(self.project), automatic=True)
+        (self.project/'manuscript/01-scène.md').write_text('A second saved version.\n', encoding='utf-8')
+        second = self.service.backup(str(self.project), automatic=True)
+        self.assertIn('verified', second['notice'])
+        rows = json.loads(self.service.restic(['snapshots', '--tag', 'wros-project-v1,auto']))
+        self.assertEqual(len(rows), 2, 'both automatic snapshots are recent: nothing pruned yet')
+        newest = max(rows, key=lambda r: r['time'])['id']
+        # Half a year later the two automatic snapshots share a week: the older one goes.
+        later = module.datetime.now(module.timezone.utc) + module.timedelta(days=200)
+        self.service.prune(now=later)
+        remaining = {r['id'] for r in json.loads(self.service.restic(['snapshots', '--tag', 'wros-project-v1']))}
+        self.assertEqual(remaining, {manual, newest})
+        self.assertTrue(first['snapshots'])
+
+    def test_the_newest_verified_snapshot_of_a_book_is_never_pruned(self):
+        self.initialize()
+        self.service.backup(str(self.project), automatic=True)
+        (self.project/'novel.toml').write_text('title = "Renamed"\n')
+        self.service.backup(str(self.project), automatic=True)
+        latest = self.service.latest()[str(self.project.resolve())]['id']
+        with mock.patch.object(module, 'retention_forget', return_value=[latest]):
+            self.service.prune(now=module.datetime.now(module.timezone.utc))
+        remaining = {r['id'] for r in json.loads(self.service.restic(['snapshots', '--tag', 'wros-project-v1']))}
+        self.assertIn(latest, remaining)
+
+    def test_the_app_asks_for_an_automatic_backup_by_its_own_operation(self):
+        self.initialize()
+        result = module.dispatch(self.service, {'operation': 'auto-backup', 'project': str(self.project)})
+        rows = json.loads(self.service.restic(['snapshots', '--tag', 'wros-project-v1,auto']))
+        self.assertEqual([r['id'] for r in rows], [result['snapshots'][0]['id']])
+
 if __name__ == '__main__':
     unittest.main()

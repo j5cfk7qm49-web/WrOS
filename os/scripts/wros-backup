@@ -2,11 +2,12 @@
 """Unprivileged native backup adapter. Restic owns encryption and repository IO.
 
 One JSON request on stdin, one bounded JSON response. No shell, polkit, scheduled
-network, deletion/pruning, mounted manuscripts, or restore over an existing book.
+network, mounted manuscripts, or restore over an existing book. The only deletion is
+retention of automatic snapshots (retention_forget); manual ones are never pruned.
 """
 import configparser
 import ctypes
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import fcntl
 import hashlib
 import json
@@ -31,6 +32,44 @@ TAG = 'wros-project-v1'
 
 def now():
     return datetime.now(timezone.utc).isoformat()
+
+
+KEEP_EVERY = timedelta(days=7)
+KEEP_DAILY = timedelta(days=90)
+
+
+def iso_week(moment):
+    return tuple(moment.isocalendar())[:2]
+
+
+def restic_time(text):
+    """restic's RFC 3339 times carry nanoseconds; Python reads at most microseconds."""
+    return datetime.fromisoformat(re.sub(r'(\.\d{6})\d+', r'\1', text))
+
+
+def retention_forget(rows, now):
+    """Automatic snapshots to forget, per book: keep every one from the last 7 days, the newest
+    of each day to 90 days, and the newest of each ISO week after that. Agreed with the writer
+    on 2026-11-04. Snapshots without the auto tag (manual or named) are never returned."""
+    books = {}
+    for row in rows:
+        tags = row.get('tags') or []
+        if 'auto' in tags:
+            book = next((t for t in tags if t.startswith('project:')), '')
+            books.setdefault(book, []).append((restic_time(row['time']), row['id']))
+    forget = []
+    for snapshots in books.values():
+        kept = set()
+        for moment, identifier in sorted(snapshots, reverse=True):
+            age = now - moment
+            if age <= KEEP_EVERY:
+                continue
+            bucket = ('day', moment.date()) if age <= KEEP_DAILY else ('week', iso_week(moment))
+            if bucket in kept:
+                forget.append(identifier)
+            else:
+                kept.add(bucket)
+    return forget
 
 
 def require(condition, message):
@@ -582,19 +621,42 @@ class Service:
                 raise ValueError('Queued backup did not complete. Pending projects remain queued; check connectivity, saved files and repository locks, then retry.') from None
         return self.status('Completed all queued backups and verified every restored file hash.')
 
-    def backup(self, project):
+    def backup(self, project, automatic=False):
         root = self.validate_project_root(project)
         require(self.current is not None, 'Set up a backup repository first.')
         progress('Checking the saved project')
         original = inventory(root)
         queued = self.enqueue_project(root, original)
         try:
-            return self.backup_saved(root, original, queued)
+            result = self.backup_saved(root, original, queued, automatic)
         except Exception:
             self.enqueue_project(root, original, 'Backup or restore verification did not complete; retry explicitly.')
             raise
+        if automatic:
+            try:
+                self.prune()
+            except Exception:
+                result['notice'] += ' Older automatic snapshots were not pruned this time.'
+        return result
 
-    def backup_saved(self, root, original, queued):
+    def prune(self, now=None):
+        """Forget automatic snapshots outside the retention schedule, then free their space.
+        The newest verified snapshot of every book is kept whatever the schedule says."""
+        rows = json.loads(self.restic(['snapshots', '--tag', TAG + ',auto'])) or []
+        require(isinstance(rows, list), 'Unexpected snapshot list; nothing pruned.')
+        protected = {entry['id'] for entry in self.latest().values()}
+        forget = [i for i in retention_forget(rows, now or datetime.now(timezone.utc))
+                  if re.fullmatch('[a-f0-9]{64}', i) and i not in protected]
+        if forget:
+            progress('Pruning older automatic snapshots')
+            self.restic(['forget', *forget])
+            self.restic(['prune'])
+            for identifier in forget:
+                self.current['verified'].pop(identifier, None)
+            self.save()
+        return forget
+
+    def backup_saved(self, root, original, queued, automatic=False):
         destination = self.repository(self.current['repository'])
         same_device = False
         if not destination.startswith('rclone:'):
@@ -609,7 +671,10 @@ class Service:
             require(inventory(root) == original, 'Project changed during staging; save and retry. No snapshot verified.')
             (stage/MANIFEST).write_text(json.dumps({'version': 1, 'created': now(), 'inventory': original}), encoding='utf-8')
             label = ''.join(c for c in root.name if c.isprintable())[:80] or 'Book'
-            output = self.restic(['backup', '--tag', TAG, '--tag', 'project:' + label, '--tag', 'queue:' + queued['id'], '--host', 'wros', '--', str(stage)], stage,
+            tags = ['--tag', TAG, '--tag', 'project:' + label, '--tag', 'queue:' + queued['id']]
+            if automatic:
+                tags += ['--tag', 'auto']
+            output = self.restic(['backup', *tags, '--host', 'wros', '--', str(stage)], stage,
                                  phase='Encrypting and saving the snapshot')
             summaries = [json.loads(line) for line in output.splitlines() if line.strip()]
             identifier = next((row.get('snapshot_id') for row in summaries if row.get('message_type') == 'summary'), None)
@@ -929,6 +994,8 @@ def dispatch(service, request):
         return service.configure(request['repository'], request['key'])
     if operation == 'backup':
         return service.backup(request['project'])
+    if operation == 'auto-backup':
+        return service.backup(request['project'], automatic=True)
     if operation == 'queue':
         return service.queue_backup(request['project'])
     if operation == 'run-queue':

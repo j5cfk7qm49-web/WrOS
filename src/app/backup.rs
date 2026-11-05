@@ -117,7 +117,88 @@ pub struct Backups {
     /// last cleared. The update gate clears it before asking for fresh status
     /// so a stale or never-loaded status can never be mistaken for "no backups".
     pub status_ok: bool,
+    /// Automatic backups of the open book, and whether the running job is one.
+    pub auto: AutoBackup,
+    pub auto_running: bool,
 }
+
+/// When an automatic backup of the open book is due. Times are passed in, so the rules are
+/// testable without a clock: after saved changes not yet in a verified backup, once the
+/// writer has paused for `AUTO_PAUSE`, at most once per `AUTO_EVERY`, never with unsaved
+/// words; failures retry after 15 minutes, an hour, then every four hours.
+#[derive(Default)]
+pub struct AutoBackup {
+    /// Saves seen in this session, and how many of them a verified backup covers.
+    saves: u64,
+    backed_up: u64,
+    /// The save count a running backup started from; saves after it still need a backup.
+    started_at: Option<u64>,
+    saw_dirty: bool,
+    last_activity: Option<std::time::Instant>,
+    last_run: Option<std::time::Instant>,
+    failures: u32,
+    pub retry_at: Option<std::time::Instant>,
+    failing_since: Option<std::time::SystemTime>,
+    pub failure_noticed: bool,
+}
+pub const AUTO_PAUSE: std::time::Duration = std::time::Duration::from_secs(10 * 60);
+pub const AUTO_EVERY: std::time::Duration = std::time::Duration::from_secs(60 * 60);
+const AUTO_RETRY: [std::time::Duration; 3] = [
+    std::time::Duration::from_secs(15 * 60),
+    std::time::Duration::from_secs(60 * 60),
+    std::time::Duration::from_secs(4 * 60 * 60),
+];
+const AUTO_FAILING_NOTICE: std::time::Duration = std::time::Duration::from_secs(24 * 60 * 60);
+
+impl AutoBackup {
+    /// Called every tick: typing is activity, and the end of unsaved words is a save.
+    pub fn observe(&mut self, now: std::time::Instant, dirty: bool) {
+        if dirty {
+            self.last_activity = Some(now);
+        } else if self.saw_dirty {
+            self.saves += 1;
+            self.last_activity = Some(now);
+        }
+        self.saw_dirty = dirty;
+    }
+    pub fn due(&self, now: std::time::Instant) -> bool {
+        self.saves > self.backed_up
+            && self.started_at.is_none()
+            && !self.saw_dirty
+            && self.last_activity.is_some_and(|t| now >= t + AUTO_PAUSE)
+            && self.last_run.is_none_or(|t| now >= t + AUTO_EVERY)
+            && self.retry_at.is_none_or(|t| now >= t)
+    }
+    pub fn start(&mut self, now: std::time::Instant) {
+        self.started_at = Some(self.saves);
+        self.last_run = Some(now);
+    }
+    pub fn finish(&mut self, ok: bool, now: std::time::Instant, wall: std::time::SystemTime) {
+        let started = self.started_at.take().unwrap_or(self.backed_up);
+        if ok {
+            self.backed_up = started;
+            self.failures = 0;
+            self.retry_at = None;
+            self.failing_since = None;
+            self.failure_noticed = false;
+        } else {
+            self.failures += 1;
+            let step = (self.failures as usize - 1).min(AUTO_RETRY.len() - 1);
+            self.retry_at = Some(now + AUTO_RETRY[step]);
+            self.last_run = None; // a retry is not held back by the hourly limit
+            self.failing_since.get_or_insert(wall);
+        }
+    }
+    pub fn failing_for_a_day(&self, wall: std::time::SystemTime) -> bool {
+        self.failing_since
+            .and_then(|since| wall.duration_since(since).ok())
+            .is_some_and(|age| age >= AUTO_FAILING_NOTICE)
+    }
+    pub fn failing(&self) -> bool {
+        self.failures > 0
+    }
+}
+
 /// Readable Google Drive sync of the open book.
 #[derive(Default)]
 pub struct SyncState {
@@ -271,6 +352,71 @@ impl Backups {
             }
         }
     }
+    fn finish_auto(&mut self, ok: bool) {
+        if std::mem::take(&mut self.auto_running) {
+            self.auto
+                .finish(ok, std::time::Instant::now(), std::time::SystemTime::now());
+        }
+    }
+    /// Backups are set up for this book once a repository exists and holds a verified
+    /// snapshot of exactly this folder (read from the helper's own records, offline).
+    pub fn set_up_for(&self, project: &Path) -> bool {
+        let Ok(root) = project.canonicalize() else {
+            return false;
+        };
+        self.state.join("repository.json").is_file()
+            && fs::read_to_string(self.state.join("latest.json"))
+                .ok()
+                .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+                .is_some_and(|latest| latest.get(root.to_string_lossy().as_ref()).is_some())
+    }
+    /// One line on this book's backups, for the Backups screen.
+    pub fn auto_line(&self, project: &Path) -> String {
+        if self.auto_running
+            && let Some(job) = &self.job
+        {
+            return job.status_line().replacen("Working:", "Backing up:", 1);
+        }
+        if self.auto.failing() {
+            let retry = self
+                .auto
+                .retry_at
+                .map(|at| at.saturating_duration_since(std::time::Instant::now()))
+                .map(|wait| {
+                    (chrono::Local::now() + chrono::Duration::from_std(wait).unwrap_or_default())
+                        .format("%H:%M")
+                        .to_string()
+                })
+                .unwrap_or_else(|| "soon".into());
+            return format!("Automatic backup did not finish · trying again at {retry}");
+        }
+        let root = project
+            .canonicalize()
+            .unwrap_or_else(|_| project.to_path_buf());
+        let newest = self
+            .status
+            .snapshots
+            .iter()
+            .filter(|s| Path::new(&s._path) == root && !s.restore_checked_at.is_empty())
+            .map(|s| s.time.clone())
+            .max()
+            .and_then(|t| chrono::DateTime::parse_from_rfc3339(&t).ok());
+        match newest {
+            Some(time) => {
+                let time = time.with_timezone(&chrono::Local);
+                let when = if time.date_naive() == chrono::Local::now().date_naive() {
+                    time.format("%H:%M").to_string()
+                } else {
+                    time.format("%-d %b %H:%M").to_string()
+                };
+                format!("Backed up {when} · verified · backs up again after you save and pause")
+            }
+            None if self.set_up_for(project) => {
+                "Backs up automatically after you save and pause for 10 minutes".into()
+            }
+            None => "Automatic backups start once this book has a verified backup".into(),
+        }
+    }
     pub fn tick(&mut self) {
         let result = self.job.as_ref().map(|job| job.result.try_recv());
         match result {
@@ -279,15 +425,22 @@ impl Backups {
                 self.status = status;
                 self.status_ok = true;
                 self.job = None;
+                self.finish_auto(true);
             }
             Some(Ok(Err(error))) => {
                 self.sync_local_metadata();
-                self.notice = error;
+                self.notice = if self.auto_running {
+                    format!("Automatic backup did not finish: {error}")
+                } else {
+                    error
+                };
                 self.job = None;
+                self.finish_auto(false);
             }
             Some(Err(std::sync::mpsc::TryRecvError::Disconnected)) => {
                 self.notice = "Backup worker stopped; refresh before retrying.".into();
                 self.job = None;
+                self.finish_auto(false);
             }
             _ => {}
         }
@@ -536,6 +689,33 @@ impl App {
             }
         }
     }
+    /// Start an automatic backup of the open book when one is due (see `AutoBackup`).
+    pub(crate) fn tick_auto_backup(&mut self) {
+        let now = std::time::Instant::now();
+        let dirty = self.project.dirty_count() > 0;
+        let auto = &mut self.deck.shell.backup.auto;
+        auto.observe(now, dirty);
+        if auto.failing_for_a_day(std::time::SystemTime::now()) && !auto.failure_noticed {
+            auto.failure_noticed = true;
+            self.msg =
+                "Automatic backups have not finished for a day · see Settings › Backups".into();
+        }
+        let backup = &self.deck.shell.backup;
+        if dirty || backup.job.is_some() || !backup.auto.due(now) || self.tree_stale {
+            return;
+        }
+        if !self.conflicts().is_empty() || !self.deck.shell.backup.set_up_for(&self.project.root) {
+            return;
+        }
+        let project = self.project.root.to_string_lossy().into_owned();
+        let backup = &mut self.deck.shell.backup;
+        backup.auto.start(now);
+        backup.auto_running = true;
+        backup.request(Request::AutoBackup { project });
+        if backup.job.is_none() {
+            backup.finish_auto(false);
+        }
+    }
     pub fn request_project_backup(&mut self) {
         if self.deck.shell.backup.job.is_some() {
             return;
@@ -677,5 +857,92 @@ impl App {
             }
             _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod auto_backup_tests {
+    use super::{AUTO_EVERY, AUTO_PAUSE, AutoBackup};
+    use std::time::{Duration, Instant, SystemTime};
+
+    const MIN: Duration = Duration::from_secs(60);
+
+    /// The writer types, saves at `t0`, then pauses.
+    fn saved(t0: Instant) -> AutoBackup {
+        let mut auto = AutoBackup::default();
+        auto.observe(t0, true);
+        auto.observe(t0, false);
+        auto
+    }
+
+    #[test]
+    fn a_backup_waits_for_a_ten_minute_pause_after_a_save() {
+        let t0 = Instant::now();
+        let mut auto = AutoBackup::default();
+        auto.observe(t0, false);
+        assert!(
+            !auto.due(t0 + AUTO_PAUSE * 6),
+            "nothing saved, nothing to back up"
+        );
+        let auto = saved(t0);
+        assert!(!auto.due(t0 + 9 * MIN));
+        assert!(auto.due(t0 + AUTO_PAUSE));
+    }
+
+    #[test]
+    fn typing_again_restarts_the_pause_and_unsaved_words_never_back_up() {
+        let t0 = Instant::now();
+        let mut auto = saved(t0);
+        auto.observe(t0 + 8 * MIN, true);
+        assert!(
+            !auto.due(t0 + 12 * MIN),
+            "the writer is typing: words are unsaved"
+        );
+        auto.observe(t0 + 13 * MIN, false);
+        assert!(!auto.due(t0 + 20 * MIN));
+        assert!(auto.due(t0 + 23 * MIN));
+    }
+
+    #[test]
+    fn at_most_once_an_hour_and_saves_made_during_a_run_are_not_lost() {
+        let t0 = Instant::now();
+        let mut auto = saved(t0);
+        let start = t0 + AUTO_PAUSE;
+        auto.start(start);
+        assert!(!auto.due(start), "one run at a time");
+        auto.observe(start + MIN, true);
+        auto.observe(start + MIN, false);
+        auto.finish(true, start + 2 * MIN, SystemTime::now());
+        assert!(!auto.due(start + 30 * MIN), "at most once an hour");
+        assert!(
+            auto.due(start + AUTO_EVERY),
+            "the save made during the run still needs a backup"
+        );
+        auto.start(start + AUTO_EVERY);
+        auto.finish(true, start + AUTO_EVERY, SystemTime::now());
+        assert!(
+            !auto.due(start + AUTO_EVERY * 5),
+            "everything saved is backed up"
+        );
+    }
+
+    #[test]
+    fn failures_back_off_fifteen_minutes_an_hour_then_four_hours() {
+        let t0 = Instant::now();
+        let wall = SystemTime::now();
+        let mut auto = saved(t0);
+        let mut at = t0 + AUTO_PAUSE;
+        for wait in [15 * MIN, 60 * MIN, 240 * MIN, 240 * MIN] {
+            assert!(auto.due(at));
+            auto.start(at);
+            auto.finish(false, at, wall);
+            assert!(!auto.due(at + wait - MIN));
+            at += wait;
+        }
+        assert!(!auto.failing_for_a_day(wall + Duration::from_secs(23 * 3600)));
+        assert!(auto.failing_for_a_day(wall + Duration::from_secs(25 * 3600)));
+        auto.start(at);
+        auto.finish(true, at, wall);
+        assert!(!auto.failing_for_a_day(wall + Duration::from_secs(48 * 3600)));
     }
 }

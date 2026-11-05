@@ -1063,6 +1063,7 @@ fn entries(app: &App) -> Vec<Entry> {
             use crate::backup_service::Request;
             let backup = &app.deck.shell.backup;
             let mut rows = vec![
+                Entry::info(backup.auto_line(&app.project.root)),
                 Entry::new(
                     "Create encrypted backup of this saved project",
                     Choice::BackupNow,

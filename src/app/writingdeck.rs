@@ -641,6 +641,7 @@ impl App {
         self.tick_online_updates();
         self.tick_update_health();
         self.tick_sync();
+        self.tick_auto_backup();
         let result = self.deck.worker.as_ref().and_then(|w| w.rx.try_recv().ok());
         if let Some((request, result)) = result {
             self.deck.busy = false;

@@ -35,6 +35,10 @@ pub enum Request {
     Backup {
         project: String,
     },
+    /// The same verified backup, tagged automatic and followed by retention.
+    AutoBackup {
+        project: String,
+    },
     Queue {
         project: String,
     },
