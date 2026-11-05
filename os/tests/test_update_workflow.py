@@ -30,7 +30,7 @@ PIN = (ROOT / 'os/config/update-trust/update-signers').read_text().split()[0]
 
 class Workflow(unittest.TestCase):
     def test_triggers_secrets_and_signing_inputs_are_fixed(self):
-        for needle in ("tags: ['v*']", 'schedule:', 'workflow_dispatch:', 'scratch:',
+        for needle in ("tags: ['v*', '!v*-linktest*']", 'schedule:', 'workflow_dispatch:', 'scratch:',
                        'secrets.WROS_UPDATE_SIGNING_SUBKEY', 'actions/deploy-pages',
                        'tools/build-update-bundle.py', '--valid-days 21',
                        '--expect-fingerprint "$PIN"', 'os/config/update-trust/update-signers',
@@ -45,12 +45,25 @@ class Workflow(unittest.TestCase):
                        'tools/publish-updates.py check-bundle', 'releases/download/$RELEASE/wros-updates.tar'):
             self.assertIn(needle, WORKFLOW)
         self.assertEqual(WORKFLOW.count("if: steps.plan.outputs.sign == 'true'"), 2)
-        self.assertEqual(WORKFLOW.count("if: steps.plan.outputs.deploy == 'true'"), 2)
+        self.assertEqual(WORKFLOW.count("if: steps.plan.outputs.deploy == 'true'"), 3)
         # Pages serves exactly what this run built: a folder the repository does not have.
         served = re.search(r'upload-pages-artifact@v3\n.*\n\s+with:\n\s+path: (\S+)', WORKFLOW).group(1)
         self.assertEqual(served, 'out/pages')
         self.assertFalse((ROOT / served).exists())
         self.assertNotIn(' site', WORKFLOW.replace('the whole site', '').replace('into the site', ''))
+
+    def test_every_deploy_carries_the_static_pages_beside_the_updates(self):
+        # Each Pages deploy replaces the whole site, so the linking and privacy pages ride along.
+        step = WORKFLOW.split('- name: Static pages', 1)[1].split('\n      - ', 1)[0]
+        self.assertIn("if: steps.plan.outputs.deploy == 'true'", step)
+        self.assertIn('cp -r pages/. out/pages/', step)
+        self.assertLess(WORKFLOW.index('- name: Static pages'), WORKFLOW.index('upload-pages-artifact'))
+        pages = sorted(p.relative_to(ROOT / 'pages').as_posix() for p in (ROOT / 'pages').rglob('*') if p.is_file())
+        self.assertEqual(pages, ['index.html', 'l/index.html', 'link/index.html', 'privacy/index.html'])
+        self.assertFalse(set(pages) & {'updates', 'updates-scratch'})
+        privacy = (ROOT / 'pages/privacy/index.html').read_text()
+        self.assertIn('passes through', privacy)
+        self.assertIn('useless without', privacy)
 
     def test_apt_source_points_at_the_fixed_url_with_the_package_keyring(self):
         self.assertEqual((ROOT / 'os/config/apt/wros.sources').read_text(), (

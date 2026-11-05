@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Link WrOS to Google Drive</title>
+<style>
+  body { font: 18px/1.5 system-ui, sans-serif; margin: 0 16px; padding: 32px 0; background: #111; color: #eee; }
+</style>
+</head>
+<body>
+<h1>Link WrOS to Google Drive</h1>
+<p id="status">Opening Google…</p>
+<script>
+// The laptop's QR code opens this page as /l/#<challenge>.<address>: the PKCE S256 challenge
+// for this linking, and the laptop's private address and port (6 bytes, base64url). Both go
+// to Google; the address comes back in "state" so the return page knows where the laptop is.
+(function () {
+  const CLIENT_ID = '1048442333753-q2g95cbqnuvp5kpfn4mklo9utkk9djbq.apps.googleusercontent.com';
+  const RETURN = 'https://j5cfk7qm49-web.github.io/WrOS/link/';
+  const parts = location.hash.slice(1).split('.');
+  if (parts.length !== 2 || !/^[A-Za-z0-9_-]{43}$/.test(parts[0]) || !/^[A-Za-z0-9_-]{8}$/.test(parts[1])) {
+    document.getElementById('status').textContent = 'This is not a WrOS linking code. Scan the code on the laptop again.';
+    return;
+  }
+  const query = new URLSearchParams({
+    client_id: CLIENT_ID,
+    redirect_uri: RETURN,
+    response_type: 'code',
+    scope: 'https://www.googleapis.com/auth/drive',
+    access_type: 'offline',
+    prompt: 'consent',
+    code_challenge: parts[0],
+    code_challenge_method: 'S256',
+    state: parts[1],
+  });
+  location.replace('https://accounts.google.com/o/oauth2/v2/auth?' + query);
+})();
+</script>
+</body>
+</html>
