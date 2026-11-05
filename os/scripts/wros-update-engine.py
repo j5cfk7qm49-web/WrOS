@@ -760,8 +760,10 @@ def load_installed_dpkg_database(dpkg_dir=DEFAULT_DPKG_DIR):
     return installed
 
 
-def evaluate_bundle_against_installed(packages, installed):
-    """Enforce anti-downgrade, held-package protection, and dependency/conflict checks."""
+def evaluate_bundle_against_installed(packages, installed, allow_downgrade=False):
+    """Enforce anti-downgrade, held-package protection, and dependency/conflict checks.
+
+    allow_downgrade is only for going back to the retained previous version."""
     merged_versions = {name: [info['version']] for name, info in installed.items()}
     for info in installed.values():
         for prov_name, prov_ver in info['provides']:
@@ -776,8 +778,11 @@ def evaluate_bundle_against_installed(packages, installed):
             if installed[name]['held'] and not compare_dpkg_versions(ver, 'eq', inst_ver):
                 fail(f'refusing to modify held package in update bundle: {name}')
             if compare_dpkg_versions(ver, 'lt', inst_ver):
-                fail(f'refusing package downgrade in update bundle: {name} {ver} < installed {inst_ver}')
-            actions[name] = 'reinstall' if compare_dpkg_versions(ver, 'eq', inst_ver) else 'upgrade'
+                if not allow_downgrade:
+                    fail(f'refusing package downgrade in update bundle: {name} {ver} < installed {inst_ver}')
+                actions[name] = 'downgrade'
+            else:
+                actions[name] = 'reinstall' if compare_dpkg_versions(ver, 'eq', inst_ver) else 'upgrade'
         else:
             actions[name] = 'install'
         merged_versions[name] = [ver]
@@ -1005,7 +1010,7 @@ def owned_trigger(trigger_path, staged_dir):
 
 # ----------------------------------------------------------------- APT solver
 
-def apt_command(deb_paths, dpkg_dir, work_dir, simulate=False):
+def apt_command(deb_paths, dpkg_dir, work_dir, simulate=False, allow_downgrades=False):
     """APT's own solver and transaction engine, offline: no sources, no downloads, no removals.
 
     Offline comes from an empty source list: the only archives APT can fetch are the staged
@@ -1023,6 +1028,7 @@ def apt_command(deb_paths, dpkg_dir, work_dir, simulate=False):
     empty_lists.mkdir(mode=0o700, exist_ok=True)
     archives.mkdir(mode=0o700, exist_ok=True)
     return ['/usr/bin/apt-get', *(['--simulate'] if simulate else []),
+            *(['--allow-downgrades'] if allow_downgrades else []),
             '--no-remove', '--yes',
             '-o', 'Dir::Etc::sourcelist=/dev/null', '-o', 'Dir::Etc::sourceparts=-',
             '-o', 'Dir::State::lists=' + str(empty_lists),
@@ -1032,9 +1038,10 @@ def apt_command(deb_paths, dpkg_dir, work_dir, simulate=False):
             'install', *map(str, deb_paths)]
 
 
-def plan_with_apt(deb_paths, packages, dpkg_dir, work_dir, require_complete=True):
+def plan_with_apt(deb_paths, packages, dpkg_dir, work_dir, require_complete=True, allow_downgrades=False):
     """Use maintained APT's real solver; no host sources, downloads or removals."""
-    result = subprocess.run(apt_command(deb_paths, dpkg_dir, work_dir, simulate=True),
+    result = subprocess.run(apt_command(deb_paths, dpkg_dir, work_dir, simulate=True,
+                                        allow_downgrades=allow_downgrades),
                             stdin=subprocess.DEVNULL, capture_output=True, text=True,
                             timeout=60, env=safe_env())
     if result.returncode != 0 or len(result.stdout) > 2 * 1024 * 1024:
@@ -1313,6 +1320,25 @@ def keep_installed(store):
     shutil.rmtree(discard, ignore_errors=True)
 
 
+def keep_gone_back(store):
+    """After going back: the staged copy of previous/ becomes installed/, and nothing is previous.
+
+    The tree gone back from is discarded first, so a crash leaves installed/ missing at worst,
+    which finish_keeping restores from staged/.
+    """
+    discard = store.dir / 'installed.discard'
+    if os.path.lexists(discard):
+        shutil.rmtree(discard, ignore_errors=True)
+    if os.path.lexists(store.installed):
+        os.rename(store.installed, discard)
+        fsync_dir(store.dir)
+    os.rename(store.staged, store.installed)
+    fsync_dir(store.dir)
+    for leftover in (store.previous, discard):
+        shutil.rmtree(leftover, ignore_errors=True)
+    fsync_dir(store.dir)
+
+
 def finish_keeping(store, records, trigger_path):
     """After a crash inside keep_installed: a completed transaction's tree still in staged/."""
     if (os.path.lexists(trigger_path) or os.path.lexists(store.installed) or not store.staged.is_dir()
@@ -1416,7 +1442,7 @@ def live_apply_check(packages, deb_paths, dpkg_dir):
     if len(packages) != 1 or len(deb_paths) != 1:
         return False, 'it changes more than the wros package'
     package = packages[0]
-    if package.get('name') != 'wros' or package.get('action') != 'upgrade':
+    if package.get('name') != 'wros' or package.get('action') not in ('upgrade', 'downgrade'):
         return False, 'it is not an upgrade of the installed wros package'
     try:
         installed = installed_fields(dpkg_dir, 'wros')
@@ -1566,6 +1592,92 @@ def stage_update(bundle_dir, review_id, *, keyring=DEFAULT_KEYRING, signers=DEFA
             'packages': len(staged_entries), 'restart_required': not live}
 
 
+def stage_rollback(*, keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNERS, dpkg_dir=DEFAULT_DPKG_DIR,
+                   state_dir=DEFAULT_STATE_DIR, trigger_path=DEFAULT_TRIGGER, now=None, host_arch=None,
+                   suites=PINNED_SUITES):
+    """Stage going back to previous/: the update this computer verified and installed before.
+
+    Only from exactly the version kept in installed/, only to lower versions, and only after
+    re-proving the retained bytes against the current keyring and pin. The copy is staged
+    with the same journal-before-trigger protocol as an update; replay.json never moves back.
+    """
+    store = Store(state_dir)
+    trigger_path = Path(trigger_path)
+    when = clock(now)
+    with store.exclusive():
+        if os.path.lexists(trigger_path):
+            fail('another offline update is already pending; original preserved')
+        clear_partials(store)
+        interrupted, unconfigured = inspect_dpkg_state(dpkg_dir=dpkg_dir)
+        if interrupted:
+            detail = f' ({", ".join(unconfigured)})' if unconfigured else ''
+            fail(f'interrupted dpkg state{detail} must be repaired before going back')
+        records = store.records()
+        if records and records[-1]['state'] == 'applying':
+            fail('an interrupted update transaction must be reconciled before going back')
+        if not store.previous.is_dir() or store.previous.is_symlink():
+            fail('there is no previous version to go back to')
+        try:
+            current = json.loads(read_regular_bytes(store.installed / 'manifest.json', 262144).decode('utf-8'))
+            current_versions = {p['name']: p['version'] for p in current['packages']}
+        except (ValueError, OSError, KeyError, TypeError):
+            fail('the installed update is not recorded, so going back is unavailable')
+        tx_id = secrets.token_hex(16)
+        partial = store.dir / f'staged.{tx_id}.partial'
+        try:
+            with acquire_posix_dpkg_locks(dpkg_dir):
+                details = revalidate_staged(store.previous, keyring=keyring, signers=signers, dpkg_dir=dpkg_dir,
+                                            now=when, host_arch=host_arch, last_applied=None, mode='rollback',
+                                            suites=suites)
+                installed = load_installed_dpkg_database(dpkg_dir=dpkg_dir)
+                if any(installed.get(name, {}).get('version') != version
+                       for name, version in current_versions.items()):
+                    fail('the installed packages are not the update kept as installed; going back is unavailable')
+                if any(details['actions'].get(p['name']) != 'downgrade' for p in details['packages']):
+                    fail('the previous version is not older than the installed one')
+                shutil.copytree(store.previous, partial, symlinks=True)
+                entries = [p | {'action': 'downgrade'} for p in details['packages']]
+                deb_paths = [partial / 'packages' / p['staged_filename'] for p in entries]
+                live, live_reason = live_apply_check(entries, deb_paths, dpkg_dir)
+                manifest = details['manifest'] | {
+                    'transaction_id': tx_id, 'recorded_at_utc': when.isoformat(), 'rollback': True,
+                    'rollback_from': package_labels(current['packages']),
+                    'live_apply': live, 'live_apply_reason': live_reason,
+                    'packages': [dict(record, action='downgrade') for record in details['manifest']['packages']]}
+                json_write(partial / 'manifest.json', manifest)
+                for directory in (partial / 'packages', partial / 'metadata', partial):
+                    fsync_dir(directory)
+            plan_with_apt(deb_paths, entries, dpkg_dir, store.work, allow_downgrades=True)
+            if os.path.lexists(store.staged):
+                remove_staged(store)
+            os.rename(partial, store.staged)
+            fsync_dir(store.dir)
+        except BaseException:
+            shutil.rmtree(partial, ignore_errors=True)
+            raise
+        labels = package_labels(entries)
+        try:
+            store.append('staged', tx_id, when, packages=labels, review_id=manifest['review_id'], rollback=True,
+                         signer=details['fingerprint'], suite=details['release']['suite'],
+                         date=details['release']['date'].isoformat())
+            try:
+                os.symlink(str(store.staged), trigger_path)
+            except FileExistsError:
+                fail('another offline update is already pending; original preserved')
+            fsync_dir(trigger_path.parent)
+        except BaseException:
+            remove_staged(store)
+            try:
+                store.append('cancelled', tx_id, when, note='staging did not complete')
+            except OSError:
+                pass
+            store.publish(trigger_path)
+            raise
+        store.publish(trigger_path)
+    return {'status': 'staged', 'transaction_id': tx_id, 'review_id': manifest['review_id'],
+            'packages': len(entries), 'restart_required': not live, 'rollback': True}
+
+
 def cancel_staged(*, state_dir=DEFAULT_STATE_DIR, trigger_path=DEFAULT_TRIGGER, now=None):
     """Cancel only while staged. Never touches a running apply or a foreign /system-update."""
     store = Store(state_dir)
@@ -1611,7 +1723,11 @@ def revalidate_staged(staged_dir, *, keyring, signers, dpkg_dir, now, host_arch,
 
     mode 'apply' enforces age, replay and the full dpkg policy; mode 'repair' re-proves
     authenticity and integrity only (the transaction already began; dependency
-    policy would reject half-configured packages).
+    policy would reject half-configured packages); mode 'rollback' re-proves the retained
+    previous/ tree for going back: no age or replay check, downgrades allowed.
+
+    A staged tree marked as going back skips the replay check only while it is the tree
+    kept in previous/ (same review id and Packages digest); anything else is an update.
     """
     staged = Path(staged_dir)
     require_private_entry(staged, 'dir')
@@ -1657,7 +1773,9 @@ def revalidate_staged(staged_dir, *, keyring, signers, dpkg_dir, now, host_arch,
         fail('retained signature signer differs from the staged signer')
     # Valid-Until may have passed by boot; it had to be valid when the update was staged.
     release = parse_release(release_text, now=stage_time, suites=suites)
-    if mode == 'apply' and last_applied is not None and release['date'] <= last_applied:
+    going_back = mode == 'rollback' or (mode == 'apply' and manifest.get('rollback') is True
+                                        and is_previous_tree(staged.parent / 'previous', manifest))
+    if mode == 'apply' and not going_back and last_applied is not None and release['date'] <= last_applied:
         fail('staged update is not newer than the last applied update (replay refused)')
     packages_rel = manifest.get('packages_rel')
     if packages_rel not in ('Packages', 'main/binary-amd64/Packages') or packages_rel not in release['entries']:
@@ -1694,11 +1812,23 @@ def revalidate_staged(staged_dir, *, keyring, signers, dpkg_dir, now, host_arch,
     if {entry.name for entry in packages_dir.iterdir()} != expected_names:
         fail('staged archive directory has unexpected contents')
     actions = {}
-    if mode == 'apply':
+    if mode in ('apply', 'rollback'):
         installed = load_installed_dpkg_database(dpkg_dir=dpkg_dir)
-        actions = evaluate_bundle_against_installed(packages, installed)
+        actions = evaluate_bundle_against_installed(packages, installed, allow_downgrade=going_back)
     return {'manifest': manifest, 'tx_id': tx_id, 'packages': packages, 'actions': actions,
-            'release': release, 'fingerprint': fingerprint}
+            'release': release, 'fingerprint': fingerprint, 'rollback': going_back}
+
+
+def is_previous_tree(previous, manifest):
+    """True when this manifest is the one kept in previous/ (the same signed bundle)."""
+    try:
+        require_private_entry(previous, 'dir')
+        kept = json.loads(read_regular_bytes(previous / 'manifest.json', 262144).decode('utf-8'))
+    except (ValueError, OSError):
+        return False
+    return (isinstance(kept, dict) and HEX64_RE.fullmatch(str(kept.get('review_id'))) is not None
+            and kept.get('review_id') == manifest.get('review_id')
+            and kept.get('packages_digest') == manifest.get('packages_digest'))
 
 
 def real_system_required(runner, **paths):
@@ -1779,12 +1909,13 @@ def apply_staged_transaction(*, state_dir, trigger_path, dpkg_dir, runner, now, 
             tx_id, packages = details['tx_id'], details['packages']
             labels = package_labels(packages)
             deb_paths = [staged_dir / 'packages' / p['staged_filename'] for p in packages]
+            going_back = details['rollback']
             if live:
                 acting = [p | {'action': details['actions'].get(p['name'])} for p in packages]
                 still, reason = live_apply_check(acting, deb_paths, dpkg_dir)
                 if details['manifest'].get('live_apply') is not True or not still:
                     fail(f'this update needs a restart to install ({reason or "it was staged for one"})')
-            plan_with_apt(deb_paths, packages, dpkg_dir, store.work)
+            plan_with_apt(deb_paths, packages, dpkg_dir, store.work, allow_downgrades=going_back)
         except ValueError as exc:
             if live:
                 raise  # nothing was journaled or removed: it stays staged for the restart
@@ -1799,7 +1930,7 @@ def apply_staged_transaction(*, state_dir, trigger_path, dpkg_dir, runner, now, 
         unlink_trigger(trigger_path)
         store.publish(trigger_path)
         try:
-            res = run(apt_command(deb_paths, dpkg_dir, store.work))
+            res = run(apt_command(deb_paths, dpkg_dir, store.work, allow_downgrades=going_back))
             interrupted_after, _ = inspect_dpkg_state(dpkg_dir=dpkg_dir)
             if res.returncode != 0 or interrupted_after:
                 fail('offline apt-get transaction failed; authenticated archives retained for rescue')
@@ -1810,9 +1941,14 @@ def apply_staged_transaction(*, state_dir, trigger_path, dpkg_dir, runner, now, 
             reason = str(exc) if str(exc).startswith('offline apt-get') else \
                 'offline apt-get transaction failed or was interrupted; authenticated archives retained for rescue'
             record_failure(reason)
-        store.record_applied(details['release']['date'], tx_id, details['manifest'].get('review_id'))
-        store.append('completed', tx_id, when, packages=labels)  # durable before the archives move
-        keep_installed(store)
+        if going_back:
+            # replay.json stays at the newer update: the version gone back from is not offered again.
+            store.append('completed', tx_id, when, packages=labels, rollback=True)
+            keep_gone_back(store)
+        else:
+            store.record_applied(details['release']['date'], tx_id, details['manifest'].get('review_id'))
+            store.append('completed', tx_id, when, packages=labels)  # durable before the archives move
+            keep_installed(store)
         store.publish(trigger_path)
         return {'status': 'completed', 'transaction_id': tx_id, 'packages': labels}
 
@@ -1884,8 +2020,12 @@ def repair_locked(store, *, dpkg_dir, trigger_path, keyring, signers, run, when,
     if details is not None:
         installed = load_installed_dpkg_database(dpkg_dir)
         if all(installed.get(p['name'], {}).get('version') == p['version'] for p in details['packages']):
-            store.record_applied(details['release']['date'], tx_id, details['manifest'].get('review_id'))
-            keep_installed(store)
+            if (details['manifest'].get('rollback') is True
+                    and is_previous_tree(store.previous, details['manifest'])):
+                keep_gone_back(store)  # going back never moves replay.json back
+            else:
+                store.record_applied(details['release']['date'], tx_id, details['manifest'].get('review_id'))
+                keep_installed(store)
             note += '; the staged update is now fully installed'
     store.append('recovered', tx_id, when, packages=labels, note=note)
     store.publish(trigger_path)
