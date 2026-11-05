@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Link WrOS to Google Drive</title>
+<style>
+  body { font: 18px/1.5 system-ui, sans-serif; margin: 0 16px; padding: 32px 0; background: #111; color: #eee; }
+</style>
+</head>
+<body>
+<h1>Link WrOS to Google Drive</h1>
+<p id="status">Opening Google…</p>
+<script>
+// No-Wi-Fi linking. The laptop's QR code opens /l2/#<challenge>.<device code>[.b]: the PKCE
+// S256 challenge, and the user code of the laptop's own device sign-in. Google is asked for a
+// code (for the laptop) and a short-lived token (for this phone) in one answer; both come back
+// in the fragment of /link/, with this page's inputs echoed in "state". Variant "b" adds the
+// openid scope, in case Google wants it for a combined answer.
+(function () {
+  const CLIENT_ID = '1048442333753-q2g95cbqnuvp5kpfn4mklo9utkk9djbq.apps.googleusercontent.com';
+  const parts = location.hash.slice(1).split('.');
+  if (parts.length < 2 || parts.length > 3 || !/^[A-Za-z0-9_-]{43}$/.test(parts[0])
+      || !/^[A-Z0-9-]{6,16}$/.test(parts[1]) || (parts.length === 3 && parts[2] !== 'b')) {
+    document.getElementById('status').textContent = 'This is not a WrOS linking code. Scan the code on the laptop again.';
+    return;
+  }
+  const variant = parts[2] || 'a';
+  const query = new URLSearchParams({
+    client_id: CLIENT_ID,
+    redirect_uri: 'https://j5cfk7qm49-web.github.io/WrOS/link/',
+    response_type: 'code token',
+    scope: (variant === 'b' ? 'openid ' : '') + 'https://www.googleapis.com/auth/drive',
+    access_type: 'offline',
+    prompt: 'consent',
+    code_challenge: parts[0],
+    code_challenge_method: 'S256',
+    state: ['m', parts[1], parts[0], variant].join('.'),
+    nonce: parts[0].slice(0, 16),
+  });
+  location.replace('https://accounts.google.com/o/oauth2/v2/auth?' + query);
+})();
+</script>
+</body>
+</html>

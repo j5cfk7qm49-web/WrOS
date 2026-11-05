@@ -24,7 +24,12 @@ together with the laptop that showed the code.</p>
 (function () {
   const status = document.getElementById('status');
   const params = new URLSearchParams(location.search);
+  const fragment = new URLSearchParams(location.hash.slice(1));
   history.replaceState(null, '', location.pathname);  // keep the code out of history and tab sync
+  const mailboxState = fragment.get('state') || params.get('state') || '';
+  if (mailboxState.startsWith('m.')) {
+    return mailbox(status, fragment, params, mailboxState);
+  }
   if (params.get('error')) {
     status.textContent = params.get('error') === 'access_denied'
       ? 'Linking was cancelled. Scan the code on the laptop to try again.'
@@ -51,6 +56,62 @@ together with the laptop that showed the code.</p>
   document.getElementById('finish').hidden = false;
   document.getElementById('note').hidden = false;
 })();
+
+// No-Wi-Fi linking (from /l2/): Google answered in the fragment with a code for the laptop and a
+// short-lived Drive token for this page. The page saves the code as "WrOS linking <key>" in the
+// writer's Drive, where the laptop's own limited sign-in finds it, then sends the writer to
+// approve that sign-in. The code is useless without the laptop's half of the PKCE pair.
+function mailbox(status, fragment, params, state) {
+  const [, userCode, challenge, variant] = state.split('.');
+  const say = (text) => { status.textContent = text; };
+  if (!/^[A-Z0-9-]{6,16}$/.test(userCode || '') || !/^[A-Za-z0-9_-]{43}$/.test(challenge || '')) {
+    return say('This page needs the link from Google. Scan the code on the laptop to start.');
+  }
+  const diag = document.createElement('p');
+  diag.className = 'note';
+  document.body.appendChild(diag);
+  const error = fragment.get('error') || params.get('error');
+  if (error) {
+    say('Google refused (' + error + '): ' + (fragment.get('error_description') || params.get('error_description') || ''));
+    diag.textContent = 'Test variant ' + variant + '.';
+    if (variant === 'a') {
+      const again = document.createElement('a');
+      again.className = 'button';
+      again.href = '/WrOS/l2/#' + challenge + '.' + userCode + '.b';
+      again.textContent = 'Try the other way';
+      document.body.appendChild(again);
+    }
+    return;
+  }
+  const code = fragment.get('code') || params.get('code') || '';
+  const token = fragment.get('access_token') || '';
+  diag.textContent = 'Test variant ' + variant + '. Google sent: laptop code ' + (code ? 'yes' : 'NO')
+    + ', phone access ' + (token ? 'yes' : 'NO') + ', in the ' + (fragment.get('code') ? 'fragment' : 'query') + '.';
+  if (!code || !token) {
+    return say('Google did not send everything this test needs.');
+  }
+  say('Saving the approval for the laptop…');
+  const boundary = 'wros' + Math.random().toString(36).slice(2);
+  const meta = { name: 'WrOS linking ' + challenge.slice(0, 16), mimeType: 'text/plain' };
+  const body = '--' + boundary + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(meta)
+    + '\r\n--' + boundary + '\r\nContent-Type: text/plain\r\n\r\n' + code + '\r\n--' + boundary + '--';
+  fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'multipart/related; boundary=' + boundary },
+    body: body,
+  }).then((response) => {
+    if (!response.ok) {
+      return response.text().then((text) => say('Drive refused the save (HTTP ' + response.status + '): ' + text.slice(0, 200)));
+    }
+    say('Saved. Last step: approve the laptop on Google. Its code is ' + userCode + '.');
+    const go = document.createElement('a');
+    go.className = 'button';
+    go.href = 'https://www.google.com/device?user_code=' + encodeURIComponent(userCode);
+    go.textContent = 'Approve the laptop';
+    document.body.appendChild(go);
+    setTimeout(() => location.assign(go.href), 4000);
+  }, (err) => say('Could not reach Drive: ' + err));
+}
 </script>
 </body>
 </html>
