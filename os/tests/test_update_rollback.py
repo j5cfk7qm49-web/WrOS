@@ -217,5 +217,90 @@ class AdoptFromCache(Kept):
         self.reconcile()
         self.assertEqual((self.system.state / 'installed/manifest.json').read_bytes(), before)
 
+
+class Probation(Kept):
+    """After an update the writing app must report ready; two logins that never get there go back."""
+
+    def setUp(self):
+        super().setUp()
+        self.install('one', '0.1.0~rc2', timedelta(hours=2))
+        self.install('two', '0.1.0~rc3', timedelta(hours=1))
+        self.boot = 'boot-1'
+        patcher = transactions.mock.patch.object(update, 'read_boot_id', lambda: self.boot)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def report(self, what):
+        return update.report_health(what, state_dir=self.system.state, trigger_path=self.system.trigger)
+
+    def next_boot(self, name):
+        self.boot = name
+        return update.reconcile(runner=self.installer(version='0.1.0~rc3'), now=self.now + timedelta(minutes=30),
+                                cache=self.system.state / 'no-cache', **self.paths())
+
+    def probation(self):
+        return update.read_public_status(self.system.state)['probation']
+
+    def test_an_update_starts_probation_and_ready_ends_it(self):
+        self.assertTrue(self.probation())
+        self.report('started')
+        self.report('ready')
+        self.assertFalse(self.probation())
+        self.assertFalse((self.system.state / 'probation.json').exists())
+
+    def test_two_logins_that_never_get_ready_go_back_at_the_next_boot(self):
+        self.report('started')
+        self.assertEqual(self.next_boot('boot-2')['status'], 'idle')
+        self.assertTrue(self.probation())
+        self.report('started')
+        result = self.next_boot('boot-3')
+        self.assertEqual(result['status'], 'going-back')
+        self.assertTrue(update.owned_trigger(self.system.trigger, self.system.state / 'staged'))
+        staged = update.Store(self.system.state).records()[-1]
+        self.assertEqual((staged['state'], staged.get('rollback'), staged.get('automatic')), ('staged', True, True))
+        self.assertFalse(self.probation())
+        # The offline apply then installs it; the public status says it was automatic.
+        update.execute_offline_boot_transaction(runner=self.installer(version='0.1.0~rc2'),
+                                                now=self.now + timedelta(minutes=40), **self.paths())
+        status = update.read_public_status(self.system.state)
+        self.assertEqual((status['went_back'], status['went_back_automatically']), (True, True))
+        self.assertFalse(status['probation'], 'going back starts no probation')
+
+    def test_boots_without_a_login_never_count(self):
+        for boot in ('boot-2', 'boot-3', 'boot-4'):
+            self.assertEqual(self.next_boot(boot)['status'], 'idle')
+        self.assertTrue(self.probation())
+        self.assertFalse(update.os.path.lexists(self.system.trigger))
+
+    def test_a_login_that_gets_ready_later_in_the_same_boot_does_not_count(self):
+        self.report('started')
+        self.report('ready')
+        self.report('started')  # no probation any more: ignored
+        self.next_boot('boot-2')
+        self.next_boot('boot-3')
+        self.assertFalse(update.os.path.lexists(self.system.trigger))
+
+    def test_without_a_previous_version_probation_just_ends(self):
+        update.shutil.rmtree(self.system.state / 'previous')
+        self.report('started')
+        self.next_boot('boot-2')
+        self.report('started')
+        self.assertEqual(self.next_boot('boot-3')['status'], 'idle')
+        self.assertFalse(update.os.path.lexists(self.system.trigger))
+        self.assertFalse(self.probation())
+
+    def test_launchers_for_going_back_and_health_take_exact_arguments(self):
+        for verb, argv in (('rollback', ['now']), ('healthy', []), ('healthy', ['fine']), ('healthy', ['ready', 'x'])):
+            with self.subTest(verb=verb, argv=argv):
+                with self.assertRaisesRegex(ValueError, 'usage'):
+                    update.launcher_main(verb, argv, '1000', euid=0, **self.paths())
+            with self.subTest(verb=verb, caller=None):
+                with self.assertRaisesRegex(ValueError, 'through polkit'):
+                    update.launcher_main(verb, argv, None, euid=0, **self.paths())
+        self.assertEqual(update.launcher_main('healthy', ['ready'], '1000', euid=0, **self.paths())['status'],
+                         'ready')
+        self.assertEqual(update.launcher_main('rollback', [], '1000', euid=0, now=self.now + timedelta(minutes=20),
+                                              **self.paths())['status'], 'staged')
+
 if __name__ == '__main__':
     unittest.main()

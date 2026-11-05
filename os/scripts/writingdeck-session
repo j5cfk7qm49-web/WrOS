@@ -16,5 +16,10 @@ umask 077
 # Journal marker proves a non-root console session was reached; it is not a
 # substitute for the VM test's actual rendered-screen assertion.
 logger -t writingdeck-session "WRITINGDECK_SESSION uid=$(id -u) tty=$(tty)"
+# While a new WrOS version is on probation, record that a writer logged in. The app reports
+# "ready" once it drew its first screen; two logins that never get there go back a version.
+if grep -q '"probation": true' /var/lib/wros-update/public/status.json 2>/dev/null; then
+    pkexec --disable-internal-agent /usr/libexec/wros-update-healthy started >/dev/null 2>&1 || true
+fi
 # Exit returns to a login prompt rather than exposing an authenticated shell.
 exec /usr/bin/grimoire

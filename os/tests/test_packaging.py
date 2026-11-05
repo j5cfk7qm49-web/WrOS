@@ -75,7 +75,7 @@ def copy_repo(destination):
 def add_update_engine(repo):
     """Stand-ins for the update-engine workstream's files, inside a throwaway copy only."""
     for name in ('wros-update', 'wros-update-stage', 'wros-update-cancel', 'wros-update-repair', 'wros-update-media',
-                 'wros-update-fetch', 'wros-update-apply'):
+                 'wros-update-fetch', 'wros-update-apply', 'wros-update-rollback', 'wros-update-healthy'):
         (repo / 'os/scripts' / name).write_bytes(('#!/usr/bin/python3 -I\n# stand-in %s\n' % name).encode())
     (repo / 'os/scripts/wros-update-engine.py').write_bytes(b'# stand-in engine\n')
     (repo / 'os/config/org.wros.update.policy').write_bytes(native.UPDATE_POLICY)
@@ -665,8 +665,9 @@ class ManifestData(unittest.TestCase):
         for path in manifest['update_polkit_actions'].values():
             self.assertIn(path.lstrip('/'), by_dest)
         self.assertEqual(sorted(manifest['update_polkit_actions']), [
-            'org.wros.update.apply', 'org.wros.update.cancel', 'org.wros.update.fetch', 'org.wros.update.media',
-                'org.wros.update.repair', 'org.wros.update.stage'])
+            'org.wros.update.apply', 'org.wros.update.cancel', 'org.wros.update.fetch', 'org.wros.update.healthy',
+                'org.wros.update.media', 'org.wros.update.repair', 'org.wros.update.rollback',
+                'org.wros.update.stage'])
 
     def test_every_repository_unit_policy_and_dropin_is_packaged(self):
         dests = {spec.dest for spec in packaging.expand(packaging.load_manifest(ROOT), ROOT)}
@@ -796,7 +797,7 @@ class StageIntoRoot(unittest.TestCase):
         self.assertEqual(audit.audit_trust(root, fixture_fingerprints=set()), [self.fpr])
         self.assertEqual(audit.audit_units(root), ['writingdeck-keyboard.service', 'wros-display.service',
                                                    'wros-offline-update.service', 'wros-update-reconcile.service'])
-        self.assertEqual(len(audit.audit_polkit(root)), 6)
+        self.assertEqual(len(audit.audit_polkit(root)), 8)
         audit.audit_no_private_keys(root)
 
     def test_restaging_is_idempotent_and_keeps_the_writers_layout(self):

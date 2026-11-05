@@ -68,7 +68,8 @@ def policy_values(root):
 
 UPDATE_FILES = ('usr/libexec/wros-update', 'usr/libexec/wros-update-stage', 'usr/libexec/wros-update-cancel',
                 'usr/libexec/wros-update-repair', 'usr/libexec/wros-update-media', 'usr/libexec/wros-update-fetch',
-                'usr/libexec/wros-update-apply', 'usr/lib/wros-update/engine.py')
+                'usr/libexec/wros-update-apply', 'usr/libexec/wros-update-rollback',
+                'usr/libexec/wros-update-healthy', 'usr/lib/wros-update/engine.py')
 UPDATE_UNITS = ('etc/systemd/system/wros-offline-update.service', 'etc/systemd/system/wros-update-reconcile.service')
 # Marker (PEM/ASCII-armour) of private key material followed by key-sized body text. Binary files
 # are excluded for this pattern because TLS libraries embed the bare marker as a string constant.

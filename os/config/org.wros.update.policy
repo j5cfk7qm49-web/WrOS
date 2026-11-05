@@ -39,4 +39,16 @@
     <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>no</allow_active></defaults>
     <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/wros-update-apply</annotate>
   </action>
+  <action id="org.wros.update.rollback">
+    <description>Go back to the previous WrOS version this computer installed</description>
+    <message>Authorize going back to the previous WrOS version</message>
+    <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>no</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/wros-update-rollback</annotate>
+  </action>
+  <action id="org.wros.update.healthy">
+    <description>Report that a new WrOS version started the writing app</description>
+    <message>Authorize reporting that WrOS started</message>
+    <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>no</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/wros-update-healthy</annotate>
+  </action>
 </policyconfig>

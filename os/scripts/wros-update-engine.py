@@ -1106,6 +1106,7 @@ class Store:
         self.public_dir = self.dir / 'public'
         self.status_path = self.public_dir / 'status.json'
         self.replay_path = self.dir / 'replay.json'
+        self.probation_path = self.dir / 'probation.json'  # an update not yet proven to start
         self.staged = self.dir / 'staged'
         self.installed = self.dir / 'installed'  # the tree of the update installed last
         self.previous = self.dir / 'previous'  # the one it replaced: what going back installs
@@ -1206,6 +1207,10 @@ class Store:
             applied = self.last_applied()
             status['last_applied_date'] = applied.isoformat() if applied else None
             status['previous_version'] = kept_version(self.previous)
+            status['probation'] = os.path.lexists(self.probation_path)
+            last = records[-1] if records else {}
+            status['went_back'] = last.get('state') == 'completed' and last.get('rollback') is True
+            status['went_back_automatically'] = status['went_back'] and last.get('automatic') is True
             self.prepare()
             atomic_write(self.status_path, json_bytes(status), mode=0o644, dir_mode=0o755)
         except (OSError, ValueError):
@@ -1337,6 +1342,84 @@ def keep_gone_back(store):
     for leftover in (store.previous, discard):
         shutil.rmtree(leftover, ignore_errors=True)
     fsync_dir(store.dir)
+
+
+PROBATION_FAILED_LOGINS = 2
+
+
+def start_probation(store, tx_id):
+    """A new update is on probation until the writing app reports that it drew its first screen."""
+    json_write(store.probation_path, {'version': 1, 'transaction_id': tx_id, 'failed_logins': 0,
+                                      'started_boot': None})
+
+
+def end_probation(store):
+    if os.path.lexists(store.probation_path):
+        store.probation_path.unlink()
+        fsync_dir(store.dir)
+
+
+def read_probation(store):
+    """The probation record, or None; an unreadable one is dropped (never a reason to go back)."""
+    if not os.path.lexists(store.probation_path):
+        return None
+    try:
+        value = json.loads(read_regular_bytes(store.probation_path, 4096).decode('utf-8'))
+        if (isinstance(value, dict) and value.get('version') == 1 and isinstance(value.get('failed_logins'), int)
+                and (value.get('started_boot') is None or isinstance(value.get('started_boot'), str))):
+            return value
+    except (ValueError, OSError):
+        pass
+    end_probation(store)
+    return None
+
+
+def report_health(what, *, state_dir=DEFAULT_STATE_DIR, trigger_path=DEFAULT_TRIGGER):
+    """'started' when a writer's session begins, 'ready' when the writing app drew its first screen.
+
+    Only meaningful during probation; otherwise nothing is recorded.
+    """
+    if what not in ('started', 'ready'):
+        fail('usage: wros-update-healthy started|ready')
+    store = Store(state_dir)
+    try:
+        with store.exclusive():
+            probation = read_probation(store)
+            if probation is None:
+                return {'status': 'none'}
+            if what == 'ready':
+                end_probation(store)
+            else:
+                json_write(store.probation_path, probation | {'started_boot': read_boot_id()})
+            store.publish(Path(trigger_path))
+            return {'status': what}
+    except StateBusy:
+        return {'status': 'busy'}
+
+
+def check_probation(store, *, keyring, signers, dpkg_dir, trigger_path, when, host_arch):
+    """At every boot: a login during an earlier boot that never got ready counts as a failed start.
+
+    After two, go back to the previous version automatically (the caller reboots into it). Boots
+    that end at the login screen never count, so powering off there cannot undo a good update.
+    """
+    probation = read_probation(store)
+    if probation is None:
+        return None
+    started = probation.get('started_boot')
+    if started is not None and started != read_boot_id():
+        probation = probation | {'failed_logins': probation['failed_logins'] + 1, 'started_boot': None}
+    if probation['failed_logins'] < PROBATION_FAILED_LOGINS:
+        json_write(store.probation_path, probation)
+        return None
+    end_probation(store)
+    if not store.previous.is_dir():
+        return None
+    try:
+        return stage_rollback_locked(store, keyring=keyring, signers=signers, dpkg_dir=dpkg_dir,
+                                     trigger_path=trigger_path, when=when, host_arch=host_arch, automatic=True)
+    except ValueError:
+        return None
 
 
 def finish_keeping(store, records, trigger_path):
@@ -1648,78 +1731,84 @@ def stage_rollback(*, keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNERS, dpkg_dir
     with the same journal-before-trigger protocol as an update; replay.json never moves back.
     """
     store = Store(state_dir)
-    trigger_path = Path(trigger_path)
-    when = clock(now)
     with store.exclusive():
-        if os.path.lexists(trigger_path):
-            fail('another offline update is already pending; original preserved')
-        clear_partials(store)
-        interrupted, unconfigured = inspect_dpkg_state(dpkg_dir=dpkg_dir)
-        if interrupted:
-            detail = f' ({", ".join(unconfigured)})' if unconfigured else ''
-            fail(f'interrupted dpkg state{detail} must be repaired before going back')
-        records = store.records()
-        if records and records[-1]['state'] == 'applying':
-            fail('an interrupted update transaction must be reconciled before going back')
-        if not store.previous.is_dir() or store.previous.is_symlink():
-            fail('there is no previous version to go back to')
-        try:
-            current = json.loads(read_regular_bytes(store.installed / 'manifest.json', 262144).decode('utf-8'))
-            current_versions = {p['name']: p['version'] for p in current['packages']}
-        except (ValueError, OSError, KeyError, TypeError):
-            fail('the installed update is not recorded, so going back is unavailable')
-        tx_id = secrets.token_hex(16)
-        partial = store.dir / f'staged.{tx_id}.partial'
-        try:
-            with acquire_posix_dpkg_locks(dpkg_dir):
-                details = revalidate_staged(store.previous, keyring=keyring, signers=signers, dpkg_dir=dpkg_dir,
-                                            now=when, host_arch=host_arch, last_applied=None, mode='rollback',
-                                            suites=suites)
-                installed = load_installed_dpkg_database(dpkg_dir=dpkg_dir)
-                if any(installed.get(name, {}).get('version') != version
-                       for name, version in current_versions.items()):
-                    fail('the installed packages are not the update kept as installed; going back is unavailable')
-                if any(details['actions'].get(p['name']) != 'downgrade' for p in details['packages']):
-                    fail('the previous version is not older than the installed one')
-                shutil.copytree(store.previous, partial, symlinks=True)
-                entries = [p | {'action': 'downgrade'} for p in details['packages']]
-                deb_paths = [partial / 'packages' / p['staged_filename'] for p in entries]
-                live, live_reason = live_apply_check(entries, deb_paths, dpkg_dir)
-                manifest = details['manifest'] | {
-                    'transaction_id': tx_id, 'recorded_at_utc': when.isoformat(), 'rollback': True,
-                    'rollback_from': package_labels(current['packages']),
-                    'live_apply': live, 'live_apply_reason': live_reason,
-                    'packages': [dict(record, action='downgrade') for record in details['manifest']['packages']]}
-                json_write(partial / 'manifest.json', manifest)
-                for directory in (partial / 'packages', partial / 'metadata', partial):
-                    fsync_dir(directory)
-            plan_with_apt(deb_paths, entries, dpkg_dir, store.work, allow_downgrades=True)
-            if os.path.lexists(store.staged):
-                remove_staged(store)
-            os.rename(partial, store.staged)
-            fsync_dir(store.dir)
-        except BaseException:
-            shutil.rmtree(partial, ignore_errors=True)
-            raise
-        labels = package_labels(entries)
-        try:
-            store.append('staged', tx_id, when, packages=labels, review_id=manifest['review_id'], rollback=True,
-                         signer=details['fingerprint'], suite=details['release']['suite'],
-                         date=details['release']['date'].isoformat())
-            try:
-                os.symlink(str(store.staged), trigger_path)
-            except FileExistsError:
-                fail('another offline update is already pending; original preserved')
-            fsync_dir(trigger_path.parent)
-        except BaseException:
+        return stage_rollback_locked(store, keyring=keyring, signers=signers, dpkg_dir=dpkg_dir,
+                                     trigger_path=Path(trigger_path), when=clock(now), host_arch=host_arch,
+                                     suites=suites)
+
+
+def stage_rollback_locked(store, *, keyring, signers, dpkg_dir, trigger_path, when, host_arch,
+                          suites=PINNED_SUITES, automatic=False):
+    """stage_rollback with the state lock already held (reconcile holds it for an automatic go-back)."""
+    if os.path.lexists(trigger_path):
+        fail('another offline update is already pending; original preserved')
+    clear_partials(store)
+    interrupted, unconfigured = inspect_dpkg_state(dpkg_dir=dpkg_dir)
+    if interrupted:
+        detail = f' ({", ".join(unconfigured)})' if unconfigured else ''
+        fail(f'interrupted dpkg state{detail} must be repaired before going back')
+    records = store.records()
+    if records and records[-1]['state'] == 'applying':
+        fail('an interrupted update transaction must be reconciled before going back')
+    if not store.previous.is_dir() or store.previous.is_symlink():
+        fail('there is no previous version to go back to')
+    try:
+        current = json.loads(read_regular_bytes(store.installed / 'manifest.json', 262144).decode('utf-8'))
+        current_versions = {p['name']: p['version'] for p in current['packages']}
+    except (ValueError, OSError, KeyError, TypeError):
+        fail('the installed update is not recorded, so going back is unavailable')
+    tx_id = secrets.token_hex(16)
+    partial = store.dir / f'staged.{tx_id}.partial'
+    try:
+        with acquire_posix_dpkg_locks(dpkg_dir):
+            details = revalidate_staged(store.previous, keyring=keyring, signers=signers, dpkg_dir=dpkg_dir,
+                                        now=when, host_arch=host_arch, last_applied=None, mode='rollback',
+                                        suites=suites)
+            installed = load_installed_dpkg_database(dpkg_dir=dpkg_dir)
+            if any(installed.get(name, {}).get('version') != version
+                   for name, version in current_versions.items()):
+                fail('the installed packages are not the update kept as installed; going back is unavailable')
+            if any(details['actions'].get(p['name']) != 'downgrade' for p in details['packages']):
+                fail('the previous version is not older than the installed one')
+            shutil.copytree(store.previous, partial, symlinks=True)
+            entries = [p | {'action': 'downgrade'} for p in details['packages']]
+            deb_paths = [partial / 'packages' / p['staged_filename'] for p in entries]
+            live, live_reason = live_apply_check(entries, deb_paths, dpkg_dir)
+            manifest = details['manifest'] | {
+                'transaction_id': tx_id, 'recorded_at_utc': when.isoformat(), 'rollback': True,
+                'automatic': automatic, 'rollback_from': package_labels(current['packages']),
+                'live_apply': live, 'live_apply_reason': live_reason,
+                'packages': [dict(record, action='downgrade') for record in details['manifest']['packages']]}
+            json_write(partial / 'manifest.json', manifest)
+            for directory in (partial / 'packages', partial / 'metadata', partial):
+                fsync_dir(directory)
+        plan_with_apt(deb_paths, entries, dpkg_dir, store.work, allow_downgrades=True)
+        if os.path.lexists(store.staged):
             remove_staged(store)
-            try:
-                store.append('cancelled', tx_id, when, note='staging did not complete')
-            except OSError:
-                pass
-            store.publish(trigger_path)
-            raise
+        os.rename(partial, store.staged)
+        fsync_dir(store.dir)
+    except BaseException:
+        shutil.rmtree(partial, ignore_errors=True)
+        raise
+    labels = package_labels(entries)
+    try:
+        store.append('staged', tx_id, when, packages=labels, review_id=manifest['review_id'], rollback=True,
+                     automatic=automatic, signer=details['fingerprint'], suite=details['release']['suite'],
+                     date=details['release']['date'].isoformat())
+        try:
+            os.symlink(str(store.staged), trigger_path)
+        except FileExistsError:
+            fail('another offline update is already pending; original preserved')
+        fsync_dir(trigger_path.parent)
+    except BaseException:
+        remove_staged(store)
+        try:
+            store.append('cancelled', tx_id, when, note='staging did not complete')
+        except OSError:
+            pass
         store.publish(trigger_path)
+        raise
+    store.publish(trigger_path)
     return {'status': 'staged', 'transaction_id': tx_id, 'review_id': manifest['review_id'],
             'packages': len(entries), 'restart_required': not live, 'rollback': True}
 
@@ -1989,12 +2078,15 @@ def apply_staged_transaction(*, state_dir, trigger_path, dpkg_dir, runner, now, 
             record_failure(reason)
         if going_back:
             # replay.json stays at the newer update: the version gone back from is not offered again.
-            store.append('completed', tx_id, when, packages=labels, rollback=True)
+            store.append('completed', tx_id, when, packages=labels, rollback=True,
+                         automatic=details['manifest'].get('automatic') is True)
             keep_gone_back(store)
+            end_probation(store)
         else:
             store.record_applied(details['release']['date'], tx_id, details['manifest'].get('review_id'))
             store.append('completed', tx_id, when, packages=labels)  # durable before the archives move
             keep_installed(store)
+            start_probation(store, tx_id)
         store.publish(trigger_path)
         return {'status': 'completed', 'transaction_id': tx_id, 'packages': labels}
 
@@ -2072,6 +2164,7 @@ def repair_locked(store, *, dpkg_dir, trigger_path, keyring, signers, run, when,
             else:
                 store.record_applied(details['release']['date'], tx_id, details['manifest'].get('review_id'))
                 keep_installed(store)
+                start_probation(store, tx_id)
             note += '; the staged update is now fully installed'
     store.append('recovered', tx_id, when, packages=labels, note=note)
     store.publish(trigger_path)
@@ -2120,6 +2213,10 @@ def reconcile(*, state_dir=DEFAULT_STATE_DIR, dpkg_dir=DEFAULT_DPKG_DIR, trigger
                 return result
             adopt_cached_install(store, cache=cache, keyring=keyring, signers=signers, dpkg_dir=dpkg_dir,
                                  host_arch=host_arch, when=when)
+            if check_probation(store, keyring=keyring, signers=signers, dpkg_dir=dpkg_dir,
+                               trigger_path=Path(trigger_path), when=when, host_arch=host_arch):
+                return {'status': 'going-back',
+                        'message': 'The new version did not start twice; going back to the previous one.'}
             store.publish(trigger_path, records)
             return {'status': 'idle', 'message': 'Update state is consistent.'}
     except StateBusy:
@@ -2338,7 +2435,7 @@ def review_bundle(bundle_dir, *, keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNER
 
 # ------------------------------------------------------------------ entry code
 
-LAUNCHER_VERBS = ('stage', 'cancel', 'repair', 'media', 'fetch', 'apply')
+LAUNCHER_VERBS = ('stage', 'cancel', 'repair', 'media', 'fetch', 'apply', 'rollback', 'healthy')
 
 
 # ----------------------------------------------------------- online updates
@@ -2528,6 +2625,16 @@ def launcher_main(verb, argv, pkexec_uid, *, euid=None, runner=None, **paths):
         return apply_staged_now(runner=runner, **{k: v for k, v in paths.items()
                                                   if k in ('state_dir', 'trigger_path', 'dpkg_dir', 'keyring',
                                                            'signers', 'host_arch', 'now')})
+    if verb == 'rollback':
+        if argv:
+            fail('usage: wros-update-rollback')
+        return stage_rollback(**{k: v for k, v in paths.items()
+                                 if k in ('state_dir', 'trigger_path', 'dpkg_dir', 'keyring', 'signers',
+                                          'host_arch', 'now')})
+    if verb == 'healthy':
+        if argv not in (['started'], ['ready']):
+            fail('usage: wros-update-healthy started|ready')
+        return report_health(argv[0], **{k: v for k, v in paths.items() if k in ('state_dir', 'trigger_path')})
     if verb == 'fetch':
         if argv:
             fail('usage: wros-update-fetch')
@@ -2595,6 +2702,11 @@ def main(argv=None, environ=None):
     elif argv == ['reconcile']:
         reserved_role(environ, 'WROS_SYSTEMD_RECONCILE')
         result = reconcile()
+        if result.get('status') == 'going-back':
+            # Staged like any update: the reboot installs it offline, before the next login screen.
+            subprocess.run(['/usr/bin/systemctl', '--no-block', 'reboot'],
+                           stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, timeout=15, check=False, env=safe_env())
     elif argv == ['rescue-repair']:
         # Reserved for wros-rescue running as root inside the chroot of an installed system.
         if os.geteuid() != 0 or 'PKEXEC_UID' in environ or environ.get('WROS_RESCUE') != '1':
