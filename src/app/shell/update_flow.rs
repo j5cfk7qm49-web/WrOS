@@ -10,11 +10,12 @@ use writingdeck_sys::{PowerAction, Request, UpdatePackage, UpdateReview, UpdateS
 
 /// Screens that belong to the update flow. Leaving the flow pops back past all
 /// of them to wherever the writer started (Updates panel or Recovery view).
-const FLOW_ROUTES: [Route; 5] = [
+const FLOW_ROUTES: [Route; 6] = [
     Route::UpdateBundleForm,
     Route::UpdateReview,
     Route::UpdateConfirm,
     Route::UpdateStaged,
+    Route::GoBackConfirm,
     Route::RepairConfirm,
 ];
 
@@ -43,6 +44,13 @@ pub struct UpdateFlow {
     pub online_alerted: Option<String>,
     /// A one-press "back up, then stage" (and maybe restart) still under way.
     pub chain: Option<Chain>,
+    /// When to read the status once after login, for probation and an automatic go-back.
+    pub health_at: Option<std::time::Instant>,
+    pub health_checked: bool,
+    /// This run of the app told the system that the new version starts.
+    pub ready_reported: bool,
+    /// This run of the app said that WrOS went back by itself.
+    pub went_back_noticed: bool,
 }
 
 /// Where a one-press back-up-then-stage stands. Each step starts only after the
@@ -59,6 +67,8 @@ pub enum Chain {
     Confirming,
 }
 
+/// A new version reports that it starts once the writing app has been up this long.
+const HEALTH_AFTER_LOGIN: Duration = Duration::from_secs(10);
 /// After login, give Wi-Fi time to connect before the first check.
 const ONLINE_FIRST_CHECK: Duration = Duration::from_secs(90);
 /// How often a running installed session asks the update server again.
@@ -163,6 +173,26 @@ pub(super) fn updates_panel(app: &App) -> Vec<Entry> {
             "An update is staged · restart to install it, or cancel it",
             Choice::UpdateStagedOpen,
         ));
+    } else if let Some(previous) = app
+        .deck
+        .shell
+        .recovery
+        .as_ref()
+        .and_then(|r| r.previous_version.as_ref())
+    {
+        rows.push(Entry::new(
+            format!("Go back to {previous}"),
+            Choice::UpdateGoBackOpen,
+        ));
+    }
+    if app
+        .deck
+        .shell
+        .recovery
+        .as_ref()
+        .is_some_and(|r| r.went_back_automatically)
+    {
+        rows.push(info(WENT_BACK_BY_ITSELF));
     }
     rows.push(Entry::new(
         "Recovery status, repair and staged update",
@@ -391,6 +421,38 @@ pub(super) fn staged_rows(app: &App) -> Vec<Entry> {
     ));
     rows.push(info(
         "Cancel works only until you restart; once applying begins there is no cancel.",
+    ));
+    rows
+}
+
+const WENT_BACK_BY_ITSELF: &str =
+    "WrOS went back to this version because the new one did not start twice.";
+
+pub(super) fn go_back_rows(app: &App) -> Vec<Entry> {
+    let previous = app
+        .deck
+        .shell
+        .recovery
+        .as_ref()
+        .and_then(|r| r.previous_version.clone());
+    let mut rows = vec![Entry::new("Stay on this version", Choice::UpdateAbandon)];
+    match previous {
+        Some(previous) => {
+            rows.push(Entry::new(
+                format!("Go back to {previous} · installs at the next restart"),
+                Choice::UpdateGoBack,
+            ));
+            rows.push(info(format!(
+                "{previous} is the version this computer installed before this one."
+            )));
+        }
+        None => rows.push(info("There is no previous version kept on this computer.")),
+    }
+    rows.push(info(
+        "Its signature is checked again before anything is staged; you can cancel until you restart.",
+    ));
+    rows.push(info(
+        "The version you leave is not offered again; a newer update will be.",
     ));
     rows
 }
@@ -786,6 +848,50 @@ impl App {
             self.update_notice(
                 "Staged, but the system has not confirmed it, so WrOS did not restart. Check Recovery status.",
             );
+        }
+    }
+    pub(super) fn update_go_back_open(&mut self) {
+        self.deck.shell.nav.open(Route::GoBackConfirm);
+    }
+    pub(super) fn update_go_back(&mut self) {
+        if self.deck.busy {
+            self.update_notice("A system request is still running. Wait for it, then try again.");
+            return;
+        }
+        self.deck.request(Request::GoBackToPreviousVersion);
+    }
+    /// Once after login, in an installed appliance session: read the update status so a new
+    /// version on probation can report that it starts, and an automatic go-back is said.
+    pub(crate) fn tick_update_health(&mut self) {
+        let flow = &mut self.deck.shell.update_flow;
+        if !self.deck.online_updates || flow.health_checked {
+            return;
+        }
+        let due = *flow
+            .health_at
+            .get_or_insert_with(|| std::time::Instant::now() + HEALTH_AFTER_LOGIN);
+        if std::time::Instant::now() < due || self.deck.busy {
+            return;
+        }
+        flow.health_checked = true;
+        self.refresh_recovery();
+    }
+    pub(crate) fn on_recovery_for_health(&mut self) {
+        let Some(recovery) = &self.deck.shell.recovery else {
+            return;
+        };
+        let (probation, went_back) = (recovery.probation, recovery.went_back_automatically);
+        let flow = &mut self.deck.shell.update_flow;
+        if went_back && !flow.went_back_noticed {
+            flow.went_back_noticed = true;
+            self.update_notice(
+                "WrOS went back to the previous version because the new one did not start twice.",
+            );
+        }
+        let flow = &mut self.deck.shell.update_flow;
+        if probation && !flow.ready_reported && !self.deck.busy {
+            flow.ready_reported = true;
+            self.deck.request(Request::ReportUpdateReady);
         }
     }
     pub(super) fn update_open_staged(&mut self) {

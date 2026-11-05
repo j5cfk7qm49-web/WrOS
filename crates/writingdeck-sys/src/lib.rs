@@ -196,6 +196,17 @@ pub struct RecoveryInfo {
     pub staged_update: bool,
     pub staged_packages: Vec<String>,
     pub update_state: UpdateState,
+    /// The version going back would install ("wros 0.1.0~rc5"), when one is kept.
+    #[serde(default)]
+    pub previous_version: Option<String>,
+    /// A new version has not yet shown that the writing app starts.
+    #[serde(default)]
+    pub probation: bool,
+    /// The last transaction went back to the previous version (by itself, if `went_back_automatically`).
+    #[serde(default)]
+    pub went_back: bool,
+    #[serde(default)]
+    pub went_back_automatically: bool,
     pub status: String,
 }
 
@@ -350,6 +361,10 @@ pub enum Request {
     CancelStagedUpdates,
     /// Install the staged update now; the engine refuses unless it is app-only.
     ApplyStagedUpdate,
+    /// Stage going back to the previous version this computer installed.
+    GoBackToPreviousVersion,
+    /// The writing app drew its first screen: a new version on probation starts.
+    ReportUpdateReady,
     RecoverUpdates,
     RecoveryStatus,
     RebootRecovery,
@@ -469,6 +484,10 @@ impl Default for Simulated {
                 staged_update: false,
                 staged_packages: vec![],
                 update_state: UpdateState::Idle,
+                previous_version: None,
+                probation: false,
+                went_back: false,
+                went_back_automatically: false,
                 status: "SIMULATED recovery status: Root filesystem: ext4 (no automatic filesystem rollback) · dpkg: clean · no offline update staged.".into(),
             },
             bundle_revision: 1,
@@ -841,6 +860,33 @@ impl Backend for Simulated {
                 Ok(Reply::UpdateApplied(UpdateApplied {
                     transaction_id: "simulated-transaction-0001".into(),
                     packages,
+                }))
+            }
+            Request::GoBackToPreviousVersion => {
+                if self.recovery.update_state == UpdateState::Staged {
+                    bail!("SIMULATED: an update is already staged; cancel it first");
+                }
+                let Some(previous) = self.recovery.previous_version.take() else {
+                    bail!("SIMULATED: there is no previous version to go back to");
+                };
+                self.recovery.update_state = UpdateState::Staged;
+                self.recovery.staged_update = true;
+                self.recovery.staged_packages = vec![previous];
+                self.recovery.status =
+                    "SIMULATED recovery status: going back staged; it installs at the next restart.".into();
+                Ok(Reply::UpdateStaged(UpdateStaged {
+                    transaction_id: "simulated-rollback-0001".into(),
+                    review_id: "0".repeat(64),
+                    packages: 1,
+                    restart_required: true,
+                }))
+            }
+            Request::ReportUpdateReady => {
+                let was = std::mem::take(&mut self.recovery.probation);
+                Ok(Reply::Message(if was {
+                    "SIMULATED: this WrOS version starts the writing app.".into()
+                } else {
+                    "SIMULATED: no new version is waiting to prove it starts.".into()
                 }))
             }
             Request::CancelStagedUpdates => {

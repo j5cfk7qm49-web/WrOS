@@ -639,6 +639,7 @@ impl App {
         self.tick_update_chain();
         self.tick_productivity();
         self.tick_online_updates();
+        self.tick_update_health();
         self.tick_sync();
         let result = self.deck.worker.as_ref().and_then(|w| w.rx.try_recv().ok());
         if let Some((request, result)) = result {
@@ -655,7 +656,9 @@ impl App {
                 }
                 Ok(Reply::Message(message)) => {
                     self.on_update_message(&request, &message);
-                    self.deck.note = message;
+                    if request != Request::ReportUpdateReady {
+                        self.deck.note = message;
+                    }
                     if matches!(request, Request::KeyboardConfirm(_)) {
                         self.observe_deck(tutorial::Event::LayoutConfirmed);
                     }
@@ -767,6 +770,7 @@ impl App {
                         .unwrap_or_else(|| info.status.clone());
                     self.deck.shell.recovery = Some(info);
                     self.on_recovery_for_chain();
+                    self.on_recovery_for_health();
                 }
                 Ok(Reply::GoogleStatus(status)) => {
                     self.deck.note = status.status_message.clone();

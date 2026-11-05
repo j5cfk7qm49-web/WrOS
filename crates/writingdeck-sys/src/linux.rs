@@ -522,6 +522,16 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
         Request::ApplyStagedUpdate => {
             Invocation::update_launcher("/usr/libexec/wros-update-apply", &[], APPLY_TIMEOUT_SECS)
         }
+        Request::GoBackToPreviousVersion => Invocation::update_launcher(
+            "/usr/libexec/wros-update-rollback",
+            &[],
+            STAGE_TIMEOUT_SECS,
+        ),
+        Request::ReportUpdateReady => Invocation::update_launcher(
+            "/usr/libexec/wros-update-healthy",
+            &["ready"],
+            CANCEL_TIMEOUT_SECS,
+        ),
         Request::RecoverUpdates => {
             Invocation::update_launcher("/usr/libexec/wros-update-repair", &[], REPAIR_TIMEOUT_SECS)
         }
@@ -902,6 +912,17 @@ impl<R: Runner> Backend for Linux<R> {
                 return Ok(Reply::Message(crate::system_views::update_action_message(
                     &output,
                     &["cancelled", "none"],
+                )?));
+            }
+            Request::GoBackToPreviousVersion => {
+                return Ok(Reply::UpdateStaged(crate::system_views::update_gone_back(
+                    &output,
+                )?));
+            }
+            Request::ReportUpdateReady => {
+                return Ok(Reply::Message(crate::system_views::update_action_message(
+                    &output,
+                    &["ready", "none", "busy"],
                 )?));
             }
             Request::RecoverUpdates => {

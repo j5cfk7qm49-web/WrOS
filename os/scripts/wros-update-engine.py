@@ -1386,15 +1386,16 @@ def report_health(what, *, state_dir=DEFAULT_STATE_DIR, trigger_path=DEFAULT_TRI
         with store.exclusive():
             probation = read_probation(store)
             if probation is None:
-                return {'status': 'none'}
+                return {'status': 'none', 'message': 'No new version is waiting to prove it starts.'}
             if what == 'ready':
                 end_probation(store)
             else:
                 json_write(store.probation_path, probation | {'started_boot': read_boot_id()})
             store.publish(Path(trigger_path))
-            return {'status': what}
+            return {'status': what, 'message': 'This WrOS version starts the writing app.' if what == 'ready'
+                    else 'Login recorded while this WrOS version proves it starts.'}
     except StateBusy:
-        return {'status': 'busy'}
+        return {'status': 'busy', 'message': 'An update operation is running; nothing was recorded.'}
 
 
 def check_probation(store, *, keyring, signers, dpkg_dir, trigger_path, when, host_arch):
@@ -2395,6 +2396,11 @@ def inspect_recovery(
         'staged_update': staged_update,
         'staged_packages': staged_packages,
         'update_state': update_state,
+        'previous_version': public.get('previous_version') if isinstance(public.get('previous_version'), str)
+        else None,
+        'probation': public.get('probation') is True,
+        'went_back': public.get('went_back') is True,
+        'went_back_automatically': public.get('went_back_automatically') is True,
         'status': ' · '.join(parts) + '.',
     }
 

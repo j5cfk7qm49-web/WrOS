@@ -612,3 +612,100 @@ fn installing_a_staged_update_now_runs_the_apply_helper_and_reports_what_it_inst
         .to_string();
     assert!(error.contains("needs a restart"), "{error}");
 }
+
+#[test]
+fn going_back_runs_the_rollback_helper_and_reports_what_it_staged() {
+    let fakes = Fakes::new();
+    let id = "c".repeat(64);
+    fakes.helper(
+        "wros-update-rollback",
+        &echo(&format!(
+            r#"{{"status":"staged","transaction_id":"tx-back.1","review_id":"{id}","packages":1,"restart_required":true,"rollback":true}}"#
+        )),
+    );
+    let mut backend = fakes.backend();
+    let Reply::UpdateStaged(staged) = backend.request(Request::GoBackToPreviousVersion).unwrap()
+    else {
+        panic!("expected staged");
+    };
+    assert_eq!(
+        (staged.transaction_id.as_str(), staged.packages),
+        ("tx-back.1", 1)
+    );
+    assert!(staged.restart_required);
+    let seen = &backend.runner.seen[0];
+    assert_eq!(seen.program, "/usr/bin/pkexec");
+    assert_eq!(
+        seen.args,
+        [
+            "--disable-internal-agent",
+            "/usr/libexec/wros-update-rollback"
+        ]
+    );
+    // Only a staged go-back counts: an ordinary staging reply or anything extra is refused.
+    for reply in [
+        format!(
+            r#"{{"status":"staged","transaction_id":"tx-1","review_id":"{id}","packages":1,"restart_required":true}}"#
+        ),
+        format!(
+            r#"{{"status":"staged","transaction_id":"tx-1","review_id":"{id}","packages":1,"restart_required":true,"rollback":false}}"#
+        ),
+        format!(
+            r#"{{"status":"staged","transaction_id":"tx 1","review_id":"{id}","packages":1,"restart_required":true,"rollback":true}}"#
+        ),
+    ] {
+        let other = Fakes::new();
+        other.helper("wros-update-rollback", &echo(&reply));
+        assert!(
+            other
+                .backend()
+                .request(Request::GoBackToPreviousVersion)
+                .is_err(),
+            "{reply}"
+        );
+    }
+}
+
+#[test]
+fn reporting_ready_runs_the_healthy_helper_with_exactly_ready() {
+    let fakes = Fakes::new();
+    fakes.helper(
+        "wros-update-healthy",
+        &echo(r#"{"status":"ready","message":"This WrOS version starts the writing app."}"#),
+    );
+    let mut backend = fakes.backend();
+    let Reply::Message(message) = backend.request(Request::ReportUpdateReady).unwrap() else {
+        panic!("expected message");
+    };
+    assert!(message.contains("starts"), "{message}");
+    assert_eq!(
+        backend.runner.seen[0].args,
+        [
+            "--disable-internal-agent",
+            "/usr/libexec/wros-update-healthy",
+            "ready"
+        ]
+    );
+    let other = Fakes::new();
+    other.helper(
+        "wros-update-healthy",
+        &echo(r#"{"status":"started","message":"x"}"#),
+    );
+    assert!(other.backend().request(Request::ReportUpdateReady).is_err());
+}
+
+#[test]
+fn recovery_status_names_the_previous_version_probation_and_an_automatic_go_back() {
+    let fakes = Fakes::new();
+    fakes.helper(
+        "wros-update",
+        &echo(
+            r#"{"root_filesystem":"ext4","root_device":"/dev/mapper/root","separate_home":false,"rollback_capable":false,"rollback_strategy":"ext4","interrupted_dpkg":false,"unconfigured_packages":[],"staged_update":false,"staged_packages":[],"update_state":"completed","previous_version":"wros 0.1.0~rc5","probation":true,"went_back":true,"went_back_automatically":true,"status":"ok"}"#,
+        ),
+    );
+    let Reply::Recovery(info) = fakes.backend().request(Request::RecoveryStatus).unwrap() else {
+        panic!("expected recovery");
+    };
+    assert_eq!(info.previous_version.as_deref(), Some("wros 0.1.0~rc5"));
+    assert!(info.probation && info.went_back && info.went_back_automatically);
+}

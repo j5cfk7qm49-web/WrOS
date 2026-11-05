@@ -1638,6 +1638,7 @@ impl UpdateWorld {
                 Request::StageUpdates { .. }
                     | Request::CancelStagedUpdates
                     | Request::RecoverUpdates
+                    | Request::GoBackToPreviousVersion
                     | Request::Power(_)
             )
         })
@@ -2903,4 +2904,90 @@ fn pre_sleep_lock_protocol_verification_enforces_save_gate_and_keeps_hardware_su
         assert_eq!(desk.app.view_position(Pane::Primary), primary);
         assert_eq!(desk.app.view_position(Pane::Secondary), secondary);
     }
+}
+
+#[test]
+fn going_back_is_offered_only_with_a_kept_version_and_asks_before_staging() {
+    let mut desk = Desk::open(book("update-go-back", true), 120, 30);
+    let world = UpdateWorld::install(&mut desk);
+    system_panel(&mut desk, 5);
+    wait_system(&mut desk);
+    desk.app.refresh_recovery();
+    wait_system(&mut desk);
+    assert!(!desk.shows("Go back to"), "{}", desk.rows().join("\n"));
+
+    world.sim.lock().unwrap().recovery.previous_version = Some("wros 0.1.0~rc4".into());
+    desk.app.refresh_recovery();
+    wait_system(&mut desk);
+    desk.key(KeyCode::Home);
+    desk.choose("Go back to wros 0.1.0~rc4");
+    assert_eq!(route(&desk), Route::GoBackConfirm);
+    assert_eq!(
+        world.count(|r| *r == Request::GoBackToPreviousVersion),
+        0,
+        "nothing is staged before the writer confirms"
+    );
+    assert!(
+        desk.shows("Stay on this version"),
+        "{}",
+        desk.rows().join("\n")
+    );
+    desk.choose("Go back to wros 0.1.0~rc4 · installs at the next restart");
+    wait_system(&mut desk);
+    assert_eq!(world.count(|r| *r == Request::GoBackToPreviousVersion), 1);
+    assert_eq!(route(&desk), Route::UpdateStaged);
+}
+
+#[test]
+fn a_new_version_on_probation_reports_ready_once_after_the_first_screen() {
+    for probation in [true, false] {
+        let mut desk = Desk::open(book(&format!("update-ready-{probation}"), true), 120, 30);
+        let world = UpdateWorld::install(&mut desk);
+        world.sim.lock().unwrap().recovery.probation = probation;
+        desk.app.deck.online_updates = true;
+        desk.app.tick_deck();
+        assert!(
+            !desk.app.deck.busy,
+            "nothing is read the moment the session starts"
+        );
+        desk.app.deck.shell.update_flow.health_at = Some(std::time::Instant::now());
+        for _ in 0..3 {
+            desk.app.tick_deck();
+            wait_system(&mut desk);
+        }
+        assert_eq!(
+            world.count(|r| *r == Request::ReportUpdateReady),
+            usize::from(probation)
+        );
+    }
+}
+
+#[test]
+fn after_going_back_by_itself_wros_says_so_after_login() {
+    let mut desk = Desk::open(book("update-went-back", true), 120, 30);
+    let world = UpdateWorld::install(&mut desk);
+    {
+        let mut sim = world.sim.lock().unwrap();
+        sim.recovery.went_back = true;
+        sim.recovery.went_back_automatically = true;
+    }
+    desk.app.deck.online_updates = true;
+    desk.app.deck.shell.update_flow.health_at = Some(std::time::Instant::now());
+    desk.app.tick_deck();
+    wait_system(&mut desk);
+    assert!(
+        desk.app
+            .deck
+            .note
+            .contains("went back to the previous version"),
+        "{}",
+        desk.app.deck.note
+    );
+    system_panel(&mut desk, 5);
+    wait_system(&mut desk);
+    assert!(
+        desk.shows("WrOS went back to this version"),
+        "{}",
+        desk.rows().join("\n")
+    );
 }

@@ -247,6 +247,14 @@ pub fn recovery_status(output: &str) -> Result<RecoveryInfo> {
         staged_update: bool,
         staged_packages: Vec<String>,
         update_state: UpdateState,
+        #[serde(default)]
+        previous_version: Option<String>,
+        #[serde(default)]
+        probation: bool,
+        #[serde(default)]
+        went_back: bool,
+        #[serde(default)]
+        went_back_automatically: bool,
         status: String,
     }
     let raw: RawRecovery =
@@ -286,6 +294,16 @@ pub fn recovery_status(output: &str) -> Result<RecoveryInfo> {
         staged_update: raw.staged_update,
         staged_packages: raw.staged_packages,
         update_state: raw.update_state,
+        previous_version: match raw.previous_version {
+            Some(version) => {
+                label(&version)?;
+                Some(version)
+            }
+            None => None,
+        },
+        probation: raw.probation,
+        went_back: raw.went_back,
+        went_back_automatically: raw.went_back && raw.went_back_automatically,
         status: raw.status,
     })
 }
@@ -493,6 +511,39 @@ pub fn update_staged(output: &str, expected_review_id: &str) -> Result<UpdateSta
         raw.review_id == expected_review_id,
         "the helper staged a different update than the one you reviewed"
     );
+    ensure!(raw.packages <= 1024, "update package count exceeds limit");
+    Ok(UpdateStaged {
+        transaction_id: raw.transaction_id,
+        review_id: raw.review_id,
+        packages: raw.packages,
+        restart_required: raw.restart_required,
+    })
+}
+
+/// Strict parse of `wros-update-rollback`: going back to the kept previous version was staged.
+pub fn update_gone_back(output: &str) -> Result<UpdateStaged> {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct RawGoneBack {
+        status: String,
+        transaction_id: String,
+        review_id: String,
+        packages: usize,
+        restart_required: bool,
+        rollback: bool,
+    }
+    let object = helper_object(output, "wros-update-rollback")?;
+    let raw: RawGoneBack = serde_json::from_value(serde_json::Value::Object(object))
+        .context("invalid wros-update-rollback reply")?;
+    ensure!(
+        raw.status == "staged" && raw.rollback,
+        "going back was not staged"
+    );
+    ensure!(
+        valid_transaction_id(&raw.transaction_id),
+        "invalid update transaction identity"
+    );
+    validate_review_id(&raw.review_id)?;
     ensure!(raw.packages <= 1024, "update package count exceeds limit");
     Ok(UpdateStaged {
         transaction_id: raw.transaction_id,

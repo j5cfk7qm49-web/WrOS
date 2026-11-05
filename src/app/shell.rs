@@ -84,6 +84,7 @@ pub enum Route {
     UpdateReview,
     UpdateConfirm,
     UpdateStaged,
+    GoBackConfirm,
     RecoveryView,
     RepairConfirm,
     StorageDevicesView,
@@ -390,6 +391,8 @@ enum Choice {
     UpdateRestart,
     UpdateCancelStaged,
     UpdateApplyNow,
+    UpdateGoBackOpen,
+    UpdateGoBack,
     RepairOpen,
     RepairRun,
     Open(Route),
@@ -439,6 +442,7 @@ impl Entry {
             | Choice::InstallerOpen
             | Choice::UpdateBundleOpen
             | Choice::UpdateStagedOpen
+            | Choice::UpdateGoBackOpen
             | Choice::RepairOpen => wros_shell::RowKind::Opens,
             _ => wros_shell::RowKind::Option,
         }
@@ -923,6 +927,7 @@ fn entries(app: &App) -> Vec<Entry> {
         Route::UpdateReview => update_flow::review_rows(app),
         Route::UpdateConfirm => update_flow::confirm_rows(app),
         Route::UpdateStaged => update_flow::staged_rows(app),
+        Route::GoBackConfirm => update_flow::go_back_rows(app),
         Route::RepairConfirm => update_flow::repair_rows(),
         Route::GoogleAccount => {
             let backup = &app.deck.shell.backup;
@@ -1986,6 +1991,8 @@ impl App {
                     Choice::UpdateRestart => self.update_restart(),
                     Choice::UpdateCancelStaged => self.update_cancel_staged(),
                     Choice::UpdateApplyNow => self.update_apply_now(),
+                    Choice::UpdateGoBackOpen => self.update_go_back_open(),
+                    Choice::UpdateGoBack => self.update_go_back(),
                     Choice::RepairOpen => self.repair_open(),
                     Choice::RepairRun => self.repair_run(),
                     Choice::Lock => self.request_console_lock(),
@@ -2260,6 +2267,7 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
         Route::UpdateReview => "WrOS · Review signed update".into(),
         Route::UpdateConfirm => "WrOS · Stage this update?".into(),
         Route::UpdateStaged => "WrOS · Update staged".into(),
+        Route::GoBackConfirm => "WrOS · Go back a version".into(),
         Route::RecoveryView => "WrOS · Settings › Recovery".into(),
         Route::RepairConfirm => "WrOS · Repair interrupted update?".into(),
         Route::StorageDevicesView => "WrOS · Settings › Mounted filesystems".into(),
