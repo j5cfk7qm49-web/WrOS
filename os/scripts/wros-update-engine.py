@@ -1100,6 +1100,8 @@ class Store:
         self.status_path = self.public_dir / 'status.json'
         self.replay_path = self.dir / 'replay.json'
         self.staged = self.dir / 'staged'
+        self.installed = self.dir / 'installed'  # the tree of the update installed last
+        self.previous = self.dir / 'previous'  # the one it replaced: what going back installs
         self.work = self.dir / 'work'
         self.lock_path = self.dir / '.lock'
 
@@ -1196,6 +1198,7 @@ class Store:
             status = summarize(records, staged_valid)
             applied = self.last_applied()
             status['last_applied_date'] = applied.isoformat() if applied else None
+            status['previous_version'] = kept_version(self.previous)
             self.prepare()
             atomic_write(self.status_path, json_bytes(status), mode=0o644, dir_mode=0o755)
         except (OSError, ValueError):
@@ -1259,7 +1262,7 @@ def read_public_status(state_dir):
 def clear_partials(store):
     cleared = False
     if store.dir.is_dir():
-        for entry in sorted(store.dir.glob('staged.*.partial')):
+        for entry in sorted([*store.dir.glob('staged.*.partial'), *store.dir.glob('*.discard')]):
             if entry.is_symlink() or not entry.is_dir():
                 entry.unlink(missing_ok=True)
             else:
@@ -1274,6 +1277,53 @@ def remove_staged(store):
     elif store.staged.exists():
         shutil.rmtree(store.staged, ignore_errors=True)
     if store.dir.is_dir():
+        fsync_dir(store.dir)
+
+
+def kept_version(tree):
+    """'wros 0.1.0~rc5' for a kept tree, from its manifest; None when there is none."""
+    try:
+        require_private_entry(tree, 'dir')
+        manifest = json.loads(read_regular_bytes(tree / 'manifest.json', 262144).decode('utf-8'))
+        return ', '.join(clean_text(label, 200) for label in package_labels(manifest['packages'])) or None
+    except (ValueError, OSError, KeyError, TypeError):
+        return None
+
+
+def keep_installed(store):
+    """The applied tree becomes installed/ and the one it replaced previous/; only one is kept.
+
+    Renames only, each made durable before the next. A crash leaves the old pair, or previous/
+    plus a completed staged/ that reconcile finishes keeping, plus at most a *.discard
+    directory that clear_partials removes.
+    """
+    discard = store.dir / 'previous.discard'
+    if os.path.lexists(discard):
+        shutil.rmtree(discard, ignore_errors=True)
+    if store.installed.is_dir() and not store.installed.is_symlink():
+        if os.path.lexists(store.previous):
+            os.rename(store.previous, discard)
+            fsync_dir(store.dir)
+        os.rename(store.installed, store.previous)
+        fsync_dir(store.dir)
+    elif os.path.lexists(store.installed):
+        store.installed.unlink()
+    os.rename(store.staged, store.installed)
+    fsync_dir(store.dir)
+    shutil.rmtree(discard, ignore_errors=True)
+
+
+def finish_keeping(store, records, trigger_path):
+    """After a crash inside keep_installed: a completed transaction's tree still in staged/."""
+    if (os.path.lexists(trigger_path) or os.path.lexists(store.installed) or not store.staged.is_dir()
+            or not records or records[-1]['state'] != 'completed'):
+        return
+    try:
+        manifest = json.loads(read_regular_bytes(store.staged / 'manifest.json', 262144).decode('utf-8'))
+    except (ValueError, OSError):
+        return
+    if isinstance(manifest, dict) and manifest.get('transaction_id') == records[-1]['transaction_id']:
+        os.rename(store.staged, store.installed)
         fsync_dir(store.dir)
 
 
@@ -1761,8 +1811,8 @@ def apply_staged_transaction(*, state_dir, trigger_path, dpkg_dir, runner, now, 
                 'offline apt-get transaction failed or was interrupted; authenticated archives retained for rescue'
             record_failure(reason)
         store.record_applied(details['release']['date'], tx_id, details['manifest'].get('review_id'))
-        store.append('completed', tx_id, when, packages=labels)  # durable before the archives go
-        remove_staged(store)
+        store.append('completed', tx_id, when, packages=labels)  # durable before the archives move
+        keep_installed(store)
         store.publish(trigger_path)
         return {'status': 'completed', 'transaction_id': tx_id, 'packages': labels}
 
@@ -1835,7 +1885,7 @@ def repair_locked(store, *, dpkg_dir, trigger_path, keyring, signers, run, when,
         installed = load_installed_dpkg_database(dpkg_dir)
         if all(installed.get(p['name'], {}).get('version') == p['version'] for p in details['packages']):
             store.record_applied(details['release']['date'], tx_id, details['manifest'].get('review_id'))
-            remove_staged(store)
+            keep_installed(store)
             note += '; the staged update is now fully installed'
     store.append('recovered', tx_id, when, packages=labels, note=note)
     store.publish(trigger_path)
@@ -1873,6 +1923,7 @@ def reconcile(*, state_dir=DEFAULT_STATE_DIR, dpkg_dir=DEFAULT_DPKG_DIR, trigger
             when = clock(now)
             clear_partials(store)
             records = store.records()
+            finish_keeping(store, records, Path(trigger_path))
             latest = records[-1] if records else None
             interrupted, _ = inspect_dpkg_state(dpkg_dir=dpkg_dir)
             if (latest is not None and latest['state'] == 'applying') or interrupted:
