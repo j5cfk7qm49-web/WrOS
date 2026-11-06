@@ -20,11 +20,15 @@ class FakeHardware:
     def __init__(self, events):
         self.events, self.current = events, snapshot()
         self.failed_apply = self.unavailable = False
+        self.missing_captures = 0  # captures that fail before the driver shows the display
 
     def capture(self):
         self.events.append('capture')
         if self.unavailable:
             raise RuntimeError('display driver unsupported')
+        if self.missing_captures:
+            self.missing_captures -= 1
+            raise RuntimeError('No active supported DRM display is available')
         return self.current
 
     def apply(self, data):
@@ -51,8 +55,12 @@ class DisplayTransactions(unittest.TestCase):
             if (verb == 'restart' and self.fail_start) or (verb == 'stop' and self.fail_stop):
                 raise subprocess.CalledProcessError(1, arguments)
 
+        def sleeper(seconds):
+            self.events.append('sleep')
+            self.now += seconds
+
         self.manager = module.Manager(self.root / 'etc/display.json', self.root / 'run',
-                                      self.hardware, runner, lambda: self.now, owner=42)
+                                      self.hardware, runner, lambda: self.now, owner=42, sleeper=sleeper)
 
     def tearDown(self):
         self.temporary.cleanup()
@@ -204,6 +212,30 @@ class DisplayTransactions(unittest.TestCase):
         self.manager.boot()
         self.assertEqual(self.hardware.current, module.transform(snapshot(), saved))
         self.assertFalse(self.manager.pending.exists())
+
+    def test_boot_waits_for_a_graphics_driver_that_loads_after_the_unit_starts(self):
+        # The HP laptop's i915 is not in the initramfs: its screen appeared 2.6 s after this ran.
+        self.hardware.missing_captures = 6
+        self.assertEqual(self.manager.wait_for_display(), snapshot())
+        self.assertEqual(self.events.count('sleep'), 6)
+        self.assertNotIn('apply', self.events)
+        self.assertFalse(self.manager.runtime.exists())  # read-only until the display is there
+
+    def test_boot_gives_up_with_the_reason_once_the_wait_is_over(self):
+        self.hardware.missing_captures = 10 ** 6
+        start = self.now
+        with self.assertRaisesRegex(RuntimeError, 'No active supported DRM display'):
+            self.manager.wait_for_display()
+        self.assertGreaterEqual(self.now - start, module.BOOT_WAIT)
+        self.assertLess(self.now - start, module.BOOT_WAIT + 1)
+
+    def test_boot_unit_waits_without_holding_up_the_login_screen(self):
+        unit = (ROOT / 'os/systemd/wros-display.service').read_text(encoding='utf-8')
+        self.assertNotIn('greetd.service', unit)
+        self.assertNotIn('getty@tty1.service', unit)
+        timeout = int(next(line for line in unit.splitlines()
+                           if line.startswith('TimeoutStartSec=')).split('=')[1].rstrip('s'))
+        self.assertGreaterEqual(timeout, module.BOOT_WAIT + 10)
 
     def test_timer_stop_failure_cannot_undo_a_durable_commit(self):
         token = self.preview()
