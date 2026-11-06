@@ -1538,8 +1538,15 @@ def live_apply_check(packages, deb_paths, dpkg_dir):
         old_conffiles = (read_regular_bytes(conffiles_path, LIMIT).decode('utf-8')
                          if os.path.lexists(conffiles_path) else '')
         members = deb_control_members(deb_paths[0])
-        if set(members) - CONTROL_MEMBERS or any(members[n] is None for n in members):
+        if set(members) - CONTROL_MEMBERS - {'postinst'} or any(members[n] is None for n in members):
             return False, 'it carries maintainer scripts or other control data'
+        if 'postinst' in members:
+            # From rc5 every wros package carries the generated postinst. Byte for byte the one
+            # dpkg already ran here, it changes nothing new; any other script waits.
+            installed_script = info / 'wros.postinst'
+            if (not os.path.lexists(installed_script)
+                    or read_regular_bytes(installed_script, LIMIT) != members['postinst']):
+                return False, 'its maintainer script changes'
         new = control_fields_from(members['control'].decode('utf-8'))
         new_files = md5_entries(members.get('md5sums', b'').decode('utf-8'))
         new_conffiles = members.get('conffiles', b'').decode('utf-8')
