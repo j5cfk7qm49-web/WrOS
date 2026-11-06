@@ -49,6 +49,9 @@ pub enum Request {
         destination: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         project: Option<String>,
+        /// Also put back the settings saved with the backup (the current ones are kept first).
+        #[serde(skip_serializing_if = "std::ops::Not::not")]
+        settings: bool,
     },
     ExportKey {
         destination: String,
@@ -128,6 +131,9 @@ pub struct Snapshot {
     pub _path: String,
     pub project: String,
     pub restore_checked_at: String,
+    /// The backup carries the writer's settings beside the book.
+    #[serde(default)]
+    pub has_profile: bool,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]

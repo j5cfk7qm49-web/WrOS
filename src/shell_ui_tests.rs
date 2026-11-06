@@ -1284,6 +1284,7 @@ fn a_running_backup_shows_its_step_percentage_and_time_under_cancel() {
         _path: "/book".into(),
         project: "Book".into(),
         restore_checked_at: String::new(),
+        has_profile: false,
     });
     status.queued_backups.push(Default::default());
     desk.draw();
@@ -1683,6 +1684,7 @@ fn set_backup(desk: &mut Desk, configured: bool, fresh: bool) {
             _path: root,
             project: "Book".into(),
             restore_checked_at: String::new(),
+            has_profile: false,
         }]
     } else {
         vec![]
@@ -1965,6 +1967,7 @@ fn backup_answers(desk: &mut Desk, result: Result<bool, &str>) {
                 _path: root,
                 project: "Book".into(),
                 restore_checked_at: String::new(),
+                has_profile: false,
             }];
         }
         status

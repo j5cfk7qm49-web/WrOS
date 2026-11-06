@@ -350,7 +350,7 @@ class EncryptedBackup(unittest.TestCase):
                      'restore_checked_at': reloaded.current['verified'].get(snap_id, '')}]
         def fake_restore_into(snapshot, target):
             self.assertEqual(snapshot['id'], snap_id)
-            return expected_inv
+            return expected_inv, None  # (the book's inventory, its settings folder if any)
 
         with mock.patch.object(reloaded, 'restic', return_value=b''), \
              mock.patch.object(reloaded, 'snapshots', side_effect=fake_snapshots), \
@@ -559,6 +559,103 @@ class AutomaticBackup(unittest.TestCase):
         result = module.dispatch(self.service, {'operation': 'auto-backup', 'project': str(self.project)})
         rows = json.loads(self.service.restic(['snapshots', '--tag', 'wros-project-v1,auto']))
         self.assertEqual([r['id'] for r in rows], [result['snapshots'][0]['id']])
+
+
+class SettingsProfile(unittest.TestCase):
+    """Each backup carries the writer's settings beside the book, in the same encrypted snapshot."""
+    initialize = EncryptedBackup.initialize
+
+    def setUp(self):
+        EncryptedBackup.setUp(self)
+        self.settings = self.base/'config/grimoire'
+        self.settings.mkdir(parents=True)
+        (self.settings/'settings.toml').write_text('theme = "Grimoire"\nspellcheck = true\n')
+        (self.settings/'state.toml').write_text('book = "/home/ada/Books/A book with spaces"\n')
+        (self.settings/'dictionary.txt').write_text('Élan\nWrOS\n', encoding='utf-8')
+        (self.settings/'huge.log').write_bytes(b'x' * (module.PROFILE_FILE_LIMIT + 1))
+        (self.settings/'cache').mkdir()
+        (self.settings/'cache/skip.txt').write_text('not a setting')
+        (self.settings/'elsewhere.toml').symlink_to(self.base/'private-state')
+        keyboard = self.base/'keyboard.json'
+        keyboard.write_text('{"version": 1, "layout": "colemak", "generation": "initial"}')
+        timezone = self.base/'timezone'
+        timezone.write_text('America/Los_Angeles\n')
+        self.service.profile_config = self.settings
+        self.service.keyboard_file = keyboard
+        self.service.timezone_file = timezone
+        self.saved = {name: (self.settings/name).read_bytes()
+                      for name in ('settings.toml', 'state.toml', 'dictionary.txt')}
+
+    def test_each_backup_carries_the_settings_and_restoring_the_book_alone_ignores_them(self):
+        self.initialize()
+        expected = module.inventory(self.project)
+        snapshot = self.service.backup(str(self.project))['snapshots'][0]
+        self.assertTrue(snapshot['has_profile'])
+        restored = self.base/'restored'
+        self.service.restore(snapshot['id'], str(restored))
+        self.assertEqual(module.inventory(restored), expected)  # the book is exactly the book
+        self.assertFalse((restored/module.PROFILE).exists())
+        self.assertEqual([p.name for p in self.base.iterdir() if p.name.startswith('.wros-profile')], [])
+        (self.settings/'settings.toml').write_text('theme = "Changed"\n')
+        self.service.restore(snapshot['id'], str(self.base/'restored again'))
+        self.assertEqual((self.settings/'settings.toml').read_text(), 'theme = "Changed"\n')
+
+    def test_restoring_with_settings_puts_them_back_and_keeps_the_current_ones(self):
+        self.initialize()
+        snapshot = self.service.backup(str(self.project))['snapshots'][0]
+        (self.settings/'settings.toml').write_text('theme = "Changed"\n')
+        (self.settings/'dictionary.txt').unlink()
+        result = self.service.restore(snapshot['id'], str(self.base/'restored'), settings=True)
+        for name, data in self.saved.items():
+            self.assertEqual((self.settings/name).read_bytes(), data, name)
+        kept = [p for p in self.settings.iterdir() if p.name.startswith('before-restore-')]
+        self.assertEqual(len(kept), 1)
+        self.assertEqual((kept[0]/'settings.toml').read_text(), 'theme = "Changed"\n')
+        self.assertIn('colemak', result['notice'])
+        self.assertIn('America/Los_Angeles', result['notice'])
+
+    def test_the_profile_holds_only_settings_never_keys_tokens_or_odd_files(self):
+        result = self.initialize()
+        (self.base/'private-state/rclone.conf').write_text('[wros-google]\ntoken = {"refresh_token":"SECRET-TOKEN"}\n')
+        snapshot = self.service.backup(str(self.project))['snapshots'][0]
+        raw = self.base/'raw'
+        row = next(s for s in self.service.snapshots() if s['id'] == snapshot['id'])
+        self.service.restic(['restore', row['id'] + ':' + row['path'], '--target', str(raw)])
+        names = sorted(p.relative_to(raw/module.PROFILE).as_posix() for p in (raw/module.PROFILE).rglob('*'))
+        self.assertEqual(names, ['grimoire', 'grimoire/dictionary.txt', 'grimoire/settings.toml',
+                                 'grimoire/state.toml', 'system.json'])
+        system = json.loads((raw/module.PROFILE/'system.json').read_text())
+        self.assertEqual(system, {'version': 1, 'keyboard': 'colemak', 'timezone': 'America/Los_Angeles'})
+        key = Path(result['recovery_key']).read_bytes().strip()
+        for path in (raw/module.PROFILE).rglob('*'):
+            if path.is_file():
+                self.assertNotIn(key, path.read_bytes())
+                self.assertNotIn(b'SECRET-TOKEN', path.read_bytes())
+
+    def test_older_snapshots_without_settings_still_restore(self):
+        self.initialize()
+        self.service.profile_config = self.base/'no settings here'
+        self.service.keyboard_file = self.base/'missing keyboard'
+        self.service.timezone_file = self.base/'missing timezone'
+        snapshot = self.service.backup(str(self.project))['snapshots'][0]
+        result = self.service.restore(snapshot['id'], str(self.base/'restored'), settings=True)
+        self.assertIn('no settings', result['notice'])
+        self.assertEqual(module.inventory(self.base/'restored'), module.inventory(self.project))
+
+    def test_a_book_cannot_hold_the_reserved_settings_folder(self):
+        self.initialize()
+        (self.project/module.PROFILE).mkdir()
+        with self.assertRaisesRegex(ValueError, 'Reserved'):
+            self.service.backup(str(self.project))
+
+    def test_the_app_and_the_recovery_menu_ask_for_settings_by_one_flag(self):
+        self.initialize()
+        snapshot = self.service.backup(str(self.project))['snapshots'][0]
+        (self.settings/'settings.toml').write_text('theme = "Changed"\n')
+        module.dispatch(self.service, {'operation': 'restore', 'snapshot': snapshot['id'],
+                                       'destination': str(self.base/'restored'), 'settings': True})
+        self.assertEqual((self.settings/'settings.toml').read_bytes(), self.saved['settings.toml'])
+
 
 if __name__ == '__main__':
     unittest.main()

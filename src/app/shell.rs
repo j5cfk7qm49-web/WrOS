@@ -1222,6 +1222,12 @@ fn entries(app: &App) -> Vec<Entry> {
                     ),
                     Choice::BackupForm(FormKind::Restore, snapshot.id.clone()),
                 ));
+                if snapshot.has_profile {
+                    rows.push(Entry::new(
+                        "  ↳ Restore with your settings",
+                        Choice::BackupForm(FormKind::RestoreWithSettings, snapshot.id.clone()),
+                    ));
+                }
             }
             rows
         }

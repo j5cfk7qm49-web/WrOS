@@ -153,7 +153,7 @@ class Recovery:
             return
         for number, snapshot in enumerate(snapshots, 1):
             checked = 'verified' if snapshot.get('restore_checked_at') else 'not verified'
-            self.console.say(f"  {number}  {Path(str(snapshot.get('_path', ''))).name}  "
+            self.console.say(f"  {number}  {self.book_name(snapshot)}  "
                              f"{str(snapshot.get('time', ''))[:16].replace('T', ' ')}  ({checked})")
         answer = self.console.ask('Which backup? ').strip()
         if not answer.isdigit() or not 1 <= int(answer) <= len(snapshots):
@@ -162,12 +162,20 @@ class Recovery:
         snapshot = snapshots[int(answer) - 1]
         destination = self.restore_folder(snapshot)
         self.console.say(f'Restoring into {destination} (your original book is not touched)…')
-        result = self.helper({'operation': 'restore', 'snapshot': snapshot['id'],
-                              'destination': str(destination)})
+        request = {'operation': 'restore', 'snapshot': snapshot['id'], 'destination': str(destination)}
+        if snapshot.get('has_profile') and self.yes('Restore your settings too? (your current ones are kept)'):
+            request['settings'] = True
+        result = self.helper(request)
         self.console.say(result.get('notice') or 'Restore finished.')
 
+    @staticmethod
+    def book_name(snapshot):
+        """The book's folder name, as the helper tags each snapshot (its path is a staging copy)."""
+        name = str(snapshot.get('project') or 'Book').replace('/', ' ').strip()
+        return name or 'Book'
+
     def restore_folder(self, snapshot):
-        name = Path(str(snapshot.get('_path', 'Book'))).name or 'Book'
+        name = self.book_name(snapshot)
         when = str(snapshot.get('time', ''))[:16].replace('T', ' ').replace(':', '.')
         base = self.writer.home / 'Restored books'
         candidate = base / f'{name} {when}'.strip()

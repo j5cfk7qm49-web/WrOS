@@ -168,6 +168,7 @@ fn backup_command(mut args: impl Iterator<Item = String>) -> Result<()> {
             snapshot: next()?,
             destination: next()?,
             project: None,
+            settings: false,
         },
         "export-key" => Request::ExportKey {
             destination: next()?,

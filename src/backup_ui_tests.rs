@@ -67,6 +67,55 @@ fn cancelled_repository_setup_and_restore_forms_do_not_write_files_or_change_the
 }
 
 #[test]
+fn backups_that_carry_settings_offer_restoring_them_too() {
+    let mut desk = Desk::open(book("backup-settings", true), 100, 40);
+    desk.app.open_settings();
+    desk.app.deck.shell.nav.open(Route::Backups);
+    for (id, has_profile) in [("a", true), ("b", false)] {
+        desk.app
+            .deck
+            .shell
+            .backup
+            .status
+            .snapshots
+            .push(crate::backup_service::Snapshot {
+                id: id.repeat(64),
+                time: "2026-11-05T21:10:00-08:00".into(),
+                _path: "/book".into(),
+                project: "Book".into(),
+                restore_checked_at: String::new(),
+                has_profile,
+            });
+    }
+    desk.draw();
+    // Only the backup made with settings offers them back.
+    assert_eq!(
+        desk.rows()
+            .join("\n")
+            .matches("Restore with your settings")
+            .count(),
+        1
+    );
+    let root = desk.app.project.root.clone();
+    for (kind, settings) in [
+        (FormKind::RestoreWithSettings, true),
+        (FormKind::Restore, false),
+    ] {
+        desk.app.open_backup_form(kind, "a".repeat(64));
+        let form = desk.app.deck.shell.backup.form.take().unwrap();
+        assert!(matches!(
+            form.request(&root),
+            crate::backup_service::Request::Restore { settings: s, ref snapshot, .. }
+                if s == settings && *snapshot == "a".repeat(64)
+        ));
+    }
+    desk.app
+        .open_backup_form(FormKind::RestoreWithSettings, "a".repeat(64));
+    desk.draw();
+    assert!(desk.shows("Your current settings are kept in a dated folder first"));
+}
+
+#[test]
 fn backup_refuses_source_conflicts_and_preserves_external_and_unsaved_words() {
     let mut desk = Desk::open(book("backup-conflict", true), 100, 30);
     desk.app.focus = Focus::Editor;

@@ -154,7 +154,7 @@ class RecoveryMenu(unittest.TestCase):
 
     def test_restore_runs_the_backup_helper_as_the_writer_into_a_new_folder(self):
         snapshots = {'repository': '/home/ada/Backups/wros', 'snapshots': [
-            {'id': SNAPSHOT, 'time': '2026-11-04T21:10:00-08:00', '_path': '/home/ada/Books/Clip',
+            {'id': SNAPSHOT, 'time': '2026-11-04T21:10:00-08:00', 'path': '/home/ada/.local/share/grimoire/wros/backup/wros-backup-x/book', 'project': 'Clip',
              'restore_checked_at': '2026-11-04T21:11:00-08:00'}]}
         runner = Runner({'list': helper_reply(snapshots), 'restore': helper_reply({'notice': 'Restore verified'})})
         self.make(['right', '3', '1'], runner=runner)
@@ -168,6 +168,18 @@ class RecoveryMenu(unittest.TestCase):
         self.assertEqual(destination.parent, Path('/home/ada/Restored books'))
         self.assertTrue(destination.name.startswith('Clip 2026-11-04'))
         self.assertIn('Restore verified', self.console.text())
+
+    def test_restore_offers_the_settings_saved_with_the_backup(self):
+        snapshots = {'repository': '/home/ada/Backups/wros', 'snapshots': [
+            {'id': SNAPSHOT, 'time': '2026-11-04T21:10:00-08:00', 'path': '/home/ada/.local/share/grimoire/wros/backup/wros-backup-x/book', 'project': 'Clip',
+             'restore_checked_at': '', 'has_profile': True}]}
+        for answer, wanted in (('y', True), ('n', False)):
+            runner = Runner({'list': helper_reply(snapshots), 'restore': helper_reply({'notice': 'Restored'})})
+            self.make(['right', '3', '1', answer], runner=runner)
+            request = json.loads(self.runner.calls[-1][1])
+            self.assertEqual(request['operation'], 'restore')
+            self.assertEqual(request.get('settings', False), wanted)
+        self.assertIn('Restore your settings too', self.console.text())
 
     def test_a_drive_backup_asks_before_starting_the_network(self):
         snapshots = {'repository': 'drive:WrOS-Backups', 'snapshots': []}

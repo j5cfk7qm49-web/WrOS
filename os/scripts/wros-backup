@@ -27,6 +27,11 @@ MAX_FILES = 100_000
 MAX_BYTES = 5 * 1024**3
 MAX_JSON = 2 * 1024**2
 MANIFEST = '.wros-backup-manifest.json'
+# The writer's settings, beside the book in the same snapshot: grimoire's own files and the
+# keyboard layout and timezone. Never the recovery key, Google tokens or Wi-Fi passwords.
+PROFILE = '.wros-profile'
+PROFILE_FILE_LIMIT = 1024 * 1024
+PROFILE_TOTAL_LIMIT = 4 * 1024 * 1024
 TAG = 'wros-project-v1'
 
 
@@ -317,6 +322,9 @@ class Service:
         self.latest_path = state/'latest.json'
         self.drive_browser_path = state/'drive-browser.json'
         self.drive_cache = state/'drive-cache'
+        self.profile_config = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home()/'.config')))/'grimoire'
+        self.keyboard_file = Path('/etc/writingdeck/keyboard.json')
+        self.timezone_file = Path('/etc/timezone')
         self.env = {key: value for key, value in os.environ.items()
                     if not key.startswith(('RESTIC_', 'RCLONE_'))}
         self.env.update(PATH='/usr/bin:/bin', RCLONE_CONFIG=str(self.google),
@@ -449,6 +457,7 @@ class Service:
             require(len(paths) == 1 and isinstance(paths[0], str) and paths[0].startswith('/'), 'Unsupported snapshot paths.')
             result.append({'id': identifier, 'time': row['time'], 'path': paths[0],
                            'project': next((t[8:] for t in row.get('tags', []) if t.startswith('project:')), 'Book'),
+                           'has_profile': 'profile' in row.get('tags', []),
                            'restore_checked_at': self.current['verified'].get(identifier, '')})
         return sorted(result, key=lambda item: item['time'], reverse=True)
 
@@ -522,16 +531,25 @@ class Service:
         require(isinstance(expected, dict) and expected.get('version') == 1 and 'inventory' in expected,
                 'Unsupported backup manifest; restore is not verified.')
         manifest.unlink()
+        profile = None
+        if 'profile' in expected:
+            require((target/PROFILE).is_dir() and not (target/PROFILE).is_symlink(),
+                    'The settings saved with this backup are missing; restore is not verified.')
+            profile = target.parent/('.wros-profile-' + secrets.token_hex(6))
+            os.rename(target/PROFILE, profile)
+            require(inventory(profile) == expected['profile'],
+                    'The settings saved with this backup differ; restore is not verified.')
         progress('Comparing every restored file')
         actual = inventory(target)
         require(actual == expected['inventory'], 'Restored file names, bytes or SHA-256 hashes differ; restore is not verified.')
-        return actual
+        return actual, profile
 
     def validate_project_root(self, project):
         root = Path(project).resolve(strict=True)
         require(root.is_dir() and (root/'manuscript').is_dir(), 'Select a saved Grimoire project with a manuscript folder.')
         require(not (root/'.git').is_file(), 'A linked Git worktree cannot be backed up portably; use a self-contained book folder.')
         require(not (root/MANIFEST).exists() and not (root/MANIFEST).is_symlink(), 'Reserved backup manifest name already exists in the project.')
+        require(not (root/PROFILE).exists() and not (root/PROFILE).is_symlink(), 'Reserved backup settings name already exists in the project.')
         require(not self.state.resolve().is_relative_to(root), 'Backup credentials/state must be outside the project.')
         return root
 
@@ -603,7 +621,7 @@ class Service:
                     with tempfile.TemporaryDirectory(prefix='wros-backup-verify-', dir=self.state) as temporary:
                         restored = Path(temporary)/'restore-check'
                         restored.mkdir(mode=0o700)
-                        actual = self.restore_into(candidate, restored)
+                        actual, _ = self.restore_into(candidate, restored)
                         if inventory_digest(actual) == digest:
                             self.current['verified'][candidate['id']] = now()
                             self.save()
@@ -669,9 +687,14 @@ class Service:
             progress('Copying the project to private staging')
             require(inventory(root, stage) == original, 'Project changed before staging; save and retry.')
             require(inventory(root) == original, 'Project changed during staging; save and retry. No snapshot verified.')
-            (stage/MANIFEST).write_text(json.dumps({'version': 1, 'created': now(), 'inventory': original}), encoding='utf-8')
+            manifest = {'version': 1, 'created': now(), 'inventory': original}
+            if self.write_profile(stage/PROFILE):
+                manifest['profile'] = inventory(stage/PROFILE)
+            (stage/MANIFEST).write_text(json.dumps(manifest), encoding='utf-8')
             label = ''.join(c for c in root.name if c.isprintable())[:80] or 'Book'
             tags = ['--tag', TAG, '--tag', 'project:' + label, '--tag', 'queue:' + queued['id']]
+            if 'profile' in manifest:
+                tags += ['--tag', 'profile']
             if automatic:
                 tags += ['--tag', 'auto']
             output = self.restic(['backup', *tags, '--host', 'wros', '--', str(stage)], stage,
@@ -683,7 +706,7 @@ class Service:
             require(snapshot is not None, 'New snapshot cannot be found; no verification claimed.')
             restored = Path(temporary)/'restore-check'
             restored.mkdir(mode=0o700)
-            require(self.restore_into(snapshot, restored) == original, 'Restore check differs from the saved project.')
+            require(self.restore_into(snapshot, restored)[0] == original, 'Restore check differs from the saved project.')
             self.current['verified'][snapshot['id']] = now()
             self.save()
             self.record_latest(root, snapshot)
@@ -693,7 +716,72 @@ class Service:
             message += ' Destination is on the same filesystem; keep an off-device copy too.'
         return self.status(message)
 
-    def restore(self, identifier, destination):
+    def write_profile(self, target):
+        """Grimoire's own files (regular files only, each at most 1 MiB) and the keyboard layout and
+        timezone. True when there was anything to save."""
+        files, total = [], 0
+        if self.profile_config.is_dir() and not self.profile_config.is_symlink():
+            for path in sorted(self.profile_config.iterdir()):
+                if path.is_symlink() or not path.is_file():
+                    continue
+                size = path.stat().st_size
+                if size > PROFILE_FILE_LIMIT or total + size > PROFILE_TOTAL_LIMIT:
+                    continue
+                files.append(path)
+                total += size
+        system = {'version': 1, 'keyboard': None, 'timezone': None}
+        try:
+            layout = json.loads(self.keyboard_file.read_text(encoding='utf-8')).get('layout')
+            system['keyboard'] = layout if isinstance(layout, str) and re.fullmatch('[a-z0-9-]{1,32}', layout) else None
+        except (OSError, ValueError, AttributeError):
+            pass
+        try:
+            zone = self.timezone_file.read_text(encoding='utf-8').strip()
+            system['timezone'] = zone if re.fullmatch('[A-Za-z0-9_+/-]{1,64}', zone) else None
+        except OSError:
+            pass
+        if not files and system['keyboard'] is None and system['timezone'] is None:
+            return False
+        (target/'grimoire').mkdir(parents=True, mode=0o700)
+        for path in files:
+            (target/'grimoire'/path.name).write_bytes(path.read_bytes())
+        (target/'system.json').write_text(json.dumps(system, sort_keys=True), encoding='utf-8')
+        return True
+
+    def apply_profile(self, profile):
+        """Put grimoire's saved files back, keeping the current ones in a dated folder first."""
+        saved = sorted(p for p in (profile/'grimoire').iterdir() if p.is_file() and not p.is_symlink()) \
+            if (profile/'grimoire').is_dir() else []
+        config = self.profile_config
+        require(not config.is_symlink(), 'The settings folder is a symbolic link; nothing restored.')
+        config.mkdir(parents=True, exist_ok=True, mode=0o700)
+        kept = config/('before-restore-' + datetime.now().strftime('%Y-%m-%d %H.%M.%S'))
+        current = [p for p in config.iterdir() if p.is_file() and not p.is_symlink()]
+        if current:
+            kept.mkdir(mode=0o700)
+            for path in current:
+                shutil.copy2(path, kept/path.name)
+        for path in saved:
+            temporary = config/('.' + path.name + '.' + secrets.token_hex(4))
+            temporary.write_bytes(path.read_bytes())
+            os.replace(temporary, config/path.name)
+        try:
+            system = json.loads((profile/'system.json').read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            system = {}
+        message = f' Settings restored ({len(saved)} file(s)).'
+        if current:
+            message += f' Your previous settings are kept in {kept}.'
+        hints = []
+        if isinstance(system.get('keyboard'), str):
+            hints.append('keyboard ' + system['keyboard'])
+        if isinstance(system.get('timezone'), str):
+            hints.append('timezone ' + system['timezone'])
+        if hints:
+            message += ' The backup was made with ' + ' and '.join(hints) + '; set them in Settings if they differ.'
+        return message
+
+    def restore(self, identifier, destination, settings=False):
         require(re.fullmatch('[a-f0-9]{64}', identifier or ''), 'Choose an exact snapshot from the refreshed list.')
         target = safe_new_path(destination)
         require(not target.is_relative_to(self.state.resolve()), 'Restore outside backup state/credentials.')
@@ -702,16 +790,24 @@ class Service:
         snapshot = next((row for row in self.snapshots() if row['id'] == identifier), None)
         require(snapshot is not None, 'Snapshot no longer available; refresh the list.')
         stage = Path(tempfile.mkdtemp(prefix='.wros-restore-incomplete-', dir=target.parent))
+        profile = None
         try:
-            self.restore_into(snapshot, stage, phase="Restoring the snapshot")
-            publish_directory(stage, target)
-        except Exception:
-            # Preserve interrupted/failed restores under an explicit incomplete
-            # name. Nothing is opened as a verified restored book automatically.
-            raise ValueError('Restore incomplete; original book unchanged. Review ' + str(stage)) from None
-        self.current['verified'][identifier] = now()
-        self.save()
-        return self.status('Restore verified and saved in ' + str(target) + '. Open that folder explicitly to review it.')
+            try:
+                _, profile = self.restore_into(snapshot, stage, phase="Restoring the snapshot")
+                publish_directory(stage, target)
+            except Exception:
+                # Preserve interrupted/failed restores under an explicit incomplete
+                # name. Nothing is opened as a verified restored book automatically.
+                raise ValueError('Restore incomplete; original book unchanged. Review ' + str(stage)) from None
+            self.current['verified'][identifier] = now()
+            self.save()
+            message = 'Restore verified and saved in ' + str(target) + '. Open that folder explicitly to review it.'
+            if settings:
+                message += self.apply_profile(profile) if profile else ' This backup has no settings saved with it.'
+        finally:
+            if profile is not None:
+                shutil.rmtree(profile, ignore_errors=True)
+        return self.status(message)
 
     def export_key(self, destination):
         require(self.current is not None, 'Connect a repository first.')
@@ -1007,7 +1103,7 @@ def dispatch(service, request):
             target = safe_new_path(request['destination'])
             require(not target.is_relative_to(Path(request['project']).resolve(strict=True)),
                     'Restore outside the active project so the original book remains unchanged.')
-        return service.restore(request['snapshot'], request['destination'])
+        return service.restore(request['snapshot'], request['destination'], settings=request.get('settings') is True)
     if operation == 'export-key':
         return service.export_key(request['destination'])
     if operation == 'connect-google':

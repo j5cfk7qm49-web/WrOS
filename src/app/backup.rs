@@ -9,6 +9,7 @@ pub enum FormKind {
     NewDrive,
     Connect,
     Restore,
+    RestoreWithSettings,
     ExportKey,
     Google,
     GoogleFile,
@@ -36,11 +37,48 @@ impl Form {
             FormKind::NewDrive => "New encrypted backup on Google Drive",
             FormKind::Connect => "Connect an existing encrypted repository",
             FormKind::Restore => "Restore snapshot into a NEW folder",
+            FormKind::RestoreWithSettings => "Restore snapshot and your settings into a NEW folder",
             FormKind::ExportKey => "Export recovery key to a safe separate place",
             FormKind::Google => "Connect Google Drive from a trusted computer",
             FormKind::GoogleFile => "Connect Google Drive from a file on a USB stick",
             FormKind::DriveBrowse => "Browse app-scoped Google Drive folder",
             FormKind::DriveMaterialize => "Materialize Google Drive item into a NEW local path",
+        }
+    }
+    /// What submitting the filled-in form asks the backup helper to do.
+    pub fn request(mut self, project: &Path) -> Request {
+        let project = || Some(project.to_string_lossy().into_owned());
+        match self.kind {
+            FormKind::NewLocal | FormKind::NewDrive => Request::Init {
+                repository: self.fields[0].to_string(),
+            },
+            FormKind::Connect => Request::Connect {
+                repository: self.fields[0].to_string(),
+                key: self.fields[1].to_string(),
+            },
+            FormKind::Restore | FormKind::RestoreWithSettings => Request::Restore {
+                settings: self.kind == FormKind::RestoreWithSettings,
+                snapshot: self.snapshot,
+                destination: self.fields[0].to_string(),
+                project: project(),
+            },
+            FormKind::ExportKey => Request::ExportKey {
+                destination: self.fields[0].to_string(),
+            },
+            FormKind::Google => Request::ConnectGoogle {
+                authorization: Secret(std::mem::take(&mut self.fields[0])),
+            },
+            FormKind::GoogleFile => Request::ConnectGoogleFile {
+                path: self.fields[0].to_string(),
+            },
+            FormKind::DriveBrowse => Request::DriveList {
+                folder: self.fields[0].to_string(),
+            },
+            FormKind::DriveMaterialize => Request::DriveMaterialize {
+                remote: self.fields[0].to_string(),
+                destination: self.fields[1].to_string(),
+                project: project(),
+            },
         }
     }
     pub fn rows(&self) -> Vec<String> {
@@ -51,7 +89,7 @@ impl Form {
                 "Repository (absolute path or drive:Folder)",
                 "Recovery key file",
             ],
-            FormKind::Restore => &["New folder (absolute path)"],
+            FormKind::Restore | FormKind::RestoreWithSettings => &["New folder (absolute path)"],
             FormKind::ExportKey => &["New recovery key file (absolute path)"],
             FormKind::Google => &["Paste authorization JSON (hidden)"],
             FormKind::GoogleFile => &["Authorization file (absolute path)"],
@@ -92,8 +130,11 @@ impl Form {
         } else if matches!(self.kind, FormKind::NewLocal | FormKind::NewDrive) {
             rows.push("Creates an encrypted repository and a private recovery key.".into());
             rows.push("Export the key separately; losing it makes backups unreadable.".into());
-        } else if self.kind == FormKind::Restore {
+        } else if matches!(self.kind, FormKind::Restore | FormKind::RestoreWithSettings) {
             rows.push("Existing folders are refused. Every restored file is hash checked.".into());
+            if self.kind == FormKind::RestoreWithSettings {
+                rows.push("Your current settings are kept in a dated folder first.".into());
+            }
         } else if self.kind == FormKind::DriveBrowse {
             rows.push(
                 "Uses non-sensitive folder-scoped drive.file access (not broad root Drive).".into(),
@@ -454,7 +495,7 @@ impl App {
         }
         let first = match kind {
             FormKind::NewDrive => "drive:WrOS-Backups".into(),
-            FormKind::Restore => self
+            FormKind::Restore | FormKind::RestoreWithSettings => self
                 .project
                 .root
                 .parent()
@@ -820,38 +861,8 @@ impl App {
             }
             Key::Enter if form.selected < count => form.selected += 1,
             Key::Enter => {
-                let mut form = self.deck.shell.backup.form.take().unwrap();
-                let request = match form.kind {
-                    FormKind::NewLocal | FormKind::NewDrive => Request::Init {
-                        repository: form.fields[0].to_string(),
-                    },
-                    FormKind::Connect => Request::Connect {
-                        repository: form.fields[0].to_string(),
-                        key: form.fields[1].to_string(),
-                    },
-                    FormKind::Restore => Request::Restore {
-                        snapshot: form.snapshot,
-                        destination: form.fields[0].to_string(),
-                        project: Some(self.project.root.to_string_lossy().into_owned()),
-                    },
-                    FormKind::ExportKey => Request::ExportKey {
-                        destination: form.fields[0].to_string(),
-                    },
-                    FormKind::Google => Request::ConnectGoogle {
-                        authorization: Secret(std::mem::take(&mut form.fields[0])),
-                    },
-                    FormKind::GoogleFile => Request::ConnectGoogleFile {
-                        path: form.fields[0].to_string(),
-                    },
-                    FormKind::DriveBrowse => Request::DriveList {
-                        folder: form.fields[0].to_string(),
-                    },
-                    FormKind::DriveMaterialize => Request::DriveMaterialize {
-                        remote: form.fields[0].to_string(),
-                        destination: form.fields[1].to_string(),
-                        project: Some(self.project.root.to_string_lossy().into_owned()),
-                    },
-                };
+                let form = self.deck.shell.backup.form.take().unwrap();
+                let request = form.request(&self.project.root);
                 self.deck.shell.nav.back();
                 self.deck.shell.backup.request(request);
             }
