@@ -752,8 +752,8 @@ class ManifestData(unittest.TestCase):
                 self.assertIn(entry.name, packaged_sources, 'unpackaged config ' + entry.name)
 
     def test_version_is_the_single_source(self):
-        self.assertEqual((ROOT / 'os/VERSION').read_text(), '0.1.0~rc6\n')
-        self.assertEqual(packaging.read_version(ROOT), '0.1.0~rc6')
+        self.assertEqual((ROOT / 'os/VERSION').read_text(), '0.1.0~rc7\n')
+        self.assertEqual(packaging.read_version(ROOT), '0.1.0~rc7')
         for bad in ('', '1:2', 'v1', '1 2', '1\t2'):
             with self.assertRaises(packaging.PackagingError):
                 packaging.check_version(bad)
