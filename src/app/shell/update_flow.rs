@@ -44,6 +44,9 @@ pub struct UpdateFlow {
     pub online_alerted: Option<String>,
     /// A one-press "back up, then stage" (and maybe restart) still under way.
     pub chain: Option<Chain>,
+    /// The confirmed review and its folder that the chain stages. Kept apart from `review`,
+    /// which leaving the update screens drops, so the writer can look elsewhere meanwhile.
+    pub chained: Option<(writingdeck_sys::UpdateReview, String)>,
     /// When to read the status once after login, for probation and an automatic go-back.
     pub health_at: Option<std::time::Instant>,
     pub health_checked: bool,
@@ -613,7 +616,16 @@ impl App {
         flow.changed = None;
     }
     pub(super) fn update_abandon(&mut self) {
+        let flow = &mut self.deck.shell.update_flow;
+        let chained = matches!(flow.chain, Some(Chain::BackingUp { .. }));
+        if chained {
+            flow.chain = None;
+            flow.chained = None;
+        }
         self.leave_update_flow();
+        if chained {
+            self.update_notice("Cancelled: the backup carries on, but nothing will be staged.");
+        }
     }
     /// After login and then daily, in an installed appliance session only.
     pub(crate) fn tick_online_updates(&mut self) {
@@ -754,10 +766,11 @@ impl App {
     }
     /// One press: a new verified backup of this book, then stage, then maybe restart.
     pub(super) fn update_backup_then_stage(&mut self, restart: bool) {
-        if self.deck.shell.update_flow.review.is_none() {
+        let flow = &self.deck.shell.update_flow;
+        let (Some(review), Some(dir)) = (flow.review.clone(), flow.dir.clone()) else {
             self.update_notice("No reviewed update to stage. Go back and review a bundle.");
             return;
-        }
+        };
         if self.deck.busy {
             self.update_notice("A system request is still running. Wait for it, then try again.");
             return;
@@ -782,11 +795,29 @@ impl App {
             return;
         }
         self.deck.shell.update_flow.chain = Some(Chain::BackingUp { restart });
+        self.deck.shell.update_flow.chained = Some((review, dir));
         self.update_notice(if restart {
             "Backing up this book; then the update is staged and WrOS restarts to install it."
         } else {
             "Backing up this book; then the update is staged."
         });
+    }
+    /// While a back-up-then-stage waits for its backup: how far the backup got, and what follows.
+    pub(crate) fn update_chain_line(&self) -> Option<String> {
+        let Some(Chain::BackingUp { restart }) = self.deck.shell.update_flow.chain else {
+            return None;
+        };
+        let job = self.deck.shell.backup.job.as_ref()?;
+        Some(format!(
+            "{} Then {}.",
+            job.status_line()
+                .replacen("Working:", "Backing up this book:", 1),
+            if restart {
+                "the update is staged and WrOS restarts to install it"
+            } else {
+                "the update is staged"
+            }
+        ))
     }
     /// Move a back-up-then-stage on once its current step has finished.
     pub(crate) fn tick_update_chain(&mut self) {
@@ -802,9 +833,12 @@ impl App {
         let Some(Chain::BackingUp { restart }) = self.deck.shell.update_flow.chain else {
             return;
         };
-        if self.deck.shell.backup.job.is_some() {
+        if let Some(line) = self.update_chain_line() {
+            // Not added to the notice log on every tick.
+            self.deck.note = line;
             return;
         }
+        let chained = self.deck.shell.update_flow.chained.take();
         let now = chrono::Utc::now();
         if self
             .deck
@@ -819,6 +853,11 @@ impl App {
                 "The backup did not finish, so nothing was staged: {why}"
             ));
             return;
+        }
+        if let Some((review, dir)) = chained {
+            let flow = &mut self.deck.shell.update_flow;
+            flow.review = Some(review);
+            flow.dir = Some(dir);
         }
         self.deck.shell.update_flow.chain = Some(Chain::Staging { restart });
         self.update_stage();

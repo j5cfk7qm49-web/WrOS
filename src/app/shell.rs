@@ -2353,8 +2353,11 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
         app.deck.shell.nav.current(),
         Route::GoogleAccount | Route::GoogleDisconnectConfirm
     ) && !app.deck.shell.backup.notice.is_empty();
+    let chain_line = app.update_chain_line();
     let note = if uses_backup_notice {
         app.deck.shell.backup.notice.as_str()
+    } else if let Some(line) = &chain_line {
+        line.as_str()
     } else if app.deck.busy {
         "System request pending; writing remains responsive"
     } else {

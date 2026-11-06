@@ -2083,6 +2083,72 @@ fn back_up_then_stage_stages_only_after_a_verified_backup_and_restarts_only_when
 }
 
 #[test]
+fn back_up_stage_and_restart_carries_on_while_the_writer_looks_elsewhere() {
+    // Seen on the laptop: the writer left the update screens to watch the backup in
+    // Settings › Backups, and nothing was staged or restarted when it finished.
+    let mut desk = Desk::open(book("update-chain-away", true), 100, 30);
+    let world = UpdateWorld::install(&mut desk);
+    system_panel(&mut desk, 5);
+    wait_system(&mut desk);
+    reach_confirm(&mut desk);
+    set_backup(&mut desk, true, false);
+    desk.choose("Back up, stage and restart");
+    // While it backs up, the message says how far the backup got.
+    desk.app.deck.shell.backup.job = Some(crate::backup_service::Job::running_for_test(Some(
+        crate::backup_service::Progress {
+            phase: "Checking the backup restores".into(),
+            percent: Some(0.42),
+            offer: None,
+        },
+    )));
+    desk.app.tick_deck();
+    desk.draw();
+    assert!(
+        desk.app
+            .deck
+            .note
+            .contains("Checking the backup restores · 42%")
+            && desk.app.deck.note.contains("WrOS restarts"),
+        "{}",
+        desk.app.deck.note
+    );
+    assert!(
+        desk.shows("Checking the backup restores · 42%"),
+        "{}",
+        desk.rows().join("\n")
+    );
+    for _ in 0..4 {
+        desk.key(KeyCode::Esc);
+    }
+    backup_answers(&mut desk, Ok(true));
+    wait_chain(&mut desk);
+    assert_eq!(world.stages().len(), 1, "{}", desk.app.deck.note);
+    assert_eq!(
+        world.count(|r| *r == Request::Power(writingdeck_sys::PowerAction::Restart)),
+        1,
+        "{}",
+        desk.app.deck.note
+    );
+
+    // Cancel on the confirmation screen ends the chain: the backup may finish, nothing is staged.
+    let mut desk = Desk::open(book("update-chain-cancel", true), 100, 30);
+    let world = UpdateWorld::install(&mut desk);
+    system_panel(&mut desk, 5);
+    wait_system(&mut desk);
+    reach_confirm(&mut desk);
+    set_backup(&mut desk, true, false);
+    desk.choose("Back up, stage and restart");
+    for _ in 0..5 {
+        desk.key(KeyCode::Up);
+    }
+    desk.choose("Cancel · do not install this update");
+    backup_answers(&mut desk, Ok(true));
+    wait_chain(&mut desk);
+    assert_eq!(world.mutations(), 0, "{}", desk.app.deck.note);
+    assert_eq!(world.count(|r| matches!(r, Request::Power(_))), 0);
+}
+
+#[test]
 fn an_app_only_update_installs_now_and_restarts_only_the_writing_app() {
     use writingdeck_sys::PowerAction;
     let mut desk = Desk::open(book("update-live", true), 100, 30);
