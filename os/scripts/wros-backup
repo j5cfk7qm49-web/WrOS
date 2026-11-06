@@ -205,6 +205,8 @@ def rclone_failure_kind(err_text):
         # A clock far off makes every certificate look expired or not yet valid.
         ('clock', ('certificate has expired or is not yet valid', 'certificate is not yet valid',
                    'certificate has expired')),
+        # Google throttling requests (the shared rclone sign-in hits its per-minute quota often).
+        ('rate-limited', ('ratelimitexceeded', 'rate_limit_exceeded', 'rate limit exceeded', 'quota exceeded')),
         ('offline', ('no such host', 'network is unreachable', 'connection refused', 'i/o timeout',
                      'temporary failure in name resolution', 'tls handshake timeout',
                      'context deadline exceeded', 'no route to host', 'connection reset')),
@@ -213,6 +215,10 @@ def rclone_failure_kind(err_text):
         if any(needle in err_text for needle in needles):
             return kind
     return 'unknown'
+
+
+RATE_LIMITED = ('Google is limiting requests right now; try again in a few minutes. A Drive linked with '
+                'your phone uses WrOS\'s own Google access, which Google slows down far less often.')
 
 
 def clock_message():
@@ -226,6 +232,7 @@ def google_connect_failure(kind):
                                     'with your own client_id. Run rclone authorize drive again and use the new response.',
         'clock': clock_message(),
         'offline': 'WrOS could not reach Google. Check Wi-Fi in Settings > System > Wi-Fi and networking, then retry.',
+        'rate-limited': RATE_LIMITED,
     }.get(kind, 'rclone could not connect to Google Drive for an unrecognized reason. '
                 'Existing credentials are unchanged; retry, or authorize again.')
 
@@ -514,6 +521,7 @@ class Service:
                 'recovery_key': self.current['key'] if self.current else '',
                 'google_connected': google_connected,
                 'phone_linking': self.google_clients() is not None,
+                'google_shared_client': google_connected and self.shared_google_client(),
                 'google_state': google_state,
                 'google_verified_at': google_verified_at,
                 'google_expiry': google_expiry,
@@ -923,6 +931,15 @@ class Service:
             candidate.unlink(missing_ok=True)
         return self.status('Google Drive connected. Choose New Google Drive backup to create an encrypted repository.', refresh=False)
 
+    def shared_google_client(self):
+        """The connection uses rclone's built-in Google client, which every rclone user shares."""
+        config = configparser.ConfigParser(interpolation=None)
+        try:
+            config.read_string(self.google.read_text(encoding='utf-8'))
+            return not config.get('wros-google', 'client_id', fallback='')
+        except (OSError, configparser.Error):
+            return False
+
     def check_google(self):
         require(self.google.exists() or self.google.is_symlink(), 'Google Drive is not connected.')
         private_file(self.google)
@@ -943,6 +960,8 @@ class Service:
                 raise ValueError('Google Drive authorization expired or was revoked. Reauthorize Google Drive or disconnect local credentials.')
             if failure_kind == 'clock':
                 raise ValueError(clock_message() + ' Local credentials remain saved.')
+            if failure_kind == 'rate-limited':
+                raise ValueError(RATE_LIMITED + ' Local credentials remain saved.')
             base['state'] = 'offline'
             base['last_error'] = 'Google Drive could not be reached.'
             self.google_meta = base

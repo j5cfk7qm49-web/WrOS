@@ -80,6 +80,15 @@ fn linking_from_the_phone_shows_the_code_to_scan_and_the_code_to_type() {
     desk.app.deck.shell.backup.status.google_connected = true;
     desk.draw();
     assert!(desk.shows("Relink Google Drive with your phone"));
+    assert!(!desk.shows("shared Google access"));
+    // A connection made with rclone's own sign-in, which Google throttles: suggest relinking.
+    desk.app.deck.shell.backup.status.google_shared_client = true;
+    desk.draw();
+    assert!(
+        desk.shows("Drive uses rclone's shared Google access, which Google often slows down"),
+        "{}",
+        desk.rows().join("\n")
+    );
     let qr: Vec<String> = (0..41)
         .map(|i| {
             if i % 2 == 0 {

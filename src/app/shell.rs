@@ -947,6 +947,11 @@ fn entries(app: &App) -> Vec<Entry> {
                     },
                     Choice::LinkPhone,
                 ));
+                if backup.status.google_connected && backup.status.google_shared_client {
+                    rows.push(Entry::info(
+                        "Drive uses rclone's shared Google access, which Google often slows down. Relink with your phone to use WrOS's own.",
+                    ));
+                }
             }
             if backup.status.google_connected {
                 if !backup.status.google_state.is_empty() {

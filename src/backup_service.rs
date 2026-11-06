@@ -88,6 +88,9 @@ pub struct Status {
     /// This build carries WrOS's Google client, so Drive can be linked from the phone.
     #[serde(default)]
     pub phone_linking: bool,
+    /// The Drive connection uses rclone's built-in Google client, which Google throttles.
+    #[serde(default)]
+    pub google_shared_client: bool,
     #[serde(default)]
     pub google_state: String,
     #[serde(default)]

@@ -1933,7 +1933,23 @@ def phase_rc5(ctx):
                     "cat /etc/writingdeck/keyboard.json; journalctl -b --no-pager -u writingdeck-keyboard 2>&1 | tail -3", 90, check=False)
     ctx.result['rc5_state'] = out
     (ctx.dir / 'rc5-state.txt').write_text(out)
-    ctx.check('wros is 0.1.0~rc5', re.search(r'^wros\s+0\.1\.0~rc5', out, re.M) is not None, out[:200])
+    expect = ctx.args.expect
+    ctx.check('wros is %s' % expect, re.search(r'^wros\s+%s$' % re.escape(expect), out, re.M) is not None, out[:200])
+    if expect != '0.1.0~rc5':
+        # rc6: normal boots carry loglevel=3 (the recovery entry does not), and the Realtek
+        # Wi-Fi options are installed.
+        rc, more = g.run("cat /proc/cmdline; echo GRUB; grep -E '^\\s*linux\\s' /boot/grub/grub.cfg; "
+                         "echo MODPROBE; cat /etc/modprobe.d/60-wros-wifi-power.conf", 30, check=False)
+        ctx.result['rc6_state'] = more
+        cmdline, rest = more.split('GRUB', 1)
+        entries, modprobe = rest.split('MODPROBE', 1)
+        ctx.check('this normal boot ran with loglevel=3', 'loglevel=3' in cmdline.split(), cmdline)
+        recovery = [line for line in entries.splitlines() if 'wros-recovery.target' in line]
+        ctx.check('the recovery entry keeps boot messages visible',
+                  recovery and all('loglevel' not in line for line in recovery), entries[-600:])
+        ctx.check('the Realtek Wi-Fi power options are installed',
+                  'options rtw88_core disable_lps_deep=y' in modprobe and 'options rtw88_pci disable_aspm=y' in modprobe,
+                  modprobe)
     counts = re.findall(r'(?m)^(\d+)$', out.split('set timeout')[0])
     ctx.check('grub.cfg has the WrOS recovery entry booting wros-recovery.target', counts[:2] == ['1', '1'], counts)
     ctx.check("Debian's root-shell recovery entries are gone", counts[2:3] == ['0'], counts)
@@ -2033,7 +2049,7 @@ def phase_rc5(ctx):
                                                'Continue to the normal login', 'Power off'))
               and 'shell' not in screen.lower(), screen[-900:])
     m.type_text(menu_number(screen, 'Show what happened') + '\n', layout)
-    screen = wait_tty(r'runs WrOS 0\.1\.0~rc5', 60, 'recovery-what')
+    screen = wait_tty(r'runs WrOS ' + re.escape(ctx.args.expect), 60, 'recovery-what')
     m.shot('recovery-what-happened')
     ctx.check('Show what happened names the installed version', True)
     m.type_text(menu_number(screen, 'Continue to the normal login') + '\n', layout)
@@ -2239,6 +2255,7 @@ def main():
     parser.add_argument('--install-run')
     parser.add_argument('--bundle')
     parser.add_argument('--bundle2', help='goback: the second test bundle (rc5.2)')
+    parser.add_argument('--expect', default='0.1.0~rc5', help='rc5: the version the base disk should run')
     parser.add_argument('--secboot', action='store_true')
     parser.add_argument('--layout', default='dvorak', choices=['dvorak', 'colemak', 'colemak_dh'])
     parser.add_argument('--kill', choices=['backend', 'writer'])

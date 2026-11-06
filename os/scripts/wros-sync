@@ -162,7 +162,8 @@ class Service:
     # ------------------------------------------------------------- rclone
 
     def rclone(self, *arguments, data=None, check=True):
-        result = subprocess.run(['/usr/bin/rclone', '--retries', '1', '--low-level-retries', '2', *arguments],
+        # rclone's own backoff rides out Google's brief rate limits (its default low-level retries).
+        result = subprocess.run(['/usr/bin/rclone', '--retries', '3', '--low-level-retries', '10', *arguments],
                                 env=self.env, input=data, stdin=None if data is not None else subprocess.DEVNULL,
                                 capture_output=True, timeout=900)
         if check and result.returncode != 0:
@@ -170,6 +171,9 @@ class Service:
             if any(n in text for n in ('invalid_grant', 'unauthorized', 'token has been expired or revoked')):
                 raise ValueError('Google Drive authorization expired or was revoked. Reauthorize Google Drive '
                                  'in Settings › Accounts › Backups.')
+            if any(n in text for n in ('ratelimitexceeded', 'rate_limit_exceeded', 'rate limit exceeded', 'quota exceeded')):
+                raise Offline('Google is limiting requests right now; the sync tries again in a few minutes. '
+                              'Nothing changed for the files not yet done.')
             raise Offline('Google Drive could not be reached; nothing changed for the files not yet done.')
         return result
 

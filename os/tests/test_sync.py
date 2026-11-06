@@ -146,6 +146,23 @@ class Sync(unittest.TestCase):
         self.assertEqual(self.sync(allow_deletes=True)['deleted'], 6)
         self.assertFalse((self.remote / 'notes/n0.md').exists())
 
+    def test_googles_rate_limits_are_ridden_out_and_named_when_they_win(self):
+        # Seen on the laptop: Google's per-minute quota refused requests, and rclone gave up
+        # after two quick retries, so the whole sync failed as "could not be reached".
+        calls = []
+
+        def limited(argv, **kwargs):
+            calls.append(argv)
+            return mock.Mock(returncode=1, stdout=b'', stderr=(
+                b"googleapi: Error 403: Quota exceeded for quota metric 'Queries' and limit "
+                b"'Requests per minute', rateLimitExceeded"))
+        with mock.patch.object(module.subprocess, 'run', side_effect=limited):
+            with self.assertRaisesRegex(module.Offline, 'Google is limiting requests'):
+                self.service.rclone('lsjson', 'wros-google:WrOS')
+        argv = calls[0]
+        self.assertEqual(argv[argv.index('--low-level-retries') + 1], '10')
+        self.assertGreaterEqual(int(argv[argv.index('--retries') + 1]), 3)
+
     def test_saves_during_upload_do_not_change_the_uploaded_merge_base(self):
         self.service.enable(str(self.book))
         self.sync()

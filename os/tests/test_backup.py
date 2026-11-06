@@ -237,6 +237,11 @@ class EncryptedBackup(unittest.TestCase):
              'tls: failed to verify certificate: x509: certificate has expired or is not yet valid: current time 2001-01-01T00:00:00Z', 'clock'),
             ('dial tcp: lookup www.googleapis.com: no such host', 'offline'),
             ('dial tcp 142.250.1.95:443: connect: network is unreachable', 'offline'),
+            # Seen on the laptop with rclone's shared sign-in: Google's per-minute quota for that project.
+            ("pacer: low level retry 2/2 (error googleapi: Error 403: Quota exceeded for quota metric 'Queries' "
+             "and limit 'Previous quota: Requests per minute' of service 'drive.googleapis.com', rateLimitExceeded)",
+             'rate-limited'),
+            ('googleapi: Error 403: User Rate Limit Exceeded., userRateLimitExceeded', 'rate-limited'),
             ('PRIVATE_SOMETHING_ELSE went wrong', 'unknown'),
         )
         for text, kind in kinds:
@@ -247,6 +252,7 @@ class EncryptedBackup(unittest.TestCase):
         for kind, message in (('reauthorization-required', 'Google refused this authorization'),
                               ('clock', "This computer's clock says"),
                               ('offline', 'could not reach Google'),
+                              ('rate-limited', 'Google is limiting requests'),
                               ('unknown', 'rclone could not connect')):
             with self.subTest(kind=kind), \
                     mock.patch.object(module, 'classify_rclone_failure', return_value=(False, b'', kind)), \
@@ -624,6 +630,25 @@ class PhoneLinking(unittest.TestCase):
         self.assertFalse(self.service.status(refresh=False)['phone_linking'])
         self.service.clients_path = self.clients
         self.assertTrue(self.service.status(refresh=False)['phone_linking'])
+
+    def test_a_connection_on_rclones_shared_sign_in_is_named_so_the_app_can_suggest_relinking(self):
+        # rclone's built-in client is shared by every rclone user, and Google throttles it.
+        self.assertFalse(self.service.status(refresh=False)['google_shared_client'])  # not connected
+        with mock.patch.object(module, 'classify_rclone_failure', return_value=(True, b'{"total":1}', '')):
+            self.service.connect_google(json.dumps(self.token))
+        self.assertTrue(self.service.status(refresh=False)['google_shared_client'])
+        with self.fake_link(self.token), mock.patch.object(module, 'progress'), \
+             mock.patch.object(module, 'classify_rclone_failure', return_value=(True, b'{"total":1}', '')):
+            module.dispatch(self.service, {'operation': 'link-phone'})
+        self.assertFalse(self.service.status(refresh=False)['google_shared_client'])
+
+    def test_a_rate_limited_check_says_google_is_slowing_requests(self):
+        with mock.patch.object(module, 'classify_rclone_failure', return_value=(True, b'{"total":1}', '')):
+            self.service.connect_google(json.dumps(self.token))
+        with mock.patch.object(module, 'classify_rclone_failure', return_value=(False, b'', 'rate-limited')):
+            with self.assertRaisesRegex(ValueError, 'Google is limiting requests'):
+                self.service.check_google()
+        self.assertTrue(self.service.google.exists())  # credentials stay
 
     def test_disconnecting_a_phone_link_revokes_it_at_google(self):
         with self.fake_link(self.token), mock.patch.object(module, 'progress'), \
