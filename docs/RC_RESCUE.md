@@ -10,10 +10,13 @@ This document describes the rescue and repair procedures for an installed WrOS s
 - WrOS does not claim snapshot rollback capability.
 - Recovery focuses on **package transaction repair and crash consistency**: fixing interrupted dpkg states, completing pending half-configured packages, and reconciling offline update journals using strictly authenticated retained packages.
 - Repair does not undo a successfully completed update; it repairs broken, interrupted, or inconsistent system states.
+- Undoing an update is **going back**: from rc5 the system keeps the WrOS version it replaced
+  and can reinstall exactly that version (Settings › Updates, or the recovery boot below). It
+  goes back by itself when a new version fails to start the writing app after two logins.
 
 ## 2. In-System Recovery vs. Live ISO Rescue
 
-WrOS provides two tiers of repair:
+WrOS provides three tiers of repair:
 
 ### Tier 1: In-System Repair (Settings > Recovery > Repair)
 When the installed system boots to a login:
@@ -31,7 +34,31 @@ When the installed system boots to a login:
 - Journal records are appended to `/var/lib/wros-update/journal.jsonl` (root-only). The
   readable summary that Settings shows is `/var/lib/wros-update/public/status.json`.
 
-### Tier 2: Live ISO Rescue (`wros-rescue`)
+### Tier 2: The WrOS recovery boot (from rc5)
+When the normal session will not start, but the laptop still boots:
+- The boot menu has a **WrOS recovery** entry. The menu is hidden on a normal boot (press Esc
+  in the first 2 seconds to show it). After a boot that never reached the login screen it
+  shows by itself for 30 seconds. An offline-update boot counts as a good boot.
+  Debian's own "recovery mode" entries are turned off: they only offer a root shell, which the
+  locked root account refuses.
+- The entry boots the newest kernel into `wros-recovery.target`, with no login screen and no
+  network. After the disk passphrase, the menu on tty1 asks for the writer's own password (PAM
+  service `wros-recovery`; members of the `writingdeck` group only). Three wrong passwords
+  pause it for 30 seconds.
+- **Choices:**
+  - go back to the kept version (installs when you restart);
+  - repair system packages (the same bounded repair as Tier 1);
+  - restore a book from the account's backup into a new folder under `~/Restored books`. A
+    Drive backup asks before starting the network.
+  - show what happened: the update status and the previous boot's errors;
+  - continue to the normal login;
+  - restart;
+  - power off.
+- It never offers a shell; Ctrl+C is ignored, and systemd restarts the menu if it ever exits.
+  Restoring onto a fresh installation with the recovery key stays in Settings › Backups.
+- Debian keeps the previous kernel, so the same menu also offers it under "Advanced options".
+
+### Tier 3: Live ISO Rescue (`wros-rescue`)
 When the installed system fails to boot (e.g. boot-loader corruption, interrupted kernel upgrade, or initramfs misconfiguration):
 - Boot the system using the WrOS Live ISO / installation media. The live image carries the
   tool as `/usr/sbin/wros-rescue`. It refuses to run outside the live system.
