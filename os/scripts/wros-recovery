@@ -1,0 +1,346 @@
+#!/usr/bin/python3 -I
+"""WrOS recovery menu: root on tty1 under wros-recovery.target, behind the writer's password.
+
+It offers going back to the kept version, the bounded package repair, restoring a book from the
+writer's own backup into a new folder, what happened, and a way back to the normal login. It never
+offers a shell. The update engine is loaded in-process, as the pkexec launchers load it; the backup
+helper runs as the writer, never as root.
+"""
+import ctypes
+import ctypes.util
+import grp
+import importlib.machinery
+import importlib.util
+import json
+import os
+from pathlib import Path
+import pwd
+import re
+import signal
+import subprocess
+import sys
+import termios
+import time
+from typing import NamedTuple
+
+ENGINE = '/usr/lib/wros-update/engine.py'
+BACKUP_HELPER = '/usr/libexec/wros-backup'
+RELEASE = Path('/etc/writingdeck/release')
+GROUP = 'writingdeck'
+PAM_SERVICE = 'wros-recovery'
+ATTEMPTS = 3
+LOCKOUT_SECONDS = 30
+SAFE_ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C.UTF-8'}
+SYSTEMCTL = '/usr/bin/systemctl'
+
+
+class Account(NamedTuple):
+    name: str
+    uid: int
+    home: Path
+
+
+class Recovery:
+    def __init__(self, console, *, authenticate, engine, run, accounts, sleep=time.sleep, release=None):
+        self.console, self.authenticate, self.engine, self.run = console, authenticate, engine, run
+        self.accounts, self.sleep = accounts, sleep
+        self.release = release or (lambda: RELEASE.read_text(encoding='utf-8').strip())
+        self.writer = None
+
+    # ------------------------------------------------------------------ the gate
+
+    def unlock(self):
+        """The writer's own password, through PAM. Three misses, then a pause; never a way around."""
+        accounts = self.accounts()
+        if not accounts:
+            self.console.say('No WrOS account exists on this computer, so recovery cannot open.')
+            self.console.say('Use the WrOS installer media instead (see the rescue guide).')
+            while True:
+                self.sleep(3600)
+        misses = 0
+        while True:
+            account = accounts[0] if len(accounts) == 1 else self.choose_account(accounts)
+            if account is None:
+                continue
+            secret = self.console.secret(f'Password for {account.name}: ')
+            if self.authenticate(account.name, secret):
+                return account
+            misses += 1
+            self.console.say('That password did not match.')
+            if misses % ATTEMPTS == 0:
+                self.console.say(f'Wait {LOCKOUT_SECONDS} seconds before trying again.')
+                self.sleep(LOCKOUT_SECONDS)
+
+    def choose_account(self, accounts):
+        name = self.console.ask('Account name (' + ', '.join(a.name for a in accounts) + '): ').strip()
+        for account in accounts:
+            if account.name == name:
+                return account
+        self.console.say('No WrOS account has that name.')
+        return None
+
+    # ------------------------------------------------------------------ the menu
+
+    def choices(self):
+        status = self.status()
+        rows = []
+        previous = status.get('previous_version')
+        if isinstance(previous, str) and previous:
+            rows.append(('back', f'Go back to {previous} · installs when you restart', self.go_back))
+        rows += [('repair', 'Repair system packages', self.repair),
+                 ('restore', 'Restore a book from a backup', self.restore),
+                 ('what', 'Show what happened', self.what_happened),
+                 ('login', 'Continue to the normal login', self.continue_to_login),
+                 ('restart', 'Restart', self.restart),
+                 ('off', 'Power off', self.power_off)]
+        return rows
+
+    def session(self):
+        self.console.say('WrOS recovery')
+        self.console.say('Nothing here changes your books unless you choose to restore one.')
+        self.writer = self.unlock()
+        while True:
+            rows = self.choices()
+            self.console.say()
+            for number, (_, label, _) in enumerate(rows, 1):
+                self.console.say(f'  {number}  {label}')
+            answer = self.console.ask('Choose: ').strip()
+            if not answer.isdigit() or not 1 <= int(answer) <= len(rows):
+                self.console.say('Choose a number from the list.')
+                continue
+            try:
+                rows[int(answer) - 1][2]()
+            except (ValueError, OSError, RuntimeError) as error:
+                self.console.say(f'That did not finish: {error}')
+
+    def status(self):
+        try:
+            return self.engine.inspect_recovery()
+        except (ValueError, OSError) as error:
+            return {'status': f'The update status could not be read: {error}'}
+
+    def yes(self, question):
+        return self.console.ask(question + ' (y/n): ').strip().lower() in ('y', 'yes')
+
+    # ------------------------------------------------------------------ choices
+
+    def go_back(self):
+        self.console.say('Checking the kept version again before staging it…')
+        self.engine.stage_rollback()
+        self.console.say('Going back is staged: it installs when you restart.')
+        if self.yes('Restart now?'):
+            self.run([SYSTEMCTL, 'reboot'])
+
+    def repair(self):
+        self.console.say('Repairing with the update packages this computer already verified…')
+        result = self.engine.repair_updates()
+        self.console.say(result.get('message') or f"Repair finished: {result.get('status', 'done')}.")
+
+    def restore(self):
+        listing = self.helper({'operation': 'list'})
+        repository = str(listing.get('repository') or '')
+        if repository.startswith('drive:'):
+            self.console.say('Your backups are on Google Drive, which needs the network.')
+            if not self.yes('Start the network and connect to saved Wi-Fi?'):
+                return
+            self.run([SYSTEMCTL, 'start', 'NetworkManager.service'])
+            self.sleep(10)
+            listing = self.helper({'operation': 'list'})
+        snapshots = sorted((s for s in listing.get('snapshots', []) if isinstance(s, dict)),
+                           key=lambda s: str(s.get('time', '')), reverse=True)[:20]
+        if not snapshots:
+            self.console.say('No backups of a book were found for this account.')
+            return
+        for number, snapshot in enumerate(snapshots, 1):
+            checked = 'verified' if snapshot.get('restore_checked_at') else 'not verified'
+            self.console.say(f"  {number}  {Path(str(snapshot.get('_path', ''))).name}  "
+                             f"{str(snapshot.get('time', ''))[:16].replace('T', ' ')}  ({checked})")
+        answer = self.console.ask('Which backup? ').strip()
+        if not answer.isdigit() or not 1 <= int(answer) <= len(snapshots):
+            self.console.say('Nothing was restored.')
+            return
+        snapshot = snapshots[int(answer) - 1]
+        destination = self.restore_folder(snapshot)
+        self.console.say(f'Restoring into {destination} (your original book is not touched)…')
+        result = self.helper({'operation': 'restore', 'snapshot': snapshot['id'],
+                              'destination': str(destination)})
+        self.console.say(result.get('notice') or 'Restore finished.')
+
+    def restore_folder(self, snapshot):
+        name = Path(str(snapshot.get('_path', 'Book'))).name or 'Book'
+        when = str(snapshot.get('time', ''))[:16].replace('T', ' ').replace(':', '.')
+        base = self.writer.home / 'Restored books'
+        candidate = base / f'{name} {when}'.strip()
+        number = 2
+        while os.path.lexists(candidate):
+            candidate = base / f'{name} {when} ({number})'
+            number += 1
+        return candidate
+
+    def helper(self, request):
+        """The backup helper as the writer (it refuses root), with the writer's own state."""
+        env = [f'HOME={self.writer.home}', f'USER={self.writer.name}', f'LOGNAME={self.writer.name}',
+               'PATH=' + SAFE_ENV['PATH'], 'LC_ALL=' + SAFE_ENV['LC_ALL']]
+        code, out = self.run(['/usr/sbin/runuser', '-u', self.writer.name, '--', '/usr/bin/env', '-i', *env,
+                              '/usr/bin/python3', '-I', BACKUP_HELPER], stdin=json.dumps(request))
+        try:
+            reply = json.loads(out.strip().splitlines()[-1])
+        except (ValueError, IndexError):
+            raise ValueError('the backup helper did not answer') from None
+        if not reply.get('ok'):
+            raise ValueError(reply.get('error') or 'the backup helper refused')
+        return reply.get('data') or {}
+
+    def what_happened(self):
+        status = self.status()
+        try:
+            self.console.say(f'This computer runs WrOS {self.release()}.')
+        except OSError:
+            self.console.say('The installed WrOS version could not be read.')
+        self.console.say(status.get('status', ''))
+        if status.get('went_back_automatically'):
+            self.console.say('WrOS went back to the previous version by itself: the new one did not start twice.')
+        elif status.get('went_back'):
+            self.console.say('The last update went back to the previous version.')
+        _, out = self.run(['/usr/bin/journalctl', '-b', '-1', '-p', '3', '-n', '15', '-o', 'short',
+                           '--no-pager'])
+        lines = [line for line in out.splitlines() if line.strip()]
+        self.console.say('Errors from the boot before this one:' if lines else
+                         'The boot before this one logged no errors.')
+        for line in lines[-15:]:
+            self.console.say('  ' + line[:200])
+
+    def continue_to_login(self):
+        self.run([SYSTEMCTL, 'isolate', 'default.target'])
+
+    def restart(self):
+        self.run([SYSTEMCTL, 'reboot'])
+
+    def power_off(self):
+        self.run([SYSTEMCTL, 'poweroff'])
+
+
+# ---------------------------------------------------------------------- real system
+
+class TtyConsole:
+    def say(self, text=''):
+        print(text, flush=True)
+
+    def ask(self, prompt):
+        line = input(prompt)
+        return line[:256]
+
+    def secret(self, prompt):
+        fd = sys.stdin.fileno()
+        saved = termios.tcgetattr(fd)
+        quiet = termios.tcgetattr(fd)
+        quiet[3] &= ~termios.ECHO
+        try:
+            termios.tcsetattr(fd, termios.TCSAFLUSH, quiet)
+            print(prompt, end='', flush=True)
+            return sys.stdin.readline().rstrip('\n')[:1024]
+        finally:
+            termios.tcsetattr(fd, termios.TCSAFLUSH, saved)
+            print(flush=True)
+
+
+def writers():
+    """Members of the writingdeck group with a normal account, in uid order."""
+    try:
+        members = set(grp.getgrnam(GROUP).gr_mem)
+    except KeyError:
+        return []
+    found = []
+    for entry in pwd.getpwall():
+        if 1000 <= entry.pw_uid < 60000 and (entry.pw_name in members or
+                                            entry.pw_gid == grp.getgrnam(GROUP).gr_gid):
+            found.append(Account(entry.pw_name, entry.pw_uid, Path(entry.pw_dir)))
+    return sorted(found, key=lambda a: a.uid)
+
+
+class _PamMessage(ctypes.Structure):
+    _fields_ = [('msg_style', ctypes.c_int), ('msg', ctypes.c_char_p)]
+
+
+class _PamResponse(ctypes.Structure):
+    _fields_ = [('resp', ctypes.c_char_p), ('resp_retcode', ctypes.c_int)]
+
+
+_CONV = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_int, ctypes.POINTER(ctypes.POINTER(_PamMessage)),
+                         ctypes.POINTER(ctypes.POINTER(_PamResponse)), ctypes.c_void_p)
+
+
+class _PamConv(ctypes.Structure):
+    _fields_ = [('conv', _CONV), ('appdata_ptr', ctypes.c_void_p)]
+
+
+def pam_authenticate(user, secret):
+    """PAM service wros-recovery: the account's own password, and it must be a WrOS writer."""
+    if not re.fullmatch(r'[a-z_][a-z0-9_-]{0,31}', user):
+        return False
+    libpam = ctypes.CDLL(ctypes.util.find_library('pam') or 'libpam.so.0')
+    libc = ctypes.CDLL(ctypes.util.find_library('c'))
+    libc.calloc.restype = ctypes.c_void_p
+    libc.strdup.restype = ctypes.c_void_p
+    libc.strdup.argtypes = [ctypes.c_char_p]
+    encoded = secret.encode()
+
+    @_CONV
+    def conversation(count, messages, responses, _data):
+        block = libc.calloc(count, ctypes.sizeof(_PamResponse))
+        if not block:
+            return 5  # PAM_BUF_ERR
+        replies = ctypes.cast(block, ctypes.POINTER(_PamResponse))
+        for index in range(count):
+            if messages[index].contents.msg_style == 1:  # PAM_PROMPT_ECHO_OFF: the password
+                replies[index].resp = ctypes.cast(libc.strdup(encoded), ctypes.c_char_p)
+        responses[0] = replies
+        return 0
+
+    handle = ctypes.c_void_p()
+    conv = _PamConv(conversation, None)
+    if libpam.pam_start(PAM_SERVICE.encode(), user.encode(), ctypes.byref(conv), ctypes.byref(handle)) != 0:
+        return False
+    result = libpam.pam_authenticate(handle, 0)
+    if result == 0:
+        result = libpam.pam_acct_mgmt(handle, 0)
+    libpam.pam_end(handle, result)
+    return result == 0
+
+
+def load_engine(path=ENGINE):
+    loader = importlib.machinery.SourceFileLoader('wros_update_engine', path)
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    engine = importlib.util.module_from_spec(spec)
+    loader.exec_module(engine)
+    return engine
+
+
+def run(argv, *, stdin=None):
+    try:
+        done = subprocess.run(argv, input=stdin, capture_output=True, text=True, env=SAFE_ENV, timeout=1800,
+                              check=False)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f'{Path(argv[0]).name} took too long') from None
+    return done.returncode, done.stdout
+
+
+def main():
+    if os.geteuid() != 0 or os.getppid() != 1 or os.environ.get('WROS_SYSTEMD_RECOVERY') != '1':
+        print('wros-recovery runs only from the WrOS recovery boot.', file=sys.stderr)
+        return 1
+    for signum in (signal.SIGINT, signal.SIGQUIT, signal.SIGTSTP):
+        signal.signal(signum, signal.SIG_IGN)
+    os.environ.clear()
+    os.environ.update(SAFE_ENV)
+    os.umask(0o077)
+    Recovery(TtyConsole(), authenticate=pam_authenticate, engine=load_engine(), run=run,
+             accounts=writers).session()
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main())
+    except EOFError:
+        raise SystemExit(0) from None  # the console went away; systemd starts the menu again
