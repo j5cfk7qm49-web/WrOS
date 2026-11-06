@@ -78,10 +78,14 @@ TREE = (ROOT / 'os/VERSION').read_text().splitlines()[0].strip()
 TAG = 'v' + TREE.replace('~', '-')
 
 
+def workflow_script(name):
+    block = WORKFLOW.split('- name: ' + name, 1)[1].split('\n      - ', 1)[0]
+    return textwrap.dedent(block.split('run: |\n', 1)[1])
+
+
 def plan(event, *, ref='', signing=False, scratch=False, release=''):
     """Run the workflow's 'Plan this run' step as GitHub would, returning its outputs."""
-    block = WORKFLOW.split('- name: Plan this run', 1)[1].split('\n      - ', 1)[0]
-    script = textwrap.dedent(block.split('run: |\n', 1)[1])
+    script = workflow_script('Plan this run')
     with tempfile.TemporaryDirectory(prefix='wros-plan-') as tmp:
         output = Path(tmp) / 'output'
         output.touch()
@@ -95,10 +99,10 @@ def plan(event, *, ref='', signing=False, scratch=False, release=''):
 
 
 class Plan(unittest.TestCase):
-    def test_without_the_subkey_a_release_is_served_from_its_asset_and_nothing_else_deploys(self):
+    def test_tags_use_the_offline_asset_even_with_a_subkey_and_refresh_requires_a_subkey(self):
         cases = [
             # event, options -> build, release, sign, deploy
-            (('push', dict(ref=TAG, signing=True)), ('updates', '', 'true', 'true')),
+            (('push', dict(ref=TAG, signing=True)), ('', TAG, 'false', 'true')),
             (('push', dict(ref=TAG)), ('', TAG, 'false', 'true')),
             (('schedule', dict(signing=True)), ('', '', 'true', 'true')),
             (('schedule', {}), ('', '', 'false', 'false')),
@@ -203,6 +207,20 @@ class TagVersion(unittest.TestCase):
 
 
 class BundleSigningKey(unittest.TestCase):
+    def test_runner_import_accepts_only_the_signing_subkey_export(self):
+        gpg = support.shared_gpg()
+        key = gpg.keys['archive']
+        script = workflow_script('Import the CI signing subkey')
+        for verb, fingerprint, accepted in (
+                ('--export-secret-subkeys', key['subkey'] + '!', True),
+                ('--export-secret-keys', key['primary'], False)):
+            with self.subTest(verb=verb), tempfile.TemporaryDirectory(prefix='wros-ci-secret-') as tmp:
+                secret = gpg.run('--armor', verb, fingerprint, stdout=subprocess.PIPE, text=True).stdout
+                result = subprocess.run(['bash', '-c', script], cwd=ROOT, capture_output=True, text=True,
+                                        env={'PATH': os.environ['PATH'], 'RUNNER_TEMP': tmp,
+                                             'GITHUB_ENV': str(Path(tmp) / 'environment'), 'SUBKEY': secret})
+                self.assertEqual(result.returncode == 0, accepted)
+
     def test_ci_signs_with_the_subkey_and_use_primary_signs_with_the_pinned_primary(self):
         import subprocess
         gpg = support.shared_gpg()

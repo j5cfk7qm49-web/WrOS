@@ -1,11 +1,10 @@
 name: release-updates
 
-# Online WrOS updates: build the wros package, sign it with the CI signing subkey only,
-# and publish it to GitHub Pages as a flat apt repository the update engine also reads.
+# Publish the qualified release package to GitHub Pages as a flat apt repository.
 # Design: docs/superpowers/specs/2026-11-01-online-wros-updates-design.md
 #
 # Pages replaces the whole site on every deploy, so each run republishes the live
-# updates/ folder: a tag builds it, any other run re-signs the package already there
+# updates/ folder: a tag serves its offline-signed asset, and a refresh re-signs the package already there
 # (after checking it against the committed keyring and pin).
 #
 # Until the WROS_UPDATE_SIGNING_SUBKEY secret is set, CI signs nothing: a release tag
@@ -72,7 +71,7 @@ jobs:
           release=''
           if [ "$GITHUB_EVENT_NAME" = push ]; then
             version=$(python3 tools/publish-updates.py version "$GITHUB_REF_NAME")
-            if [ "$SIGNING" = true ]; then build=updates; else release=$GITHUB_REF_NAME; fi
+            release=$GITHUB_REF_NAME
           elif [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ -n "$RELEASE" ]; then
             version=$(python3 tools/publish-updates.py version "$RELEASE")
             release=$RELEASE
@@ -142,10 +141,23 @@ jobs:
           SUBKEY: ${{ secrets.WROS_UPDATE_SIGNING_SUBKEY }}
         run: |
           set -euo pipefail
-          export GNUPGHOME="$RUNNER_TEMP/gnupg"
-          install -d -m 700 "$GNUPGHOME"
-          printf '%s\n' "$SUBKEY" | gpg --batch --import
+          export GNUPGHOME
+          GNUPGHOME=$(mktemp -d "$RUNNER_TEMP/wros-gnupg.XXXXXX")
+          trap 'rm -rf -- "$GNUPGHOME"' EXIT
+          if ! printf '%s\n' "$SUBKEY" | gpg --batch --import >/dev/null 2>&1; then
+            echo 'Could not import the signing subkey.' >&2
+            exit 1
+          fi
+          if ! gpg --batch --with-colons --list-secret-keys 2>/dev/null | awk -F: '
+            $1 == "sec" { keys++; if ($15 != "#") bad = 1 }
+            $1 == "ssb" && $15 == "+" { subkeys++; if ($12 !~ /s/ || $2 ~ /[erdi]/) bad = 1 }
+            END { exit !(keys == 1 && subkeys == 1 && !bad) }
+          '; then
+            echo 'Supply an export containing only one usable signing subkey.' >&2
+            exit 1
+          fi
           echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
+          trap - EXIT
       - name: Sign into the site
         if: steps.plan.outputs.sign == 'true'
         shell: bash
@@ -157,18 +169,26 @@ jobs:
           sign() {
             python3 -I tools/build-update-bundle.py "$1" --out "$2" --gnupg-home "$GNUPGHOME" \
               --key-id "$PIN" --expect-fingerprint "$PIN" --valid-days 21
+            keyring="$GITHUB_WORKSPACE/os/config/update-trust/wros-archive-keyring.gpg"
+            gpgv --keyring "$keyring" "$2/InRelease" >/dev/null 2>&1
+            gpgv --keyring "$keyring" "$2/Release.gpg" "$2/Release" >/dev/null 2>&1
           }
           mkdir -p out/pages out/live
-          if [ "$BUILD" = updates ]; then
-            sign out/new/wros_*_amd64.deb out/pages/updates
-          else
-            live=$(python3 tools/publish-updates.py published "$UPDATE_URL" out/live)
-            if [ -n "$live" ]; then sign "$live" out/pages/updates; fi
-          fi
+          live=$(python3 tools/publish-updates.py published "$UPDATE_URL" out/live)
+          [ -n "$live" ] || { echo 'No published update to refresh.' >&2; exit 1; }
+          sign "$live" out/pages/updates
           if [ "$BUILD" = updates-scratch ]; then
             sign out/new/wros_*_amd64.deb out/pages/updates-scratch
           fi
           find out/pages -type f | sort
+      - name: Remove signing material from the runner
+        if: always() && steps.plan.outputs.sign == 'true'
+        shell: bash
+        run: |
+          if [ -n "${GNUPGHOME:-}" ]; then
+            gpgconf --kill gpg-agent
+            rm -rf -- "$GNUPGHOME"
+          fi
       - name: Static pages
         if: steps.plan.outputs.deploy == 'true'
         shell: bash
