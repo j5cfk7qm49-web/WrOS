@@ -10,13 +10,25 @@
 - Safe source-import tooling is exposed as `tools/push-wros-source.sh`, with an old-path compatibility wrapper.
 - The last historically qualified `writingdeck/foundation` branch and all pre-existing Git commit contents remain unchanged. The original handoff was docs-only; subsequent M7b software qualification is recorded separately in [STATUS](STATUS.md) and does not complete the remaining user-facing brand migration.
 
-## Still requires implementation — GitHub #14
+## rc7 installed names
 
-- Audit actual Rust/CLI/help/TUI/tutorial/OS image user-visible strings such as “WritingDeck dashboard”, “WritingDeck OS simulator” and CLI version display. Update user-facing branding to WrOS in a separate tested PR.
-- **Do not mechanically rename** `src/app/writingdeck.rs`, crates such as `writingdeck-sys`, `os/writingdeck`, Debian service names, existing `grimoire writingdeck ...` commands, directory keys, marker strings, persisted schemas, topic/help IDs, branch names, Git history, tests or dataset source IDs without investigating compatibility.
-- Add backward-compatible CLI aliases, migrations and defaults if internal identifiers do change. Test existing user projects and old settings.
-- Update OS splash, installer, docs, site, screenshots, help, README assets, notices, environment variables and distribution metadata as appropriate. Retain upstream Grimoire notices.
-- Run normal and no-audio Rust tests, Python/PTY/VM smoke and CLI help regression checks before claiming the brand migration is complete.
+- `/etc/wros` holds the committed keyboard layout, release record and image
+  markers. The update carries over the old layout and markers, then links the
+  old paths. The old release path keeps the field name pre-rc7 recovery reads.
+- `/usr/share/wros/keymaps` and the `wros-keyboard` units are canonical. The
+  previous program, unit and keymap names resolve to them. The pre-rc7 greeter
+  also keeps its keyboard authorization action and session command.
+- The local writer group becomes `wros` with its original numeric ID. A
+  separate compatibility group with the old name gives pre-rc7 polkit and PAM
+  a distinct name to resolve after a go-back. The package synchronizes its
+  members at configuration, and the installer puts new writers in both groups.
+- New tutorial books have a `.wros-demo` marker and carry the old marker for
+  older editors. Existing demo markers still work. The update leaves the
+  `.grimoire/writingdeck` book format and installed shortcut store as persisted
+  compatibility paths. An older editor can still read those files after a
+  go-back. Help IDs and corpus IDs keep their existing identifiers.
+- `WROS_OS` is the session marker. External wrappers can still set the old
+  environment variable, and `grimoire writingdeck ...` remains a CLI alias.
 
 See [Issue #14](https://github.com/j5cfk7qm49-web/WrOS/issues/14).
 

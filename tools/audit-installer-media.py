@@ -49,7 +49,7 @@ BINARY_PATHS = {'grimoire': 'usr/bin/grimoire', 'wros-greeter': 'usr/bin/wros-gr
 # Helper scripts copied verbatim from os/scripts/<name> to usr/libexec/<name>.
 # 'required' helpers must exist in the image; the update launchers become
 # required automatically as soon as their source file exists in the repository.
-HELPERS_REQUIRED = ('writingdeck-keyboard', 'writingdeck-session', 'wros-display', 'wros-lock',
+HELPERS_REQUIRED = ('wros-keyboard', 'wros-session', 'wros-display', 'wros-lock',
                     'wros-backup', 'wros-update', 'wros-live-session', 'wros-install-session')
 HELPERS_IF_SOURCE = ('wros-update-stage', 'wros-update-cancel', 'wros-update-repair', 'wros-update-media')
 STRIP_VARIANTS = ((), ('--strip-unneeded',), ('--strip-all',))
@@ -57,7 +57,7 @@ STRIP_VARIANTS = ((), ('--strip-unneeded',), ('--strip-all',))
 # Names (anywhere in the image) that exist only for QEMU/QA fixtures.
 QA_NAMES = re.compile(
     r'(boot-probe|native[-_]probe|wros-native-qa|native_installer_guest|fixture_storage|'
-    r'guest-[a-z]+-probe|writingdeck-vm\.conf|VM-DEMO-ONLY|qa[-_]launcher|wros-installer-qa)')
+    r'guest-[a-z]+-probe|wros-vm\.conf|VM-DEMO-ONLY|qa[-_]launcher|wros-installer-qa)')
 # Configuration text that must not appear on the shipped surfaces.
 QA_TEXT = re.compile(r'(wros\.native_probe|wros-native-qa|native-probe|boot-probe|fixture-token|wros-qa-|WROS_NATIVE_QA)')
 AUTOLOGIN_ACTIVE = re.compile(
@@ -116,9 +116,9 @@ def audit(base):
     encryption = encryption_inventory(root)
     native = load_tool('native_audit', 'audit-native-image.py')
     native_result = native.audit(root)
-    for relative in ('etc/writingdeck/VM-DEMO-ONLY',
-                     'etc/systemd/system/getty@tty1.service.d/writingdeck-vm.conf',
-                     'etc/systemd/system/writingdeck-boot-probe.service'):
+    for relative in ('etc/wros/VM-DEMO-ONLY',
+                     'etc/systemd/system/getty@tty1.service.d/wros-vm.conf',
+                     'etc/systemd/system/wros-boot-probe.service'):
         if (root / relative).exists():
             raise ValueError('VM-only integration present: ' + relative)
     for unit in (root / 'etc/systemd/system').rglob('*'):

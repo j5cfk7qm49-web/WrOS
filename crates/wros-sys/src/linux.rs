@@ -227,7 +227,7 @@ impl<R: Runner> Linux<R> {
         )) {
             (s.network_time, s.time_synchronized) = parse_time_sync(&text);
         }
-        if let Ok(v) = fs::read_to_string(self.etc.join("writingdeck/keyboard.json")) {
+        if let Ok(v) = fs::read_to_string(self.etc.join("wros/keyboard.json")) {
             s.keyboard = serde_json::from_str::<serde_json::Value>(&v)
                 .ok()
                 .and_then(|v| v.get("layout")?.as_str().map(str::to_string));
@@ -589,7 +589,7 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
             "/usr/bin/pkexec",
             &[
                 "--disable-internal-agent",
-                "/usr/libexec/writingdeck-keyboard",
+                "/usr/libexec/wros-keyboard",
                 "preview",
                 l.id(),
             ],
@@ -602,7 +602,7 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
                 "/usr/bin/pkexec",
                 &[
                     "--disable-internal-agent",
-                    "/usr/libexec/writingdeck-keyboard",
+                    "/usr/libexec/wros-keyboard",
                     if matches!(request, Request::KeyboardConfirm(_)) {
                         "confirm"
                     } else {

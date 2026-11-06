@@ -233,7 +233,7 @@ class Builder(unittest.TestCase):
         self.assertEqual(sorted(p.name for p in control.iterdir()), ['conffiles', 'control', 'md5sums', 'postinst'])
         self.assertEqual(stat.S_IMODE((control / 'postinst').stat().st_mode), 0o755)
         run('sh', '-n', str(control / 'postinst'))
-        self.assertEqual((control / 'conffiles').read_text(), '/etc/writingdeck/keyboard.json\n')
+        self.assertEqual((control / 'conffiles').read_text(), '/etc/wros/keyboard.json\n')
         extract = self.base / 'extract2'
         run('dpkg-deb', '-x', str(self.deb), str(extract))
         rows = (control / 'md5sums').read_text().splitlines()
@@ -296,8 +296,8 @@ class Builder(unittest.TestCase):
     def test_release_file_derives_from_version_commit_and_source_date(self):
         extract = self.base / 'extract3'
         run('dpkg-deb', '-x', str(self.deb), str(extract))
-        self.assertEqual((extract / 'etc/writingdeck/release').read_text(),
-                         f'WRITINGDECK_VERSION={TREE}\nWROS_COMMIT=' + 'a' * 40 + '\nBUILD_DATE=2023-11-14\n'
+        self.assertEqual((extract / 'etc/wros/release').read_text(),
+                         f'WROS_VERSION={TREE}\nWROS_COMMIT=' + 'a' * 40 + '\nBUILD_DATE=2023-11-14\n'
                          'GRIMOIRE_BASE=0.7.5\nBASE_COMMIT=f3ca1e8\n')
 
     def test_a_newer_version_builds_from_modified_inputs_and_orders_after_the_baseline(self):
@@ -322,8 +322,8 @@ class Builder(unittest.TestCase):
             changed = sorted(p.relative_to(new_x).as_posix() for p in new_x.rglob('*') if p.is_file()
                              and (not (old_x / p.relative_to(new_x)).exists()
                                   or (old_x / p.relative_to(new_x)).read_bytes() != p.read_bytes()))
-            self.assertEqual(changed, ['etc/sysctl.d/60-wros-sysrq.conf', 'etc/writingdeck/release', 'usr/bin/grimoire'])
-            self.assertIn('WRITINGDECK_VERSION=0.1.0~rc2', (new_x / 'etc/writingdeck/release').read_text())
+            self.assertEqual(changed, ['etc/sysctl.d/60-wros-sysrq.conf', 'etc/wros/release', 'usr/bin/grimoire'])
+            self.assertIn('WROS_VERSION=0.1.0~rc2', (new_x / 'etc/wros/release').read_text())
 
     def test_invalid_versions_and_missing_inputs_are_refused(self):
         for version in ('', '1:0.1.0', 'x1', '0.1 0', '../0.1', '0.1.0\n', '0.1.0;rm'):
@@ -440,23 +440,23 @@ class DpkgRootInstall(unittest.TestCase):
         self.assertIn('Version: 0.1.0~rc1\n', status)
         listing = run('dpkg-query', '--admindir=' + str(root / 'var/lib/dpkg'), '-L', 'wros', env=ENV).stdout.split()
         self.assertIn('/usr/libexec/wros-lock', listing)
-        self.assertIn('/etc/writingdeck/release', listing)
+        self.assertIn('/etc/wros/release', listing)
         verify = subprocess.run(['dpkg', '--root=' + str(root), '--verify', 'wros'], capture_output=True, text=True, env=ENV)
         self.assertEqual((verify.returncode, verify.stdout), (0, ''), verify.stderr)
-        self.assertIn('/etc/writingdeck/keyboard.json', (root / 'var/lib/dpkg/info/wros.conffiles').read_text())
+        self.assertIn('/etc/wros/keyboard.json', (root / 'var/lib/dpkg/info/wros.conffiles').read_text())
         for path in (root / 'usr/libexec').iterdir():
             self.assertEqual(path.stat().st_mode & 0o7000, 0)
 
     def test_upgrade_replaces_policy_and_release_but_keeps_the_writers_layout(self):
         root = dpkg_skeleton(self.base / 'root-b')
         dpkg_root_install(root, self.rc1)
-        layout = root / 'etc/writingdeck/keyboard.json'
+        layout = root / 'etc/wros/keyboard.json'
         layout.write_text('{"layout": "writer-chose-this"}\n')
         dpkg_root_install(root, self.rc2)
         self.assertEqual(installed_version(root), '0.1.0~rc2')
         self.assertEqual(layout.read_text(), '{"layout": "writer-chose-this"}\n')
         self.assertTrue((root / 'etc/sysctl.d/60-wros-sysrq.conf').read_bytes().endswith(b'# rc2\n'))
-        self.assertIn('WRITINGDECK_VERSION=0.1.0~rc2', (root / 'etc/writingdeck/release').read_text())
+        self.assertIn('WROS_VERSION=0.1.0~rc2', (root / 'etc/wros/release').read_text())
         self.assertEqual((root / 'usr/bin/grimoire').read_bytes(), GRIMOIRE + b'# rc2\n')
 
     def test_policy_files_are_not_conffiles_so_local_drift_is_replaced(self):
@@ -712,7 +712,7 @@ class ManifestData(unittest.TestCase):
             self.assertFalse(spec.dest.startswith(('run/', 'tmp/', 'var/lib/wros-update/', 'root/', 'home/')), spec.dest)
             if not spec.pending:
                 self.assertFalse(spec.missing, spec.dest)
-        self.assertEqual([s.dest for s in specs if s.conffile], ['etc/writingdeck/keyboard.json'])
+        self.assertEqual([s.dest for s in specs if s.conffile], ['etc/wros/keyboard.json'])
         by_dest = set(dests)
         for item in manifest['enable']:
             self.assertIn('etc/systemd/system/' + item['unit'], by_dest)
@@ -829,15 +829,15 @@ class StageIntoRoot(unittest.TestCase):
         result = self.stage(repo, root, env, work)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(installed_version(root), TREE)
-        release = (root / 'etc/writingdeck/release').read_text()
-        self.assertEqual(release, f'WRITINGDECK_VERSION={TREE}\nWROS_COMMIT=' + 'c' * 40
+        release = (root / 'etc/wros/release').read_text()
+        self.assertEqual(release, f'WROS_VERSION={TREE}\nWROS_COMMIT=' + 'c' * 40
                          + '\nBUILD_DATE=2023-11-14\nGRIMOIRE_BASE=0.7.5\nBASE_COMMIT=f3ca1e8\n')
-        self.assertEqual((root / 'etc/writingdeck/image-profile').read_text(), 'IMAGE_PROFILE=installer\n')
-        self.assertTrue((root / 'etc/writingdeck/installer-keyboard-pending').is_file())
+        self.assertEqual((root / 'etc/wros/image-profile').read_text(), 'IMAGE_PROFILE=installer\n')
+        self.assertTrue((root / 'etc/wros/installer-keyboard-pending').is_file())
         system = root / 'etc/systemd/system'
         for target, unit in (('system-update.target', 'wros-offline-update.service'),
                              ('multi-user.target', 'wros-update-reconcile.service'),
-                             ('multi-user.target', 'writingdeck-keyboard.service'),
+                             ('multi-user.target', 'wros-keyboard.service'),
                              ('multi-user.target', 'wros-display.service'),
                              ('multi-user.target', 'wros-boot-ok.service'),
                              ('system-update.target', 'wros-boot-ok.service')):
@@ -864,7 +864,7 @@ class StageIntoRoot(unittest.TestCase):
         self.assertEqual(audit.audit_package(root)['version'], TREE)
         audit.audit_update_engine(root)
         self.assertEqual(audit.audit_trust(root, fixture_fingerprints=set()), [self.fpr])
-        self.assertEqual(audit.audit_units(root), ['writingdeck-keyboard.service', 'wros-display.service',
+        self.assertEqual(audit.audit_units(root), ['wros-keyboard.service', 'wros-display.service',
                                                    'wros-offline-update.service', 'wros-update-reconcile.service',
                                                    'wros-boot-ok.service', 'wros-boot-ok.service'])
         self.assertEqual(len(audit.audit_polkit(root)), 8)
@@ -873,19 +873,19 @@ class StageIntoRoot(unittest.TestCase):
     def test_restaging_is_idempotent_and_keeps_the_writers_layout(self):
         repo, root, env, work = self.prepare()
         self.assertEqual(self.stage(repo, root, env, work).returncode, 0)
-        layout = root / 'etc/writingdeck/keyboard.json'
+        layout = root / 'etc/wros/keyboard.json'
         layout.write_text('{"layout": "colemak-dh-ansi"}\n')
-        (root / 'etc/writingdeck/installer-keyboard-pending').unlink()
+        (root / 'etc/wros/installer-keyboard-pending').unlink()
         self.assertEqual(self.stage(repo, root, env, work).returncode, 0)
         self.assertEqual(layout.read_text(), '{"layout": "colemak-dh-ansi"}\n')
-        self.assertFalse((root / 'etc/writingdeck/installer-keyboard-pending').exists(),
+        self.assertFalse((root / 'etc/wros/installer-keyboard-pending').exists(),
                          'an existing layout must not be re-marked for first-boot adoption')
 
     def test_a_vm_demo_root_gets_no_first_boot_keyboard_marker(self):
         repo, root, env, work = self.prepare()
         self.assertEqual(self.stage(repo, root, env, work, profile='vm-demo').returncode, 0)
-        self.assertFalse((root / 'etc/writingdeck/installer-keyboard-pending').exists())
-        self.assertEqual((root / 'etc/writingdeck/image-profile').read_text(), 'IMAGE_PROFILE=vm-demo\n')
+        self.assertFalse((root / 'etc/wros/installer-keyboard-pending').exists())
+        self.assertEqual((root / 'etc/wros/image-profile').read_text(), 'IMAGE_PROFILE=vm-demo\n')
 
     def test_missing_or_bad_update_trust_fails_before_anything_is_staged(self):
         cases = {

@@ -62,19 +62,19 @@ def keycode(code):
 
 def keyboard_acceptance():
     greeter = processes('wros-greeter')[0]
-    command('pkcheck', '--action-id', 'org.writingdeck.keyboard', '--process', greeter.name)
+    command('pkcheck', '--action-id', 'org.wros.keyboard', '--process', greeter.name)
     for action in ('org.wros.display', 'org.freedesktop.policykit.exec'):
         denied = subprocess.run(['pkcheck', '--action-id', action, '--process', greeter.name], capture_output=True)
         assert denied.returncode != 0
     command('chvt', '2')
-    denied = subprocess.run(['pkcheck', '--action-id', 'org.writingdeck.keyboard', '--process', greeter.name], capture_output=True)
+    denied = subprocess.run(['pkcheck', '--action-id', 'org.wros.keyboard', '--process', greeter.name], capture_output=True)
     assert denied.returncode != 0
     command('chvt', '1')
-    command('pkcheck', '--action-id', 'org.writingdeck.keyboard', '--process', greeter.name)
+    command('pkcheck', '--action-id', 'org.wros.keyboard', '--process', greeter.name)
     marker('KEYBOARD_AUTHORIZATION_PASS')
-    config = Path('/etc/writingdeck/keyboard.json')
+    config = Path('/etc/wros/keyboard.json')
     original = config.read_bytes()
-    pending = Path('/run/writingdeck/keyboard-preview.json')
+    pending = Path('/run/wros/keyboard-preview.json')
     marker('KEYBOARD_READY')
     wait(lambda: 'Login keyboard' in screen(), 'keyboard menu')
     for index, layout in enumerate(('qwerty', 'colemak', 'colemak-dh-ansi', 'colemak-dh-iso')):
@@ -155,7 +155,7 @@ def timezone_acceptance(app):
 
 
 def main():
-    assert Path('/etc/writingdeck/VM-DEMO-ONLY').is_file()
+    assert Path('/etc/wros/VM-DEMO-ONLY').is_file()
     command('systemctl', 'stop', 'getty@tty1.service')
     for proc in processes('grimoire'):
         os.kill(int(proc.name), signal.SIGTERM)
@@ -167,7 +167,7 @@ def main():
     command('dpkg', '-i', '/root/greeter-package.deb')
     policy.unlink()
     files = {'usr/bin/wros-greeter': 0o755, 'usr/bin/grimoire': 0o755,
-             'usr/libexec/writingdeck-session': 0o755,
+             'usr/libexec/wros-session': 0o755,
              'etc/polkit-1/rules.d/50-wros-timezone.rules': 0o644,
              'etc/polkit-1/rules.d/51-wros-greeter-keyboard.rules': 0o644,
              'etc/greetd/config.toml': 0o644,

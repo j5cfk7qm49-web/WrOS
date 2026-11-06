@@ -37,6 +37,7 @@ class TerminalProcess:
             'LANG': 'C.UTF-8',
         }
         env.pop('WRITINGDECK_OS', None)
+        env.pop('WROS_OS', None)
 
         def controlling_terminal():
             os.setsid()

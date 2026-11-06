@@ -18,7 +18,7 @@ path = "src/main.rs"
 
 [dependencies]
 grimoire-core = { path = "crates/grimoire-core", version = "0.7" }
-writingdeck-sys = { path = "crates/writingdeck-sys" }
+wros-sys = { path = "crates/wros-sys" }
 wros-shell = { path = "crates/wros-shell" }
 anyhow = "1.0.104"
 chrono = "0.4.45"
@@ -95,7 +95,7 @@ default = ["audio"]
 audio = ["dep:rodio", "dep:cpal"]
 
 [workspace]
-members = ["crates/grimoire-core", "crates/grimoire-app", "crates/writingdeck-sys", "crates/wros-shell", "crates/wros-greeter", "crates/wros-input", "crates/wros-installer"]
+members = ["crates/grimoire-core", "crates/grimoire-app", "crates/wros-sys", "crates/wros-shell", "crates/wros-greeter", "crates/wros-input", "crates/wros-installer"]
 exclude = ["crates/crossterm-upstream"]
 
 [patch.crates-io]

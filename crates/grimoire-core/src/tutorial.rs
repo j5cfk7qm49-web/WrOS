@@ -202,14 +202,18 @@ impl Store {
     }
 }
 pub fn is_demo(root: &Path) -> bool {
-    fs::read_to_string(root.join(".writingdeck-demo"))
-        .is_ok_and(|s| s == "WritingDeck safe tutorial project v1\n")
+    fs::read_to_string(root.join(".wros-demo"))
+        .is_ok_and(|s| s == "WrOS safe tutorial project v1\n")
+        || fs::read_to_string(root.join(".writingdeck-demo"))
+            .is_ok_and(|s| s == "WritingDeck safe tutorial project v1\n")
 }
 /// Claim a NEW directory exclusively. Existing directories, even empty ones,
 /// are refused. No tutorial routine deletes or replaces a project.
 pub fn create_demo(root: &Path) -> Result<()> {
     fs::create_dir(root)
         .context("tutorial needs a new directory; existing paths are never reused")?;
+    fs::write(root.join(".wros-demo"), "WrOS safe tutorial project v1\n")?;
+    // Older editors still recognize this disposable book after going back.
     fs::write(
         root.join(".writingdeck-demo"),
         "WritingDeck safe tutorial project v1\n",

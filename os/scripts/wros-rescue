@@ -157,7 +157,7 @@ for candidate in "${roots[@]}"; do
     [[ $(blkid -s TYPE -o value "$candidate" 2>/dev/null || true) == ext4 ]] || continue
     mount -t ext4 -o ro,noload,nodev,nosuid "$candidate" "$TARGET" || continue
     push_mount "$TARGET"
-    if [[ -f $TARGET/etc/writingdeck/release && -f $TARGET/etc/crypttab ]]; then
+    if [[ -f $TARGET/etc/wros/release && -f $TARGET/etc/crypttab ]]; then
         name=$(awk -v source="UUID=$luks_uuid" '$1 !~ /^#/ && $2 == source { print $1; exit }' "$TARGET/etc/crypttab")
         if [[ -n $name ]]; then
             matches+=("$candidate")

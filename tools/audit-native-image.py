@@ -166,9 +166,9 @@ def audit_package(root):
         if spec.source is not None and not spec.pending and spec.klass in ('code', 'config'):
             if data != spec.source.read_bytes():
                 raise ValueError('package file differs from the qualified source: ' + spec.dest)
-        if spec.dest == 'etc/writingdeck/release':
-            if ('WRITINGDECK_VERSION=' + expected + '\n').encode() not in data:
-                raise ValueError('/etc/writingdeck/release does not carry the package version')
+        if spec.dest == 'etc/wros/release':
+            if ('WROS_VERSION=' + expected + '\n').encode() not in data:
+                raise ValueError('/etc/wros/release does not carry the package version')
     for conffile in packaging.conffile_paths(specs):
         listed = (admindir / 'info/wros.conffiles').read_text().split() if (admindir / 'info/wros.conffiles').exists() else []
         if conffile not in listed:
@@ -261,9 +261,9 @@ def audit_polkit(root):
         if paths != [expected[identifier]]:
             raise ValueError('update polkit action has the wrong exec path: ' + identifier)
     rules = regular(root, 'etc/polkit-1/rules.d/50-wros-update.rules').read_text(encoding='utf-8')
-    for needle in ('org.wros.update.', 'subject.local', 'subject.active', 'isInGroup("writingdeck")'):
+    for needle in ('org.wros.update.', 'subject.local', 'subject.active', 'isInGroup("wros")'):
         if needle not in rules:
-            raise ValueError('update polkit rules do not restrict to the local active writingdeck group: ' + needle)
+            raise ValueError('update polkit rules do not restrict to the local active wros group: ' + needle)
     return sorted(found)
 
 
@@ -332,7 +332,7 @@ def audit(root, fixture_fingerprints=None):
         raise ValueError('maintained Debian vlock package is not installed')
     binaries = {}
     for relative in ('usr/sbin/greetd', 'usr/bin/wros-greeter', 'usr/bin/grimoire',
-                     'usr/libexec/writingdeck-session', 'usr/libexec/writingdeck-keyboard',
+                     'usr/libexec/wros-session', 'usr/libexec/wros-keyboard',
                      'usr/libexec/wros-lock', 'usr/libexec/wros-backup', 'usr/libexec/wros-update',
                      'usr/libexec/wros-recovery',
                      'usr/bin/restic', 'usr/bin/rclone', 'usr/bin/gpgv',

@@ -42,7 +42,7 @@ def main():
     if os.geteuid() == 0:
         raise RuntimeError('Run QEMU as a normal user')
     image = BASE / 'disk.img'
-    if not image.is_file() or image.is_symlink() or not (BASE / 'rootfs/etc/writingdeck/VM-DEMO-ONLY').is_file():
+    if not image.is_file() or image.is_symlink() or not (BASE / 'rootfs/etc/wros/VM-DEMO-ONLY').is_file():
         raise RuntimeError('Requires the isolated marked VM-demo artifact')
     kernels = sorted((BASE / 'rootfs/boot').glob('vmlinuz-*'))
     assert len(kernels) == 1
@@ -64,7 +64,7 @@ def main():
     (fixtures / 'secret').write_text(secret)
     (fixtures / 'secret').chmod(0o600)
     files = {'usr/bin/wros-greeter': args.binary, 'usr/bin/grimoire': args.editor,
-             'usr/libexec/writingdeck-session': REPO / 'os/scripts/writingdeck-session',
+             'usr/libexec/wros-session': REPO / 'os/scripts/wros-session',
              'etc/polkit-1/rules.d/50-wros-timezone.rules': REPO / 'os/config/50-wros-timezone.rules',
              'etc/polkit-1/rules.d/51-wros-greeter-keyboard.rules': REPO / 'os/config/51-wros-greeter-keyboard.rules',
              'etc/greetd/config.toml': REPO / 'os/config/greetd.toml',
@@ -77,9 +77,9 @@ def main():
     hook.write_text('''#!/bin/sh
 case "$1" in prereqs) exit 0;; esac
 set -eu
-test -f "$rootmnt/etc/writingdeck/VM-DEMO-ONLY"
+test -f "$rootmnt/etc/wros/VM-DEMO-ONLY"
 mount -o remount,rw /dev/vda2 "$rootmnt"
-cat /wros-greeter-test/probe > "$rootmnt/usr/libexec/writingdeck-boot-probe"
+cat /wros-greeter-test/probe > "$rootmnt/usr/libexec/wros-boot-probe"
 cat /wros-greeter-test/package.deb > "$rootmnt/root/greeter-package.deb"
 cat /wros-greeter-test/fixture.zip > "$rootmnt/root/greeter-fixture.zip"
 umask 077

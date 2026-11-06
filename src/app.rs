@@ -45,7 +45,7 @@ pub(crate) mod review_notes;
 pub(crate) mod shell;
 pub(crate) mod spark;
 pub(crate) mod workflow;
-pub(crate) mod writingdeck;
+pub(crate) mod wros;
 pub use aids::{MarkRow, Sprint, filter_marks as aids_filter};
 
 /// A scene being read aloud: the voice at work on its own thread, the
@@ -192,7 +192,7 @@ pub struct App {
     pub continuity: continuity::Continuity,
     pub milestones: milestones::Milestones,
     pub review_notes: review_notes::Review,
-    pub deck: writingdeck::Deck,
+    pub deck: wros::Deck,
     pub pins: pins::Pins,
     pub journal: journal::Journal,
     pub workflow: workflow::Workflow,
@@ -456,7 +456,7 @@ pub struct ExportReview {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Overlay {
     None,
-    Deck(writingdeck::Page),
+    Deck(wros::Page),
     Pins,
     Journal,
     Scratchpad,
@@ -806,7 +806,7 @@ impl App {
     /// An App from what [`Setup`] hands it: nothing read from ~/.config, and
     /// with `background` off no threads started — how the tests build one.
     pub fn with(mut project: Project, setup: Setup) -> Result<Self> {
-        let deck = writingdeck::Deck::load(&project.root, setup.background);
+        let deck = wros::Deck::load(&project.root, setup.background);
         let views = documents::Views::new(&project.root)?;
         let pins = pins::Pins::load(&project.root);
         let productivity = productivity::Productivity::load(&project.root);
@@ -1834,7 +1834,7 @@ impl App {
             self.paste_lexicon(&text);
             return;
         }
-        if self.overlay == Overlay::Deck(writingdeck::Page::Settings)
+        if self.overlay == Overlay::Deck(wros::Page::Settings)
             && matches!(
                 self.deck.shell.nav.current(),
                 shell::Route::BackupForm
@@ -2042,31 +2042,31 @@ impl App {
             self.paste_lexicon(text);
             return;
         }
-        if self.overlay == Overlay::Deck(writingdeck::Page::Settings)
+        if self.overlay == Overlay::Deck(wros::Page::Settings)
             && self.deck.shell.nav.current() == shell::Route::BackupForm
         {
             self.paste_backup_form(text);
             return;
         }
-        if self.overlay == Overlay::Deck(writingdeck::Page::Settings)
+        if self.overlay == Overlay::Deck(wros::Page::Settings)
             && self.deck.shell.nav.current() == shell::Route::WifiConnect
         {
             self.paste_wifi_form(text);
             return;
         }
-        if self.overlay == Overlay::Deck(writingdeck::Page::Settings)
+        if self.overlay == Overlay::Deck(wros::Page::Settings)
             && self.deck.shell.nav.current() == shell::Route::UpdateBundleForm
         {
             self.paste_update_form(text);
             return;
         }
-        if self.overlay == Overlay::Deck(writingdeck::Page::Settings)
+        if self.overlay == Overlay::Deck(wros::Page::Settings)
             && self.deck.shell.nav.current() == shell::Route::ManualClock
         {
             self.paste_clock_form(text);
             return;
         }
-        if self.overlay == Overlay::Deck(writingdeck::Page::Settings)
+        if self.overlay == Overlay::Deck(wros::Page::Settings)
             && self.deck.shell.nav.current() == shell::Route::KeyboardWizard
         {
             self.paste_keyboard_wizard(text);
@@ -2305,13 +2305,11 @@ impl App {
             Action::Dashboard => self.open_dashboard(),
             Action::SystemSettings => self.open_system_settings(),
             Action::Workspaces => {
-                self.overlay = Overlay::Deck(writingdeck::Page::Workspaces {
+                self.overlay = Overlay::Deck(wros::Page::Workspaces {
                     sel: self.deck.state.selected,
                 })
             }
-            Action::Tutorial => {
-                self.overlay = Overlay::Deck(writingdeck::Page::Tutorial { sel: 0 })
-            }
+            Action::Tutorial => self.overlay = Overlay::Deck(wros::Page::Tutorial { sel: 0 }),
             Action::ToggleOutline => self.toggle_outline(),
             Action::StorySpark => self.open_spark(),
             Action::WritingChecks => self.open_checks(),

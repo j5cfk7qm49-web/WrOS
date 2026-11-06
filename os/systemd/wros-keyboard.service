@@ -1,0 +1,15 @@
+[Unit]
+Description=Apply the committed WrOS console layout
+After=systemd-vconsole-setup.service console-setup.service
+Before=getty@tty1.service
+ConditionPathExists=/usr/share/wros/keymaps/qwerty.map
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/wros-keyboard boot
+RemainAfterExit=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/run/wros /etc/wros
+RuntimeDirectory=wros
+NoNewPrivileges=yes

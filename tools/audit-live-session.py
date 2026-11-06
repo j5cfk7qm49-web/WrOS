@@ -41,7 +41,7 @@ def audit(root):
     spec.loader.exec_module(native)
     result = native.audit(root)
     files = {
-        'os/scripts/writingdeck-session': 'usr/libexec/writingdeck-session',
+        'os/scripts/wros-session': 'usr/libexec/wros-session',
         'os/scripts/wros-live-session': 'usr/libexec/wros-live-session',
         'os/scripts/wros-install-session': 'usr/libexec/wros-install-session',
         'os/config/live/9998-wros-session': 'lib/live/config/9998-wros-session',

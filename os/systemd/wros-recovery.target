@@ -1,6 +1,6 @@
 [Unit]
 Description=WrOS recovery
-Documentation=file:/usr/share/doc/writingdeck/RC_RESCUE.md
+Documentation=file:/usr/share/doc/wros/RC_RESCUE.md
 # Booted from the "WrOS recovery" menu entry (systemd.unit=wros-recovery.target): the system's
 # basic services and the recovery menu on tty1, with no login screen and no network unless the
 # menu is asked to start it. A staged offline update is not applied in recovery.

@@ -39,7 +39,7 @@ def main():
     if os.geteuid() == 0:
         raise RuntimeError('Run the virtual integration test as a non-root user')
     image = BASE / 'disk.img'
-    if image.is_symlink() or not image.is_file() or not (BASE / 'rootfs/etc/writingdeck/VM-DEMO-ONLY').is_file():
+    if image.is_symlink() or not image.is_file() or not (BASE / 'rootfs/etc/wros/VM-DEMO-ONLY').is_file():
         raise RuntimeError('Only the isolated regular VM-demo artifact is accepted')
     kernels = sorted((BASE / 'rootfs/boot').glob('vmlinuz-*'))
     if len(kernels) != 1:
@@ -61,19 +61,19 @@ def main():
     hook.parent.mkdir(parents=True)
     fixtures = extra / 'wros-keyboard-test'
     fixtures.mkdir()
-    shutil.copyfile(REPO / 'os/scripts/writingdeck-keyboard', fixtures / 'helper')
+    shutil.copyfile(REPO / 'os/scripts/wros-keyboard', fixtures / 'helper')
     shutil.copyfile(REPO / 'os/tests/guest-keyboard-probe.py', fixtures / 'probe')
     hook.write_text('''#!/bin/sh
 case "$1" in prereqs) exit 0;; esac
 exec >/dev/ttyS0 2>&1
 set -eux
-test -f "$rootmnt/etc/writingdeck/VM-DEMO-ONLY"
+test -f "$rootmnt/etc/wros/VM-DEMO-ONLY"
 mount -o remount,rw /dev/vda2 "$rootmnt"
-cat /wros-keyboard-test/helper > "$rootmnt/usr/libexec/writingdeck-keyboard"
-cat /wros-keyboard-test/probe > "$rootmnt/usr/libexec/writingdeck-boot-probe"
+cat /wros-keyboard-test/helper > "$rootmnt/usr/libexec/wros-keyboard"
+cat /wros-keyboard-test/probe > "$rootmnt/usr/libexec/wros-boot-probe"
 printf 'XKBLAYOUT="us"\nXKBVARIANT="colemak"\n' > "$rootmnt/etc/default/keyboard"
-printf '{"version":1,"layout":"qwerty","generation":"initial"}\n' > "$rootmnt/etc/writingdeck/keyboard.json"
-: > "$rootmnt/etc/writingdeck/installer-keyboard-pending"
+printf '{"version":1,"layout":"qwerty","generation":"initial"}\n' > "$rootmnt/etc/wros/keyboard.json"
+: > "$rootmnt/etc/wros/installer-keyboard-pending"
 mount -o remount,ro /dev/vda2 "$rootmnt"
 echo WROS_KEYBOARD_FIXTURE_STAGED
 ''')
@@ -100,7 +100,7 @@ echo WROS_KEYBOARD_FIXTURE_STAGED
     result = {'scope': 'Current helper injected into a disposable VM-demo overlay; not installer ISO qualification',
               'host_disks_exposed': 0, 'network_devices': 0, 'base_image_sha256_before': before,
               'input_sha256': {name: digest(REPO / name) for name in (
-                  'os/scripts/writingdeck-keyboard', 'os/tests/guest-keyboard-probe.py', 'os/tests/keyboard_vm.py')},
+                  'os/scripts/wros-keyboard', 'os/tests/guest-keyboard-probe.py', 'os/tests/keyboard_vm.py')},
               'passed': False}
     started = time.monotonic()
     with (run / 'qemu.log').open('w') as log:

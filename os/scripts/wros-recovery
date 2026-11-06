@@ -25,8 +25,8 @@ from typing import NamedTuple
 
 ENGINE = '/usr/lib/wros-update/engine.py'
 BACKUP_HELPER = '/usr/libexec/wros-backup'
-RELEASE = Path('/etc/writingdeck/release')
-GROUP = 'writingdeck'
+RELEASE = Path('/etc/wros/release')
+GROUP = 'wros'
 PAM_SERVICE = 'wros-recovery'
 ATTEMPTS = 3
 LOCKOUT_SECONDS = 30
@@ -35,10 +35,10 @@ SYSTEMCTL = '/usr/bin/systemctl'
 
 
 def release_version(text):
-    """The WRITINGDECK_VERSION field of /etc/writingdeck/release (KEY=value lines)."""
+    """The WROS_VERSION field of /etc/wros/release (KEY=value lines)."""
     for line in text.splitlines():
         key, _, value = line.partition('=')
-        if key.strip() == 'WRITINGDECK_VERSION' and value.strip():
+        if key.strip() == 'WROS_VERSION' and value.strip():
             return value.strip()
     raise ValueError('the release file has no version')
 
@@ -262,7 +262,7 @@ class TtyConsole:
 
 
 def writers():
-    """Members of the writingdeck group with a normal account, in uid order."""
+    """Members of the wros group with a normal account, in uid order."""
     try:
         members = set(grp.getgrnam(GROUP).gr_mem)
     except KeyError:

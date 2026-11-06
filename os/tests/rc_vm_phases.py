@@ -1253,8 +1253,9 @@ def stage_update(ctx, g, layout):
     ctx.result['media_dir_modes'] = modes
     ctx.step('media-dir-modes', modes=modes)
     ctx.check('media directories are traversable by the writer (0755)', re.search(r'root:root 755 /run/wros-update$', modes, re.M) is not None and re.search(r'root:root 755 /run/wros-update/media$', modes, re.M) is not None, modes)
-    ctx.check('review shows wros 0.1.0~rc1 -> ' + ctx.target,
-              re.search(r'wros.*0\.1\.0~rc1.*' + re.escape(ctx.target), review, re.S) is not None, review[-900:])
+    ctx.check('review shows wros %s -> %s' % (ctx.args.from_version, ctx.target),
+              re.search(r'wros.*' + re.escape(ctx.args.from_version) + r'.*' + re.escape(ctx.target),
+                        review, re.S) is not None, review[-900:])
     signer = pinned_signers(g)
     ctx.check('review shows the pinned signer', bool(signer) and signer.lower() in review.lower().replace(' ', ''),
               (signer, review[-500:]))
@@ -1285,6 +1286,33 @@ def stage_update(ctx, g, layout):
     return staged
 
 
+def migration_state(g, user, *, legacy):
+    config = 'writingdeck' if legacy else 'wros'
+    g.run("test -f /home/%s/.config/grimoire/settings.toml || "
+          "runuser -u %s -- sh -c 'mkdir -p ~/.config/grimoire && printf \"# rc6 profile fixture\\n\" > ~/.config/grimoire/settings.toml'"
+          % (user, user))
+    _, out = g.run('sha256sum /etc/%s/keyboard.json /home/%s/.config/grimoire/settings.toml; '
+                   'getent group %s; id -G %s' % (config, user, config, user))
+    keymap, profile, group, memberships = out.strip().splitlines()
+    return {'keyboard': keymap.split()[0], 'profile': profile.split()[0],
+            'group': group.split(':')[2], 'memberships': memberships.split(),
+            'layout': g.layout_in_effect()}
+
+
+def check_migration(ctx, g, user, before):
+    after = migration_state(g, user, legacy=False)
+    ctx.result['name_migration'] = {'before': before, 'after': after}
+    for key in ('keyboard', 'profile', 'group', 'layout'):
+        ctx.check('renaming preserved ' + key, after[key] == before[key], after[key])
+    ctx.check('writer kept every pre-update group ID', set(before['memberships']) <= set(after['memberships']))
+    rc, _ = g.run('cmp /etc/writingdeck/keyboard.json /etc/wros/keyboard.json && '
+                  'test "$(readlink -f /usr/share/writingdeck/keymaps)" = /usr/share/wros/keymaps && '
+                  'test "$(systemctl show -p Id --value writingdeck-keyboard.service)" = wros-keyboard.service && '
+                  'id -nG %s | grep -qw writingdeck && id -nG %s | grep -qw wros && '
+                  'cmp <(grimoire wros help) <(grimoire writingdeck help)' % (user, user), check=False)
+    ctx.check('the old configuration, keymap, service, group and CLI names are usable', rc == 0, rc)
+
+
 def phase_update(ctx):
     variant = ctx.args.variant
     st = load_state(ctx.args.install_run)
@@ -1296,7 +1324,8 @@ def phase_update(ctx):
         raise SystemExit('--bundle is required')
     bundle = Path(ctx.args.bundle)
     overlay = ctx.dir / 'disk.qcow2'
-    vm.create_overlay(ctx.args.base_disk or st['disk'], overlay)
+    vm.create_overlay(ctx.args.base_disk or st['disk'], overlay,
+                      base_format='qcow2' if ctx.args.base_disk else 'raw')
     media = vm.make_update_media(bundle, ctx.dir / 'update-media.img', ctx.args.media_fs, 48)
     debs = sorted(p.relative_to(bundle).as_posix() for p in bundle.rglob('*.deb'))
     ctx.check('bundle carries exactly one wros deb', len(debs) == 1 and debs[0].split('/')[-1].startswith('wros_'), debs)
@@ -1316,7 +1345,9 @@ def phase_update(ctx):
     m = boot_installed(ctx, st, 'update', disk=overlay, fmt='qcow2', extra=attach, reboot=True)
     g = session_ready(ctx, m, st, secrets_, layout)
     rc, out = g.run('dpkg-query -W wros; cat /etc/writingdeck/release', 20)
-    ctx.check('starting version is 0.1.0~rc1', '0.1.0~rc1' in out, out)
+    ctx.check('starting version is ' + ctx.args.from_version,
+              re.search(r'^wros\s+' + re.escape(ctx.args.from_version) + r'$', out, re.M), out)
+    before = migration_state(g, st['username'], legacy=True) if ctx.args.check_migration else None
     rc, eng = g.run("f=$(grep -rl 'def find_update_media' /usr/libexec /usr/lib /usr/share 2>/dev/null | head -1); echo $f; grep -n 'dmask=0022,fmask=0133' $f; grep -n '0o755' $f | head -5; sha256sum $f", 30, check=False)
     ctx.result['engine_fix_probe'] = eng
     ctx.check('installed update engine contains the media permission fix (dmask=0022,fmask=0133)', 'dmask=0022,fmask=0133' in eng, eng)
@@ -1482,6 +1513,8 @@ def phase_update(ctx):
     ctx.check('release file carries ' + ctx.target, len(re.findall(re.escape(ctx.target), out)) >= 2, out)
     ctx.check('update marker consumed', 'MARKER' not in out, out)
     ctx.check('dpkg audit clean after the update', 'AUDIT_DONE' in out and not re.search(r'not fully installed|half-|unconfigured', out.split('AUDIT_DONE')[0].split('MARKER')[-1]), out[-400:])
+    if before:
+        check_migration(ctx, g2, st['username'], before)
     updates_panel(ctx, g2, layout)
     screen = g2.screen(1)
     m.shot('after-update-updates-panel')
@@ -1980,12 +2013,20 @@ def phase_lock(ctx):
         if ctx.args.test_suspend:
             machine.args.extend(['-global', 'ICH9-LPC.disable_s3=0'])
 
-    m = boot_installed(ctx, st, 'lock', disk=overlay, fmt='qcow2', extra=attach)
+    m = boot_installed(ctx, st, 'lock', disk=overlay, fmt='qcow2', extra=attach,
+                       reboot=ctx.args.check_migration)
     g = session_ready(ctx, m, st, secrets_, st['layout'], greeter=False)
     if ctx.args.lock_fixture:
+        before = migration_state(g, st['username'], legacy=True) if ctx.args.check_migration else None
         g.run('mkdir -p /mnt/testfixture && mount -o ro,nodev,nosuid,noexec LABEL=WROS-TEST /mnt/testfixture '
               '&& dpkg --force-confold -i /mnt/testfixture/wros_*.deb && systemctl daemon-reload '
               '&& systemctl restart systemd-logind', 120)
+        if before:
+            resets = m.qmp.count('RESET')
+            g.run('(sleep 1; systemctl reboot) >/dev/null 2>&1 & echo reboot-requested')
+            resets = wait_reset(ctx, m, resets, 120, 'fixture reboot')
+            g = session_ready(ctx, m, st, secrets_, st['layout'], after_reset=resets, greeter=False)
+            check_migration(ctx, g, st['username'], before)
     feature_console_lock(ctx, g, st, secrets_, st['layout'], suspend=ctx.args.test_suspend)
     ctx.result['passed'] = True
 
@@ -2001,7 +2042,11 @@ def phase_rc5(ctx):
         raise SystemExit('--base-disk (the update run disk.qcow2) is required')
     overlay = ctx.dir / 'disk.qcow2'
     vm.create_overlay(ctx.args.base_disk, overlay, base_format='qcow2')
-    m = boot_installed(ctx, st, 'rc5', disk=overlay, fmt='qcow2', reboot=True)
+    rc7 = ctx.args.expect == '0.1.0~rc7'
+    def enable_sleep(machine):
+        machine.args.extend(['-global', 'ICH9-LPC.disable_s3=0'])
+    m = boot_installed(ctx, st, 'rc5', disk=overlay, fmt='qcow2', reboot=True,
+                       extra=enable_sleep if rc7 else None)
     unlock(ctx, m, secrets_, layout, wrong_first=False)
     g = Guest(ctx, m, root_via_sudo=False)
     g.shell.login(user, secrets_['login'], 420)
@@ -2084,6 +2129,13 @@ def phase_rc5(ctx):
         ctx.check('restoring with settings puts them back and keeps the current ones',
                   'theme = "rc5 original"' in out and 'theme = "changed"' in out and 'rc5 scene' in out
                   and 'Settings restored' in out, out[-600:])
+
+    if rc7:
+        ctx.check('canonical keyboard files and unit exist alongside rc6 aliases',
+                  g.run('test -f /etc/wros/keyboard.json && test -f /usr/share/wros/keymaps/colemak.map && '
+                        'systemctl is-enabled wros-keyboard.service && test -L /etc/writingdeck/keyboard.json',
+                        check=False)[0] == 0)
+        feature_console_lock(ctx, g, st, secrets_, layout, suspend=True)
 
     # The recovery boot has no serial shell, and tty1 uses the installed console font, not the
     # VGA font the screen reader knows: take console-setup's cached copy of that font.
@@ -2283,7 +2335,7 @@ def phase_autoback(ctx):
                   '"started_boot": "' in out, out[-300:])
         # The session's stderr is not journalled: check the installed app is the broken test build,
         # and that the session ended back at the greeter.
-        rc, out = g.run('grep -c "deliberately broken" /usr/bin/grimoire; journalctl -b --no-pager | grep -c WRITINGDECK_SESSION',
+        rc, out = g.run('grep -c "deliberately broken" /usr/bin/grimoire; journalctl -b --no-pager | grep -Ec "WROS_SESSION|WRITINGDECK_SESSION"',
                         30, check=False)
         ctx.check('the broken test app ran in a writing session (%s)' % label,
                   out.split()[:1] == ['1'] and out.split()[1:2] != ['0'], out)
@@ -2352,6 +2404,8 @@ def main():
     parser.add_argument('--kill-when', default='mapper', choices=['mapper', 'copying', 'grub'], help='failure injection point: first mapper, while copying the system, or during the GRUB install')
     parser.add_argument('--variant', default='ok', choices=['ok', 'cancel', 'tamper', 'powercut', 'badstage', 'reviewpath'])
     parser.add_argument('--base-disk')
+    parser.add_argument('--from-version', default='0.1.0~rc1', help='update: the expected installed version')
+    parser.add_argument('--check-migration', action='store_true', help='update: compare writer settings, groups and keyboard across the rename')
     parser.add_argument('--lock-fixture', help='lock: install a disposable local test package from this directory')
     parser.add_argument('--test-suspend', action='store_true', help='lock: require an actual QEMU suspend and wake')
     parser.add_argument('--media-fs', default='ext4', choices=['ext4', 'vfat'])

@@ -590,7 +590,7 @@ fn genuine_demo_grammar_lesson_needs_actual_worker_and_current_original_replacem
     fs::create_dir_all(&personal).unwrap();
     d.app.checks.use_personal_root(&personal);
     d.app.deck.progress.completed.insert(26);
-    d.app.overlay = Overlay::Deck(app::writingdeck::Page::Lesson { id: 40 });
+    d.app.overlay = Overlay::Deck(app::wros::Page::Lesson { id: 40 });
     let before = d.app.editor.text();
     d.key(KeyCode::Enter);
     assert_eq!(d.app.editor.text(), before);
@@ -619,7 +619,7 @@ fn genuine_demo_grammar_lesson_needs_actual_worker_and_current_original_replacem
     d.ctrl('z');
     assert_eq!(d.app.editor.text(), before);
     let mut ordinary = check_desk("check-lesson-not-demo", 80, 24);
-    ordinary.app.overlay = Overlay::Deck(app::writingdeck::Page::Lesson { id: 40 });
+    ordinary.app.overlay = Overlay::Deck(app::wros::Page::Lesson { id: 40 });
     ordinary.key(KeyCode::Enter);
     assert_ne!(ordinary.app.deck.progress.active, Some(40));
     assert_eq!(ordinary.app.editor.text(), CHECK_TEXT);

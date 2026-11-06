@@ -40,7 +40,7 @@ def main():
     assert os.geteuid() != 0, 'QEMU must run as an unprivileged builder'
     image = BASE / 'disk.img'
     assert image.is_file() and not image.is_symlink()
-    assert (BASE / 'rootfs/etc/writingdeck/VM-DEMO-ONLY').is_file()
+    assert (BASE / 'rootfs/etc/wros/VM-DEMO-ONLY').is_file()
     kernels = sorted((BASE / 'rootfs/boot').glob('vmlinuz-*'))
     assert len(kernels) == 1
     kernel = kernels[0]
@@ -60,7 +60,7 @@ def main():
         shutil.copyfile(path, fixtures / name)
     (fixtures / 'lock-secret').write_text(secret); (fixtures / 'lock-secret').chmod(0o600)
     files = {'usr/bin/wros-greeter': (args.greeter, 0o755), 'usr/bin/grimoire': (args.editor, 0o755),
-             'usr/libexec/writingdeck-session': (REPO / 'os/scripts/writingdeck-session', 0o755),
+             'usr/libexec/wros-session': (REPO / 'os/scripts/wros-session', 0o755),
              'usr/libexec/wros-lock': (REPO / 'os/scripts/wros-lock', 0o755),
              'etc/pam.d/vlock': (REPO / 'os/config/vlock.pam', 0o644),
              'etc/systemd/logind.conf.d/60-wros-power-guard.conf': (REPO / 'os/config/60-wros-power-guard.conf', 0o644),
@@ -78,9 +78,9 @@ def main():
     hook.write_text('''#!/bin/sh
 case "$1" in prereqs) exit 0;; esac
 set -eu
-test -f "$rootmnt/etc/writingdeck/VM-DEMO-ONLY"
+test -f "$rootmnt/etc/wros/VM-DEMO-ONLY"
 mount -o remount,rw /dev/vda2 "$rootmnt"
-cat /wros-lock-test/probe > "$rootmnt/usr/libexec/writingdeck-boot-probe"
+cat /wros-lock-test/probe > "$rootmnt/usr/libexec/wros-boot-probe"
 umask 077
 for name in greeter_probe.py greetd.deb vlock.deb files.json fixture.zip lock-secret; do
     cat "/wros-lock-test/$name" > "$rootmnt/root/$name"

@@ -43,7 +43,7 @@ def render(base, passwd, user_status, root_status, cmdline, boot_id, manual=Fals
     configuration = base
     if automatic:
         configuration += (b'\n# Temporary live entry; the source configuration remains authenticated.\n'
-                          b'[initial_session]\ncommand = "/usr/libexec/writingdeck-session"\n'
+                          b'[initial_session]\ncommand = "/usr/libexec/wros-session"\n'
                           b'user = "wros-live"\n')
     marker = {'version': 1, 'boot_id': boot_id, 'user': USER, 'uid': UID,
               'home': HOME, 'automatic': automatic}
@@ -106,7 +106,7 @@ def main():
     require(any(line.split()[4] == str(medium) for line in mounts))
     base = Path('/etc/greetd/config.toml')
     trusted(base)
-    require(not Path('/etc/writingdeck/VM-DEMO-ONLY').exists())
+    require(not Path('/etc/wros/VM-DEMO-ONLY').exists())
     passwd = Path('/etc/passwd').read_bytes()
     require(len(passwd) <= 1024 * 1024)
     files = render(base.read_bytes(), passwd.decode(), status(USER), status('root'), cmdline,

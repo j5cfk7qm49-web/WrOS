@@ -497,7 +497,7 @@ impl App {
             .cloned();
         if let Some(h) = ready
             && (self.overlay == Overlay::None
-                || matches!(self.overlay, Overlay::Deck(writingdeck::Page::Home { .. })))
+                || matches!(self.overlay, Overlay::Deck(wros::Page::Home { .. })))
         {
             self.open_handoff();
             if self

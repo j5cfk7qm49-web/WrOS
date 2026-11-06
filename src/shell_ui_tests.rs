@@ -1,7 +1,7 @@
 use super::*;
 use crate::app::{
     shell::{Category, Route},
-    writingdeck::Page,
+    wros::Page,
 };
 use grimoire_core::documents::Pane;
 
@@ -127,11 +127,8 @@ fn unified_settings_preserve_future_and_externally_changed_preferences() {
 #[test]
 fn unified_settings_backend_failure_is_native_and_writing_remains_available() {
     struct Failed;
-    impl writingdeck_sys::Backend for Failed {
-        fn request(
-            &mut self,
-            _: writingdeck_sys::Request,
-        ) -> anyhow::Result<writingdeck_sys::Reply> {
+    impl wros_sys::Backend for Failed {
+        fn request(&mut self, _: wros_sys::Request) -> anyhow::Result<wros_sys::Reply> {
             anyhow::bail!("fixture service disconnected")
         }
     }
@@ -196,7 +193,7 @@ fn native_read_only_system_views_keep_editor_state_and_failed_refresh_drops_stal
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     };
-    use writingdeck_sys::{Backend, Reply, Request, Simulated};
+    use wros_sys::{Backend, Reply, Request, Simulated};
     struct Services {
         calls: Arc<Mutex<Vec<Request>>>,
         fail: Arc<AtomicBool>,
@@ -280,7 +277,7 @@ fn native_read_only_system_views_keep_editor_state_and_failed_refresh_drops_stal
 
 #[test]
 fn accounts_storage_and_package_views_are_read_only_and_do_not_offer_fake_cloud_or_recovery() {
-    use writingdeck_sys::Simulated;
+    use wros_sys::Simulated;
     for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
         let mut desk = Desk::open(
             book(&format!("native-service-availability-{width}"), true),
@@ -348,7 +345,7 @@ fn native_timezone_filter_cancel_confirmation_and_failure_keep_the_original_edit
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     };
-    use writingdeck_sys::{Backend, Reply, Request, Simulated};
+    use wros_sys::{Backend, Reply, Request, Simulated};
     struct TimeBackend {
         calls: Arc<Mutex<Vec<Request>>>,
         fail: Arc<AtomicBool>,
@@ -505,7 +502,7 @@ fn warm_screen_missing_service_has_no_preview_and_leaves_writing_available() {
 #[test]
 fn late_warm_preview_is_cancelled_without_reopening_settings() {
     use std::sync::{Arc, Mutex, mpsc};
-    use writingdeck_sys::{Backend, Reply, Request, Simulated};
+    use wros_sys::{Backend, Reply, Request, Simulated};
     struct Delayed {
         backend: Simulated,
         entered: mpsc::Sender<()>,
@@ -560,7 +557,7 @@ fn late_warm_preview_is_cancelled_without_reopening_settings() {
 #[test]
 fn unavailable_suspend_never_reaches_the_worker_and_retains_editors_at_four_sizes() {
     use std::sync::{Arc, Mutex};
-    use writingdeck_sys::{Backend, PowerAction, Reply, Request, Simulated};
+    use wros_sys::{Backend, PowerAction, Reply, Request, Simulated};
     struct Recorded(Arc<Mutex<Vec<Request>>>, Simulated);
     impl Backend for Recorded {
         fn request(&mut self, request: Request) -> anyhow::Result<Reply> {
@@ -633,7 +630,7 @@ fn unavailable_suspend_never_reaches_the_worker_and_retains_editors_at_four_size
 #[test]
 fn supported_power_actions_still_require_confirmation_and_successful_saves() {
     use std::sync::{Arc, Mutex};
-    use writingdeck_sys::{Backend, PowerAction, Reply, Request, Simulated};
+    use wros_sys::{Backend, PowerAction, Reply, Request, Simulated};
     struct Recorded(Arc<Mutex<Vec<Request>>>, Simulated);
     impl Backend for Recorded {
         fn request(&mut self, request: Request) -> anyhow::Result<Reply> {
@@ -713,7 +710,7 @@ fn supported_power_actions_still_require_confirmation_and_successful_saves() {
 
 #[test]
 fn suspend_from_power_uses_the_console_handoff_after_saving() {
-    use writingdeck_sys::PowerAction;
+    use wros_sys::PowerAction;
     let mut desk = Desk::open(book("suspend-save", true), 100, 30);
     desk.app.deck.lock_available = true;
     desk.app.deck.suspend_available = true;
@@ -739,7 +736,7 @@ fn suspend_from_power_uses_the_console_handoff_after_saving() {
 
 #[test]
 fn confirmed_power_waits_for_backup_and_sync_then_allows_retry() {
-    use writingdeck_sys::PowerAction;
+    use wros_sys::PowerAction;
 
     let mut desk = Desk::open(book("power-with-book-jobs", true), 100, 30);
     desk.app.deck.simulate();
@@ -904,9 +901,9 @@ fn settings_descriptions_are_never_chosen_and_options_show_where_they_lead() {
     assert!(!desk.app.deck.installer_requested);
 }
 
-fn online_backend(status: &str, version: Option<&str>) -> writingdeck_sys::Simulated {
-    let mut sim = writingdeck_sys::Simulated::laptop();
-    sim.online = Some(writingdeck_sys::OnlineUpdate {
+fn online_backend(status: &str, version: Option<&str>) -> wros_sys::Simulated {
+    let mut sim = wros_sys::Simulated::laptop();
+    sim.online = Some(wros_sys::OnlineUpdate {
         status: status.into(),
         version: version.map(Into::into),
         installed: Some("0.1.0~rc2".into()),
@@ -1351,7 +1348,7 @@ fn a_running_backup_shows_its_step_percentage_and_time_under_cancel() {
 #[test]
 fn power_waits_for_missing_sources_and_failed_document_claims_then_allows_explicit_retry() {
     use std::sync::{Arc, Mutex};
-    use writingdeck_sys::{Backend, PowerAction, Reply, Request, Simulated};
+    use wros_sys::{Backend, PowerAction, Reply, Request, Simulated};
     struct Recorded(Arc<Mutex<Vec<Request>>>, Simulated);
     impl Backend for Recorded {
         fn request(&mut self, request: Request) -> anyhow::Result<Reply> {
@@ -1434,7 +1431,7 @@ fn power_waits_for_missing_sources_and_failed_document_claims_then_allows_explic
 fn native_wifi_enrollment_masks_credentials_handles_cancel_failure_and_success_preserving_both_editors()
  {
     use std::sync::{Arc, Mutex};
-    use writingdeck_sys::{Backend, Reply, Request, Simulated};
+    use wros_sys::{Backend, Reply, Request, Simulated};
     struct RecordedWifi(Arc<Mutex<Vec<Request>>>, Simulated);
     impl Backend for RecordedWifi {
         fn simulated(&self) -> bool {
@@ -1631,7 +1628,7 @@ use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, Ordering},
 };
-use writingdeck_sys::{Backend, Reply, Request, Simulated, UpdateState};
+use wros_sys::{Backend, Reply, Request, Simulated, UpdateState};
 
 const MEDIA: &str = "/media/usb/wros-signed-updates";
 
@@ -2118,7 +2115,7 @@ fn back_up_then_stage_stages_only_after_a_verified_backup_and_restarts_only_when
     assert_eq!(world.stages().len(), 1);
     assert_eq!(world.state(), UpdateState::Staged);
     assert_eq!(
-        world.count(|r| *r == Request::Power(writingdeck_sys::PowerAction::Restart)),
+        world.count(|r| *r == Request::Power(wros_sys::PowerAction::Restart)),
         1,
         "{}",
         desk.app.deck.note
@@ -2180,7 +2177,7 @@ fn back_up_stage_and_restart_carries_on_while_the_writer_looks_elsewhere() {
     wait_chain(&mut desk);
     assert_eq!(world.stages().len(), 1, "{}", desk.app.deck.note);
     assert_eq!(
-        world.count(|r| *r == Request::Power(writingdeck_sys::PowerAction::Restart)),
+        world.count(|r| *r == Request::Power(wros_sys::PowerAction::Restart)),
         1,
         "{}",
         desk.app.deck.note
@@ -2206,7 +2203,7 @@ fn back_up_stage_and_restart_carries_on_while_the_writer_looks_elsewhere() {
 
 #[test]
 fn an_app_only_update_installs_now_and_restarts_only_the_writing_app() {
-    use writingdeck_sys::PowerAction;
+    use wros_sys::PowerAction;
     let mut desk = Desk::open(book("update-live", true), 100, 30);
     let world = UpdateWorld::install(&mut desk);
     world.sim.lock().unwrap().staged_live = true;
@@ -2441,7 +2438,7 @@ fn staged_update_restart_needs_saved_work_and_cancel_rereads_what_the_system_say
         desk.choose("Restart now to install the staged update");
         wait_system(&mut desk);
         assert_eq!(
-            world.count(|r| *r == Request::Power(writingdeck_sys::PowerAction::Restart)),
+            world.count(|r| *r == Request::Power(wros_sys::PowerAction::Restart)),
             1
         );
         assert_eq!(desk.app.project.dirty_count(), 0, "work was saved first");
@@ -2738,7 +2735,7 @@ fn updates_and_recovery_without_a_service_do_not_claim_anything() {
 
 #[test]
 fn live_installer_handoff_confirmation_and_dirty_buffer_gate_preserve_both_editors_at_four_sizes() {
-    use writingdeck_sys::Simulated;
+    use wros_sys::Simulated;
     for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
         let (mut desk, note) =
             secondary_book(&format!("live-installer-{width}"), width, height, true);
@@ -2811,7 +2808,7 @@ fn manual_clock_form_default_cancel_and_verified_apply_preserve_both_editors_at_
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     };
-    use writingdeck_sys::{Backend, Reply, Request, Simulated};
+    use wros_sys::{Backend, Reply, Request, Simulated};
     struct ClockBackend {
         calls: Arc<Mutex<Vec<Request>>>,
         fail: Arc<AtomicBool>,
@@ -2916,7 +2913,7 @@ fn manual_clock_form_default_cancel_and_verified_apply_preserve_both_editors_at_
 #[test]
 fn sound_and_volume_panel_controls_and_keyboard_wizard_alias_registration_preserve_both_editors_at_four_sizes()
  {
-    use writingdeck_sys::Simulated;
+    use wros_sys::Simulated;
     for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
         let (mut desk, note) =
             secondary_book(&format!("sound-kbd-wizard-{width}"), width, height, true);
@@ -3002,7 +2999,7 @@ fn sound_and_volume_panel_controls_and_keyboard_wizard_alias_registration_preser
 
 #[test]
 fn suspend_saves_and_arms_the_console_handoff_at_four_sizes() {
-    use writingdeck_sys::Simulated;
+    use wros_sys::Simulated;
     for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
         let (mut desk, note) =
             secondary_book(&format!("pre-sleep-lock-{width}"), width, height, true);

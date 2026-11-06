@@ -549,7 +549,7 @@ impl App {
         self.deck.shell.nav.open(super::shell::Route::BackupForm);
         if kind == FormKind::GoogleFile {
             // The update helper's read-only WROS-UPDATE mount; its reply fills in the path.
-            self.deck.request(writingdeck_sys::Request::FindUpdateMedia);
+            self.deck.request(wros_sys::Request::FindUpdateMedia);
         }
     }
     /// The update helper's reply while the file form is open. Returns false when the form is

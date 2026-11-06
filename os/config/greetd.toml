@@ -4,7 +4,7 @@ vt = 1
 switch = true
 
 [general]
-# /etc/profile.d/writingdeck.sh is for the separate authenticated getty path.
+# /etc/profile.d/wros.sh is for the separate authenticated getty path.
 # Never run it in the greeter or before the explicit fixed session command.
 source_profile = false
 

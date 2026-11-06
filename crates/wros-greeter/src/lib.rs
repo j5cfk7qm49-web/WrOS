@@ -7,7 +7,7 @@ pub mod keyboard;
 
 pub const MAX_FRAME: usize = 16 * 1024;
 pub const MAX_INPUT: usize = 1024;
-pub const SESSION: &str = "/usr/libexec/writingdeck-session";
+pub const SESSION: &str = "/usr/libexec/wros-session";
 
 // Implement the documented JSON protocol independently; do not link the GPL
 // greetd_ipc crate into the MIT editor/shared presentation library.

@@ -97,7 +97,7 @@ pub enum Route {
 }
 
 pub struct WifiForm {
-    pub network: writingdeck_sys::WifiNetwork,
+    pub network: wros_sys::WifiNetwork,
     pub password: Zeroizing<String>,
     pub selected: usize,
 }
@@ -203,11 +203,8 @@ pub struct KeyboardWizardForm {
     pub selected: usize,
 }
 impl KeyboardWizardForm {
-    pub fn rows(
-        &self,
-        custom_maps: &[writingdeck_sys::keyboard::CustomMapRegistration],
-    ) -> Vec<String> {
-        let base = writingdeck_sys::keyboard::Layout::ALL[self.base_index].clone();
+    pub fn rows(&self, custom_maps: &[wros_sys::keyboard::CustomMapRegistration]) -> Vec<String> {
+        let base = wros_sys::keyboard::Layout::ALL[self.base_index].clone();
         let mut rows = vec![
             format!("Base layout: {} · {}", base.label(), base.description()),
             format!("Registered alias name (optional): {}", self.alias_name),
@@ -245,30 +242,30 @@ pub struct Shell {
     path: PathBuf,
     seen: Option<grimoire_core::sync::Fingerprint>,
     writable: bool,
-    pub display: Option<writingdeck_sys::display::Status>,
-    pub warmth: writingdeck_sys::display::Warmth,
+    pub display: Option<wros_sys::display::Status>,
+    pub warmth: wros_sys::display::Warmth,
     pub warm_wait: bool,
     pub warm_preview: Option<(String, Instant)>,
     pub timezones: Option<Vec<String>>,
     pub timezone_query: String,
     pub timezone_choice: Option<String>,
-    pub wifi_networks: Option<Vec<writingdeck_sys::WifiNetwork>>,
+    pub wifi_networks: Option<Vec<wros_sys::WifiNetwork>>,
     pub wifi_form: Option<WifiForm>,
-    pub wifi_saved: Option<Vec<writingdeck_sys::SavedWifi>>,
-    pub wifi_saved_choice: Option<writingdeck_sys::SavedWifi>,
-    pub local_accounts: Option<Vec<writingdeck_sys::LocalAccount>>,
-    pub google_status: Option<writingdeck_sys::GoogleAccountStatus>,
-    pub drive_files: Option<Vec<writingdeck_sys::RemoteFile>>,
-    pub backups: Option<Vec<writingdeck_sys::ResticSnapshot>>,
-    pub updates: Option<writingdeck_sys::UpdateInfo>,
+    pub wifi_saved: Option<Vec<wros_sys::SavedWifi>>,
+    pub wifi_saved_choice: Option<wros_sys::SavedWifi>,
+    pub local_accounts: Option<Vec<wros_sys::LocalAccount>>,
+    pub google_status: Option<wros_sys::GoogleAccountStatus>,
+    pub drive_files: Option<Vec<wros_sys::RemoteFile>>,
+    pub backups: Option<Vec<wros_sys::ResticSnapshot>>,
+    pub updates: Option<wros_sys::UpdateInfo>,
     pub update_form: Option<UpdateBundleForm>,
     pub update_flow: UpdateFlow,
-    pub recovery: Option<writingdeck_sys::RecoveryInfo>,
-    pub storage_devices: Option<Vec<writingdeck_sys::StorageDevice>>,
+    pub recovery: Option<wros_sys::RecoveryInfo>,
+    pub storage_devices: Option<Vec<wros_sys::StorageDevice>>,
     pub clock_form: Option<ClockForm>,
     pub clock_choice: Option<String>,
-    pub audio_status: Option<writingdeck_sys::AudioStatus>,
-    pub custom_keymaps: Vec<writingdeck_sys::keyboard::CustomMapRegistration>,
+    pub audio_status: Option<wros_sys::AudioStatus>,
+    pub custom_keymaps: Vec<wros_sys::keyboard::CustomMapRegistration>,
     pub keyboard_wizard: Option<KeyboardWizardForm>,
 }
 impl Shell {
@@ -289,7 +286,7 @@ impl Shell {
             seen: None,
             writable: true,
             display: None,
-            warmth: writingdeck_sys::display::Warmth::default(),
+            warmth: wros_sys::display::Warmth::default(),
             warm_wait: false,
             warm_preview: None,
             timezones: None,
@@ -377,9 +374,9 @@ enum Choice {
     BackupCancel,
     LinkPhone,
     GoogleDisconnectResolve(bool),
-    WifiSelect(writingdeck_sys::WifiNetwork),
+    WifiSelect(wros_sys::WifiNetwork),
     WifiDisconnect,
-    SavedWifiSelect(writingdeck_sys::SavedWifi),
+    SavedWifiSelect(wros_sys::SavedWifi),
     SavedWifiResolve(SavedWifiAction),
     UpdateBundleOpen,
     UpdateFindMedia,
@@ -401,8 +398,8 @@ enum Choice {
     Action(Action),
     System(usize),
     Information,
-    View(Route, writingdeck_sys::Request),
-    Read(writingdeck_sys::Request),
+    View(Route, wros_sys::Request),
+    Read(wros_sys::Request),
     WarmAdjust(i16, i16),
     WarmToggle,
     WarmStatus,
@@ -570,7 +567,7 @@ fn entries(app: &App) -> Vec<Entry> {
             if cfg!(feature = "audio") {
                 rows.push(Entry::new(
                     "Sound and volume",
-                    Choice::View(Route::SoundView, writingdeck_sys::Request::AudioStatus),
+                    Choice::View(Route::SoundView, wros_sys::Request::AudioStatus),
                 ));
             }
             rows
@@ -578,10 +575,7 @@ fn entries(app: &App) -> Vec<Entry> {
         Route::Category(Category::Accounts) => vec![
             Entry::new(
                 "Local accounts",
-                Choice::View(
-                    Route::LocalAccounts,
-                    writingdeck_sys::Request::ListLocalAccounts,
-                ),
+                Choice::View(Route::LocalAccounts, wros_sys::Request::ListLocalAccounts),
             ),
             Entry::new("Google account", Choice::Open(Route::GoogleAccount)),
             Entry::new("Google Drive", Choice::Open(Route::GoogleDrive)),
@@ -603,11 +597,11 @@ fn entries(app: &App) -> Vec<Entry> {
                     Entry::new("Disable Wi-Fi radio", Choice::System(2)),
                     Entry::new(
                         "Scan Wi-Fi networks",
-                        Choice::View(Route::WifiNetworks, writingdeck_sys::Request::ScanWifi),
+                        Choice::View(Route::WifiNetworks, wros_sys::Request::ScanWifi),
                     ),
                     Entry::new(
                         "Saved Wi-Fi profiles",
-                        Choice::View(Route::SavedWifi, writingdeck_sys::Request::ListSavedWifi),
+                        Choice::View(Route::SavedWifi, wros_sys::Request::ListSavedWifi),
                     ),
                     Entry::new("Disconnect active Wi-Fi", Choice::WifiDisconnect),
                     Entry::info(
@@ -649,7 +643,7 @@ fn entries(app: &App) -> Vec<Entry> {
                     if app.deck.suspend_available {
                         Entry::new("Lock and suspend", Choice::System(8))
                     } else {
-                        Entry::info(writingdeck_sys::SUSPEND_UNAVAILABLE)
+                        Entry::info(wros_sys::SUSPEND_UNAVAILABLE)
                     },
                     Entry::new("Shutdown · confirmation required", Choice::System(9)),
                     Entry::new("Restart · confirmation required", Choice::System(10)),
@@ -670,7 +664,7 @@ fn entries(app: &App) -> Vec<Entry> {
                         "Mounted filesystems",
                         Choice::View(
                             Route::StorageDevicesView,
-                            writingdeck_sys::Request::ListStorageDevices,
+                            wros_sys::Request::ListStorageDevices,
                         ),
                     ));
                     rows.push(Entry::info(format!(
@@ -722,7 +716,7 @@ fn entries(app: &App) -> Vec<Entry> {
                     if status.and_then(|s| s.network_time) == Some(false) {
                         rows.push(Entry::new(
                             "Use network time again (sets the clock automatically)",
-                            Choice::Read(writingdeck_sys::Request::UseNetworkTime),
+                            Choice::Read(wros_sys::Request::UseNetworkTime),
                         ));
                     }
                 }
@@ -734,7 +728,7 @@ fn entries(app: &App) -> Vec<Entry> {
         Route::WifiNetworks => {
             let mut rows = vec![Entry::new(
                 "Refresh scan",
-                Choice::Read(writingdeck_sys::Request::ScanWifi),
+                Choice::Read(wros_sys::Request::ScanWifi),
             )];
             if let Some(networks) = &app.deck.shell.wifi_networks {
                 for network in networks {
@@ -770,7 +764,7 @@ fn entries(app: &App) -> Vec<Entry> {
         Route::SavedWifi => {
             let mut rows = vec![Entry::new(
                 "Refresh saved profiles",
-                Choice::Read(writingdeck_sys::Request::ListSavedWifi),
+                Choice::Read(wros_sys::Request::ListSavedWifi),
             )];
             if let Some(profiles) = &app.deck.shell.wifi_saved {
                 for profile in profiles {
@@ -827,7 +821,7 @@ fn entries(app: &App) -> Vec<Entry> {
         Route::LocalAccounts => {
             let mut rows = vec![Entry::new(
                 "Refresh local accounts",
-                Choice::Read(writingdeck_sys::Request::ListLocalAccounts),
+                Choice::Read(wros_sys::Request::ListLocalAccounts),
             )];
             if let Some(accounts) = &app.deck.shell.local_accounts {
                 for account in accounts {
@@ -861,7 +855,7 @@ fn entries(app: &App) -> Vec<Entry> {
         Route::StorageDevicesView => {
             let mut rows = vec![Entry::new(
                 "Refresh mounted filesystems",
-                Choice::Read(writingdeck_sys::Request::ListStorageDevices),
+                Choice::Read(wros_sys::Request::ListStorageDevices),
             )];
             if let Some(devices) = &app.deck.shell.storage_devices {
                 for device in devices {
@@ -888,7 +882,7 @@ fn entries(app: &App) -> Vec<Entry> {
             let mut rows = vec![
                 Entry::new(
                     "Refresh cached package plan",
-                    Choice::Read(writingdeck_sys::Request::CheckUpdates),
+                    Choice::Read(wros_sys::Request::CheckUpdates),
                 ),
                 Entry::new(
                     "Review a signed update bundle by path",
@@ -896,10 +890,7 @@ fn entries(app: &App) -> Vec<Entry> {
                 ),
                 Entry::new(
                     "Recovery status, repair and staged update",
-                    Choice::View(
-                        Route::RecoveryView,
-                        writingdeck_sys::Request::RecoveryStatus,
-                    ),
+                    Choice::View(Route::RecoveryView, wros_sys::Request::RecoveryStatus),
                 ),
                 Entry::info("Preview only. No package download or installation is performed."),
                 Entry::info("Repository freshness and recovery are unchecked."),
@@ -1437,7 +1428,7 @@ fn entries(app: &App) -> Vec<Entry> {
         Route::SoundView => {
             let mut rows = vec![Entry::new(
                 "Refresh sound status",
-                Choice::Read(writingdeck_sys::Request::AudioStatus),
+                Choice::Read(wros_sys::Request::AudioStatus),
             )];
             if let Some(audio) = &app.deck.shell.audio_status {
                 rows.push(Entry::info(format!(
@@ -1491,8 +1482,8 @@ fn entries(app: &App) -> Vec<Entry> {
 }
 
 impl App {
-    fn clear_system_view(&mut self, request: &writingdeck_sys::Request) {
-        use writingdeck_sys::Request;
+    fn clear_system_view(&mut self, request: &wros_sys::Request) {
+        use wros_sys::Request;
         match request {
             Request::ScanWifi => self.deck.shell.wifi_networks = None,
             Request::ListSavedWifi => self.deck.shell.wifi_saved = None,
@@ -1574,7 +1565,7 @@ impl App {
             }
             Key::Enter if form.selected == 2 => {
                 let candidate = form.datetime.trim().to_string();
-                match writingdeck_sys::timezone::validate_local_datetime(&candidate) {
+                match wros_sys::timezone::validate_local_datetime(&candidate) {
                     Ok(normalized) => {
                         self.deck.shell.clock_choice = Some(normalized);
                         self.deck.shell.nav.open(Route::ManualClockConfirm);
@@ -1628,8 +1619,7 @@ impl App {
                 self.paste_keyboard_wizard(&c.to_string());
             }
             Key::Enter if form.selected == 0 || form.selected == 2 => {
-                form.base_index =
-                    (form.base_index + 1) % writingdeck_sys::keyboard::Layout::ALL.len();
+                form.base_index = (form.base_index + 1) % wros_sys::keyboard::Layout::ALL.len();
             }
             Key::Enter if form.selected == 1 => {
                 form.selected = 4;
@@ -1638,18 +1628,17 @@ impl App {
                 if self.deck.busy {
                     return;
                 }
-                let base = writingdeck_sys::keyboard::Layout::ALL[form.base_index].clone();
+                let base = wros_sys::keyboard::Layout::ALL[form.base_index].clone();
                 self.deck.shell.external = true;
-                self.deck
-                    .request(writingdeck_sys::Request::KeyboardPreview(base));
+                self.deck.request(wros_sys::Request::KeyboardPreview(base));
                 if self.deck.busy {
-                    self.overlay = Overlay::Deck(writingdeck::Page::KeyboardWait);
+                    self.overlay = Overlay::Deck(wros::Page::KeyboardWait);
                 }
             }
             Key::Enter if form.selected == 4 => {
-                let base = writingdeck_sys::keyboard::Layout::ALL[form.base_index].clone();
+                let base = wros_sys::keyboard::Layout::ALL[form.base_index].clone();
                 let name = form.alias_name.trim().to_string();
-                match writingdeck_sys::keyboard::CustomMapRegistration::new(&name, base.clone()) {
+                match wros_sys::keyboard::CustomMapRegistration::new(&name, base.clone()) {
                     Ok(reg) => {
                         self.deck
                             .shell
@@ -1712,16 +1701,14 @@ impl App {
                     return;
                 }
                 let bundle_dir = form.bundle_dir.trim().to_string();
-                if let Err(err) =
-                    writingdeck_sys::system_views::validate_update_bundle_path(&bundle_dir)
-                {
+                if let Err(err) = wros_sys::system_views::validate_update_bundle_path(&bundle_dir) {
                     self.deck.note = format!("Unavailable: {err}");
                     self.deck.shell.notices.push(&self.deck.note);
                     return;
                 }
                 self.deck.shell.update_flow.last_result = None;
                 self.deck
-                    .request(writingdeck_sys::Request::ReviewUpdateBundle { bundle_dir });
+                    .request(wros_sys::Request::ReviewUpdateBundle { bundle_dir });
             }
             _ => {}
         }
@@ -1772,32 +1759,32 @@ impl App {
                     return;
                 }
                 if selected == disconnect_idx && form.network.in_use {
-                    self.deck.request(writingdeck_sys::Request::DisconnectWifi);
+                    self.deck.request(wros_sys::Request::DisconnectWifi);
                     return;
                 }
                 if selected == connect_idx {
                     let ssid = form.network.ssid.clone();
-                    if let Err(err) = writingdeck_sys::system_views::validate_wifi_ssid(&ssid) {
+                    if let Err(err) = wros_sys::system_views::validate_wifi_ssid(&ssid) {
                         self.deck.note = format!("Unavailable: {err}");
                         self.deck.shell.notices.push(&self.deck.note);
                         return;
                     }
                     if requires_password {
                         if let Err(err) =
-                            writingdeck_sys::system_views::validate_wifi_password(&form.password)
+                            wros_sys::system_views::validate_wifi_password(&form.password)
                         {
                             self.deck.note = format!("Unavailable: {err}");
                             self.deck.shell.notices.push(&self.deck.note);
                             return;
                         }
-                        let secret = writingdeck_sys::WifiSecret::new(form.password.as_str());
+                        let secret = wros_sys::WifiSecret::new(form.password.as_str());
                         form.password = Zeroizing::new(String::new());
-                        self.deck.request(writingdeck_sys::Request::ConnectWifi {
+                        self.deck.request(wros_sys::Request::ConnectWifi {
                             ssid,
                             password: Some(secret),
                         });
                     } else {
-                        self.deck.request(writingdeck_sys::Request::ConnectWifi {
+                        self.deck.request(wros_sys::Request::ConnectWifi {
                             ssid,
                             password: None,
                         });
@@ -1809,9 +1796,7 @@ impl App {
     }
     pub fn open_settings(&mut self) {
         let origin = match self.overlay {
-            Overlay::Menu { .. } | Overlay::Deck(writingdeck::Page::Home { .. }) => {
-                self.overlay.clone()
-            }
+            Overlay::Menu { .. } | Overlay::Deck(wros::Page::Home { .. }) => self.overlay.clone(),
             _ => Overlay::None,
         };
         self.deck.shell.origin = Some(origin);
@@ -1829,7 +1814,7 @@ impl App {
         flow.stage_error = None;
         flow.changed = None;
         self.deck.shell.nav.reset(Route::Settings);
-        self.overlay = Overlay::Deck(writingdeck::Page::Settings);
+        self.overlay = Overlay::Deck(wros::Page::Settings);
         self.observe_deck(tutorial::Event::SystemOpened);
     }
     /// The live dashboard's install row: Settings opened straight on the installer
@@ -1997,7 +1982,7 @@ impl App {
                         self.deck.shell.nav.open(Route::WifiConnect);
                     }
                     Choice::WifiDisconnect if !self.deck.busy => {
-                        self.deck.request(writingdeck_sys::Request::DisconnectWifi);
+                        self.deck.request(wros_sys::Request::DisconnectWifi);
                     }
                     Choice::SavedWifiSelect(profile) if !self.deck.busy => {
                         self.deck.shell.wifi_saved_choice = Some(profile);
@@ -2013,15 +1998,12 @@ impl App {
                             self.deck.shell.nav.back();
                             match action {
                                 SavedWifiAction::Cancel => {}
-                                SavedWifiAction::Connect => {
-                                    self.deck
-                                        .request(writingdeck_sys::Request::ActivateSavedWifi(
-                                            profile.uuid,
-                                        ))
-                                }
+                                SavedWifiAction::Connect => self
+                                    .deck
+                                    .request(wros_sys::Request::ActivateSavedWifi(profile.uuid)),
                                 SavedWifiAction::Forget => self
                                     .deck
-                                    .request(writingdeck_sys::Request::ForgetWifi(profile.uuid)),
+                                    .request(wros_sys::Request::ForgetWifi(profile.uuid)),
                             }
                         }
                     }
@@ -2072,7 +2054,7 @@ impl App {
                         self.deck.shell.timezone_query.clear();
                         self.deck.shell.timezone_choice = None;
                         self.deck.shell.nav.open(Route::Timezones);
-                        self.deck.request(writingdeck_sys::Request::ListTimezones);
+                        self.deck.request(wros_sys::Request::ListTimezones);
                     }
                     Choice::TimezoneChoose(zone) if !self.deck.busy => {
                         self.deck.shell.timezone_choice = Some(zone);
@@ -2091,8 +2073,7 @@ impl App {
                                 .as_ref()
                                 .is_some_and(|zones| zones.contains(&zone))
                         {
-                            self.deck
-                                .request(writingdeck_sys::Request::SetTimezone(zone));
+                            self.deck.request(wros_sys::Request::SetTimezone(zone));
                         }
                     }
                     Choice::TimezoneOpen
@@ -2112,8 +2093,7 @@ impl App {
                     }
                     Choice::ClockResolve(true) if !self.deck.busy => {
                         if let Some(dt) = self.deck.shell.clock_choice.clone() {
-                            self.deck
-                                .request(writingdeck_sys::Request::SetLocalClock(dt));
+                            self.deck.request(wros_sys::Request::SetLocalClock(dt));
                         }
                     }
                     Choice::ClockOpen | Choice::ClockResolve(true) => {}
@@ -2123,7 +2103,7 @@ impl App {
                             && let Some(current) = audio.volume_percent
                         {
                             let next = (i16::from(current) + delta).clamp(0, 100) as u8;
-                            self.deck.request(writingdeck_sys::Request::SetVolume(next));
+                            self.deck.request(wros_sys::Request::SetVolume(next));
                         } else {
                             self.deck.note =
                                 "No supported sound output is available; volume unchanged.".into();
@@ -2134,8 +2114,7 @@ impl App {
                         if let Some(audio) = &self.deck.shell.audio_status
                             && audio.available
                         {
-                            self.deck
-                                .request(writingdeck_sys::Request::SetMute(!audio.muted));
+                            self.deck.request(wros_sys::Request::SetMute(!audio.muted));
                         } else {
                             self.deck.note =
                                 "No supported sound output is available; mute unchanged.".into();
@@ -2173,7 +2152,7 @@ impl App {
                             self.deck.shell.notices.push(message);
                         }
                         if route == Route::WarmScreen && !self.deck.busy {
-                            self.deck.request(writingdeck_sys::Request::DisplayStatus);
+                            self.deck.request(wros_sys::Request::DisplayStatus);
                         }
                         if matches!(route, Route::Panel(Panel::Updates | Panel::Recovery)) {
                             // These panels show what the update helper reports,
@@ -2185,7 +2164,7 @@ impl App {
                             && self.deck.snapshot.is_none()
                             && !self.deck.busy
                         {
-                            self.deck.request(writingdeck_sys::Request::Refresh);
+                            self.deck.request(wros_sys::Request::Refresh);
                         }
                     }
                     Choice::View(route, request) if !self.deck.busy => {
@@ -2210,7 +2189,7 @@ impl App {
                         self.deck.shell.warmth.enabled = !self.deck.shell.warmth.enabled
                     }
                     Choice::WarmStatus if !self.deck.busy => {
-                        self.deck.request(writingdeck_sys::Request::DisplayStatus)
+                        self.deck.request(wros_sys::Request::DisplayStatus)
                     }
                     Choice::WarmApply if !self.deck.busy => {
                         if self
@@ -2220,9 +2199,8 @@ impl App {
                             .as_ref()
                             .is_some_and(|s| s.available)
                         {
-                            self.deck.request(writingdeck_sys::Request::DisplayPreview(
-                                self.deck.shell.warmth,
-                            ));
+                            self.deck
+                                .request(wros_sys::Request::DisplayPreview(self.deck.shell.warmth));
                             self.deck.shell.warm_wait = self.deck.busy;
                         } else {
                             self.deck.shell.notices.push(
@@ -2243,7 +2221,7 @@ impl App {
                     }
                     Choice::System(sel) => {
                         self.deck.shell.external = true;
-                        self.overlay = Overlay::Deck(writingdeck::Page::System { sel });
+                        self.overlay = Overlay::Deck(wros::Page::System { sel });
                         self.on_deck_key(Key::Enter);
                         self.return_to_settings();
                     }
@@ -2258,9 +2236,9 @@ impl App {
         }
         if let Some((token, _)) = self.deck.shell.warm_preview.take() {
             self.deck.request(if keep {
-                writingdeck_sys::Request::DisplayConfirm(token)
+                wros_sys::Request::DisplayConfirm(token)
             } else {
-                writingdeck_sys::Request::DisplayCancel(token)
+                wros_sys::Request::DisplayCancel(token)
             });
         }
         self.deck.shell.nav.back();
@@ -2271,13 +2249,11 @@ impl App {
                 self.overlay,
                 Overlay::None
                     | Overlay::Menu { .. }
-                    | Overlay::Deck(
-                        writingdeck::Page::System { .. } | writingdeck::Page::Home { .. }
-                    )
+                    | Overlay::Deck(wros::Page::System { .. } | wros::Page::Home { .. })
             )
         {
             self.deck.shell.external = false;
-            self.overlay = Overlay::Deck(writingdeck::Page::Settings);
+            self.overlay = Overlay::Deck(wros::Page::Settings);
         }
     }
 }

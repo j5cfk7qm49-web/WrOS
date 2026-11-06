@@ -25,7 +25,7 @@ def primary_symbol(code):
 
 
 def main():
-    assert Path('/etc/writingdeck/VM-DEMO-ONLY').exists(), 'probe requires explicit isolated VM profile'
+    assert Path('/etc/wros/VM-DEMO-ONLY').exists(), 'probe requires explicit isolated VM profile'
     deadline = time.monotonic() + 100
     pid = None
     while time.monotonic() < deadline:
@@ -51,31 +51,31 @@ def main():
     rss = re.search(r'^VmRSS:\s+(\d+)', status, re.MULTILINE).group(1)
     marker('WRITINGDECK_VM_UI_PASS uid=' + uid + ' rss_kib=' + rss)
     # The active local writer is eligible for only the narrow keyboard action.
-    command('/usr/bin/pkcheck', '--action-id', 'org.writingdeck.keyboard', '--process', pid.name)
+    command('/usr/bin/pkcheck', '--action-id', 'org.wros.keyboard', '--process', pid.name)
     marker('WRITINGDECK_VM_POLKIT_PASS')
     assert primary_symbol(18) == ord('e'), 'initial QWERTY E key'
     # Real Linux console keymap change + real independent systemd timer.
-    preview = json.loads(command('/usr/libexec/writingdeck-keyboard', 'preview', 'colemak-dh-ansi'))
+    preview = json.loads(command('/usr/libexec/wros-keyboard', 'preview', 'colemak-dh-ansi'))
     assert primary_symbol(18) == ord('f'), 'Colemak physical E must produce logical F'
     assert len(preview['token']) == 32
     time.sleep(16)
     assert primary_symbol(18) == ord('e'), 'unconfirmed preview must revert without Grimoire involvement'
     marker('WRITINGDECK_VM_KEYBOARD_ROLLBACK_PASS')
-    preview = json.loads(command('/usr/libexec/writingdeck-keyboard', 'preview', 'colemak'))
-    command('/usr/libexec/writingdeck-keyboard', 'confirm', preview['token'])
-    assert json.loads(Path('/etc/writingdeck/keyboard.json').read_text())['layout'] == 'colemak'
-    command('/usr/libexec/writingdeck-keyboard', 'boot')
+    preview = json.loads(command('/usr/libexec/wros-keyboard', 'preview', 'colemak'))
+    command('/usr/libexec/wros-keyboard', 'confirm', preview['token'])
+    assert json.loads(Path('/etc/wros/keyboard.json').read_text())['layout'] == 'colemak'
+    command('/usr/libexec/wros-keyboard', 'boot')
     assert primary_symbol(18) == ord('f'), 'committed layout must apply again at boot'
     marker('WRITINGDECK_VM_KEYBOARD_COMMIT_PASS')
     grammar = json.loads(subprocess.check_output([
         '/usr/sbin/runuser', '-u', 'writer', '--', '/usr/bin/python3',
-        '/usr/libexec/writingdeck-vm-fixtures/guest-checks-probe.py'], text=True, stderr=subprocess.STDOUT, timeout=220))
+        '/usr/libexec/wros-vm-fixtures/guest-checks-probe.py'], text=True, stderr=subprocess.STDOUT, timeout=220))
     assert grammar['uid'] != 0 and len(grammar['checks']) == 6
     marker('WRITINGDECK_VM_GRAMMAR_RESULT ' + json.dumps(grammar))
     marker('WRITINGDECK_VM_GRAMMAR_PASS uid=' + str(grammar['uid']) + ' peak_rss_kib=' + str(grammar['kernel_peak_rss_kib']) )
     prose = json.loads(subprocess.check_output([
         '/usr/sbin/runuser', '-u', 'writer', '--', '/usr/bin/python3',
-        '/usr/libexec/writingdeck-vm-fixtures/guest-prose-probe.py'], text=True, stderr=subprocess.STDOUT, timeout=250))
+        '/usr/libexec/wros-vm-fixtures/guest-prose-probe.py'], text=True, stderr=subprocess.STDOUT, timeout=250))
     assert prose['uid'] != 0 and len(prose['engines']) == 3 and prose['wordnet_senses'] == 21
     marker('WRITINGDECK_VM_PROSE_RESULT ' + json.dumps(prose))
     if prose['budget_limited_engines']:

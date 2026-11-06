@@ -2,7 +2,7 @@
 # screens. Never add a target disk, password, partition recipe or confirmation.
 d-i passwd/root-login boolean false
 d-i passwd/make-user boolean true
-d-i passwd/user-default-groups string audio cdrom dip video plugdev netdev sudo writingdeck
+d-i passwd/user-default-groups string audio cdrom dip video plugdev netdev sudo wros writingdeck
 # Copy the complete offline squashfs, including firmware and prose resources.
 d-i live-installer/enable boolean true
 # WrOS is offline-first: the installer must not reach a time server, an apt

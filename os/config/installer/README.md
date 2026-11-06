@@ -69,7 +69,7 @@ console-setup-udeb 1.242~deb13u1) offers Dvorak but not Colemak, and the
 installer's precompiled console maps (`pc105.ekmap.gz`) have no Colemak entry.
 The local `wros-installer-keymaps` udeb adds Debian's own `us(colemak)`,
 `us(colemak_dh)` and `us(colemak_dh_iso)`, listed after Chinese as Colemak and
-Colemak Mod-DH (ANSI/ISO); these are the variants `writingdeck-keyboard` adopts.
+Colemak Mod-DH (ANSI/ISO); these are the variants `wros-keyboard` adopts.
 
 - `keymaps/` holds the generated overlay: the maintained question with the
   three choices inserted at the same position in every translated Choices field,

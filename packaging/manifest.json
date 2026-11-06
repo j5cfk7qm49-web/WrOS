@@ -25,14 +25,15 @@
   "notes": [
     "dest paths are relative to the image root. class: code/config entries are compared byte-for-byte with the repository source by the image audit; doc entries are covered by the package md5sums only; binary/generated entries come from build inputs.",
     "pending: true would mark files of a workstream not yet merged (staging warns instead of failing). No entry is pending: the update engine is integrated, so a missing source fails staging and the audit compares every file with the repository.",
-    "Only /etc/writingdeck/keyboard.json is a conffile: the writer's committed layout must survive an update. Policy, unit and drop-in files under /etc are intentionally ordinary package files so an authenticated update replaces them authoritatively."
+    "Only /etc/wros/keyboard.json is a conffile: the writer's committed layout must survive an update. Policy, unit and drop-in files under /etc are intentionally ordinary package files so an authenticated update replaces them authoritatively."
   ],
   "files": [
     {"dest": "usr/bin/grimoire", "generated": "binary:grimoire", "mode": "0755", "class": "binary", "strip": true},
     {"dest": "usr/libexec/wros-display-hw", "generated": "binary:wros-display-hw", "mode": "0755", "class": "binary", "strip": true},
 
-    {"dest": "usr/libexec/writingdeck-keyboard", "source": "os/scripts/writingdeck-keyboard", "mode": "0755", "class": "code"},
-    {"dest": "usr/libexec/writingdeck-session", "source": "os/scripts/writingdeck-session", "mode": "0755", "class": "code"},
+    {"dest": "usr/libexec/wros-keyboard", "source": "os/scripts/wros-keyboard", "mode": "0755", "class": "code"},
+    {"dest": "usr/libexec/wros-session", "source": "os/scripts/wros-session", "mode": "0755", "class": "code"},
+    {"dest": "usr/libexec/wros-name-migrate", "source": "os/scripts/wros-name-migrate.py", "mode": "0755", "class": "code"},
     {"dest": "usr/libexec/wros-display", "source": "os/scripts/wros-display", "mode": "0755", "class": "code"},
     {"dest": "usr/libexec/wros-lock", "source": "os/scripts/wros-lock", "mode": "0755", "class": "code"},
     {"dest": "usr/libexec/wros-backup", "source": "os/scripts/wros-backup", "mode": "0755", "class": "code"},
@@ -54,12 +55,12 @@
     {"dest": "usr/share/polkit-1/actions/org.wros.update.policy", "source": "os/config/org.wros.update.policy", "mode": "0644", "class": "config"},
     {"dest": "etc/polkit-1/rules.d/50-wros-update.rules", "source": "os/config/50-wros-update.rules", "mode": "0644", "class": "config"},
 
-    {"dest": "etc/profile.d/writingdeck.sh", "source": "os/config/writingdeck-profile.sh", "mode": "0644", "class": "config"},
-    {"dest": "etc/writingdeck/keyboard.json", "source": "os/config/keyboard.json", "mode": "0644", "class": "config", "conffile": true},
-    {"dest": "etc/writingdeck/release", "generated": "release", "mode": "0644", "class": "generated"},
+    {"dest": "etc/profile.d/wros.sh", "source": "os/config/wros-profile.sh", "mode": "0644", "class": "config"},
+    {"dest": "etc/wros/keyboard.json", "source": "os/config/keyboard.json", "mode": "0644", "class": "config", "conffile": true},
+    {"dest": "etc/wros/release", "generated": "release", "mode": "0644", "class": "generated"},
 
-    {"dest": "etc/polkit-1/rules.d/50-writingdeck-keyboard.rules", "source": "os/config/50-writingdeck-keyboard.rules", "mode": "0644", "class": "config"},
-    {"dest": "usr/share/polkit-1/actions/org.writingdeck.keyboard.policy", "source": "os/config/org.writingdeck.keyboard.policy", "mode": "0644", "class": "config"},
+    {"dest": "etc/polkit-1/rules.d/50-wros-keyboard.rules", "source": "os/config/50-wros-keyboard.rules", "mode": "0644", "class": "config"},
+    {"dest": "usr/share/polkit-1/actions/org.wros.keyboard.policy", "source": "os/config/org.wros.keyboard.policy", "mode": "0644", "class": "config"},
     {"dest": "etc/polkit-1/rules.d/50-wros-display.rules", "source": "os/config/50-wros-display.rules", "mode": "0644", "class": "config"},
     {"dest": "etc/apt/sources.list.d/wros.sources", "source": "os/config/apt/wros.sources", "mode": "0644", "class": "config"},
     {"dest": "usr/share/wros/update-keyring.gpg", "source": "os/config/update-trust/wros-archive-keyring.gpg", "mode": "0644", "class": "config"},
@@ -71,9 +72,9 @@
     {"dest": "etc/polkit-1/rules.d/50-wros-lock.rules", "source": "os/config/50-wros-lock.rules", "mode": "0644", "class": "config"},
     {"dest": "usr/share/polkit-1/actions/org.wros.lock.policy", "source": "os/config/org.wros.lock.policy", "mode": "0644", "class": "config"},
 
-    {"dest": "etc/systemd/system/writingdeck-keyboard-revert.service", "source": "os/systemd/writingdeck-keyboard-revert.service", "mode": "0644", "class": "config"},
-    {"dest": "etc/systemd/system/writingdeck-keyboard-revert.timer", "source": "os/systemd/writingdeck-keyboard-revert.timer", "mode": "0644", "class": "config"},
-    {"dest": "etc/systemd/system/writingdeck-keyboard.service", "source": "os/systemd/writingdeck-keyboard.service", "mode": "0644", "class": "config"},
+    {"dest": "etc/systemd/system/wros-keyboard-revert.service", "source": "os/systemd/wros-keyboard-revert.service", "mode": "0644", "class": "config"},
+    {"dest": "etc/systemd/system/wros-keyboard-revert.timer", "source": "os/systemd/wros-keyboard-revert.timer", "mode": "0644", "class": "config"},
+    {"dest": "etc/systemd/system/wros-keyboard.service", "source": "os/systemd/wros-keyboard.service", "mode": "0644", "class": "config"},
     {"dest": "etc/systemd/system/wros-display-revert.service", "source": "os/systemd/wros-display-revert.service", "mode": "0644", "class": "config"},
     {"dest": "etc/systemd/system/wros-display-revert.timer", "source": "os/systemd/wros-display-revert.timer", "mode": "0644", "class": "config"},
     {"dest": "etc/systemd/system/wros-display.service", "source": "os/systemd/wros-display.service", "mode": "0644", "class": "config"},
@@ -96,24 +97,24 @@
     {"dest": "etc/modprobe.d/60-wros-wifi-power.conf", "source": "os/config/60-wros-wifi-power.conf", "mode": "0644", "class": "config"},
     {"dest": "etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf", "source": "os/config/60-wros-no-connectivity-check.conf", "mode": "0644", "class": "config"},
 
-    {"generated": "keymaps", "dest_dir": "usr/share/writingdeck/keymaps", "names": ["qwerty.map", "colemak.map", "colemak-dh-ansi.map", "colemak-dh-iso.map"], "mode": "0644", "class": "generated"},
+    {"generated": "keymaps", "dest_dir": "usr/share/wros/keymaps", "names": ["qwerty.map", "colemak.map", "colemak-dh-ansi.map", "colemak-dh-iso.map"], "mode": "0644", "class": "generated"},
 
     {"dest": "usr/share/doc/wros/copyright", "source": "packaging/copyright", "mode": "0644", "class": "doc"},
-    {"dest": "usr/share/doc/writingdeck/LICENSE-grimoire", "source": "LICENSE", "mode": "0644", "class": "doc"},
-    {"dest": "usr/share/doc/writingdeck/DICTIONARY-LICENSE", "source": "assets/dict/DICTIONARY-LICENSE", "mode": "0644", "class": "doc"},
-    {"glob": "docs/*.md", "dest_dir": "usr/share/doc/writingdeck", "mode": "0644", "class": "doc"},
-    {"glob": "docs/*licenses.json", "dest_dir": "usr/share/doc/writingdeck", "mode": "0644", "class": "doc"},
-    {"dest": "usr/share/doc/writingdeck/feature-status.json", "source": "docs/feature-status.json", "mode": "0644", "class": "doc"},
-    {"dest": "usr/share/doc/writingdeck/keyboard-reference.html", "source": "docs/keyboard-reference.html", "mode": "0644", "class": "doc"},
-    {"glob": "os/licenses/*.txt", "dest_dir": "usr/share/doc/writingdeck", "mode": "0644", "class": "doc"},
-    {"glob": "os/licenses/upstream/*.txt", "dest_dir": "usr/share/doc/writingdeck/upstream", "mode": "0644", "class": "doc"},
-    {"dest": "usr/share/doc/writingdeck/upstream-notice-sources.json", "source": "docs/upstream-notice-sources.json", "mode": "0644", "class": "doc"},
-    {"tree": "os/licenses/python", "dest_dir": "usr/share/doc/writingdeck/python", "class": "doc"},
-    {"dest": "usr/share/doc/writingdeck/python-tools-lock.json", "source": "docs/python-tools-lock.json", "mode": "0644", "class": "doc"},
-    {"dest": "usr/share/doc/writingdeck/python-tool-notices.json", "source": "docs/python-tool-notices.json", "mode": "0644", "class": "doc"}
+    {"dest": "usr/share/doc/wros/LICENSE-grimoire", "source": "LICENSE", "mode": "0644", "class": "doc"},
+    {"dest": "usr/share/doc/wros/DICTIONARY-LICENSE", "source": "assets/dict/DICTIONARY-LICENSE", "mode": "0644", "class": "doc"},
+    {"glob": "docs/*.md", "dest_dir": "usr/share/doc/wros", "mode": "0644", "class": "doc"},
+    {"glob": "docs/*licenses.json", "dest_dir": "usr/share/doc/wros", "mode": "0644", "class": "doc"},
+    {"dest": "usr/share/doc/wros/feature-status.json", "source": "docs/feature-status.json", "mode": "0644", "class": "doc"},
+    {"dest": "usr/share/doc/wros/keyboard-reference.html", "source": "docs/keyboard-reference.html", "mode": "0644", "class": "doc"},
+    {"glob": "os/licenses/*.txt", "dest_dir": "usr/share/doc/wros", "mode": "0644", "class": "doc"},
+    {"glob": "os/licenses/upstream/*.txt", "dest_dir": "usr/share/doc/wros/upstream", "mode": "0644", "class": "doc"},
+    {"dest": "usr/share/doc/wros/upstream-notice-sources.json", "source": "docs/upstream-notice-sources.json", "mode": "0644", "class": "doc"},
+    {"tree": "os/licenses/python", "dest_dir": "usr/share/doc/wros/python", "class": "doc"},
+    {"dest": "usr/share/doc/wros/python-tools-lock.json", "source": "docs/python-tools-lock.json", "mode": "0644", "class": "doc"},
+    {"dest": "usr/share/doc/wros/python-tool-notices.json", "source": "docs/python-tool-notices.json", "mode": "0644", "class": "doc"}
   ],
   "enable": [
-    {"unit": "writingdeck-keyboard.service", "target": "multi-user.target", "verify_install_section": false},
+    {"unit": "wros-keyboard.service", "target": "multi-user.target", "verify_install_section": false},
     {"unit": "wros-display.service", "target": "multi-user.target", "verify_install_section": false},
     {"unit": "wros-offline-update.service", "target": "system-update.target", "verify_install_section": true},
     {"unit": "wros-update-reconcile.service", "target": "multi-user.target", "verify_install_section": true},

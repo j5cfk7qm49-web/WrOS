@@ -2,7 +2,7 @@
 //! a brand-new tutorial directory. Status is read-only, not a system setup.
 use anyhow::{Result, bail};
 use std::path::PathBuf;
-use writingdeck_sys::{Backend, Reply, Request};
+use wros_sys::{Backend, Reply, Request};
 
 pub fn command(mut args: impl Iterator<Item = String>) -> Result<()> {
     match args.next().as_deref() {
@@ -16,9 +16,9 @@ pub fn command(mut args: impl Iterator<Item = String>) -> Result<()> {
                 bail!("too many status arguments");
             }
             let mut backend: Box<dyn Backend> = if simulated {
-                Box::new(writingdeck_sys::Simulated::laptop())
+                Box::new(wros_sys::Simulated::laptop())
             } else {
-                Box::new(writingdeck_sys::linux::Linux::default())
+                Box::new(wros_sys::linux::Linux::default())
             };
             let Reply::Snapshot(snapshot) = backend.request(Request::Refresh)? else {
                 bail!("invalid status response");

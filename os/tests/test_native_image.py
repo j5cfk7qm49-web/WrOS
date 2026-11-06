@@ -29,7 +29,7 @@ UPDATE_POLICY = ('<?xml version="1.0" encoding="UTF-8"?>\n'
                  + '</policyconfig>\n').encode()
 UPDATE_RULES = (b'// fixture rules\npolkit.addRule(function(action, subject) {\n'
                 b'    if (action.id.indexOf("org.wros.update.") == 0 && subject.local && subject.active &&\n'
-                b'        subject.isInGroup("writingdeck")) { return polkit.Result.YES; }\n});\n')
+                b'        subject.isInGroup("wros")) { return polkit.Result.YES; }\n});\n')
 # Stand-ins for the update-engine workstream's files, which are not merged into this tree.
 # They live only in fixtures; the repository carries the real ones once integrated.
 PLACEHOLDERS = {
@@ -84,7 +84,7 @@ def record_package(root, files, version=None):
     (info / 'wros.list').write_text('/.\n' + ''.join('/%s\n' % e for e in sorted(entries - {'.'})))
     (info / 'wros.md5sums').write_text(''.join(
         '%s  %s\n' % (hashlib.md5(files[d]).hexdigest(), d) for d in sorted(files)))
-    (info / 'wros.conffiles').write_text('/etc/writingdeck/keyboard.json\n')
+    (info / 'wros.conffiles').write_text('/etc/wros/keyboard.json\n')
 
 
 def fixture_bytes(spec, version, manifest):
@@ -123,7 +123,7 @@ def fixture(root, signer_uid=SIGNER_UID):
         output.write(dpkg_stanza('vlock', '2.2.2-12'))
         output.write(dpkg_stanza('systemd-timesyncd', '257.9-1~deb13u1'))
         output.write(dpkg_stanza('wros', version, 'Depends: ' + ', '.join(manifest['package']['depends']) + '\n'
-                                 'Conffiles:\n /etc/writingdeck/keyboard.json 0\n'))
+                                 'Conffiles:\n /etc/wros/keyboard.json 0\n'))
     for relative in ('usr/sbin/greetd', 'usr/bin/wros-greeter',
                      'etc/pam.d/greetd', 'usr/share/doc/greetd/copyright', 'usr/share/doc/vlock/copyright',
                      'usr/bin/restic', 'usr/bin/rclone', 'usr/bin/gpgv',
@@ -401,7 +401,7 @@ class PackageAwareAudit(unittest.TestCase):
             self.assertEqual(result['wros_package']['version'], packaging.read_version(ROOT))
             self.assertEqual(result['update_signers'], [info['fingerprint'], RELEASE_PRIMARY])
             self.assertEqual(result['update_units_enabled'], [
-                'writingdeck-keyboard.service', 'wros-display.service',
+                'wros-keyboard.service', 'wros-display.service',
                 'wros-offline-update.service', 'wros-update-reconcile.service',
                 'wros-boot-ok.service', 'wros-boot-ok.service'])
             self.assertEqual(result['update_polkit_actions'], [
@@ -458,7 +458,7 @@ class PackageAwareAudit(unittest.TestCase):
             'missing engine': (lambda r, i: (r / 'usr/lib/wros-update/engine.py').unlink(), 'missing'),
             'package file replaced by symlink': (symlink_over, 'regular file'),
             'release carries another version': (
-                lambda r, i: replace_package_file(r, 'etc/writingdeck/release', b'WRITINGDECK_VERSION=9.9.9\n'),
+                lambda r, i: replace_package_file(r, 'etc/wros/release', b'WROS_VERSION=9.9.9\n'),
                 'package version'),
             'conffile not registered': (
                 lambda r, i: (r / 'var/lib/dpkg/info/wros.conffiles').write_text(''), 'conffile'),
@@ -472,7 +472,7 @@ class PackageAwareAudit(unittest.TestCase):
         # root-owned tree gets EACCES there, which must never be reported as a missing file.
         tmp, root, info = staged_image()
         with tmp:
-            denied = root / 'etc/polkit-1/rules.d/50-writingdeck-keyboard.rules'
+            denied = root / 'etc/polkit-1/rules.d/50-wros-keyboard.rules'
             self.assertTrue(denied.is_file())
             real_lstat = Path.lstat
 
@@ -591,7 +591,7 @@ class PackageAwareAudit(unittest.TestCase):
             'offline unit not enabled': (lambda r, i: (r / offline_link).unlink(), 'not enabled'),
             'reconcile unit not enabled': (lambda r, i: (r / reconcile_link).unlink(), 'not enabled'),
             'keyboard unit not enabled': (lambda r, i: (
-                r / 'etc/systemd/system/multi-user.target.wants/writingdeck-keyboard.service').unlink(), 'not enabled'),
+                r / 'etc/systemd/system/multi-user.target.wants/wros-keyboard.service').unlink(), 'not enabled'),
             'offline unit without [Install]': (lambda r, i: replace_package_file(
                 r, offline, b'[Unit]\nDescription=x\n[Service]\nExecStart=/bin/true\n', qualify=True), 'does not declare'),
             'offline unit wanted by the wrong target': (lambda r, i: replace_package_file(

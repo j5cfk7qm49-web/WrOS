@@ -1458,7 +1458,7 @@ DPKG_DEB = '/usr/bin/dpkg-deb'
 # Files an update may add, change or remove and still install while WrOS runs: the
 # writing app, the unprivileged helpers it runs itself, its docs and the version file.
 LIVE_APPLY_FILES = ('usr/bin/grimoire', 'usr/libexec/wros-backup', 'usr/libexec/wros-sync',
-                    'etc/writingdeck/release')
+                    'etc/wros/release')
 LIVE_APPLY_PREFIXES = ('usr/share/doc/',)
 # Control fields that must not change: relationships and the package's shape.
 LIVE_APPLY_FIELDS = ('Architecture', 'Pre-Depends', 'Depends', 'Recommends', 'Breaks', 'Conflicts',

@@ -363,7 +363,7 @@ class Service:
         self.drive_cache = state/'drive-cache'
         self.clients_path = Path(GOOGLE_CLIENTS)
         self.profile_config = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home()/'.config')))/'grimoire'
-        self.keyboard_file = Path('/etc/writingdeck/keyboard.json')
+        self.keyboard_file = Path('/etc/wros/keyboard.json')
         self.timezone_file = Path('/etc/timezone')
         self.env = {key: value for key, value in os.environ.items()
                     if not key.startswith(('RESTIC_', 'RCLONE_'))}

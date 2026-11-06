@@ -41,7 +41,7 @@ fi
 # Reassembly/upgrades must not reset a committed layout (keyboard.json is a conffile; the
 # first-boot adoption marker belongs only to a root that did not have one).
 fresh_layout=1
-if [[ -e $dest/etc/writingdeck/keyboard.json || -L $dest/etc/writingdeck/keyboard.json ]]; then fresh_layout=0; fi
+if [[ -e $dest/etc/wros/keyboard.json || -L $dest/etc/wros/keyboard.json ]]; then fresh_layout=0; fi
 if [[ -e $dest/etc/pam.d/vlock || -L $dest/etc/pam.d/vlock ]]; then
     if [[ -L $dest/etc/pam.d/vlock ]] || ! cmp -s "$repo/os/config/vlock.pam" "$dest/etc/pam.d/vlock"; then
         echo 'Existing locker PAM configuration preserved; review it before staging this profile.' >&2; exit 2;
@@ -70,14 +70,14 @@ mkdir -p "$dest/var/log"
 dpkg --root="$dest" --log="$dest/var/log/dpkg.log" --force-confold --force-unsafe-io --no-triggers     --force-script-chrootless --install "$deb"
 [[ $(dpkg-query --admindir="$admindir" -W -f='${Version}\t${Status}' wros) == "$version"$'\t''install ok installed' ]] || {
     echo 'wros is not recorded as installed after dpkg.' >&2; exit 1; }
-runtime=${WRITINGDECK_PROSE_RUNTIME:-$repo/build/prose-runtime/runtime}
+runtime=${WROS_PROSE_RUNTIME:-${WRITINGDECK_PROSE_RUNTIME:-$repo/build/prose-runtime/runtime}}
 python3 "$repo/tools/stage-prose-runtime.py" "$dest" "$runtime"
-printf 'IMAGE_PROFILE=%s\n' "$profile" > "$dest/etc/writingdeck/image-profile"
-chmod 644 "$dest/etc/writingdeck/image-profile"
+printf 'IMAGE_PROFILE=%s\n' "$profile" > "$dest/etc/wros/image-profile"
+chmod 644 "$dest/etc/wros/image-profile"
 if [[ $fresh_layout == 1 && $profile == installer ]]; then
     # Debian Installer populates /etc/default/keyboard on the target later.
     # Adopt that choice at first boot, never on an existing installation.
-    install -m 644 /dev/null "$dest/etc/writingdeck/installer-keyboard-pending"
+    install -m 644 /dev/null "$dest/etc/wros/installer-keyboard-pending"
 fi
 # Debian's online sources: a template only. The installer's target hygiene copies it to
 # /etc/apt/sources.list.d after the offline install, never onto the live medium itself.

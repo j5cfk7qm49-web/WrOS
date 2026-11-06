@@ -118,7 +118,7 @@ if [[ $profile == live-session ]]; then
     [[ ${#kernels[@]} == 1 && ${kernels[0]} == "chroot/boot/vmlinuz-$abi" ]] || {
         echo "Live kernel drifted from the qualified $abi: ${kernels[*]}" >&2; exit 1; }
 fi
-chroot chroot groupadd --system writingdeck
+chroot chroot groupadd --system wros
 bash "$repo/os/scripts/install-files.sh" "$base/chroot" "$binary" installer
 bash "$repo/os/scripts/stage-greeter.sh" "$base/chroot" "$greeter"
 if [[ $profile == live-session ]]; then
@@ -126,7 +126,7 @@ if [[ $profile == live-session ]]; then
     python3 "$repo/tools/audit-live-session.py" chroot > live-session-rootfs.json
 fi
 # Do not copy any VM-only getty/probe/account into the installed filesystem.
-[[ ! -e chroot/etc/writingdeck/VM-DEMO-ONLY && ! -e chroot/etc/systemd/system/getty@tty1.service.d/writingdeck-vm.conf ]]
+[[ ! -e chroot/etc/wros/VM-DEMO-ONLY && ! -e chroot/etc/systemd/system/getty@tty1.service.d/wros-vm.conf ]]
 python3 "$repo/tools/audit-wifi-image.py" chroot > wifi-rootfs.json
 lb installer
 lb binary

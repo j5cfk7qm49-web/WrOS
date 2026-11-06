@@ -224,10 +224,7 @@ pub fn execute(command: &Command) -> Result<Vec<u8>, &'static str> {
         .env_clear()
         .env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
         .env("LANG", "C.UTF-8")
-        .args([
-            "--disable-internal-agent",
-            "/usr/libexec/writingdeck-keyboard",
-        ])
+        .args(["--disable-internal-agent", "/usr/libexec/wros-keyboard"])
         .args(arguments)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())

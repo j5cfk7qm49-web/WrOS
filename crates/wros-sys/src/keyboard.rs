@@ -154,7 +154,7 @@ mod tests {
         assert_eq!(reg.base, Layout::ColemakDhAnsi);
         for bad in [
             "",
-            "/usr/share/writingdeck/keymaps/qwerty.map",
+            "/usr/share/wros/keymaps/qwerty.map",
             "../custom.map",
             "custom.map",
             "qwerty",

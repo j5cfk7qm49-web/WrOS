@@ -99,7 +99,7 @@ def locked(label, app):
 
 
 def main():
-    assert Path('/etc/writingdeck/VM-DEMO-ONLY').is_file()
+    assert Path('/etc/wros/VM-DEMO-ONLY').is_file()
     assert 'root=UUID=3224a43a-692d-4cd6-a526-96b9a630fa24' in Path('/proc/cmdline').read_text()
     for name, post, good in (('pass', 'true', True), ('fail', 'false', False)):
         reply = subprocess.run(['/usr/bin/systemd-run', '--quiet', '--wait', '--collect', '--service-type=exec',
@@ -132,7 +132,7 @@ def main():
     assert len(secret) == 24 and secret.isalnum()
     command('chpasswd', input=('writer:' + secret + '\n').encode())
     Path('/root/lock-secret').unlink()
-    Path('/etc/writingdeck/VM-DEMO-ONLY').unlink()  # This generated COW only.
+    Path('/etc/wros/VM-DEMO-ONLY').unlink()  # This generated COW only.
     command('systemctl', 'daemon-reload')
     command('systemctl', 'start', 'greetd')
     original_sysrq = Path('/proc/sys/kernel/sysrq').read_text()

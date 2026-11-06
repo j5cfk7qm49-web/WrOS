@@ -103,7 +103,7 @@ PACKAGES = (
 EXPECTED_PRESEED = {
     ('d-i', 'passwd/root-login'): ('boolean', 'false'),
     ('d-i', 'passwd/make-user'): ('boolean', 'true'),
-    ('d-i', 'passwd/user-default-groups'): ('string', 'audio cdrom dip video plugdev netdev sudo writingdeck'),
+    ('d-i', 'passwd/user-default-groups'): ('string', 'audio cdrom dip video plugdev netdev sudo wros writingdeck'),
     ('d-i', 'live-installer/enable'): ('boolean', 'true'),
     ('d-i', 'clock-setup/ntp'): ('boolean', 'false'),
     ('d-i', 'apt-setup/use_mirror'): ('boolean', 'false'),
@@ -330,7 +330,7 @@ def validate_caller():
     value = os.environ.get('PKEXEC_UID', '')
     require(value == str(UID), 'only the live session account may start the installer')
     parent = os.getppid()
-    require(parent > 1 and not Path('/etc/writingdeck/VM-DEMO-ONLY').exists(),
+    require(parent > 1 and not Path('/etc/wros/VM-DEMO-ONLY').exists(),
             'installer unavailable in VM demo mode')
     cmdline = Path('/proc/cmdline').read_text().split()
     require([s for s in cmdline if s.startswith('boot=')] == ['boot=live']
@@ -747,8 +747,8 @@ def verify_installed_target_state(
         row[0] for line in group_text.splitlines()
         if len(row := line.split(':')) == 4 and installed_user in row[3].split(',')
     }
-    require({'writingdeck', 'sudo'} <= memberships,
-            'installed user is missing writingdeck or sudo group membership')
+    require({'wros', 'sudo'} <= memberships,
+            'installed user is missing wros or sudo group membership')
     config = tomllib.loads(greetd_toml_text)
     require(config.get('terminal') == {'vt': 1, 'switch': True}
             and 'initial_session' not in config
@@ -920,7 +920,7 @@ def in_target_hygiene(nonce):
 
 def in_target_audit(nonce):
     require(os.geteuid() == 0 and re.fullmatch('[a-f0-9]{32}', nonce) is not None, 'in-target audit requires root and a session nonce')
-    require(not Path('/etc/writingdeck/VM-DEMO-ONLY').exists(),
+    require(not Path('/etc/wros/VM-DEMO-ONLY').exists(),
             'VM demo marker leaked into target')
     hygiene = verify_target_hygiene()
     root_dev = os.stat('/').st_dev

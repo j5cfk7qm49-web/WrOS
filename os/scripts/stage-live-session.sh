@@ -8,7 +8,7 @@ binary=$(realpath "$2")
 [[ $dest != / && -f $dest/etc/debian_version && -x $binary \
    && -x $dest/usr/bin/wros-greeter && -x $dest/usr/bin/live-config \
    && -x $dest/usr/lib/user-setup/user-setup-apply \
-   && -f $dest/etc/greetd/config.toml && ! -e $dest/etc/writingdeck/VM-DEMO-ONLY ]] || {
+   && -f $dest/etc/greetd/config.toml && ! -e $dest/etc/wros/VM-DEMO-ONLY ]] || {
     echo 'Requires an existing authenticated Debian live staging root, not / or a VM-demo root.' >&2; exit 2;
 }
 python3 - "$dest" <<'PY'

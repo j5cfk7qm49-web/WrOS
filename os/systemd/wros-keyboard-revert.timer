@@ -4,4 +4,4 @@ Description=Independent 15-second keyboard preview safety timer
 [Timer]
 OnActiveSec=15s
 AccuracySec=100ms
-Unit=writingdeck-keyboard-revert.service
+Unit=wros-keyboard-revert.service

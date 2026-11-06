@@ -8,11 +8,11 @@ binary=${2:?usage: stage-greeter.sh STAGING_ROOT GREETER_BINARY}
     echo 'Requires root, an existing staged Debian root (not /), and built greeter.' >&2; exit 2;
 }
 # Require the maintained Debian package and its locked service account/PAM stack.
-[[ -x $dest/usr/sbin/greetd && -f $dest/etc/pam.d/greetd && -x $dest/usr/libexec/writingdeck-session ]] || {
+[[ -x $dest/usr/sbin/greetd && -f $dest/etc/pam.d/greetd && -x $dest/usr/libexec/wros-session ]] || {
     echo 'Stage the Debian greetd package and WrOS session first.' >&2; exit 2;
 }
 chroot "$dest" getent passwd _greetd >/dev/null
-[[ -x $dest/usr/libexec/writingdeck-keyboard && -f $dest/usr/share/polkit-1/actions/org.writingdeck.keyboard.policy ]] || {
+[[ -x $dest/usr/libexec/wros-keyboard && -f $dest/usr/share/polkit-1/actions/org.wros.keyboard.policy ]] || {
     echo 'Stage the WrOS keyboard helper and policy first.' >&2; exit 2;
 }
 mkdir -p "$dest/etc/greetd" "$dest/etc/systemd/system" "$dest/usr/bin"

@@ -37,7 +37,7 @@ class LiveSession(unittest.TestCase):
     def test_temporary_initial_entry_retains_original_authenticated_default(self):
         files = plan()
         config = tomllib.loads(files['greetd.toml'][0].decode())
-        self.assertEqual(config['initial_session'], {'user':'wros-live','command':'/usr/libexec/writingdeck-session'})
+        self.assertEqual(config['initial_session'], {'user':'wros-live','command':'/usr/libexec/wros-session'})
         del config['initial_session']
         self.assertEqual(config, tomllib.loads(BASE.decode()))
         self.assertEqual((ROOT/'os/config/greetd.toml').read_bytes(), BASE)
@@ -130,7 +130,7 @@ class LiveSessionImage(unittest.TestCase):
         with (root/'etc/shadow').open('a') as output:
             output.write('_wros-installer:!:1:0:99999:7:::\n')
         files = {
-            'os/scripts/writingdeck-session': 'usr/libexec/writingdeck-session',
+            'os/scripts/wros-session': 'usr/libexec/wros-session',
             'os/scripts/wros-live-session': 'usr/libexec/wros-live-session',
             'os/scripts/wros-install-session': 'usr/libexec/wros-install-session',
             'os/config/live/9998-wros-session': 'lib/live/config/9998-wros-session',
@@ -143,7 +143,7 @@ class LiveSessionImage(unittest.TestCase):
             'os/scripts/wros-rescue': 'usr/sbin/wros-rescue',
         }
         exec_sources = (
-            'writingdeck-session',
+            'wros-session',
             'wros-live-session',
             'wros-install-session',
             '9998-wros-session',

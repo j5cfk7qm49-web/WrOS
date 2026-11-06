@@ -23,10 +23,10 @@ use std::{
 };
 
 pub fn available() -> bool {
-    std::env::var_os("WRITINGDECK_OS").is_some()
+    crate::installed_session()
         && console()
         && unsafe { libc::geteuid() } != 0
-        && !Path::new("/etc/writingdeck/VM-DEMO-ONLY").exists()
+        && !Path::new("/etc/wros/VM-DEMO-ONLY").exists()
         && !Path::new("/run/wros-live/session.json").exists()
         && !Path::new("/run/live/medium/live/filesystem.squashfs").is_file()
         && [

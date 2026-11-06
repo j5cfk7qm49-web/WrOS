@@ -200,7 +200,7 @@ fn lesson_25_needs_a_real_sense_review_not_open_query_or_worker_completion() {
     tutorial::create_demo(&root).unwrap();
     let mut d = Desk::open(root.clone(), 100, 30);
     let source = d.app.editor.text();
-    d.app.overlay = Overlay::Deck(app::writingdeck::Page::Lesson { id: 25 });
+    d.app.overlay = Overlay::Deck(app::wros::Page::Lesson { id: 25 });
     d.key(KeyCode::Enter);
     assert_eq!(d.app.deck.progress.active, Some(25));
     assert!(!d.app.deck.progress.completed.contains(&25));

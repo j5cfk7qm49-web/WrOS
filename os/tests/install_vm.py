@@ -126,7 +126,7 @@ d-i cdrom-detect/eject boolean false
 d-i finish-install/keep-consoles boolean true
 d-i finish-install/reboot_in_progress note
 d-i debian-installer/exit/poweroff boolean true
-d-i preseed/late_command string in-target --pass-stdout /bin/sh -c 'test -x /usr/bin/grimoire && test -x /opt/writingdeck/python/bin/python3 && test ! -e /etc/writingdeck/VM-DEMO-ONLY && id -nG fixture | grep -qw writingdeck && echo WROS_INSTALLED_PAYLOAD_PASS' > /dev/ttyS0 && in-target --pass-stdout /usr/sbin/runuser -u fixture -- /usr/bin/grimoire --version > /dev/ttyS0 && echo WROS_INSTALL_LATE_REACHED > /dev/ttyS0
+d-i preseed/late_command string in-target --pass-stdout /bin/sh -c 'test -x /usr/bin/grimoire && test -x /opt/writingdeck/python/bin/python3 && test ! -e /etc/wros/VM-DEMO-ONLY && id -nG fixture | grep -qw wros && echo WROS_INSTALLED_PAYLOAD_PASS' > /dev/ttyS0 && in-target --pass-stdout /usr/sbin/runuser -u fixture -- /usr/bin/grimoire --version > /dev/ttyS0 && echo WROS_INSTALL_LATE_REACHED > /dev/ttyS0
 '''
     (run / 'preseed.cfg').write_text(preseed)
     extra = subprocess.check_output(['cpio', '--create', '--format=newc', '--quiet'], cwd=run, input=b'preseed.cfg\n')

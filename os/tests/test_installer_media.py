@@ -384,7 +384,7 @@ GPT start and size : 2 102048 5760
             module.deny_list(rootfs, listing, boot_configs)
 
             # QA artifact in listing fails
-            qa_listing = dict(listing, **{'etc/writingdeck/VM-DEMO-ONLY': ('-', None)})
+            qa_listing = dict(listing, **{'etc/wros/VM-DEMO-ONLY': ('-', None)})
             with self.assertRaisesRegex(ValueError, 'QA/test file shipped'):
                 module.deny_list(rootfs, qa_listing, boot_configs)
 

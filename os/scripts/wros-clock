@@ -3,7 +3,7 @@
 
 Sets the local system clock by hand (network time off), or hands it back to
 network time. Reachable only through
-polkit's org.wros.clock action for an active local writingdeck group member.
+polkit's org.wros.clock action for an active local wros group member.
 """
 from datetime import datetime
 import json

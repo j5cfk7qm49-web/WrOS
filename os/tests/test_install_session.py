@@ -1132,7 +1132,7 @@ class TargetHygieneTests(unittest.TestCase):
         cases = {
             'greetd initial_session': ('etc/greetd/config.toml',
                                        (ROOT / 'os/config/greetd.toml').read_text()
-                                       + '\n[initial_session]\ncommand = "/usr/libexec/writingdeck-session"\nuser = "alice"\n'),
+                                       + '\n[initial_session]\ncommand = "/usr/libexec/wros-session"\nuser = "alice"\n'),
             'second greetd profile': ('etc/greetd/live.toml', '[initial_session]\ncommand = "x"\nuser = "u"\n'),
             'live greetd override': ('etc/systemd/system/greetd.service.d/zz.conf',
                                      '[Service]\nEnvironmentFile=-/run/wros-live/wros-live.env\n'),

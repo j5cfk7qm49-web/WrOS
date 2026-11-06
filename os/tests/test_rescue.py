@@ -41,10 +41,10 @@ class RescueTests(unittest.TestCase):
         self.state, self.target, fixture, stubs = base / 'state', base / 'target', base / 'fixture', base / 'bin'
         for path in (self.state, fixture, stubs):
             path.mkdir()
-        for relative in ('etc/writingdeck', 'usr/lib/wros-update', 'usr/libexec', 'dev/pts', 'proc', 'sys', 'run',
+        for relative in ('etc/wros', 'usr/lib/wros-update', 'usr/libexec', 'dev/pts', 'proc', 'sys', 'run',
                          'boot'):
             (fixture / relative).mkdir(parents=True)
-        (fixture / 'etc/writingdeck/release').write_text('WROS_VERSION=0.1.0~rc1\n')
+        (fixture / 'etc/wros/release').write_text('WROS_VERSION=0.1.0~rc1\n')
         (fixture / 'etc/crypttab').write_text(f'vda3_crypt UUID={LUKS_UUID} none luks,discard\n')
         (fixture / 'etc/fstab').write_text('/dev/mapper/debian--vg-root / ext4 errors=remount-ro 0 1\n'
                                            'UUID=f3a68734 /boot ext4 defaults 0 2\n'

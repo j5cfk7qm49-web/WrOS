@@ -37,7 +37,7 @@ def main(argv=None):
     parser.add_argument('--repo', type=Path, default=ROOT, help='source tree to package (default: this checkout)')
     parser.add_argument('--keymaps-dir', type=Path, help='pre-generated *.map files (default: run generate-keymaps.sh)')
     parser.add_argument('--display-helper', type=Path, help='prebuilt wros-display-hw (default: compile it)')
-    parser.add_argument('--commit', help='source commit for /etc/writingdeck/release (default: WROS_SOURCE_COMMIT or VCS head)')
+    parser.add_argument('--commit', help='source commit for /etc/wros/release (default: WROS_SOURCE_COMMIT or VCS head)')
     parser.add_argument('--source-date-epoch', type=int, help='default: $SOURCE_DATE_EPOCH or the head commit time')
     parser.add_argument('--google-clients', type=Path,
                         help="WrOS's Google clients for phone linking (default: $WROS_GOOGLE_CLIENTS; none: linking hidden)")

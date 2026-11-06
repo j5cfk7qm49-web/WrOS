@@ -531,10 +531,7 @@ impl App {
                 return;
             }
         };
-        let width = if matches!(
-            self.overlay,
-            Overlay::Deck(super::writingdeck::Page::Home { .. })
-        ) {
+        let width = if matches!(self.overlay, Overlay::Deck(super::wros::Page::Home { .. })) {
             self.pins
                 .dashboard_hits
                 .borrow()
@@ -931,10 +928,7 @@ impl App {
         }
     }
     pub fn pin_click(&mut self, x: u16, y: u16) -> bool {
-        let dashboard = matches!(
-            self.overlay,
-            Overlay::Deck(super::writingdeck::Page::Home { .. })
-        );
+        let dashboard = matches!(self.overlay, Overlay::Deck(super::wros::Page::Home { .. }));
         let chosen = if self.overlay == Overlay::Pins {
             self.pins
                 .board_hits
@@ -993,10 +987,7 @@ impl App {
             }
             return true;
         }
-        if matches!(
-            self.overlay,
-            Overlay::Deck(super::writingdeck::Page::Home { .. })
-        ) {
+        if matches!(self.overlay, Overlay::Deck(super::wros::Page::Home { .. })) {
             let id = self
                 .pins
                 .dashboard_hits

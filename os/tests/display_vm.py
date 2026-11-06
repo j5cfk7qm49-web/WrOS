@@ -44,7 +44,7 @@ def main():
         raise RuntimeError('Run QEMU as a normal user')
     image = BASE / 'disk.img'
     binary = Path(os.environ.get('GRIMOIRE_BINARY', REPO / 'target/debug/grimoire'))
-    if not image.is_file() or image.is_symlink() or not (BASE / 'rootfs/etc/writingdeck/VM-DEMO-ONLY').is_file():
+    if not image.is_file() or image.is_symlink() or not (BASE / 'rootfs/etc/wros/VM-DEMO-ONLY').is_file():
         raise RuntimeError('Only the regular isolated VM-demo artifact is accepted')
     kernels = sorted((BASE / 'rootfs/boot').glob('vmlinuz-*'))
     if len(kernels) != 1 or not binary.is_file():
@@ -83,9 +83,9 @@ def main():
 case "$1" in prereqs) exit 0;; esac
 exec >/dev/ttyS0 2>&1
 set -eux
-test -f "$rootmnt/etc/writingdeck/VM-DEMO-ONLY"
+test -f "$rootmnt/etc/wros/VM-DEMO-ONLY"
 mount -o remount,rw /dev/vda2 "$rootmnt"
-cat /wros-display-test/probe > "$rootmnt/usr/libexec/writingdeck-boot-probe"
+cat /wros-display-test/probe > "$rootmnt/usr/libexec/wros-boot-probe"
 cat /wros-display-test/grimoire > "$rootmnt/usr/bin/grimoire"
 cat /wros-display-test/fixture.zip > "$rootmnt/root/wros-display-fixture.zip"
 mount -o remount,ro /dev/vda2 "$rootmnt"

@@ -622,15 +622,9 @@ fn render_is_cached_even_when_metadata_is_removed_and_alias_widget_are_additive(
             .iter()
             .any(|w| w.widget == grimoire_core::workspaces::Widget::StorySpark)
     );
-    d.app
-        .deck_shortcut(writingdeck_sys::shortcuts::Action::StorySpark);
+    d.app.deck_shortcut(wros_sys::shortcuts::Action::StorySpark);
     assert!(matches!(d.app.overlay, Overlay::Spark { .. }));
-    assert_eq!(
-        writingdeck_sys::shortcuts::Shortcuts::default()
-            .bindings
-            .len(),
-        3
-    );
+    assert_eq!(wros_sys::shortcuts::Shortcuts::default().bindings.len(), 3);
 }
 
 #[test]

@@ -3383,7 +3383,7 @@ fn writingdeck_widgets_keep_visibility_and_order_after_reload() {
 
 #[test]
 fn writingdeck_workspaces_restore_document_cursor_and_width() {
-    use crate::app::writingdeck::Page;
+    use crate::app::wros::Page;
     let mut d = Desk::open(book("deck-workspace", true), 120, 40);
     d.key(KeyCode::Tab);
     d.typed("Original words. ");
@@ -3403,7 +3403,7 @@ fn writingdeck_workspaces_restore_document_cursor_and_width() {
 
 #[test]
 fn writingdeck_custom_shortcuts_are_additive_and_logical() {
-    use crate::app::writingdeck::Page;
+    use crate::app::wros::Page;
     for layout in ["qwerty", "colemak", "colemak-dh"] {
         let mut d = Desk::open(book(&format!("deck-shortcuts-{layout}"), true), 100, 30);
         d.app.overlay = Overlay::Deck(Page::Shortcuts {
@@ -3448,7 +3448,7 @@ fn writingdeck_recovery_prompt_precedes_startup_dashboard() {
 
 #[test]
 fn writingdeck_keyboard_preview_field_is_not_manuscript_text() {
-    use crate::app::writingdeck::Page;
+    use crate::app::wros::Page;
     let mut d = Desk::open(book("deck-keyboard-field", true), 80, 24);
     let text = d.app.editor.text();
     d.app.overlay = Overlay::Deck(Page::KeyboardTest {
@@ -3611,7 +3611,7 @@ fn writingdeck_every_lesson_links_to_real_searchable_offline_help() {
 
 #[test]
 fn writingdeck_async_system_status_is_explicitly_simulated_and_does_not_block_writing() {
-    use crate::app::writingdeck::Page;
+    use crate::app::wros::Page;
     let mut d = Desk::open(book("deck-system-worker", true), 100, 30);
     d.app.deck.simulate();
     d.app.open_system_settings();
@@ -3710,7 +3710,7 @@ fn writingdeck_secondary_works_at_all_four_sizes_and_saves_raw_frontmatter() {
             .deck
             .shortcuts
             .bindings
-            .retain(|b| b.action != writingdeck_sys::shortcuts::Action::Secondary);
+            .retain(|b| b.action != wros_sys::shortcuts::Action::Secondary);
         d.key(KeyCode::F(11));
         assert!(matches!(d.app.overlay, Overlay::Palette { .. }));
         d.typed("Side Research");
@@ -4181,7 +4181,7 @@ fn writingdeck_secondary_restore_never_overrides_a_newer_primary_resume_record()
 
 #[test]
 fn writingdeck_secondary_workspace_can_swap_roles_without_duplicate_editors_or_lost_undo() {
-    use app::writingdeck::Page;
+    use app::wros::Page;
     use grimoire_core::{documents::Pane, workspaces::Position};
     let (mut d, note) = secondary_book("secondary-role-swap", 120, 40, false);
     choose_secondary(&mut d, &note);
@@ -4493,7 +4493,7 @@ fn writingdeck_secondary_tutorial_requires_a_real_demo_edit_not_opening_or_navig
 
 #[test]
 fn writingdeck_secondary_tutorial_will_not_launch_a_writing_exercise_in_the_real_novel() {
-    use app::writingdeck::Page;
+    use app::wros::Page;
     let (mut d, note) = secondary_book("secondary-no-real-tutorial", 120, 40, false);
     let before = fs::read_to_string(first_scene(&d.root)).unwrap();
     d.app.overlay = Overlay::Deck(Page::Lesson { id: 13 });
@@ -5464,7 +5464,7 @@ fn writingdeck_pins_failed_manuscript_save_blocks_source_replacement_and_keeps_r
 
 #[test]
 fn writingdeck_pins_lessons_require_actual_demo_pin_save_and_anchored_scroll_return() {
-    use crate::app::writingdeck::Page;
+    use crate::app::wros::Page;
     let root = std::env::temp_dir().join(format!(
         "grimoire-ui-pins-shipped-tutorial-{}",
         std::process::id()
@@ -5506,7 +5506,7 @@ fn writingdeck_pins_lessons_require_actual_demo_pin_save_and_anchored_scroll_ret
 
 #[test]
 fn writingdeck_pins_tutorial_never_uses_a_real_novel_as_an_exercise() {
-    use crate::app::writingdeck::Page;
+    use crate::app::wros::Page;
     let (mut d, note) = secondary_book("pins-tutorial-real", 120, 40, true);
     let original = fs::read(&note).unwrap();
     for id in [11, 12] {
@@ -5546,7 +5546,7 @@ fn writingdeck_pins_old_layouts_gain_only_the_additive_dashboard_widget() {
 
 #[test]
 fn writingdeck_pins_custom_alias_opens_board_without_typing_into_prose() {
-    use crate::app::writingdeck::Page;
+    use crate::app::wros::Page;
     let (mut d, _) = secondary_book("pins-shortcut", 120, 40, false);
     let original = d.app.editor.text();
     d.app.overlay = Overlay::Deck(Page::Shortcuts {
@@ -6197,7 +6197,7 @@ fn writingdeck_journal_strict_focus_cannot_create_or_focus_a_hidden_secondary_re
 }
 #[test]
 fn writingdeck_journal_tutorial_requires_recorded_facts_review_and_actual_saved_reflection() {
-    use crate::app::writingdeck::Page;
+    use crate::app::wros::Page;
     let root = std::env::temp_dir().join(format!(
         "grimoire-ui-journal-shipped-demo-{}",
         std::process::id()
@@ -6246,7 +6246,7 @@ fn writingdeck_journal_tutorial_requires_recorded_facts_review_and_actual_saved_
 }
 #[test]
 fn writingdeck_journal_lesson_never_uses_an_ordinary_novel_for_its_exercise() {
-    use crate::app::writingdeck::Page;
+    use crate::app::wros::Page;
     let (mut d, _) = secondary_book("journal-real-novel", 100, 30, false);
     let before = fs::read(first_scene(&d.root)).unwrap();
     d.app.overlay = Overlay::Deck(Page::Lesson { id: 14 });
@@ -6259,7 +6259,7 @@ fn writingdeck_journal_lesson_never_uses_an_ordinary_novel_for_its_exercise() {
 }
 #[test]
 fn writingdeck_journal_widget_alias_help_and_old_layouts_are_additive_without_default_rebinding() {
-    use crate::app::writingdeck::Page;
+    use crate::app::wros::Page;
     use grimoire_core::workspaces::{Store, Widget};
     let root = book("journal-layout-alias", true);
     let mut store = Store::load(&root).unwrap();
@@ -6984,7 +6984,7 @@ fn writingdeck_workflow_book_switch_separates_all_original_notes_and_handoff_met
 }
 #[test]
 fn writingdeck_workflow_lessons_require_real_promotion_and_handoff_reopen_in_safe_demo() {
-    use crate::app::writingdeck::Page;
+    use crate::app::wros::Page;
     let root = std::env::temp_dir().join(format!("wd-workflow-tutorial-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
     grimoire_core::tutorial::create_demo(&root).unwrap();
@@ -7031,7 +7031,7 @@ fn writingdeck_workflow_lessons_require_real_promotion_and_handoff_reopen_in_saf
 }
 #[test]
 fn writingdeck_workflow_lessons_never_launch_writing_exercises_on_an_ordinary_novel() {
-    use crate::app::writingdeck::Page;
+    use crate::app::wros::Page;
     let (mut d, _) = secondary_book("workflow-real", 100, 30, false);
     let before = fs::read(first_scene(&d.root)).unwrap();
     for id in [15, 16] {
@@ -7126,7 +7126,7 @@ fn writingdeck_workflow_workspace_pin_sets_filter_without_changing_global_card_l
 }
 #[test]
 fn writingdeck_workflow_workspace_pin_picker_cancel_and_save_are_explicit() {
-    use crate::app::writingdeck::Page;
+    use crate::app::wros::Page;
     let (mut d, _) = secondary_book("workflow-pin-picker", 80, 24, false);
     d.app.pin_document(&first_scene(&d.root), None);
     d.app.overlay = Overlay::Deck(Page::Workspaces { sel: 0 });
@@ -7888,7 +7888,7 @@ fn writingdeck_productivity_current_goals_never_derive_gross_or_time_from_existi
 #[test]
 fn writingdeck_productivity_tutorial_18_20_21_require_real_persisted_actions_and_never_a_next_button()
  {
-    use crate::app::writingdeck::Page;
+    use crate::app::wros::Page;
     let root = std::env::temp_dir().join(format!("wd-metrics-tutorial-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
     grimoire_core::tutorial::create_demo(&root).unwrap();
@@ -8201,7 +8201,7 @@ fn writingdeck_productivity_real_saved_finished_statuses_award_scene_and_chapter
 #[test]
 fn writingdeck_productivity_empty_collection_and_subjective_challenge_do_not_complete_lessons_20_or_21()
  {
-    use crate::app::writingdeck::Page;
+    use crate::app::wros::Page;
     let root = std::env::temp_dir().join(format!("wd-metrics-notutorial-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
     grimoire_core::tutorial::create_demo(&root).unwrap();

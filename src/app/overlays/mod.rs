@@ -200,7 +200,7 @@ fn list_nav(key: Key, sel: &mut usize, len: usize, nav: Nav) -> bool {
 pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     match &app.overlay {
         Overlay::None => {}
-        Overlay::Deck(_) => super::writingdeck::draw(f, app, area, t),
+        Overlay::Deck(_) => super::wros::draw(f, app, area, t),
         Overlay::Spark { .. } => super::spark::draw(f, app, area, t),
         Overlay::Checks { .. } => super::checks::draw(f, app, area, t),
         Overlay::Lexicon => super::lexicon::draw(f, app, area, t),

@@ -234,7 +234,7 @@ step_live_image() {
     env GRIMOIRE_BINARY="$cargo_target/release/grimoire" \
         WROS_GREETER_BINARY="$cargo_target/release/wros-greeter" \
         WROS_INSTALLER_BINARY="$cargo_target/release/wros-installer" \
-        WRITINGDECK_PROSE_RUNTIME="$build/prose-runtime/runtime" \
+        WROS_PROSE_RUNTIME="$build/prose-runtime/runtime" \
         bash "$repo/os/scripts/build-installer.sh" --live --build-dir "$live"
     [[ -f $live/wros-live-amd64.hybrid.iso.capsule-less ]] || die 'build-installer.sh --live produced no capsule-less ISO'
 }

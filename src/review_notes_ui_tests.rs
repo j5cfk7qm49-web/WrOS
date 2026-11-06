@@ -238,7 +238,7 @@ fn review_and_markdown_export_lessons_open_real_workflows_without_awarding_compl
     )
     .unwrap();
     for id in [32, 35] {
-        d.app.overlay = Overlay::Deck(app::writingdeck::Page::Lesson { id });
+        d.app.overlay = Overlay::Deck(app::wros::Page::Lesson { id });
         d.key(KeyCode::Enter);
         assert_eq!(d.app.deck.progress.active, Some(id));
         assert!(!d.app.deck.progress.completed.contains(&id));

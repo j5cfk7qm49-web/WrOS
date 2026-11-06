@@ -24,12 +24,12 @@ def symbol():
 
 
 def helper(*args):
-    return json.loads(command('/usr/libexec/writingdeck-keyboard', *args))
+    return json.loads(command('/usr/libexec/wros-keyboard', *args))
 
 
 def main():
-    assert Path('/etc/writingdeck/VM-DEMO-ONLY').is_file()
-    config = Path('/etc/writingdeck/keyboard.json')
+    assert Path('/etc/wros/VM-DEMO-ONLY').is_file()
+    config = Path('/etc/wros/keyboard.json')
     pending = config.with_name('installer-keyboard-pending')
     system = Path('/etc/default/keyboard')
     assert json.loads(config.read_text()) == {'version': 1, 'layout': 'colemak', 'generation': 'installer'}
@@ -53,11 +53,11 @@ def main():
     # Simulate console-setup having applied another system map. This verifies
     # preservation, not the correctness of a German or custom keyboard map.
     command('/usr/bin/loadkeys', '--unicode', '--console=/dev/tty1',
-            '/usr/share/writingdeck/keymaps/colemak.map')
+            '/usr/share/wros/keymaps/colemak.map')
     config.write_text('{"version":1,"layout":"qwerty","generation":"initial"}')
     pending.touch()
     assert helper('boot')['status'] == 'preserved-system-layout'
-    rejected = subprocess.run(['/usr/libexec/writingdeck-keyboard', 'preview', 'qwerty'],
+    rejected = subprocess.run(['/usr/libexec/wros-keyboard', 'preview', 'qwerty'],
                               capture_output=True, text=True, timeout=12)
     assert rejected.returncode != 0 and 'selected keyboard is preserved' in rejected.stderr
     assert symbol() == ord('f') and pending.exists()

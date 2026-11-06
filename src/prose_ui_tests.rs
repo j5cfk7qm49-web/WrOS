@@ -439,7 +439,7 @@ fn readonly_paste_help_and_rendering_cannot_execute_commands_or_restart_a_worker
 #[test]
 fn original_lessons27_to29_require_actual_stats_and_engine_findings_not_navigation_or_permission() {
     let mut d = prose_desk("prose-lessons", 100, 30);
-    d.app.overlay = Overlay::Deck(app::writingdeck::Page::Lesson { id: 27 });
+    d.app.overlay = Overlay::Deck(app::wros::Page::Lesson { id: 27 });
     d.key(KeyCode::Enter);
     assert!(!d.app.deck.progress.completed.contains(&27));
     d.key(KeyCode::Enter);
@@ -449,7 +449,7 @@ fn original_lessons27_to29_require_actual_stats_and_engine_findings_not_navigati
     assert!(!d.app.deck.progress.completed.contains(&27));
     d.key(KeyCode::Enter);
     assert!(d.app.deck.progress.completed.contains(&27));
-    d.app.overlay = Overlay::Deck(app::writingdeck::Page::Lesson { id: 29 });
+    d.app.overlay = Overlay::Deck(app::wros::Page::Lesson { id: 29 });
     d.key(KeyCode::Enter);
     d.key(KeyCode::Char('r'));
     wait_prose(&mut d);
@@ -459,7 +459,7 @@ fn original_lessons27_to29_require_actual_stats_and_engine_findings_not_navigati
     d.app.editor.set_text("The gate was opened by Mara.\n");
     d.app.flush();
     d.app.save();
-    d.app.overlay = Overlay::Deck(app::writingdeck::Page::Lesson { id: 28 });
+    d.app.overlay = Overlay::Deck(app::wros::Page::Lesson { id: 28 });
     d.key(KeyCode::Enter);
     d.key(KeyCode::Char('p'));
     d.key(KeyCode::Char('d'));
@@ -495,7 +495,7 @@ fn real_selected_material_voice_is_not_completed_by_prepare_save_or_menu_only_an
     d.app.flush();
     d.app.save();
     let original = d.app.editor.text();
-    d.app.overlay = Overlay::Deck(app::writingdeck::Page::Lesson { id: 30 });
+    d.app.overlay = Overlay::Deck(app::wros::Page::Lesson { id: 30 });
     d.key(KeyCode::Enter);
     d.key(KeyCode::Char('n'));
     let source = d.app.open.unwrap();

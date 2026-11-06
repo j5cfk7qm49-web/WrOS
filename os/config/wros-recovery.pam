@@ -1,5 +1,6 @@
 # WrOS recovery menu (/usr/libexec/wros-recovery): the writer's own password, and only
-# for members of the writingdeck group. There is no root login.
+# for members of the wros group. There is no root login.
+auth requisite pam_succeed_if.so quiet user ingroup wros
 auth requisite pam_succeed_if.so quiet user ingroup writingdeck
 @include common-auth
 @include common-account

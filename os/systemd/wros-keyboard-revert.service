@@ -1,0 +1,10 @@
+[Unit]
+Description=Revert an unconfirmed WrOS keyboard preview
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/wros-keyboard rollback
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/run/wros /etc/wros
+NoNewPrivileges=yes

@@ -100,7 +100,7 @@ impl App {
                 self.prose_dashboard.page != super::super::prose_dashboard::Page::VoiceName
             }
             Overlay::None => !self.focus.is_editor(),
-            Overlay::Deck(super::super::writingdeck::Page::KeyboardTest { .. }) => false,
+            Overlay::Deck(super::super::wros::Page::KeyboardTest { .. }) => false,
             Overlay::Palette { .. }
             | Overlay::PinCategory { .. }
             | Overlay::Marks { .. }

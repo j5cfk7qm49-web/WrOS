@@ -66,7 +66,7 @@ def account_state(passwd, shadow, groups):
             'Locked root/greeter and generated hashed account required')
     memberships = {row[0] for line in groups.splitlines()
                    if len(row := line.split(':')) == 4 and 'fixture' in row[3].split(',')}
-    require({'writingdeck', 'sudo'} <= memberships, 'Fixture administration/writing groups missing')
+    require({'wros', 'sudo'} <= memberships, 'Fixture administration/writing groups missing')
 
 
 def encrypted_root_chain(root_name, entry, partition, sysroot=Path('/sys/class/block')):
@@ -139,7 +139,7 @@ def audit(token):
     require('initial_session' not in config
             and config.get('default_session') == {'command': '/usr/bin/wros-greeter', 'user': '_greetd'},
             'Installed native authentication must be preserved')
-    require(not Path('/etc/sudoers.d/live').exists() and not Path('/etc/writingdeck/VM-DEMO-ONLY').exists(),
+    require(not Path('/etc/sudoers.d/live').exists() and not Path('/etc/wros/VM-DEMO-ONLY').exists(),
             'Live privilege/demo state must not persist')
     versions = {}
     for line in query('/usr/bin/dpkg-query', '-W', '-f=${Package}\t${Version}\t${Status}\n', *PACKAGES).splitlines():

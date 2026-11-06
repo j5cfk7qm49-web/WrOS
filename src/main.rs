@@ -20,7 +20,7 @@ mod ui;
 mod visualizer;
 mod viz_view;
 mod voice;
-mod writingdeck_cli;
+mod wros_cli;
 
 #[cfg(test)]
 mod shots;
@@ -70,7 +70,7 @@ fn main() -> Result<()> {
         std::process::exit(1);
     }
     if matches!(first.as_deref(), Some("writingdeck" | "wros")) {
-        return writingdeck_cli::command(args);
+        return wros_cli::command(args);
     }
 
     if matches!(first.as_deref(), Some("compile") | Some("index")) {
@@ -291,7 +291,7 @@ static RESTART_APP: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBoo
 fn restart_app() -> Result<()> {
     use std::os::unix::process::CommandExt;
     let installed = Path::new("/usr/bin/grimoire");
-    let program = if std::env::var_os("WRITINGDECK_OS").is_some() && installed.is_file() {
+    let program = if installed_session() && installed.is_file() {
         installed.to_path_buf()
     } else {
         std::env::current_exe().context("finding the writing app")?
@@ -300,6 +300,10 @@ fn restart_app() -> Result<()> {
         .args(std::env::args_os().skip(1))
         .exec();
     Err(error).context("starting the updated writing app; log in again to use it")
+}
+
+fn installed_session() -> bool {
+    std::env::var_os("WROS_OS").is_some() || std::env::var_os("WRITINGDECK_OS").is_some()
 }
 
 #[cfg(not(unix))]
@@ -734,31 +738,31 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
         }
 
         if let Event::Paste(text) = &ev {
-            if app.overlay == Overlay::Deck(app::writingdeck::Page::Settings)
+            if app.overlay == Overlay::Deck(app::wros::Page::Settings)
                 && app.deck.shell.nav.current() == app::shell::Route::BackupForm
             {
                 app.paste_backup_form(text);
                 continue;
             }
-            if app.overlay == Overlay::Deck(app::writingdeck::Page::Settings)
+            if app.overlay == Overlay::Deck(app::wros::Page::Settings)
                 && app.deck.shell.nav.current() == app::shell::Route::WifiConnect
             {
                 app.paste_wifi_form(text);
                 continue;
             }
-            if app.overlay == Overlay::Deck(app::writingdeck::Page::Settings)
+            if app.overlay == Overlay::Deck(app::wros::Page::Settings)
                 && app.deck.shell.nav.current() == app::shell::Route::UpdateBundleForm
             {
                 app.paste_update_form(text);
                 continue;
             }
-            if app.overlay == Overlay::Deck(app::writingdeck::Page::Settings)
+            if app.overlay == Overlay::Deck(app::wros::Page::Settings)
                 && app.deck.shell.nav.current() == app::shell::Route::ManualClock
             {
                 app.paste_clock_form(text);
                 continue;
             }
-            if app.overlay == Overlay::Deck(app::writingdeck::Page::Settings)
+            if app.overlay == Overlay::Deck(app::wros::Page::Settings)
                 && app.deck.shell.nav.current() == app::shell::Route::KeyboardWizard
             {
                 app.paste_keyboard_wizard(text);
@@ -804,7 +808,7 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
                     | Overlay::Deck(_)
             ) && !matches!(
                 app.overlay,
-                Overlay::Deck(app::writingdeck::Page::KeyboardTest { .. })
+                Overlay::Deck(app::wros::Page::KeyboardTest { .. })
             ) {
                 app.msg = "Read-only preview. Enter explicitly edits the original source; pasted commands ignored.".into();
                 continue;
@@ -859,7 +863,7 @@ fn on_key(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
     leave
 }
 fn route_key(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
-    use app::writingdeck::Page;
+    use app::wros::Page;
     use grimoire_core::tutorial::Event as LessonEvent;
     if app.review_notes.has_draft() && k.modifiers.contains(KeyModifiers::CONTROL) {
         if matches!(k.code, KeyCode::Char('q' | 'k' | 'd')) {
@@ -1102,7 +1106,7 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
         && !(app.overlay == Overlay::Lexicon
             && app.lexicon.page == app::lexicon::Page::Query
             && k.code == KeyCode::Char('v'))
-        && !(app.overlay == Overlay::Deck(app::writingdeck::Page::Settings)
+        && !(app.overlay == Overlay::Deck(app::wros::Page::Settings)
             && matches!(
                 app.deck.shell.nav.current(),
                 app::shell::Route::BackupForm
@@ -1114,7 +1118,7 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
             && k.code == KeyCode::Char('v'))
         && !(matches!(
             app.overlay,
-            Overlay::Deck(app::writingdeck::Page::KeyboardTest { .. })
+            Overlay::Deck(app::wros::Page::KeyboardTest { .. })
         ) && k.code == KeyCode::Char('v'))
     {
         return false;

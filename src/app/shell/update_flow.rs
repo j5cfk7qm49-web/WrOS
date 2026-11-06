@@ -6,7 +6,7 @@
 //! read again and the screens show what the system reported.
 use super::*;
 use std::time::SystemTime;
-use writingdeck_sys::{PowerAction, Request, UpdatePackage, UpdateReview, UpdateState};
+use wros_sys::{PowerAction, Request, UpdatePackage, UpdateReview, UpdateState};
 
 /// Screens that belong to the update flow. Leaving the flow pops back past all
 /// of them to wherever the writer started (Updates panel or Recovery view).
@@ -23,7 +23,7 @@ const FLOW_ROUTES: [Route; 6] = [
 #[derive(Default)]
 pub struct UpdateFlow {
     /// The authenticated review the writer is looking at.
-    pub review: Option<writingdeck_sys::UpdateReview>,
+    pub review: Option<wros_sys::UpdateReview>,
     /// Folder the review came from; staging re-verifies this same folder.
     pub dir: Option<String>,
     /// Review identity being re-verified after a refused or failed stage.
@@ -33,11 +33,11 @@ pub struct UpdateFlow {
     /// Why the writer was returned to the review screen.
     pub changed: Option<String>,
     /// The helper's acknowledgement from this session's stage.
-    pub staged: Option<writingdeck_sys::UpdateStaged>,
+    pub staged: Option<wros_sys::UpdateStaged>,
     /// Text of the last helper result or failure, kept visible after readback.
     pub last_result: Option<String>,
     /// What the WrOS update server reported last, when, and which version was announced.
-    pub online: Option<writingdeck_sys::OnlineUpdate>,
+    pub online: Option<wros_sys::OnlineUpdate>,
     /// When to ask the update server next. Wall-clock time, so a suspended laptop
     /// still checks once a day of real time.
     pub online_next: Option<SystemTime>,
@@ -46,7 +46,7 @@ pub struct UpdateFlow {
     pub chain: Option<Chain>,
     /// The confirmed review and its folder that the chain stages. Kept apart from `review`,
     /// which leaving the update screens drops, so the writer can look elsewhere meanwhile.
-    pub chained: Option<(writingdeck_sys::UpdateReview, String)>,
+    pub chained: Option<(wros_sys::UpdateReview, String)>,
     /// When to read the status once after login, for probation and an automatic go-back.
     pub health_at: Option<std::time::Instant>,
     pub health_checked: bool,
@@ -80,7 +80,7 @@ const ONLINE_CHECK_EVERY: Duration = Duration::from_secs(24 * 60 * 60);
 const ONLINE_RETRY: Duration = Duration::from_secs(60 * 60);
 
 /// The Updates panel's description of the last online check.
-fn online_line(online: Option<&writingdeck_sys::OnlineUpdate>) -> String {
+fn online_line(online: Option<&wros_sys::OnlineUpdate>) -> String {
     let Some(online) = online else {
         return "Not checked for WrOS updates yet".into();
     };
@@ -141,7 +141,7 @@ fn plural(n: usize, one: &str, many: &str) -> String {
 pub(super) fn updates_panel(app: &App) -> Vec<Entry> {
     let online = app.deck.shell.update_flow.online.as_ref();
     let mut rows = vec![info(online_line(online))];
-    if let Some(writingdeck_sys::OnlineUpdate {
+    if let Some(wros_sys::OnlineUpdate {
         status,
         version: Some(version),
         ..
@@ -575,7 +575,7 @@ pub(super) fn recovery_rows(app: &App) -> Vec<Entry> {
 
 impl App {
     fn in_settings(&self) -> bool {
-        matches!(self.overlay, Overlay::Deck(writingdeck::Page::Settings))
+        matches!(self.overlay, Overlay::Deck(wros::Page::Settings))
     }
     fn in_update_flow(&self) -> bool {
         self.in_settings() && FLOW_ROUTES.contains(&self.deck.shell.nav.current())
@@ -661,7 +661,7 @@ impl App {
         self.update_notice("Downloading the WrOS update and checking its signature…");
         self.deck.request(Request::FetchOnlineUpdate);
     }
-    pub(crate) fn on_online_update(&mut self, online: writingdeck_sys::OnlineUpdate) {
+    pub(crate) fn on_online_update(&mut self, online: wros_sys::OnlineUpdate) {
         let flow = &mut self.deck.shell.update_flow;
         if online.status == "available"
             && let Some(version) = &online.version
@@ -986,7 +986,7 @@ impl App {
         self.deck.request(Request::ApplyStagedUpdate);
     }
     /// Installed: the running app is the old one, so restart it in place.
-    pub(crate) fn on_update_applied(&mut self, applied: writingdeck_sys::UpdateApplied) {
+    pub(crate) fn on_update_applied(&mut self, applied: wros_sys::UpdateApplied) {
         let text = format!(
             "Installed {}; restarting the writing app.",
             if applied.packages.is_empty() {
@@ -1114,7 +1114,7 @@ impl App {
         }
         self.update_notice(text);
     }
-    pub(crate) fn on_update_staged(&mut self, staged: writingdeck_sys::UpdateStaged) {
+    pub(crate) fn on_update_staged(&mut self, staged: wros_sys::UpdateStaged) {
         let text = if staged.restart_required {
             format!(
                 "Staged {} (transaction {}). Restart to install it; you can cancel until then.",
@@ -1176,7 +1176,7 @@ impl App {
         match request {
             Request::CheckOnlineUpdates => {
                 // Silent: the Updates panel says the server could not be reached.
-                let online = writingdeck_sys::OnlineUpdate {
+                let online = wros_sys::OnlineUpdate {
                     status: "unreachable".into(),
                     version: None,
                     installed: None,

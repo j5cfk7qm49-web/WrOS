@@ -10,7 +10,7 @@ import tempfile
 import unittest
 
 module = importlib.machinery.SourceFileLoader(
-    "writingdeck_keyboard", str(Path(__file__).parents[1] / "scripts/writingdeck-keyboard")
+    "writingdeck_keyboard", str(Path(__file__).parents[1] / "scripts/wros-keyboard")
 ).load_module()
 
 
@@ -41,7 +41,7 @@ class KeyboardSafety(unittest.TestCase):
 
     def test_timer_is_armed_before_console_changes(self):
         self.preview()
-        self.assertEqual(self.commands[0], ["/usr/bin/systemctl", "restart", "writingdeck-keyboard-revert.timer"])
+        self.assertEqual(self.commands[0], ["/usr/bin/systemctl", "restart", "wros-keyboard-revert.timer"])
         self.assertEqual(self.commands[1][0], "/usr/bin/loadkeys")
         self.assertEqual(self.commands[1][-1], str(self.maps / "colemak-dh-ansi.map"))
 
@@ -84,7 +84,7 @@ class KeyboardSafety(unittest.TestCase):
         token = self.preview("colemak-dh-iso")
         self.manager.command("cancel", token)
         self.assertEqual(self.last_loaded_map(), str(self.maps / "colemak.map"))
-        self.assertEqual(self.commands[-1], ["/usr/bin/systemctl", "stop", "writingdeck-keyboard-revert.timer"])
+        self.assertEqual(self.commands[-1], ["/usr/bin/systemctl", "stop", "wros-keyboard-revert.timer"])
 
     def test_stale_timer_cannot_revert_a_new_preview(self):
         first = self.preview('colemak')
@@ -159,7 +159,7 @@ class KeyboardSafety(unittest.TestCase):
         before = list(self.commands)
         self.manager.command("rollback")
         self.assertEqual(self.commands[:-1], before)
-        self.assertEqual(self.commands[-1], ["/usr/bin/systemctl", "stop", "writingdeck-keyboard-revert.timer"])
+        self.assertEqual(self.commands[-1], ["/usr/bin/systemctl", "stop", "wros-keyboard-revert.timer"])
         self.assertFalse(self.manager.pending.exists())
 
     def test_corrupt_config_is_preserved_and_no_keyboard_is_changed(self):

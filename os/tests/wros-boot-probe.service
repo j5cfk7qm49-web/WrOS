@@ -1,0 +1,12 @@
+[Unit]
+Description=Isolated VM-only WritingDeck acceptance probe
+After=getty@tty1.service wros-keyboard.service systemd-user-sessions.service
+ConditionPathExists=/etc/wros/VM-DEMO-ONLY
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/wros-boot-probe
+TimeoutStartSec=600
+
+[Install]
+WantedBy=multi-user.target

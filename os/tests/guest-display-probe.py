@@ -28,7 +28,7 @@ def screen():
 
 
 def main():
-    assert Path('/etc/writingdeck/VM-DEMO-ONLY').is_file()
+    assert Path('/etc/wros/VM-DEMO-ONLY').is_file()
     # This closed list contains only current source/binaries and units. The
     # archive is a private initrd fixture, never a shipping installation path.
     paths = ['usr/libexec/wros-display', 'usr/libexec/wros-display-hw',

@@ -27,24 +27,24 @@ mmdebstrap --mode=root --variant=minbase --architectures=amd64 \
 # Stop service startup in the build chroot, not on the host.
 printf '#!/bin/sh\nexit 101\n' > "$root/usr/sbin/policy-rc.d"
 chmod 755 "$root/usr/sbin/policy-rc.d"
-printf 'writingdeck-vm\n' > "$root/etc/hostname"
-printf '127.0.0.1 localhost\n127.0.1.1 writingdeck-vm\n' > "$root/etc/hosts"
+printf 'wros-vm\n' > "$root/etc/hostname"
+printf '127.0.0.1 localhost\n127.0.1.1 wros-vm\n' > "$root/etc/hosts"
 printf 'C.UTF-8\n' > "$root/etc/locale.conf"
 printf 'Etc/UTC\n' > "$root/etc/timezone"
 ln -sf /usr/share/zoneinfo/Etc/UTC "$root/etc/localtime"
-chroot "$root" groupadd -r writingdeck
-chroot "$root" useradd -m -s /bin/bash -G writingdeck writer
+chroot "$root" groupadd -r wros
+chroot "$root" useradd -m -s /bin/bash -G wros writer
 chroot "$root" passwd -l root
 chroot "$root" passwd -l writer
 # $TERM is expanded by systemd, not the builder.
 # shellcheck disable=SC2016
 printf '[Service]\nExecStart=\nExecStart=-/sbin/agetty --autologin writer --noclear %%I $TERM\n' > "$base/getty-demo.conf"
-mkdir -p "$root/etc/systemd/system/getty@tty1.service.d" "$root/etc/writingdeck" \
-    "$root/usr/libexec" "$root/usr/share/writingdeck/keymaps" "$root/usr/share/doc/writingdeck" \
+mkdir -p "$root/etc/systemd/system/getty@tty1.service.d" "$root/etc/wros" \
+    "$root/usr/libexec" "$root/usr/share/wros/keymaps" "$root/usr/share/doc/wros" \
     "$root/etc/polkit-1/rules.d" "$root/usr/share/polkit-1/actions"
-install -m 644 "$base/getty-demo.conf" "$root/etc/systemd/system/getty@tty1.service.d/writingdeck-vm.conf"
-printf 'ISOLATED VM DEMO: PASSWORDLESS AUTOLOGIN. DO NOT DEPLOY TO HARDWARE.\n' > "$root/etc/writingdeck/VM-DEMO-ONLY"
-printf 'WritingDeck OS development appliance\nDebian 13 / trixie; VM demo only\n' > "$root/etc/issue"
+install -m 644 "$base/getty-demo.conf" "$root/etc/systemd/system/getty@tty1.service.d/wros-vm.conf"
+printf 'ISOLATED VM DEMO: PASSWORDLESS AUTOLOGIN. DO NOT DEPLOY TO HARDWARE.\n' > "$root/etc/wros/VM-DEMO-ONLY"
+printf 'WrOS development appliance\nDebian 13 / trixie; VM demo only\n' > "$root/etc/issue"
 # dpkg-query owns these field expansions.
 # shellcheck disable=SC2016
 chroot "$root" dpkg-query -W '-f=${Package}\t${Version}\t${Architecture}\n' > "$base/packages.lock.tsv"

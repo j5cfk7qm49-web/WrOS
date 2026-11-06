@@ -6,7 +6,7 @@ polkit.addRule(function(action, subject) {
                    "org.wros.update.fetch", "org.wros.update.apply",
                    "org.wros.update.rollback", "org.wros.update.healthy"];
     if (actions.indexOf(action.id) >= 0 && subject.local && subject.active &&
-        subject.isInGroup("writingdeck")) {
+        (subject.isInGroup("wros") && subject.isInGroup("writingdeck"))) {
         return polkit.Result.YES;
     }
 });

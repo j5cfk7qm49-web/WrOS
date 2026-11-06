@@ -1,7 +1,7 @@
 // Manual local clock setting for the active local writer; NTP stays off.
 polkit.addRule(function(action, subject) {
     if (action.id == "org.wros.clock" &&
-        subject.local && subject.active && subject.isInGroup("writingdeck")) {
+        subject.local && subject.active && (subject.isInGroup("wros") && subject.isInGroup("writingdeck"))) {
         return polkit.Result.YES;
     }
 });

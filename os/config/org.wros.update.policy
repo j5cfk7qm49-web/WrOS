@@ -2,7 +2,7 @@
 <!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN" "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
 <policyconfig>
   <vendor>WrOS — Writer's OS</vendor>
-  <!-- Defaults fail closed to no. 50-wros-update.rules grants YES only to a local, active writingdeck session. -->
+  <!-- Defaults fail closed to no. The rule grants YES only to an active local writer. -->
   <action id="org.wros.update.stage">
     <description>Stage a reviewed WrOS update bundle for the next restart</description>
     <message>Authorize staging a WrOS update</message>

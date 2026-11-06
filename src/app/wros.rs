@@ -13,7 +13,7 @@ use ratatui::{
     widgets::{Clear, Paragraph},
 };
 use std::sync::mpsc::{self, Receiver, SyncSender};
-use writingdeck_sys::{
+use wros_sys::{
     Backend, PowerAction, Reply, Request, Snapshot,
     keyboard::Layout as KeyboardLayout,
     shortcuts::{self, Action as ShortcutAction, Binding, Shortcuts},
@@ -193,10 +193,7 @@ impl Deck {
                 workflow_widgets_added = true;
             }
         }
-        if background
-            && !workspaces::Store::path(root).exists()
-            && std::env::var_os("WRITINGDECK_OS").is_some()
-        {
+        if background && !workspaces::Store::path(root).exists() && crate::installed_session() {
             state.launch_dashboard = true;
         }
         let tutorial_store = tutorial::Store::load(root)
@@ -250,9 +247,7 @@ impl Deck {
             snapshot: None,
             note: warnings.join("; "),
             busy: false,
-            online_updates: background
-                && !live_session
-                && std::env::var_os("WRITINGDECK_OS").is_some(),
+            online_updates: background && !live_session && crate::installed_session(),
             live_session,
             lock_available: {
                 #[cfg(target_os = "linux")]
@@ -339,9 +334,7 @@ impl Deck {
                 self.note = "System operations disabled in this test session.".into();
                 return;
             }
-            self.worker = Some(Worker::spawn(Box::new(
-                writingdeck_sys::linux::Linux::default(),
-            )));
+            self.worker = Some(Worker::spawn(Box::new(wros_sys::linux::Linux::default())));
         }
         let powering_off = matches!(
             request,
@@ -358,9 +351,7 @@ impl Deck {
     }
     #[cfg(test)]
     pub fn simulate(&mut self) {
-        self.worker = Some(Worker::spawn(
-            Box::new(writingdeck_sys::Simulated::laptop()),
-        ));
+        self.worker = Some(Worker::spawn(Box::new(wros_sys::Simulated::laptop())));
     }
     #[cfg(test)]
     pub fn use_test_backend(&mut self, backend: Box<dyn Backend>) {
@@ -371,7 +362,7 @@ impl Deck {
 impl App {
     pub(crate) fn request_suspend(&mut self) -> bool {
         if !self.deck.suspend_available || !self.deck.lock_available || self.deck.live_session {
-            self.deck.note = writingdeck_sys::SUSPEND_UNAVAILABLE.into();
+            self.deck.note = wros_sys::SUSPEND_UNAVAILABLE.into();
             self.deck.shell.notices.push(&self.deck.note);
             return true;
         }
@@ -1234,7 +1225,7 @@ impl App {
                                 yes: false,
                             });
                         } else {
-                            self.deck.note = writingdeck_sys::SUSPEND_UNAVAILABLE.into();
+                            self.deck.note = wros_sys::SUSPEND_UNAVAILABLE.into();
                             self.deck.shell.notices.push(&self.deck.note);
                         }
                     }
@@ -1942,7 +1933,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                 if app.deck.suspend_available {
                     "Lock and suspend".into()
                 } else {
-                    writingdeck_sys::SUSPEND_UNAVAILABLE.into()
+                    wros_sys::SUSPEND_UNAVAILABLE.into()
                 },
                 "Shutdown (confirmation required)".into(),
                 "Restart (confirmation required)".into(),
@@ -1995,7 +1986,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         Page::Power { action, yes } => {
             if *action == PowerAction::Suspend && !app.deck.suspend_available {
                 title = "Suspend unavailable".into();
-                rows.push(writingdeck_sys::SUSPEND_UNAVAILABLE.into());
+                rows.push(wros_sys::SUSPEND_UNAVAILABLE.into());
                 hint = "Esc return · no power operation is available";
             } else {
                 title = format!("Confirm {action:?}");

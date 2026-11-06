@@ -213,7 +213,7 @@ class RecoveryMenu(unittest.TestCase):
 
     def test_the_version_comes_from_the_release_files_version_field(self):
         # Seen in the VM: the whole file was printed after "This computer runs WrOS".
-        text = ('WRITINGDECK_VERSION=0.1.0~rc5\nWROS_COMMIT=2a2bb2bf\nBUILD_DATE=2026-11-06\n'
+        text = ('WROS_VERSION=0.1.0~rc5\nWROS_COMMIT=2a2bb2bf\nBUILD_DATE=2026-11-06\n'
                 'GRIMOIRE_BASE=0.7.5\nBASE_COMMIT=f3ca1e8\n')
         self.assertEqual(module.release_version(text), '0.1.0~rc5')
         with self.assertRaises(ValueError):

@@ -23,12 +23,12 @@ BASE = {
     'usr/bin/grimoire': b'grimoire 1\n',
     'usr/libexec/wros-sync': b'sync 1\n',
     'usr/libexec/wros-update': b'engine 1\n',
-    'usr/share/doc/writingdeck/README.md': b'readme 1\n',
-    'etc/writingdeck/release': b'WRITINGDECK_VERSION=1\n',
-    'etc/writingdeck/keyboard.json': b'{}\n',
+    'usr/share/doc/wros/README.md': b'readme 1\n',
+    'etc/wros/release': b'WROS_VERSION=1\n',
+    'etc/wros/keyboard.json': b'{}\n',
     'usr/share/polkit-1/actions/org.wros.update.policy': b'<policy/>\n',
 }
-CONFFILES = ['/etc/writingdeck/keyboard.json']
+CONFFILES = ['/etc/wros/keyboard.json']
 
 
 def md5sums(files):
@@ -88,16 +88,16 @@ class LiveApplyCheck(unittest.TestCase):
 
     def test_only_the_app_and_its_own_helpers_changing_installs_without_a_reboot(self):
         app_only = BASE | {'usr/bin/grimoire': b'grimoire 2\n', 'usr/libexec/wros-sync': b'sync 2\n',
-                           'usr/share/doc/writingdeck/NEW.md': b'new\n',
-                           'etc/writingdeck/release': b'WRITINGDECK_VERSION=2\n'}
-        del app_only['usr/share/doc/writingdeck/README.md']
+                           'usr/share/doc/wros/NEW.md': b'new\n',
+                           'etc/wros/release': b'WROS_VERSION=2\n'}
+        del app_only['usr/share/doc/wros/README.md']
         self.assertEqual(self.check(wros_deb(self.tmp, '0.1.0~rc4', app_only)), (True, ''))
 
     def test_anything_privileged_or_structural_waits_for_the_restart(self):
         cases = {
             'the update engine': BASE | {'usr/libexec/wros-update': b'engine 2\n'},
             'polkit policy': BASE | {'usr/share/polkit-1/actions/org.wros.update.policy': b'<policy2/>\n'},
-            'a config file': BASE | {'etc/writingdeck/keyboard.json': b'{"layout": 1}\n'},
+            'a config file': BASE | {'etc/wros/keyboard.json': b'{"layout": 1}\n'},
             'a new systemd unit': BASE | {'etc/systemd/system/wros-new.service': b'[Unit]\n'},
         }
         for label, files in cases.items():
