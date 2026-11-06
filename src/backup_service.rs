@@ -252,8 +252,6 @@ impl<T> Job<T> {
         let progress = self.progress.lock().ok().and_then(|p| p.clone());
         describe(progress.as_ref(), self.started.elapsed())
     }
-}
-impl Job {
     #[cfg(test)]
     pub fn running_for_test(progress: Option<Progress>) -> Self {
         let (sender, result) = mpsc::sync_channel(1);
@@ -382,7 +380,9 @@ pub(crate) fn run_helper(
     cancelled_message: &str,
 ) -> Result<Vec<u8>, String> {
     let unavailable = || unavailable.to_owned();
-    let mut command = Command::new("/usr/bin/python3");
+    let installed_session = std::env::var_os("WRITINGDECK_OS").is_some()
+        && script.parent() == Some(std::path::Path::new("/usr/libexec"));
+    let mut command = helper_command(installed_session);
     for (key, value) in env {
         command.env(key, value);
     }
@@ -470,6 +470,23 @@ pub(crate) fn run_helper(
         return Err(unavailable());
     }
     Ok(bytes)
+}
+
+fn helper_command(installed_session: bool) -> Command {
+    if installed_session && cfg!(target_os = "linux") {
+        let mut command = Command::new("/usr/bin/systemd-inhibit");
+        command.args([
+            "--what=shutdown",
+            "--mode=block",
+            "--who=WrOS",
+            "--why=A backup or sync is running",
+            "--",
+            "/usr/bin/python3",
+        ]);
+        command
+    } else {
+        Command::new("/usr/bin/python3")
+    }
 }
 
 #[cfg(test)]

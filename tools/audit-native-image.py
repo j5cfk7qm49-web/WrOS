@@ -21,7 +21,7 @@ if packaging is None or getattr(packaging, '__file__', None) != str(REPO / 'pack
     packaging = importlib.util.module_from_spec(_spec)
     sys.modules['wros_packaging'] = packaging
     _spec.loader.exec_module(packaging)
-SLEEP_TARGETS = ('sleep', 'suspend', 'hibernate', 'hybrid-sleep', 'suspend-then-hibernate')
+SLEEP_TARGETS = ('hibernate', 'hybrid-sleep', 'suspend-then-hibernate')
 
 
 def regular(root, relative):
@@ -35,8 +35,8 @@ LOGIND_POLICY = {key: 'ignore' for key in (
     'HandlePowerKey', 'HandlePowerKeyLongPress', 'HandleRebootKey', 'HandleRebootKeyLongPress',
     'HandleSuspendKey', 'HandleSuspendKeyLongPress', 'HandleHibernateKey', 'HandleHibernateKeyLongPress',
     'HandleLidSwitch', 'HandleLidSwitchExternalPower', 'HandleLidSwitchDocked', 'IdleAction')}
-SLEEP_POLICY = {key: 'no' for key in (
-    'AllowSuspend', 'AllowHibernation', 'AllowHybridSleep', 'AllowSuspendThenHibernate')}
+SLEEP_POLICY = {'AllowSuspend': 'yes', 'AllowHibernation': 'no',
+                'AllowHybridSleep': 'no', 'AllowSuspendThenHibernate': 'no'}
 # (staged path, section, required values). Checked on the staged bytes themselves, so a
 # weakened source file cannot pass merely by being copied faithfully.
 POLICY_VALUES = (
@@ -409,6 +409,7 @@ def audit(root, fixture_fingerprints=None):
             ('wros-recovery.pam', 'etc/pam.d/wros-recovery'),
             ('60-wros-power-guard.conf', 'etc/systemd/logind.conf.d/60-wros-power-guard.conf'),
             ('60-wros-sleep-guard.conf', 'etc/systemd/sleep.conf.d/60-wros-sleep-guard.conf'),
+            ('wros-suspend.conf', 'etc/systemd/system/systemd-suspend.service.d/60-wros-lock.conf'),
             ('60-wros-no-connectivity-check.conf', 'etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf'),
             ('60-wros-reboot-guard.conf', 'etc/systemd/system.conf.d/60-wros-reboot-guard.conf'),
             ('60-wros-sysrq.conf', 'etc/sysctl.d/60-wros-sysrq.conf'),
@@ -425,7 +426,7 @@ def audit(root, fixture_fingerprints=None):
     if not enabled.is_symlink() or os.readlink(enabled) not in (
             '../greetd.service', '/etc/systemd/system/greetd.service'):
         raise ValueError('native greetd service is not enabled')
-    for name in ('getty@tty1.service', 'getty@tty8.service', 'autovt@tty8.service',
+    for name in ('getty@tty1.service', 'getty@tty8.service', 'autovt@tty8.service', 'ctrl-alt-del.target',
                  *(target + '.target' for target in SLEEP_TARGETS)):
         path = root / 'etc/systemd/system' / name
         if not path.is_symlink() or os.readlink(path) != '/dev/null':

@@ -11,7 +11,16 @@ use ratatui::crossterm::{
     execute,
     terminal::{Clear, ClearType},
 };
-use std::{path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
+};
 
 pub fn available() -> bool {
     std::env::var_os("WRITINGDECK_OS").is_some()
@@ -29,6 +38,74 @@ pub fn available() -> bool {
         .all(|path| Path::new(path).is_file())
 }
 
+pub fn suspend_available() -> bool {
+    available()
+        && Path::new("/etc/systemd/system/systemd-suspend.service.d/60-wros-lock.conf").is_file()
+        && fs::read_to_string("/sys/power/state")
+            .is_ok_and(|states| states.split_whitespace().any(|state| state == "mem"))
+}
+
+fn low_battery(root: &Path) -> bool {
+    fs::read_dir(root)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .any(|battery| {
+            let path = battery.path();
+            let read = |key| fs::read_to_string(path.join(key)).unwrap_or_default();
+            read("type").trim() == "Battery"
+                && battery_needs_sleep(&read("status"), &read("capacity_level"), &read("capacity"))
+        })
+}
+
+fn battery_needs_sleep(status: &str, level: &str, capacity: &str) -> bool {
+    status.trim() == "Discharging"
+        && (level.trim() == "Critical"
+            || capacity
+                .trim()
+                .parse::<u8>()
+                .is_ok_and(|percent| percent <= 8))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::battery_needs_sleep;
+
+    #[test]
+    fn only_a_discharging_battery_at_its_reserve_requests_sleep() {
+        assert!(battery_needs_sleep("Discharging\n", "Low\n", "8\n"));
+        assert!(battery_needs_sleep("Discharging", "Critical", ""));
+        assert!(!battery_needs_sleep("Discharging", "Low", "9"));
+        assert!(!battery_needs_sleep("Discharging", "Unknown", ""));
+        assert!(!battery_needs_sleep("Charging", "Critical", "2"));
+    }
+}
+
+pub fn watch_power() -> Arc<AtomicBool> {
+    let requested = Arc::new(AtomicBool::new(false));
+    let output = Arc::downgrade(&requested);
+    std::thread::spawn(move || {
+        while let Some(output) = output.upgrade() {
+            let lid = Command::new("/usr/bin/busctl")
+                .args([
+                    "--timeout=1s",
+                    "get-property",
+                    "org.freedesktop.login1",
+                    "/org/freedesktop/login1",
+                    "org.freedesktop.login1.Manager",
+                    "LidClosed",
+                ])
+                .output()
+                .is_ok_and(|out| out.status.success() && out.stdout == b"b true\n");
+            let critical = low_battery(Path::new("/sys/class/power_supply"));
+            output.store(lid || critical, Ordering::Relaxed);
+            drop(output);
+            std::thread::sleep(Duration::from_secs(2));
+        }
+    });
+    requested
+}
+
 fn console() -> bool {
     (0..=2).all(|fd| {
         let mut info = std::mem::MaybeUninit::<libc::stat>::uninit();
@@ -43,6 +120,7 @@ fn console() -> bool {
 pub fn handoff(
     terminal: &mut ratatui::DefaultTerminal,
     input: &mut wros_input::Input,
+    suspend: bool,
 ) -> Result<()> {
     if !available() || !console() || unsafe { libc::geteuid() } == 0 {
         bail!("Console locking is unavailable in this session");
@@ -68,8 +146,12 @@ pub fn handoff(
             MoveTo(0, 0),
             Hide,
         )?;
-        let status = Command::new("/usr/bin/pkexec")
-            .args(["--disable-internal-agent", "/usr/libexec/wros-lock"])
+        let mut locker = Command::new("/usr/bin/pkexec");
+        locker.args(["--disable-internal-agent", "/usr/libexec/wros-lock"]);
+        if suspend {
+            locker.arg("--suspend");
+        }
+        let status = locker
             .env_clear()
             .env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
             .env("LANG", "C.UTF-8")

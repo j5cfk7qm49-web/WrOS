@@ -128,6 +128,9 @@ pub struct Deck {
     /// An installed appliance session checks the WrOS update server after login and daily.
     pub online_updates: bool,
     pub lock_requested: bool,
+    pub suspend_available: bool,
+    pub suspend_requested: bool,
+    pub power_pending: bool,
     pub installer_requested: bool,
     /// An app-only update is installed: save, then start the new writing app in place.
     pub app_restart_requested: bool,
@@ -272,6 +275,18 @@ impl Deck {
                 }
             },
             lock_requested: false,
+            suspend_available: {
+                #[cfg(target_os = "linux")]
+                {
+                    background && crate::console_lock::suspend_available()
+                }
+                #[cfg(not(target_os = "linux"))]
+                {
+                    false
+                }
+            },
+            suspend_requested: false,
+            power_pending: false,
             installer_requested: false,
             app_restart_requested: false,
             worker: None,
@@ -328,8 +343,13 @@ impl Deck {
                 writingdeck_sys::linux::Linux::default(),
             )));
         }
+        let powering_off = matches!(
+            request,
+            Request::Power(PowerAction::Shutdown | PowerAction::Restart)
+        );
         match self.worker.as_ref().unwrap().tx.try_send(request) {
             Ok(()) => {
+                self.power_pending |= powering_off;
                 self.busy = true;
                 self.note = "Waiting for the system service…".into();
             }
@@ -349,6 +369,37 @@ impl Deck {
 }
 
 impl App {
+    pub(crate) fn request_suspend(&mut self) -> bool {
+        if !self.deck.suspend_available || !self.deck.lock_available || self.deck.live_session {
+            self.deck.note = writingdeck_sys::SUSPEND_UNAVAILABLE.into();
+            self.deck.shell.notices.push(&self.deck.note);
+            return true;
+        }
+        if let Some(reason) = self.power_wait_reason() {
+            self.deck.note = reason.into();
+            self.deck.shell.notices.push(reason);
+            return false;
+        }
+        self.request_console_lock();
+        if self.deck.lock_requested {
+            self.deck.suspend_requested = true;
+        }
+        true
+    }
+
+    pub(super) fn power_wait_reason(&mut self) -> Option<&'static str> {
+        self.deck.shell.backup.tick();
+        if self.deck.busy {
+            Some("A system request is running. Wait for it to finish, then try again.")
+        } else if self.deck.shell.backup.job.is_some() {
+            Some("A backup is running. Wait for it to finish, then try again.")
+        } else if self.deck.shell.backup.sync.job.is_some() {
+            Some("A sync is running. Wait for it to finish, then try again.")
+        } else {
+            None
+        }
+    }
+
     pub fn request_console_lock(&mut self) {
         if self.deck.live_session {
             self.deck
@@ -377,51 +428,6 @@ impl App {
         }
         self.save_deck();
         self.deck.lock_requested = true;
-    }
-    /// Readiness for lock-before-sleep. Not offered in the menu while suspend stays
-    /// disabled; the lock-before-sleep work calls it before any suspend.
-    #[cfg_attr(not(test), expect(dead_code, reason = "used once suspend is enabled"))]
-    pub fn verify_pre_sleep_lock_protocol(
-        &mut self,
-    ) -> std::result::Result<writingdeck_sys::PreSleepLockCheck, String> {
-        if self.deck.live_session {
-            let msg = "Pre-sleep lock refused: live sessions have no personal screen lock.";
-            self.deck.note = msg.into();
-            self.deck.shell.notices.push(msg);
-            return Err(msg.into());
-        }
-        self.deck.shell.backup.tick();
-        if !self.deck.lock_available || self.deck.busy || self.deck.shell.backup.job.is_some() {
-            let msg = "Pre-sleep lock refused: console locker unavailable or a system/backup request is pending.";
-            self.deck.note = msg.into();
-            self.deck.shell.notices.push(msg);
-            return Err(msg.into());
-        }
-        if !self.commit_saves()
-            || self.project.dirty_count() != 0
-            || self.tree_stale
-            || !self.conflicts().is_empty()
-        {
-            let msg = "Pre-sleep lock refused: unsaved buffers or source conflicts need attention.";
-            self.deck.note = msg.into();
-            self.deck.shell.notices.push(msg);
-            return Err(msg.into());
-        }
-        self.save_deck();
-        self.deck.lock_requested = true;
-        let check = writingdeck_sys::PreSleepLockCheck {
-            buffers_saved: true,
-            input_retired_ready: true,
-            lock_handoff_armed: true,
-            suspend_permitted: false,
-            message: format!(
-                "Pre-sleep lock verified and armed on tty8; {}",
-                writingdeck_sys::SUSPEND_UNAVAILABLE
-            ),
-        };
-        self.deck.note = check.message.clone();
-        self.deck.shell.notices.push(&self.deck.note);
-        Ok(check)
     }
     pub fn request_live_installer(&mut self) {
         if !self.deck.live_session {
@@ -640,11 +646,16 @@ impl App {
         self.tick_productivity();
         self.tick_online_updates();
         self.tick_update_health();
-        self.tick_sync();
-        self.tick_auto_backup();
+        if !self.deck.power_pending {
+            self.tick_sync();
+            self.tick_auto_backup();
+        }
         let result = self.deck.worker.as_ref().and_then(|w| w.rx.try_recv().ok());
         if let Some((request, result)) = result {
             self.deck.busy = false;
+            if matches!(request, Request::Power(_)) && (result.is_err() || self.deck.simulated()) {
+                self.deck.power_pending = false;
+            }
             match result {
                 Ok(Reply::Snapshot(s)) => {
                     self.deck.note = if s.simulated {
@@ -1217,8 +1228,15 @@ impl App {
                             .request(Request::PowerSave(self.deck.state.low_power));
                     }
                     8 => {
-                        self.deck.note = writingdeck_sys::SUSPEND_UNAVAILABLE.into();
-                        self.deck.shell.notices.push(&self.deck.note);
+                        if self.deck.suspend_available {
+                            self.overlay = Overlay::Deck(Page::Power {
+                                action: PowerAction::Suspend,
+                                yes: false,
+                            });
+                        } else {
+                            self.deck.note = writingdeck_sys::SUSPEND_UNAVAILABLE.into();
+                            self.deck.shell.notices.push(&self.deck.note);
+                        }
                     }
                     9..=10 => {
                         self.overlay = Overlay::Deck(Page::Power {
@@ -1294,9 +1312,15 @@ impl App {
                 Key::Esc => self.open_system_settings(),
                 Key::Enter => {
                     if yes && action == PowerAction::Suspend {
-                        self.deck.note = writingdeck_sys::SUSPEND_UNAVAILABLE.into();
-                        self.deck.shell.notices.push(&self.deck.note);
+                        if !self.request_suspend() {
+                            return;
+                        }
                     } else if yes {
+                        if let Some(reason) = self.power_wait_reason() {
+                            self.deck.note = reason.into();
+                            self.deck.shell.notices.push(reason);
+                            return;
+                        }
                         if !self.commit_saves()
                             || self.project.dirty_count() != 0
                             || self.tree_stale
@@ -1915,7 +1939,11 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                         "off"
                     }
                 ),
-                writingdeck_sys::SUSPEND_UNAVAILABLE.into(),
+                if app.deck.suspend_available {
+                    "Lock and suspend".into()
+                } else {
+                    writingdeck_sys::SUSPEND_UNAVAILABLE.into()
+                },
                 "Shutdown (confirmation required)".into(),
                 "Restart (confirmation required)".into(),
                 "Keyboard shortcuts".into(),
@@ -1965,7 +1993,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             hint = "Enter keep  Esc revert · test text is never saved";
         }
         Page::Power { action, yes } => {
-            if *action == PowerAction::Suspend {
+            if *action == PowerAction::Suspend && !app.deck.suspend_available {
                 title = "Suspend unavailable".into();
                 rows.push(writingdeck_sys::SUSPEND_UNAVAILABLE.into());
                 hint = "Esc return · no power operation is available";

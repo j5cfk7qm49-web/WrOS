@@ -583,6 +583,10 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
 
     #[cfg(target_os = "linux")]
     let mut events = wros_input::Input::start(&std::env::current_exe()?)?;
+    #[cfg(target_os = "linux")]
+    let power_watch = app.deck.suspend_available.then(console_lock::watch_power);
+    #[cfg(target_os = "linux")]
+    let mut handled_sleep = false;
 
     // Retained upstream fallback outside WrOS. Linux's parser instead belongs
     // to a separate, unprivileged re-exec process and dies with the editor.
@@ -617,12 +621,21 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
             return Ok(());
         }
         #[cfg(target_os = "linux")]
+        if let Some(watch) = &power_watch {
+            if !watch.load(std::sync::atomic::Ordering::Relaxed) {
+                handled_sleep = false;
+            } else if !handled_sleep && !app.deck.power_pending {
+                handled_sleep = app.request_suspend();
+            }
+        }
+        #[cfg(target_os = "linux")]
         if std::mem::take(&mut app.deck.lock_requested) {
-            if let Err(error) = console_lock::handoff(terminal, &mut events) {
+            let suspend = std::mem::take(&mut app.deck.suspend_requested);
+            if let Err(error) = console_lock::handoff(terminal, &mut events, suspend) {
                 save_or_rescue(app);
                 return Err(error);
             }
-            app.deck.note = "Writing session unlocked; original editor context retained.".into();
+            app.deck.note = "Writing session unlocked.".into();
             app.deck.shell.notices.push(&app.deck.note);
         }
         #[cfg(target_os = "linux")]
@@ -716,6 +729,9 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
                 return Ok(());
             }
         };
+        if app.deck.power_pending {
+            continue;
+        }
 
         if let Event::Paste(text) = &ev {
             if app.overlay == Overlay::Deck(app::writingdeck::Page::Settings)

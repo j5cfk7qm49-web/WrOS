@@ -14,6 +14,9 @@ import termios
 import time
 
 VT_GETMODE, VT_GETSTATE = 0x5601, 0x5603
+KDGKBMODE, KDSKBMODE, K_OFF = 0x4B44, 0x4B45, 4
+K_UNICODE = 3
+RUN = Path('/run/wros-lock')
 ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8', 'LC_ALL': 'C.UTF-8',
        'HOME': '/nonexistent', 'TERM': 'linux'}
 PAM = ('# WrOS existing-session unlock; authentication is performed only by Debian vlock.\n'
@@ -81,7 +84,7 @@ def caller_session(parent):
 
 
 def validate_caller():
-    require(os.geteuid() == 0 and len(sys.argv) == 1)
+    require(os.geteuid() == 0 and sys.argv[1:] in ([], ['--suspend']))
     value = os.environ.get('PKEXEC_UID', '')
     require(value.isascii() and value.isdigit() and 0 < int(value) < 2**31)
     uid, parent = int(value), os.getppid()
@@ -118,8 +121,8 @@ def validate_caller():
     return username
 
 
-def console_state():
-    return struct.unpack('HHH', fcntl.ioctl(0, VT_GETSTATE, bytes(6)))
+def console_state(fd=0):
+    return struct.unpack('HHH', fcntl.ioctl(fd, VT_GETSTATE, bytes(6)))
 
 
 def input_reader_retired(parent, proc_root=Path("/proc")):
@@ -139,34 +142,86 @@ def input_reader_retired(parent, proc_root=Path("/proc")):
     return True
 
 
-def evaluate_pre_sleep_lock(uid, parent, started, sysrq, sleep_enabled=False,
-                            proc_root=Path("/proc"), sleep_conf=Path("/etc/systemd/sleep.conf.d/60-wros-sleep-guard.conf"),
-                            locker_ready=False, pam_unlocked=False):
-    """Software lock-before-sleep protocol (#4) with hardware suspend kept disabled (#32)."""
-    require(type(uid) is int and 0 < uid < 2**31 and type(parent) is int and parent > 1)
-    require(isinstance(started, str) and started.isascii() and started.isdigit() and len(started) <= 32)
-    require(type(sysrq) is int and 0 <= sysrq < 2**32)
-    if not input_reader_retired(parent, proc_root=proc_root):
-        raise ValueError("writing input reader is still active; lock-before-sleep refused")
-    if not locker_ready:
-        raise ValueError("tty8 vlock-main VT_PROCESS ownership not established; sleep refused")
-    if sleep_enabled:
-        raise ValueError("Suspend unavailable: secure screen locking has not been qualified.")
-    allow_suspend = "no"
-    if sleep_conf.is_file() and not sleep_conf.is_symlink():
-        for line in sleep_conf.read_text().splitlines():
-            if line.strip().startswith("AllowSuspend="):
-                allow_suspend = line.split("=", 1)[1].strip().lower()
-    require(allow_suspend == "no")
-    return {
-        "status": "lock-verified-sleep-disabled",
-        "tty": 8,
-        "input_retired": True,
-        "locker_ready": True,
-        "pam_unlocked": bool(pam_unlocked),
-        "sleep_permitted": False,
-        "reason": "Suspend unavailable: secure screen locking has not been qualified.",
-    }
+def locker_ready(pid, fd):
+    return (os.path.samefile(f'/proc/{pid}/exe', '/usr/sbin/vlock-main')
+            and struct.unpack('BBhhh', fcntl.ioctl(fd, VT_GETMODE, bytes(8)))[0] == 1
+            and console_state(fd)[0] == 8
+            and not termios.tcgetattr(fd)[3] & termios.ECHO
+            and Path('/proc/sys/kernel/sysrq').read_text().strip() == '0')
+
+
+def tty8():
+    return os.open('/dev/tty8', os.O_RDWR | os.O_NOCTTY | os.O_CLOEXEC)
+
+
+def keyboard_mode(fd):
+    return struct.unpack('i', fcntl.ioctl(fd, KDGKBMODE, bytes(4)))[0]
+
+
+def can_sleep(parent, locker, fd):
+    return (keyboard_mode(fd) == K_OFF and locker_ready(locker, fd)
+            and input_reader_retired(parent))
+
+
+def assert_suspend():
+    proof = RUN / 'suspend'
+    trusted_file(proof)
+    parent, locker = map(int, proof.read_text().split())
+    require(parent > 1 and locker > 1)
+    fd = tty8()
+    try:
+        require(can_sleep(parent, locker, fd))
+    finally:
+        os.close(fd)
+    return 0
+
+
+def set_keyboard_for_sleep():
+    fd = tty8()
+    try:
+        previous = keyboard_mode(fd)
+        require(previous in (1, K_UNICODE))  # K_XLATE or K_UNICODE
+        (RUN / 'keyboard-mode').write_text(str(previous))
+        termios.tcflush(fd, termios.TCIFLUSH)
+        fcntl.ioctl(fd, KDSKBMODE, K_OFF)
+        require(keyboard_mode(fd) == K_OFF)
+    finally:
+        os.close(fd)  # openvt must acquire a free tty8.
+
+
+def restore_keyboard():
+    saved = RUN / 'keyboard-mode'
+    if not saved.exists():
+        return
+    previous = int(saved.read_text())
+    require(previous in (1, K_UNICODE))
+    fd = tty8()
+    try:
+        termios.tcflush(fd, termios.TCIFLUSH)
+        fcntl.ioctl(fd, KDSKBMODE, previous)
+    finally:
+        os.close(fd)
+    saved.unlink()
+
+
+def suspend(parent, locker):
+    fd = tty8()
+    proof = RUN / 'suspend'
+    try:
+        require(can_sleep(parent, locker, fd))
+        proof.write_text(f'{parent} {locker}\n')
+        # Go through logind so NetworkManager receives PrepareForSleep and can
+        # quiesce and reconnect. The sleep unit rechecks the proof at entry.
+        query(['/usr/bin/systemctl', 'suspend'])
+        deadline = time.monotonic() + 20
+        while query(['/usr/bin/busctl', '--timeout=2s', 'get-property', 'org.freedesktop.login1',
+                     '/org/freedesktop/login1', 'org.freedesktop.login1.Manager',
+                     'PreparingForSleep']) != 'b false':
+            require(time.monotonic() < deadline)
+            time.sleep(0.2)
+    finally:
+        proof.unlink(missing_ok=True)
+        os.close(fd)
 
 
 def ready(child):
@@ -175,15 +230,13 @@ def ready(child):
     children = Path(f'/proc/{child.pid}/task/{child.pid}/children').read_text().split()
     for pid in children:
         if os.path.samefile(f'/proc/{pid}/exe', '/usr/sbin/vlock-main'):
-            fd = os.open('/dev/tty8', os.O_RDONLY | os.O_NOCTTY | os.O_CLOEXEC)
+            fd = tty8()
             try:
-                mode = struct.unpack('BBhhh', fcntl.ioctl(fd, VT_GETMODE, bytes(8)))[0]
-                return (mode == 1 and console_state()[0] == 8
-                        and not termios.tcgetattr(fd)[3] & termios.ECHO
-                        and Path('/proc/sys/kernel/sysrq').read_text().strip() == '0')
+                if locker_ready(pid, fd):
+                    return int(pid)
             finally:
                 os.close(fd)
-    return False
+    return None
 
 
 def secure_process():
@@ -196,7 +249,7 @@ def birth(pid):
     return Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()[19]
 
 
-def systemd_command(uid, parent, started, sysrq):
+def systemd_command(uid, parent, started, sysrq, sleep=False):
     require(type(uid) is int and 0 < uid < 2**31 and type(parent) is int and parent > 1)
     require(isinstance(started, str) and started.isascii() and started.isdigit() and len(started) <= 32)
     require(type(sysrq) is int and 0 <= sysrq < 2**32)
@@ -204,13 +257,15 @@ def systemd_command(uid, parent, started, sysrq):
             '--unit=wros-console-lock', '--property=KillMode=control-group',
             '--property=TimeoutStopSec=5s', '--property=LimitCORE=0',
             '--property=ExecStopPost=/usr/libexec/wros-lock cleanup ' + str(sysrq),
-            '/usr/libexec/wros-lock', 'worker', str(uid), str(parent), started]
+            '/usr/libexec/wros-lock', 'worker', str(uid), str(parent), started] + (['--suspend'] if sleep else [])
 
 
 def client():
     validate_caller()
+    parent = os.getppid()
+    require(input_reader_retired(parent))
     secure_process()
-    directory = Path('/run/wros-lock')
+    directory = RUN
     directory.mkdir(mode=0o700, exist_ok=True)
     info = directory.lstat()
     require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and info.st_mode & 0o077 == 0)
@@ -219,22 +274,24 @@ def client():
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         active, _, used = console_state()
         require(active == 1 and not used & (1 << 8))
-        parent, uid = os.getppid(), int(os.environ['PKEXEC_UID'])
-        require(parent > 1)
-        arguments = systemd_command(uid, parent, birth(parent), int(Path('/proc/sys/kernel/sysrq').read_text()))
+        uid = int(os.environ['PKEXEC_UID'])
+        require(os.getppid() == parent)
+        arguments = systemd_command(uid, parent, birth(parent), int(Path('/proc/sys/kernel/sysrq').read_text()),
+                                    sleep=sys.argv[1:] == ['--suspend'])
         # Maintained systemd owns the root service cgroup and its exit status.
         # No custom request files, socket protocol, path unit or credential IPC.
         return subprocess.run(arguments, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                               stderr=subprocess.DEVNULL, env=ENV).returncode
 
 
-def worker(uid, parent, started):
+def worker(uid, parent, started, sleep=False):
     secure_process()
     uid, parent = int(uid), int(parent)
     require(0 < uid < 2**31 and parent > 1 and started.isascii() and started.isdigit())
     parent_fd = os.pidfd_open(parent)
     try:
         require(birth(parent) == started and os.path.samefile(f'/proc/{parent}/exe', '/usr/bin/grimoire'))
+        require(input_reader_retired(parent))
         status = Path(f'/proc/{parent}/status').read_text()
         users = next(line.split()[1:] for line in status.splitlines() if line.startswith('Uid:'))
         require(users == [str(uid)] * 4)
@@ -254,6 +311,8 @@ def worker(uid, parent, started):
         active, _, used = console_state()
         require(active == 1 and not used & (1 << 8))
         os.chmod('/dev/tty8', 0o600)
+        if sleep:
+            set_keyboard_for_sleep()
         arguments, environment = fixed_command(username)
         child = subprocess.Popen(arguments, stdin=None, stdout=subprocess.DEVNULL,
                                  stderr=subprocess.DEVNULL, env=environment)
@@ -263,9 +322,17 @@ def worker(uid, parent, started):
             if select.select([parent_fd], [], [], 0)[0]:
                 return 1
             try:
-                acquired = acquired or ready(child)
+                locker = None if acquired else ready(child)
             except (OSError, ValueError):
-                pass
+                locker = None
+            if locker:
+                acquired = True
+                if sleep:
+                    try:
+                        suspend(parent, locker)
+                    except (OSError, subprocess.SubprocessError, ValueError):
+                        print('WrOS could not suspend. The writing session stays locked.', file=sys.stderr)
+                    restore_keyboard()
             if not acquired and time.monotonic() >= deadline:
                 return 1
             time.sleep(0.05)
@@ -283,6 +350,8 @@ def cleanup(previous):
     # maintained VT switch utility; never reset a live unrelated VT owner.
     fd = os.open('/dev/tty1', os.O_RDWR | os.O_NOCTTY | os.O_CLOEXEC)
     try:
+        (RUN / 'suspend').unlink(missing_ok=True)
+        restore_keyboard()
         active = struct.unpack('HHH', fcntl.ioctl(fd, VT_GETSTATE, bytes(6)))[0]
         if active == 8:
             query(['/usr/bin/chvt', '1'])
@@ -294,12 +363,17 @@ def cleanup(previous):
 
 
 def main():
-    if len(sys.argv) in (3, 5) and sys.argv[1] in ('worker', 'cleanup'):
+    if len(sys.argv) > 1 and sys.argv[1] in ('worker', 'cleanup', 'assert-suspend'):
         require(os.geteuid() == 0 and os.getppid() == 1 and 'PKEXEC_UID' not in os.environ)
-        if len(sys.argv) == 5 and sys.argv[1] == 'worker':
-            return worker(*sys.argv[2:])
-        require(len(sys.argv) == 3 and sys.argv[1] == 'cleanup')
-        return cleanup(sys.argv[2])
+        role, *args = sys.argv[1:]
+        if role == 'worker':
+            require(len(args) == 3 or len(args) == 4 and args[-1] == '--suspend')
+            return worker(*args[:3], sleep=len(args) == 4)
+        if role == 'assert-suspend':
+            require(not args)
+            return assert_suspend()
+        require(len(args) == 1)
+        return cleanup(args[0])
     return client()
 
 

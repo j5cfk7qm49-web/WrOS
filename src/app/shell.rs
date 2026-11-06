@@ -646,7 +646,11 @@ fn entries(app: &App) -> Vec<Entry> {
                         ),
                         Choice::System(7),
                     ),
-                    Entry::info(writingdeck_sys::SUSPEND_UNAVAILABLE),
+                    if app.deck.suspend_available {
+                        Entry::new("Lock and suspend", Choice::System(8))
+                    } else {
+                        Entry::info(writingdeck_sys::SUSPEND_UNAVAILABLE)
+                    },
                     Entry::new("Shutdown · confirmation required", Choice::System(9)),
                     Entry::new("Restart · confirmation required", Choice::System(10)),
                     if app.deck.live_session {

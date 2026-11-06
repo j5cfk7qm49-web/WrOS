@@ -238,7 +238,19 @@ def postinst(manifest, stage):
                 raise PackagingError('%s has no [Install] WantedBy/RequiredBy=%s; refusing to enable it'
                                      % (unit, target))
         lines.append('enable_unit %s %s' % (unit, target))
-    lines += ['if [ -z "$root" ] && [ -x /usr/sbin/update-grub ] && [ -e /boot/grub/grub.cfg ]; then',
+    lines += ['system="$root/etc/systemd/system"',
+              'if [ -n "${2:-}" ] && dpkg --compare-versions "$2" le "0.1.0~rc6"; then',
+              '    for unit in sleep.target suspend.target; do',
+              '        path="$system/$unit"',
+              '        if [ "$(readlink "$path")" = /dev/null ]; then',
+              '            rm -f "$path" || echo "wros: could not retire the old $unit mask" >&2',
+              '        fi',
+              '    done',
+              'fi',
+              'if [ ! -e "$system/ctrl-alt-del.target" ] && [ ! -L "$system/ctrl-alt-del.target" ]; then',
+              '    ln -s /dev/null "$system/ctrl-alt-del.target" || echo "wros: could not mask Ctrl-Alt-Del" >&2',
+              'fi',
+              'if [ -z "$root" ] && [ -x /usr/sbin/update-grub ] && [ -e /boot/grub/grub.cfg ]; then',
               '    /usr/sbin/update-grub >/dev/null 2>&1 || echo "wros: update-grub failed; the boot menu is unchanged" >&2',
               'fi',
               'exit 0']

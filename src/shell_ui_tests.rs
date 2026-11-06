@@ -712,6 +712,62 @@ fn supported_power_actions_still_require_confirmation_and_successful_saves() {
 }
 
 #[test]
+fn suspend_from_power_uses_the_console_handoff_after_saving() {
+    use writingdeck_sys::PowerAction;
+    let mut desk = Desk::open(book("suspend-save", true), 100, 30);
+    desk.app.deck.lock_available = true;
+    desk.app.deck.suspend_available = true;
+    desk.app.overlay = Overlay::None;
+    desk.app.focus = Focus::Editor;
+    desk.typed("Save this before suspend. ");
+    desk.app.overlay = Overlay::Deck(Page::Power {
+        action: PowerAction::Suspend,
+        yes: true,
+    });
+    desk.key(KeyCode::Enter);
+    assert!(desk.app.deck.suspend_requested);
+    assert!(
+        fs::read_to_string(first_scene(&desk.root))
+            .unwrap()
+            .contains("Save this before suspend.")
+    );
+    assert!(
+        !desk.app.deck.busy,
+        "no raw system power request may be sent"
+    );
+}
+
+#[test]
+fn confirmed_power_waits_for_backup_and_sync_then_allows_retry() {
+    use writingdeck_sys::PowerAction;
+
+    let mut desk = Desk::open(book("power-with-book-jobs", true), 100, 30);
+    desk.app.deck.simulate();
+    for (action, backup) in [(PowerAction::Shutdown, true), (PowerAction::Restart, false)] {
+        if backup {
+            desk.app.deck.shell.backup.job =
+                Some(crate::backup_service::Job::running_for_test(None));
+        } else {
+            desk.app.deck.shell.backup.sync.job =
+                Some(crate::backup_service::Job::running_for_test(None));
+        }
+        desk.app.overlay = Overlay::Deck(Page::Power { action, yes: true });
+        desk.key(KeyCode::Enter);
+        assert!(!desk.app.deck.busy, "no power request may be sent");
+        assert!(matches!(
+            desk.app.overlay,
+            Overlay::Deck(Page::Power { yes: true, .. })
+        ));
+        assert!(desk.app.deck.note.contains("Wait for it to finish"));
+        desk.app.deck.shell.backup.job = None;
+        desk.app.deck.shell.backup.sync.job = None;
+        desk.key(KeyCode::Enter);
+        assert!(desk.app.deck.busy);
+        wait_system(&mut desk);
+    }
+}
+
+#[test]
 fn console_lock_keeps_the_original_context_and_refuses_unsaved_conflicts() {
     for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
         let (mut desk, note) =
@@ -2945,8 +3001,7 @@ fn sound_and_volume_panel_controls_and_keyboard_wizard_alias_registration_preser
 }
 
 #[test]
-fn pre_sleep_lock_protocol_verification_enforces_save_gate_and_keeps_hardware_suspend_disabled_at_four_sizes()
- {
+fn suspend_saves_and_arms_the_console_handoff_at_four_sizes() {
     use writingdeck_sys::Simulated;
     for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
         let (mut desk, note) =
@@ -2963,12 +3018,10 @@ fn pre_sleep_lock_protocol_verification_enforces_save_gate_and_keeps_hardware_su
         desk.app.deck.lock_available = true;
         system_panel(&mut desk, 2);
         wait_system(&mut desk);
-        // A readiness check, not a writer's choice: sleep stays off until lock-before-sleep ships.
-        assert!(!desk.shows("Verify pre-sleep lock readiness"));
-        let check = desk.app.verify_pre_sleep_lock_protocol().unwrap();
-        assert!(check.buffers_saved && check.input_retired_ready && check.lock_handoff_armed);
-        assert!(!check.suspend_permitted);
-        assert!(check.message.contains("Suspend unavailable"));
+        desk.app.deck.suspend_available = true;
+        assert!(desk.app.request_suspend());
+        assert!(desk.app.deck.lock_requested && desk.app.deck.suspend_requested);
+        assert_eq!(desk.app.project.dirty_count(), 0);
 
         assert_eq!(desk.app.editor.text(), original);
         assert_eq!(desk.app.view_position(Pane::Primary), primary);

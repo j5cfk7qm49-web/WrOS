@@ -938,19 +938,14 @@ impl App {
         self.deck.shell.nav.select(0, 3);
     }
     pub(super) fn update_restart(&mut self) {
-        if self.deck.busy {
-            self.update_notice("A system request is still running. Wait for it, then try again.");
+        if let Some(reason) = self.power_wait_reason() {
+            self.update_notice(reason);
             return;
         }
         if !confirmed_staged(self) {
             self.update_notice(
                 "Not restarting: the system has not confirmed a staged update. Refresh Recovery status first.",
             );
-            return;
-        }
-        self.deck.shell.backup.tick();
-        if self.deck.shell.backup.job.is_some() {
-            self.update_notice("Not restarting: a backup operation is still running.");
             return;
         }
         if !self.writing_is_safe() {

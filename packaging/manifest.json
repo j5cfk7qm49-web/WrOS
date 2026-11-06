@@ -88,6 +88,7 @@
     {"dest": "etc/default/grub.d/60-wros.cfg", "source": "os/grub/60-wros.cfg", "mode": "0644", "class": "config"},
 
     {"dest": "etc/systemd/logind.conf.d/60-wros-power-guard.conf", "source": "os/config/60-wros-power-guard.conf", "mode": "0644", "class": "config"},
+    {"dest": "etc/systemd/system/systemd-suspend.service.d/60-wros-lock.conf", "source": "os/config/wros-suspend.conf", "mode": "0644", "class": "config"},
     {"dest": "etc/systemd/sleep.conf.d/60-wros-sleep-guard.conf", "source": "os/config/60-wros-sleep-guard.conf", "mode": "0644", "class": "config"},
     {"dest": "etc/systemd/system.conf.d/60-wros-reboot-guard.conf", "source": "os/config/60-wros-reboot-guard.conf", "mode": "0644", "class": "config"},
     {"dest": "etc/sysctl.d/60-wros-sysrq.conf", "source": "os/config/60-wros-sysrq.conf", "mode": "0644", "class": "config"},

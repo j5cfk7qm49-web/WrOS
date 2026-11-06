@@ -1900,6 +1900,96 @@ def menu_number(screen, label):
     return found[-1]
 
 
+def feature_console_lock(ctx, g, st, secrets_, layout, *, suspend=False):
+    m, user = g.m, st['username']
+    greeter_login(ctx, g, m, user, secrets_['login'], layout, wrong_first=False)
+    phrase = 'lockscene' + secrets.token_hex(4)
+    second = 'locknote' + secrets.token_hex(4)
+    grim_new_scene(g, 'Lock second scene', second, layout)
+    ctx.check('the editor shows the disposable scene',
+              phrase in grim_new_scene(g, 'Lock test scene', phrase, layout))
+    m.key('f11')
+    m.type_text('Lock second scene', layout)
+    m.key('ret')
+    g.wait_vcs(1, re.escape(second), 20, what='lock-secondary-buffer')
+    editor = next(p for p in g.snap()['procs'] if p['comm'] == 'grimoire')
+    grim_open_settings(g, layout)
+    grim_to_panel(g, r'Battery and power')
+    if suspend:
+        g.choose(r'^Lock and suspend$')
+        m.key('ret')
+        g.wait_vcs(1, r'Confirm Suspend', 20, what='confirm-suspend')
+        m.key('right')
+        m.key('ret')
+        deadline = time.monotonic() + 45
+        while time.monotonic() < deadline and m.qmp.count('SUSPEND') == 0:
+            time.sleep(0.2)
+        ctx.check('QEMU suspended after the editor requested the lock', m.qmp.count('SUSPEND') == 1)
+        m.qmp.command('system_wakeup')
+        time.sleep(4)  # Serial is resumed after the emulated hardware wakes.
+        g.run('true', 30)
+    else:
+        g.choose(r'^Lock writing session$')
+        m.key('ret')
+    g.wait_vcs(8, r'Press Enter to unlock', 30, what='console-lock')
+    ctx.check('tty8 owns input and tty1 has no reader or manuscript on screen',
+              not any(p['comm'] == 'wros-input' for p in g.snap()['procs'])
+              and not g.screen(1).strip()
+              and g.run('fgconsole')[1].strip() == '8')
+    m.key('alt', 'f1')
+    ctx.check('the locker prevents switching back to tty1', g.run('fgconsole')[1].strip() == '8')
+    wrong = 'lockprobe' + secrets.token_hex(7)
+    m.key('ret')
+    g.wait_vcs(8, r"Password:", 15, what='lock-password')
+    m.type_text(wrong + '\n', layout)
+    g.wait_vcs(8, r'\A(?!.*Password:).*Press Enter to unlock', 30, what='lock-password-rejected')
+    m.key('ret')
+    g.wait_vcs(8, r"Password:", 15, what='lock-password-retry')
+    m.type_text(secrets_['login'] + '\n', layout)
+    g.wait_vcs(1, r'Lock writing session|Wi-Fi and networking', 40, what='lock-return')
+    procs = g.snap()['procs']
+    ctx.check('Colemak unlock returned to the same editor with a fresh reader',
+              any(p['pid'] == editor['pid'] and p['comm'] == 'grimoire' for p in procs)
+              and any(p['ppid'] == editor['pid'] and p['comm'] == 'wros-input' for p in procs))
+    m.key('esc')
+    m.key('esc')
+    m.key('esc')
+    grim_editor(g)
+    screen = g.wait_vcs(1, re.escape(phrase), 15, what='writing-after-unlock')
+    ctx.check('both writing buffers survived the lock', second in screen)
+    m.ctrl('s', layout)
+    g.shell.put('/dev/shm/lock-probe', wrong + '\n' + secrets_['login'] + '\n', '0600')
+    rc, _ = g.run(
+        'set -o pipefail; p=/dev/shm/lock-probe; trap "rm -f $p" EXIT; '
+        'grep -rlaF -f "$p" /home /var/log /var/lib/wros-update /etc >/dev/null; '
+        'test "$?" = 1 || exit 11; journalctl --no-pager > /dev/shm/lock-journal || exit 12; '
+        'grep -aqF -f "$p" /dev/shm/lock-journal; found=$?; rm -f /dev/shm/lock-journal; '
+        'test "$found" = 1', 90, check=False)
+    ctx.check('neither lock password reached the saved book, recovery files or system logs', rc == 0, rc)
+
+
+def phase_lock(ctx):
+    st = load_state(ctx.args.install_run)
+    secrets_ = json.loads(Path(st['secrets']).read_text())
+    overlay = ctx.dir / 'disk.qcow2'
+    vm.create_overlay(ctx.args.base_disk, overlay, base_format='qcow2')
+    def attach(machine):
+        if ctx.args.lock_fixture:
+            media = vm.make_update_media(ctx.args.lock_fixture, ctx.dir / 'fixture.img', label='WROS-TEST')
+            machine.usb_stick(media, readonly=True, ident='testfixture')
+        if ctx.args.test_suspend:
+            machine.args.extend(['-global', 'ICH9-LPC.disable_s3=0'])
+
+    m = boot_installed(ctx, st, 'lock', disk=overlay, fmt='qcow2', extra=attach)
+    g = session_ready(ctx, m, st, secrets_, st['layout'], greeter=False)
+    if ctx.args.lock_fixture:
+        g.run('mkdir -p /mnt/testfixture && mount -o ro,nodev,nosuid,noexec LABEL=WROS-TEST /mnt/testfixture '
+              '&& dpkg --force-confold -i /mnt/testfixture/wros_*.deb && systemctl daemon-reload '
+              '&& systemctl restart systemd-logind', 120)
+    feature_console_lock(ctx, g, st, secrets_, st['layout'], suspend=ctx.args.test_suspend)
+    ctx.result['passed'] = True
+
+
 def phase_rc5(ctx):
     """rc5 on a disk the update phase brought to rc5: the boot menu, the recovery boot, the quiet
     console, the Shift-arrow keymap, settings in backups and the Google client for phone linking.
@@ -2244,7 +2334,7 @@ def phase_autoback(ctx):
 PHASES = {'firmware': phase_firmware, 'live': phase_live, 'install': phase_install,
           'install-failure': phase_install, 'installed-boot': phase_installed_boot,
           'update': phase_update, 'rescue': phase_rescue, 'peek': phase_peek, 'audit': phase_audit,
-          'rc5': phase_rc5, 'goback': phase_goback, 'autoback': phase_autoback}
+          'rc5': phase_rc5, 'lock': phase_lock, 'goback': phase_goback, 'autoback': phase_autoback}
 
 
 def main():
@@ -2262,6 +2352,8 @@ def main():
     parser.add_argument('--kill-when', default='mapper', choices=['mapper', 'copying', 'grub'], help='failure injection point: first mapper, while copying the system, or during the GRUB install')
     parser.add_argument('--variant', default='ok', choices=['ok', 'cancel', 'tamper', 'powercut', 'badstage', 'reviewpath'])
     parser.add_argument('--base-disk')
+    parser.add_argument('--lock-fixture', help='lock: install a disposable local test package from this directory')
+    parser.add_argument('--test-suspend', action='store_true', help='lock: require an actual QEMU suspend and wake')
     parser.add_argument('--media-fs', default='ext4', choices=['ext4', 'vfat'])
     parser.add_argument('--cut-delay', default='2')
     parser.add_argument('--hint-wait', type=int, default=900)

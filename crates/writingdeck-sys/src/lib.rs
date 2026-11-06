@@ -16,18 +16,9 @@ mod update_tests;
 use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 
-/// Fail closed until a separate locker can acknowledge protected input ownership.
+/// The generic system backend cannot retire the editor's input reader.
 pub const SUSPEND_UNAVAILABLE: &str =
     "Suspend unavailable: secure screen locking has not been qualified.";
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PreSleepLockCheck {
-    pub buffers_saved: bool,
-    pub input_retired_ready: bool,
-    pub lock_handoff_armed: bool,
-    pub suspend_permitted: bool,
-    pub message: String,
-}
 
 /// Protected Wi-Fi passphrase. Never written to Debug output, command-line
 /// arguments, or public serialized requests, and overwritten on drop.

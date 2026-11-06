@@ -244,11 +244,11 @@ def verify(run, secret=None, native_session=False, unlock_secret=None):
                     result['running_editor_exe_sha256'] = loaded[0].decode() if len(loaded) == 1 else None
                     # Inspect logind and masks; never issue an actual sleep request.
                     start = len(content)
-                    connection.sendall(b'sudo -n /bin/sh -c \'for u in sleep suspend hibernate hybrid-sleep suspend-then-hibernate; do test "$(systemctl is-enabled "$u.target" 2>/dev/null)" = masked || exit 1; done; echo WROS_SLEEP_MASKS_PASS; busctl call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager CanSuspend\'; printf "\\nWROS_SLEEP_STATE_END\\n"\n')
+                    connection.sendall(b'sudo -n /bin/sh -c \'for u in hibernate.target hybrid-sleep.target suspend-then-hibernate.target ctrl-alt-del.target; do test "$(systemctl is-enabled "$u" 2>/dev/null)" = masked || exit 1; done; systemctl show -p ExecStartPre systemd-suspend.service | grep -q "wros-lock assert-suspend" || exit 1; echo WROS_SLEEP_MASKS_PASS; busctl call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager CanSuspend\'; printf "\\nWROS_SLEEP_STATE_END\\n"\n')
                     expect(marker_pattern(b'WROS_SLEEP_STATE_END'), 30)
                     expect(b':~$ ', 20)
                     result['logind_can_suspend'] = suspend_capability(content[start:])
-                    if not has_line(content[start:], b'WROS_SLEEP_MASKS_PASS') or result['logind_can_suspend'] not in ('no', 'na'):
+                    if not has_line(content[start:], b'WROS_SLEEP_MASKS_PASS') or result['logind_can_suspend'] not in ('yes', 'no', 'na'):
                         raise RuntimeError('Installed sleep guard is not effective')
                     result['sleep_guard_verified'] = True
                     # Exit through the actual home menu, then check login and no

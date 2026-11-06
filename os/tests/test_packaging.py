@@ -842,7 +842,7 @@ class StageIntoRoot(unittest.TestCase):
                              ('multi-user.target', 'wros-boot-ok.service'),
                              ('system-update.target', 'wros-boot-ok.service')):
             self.assertEqual(os.readlink(system / (target + '.wants') / unit), '../' + unit)
-        for unit in ('sleep.target', 'getty@tty8.service'):
+        for unit in ('hibernate.target', 'getty@tty8.service', 'ctrl-alt-del.target'):
             self.assertEqual(os.readlink(system / unit), '/dev/null')
         self.assertEqual(packaging.inspect_keyring((root / packaging.KEYRING_DEST).read_bytes())['primaries'], [self.fpr])
         self.assertEqual(packaging.parse_pin((root / packaging.SIGNERS_DEST).read_text()), [self.fpr])

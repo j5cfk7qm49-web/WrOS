@@ -1,17 +1,17 @@
 # Power-action safety guards
 
-WrOS **does not offer Suspend** until a separate secure screen locker and
-lock-before-suspend/input-ownership protocol have been qualified. Both native
-Power and retained System settings say why. The Linux adapter independently
-rejects `Request::Power(Suspend)` before invoking any external process. The
-simulator also refuses it. A manually constructed legacy confirmation cannot
-bypass the controller guard. This addresses issue #32; it is not a session lock.
+WrOS offers **Lock and suspend** on an installed, supported console. The editor
+retires its input reader before the locker takes tty8. The suspend service
+requires proof of that handoff. Generic power requests still refuse suspend.
+See the [console-lock protocol](CONSOLE_LOCK.md).
 
 Shutdown and Restart still start with Cancel selected. A confirmed action first
 attempts to save both document buffers, then requires **no dirty scene, no stale
 tree and no unresolved source conflict**. Otherwise the confirmation remains
 open with a visible refusal, and no worker request is sent. Return to writing to
-review conflicts or unavailable storage; retry is explicit after recovery.
+review conflicts or unavailable storage. If a backup or sync is active, wait
+for it to finish and confirm again. Installed backup and sync jobs also hold a
+logind shutdown inhibitor while their helper runs.
 
 ## Why the caller needs a stricter gate
 
@@ -60,26 +60,10 @@ No test suspends or powers off the host. Controlled power cases use a recorded
 simulator and the Linux no-process guard. New full CI is tracked separately from
 the earlier warm-screen source/binary/VM evidence.
 
-The [native login](NATIVE_GREETER.md) and [keyboard recovery](GREETER_KEYBOARD.md)
-have separate qualification. The [reader-retirement prerequisite](INPUT_OWNERSHIP.md)
-now addresses the editor's input-reader lifecycle. Issue #4 still requires a
-secure independent locker, protected seat/VT ownership, acknowledged lock before
-sleep and physical suspend/resume qualification. This application guard does
-not itself configure logind lid/power-key behavior. The newer integrated image
-stages explicit `ignore` actions for lid, power/reboot/sleep keys and idle,
-disables all four systemd sleep modes and masks the five sleep targets. See the
-Debian [logind contract](https://manpages.debian.org/trixie/systemd/logind.conf.5.en.html)
-and [sleep configuration](https://manpages.debian.org/trixie/systemd/systemd-sleep.conf.5.en.html).
-The media audit parses the staged drop-ins and requires each of those keys to have
-its exact value (a weakened file fails even when copied faithfully). Keyboard reboot
-paths are covered too: `CtrlAltDelBurstAction=none` stops the seven-press
-`reboot-force` burst and `kernel.sysrq = 0` disables the Magic SysRq chords. A single
-Ctrl-Alt-Del press still takes systemd's orderly reboot, so the editor's SIGTERM
-save-on-exit runs, but it does not pass through the Power page's conflict review.
-Fresh installed-boot checks require
-masked targets and logind `CanSuspend` returning a documented denial (`no` or
-`na`), without requesting sleep. The installed guest returned `no`; the exact
-response is retained, rather than relabeled as hardware unavailability. This does not protect against administrator changes, direct privileged
-kernel access, hardware forced power-off or loss of power. The [manual console-lock increment](CONSOLE_LOCK.md)
-has focused software and isolated-guest qualification. Physical session security
-and lock-before-suspend/resume remain open; no sleep path is enabled.
+The image tells logind to ignore automatic key, lid and idle actions so the
+editor can handle the lid before sleep. Hibernation targets stay masked. The
+media audit checks the staged logind settings and the suspend service's guard.
+The `ctrl-alt-del.target` mask stops a single Ctrl-Alt-Del reboot, and
+`CtrlAltDelBurstAction=none` and `kernel.sysrq=0` stop the keyboard bypasses.
+Direct privileged operations, hardware forced power-off and loss of power
+remain outside this guard.

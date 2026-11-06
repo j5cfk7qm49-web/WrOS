@@ -91,9 +91,8 @@ fi
 python3 "$packaging" install-trust "$dest"
 # Enable units only when the installed unit file itself declares the target.
 python3 "$packaging" enable-units "$dest"
-# Manual locking does not qualify sleep/resume. Block automatic and explicit
-# sleep in the image as well as in the UI; logind's default lid action bypasses it.
-for unit in sleep suspend hibernate hybrid-sleep suspend-then-hibernate; do
+# The suspend unit requires proof from the console lock. Block other sleep modes.
+for unit in hibernate hybrid-sleep suspend-then-hibernate; do
     ln -sf /dev/null "$dest/etc/systemd/system/$unit.target"
 done
 for unit in getty@tty8.service autovt@tty8.service; do

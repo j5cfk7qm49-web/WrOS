@@ -10,6 +10,31 @@ module = importlib.machinery.SourceFileLoader('wros_lock', str(ROOT / 'os/script
 
 
 class ConsoleLockBoundary(unittest.TestCase):
+    def test_sleep_requires_protected_vt_with_keyboard_disabled_and_reader_retired(self):
+        with mock.patch.object(module, 'console_state', return_value=(8, 0, 0)), \
+             mock.patch.object(module, 'keyboard_mode', return_value=module.K_OFF), \
+             mock.patch.object(module, 'locker_ready', return_value=True), \
+             mock.patch.object(module, 'input_reader_retired', return_value=True):
+            self.assertTrue(module.can_sleep(42, 99, 8))
+            for guard in ('locker_ready', 'input_reader_retired'):
+                with mock.patch.object(module, guard, return_value=False):
+                    self.assertFalse(module.can_sleep(42, 99, 8))
+            with mock.patch.object(module, 'keyboard_mode', return_value=module.K_UNICODE):
+                self.assertFalse(module.can_sleep(42, 99, 8))
+
+    def test_suspend_unit_requires_the_root_lock_worker_and_proof(self):
+        unit = (ROOT / 'os/config/wros-suspend.conf').read_text()
+        self.assertIn('BindsTo=wros-console-lock.service', unit)
+        self.assertIn('After=wros-console-lock.service', unit)
+        self.assertIn('ExecStartPre=/usr/libexec/wros-lock assert-suspend', unit)
+
+    def test_lock_service_never_starts_while_the_editor_reader_is_alive(self):
+        with mock.patch.object(module, 'validate_caller'), \
+             mock.patch.object(module, 'input_reader_retired', return_value=False), \
+             mock.patch.object(module, 'secure_process', side_effect=AssertionError('must refuse before setting up the service')):
+            with self.assertRaises(ValueError):
+                module.client()
+
     def test_session_must_match_the_callers_active_local_seat_and_console(self):
         good = {'User': '1000', 'Active': 'yes', 'Remote': 'no', 'TTY': 'tty1',
                 'VTNr': '1', 'Seat': 'seat0', 'Type': 'tty', 'Class': 'user'}
@@ -77,7 +102,7 @@ class ConsoleLockBoundary(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     module.main()
 
-    def test_lock_before_sleep_requires_input_reader_retired_and_tty8_vlock_ready(self):
+    def test_reader_detection_matches_the_actual_worker_argument(self):
         import tempfile
         with tempfile.TemporaryDirectory(prefix="wros-lock-sleep-") as tmp:
             proc = Path(tmp) / "proc"
@@ -90,44 +115,6 @@ class ConsoleLockBoundary(unittest.TestCase):
             rust = (ROOT / 'crates/wros-input/src/linux.rs').read_text()
             argument = re.search(r'pub const WORKER_ARGUMENT: &str = "([^"]+)";', rust).group(1)
             (worker_dir / "cmdline").write_bytes(b"/usr/bin/grimoire\0" + argument.encode() + b"\x0042\0")
-            sleep_conf = Path(tmp) / "60-wros-sleep-guard.conf"
-            sleep_conf.write_text("[Sleep]\nAllowSuspend=no\n")
-
             self.assertFalse(module.input_reader_retired(42, proc_root=proc))
-            with self.assertRaisesRegex(ValueError, "input reader is still active"):
-                module.evaluate_pre_sleep_lock(
-                    1000, 42, "12345", 0, sleep_enabled=False,
-                    proc_root=proc, sleep_conf=sleep_conf, locker_ready=True
-                )
-
-            # Once input worker is retired, tty8 locker readiness is still required.
             (task_dir / "children").write_text("")
             self.assertTrue(module.input_reader_retired(42, proc_root=proc))
-            with self.assertRaisesRegex(ValueError, "tty8 vlock-main"):
-                module.evaluate_pre_sleep_lock(
-                    1000, 42, "12345", 0, sleep_enabled=False,
-                    proc_root=proc, sleep_conf=sleep_conf, locker_ready=False
-                )
-
-            # With input retired and tty8 locker ready, software lock-before-sleep verifies cleanly while keeping sleep disabled (#32).
-            res = module.evaluate_pre_sleep_lock(
-                1000, 42, "12345", 0, sleep_enabled=False,
-                proc_root=proc, sleep_conf=sleep_conf, locker_ready=True, pam_unlocked=True
-            )
-            self.assertEqual(res["status"], "lock-verified-sleep-disabled")
-            self.assertTrue(res["input_retired"])
-            self.assertTrue(res["locker_ready"])
-            self.assertFalse(res["sleep_permitted"])
-
-            # Requesting actual sleep_enabled=True or weakening AllowSuspend=no is refused.
-            with self.assertRaisesRegex(ValueError, "Suspend unavailable"):
-                module.evaluate_pre_sleep_lock(
-                    1000, 42, "12345", 0, sleep_enabled=True,
-                    proc_root=proc, sleep_conf=sleep_conf, locker_ready=True
-                )
-            sleep_conf.write_text("[Sleep]\nAllowSuspend=yes\n")
-            with self.assertRaises(ValueError):
-                module.evaluate_pre_sleep_lock(
-                    1000, 42, "12345", 0, sleep_enabled=False,
-                    proc_root=proc, sleep_conf=sleep_conf, locker_ready=True
-                )

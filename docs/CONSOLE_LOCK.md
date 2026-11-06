@@ -1,8 +1,9 @@
 # Manual console locking
 
 Focused software, the full isolated-guest sequence and [Debian CI](evidence/console-lock-ci.json)
-passed: 964 Rust/configuration, 120 Python/zero skips, both Clippys and 17 gates. Physical security and sleep/resume remain unqualified. Suspend,
-automatic idle/lid sleep and all five sleep targets remain disabled.
+passed: 964 Rust/configuration, 120 Python/zero skips, both Clippys and 17 gates.
+The rc7 VM also exercises suspend and wake with this locker. Physical security,
+lid wake and Wi-Fi reconnection still require the HP Stream.
 
 ## Maintained authentication and console ownership
 
@@ -51,11 +52,25 @@ command, which uses Debian chvt and restores the prior SysRq setting. It returns
 the service's completion status to the waiting editor. Worker/cleanup roles
 require a root process started by PID 1 and reject a pkexec environment.
 
-There is no custom request file, socket protocol or path-unit state machine.
 The [guest sequence](evidence/console-lock-vm.json) verifies service ownership,
 five lock cycles and editor/locker/client/worker failure recovery. [Focused
 checks](evidence/console-lock-focused.json) cover the interface and policy; all
 [original failed attempts](evidence/console-lock-attempts.json) remain failed.
+
+## Suspend and wake
+
+The active writer can choose **Lock and suspend**. A closed lid or a discharging
+battery at its reserve requests the same action. The editor saves both buffers
+and waits for an active backup, sync or system request to finish. The battery
+reserve is the device's critical flag or 8 percent, whichever comes first.
+
+The lock worker disables keyboard delivery to tty8 before starting vlock for
+suspend. Once vlock holds tty8, the worker writes a short-lived proof in its
+root-only runtime directory. The systemd suspend service independently checks
+the worker, the active protected VT, the disabled keyboard and the retired
+reader. The worker asks logind to suspend so NetworkManager can prepare and
+resume with the system. On wake, it flushes typeahead and restores the keyboard
+for PAM unlock. The cleanup path restores the keyboard if the worker stops.
 
 ## Limits and verification
 
@@ -66,11 +81,10 @@ must test actual VT switching, wrong/right PAM, reader absence, original console
 stability, context restoration and process-death behavior; pure policy tests do
 not establish those properties.
 
-This does not add account enrollment, remote or graphical locking, idle locking,
-lock-before-suspend, hibernation, disk encryption, a signed release or physical
-hardware qualification. Root/admin changes and physical forced power-off remain
-outside the session-lock boundary. The earlier delivered development ISO
-predates this work and native timezone selection.
+Automatic suspend is monitored during an active editor session. Check the lid,
+resume and battery reserve on the HP Stream. A manual lock remains active if the
+lid is closed during that lock. Root changes and a forced power-off are outside
+the session-lock boundary.
 
 Maintained interfaces: Debian [vlock-main](https://manpages.debian.org/trixie/vlock/vlock-main.8.en.html),
 [plugins](https://manpages.debian.org/trixie/vlock/vlock-plugins.5.en.html) and

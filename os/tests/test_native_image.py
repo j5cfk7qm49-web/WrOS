@@ -156,7 +156,7 @@ def fixture(root, signer_uid=SIGNER_UID):
         wants = root / 'etc/systemd/system' / (item['target'] + '.wants')
         wants.mkdir(parents=True, exist_ok=True)
         (wants / item['unit']).symlink_to('../' + item['unit'])
-    for name in ('getty@tty1.service', 'getty@tty8.service', 'autovt@tty8.service',
+    for name in ('getty@tty1.service', 'getty@tty8.service', 'autovt@tty8.service', 'ctrl-alt-del.target',
                  *(target + '.target' for target in module.SLEEP_TARGETS)):
         (root / 'etc/systemd/system' / name).symlink_to('/dev/null')
     template = root / 'usr/share/wros/apt/debian.sources'
@@ -338,7 +338,7 @@ class NativeImage(unittest.TestCase):
                 ('HandlePowerKeyLongPress=ignore', 'HandlePowerKeyLongPress=poweroff')],
             'etc/systemd/sleep.conf.d/60-wros-sleep-guard.conf': [
                 ('AllowHybridSleep=no', 'AllowHybridSleep=yes'),
-                ('AllowSuspend=no', '[Sleep]')],
+                ('AllowSuspend=yes', 'AllowSuspend=no')],
             'etc/systemd/system.conf.d/60-wros-reboot-guard.conf': [
                 ('CtrlAltDelBurstAction=none', 'CtrlAltDelBurstAction=reboot-force')],
             'etc/sysctl.d/60-wros-sysrq.conf': [('kernel.sysrq = 0', 'kernel.sysrq = 1')],
