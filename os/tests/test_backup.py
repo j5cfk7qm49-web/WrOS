@@ -561,6 +561,81 @@ class AutomaticBackup(unittest.TestCase):
         self.assertEqual([r['id'] for r in rows], [result['snapshots'][0]['id']])
 
 
+class PhoneLinking(unittest.TestCase):
+    """The link-phone operation: the helper's side of os/scripts/wros-link.py (tested in test_link)."""
+
+    def setUp(self):
+        EncryptedBackup.setUp(self)
+        self.clients = self.base/'google-client.json'
+        self.clients.write_text(json.dumps({'linking': {'client_id': 'web-id', 'client_secret': 'web-secret'},
+                                            'mailbox': {'client_id': 'tv-id', 'client_secret': 'tv-secret'}}))
+        self.service.clients_path = self.clients
+        self.token = {'access_token': 'PRIVATE_ACCESS', 'refresh_token': 'PRIVATE_REFRESH',
+                      'expiry': '2099-01-01T00:00:00Z', 'token_type': 'Bearer'}
+
+    def fake_link(self, outcome):
+        test = self
+
+        class Session:
+            def __init__(self, clients, *, listener=None, offer=None, **_):
+                test.session = self
+                self.clients, self.offer, self.events = clients, offer, []
+
+            def run(self):
+                self.offer({'link': 'https://example.invalid/l/#x', 'code': 'KXP-QKN-VLWD', 'qr': ['0101']})
+                if isinstance(outcome, Exception):
+                    raise outcome
+                return outcome, 'drive'
+
+            def finish(self, token, via):
+                self.events.append(('finish', via))
+
+            def fail(self, message):
+                self.events.append(('fail', message))
+
+        fake = mock.Mock(Link=Session, local_address=lambda: None, Listener=None)
+        return mock.patch.object(module, 'load_link', return_value=fake)
+
+    def test_linking_stores_the_token_with_the_client_that_issued_it(self):
+        with self.fake_link(self.token), \
+             mock.patch.object(module, 'classify_rclone_failure', return_value=(True, b'{"total":1}', '')), \
+             mock.patch.object(module, 'progress') as progress:
+            result = module.dispatch(self.service, {'operation': 'link-phone'})
+        self.assertTrue(result['google_connected'])
+        stored = self.service.google.read_text()
+        self.assertIn('client_id = web-id', stored)
+        self.assertIn('client_secret = web-secret', stored)
+        self.assertIn('scope = drive', stored)
+        self.assertEqual(self.session.events, [('finish', 'drive')])
+        offer = progress.call_args_list[0].kwargs['offer']
+        self.assertEqual(offer['code'], 'KXP-QKN-VLWD')
+        self.assertNotIn('PRIVATE_', json.dumps(result))
+
+    def test_a_failed_link_tells_the_phone_and_stores_nothing(self):
+        with self.fake_link(ValueError('Linking did not finish in 25 minutes.')), mock.patch.object(module, 'progress'):
+            with self.assertRaisesRegex(ValueError, 'did not finish'):
+                module.dispatch(self.service, {'operation': 'link-phone'})
+        self.assertFalse(self.service.google.exists())
+
+    def test_without_the_google_client_file_linking_says_why(self):
+        self.service.clients_path = self.base/'missing.json'
+        with self.assertRaisesRegex(ValueError, 'no Google sign-in client'):
+            module.dispatch(self.service, {'operation': 'link-phone'})
+        self.assertFalse(self.service.status(refresh=False)['phone_linking'])
+        self.service.clients_path = self.clients
+        self.assertTrue(self.service.status(refresh=False)['phone_linking'])
+
+    def test_disconnecting_a_phone_link_revokes_it_at_google(self):
+        with self.fake_link(self.token), mock.patch.object(module, 'progress'), \
+             mock.patch.object(module, 'classify_rclone_failure', return_value=(True, b'{"total":1}', '')):
+            module.dispatch(self.service, {'operation': 'link-phone'})
+        with mock.patch.object(module, 'revoke_google', return_value=True) as revoke:
+            result = self.service.disconnect_google()
+        revoke.assert_called_once_with('PRIVATE_REFRESH')
+        self.assertIn('ended at Google', result['notice'])
+        self.assertFalse(self.service.google.exists())
+
+
 class SettingsProfile(unittest.TestCase):
     """Each backup carries the writer's settings beside the book, in the same encrypted snapshot."""
     initialize = EncryptedBackup.initialize

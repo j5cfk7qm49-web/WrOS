@@ -76,6 +76,7 @@ pub enum Route {
     GoogleAccount,
     GoogleDisconnectConfirm,
     GoogleDrive,
+    LinkPhone,
     SyncPanel,
     Backups,
     BackupForm,
@@ -374,6 +375,7 @@ enum Choice {
     SyncNow,
     SyncConfirmDeletes,
     BackupCancel,
+    LinkPhone,
     GoogleDisconnectResolve(bool),
     WifiSelect(writingdeck_sys::WifiNetwork),
     WifiDisconnect,
@@ -936,6 +938,16 @@ fn entries(app: &App) -> Vec<Entry> {
             } else {
                 "Google Drive is not connected"
             })];
+            if backup.status.phone_linking {
+                rows.push(Entry::new(
+                    if backup.status.google_connected {
+                        "Relink Google Drive with your phone"
+                    } else {
+                        "Link Google Drive with your phone"
+                    },
+                    Choice::LinkPhone,
+                ));
+            }
             if backup.status.google_connected {
                 if !backup.status.google_state.is_empty() {
                     rows.push(Entry::info(format!(
@@ -984,6 +996,22 @@ fn entries(app: &App) -> Vec<Entry> {
                 "Encrypted backups and restore",
                 Choice::Open(Route::Backups),
             ));
+            rows
+        }
+        Route::LinkPhone => {
+            let backup = &app.deck.shell.backup;
+            let mut rows = Vec::new();
+            match &backup.job {
+                Some(job) => {
+                    rows.push(Entry::info(job.status_line()));
+                    rows.push(Entry::new("Cancel linking", Choice::BackupCancel));
+                }
+                None => rows.push(Entry::info(if backup.status.google_connected {
+                    "Google Drive is linked. Escape returns to Settings."
+                } else {
+                    "Linking stopped. Choose Link Google Drive with your phone to start again."
+                })),
+            }
             rows
         }
         Route::GoogleDisconnectConfirm => vec![
@@ -1853,6 +1881,14 @@ impl App {
             self.resolve_warm_preview(false);
             return;
         }
+        if self.deck.shell.nav.current() == Route::LinkPhone && key == Key::Esc {
+            // Leaving the code stops linking: the listener closes and the sign-in is dropped.
+            if self.deck.shell.backup.job.take().is_some() {
+                self.deck.shell.backup.notice = "Linking cancelled; nothing was changed.".into();
+            }
+            self.deck.shell.nav.back();
+            return;
+        }
         let rows = entries(self);
         let kinds = kinds(self, &rows);
         let nav = &mut self.deck.shell.nav;
@@ -1906,6 +1942,13 @@ impl App {
                     Choice::SyncNow => self.request_sync_run(false),
                     Choice::SyncConfirmDeletes => self.request_sync_run(true),
                     Choice::BackupQueueNow => self.request_project_backup_queue(),
+                    Choice::LinkPhone => {
+                        self.deck.shell.nav.open(Route::LinkPhone);
+                        self.deck
+                            .shell
+                            .backup
+                            .request(crate::backup_service::Request::LinkPhone);
+                    }
                     Choice::BackupCancel => {
                         self.deck.shell.backup.job = None;
                         self.deck.shell.backup.notice = "Cancelling; refresh snapshots before retrying. Completed snapshots remain recoverable.".into();
@@ -2231,6 +2274,18 @@ impl App {
 }
 
 pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
+    if app.deck.shell.nav.current() == Route::LinkPhone
+        && let Some(offer) = app
+            .deck
+            .shell
+            .backup
+            .job
+            .as_ref()
+            .and_then(|job| job.offer())
+        && draw_link_offer(frame, area, &offer)
+    {
+        return;
+    }
     let entries = entries(app);
     let kinds = kinds(app, &entries);
     let rows = entries
@@ -2259,6 +2314,7 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
         Route::GoogleAccount => "WrOS · Settings › Google account".into(),
         Route::GoogleDisconnectConfirm => "WrOS · Disconnect Google Drive?".into(),
         Route::GoogleDrive => "WrOS · Settings › Google Drive".into(),
+        Route::LinkPhone => "WrOS · Link Google Drive".into(),
         Route::SyncPanel => "WrOS · Settings › Synchronization".into(),
         Route::Backups => "WrOS · Settings › Backups".into(),
         Route::BackupForm => app
@@ -2362,4 +2418,71 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
         },
         theme.into(),
     );
+}
+
+/// The phone-linking screen: the QR code on the left, what to do on the right. Light modules are
+/// white blocks, so the code reads dark-on-light on the black console. False when it cannot fit.
+fn draw_link_offer(
+    frame: &mut ratatui::Frame,
+    area: Rect,
+    offer: &crate::backup_service::LinkOffer,
+) -> bool {
+    use ratatui::style::{Color, Style};
+    use ratatui::text::{Line, Span};
+    use ratatui::widgets::{Clear, Paragraph, Wrap};
+    let width = offer.qr.first().map_or(0, String::len) as u16 * 2;
+    let height = offer.qr.len() as u16;
+    if area.width < width + 30 || area.height < height {
+        return false;
+    }
+    frame.render_widget(Clear, area);
+    let top = area.y + (area.height - height) / 2;
+    let code: Vec<Line> = offer
+        .qr
+        .iter()
+        .map(|row| {
+            Line::from(
+                row.bytes()
+                    .map(|b| {
+                        Span::styled(
+                            "██",
+                            Style::default().fg(if b == b'0' {
+                                Color::White
+                            } else {
+                                Color::Black
+                            }),
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect();
+    frame.render_widget(
+        Paragraph::new(code),
+        Rect::new(area.x + 1, top, width, height),
+    );
+    let text = vec![
+        Line::from("Link Google Drive"),
+        Line::from(""),
+        Line::from("1. Scan this code with your phone's camera."),
+        Line::from("2. Sign in to Google. On the notice about an unverified app, tap"),
+        Line::from("   Advanced, then Go to WrOS. Tap Allow."),
+        Line::from("3. On the WrOS page, tap Finish linking."),
+        Line::from(""),
+        Line::from("If the laptop does not answer (school or guest Wi-Fi), tap"),
+        Line::from("Approve the laptop instead and type this code on Google's page:"),
+        Line::from(""),
+        Line::from(Span::styled(
+            format!("   {}", offer.code),
+            Style::default().fg(Color::White),
+        )),
+        Line::from(""),
+        Line::from("This screen says when Drive is linked. Escape cancels."),
+    ];
+    let left = area.x + 1 + width + 3;
+    frame.render_widget(
+        Paragraph::new(text).wrap(Wrap { trim: false }),
+        Rect::new(left, top, area.x + area.width - left, height),
+    );
+    true
 }

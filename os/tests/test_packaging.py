@@ -273,6 +273,26 @@ class Builder(unittest.TestCase):
             self.assertFalse(marker.exists())  # staging leaves the boot menu to the installer
             self.assertEqual(sorted(p.name for p in root.iterdir()), ['bin', 'etc'])
 
+    def test_googles_client_is_packaged_only_when_the_build_is_given_it(self):
+        listing = run('dpkg-deb', '-c', str(self.deb)).stdout
+        self.assertNotIn('usr/share/wros/google-client.json', listing)  # never from the repository
+        self.assertIn('./usr/lib/wros-backup/link.py', listing)
+        clients = self.base / 'google-client.json'
+        clients.write_text(json.dumps({'linking': {'client_id': 'web-id', 'client_secret': 'web-secret'},
+                                       'mailbox': {'client_id': 'tv-id', 'client_secret': 'tv-secret'}}))
+        out = self.base / 'with-client'
+        deb = packaging.build_deb(binaries_dir=self.binaries, version=TREE, output_dir=out, repo=ROOT,
+                                  keymaps_dir=self.keymaps, commit='a' * 40, epoch=EPOCH, google_clients=clients)
+        extract = self.base / 'with-client-x'
+        run('dpkg-deb', '-x', str(deb), str(extract))
+        packaged = extract / 'usr/share/wros/google-client.json'
+        self.assertEqual(json.loads(packaged.read_text()), json.loads(clients.read_text()))
+        self.assertEqual(stat.S_IMODE(packaged.stat().st_mode), 0o644)  # the writer's helper reads it
+        clients.write_text('{"linking": {}}')
+        with self.assertRaises(packaging.PackagingError):
+            packaging.build_deb(binaries_dir=self.binaries, version=TREE, output_dir=self.base / 'bad', repo=ROOT,
+                                keymaps_dir=self.keymaps, commit='a' * 40, epoch=EPOCH, google_clients=clients)
+
     def test_release_file_derives_from_version_commit_and_source_date(self):
         extract = self.base / 'extract3'
         run('dpkg-deb', '-x', str(self.deb), str(extract))

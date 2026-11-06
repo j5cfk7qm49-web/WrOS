@@ -7,51 +7,96 @@
 <title>Finish linking WrOS</title>
 <style>
   body { font: 18px/1.5 system-ui, sans-serif; margin: 0 16px; padding: 32px 0; background: #111; color: #eee; }
-  a.button { display: inline-block; padding: 16px 28px; font-size: 20px; background: #3b6; color: #000; border-radius: 10px; text-decoration: none; }
+  a.button { display: inline-block; margin: 8px 0; padding: 16px 28px; font-size: 20px; border-radius: 10px; text-decoration: none; }
+  #go { background: #3b6; color: #000; }
+  #device { background: #333; color: #eee; }
   .note { color: #aaa; font-size: 15px; }
+  .code { font: 28px/1.4 ui-monospace, monospace; letter-spacing: 2px; }
 </style>
 </head>
 <body>
 <h1>Finish linking WrOS</h1>
 <p id="status">Reading Google's answer…</p>
-<p id="finish" hidden><a class="button" id="go" href="#">Finish linking</a></p>
-<p class="note" id="note" hidden>Sends Google's approval to your laptop over your Wi-Fi. It only works
-together with the laptop that showed the code.</p>
+<div id="wifi" hidden>
+  <p><a class="button" id="go" href="#">Finish linking</a></p>
+  <p class="note">Sends Google's approval to your laptop over Wi-Fi. It only works together with the
+  laptop that showed the code. The laptop says when Drive is linked.</p>
+</div>
+<div id="anywhere" hidden>
+  <p id="anywhere-intro">If the laptop does not answer (some school and guest Wi-Fi keeps devices
+  apart), approve the laptop on Google instead and type this code there:</p>
+  <p class="code" id="code"></p>
+  <p><a class="button" id="device" href="https://www.google.com/device">Approve the laptop</a></p>
+  <p class="note">That approval lets WrOS see only files it made, so the laptop can collect the
+  approval this page saved in your Drive. It deletes that file straight away.</p>
+</div>
 <script>
-// Google returns here with ?code=…&state=<address>. The code is useless without the secret
-// half of the PKCE pair, which never leaves the laptop. Safari only lets a secure page open
-// the laptop's local address after a tap, hence the button.
+// Google answers in the fragment: a code for the laptop, a short-lived token for this page, and
+// the state the /l/ page sent: w.<address or ->.<user code>.<challenge>. The code is useless
+// without the secret half of the PKCE pair, which never leaves the laptop.
 (function () {
   const status = document.getElementById('status');
-  const params = new URLSearchParams(location.search);
+  const say = (text) => { status.textContent = text; };
+  const fragment = new URLSearchParams(location.hash.slice(1));
   history.replaceState(null, '', location.pathname);  // keep the code out of history and tab sync
-  if (params.get('error')) {
-    status.textContent = params.get('error') === 'access_denied'
+  const state = (fragment.get('state') || '').split('.');
+  if (fragment.get('error')) {
+    return say(fragment.get('error') === 'access_denied'
       ? 'Linking was cancelled. Scan the code on the laptop to try again.'
-      : 'Google could not link WrOS (' + params.get('error') + '). Scan the code on the laptop to try again.';
-    return;
+      : 'Google could not link WrOS (' + fragment.get('error') + '). Scan the code on the laptop to try again.');
   }
-  const code = params.get('code') || '';
-  const state = params.get('state') || '';
-  if (!/^[\x21-\x7e]{10,512}$/.test(code) || !/^[A-Za-z0-9_-]{8}$/.test(state)) {
-    status.textContent = 'This page needs the link from Google. Scan the code on the laptop to start.';
-    return;
+  const code = fragment.get('code') || '';
+  const token = fragment.get('access_token') || '';
+  if (state.length !== 4 || state[0] !== 'w' || !/^[\x21-\x7e]{10,512}$/.test(code)
+      || !/^[A-Z0-9-]{6,16}$/.test(state[2]) || !/^[A-Za-z0-9_-]{43}$/.test(state[3])) {
+    return say('This page needs the link from Google. Scan the code on the laptop to start.');
   }
-  const bytes = Array.from(atob(state.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
-  const [a, b, c, d] = bytes;
-  const port = bytes[4] * 256 + bytes[5];
-  // Only a laptop on the local network, never an address on the internet.
-  if (!(a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)) || port < 1024) {
-    status.textContent = 'This link does not point at a laptop on your network.';
-    return;
-  }
-  document.getElementById('go').href =
-    'http://' + [a, b, c, d].join('.') + ':' + port + '/linked?code=' + encodeURIComponent(code);
-  status.textContent = 'Google said yes. One last step:';
-  document.getElementById('finish').hidden = false;
-  document.getElementById('note').hidden = false;
-})();
+  const [, address, userCode, challenge] = state;
 
+  // The Wi-Fi way: only a laptop on the local network, never an address on the internet.
+  if (/^[A-Za-z0-9_-]{8}$/.test(address)) {
+    const bytes = Array.from(atob(address.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+    const [a, b, c, d] = bytes;
+    const port = bytes[4] * 256 + bytes[5];
+    if ((a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)) && port >= 1024) {
+      document.getElementById('go').href =
+        'http://' + [a, b, c, d].join('.') + ':' + port + '/linked?code=' + encodeURIComponent(code);
+      document.getElementById('wifi').hidden = false;
+    }
+  }
+
+  // The way that needs no Wi-Fi: save the code in the writer's Drive for the laptop to collect.
+  if (!token) {
+    return say(document.getElementById('wifi').hidden
+      ? 'Google did not send what this page needs. Scan the code on the laptop again.'
+      : 'Google said yes. One last step:');
+  }
+  say('Google said yes. Saving the approval for the laptop…');
+  const boundary = 'wros' + Math.random().toString(36).slice(2);
+  const meta = { name: 'WrOS linking ' + challenge.slice(0, 16), mimeType: 'text/plain' };
+  const body = '--' + boundary + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(meta)
+    + '\r\n--' + boundary + '\r\nContent-Type: text/plain\r\n\r\n' + code + '\r\n--' + boundary + '--';
+  fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'multipart/related; boundary=' + boundary },
+    body: body,
+  }).then((response) => {
+    if (!response.ok) {
+      throw new Error('HTTP ' + response.status);
+    }
+    say('Google said yes. One last step:');
+    document.getElementById('code').textContent = userCode;
+    document.getElementById('anywhere').hidden = false;
+    if (document.getElementById('wifi').hidden) {
+      document.getElementById('anywhere-intro').textContent =
+        'Approve the laptop on Google and type this code there:';
+    }
+  }).catch(() => {
+    say(document.getElementById('wifi').hidden
+      ? 'Could not save the approval in your Drive. Scan the code on the laptop again.'
+      : 'Google said yes. One last step:');
+  });
+})();
 </script>
 </body>
 </html>

@@ -13,6 +13,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -38,12 +39,16 @@ def main(argv=None):
     parser.add_argument('--display-helper', type=Path, help='prebuilt wros-display-hw (default: compile it)')
     parser.add_argument('--commit', help='source commit for /etc/writingdeck/release (default: WROS_SOURCE_COMMIT or VCS head)')
     parser.add_argument('--source-date-epoch', type=int, help='default: $SOURCE_DATE_EPOCH or the head commit time')
+    parser.add_argument('--google-clients', type=Path,
+                        help="WrOS's Google clients for phone linking (default: $WROS_GOOGLE_CLIENTS; none: linking hidden)")
     args = parser.parse_args(argv)
     lib = load_library(args.repo)
     version = args.version or lib.read_version(args.repo)
+    clients = args.google_clients or (Path(os.environ['WROS_GOOGLE_CLIENTS'])
+                                      if os.environ.get('WROS_GOOGLE_CLIENTS') else None)
     path = lib.build_deb(binaries_dir=args.binaries_dir, version=version, output_dir=args.output, repo=args.repo,
                          keymaps_dir=args.keymaps_dir, display_helper=args.display_helper, commit=args.commit,
-                         epoch=args.source_date_epoch)
+                         epoch=args.source_date_epoch, google_clients=clients)
     print(json.dumps({'package': lib.deb_field(path, 'Package'), 'version': lib.deb_field(path, 'Version'),
                       'architecture': lib.deb_field(path, 'Architecture'), 'path': str(path),
                       'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}, indent=2))

@@ -49,6 +49,7 @@
     {"dest": "usr/libexec/wros-update-rollback", "source": "os/scripts/wros-update-rollback", "mode": "0755", "class": "code"},
     {"dest": "usr/libexec/wros-update-healthy", "source": "os/scripts/wros-update-healthy", "mode": "0755", "class": "code"},
     {"dest": "usr/libexec/wros-recovery", "source": "os/scripts/wros-recovery", "mode": "0755", "class": "code"},
+    {"dest": "usr/lib/wros-backup/link.py", "source": "os/scripts/wros-link.py", "mode": "0644", "class": "code"},
     {"dest": "usr/lib/wros-update/engine.py", "source": "os/scripts/wros-update-engine.py", "mode": "0644", "class": "code"},
     {"dest": "usr/share/polkit-1/actions/org.wros.update.policy", "source": "os/config/org.wros.update.policy", "mode": "0644", "class": "config"},
     {"dest": "etc/polkit-1/rules.d/50-wros-update.rules", "source": "os/config/50-wros-update.rules", "mode": "0644", "class": "config"},

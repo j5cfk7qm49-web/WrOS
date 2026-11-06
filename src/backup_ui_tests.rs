@@ -67,6 +67,48 @@ fn cancelled_repository_setup_and_restore_forms_do_not_write_files_or_change_the
 }
 
 #[test]
+fn linking_from_the_phone_shows_the_code_to_scan_and_the_code_to_type() {
+    use crate::backup_service::{Job, LinkOffer, Progress};
+    let mut desk = Desk::open(book("link-phone", true), 170, 48);
+    desk.app.open_settings();
+    desk.app.deck.shell.nav.open(Route::GoogleAccount);
+    desk.draw();
+    assert!(!desk.shows("with your phone")); // a build without WrOS's Google client
+    desk.app.deck.shell.backup.status.phone_linking = true;
+    desk.draw();
+    assert!(desk.shows("Link Google Drive with your phone"));
+    desk.app.deck.shell.backup.status.google_connected = true;
+    desk.draw();
+    assert!(desk.shows("Relink Google Drive with your phone"));
+    let qr: Vec<String> = (0..41)
+        .map(|i| {
+            if i % 2 == 0 {
+                "01".repeat(20) + "0"
+            } else {
+                "1".repeat(41)
+            }
+        })
+        .collect();
+    desk.app.deck.shell.backup.job = Some(Job::running_for_test(Some(Progress {
+        phase: "Waiting for your phone".into(),
+        percent: None,
+        offer: Some(LinkOffer {
+            link: "https://j5cfk7qm49-web.github.io/WrOS/l/#abc".into(),
+            code: "KXP-QKN-VLWD".into(),
+            qr,
+        }),
+    })));
+    desk.app.deck.shell.nav.open(Route::LinkPhone);
+    desk.draw();
+    assert!(desk.shows("KXP-QKN-VLWD"));
+    assert!(desk.shows("Finish linking"));
+    // Light modules are white blocks, so the code reads dark-on-light on the black console.
+    assert!(desk.rows().iter().filter(|r| r.contains("██")).count() >= 41);
+    desk.key(KeyCode::Esc);
+    assert!(desk.app.deck.shell.backup.job.is_none()); // leaving the screen stops linking
+}
+
+#[test]
 fn the_home_screen_says_when_the_book_was_last_backed_up() {
     let mut desk = Desk::open(book("backup-home", true), 120, 40);
     desk.app.overlay = Overlay::Deck(Page::Home { sel: 0 });

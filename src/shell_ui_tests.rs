@@ -1266,6 +1266,7 @@ fn a_running_backup_shows_its_step_percentage_and_time_under_cancel() {
     desk.app.deck.shell.backup.job = Some(Job::running_for_test(Some(Progress {
         phase: "Encrypting and saving the snapshot".into(),
         percent: Some(0.42),
+        offer: None,
     })));
     desk.draw();
     assert!(desk.shows("▸ Cancel current backup operation"));

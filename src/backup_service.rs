@@ -44,6 +44,8 @@ pub enum Request {
     },
     RunQueue,
     ClearQueue,
+    /// Link Google Drive from the phone: a QR code, then whichever way the approval comes back.
+    LinkPhone,
     Restore {
         snapshot: String,
         destination: String,
@@ -83,6 +85,9 @@ pub struct Status {
     pub repository: String,
     pub recovery_key: String,
     pub google_connected: bool,
+    /// This build carries WrOS's Google client, so Drive can be linked from the phone.
+    #[serde(default)]
+    pub phone_linking: bool,
     #[serde(default)]
     pub google_state: String,
     #[serde(default)]
@@ -150,6 +155,39 @@ pub struct Progress {
     pub phase: String,
     #[serde(default)]
     pub percent: Option<f64>,
+    /// Phone linking: what to show while the phone signs in.
+    #[serde(default)]
+    pub offer: Option<LinkOffer>,
+}
+
+/// The QR code to scan (rows of 0 light and 1 dark modules), its link, and the code to type
+/// on Google's device page if the phone cannot reach the laptop.
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LinkOffer {
+    pub link: String,
+    pub code: String,
+    pub qr: Vec<String>,
+}
+
+impl LinkOffer {
+    fn fair(&self) -> bool {
+        let width = self.qr.first().map_or(0, String::len);
+        (1..=61).contains(&self.qr.len())
+            && (1..=61).contains(&width)
+            && self
+                .qr
+                .iter()
+                .all(|row| row.len() == width && row.bytes().all(|b| b == b'0' || b == b'1'))
+            && (6..=20).contains(&self.code.len())
+            && self
+                .code
+                .bytes()
+                .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'-')
+            && self.link.starts_with("https://")
+            && self.link.len() <= 300
+            && !self.link.chars().any(char::is_control)
+    }
 }
 
 /// A helper stderr line, if it is a well-formed progress report. Anything
@@ -166,7 +204,8 @@ fn parse_progress(line: &str) -> Option<Progress> {
         && !progress.phase.chars().any(char::is_control)
         && progress
             .percent
-            .is_none_or(|p| p.is_finite() && (0.0..=1.0).contains(&p));
+            .is_none_or(|p| p.is_finite() && (0.0..=1.0).contains(&p))
+        && progress.offer.as_ref().is_none_or(LinkOffer::fair);
     fair.then_some(progress)
 }
 
@@ -181,6 +220,7 @@ fn describe(progress: Option<&Progress>, elapsed: Duration) -> String {
         Some(Progress {
             phase,
             percent: Some(p),
+            ..
         }) => format!("Working: {phase} · {:.0}% · {time}", p * 100.0),
         Some(Progress { phase, .. }) => format!("Working: {phase} · {time}"),
         None => format!("Working: starting · {time}"),
@@ -197,6 +237,13 @@ pub struct Job<T = Status> {
     started: Instant,
 }
 impl<T> Job<T> {
+    /// The phone-linking offer the running operation reported, if any.
+    pub fn offer(&self) -> Option<LinkOffer> {
+        self.progress
+            .lock()
+            .ok()
+            .and_then(|p| p.as_ref().and_then(|p| p.offer.clone()))
+    }
     /// What the operation is doing now, for the Backups screen.
     pub fn status_line(&self) -> String {
         let progress = self.progress.lock().ok().and_then(|p| p.clone());
@@ -434,7 +481,8 @@ mod tests {
             ),
             Some(Progress {
                 phase: "Encrypting and saving the snapshot".into(),
-                percent: Some(0.4213)
+                percent: Some(0.4213),
+                offer: None,
             })
         );
         assert_eq!(
@@ -458,10 +506,37 @@ mod tests {
     }
 
     #[test]
+    fn a_phone_linking_offer_rides_on_a_progress_line_only_when_well_formed() {
+        let line = |qr: &str, code: &str| {
+            format!(
+                r#"{{"progress": {{"phase": "Waiting for your phone", "offer": {{"link": "https://j5cfk7qm49-web.github.io/WrOS/l/#abc", "code": "{code}", "qr": {qr}}}}}}}"#
+            )
+        };
+        let good = parse_progress(&line(r#"["0101", "1010"]"#, "KXP-QKN-VLWD")).unwrap();
+        let offer = good.offer.unwrap();
+        assert_eq!(offer.code, "KXP-QKN-VLWD");
+        assert_eq!(offer.qr, vec!["0101", "1010"]);
+        let tall = serde_json::to_string(&vec!["0"; 80]).unwrap();
+        for bad in [
+            line(r#"["01x1"]"#, "KXP-QKN-VLWD"),
+            line(r#"["0101", "10"]"#, "KXP-QKN-VLWD"),
+            line(&tall, "KXP-QKN-VLWD"),
+            line(r#"["0101"]"#, "kxp-lower-case"),
+        ] {
+            assert_eq!(parse_progress(&bad), None, "{bad}");
+        }
+        assert_eq!(
+            serde_json::to_string(&Request::LinkPhone).unwrap(),
+            r#"{"operation":"link-phone"}"#
+        );
+    }
+
+    #[test]
     fn progress_reads_as_a_step_a_percentage_and_the_time_taken() {
         let step = Progress {
             phase: "Encrypting and saving the snapshot".into(),
             percent: Some(0.42),
+            offer: None,
         };
         assert_eq!(
             describe(Some(&step), Duration::from_secs(65)),

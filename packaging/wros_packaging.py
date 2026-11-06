@@ -305,8 +305,27 @@ def _control(manifest, version, installed_kib):
     return ('\n'.join(lines) + '\n').encode()
 
 
+GOOGLE_CLIENTS_DEST = 'usr/share/wros/google-client.json'
+
+
+def google_clients_bytes(path):
+    """WrOS's two Google clients (phone linking), from a file kept out of the repository."""
+    try:
+        clients = json.loads(Path(path).read_text(encoding='utf-8'))
+    except (OSError, ValueError) as error:
+        raise PackagingError('unreadable Google client file: %s' % error) from None
+    ok = isinstance(clients, dict) and all(
+        isinstance(clients.get(name), dict)
+        and all(isinstance(clients[name].get(key), str) and clients[name][key] for key in ('client_id', 'client_secret'))
+        for name in ('linking', 'mailbox'))
+    if not ok:
+        raise PackagingError('the Google client file needs linking and mailbox, each with client_id and client_secret')
+    return (json.dumps({name: {key: clients[name][key] for key in ('client_id', 'client_secret')}
+                        for name in ('linking', 'mailbox')}, sort_keys=True) + '\n').encode()
+
+
 def build_deb(*, binaries_dir, version, output_dir, repo=REPO, keymaps_dir=None, display_helper=None,
-              commit=None, epoch=None, environ=None):
+              commit=None, epoch=None, environ=None, google_clients=None):
     """Build wros_<version>_amd64.deb in *output_dir* and return its path.
 
     Same inputs always give the same bytes: entries are written in sorted order
@@ -362,6 +381,19 @@ def build_deb(*, binaries_dir, version, output_dir, repo=REPO, keymaps_dir=None,
             target.write_bytes(data)
             os.chmod(target, spec.mode)
             md5.append('%s  %s\n' % (hashlib.md5(data, usedforsecurity=False).hexdigest(), spec.dest))
+            size += -(-len(data) // 1024)
+        if google_clients is not None:
+            # Phone linking needs WrOS's own Google clients; a build without them hides it.
+            data = google_clients_bytes(google_clients)
+            target = stage / GOOGLE_CLIENTS_DEST
+            target.parent.mkdir(parents=True, exist_ok=True)
+            for ancestor in [target.parent, *target.parent.parents]:
+                if ancestor == stage:
+                    break
+                dirs.add(ancestor)
+            target.write_bytes(data)
+            os.chmod(target, 0o644)
+            md5.append('%s  %s\n' % (hashlib.md5(data, usedforsecurity=False).hexdigest(), GOOGLE_CLIENTS_DEST))
             size += -(-len(data) // 1024)
         control_dir = stage / 'DEBIAN'
         control_dir.mkdir(mode=0o755)

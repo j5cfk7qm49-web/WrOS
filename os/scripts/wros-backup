@@ -27,6 +27,10 @@ MAX_FILES = 100_000
 MAX_BYTES = 5 * 1024**3
 MAX_JSON = 2 * 1024**2
 MANIFEST = '.wros-backup-manifest.json'
+# Phone linking (os/scripts/wros-link.py): its module, and WrOS's own Google clients, which a
+# release build puts into the package from a file kept out of the repository.
+LINK_MODULE = '/usr/lib/wros-backup/link.py'
+GOOGLE_CLIENTS = '/usr/share/wros/google-client.json'
 # The writer's settings, beside the book in the same snapshot: grimoire's own files and the
 # keyboard layout and timezone. Never the recovery key, Google tokens or Wi-Fi passwords.
 PROFILE = '.wros-profile'
@@ -132,12 +136,15 @@ def run(program, arguments, env, cwd=None):
         return output.read()
 
 
-def progress(phase, percent=None):
+def progress(phase, percent=None, offer=None):
     """One line on stderr for the native app: a fixed step name and, when
-    restic reports it, a fraction. Never a file name or tool output."""
+    restic reports it, a fraction. Never a file name or tool output. Phone
+    linking adds the offer on screen: the QR code, its link and the code."""
     row = {'phase': phase}
     if isinstance(percent, (int, float)) and not isinstance(percent, bool):
         row['percent'] = round(min(max(float(percent), 0.0), 1.0), 4)
+    if offer is not None:
+        row['offer'] = {'link': offer['link'], 'code': offer['code'], 'qr': offer['qr']}
     sys.stderr.write(json.dumps({'progress': row}) + '\n')
     sys.stderr.flush()
 
@@ -306,6 +313,31 @@ def inventory(root, copy_to=None):
     return {'files': files, 'directories': directories, 'bytes': total}
 
 
+def load_link():
+    import importlib.machinery
+    import importlib.util
+    path = LINK_MODULE if Path(LINK_MODULE).is_file() else str(Path(__file__).with_name('wros-link.py'))
+    loader = importlib.machinery.SourceFileLoader('wros_link', path)
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+
+
+def revoke_google(refresh_token):
+    """End the grant at Google. True when Google confirmed it."""
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+    request = urllib.request.Request('https://oauth2.googleapis.com/revoke',
+                                     data=urllib.parse.urlencode({'token': refresh_token}).encode(), method='POST')
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            return response.status == 200
+    except (urllib.error.URLError, OSError, ValueError):
+        return False
+
+
 class Service:
     def __init__(self, state):
         self.state = state
@@ -322,6 +354,7 @@ class Service:
         self.latest_path = state/'latest.json'
         self.drive_browser_path = state/'drive-browser.json'
         self.drive_cache = state/'drive-cache'
+        self.clients_path = Path(GOOGLE_CLIENTS)
         self.profile_config = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home()/'.config')))/'grimoire'
         self.keyboard_file = Path('/etc/writingdeck/keyboard.json')
         self.timezone_file = Path('/etc/timezone')
@@ -480,6 +513,7 @@ class Service:
                 'repository': self.current['repository'] if self.current else '',
                 'recovery_key': self.current['key'] if self.current else '',
                 'google_connected': google_connected,
+                'phone_linking': self.google_clients() is not None,
                 'google_state': google_state,
                 'google_verified_at': google_verified_at,
                 'google_expiry': google_expiry,
@@ -819,7 +853,38 @@ class Service:
         write_private(target, source.read_bytes(), exclusive=True)
         return self.status('Recovery key exported to ' + str(target) + '. Keep it private and separate from the repository.', refresh=False)
 
-    def connect_google(self, authorization):
+    def google_clients(self):
+        """WrOS's Google clients, or None in a build without them."""
+        try:
+            clients = json.loads(self.clients_path.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            return None
+        ok = isinstance(clients, dict) and all(
+            isinstance(clients.get(name), dict)
+            and all(isinstance(clients[name].get(key), str) and clients[name][key] for key in ('client_id', 'client_secret'))
+            for name in ('linking', 'mailbox'))
+        return clients if ok else None
+
+    def link_phone(self):
+        clients = self.google_clients()
+        require(clients is not None, 'This copy of WrOS has no Google sign-in client, so Google Drive can be '
+                                     'linked only from another computer (Connect Google Drive from a trusted computer).')
+        link = load_link()
+        host = link.local_address()
+        listener = link.Listener(host) if host and link.Listener else None
+        session = link.Link(clients, listener=listener,
+                            offer=lambda offer: progress('Waiting for your phone', offer=offer))
+        try:
+            token, via = session.run()
+            progress('Checking the link with Google Drive')
+            self.connect_google(json.dumps(token), client=clients['linking'])
+        except Exception:
+            session.fail('WrOS did not link. Look at the laptop for the reason, then scan its code again.')
+            raise
+        session.finish(token, via)
+        return self.status('Google Drive linked from your phone. WrOS can now see your whole Drive.', refresh=False)
+
+    def connect_google(self, authorization, client=None):
         require(isinstance(authorization, str) and len(authorization) <= 32768, 'Authorization response is too large.')
         token = json.loads(authorization)
         require(isinstance(token, dict) and isinstance(token.get('access_token'), str)
@@ -827,6 +892,9 @@ class Service:
                 and isinstance(token.get('expiry'), str), 'Paste the authorization JSON returned by rclone authorize drive.')
         config = configparser.ConfigParser(interpolation=None)
         config['wros-google'] = {'type': 'drive', 'token': json.dumps(token), 'scope': 'drive'}
+        if client:  # Google renews a token only for the client that issued it
+            config['wros-google']['client_id'] = client['client_id']
+            config['wros-google']['client_secret'] = client['client_secret']
         import io
         output = io.StringIO()
         config.write(output)
@@ -905,13 +973,27 @@ class Service:
 
     def disconnect_google(self):
         require(not self.google.is_symlink(), 'Refusing to remove symlinked Google configuration.')
+        ended = False
         if self.google.exists():
             private_file(self.google)
+            # A link made from the phone used WrOS's own client: end that grant at Google too.
+            # Connections made with rclone authorize are left to the Google account settings.
+            config = configparser.ConfigParser(interpolation=None)
+            try:
+                config.read_string(self.google.read_text(encoding='utf-8'))
+                section = config['wros-google']
+                refresh = json.loads(section.get('token', '{}')).get('refresh_token')
+                if section.get('client_id') and isinstance(refresh, str) and refresh:
+                    ended = revoke_google(refresh)
+            except (configparser.Error, KeyError, ValueError, AttributeError):
+                pass
             size = self.google.stat().st_size
             write_private(self.google, b'\x00' * max(size, 64), exclusive=False)
             self.google.unlink()
         self.google_meta = None
         self.save_account()
+        if ended:
+            return self.status('Google Drive access ended at Google and removed from this device.', refresh=False)
         return self.status(
             'Google Drive credentials removed from this device. Revoke access in your Google account settings to end the provider grant.',
             refresh=False)
@@ -1106,6 +1188,8 @@ def dispatch(service, request):
         return service.restore(request['snapshot'], request['destination'], settings=request.get('settings') is True)
     if operation == 'export-key':
         return service.export_key(request['destination'])
+    if operation == 'link-phone':
+        return service.link_phone()
     if operation == 'connect-google':
         return service.connect_google(request['authorization'])
     if operation == 'connect-google-file':
