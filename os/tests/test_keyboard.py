@@ -3,6 +3,9 @@
 import importlib.machinery
 import json
 from pathlib import Path
+import re
+import shutil
+import subprocess
 import tempfile
 import unittest
 
@@ -269,6 +272,32 @@ class KeyboardSafety(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'unsafe installer keyboard marker'):
             self.manager.command('boot')
         self.assertEqual(self.commands, [])
+
+
+@unittest.skipUnless(shutil.which("ckbcomp") and shutil.which("loadkeys"), "needs console-setup and kbd")
+class GeneratedKeymaps(unittest.TestCase):
+    """The console sends a bare arrow whatever modifier is held, so the app never saw Shift."""
+
+    def test_shift_and_control_arrows_reach_the_app_as_xterm_sequences(self):
+        letters = {103: "A", 108: "B", 106: "C", 105: "D", 102: "H", 107: "F"}
+        numbers = {104: "5", 109: "6"}  # Page Up, Page Down
+        with tempfile.TemporaryDirectory() as out:
+            subprocess.run(["sh", str(Path(__file__).parents[1] / "scripts/generate-keymaps.sh"), out],
+                           check=True)
+            for layout in module.LAYOUTS:
+                text = (Path(out) / (layout + ".map")).read_text()
+                strings = dict(re.findall(r'^string (F\d+) = "(.*)"$', text, re.M))
+                for prefix, modifier in (("shift", 2), ("control", 5), ("shift control", 6)):
+                    # The keymap spells ESC as the four characters \033.
+                    wanted = {**{code: f"\\033[1;{modifier}{final}" for code, final in letters.items()},
+                              **{code: f"\\033[{number};{modifier}~" for code, number in numbers.items()}}
+                    for code, sequence in wanted.items():
+                        slot = re.search(rf"^{prefix} keycode {code} = (F\d+)$", text, re.M)
+                        self.assertIsNotNone(slot, (layout, prefix, code))
+                        self.assertEqual(strings.get(slot.group(1)), sequence, (layout, prefix, code))
+                # Alt+Left and Alt+Right still switch consoles.
+                self.assertNotIn("alt keycode 105", text)
+                self.assertIn("Decr_Console", re.search(r"^keycode 105 = .*$", text, re.M).group(0))
 
 
 if __name__ == "__main__":
