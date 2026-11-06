@@ -214,7 +214,7 @@ class InstallSessionSupervisorTests(unittest.TestCase):
                     '_greetd:!:19000:0:99999:7:::\n'
                     'alice:$6$rounds=656000$saltsalt$hashedpasswordvalue:19000:0:99999:7:::\n'
                 ),
-                group_text='sudo:x:27:alice\nwritingdeck:x:999:alice\n',
+                group_text='sudo:x:27:alice\nwros:x:999:alice\nwritingdeck:x:998:alice\n',
                 greetd_toml_text=(ROOT / 'os/config/greetd.toml').read_text(),
                 crypttab_text=f'nvme0n1p3_crypt UUID={luks_uuid} none luks,discard\n',
                 fstab_text='/dev/mapper/wros--vg-root / ext4 errors=remount-ro 0 1\n',
@@ -1186,7 +1186,7 @@ class TargetHygieneTests(unittest.TestCase):
             shadow_text=('root:!:19000:0:99999:7:::\n_greetd:!:19000:0:99999:7:::\n'
                          'alice:$6$rounds=656000$saltsalt$hashedpasswordvalue:19000:0:99999:7:::\n'
                          + shadow_extra),
-            group_text='sudo:x:27:alice\nwritingdeck:x:999:alice\n',
+            group_text='sudo:x:27:alice\nwros:x:999:alice\nwritingdeck:x:998:alice\n',
             greetd_toml_text=(ROOT / 'os/config/greetd.toml').read_text(),
             crypttab_text=f'vda2_crypt UUID={luks} none luks,discard\n',
             fstab_text='/dev/mapper/wros--vg-root / ext4 errors=remount-ro 0 1\n',

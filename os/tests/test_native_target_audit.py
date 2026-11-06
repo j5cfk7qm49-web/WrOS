@@ -9,7 +9,7 @@ PASSWD = ('root:x:0:0::/root:/bin/bash\n'
           '_greetd:x:995:995::/nonexistent:/usr/sbin/nologin\n'
           'fixture:x:1000:1000:Disposable target:/home/fixture:/bin/bash\n')
 SHADOW = 'root:!:1::::::\n_greetd:!:1::::::\nfixture:$6$fixture$hash:1::::::\n'
-GROUPS = 'writingdeck:x:997:fixture\nsudo:x:27:fixture\n'
+GROUPS = 'wros:x:997:fixture\nwritingdeck:x:996:fixture\nsudo:x:27:fixture\n'
 
 
 class NativeTargetPolicy(unittest.TestCase):

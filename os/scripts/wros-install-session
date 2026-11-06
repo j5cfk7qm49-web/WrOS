@@ -747,8 +747,8 @@ def verify_installed_target_state(
         row[0] for line in group_text.splitlines()
         if len(row := line.split(':')) == 4 and installed_user in row[3].split(',')
     }
-    require({'wros', 'sudo'} <= memberships,
-            'installed user is missing wros or sudo group membership')
+    require({'wros', 'writingdeck', 'sudo'} <= memberships,
+            'installed user is missing a writer or sudo group')
     config = tomllib.loads(greetd_toml_text)
     require(config.get('terminal') == {'vt': 1, 'switch': True}
             and 'initial_session' not in config

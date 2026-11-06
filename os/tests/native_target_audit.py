@@ -66,7 +66,7 @@ def account_state(passwd, shadow, groups):
             'Locked root/greeter and generated hashed account required')
     memberships = {row[0] for line in groups.splitlines()
                    if len(row := line.split(':')) == 4 and 'fixture' in row[3].split(',')}
-    require({'wros', 'sudo'} <= memberships, 'Fixture administration/writing groups missing')
+    require({'wros', 'writingdeck', 'sudo'} <= memberships, 'Fixture administration/writing groups missing')
 
 
 def encrypted_root_chain(root_name, entry, partition, sysroot=Path('/sys/class/block')):
