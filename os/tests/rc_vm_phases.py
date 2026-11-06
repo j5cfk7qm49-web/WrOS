@@ -2031,6 +2031,24 @@ def phase_lock(ctx):
     ctx.result['passed'] = True
 
 
+def feature_power_policy(ctx, g):
+    service = 'org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager '
+    _, capabilities = g.run('for mode in CanSuspend CanHibernate CanHybridSleep CanSuspendThenHibernate; '
+                            'do printf "%s " "$mode"; busctl call ' + service + '"$mode" || exit 1; done')
+    ctx.result['logind_sleep_capabilities'] = capabilities
+    for mode in ('CanHibernate', 'CanHybridSleep', 'CanSuspendThenHibernate'):
+        ctx.check(mode + ' is disabled', re.search(r'^' + mode + r' s "(?:no|na)"$', capabilities, re.M))
+    properties = ('HandleLidSwitch HandleLidSwitchExternalPower HandleLidSwitchDocked '
+                  'HandlePowerKey HandleRebootKey HandleSuspendKey HandleHibernateKey IdleAction')
+    _, policy = g.run('busctl get-property ' + service + properties)
+    ctx.result['logind_power_policy'] = policy
+    ctx.check('logind leaves physical key, lid and idle actions to WrOS',
+              policy.strip().splitlines() == ['s "ignore"'] * len(properties.split()), policy)
+    rc, _ = g.run('systemctl start systemd-suspend.service', 30, check=False)
+    ctx.check('the suspend unit refuses to start without the protected lock',
+              rc != 0 and g.m.qmp.count('SUSPEND') == 0, rc)
+
+
 def phase_rc5(ctx):
     """rc5 on a disk the update phase brought to rc5: the boot menu, the recovery boot, the quiet
     console, the Shift-arrow keymap, settings in backups and the Google client for phone linking.
@@ -2131,6 +2149,7 @@ def phase_rc5(ctx):
                   and 'Settings restored' in out, out[-600:])
 
     if rc7:
+        feature_power_policy(ctx, g)
         ctx.check('canonical keyboard files and unit exist alongside rc6 aliases',
                   g.run('test -f /etc/wros/keyboard.json && test -f /usr/share/wros/keymaps/colemak.map && '
                         'systemctl is-enabled wros-keyboard.service && test -L /etc/writingdeck/keyboard.json',

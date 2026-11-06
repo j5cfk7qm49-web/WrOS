@@ -92,6 +92,7 @@ lto = "thin"
 # headers (libasound2-dev). Build with --no-default-features to omit it and
 # keep the other sources.
 default = ["audio"]
+pty-qa = []
 audio = ["dep:rodio", "dep:cpal"]
 
 [workspace]

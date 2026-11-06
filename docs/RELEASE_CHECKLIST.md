@@ -22,6 +22,27 @@
 5. Review the VM results and hardware checklist before approving the tag.
    Release tags use the checked `wros-updates.tar` as their live payload.
 
+The local layer-two checks use the actual editor in a private pseudo-terminal.
+In the Debian chroot, build with `cargo build --offline --locked
+--no-default-features --features pty-qa -p grimoire-tui`. Set `GRIMOIRE_BINARY`
+to that debug executable and run `WROS_QA_PTY=1 PYTHONPATH=os/tests python3 -m
+unittest test_rc7_pty`. The fixture locker tests input retirement and typeahead
+isolation. The QEMU feature phase tests the installed locker and PAM.
+
+## HP Stream hardware checks
+
+- Type in a disposable book for a normal session and check for lag, lost
+  characters, or slower navigation on battery power.
+- Close and reopen the lid during writing. Confirm that the text is saved and
+  the machine wakes to the lock. Check resume on battery and on AC power.
+- Run on battery in a disposable session until the reserve triggers. Confirm
+  the latest words survived and the machine wakes to the lock.
+- Use Wi-Fi for a day with normal lid cycles. Check that it reconnects and the
+  journal has no new Realtek power-save failures.
+- At school, scan and join from Settings. Confirm that the connection keeps
+  the laptop's registered hardware address.
+- Open the recovery menu at boot and check that it returns to the login screen.
+
 ## Verify a live update after publication
 
 1. Check that the Pages deployment succeeded and that its `updates/` contains

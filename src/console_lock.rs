@@ -23,6 +23,10 @@ use std::{
 };
 
 pub fn available() -> bool {
+    #[cfg(all(debug_assertions, feature = "pty-qa"))]
+    if fixture_locker().is_some() {
+        return true;
+    }
     crate::installed_session()
         && console()
         && unsafe { libc::geteuid() } != 0
@@ -39,10 +43,20 @@ pub fn available() -> bool {
 }
 
 pub fn suspend_available() -> bool {
-    available()
+    console() && available()
         && Path::new("/etc/systemd/system/systemd-suspend.service.d/60-wros-lock.conf").is_file()
         && fs::read_to_string("/sys/power/state")
             .is_ok_and(|states| states.split_whitespace().any(|state| state == "mem"))
+}
+
+#[cfg(all(debug_assertions, feature = "pty-qa"))]
+fn fixture_locker() -> Option<std::path::PathBuf> {
+    let helper = std::path::PathBuf::from(std::env::var_os("WROS_QA_LOCK_HELPER")?);
+    (unsafe { libc::geteuid() } != 0
+        && fs::read_link("/proc/self/fd/0").is_ok_and(|tty| tty.starts_with("/dev/pts"))
+        && helper.is_absolute()
+        && helper.is_file())
+    .then_some(helper)
 }
 
 fn low_battery(root: &Path) -> bool {
@@ -122,7 +136,7 @@ pub fn handoff(
     input: &mut wros_input::Input,
     suspend: bool,
 ) -> Result<()> {
-    if !available() || !console() || unsafe { libc::geteuid() } == 0 {
+    if !available() || (suspend && !suspend_available()) {
         bail!("Console locking is unavailable in this session");
     }
     let proof = input
@@ -150,6 +164,10 @@ pub fn handoff(
         locker.args(["--disable-internal-agent", "/usr/libexec/wros-lock"]);
         if suspend {
             locker.arg("--suspend");
+        }
+        #[cfg(all(debug_assertions, feature = "pty-qa"))]
+        if let Some(helper) = fixture_locker() {
+            locker = Command::new(helper);
         }
         let status = locker
             .env_clear()
