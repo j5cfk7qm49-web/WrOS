@@ -332,7 +332,7 @@ def grim_open_settings(g, layout='us'):
 
 
 def grim_to_panel(g, panel_regex):
-    g.choose(r'^System$')
+    g.choose(r'^System(\s*›)?$')  # rows that open a page end in › from rc2 on
     g.m.key('ret')
     g.wait_vcs(1, r'Wi-Fi and networking', 30, what='system-panels')
     g.choose(panel_regex)
