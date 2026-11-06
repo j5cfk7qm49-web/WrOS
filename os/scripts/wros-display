@@ -141,8 +141,8 @@ class Hardware:
 
 class Manager:
     def __init__(self, config=Path('/etc/wros/display.json'), runtime=Path('/run/wros-display'),
-                 hardware=None, runner=None, clock=None, owner=None, sleeper=None):
-        self.config, self.runtime = config, runtime
+                 hardware=None, runner=None, clock=None, owner=None, sleeper=None, sysfs=Path('/sys')):
+        self.config, self.runtime, self.sysfs = config, runtime, sysfs
         self.hardware = hardware or Hardware()
         self.run = runner or (lambda args: subprocess.run(args, check=True, timeout=4,
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -292,9 +292,23 @@ class Manager:
             result.update(available=False, applied=False, message=str(error)[:512])
         return result
 
+    def console_on_graphics_driver(self):
+        """The console runs on a real graphics driver's framebuffer, so its takeover from the
+        firmware console has finished. Read from sysfs; the display itself is not touched."""
+        try:
+            name = (self.sysfs / 'class/graphics/fb0/name').read_text(encoding='ascii', errors='replace').strip()
+        except OSError:
+            return False
+        return name.endswith('drmfb') and name != 'simpledrmdrmfb'
+
     def wait_for_display(self, seconds=BOOT_WAIT):
-        # Read-only polling: a driver missing from the initramfs shows the display seconds later.
+        # A driver missing from the initramfs shows the display seconds later. Capturing takes
+        # the display over for a moment, which during the driver's takeover of the console left
+        # the screen black (seen on the HP laptop): first wait, touching nothing, for the takeover
+        # to finish, then capture.
         deadline = self.clock() + seconds
+        while not self.console_on_graphics_driver() and self.clock() < deadline:
+            self.sleep(0.5)
         while True:
             try:
                 return self.hardware.capture()

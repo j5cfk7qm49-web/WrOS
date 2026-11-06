@@ -55,12 +55,28 @@ class DisplayTransactions(unittest.TestCase):
             if (verb == 'restart' and self.fail_start) or (verb == 'stop' and self.fail_stop):
                 raise subprocess.CalledProcessError(1, arguments)
 
+        self.on_sleep = None
+
         def sleeper(seconds):
             self.events.append('sleep')
             self.now += seconds
+            if self.on_sleep:
+                self.on_sleep(self.events.count('sleep'))
 
+        self.sysfs = self.root / 'sys'
+        self.console('i915drmfb')
         self.manager = module.Manager(self.root / 'etc/display.json', self.root / 'run',
-                                      self.hardware, runner, lambda: self.now, owner=42, sleeper=sleeper)
+                                      self.hardware, runner, lambda: self.now, owner=42, sleeper=sleeper,
+                                      sysfs=self.sysfs)
+
+    def console(self, name):
+        fb = self.sysfs / 'class/graphics/fb0'
+        if name is None:
+            if (fb / 'name').exists():
+                (fb / 'name').unlink()
+            return
+        fb.mkdir(parents=True, exist_ok=True)
+        (fb / 'name').write_text(name + '\n')
 
     def tearDown(self):
         self.temporary.cleanup()
@@ -220,6 +236,34 @@ class DisplayTransactions(unittest.TestCase):
         self.assertEqual(self.events.count('sleep'), 6)
         self.assertNotIn('apply', self.events)
         self.assertFalse(self.manager.runtime.exists())  # read-only until the display is there
+
+    def test_boot_leaves_the_display_alone_until_the_graphics_driver_owns_the_console(self):
+        # Seen on the laptop: capturing takes the display over for a moment; doing it again and
+        # again while i915 took the console over from the firmware left the screen black until
+        # a switch to another console. Nothing may touch the display before the takeover ends.
+        self.console('EFI VGA')
+        def takeover(sleeps):
+            if sleeps == 3:
+                self.console(None)          # the firmware console is gone, the driver is loading
+            if sleeps == 6:
+                self.console('i915drmfb')   # the driver's console is up
+        self.on_sleep = takeover
+        self.assertEqual(self.manager.wait_for_display(), snapshot())
+        self.assertEqual(self.events, ['sleep'] * 6 + ['capture'])
+
+    def test_a_basic_firmware_driver_console_is_not_the_takeover_either(self):
+        self.console('simpledrmdrmfb')
+        self.on_sleep = lambda sleeps: sleeps == 2 and self.console('amdgpudrmfb')
+        self.manager.wait_for_display()
+        self.assertEqual(self.events, ['sleep'] * 2 + ['capture'])
+
+    def test_without_any_graphics_console_the_wait_ends_and_capture_decides(self):
+        self.console(None)
+        start = self.now
+        self.assertEqual(self.manager.wait_for_display(), snapshot())
+        self.assertEqual(self.events[-1], 'capture')
+        self.assertEqual(self.events.count('capture'), 1)
+        self.assertGreaterEqual(self.now - start, module.BOOT_WAIT)
 
     def test_boot_gives_up_with_the_reason_once_the_wait_is_over(self):
         self.hardware.missing_captures = 10 ** 6
