@@ -2131,10 +2131,99 @@ def phase_goback(ctx):
     ctx.result['passed'] = True
 
 
+def phase_autoback(ctx):
+    """Going back by itself: install a test version whose writing app exits at once (--bundle, rc5.3),
+    log in at the greeter on two boots, and expect the next boot to go back to the installed version
+    without being asked. --base-disk is a disk with WrOS rc5.x installed."""
+    st = load_state(ctx.args.install_run)
+    secrets_ = json.loads(Path(st['secrets']).read_text())
+    layout, user = st['layout'], st['username']
+    overlay = ctx.dir / 'disk.qcow2'
+    vm.create_overlay(ctx.args.base_disk, overlay, base_format='qcow2')
+    stick = vm.make_update_media(Path(ctx.args.bundle), ctx.dir / 'stick.img', 'ext4', 48)
+    m = boot_installed(ctx, st, 'autoback', disk=overlay, fmt='qcow2', reboot=True,
+                       extra=lambda machine: machine.usb_stick(stick, ident='usb0', serial='RCSTICK0', readonly=True))
+
+    def login(after_reset=None):
+        unlock(ctx, m, secrets_, layout, wrong_first=False, after_reset=after_reset)
+        g = Guest(ctx, m, root_via_sudo=False)
+        g.shell.login(user, secrets_['login'], 600)
+        g.become_root(secrets_['login'])
+        g.shell.put('/root/goback.py', GOBACK_GUEST.encode(), '0600')
+        return g
+
+    def state(g, label):
+        rc, out = g.run("dpkg-query -W -f='${Version}\\n' wros; echo PROBATION; cat /var/lib/wros-update/probation.json 2>&1; "
+                        "echo; echo STATUS; python3 -I /root/goback.py status", 60, check=False)
+        ctx.result['state_' + label] = out
+        return out
+
+    def broken_session(g, label):
+        """A greeter login whose session ends at once; the login is recorded for this boot."""
+        g.wait_vcs(1, r'Local account', 240, what='greeter-' + label)
+        m.type_text(user + '\n', layout)
+        g.wait_vcs(1, r'\[hidden\]', 30, what='greeter-password-' + label)
+        m.type_text(secrets_['login'] + '\n', layout)
+        g.wait_vcs(1, r'Authenticated\.|Open writing session', 90, what='greeter-authenticated-' + label)
+        m.key('ret')
+        deadline, out = time.monotonic() + 90, ''
+        while time.monotonic() < deadline:
+            rc, out = g.run('cat /var/lib/wros-update/probation.json', 20, check=False)
+            if '"started_boot": "' in out:
+                break
+            time.sleep(3)
+        ctx.check('the login is recorded while the new version is on probation (%s)' % label,
+                  '"started_boot": "' in out, out[-300:])
+        rc, journal = g.run('journalctl -b --no-pager | grep -c "deliberately broken"', 30, check=False)
+        ctx.check('the broken app really ran and exited (%s)' % label, journal.strip() not in ('', '0'), journal)
+        g.wait_vcs(1, r'Local account', 120, what='greeter-back-' + label)
+        m.shot('greeter-after-broken-session-' + label)
+
+    g = login()
+    g.run('mkdir -p /mnt/b0; mount -o ro "$(readlink -f /dev/disk/by-id/usb-*RCSTICK0*)" /mnt/b0', 60)
+    before = state(g, 'before').splitlines()[0].strip()
+    rc, out = g.run('python3 -I /root/goback.py stage /mnt/b0', 300, check=False)
+    ctx.check('the installed engine stages the broken test version', '"staged"' in out, out[-400:])
+    resets = m.qmp.count('RESET')
+    g.shell.serial.send('systemctl reboot\n')
+    unlock(ctx, m, secrets_, layout, wrong_first=False, after_reset=resets + 1)  # the update boot
+    g = login(after_reset=resets + 2)
+    out = state(g, 'broken-installed')
+    ctx.check('0.1.0~rc5.3 is installed and on probation',
+              out.splitlines()[0].strip() == '0.1.0~rc5.3' and '"failed_logins": 0' in out
+              and '"probation": true' in out, out[-700:])
+
+    broken_session(g, 'first')
+    resets = m.qmp.count('RESET')
+    g.shell.serial.send('systemctl reboot\n')
+    g = login(after_reset=resets + 1)
+    out = state(g, 'after-first')
+    ctx.check('one failed start is counted at the next boot, and nothing goes back yet',
+              out.splitlines()[0].strip() == '0.1.0~rc5.3' and '"failed_logins": 1' in out, out[-700:])
+
+    broken_session(g, 'second')
+    resets = m.qmp.count('RESET')
+    g.shell.serial.send('systemctl reboot\n')
+    unlock(ctx, m, secrets_, layout, wrong_first=False, after_reset=resets + 1)  # reconcile stages the go-back
+    unlock(ctx, m, secrets_, layout, wrong_first=False, after_reset=resets + 2)  # the offline go-back
+    g = login(after_reset=resets + 3)
+    out = state(g, 'after-going-back')
+    ctx.check('the second failed start went back to %s by itself' % before,
+              out.splitlines()[0].strip() == before and '"went_back_automatically": true' in out
+              and 'No such file' in out.split('PROBATION', 1)[1].split('STATUS', 1)[0], out[-700:])
+    rc, out = g.run('journalctl -b -1 -u wros-update-reconcile --no-pager | tail -5', 30, check=False)
+    ctx.result['reconcile_journal'] = out
+    greeter_login(ctx, g, m, user, secrets_['login'], layout, wrong_first=False)
+    screen = g.wait_vcs(1, r'went back to the previous version', 90, what='went-back-notice')
+    m.shot('went-back-notice')
+    ctx.check('the writing app says it went back by itself', 'did not start twice' in screen, screen[-400:])
+    ctx.result['passed'] = True
+
+
 PHASES = {'firmware': phase_firmware, 'live': phase_live, 'install': phase_install,
           'install-failure': phase_install, 'installed-boot': phase_installed_boot,
           'update': phase_update, 'rescue': phase_rescue, 'peek': phase_peek, 'audit': phase_audit,
-          'rc5': phase_rc5, 'goback': phase_goback}
+          'rc5': phase_rc5, 'goback': phase_goback, 'autoback': phase_autoback}
 
 
 def main():
