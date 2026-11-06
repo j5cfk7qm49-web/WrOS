@@ -114,7 +114,8 @@
     {"unit": "wros-display.service", "target": "multi-user.target", "verify_install_section": false},
     {"unit": "wros-offline-update.service", "target": "system-update.target", "verify_install_section": true},
     {"unit": "wros-update-reconcile.service", "target": "multi-user.target", "verify_install_section": true},
-    {"unit": "wros-boot-ok.service", "target": "multi-user.target", "verify_install_section": true}
+    {"unit": "wros-boot-ok.service", "target": "multi-user.target", "verify_install_section": true},
+    {"unit": "wros-boot-ok.service", "target": "system-update.target", "verify_install_section": true}
   ],
   "update_polkit_actions": {
     "org.wros.update.stage": "/usr/libexec/wros-update-stage",

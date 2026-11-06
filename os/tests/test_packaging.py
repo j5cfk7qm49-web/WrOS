@@ -267,8 +267,9 @@ class Builder(unittest.TestCase):
                     self.assertEqual(os.readlink(link), '/dev/null')
                 else:
                     self.assertEqual(os.readlink(link), '../' + item['unit'])
-            self.assertIn({'unit': 'wros-boot-ok.service', 'target': 'multi-user.target',
-                           'verify_install_section': True}, manifest['enable'])
+            for target in ('multi-user.target', 'system-update.target'):  # an update boot is a good boot
+                self.assertIn({'unit': 'wros-boot-ok.service', 'target': target,
+                               'verify_install_section': True}, manifest['enable'])
             self.assertFalse(marker.exists())  # staging leaves the boot menu to the installer
             self.assertEqual(sorted(p.name for p in root.iterdir()), ['bin', 'etc'])
 
@@ -808,7 +809,8 @@ class StageIntoRoot(unittest.TestCase):
                              ('multi-user.target', 'wros-update-reconcile.service'),
                              ('multi-user.target', 'writingdeck-keyboard.service'),
                              ('multi-user.target', 'wros-display.service'),
-                             ('multi-user.target', 'wros-boot-ok.service')):
+                             ('multi-user.target', 'wros-boot-ok.service'),
+                             ('system-update.target', 'wros-boot-ok.service')):
             self.assertEqual(os.readlink(system / (target + '.wants') / unit), '../' + unit)
         for unit in ('sleep.target', 'getty@tty8.service'):
             self.assertEqual(os.readlink(system / unit), '/dev/null')
@@ -834,7 +836,7 @@ class StageIntoRoot(unittest.TestCase):
         self.assertEqual(audit.audit_trust(root, fixture_fingerprints=set()), [self.fpr])
         self.assertEqual(audit.audit_units(root), ['writingdeck-keyboard.service', 'wros-display.service',
                                                    'wros-offline-update.service', 'wros-update-reconcile.service',
-                                                   'wros-boot-ok.service'])
+                                                   'wros-boot-ok.service', 'wros-boot-ok.service'])
         self.assertEqual(len(audit.audit_polkit(root)), 8)
         audit.audit_no_private_keys(root)
 

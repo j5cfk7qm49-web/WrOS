@@ -2,7 +2,8 @@
 Description=Record that this boot reached the WrOS login screen
 # GRUB marks every boot as pending (/etc/grub.d/06_wros_boot_check); a boot that never gets here
 # shows the boot menu, with WrOS recovery, next time. Powering off at the login screen is a good
-# boot. Where /boot is not writable by GRUB the mark is never set and this changes nothing.
+# boot, and so is an offline-update boot, which reboots before any login screen. Where /boot is
+# not writable by GRUB the mark is never set and this changes nothing.
 After=greetd.service
 ConditionPathExists=/boot/grub/grubenv
 
@@ -16,4 +17,4 @@ NoNewPrivileges=yes
 PrivateNetwork=yes
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=multi-user.target system-update.target
