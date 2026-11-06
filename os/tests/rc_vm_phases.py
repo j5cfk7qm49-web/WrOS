@@ -1994,11 +1994,11 @@ def feature_console_lock(ctx, g, st, secrets_, layout, *, suspend=False):
     m.ctrl('s', layout)
     g.shell.put('/dev/shm/lock-probe', wrong + '\n' + secrets_['login'] + '\n', '0600')
     rc, _ = g.run(
-        'set -o pipefail; p=/dev/shm/lock-probe; trap "rm -f $p" EXIT; '
+        '(set -o pipefail; p=/dev/shm/lock-probe; trap "rm -f $p" EXIT; '
         'grep -rlaF -f "$p" /home /var/log /var/lib/wros-update /etc >/dev/null; '
         'test "$?" = 1 || exit 11; journalctl --no-pager > /dev/shm/lock-journal || exit 12; '
         'grep -aqF -f "$p" /dev/shm/lock-journal; found=$?; rm -f /dev/shm/lock-journal; '
-        'test "$found" = 1', 90, check=False)
+        'test "$found" = 1)', 90, check=False)
     ctx.check('neither lock password reached the saved book, recovery files or system logs', rc == 0, rc)
 
 
@@ -2045,9 +2045,9 @@ def feature_power_policy(ctx, g):
     ctx.result['logind_power_policy'] = policy
     ctx.check('logind leaves physical key, lid and idle actions to WrOS',
               policy.strip().splitlines() == ['s "ignore"'] * len(properties.split()), policy)
-    rc, _ = g.run('systemctl start systemd-suspend.service', 30, check=False)
+    rc, refusal = g.run('systemctl start systemd-suspend.service', 30, check=False)
     ctx.check('the suspend unit refuses to start without the protected lock',
-              rc != 0 and g.m.qmp.count('SUSPEND') == 0, rc)
+              rc != 0 and 'wros-console-lock.service' in refusal and g.m.qmp.count('SUSPEND') == 0, refusal)
 
 
 def phase_rc5(ctx):
@@ -2126,12 +2126,12 @@ def phase_rc5(ctx):
     helper = ("runuser -u %s -- env -i HOME=/home/%s PATH=/usr/bin:/bin LC_ALL=C.UTF-8 python3 -I /usr/libexec/wros-backup"
               % (user, user))
     rc, out = g.run(
-        "set -e; B=/home/%s/rc5-book; R=/home/%s/rc5-repo; C=/home/%s/.config/grimoire; "
+        "(set -e; B=/home/%s/rc5-book; R=/home/%s/rc5-repo; C=/home/%s/.config/grimoire; "
         "runuser -u %s -- mkdir -p $B/manuscript $C; echo 'rc5 scene' | runuser -u %s -- tee $B/manuscript/a.md >/dev/null; "
         "echo 'theme = \"rc5 original\"' | runuser -u %s -- tee $C/settings.toml >/dev/null; "
         "echo '{\"operation\":\"init\",\"repository\":\"'$R'\"}' | %s >/dev/null; "
         "echo '{\"operation\":\"backup\",\"project\":\"'$B'\"}' | %s > /tmp/rc5-backup.json; "
-        "python3 -c 'import json;d=json.load(open(\"/tmp/rc5-backup.json\"))[\"data\"];s=d[\"snapshots\"][0];print(\"SNAP\",s[\"id\"],s[\"has_profile\"],d[\"phone_linking\"])'"
+        "python3 -c 'import json;d=json.load(open(\"/tmp/rc5-backup.json\"))[\"data\"];s=d[\"snapshots\"][0];print(\"SNAP\",s[\"id\"],s[\"has_profile\"],d[\"phone_linking\"])')"
         % (user, user, user, user, user, user, helper, helper), 600, check=False)
     ctx.result['backup_with_settings'] = out[-600:]
     snap = re.search(r'SNAP ([0-9a-f]{64}) (\w+) (\w+)', out)
