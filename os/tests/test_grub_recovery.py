@@ -98,9 +98,27 @@ class GrubRecovery(unittest.TestCase):
     def test_boot_settings_hide_the_menu_and_drop_debians_root_shell_entries(self):
         settings = (ROOT / 'os/grub/60-wros.cfg').read_text()
         lines = {line.split('=', 1)[0]: line.split('=', 1)[1] for line in settings.splitlines()
-                 if line and not line.startswith('#')}
+                 if line.startswith('GRUB_')}  # the kernel command line is checked by running it, below
         self.assertEqual(lines, {'GRUB_TIMEOUT_STYLE': 'hidden', 'GRUB_TIMEOUT': '2',
                                  'GRUB_DISABLE_RECOVERY': 'true'})
+
+    def test_normal_boots_keep_kernel_errors_off_the_screen_from_the_first_second(self):
+        # Seen on the laptop: ACPI firmware errors print before /etc/sysctl.d quiets the
+        # console. Debian's /etc/default/grub sets "quiet"; update-grub then reads 60-wros.cfg.
+        def cmdline(default):
+            done = subprocess.run(['sh', '-c', f'GRUB_CMDLINE_LINUX_DEFAULT="{default}"; '
+                                   f'. "{ROOT}/os/grub/60-wros.cfg"; . "{ROOT}/os/grub/60-wros.cfg"; '
+                                   'printf %s "$GRUB_CMDLINE_LINUX_DEFAULT"'],
+                                  capture_output=True, text=True, check=True)
+            return done.stdout
+        self.assertEqual(cmdline('quiet'), 'quiet loglevel=3')
+        self.assertEqual(cmdline('quiet loglevel=3'), 'quiet loglevel=3')
+        self.assertEqual(cmdline(''), 'loglevel=3')
+        # The recovery entry uses GRUB_CMDLINE_LINUX only, so its messages stay visible.
+        self.kernel('6.12.0-1-amd64')
+        entry = self.generate('42_wros_recovery', GRUB_CMDLINE_LINUX_DEFAULT='quiet loglevel=3')
+        self.assertIn('systemd.unit=wros-recovery.target', entry)
+        self.assertNotIn('loglevel', entry)
 
 
 if __name__ == '__main__':

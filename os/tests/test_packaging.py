@@ -723,6 +723,16 @@ class ManifestData(unittest.TestCase):
                 'org.wros.update.media', 'org.wros.update.repair', 'org.wros.update.rollback',
                 'org.wros.update.stage'])
 
+    def test_the_realtek_wifi_driver_stays_out_of_deep_power_saving(self):
+        # Seen on the HP Stream: "firmware failed to leave lps state", then "failed to send h2c
+        # command" floods while the driver's deep power saving and PCIe link saving are on.
+        specs = {spec.dest: spec for spec in packaging.expand(packaging.load_manifest(ROOT), ROOT)}
+        options = specs['etc/modprobe.d/60-wros-wifi-power.conf']
+        self.assertEqual(options.mode, 0o644)
+        lines = [line for line in (ROOT / 'os/config/60-wros-wifi-power.conf').read_text().splitlines()
+                 if line and not line.startswith('#')]
+        self.assertEqual(lines, ['options rtw88_core disable_lps_deep=y', 'options rtw88_pci disable_aspm=y'])
+
     def test_every_repository_unit_policy_and_dropin_is_packaged(self):
         dests = {spec.dest for spec in packaging.expand(packaging.load_manifest(ROOT), ROOT)}
         for unit in (ROOT / 'os/systemd').iterdir():

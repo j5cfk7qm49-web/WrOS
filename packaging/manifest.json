@@ -92,6 +92,7 @@
     {"dest": "etc/systemd/system.conf.d/60-wros-reboot-guard.conf", "source": "os/config/60-wros-reboot-guard.conf", "mode": "0644", "class": "config"},
     {"dest": "etc/sysctl.d/60-wros-sysrq.conf", "source": "os/config/60-wros-sysrq.conf", "mode": "0644", "class": "config"},
     {"dest": "etc/sysctl.d/60-wros-quiet-console.conf", "source": "os/config/60-wros-quiet-console.conf", "mode": "0644", "class": "config"},
+    {"dest": "etc/modprobe.d/60-wros-wifi-power.conf", "source": "os/config/60-wros-wifi-power.conf", "mode": "0644", "class": "config"},
     {"dest": "etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf", "source": "os/config/60-wros-no-connectivity-check.conf", "mode": "0644", "class": "config"},
 
     {"generated": "keymaps", "dest_dir": "usr/share/writingdeck/keymaps", "names": ["qwerty.map", "colemak.map", "colemak-dh-ansi.map", "colemak-dh-iso.map"], "mode": "0644", "class": "generated"},
