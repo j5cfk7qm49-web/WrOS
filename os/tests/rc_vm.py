@@ -542,7 +542,7 @@ class Machine:
 
     def usb_stick(self, path, fmt='raw', readonly=False, bootindex=None, ident='usb0', serial=None):
         self.args += ['-drive', 'if=none,id=%s,format=%s,%sfile=%s' % (ident, fmt, 'readonly=on,' if readonly else '', path)]
-        if not any(a == 'qemu-xhci' for a in self.args):
+        if not any(a.startswith('qemu-xhci') for a in self.args):  # once, however many sticks
             self.args += ['-device', 'qemu-xhci,id=xhci']
         device = 'usb-storage,bus=xhci.0,drive=%s' % ident
         if bootindex is not None:

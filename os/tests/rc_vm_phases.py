@@ -2084,8 +2084,8 @@ def phase_goback(ctx):
 
     m = boot_installed(ctx, st, 'goback', disk=overlay, fmt='qcow2', reboot=True, extra=attach)
 
-    def login():
-        unlock(ctx, m, secrets_, layout, wrong_first=False)
+    def login(after_reset=None):
+        unlock(ctx, m, secrets_, layout, wrong_first=False, after_reset=after_reset)
         g = Guest(ctx, m, root_via_sudo=False)
         g.shell.login(user, secrets_['login'], 600)
         g.become_root(secrets_['login'])
@@ -2095,15 +2095,14 @@ def phase_goback(ctx):
     def reboot_through_update(g):
         resets = m.qmp.count('RESET')
         g.shell.serial.send('systemctl reboot\n')
-        deadline = time.monotonic() + 120
-        while m.qmp.count('RESET') <= resets and time.monotonic() < deadline:
-            time.sleep(0.5)
-        unlock(ctx, m, secrets_, layout, wrong_first=False)  # the offline update boot
-        return login()                                        # it reboots into the new version
+        # Wait for each reset: the last boot's unlock prompt can still be on the screen.
+        unlock(ctx, m, secrets_, layout, wrong_first=False, after_reset=resets + 1)  # the update boot
+        return login(after_reset=resets + 2)                                          # the new version
 
     def state(g, label):
-        rc, out = g.run('dpkg-query -W -f="${Version}\\n" wros; ls /var/lib/wros-update/installed/pool 2>&1; '
-                        'echo PREVIOUS; ls /var/lib/wros-update/previous/pool 2>&1; echo STATUS; python3 -I /root/goback.py status', 60, check=False)
+        rc, out = g.run("dpkg-query -W -f='${Version}\\n' wros; find /var/lib/wros-update/installed -name '*.deb' -printf '%f\\n' 2>&1; "
+                        "echo PREVIOUS; find /var/lib/wros-update/previous -name '*.deb' -printf '%f\\n' 2>&1; "
+                        "echo STATUS; python3 -I /root/goback.py status", 60, check=False)
         ctx.result['state_' + label] = out
         return out
 

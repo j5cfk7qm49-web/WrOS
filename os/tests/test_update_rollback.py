@@ -42,7 +42,7 @@ class KeepInstalled(Kept):
         self.install('two', '0.1.0~rc3', timedelta(hours=1))
         self.assertEqual(self.manifest_versions('previous'), ['0.1.0~rc2'])
         self.assertEqual(self.manifest_versions('installed'), ['0.1.0~rc3'])
-        self.assertEqual(update.read_public_status(self.system.state)['previous_version'], 'wros 0.1.0~rc2')
+        self.assertEqual(update.read_public_status(self.system.state)['previous_version'], '0.1.0~rc2')  # "Go back to 0.1.0~rc2"
         # Only one previous version is kept.
         self.install('three', '0.1.0~rc4', timedelta(minutes=30))
         self.assertEqual(self.manifest_versions('previous'), ['0.1.0~rc3'])

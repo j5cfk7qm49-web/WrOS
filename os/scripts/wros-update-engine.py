@@ -1293,11 +1293,15 @@ def remove_staged(store):
 
 
 def kept_version(tree):
-    """'wros 0.1.0~rc5' for a kept tree, from its manifest; None when there is none."""
+    """'0.1.0~rc5' for a kept tree holding only the wros package (the usual update), else each
+    package's label; None when there is none. Settings and recovery say "Go back to <this>"."""
     try:
         require_private_entry(tree, 'dir')
         manifest = json.loads(read_regular_bytes(tree / 'manifest.json', 262144).decode('utf-8'))
-        return ', '.join(clean_text(label, 200) for label in package_labels(manifest['packages'])) or None
+        packages = manifest['packages']
+        if len(packages) == 1 and packages[0].get('name') == 'wros' and isinstance(packages[0].get('version'), str):
+            return clean_text(packages[0]['version'], 200) or None
+        return ', '.join(clean_text(label, 200) for label in package_labels(packages)) or None
     except (ValueError, OSError, KeyError, TypeError):
         return None
 
