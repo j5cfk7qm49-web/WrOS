@@ -22,7 +22,7 @@ Prompt: ship a bootable installable ISO plus an authenticated update and rescue 
    `gpgv` only after refusing it if it holds any unpinned primary; the package build and the
    image audit refuse the same. It can add a signing subkey, never another root of trust.
 3. **Versioning**: one source, `os/VERSION` (first line, a Debian version, baseline `0.1.0~rc1`;
-   the current release is `0.1.0~rc5`). `/etc/writingdeck/release`, package `Version:` fields and
+   the current release is `0.1.0~rc6`). `/etc/writingdeck/release`, package `Version:` fields and
    the media receipt derive from it. Anti-downgrade uses `dpkg --compare-versions`.
 4. **WrOS as dpkg packages**: image staging installs WrOS-owned installed-system files through
    dpkg (`dpkg --root`), so `/var/lib/dpkg/status` lists them. Package `wros` (arch amd64)
