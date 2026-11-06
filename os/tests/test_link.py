@@ -94,7 +94,7 @@ class Google:
 class Listener:
     def __init__(self, codes=()):
         self.codes, self.answers, self.closed = list(codes), [], False
-        self.address = ('192.168.41.65', 31020)
+        self.address = ('192.168.1.20', 31020)
 
     def wait(self, seconds):
         if self.codes:
@@ -124,9 +124,9 @@ class Linking(unittest.TestCase):
         return session, session.run()
 
     def test_the_address_packs_into_eight_characters_and_only_private_ones_are_offered(self):
-        packed = link.pack_address('192.168.41.65', 31020)
+        packed = link.pack_address('192.168.1.20', 31020)
         self.assertEqual(len(packed), 8)
-        self.assertEqual(link.unpack_address(packed), ('192.168.41.65', 31020))
+        self.assertEqual(link.unpack_address(packed), ('192.168.1.20', 31020))
         self.assertTrue(link.private('10.1.2.3') and link.private('172.20.0.9'))
         self.assertFalse(link.private('8.8.8.8') or link.private('127.0.0.1') or link.private('100.64.0.1'))
 
