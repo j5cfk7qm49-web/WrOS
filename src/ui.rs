@@ -24,7 +24,12 @@ const MIN_TREE: u16 = 6;
 pub fn draw(f: &mut Frame, app: &mut App) {
     // Cloned once per frame so sub-renderers can read the theme while `app`
     // stays mutably borrowed for scroll and rect bookkeeping.
-    let t = app.theme.clone();
+    let mut t = app.theme.clone();
+    if app.linux_console {
+        // The console keeps only the top bit of each channel for a background, so
+        // every theme's dark selection shade turns black there: use its own blue.
+        t.sel = ratatui::style::Color::Blue;
+    }
     app.screen = (f.area().width, f.area().height);
     app.check_focus_mode();
     app.clear_view_rects();
@@ -1031,7 +1036,7 @@ fn draw_editor(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
             // per prose view. Spelling retains its own layer and dictionary.
             if let Some(spans) = check_spans.get(&r.line) {
                 for &(s, e) in spans {
-                    paint(s, e, &|st| marked(st, t.moon, app.underline_colour));
+                    paint(s, e, &|st| marked(st, t.moon, !app.linux_console));
                 }
             }
             // Misspellings: a warn-coloured underline, never on the word being typed.
@@ -1040,7 +1045,7 @@ fn draw_editor(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
                     App::misspellings_outside_marks(app.misspellings(r.line), &marks[r.line])
                 });
                 for &(s, e) in bad.iter() {
-                    paint(s, e, &|st| marked(st, t.warn, app.underline_colour));
+                    paint(s, e, &|st| marked(st, t.warn, !app.linux_console));
                 }
             }
             if let Some((from, to)) = app.editor.row_selection(r) {

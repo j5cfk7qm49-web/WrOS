@@ -793,7 +793,7 @@ fn the_linux_console_marks_words_without_underline_colours_it_would_misread() {
     assert_eq!(word.underline_color, d.app.theme.warn);
     // The Linux console reads ESC[58;...m as faint, blink and font switches that
     // stick to everything after the word: there the mark is a plain underline in colour.
-    d.app.underline_colour = false;
+    d.app.linux_console = true;
     d.draw();
     let word = cell(&d, "Teh cat");
     assert!(word.modifier.contains(Modifier::UNDERLINED));
@@ -808,6 +808,44 @@ fn the_linux_console_marks_words_without_underline_colours_it_would_misread() {
     let after = cell(&d, "cat sat");
     assert_eq!(after.fg, d.app.theme.text);
     assert!(!after.modifier.contains(Modifier::UNDERLINED));
+}
+
+/// What the Linux console makes of a background: it keeps only the top bit of each
+/// channel (rgb_background in drivers/tty/vt/vt.c), so 0 is black.
+fn console_background(c: ratatui::style::Color) -> u8 {
+    use ratatui::style::Color;
+    match c {
+        Color::Rgb(r, g, b) => (r >> 7) << 2 | (g >> 7) << 1 | (b >> 7),
+        Color::Reset | Color::Black => 0,
+        _ => 1, // a named colour is drawn as itself
+    }
+}
+
+fn lit_on_the_console(d: &Desk, r: ratatui::layout::Rect) -> bool {
+    let buffer = d.term.backend().buffer();
+    (r.y..r.y + r.height)
+        .any(|y| (r.x..r.x + r.width).any(|x| console_background(buffer[(x, y)].bg) != 0))
+}
+
+#[test]
+fn the_linux_console_shows_which_sidebar_row_and_which_words_are_selected() {
+    // The theme's dark selection grey came out black there, so the highlighted
+    // manuscript row and a Shift+arrow selection looked like everything else.
+    let mut d = spelling_desk("selection-console", "Some words to select.");
+    d.app.linux_console = true;
+    d.app.focus = Focus::Tree;
+    d.draw();
+    assert!(
+        lit_on_the_console(&d, d.app.rect_tree),
+        "the sidebar row shows"
+    );
+    d.app.focus = d.app.editor_focus();
+    d.app.select_all();
+    d.draw();
+    assert!(
+        lit_on_the_console(&d, d.app.rect_editor),
+        "the selected words show"
+    );
 }
 
 #[test]

@@ -265,9 +265,10 @@ pub struct App {
     replace_redoable: bool,
     /// Spellcheck underlines are showing.
     pub spell_on: bool,
-    /// The terminal understands underline colours (`ESC[58;…m`). The Linux
-    /// console does not, and reads them as faint, blink and font switches.
-    pub underline_colour: bool,
+    /// Drawing on the Linux console. It does not know underline colours
+    /// (`ESC[58;…m`) and reads them as faint, blink and font switches, and it
+    /// turns dark backgrounds black.
+    pub linux_console: bool,
     /// Which English it knows.
     pub spell_lang: spell::Language,
     /// The tree shows a symbol beside each row.
@@ -928,7 +929,7 @@ impl App {
             replace_undoable: false,
             replace_redoable: false,
             spell_on: setup.settings.spellcheck,
-            underline_colour: true,
+            linux_console: false,
             spell_lang: spell::Language::parse(&setup.settings.spelling),
             icons_on: setup.settings.icons,
             speller: None,
