@@ -43,8 +43,9 @@ pub fn wifi_scan(output: &str) -> Result<Vec<WifiNetwork>> {
     for (index, line) in output.lines().enumerate() {
         ensure!(index < 2048, "Wi-Fi list exceeds limit");
         let p = fields(line, 4)?;
+        // nmcli prints "*" for the network in use and a space for every other one.
         ensure!(
-            matches!(p[0].as_str(), "*" | ""),
+            matches!(p[0].as_str(), "*" | " " | ""),
             "invalid active Wi-Fi flag"
         );
         let signal: u8 = p[2].parse().context("invalid Wi-Fi signal")?;
@@ -902,6 +903,25 @@ mod tests {
         ] {
             assert!(wifi_scan(bad).is_err());
         }
+    }
+    #[test]
+    fn wifi_reads_the_space_nmcli_prints_for_networks_not_in_use() {
+        // Real `nmcli -t -f IN-USE,SSID,SIGNAL,SECURITY device wifi list` output (names changed):
+        // every network not in use starts with a space, so the whole scan used to fail with
+        // "invalid active Wi-Fi flag" (#78). An open network has an empty SECURITY field.
+        let rows =
+            wifi_scan(" :Home:100:WPA2\n*:Home:87:WPA2\n :School:60:\n :Cafe:55:WPA2").unwrap();
+        assert_eq!(rows.len(), 3);
+        assert!(rows[0].in_use && rows[0].ssid == "Home");
+        assert_eq!(
+            (
+                rows[1].ssid.as_str(),
+                rows[1].security.as_str(),
+                rows[1].in_use
+            ),
+            ("School", "", false)
+        );
+        assert!(wifi_scan("x:Home:90:WPA2").is_err());
     }
     #[test]
     fn saved_names_can_collide_but_identity_is_an_actual_uuid() {
