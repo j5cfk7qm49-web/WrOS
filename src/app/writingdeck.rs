@@ -1785,10 +1785,8 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                         if app.deck.shell.backup.job.is_some() {
                             "backup operation running".into()
                         } else if app.deck.shell.backup.status.configured {
-                            format!(
-                                "encrypted repository · {} loaded snapshots",
-                                app.deck.shell.backup.status.snapshots.len()
-                            )
+                            // The same line as Settings › Backups: when, verified, what's next.
+                            app.deck.shell.backup.auto_line(&app.project.root)
                         } else {
                             "set up encrypted backup and restore".into()
                         }

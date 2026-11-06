@@ -67,6 +67,31 @@ fn cancelled_repository_setup_and_restore_forms_do_not_write_files_or_change_the
 }
 
 #[test]
+fn the_home_screen_says_when_the_book_was_last_backed_up() {
+    let mut desk = Desk::open(book("backup-home", true), 120, 40);
+    desk.app.overlay = Overlay::Deck(Page::Home { sel: 0 });
+    desk.draw();
+    assert!(desk.shows("set up encrypted backup and restore"));
+    let root = desk.app.project.root.canonicalize().unwrap();
+    let when = chrono::Local::now() - chrono::Duration::minutes(5);
+    let backup = &mut desk.app.deck.shell.backup;
+    backup.status.configured = true;
+    backup
+        .status
+        .snapshots
+        .push(crate::backup_service::Snapshot {
+            id: "c".repeat(64),
+            time: when.to_rfc3339(),
+            _path: root.to_string_lossy().into_owned(),
+            project: "Book".into(),
+            restore_checked_at: when.to_rfc3339(),
+            has_profile: true,
+        });
+    desk.draw();
+    assert!(desk.shows(&format!("Backed up {} · verified", when.format("%H:%M"))));
+}
+
+#[test]
 fn backups_that_carry_settings_offer_restoring_them_too() {
     let mut desk = Desk::open(book("backup-settings", true), 100, 40);
     desk.app.open_settings();
