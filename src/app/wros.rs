@@ -894,7 +894,9 @@ impl App {
                     {
                         form.password.clear();
                     }
-                    if !self.on_update_error(&request, &e) {
+                    if matches!(request, Request::ScanWifi) {
+                        self.deck.note = super::shell::WIFI_SCAN_FAILED.into();
+                    } else if !self.on_update_error(&request, &e) {
                         self.deck.note = format!("Unavailable: {e}");
                     }
                     if matches!(self.overlay, Overlay::Deck(Page::KeyboardWait)) {

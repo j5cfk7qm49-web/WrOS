@@ -256,7 +256,9 @@ fn native_read_only_system_views_keep_editor_state_and_failed_refresh_drops_stal
         desk.key(KeyCode::Enter);
         assert!(desk.app.deck.shell.wifi_networks.is_none());
         wait_system(&mut desk);
-        assert!(desk.shows("scan service stopped"));
+        assert!(desk.shows("Couldn't scan for Wi-Fi"));
+        assert!(desk.shows("Make sure Wi-Fi is on"));
+        assert!(!desk.shows("scan service stopped"));
         assert!(!desk.shows("WrOS-Studio"));
         desk.key(KeyCode::Esc);
         desk.key(KeyCode::Down);

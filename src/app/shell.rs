@@ -746,8 +746,10 @@ fn entries(app: &App) -> Vec<Entry> {
                 if networks.is_empty() {
                     rows.push(Entry::info("No visible named Wi-Fi networks returned."));
                 }
+            } else if app.deck.busy {
+                rows.push(Entry::info("Looking for Wi-Fi networks…"));
             } else {
-                rows.push(Entry::info("Scan unavailable; refresh to try again."));
+                rows.push(Entry::info(WIFI_SCAN_FAILED));
             }
             rows.push(Entry::info(
                 "Select a network above to connect or enter protected credentials.",
@@ -1480,6 +1482,9 @@ fn entries(app: &App) -> Vec<Entry> {
             .unwrap_or_default(),
     }
 }
+
+pub(super) const WIFI_SCAN_FAILED: &str =
+    "Couldn't scan for Wi-Fi. Make sure Wi-Fi is on, then try again.";
 
 impl App {
     fn clear_system_view(&mut self, request: &wros_sys::Request) {
