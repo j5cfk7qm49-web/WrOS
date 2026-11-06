@@ -1891,9 +1891,221 @@ def phase_rescue(ctx):
     ctx.result['passed'] = True
 
 
+def menu_number(screen, label):
+    """The number the recovery menu shows beside a choice ("  3  Show what happened")."""
+    found = re.findall(r'(?m)^\s*(\d)\s+' + re.escape(label), screen)
+    if not found:
+        raise Failure('recovery menu has no choice %r:\n%s' % (label, screen[-800:]))
+    return found[-1]
+
+
+def phase_rc5(ctx):
+    """rc5 on a disk the update phase brought to rc5: the boot menu, the recovery boot, the quiet
+    console, the Shift-arrow keymap, settings in backups and the Google client for phone linking.
+    --base-disk is the update run's disk.qcow2."""
+    st = load_state(ctx.args.install_run)
+    secrets_ = json.loads(Path(st['secrets']).read_text())
+    layout, user = st['layout'], st['username']
+    if not ctx.args.base_disk:
+        raise SystemExit('--base-disk (the update run disk.qcow2) is required')
+    overlay = ctx.dir / 'disk.qcow2'
+    vm.create_overlay(ctx.args.base_disk, overlay, base_format='qcow2')
+    m = boot_installed(ctx, st, 'rc5', disk=overlay, fmt='qcow2', reboot=True)
+    unlock(ctx, m, secrets_, layout, wrong_first=False)
+    g = Guest(ctx, m, root_via_sudo=False)
+    g.shell.login(user, secrets_['login'], 420)
+    g.become_root(secrets_['login'])
+    g.wait_vcs(1, r'Local account', 240, what='greeter')
+    time.sleep(5)  # wros-boot-ok runs once greetd has started
+    rc, out = g.run("dpkg-query -W wros; grep -c \"menuentry 'WrOS recovery'\" /boot/grub/grub.cfg; "
+                    "grep -c 'systemd.unit=wros-recovery.target' /boot/grub/grub.cfg; grep -c '(recovery mode)' /boot/grub/grub.cfg; "
+                    "grep -c 'save_env wros_boot_pending' /boot/grub/grub.cfg; grep -E '^set timeout(_style)?=' /boot/grub/grub.cfg | head -4; "
+                    "echo ENV; grub-editenv /boot/grub/grubenv list; echo SYSCTL; cat /proc/sys/kernel/printk; "
+                    "echo BOOTOK; systemctl show -p Result,ExecMainStatus,ExecMainStartTimestampMonotonic wros-boot-ok.service; "
+                    "echo LINKS; ls /etc/systemd/system/multi-user.target.wants/ /etc/systemd/system/system-update.target.wants/; "
+                    "echo CLIENT; stat -c '%a %U %n' /usr/share/wros/google-client.json /usr/lib/wros-backup/link.py /usr/libexec/wros-recovery; "
+                    "echo KEYMAP; dumpkeys 2>/dev/null | grep -E '^shift[[:space:]]+keycode 105 ' ; dumpkeys --funcs-only 2>/dev/null | grep -E '^string F100 '", 90, check=False)
+    ctx.result['rc5_state'] = out
+    (ctx.dir / 'rc5-state.txt').write_text(out)
+    ctx.check('wros is 0.1.0~rc5', re.search(r'^wros\s+0\.1\.0~rc5', out, re.M) is not None, out[:200])
+    counts = re.findall(r'(?m)^(\d+)$', out.split('set timeout')[0])
+    ctx.check('grub.cfg has the WrOS recovery entry booting wros-recovery.target', counts[:2] == ['1', '1'], counts)
+    ctx.check("Debian's root-shell recovery entries are gone", counts[2:3] == ['0'], counts)
+    ctx.check('grub.cfg marks every boot pending (plain /boot)', counts[3:4] == ['1'], counts)
+    env_block = out.split('ENV', 1)[1].split('SYSCTL', 1)[0]
+    ctx.check('this boot reached the login screen and cleared the mark', 'wros_boot_pending' not in env_block, env_block)
+    ctx.check('kernel messages stay off the console', out.split('SYSCTL', 1)[1].split()[0] == '3', out.split('SYSCTL', 1)[1][:40])
+    ctx.check('wros-boot-ok ran and succeeded', 'Result=success' in out and 'ExecMainStatus=0' in out, out.split('BOOTOK', 1)[1][:300])
+    links = out.split('LINKS', 1)[1].split('CLIENT', 1)[0]
+    ctx.check('the postinst enabled wros-boot-ok for normal and update boots', links.count('wros-boot-ok.service') == 2, links)
+    client = out.split('CLIENT', 1)[1].split('KEYMAP', 1)[0]
+    ctx.check('the Google client and the linking module are installed', '644 root /usr/share/wros/google-client.json' in client
+              and '644 root /usr/lib/wros-backup/link.py' in client and '755 root /usr/libexec/wros-recovery' in client, client)
+    keymap = out.split('KEYMAP', 1)[1]
+    ctx.check('Shift+Left reaches the app as an xterm sequence', 'F100' in keymap and '\\033[1;2D' in keymap, keymap)
+
+    # Settings in a backup, through the installed helper as the writer, with real restic.
+    helper = ("runuser -u %s -- env -i HOME=/home/%s PATH=/usr/bin:/bin LC_ALL=C.UTF-8 python3 -I /usr/libexec/wros-backup"
+              % (user, user))
+    rc, out = g.run(
+        "set -e; B=/home/%s/rc5-book; R=/home/%s/rc5-repo; C=/home/%s/.config/grimoire; "
+        "runuser -u %s -- mkdir -p $B/manuscript $C; echo 'rc5 scene' | runuser -u %s -- tee $B/manuscript/a.md >/dev/null; "
+        "echo 'theme = \"rc5 original\"' | runuser -u %s -- tee $C/settings.toml >/dev/null; "
+        "echo '{\"operation\":\"init\",\"repository\":\"'$R'\"}' | %s >/dev/null; "
+        "echo '{\"operation\":\"backup\",\"project\":\"'$B'\"}' | %s > /tmp/rc5-backup.json; "
+        "python3 -c 'import json;d=json.load(open(\"/tmp/rc5-backup.json\"))[\"data\"];s=d[\"snapshots\"][0];print(\"SNAP\",s[\"id\"],s[\"has_profile\"],d[\"phone_linking\"])'"
+        % (user, user, user, user, user, user, helper, helper), 600, check=False)
+    ctx.result['backup_with_settings'] = out[-600:]
+    snap = re.search(r'SNAP ([0-9a-f]{64}) (\w+) (\w+)', out)
+    ctx.check('a backup carries the settings and the build offers phone linking',
+              snap is not None and snap.group(2) == 'True' and snap.group(3) == 'True', out[-400:])
+    if snap:
+        rc, out = g.run(
+            "C=/home/%s/.config/grimoire; echo 'theme = \"changed\"' | runuser -u %s -- tee $C/settings.toml >/dev/null; "
+            "echo '{\"operation\":\"restore\",\"snapshot\":\"%s\",\"destination\":\"/home/%s/rc5-restored\",\"settings\":true}' | %s "
+            "| python3 -c 'import json,sys;print(\"NOTICE\",json.load(sys.stdin)[\"data\"][\"notice\"])'; cat $C/settings.toml; "
+            "ls -d $C/before-restore-* && cat $C/before-restore-*/settings.toml; cat /home/%s/rc5-restored/manuscript/a.md"
+            % (user, user, snap.group(1), user, helper, user), 600, check=False)
+        ctx.result['restore_with_settings'] = out[-800:]
+        ctx.check('restoring with settings puts them back and keeps the current ones',
+                  'theme = "rc5 original"' in out and 'theme = "changed"' in out and 'rc5 scene' in out
+                  and 'Settings restored' in out, out[-600:])
+
+    # A boot that never reaches the login screen: the next boot shows the menu with WrOS recovery.
+    g.run('grub-editenv /boot/grub/grubenv set wros_boot_pending=1; sync', 30, check=False)
+    resets = m.qmp.count('RESET')
+    g.shell.send('systemctl reboot\n')
+    deadline = time.monotonic() + 120
+    while m.qmp.count('RESET') <= resets and time.monotonic() < deadline:
+        time.sleep(0.5)
+    # The menu waits 30 s after a failed boot. End (repeated until the menu is surely up; it is
+    # harmless before) selects the last entry, WrOS recovery; any key also stops the countdown.
+    for _ in range(14):
+        time.sleep(1)
+        m.key('end')
+    menu = m.screen_text('grub-after-failed-boot')
+    ctx.result['grub_menu_screen'] = menu[-600:]
+    ctx.step('grub-menu-after-failed-boot', seen='WrOS recovery' in menu or 'Debian' in menu)
+    m.shot('grub-recovery-selected')
+    m.key('ret')
+    unlock(ctx, m, secrets_, layout, wrong_first=False)
+    screen = m.wait_screen(r'Password for ' + re.escape(user), 300, name='recovery-password')
+    m.shot('recovery-password')
+    ctx.check('the WrOS recovery boot asks for the writer\'s password', 'WrOS recovery' in screen, screen[-400:])
+    m.type_text(secrets_['login'] + '\n', 'us' if layout != 'us' else layout)  # QWERTY reading: wrong
+    m.wait_screen(r'did not match', 60, name='recovery-wrong')
+    ctx.check('a wrong password is refused', True)
+    m.type_text(secrets_['login'] + '\n', layout)
+    screen = m.wait_screen(r'Choose:', 90, name='recovery-menu')
+    m.shot('recovery-menu')
+    ctx.result['recovery_menu'] = screen[-900:]
+    ctx.check('the menu offers repair, restore, what happened, login, restart and power off, and no shell',
+              all(label in screen for label in ('Repair system packages', 'Restore a book', 'Show what happened',
+                                               'Continue to the normal login', 'Power off'))
+              and 'shell' not in screen.lower(), screen[-900:])
+    m.type_text(menu_number(screen, 'Show what happened') + '\n', layout)
+    screen = m.wait_screen(r'runs WrOS 0\.1\.0~rc5', 60, name='recovery-what')
+    m.shot('recovery-what-happened')
+    ctx.check('Show what happened names the installed version', True)
+    m.type_text(menu_number(screen, 'Continue to the normal login') + '\n', layout)
+    g2 = Guest(ctx, m, root_via_sudo=False)
+    g2.shell.login(user, secrets_['login'], 300)
+    g2.become_root(secrets_['login'])
+    g2.wait_vcs(1, r'Local account', 240, what='greeter-after-recovery')
+    time.sleep(5)
+    rc, out = g2.run('grub-editenv /boot/grub/grubenv list; systemctl is-active greetd; cat /proc/cmdline', 30, check=False)
+    ctx.result['after_recovery'] = out
+    ctx.check('continuing from recovery reaches the login screen and clears the mark',
+              'wros_boot_pending' not in out and 'active' in out and 'systemd.unit=wros-recovery.target' in out, out)
+    m.shot('login-after-recovery')
+    ctx.result['passed'] = True
+
+
+GOBACK_GUEST = r'''
+import importlib.machinery, json, sys
+engine = importlib.machinery.SourceFileLoader('engine', '/usr/lib/wros-update/engine.py').load_module()
+verb = sys.argv[1]
+if verb == 'stage':
+    review = engine.review_bundle(sys.argv[2])
+    print(json.dumps(engine.stage_update(sys.argv[2], review['review_id'])))
+elif verb == 'back':
+    print(json.dumps(engine.stage_rollback()))
+else:
+    print(json.dumps(engine.inspect_recovery()))
+'''
+
+
+def phase_goback(ctx):
+    """Going back a version on real disks: rc5 -> rc5.1 -> rc5.2 through the installed engine,
+    then back to rc5.1. --bundle and --bundle2 are the rc5.1 and rc5.2 test bundles;
+    --base-disk is the update run's disk.qcow2 (rc5)."""
+    st = load_state(ctx.args.install_run)
+    secrets_ = json.loads(Path(st['secrets']).read_text())
+    layout, user = st['layout'], st['username']
+    overlay = ctx.dir / 'disk.qcow2'
+    vm.create_overlay(ctx.args.base_disk, overlay, base_format='qcow2')
+    sticks = []
+    for i, bundle in enumerate((ctx.args.bundle, ctx.args.bundle2)):
+        sticks.append(vm.make_update_media(Path(bundle), ctx.dir / ('stick%d.img' % i), 'ext4', 48))
+
+    def attach(machine):
+        for i, stick in enumerate(sticks):
+            machine.usb_stick(stick, ident='usb%d' % i, serial='RCSTICK%d' % i, readonly=True)
+
+    m = boot_installed(ctx, st, 'goback', disk=overlay, fmt='qcow2', reboot=True, extra=attach)
+
+    def login():
+        unlock(ctx, m, secrets_, layout, wrong_first=False)
+        g = Guest(ctx, m, root_via_sudo=False)
+        g.shell.login(user, secrets_['login'], 600)
+        g.become_root(secrets_['login'])
+        g.shell.put('/root/goback.py', GOBACK_GUEST.encode(), '0600')
+        return g
+
+    def reboot_through_update(g):
+        resets = m.qmp.count('RESET')
+        g.shell.send('systemctl reboot\n')
+        deadline = time.monotonic() + 120
+        while m.qmp.count('RESET') <= resets and time.monotonic() < deadline:
+            time.sleep(0.5)
+        unlock(ctx, m, secrets_, layout, wrong_first=False)  # the offline update boot
+        return login()                                        # it reboots into the new version
+
+    def state(g, label):
+        rc, out = g.run('dpkg-query -W -f="${Version}\\n" wros; ls /var/lib/wros-update/installed/pool 2>&1; '
+                        'echo PREVIOUS; ls /var/lib/wros-update/previous/pool 2>&1; echo STATUS; python3 -I /root/goback.py status', 60, check=False)
+        ctx.result['state_' + label] = out
+        return out
+
+    g = login()
+    g.run('mkdir -p /mnt/b0 /mnt/b1; for i in 0 1; do d=$(readlink -f /dev/disk/by-id/usb-*RCSTICK$i*); mount -o ro $d /mnt/b$i; done; ls /mnt/b0 /mnt/b1', 60)
+    for i, version in ((0, '0.1.0~rc5.1'), (1, '0.1.0~rc5.2')):
+        rc, out = g.run('python3 -I /root/goback.py stage /mnt/b%d' % i, 300, check=False)
+        ctx.check('the installed engine stages %s' % version, '"staged"' in out, out[-400:])
+        g = reboot_through_update(g)
+        g.run('mkdir -p /mnt/b0 /mnt/b1; for i in 0 1; do d=$(readlink -f /dev/disk/by-id/usb-*RCSTICK$i*); mount -o ro $d /mnt/b$i; done', 60, check=False)
+        out = state(g, version)
+        ctx.check('%s is installed' % version, out.splitlines()[0].strip() == version, out[:200])
+    out = state(g, 'before-going-back')
+    ctx.check('rc5.2 keeps rc5.1 as the previous version',
+              'wros_0.1.0~rc5.1_amd64.deb' in out.split('PREVIOUS', 1)[1].split('STATUS', 1)[0]
+              and '"previous_version": "0.1.0~rc5.1"' in out, out[-600:])
+    rc, out = g.run('python3 -I /root/goback.py back', 300, check=False)
+    ctx.check('going back is staged', '"rollback": true' in out, out[-400:])
+    g = reboot_through_update(g)
+    out = state(g, 'after-going-back')
+    ctx.check('going back installed rc5.1 again', out.splitlines()[0].strip() == '0.1.0~rc5.1', out[:200])
+    ctx.check('after going back, rc5.1 is the installed tree and nothing older is offered',
+              'wros_0.1.0~rc5.1_amd64.deb' in out.split('PREVIOUS', 1)[0]
+              and '"previous_version": null' in out and '"went_back": true' in out, out[-700:])
+    m.shot('after-going-back')
+    ctx.result['passed'] = True
+
+
 PHASES = {'firmware': phase_firmware, 'live': phase_live, 'install': phase_install,
           'install-failure': phase_install, 'installed-boot': phase_installed_boot,
-          'update': phase_update, 'rescue': phase_rescue, 'peek': phase_peek, 'audit': phase_audit}
+          'update': phase_update, 'rescue': phase_rescue, 'peek': phase_peek, 'audit': phase_audit,
+          'rc5': phase_rc5, 'goback': phase_goback}
 
 
 def main():
@@ -1903,6 +2115,7 @@ def main():
     parser.add_argument('--receipt')
     parser.add_argument('--install-run')
     parser.add_argument('--bundle')
+    parser.add_argument('--bundle2', help='goback: the second test bundle (rc5.2)')
     parser.add_argument('--secboot', action='store_true')
     parser.add_argument('--layout', default='dvorak', choices=['dvorak', 'colemak', 'colemak_dh'])
     parser.add_argument('--kill', choices=['backend', 'writer'])
