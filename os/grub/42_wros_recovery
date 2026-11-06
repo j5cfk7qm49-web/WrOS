@@ -1,0 +1,53 @@
+#!/bin/sh
+# WrOS: the "WrOS recovery" boot entry. The newest kernel and its initramfs, booted into
+# wros-recovery.target: no login screen, no network unless asked, a menu behind the writer's
+# password (/usr/libexec/wros-recovery). It finds the root like Debian's 10_linux does.
+set -e
+
+# Read by Debian's grub-mkconfig_lib, as in its own /etc/grub.d scripts.
+# shellcheck disable=SC2034
+prefix=/usr
+# shellcheck disable=SC2034
+exec_prefix=/usr
+# shellcheck disable=SC2034
+datarootdir=/usr/share
+# WROS_GRUB_* are test seams for os/tests/test_grub_recovery.py; grub-mkconfig never sets them.
+# shellcheck disable=SC1090,SC1091  # the library and its grub_probe come from grub-common
+. "${WROS_GRUB_MKCONFIG_LIB:-${pkgdatadir:-/usr/share/grub}/grub-mkconfig_lib}"
+kernels=${WROS_GRUB_KERNEL_DIR:-/boot}
+by_uuid=${WROS_GRUB_UUID_DIR:-/dev/disk/by-uuid}
+
+list=
+for i in "$kernels"/vmlinuz-*; do
+  if grub_file_is_not_garbage "$i"; then list="$list $i"; fi
+done
+[ -n "$list" ] || exit 0
+# shellcheck disable=SC2086  # one path per word
+linux=$(printf '%s\n' $list | version_sort -r | head -n 1)
+basename=$(basename "$linux")
+version=${basename#vmlinuz-}
+initrd=
+for i in "initrd.img-$version" "initrd-$version.img"; do
+  if test -e "$kernels/$i"; then initrd=$i; break; fi
+done
+# Without its initramfs the encrypted root cannot be opened, so an entry would only fail.
+[ -n "$initrd" ] || exit 0
+
+if [ -n "${GRUB_DEVICE_UUID}" ] && test -e "$by_uuid/${GRUB_DEVICE_UUID}" \
+    && ! ( test -e "${GRUB_DEVICE}" && uses_abstraction "${GRUB_DEVICE}" lvm ); then
+  root_device=UUID=${GRUB_DEVICE_UUID}
+else
+  root_device=${GRUB_DEVICE}
+fi
+[ -n "$root_device" ] || exit 0
+rel_dirname=$(make_system_path_relative_to_its_root "$kernels")
+rel_dirname=${rel_dirname%/}
+
+echo "Found WrOS recovery: $linux" >&2
+echo "menuentry 'WrOS recovery' --class recovery --id wros-recovery {"
+echo "	insmod gzio"
+prepare_grub_to_access_device "${GRUB_DEVICE_BOOT}" | sed 's/^/\t/'
+# GRUB_CMDLINE_LINUX only, as Debian's own recovery entries: boot messages stay visible.
+echo "	linux	${rel_dirname}/${basename} root=${root_device} ro ${GRUB_CMDLINE_LINUX} systemd.unit=wros-recovery.target"
+echo "	initrd	${rel_dirname}/${initrd}"
+echo "}"

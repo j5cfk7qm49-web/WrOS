@@ -1,0 +1,35 @@
+#!/bin/sh
+# WrOS: show the boot menu after a boot that never reached the login screen.
+# GRUB marks every boot as pending in its environment block; wros-boot-ok.service clears the mark
+# once the login screen starts. Runs after 00_header, so it overrides the hidden 2-second menu.
+# GRUB can only write its environment on a plain /boot (no LVM, RAID or encryption), so anywhere
+# else this prints nothing and the menu keeps its normal timeout.
+set -e
+
+# Read by Debian's grub-mkconfig_lib, as in its own /etc/grub.d scripts.
+# shellcheck disable=SC2034
+prefix=/usr
+# shellcheck disable=SC2034
+exec_prefix=/usr
+# shellcheck disable=SC2034
+datarootdir=/usr/share
+# WROS_GRUB_* are test seams for os/tests/test_grub_recovery.py; grub-mkconfig never sets them.
+# shellcheck disable=SC1090,SC1091  # the library and its grub_probe come from grub-common
+. "${WROS_GRUB_MKCONFIG_LIB:-${pkgdatadir:-/usr/share/grub}/grub-mkconfig_lib}"
+grubdir=${WROS_GRUB_DIR:-/boot/grub}
+
+# shellcheck disable=SC2154
+abstraction=$(${grub_probe} --target=abstraction "$grubdir" 2>/dev/null) || exit 0
+[ -z "$abstraction" ] || exit 0
+
+cat <<'EOF'
+# WrOS: a boot that never reached the login screen shows this menu for 30 seconds.
+if [ -n "${have_grubenv}" ]; then
+  if [ "${wros_boot_pending}" = "1" ]; then
+    set timeout_style=menu
+    set timeout=30
+  fi
+  set wros_boot_pending=1
+  save_env wros_boot_pending
+fi
+EOF

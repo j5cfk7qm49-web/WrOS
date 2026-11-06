@@ -1,0 +1,26 @@
+[Unit]
+Description=WrOS recovery menu
+# The menu asks for the writer's own password (PAM service wros-recovery) and never offers a
+# shell. If it exits for any reason, systemd starts it again on tty1.
+Wants=writingdeck-keyboard.service
+After=basic.target writingdeck-keyboard.service systemd-vconsole-setup.service console-setup.service
+Conflicts=getty@tty1.service greetd.service
+DefaultDependencies=no
+Requires=basic.target
+Conflicts=shutdown.target
+Before=shutdown.target
+
+[Service]
+Type=idle
+Environment=WROS_SYSTEMD_RECOVERY=1
+ExecStart=/usr/libexec/wros-recovery
+StandardInput=tty-force
+StandardOutput=tty
+StandardError=tty
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+Restart=always
+RestartSec=1
+LimitCORE=0
