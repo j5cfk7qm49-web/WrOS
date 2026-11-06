@@ -57,13 +57,17 @@ def policy_values(root):
             if actual.get(key, '').strip().lower() != value:
                 raise ValueError(f'native policy value {key}={value} missing or weakened in {relative}')
     sysctl = {}
-    for row in regular(root, 'etc/sysctl.d/60-wros-sysrq.conf').read_text().splitlines():
-        row = row.strip()
-        if row and not row.startswith(('#', ';')) and '=' in row:
-            key, _, value = row.partition('=')
-            sysctl[key.strip()] = value.strip()
+    for relative in ('etc/sysctl.d/60-wros-sysrq.conf', 'etc/sysctl.d/60-wros-quiet-console.conf'):
+        for row in regular(root, relative).read_text().splitlines():
+            row = row.strip()
+            if row and not row.startswith(('#', ';')) and '=' in row:
+                key, _, value = row.partition('=')
+                sysctl[key.strip()] = value.strip()
     if sysctl.get('kernel.sysrq') != '0':
         raise ValueError('native policy value kernel.sysrq=0 missing or weakened')
+    console_level = sysctl.get('kernel.printk', '').split()[:1]
+    if not console_level or not console_level[0].isdigit() or int(console_level[0]) > 3:
+        raise ValueError('native policy value kernel.printk console level 3 or less missing or weakened')
 
 
 UPDATE_FILES = ('usr/libexec/wros-update', 'usr/libexec/wros-update-stage', 'usr/libexec/wros-update-cancel',
@@ -405,7 +409,8 @@ def audit(root, fixture_fingerprints=None):
             ('60-wros-sleep-guard.conf', 'etc/systemd/sleep.conf.d/60-wros-sleep-guard.conf'),
             ('60-wros-no-connectivity-check.conf', 'etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf'),
             ('60-wros-reboot-guard.conf', 'etc/systemd/system.conf.d/60-wros-reboot-guard.conf'),
-            ('60-wros-sysrq.conf', 'etc/sysctl.d/60-wros-sysrq.conf')):
+            ('60-wros-sysrq.conf', 'etc/sysctl.d/60-wros-sysrq.conf'),
+            ('60-wros-quiet-console.conf', 'etc/sysctl.d/60-wros-quiet-console.conf')):
         if regular(root, relative).read_bytes() != (REPO / 'os/config' / source).read_bytes():
             raise ValueError('native session policy differs from qualified source: ' + relative)
     enabled = root / 'etc/systemd/system/multi-user.target.wants/greetd.service'

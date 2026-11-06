@@ -300,6 +300,7 @@ class NativeImage(unittest.TestCase):
             'unprotected lid': lambda r: (r / 'etc/systemd/logind.conf.d/60-wros-power-guard.conf').unlink(),
             'reboot burst allowed': lambda r: (r / 'etc/systemd/system.conf.d/60-wros-reboot-guard.conf').unlink(),
             'sysrq left on': lambda r: (r / 'etc/sysctl.d/60-wros-sysrq.conf').unlink(),
+            'kernel messages on the writing screen': lambda r: (r / 'etc/sysctl.d/60-wros-quiet-console.conf').unlink(),
             'network probe enabled': lambda r: (r / 'etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf').unlink(),
             'changed network probe': lambda r: (r / 'etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf').write_text(
                 '[connectivity]\nenabled=true\nuri=http://network-test.debian.org/nm\n'),
@@ -337,6 +338,7 @@ class NativeImage(unittest.TestCase):
             'etc/systemd/system.conf.d/60-wros-reboot-guard.conf': [
                 ('CtrlAltDelBurstAction=none', 'CtrlAltDelBurstAction=reboot-force')],
             'etc/sysctl.d/60-wros-sysrq.conf': [('kernel.sysrq = 0', 'kernel.sysrq = 1')],
+            'etc/sysctl.d/60-wros-quiet-console.conf': [('kernel.printk = 3 4 1 3', 'kernel.printk = 4 4 1 7')],
             'etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf': [('enabled=false', 'enabled=true')],
         }
         for relative, edits in weaken.items():
