@@ -34,6 +34,15 @@ SAFE_ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C.UTF-8'}
 SYSTEMCTL = '/usr/bin/systemctl'
 
 
+def release_version(text):
+    """The WRITINGDECK_VERSION field of /etc/writingdeck/release (KEY=value lines)."""
+    for line in text.splitlines():
+        key, _, value = line.partition('=')
+        if key.strip() == 'WRITINGDECK_VERSION' and value.strip():
+            return value.strip()
+    raise ValueError('the release file has no version')
+
+
 class Account(NamedTuple):
     name: str
     uid: int
@@ -44,7 +53,7 @@ class Recovery:
     def __init__(self, console, *, authenticate, engine, run, accounts, sleep=time.sleep, release=None):
         self.console, self.authenticate, self.engine, self.run = console, authenticate, engine, run
         self.accounts, self.sleep = accounts, sleep
-        self.release = release or (lambda: RELEASE.read_text(encoding='utf-8').strip())
+        self.release = release or (lambda: release_version(RELEASE.read_text(encoding='utf-8')))
         self.writer = None
 
     # ------------------------------------------------------------------ the gate
@@ -203,7 +212,7 @@ class Recovery:
         status = self.status()
         try:
             self.console.say(f'This computer runs WrOS {self.release()}.')
-        except OSError:
+        except (OSError, ValueError):
             self.console.say('The installed WrOS version could not be read.')
         self.console.say(status.get('status', ''))
         if status.get('went_back_automatically'):

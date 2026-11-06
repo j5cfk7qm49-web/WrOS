@@ -1253,8 +1253,8 @@ def stage_update(ctx, g, layout):
     ctx.result['media_dir_modes'] = modes
     ctx.step('media-dir-modes', modes=modes)
     ctx.check('media directories are traversable by the writer (0755)', re.search(r'root:root 755 /run/wros-update$', modes, re.M) is not None and re.search(r'root:root 755 /run/wros-update/media$', modes, re.M) is not None, modes)
-    ctx.check('review shows wros 0.1.0~rc1 -> 0.1.0~rc2',
-              re.search(r'wros.*0\.1\.0~rc1.*0\.1\.0~rc2', review, re.S) is not None, review[-900:])
+    ctx.check('review shows wros 0.1.0~rc1 -> ' + ctx.target,
+              re.search(r'wros.*0\.1\.0~rc1.*' + re.escape(ctx.target), review, re.S) is not None, review[-900:])
     signer = pinned_signers(g)
     ctx.check('review shows the pinned signer', bool(signer) and signer.lower() in review.lower().replace(' ', ''),
               (signer, review[-500:]))
@@ -1301,6 +1301,7 @@ def phase_update(ctx):
     debs = sorted(p.relative_to(bundle).as_posix() for p in bundle.rglob('*.deb'))
     ctx.check('bundle carries exactly one wros deb', len(debs) == 1 and debs[0].split('/')[-1].startswith('wros_'), debs)
     ctx.result['bundle_deb'] = debs[0]
+    ctx.target = debs[0].split('/')[-1].split('_')[1]  # the version the bundle installs
     ctx.result['bundle_deb_sha256'] = vm.sha256_file(bundle / debs[0])
     ctx.result['media_fs'] = ctx.args.media_fs
     if variant == 'tamper':
@@ -1341,7 +1342,7 @@ def phase_update(ctx):
         screen = g.wait_vcs(1, r'Continue to confirmation|Signed by key|not reviewed|refus', 90, what='reviewpath-result')
         m.shot('reviewpath-result')
         ctx.result['reviewpath_result_screen'] = screen
-        ctx.check('path review shows wros 0.1.0~rc1 -> 0.1.0~rc2', re.search(r'wros.*0\.1\.0~rc1.*0\.1\.0~rc2', screen, re.S) is not None, screen[-900:])
+        ctx.check('path review shows wros 0.1.0~rc1 -> ' + ctx.target, re.search(r'wros.*0\.1\.0~rc1.*' + re.escape(ctx.target), screen, re.S) is not None, screen[-900:])
         signer = pinned_signers(g)
         ctx.check('path review shows the pinned signer', bool(signer) and signer.lower() in screen.lower().replace(' ', ''), (signer, screen[-500:]))
         rc, out = g.run(NOTHING_STAGED, 20, check=False)
@@ -1382,7 +1383,7 @@ def phase_update(ctx):
         wait_reset(ctx, m, resets, 180, 'cancel-reboot')
         g2 = session_ready(ctx, m, st, secrets_, layout)
         rc, out = g2.run('dpkg-query -W wros; cat /etc/writingdeck/release', 20)
-        ctx.check('nothing applied; still 0.1.0~rc1', '0.1.0~rc1' in out and 'rc2' not in out, out)
+        ctx.check('nothing applied; still 0.1.0~rc1', '0.1.0~rc1' in out and ctx.target not in out, out)
         ctx.result['passed'] = True
         return
 
@@ -1477,8 +1478,8 @@ def phase_update(ctx):
     g2 = session_ready(ctx, m, st, secrets_, layout, after_reset=resets)
     rc, out = g2.run('dpkg-query -W wros; cat /etc/writingdeck/release; cat /var/lib/wros-update/public/status.json; test -e /system-update && echo MARKER; dpkg --audit; echo AUDIT_DONE; sudo -n ls /var/lib/wros-update/staged 2>&1 | head -3', 30, check=False)
     ctx.result['after_update_state'] = out
-    ctx.check('wros is 0.1.0~rc2', re.search(r'^wros\s+0\.1\.0~rc2', out, re.M) is not None, out)
-    ctx.check('release file carries 0.1.0~rc2', len(re.findall(r'0\.1\.0~rc2', out)) >= 2, out)
+    ctx.check('wros is ' + ctx.target, re.search(r'^wros\s+' + re.escape(ctx.target), out, re.M) is not None, out)
+    ctx.check('release file carries ' + ctx.target, len(re.findall(re.escape(ctx.target), out)) >= 2, out)
     ctx.check('update marker consumed', 'MARKER' not in out, out)
     ctx.check('dpkg audit clean after the update', 'AUDIT_DONE' in out and not re.search(r'not fully installed|half-|unconfigured', out.split('AUDIT_DONE')[0].split('MARKER')[-1]), out[-400:])
     updates_panel(ctx, g2, layout)
@@ -1915,6 +1916,7 @@ def phase_rc5(ctx):
     g = Guest(ctx, m, root_via_sudo=False)
     g.shell.login(user, secrets_['login'], 420)
     g.become_root(secrets_['login'])
+    g.shell.put('/tmp/rcg.py', GUEST.read_bytes(), '0644')
     g.wait_vcs(1, r'Local account', 240, what='greeter')
     time.sleep(5)  # wros-boot-ok runs once greetd has started
     rc, out = g.run("dpkg-query -W wros; grep -c \"menuentry 'WrOS recovery'\" /boot/grub/grub.cfg; "
@@ -1924,7 +1926,11 @@ def phase_rc5(ctx):
                     "echo BOOTOK; systemctl show -p Result,ExecMainStatus,ExecMainStartTimestampMonotonic wros-boot-ok.service; "
                     "echo LINKS; ls /etc/systemd/system/multi-user.target.wants/ /etc/systemd/system/system-update.target.wants/; "
                     "echo CLIENT; stat -c '%a %U %n' /usr/share/wros/google-client.json /usr/lib/wros-backup/link.py /usr/libexec/wros-recovery; "
-                    "echo KEYMAP; dumpkeys 2>/dev/null | grep -E '^shift[[:space:]]+keycode 105 ' ; dumpkeys --funcs-only 2>/dev/null | grep -E '^string F100 '", 90, check=False)
+                    "echo KEYMAP; M=/usr/share/writingdeck/keymaps/colemak.map; F=$(sed -n 's/^shift keycode 105 = //p' $M); "
+                    "echo slot=$F; grep -h \"^string $F = \" $M; "
+                    "echo LOADED; dumpkeys -C /dev/tty1 2>&1 | grep \"^string $F \"; "
+                    "echo DIAG; dumpkeys -C /dev/tty1 2>&1 | grep -E '^(shift[[:space:]]+)?keycode 105 ' | head -3; "
+                    "cat /etc/writingdeck/keyboard.json; journalctl -b --no-pager -u writingdeck-keyboard 2>&1 | tail -3", 90, check=False)
     ctx.result['rc5_state'] = out
     (ctx.dir / 'rc5-state.txt').write_text(out)
     ctx.check('wros is 0.1.0~rc5', re.search(r'^wros\s+0\.1\.0~rc5', out, re.M) is not None, out[:200])
@@ -1941,8 +1947,10 @@ def phase_rc5(ctx):
     client = out.split('CLIENT', 1)[1].split('KEYMAP', 1)[0]
     ctx.check('the Google client and the linking module are installed', '644 root /usr/share/wros/google-client.json' in client
               and '644 root /usr/lib/wros-backup/link.py' in client and '755 root /usr/libexec/wros-recovery' in client, client)
-    keymap = out.split('KEYMAP', 1)[1]
-    ctx.check('Shift+Left reaches the app as an xterm sequence', 'F100' in keymap and '\\033[1;2D' in keymap, keymap)
+    keymap, loaded = out.split('KEYMAP', 1)[1].split('LOADED', 1)
+    ctx.check('the installed keymap sends Shift+Left as an xterm sequence',
+              'slot=F' in keymap and '\\033[1;2D' in keymap, keymap)
+    ctx.check("tty1's loaded keymap carries it", '\\033[1;2D' in loaded.split('DIAG')[0], loaded)
 
     # Settings in a backup, through the installed helper as the writer, with real restic.
     helper = ("runuser -u %s -- env -i HOME=/home/%s PATH=/usr/bin:/bin LC_ALL=C.UTF-8 python3 -I /usr/libexec/wros-backup"
@@ -1971,10 +1979,31 @@ def phase_rc5(ctx):
                   'theme = "rc5 original"' in out and 'theme = "changed"' in out and 'rc5 scene' in out
                   and 'Settings restored' in out, out[-600:])
 
+    # The recovery boot has no serial shell, and tty1 uses the installed console font, not the
+    # VGA font the screen reader knows: take console-setup's cached copy of that font.
+    rc, b64 = g.run('f=$(ls /etc/console-setup/cached_*.psf.gz 2>/dev/null | head -1); test -n "$f" && base64 -w0 "$f"',
+                    30, check=False)
+    font = None
+    if rc == 0 and b64.strip():
+        font_path = ctx.dir / 'tty1-font.psf.gz'
+        font_path.write_bytes(base64.b64decode(b64.strip()))
+        font = vm.Font(font_path)
+    ctx.step('tty1-font', copied=font is not None)
+
+    def wait_tty(pattern, timeout, name):
+        regex = re.compile(pattern, re.I | re.S)
+        deadline, last = time.monotonic() + timeout, ''
+        while time.monotonic() < deadline:
+            last = vm.png_text(m.shot(name), font)
+            if regex.search(last):
+                return last
+            time.sleep(2)
+        raise Failure('screen text %r not seen; last screen:\n%s' % (pattern, last[-600:]))
+
     # A boot that never reaches the login screen: the next boot shows the menu with WrOS recovery.
     g.run('grub-editenv /boot/grub/grubenv set wros_boot_pending=1; sync', 30, check=False)
     resets = m.qmp.count('RESET')
-    g.shell.send('systemctl reboot\n')
+    g.shell.serial.send('systemctl reboot\n')
     deadline = time.monotonic() + 120
     while m.qmp.count('RESET') <= resets and time.monotonic() < deadline:
         time.sleep(0.5)
@@ -1989,14 +2018,14 @@ def phase_rc5(ctx):
     m.shot('grub-recovery-selected')
     m.key('ret')
     unlock(ctx, m, secrets_, layout, wrong_first=False)
-    screen = m.wait_screen(r'Password for ' + re.escape(user), 300, name='recovery-password')
+    screen = wait_tty(r'Password for ' + re.escape(user), 300, 'recovery-password')
     m.shot('recovery-password')
     ctx.check('the WrOS recovery boot asks for the writer\'s password', 'WrOS recovery' in screen, screen[-400:])
     m.type_text(secrets_['login'] + '\n', 'us' if layout != 'us' else layout)  # QWERTY reading: wrong
-    m.wait_screen(r'did not match', 60, name='recovery-wrong')
+    wait_tty(r'did not match', 60, 'recovery-wrong')
     ctx.check('a wrong password is refused', True)
     m.type_text(secrets_['login'] + '\n', layout)
-    screen = m.wait_screen(r'Choose:', 90, name='recovery-menu')
+    screen = wait_tty(r'Choose:', 90, 'recovery-menu')
     m.shot('recovery-menu')
     ctx.result['recovery_menu'] = screen[-900:]
     ctx.check('the menu offers repair, restore, what happened, login, restart and power off, and no shell',
@@ -2004,13 +2033,14 @@ def phase_rc5(ctx):
                                                'Continue to the normal login', 'Power off'))
               and 'shell' not in screen.lower(), screen[-900:])
     m.type_text(menu_number(screen, 'Show what happened') + '\n', layout)
-    screen = m.wait_screen(r'runs WrOS 0\.1\.0~rc5', 60, name='recovery-what')
+    screen = wait_tty(r'runs WrOS 0\.1\.0~rc5', 60, 'recovery-what')
     m.shot('recovery-what-happened')
     ctx.check('Show what happened names the installed version', True)
     m.type_text(menu_number(screen, 'Continue to the normal login') + '\n', layout)
     g2 = Guest(ctx, m, root_via_sudo=False)
     g2.shell.login(user, secrets_['login'], 300)
     g2.become_root(secrets_['login'])
+    g2.shell.put('/tmp/rcg.py', GUEST.read_bytes(), '0644')
     g2.wait_vcs(1, r'Local account', 240, what='greeter-after-recovery')
     time.sleep(5)
     rc, out = g2.run('grub-editenv /boot/grub/grubenv list; systemctl is-active greetd; cat /proc/cmdline', 30, check=False)
@@ -2064,7 +2094,7 @@ def phase_goback(ctx):
 
     def reboot_through_update(g):
         resets = m.qmp.count('RESET')
-        g.shell.send('systemctl reboot\n')
+        g.shell.serial.send('systemctl reboot\n')
         deadline = time.monotonic() + 120
         while m.qmp.count('RESET') <= resets and time.monotonic() < deadline:
             time.sleep(0.5)

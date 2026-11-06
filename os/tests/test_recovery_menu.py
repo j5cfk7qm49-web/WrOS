@@ -211,6 +211,14 @@ class RecoveryMenu(unittest.TestCase):
             self.make(['right', answer])
             self.assertEqual(self.commands()[-1], command)
 
+    def test_the_version_comes_from_the_release_files_version_field(self):
+        # Seen in the VM: the whole file was printed after "This computer runs WrOS".
+        text = ('WRITINGDECK_VERSION=0.1.0~rc5\nWROS_COMMIT=2a2bb2bf\nBUILD_DATE=2026-11-06\n'
+                'GRIMOIRE_BASE=0.7.5\nBASE_COMMIT=f3ca1e8\n')
+        self.assertEqual(module.release_version(text), '0.1.0~rc5')
+        with self.assertRaises(ValueError):
+            module.release_version('WROS_COMMIT=2a2bb2bf\n')
+
     def test_an_unknown_choice_is_refused_and_asked_again(self):
         self.make(['right', 'sh', '0', '9', '7'])
         self.assertEqual(self.commands(), [['/usr/bin/systemctl', 'poweroff']])
