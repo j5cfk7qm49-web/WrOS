@@ -2150,6 +2150,7 @@ def phase_autoback(ctx):
         g.shell.login(user, secrets_['login'], 600)
         g.become_root(secrets_['login'])
         g.shell.put('/root/goback.py', GOBACK_GUEST.encode(), '0600')
+        g.shell.put('/tmp/rcg.py', GUEST.read_bytes(), '0644')
         return g
 
     def state(g, label):
@@ -2174,8 +2175,12 @@ def phase_autoback(ctx):
             time.sleep(3)
         ctx.check('the login is recorded while the new version is on probation (%s)' % label,
                   '"started_boot": "' in out, out[-300:])
-        rc, journal = g.run('journalctl -b --no-pager | grep -c "deliberately broken"', 30, check=False)
-        ctx.check('the broken app really ran and exited (%s)' % label, journal.strip() not in ('', '0'), journal)
+        # The session's stderr is not journalled: check the installed app is the broken test build,
+        # and that the session ended back at the greeter.
+        rc, out = g.run('grep -c "deliberately broken" /usr/bin/grimoire; journalctl -b --no-pager | grep -c WRITINGDECK_SESSION',
+                        30, check=False)
+        ctx.check('the broken test app ran in a writing session (%s)' % label,
+                  out.split()[:1] == ['1'] and out.split()[1:2] != ['0'], out)
         g.wait_vcs(1, r'Local account', 120, what='greeter-back-' + label)
         m.shot('greeter-after-broken-session-' + label)
 
