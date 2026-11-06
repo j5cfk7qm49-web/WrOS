@@ -1348,7 +1348,8 @@ def phase_update(ctx):
     ctx.check('starting version is ' + ctx.args.from_version,
               re.search(r'^wros\s+' + re.escape(ctx.args.from_version) + r'$', out, re.M), out)
     before = migration_state(g, st['username'], legacy=True) if ctx.args.check_migration else None
-    rc, eng = g.run("f=$(grep -rl 'def find_update_media' /usr/libexec /usr/lib /usr/share 2>/dev/null | head -1); echo $f; grep -n 'dmask=0022,fmask=0133' $f; grep -n '0o755' $f | head -5; sha256sum $f", 30, check=False)
+    rc, eng = g.run("f=/usr/lib/wros-update/engine.py; test -f \"$f\" || exit 1; "
+                    "grep -n 'dmask=0022,fmask=0133' \"$f\"; sha256sum \"$f\"", 30, check=False)
     ctx.result['engine_fix_probe'] = eng
     ctx.check('installed update engine contains the media permission fix (dmask=0022,fmask=0133)', 'dmask=0022,fmask=0133' in eng, eng)
 
