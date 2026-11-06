@@ -2116,16 +2116,16 @@ def phase_goback(ctx):
         out = state(g, version)
         ctx.check('%s is installed' % version, out.splitlines()[0].strip() == version, out[:200])
     out = state(g, 'before-going-back')
+    kept = out.split('PREVIOUS', 1)[1].split('STATUS', 1)[0]  # kept packages are named by their hash
     ctx.check('rc5.2 keeps rc5.1 as the previous version',
-              'wros_0.1.0~rc5.1_amd64.deb' in out.split('PREVIOUS', 1)[1].split('STATUS', 1)[0]
-              and '"previous_version": "0.1.0~rc5.1"' in out, out[-600:])
+              '.deb' in kept and '"previous_version": "0.1.0~rc5.1"' in out, out[-600:])
     rc, out = g.run('python3 -I /root/goback.py back', 300, check=False)
     ctx.check('going back is staged', '"rollback": true' in out, out[-400:])
     g = reboot_through_update(g)
     out = state(g, 'after-going-back')
     ctx.check('going back installed rc5.1 again', out.splitlines()[0].strip() == '0.1.0~rc5.1', out[:200])
     ctx.check('after going back, rc5.1 is the installed tree and nothing older is offered',
-              'wros_0.1.0~rc5.1_amd64.deb' in out.split('PREVIOUS', 1)[0]
+              '.deb' in out.split('PREVIOUS', 1)[0] and '.deb' not in out.split('PREVIOUS', 1)[1].split('STATUS', 1)[0]
               and '"previous_version": null' in out and '"went_back": true' in out, out[-700:])
     m.shot('after-going-back')
     ctx.result['passed'] = True
