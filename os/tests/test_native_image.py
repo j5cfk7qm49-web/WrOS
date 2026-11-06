@@ -231,7 +231,7 @@ class NativeImage(unittest.TestCase):
             self.assertEqual(result['greetd_package_version'], '0.10.3-4')
             self.assertEqual(result['vlock_package_version'], '2.2.2-12')
             self.assertTrue(result['manual_lock_payload_present'])
-            self.assertEqual(len(result['binary_sha256']), 18)
+            self.assertEqual(len(result['binary_sha256']), 19)
             self.assertIn('usr/libexec/wros-update', result['binary_sha256'])
             self.assertIn('usr/bin/gpgv', result['binary_sha256'])
 
@@ -308,6 +308,10 @@ class NativeImage(unittest.TestCase):
             'writable locker module': lambda r: (r / 'usr/lib/vlock/modules/all.so').chmod(0o777),
             'missing lock PAM': lambda r: (r / 'etc/pam.d/vlock').unlink(),
             'missing PAM guard': lambda r: (r / 'usr/lib/x86_64-linux-gnu/security/pam_succeed_if.so').unlink(),
+            'missing recovery menu': lambda r: (r / 'usr/libexec/wros-recovery').unlink(),
+            'open recovery PAM': lambda r: (r / 'etc/pam.d/wros-recovery').write_text('auth sufficient pam_permit.so\n'),
+            'missing recovery entry': lambda r: (r / 'etc/grub.d/42_wros_recovery').unlink(),
+            'changed boot menu settings': lambda r: (r / 'etc/default/grub.d/60-wros.cfg').write_text('GRUB_TIMEOUT=0\n'),
             'changed lock PAM': lambda r: (r / 'etc/pam.d/vlock').write_text('auth sufficient pam_permit.so\n'),
             'changed lock helper': lambda r: (r / 'usr/libexec/wros-lock').write_text('#!/bin/sh\nexit 0\n'),
             'missing lock policy': lambda r: (r / 'usr/share/polkit-1/actions/org.wros.lock.policy').unlink(),
@@ -398,7 +402,8 @@ class PackageAwareAudit(unittest.TestCase):
             self.assertEqual(result['update_signers'], [info['fingerprint'], RELEASE_PRIMARY])
             self.assertEqual(result['update_units_enabled'], [
                 'writingdeck-keyboard.service', 'wros-display.service',
-                'wros-offline-update.service', 'wros-update-reconcile.service'])
+                'wros-offline-update.service', 'wros-update-reconcile.service',
+                'wros-boot-ok.service'])
             self.assertEqual(result['update_polkit_actions'], [
                 'org.wros.update.apply', 'org.wros.update.cancel', 'org.wros.update.fetch', 'org.wros.update.healthy',
                 'org.wros.update.media', 'org.wros.update.repair', 'org.wros.update.rollback',

@@ -64,9 +64,10 @@ fi
    && $(dpkg-deb --field "$deb" Architecture) == amd64 ]] || {
     echo "Package is not wros $version amd64; refusing to stage it." >&2; exit 2; }
 # --force-confold keeps an existing writer layout; --no-triggers leaves unrelated pending
-# triggers of the base system exactly as they were.
+# triggers of the base system exactly as they were. The postinst honours DPKG_ROOT, so it runs
+# without a chroot (--force-script-chrootless) and leaves the boot menu to the installer.
 mkdir -p "$dest/var/log"
-dpkg --root="$dest" --log="$dest/var/log/dpkg.log" --force-confold --force-unsafe-io --no-triggers --install "$deb"
+dpkg --root="$dest" --log="$dest/var/log/dpkg.log" --force-confold --force-unsafe-io --no-triggers     --force-script-chrootless --install "$deb"
 [[ $(dpkg-query --admindir="$admindir" -W -f='${Version}\t${Status}' wros) == "$version"$'\t''install ok installed' ]] || {
     echo 'wros is not recorded as installed after dpkg.' >&2; exit 1; }
 runtime=${WRITINGDECK_PROSE_RUNTIME:-$repo/build/prose-runtime/runtime}

@@ -48,6 +48,7 @@
     {"dest": "usr/libexec/wros-update-apply", "source": "os/scripts/wros-update-apply", "mode": "0755", "class": "code"},
     {"dest": "usr/libexec/wros-update-rollback", "source": "os/scripts/wros-update-rollback", "mode": "0755", "class": "code"},
     {"dest": "usr/libexec/wros-update-healthy", "source": "os/scripts/wros-update-healthy", "mode": "0755", "class": "code"},
+    {"dest": "usr/libexec/wros-recovery", "source": "os/scripts/wros-recovery", "mode": "0755", "class": "code"},
     {"dest": "usr/lib/wros-update/engine.py", "source": "os/scripts/wros-update-engine.py", "mode": "0644", "class": "code"},
     {"dest": "usr/share/polkit-1/actions/org.wros.update.policy", "source": "os/config/org.wros.update.policy", "mode": "0644", "class": "config"},
     {"dest": "etc/polkit-1/rules.d/50-wros-update.rules", "source": "os/config/50-wros-update.rules", "mode": "0644", "class": "config"},
@@ -77,6 +78,13 @@
     {"dest": "etc/systemd/system/wros-display.service", "source": "os/systemd/wros-display.service", "mode": "0644", "class": "config"},
     {"dest": "etc/systemd/system/wros-offline-update.service", "source": "os/systemd/wros-offline-update.service", "mode": "0644", "class": "config"},
     {"dest": "etc/systemd/system/wros-update-reconcile.service", "source": "os/systemd/wros-update-reconcile.service", "mode": "0644", "class": "config"},
+    {"dest": "etc/systemd/system/wros-recovery.target", "source": "os/systemd/wros-recovery.target", "mode": "0644", "class": "config"},
+    {"dest": "etc/systemd/system/wros-recovery.service", "source": "os/systemd/wros-recovery.service", "mode": "0644", "class": "config"},
+    {"dest": "etc/systemd/system/wros-boot-ok.service", "source": "os/systemd/wros-boot-ok.service", "mode": "0644", "class": "config"},
+    {"dest": "etc/pam.d/wros-recovery", "source": "os/config/wros-recovery.pam", "mode": "0644", "class": "config"},
+    {"dest": "etc/grub.d/06_wros_boot_check", "source": "os/grub/06_wros_boot_check", "mode": "0755", "class": "config"},
+    {"dest": "etc/grub.d/42_wros_recovery", "source": "os/grub/42_wros_recovery", "mode": "0755", "class": "config"},
+    {"dest": "etc/default/grub.d/60-wros.cfg", "source": "os/grub/60-wros.cfg", "mode": "0644", "class": "config"},
 
     {"dest": "etc/systemd/logind.conf.d/60-wros-power-guard.conf", "source": "os/config/60-wros-power-guard.conf", "mode": "0644", "class": "config"},
     {"dest": "etc/systemd/sleep.conf.d/60-wros-sleep-guard.conf", "source": "os/config/60-wros-sleep-guard.conf", "mode": "0644", "class": "config"},
@@ -105,7 +113,8 @@
     {"unit": "writingdeck-keyboard.service", "target": "multi-user.target", "verify_install_section": false},
     {"unit": "wros-display.service", "target": "multi-user.target", "verify_install_section": false},
     {"unit": "wros-offline-update.service", "target": "system-update.target", "verify_install_section": true},
-    {"unit": "wros-update-reconcile.service", "target": "multi-user.target", "verify_install_section": true}
+    {"unit": "wros-update-reconcile.service", "target": "multi-user.target", "verify_install_section": true},
+    {"unit": "wros-boot-ok.service", "target": "multi-user.target", "verify_install_section": true}
   ],
   "update_polkit_actions": {
     "org.wros.update.stage": "/usr/libexec/wros-update-stage",

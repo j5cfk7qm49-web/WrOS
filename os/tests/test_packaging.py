@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -53,7 +54,7 @@ PSEUDO_ROOT = pseudo_root_prefix()
 def copy_repo(destination):
     """The subset of the checkout the packaging path reads, as an editable copy."""
     destination = Path(destination)
-    for relative in ('packaging', 'os/config', 'os/systemd', 'os/scripts', 'os/helpers', 'os/licenses',
+    for relative in ('packaging', 'os/config', 'os/systemd', 'os/grub', 'os/scripts', 'os/helpers', 'os/licenses',
                      'tools/build-wros-debs.py', 'tools/stage-prose-runtime.py', 'tools/prepare-prose-tools.py',
                      'tools/audit-native-image.py',
                      'assets/dict/DICTIONARY-LICENSE', 'LICENSE', 'os/VERSION'):
@@ -124,6 +125,8 @@ def dpkg_root_install(root, deb):
                '--log=' + str(Path(root) / 'var/log/dpkg.log')]
     if os.geteuid() != 0:
         command.append('--force-not-root')
+    # The postinst honours DPKG_ROOT, so it runs here without a chroot, as in image staging.
+    command.append('--force-script-chrootless')
     return run(*command, '--install', str(deb), env=ENV)
 
 
@@ -224,10 +227,12 @@ class Builder(unittest.TestCase):
         for path in extract.rglob('*'):
             self.assertEqual(path.lstat().st_mtime, EPOCH, str(path))
 
-    def test_md5sums_conffiles_and_no_maintainer_scripts(self):
+    def test_md5sums_conffiles_and_only_the_generated_postinst(self):
         control = self.base / 'control'
         run('dpkg-deb', '-e', str(self.deb), str(control))
-        self.assertEqual(sorted(p.name for p in control.iterdir()), ['conffiles', 'control', 'md5sums'])
+        self.assertEqual(sorted(p.name for p in control.iterdir()), ['conffiles', 'control', 'md5sums', 'postinst'])
+        self.assertEqual(stat.S_IMODE((control / 'postinst').stat().st_mode), 0o755)
+        run('sh', '-n', str(control / 'postinst'))
         self.assertEqual((control / 'conffiles').read_text(), '/etc/writingdeck/keyboard.json\n')
         extract = self.base / 'extract2'
         run('dpkg-deb', '-x', str(self.deb), str(extract))
@@ -238,6 +243,34 @@ class Builder(unittest.TestCase):
             self.assertEqual(hashlib.md5((extract / name).read_bytes()).hexdigest(), digest, name)
         files = {p.relative_to(extract).as_posix() for p in extract.rglob('*') if p.is_file()}
         self.assertEqual({row.split('  ', 1)[1] for row in rows}, files)
+
+    def test_postinst_enables_every_manifest_unit_inside_dpkg_root_and_leaves_grub_alone(self):
+        control = self.base / 'control-postinst'
+        run('dpkg-deb', '-e', str(self.deb), str(control))
+        manifest = packaging.load_manifest(ROOT)
+        with tempfile.TemporaryDirectory(prefix='wros-postinst-') as tmp:
+            root = Path(tmp)
+            masked = root / 'etc/systemd/system/multi-user.target.wants/wros-display.service'
+            masked.parent.mkdir(parents=True)
+            masked.symlink_to('/dev/null')  # an existing link is the administrator's choice
+            marker = root / 'update-grub-ran'
+            fake = root / 'bin'
+            fake.mkdir()
+            (fake / 'update-grub').write_text(f'#!/bin/sh\ntouch {marker}\n')
+            (fake / 'update-grub').chmod(0o755)
+            env = dict(ENV, DPKG_ROOT=str(root), PATH=f'{fake}:' + ENV['PATH'])
+            for _ in range(2):  # an upgrade runs it again
+                run('sh', str(control / 'postinst'), 'configure', '0.1.0~rc4', env=env)
+            for item in manifest['enable']:
+                link = root / 'etc/systemd/system' / (item['target'] + '.wants') / item['unit']
+                if link == masked:
+                    self.assertEqual(os.readlink(link), '/dev/null')
+                else:
+                    self.assertEqual(os.readlink(link), '../' + item['unit'])
+            self.assertIn({'unit': 'wros-boot-ok.service', 'target': 'multi-user.target',
+                           'verify_install_section': True}, manifest['enable'])
+            self.assertFalse(marker.exists())  # staging leaves the boot menu to the installer
+            self.assertEqual(sorted(p.name for p in root.iterdir()), ['bin', 'etc'])
 
     def test_release_file_derives_from_version_commit_and_source_date(self):
         extract = self.base / 'extract3'
@@ -673,6 +706,9 @@ class ManifestData(unittest.TestCase):
         dests = {spec.dest for spec in packaging.expand(packaging.load_manifest(ROOT), ROOT)}
         for unit in (ROOT / 'os/systemd').iterdir():
             self.assertIn('etc/systemd/system/' + unit.name, dests, 'unpackaged unit ' + unit.name)
+        for script in ('06_wros_boot_check', '42_wros_recovery'):
+            self.assertIn('etc/grub.d/' + script, dests)
+        self.assertIn('etc/default/grub.d/60-wros.cfg', dests)
         # Files deliberately left out of the package: live-session, installer and greeter pieces, the
         # PAM stack that Debian's vlock package owns, and the default-profile inputs of other tools.
         image_only = {'51-wros-greeter-keyboard.rules', 'greetd.service', 'greetd.toml', 'vlock.pam',
@@ -771,7 +807,8 @@ class StageIntoRoot(unittest.TestCase):
         for target, unit in (('system-update.target', 'wros-offline-update.service'),
                              ('multi-user.target', 'wros-update-reconcile.service'),
                              ('multi-user.target', 'writingdeck-keyboard.service'),
-                             ('multi-user.target', 'wros-display.service')):
+                             ('multi-user.target', 'wros-display.service'),
+                             ('multi-user.target', 'wros-boot-ok.service')):
             self.assertEqual(os.readlink(system / (target + '.wants') / unit), '../' + unit)
         for unit in ('sleep.target', 'getty@tty8.service'):
             self.assertEqual(os.readlink(system / unit), '/dev/null')
@@ -796,7 +833,8 @@ class StageIntoRoot(unittest.TestCase):
         audit.audit_update_engine(root)
         self.assertEqual(audit.audit_trust(root, fixture_fingerprints=set()), [self.fpr])
         self.assertEqual(audit.audit_units(root), ['writingdeck-keyboard.service', 'wros-display.service',
-                                                   'wros-offline-update.service', 'wros-update-reconcile.service'])
+                                                   'wros-offline-update.service', 'wros-update-reconcile.service',
+                                                   'wros-boot-ok.service'])
         self.assertEqual(len(audit.audit_polkit(root)), 8)
         audit.audit_no_private_keys(root)
 

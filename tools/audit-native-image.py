@@ -334,6 +334,7 @@ def audit(root, fixture_fingerprints=None):
     for relative in ('usr/sbin/greetd', 'usr/bin/wros-greeter', 'usr/bin/grimoire',
                      'usr/libexec/writingdeck-session', 'usr/libexec/writingdeck-keyboard',
                      'usr/libexec/wros-lock', 'usr/libexec/wros-backup', 'usr/libexec/wros-update',
+                     'usr/libexec/wros-recovery',
                      'usr/bin/restic', 'usr/bin/rclone', 'usr/bin/gpgv',
                      'usr/bin/openvt', 'usr/bin/systemd-run', 'usr/bin/chvt'):
         path = regular(root, relative)
@@ -405,6 +406,7 @@ def audit(root, fixture_fingerprints=None):
             ('50-wros-lock.rules', 'etc/polkit-1/rules.d/50-wros-lock.rules'),
             ('org.wros.lock.policy', 'usr/share/polkit-1/actions/org.wros.lock.policy'),
             ('vlock.pam', 'etc/pam.d/vlock'),
+            ('wros-recovery.pam', 'etc/pam.d/wros-recovery'),
             ('60-wros-power-guard.conf', 'etc/systemd/logind.conf.d/60-wros-power-guard.conf'),
             ('60-wros-sleep-guard.conf', 'etc/systemd/sleep.conf.d/60-wros-sleep-guard.conf'),
             ('60-wros-no-connectivity-check.conf', 'etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf'),
@@ -413,6 +415,12 @@ def audit(root, fixture_fingerprints=None):
             ('60-wros-quiet-console.conf', 'etc/sysctl.d/60-wros-quiet-console.conf')):
         if regular(root, relative).read_bytes() != (REPO / 'os/config' / source).read_bytes():
             raise ValueError('native session policy differs from qualified source: ' + relative)
+    # The recovery boot: its menu entry, the failed-boot check and the boot-menu settings.
+    for source, relative in (('06_wros_boot_check', 'etc/grub.d/06_wros_boot_check'),
+                             ('42_wros_recovery', 'etc/grub.d/42_wros_recovery'),
+                             ('60-wros.cfg', 'etc/default/grub.d/60-wros.cfg')):
+        if regular(root, relative).read_bytes() != (REPO / 'os/grub' / source).read_bytes():
+            raise ValueError('recovery boot file differs from qualified source: ' + relative)
     enabled = root / 'etc/systemd/system/multi-user.target.wants/greetd.service'
     if not enabled.is_symlink() or os.readlink(enabled) not in (
             '../greetd.service', '/etc/systemd/system/greetd.service'):
