@@ -564,12 +564,10 @@ fn entries(app: &App) -> Vec<Entry> {
                 .into_iter()
                 .map(|panel| Entry::new(panel.label(), Choice::Open(Route::Panel(panel))))
                 .collect();
-            if cfg!(feature = "audio") {
-                rows.push(Entry::new(
-                    "Sound and volume",
-                    Choice::View(Route::SoundView, wros_sys::Request::AudioStatus),
-                ));
-            }
+            rows.push(Entry::new(
+                "Sound and volume",
+                Choice::View(Route::SoundView, wros_sys::Request::AudioStatus),
+            ));
             rows
         }
         Route::Category(Category::Accounts) => vec![
@@ -1464,7 +1462,7 @@ fn entries(app: &App) -> Vec<Entry> {
                 ));
             }
             rows.push(Entry::info(
-                "No-audio builds omit sound controls; writing never depends on audio hardware.",
+                "Writing never depends on sound; a computer without a sound card says so here.",
             ));
             rows
         }

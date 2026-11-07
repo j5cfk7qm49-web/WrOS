@@ -1,0 +1,152 @@
+#!/usr/bin/python3 -I
+"""Sound volume helper for WrOS.
+
+Reads and sets the ALSA Master control through libasound, which the wros
+package already depends on, so no mixer program (amixer) has to be installed.
+Runs as the writer, who is in the audio group. Prints one JSON line:
+{"available": bool, "volume_percent": int or null, "muted": bool, "message": str}.
+
+    wros-sound status | set <0-100> | mute | unmute
+"""
+import ctypes
+import ctypes.util
+import json
+import sys
+
+CONTROL = b'Master'
+FRONT_LEFT = 0
+
+
+class AlsaMixer:
+    """The default card's Master playback control, through libasound."""
+
+    def __init__(self):
+        name = ctypes.util.find_library('asound') or 'libasound.so.2'
+        self.lib = ctypes.CDLL(name)
+        self.handle = ctypes.c_void_p()
+        self.elem = None
+        lib = self.lib
+        lib.snd_mixer_find_selem.restype = ctypes.c_void_p
+        lib.snd_mixer_find_selem.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        self.check(lib.snd_mixer_open(ctypes.byref(self.handle), 0), 'open the mixer')
+        try:
+            self.check(lib.snd_mixer_attach(self.handle, b'default'), 'find a sound card')
+            self.check(lib.snd_mixer_selem_register(self.handle, None, None), 'read the mixer')
+            self.check(lib.snd_mixer_load(self.handle), 'read the mixer')
+            sid = ctypes.c_void_p()
+            self.check(lib.snd_mixer_selem_id_malloc(ctypes.byref(sid)), 'read the mixer')
+            try:
+                lib.snd_mixer_selem_id_set_index(sid, 0)
+                lib.snd_mixer_selem_id_set_name(sid, ctypes.c_char_p(CONTROL))
+                self.elem = lib.snd_mixer_find_selem(self.handle, sid)
+            finally:
+                lib.snd_mixer_selem_id_free(sid)
+            if not self.elem:
+                raise OSError('This sound card has no Master volume.')
+            self.elem = ctypes.c_void_p(self.elem)
+        except BaseException:
+            self.close()
+            raise
+
+    @staticmethod
+    def check(code, doing):
+        if code < 0:
+            raise OSError(f'Could not {doing}.')
+
+    def close(self):
+        if self.handle:
+            self.lib.snd_mixer_close(self.handle)
+            self.handle = ctypes.c_void_p()
+
+    def volume_range(self):
+        low, high = ctypes.c_long(), ctypes.c_long()
+        self.check(self.lib.snd_mixer_selem_get_playback_volume_range(
+            self.elem, ctypes.byref(low), ctypes.byref(high)), 'read the volume')
+        return low.value, high.value
+
+    def volume(self):
+        value = ctypes.c_long()
+        self.check(self.lib.snd_mixer_selem_get_playback_volume(
+            self.elem, FRONT_LEFT, ctypes.byref(value)), 'read the volume')
+        return value.value
+
+    def set_volume(self, raw):
+        self.check(self.lib.snd_mixer_selem_set_playback_volume_all(
+            self.elem, ctypes.c_long(raw)), 'change the volume')
+
+    def has_switch(self):
+        return bool(self.lib.snd_mixer_selem_has_playback_switch(self.elem))
+
+    def switch_on(self):
+        value = ctypes.c_int()
+        self.check(self.lib.snd_mixer_selem_get_playback_switch(
+            self.elem, FRONT_LEFT, ctypes.byref(value)), 'read mute')
+        return bool(value.value)
+
+    def set_switch(self, on):
+        self.check(self.lib.snd_mixer_selem_set_playback_switch_all(
+            self.elem, 1 if on else 0), 'change mute')
+
+
+def parse_args(argv):
+    if argv == ['status'] or argv == ['mute'] or argv == ['unmute']:
+        return argv[0], None
+    if len(argv) == 2 and argv[0] == 'set' and argv[1].isdigit() and len(argv[1]) <= 3 \
+            and int(argv[1]) <= 100:
+        return 'set', int(argv[1])
+    raise ValueError('usage: wros-sound status | set <0-100> | mute | unmute')
+
+
+def percent(mixer):
+    low, high = mixer.volume_range()
+    if high <= low:
+        return 0
+    return round((mixer.volume() - low) * 100 / (high - low))
+
+
+def run(action, value, mixer):
+    """Do `action` on `mixer` and report where the volume ends up."""
+    if action == 'set':
+        low, high = mixer.volume_range()
+        mixer.set_volume(low + round(value * (high - low) / 100))
+        if mixer.has_switch():
+            mixer.set_switch(True)
+    elif action in ('mute', 'unmute') and mixer.has_switch():
+        mixer.set_switch(action == 'unmute')
+    elif action == 'mute':
+        mixer.set_volume(mixer.volume_range()[0])
+    volume = percent(mixer)
+    muted = not mixer.switch_on() if mixer.has_switch() else volume == 0
+    return {
+        'available': True,
+        'volume_percent': volume,
+        'muted': muted,
+        'message': f'Volume {volume}%' + (' · muted' if muted else ''),
+    }
+
+
+def main(argv, open_mixer=AlsaMixer):
+    try:
+        action, value = parse_args(argv)
+    except ValueError as exc:
+        print(exc, file=sys.stderr)
+        return 2
+    try:
+        mixer = open_mixer()
+    except OSError as exc:
+        reply = {'available': False, 'volume_percent': None, 'muted': False,
+                 'message': f'No sound control: {exc}'}
+    else:
+        try:
+            reply = run(action, value, mixer)
+        except OSError as exc:
+            reply = {'available': False, 'volume_percent': None, 'muted': False,
+                     'message': f'Sound control failed: {exc}'}
+        finally:
+            mixer.close()
+    print(json.dumps(reply))
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]))

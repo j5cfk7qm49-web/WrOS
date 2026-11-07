@@ -384,17 +384,16 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
                 "network-time",
             ],
         ),
-        Request::AudioStatus => Invocation::new("/usr/bin/amixer", &["sget", "Master"]),
+        Request::AudioStatus => Invocation::new("/usr/libexec/wros-sound", &["status"]),
         Request::SetVolume(vol) => {
             if *vol > 100 {
                 bail!("volume must be 0..=100");
             }
-            let arg = format!("{vol}%");
-            Invocation::new("/usr/bin/amixer", &["sset", "Master", &arg, "unmute"])
+            Invocation::new("/usr/libexec/wros-sound", &["set", &vol.to_string()])
         }
         Request::SetMute(muted) => Invocation::new(
-            "/usr/bin/amixer",
-            &["sset", "Master", if *muted { "mute" } else { "unmute" }],
+            "/usr/libexec/wros-sound",
+            &[if *muted { "mute" } else { "unmute" }],
         ),
         Request::Wifi(on) => Invocation::new(
             "/usr/bin/nmcli",
@@ -804,7 +803,7 @@ impl<R: Runner> Backend for Linux<R> {
             request,
             Request::AudioStatus | Request::SetVolume(_) | Request::SetMute(_)
         ) {
-            return Ok(Reply::Audio(crate::system_views::parse_amixer_status(
+            return Ok(Reply::Audio(crate::system_views::parse_sound_status(
                 &output,
             )?));
         }

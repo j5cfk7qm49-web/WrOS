@@ -2954,44 +2954,43 @@ fn sound_and_volume_panel_controls_and_keyboard_wizard_alias_registration_preser
             Route::Category(Category::Interface)
         );
 
-        if cfg!(feature = "audio") {
-            desk.key(KeyCode::Esc);
-            desk.key(KeyCode::Down);
-            desk.key(KeyCode::Enter);
-            assert_eq!(
-                desk.app.deck.shell.nav.current(),
-                Route::Category(Category::System)
-            );
-            desk.choose("Sound and volume");
-            wait_system(&mut desk);
-            assert_eq!(desk.app.deck.shell.nav.current(), Route::SoundView);
-            assert_eq!(
-                desk.app
-                    .deck
-                    .shell
-                    .audio_status
-                    .as_ref()
-                    .and_then(|a| a.volume_percent),
-                Some(70)
-            );
-            desk.choose("Volume +10%");
-            wait_system(&mut desk);
-            assert_eq!(
-                desk.app
-                    .deck
-                    .shell
-                    .audio_status
-                    .as_ref()
-                    .and_then(|a| a.volume_percent),
-                Some(80)
-            );
-            desk.choose("Mute sound output");
-            wait_system(&mut desk);
-            assert_eq!(
-                desk.app.deck.shell.audio_status.as_ref().map(|a| a.muted),
-                Some(true)
-            );
-        }
+        // Release builds have no audio playback, but the volume control is the system's.
+        desk.key(KeyCode::Esc);
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        assert_eq!(
+            desk.app.deck.shell.nav.current(),
+            Route::Category(Category::System)
+        );
+        desk.choose("Sound and volume");
+        wait_system(&mut desk);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::SoundView);
+        assert_eq!(
+            desk.app
+                .deck
+                .shell
+                .audio_status
+                .as_ref()
+                .and_then(|a| a.volume_percent),
+            Some(70)
+        );
+        desk.choose("Volume +10%");
+        wait_system(&mut desk);
+        assert_eq!(
+            desk.app
+                .deck
+                .shell
+                .audio_status
+                .as_ref()
+                .and_then(|a| a.volume_percent),
+            Some(80)
+        );
+        desk.choose("Mute sound output");
+        wait_system(&mut desk);
+        assert_eq!(
+            desk.app.deck.shell.audio_status.as_ref().map(|a| a.muted),
+            Some(true)
+        );
 
         assert_eq!(desk.app.editor.text(), original);
         assert_eq!(desk.app.view_position(Pane::Primary), primary);

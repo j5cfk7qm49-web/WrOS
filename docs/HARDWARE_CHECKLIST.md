@@ -99,6 +99,15 @@ Right after a release candidate installs on the laptop:
 - Settings › System › Updates shows the new version, and offers to go back to
   the previous one.
 
+## 9. Sound
+
+1. Open Settings › System › Sound and volume. Play a sound if you have one
+   (or just watch the numbers).
+2. Choose Volume +10%, Volume -10%, then Mute and Unmute.
+
+**Pass when:** the page shows the volume, each choice changes it, and mute
+silences the speakers.
+
 ## Collecting the log
 
 Kernel and system messages need administrator rights. From the PC, over SSH,

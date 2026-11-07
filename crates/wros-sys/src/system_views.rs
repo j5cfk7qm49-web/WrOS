@@ -837,54 +837,69 @@ pub fn parse_network_time_reply(output: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn parse_amixer_status(output: &str) -> Result<AudioStatus> {
+/// The sound helper's one JSON line (`/usr/libexec/wros-sound`), read strictly.
+pub fn parse_sound_status(output: &str) -> Result<AudioStatus> {
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Reply {
+        available: bool,
+        volume_percent: Option<u8>,
+        muted: bool,
+        message: String,
+    }
+    ensure!(output.len() <= 4096, "oversized sound reply");
+    let reply: Reply = serde_json::from_str(output.trim()).context("invalid sound reply")?;
     ensure!(
-        output.len() <= 65_536 && !output.trim().is_empty(),
-        "empty or oversized mixer reply"
+        reply.volume_percent.is_some_and(|v| v <= 100) == reply.available,
+        "sound reply volume does not match its availability"
     );
-    let mut volume_percent = None;
-    let mut muted = false;
-    let mut saw_switch = false;
-    for line in output.lines() {
-        let mut rest = line;
-        while let Some(open) = rest.find('[') {
-            let after = &rest[open + 1..];
-            let Some(close) = after.find(']') else {
-                break;
-            };
-            let token = &after[..close];
-            if let Some(num) = token.strip_suffix('%')
-                && let Ok(v) = num.parse::<u8>()
-                && v <= 100
-            {
-                volume_percent = Some(v);
-            } else if token == "off" {
-                muted = true;
-                saw_switch = true;
-            } else if token == "on" {
-                saw_switch = true;
-            }
-            rest = &after[close + 1..];
-        }
-    }
-    let volume = volume_percent.context("mixer reply contained no percentage")?;
-    if !saw_switch {
-        muted = volume == 0;
-    }
+    ensure!(
+        reply.message.chars().count() <= 200,
+        "sound reply message too long"
+    );
     Ok(AudioStatus {
-        available: true,
-        volume_percent: Some(volume),
-        muted,
-        message: format!(
-            "ALSA Master mixer: {volume}% · {}",
-            if muted { "muted" } else { "unmuted" }
-        ),
+        available: reply.available,
+        volume_percent: reply.volume_percent,
+        muted: reply.muted,
+        message: reply.message,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn sound_helper_reply_is_read_strictly() {
+        let status = parse_sound_status(
+            r#"{"available": true, "volume_percent": 69, "muted": true, "message": "Volume 69% · muted"}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            (status.available, status.volume_percent, status.muted),
+            (true, Some(69), true)
+        );
+        let none = parse_sound_status(
+            r#"{"available": false, "volume_percent": null, "muted": false, "message": "No sound control: Could not find a sound card."}"#,
+        )
+        .unwrap();
+        assert!(!none.available && none.volume_percent.is_none());
+        for bad in [
+            "",
+            "Simple mixer control 'Master',0
+  Mono: Playback 60 [69%] [on]",
+            r#"{"available": true, "volume_percent": 101, "muted": false, "message": ""}"#,
+            r#"{"available": true, "volume_percent": null, "muted": false, "message": ""}"#,
+            r#"{"available": false, "volume_percent": 40, "muted": false, "message": ""}"#,
+            r#"{"available": true, "volume_percent": 4, "muted": false, "message": "", "extra": 1}"#,
+        ] {
+            assert!(parse_sound_status(bad).is_err(), "{bad}");
+        }
+        let long = format!(
+            r#"{{"available": true, "volume_percent": 4, "muted": false, "message": "{}"}}"#,
+            "x".repeat(300)
+        );
+        assert!(parse_sound_status(&long).is_err());
+    }
     #[test]
     fn wifi_preserves_spaces_and_decodes_escaped_names_without_guessing() {
         let rows = wifi_scan("*: Desk\\:Main\\\\West :91:WPA2\n:--:10:--").unwrap();

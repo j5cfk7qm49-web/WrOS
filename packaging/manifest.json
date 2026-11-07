@@ -38,6 +38,7 @@
     {"dest": "usr/libexec/wros-lock", "source": "os/scripts/wros-lock", "mode": "0755", "class": "code"},
     {"dest": "usr/libexec/wros-backup", "source": "os/scripts/wros-backup", "mode": "0755", "class": "code"},
     {"dest": "usr/libexec/wros-clock", "source": "os/scripts/wros-clock", "mode": "0755", "class": "code"},
+    {"dest": "usr/libexec/wros-sound", "source": "os/scripts/wros-sound", "mode": "0755", "class": "code"},
 
     {"dest": "usr/libexec/wros-update", "source": "os/scripts/wros-update", "mode": "0755", "class": "code"},
     {"dest": "usr/libexec/wros-update-stage", "source": "os/scripts/wros-update-stage", "mode": "0755", "class": "code"},
