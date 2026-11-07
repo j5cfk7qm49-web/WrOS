@@ -1,6 +1,6 @@
 # WrOS — Writer’s OS: recovered handoff qualification
 
-Official branding update only; existing source and historical Git identifiers have not been changed or reverified. See [naming migration](NAMING_MIGRATION.md).
+Official branding update only; existing source and historical Git identifiers have not been changed or reverified. See [naming migration](../NAMING_MIGRATION.md).
 
 
 - M7a commit `3360ec5` has recorded historical verification; **not rerun for this handoff**.

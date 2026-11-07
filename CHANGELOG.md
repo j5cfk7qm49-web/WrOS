@@ -34,7 +34,7 @@
   file comparison. Grimoire attribution and existing manuscript formats remain.
 - Preserved the original ZIP/patch for audit. Rich-footnote rendering and
   backup/update/Wi-Fi/suspend prototypes require further integration;
-  [review findings](docs/ARGON_REVIEW_2026-10-30.md) distinguish those limits.
+  [review findings](docs/archive/ARGON_REVIEW_2026-10-30.md) distinguish those limits.
 
 - Added native EPUB footnotes using shared bounded source validation and the
   maintained Markdown HTML renderer, preserving original writing and Word/PDF

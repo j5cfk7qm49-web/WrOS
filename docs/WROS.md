@@ -11,12 +11,12 @@ WrOS is a **dedicated, offline-first Linux writing appliance**: a complete boot-
 
 This is a **recovered development snapshot**, not production installation media. Historical verified software and networkless VM evidence exists through M7a. Later M7b lexicon/Nabokov/proselint/voice/revision code was interrupted and has not received complete build, test, resource or release qualification. Real installer/authentication, secure screen lock, signed updates, physical laptop validation, full tutorial, continuity tracker, genuine page-footnote exports, independent corpus rights review and verified Google Drive backups remain incomplete.
 
-**Source may not yet be on GitHub:** The recovery archive retains full Git history and WIP changes. [Codex continuation instructions](CODEX_CONTINUATION.md) explain safe import without overwriting the remote placeholder `main` branch. Verify the remote rather than assuming the source was pushed.
+**Source may not yet be on GitHub:** The recovery archive retains full Git history and WIP changes. [Codex continuation instructions](archive/CODEX_CONTINUATION.md) explain safe import without overwriting the remote placeholder `main` branch. Verify the remote rather than assuming the source was pushed.
 
 ## Read next
 
-- [Current verified status](STATUS.md)
-- [Full implementation roadmap](ROADMAP.md) and [feature matrix](FEATURE_MATRIX.md)
+- [Status history, to 2026-10-31](archive/STATUS.md)
+- [Roadmap, to 2026-10-31](archive/ROADMAP.md) and [feature matrix](FEATURE_MATRIX.md)
 - [Architecture and persistence](ARCHITECTURE.md), [technical risks](RISKS.md)
 - [Linux development, image building and installation](INSTALLATION.md)
 - [OS-level Colemak and keyboard support](COLEMAK.md)

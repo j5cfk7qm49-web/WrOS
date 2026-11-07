@@ -1,6 +1,6 @@
 # GrimoireTUI audit
 
-Audit date: 2026-10-24. Baseline: **v0.7.5**, commit `f3ca1e8f1cb09b714e71046e8ed991051793d33a`, MIT. Findings below describe that baseline, not hypothetical README features. See [FEATURE_MATRIX](FEATURE_MATRIX.md) for the additive WrOS implementation and verification state.
+Audit date: 2026-10-24. Baseline: **v0.7.5**, commit `f3ca1e8f1cb09b714e71046e8ed991051793d33a`, MIT. Findings below describe that baseline, not hypothetical README features. See [FEATURE_MATRIX](../FEATURE_MATRIX.md) for the additive WrOS implementation and verification state.
 
 ## Executive finding
 
@@ -82,12 +82,12 @@ No `Sub` variant was added. The Every key list and its test list were extended t
 
 Upstream has `.deb`/`.rpm` metadata, release workflows and a portable CLI, but no appliance image, login policy, console layout provisioning, authenticated recovery console, OS settings boundary, disk installer, OS updater/snapshots or hardware qualification. An app package is not an OS image.
 
-The added `os/` workflow now creates a VM-testable Debian UEFI GPT image without opening host block devices. Its explicitly passwordless **VM demo** profile is not a hardware installer or secure release. The remaining safety gates are recorded in [RISKS](RISKS.md), [INSTALLATION](INSTALLATION.md) and [ROADMAP](ROADMAP.md).
+The added `os/` workflow now creates a VM-testable Debian UEFI GPT image without opening host block devices. Its explicitly passwordless **VM demo** profile is not a hardware installer or secure release. The remaining safety gates are recorded in [RISKS](../RISKS.md), [INSTALLATION](../INSTALLATION.md) and [ROADMAP](ROADMAP.md).
 
 ## M4a addendum (2026-10-24)
 
-The absence of a pinboard described above is a baseline finding, not the current branch state. M4a adds portable metadata-only source references, responsive sidebar/Pinboard/dashboard readers, free/semantic-anchor scrolling, recoverable card lifecycle and explicit source editing through the M3b registry/guarded Project path. No third-party creative text, new text-storage format or second writer was added. There are 46 new Rust tests (14 core, 31 UI, one alias), actual non-root pin PTY/restart/paste-guard coverage and read-only CLI pin validation. Journal/scratchpad/handoff, full content presets and large-note/power-loss qualification are still unfinished. See [PINS](PINS.md) and [STATUS](STATUS.md) for scope and current evidence.
+The absence of a pinboard described above is a baseline finding, not the current branch state. M4a adds portable metadata-only source references, responsive sidebar/Pinboard/dashboard readers, free/semantic-anchor scrolling, recoverable card lifecycle and explicit source editing through the M3b registry/guarded Project path. No third-party creative text, new text-storage format or second writer was added. There are 46 new Rust tests (14 core, 31 UI, one alias), actual non-root pin PTY/restart/paste-guard coverage and read-only CLI pin validation. Journal/scratchpad/handoff, full content presets and large-note/power-loss qualification are still unfinished. See [PINS](../PINS.md) and [STATUS](STATUS.md) for scope and current evidence.
 
 ## M4b addendum (2026-10-24)
 
-Initial Writing journal now has a portable guarded daily observation store and actual read-only reader, separated from an explicitly edited original Markdown reflection. It records only sampled saved Project totals, optional truthful net/baseline values and auditable offset/request boundaries. It does not invent gross words, deleted words, active/idle duration or past sessions. Unknown/future/conflicting/failed writes remain preserved with explicit retry/force-exit behavior; 34 new Rust and compiled-app PTY/restart/read-only CLI/small ANSI tracker coverage supplement M4a. Scratchpad/handoff and complete edit-ledger/productivity metrics are not complete. See [JOURNAL](JOURNAL.md) and current evidence in [STATUS](STATUS.md).
+Initial Writing journal now has a portable guarded daily observation store and actual read-only reader, separated from an explicitly edited original Markdown reflection. It records only sampled saved Project totals, optional truthful net/baseline values and auditable offset/request boundaries. It does not invent gross words, deleted words, active/idle duration or past sessions. Unknown/future/conflicting/failed writes remain preserved with explicit retry/force-exit behavior; 34 new Rust and compiled-app PTY/restart/read-only CLI/small ANSI tracker coverage supplement M4a. Scratchpad/handoff and complete edit-ledger/productivity metrics are not complete. See [JOURNAL](../JOURNAL.md) and current evidence in [STATUS](STATUS.md).

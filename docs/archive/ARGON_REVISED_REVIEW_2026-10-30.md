@@ -36,7 +36,7 @@ These results distinguish working cryptographic verification and command plans
 from completed enrollment, backup/restore, publishing and system workflows.
 
 Keep the qualified shared IDs, source/revision guards, history, Undo and
-[manuscript Word/PDF implementation](MANUSCRIPT_FOOTNOTES.md). Historical
+[manuscript Word/PDF implementation](../MANUSCRIPT_FOOTNOTES.md). Historical
 indices require explicit evidence-based reconnection rather than automatic
 mapping through today's tree. The revised Restic and signed-metadata fixtures
 can inform maintained-engine integration. EPUB/paperback ideas still require

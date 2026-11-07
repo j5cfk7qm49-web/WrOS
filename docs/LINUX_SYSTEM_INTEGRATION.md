@@ -19,7 +19,7 @@
 | Timezone | Native searchable catalog, Cancel-default confirmation and `timedatectl --no-ask-password` with authoritative readback | [Narrow timezone action](NATIVE_TIMEZONE.md); clock/RTC/NTP controls remain unavailable |
 | Disk free / OS | `statvfs`, Debian release identity | Read-only |
 | Manual console lock | Fixed openvt/vlock-main/PAM handoff, systemd lifecycle, input retirement and reserved root tty8 | [Focused software and five-cycle guest passed](CONSOLE_LOCK.md); Debian CI passed; sleep remains disabled |
-| Signed update inspection and recovery diagnostics | Unprivileged `/usr/libexec/wros-update`: gpgv signed metadata -> Packages SHA-256 -> .deb SHA-256; read-only filesystem/dpkg inspection | No package repair, boot marker, update installation or automatic rollback; follow-up tracked in [integration gap list](ARGON_INTEGRATION_2026-10-31.md) |
+| Signed update inspection and recovery diagnostics | Unprivileged `/usr/libexec/wros-update`: gpgv signed metadata -> Packages SHA-256 -> .deb SHA-256; read-only filesystem/dpkg inspection | No package repair, boot marker, update installation or automatic rollback; follow-up tracked in [integration gap list](archive/ARGON_INTEGRATION_2026-10-31.md) |
 
 Volume, general account/first-run setup and live VM update/rollback qualification remain open gates. Manual locking has separate software/guest qualification; physical security and sleep/resume remain open.
 
@@ -49,7 +49,7 @@ The wrapper checks UID and refuses root. Production uses an actual PAM login; th
 - Wi-Fi enrollment: implemented via private stdin to `nmcli --ask` with active-connection readback; live NetworkManager VM/hardware qualification remains open.
 - UPower/logind subscriptions if polling costs or multiple devices require them; cache status, no 4 Hz subprocess loop.
 - Volume/manual clock/NTP: narrow maintained APIs with validation, explicit capability discovery and recovery.
-- Updates: read-only signed bundle inspection and filesystem/dpkg diagnostics exist. A maintained offline APT transaction, actual boot service and interruption/rescue protocol remain release-critical; see the [gap list](ARGON_INTEGRATION_2026-10-31.md).
+- Updates: read-only signed bundle inspection and filesystem/dpkg diagnostics exist. A maintained offline APT transaction, actual boot service and interruption/rescue protocol remain release-critical; see the [gap list](archive/ARGON_INTEGRATION_2026-10-31.md).
 - Backup worker: separate opt-in queue (`queue.json`), private Google credential lifecycle (`google-account.json`), hashes and conflict states; no access through the keyboard helper.
 
 Every new action needs denied/unavailable/timeout tests, a non-root path and a tutorial task before it is called implemented.

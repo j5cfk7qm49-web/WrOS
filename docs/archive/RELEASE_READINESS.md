@@ -17,7 +17,7 @@ unqualified installation, update/recovery or physical-device work complete.
 - Native local/Drive repository setup, private recovery keys, masked Google
   authorization, full-project snapshots, actual restore/hash verification,
   snapshot selection, safe restore into new folders, cancellation and retry.
-  See [workflow and limits](NATIVE_BACKUP.md).
+  See [workflow and limits](../NATIVE_BACKUP.md).
 - Character knowledge linked to reviewed facts, exact scene revisions and durable
   document identities, with retained history, filtering and source navigation.
 - Local installer fixes from issues 70–74: password clearing on Back, offline
@@ -27,14 +27,14 @@ unqualified installation, update/recovery or physical-device work complete.
   preview recovery and stale rollback timers. Current-image and real-installer
   keyboard qualification remain separate.
 
-The executed [software receipt](evidence/test-results.json) binds tests to source
+The executed [software receipt](../evidence/test-results.json) binds tests to source
 and the compiled binary. Results from previous source versions remain historical;
 only a fresh passing run establishes this candidate's software qualification.
-The [complete current local run](evidence/installer-update-local.json) passed
+The [complete current local run](../evidence/installer-update-local.json) passed
 1,101 Rust tests per overlapping configuration, 240 Python tests with zero skips,
-both strict Clippys and 21 gates. [Independent CI](evidence/installer-update-ci.json)
+both strict Clippys and 21 gates. [Independent CI](../evidence/installer-update-ci.json)
 passed the same test counts and both Clippys across 20 gates on the same source.
-[Local provenance and native backup regression frames](evidence/installer-update-local-provenance.json)
+[Local provenance and native backup regression frames](../evidence/installer-update-local-provenance.json)
 retain the source/executable identities and four terminal sizes. These are
 software receipts, not a full production installation or update-recovery certificate.
 

@@ -5,7 +5,7 @@ contains historical M7a; `writingdeck/m7b-wip` contains the unverified M7b
 checkpoint. Both retain their complete ancestry. New qualification work is on
 `codex/m7b-qualification`. See the [verified import record](docs/evidence/recovery-import-2026-10-26.md).
 
-**WrOS is an experimental offline-first Linux writing operating system**, built around the Grimoire novel-writing editor. This recovered development snapshot is not a finished or safe-to-install production OS. The official project remote is [WrOS on GitHub](https://github.com/j5cfk7qm49-web/WrOS); follow the [source-import handoff](CODEX_PROMPT.md), [WrOS overview](docs/WROS.md), [current status](docs/STATUS.md), and [open issues](https://github.com/j5cfk7qm49-web/WrOS/issues).
+**WrOS is an experimental offline-first Linux writing operating system**, built around the Grimoire novel-writing editor. This recovered development snapshot is not a finished or safe-to-install production OS. The official project remote is [WrOS on GitHub](https://github.com/j5cfk7qm49-web/WrOS); follow the [source-import handoff](docs/archive/CODEX_PROMPT.md), [WrOS overview](docs/WROS.md), [status history](docs/archive/STATUS.md), and [open issues](https://github.com/j5cfk7qm49-web/WrOS/issues).
 
 The previous working title was “WritingDeck OS.” Legacy code identifiers, CLI aliases, historical branches and existing saved-data formats temporarily retain `writingdeck` names for compatibility. See [naming migration](docs/NAMING_MIGRATION.md). **Grimoire and its upstream authors retain their original names and attribution.**
 
@@ -40,7 +40,7 @@ plain files you can open with anything, even `cat`.
 ## WrOS (Writer’s OS) development branch
 
 This branch adds a Debian-based, offline-first writing-appliance foundation.
-Start with [WrOS — Writer’s OS](docs/WROS.md), [current status](docs/STATUS.md),
+Start with [WrOS — Writer’s OS](docs/WROS.md), [status history](docs/archive/STATUS.md),
 [feature matrix](docs/FEATURE_MATRIX.md) and [safe development/image instructions](docs/INSTALLATION.md).
 The whole-disk UEFI VM prototype boots as a non-root writer without a desktop.
 **It is an insecure VM-only demo, not a production laptop installer.** Later requested
@@ -75,7 +75,7 @@ source-aligned networkless VM evidence are recorded in current status.
 Source word units are not full rendered/native counts; keyboard-pair time is not
 exclusive-human-typing proof, and checkpoint crash tails are explicitly unclaimed.
 See [measurement policy and limits](docs/DAILY_CHALLENGES.md) and
-[current evidence](docs/STATUS.md).
+[recorded evidence](docs/archive/STATUS.md).
 **M6 adds real offline Story Spark:** 1,047 agent-accepted original plot situations,
 84 independently useful exercises, four modes, compatible independent/joint
 rerolls, fixed local-date daily results, reference-only history/favorites, filters

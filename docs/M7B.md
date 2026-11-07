@@ -2,7 +2,7 @@
 
 The recovered implementations now have fresh M7b software, native UI/PTY,
 benchmark and VM-contract evidence on `codex/m7b-qualification` / PR #15.
-[STATUS](STATUS.md) records the exact 910-tests-per-configuration / 70-Python
+[STATUS](archive/STATUS.md) records the exact 910-tests-per-configuration / 70-Python
 results and the explicit trained-worker CPU-denial boundary in emulation.
 Production, hardware and actual remote-CI qualification remain separate gates.
 

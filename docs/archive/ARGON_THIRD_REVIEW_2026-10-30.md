@@ -29,7 +29,7 @@ workflow. The unused sleep-readiness helpers still cannot establish secure
 lock-before-suspend. These helpers are preserved in the contribution archive;
 ordinary product operations remain guarded while writing workflows take priority.
 
-The next implemented writing increment builds [native EPUB notes](EPUB_FOOTNOTES.md)
+The next implemented writing increment builds [native EPUB notes](../EPUB_FOOTNOTES.md)
 on the preserved current parser, editor and export machinery. Submission tests,
 focused checks and full software qualification establish different scopes;
 neither constitutes full writing-environment or OS completion.

@@ -60,7 +60,7 @@ Core registry tests cover canonical/device-inode ownership, rejected paths, fail
 
 `os/tests/test_secondary_pty.py` additionally drives the **compiled unprivileged application in a real PTY at 80×24, 100×30, 120×40 and 160×50**: actual F11 escape input, bracketed paste, both file saves, isolated undo/redo, hide/show, normal quit and persisted role/path assertions. The tiny PTY shim answers the startup cursor-position query; it is not physical-keyboard or full terminal-emulator certification. The test refuses to launch interactively as root.
 
-See [TESTING](TESTING.md), [STATUS](STATUS.md) and retained [test records](evidence/test-results.json). The whole-VM test separately covers boot/system/console keyboard behavior, not these F11 keystrokes.
+See [TESTING](TESTING.md), [STATUS](archive/STATUS.md) and retained [test records](evidence/test-results.json). The whole-VM test separately covers boot/system/console keyboard behavior, not these F11 keystrokes.
 
 ## M4a: source-linked pins — Tested
 

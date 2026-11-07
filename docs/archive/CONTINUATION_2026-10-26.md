@@ -98,7 +98,7 @@ four console maps/cancel, expiry, crash rollback, durable confirmation/QWERTY
 recovery, real PAM/hidden input, two-account writing/switch/logout, secret scan.
 Base unchanged. Focused/package/guest source `18bc11d9...b445` / 299 files;
 package greeter `ab85be8e...2a9e` matches the guest fixture, while the workspace
-feature-unified binary is independently recorded. See [keyboard recovery](GREETER_KEYBOARD.md).
+feature-unified binary is independently recorded. See [keyboard recovery](../GREETER_KEYBOARD.md).
 Separate cold boot passed 65.93s: automatic service start, complete login/keyboard
 text stable three seconds, six identical full keyboard captures, agent visual
 inspection at original resolution, same guest binary, fixture unchanged. Safe
@@ -136,7 +136,7 @@ The unmodified report is `docs/evidence/native-greeter-ci.json`; source matches
 the final guest. Separate Windows 40568739805 was still running when recorded.
 Next: pre-login keyboard/further
 crash acceptance and independent secure locker/input pause, acknowledgment/drain
-and VT/sleep handoff. Suspend stays unavailable. Read [NATIVE_GREETER](NATIVE_GREETER.md)
+and VT/sleep handoff. Suspend stays unavailable. Read [NATIVE_GREETER](../NATIVE_GREETER.md)
 and current status before relying on older branch/evidence claims below.
 
 ## Latest architectural directive and working branch
@@ -146,7 +146,7 @@ Current branch is `codex/suspend-lock-guard`, based on warm-screen head `8e2aeeb
 passed on that exact head. New power guards address #32 and the controller-test
 reproduction #34: no Suspend without a qualified locker; no shutdown/restart
 with dirty buffers, stale source tree or unresolved conflicts. See
-[POWER_SAFETY](POWER_SAFETY.md). Targeted offline qualification passed 17 backend,
+[POWER_SAFETY](../POWER_SAFETY.md). Targeted offline qualification passed 17 backend,
 11 Settings/controller, one retained asynchronous System test, both Clippys and
 the actual four-size Settings PTY; source fingerprint 56e59e1b…8410 / 287 files.
 `power-guard-targeted.json` keeps exact scope, current binary and log hashes.
@@ -182,7 +182,7 @@ The user additionally requested a blue-light filter with really warm screens.
 Issue #30 now has a `codex/warm-screen` implementation based on `e31d12b`, with
 1000–6500K / initial 2200K, strength/Off, original calibration, root-only libdrm
 bridge, narrow polkit helper, durable confirmed preferences and independent
-15-second systemd preview rollback. See [service and limits](WARM_SCREEN.md).
+15-second systemd preview rollback. See [service and limits](../WARM_SCREEN.md).
 Twenty Python display fault tests, 16 backend tests and eight native Settings UI
 tests have passed. Fresh complete qualification passed **928 Rust/configuration**
 (5 default / 4 no-audio ignored), both Clippys, **96 Python / zero skips** and
@@ -341,7 +341,7 @@ executed against an older host Python. Test logs are ignored under
 `build/verification/`. Do not edit source/tools/CI during a verifier run; it
 rejects changed inputs. VM image assembly needs the verified runtime path in
 `WRITINGDECK_PROSE_RUNTIME`. VM commands and safety constraints are in
-[INSTALLATION](INSTALLATION.md); [M7B](M7B.md) records tool limits.
+[INSTALLATION](../INSTALLATION.md); [M7B](../M7B.md) records tool limits.
 
 ## Installer and CI work in progress
 
@@ -349,7 +349,7 @@ The experimental `os/scripts/build-installer.sh` completed a Debian live-build
 ISO with offline writing/runtime/WordNet and Wi-Fi firmware. Actual media/rootfs
 audits and the Debian signature chain for the cached installer kernel/initrd
 passed. Five new non-root media/authentication/hash-chain regressions pass.
-See [INSTALLER_MEDIA](INSTALLER_MEDIA.md) for exact boundaries; #3 remains open.
+See [INSTALLER_MEDIA](../INSTALLER_MEDIA.md) for exact boundaries; #3 remains open.
 The first actual no-NIC QEMU installation powered off normally after 1,016.21 s
 and its installed disk reached a real tty1 login prompt. The acceptance record
 remains failed because `in-target` hid earlier payload markers in syslog and

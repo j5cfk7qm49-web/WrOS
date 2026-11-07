@@ -11,7 +11,7 @@ pre-login/authenticated/privileged boundaries, service decisions and execution
 order. The graph below describes the existing baseline, not a completed greeter.
 The editor is extended in place. Ordinary novel writing must remain offline, unprivileged and usable without AI, a GPU, cloud authentication or a desktop. The project is independent and has no implied NaNoWriMo affiliation.
 
-Preserve upstream Markdown/YAML, atomic saves, conflict checks, history, resume and recovery. Add versioned state alongside them; never migrate manuscript text merely to implement a UI widget. [AUDIT](AUDIT.md) is the baseline.
+Preserve upstream Markdown/YAML, atomic saves, conflict checks, history, resume and recovery. Add versioned state alongside them; never migrate manuscript text merely to implement a UI widget. [AUDIT](archive/AUDIT.md) is the baseline.
 
 ## Layers
 
@@ -42,7 +42,7 @@ filesystem, process or privilege dependencies. `src/app/shell.rs` adapts native
 categorized Settings to retained editor objects and the existing service worker.
 The shared library also owns the original Grimoire palette/theme-file code and
 panel geometry used by native login/layout and installer presentation. Current
-greeter, timezone, manual-lock and display results are tracked in [STATUS](STATUS.md);
+greeter, timezone, manual-lock and display results are tracked in [STATUS](archive/STATUS.md);
 the graph above retains the earlier baseline. Cloud/native Wi-Fi enrollment and
 complete live installation remain unfinished. Visual integration of unlock and
 future system panels is part of the same Grimoire interface requirement.

@@ -137,10 +137,10 @@ and runtime marker, exact overlapping Rust counts, ignored cases and real Python
 coverage; it refuses skipped Python methods or changed source. Custom output
 paths use `GRIMOIRE_BINARY`, `CARGO_TARGET_DIR` and `WRITINGDECK_TOOLS_PYTHON`.
 Current software totals and their source identities are recorded in
-[STATUS](STATUS.md); historical milestone counts do not qualify later changes. The independent image audit verifies Wi-Fi payloads.
+[STATUS](archive/STATUS.md); historical milestone counts do not qualify later changes. The independent image audit verifies Wi-Fi payloads.
 The 512-MiB zero-NIC TCG VM records successful native/proselint/WordNet/Harper
 checks and a real Nabokov kernel CPU-budget denial; positive trained analysis
-is required and passes in native offline UI/PTY tests. See [STATUS](STATUS.md)
+is required and passes in native offline UI/PTY tests. See [STATUS](archive/STATUS.md)
 for source identity, measured costs and remaining release gates.
 
 ## Evidence levels
@@ -151,7 +151,7 @@ for source identity, measured costs and remaining release gates.
 - **Hardware verified:** requires an identified physical laptop and recorded firmware/keyboard/power results. **None yet.**
 - **Credential/provider verified:** requires explicit enrollment and real restore/round-trip tests. **None yet.**
 
-[STATUS](STATUS.md) and `docs/evidence/` record latest completed runs. A source-level test or successful VM poweroff is not a physical battery/suspend/Secure Boot result.
+[STATUS](archive/STATUS.md) and `docs/evidence/` record latest completed runs. A source-level test or successful VM poweroff is not a physical battery/suspend/Secure Boot result.
 
 ## Commands
 
@@ -230,7 +230,7 @@ The complete verifier runs both overlapping Rust configurations, both warning-de
 
 [Writing checks](WRITING_CHECKS.md) separates core controlled offset/fault/queue fixtures from actual pinned engine runs; 15 targeted UI cases include a genuine worker at all four sizes and genuine demo grammar replacement, plus location-bound consent/revocation/idle cleanup. Five `test_checks_pty.py` methods use the actual no-audio binary, disposable demo/HOME and real models: Unicode apply/undo/restart, once/novel/personal mutes, copied-novel consent, future/external refusal, edits during an in-flight check and supplementary lesson-40 proof retaining original 26. Ledger assertions wait for durable origin checkpoints, not merely source writes; analysis/debounce does not grant authorship credit.
 
-`tools/audit-writing-checks-assets.py` is a full-verifier gate for nine pinned packaged assets and seven retained upstream notices. Independent training/dictionary/legal/corresponding-source review remains open. [Debug resource measurements](evidence/writing-checks-resources.json) distinguish small Unicode vs specified repetitive 2,340-word fixture, cold/hot/CPU and baseline/kernel-peak RSS. Native cancel does not preempt a running parser or prove cache unloading. No physical battery/production Python claim. The VM-only probe now also requires a non-root actual model/apply/undo result under the installed stripped binary with zero NICs; it records loaded grammar separately from dashboard RSS. See [STATUS](STATUS.md) for whether full software and VM qualification have actually run on the current source.
+`tools/audit-writing-checks-assets.py` is a full-verifier gate for nine pinned packaged assets and seven retained upstream notices. Independent training/dictionary/legal/corresponding-source review remains open. [Debug resource measurements](evidence/writing-checks-resources.json) distinguish small Unicode vs specified repetitive 2,340-word fixture, cold/hot/CPU and baseline/kernel-peak RSS. Native cancel does not preempt a running parser or prove cache unloading. No physical battery/production Python claim. The VM-only probe now also requires a non-root actual model/apply/undo result under the installed stripped binary with zero NICs; it records loaded grammar separately from dashboard RSS. See [STATUS](archive/STATUS.md) for whether full software and VM qualification have actually run on the current source.
 
 ## Writing workflow increment (2026-10-29)
 
@@ -274,5 +274,5 @@ refusal, restore/Undo, continuity facts/events/threads, help and actual restart
 at four terminal sizes. Silent-engine tests verify chapter scope and guarded
 revision marks; they do not qualify installed audio hardware. CLI tests retain
 old aliases and compare local source bytes without transmission. The
-[contribution review](ARGON_REVIEW_2026-10-30.md) explains excluded prototypes
+[contribution review](archive/ARGON_REVIEW_2026-10-30.md) explains excluded prototypes
 and the remaining full milestone, provider, system and release work.

@@ -2,7 +2,7 @@
 
 ## Character knowledge continuity tracking (2026-10-30)
 
-[Character knowledge](../assets/help/39-continuity-and-milestones.md) adds explicit
+[Character knowledge](../../assets/help/39-continuity-and-milestones.md) adds explicit
 author-entered assertions about character knowledge to the Continuity tracker (Issue #6).
 Knowledge records are bound to reviewed facts, durable document identities, scene points
 (Before/After scene), and exact source revisions without guessing from prose or
@@ -14,40 +14,40 @@ PTY tests across four terminal sizes, warning-denying Clippys and documentation 
 
 ## Local writing history privacy (2026-10-30)
 
-The [API/network audit](API_AND_NETWORK_USE.md) found inherited automatic Git
+The [API/network audit](../API_AND_NETWORK_USE.md) found inherited automatic Git
 pushes on startup and session save when a remote was configured. A disposable
 compiled-app fixture confirmed its local bare remote received manuscript history
 merely by opening the book. WrOS now keeps session snapshots local and removes
 that background push path and its misleading backup status. Existing Git history,
 source bytes, authorship, Undo and ordinary saves remain in use. Focused strict
 Clippy and compiled four-size startup/save/quit/restart checks, plus a remote
-added during writing, passed. The [independent full Debian run](evidence/local-session-privacy-local.json) passed
-1077 Rust tests per configuration, 187 Python tests with zero skips, both Clippys and 21 gates. [Provenance](evidence/local-session-privacy-local-provenance.json) binds its source and tested binary.
+added during writing, passed. The [independent full Debian run](../evidence/local-session-privacy-local.json) passed
+1077 Rust tests per configuration, 187 Python tests with zero skips, both Clippys and 21 gates. [Provenance](../evidence/local-session-privacy-local-provenance.json) binds its source and tested binary.
 Optional music remains separate; no Google/Drive enrollment or verified native
 backup/restore is claimed.
 
 
 ## Missing shared-registry guard (2026-10-30)
 
-[Story identity checks](STORY_IDENTITIES.md) now stop missing/incomplete
+[Story identity checks](../STORY_IDENTITIES.md) now stop missing/incomplete
 registries from assigning historical story IDs to another scene. The previous
 wrong-scene restore was independently reproduced in a disposable compiled-app
 fixture. Core checks and actual four-size refusal, ordinary edit/save/Undo/help
 and original-registry recovery passed. Story metadata and source remain intact;
-no scene-order/title/text matching rebuilds the mapping. The [independent full Debian run](evidence/story-identity-local.json) passed
-1077 Rust tests per configuration, 185 Python tests with zero skips, both Clippys and 21 gates. [Provenance](evidence/story-identity-local-provenance.json) binds the tested source and binary. Broader writing and recovery work remain open.
+no scene-order/title/text matching rebuilds the mapping. The [independent full Debian run](../evidence/story-identity-local.json) passed
+1077 Rust tests per configuration, 185 Python tests with zero skips, both Clippys and 21 gates. [Provenance](../evidence/story-identity-local-provenance.json) binds the tested source and binary. Broader writing and recovery work remain open.
 
 
 ## Reviewed draft and passage restore (2026-10-30)
 
-[Draft restore](PASSAGE_RESTORE.md) now binds the exact reviewed saved version,
+[Draft restore](../PASSAGE_RESTORE.md) now binds the exact reviewed saved version,
 fixing the independently reproduced second-entry/first-restore bug. One changed
 passage can be reviewed in shared panels and restored after explicit selection
 from default Cancel. Existing history diff, recovery variants, dated snapshots,
 original editor Undo and guarded source/metadata persistence remain in use.
 Focused core/UI and real four-size milestone/variant/help/Undo/restart tests
-passed; the [independent full Debian run](evidence/passage-restore-local.json) passed
-1072 Rust tests per configuration, 184 Python tests with zero skips, both Clippys and 21 gates. [Provenance](evidence/passage-restore-local-provenance.json) binds the tested source and binary.
+passed; the [independent full Debian run](../evidence/passage-restore-local.json) passed
+1072 Rust tests per configuration, 184 Python tests with zero skips, both Clippys and 21 gates. [Provenance](../evidence/passage-restore-local-provenance.json) binds the tested source and binary.
 Broader preflight, paperback notes and full M8/M9 remain open.
 
 
@@ -56,20 +56,20 @@ Broader preflight, paperback notes and full M8/M9 remain open.
 The [third contribution review](ARGON_THIRD_REVIEW_2026-10-30.md) retains the
 current shared identity and Word/PDF implementation. Its two writing regressions
 are integrated with corrections to the milestone fixture and real guarded APIs.
-[Native EPUB footnotes](EPUB_FOOTNOTES.md) now use the same public-source parser,
+[Native EPUB footnotes](../EPUB_FOOTNOTES.md) now use the same public-source parser,
 the maintained HTML renderer, same-file note/return links and preserved paragraphs.
 Actual EPUBCheck, four-size edit/export/help/Undo/restart, Word/PDF pagination
-regressions and strict no-audio Clippy passed. The [independent full Debian run](evidence/epub-footnotes-local.json) passed
-1065 Rust tests per configuration, 182 Python tests with zero skips, both Clippys and 21 gates. [Provenance](evidence/epub-footnotes-local-provenance.json) binds its source and binary. Paperback notes, broader preflight, full M8/M9 and OS/release gates
+regressions and strict no-audio Clippy passed. The [independent full Debian run](../evidence/epub-footnotes-local.json) passed
+1065 Rust tests per configuration, 182 Python tests with zero skips, both Clippys and 21 gates. [Provenance](../evidence/epub-footnotes-local-provenance.json) binds its source and binary. Paperback notes, broader preflight, full M8/M9 and OS/release gates
 remain open; earlier paragraphs retain their historical scope.
 
 ## Manuscript page-footnote integration (2026-10-30)
 
-The current [Word/PDF increment](MANUSCRIPT_FOOTNOTES.md) supersedes the
+The current [Word/PDF increment](../MANUSCRIPT_FOOTNOTES.md) supersedes the
 historical all-rich-format footnote guard below. It reuses the maintained
 parser, existing DOCX writer and LibreOffice adapter; unsupported source and
 EPUB/paperback notes still fail before output. Real PDF pages and terminal
-workflows passed the [independent full Debian run](evidence/manuscript-footnotes-local.json):
+workflows passed the [independent full Debian run](../evidence/manuscript-footnotes-local.json):
 1060 Rust tests per configuration, 180 Python tests with zero skips, both Clippys and 21 gates. Neither a passing package assertion nor an installed renderer alone
 establishes pagination, hardware or a complete publishing workflow.
 
@@ -206,31 +206,31 @@ editor, DOCX/PDF writer or accessible EPUB implementation. Those remain #9.
 
 ## Qualification boundary
 
-[Debian CI](evidence/native-feature-ci.json) passed 1008 Rust tests per
+[Debian CI](../evidence/native-feature-ci.json) passed 1008 Rust tests per
 configuration, 170 Python tests with zero skips, both Clippys and 20 gates.
-[Provenance](evidence/native-feature-ci-provenance.json) retains the verified
+[Provenance](../evidence/native-feature-ci-provenance.json) retains the verified
 artifact digest, tested merge and exact source fingerprint.
 
-The independent [local run](evidence/native-feature-local.json) passed the same
+The independent [local run](../evidence/native-feature-local.json) passed the same
 1008 Rust/configuration and 170 Python/zero-skip sets, both Clippys and 21 gates.
-[Local provenance](evidence/native-feature-local-provenance.json) binds the exact
+[Local provenance](../evidence/native-feature-local-provenance.json) binds the exact
 source and compiled binary to four actual availability frames:
-[80×24](evidence/native-feature-availability-80x24.txt),
-[100×30](evidence/native-feature-availability-100x30.txt),
-[120×40](evidence/native-feature-availability-120x40.txt) and
-[160×50](evidence/native-feature-availability-160x50.txt).
+[80×24](../evidence/native-feature-availability-80x24.txt),
+[100×30](../evidence/native-feature-availability-100x30.txt),
+[120×40](../evidence/native-feature-availability-120x40.txt) and
+[160×50](../evidence/native-feature-availability-160x50.txt).
 These are ANSI cell reconstructions with styling omitted, not VM screenshots.
 
-An [earlier local harness failure](evidence/native-feature-runner-signal-failure.json)
+An [earlier local harness failure](../evidence/native-feature-runner-signal-failure.json)
 is retained separately. A probe measured ignored SIGTERM/SIGINT inherited from
 the private `unshare --fork` runner; the unchanged process-lifecycle test passed
 with normal signal defaults. The corrected local runner omits that option and
 asserts the defaults before testing. No product assertion or timeout was relaxed.
-See the [diagnosis](evidence/native-feature-runner-signal-provenance.json) and
+See the [diagnosis](../evidence/native-feature-runner-signal-provenance.json) and
 Debian's [documented fork-mode signal behavior](https://manpages.debian.org/trixie/util-linux/unshare.1.en.html).
 
 Focused checks and fresh integrated Debian evidence are recorded separately from
-the earlier [installer composition checkpoint](evidence/native-offline-provider-checkpoint.json).
+the earlier [installer composition checkpoint](../evidence/native-offline-provider-checkpoint.json).
 That older image does not contain these feature changes. No further full
 encrypted installation cycle or physical/provider operation is part of this
 review. Boot, native enrollment, verified backup/restore, signed updates/recovery,
@@ -259,10 +259,10 @@ cross-document queue navigation and large-source qualification remain open.
 
 ## Development writing qualification
 
-The independent [corrected local run](evidence/development-writing-local.json)
+The independent [corrected local run](../evidence/development-writing-local.json)
 passed 1037 Rust tests per configuration, both warning-denying Clippys,
 173 Python tests with zero skips and 21 gates. Source is `9a734ebd...26a20`
-/ 450 files; [provenance](evidence/development-writing-local-provenance.json)
+/ 450 files; [provenance](../evidence/development-writing-local-provenance.json)
 retains the exact binary and source binding and four actual review frames.
 The first run passed product tests but failed the documentary matrix/inventory
 comparison; its raw failed receipt remains separate. The inventory was corrected
@@ -283,7 +283,7 @@ Definition previews now use the parser's offset-preserving masked public source.
 Stripping private notes only after slicing a definition could expose a trailing
 half of a private block that crossed that boundary. Source bytes remain intact.
 Changed source/backing files and ambiguous definitions refuse navigation. Limits
-are 2 MiB/scene, 8192 markers and a 64 KiB definition snapshot. The [independent Debian run](evidence/footnote-context-local.json) passed
+are 2 MiB/scene, 8192 markers and a 64 KiB definition snapshot. The [independent Debian run](../evidence/footnote-context-local.json) passed
 1044 Rust tests per configuration, 174 Python tests with zero skips, both Clippys and 21 gates. The rich-export guard remains intact and lesson 34 cannot claim
 DOCX/PDF validation. Existing speech and history engines remain unchanged.
 
@@ -298,5 +298,5 @@ It is a bounded, read-only snapshot: no links, assets, continuity, revision
 notes, external-file freshness or rendered pages are checked. The report is
 refused in full when its bounds are exceeded. Original source and export
 settings are retained; closing the review returns to the dialog. The
-[independent Debian run](evidence/export-preflight-local.json) passed 1047 Rust tests per configuration, 175 Python tests with zero skips, both Clippys and 21 gates.
+[independent Debian run](../evidence/export-preflight-local.json) passed 1047 Rust tests per configuration, 175 Python tests with zero skips, both Clippys and 21 gates.
 This does not implement printed footnotes.

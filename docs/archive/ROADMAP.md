@@ -22,14 +22,14 @@ maintained Debian services and the shared Grimoire interface. Retain existing
 writing behavior and complete the remaining story/publishing work in dependency
 order. Installer polish must not displace that environment work.
 
-**Reuse first:** follow the [Debian/FOSS component decisions](FOSS_REUSE.md).
+**Reuse first:** follow the [Debian/FOSS component decisions](../FOSS_REUSE.md).
 The user authorized maintained Debian packages and suitable upstream builds for
 remaining work and strengthening existing parts. Native WrOS UI and necessary
 integration stay local; do not create replacement OS engines where maintained
 components fit. Preserve existing authoring and safety contracts during adoption.
 
 The user's unified-shell directive now precedes unrelated feature expansion.
-[Architecture audit and decisions](UNIFIED_SHELL.md) preserve all existing work.
+[Architecture audit and decisions](../UNIFIED_SHELL.md) preserve all existing work.
 Execute #26 shared UI/native categorized Settings and exact editor restoration;
 #30 native very warm display controls; #27 isolated greetd/PAM greeter and #4
 secure input/lock/suspend; #28 optional protected Google enrollment; #29 native
@@ -41,23 +41,23 @@ shortcuts, mounted active manuscripts or fake tutorial completion.
 The initial `wros-shell` library and categorized Settings adapter passed local and
 Debian/macOS CI qualification. Existing menu/settings actions remain available;
 unsupported account/update/recovery operations remain explicitly unavailable.
-The [warm-screen service](WARM_SCREEN.md) now implements 1000–6500K, initial
+The [warm-screen service](../WARM_SCREEN.md) now implements 1000–6500K, initial
 2200K, strength/Off and independent preview rollback; fresh full software and
 unsupported-driver VM qualification passed. Physical and transition gates stay
 open. Issue #32 immediately blocks unsecured suspend before #27/#4 enable it.
 Installer/encryption, signed updates/recovery, notices/source and identified
 physical hardware remain release gates throughout this architectural change.
 
-The separate [native greeter](NATIVE_GREETER.md) now implements the greetd/PAM
+The separate [native greeter](../NATIVE_GREETER.md) now implements the greetd/PAM
 conversation, local account selection and fixed unprivileged session startup.
 Its software and guest qualification are tracked in current status. [Native
-keyboard recovery](GREETER_KEYBOARD.md) now has software and real guest coverage
+keyboard recovery](../GREETER_KEYBOARD.md) now has software and real guest coverage
 for all four layouts, timed/crash rollback and explicit confirmation. The
 independent secure locker/input handoff, remaining transition/failure cases and
 physical suspend/resume still prevent completion of the authentication/session
-work. [CI](CI.md) targets only the WrOS Debian runtime.
+work. [CI](../CI.md) targets only the WrOS Debian runtime.
 
-The [editor input-ownership prerequisite](INPUT_OWNERSHIP.md) now replaces its
+The [editor input-ownership prerequisite](../INPUT_OWNERSHIP.md) now replaces its
 Linux reader thread with an isolated parser process, acknowledged retirement
 and explicit fresh-parser resume. Focused fault/private-PTY checks pass; full
 software and guest records remain separately tracked. This is not the protected
@@ -97,7 +97,7 @@ The application tests retain the upstream Every key/menu/palette/help contracts 
 
 ## Next executable work
 
-1. Preserve original-source M4, actual-operation/civil-date M5 and original offline M6 behavior and all failure/restart/tutorial tests. Preserve tested M7a common byte-accurate source maps/revision-tagged jobs/opt-in model Harper, then continue M7b prose/lexicon/voice/ranked dashboard before M8–M9. See [M7a scope/limits](WRITING_CHECKS.md). Original agent-reviewed corpus integrity is not independent human/legal attestation; observed keyboard-pair time is not exclusive-human typing. Archival/large-load/power/release gates remain explicit.
+1. Preserve original-source M4, actual-operation/civil-date M5 and original offline M6 behavior and all failure/restart/tutorial tests. Preserve tested M7a common byte-accurate source maps/revision-tagged jobs/opt-in model Harper, then continue M7b prose/lexicon/voice/ranked dashboard before M8–M9. See [M7a scope/limits](../WRITING_CHECKS.md). Original agent-reviewed corpus integrity is not independent human/legal attestation; observed keyboard-pair time is not exclusive-human typing. Archival/large-load/power/release gates remain explicit.
 2. Preserve the qualified manual vlock/PAM/systemd lock and reader handoff. Continue lock-before-sleep/resume qualification while all sleep requests stay disabled.
 3. Integrate safe authenticated first-run provisioning with an upstream Debian installation path; review without selecting or erasing a real disk. Add staged tests for current account/keyboard/timezone choices.
 4. Pin image/toolchain inputs for reproducible releases; build `.deb` integration packaging, security update/rollback fixtures and required corresponding-source/notices artifacts.

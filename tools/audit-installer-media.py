@@ -563,7 +563,7 @@ def verify_update_trust(keyring, signers, required=True):
 
 
 def check_update_trust(rootfs, required=True):
-    """Image inputs from decision 2 of docs/RC_CONTRACT.md; public material only."""
+    """Image inputs from decision 2 of docs/archive/RC_CONTRACT.md; public material only."""
     return verify_update_trust(rootfs / 'usr/share/keyrings/wros-archive-keyring.gpg',
                                rootfs / 'usr/share/wros/update-signers',
                                required=required)

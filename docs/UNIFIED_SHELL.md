@@ -17,7 +17,7 @@ recovery. A conventional desktop and unrelated management TUIs are not the goal.
 ## Audit of the current source
 
 The table below records the initial 2026-10-26 audit. Current login, manual
-locking and display results are in [STATUS](STATUS.md). The user's subsequent
+locking and display results are in [STATUS](archive/STATUS.md). The user's subsequent
 interface directive also covers the live installer and every future system
 surface: share Grimoire's theme, widgets, spacing, selection, navigation and
 help/status code. The [native installer increment](NATIVE_INSTALLER.md) extracts

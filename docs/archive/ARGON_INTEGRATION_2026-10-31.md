@@ -68,10 +68,10 @@ These are unfinished release tasks. Closing this integration does not close them
 
 ## Qualification
 
-The [complete local software receipt](evidence/argon-os-local.json) passed
+The [complete local software receipt](../evidence/argon-os-local.json) passed
 1099 Rust tests per overlapping default/no-audio configuration, 227 Python
 tests with zero skips, both strict Clippys and all 21 software gates. The
-[provenance and fresh four-size terminal frames](evidence/argon-os-local-provenance.json)
+[provenance and fresh four-size terminal frames](../evidence/argon-os-local-provenance.json)
 bind the received ZIP/patch, final source bytes and tested executable. Original
 named evidence is preserved. Fixtures use disposable books, private temporary
 state and the non-root Debian builder; no real Google grant or target disk was used.

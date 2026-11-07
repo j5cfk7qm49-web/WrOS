@@ -2,7 +2,7 @@
 
 As of 2026-10-31 — 0.1.0-dev through native encrypted backup software; VM constraints remain explicit. **No hardware-verified claims.**
 
-Existing means audited baseline; Tested identifies automated/VM evidence, not production qualification. See [STATUS](STATUS.md) and [ROADMAP](ROADMAP.md).
+Existing means audited baseline; Tested identifies automated/VM evidence, not production qualification. See [STATUS](archive/STATUS.md) and [ROADMAP](archive/ROADMAP.md).
 
 | Area | Capability | Status | Verification | Detail |
 |---|---|---|---|---|
@@ -23,7 +23,7 @@ Existing means audited baseline; Tested identifies automated/VM evidence, not pr
 | OS | Signed OS/app updates, snapshots/rollback and offline bundles | In progress | Local and independent CI: 1101 Rust/configuration, 240 Python/zero skips, both Clippys; real APT solver, GPG metadata, POSIX locks and durable-journal tests | Foreign triggers preserved, authenticated archives retained on failure, APT refuses removals/unreviewed packages; native mutations and automatic boot activation disabled pending trust/recovery VM qualification |
 | OS | Secure Boot / legacy BIOS / physical firmware compatibility | Blocked | UEFI without Secure Boot only | Requires signed boot-chain work and identified physical hardware |
 | System | Typed Linux + explicitly simulated backend | Tested | Rust adapter/validation tests + worker UI test | No arbitrary shell or manuscript paths in OS requests |
-| System | Native read-only Wi-Fi/profile/account/filesystem/cached package-plan views | Tested | Source 815ecb26 / 439 files: Debian CI 1008 Rust/config, 170 Python/zero skips, both Clippys and 20 gates; actual four-size availability PTY | Shared Grimoire menu; no credential enrollment, account changes, provider access, backup, update application or recovery grant; see [feature review](FEATURE_REVIEW.md) |
+| System | Native read-only Wi-Fi/profile/account/filesystem/cached package-plan views | Tested | Source 815ecb26 / 439 files: Debian CI 1008 Rust/config, 170 Python/zero skips, both Clippys and 20 gates; actual four-size availability PTY | Shared Grimoire menu; no credential enrollment, account changes, provider access, backup, update application or recovery grant; see [feature review](archive/FEATURE_REVIEW.md) |
 | System | Cached/off-thread network/battery/brightness/storage/timezone status | Tested | Missing-device/fixture tests + networkless VM | Physical battery/backlight behavior not verified |
 | System | Wi-Fi radio and scan command interfaces | Tested | Typed command/unit tests | BSSID scan rows deduplicated by (SSID, security) keeping strongest signal and active state up to 256 networks; actual radio/device acceptance unverified; nmtui is emergency maintenance only |
 | System | In-app new-network credentials / secret agent | In progress | Debian Rust adapter and four-size native UI tests passed; secret stdin, masking, cancellation, failures and requested-SSID readback covered | Protected personal WPA/open-network forms, UUID saved-profile reconnect/forget and disconnect implemented; actual NetworkManager/device acceptance and enterprise enrollment remain open |

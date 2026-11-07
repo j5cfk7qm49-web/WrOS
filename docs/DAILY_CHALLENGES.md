@@ -68,7 +68,7 @@ Core tests inject clocks, dates and seeds for DST/travel/repeated dates, classif
 
 Lessons 17/19 retain their real baseline goals/sprint exercises. **18 requires a saved calendar plus an actual rest-day choice; 20 reviews a real nonempty collection; 21 requires accepted, persisted measured daily completion.** Opening a page, an empty collection, arbitrary Next presses, or subjective completion cannot satisfy these exercises. Writing exercises remain gated to an explicitly created safe demo, never an ordinary novel.
 
-See [TESTING](TESTING.md), [STATUS](STATUS.md) and [ROADMAP](ROADMAP.md) for current full-suite/VM evidence and remaining gates. The synthetic release-mode accounting probe is an executed shared-sandbox microbenchmark, not physical low-power latency, flash endurance, all-day coverage or battery qualification. Loaded-log/card/analyzer stress, interrupted power, signed release and hardware acceptance remain M10 work.
+See [TESTING](TESTING.md), [STATUS](archive/STATUS.md) and [ROADMAP](archive/ROADMAP.md) for current full-suite/VM evidence and remaining gates. The synthetic release-mode accounting probe is an executed shared-sandbox microbenchmark, not physical low-power latency, flash endurance, all-day coverage or battery qualification. Loaded-log/card/analyzer stress, interrupted power, signed release and hardware acceptance remain M10 work.
 
 ## M6 optional Spark is separate
 

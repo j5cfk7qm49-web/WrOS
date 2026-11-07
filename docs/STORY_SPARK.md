@@ -1,6 +1,6 @@
 # Offline Story Spark
 
-**M6 software implementation, not production/human/legal qualification.** The actual core, cached TUI reader and explicit actions are implemented. Targeted core/UI/compiled-PTY tests exist; the source-aligned full run is recorded separately in [STATUS](STATUS.md) and [test-results.json](evidence/test-results.json). The original content and its review limits are in [CHALLENGE_LIBRARY](CHALLENGE_LIBRARY.md). There is no runtime AI, server, manuscript analysis or automatic insertion.
+**M6 software implementation, not production/human/legal qualification.** The actual core, cached TUI reader and explicit actions are implemented. Targeted core/UI/compiled-PTY tests exist; the source-aligned full run is recorded separately in [STATUS](archive/STATUS.md) and [test-results.json](evidence/test-results.json). The original content and its review limits are in [CHALLENGE_LIBRARY](CHALLENGE_LIBRARY.md). There is no runtime AI, server, manuscript analysis or automatic insertion.
 
 ## Open and use
 
