@@ -188,9 +188,13 @@ class ProgressScreen(unittest.TestCase):
         # Seen in the VM too: ordered Before=greetd.service, the stop in greetd's ExecStartPre
         # was refused and the progress screen outlived the login's start.
         self.assertEqual(self.words('Before'), ['shutdown.target'])
-        greetd = (ROOT / 'os/config/greetd.service').read_text()
-        self.assertIn('ExecStartPre=-/usr/bin/systemctl stop wros-boot-splash.service', greetd)
-        self.assertNotIn('wros-boot-splash', greetd.split('[Service]')[0])
+        # A packaged drop-in, because updates never carry greetd.service itself (seen in the VM:
+        # the stop never reached an updated system).
+        dropin = (ROOT / 'os/config/greetd-start-screen.conf').read_text()
+        self.assertIn('[Service]\nExecStartPre=-/usr/bin/systemctl stop wros-boot-splash.service', dropin)
+        manifest = (ROOT / 'packaging/manifest.json').read_text()
+        self.assertIn('"dest": "usr/lib/systemd/system/greetd.service.d/60-wros-start-screen.conf"', manifest)
+        self.assertNotIn('wros-boot-splash', (ROOT / 'os/config/greetd.service').read_text())
 
     def test_it_runs_only_with_the_switch_on_and_never_on_a_plain_text_start(self):
         self.assertEqual(self.unit['ConditionPathExists'], ['/etc/wros/boot-screen'])
