@@ -124,4 +124,4 @@ output with the results; it contains no book text.
 
 | Release | Date | Check | Result | Notes |
 | --- | --- | --- | --- | --- |
-| | | | | |
+| 0.1.0~rc7 | 2026-11-06 | 4. School network | Pass | Joined the open, MAC-filtered school network from the Wi-Fi page. |
