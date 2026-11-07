@@ -5,18 +5,26 @@ use crate::app::{
 };
 use grimoire_core::documents::Pane;
 
+/// Walks to a Settings page the way a writer does, choosing each group by name along
+/// the menu map's path. `panel` is the page's place in the rc8 System list, which
+/// these tests were written against.
 fn system_panel(desk: &mut Desk, panel: usize) {
+    use crate::app::shell::{Panel, page_label, path_to};
+    let page = [
+        Panel::Network,
+        Panel::Display,
+        Panel::Power,
+        Panel::Storage,
+        Panel::DateTime,
+        Panel::Updates,
+        Panel::Recovery,
+    ][panel];
     desk.app.open_settings();
     desk.draw();
-    desk.key(KeyCode::Home);
-    desk.key(KeyCode::Down);
-    desk.key(KeyCode::Down);
-    desk.key(KeyCode::Enter);
-    desk.key(KeyCode::Home);
-    for _ in 0..panel {
-        desk.key(KeyCode::Down);
+    for route in path_to(Route::Panel(page)) {
+        desk.key(KeyCode::Home);
+        desk.choose(page_label(route));
     }
-    desk.key(KeyCode::Enter);
 }
 
 fn close_settings(desk: &mut Desk) {
@@ -72,6 +80,8 @@ fn unified_settings_preserve_both_editors_positions_focus_selection_scroll_and_u
 fn unified_settings_reuse_existing_preferences_and_modal_cancel_paths() {
     let mut desk = Desk::open(book("shell-existing-settings", true), 100, 30);
     desk.app.open_settings();
+    // Writing › Editor › Line width
+    desk.key(KeyCode::Enter);
     desk.key(KeyCode::Enter);
     desk.key(KeyCode::Down);
     desk.key(KeyCode::Down);
@@ -79,25 +89,24 @@ fn unified_settings_reuse_existing_preferences_and_modal_cancel_paths() {
     desk.key(KeyCode::Enter);
     assert_ne!(desk.app.line_width, old_width);
     assert_eq!(desk.app.overlay, Overlay::Deck(Page::Settings));
-    assert_eq!(
-        desk.app.deck.shell.nav.current(),
-        Route::Category(Category::Writing)
-    );
+    assert_eq!(desk.app.deck.shell.nav.current(), Route::WritingEditor);
     assert_eq!(desk.app.deck.shell.nav.selected(), 2);
+    // Back to Settings, then Look and keyboard › Look › Themes
+    desk.key(KeyCode::Esc);
     desk.key(KeyCode::Esc);
     desk.key(KeyCode::Down);
     desk.key(KeyCode::Enter);
-    desk.key(KeyCode::Down);
-    desk.key(KeyCode::Down);
-    desk.key(KeyCode::Enter);
-    assert!(matches!(desk.app.overlay, Overlay::Themes { .. }));
-    desk.key(KeyCode::Esc);
-    assert_eq!(desk.app.overlay, Overlay::Deck(Page::Settings));
     assert_eq!(
         desk.app.deck.shell.nav.current(),
         Route::Category(Category::Interface)
     );
-    assert_eq!(desk.app.deck.shell.nav.selected(), 2);
+    desk.key(KeyCode::Enter);
+    desk.key(KeyCode::Enter);
+    assert!(matches!(desk.app.overlay, Overlay::Themes { .. }));
+    desk.key(KeyCode::Esc);
+    assert_eq!(desk.app.overlay, Overlay::Deck(Page::Settings));
+    assert_eq!(desk.app.deck.shell.nav.current(), Route::LookPage);
+    assert_eq!(desk.app.deck.shell.nav.selected(), 0);
 }
 
 #[test]
@@ -294,12 +303,15 @@ fn accounts_storage_and_package_views_are_read_only_and_do_not_offer_fake_cloud_
             desk.key(KeyCode::Down);
         }
         desk.key(KeyCode::Enter);
+        // Backups and accounts: Backups, Google Drive, Local accounts.
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Down);
         desk.key(KeyCode::Enter);
         wait_system(&mut desk);
         assert_eq!(desk.app.deck.shell.nav.current(), Route::LocalAccounts);
         assert!(desk.shows("UID 1000"));
         desk.key(KeyCode::Esc);
-        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Up);
         desk.key(KeyCode::Enter);
         wait_system(&mut desk);
         assert_eq!(desk.app.deck.shell.nav.current(), Route::GoogleAccount);
@@ -2938,6 +2950,7 @@ fn sound_and_volume_panel_controls_and_keyboard_wizard_alias_registration_preser
             desk.app.deck.shell.nav.current(),
             Route::Category(Category::Interface)
         );
+        desk.choose("Keyboard");
         desk.choose("First-run keyboard layout wizard · registered maps only");
         assert_eq!(desk.app.deck.shell.nav.current(), Route::KeyboardWizard);
         desk.key(KeyCode::Enter); // Cycle base layout from QWERTY to Colemak.
@@ -2949,12 +2962,10 @@ fn sound_and_volume_panel_controls_and_keyboard_wizard_alias_registration_preser
         assert_eq!(desk.app.deck.shell.custom_keymaps.len(), 1);
         assert_eq!(desk.app.deck.shell.custom_keymaps[0].name, "writer-colemak");
         desk.key(KeyCode::Esc);
-        assert_eq!(
-            desk.app.deck.shell.nav.current(),
-            Route::Category(Category::Interface)
-        );
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::KeyboardPage);
 
         // Release builds have no audio playback, but the volume control is the system's.
+        desk.key(KeyCode::Esc);
         desk.key(KeyCode::Esc);
         desk.key(KeyCode::Down);
         desk.key(KeyCode::Enter);

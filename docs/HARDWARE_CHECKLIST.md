@@ -59,7 +59,7 @@ check it has no new `failed to leave lps state` lines.
 
 1. At school, open Settings › System › Wi-Fi and networking and scan. Pick
    the school network and join.
-2. Open a web check that needs the network (Settings › System › Updates ›
+2. Open a web check that needs the network (Settings › Updates and recovery › Updates ›
    Check for WrOS updates is enough).
 
 **Pass when:** the network appears in the scan, joins, and the update check
@@ -79,7 +79,7 @@ before it suspended are in the book, and it woke to the lock.
 
 ## 6. Shutdown and restart during a backup
 
-1. Start a backup of the disposable book (Settings › Accounts › Backups), and
+1. Start a backup of the disposable book (Settings › Backups and accounts › Backups), and
    while it runs pick Settings › System › Battery and power › **Shutdown**.
 2. Do the same with **Restart**, and once more during a Drive sync.
 
@@ -102,7 +102,7 @@ Right after a release candidate installs on the laptop:
 - Your settings carried over: warm screen, keyboard layout (Colemak at the
   login, the lock and in the book), Wi-Fi networks, Drive link.
 - The warm screen comes on at boot with no black screen.
-- Settings › System › Updates shows the new version, and offers to go back to
+- Settings › Updates and recovery › Updates shows the new version, and offers to go back to
   the previous one.
 
 ## 9. Sound

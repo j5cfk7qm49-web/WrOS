@@ -1593,7 +1593,7 @@ impl App {
         }
     }
     fn start_deck_lesson(&mut self, id: u8) {
-        use super::shell::{Category, Panel, Route};
+        use super::shell::{Panel, Route};
         if tutorial::lessons()
             .iter()
             .find(|l| l.id == id)
@@ -1683,28 +1683,17 @@ impl App {
             32 => self.open_review_notes(),
             33 => self.open_history(),
             34 | 35 => self.run_action(Action::Export),
-            36 => self.open_settings_at(&[Route::Category(Category::Accounts), Route::Backups]),
-            37 => self.open_settings_at(&[Route::Category(Category::Accounts), Route::SyncPanel]),
-            41 => {
-                self.open_settings_at(&[Route::Category(Category::Accounts), Route::GoogleAccount])
+            // Pages by name; the Settings menu map knows where each one sits.
+            36 | 37 => self.open_settings_page(Route::Backups),
+            41 => self.open_settings_page(Route::GoogleAccount),
+            42 => {
+                let mut path = super::shell::path_to(Route::Panel(Panel::Display));
+                path.push(Route::WarmScreen);
+                self.open_settings_at(&path);
             }
-            42 => self.open_settings_at(&[
-                Route::Category(Category::System),
-                Route::Panel(Panel::Display),
-                Route::WarmScreen,
-            ]),
-            43 => self.open_settings_at(&[
-                Route::Category(Category::System),
-                Route::Panel(Panel::Updates),
-            ]),
-            44 => self.open_settings_at(&[
-                Route::Category(Category::System),
-                Route::Panel(Panel::Network),
-            ]),
-            45 => self.open_settings_at(&[
-                Route::Category(Category::System),
-                Route::Panel(Panel::Power),
-            ]),
+            43 => self.open_settings_page(Route::Panel(Panel::Updates)),
+            44 => self.open_settings_page(Route::Panel(Panel::Network)),
+            45 => self.open_settings_page(Route::Panel(Panel::Power)),
             38 => self.open_system_settings(),
             39 => {
                 self.open_help(Some("history"));

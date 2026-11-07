@@ -249,14 +249,14 @@
     "title": "Backing up and a test restore",
     "help_topic": "sync",
     "event": "BackupRestored",
-    "instructions": "Open Settings › Accounts › Backups. Back up this book; WrOS checks each backup after it makes it, and later backs up on its own after you save and pause. Then pick a backup and restore it. It goes into a new folder beside your book, so nothing you have is replaced. Restore with settings also brings back the settings saved in that backup, after keeping your current ones. A finished restore completes this lesson. Backups to Google Drive need Drive linked first (lesson 41)."
+    "instructions": "Open Settings › Backups and accounts › Backups. Back up this book; WrOS checks each backup after it makes it, and later backs up on its own after you save and pause. Then pick a backup and restore it. It goes into a new folder beside your book, so nothing you have is replaced. Restore with settings also brings back the settings saved in that backup, after keeping your current ones. A finished restore completes this lesson. Backups to Google Drive need Drive linked first (lesson 41)."
   },
   {
     "id": 37,
     "title": "Reading your book on your phone",
     "help_topic": "sync",
     "event": "SyncCompleted",
-    "instructions": "Open Settings › Accounts › Synchronization and turn on sync for this book. WrOS keeps a plain copy of its scenes in your Google Drive, so the Drive app on your phone can open them. Edits you make there come back to WrOS; a paragraph changed in both places waits for you to merge it. Converting a scene to a Google Doc is not a safe round trip. A finished sync completes this lesson."
+    "instructions": "Open Settings › Backups and accounts › Backups and turn on sync for this book. WrOS keeps a plain copy of its scenes in your Google Drive, so the Drive app on your phone can open them. Edits you make there come back to WrOS; a paragraph changed in both places waits for you to merge it. Converting a scene to a Google Doc is not a safe round trip. A finished sync completes this lesson."
   },
   {
     "id": 38,
@@ -284,7 +284,7 @@
     "title": "Linking Google Drive with your phone",
     "help_topic": "sync",
     "event": "PhoneLinked",
-    "instructions": "Open Settings › Accounts › Google account and choose Link Google Drive with your phone (or Relink). Scan the code with your phone's camera, sign in to Google and approve. If the phone asks, tap Finish linking. No second computer is needed. Linking finishes this lesson; you can relink at any time, and your book is not touched."
+    "instructions": "Open Settings › Backups and accounts › Google Drive and choose Link Google Drive with your phone (or Relink). Scan the code with your phone's camera, sign in to Google and approve. If the phone asks, tap Finish linking. No second computer is needed. Linking finishes this lesson; you can relink at any time, and your book is not touched."
   },
   {
     "id": 42,
@@ -298,7 +298,7 @@
     "title": "Going back a version",
     "help_topic": "writingdeck",
     "event": "GoBackReviewed",
-    "instructions": "Open Settings › System › Updates and choose Go back to the version listed there. WrOS keeps the version it installed before this one. The next screen offers it: going back installs at the next restart, and you can cancel until then. Stay on this version leaves everything as it is. Seeing that screen with a kept version completes this lesson. If an update ever fails to start twice, WrOS goes back on its own."
+    "instructions": "Open Settings › Updates and recovery › Updates and choose Go back to the version listed there. WrOS keeps the version it installed before this one. The next screen offers it: going back installs at the next restart, and you can cancel until then. Stay on this version leaves everything as it is. Seeing that screen with a kept version completes this lesson. If an update ever fails to start twice, WrOS goes back on its own."
   },
   {
     "id": 44,

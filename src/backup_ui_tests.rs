@@ -259,7 +259,7 @@ fn google_account_lifecycle_and_offline_queue_views_preserve_both_editors_at_all
         assert_eq!(desk.app.deck.shell.nav.current(), Route::GoogleAccount);
         assert!(desk.app.deck.shell.backup.job.is_none());
 
-        // Inspect offline backup queue display in Route::Backups.
+        // Inspect the offline backup queue, one step down from Backups.
         desk.app.deck.shell.backup.status.queued_backups = vec![QueuedBackup {
             id: "0123456789abcdef".into(),
             project: desk.root.to_string_lossy().into_owned(),
@@ -272,13 +272,16 @@ fn google_account_lifecycle_and_offline_queue_views_preserve_both_editors_at_all
         desk.app.deck.shell.nav.open(Route::Backups);
         desk.app.deck.shell.backup.job = None;
         desk.draw();
+        assert!(desk.shows("Offline queue"));
+        desk.app.deck.shell.nav.open(Route::BackupQueue);
+        desk.draw();
         assert!(desk.shows("Queue saved project for offline backup"));
         assert!(desk.shows("Run queued backups and retry interrupted jobs"));
         assert!(desk.shows("Clear pending backup queue"));
 
-        desk.key(KeyCode::Esc);
-        desk.key(KeyCode::Esc);
-        desk.key(KeyCode::Esc);
+        for _ in 0..4 {
+            desk.key(KeyCode::Esc);
+        }
         assert_eq!(desk.app.overlay, Overlay::None);
         assert_eq!(desk.app.editor.text(), text);
         assert_eq!(desk.app.view_position(Pane::Primary), primary);

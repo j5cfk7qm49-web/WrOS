@@ -137,7 +137,7 @@ fn plural(n: usize, one: &str, many: &str) -> String {
     format!("{n} {}", if n == 1 { one } else { many })
 }
 
-/// Rows of System › Updates after the shared refresh row.
+/// Rows of Updates and recovery › Updates after the shared refresh row.
 pub(super) fn updates_panel(app: &App) -> Vec<Entry> {
     let online = app.deck.shell.update_flow.online.as_ref();
     let mut rows = vec![info(online_line(online))];
@@ -216,7 +216,7 @@ pub(super) fn updates_panel(app: &App) -> Vec<Entry> {
     rows
 }
 
-/// Rows of System › Recovery after the shared refresh row.
+/// Rows of Updates and recovery › Recovery after the shared refresh row.
 pub(super) fn recovery_panel() -> Vec<Entry> {
     vec![
         Entry::new(
@@ -310,7 +310,7 @@ fn gate_lines(app: &App, review: &UpdateReview) -> Vec<String> {
         }
         BackupGate::Fresh(taken) => format!("Backup: fresh, taken {taken}."),
         BackupGate::Missing => format!(
-            "Backup: none in the last {} hours. Create one in Settings › Accounts › Backups first.",
+            "Backup: none in the last {} hours. Create one in Settings › Backups and accounts › Backups first.",
             super::super::backup::FRESH_BACKUP_HOURS
         ),
         BackupGate::Unknown => {
@@ -739,7 +739,7 @@ impl App {
             BackupGate::NotNeeded | BackupGate::Unconfigured | BackupGate::Fresh(_) => {}
             BackupGate::Missing => {
                 self.update_notice(format!(
-                    "Not staged: no backup of this project in the last {} hours. Create one in Settings › Accounts › Backups, then come back.",
+                    "Not staged: no backup of this project in the last {} hours. Create one in Settings › Backups and accounts › Backups, then come back.",
                     super::super::backup::FRESH_BACKUP_HOURS
                 ));
                 return;
@@ -1055,7 +1055,7 @@ impl App {
                         .request(Request::ReviewUpdateBundle { bundle_dir: path });
                 } else {
                     self.update_notice(format!(
-                        "Update media mounted read-only at {path}. Open Settings › System › Updates to review it."
+                        "Update media mounted read-only at {path}. Open Settings › Updates and recovery › Updates to review it."
                     ));
                 }
             }

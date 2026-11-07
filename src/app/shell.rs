@@ -12,18 +12,22 @@ pub use update_flow::UpdateFlow;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Category {
     Writing,
+    /// Shown as "Look and keyboard".
     Interface,
     System,
+    /// Shown as "Backups and accounts".
     Accounts,
+    /// Updates and Recovery (#90; they sat under System before rc9).
+    Updates,
 }
 impl Category {
-    const ALL: [Self; 4] = [Self::Writing, Self::Interface, Self::System, Self::Accounts];
     fn label(self) -> &'static str {
         match self {
             Self::Writing => "Writing",
-            Self::Interface => "Interface",
+            Self::Interface => "Look and keyboard",
             Self::System => "System",
-            Self::Accounts => "Accounts",
+            Self::Accounts => "Backups and accounts",
+            Self::Updates => "Updates and recovery",
         }
     }
 }
@@ -38,15 +42,6 @@ pub enum Panel {
     Recovery,
 }
 impl Panel {
-    const ALL: [Self; 7] = [
-        Self::Network,
-        Self::Display,
-        Self::Power,
-        Self::Storage,
-        Self::DateTime,
-        Self::Updates,
-        Self::Recovery,
-    ];
     fn label(self) -> &'static str {
         match self {
             Self::Network => "Wi-Fi and networking",
@@ -94,6 +89,18 @@ pub enum Route {
     ManualClockConfirm,
     SoundView,
     KeyboardWizard,
+    // Settings groups from rc9 (#90). Routes are saved by name in the shell
+    // preferences, so retired ones (GoogleDrive, SyncPanel) stay in the enum.
+    WritingEditor,
+    WritingManuscript,
+    WritingGoals,
+    WritingRevision,
+    LookPage,
+    KeyboardPage,
+    MusicPage,
+    BackupDestinations,
+    BackupKey,
+    BackupQueue,
 }
 
 pub struct WifiForm {
@@ -493,95 +500,273 @@ fn kinds(app: &App, rows: &[Entry]) -> Vec<wros_shell::RowKind> {
     }
 }
 
+/// Browsing and copying from the app's Google Drive folder, at the end of the Google Drive page.
+fn drive_rows(app: &App) -> Vec<Entry> {
+    use super::backup::FormKind;
+    let backup = &app.deck.shell.backup;
+    let mut rows = vec![
+        Entry::new(
+            "Browse app-scoped Google Drive folder",
+            Choice::BackupForm(FormKind::DriveBrowse, String::new()),
+        ),
+        Entry::new(
+            "Materialize Drive item into a NEW local path",
+            Choice::BackupForm(FormKind::DriveMaterialize, String::new()),
+        ),
+        Entry::info(
+            "General Drive file browsing requires restricted scopes; WrOS uses folder-scoped drive.file access.",
+        ),
+        Entry::info(
+            "Active manuscripts stay local; materialization creates an independent local copy.",
+        ),
+    ];
+    if !backup.status.drive_folder.is_empty() {
+        rows.push(Entry::info(format!(
+            "Current folder scope: {}",
+            backup.status.drive_folder
+        )));
+    }
+    for entry in &backup.status.drive_entries {
+        rows.push(Entry::new(
+            format!(
+                "{} · {} · {} bytes\n{}{}",
+                entry.name,
+                if entry.is_dir { "folder" } else { "file" },
+                entry.size,
+                if entry.cached {
+                    "Cached locally"
+                } else {
+                    "Remote only"
+                },
+                if entry.modified.is_empty() {
+                    String::new()
+                } else {
+                    format!(" · {}", entry.modified)
+                }
+            ),
+            Choice::BackupForm(FormKind::DriveMaterialize, entry.path.clone()),
+        ));
+    }
+    rows
+}
+
+/// The Settings menu map (#90): each group page and the pages under it, in order.
+/// Group pages, their rows, breadcrumbs and the paths the tutorial opens all come
+/// from here, so moving a page to another group is moving its line. Each page still
+/// builds its own rows in `entries`.
+const MENU: &[(Route, &[Route])] = &[
+    (
+        Route::Settings,
+        &[
+            Route::Category(Category::Writing),
+            Route::Category(Category::Interface),
+            Route::Category(Category::System),
+            Route::Category(Category::Accounts),
+            Route::Category(Category::Updates),
+        ],
+    ),
+    (
+        Route::Category(Category::Writing),
+        &[
+            Route::WritingEditor,
+            Route::WritingManuscript,
+            Route::WritingGoals,
+            Route::WritingRevision,
+        ],
+    ),
+    (
+        Route::Category(Category::Interface),
+        &[Route::LookPage, Route::KeyboardPage, Route::MusicPage],
+    ),
+    // Battery and power stays third: the lock VM test reaches it by position.
+    (
+        Route::Category(Category::System),
+        &[
+            Route::Panel(Panel::Network),
+            Route::Panel(Panel::Display),
+            Route::Panel(Panel::Power),
+            Route::SoundView,
+            Route::Panel(Panel::DateTime),
+            Route::Panel(Panel::Storage),
+        ],
+    ),
+    (
+        Route::Category(Category::Accounts),
+        &[Route::Backups, Route::GoogleAccount, Route::LocalAccounts],
+    ),
+    (
+        Route::Category(Category::Updates),
+        &[Route::Panel(Panel::Updates), Route::Panel(Panel::Recovery)],
+    ),
+    (
+        Route::Backups,
+        &[
+            Route::BackupDestinations,
+            Route::BackupKey,
+            Route::BackupQueue,
+        ],
+    ),
+];
+
+/// The map, for tests that walk it.
+#[cfg(test)]
+pub(crate) fn menu() -> &'static [(Route, &'static [Route])] {
+    MENU
+}
+
+/// A page's name in its group's list and in breadcrumbs.
+pub(crate) fn page_label(route: Route) -> &'static str {
+    match route {
+        Route::Settings => "Settings",
+        Route::Category(category) => category.label(),
+        Route::Panel(panel) => panel.label(),
+        Route::WritingEditor => "Editor",
+        Route::WritingManuscript => "Manuscript",
+        Route::WritingGoals => "Goals",
+        Route::WritingRevision => "Revision",
+        Route::LookPage => "Look",
+        Route::KeyboardPage => "Keyboard",
+        Route::MusicPage => "Music",
+        Route::SoundView => "Sound and volume",
+        Route::Backups => "Backups",
+        Route::GoogleAccount => "Google Drive",
+        Route::LocalAccounts => "Local accounts",
+        Route::BackupDestinations => "Where backups go",
+        Route::BackupKey => "Recovery key",
+        Route::BackupQueue => "Offline queue",
+        _ => "",
+    }
+}
+
+/// The group a page sits in, from the map.
+pub fn parent(route: Route) -> Option<Route> {
+    MENU.iter()
+        .find(|(_, pages)| pages.contains(&route))
+        .map(|(group, _)| *group)
+}
+
+/// The groups and page to open, from Settings down, for `route`.
+pub fn path_to(route: Route) -> Vec<Route> {
+    let mut path = vec![route];
+    while let Some(group) = parent(path[0]).filter(|group| *group != Route::Settings) {
+        path.insert(0, group);
+    }
+    path
+}
+
+/// `WrOS · Settings › System › Display`, for a page on the map.
+fn breadcrumb(route: Route) -> Option<String> {
+    (route == Route::Settings || parent(route).is_some()).then(|| {
+        std::iter::once("WrOS · Settings")
+            .chain(
+                path_to(route)
+                    .into_iter()
+                    .filter(|r| *r != Route::Settings)
+                    .map(page_label),
+            )
+            .collect::<Vec<_>>()
+            .join(" › ")
+    })
+}
+
+/// One row per page under `group`. Pages that load something first ask for it as they open.
+fn links(group: Route) -> Vec<Entry> {
+    MENU.iter()
+        .find(|(page, _)| *page == group)
+        .map_or(&[][..], |(_, pages)| pages)
+        .iter()
+        .map(|&page| {
+            let choice = match page {
+                Route::SoundView => Choice::View(page, wros_sys::Request::AudioStatus),
+                Route::LocalAccounts => Choice::View(page, wros_sys::Request::ListLocalAccounts),
+                page => Choice::Open(page),
+            };
+            Entry::new(page_label(page), choice)
+        })
+        .collect()
+}
+
+/// Rows for `actions`, in that order, labelled as the Settings submenu labels them
+/// (a label can say the current state, as "Turn spellcheck off").
+fn setting_rows(app: &App, actions: &[Action]) -> Vec<Entry> {
+    let menu = app.submenu(Sub::Settings);
+    actions
+        .iter()
+        .filter_map(|wanted| {
+            menu.iter()
+                .find(|(_, action)| action == wanted)
+                .map(|(label, action)| Entry::new(label.clone(), Choice::Action(action.clone())))
+        })
+        .collect()
+}
+
 fn entries(app: &App) -> Vec<Entry> {
     match app.deck.shell.nav.current() {
-        Route::Settings => Category::ALL
-            .into_iter()
-            .map(|category| Entry::new(category.label(), Choice::Open(Route::Category(category))))
-            .collect(),
-        Route::Category(category @ (Category::Writing | Category::Interface)) => {
-            let mut rows = app
-                .submenu(Sub::Settings)
-                .into_iter()
-                .filter(|(_, action)| {
-                    let writing = matches!(
-                        action,
-                        Action::Spellcheck
-                            | Action::SpellingLanguage
-                            | Action::LineWidth
-                            | Action::Typewriter
-                            | Action::Voices
-                            | Action::ManuscriptLook
-                            | Action::AuthorDetails
-                    );
-                    let interface = matches!(
-                        action,
-                        Action::Workspaces
-                            | Action::ToggleOutline
-                            | Action::Themes
-                            | Action::MusicSource
-                            | Action::MusicToggle
-                            | Action::Icons
-                    );
-                    if category == Category::Writing {
-                        writing
-                    } else {
-                        interface
-                    }
-                })
-                .map(|(label, action)| Entry::new(label, Choice::Action(action)))
-                .collect::<Vec<_>>();
-            if category == Category::Writing {
-                rows.extend([
-                    Entry::new("Focus mode", Choice::Action(Action::FocusMode)),
-                    Entry::new("Writing goals", Choice::Action(Action::Goals)),
-                    Entry::new("Daily challenges", Choice::Action(Action::DailyChallenges)),
-                    Entry::new("Revision tools", Choice::Action(Action::ProseDashboard)),
-                    Entry::new("Continuity tracker", Choice::Action(Action::Continuity)),
-                    Entry::new("Draft milestones", Choice::Action(Action::Milestones)),
-                    Entry::new("Revision notes", Choice::Action(Action::ReviewNotes)),
-                    Entry::new(
-                        "Footnotes · browse and jump",
-                        Choice::Action(Action::Footnotes),
-                    ),
-                ]);
-            } else {
-                rows.extend([
-                    Entry::new(
-                        "Keyboard layout · QWERTY / Colemak / Colemak-DH",
-                        Choice::System(4),
-                    ),
-                    Entry::new(
-                        "First-run keyboard layout wizard · registered maps only",
-                        Choice::KeyboardWizardOpen,
-                    ),
-                    Entry::new("Keyboard shortcuts", Choice::System(11)),
-                    Entry::info("Accessibility and notifications · more controls planned"),
-                ]);
+        route @ (Route::Settings | Route::Category(_)) => {
+            let mut rows = links(route);
+            match route {
+                Route::Category(Category::Writing) => {
+                    rows.extend(setting_rows(app, &[Action::Voices]))
+                }
+                Route::Category(Category::Interface) => rows.push(Entry::info(
+                    "Accessibility and notifications · more controls planned",
+                )),
+                _ => {}
             }
             rows
         }
-        Route::Category(Category::System) => {
-            let mut rows: Vec<Entry> = Panel::ALL
-                .into_iter()
-                .map(|panel| Entry::new(panel.label(), Choice::Open(Route::Panel(panel))))
-                .collect();
+        Route::WritingEditor => {
+            let mut rows = setting_rows(
+                app,
+                &[
+                    Action::Spellcheck,
+                    Action::SpellingLanguage,
+                    Action::LineWidth,
+                    Action::Typewriter,
+                ],
+            );
+            rows.push(Entry::new("Focus mode", Choice::Action(Action::FocusMode)));
+            rows
+        }
+        Route::WritingManuscript => {
+            let mut rows = setting_rows(app, &[Action::ManuscriptLook, Action::AuthorDetails]);
             rows.push(Entry::new(
-                "Sound and volume",
-                Choice::View(Route::SoundView, wros_sys::Request::AudioStatus),
+                "Footnotes · browse and jump",
+                Choice::Action(Action::Footnotes),
             ));
             rows
         }
-        Route::Category(Category::Accounts) => vec![
-            Entry::new(
-                "Local accounts",
-                Choice::View(Route::LocalAccounts, wros_sys::Request::ListLocalAccounts),
-            ),
-            Entry::new("Google account", Choice::Open(Route::GoogleAccount)),
-            Entry::new("Google Drive", Choice::Open(Route::GoogleDrive)),
-            Entry::new("Synchronization", Choice::Open(Route::SyncPanel)),
-            Entry::new("Backups", Choice::Open(Route::Backups)),
+        Route::WritingGoals => vec![
+            Entry::new("Writing goals", Choice::Action(Action::Goals)),
+            Entry::new("Daily challenges", Choice::Action(Action::DailyChallenges)),
+            Entry::new("Draft milestones", Choice::Action(Action::Milestones)),
         ],
+        Route::WritingRevision => vec![
+            Entry::new("Revision tools", Choice::Action(Action::ProseDashboard)),
+            Entry::new("Continuity tracker", Choice::Action(Action::Continuity)),
+            Entry::new("Revision notes", Choice::Action(Action::ReviewNotes)),
+        ],
+        Route::LookPage => setting_rows(
+            app,
+            &[
+                Action::Themes,
+                Action::Icons,
+                Action::Workspaces,
+                Action::ToggleOutline,
+            ],
+        ),
+        Route::KeyboardPage => vec![
+            Entry::new(
+                "Keyboard layout · QWERTY / Colemak / Colemak-DH",
+                Choice::System(4),
+            ),
+            Entry::new(
+                "First-run keyboard layout wizard · registered maps only",
+                Choice::KeyboardWizardOpen,
+            ),
+            Entry::new("Keyboard shortcuts", Choice::System(11)),
+        ],
+        Route::MusicPage => setting_rows(app, &[Action::MusicSource, Action::MusicToggle]),
         Route::Panel(panel) => {
             let status = app.deck.snapshot.as_ref();
             let mut rows = vec![Entry::new("Refresh local system status", Choice::System(0))];
@@ -694,10 +879,6 @@ fn entries(app: &App) -> Vec<Entry> {
                     ]);
                 }
                 Panel::Storage => {
-                    rows.push(Entry::new(
-                        "Encrypted backups and restore",
-                        Choice::Open(Route::Backups),
-                    ));
                     rows.push(Entry::new(
                         "Mounted filesystems",
                         Choice::View(
@@ -1032,10 +1213,7 @@ fn entries(app: &App) -> Vec<Entry> {
                     Choice::BackupForm(super::backup::FormKind::GoogleFile, String::new()),
                 ));
             }
-            rows.push(Entry::new(
-                "Encrypted backups and restore",
-                Choice::Open(Route::Backups),
-            ));
+            rows.extend(drive_rows(app));
             rows
         }
         Route::LinkPhone => {
@@ -1066,58 +1244,7 @@ fn entries(app: &App) -> Vec<Entry> {
             Entry::info("Local manuscripts, recovery keys and encrypted snapshots are preserved."),
             Entry::info("Revoke access in your Google account settings to end the provider grant."),
         ],
-        Route::GoogleDrive => {
-            use super::backup::FormKind;
-            let backup = &app.deck.shell.backup;
-            let mut rows = vec![
-                Entry::new(
-                    "Browse app-scoped Google Drive folder",
-                    Choice::BackupForm(FormKind::DriveBrowse, String::new()),
-                ),
-                Entry::new(
-                    "Materialize Drive item into a NEW local path",
-                    Choice::BackupForm(FormKind::DriveMaterialize, String::new()),
-                ),
-                Entry::new(
-                    "Encrypted Google Drive backups and restore",
-                    Choice::Open(Route::Backups),
-                ),
-                Entry::info(
-                    "General Drive file browsing requires restricted scopes; WrOS uses folder-scoped drive.file access.",
-                ),
-                Entry::info(
-                    "Active manuscripts stay local; materialization creates an independent local copy.",
-                ),
-            ];
-            if !backup.status.drive_folder.is_empty() {
-                rows.push(Entry::info(format!(
-                    "Current folder scope: {}",
-                    backup.status.drive_folder
-                )));
-            }
-            for entry in &backup.status.drive_entries {
-                rows.push(Entry::new(
-                    format!(
-                        "{} · {} · {} bytes\n{}{}",
-                        entry.name,
-                        if entry.is_dir { "folder" } else { "file" },
-                        entry.size,
-                        if entry.cached {
-                            "Cached locally"
-                        } else {
-                            "Remote only"
-                        },
-                        if entry.modified.is_empty() {
-                            String::new()
-                        } else {
-                            format!(" · {}", entry.modified)
-                        }
-                    ),
-                    Choice::BackupForm(FormKind::DriveMaterialize, entry.path.clone()),
-                ));
-            }
-            rows
-        }
+        Route::GoogleDrive => drive_rows(app),
         Route::SyncPanel => vec![
             Entry::info("Readable Google Drive sync is set per book, in Settings › Backups."),
             Entry::info(if app.sync_enabled() {
@@ -1137,49 +1264,8 @@ fn entries(app: &App) -> Vec<Entry> {
                     Choice::BackupNow,
                 ),
                 Entry::new("Refresh snapshots", Choice::BackupRequest(Request::List)),
-                Entry::new(
-                    "New backup on a local drive",
-                    Choice::BackupForm(FormKind::NewLocal, String::new()),
-                ),
-                Entry::new(
-                    "New backup on Google Drive",
-                    Choice::BackupForm(FormKind::NewDrive, String::new()),
-                ),
-                Entry::new(
-                    "Connect existing repository and recovery key",
-                    Choice::BackupForm(FormKind::Connect, String::new()),
-                ),
-                Entry::new(
-                    "Connect Google Drive",
-                    Choice::BackupForm(FormKind::Google, String::new()),
-                ),
-                Entry::new(
-                    "Connect Google Drive from a file on a USB stick",
-                    Choice::BackupForm(FormKind::GoogleFile, String::new()),
-                ),
-                Entry::new(
-                    "Export recovery key",
-                    Choice::BackupForm(FormKind::ExportKey, String::new()),
-                ),
-                Entry::new(
-                    "Recover an interrupted repository lock",
-                    Choice::BackupRequest(Request::Unlock),
-                ),
-                Entry::new(
-                    "Queue saved project for offline backup",
-                    Choice::BackupQueueNow,
-                ),
-                Entry::new(
-                    "Run queued backups and retry interrupted jobs",
-                    Choice::BackupRequest(Request::RunQueue),
-                ),
             ];
-            if !backup.status.queued_backups.is_empty() {
-                rows.push(Entry::new(
-                    "Clear pending backup queue",
-                    Choice::BackupRequest(Request::ClearQueue),
-                ));
-            }
+            rows.extend(links(Route::Backups));
             // Keep action positions stable when an asynchronous job finishes.
             rows.insert(
                 0,
@@ -1240,24 +1326,6 @@ fn entries(app: &App) -> Vec<Entry> {
                     ));
                 }
             }
-            if !backup.status.queued_backups.is_empty() {
-                rows.push(Entry::info(format!(
-                    "Queued offline backups: {} pending",
-                    backup.status.queued_backups.len()
-                )));
-                for item in &backup.status.queued_backups {
-                    rows.push(Entry::info(format!(
-                        "Queued: {} · attempts {}{}",
-                        item.label,
-                        item.attempts,
-                        if item.last_error.is_empty() {
-                            String::new()
-                        } else {
-                            format!(" · {}", item.last_error)
-                        }
-                    )));
-                }
-            }
             rows.push(Entry::info(
                 "Select a snapshot below to restore into a NEW folder.",
             ));
@@ -1295,6 +1363,94 @@ fn entries(app: &App) -> Vec<Entry> {
                         "  ↳ Restore with your settings",
                         Choice::BackupForm(FormKind::RestoreWithSettings, snapshot.id.clone()),
                     ));
+                }
+            }
+            rows
+        }
+        Route::BackupDestinations => {
+            use super::backup::FormKind;
+            let mut rows = vec![
+                Entry::new(
+                    "New backup on a local drive",
+                    Choice::BackupForm(FormKind::NewLocal, String::new()),
+                ),
+                Entry::new(
+                    "New backup on Google Drive",
+                    Choice::BackupForm(FormKind::NewDrive, String::new()),
+                ),
+                Entry::new(
+                    "Connect existing repository and recovery key",
+                    Choice::BackupForm(FormKind::Connect, String::new()),
+                ),
+            ];
+            if !app.deck.shell.backup.status.google_connected {
+                rows.push(Entry::new(
+                    "Link Google Drive first",
+                    Choice::Open(Route::GoogleAccount),
+                ));
+            }
+            rows.push(Entry::info(
+                "Keep local backups on another device; folders can share the same disk.",
+            ));
+            rows
+        }
+        Route::BackupKey => {
+            use super::backup::FormKind;
+            use crate::backup_service::Request;
+            let backup = &app.deck.shell.backup;
+            let mut rows = vec![
+                Entry::new(
+                    "Export recovery key",
+                    Choice::BackupForm(FormKind::ExportKey, String::new()),
+                ),
+                Entry::new(
+                    "Recover an interrupted repository lock",
+                    Choice::BackupRequest(Request::Unlock),
+                ),
+            ];
+            if backup.status.configured {
+                rows.push(Entry::info(format!(
+                    "Private recovery key: {}",
+                    backup.status.recovery_key
+                )));
+            }
+            rows
+        }
+        Route::BackupQueue => {
+            use crate::backup_service::Request;
+            let backup = &app.deck.shell.backup;
+            let mut rows = vec![
+                Entry::new(
+                    "Queue saved project for offline backup",
+                    Choice::BackupQueueNow,
+                ),
+                Entry::new(
+                    "Run queued backups and retry interrupted jobs",
+                    Choice::BackupRequest(Request::RunQueue),
+                ),
+            ];
+            if backup.status.queued_backups.is_empty() {
+                rows.push(Entry::info("Nothing is waiting."));
+            } else {
+                rows.push(Entry::new(
+                    "Clear pending backup queue",
+                    Choice::BackupRequest(Request::ClearQueue),
+                ));
+                rows.push(Entry::info(format!(
+                    "Queued offline backups: {} pending",
+                    backup.status.queued_backups.len()
+                )));
+                for item in &backup.status.queued_backups {
+                    rows.push(Entry::info(format!(
+                        "Queued: {} · attempts {}{}",
+                        item.label,
+                        item.attempts,
+                        if item.last_error.is_empty() {
+                            String::new()
+                        } else {
+                            format!(" · {}", item.last_error)
+                        }
+                    )));
                 }
             }
             rows
@@ -1876,6 +2032,10 @@ impl App {
     }
     /// Settings, already on the page at the end of `path` (the pages before it are
     /// what Esc returns through).
+    /// Opens a page on the Settings menu map, through its groups, so Back retraces them.
+    pub(crate) fn open_settings_page(&mut self, page: Route) {
+        self.open_settings_at(&path_to(page));
+    }
     pub(crate) fn open_settings_at(&mut self, path: &[Route]) {
         self.open_settings();
         if let Some((last, parents)) = path.split_last() {
@@ -2335,10 +2495,8 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
         .into_iter()
         .map(|entry| entry.label)
         .collect::<Vec<_>>();
-    let mut title = match app.deck.shell.nav.current() {
-        Route::Settings => "WrOS · Settings".into(),
-        Route::Category(category) => format!("WrOS · Settings › {}", category.label()),
-        Route::Panel(panel) => format!("WrOS · Settings › System › {}", panel.label()),
+    let route = app.deck.shell.nav.current();
+    let mut title = breadcrumb(route).unwrap_or_else(|| match route {
         Route::WarmScreen => "WrOS · Settings › Display › Warm screen".into(),
         Route::WarmPreview => "WrOS · Keep display preview?".into(),
         Route::Timezones => "WrOS · Settings › Date and time › Timezone".into(),
@@ -2353,13 +2511,10 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
             .unwrap_or_else(|| "WrOS · Connect Wi-Fi".into()),
         Route::SavedWifi => "WrOS · Settings › Saved Wi-Fi profiles".into(),
         Route::SavedWifiProfile => "WrOS · Saved Wi-Fi profile".into(),
-        Route::LocalAccounts => "WrOS · Settings › Local accounts".into(),
-        Route::GoogleAccount => "WrOS · Settings › Google account".into(),
         Route::GoogleDisconnectConfirm => "WrOS · Disconnect Google Drive?".into(),
         Route::GoogleDrive => "WrOS · Settings › Google Drive".into(),
         Route::LinkPhone => "WrOS · Link Google Drive".into(),
         Route::SyncPanel => "WrOS · Settings › Synchronization".into(),
-        Route::Backups => "WrOS · Settings › Backups".into(),
         Route::BackupForm => app
             .deck
             .shell
@@ -2380,9 +2535,12 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
         Route::InstallerConfirm => "WrOS · Start encrypted live installer?".into(),
         Route::ManualClock => "WrOS · Settings › Date and time › Manual clock".into(),
         Route::ManualClockConfirm => "WrOS · Set local clock?".into(),
-        Route::SoundView => "WrOS · Settings › System › Sound and volume".into(),
-        Route::KeyboardWizard => "WrOS · Settings › Interface › Keyboard layout wizard".into(),
-    };
+        Route::KeyboardWizard => {
+            "WrOS · Settings › Look and keyboard › Keyboard layout wizard".into()
+        }
+        // Every other page is on the menu map and has a breadcrumb.
+        _ => "WrOS · Settings".into(),
+    });
     if app.deck.live_session {
         title.push_str(" · Live session");
     }

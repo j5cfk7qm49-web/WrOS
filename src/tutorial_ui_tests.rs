@@ -79,7 +79,8 @@ fn sync_lesson_completes_on_a_finished_sync_not_on_a_stopped_one() {
     use crate::sync_service::{Reply, Request as Sync};
     let mut desk = Desk::open(book("tutorial-sync-lesson", true), 100, 30);
     launch(&mut desk, 37);
-    assert_eq!(desk.app.deck.shell.nav.current(), Route::SyncPanel);
+    // Sync is turned on in Backups since the Synchronization page folded into it (#90).
+    assert_eq!(desk.app.deck.shell.nav.current(), Route::Backups);
     let project = desk.root.to_string_lossy().into_owned();
     for (status, completes) in [("confirm", false), ("offline", false), ("synced", true)] {
         let sync = &mut desk.app.deck.shell.backup.sync;

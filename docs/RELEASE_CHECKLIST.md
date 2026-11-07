@@ -43,7 +43,7 @@ carry over. Record the results in its table.
    Run `python3 -I tools/publish-updates.py published <updates-url> <empty-dir>`
    in a fresh local directory. Compare the downloaded package SHA-256 with the
    offline bundle.
-2. On a disposable older WrOS installation, open **Settings › System › Updates**
+2. On a disposable older WrOS installation, open **Settings › Updates and recovery › Updates**
    and choose **Check for WrOS updates**. Review the version, signer and validity
    dates. Confirm staging, restart, unlock and check that Settings reports the
    completed update and that the original book is intact.
