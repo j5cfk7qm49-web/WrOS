@@ -36,13 +36,18 @@ lags behind your typing; moving around feels no slower than on AC.
 7. Settings › System › Battery and power › **When the lid closes**: set it to
    *lock, stay awake* and close the lid; then *do nothing* and close the lid.
    Set it back to *lock and sleep*.
+8. On battery, let the charge run down while writing. Note what the status bar
+   says at 20%, at 10% and at 8%. At 8%, wait for the countdown, unlock after
+   the sleep and read the message. Once, plug in during the countdown.
 
 **Pass when:** each close saves first (the sentence is there after unlock),
 the screen after waking is the lock, never the book or the login screen; the
 Colemak password works at the lock; a wrong password is refused; after step 5
 the laptop stayed awake and locked; in step 6 every close locks; in step 7 the
 first close locks without sleeping and the second leaves the book open. Nothing
-you typed at the lock shows up in the book.
+you typed at the lock shows up in the book. In step 8 each warning appears once and
+names what happens at 8%; the countdown ends at the lock, never the login screen;
+plugging in says "Charging" and stops it.
 
 ## 3. Wi-Fi after sleep, and over a day
 

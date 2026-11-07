@@ -64,6 +64,14 @@ reserve requests the same action. The editor saves both buffers and waits for an
 active backup, sync or system request to finish. The battery reserve is the
 device's critical flag or 8 percent, whichever comes first.
 
+WrOS says what it is about to do before it does it. On battery the status bar
+warns at 20% and 10% that at 8% WrOS saves, locks and sleeps. At the reserve it
+saves at once, then counts down 30 seconds in the status bar before locking and
+sleeping; plugging in cancels the countdown. After waking, the unlock message says
+the battery caused the sleep, and a laptop still at its reserve gets two minutes
+before the next sleep. Where sleep is unavailable, the reserve saves and says so.
+Settings keeps each warning in its notices.
+
 Closing the lid does what the writer chose in Settings › System › Battery and
 power › **When the lid closes**: lock and sleep (the default), lock and stay
 awake, or do nothing. Where sleep is unavailable, lock and sleep only locks. The

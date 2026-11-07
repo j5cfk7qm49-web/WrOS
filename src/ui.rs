@@ -1328,7 +1328,13 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         }
         _ => {}
     }
-    if !app.msg.is_empty() {
+    // What the battery is about to make WrOS do comes first, in warning colour.
+    if let Some(battery) = app.deck.battery.showing(std::time::Instant::now()) {
+        spans.push(Span::styled(
+            format!("  {battery}"),
+            Style::default().fg(t.warn),
+        ));
+    } else if !app.msg.is_empty() {
         spans.push(Span::styled(
             format!("  {}", app.msg),
             Style::default().fg(t.accent),

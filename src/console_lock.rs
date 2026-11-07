@@ -60,17 +60,26 @@ fn fixture_locker() -> Option<std::path::PathBuf> {
     .then_some(helper)
 }
 
-fn low_battery(root: &Path) -> bool {
+/// The first battery's charge, whether it is running down, and whether it is at its reserve.
+fn read_battery(root: &Path) -> crate::battery::Reading {
     fs::read_dir(root)
         .into_iter()
         .flatten()
         .flatten()
-        .any(|battery| {
+        .find_map(|battery| {
             let path = battery.path();
             let read = |key| fs::read_to_string(path.join(key)).unwrap_or_default();
-            read("type").trim() == "Battery"
-                && battery_needs_sleep(&read("status"), &read("capacity_level"), &read("capacity"))
+            (read("type").trim() == "Battery").then(|| {
+                let (status, level, capacity) =
+                    (read("status"), read("capacity_level"), read("capacity"));
+                crate::battery::Reading {
+                    percent: capacity.trim().parse().ok(),
+                    discharging: status.trim() == "Discharging",
+                    critical: battery_needs_sleep(&status, &level, &capacity),
+                }
+            })
         })
+        .unwrap_or_default()
 }
 
 fn battery_needs_sleep(status: &str, level: &str, capacity: &str) -> bool {
@@ -79,7 +88,7 @@ fn battery_needs_sleep(status: &str, level: &str, capacity: &str) -> bool {
             || capacity
                 .trim()
                 .parse::<u8>()
-                .is_ok_and(|percent| percent <= 8))
+                .is_ok_and(|percent| percent <= crate::battery::RESERVE))
 }
 
 #[cfg(test)]
@@ -100,7 +109,7 @@ mod tests {
 #[derive(Default)]
 pub struct Power {
     pub lid_closed: AtomicBool,
-    pub battery_critical: AtomicBool,
+    pub battery: std::sync::Mutex<crate::battery::Reading>,
 }
 
 pub fn watch_power() -> Arc<Power> {
@@ -119,9 +128,11 @@ pub fn watch_power() -> Arc<Power> {
                 ])
                 .output()
                 .is_ok_and(|out| out.status.success() && out.stdout == b"b true\n");
-            let critical = low_battery(Path::new("/sys/class/power_supply"));
+            let battery = read_battery(Path::new("/sys/class/power_supply"));
             output.lid_closed.store(lid, Ordering::Relaxed);
-            output.battery_critical.store(critical, Ordering::Relaxed);
+            if let Ok(mut reading) = output.battery.lock() {
+                *reading = battery;
+            }
             drop(output);
             std::thread::sleep(Duration::from_secs(2));
         }

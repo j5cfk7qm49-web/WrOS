@@ -141,6 +141,8 @@ pub struct Deck {
     pub lid_settings: Option<PathBuf>,
     /// Battery, screen light and volume for the bottom bar.
     pub gauges: crate::gauges::Gauges,
+    /// Battery warnings and the countdown at the reserve.
+    pub battery: crate::battery::Watch,
     /// Quit is offered only outside WrOS: in a WrOS session, leaving the app just ends
     /// the login and goes back to the login screen.
     pub quit_offered: bool,
@@ -318,6 +320,7 @@ impl Deck {
             lid_close,
             lid_settings,
             gauges: crate::gauges::Gauges::default(),
+            battery: crate::battery::Watch::default(),
             quit_offered: !crate::installed_session(),
             power_pending: false,
             installer_requested: false,
@@ -418,10 +421,32 @@ impl App {
 
     /// What a closed lid or a nearly empty battery asks for right now: nothing,
     /// a lock (`Some(false)`), or a lock and sleep (`Some(true)`). The battery
-    /// always asks for sleep, whatever the lid choice.
-    pub(crate) fn power_event(&self, lid_closed: bool, battery_critical: bool) -> Option<bool> {
-        if battery_critical && self.deck.suspend_available {
-            return Some(true);
+    /// warns first and counts down before it asks for sleep, whatever the lid choice.
+    pub(crate) fn power_event(
+        &mut self,
+        lid_closed: bool,
+        battery: crate::battery::Reading,
+        now: std::time::Instant,
+    ) -> Option<bool> {
+        use crate::battery::Step;
+        let shown = self.deck.battery.showing(now).map(str::to_string);
+        let step = self
+            .deck
+            .battery
+            .read(battery, self.deck.suspend_available, now);
+        // The notices keep each warning, and a countdown once, not every second of it.
+        if let Some(said) = self.deck.battery.showing(now)
+            && shown.as_deref() != Some(said)
+            && (step == Step::Save || !said.contains(" seconds"))
+        {
+            self.deck.shell.notices.push(said);
+        }
+        match step {
+            Step::Sleep => return Some(true),
+            Step::Save => {
+                self.commit_saves();
+            }
+            Step::Nothing => {}
         }
         if !lid_closed || !self.deck.lock_available {
             return None;
@@ -594,7 +619,15 @@ impl App {
     }
     /// The console lock handed the session back after the writer's password.
     pub fn on_unlocked(&mut self) {
-        self.deck.note = "Writing session unlocked.".into();
+        self.deck.note = self
+            .deck
+            .battery
+            .unlocked()
+            .unwrap_or("Writing session unlocked.")
+            .into();
+        if self.deck.note != "Writing session unlocked." {
+            self.msg = self.deck.note.clone();
+        }
         self.deck.shell.notices.push(&self.deck.note);
         self.observe_deck(tutorial::Event::SessionUnlocked);
     }

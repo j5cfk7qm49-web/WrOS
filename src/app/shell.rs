@@ -901,7 +901,7 @@ fn entries(app: &App) -> Vec<Entry> {
                         ));
                         if app.deck.suspend_available {
                             rows.push(Entry::info(
-                                "A nearly empty battery always saves, locks and sleeps.",
+                                "On battery, WrOS warns at 20% and 10%. At 8% it saves, then locks and sleeps after 30 seconds.",
                             ));
                         }
                     }

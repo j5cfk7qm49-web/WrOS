@@ -2,6 +2,7 @@
 
 mod app;
 mod backup_service;
+mod battery;
 mod books;
 #[cfg(target_os = "linux")]
 mod console_lock;
@@ -633,9 +634,11 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
         #[cfg(target_os = "linux")]
         if let Some(watch) = &power_watch {
             use std::sync::atomic::Ordering::Relaxed;
+            let battery = watch.battery.lock().map(|r| *r).unwrap_or_default();
             match app.power_event(
                 watch.lid_closed.load(Relaxed),
-                watch.battery_critical.load(Relaxed),
+                battery,
+                std::time::Instant::now(),
             ) {
                 None => handled_sleep = false,
                 Some(sleep) if !handled_sleep && !app.deck.power_pending => {

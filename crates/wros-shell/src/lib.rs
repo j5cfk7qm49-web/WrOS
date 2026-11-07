@@ -205,6 +205,10 @@ impl Notices {
     pub fn latest(&self) -> Option<&str> {
         self.0.back().map(String::as_str)
     }
+    /// Oldest first.
+    pub fn iter(&self) -> impl Iterator<Item = &str> {
+        self.0.iter().map(String::as_str)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
