@@ -98,13 +98,25 @@ the writing app could draw itself, with no foot in between.
 - **Either way** the console session keeps the terminal backend, so the app
   would carry two backends.
 
-**Trial for rc10 (decided 2026-11-06):** foot against ratatui-wgpu under cage
-on the HP Stream: start time, typing delay, memory, disk space, Colemak and
-compose keys, and a day of writing. If neither is good enough, WrOS stays on
-the console session. Not in the trial: Alacritty (larger than foot, no
-pictures), kitty (heavy, needs Python), terminals Debian does not ship
-(WezTerm, Ghostty, Rio, kmscon), and drawing straight to the screen with
-soft_ratatui without cage.
+**Trial for rc10 (decided 2026-11-06):** three ways to show the writing app,
+compared on the HP Stream for start time, typing delay, memory, disk space,
+Colemak and compose keys, and a day of writing. If none is good enough, WrOS
+stays on the console session.
+
+1. **foot under cage** (the rc9 preview). Nothing new to install or write.
+2. **ratatui-wgpu under cage.** foot goes; the app opens its own window and
+   reads keys through winit and xkbcommon. Try wgpu's OpenGL mode first, which
+   uses the Mesa drivers cage already brings; Debian's Vulkan driver
+   (`mesa-vulkan-drivers`, 81 MB) is not installed by cage.
+3. **soft_ratatui straight to the screen.** No cage, no foot, no Mesa. The
+   app renders to pixels and shows them through the kernel's display
+   interface (DRM/KMS, as the warm-screen helper already uses), reading keys
+   through libinput and xkbcommon on its own console. The most new code:
+   taking the display, key repeat, compose keys and the clipboard are ours.
+   The console lock and the warm screen stay close to how they work today.
+
+Not in the trial: Alacritty (larger than foot, no pictures), kitty (heavy, needs
+Python), and terminals Debian does not ship (WezTerm, Ghostty, Rio, kmscon).
 
 ## Decided for rc10 (2026-11-06)
 
