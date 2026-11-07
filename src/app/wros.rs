@@ -141,6 +141,9 @@ pub struct Deck {
     pub lid_settings: Option<PathBuf>,
     /// Battery, screen light and volume for the bottom bar.
     pub gauges: crate::gauges::Gauges,
+    /// Quit is offered only outside WrOS: in a WrOS session, leaving the app just ends
+    /// the login and goes back to the login screen.
+    pub quit_offered: bool,
     pub power_pending: bool,
     pub installer_requested: bool,
     /// An app-only update is installed: save, then start the new writing app in place.
@@ -315,6 +318,7 @@ impl Deck {
             lid_close,
             lid_settings,
             gauges: crate::gauges::Gauges::default(),
+            quit_offered: !crate::installed_session(),
             power_pending: false,
             installer_requested: false,
             app_restart_requested: false,

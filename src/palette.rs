@@ -513,6 +513,10 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
             action: Action::Theme(t.name),
         });
     }
+    // In WrOS, leaving the writing app only ends the login: there is nothing to quit to.
+    if !app.deck.quit_offered {
+        v.retain(|e| e.action != Action::Quit);
+    }
     v
 }
 

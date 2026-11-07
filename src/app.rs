@@ -2250,7 +2250,7 @@ impl App {
             Action::Timer => self.on_function_key(2),
             Action::TimerReset => self.on_function_key(3),
             Action::Menu => self.open_menu(),
-            Action::Quit => self.quit = true,
+            Action::Quit => self.quit = self.deck.quit_offered,
             Action::FindAnything => self.open_palette(),
             Action::Settings => self.open_settings(),
             Action::Submenu(sub) => self.overlay = Overlay::Sub { sub, sel: 0 },
@@ -5228,6 +5228,7 @@ impl App {
             (row("Quit Grimoire", &format!("({m}Q)")), Action::Quit),
         ];
         items.retain(|(_, a)| *a != Action::Conflicts || !self.conflicts().is_empty());
+        items.retain(|(_, a)| *a != Action::Quit || self.deck.quit_offered);
         items
     }
 
@@ -5770,6 +5771,15 @@ impl App {
 
     /// Status-bar hints for whichever pane has focus.
     pub fn hints(&self) -> String {
+        let hints = self.pane_hints();
+        if self.deck.quit_offered {
+            hints
+        } else {
+            hints.replace(&format!("  {}Q quit", self.mod_label()), "")
+        }
+    }
+
+    fn pane_hints(&self) -> String {
         let m = self.mod_label();
         // What Esc does comes first, so a narrow status bar never cuts it.
         let esc = if self.side_room && self.codex.is_some() {

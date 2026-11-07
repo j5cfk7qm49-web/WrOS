@@ -1203,6 +1203,7 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
             KeyCode::Char('Z') => app.redo(),
             KeyCode::Char('z') => app.undo(),
             KeyCode::Char('y') => app.redo(),
+            KeyCode::Char('q') if !app.deck.quit_offered => app.msg = NO_QUIT.into(),
             KeyCode::Char('q') if quit_or_arm(app, confirm_quit) => return true,
             _ => {}
         }
@@ -1316,6 +1317,9 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
 /// Quit, saving everything first; true to leave. A save that fails keeps
 /// Grimoire open and arms `armed`, so the next Ctrl-Q leaves anyway — the
 /// words that couldn't be written are in recovery by then.
+/// What Ctrl-Q says in a WrOS session, where there is no quitting to do.
+const NO_QUIT: &str = "Saved as you go. To stop, lock or shut down in Battery and power.";
+
 fn quit_or_arm(app: &mut App, armed: &mut bool) -> bool {
     if *armed || app.try_quit() {
         return true;

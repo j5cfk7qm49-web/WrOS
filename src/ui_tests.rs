@@ -209,6 +209,27 @@ fn quit_grimoire_saves_and_leaves() {
 }
 
 #[test]
+fn a_wros_session_has_no_quit_and_ctrl_q_says_how_to_stop() {
+    let mut d = Desk::open(book("no-quit", true), 120, 35);
+    d.app.deck.quit_offered = false;
+    d.key(KeyCode::Tab);
+    assert!(!d.status().contains("Q quit"), "{}", d.status());
+    d.ctrl('q');
+    d.ctrl('q');
+    assert!(!d.left, "Ctrl-Q never leaves a WrOS session");
+    assert!(d.status().contains("Saved as you go"), "{}", d.status());
+    // The menu's last row is no longer Quit, and the palette has no Quit either.
+    d.key(KeyCode::Esc);
+    d.key(KeyCode::Up);
+    assert!(!d.shows("Quit Grimoire"));
+    assert!(
+        crate::palette::entries(&d.app)
+            .iter()
+            .all(|e| e.action != crate::palette::Action::Quit)
+    );
+}
+
+#[test]
 fn the_menu_acts_on_the_scene_being_written() {
     let mut d = Desk::open(book("menu-target", true), 120, 35);
     // The tree's cursor wanders off to Scene Three; then back to writing.
