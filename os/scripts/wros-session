@@ -1,25 +1,268 @@
-#!/bin/sh
-# Runs as the authenticated writer, never root. Normal Linux mode can simply
-# invoke `grimoire`; this wrapper is for the dedicated console appliance.
-set -eu
-if [ "$(id -u)" -eq 0 ]; then
-    echo 'Refusing to run the writing application as root.' >&2
-    exit 1
-fi
-export LANG=C.UTF-8
-export TERM="${TERM:-linux}"
-export WROS_OS=1
-if [ -f /run/wros-live/session.json ] || [ -f /run/live/medium/live/filesystem.squashfs ]; then
-    export WROS_LIVE_SESSION=1
-fi
-umask 077
-# Journal marker proves a non-root console session was reached; it is not a
-# substitute for the VM test's actual rendered-screen assertion.
-logger -t wros-session "WROS_SESSION uid=$(id -u) tty=$(tty)"
-# While a new WrOS version is on probation, record that a writer logged in. The app reports
-# "ready" once it drew its first screen; two logins that never get there go back a version.
-if grep -q '"probation": true' /var/lib/wros-update/public/status.json 2>/dev/null; then
-    pkexec --disable-internal-agent /usr/libexec/wros-update-healthy started >/dev/null 2>&1 || true
-fi
-# Exit returns to a login prompt rather than exposing an authenticated shell.
-exec /usr/bin/grimoire
+#!/usr/bin/python3 -I
+"""Starts the writing app after a PAM login on tty1. Runs as the writer, never root.
+
+The console session is always there. The graphical one (cage running foot running
+grimoire) starts only when the writer turned it on, cage and foot are installed,
+recovery did not ask for the console this boot, and it has not failed twice in a
+row. If it ends before the app drew its first screen, the console session starts
+at once and the app says why. Exit returns to a login prompt rather than exposing
+an authenticated shell.
+"""
+import fcntl
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+GRIMOIRE = '/usr/bin/grimoire'
+CAGE = '/usr/bin/cage'
+FOOT = '/usr/bin/foot'
+FOOT_CONFIG = '/usr/share/wros/foot.ini'
+LOGGER = '/usr/bin/logger'
+PKEXEC = '/usr/bin/pkexec'
+HEALTHY = '/usr/libexec/wros-update-healthy'
+UPDATE_STATUS = Path('/var/lib/wros-update/public/status.json')
+KEYBOARD = Path('/etc/wros/keyboard.json')
+DEBIAN_KEYBOARD = Path('/etc/default/keyboard')
+CONSOLE_THIS_BOOT = Path('/run/wros-session/console')
+CMDLINE = Path('/proc/cmdline')
+LIVE_MARKERS = (Path('/run/wros-live/session.json'), Path('/run/live/medium/live/filesystem.squashfs'))
+MAX_FAILURES = 2
+LIMIT = 65536
+
+# WrOS layout name -> XKB variant of the us layout, as wros-keyboard's installer mapping.
+XKB_VARIANTS = {'qwerty': '', 'colemak': 'colemak', 'colemak-dh-ansi': 'colemak_dh',
+                'colemak-dh-iso': 'colemak_dh_iso'}
+XKB_NAMES = ('XKBLAYOUT', 'XKBVARIANT', 'XKBMODEL', 'XKBOPTIONS')
+XKB_SAFE = frozenset('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-,:()+')
+
+FAILED_ONCE = ('The graphical session did not start, so WrOS opened in the console. '
+               'It will try the graphical session again at the next login.')
+FAILED_TWICE = ('The graphical session did not start twice, so WrOS uses the console. '
+                'Turn it back on in Settings › System › Display when you want to try again.')
+RECOVERY_CHOSE = 'WrOS opened in the console, as chosen in the recovery menu.'
+
+KDSETMODE, KD_TEXT = 0x4B3A, 0x00
+KDSKBMODE, K_UNICODE = 0x4B45, 0x03
+
+
+def read_json(path):
+    """The JSON object in `path`, or None when it is missing, too big or not an object."""
+    try:
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > LIMIT:
+            return None
+        value = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def write_json(path, value):
+    """Best effort: a state file that can't be written only means the count starts over."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        temp = path.with_name(path.name + '.tmp')
+        fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, 'w', encoding='utf-8') as out:
+            json.dump(value, out)
+        os.replace(temp, path)
+    except OSError:
+        pass
+
+
+def debian_xkb(path):
+    """XKB settings from Debian's keyboard file, read as data; None if absent or odd."""
+    try:
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > LIMIT:
+            return None
+        lines = path.read_text(encoding='utf-8').splitlines()
+    except (OSError, UnicodeDecodeError):
+        return None
+    values = {}
+    for line in lines:
+        name, sep, raw = line.strip().partition('=')
+        if not sep or name not in XKB_NAMES:
+            continue
+        value = raw.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in '"\'':
+            value = value[1:-1]
+        if name in values or len(value) > 200 or not set(value) <= XKB_SAFE:
+            return None
+        values[name] = value
+    return values if values.get('XKBLAYOUT') else None
+
+
+def xkb_environment(keyboard=KEYBOARD, debian=DEBIAN_KEYBOARD):
+    """The XKB_DEFAULT_* variables that give cage the layout the console uses.
+
+    A layout chosen in WrOS (the committed keyboard.json) wins. Before the writer
+    chooses one, the console keeps Debian's installer layout, so cage reads that too.
+    """
+    saved = read_json(keyboard)
+    layout = saved.get('layout') if saved else None
+    if layout in XKB_VARIANTS and saved.get('generation') != 'initial':
+        values = {'XKBLAYOUT': 'us', 'XKBVARIANT': XKB_VARIANTS[layout]}
+    else:
+        values = debian_xkb(debian) or {'XKBLAYOUT': 'us', 'XKBVARIANT': ''}
+    return {'XKB_DEFAULT_' + name[3:]: value for name, value in values.items() if value}
+
+
+class Launcher:
+    """One login's choice of session. Every outside effect goes through a seam for the tests."""
+
+    def __init__(self, environ, home, uid, runtime_dir, exists=os.path.exists, run=subprocess.run,
+                 execve=os.execve, cmdline=CMDLINE, console_flag=CONSOLE_THIS_BOOT,
+                 keyboard=KEYBOARD, debian_keyboard=DEBIAN_KEYBOARD, tty=None):
+        self.environ, self.home, self.uid = environ, Path(home), uid
+        self.runtime_dir = Path(runtime_dir) if runtime_dir else None
+        self.exists, self.run, self.execve = exists, run, execve
+        self.cmdline, self.console_flag = cmdline, console_flag
+        self.keyboard, self.debian_keyboard, self.tty = keyboard, debian_keyboard, tty
+
+    @property
+    def settings_path(self):
+        return self.home / '.config/wros/session.json'
+
+    @property
+    def state_path(self):
+        return self.home / '.local/state/wros/session.json'
+
+    def failures(self):
+        state = read_json(self.state_path) or {}
+        count = state.get('failures')
+        return count if isinstance(count, int) and 0 <= count <= 100 else 0
+
+    def set_failures(self, count):
+        write_json(self.state_path, {'version': 1, 'failures': count})
+
+    def live(self):
+        return 'WROS_LIVE_SESSION' in self.environ or any(self.exists(str(p)) for p in LIVE_MARKERS)
+
+    def console_asked(self):
+        if self.exists(str(self.console_flag)):
+            return True
+        try:
+            words = self.cmdline.read_text(encoding='utf-8', errors='replace')[:LIMIT].split()
+        except OSError:
+            return False
+        return 'wros.session=console' in words
+
+    def choice(self):
+        """('graphical', None) or ('console', the notice the app shows, or None)."""
+        settings = read_json(self.settings_path) or {}
+        if settings.get('session') != 'graphical' or self.live():
+            return 'console', None
+        if self.console_asked():
+            return 'console', RECOVERY_CHOSE
+        if not (self.exists(CAGE) and self.exists(FOOT) and self.runtime_dir):
+            return 'console', None
+        if self.failures() >= MAX_FAILURES:
+            return 'console', FAILED_TWICE
+        return 'graphical', None
+
+    def base_environment(self):
+        env = dict(self.environ)
+        env.update({'LANG': 'C.UTF-8', 'WROS_OS': '1'})
+        if self.live():
+            env['WROS_LIVE_SESSION'] = '1'
+        return env
+
+    def console(self, notice=None):
+        env = self.base_environment()
+        env.setdefault('TERM', 'linux')
+        env['WROS_SESSION'] = 'console'
+        if notice:
+            env['WROS_SESSION_NOTICE'] = notice
+        self.execve(GRIMOIRE, [GRIMOIRE], env)
+
+    def graphical(self):
+        """Runs cage until it ends. True when the app had drawn its first screen."""
+        ready = self.runtime_dir / 'wros-session-ready'
+        try:
+            ready.unlink()
+        except FileNotFoundError:
+            pass
+        except OSError:
+            return False
+        env = self.base_environment()
+        env.pop('TERM', None)
+        env.update(xkb_environment(self.keyboard, self.debian_keyboard))
+        env.update({'WROS_SESSION': 'graphical', 'WROS_READY_FILE': str(ready)})
+        command = [CAGE, '-s', '--', FOOT, '--config=' + FOOT_CONFIG, '--', GRIMOIRE]
+        try:
+            self.run(command, env=env, stdin=subprocess.DEVNULL, check=False)
+        except OSError:
+            return False
+        return ready.exists()
+
+    def restore_console(self):
+        """A compositor that died may leave tty1 in graphics mode with the keyboard off."""
+        if self.tty is None:
+            return
+        for request, value in ((KDSETMODE, KD_TEXT), (KDSKBMODE, K_UNICODE)):
+            try:
+                fcntl.ioctl(self.tty, request, value)
+            except OSError:
+                pass
+
+    def start(self):
+        kind, notice = self.choice()
+        if kind == 'graphical':
+            if self.graphical():
+                self.set_failures(0)
+                return 0
+            count = self.failures() + 1
+            self.set_failures(count)
+            log(f'WROS_SESSION graphical session failed before its first screen ({count})')
+            self.restore_console()
+            notice = FAILED_TWICE if count >= MAX_FAILURES else FAILED_ONCE
+        self.console(notice)
+        return 1
+
+
+def log(message):
+    try:
+        subprocess.run([LOGGER, '-t', 'wros-session', message], check=False,
+                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError:
+        pass
+
+
+def report_started():
+    """While a new WrOS version is on probation, record that a writer logged in. The app
+    reports "ready" once it drew its first screen; two logins that never get there go back."""
+    try:
+        if '"probation": true' not in UPDATE_STATUS.read_text(encoding='utf-8', errors='replace')[:LIMIT]:
+            return
+        subprocess.run([PKEXEC, '--disable-internal-agent', HEALTHY, 'started'], check=False,
+                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError:
+        pass
+
+
+def main():
+    if os.getuid() == 0:
+        print('Refusing to run the writing application as root.', file=sys.stderr)
+        return 1
+    os.umask(0o077)
+    try:
+        tty = os.ttyname(0)
+    except OSError:
+        tty = 'none'
+    # Journal marker proves a non-root console session was reached; it is not a
+    # substitute for the VM test's actual rendered-screen assertion.
+    log(f'WROS_SESSION uid={os.getuid()} tty={tty}')
+    report_started()
+    launcher = Launcher(os.environ, os.environ.get('HOME', '/nonexistent'), os.getuid(),
+                        os.environ.get('XDG_RUNTIME_DIR'), tty=0)
+    try:
+        return launcher.start()
+    except Exception as error:  # noqa: BLE001 - writing must always open somewhere
+        log(f'WROS_SESSION launcher error: {type(error).__name__}')
+        launcher.console(None)
+        return 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())

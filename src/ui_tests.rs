@@ -8271,3 +8271,5 @@ mod backup_ui_tests;
 
 #[path = "tutorial_ui_tests.rs"]
 mod tutorial_ui_tests;
+#[path = "session_ui_tests.rs"]
+mod session_ui_tests;

@@ -13,6 +13,7 @@ mod music;
 mod palette;
 mod scene;
 mod scenery;
+mod session;
 mod shutdown;
 mod sync_service;
 mod theme;
@@ -584,6 +585,7 @@ fn cmd_is_reachable() -> bool {
 fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
     let mut confirm_quit = false;
     let mut last_frame = Instant::now();
+    let mut first_screen = true;
 
     #[cfg(target_os = "linux")]
     let mut events = wros_input::Input::start(&std::env::current_exe()?)?;
@@ -702,6 +704,9 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
         if let Err(e) = terminal.draw(|f| ui::draw(f, app)) {
             save_or_rescue(app);
             return Err(e.into());
+        }
+        if std::mem::take(&mut first_screen) {
+            session::mark_ready();
         }
 
         let tick = if app.deck.state.low_power && !spectrum && app.reading.is_none() {

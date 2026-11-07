@@ -5,6 +5,7 @@ Nothing here authenticates for real, touches the update state, or runs a command
 import importlib.machinery
 import json
 from pathlib import Path
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -78,7 +79,8 @@ def helper_reply(data):
 
 
 class RecoveryMenu(unittest.TestCase):
-    def make(self, answers, *, password='right', engine=None, runner=None, accounts=(WRITER,)):
+    def make(self, answers, *, password='right', engine=None, runner=None, accounts=(WRITER,),
+             console_flag=Path('/nonexistent/wros-session/console')):
         self.console = Console(answers)
         self.engine = engine or Engine()
         self.runner = runner or Runner()
@@ -90,7 +92,7 @@ class RecoveryMenu(unittest.TestCase):
 
         menu = module.Recovery(self.console, authenticate=authenticate, engine=self.engine, run=self.runner,
                                accounts=lambda: list(accounts), sleep=self.sleeps.append,
-                               release=lambda: '0.1.0~rc5')
+                               release=lambda: '0.1.0~rc5', console_flag=console_flag)
         try:
             menu.session()
         except EOFError:
@@ -210,6 +212,30 @@ class RecoveryMenu(unittest.TestCase):
                                 ('7', ['/usr/bin/systemctl', 'poweroff'])):
             self.make(['right', answer])
             self.assertEqual(self.commands()[-1], command)
+
+    def test_a_writer_using_the_graphical_session_can_continue_in_the_console(self):
+        with tempfile.TemporaryDirectory() as temp:
+            home, flag = Path(temp, 'home'), Path(temp, 'run/wros-session/console')
+            writer = module.Account('ada', 1000, home)
+            Path(temp, 'run').mkdir()
+            menu = self.make(['right'], accounts=(writer,), console_flag=flag)
+            self.assertNotIn('console', [key for key, _, _ in menu.choices()])
+            (home / '.config/wros').mkdir(parents=True)
+            settings = home / '.config/wros/session.json'
+            settings.write_text('{"version": 1, "session": "graphical"}')
+            menu = self.make(['right', '6'], accounts=(writer,), console_flag=flag)
+            labels = [label for _, label, _ in menu.choices()]
+            self.assertEqual(labels[4:7], ['Continue to the normal login',
+                                           'Continue in the console session · until the next restart',
+                                           'Restart'])
+            self.assertTrue(flag.is_file())
+            self.assertEqual(self.commands()[-1], ['/usr/bin/systemctl', 'isolate', 'default.target'])
+            # A link in the writer's home is not followed by root.
+            flag.unlink()
+            settings.unlink()
+            Path(temp, 'elsewhere.json').write_text('{"session": "graphical"}')
+            settings.symlink_to(Path(temp, 'elsewhere.json'))
+            self.assertFalse(module.graphical_chosen(home))
 
     def test_the_version_comes_from_the_release_files_version_field(self):
         # Seen in the VM: the whole file was printed after "This computer runs WrOS".

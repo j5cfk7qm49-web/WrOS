@@ -17,6 +17,7 @@ from pathlib import Path
 import pwd
 import re
 import signal
+import stat
 import subprocess
 import sys
 import termios
@@ -32,6 +33,8 @@ ATTEMPTS = 3
 LOCKOUT_SECONDS = 30
 SAFE_ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C.UTF-8'}
 SYSTEMCTL = '/usr/bin/systemctl'
+# Read by /usr/libexec/wros-session: until the next restart, logins open the console session.
+CONSOLE_THIS_BOOT = Path('/run/wros-session/console')
 
 
 def release_version(text):
@@ -43,6 +46,27 @@ def release_version(text):
     raise ValueError('the release file has no version')
 
 
+def graphical_chosen(home):
+    """Whether the writer turned the graphical session on (~/.config/wros/session.json).
+
+    Read as root from the writer's home, so a link or anything but a small file counts as no."""
+    try:
+        fd = os.open(Path(home) / '.config/wros/session.json', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError:
+        return False
+    try:
+        with os.fdopen(fd, 'rb') as file:
+            if not stat.S_ISREG(os.fstat(file.fileno()).st_mode):
+                return False
+            data = file.read(65537)
+            if len(data) > 65536:
+                return False
+            value = json.loads(data)
+    except (OSError, ValueError):
+        return False
+    return isinstance(value, dict) and value.get('session') == 'graphical'
+
+
 class Account(NamedTuple):
     name: str
     uid: int
@@ -50,9 +74,10 @@ class Account(NamedTuple):
 
 
 class Recovery:
-    def __init__(self, console, *, authenticate, engine, run, accounts, sleep=time.sleep, release=None):
+    def __init__(self, console, *, authenticate, engine, run, accounts, sleep=time.sleep, release=None,
+                 console_flag=CONSOLE_THIS_BOOT):
         self.console, self.authenticate, self.engine, self.run = console, authenticate, engine, run
-        self.accounts, self.sleep = accounts, sleep
+        self.accounts, self.sleep, self.console_flag = accounts, sleep, console_flag
         self.release = release or (lambda: release_version(RELEASE.read_text(encoding='utf-8')))
         self.writer = None
 
@@ -99,8 +124,11 @@ class Recovery:
         rows += [('repair', 'Repair system packages', self.repair),
                  ('restore', 'Restore a book from a backup', self.restore),
                  ('what', 'Show what happened', self.what_happened),
-                 ('login', 'Continue to the normal login', self.continue_to_login),
-                 ('restart', 'Restart', self.restart),
+                 ('login', 'Continue to the normal login', self.continue_to_login)]
+        if self.writer is not None and graphical_chosen(self.writer.home):
+            rows.append(('console', 'Continue in the console session · until the next restart',
+                         self.continue_in_console))
+        rows += [('restart', 'Restart', self.restart),
                  ('off', 'Power off', self.power_off)]
         return rows
 
@@ -229,6 +257,14 @@ class Recovery:
 
     def continue_to_login(self):
         self.run([SYSTEMCTL, 'isolate', 'default.target'])
+
+    def continue_in_console(self):
+        flag = self.console_flag
+        flag.parent.mkdir(mode=0o755, exist_ok=True)
+        fd = os.open(flag, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o644)
+        os.close(fd)
+        self.console.say('The console session opens until the next restart.')
+        self.continue_to_login()
 
     def restart(self):
         self.run([SYSTEMCTL, 'reboot'])

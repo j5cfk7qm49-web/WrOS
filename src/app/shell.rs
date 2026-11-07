@@ -409,6 +409,7 @@ enum Choice {
     TimezoneChoose(String),
     TimezoneResolve(bool),
     Lock,
+    GraphicalSession,
     InstallerOpen,
     InstallerResolve(bool),
     ClockOpen,
@@ -606,20 +607,40 @@ fn entries(app: &App) -> Vec<Entry> {
                         "Select a network in Scan Wi-Fi networks to connect or enter credentials.",
                     ),
                 ]),
-                Panel::Display => rows.extend([
-                    Entry::info(format!(
-                        "Brightness: {}",
-                        status
-                            .and_then(|s| s.brightness_percent)
-                            .map_or("unavailable".into(), |p| format!("{p}%"))
-                    )),
-                    Entry::new("Brightness -10%", Choice::System(5)),
-                    Entry::new("Brightness +10%", Choice::System(6)),
-                    Entry::new(
-                        "Warm screen · blue light filter",
-                        Choice::Open(Route::WarmScreen),
-                    ),
-                ]),
+                Panel::Display => {
+                    rows.extend([
+                        Entry::info(format!(
+                            "Brightness: {}",
+                            status
+                                .and_then(|s| s.brightness_percent)
+                                .map_or("unavailable".into(), |p| format!("{p}%"))
+                        )),
+                        Entry::new("Brightness -10%", Choice::System(5)),
+                        Entry::new("Brightness +10%", Choice::System(6)),
+                        if app.deck.graphical_session {
+                            Entry::info("Warm screen · not in the graphical session yet")
+                        } else {
+                            Entry::new(
+                                "Warm screen · blue light filter",
+                                Choice::Open(Route::WarmScreen),
+                            )
+                        },
+                    ]);
+                    if app.deck.session_settings.is_some() {
+                        rows.extend([
+                            Entry::new(
+                                format!(
+                                    "Graphical session (preview): {} · from the next login",
+                                    if app.deck.graphical_chosen { "on" } else { "off" }
+                                ),
+                                Choice::GraphicalSession,
+                            ),
+                            Entry::info(
+                                "Preview: lock, sleep and the warm screen work only in the console session for now.",
+                            ),
+                        ]);
+                    }
+                }
                 Panel::Power => rows.extend([
                     Entry::info(format!(
                         "Battery: {}",
@@ -649,6 +670,8 @@ fn entries(app: &App) -> Vec<Entry> {
                         Entry::info("Live session · personal lock unavailable")
                     } else if app.deck.lock_available {
                         Entry::new("Lock writing session", Choice::Lock)
+                    } else if app.deck.graphical_session {
+                        Entry::info("Lock and sleep · not in the graphical session yet")
                     } else {
                         Entry::info("Console lock unavailable in this image/session")
                     },
@@ -2088,6 +2111,7 @@ impl App {
                     Choice::RepairOpen => self.repair_open(),
                     Choice::RepairRun => self.repair_run(),
                     Choice::Lock => self.request_console_lock(),
+                    Choice::GraphicalSession => self.toggle_graphical_session(),
                     Choice::InstallerOpen if !self.deck.busy => {
                         self.deck.shell.nav.open(Route::InstallerConfirm);
                         self.deck.shell.nav.select(0, 4);

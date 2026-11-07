@@ -124,6 +124,12 @@ pub struct Deck {
     pub busy: bool,
     pub lock_available: bool,
     pub installer_available: bool,
+    /// Running inside the graphical session (cage + foot).
+    pub graphical_session: bool,
+    /// Where the writer's session choice is kept, when the choice can be offered:
+    /// an installed, non-live WrOS with cage and foot installed.
+    pub session_settings: Option<std::path::PathBuf>,
+    pub graphical_chosen: bool,
     pub live_session: bool,
     /// An installed appliance session checks the WrOS update server after login and daily.
     pub online_updates: bool,
@@ -151,6 +157,18 @@ impl Deck {
             warnings
                 .push("Live session · save work somewhere persistent before restarting.".into());
         }
+        if background {
+            warnings.extend(crate::session::notice());
+        }
+        let session_settings = (background
+            && !live_session
+            && crate::installed_session()
+            && crate::session::graphical_installed())
+        .then(crate::session::settings_path)
+        .flatten();
+        let graphical_chosen = session_settings
+            .as_deref()
+            .is_some_and(crate::session::graphical_chosen);
         let layout_store = workspaces::Store::load(root)
             .map_err(|e| warnings.push(e.to_string()))
             .ok();
@@ -259,6 +277,9 @@ impl Deck {
                     false
                 }
             },
+            graphical_session: background && crate::session::graphical(),
+            session_settings,
+            graphical_chosen,
             installer_available: {
                 #[cfg(target_os = "linux")]
                 {
@@ -389,6 +410,27 @@ impl App {
         } else {
             None
         }
+    }
+
+    pub fn toggle_graphical_session(&mut self) {
+        let Some(settings) = self.deck.session_settings.clone() else {
+            return;
+        };
+        let on = !self.deck.graphical_chosen;
+        let message = match crate::session::choose(&settings, on) {
+            Ok(()) => {
+                self.deck.graphical_chosen = on;
+                if on {
+                    "Graphical session on. It starts at your next login."
+                } else {
+                    "Graphical session off. The console session starts at your next login."
+                }
+                .to_string()
+            }
+            Err(error) => format!("Couldn't save the session choice: {error}"),
+        };
+        self.deck.note = message;
+        self.deck.shell.notices.push(&self.deck.note);
     }
 
     pub fn request_console_lock(&mut self) {
