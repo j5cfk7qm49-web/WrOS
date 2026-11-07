@@ -58,7 +58,7 @@ fn state_path(settings: &Path) -> Option<PathBuf> {
     Some(home.join(".local/state/wros/session.json"))
 }
 
-fn write_private(path: &Path, value: &serde_json::Value) -> io::Result<()> {
+pub(crate) fn write_private(path: &Path, value: &serde_json::Value) -> io::Result<()> {
     let parent = path
         .parent()
         .ok_or_else(|| io::Error::other("no folder for the session settings"))?;

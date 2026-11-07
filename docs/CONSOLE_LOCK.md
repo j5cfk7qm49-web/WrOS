@@ -59,16 +59,24 @@ checks](evidence/console-lock-focused.json) cover the interface and policy; all
 
 ## Suspend and wake
 
-The active writer can choose **Lock and suspend**. A closed lid or a discharging
-battery at its reserve requests the same action. The editor saves both buffers
-and waits for an active backup, sync or system request to finish. The battery
-reserve is the device's critical flag or 8 percent, whichever comes first.
+The active writer can choose **Lock and suspend**. A discharging battery at its
+reserve requests the same action. The editor saves both buffers and waits for an
+active backup, sync or system request to finish. The battery reserve is the
+device's critical flag or 8 percent, whichever comes first.
+
+Closing the lid does what the writer chose in Settings › System › Battery and
+power › **When the lid closes**: lock and sleep (the default), lock and stay
+awake, or do nothing. Where sleep is unavailable, lock and sleep only locks. The
+choice is kept in `~/.config/grimoire/lid.json`, so backups carry it. The
+battery reserve always locks and sleeps, whatever the lid choice.
 
 The lock worker disables keyboard delivery to tty8 before starting vlock for
 suspend. Once vlock holds tty8, the worker writes a short-lived proof in its
 root-only runtime directory. The systemd suspend service independently checks
 the worker, the active protected VT, the disabled keyboard and the retired
-reader. The worker asks logind to suspend so NetworkManager can prepare and
+reader, and that the lock service is running and owns the locker. It has no
+unit dependency on the lock service: one kept the finished service loaded, so
+systemd refused every later lock in the same boot (#93). The worker asks logind to suspend so NetworkManager can prepare and
 resume with the system. On wake, it flushes typeahead and restores the keyboard
 for PAM unlock. The cleanup path restores the keyboard if the worker stops.
 

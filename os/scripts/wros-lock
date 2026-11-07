@@ -17,6 +17,7 @@ VT_GETMODE, VT_GETSTATE = 0x5601, 0x5603
 KDGKBMODE, KDSKBMODE, K_OFF = 0x4B44, 0x4B45, 4
 K_UNICODE = 3
 RUN = Path('/run/wros-lock')
+UNIT = 'wros-console-lock.service'
 ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8', 'LC_ALL': 'C.UTF-8',
        'HOME': '/nonexistent', 'TERM': 'linux'}
 PAM = ('# WrOS existing-session unlock; authentication is performed only by Debian vlock.\n'
@@ -163,11 +164,18 @@ def can_sleep(parent, locker, fd):
             and input_reader_retired(parent))
 
 
+def lock_service_owns(locker, proc_root=Path('/proc')):
+    """The locker runs inside the lock service's own control group (cgroup v2)."""
+    return (proc_root / str(locker) / 'cgroup').read_text().strip() == '0::/system.slice/' + UNIT
+
+
 def assert_suspend():
     proof = RUN / 'suspend'
     trusted_file(proof)
     parent, locker = map(int, proof.read_text().split())
     require(parent > 1 and locker > 1)
+    require(query(['/usr/bin/systemctl', 'show', '--value', '-p', 'ActiveState', UNIT]) == 'active')
+    require(lock_service_owns(locker))
     fd = tty8()
     try:
         require(can_sleep(parent, locker, fd))
@@ -254,7 +262,7 @@ def systemd_command(uid, parent, started, sysrq, sleep=False):
     require(isinstance(started, str) and started.isascii() and started.isdigit() and len(started) <= 32)
     require(type(sysrq) is int and 0 <= sysrq < 2**32)
     return ['/usr/bin/systemd-run', '--quiet', '--wait', '--collect', '--service-type=exec',
-            '--unit=wros-console-lock', '--property=KillMode=control-group',
+            '--unit=' + UNIT, '--property=KillMode=control-group',
             '--property=TimeoutStopSec=5s', '--property=LimitCORE=0',
             '--property=ExecStopPost=/usr/libexec/wros-lock cleanup ' + str(sysrq),
             '/usr/libexec/wros-lock', 'worker', str(uid), str(parent), started] + (['--suspend'] if sleep else [])

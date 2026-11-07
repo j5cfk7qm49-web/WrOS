@@ -43,7 +43,8 @@ pub fn available() -> bool {
 }
 
 pub fn suspend_available() -> bool {
-    console() && available()
+    console()
+        && available()
         && Path::new("/etc/systemd/system/systemd-suspend.service.d/60-wros-lock.conf").is_file()
         && fs::read_to_string("/sys/power/state")
             .is_ok_and(|states| states.split_whitespace().any(|state| state == "mem"))
@@ -95,9 +96,16 @@ mod tests {
     }
 }
 
-pub fn watch_power() -> Arc<AtomicBool> {
-    let requested = Arc::new(AtomicBool::new(false));
-    let output = Arc::downgrade(&requested);
+/// The lid and the battery, read every two seconds by a thread of their own.
+#[derive(Default)]
+pub struct Power {
+    pub lid_closed: AtomicBool,
+    pub battery_critical: AtomicBool,
+}
+
+pub fn watch_power() -> Arc<Power> {
+    let power = Arc::new(Power::default());
+    let output = Arc::downgrade(&power);
     std::thread::spawn(move || {
         while let Some(output) = output.upgrade() {
             let lid = Command::new("/usr/bin/busctl")
@@ -112,12 +120,13 @@ pub fn watch_power() -> Arc<AtomicBool> {
                 .output()
                 .is_ok_and(|out| out.status.success() && out.stdout == b"b true\n");
             let critical = low_battery(Path::new("/sys/class/power_supply"));
-            output.store(lid || critical, Ordering::Relaxed);
+            output.lid_closed.store(lid, Ordering::Relaxed);
+            output.battery_critical.store(critical, Ordering::Relaxed);
             drop(output);
             std::thread::sleep(Duration::from_secs(2));
         }
     });
-    requested
+    power
 }
 
 fn console() -> bool {

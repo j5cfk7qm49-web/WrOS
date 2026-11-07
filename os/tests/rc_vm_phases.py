@@ -1992,6 +1992,21 @@ def feature_console_lock(ctx, g, st, secrets_, layout, *, suspend=False):
     screen = g.wait_vcs(1, re.escape(phrase), 15, what='writing-after-unlock')
     ctx.check('both writing buffers survived the lock', second in screen)
     m.ctrl('s', layout)
+    # A second lock in the same boot: the first lock's finished service must not block it (#93).
+    grim_open_settings(g, layout)
+    grim_to_panel(g, r'Battery and power')
+    g.choose(r'^Lock writing session$')
+    m.key('ret')
+    g.wait_vcs(8, r'Press Enter to unlock', 30, what='second-console-lock')
+    m.key('ret')
+    g.wait_vcs(8, r"Password:", 15, what='second-lock-password')
+    m.type_text(secrets_['login'] + '\n', layout)
+    g.wait_vcs(1, r'Lock writing session|Wi-Fi and networking', 40, what='second-lock-return')
+    ctx.check('a second lock in the same boot returned to the same editor',
+              any(p['pid'] == editor['pid'] and p['comm'] == 'grimoire' for p in g.snap()['procs']))
+    m.key('esc')
+    m.key('esc')
+    m.key('esc')
     g.shell.put('/dev/shm/lock-probe', wrong + '\n' + secrets_['login'] + '\n', '0600')
     rc, _ = g.run(
         '(set -o pipefail; p=/dev/shm/lock-probe; trap "rm -f $p" EXIT; '
@@ -2047,7 +2062,7 @@ def feature_power_policy(ctx, g):
               policy.strip().splitlines() == ['s "ignore"'] * len(properties.split()), policy)
     rc, refusal = g.run('systemctl start systemd-suspend.service', 30, check=False)
     ctx.check('the suspend unit refuses to start without the protected lock',
-              rc != 0 and 'wros-console-lock.service' in refusal and g.m.qmp.count('SUSPEND') == 0, refusal)
+              rc != 0 and 'systemd-suspend.service' in refusal and g.m.qmp.count('SUSPEND') == 0, refusal)
 
 
 def phase_rc5(ctx):

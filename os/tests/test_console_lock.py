@@ -2,6 +2,7 @@
 import importlib.machinery
 import re
 from pathlib import Path
+import tempfile
 import unittest
 from unittest import mock
 
@@ -22,11 +23,47 @@ class ConsoleLockBoundary(unittest.TestCase):
             with mock.patch.object(module, 'keyboard_mode', return_value=module.K_UNICODE):
                 self.assertFalse(module.can_sleep(42, 99, 8))
 
-    def test_suspend_unit_requires_the_root_lock_worker_and_proof(self):
+    def test_suspend_unit_requires_the_proof_without_holding_the_lock_unit_loaded(self):
+        # A unit dependency on the lock service keeps its finished run loaded, and systemd-run then
+        # refuses the next lock of the same boot (#93). assert-suspend checks the running service.
         unit = (ROOT / 'os/config/wros-suspend.conf').read_text()
-        self.assertIn('BindsTo=wros-console-lock.service', unit)
-        self.assertIn('After=wros-console-lock.service', unit)
-        self.assertIn('ExecStartPre=/usr/libexec/wros-lock assert-suspend', unit)
+        settings = [line for line in unit.splitlines() if line and not line.startswith('#')]
+        self.assertEqual(settings, ['[Service]', 'ExecStartPre=/usr/libexec/wros-lock assert-suspend'])
+        self.assertIn('--unit=wros-console-lock.service', module.systemd_command(1000, 42, '12345', 176))
+
+    def test_sleep_needs_the_running_lock_service_to_own_the_locker(self):
+        service = '0::/system.slice/wros-console-lock.service\n'
+        with tempfile.TemporaryDirectory() as temp:
+            run, proc = Path(temp, 'run'), Path(temp, 'proc')
+            run.mkdir()
+            (run / 'suspend').write_text('42 99\n')
+            (proc / '99').mkdir(parents=True)
+            cgroup, owns = proc / '99/cgroup', module.lock_service_owns
+
+            def check(state, group):
+                cgroup.write_text(group)
+                with mock.patch.object(module, 'RUN', run), mock.patch.object(module, 'trusted_file'), \
+                     mock.patch.object(module, 'query', return_value=state) as query, \
+                     mock.patch.object(module, 'lock_service_owns', lambda pid: owns(pid, proc)), \
+                     mock.patch.object(module, 'tty8', return_value=8), mock.patch.object(module.os, 'close'), \
+                     mock.patch.object(module, 'can_sleep', return_value=True):
+                    module.assert_suspend()
+                    self.assertEqual(query.call_args.args[0][-1], 'wros-console-lock.service')
+
+            check('active', service)
+            for state, group in (('inactive', service),
+                                 ('active', '0::/user.slice/user-1000.slice/session-3.scope\n')):
+                with self.subTest(state=state, group=group), self.assertRaises(ValueError):
+                    check(state, group)
+
+    def test_the_lock_service_owns_only_lockers_in_its_own_control_group(self):
+        with tempfile.TemporaryDirectory() as temp:
+            proc = Path(temp)
+            (proc / '99').mkdir()
+            (proc / '99/cgroup').write_text('0::/system.slice/wros-console-lock.service\n')
+            self.assertTrue(module.lock_service_owns(99, proc))
+            (proc / '99/cgroup').write_text('0::/system.slice/wros-console-lock.service/x\n')
+            self.assertFalse(module.lock_service_owns(99, proc))
 
     def test_lock_service_never_starts_while_the_editor_reader_is_alive(self):
         with mock.patch.object(module, 'validate_caller'), \

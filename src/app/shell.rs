@@ -409,6 +409,7 @@ enum Choice {
     TimezoneChoose(String),
     TimezoneResolve(bool),
     Lock,
+    LidClose,
     GraphicalSession,
     InstallerOpen,
     InstallerResolve(bool),
@@ -641,41 +642,54 @@ fn entries(app: &App) -> Vec<Entry> {
                         ]);
                     }
                 }
-                Panel::Power => rows.extend([
-                    Entry::info(format!(
-                        "Battery: {}",
-                        status
-                            .and_then(|s| s.battery_percent)
-                            .map_or("unavailable".into(), |p| format!("{p}%"))
-                    )),
-                    Entry::new(
-                        format!(
-                            "Low-power interface and OS request: {}",
-                            if app.deck.state.low_power {
-                                "on"
-                            } else {
-                                "off"
-                            }
+                Panel::Power => {
+                    rows.extend([
+                        Entry::info(format!(
+                            "Battery: {}",
+                            status
+                                .and_then(|s| s.battery_percent)
+                                .map_or("unavailable".into(), |p| format!("{p}%"))
+                        )),
+                        Entry::new(
+                            format!(
+                                "Low-power interface and OS request: {}",
+                                if app.deck.state.low_power {
+                                    "on"
+                                } else {
+                                    "off"
+                                }
+                            ),
+                            Choice::System(7),
                         ),
-                        Choice::System(7),
-                    ),
-                    if app.deck.suspend_available {
-                        Entry::new("Lock and suspend", Choice::System(8))
-                    } else {
-                        Entry::info(wros_sys::SUSPEND_UNAVAILABLE)
-                    },
-                    Entry::new("Shutdown · confirmation required", Choice::System(9)),
-                    Entry::new("Restart · confirmation required", Choice::System(10)),
-                    if app.deck.live_session {
-                        Entry::info("Live session · personal lock unavailable")
-                    } else if app.deck.lock_available {
-                        Entry::new("Lock writing session", Choice::Lock)
-                    } else if app.deck.graphical_session {
-                        Entry::info("Lock and sleep · not in the graphical session yet")
-                    } else {
-                        Entry::info("Console lock unavailable in this image/session")
-                    },
-                ]),
+                        if app.deck.suspend_available {
+                            Entry::new("Lock and suspend", Choice::System(8))
+                        } else {
+                            Entry::info(wros_sys::SUSPEND_UNAVAILABLE)
+                        },
+                        Entry::new("Shutdown · confirmation required", Choice::System(9)),
+                        Entry::new("Restart · confirmation required", Choice::System(10)),
+                        if app.deck.live_session {
+                            Entry::info("Live session · personal lock unavailable")
+                        } else if app.deck.lock_available {
+                            Entry::new("Lock writing session", Choice::Lock)
+                        } else if app.deck.graphical_session {
+                            Entry::info("Lock and sleep · not in the graphical session yet")
+                        } else {
+                            Entry::info("Console lock unavailable in this image/session")
+                        },
+                    ]);
+                    if app.deck.lock_available && app.deck.lid_settings.is_some() {
+                        rows.push(Entry::new(
+                            format!("When the lid closes: {}", app.deck.lid_close.label()),
+                            Choice::LidClose,
+                        ));
+                        if app.deck.suspend_available {
+                            rows.push(Entry::info(
+                                "A nearly empty battery always saves, locks and sleeps.",
+                            ));
+                        }
+                    }
+                }
                 Panel::Storage => {
                     rows.push(Entry::new(
                         "Encrypted backups and restore",
@@ -2111,6 +2125,7 @@ impl App {
                     Choice::RepairOpen => self.repair_open(),
                     Choice::RepairRun => self.repair_run(),
                     Choice::Lock => self.request_console_lock(),
+                    Choice::LidClose => self.cycle_lid_close(),
                     Choice::GraphicalSession => self.toggle_graphical_session(),
                     Choice::InstallerOpen if !self.deck.busy => {
                         self.deck.shell.nav.open(Route::InstallerConfirm);

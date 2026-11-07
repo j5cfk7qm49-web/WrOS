@@ -136,6 +136,9 @@ pub struct Deck {
     pub lock_requested: bool,
     pub suspend_available: bool,
     pub suspend_requested: bool,
+    /// What closing the lid does, and where the writer's choice is kept.
+    pub lid_close: crate::lid::LidClose,
+    pub lid_settings: Option<PathBuf>,
     pub power_pending: bool,
     pub installer_requested: bool,
     /// An app-only update is installed: save, then start the new writing app in place.
@@ -252,6 +255,11 @@ impl Deck {
                 Shortcuts::default()
             }
         };
+        let lid_settings = background.then(crate::lid::settings_path);
+        let lid_close = lid_settings
+            .as_deref()
+            .map(crate::lid::load)
+            .unwrap_or_default();
         Self {
             shell: super::shell::Shell::load(root, background),
             state,
@@ -302,6 +310,8 @@ impl Deck {
                 }
             },
             suspend_requested: false,
+            lid_close,
+            lid_settings,
             power_pending: false,
             installer_requested: false,
             app_restart_requested: false,
@@ -397,6 +407,59 @@ impl App {
             self.deck.suspend_requested = true;
         }
         true
+    }
+
+    /// What a closed lid or a nearly empty battery asks for right now: nothing,
+    /// a lock (`Some(false)`), or a lock and sleep (`Some(true)`). The battery
+    /// always asks for sleep, whatever the lid choice.
+    pub(crate) fn power_event(&self, lid_closed: bool, battery_critical: bool) -> Option<bool> {
+        if battery_critical && self.deck.suspend_available {
+            return Some(true);
+        }
+        if !lid_closed || !self.deck.lock_available {
+            return None;
+        }
+        match self.deck.lid_close {
+            crate::lid::LidClose::Nothing => None,
+            crate::lid::LidClose::Lock => Some(false),
+            crate::lid::LidClose::LockAndSleep => Some(self.deck.suspend_available),
+        }
+    }
+
+    /// Acts on `power_event`. False means it has to wait (a backup is running)
+    /// and should be asked again.
+    pub(crate) fn request_power_lock(&mut self, sleep: bool) -> bool {
+        if sleep {
+            return self.request_suspend();
+        }
+        self.request_console_lock();
+        true
+    }
+
+    pub fn cycle_lid_close(&mut self) {
+        let Some(settings) = self.deck.lid_settings.clone() else {
+            return;
+        };
+        let next = self.deck.lid_close.next();
+        self.deck.note = match crate::lid::save(&settings, next) {
+            Ok(()) => {
+                self.deck.lid_close = next;
+                match next {
+                    crate::lid::LidClose::LockAndSleep => {
+                        "Closing the lid now saves, locks and sleeps."
+                    }
+                    crate::lid::LidClose::Lock => {
+                        "Closing the lid now saves and locks. The laptop stays awake."
+                    }
+                    crate::lid::LidClose::Nothing => {
+                        "Closing the lid now does nothing. Your book stays open."
+                    }
+                }
+                .to_string()
+            }
+            Err(error) => format!("Couldn't save the lid choice: {error}"),
+        };
+        self.deck.shell.notices.push(&self.deck.note);
     }
 
     pub(super) fn power_wait_reason(&mut self) -> Option<&'static str> {

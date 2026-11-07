@@ -32,11 +32,17 @@ lags behind your typing; moving around feels no slower than on AC.
    laptop with the power button and unlock.
 5. Settings › System › Battery and power › **Lock writing session**, close the
    lid while it is locked, then open it.
+6. Without restarting, close and open the lid twice more.
+7. Settings › System › Battery and power › **When the lid closes**: set it to
+   *lock, stay awake* and close the lid; then *do nothing* and close the lid.
+   Set it back to *lock and sleep*.
 
 **Pass when:** each close saves first (the sentence is there after unlock),
-the screen after waking is the lock, never the book; the Colemak password works
-at the lock; a wrong password is refused; after step 5 the laptop stayed awake
-and locked. Nothing you typed at the lock shows up in the book.
+the screen after waking is the lock, never the book or the login screen; the
+Colemak password works at the lock; a wrong password is refused; after step 5
+the laptop stayed awake and locked; in step 6 every close locks; in step 7 the
+first close locks without sleeping and the second leaves the book open. Nothing
+you typed at the lock shows up in the book.
 
 ## 3. Wi-Fi after sleep, and over a day
 

@@ -7,6 +7,7 @@ mod books;
 mod console_lock;
 mod help;
 mod library;
+mod lid;
 #[cfg(target_os = "linux")]
 mod live_installer;
 mod music;
@@ -590,7 +591,7 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
     #[cfg(target_os = "linux")]
     let mut events = wros_input::Input::start(&std::env::current_exe()?)?;
     #[cfg(target_os = "linux")]
-    let power_watch = app.deck.suspend_available.then(console_lock::watch_power);
+    let power_watch = app.deck.lock_available.then(console_lock::watch_power);
     #[cfg(target_os = "linux")]
     let mut handled_sleep = false;
 
@@ -628,10 +629,16 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
         }
         #[cfg(target_os = "linux")]
         if let Some(watch) = &power_watch {
-            if !watch.load(std::sync::atomic::Ordering::Relaxed) {
-                handled_sleep = false;
-            } else if !handled_sleep && !app.deck.power_pending {
-                handled_sleep = app.request_suspend();
+            use std::sync::atomic::Ordering::Relaxed;
+            match app.power_event(
+                watch.lid_closed.load(Relaxed),
+                watch.battery_critical.load(Relaxed),
+            ) {
+                None => handled_sleep = false,
+                Some(sleep) if !handled_sleep && !app.deck.power_pending => {
+                    handled_sleep = app.request_power_lock(sleep);
+                }
+                Some(_) => {}
             }
         }
         #[cfg(target_os = "linux")]
