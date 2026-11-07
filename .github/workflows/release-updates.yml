@@ -1,7 +1,7 @@
 name: release-updates
 
 # Publish the qualified release package to GitHub Pages as a flat apt repository.
-# Design: docs/superpowers/specs/2026-11-01-online-wros-updates-design.md
+# Design: docs/archive/superpowers/specs/2026-11-01-online-wros-updates-design.md
 #
 # Pages replaces the whole site on every deploy, so each run republishes the live
 # updates/ folder: a tag serves its offline-signed asset, and a refresh re-signs the package already there
