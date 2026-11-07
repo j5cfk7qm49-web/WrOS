@@ -666,6 +666,20 @@ fn entries(app: &App) -> Vec<Entry> {
                         } else {
                             Entry::info(wros_sys::SUSPEND_UNAVAILABLE)
                         },
+                    ]);
+                    // Above Shutdown, so Lock writing session stays the last row.
+                    if app.deck.lock_available && app.deck.lid_settings.is_some() {
+                        rows.push(Entry::new(
+                            format!("When the lid closes: {}", app.deck.lid_close.label()),
+                            Choice::LidClose,
+                        ));
+                        if app.deck.suspend_available {
+                            rows.push(Entry::info(
+                                "A nearly empty battery always saves, locks and sleeps.",
+                            ));
+                        }
+                    }
+                    rows.extend([
                         Entry::new("Shutdown · confirmation required", Choice::System(9)),
                         Entry::new("Restart · confirmation required", Choice::System(10)),
                         if app.deck.live_session {
@@ -678,17 +692,6 @@ fn entries(app: &App) -> Vec<Entry> {
                             Entry::info("Console lock unavailable in this image/session")
                         },
                     ]);
-                    if app.deck.lock_available && app.deck.lid_settings.is_some() {
-                        rows.push(Entry::new(
-                            format!("When the lid closes: {}", app.deck.lid_close.label()),
-                            Choice::LidClose,
-                        ));
-                        if app.deck.suspend_available {
-                            rows.push(Entry::info(
-                                "A nearly empty battery always saves, locks and sleeps.",
-                            ));
-                        }
-                    }
                 }
                 Panel::Storage => {
                     rows.push(Entry::new(

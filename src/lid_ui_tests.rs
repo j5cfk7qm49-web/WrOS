@@ -31,6 +31,11 @@ fn the_lid_choice_cycles_and_is_saved() {
     desk.draw();
     assert!(desk.shows("When the lid closes: lock and sleep"));
     assert!(desk.shows("A nearly empty battery always saves, locks and sleeps."));
+    // Lock writing session stays the last row: the VM lock test reaches it with End.
+    let rows = desk.rows();
+    let row = |label: &str| rows.iter().position(|r| r.contains(label)).unwrap();
+    assert!(row("When the lid closes") < row("Shutdown"));
+    assert!(row("Restart") < row("Lock writing session"));
 
     desk.choose("When the lid closes: lock and sleep");
     assert_eq!(crate::lid::load(&settings), LidClose::Lock);
