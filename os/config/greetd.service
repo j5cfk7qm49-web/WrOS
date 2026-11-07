@@ -8,6 +8,9 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
+# The start screen's progress bar (docs/RATATUI_BOOT.md) hands tty1 over; "-": never a reason
+# for the login not to start.
+ExecStartPre=-/usr/bin/systemctl stop wros-boot-splash.service
 ExecStart=/usr/sbin/greetd
 IgnoreSIGPIPE=no
 SendSIGHUP=yes

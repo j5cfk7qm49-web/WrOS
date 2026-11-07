@@ -181,10 +181,14 @@ class ProgressScreen(unittest.TestCase):
     def words(self, key):
         return ' '.join(self.unit.get(key, [])).split()
 
-    def test_it_stops_before_whatever_takes_tty1(self):
-        for unit in ('greetd.service', 'getty@tty1.service', 'wros-recovery.service', 'shutdown.target'):
-            self.assertIn(unit, self.words('Conflicts'))
-            self.assertIn(unit, self.words('Before'))
+    def test_the_login_screen_stops_it_and_nothing_conflicts_with_the_login(self):
+        # Seen in the VM (vm4): Conflicts=greetd.service let systemd drop the login screen's start
+        # job at boot, and tty1 never showed the login.
+        self.assertEqual(self.words('Conflicts'), ['shutdown.target'])
+        self.assertEqual(self.words('Before'), ['greetd.service', 'shutdown.target'])
+        greetd = (ROOT / 'os/config/greetd.service').read_text()
+        self.assertIn('ExecStartPre=-/usr/bin/systemctl stop wros-boot-splash.service', greetd)
+        self.assertNotIn('wros-boot-splash', greetd.split('[Service]')[0])
 
     def test_it_runs_only_with_the_switch_on_and_never_on_a_plain_text_start(self):
         self.assertEqual(self.unit['ConditionPathExists'], ['/etc/wros/boot-screen'])
