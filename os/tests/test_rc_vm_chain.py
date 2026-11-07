@@ -28,8 +28,29 @@ class ReleaseChain(unittest.TestCase):
             self.assertIn('--check-migration', calls[1][1])
             with contextlib.redirect_stdout(io.StringIO()) as report:
                 self.assertEqual(chain.summarize(outcomes), 1)
-            self.assertIn('SKIP rc7-features', report.getvalue())
+            self.assertIn('SKIP features', report.getvalue())
             self.assertIn('PASS rc6-migration', report.getvalue())
+
+    def test_a_saved_disk_at_the_laptops_version_is_the_start_instead_of_rc1(self):
+        with tempfile.TemporaryDirectory(prefix='wros-chain-') as tmp:
+            calls = []
+
+            def phase(label, *args):
+                calls.append((label, args))
+                path = Path(tmp) / label
+                path.mkdir()
+                return chain.Outcome(label, True, path)
+
+            with patch.object(chain, 'run_phase', side_effect=lambda _, label, *args: phase(label, *args)):
+                outcomes = chain.qualify(Path(tmp), Path('/install'), Path('/bundle'), '0.1.0~rc9',
+                                         start=(Path('/rc7.qcow2'), '0.1.0~rc7'))
+            self.assertTrue(all(outcome.passed for outcome in outcomes))
+            self.assertEqual([label for label, _ in calls], ['0.1.0~rc7-update', 'features'])
+            update = calls[0][1]
+            self.assertEqual(update[update.index('--base-disk') + 1], Path('/rc7.qcow2'))
+            self.assertEqual(update[update.index('--from-version') + 1], '0.1.0~rc7')
+            features = calls[1][1]
+            self.assertEqual(features[features.index('--base-disk') + 1], Path(tmp) / '0.1.0~rc7-update' / 'disk.qcow2')
 
     def test_phase_result_has_to_pass_and_belong_to_this_run(self):
         with tempfile.TemporaryDirectory(prefix='wros-chain-') as tmp:

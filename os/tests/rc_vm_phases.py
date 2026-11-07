@@ -328,13 +328,19 @@ def grim_open_settings(g, layout='us'):
     grim_dashboard(g)
     g.choose(r'^Settings$')
     g.m.key('ret')
-    g.wait_vcs(1, r'Writing.*Interface.*System.*Accounts', 30, what='settings-root')
+    g.wait_vcs(1, r'Writing.*(?:Interface|Look and keyboard).*System', 30, what='settings-root')
 
 
 def grim_to_panel(g, panel_regex):
-    g.choose(r'^System(\s*›)?$')  # rows that open a page end in › from rc2 on
-    g.m.key('ret')
-    g.wait_vcs(1, r'Wi-Fi and networking', 30, what='system-panels')
+    # From rc9, Updates and Recovery have their own group; before, they sat under System.
+    if re.search(r'Updates|Recovery', panel_regex) and 'Updates and recovery' in g.screen(1):
+        g.choose(r'^Updates and recovery(\s*›)?$')
+        g.m.key('ret')
+        g.wait_vcs(1, r'Recovery', 30, what='updates-group')
+    else:
+        g.choose(r'^System(\s*›)?$')  # rows that open a page end in › from rc2 on
+        g.m.key('ret')
+        g.wait_vcs(1, r'Wi-Fi and networking', 30, what='system-panels')
     g.choose(panel_regex)
     g.m.key('ret')
     time.sleep(1)
