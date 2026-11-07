@@ -44,10 +44,8 @@ pub fn choose(settings: &Path, graphical: bool) -> io::Result<()> {
         settings,
         &serde_json::json!({ "version": 1, "session": kind }),
     )?;
-    if graphical {
-        if let Some(state) = state_path(settings) {
-            write_private(&state, &serde_json::json!({ "version": 1, "failures": 0 }))?;
-        }
+    if graphical && let Some(state) = state_path(settings) {
+        write_private(&state, &serde_json::json!({ "version": 1, "failures": 0 }))?;
     }
     Ok(())
 }
@@ -79,10 +77,10 @@ pub(crate) fn write_private(path: &Path, value: &serde_json::Value) -> io::Resul
 /// Tells the session launcher the app drew its first screen, so a graphical
 /// session that got this far is not counted as failing to start.
 pub fn mark_ready() {
-    if let Some(path) = std::env::var_os("WROS_READY_FILE").map(PathBuf::from) {
-        if path.is_absolute() {
-            let _ = fs::File::create(path);
-        }
+    if let Some(path) = std::env::var_os("WROS_READY_FILE").map(PathBuf::from)
+        && path.is_absolute()
+    {
+        let _ = fs::File::create(path);
     }
 }
 

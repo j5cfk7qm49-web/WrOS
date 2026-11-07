@@ -1230,6 +1230,54 @@ fn a_clash_waits_for_the_writer_and_merges_paragraph_by_paragraph() {
 }
 
 #[test]
+fn a_long_clash_scrolls_each_version_and_marks_the_words_that_differ() {
+    let root = book("sync-long-clash", true);
+    let long = "The rain kept on. ".repeat(80);
+    let (scene, _, pending) = parked_drive_edit(
+        &root,
+        "---\ntitle: Scene One\n---\n\nFirst.\n",
+        &format!("---\ntitle: Scene One\n---\n\n{long}It ended mine.\n"),
+        &format!("---\ntitle: Scene One\n---\n\n{long}It ended theirs.\n"),
+    );
+    let mut desk = Desk::open(root, 120, 40);
+    desk.app.deck.shell.backup.sync.pending = vec![pending];
+    desk.app.tick_deck();
+    desk.app.open_conflicts();
+    desk.key(KeyCode::Enter);
+    desk.key(KeyCode::Char('4'));
+    assert!(desk.shows("Clash 1 of 1"), "{}", desk.rows().join("\n"));
+    // Each paragraph wraps in full; where they differ is below what fits.
+    assert!(desk.shows("lines 1–"), "{}", desk.rows().join("\n"));
+    assert!(!desk.shows("ended mine") && !desk.shows("theirs."));
+    desk.key(KeyCode::End);
+    assert!(desk.shows("ended mine") && !desk.shows("theirs."));
+    desk.key(KeyCode::Tab);
+    desk.key(KeyCode::End);
+    assert!(desk.shows("ended mine") && desk.shows("theirs."));
+    // Only the words that differ are marked.
+    let marked = |desk: &Desk, word: &str| {
+        let rows = desk.rows();
+        let y = rows.iter().position(|r| r.contains(word)).unwrap();
+        let x = rows[y][..rows[y].find(word).unwrap()].chars().count();
+        let cell = &desk.term.backend().buffer()[(x as u16, y as u16)];
+        cell.modifier.contains(ratatui::style::Modifier::UNDERLINED)
+    };
+    assert!(marked(&desk, "theirs.") && marked(&desk, "mine."));
+    assert!(!marked(&desk, "It ended mine"));
+    // The wheel scrolls the version under the pointer.
+    let (yours, _) = desk.app.merge_panes.get()[0];
+    desk.app.on_scroll(yours.x + 4, yours.y + 1, false);
+    desk.draw();
+    assert!(!desk.shows("ended mine") && desk.shows("theirs."));
+    desk.key(KeyCode::Char('2'));
+    assert!(
+        std::fs::read_to_string(&scene)
+            .unwrap()
+            .ends_with("It ended theirs.\n")
+    );
+}
+
+#[test]
 fn a_manual_drive_merge_keeps_unsaved_words_when_the_writer_chooses_mine() {
     let root = book("sync-merge-unsaved", true);
     let (scene, parked, pending) = parked_drive_edit(

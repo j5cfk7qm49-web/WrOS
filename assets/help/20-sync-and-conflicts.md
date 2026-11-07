@@ -37,6 +37,8 @@ While there are any, the status bar says `⚠ 1 conflict`.
 - `2` **keep the scene** — the copy goes to the Trash;
 - `3` **keep both** — the copy becomes a scene of its own, right after the original.
 
+A copy from Google Drive also offers `4` **merge paragraph by paragraph**. A paragraph changed on only one side is kept as it is. Where both sides changed the same paragraph, you see both versions with the words that differ marked. Press `1` for yours, `2` for Drive's or `3` for both. `Tab` picks which version the arrow keys scroll; the mouse wheel scrolls the one under the pointer.
+
 One `Ctrl-Z` takes it back. Nothing is ever deleted.
 
 ## Files that aren't here yet

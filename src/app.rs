@@ -342,6 +342,8 @@ pub struct App {
     pub about_link: std::cell::Cell<Rect>,
     /// Where About's line for Catfinity, the studio's game, was drawn.
     pub about_game_link: std::cell::Cell<Rect>,
+    /// Where the merge panel drew each version, and how far each can scroll.
+    pub merge_panes: std::cell::Cell<[(Rect, usize); 2]>,
     /// The last address handed to a browser (tests read it; nothing opens).
     pub last_opened: Option<String>,
     /// Whether this app starts threads and reads ~/.config; off in tests.
@@ -588,10 +590,14 @@ pub enum Overlay {
         sel: usize,
     },
     /// A Drive copy merged paragraph by paragraph: each clash, one at a time.
+    /// Each version scrolls on its own; `side` is the one the keys move
+    /// (0 yours, 1 Drive's).
     Merge {
         copy: PathBuf,
         pieces: Vec<grimoire_core::merge::Piece>,
         choices: Vec<grimoire_core::merge::Choice>,
+        side: usize,
+        scroll: [usize; 2],
     },
     /// The help: a topic list and the article picked from it. Typing
     /// searches; `reading` is the article having the keys. `back` is the box
@@ -964,6 +970,7 @@ impl App {
             help_fit: std::cell::Cell::default(),
             about_link: std::cell::Cell::default(),
             about_game_link: std::cell::Cell::default(),
+            merge_panes: std::cell::Cell::default(),
             last_opened: None,
             background: setup.background,
             day_noted: None,
@@ -5157,6 +5164,19 @@ impl App {
             return;
         }
         if self.help_wheel(down, STEP) {
+            return;
+        }
+        // The merge panel scrolls the version under the pointer.
+        if let Overlay::Merge { side, scroll, .. } = &mut self.overlay {
+            let panes = self.merge_panes.get();
+            if let Some(i) = (0..2).find(|&i| hit(panes[i].0, x, y)) {
+                *side = i;
+                scroll[i] = if down {
+                    (scroll[i] + STEP).min(panes[i].1)
+                } else {
+                    scroll[i].saturating_sub(STEP)
+                };
+            }
             return;
         }
         // A list on top (the menu, the corkboard, Ctrl-K…) moves with the

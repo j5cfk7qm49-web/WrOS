@@ -149,6 +149,8 @@ impl App {
             copy,
             pieces,
             choices: Vec::new(),
+            side: 0,
+            scroll: [0, 0],
         };
     }
 
@@ -157,14 +159,27 @@ impl App {
             copy,
             pieces,
             choices,
+            side,
+            scroll,
         } = &mut self.overlay
         else {
             return;
         };
+        // How far the chosen version can scroll, and a page of it, as last drawn.
+        let (pane, max) = self.merge_panes.get()[*side];
+        let page = usize::from(pane.height.max(2) - 1);
+        let at = &mut scroll[*side];
         let choice = match key {
             Key::Char('1') => Choice::Mine,
             Key::Char('2') => Choice::Theirs,
             Key::Char('3') => Choice::Both,
+            Key::Tab | Key::BackTab => return *side ^= 1,
+            Key::Up => return *at = at.saturating_sub(1),
+            Key::Down => return *at = (*at + 1).min(max),
+            Key::PageUp => return *at = at.saturating_sub(page),
+            Key::PageDown => return *at = (*at + page).min(max),
+            Key::Home => return *at = 0,
+            Key::End => return *at = max,
             Key::Esc => {
                 let copy = copy.clone();
                 self.overlay = Overlay::Settle { copy, sel: 0 };
@@ -173,6 +188,8 @@ impl App {
             _ => return,
         };
         choices.push(choice);
+        *side = 0;
+        *scroll = [0, 0];
         if choices.len() == merge::clashes(pieces) {
             let text = merge::assemble(pieces, choices);
             let copy = copy.clone();
@@ -298,9 +315,15 @@ impl App {
     }
 }
 
+/// Both versions of a clash, each wrapped in full and scrolled on its own, with
+/// the words that differ between them marked.
 pub(super) fn draw_merge(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     let Overlay::Merge {
-        pieces, choices, ..
+        pieces,
+        choices,
+        side,
+        scroll,
+        ..
     } = &app.overlay
     else {
         return;
@@ -316,44 +339,167 @@ pub(super) fn draw_merge(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     else {
         return;
     };
-    let box_area = centred(area, 84, area.height.saturating_sub(4).min(24));
+    let box_area = centred(area, 84, area.height.saturating_sub(4).min(32));
     f.render_widget(Clear, box_area);
     let block = pane_block("MERGE", true, t);
     let inner = block.inner(box_area);
     f.render_widget(block, box_area);
     let iw = inner.width as usize;
-    let room = (inner.height as usize).saturating_sub(7) / 2;
-    let mut lines = vec![
-        Line::from(Span::styled(
+    // Title, blank, two headings, blank and hints around the two versions.
+    let room = ((inner.height as usize).saturating_sub(6) / 2).max(1);
+    let row = |y: usize, h: usize| {
+        Rect {
+            x: inner.x,
+            y: inner.y.saturating_add(y as u16),
+            width: inner.width,
+            height: h as u16,
+        }
+        .intersection(inner)
+    };
+    f.render_widget(
+        Paragraph::new(Span::styled(
             format!(
                 " Clash {} of {total}: WrOS and Drive changed this paragraph differently.",
                 choices.len() + 1
             ),
             Style::default().fg(t.text),
         )),
-        Line::from(""),
-        Line::from(Span::styled(" 1  Yours", Style::default().fg(t.accent))),
-    ];
-    for text in [&clash.mine, &clash.theirs] {
-        for line in text.lines().take(room.max(1)) {
-            lines.push(Line::from(Span::styled(
-                format!("    {}", truncate(line, iw.saturating_sub(5))),
-                Style::default().fg(t.text),
-            )));
+        row(0, 1),
+    );
+    let plain = Style::default().fg(t.text);
+    let marked = Style::default()
+        .fg(t.warn)
+        .add_modifier(Modifier::BOLD | Modifier::UNDERLINED);
+    let words = marked_words(&clash.mine, &clash.theirs);
+    let mut panes = [(Rect::default(), 0); 2];
+    let mut y = 2;
+    for (i, name) in ["1  Yours", "2  Drive's"].into_iter().enumerate() {
+        let wrapped = wrap_marked(&words[i], iw.saturating_sub(5), plain, marked);
+        let max = wrapped.len().saturating_sub(room);
+        let top = scroll[i].min(max);
+        let mut head = format!("{} {name}", if *side == i { "▸" } else { " " });
+        if max > 0 {
+            head += &format!(
+                "    lines {}–{} of {}",
+                top + 1,
+                (top + room).min(wrapped.len()),
+                wrapped.len()
+            );
         }
-        if std::ptr::eq(text, &clash.mine) {
-            lines.push(Line::from(Span::styled(
-                " 2  Drive's",
-                Style::default().fg(t.accent),
-            )));
+        let mut style = Style::default().fg(t.accent);
+        if *side == i {
+            style = style.add_modifier(Modifier::BOLD);
+        }
+        f.render_widget(Paragraph::new(Span::styled(head, style)), row(y, 1));
+        let pane = row(y + 1, room);
+        let shown: Vec<Line> = wrapped
+            .into_iter()
+            .skip(top)
+            .take(room)
+            .map(|mut line| {
+                line.spans.insert(0, Span::raw("    "));
+                line
+            })
+            .collect();
+        f.render_widget(Paragraph::new(shown), pane);
+        panes[i] = (pane, max);
+        y += 1 + room;
+    }
+    app.merge_panes.set(panes);
+    let hints = if panes.iter().any(|p| p.1 > 0) {
+        " 1 yours  2 Drive's  3 both, yours first  tab ↑↓ scroll  esc back"
+    } else {
+        " 1 yours   2 Drive's   3 both, yours first   esc back"
+    };
+    f.render_widget(Paragraph::new(hint_line(hints, t)), row(y + 1, 1));
+}
+
+/// Each version's words, marked where they differ from the other version.
+fn marked_words(mine: &str, theirs: &str) -> [Vec<(String, bool)>; 2] {
+    use grimoire_core::history::{Piece as Diff, diff};
+    let mut out = [Vec::new(), Vec::new()];
+    for piece in diff(mine, theirs) {
+        match piece {
+            Diff::Same(s) => {
+                out[0].push((s.clone(), false));
+                out[1].push((s, false));
+            }
+            Diff::Removed(s) => out[0].push((s, true)),
+            Diff::Added(s) => out[1].push((s, true)),
         }
     }
-    lines.push(Line::from(""));
-    lines.push(hint_line(
-        " 1 yours   2 Drive's   3 both, yours first   esc back",
-        t,
-    ));
-    f.render_widget(Paragraph::new(lines), inner);
+    out
+}
+
+/// Word-wrap runs of text at most `width` columns wide, marked runs in their
+/// own style. Lines break at spaces and at the text's own line ends; only a
+/// word wider than the whole line is cut.
+fn wrap_marked(
+    runs: &[(String, bool)],
+    width: usize,
+    plain: Style,
+    marked: Style,
+) -> Vec<Line<'static>> {
+    let width = width.max(4);
+    // Words, each made of styled pieces and starting with its space; None is a line end.
+    let mut words: Vec<Option<Vec<(String, Style)>>> = vec![Some(Vec::new())];
+    for (text, changed) in runs {
+        let style = if *changed { marked } else { plain };
+        for ch in text.chars() {
+            match ch {
+                '\n' => words.extend([None, Some(Vec::new())]),
+                ' ' | '\t' => words.push(Some(vec![(" ".into(), style)])),
+                _ => {
+                    let Some(Some(word)) = words.last_mut() else {
+                        continue;
+                    };
+                    match word.last_mut() {
+                        Some((piece, s)) if *s == style => piece.push(ch),
+                        _ => word.push((ch.to_string(), style)),
+                    }
+                }
+            }
+        }
+    }
+    let mut lines = Vec::new();
+    let mut spans: Vec<Span<'static>> = Vec::new();
+    let mut used = 0;
+    for word in words {
+        let Some(mut word) = word else {
+            lines.push(Line::from(std::mem::take(&mut spans)));
+            used = 0;
+            continue;
+        };
+        let len: usize = word.iter().map(|(p, _)| p.chars().count()).sum();
+        if used > 0 && used + len > width {
+            lines.push(Line::from(std::mem::take(&mut spans)));
+            used = 0;
+        }
+        // A line never starts with the space between two words.
+        if used == 0
+            && let Some((first, _)) = word.first_mut()
+            && first.starts_with(' ')
+        {
+            first.remove(0);
+        }
+        for (mut piece, style) in word {
+            while used + piece.chars().count() > width {
+                let head: String = piece.chars().take(width - used).collect();
+                piece = piece.chars().skip(width - used).collect();
+                spans.push(Span::styled(head, style));
+                lines.push(Line::from(std::mem::take(&mut spans)));
+                used = 0;
+            }
+            used += piece.chars().count();
+            if !piece.is_empty() {
+                spans.push(Span::styled(piece, style));
+            }
+        }
+    }
+    if !spans.is_empty() || lines.is_empty() {
+        lines.push(Line::from(spans));
+    }
+    lines
 }
 
 /// How much longer or shorter the copy is than its scene, in words.
