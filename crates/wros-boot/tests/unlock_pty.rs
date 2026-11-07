@@ -18,6 +18,23 @@ struct Console {
 
 impl Console {
     fn start(width: u16, height: u16, env: &[(&str, &str)]) -> Self {
+        Self::start_mode(
+            &["unlock", "Please unlock disk sda3_crypt: "],
+            width,
+            height,
+            env,
+            "Type your disk password",
+        )
+    }
+
+    /// `mode` is wros-boot's subcommand and its arguments; `ready` the text to wait for.
+    fn start_mode(
+        mode: &[&str],
+        width: u16,
+        height: u16,
+        env: &[(&str, &str)],
+        ready: &str,
+    ) -> Self {
         let (mut master, mut slave) = (0, 0);
         let size = libc::winsize {
             ws_row: height,
@@ -47,14 +64,8 @@ impl Console {
             .unwrap()
             .to_string();
         let child = Command::new(BINARY)
-            .args([
-                "unlock",
-                "Please unlock disk sda3_crypt: ",
-                "--tty",
-                &path,
-                "--theme",
-                "/nonexistent",
-            ])
+            .args(mode)
+            .args(["--tty", &path, "--theme", "/nonexistent"])
             .env_clear()
             .envs(env.iter().copied())
             .stdin(Stdio::null())
@@ -90,7 +101,7 @@ impl Console {
             child,
         };
         let end = Instant::now() + Duration::from_secs(10);
-        while !console.screen().contains("Type your disk password") {
+        while !console.screen().contains(ready) {
             if let Some(status) = console.child.try_wait().unwrap() {
                 let mut err = String::new();
                 console
@@ -104,7 +115,7 @@ impl Console {
             }
             assert!(
                 Instant::now() < end,
-                "waited for the prompt
+                "waited for the first screen
 {}",
                 console.screen()
             );
@@ -226,4 +237,66 @@ fn without_a_console_it_fails_fast_and_quietly() {
     assert!(output.stdout.is_empty() && output.stderr.is_empty());
     let output = Command::new(BINARY).output().unwrap();
     assert_eq!(output.status.code(), Some(20));
+}
+
+fn progress_file(tag: &str, value: &str) -> std::path::PathBuf {
+    let path =
+        std::env::temp_dir().join(format!("wros-boot-progress-{tag}-{}", std::process::id()));
+    std::fs::write(&path, value).unwrap();
+    path
+}
+
+#[test]
+fn the_progress_screen_follows_systemd_and_stops_when_asked_without_a_flash() {
+    let file = progress_file("follow", "d 0.25\n");
+    let path = file.to_str().unwrap().to_string();
+    let console = Console::start_mode(
+        &["splash", "--progress-file", &path],
+        100,
+        37,
+        &[],
+        "Starting WrOS",
+    );
+    console.until("a quarter", |s| {
+        s.contains(&format!("|{}{}|", "#".repeat(8), " ".repeat(24)))
+    });
+    assert!(
+        console
+            .screen()
+            .contains("+----------------+----------------+")
+    );
+    std::fs::write(&file, "d 0.75\n").unwrap();
+    console.until("three quarters", |s| {
+        s.contains(&format!("|{}{}|", "#".repeat(24), " ".repeat(8)))
+    });
+    // Keys typed while starting are never echoed.
+    console.type_bytes(b"typed during boot");
+    std::thread::sleep(Duration::from_millis(400));
+    assert!(!console.screen().contains("typed during boot"));
+    // systemd stops it as the login screen starts: it ends at once and leaves its last frame.
+    unsafe { libc::kill(console.child.id() as i32, libc::SIGTERM) };
+    let screen_before = console.screen();
+    let (code, out, err) = console.finish();
+    assert_eq!(code, 0);
+    assert!(out.is_empty() && err.is_empty());
+    assert!(screen_before.contains("Starting WrOS"));
+    std::fs::remove_file(file).unwrap();
+}
+
+#[test]
+fn the_progress_screen_ends_by_itself_once_the_start_is_complete() {
+    let file = progress_file("done", "d 1.0\n");
+    let path = file.to_str().unwrap().to_string();
+    let console = Console::start_mode(
+        &["splash", "--progress-file", &path],
+        80,
+        25,
+        &[],
+        "Starting WrOS",
+    );
+    let started = Instant::now();
+    let (code, _, _) = console.finish();
+    assert_eq!(code, 0);
+    assert!(started.elapsed() < Duration::from_secs(6));
+    std::fs::remove_file(file).unwrap();
 }

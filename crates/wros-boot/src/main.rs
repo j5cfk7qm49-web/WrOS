@@ -5,6 +5,12 @@
 //! once, after Enter, with no newline, as Debian's `askpass` gives it to cryptsetup.
 //! Any other ending writes nothing and exits non-zero, and the wrapper runs
 //! Debian's prompt (see `wros_boot::exit`).
+//!
+//! `wros-boot splash [--tty PATH] [--theme PATH] [--progress-file PATH]`
+//!
+//! The progress screen after the unlock (`wros-boot-splash.service`): the logo and
+//! systemd's boot progress, until systemd stops it as the login screen starts. It
+//! ends by itself 3 seconds after the boot is complete, or after 3 minutes.
 
 #[cfg(target_os = "linux")]
 fn main() {
@@ -22,6 +28,8 @@ fn main() {
 #[cfg(target_os = "linux")]
 mod linux {
     use ratatui::{Terminal, TerminalOptions, Viewport, backend::CrosstermBackend, layout::Rect};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::time::{Duration, Instant};
     use std::{
         fs::{File, OpenOptions},
         io::{Read, Write},
@@ -31,30 +39,45 @@ mod linux {
     use wros_boot::{
         exit,
         keys::Decoder,
+        splash,
         unlock::{Outcome, Unlock},
     };
 
     /// How long an Esc waits for the rest of an arrow key's sequence.
     const ESC_WAIT_MS: i32 = 60;
 
+    #[derive(PartialEq)]
+    enum Mode {
+        Unlock,
+        Splash,
+    }
+
     struct Args {
+        mode: Mode,
         tty: PathBuf,
         theme: PathBuf,
+        /// Tests only: read the progress from this file instead of systemd.
+        progress_file: Option<PathBuf>,
     }
 
     fn args() -> Option<Args> {
         let mut args = std::env::args().skip(1);
-        if args.next().as_deref() != Some("unlock") {
-            return None;
-        }
+        let (mode, tty) = match args.next().as_deref() {
+            Some("unlock") => (Mode::Unlock, "/dev/console"),
+            Some("splash") => (Mode::Splash, "/dev/tty1"),
+            _ => return None,
+        };
         let mut parsed = Args {
-            tty: "/dev/console".into(),
+            mode,
+            tty: tty.into(),
             theme: wros_boot::THEME.into(),
+            progress_file: None,
         };
         while let Some(arg) = args.next() {
             match arg.as_str() {
                 "--tty" => parsed.tty = args.next()?.into(),
                 "--theme" => parsed.theme = args.next()?.into(),
+                "--progress-file" => parsed.progress_file = Some(args.next()?.into()),
                 // Debian's prompt text ("Please unlock disk …"); the screen words its own.
                 _ => {}
             }
@@ -62,14 +85,24 @@ mod linux {
         Some(parsed)
     }
 
+    /// Set by SIGTERM or SIGINT: systemd stopping the progress screen.
+    static STOP: AtomicBool = AtomicBool::new(false);
+
+    extern "C" fn on_stop(_: libc::c_int) {
+        STOP.store(true, Ordering::SeqCst);
+    }
+
     /// The console in raw mode, put back as it was however the screen ends.
     struct Raw {
         tty: File,
         saved: libc::termios,
+        /// Clear the screen on the way out (the password screen); the progress screen
+        /// leaves its last frame for the login screen to draw over, without a blank flash.
+        clear: bool,
     }
 
     impl Raw {
-        fn new(tty: File) -> Option<Self> {
+        fn new(tty: File, clear: bool) -> Option<Self> {
             let fd = tty.as_raw_fd();
             let mut saved = unsafe { std::mem::zeroed::<libc::termios>() };
             if unsafe { libc::tcgetattr(fd, &mut saved) } != 0 {
@@ -77,8 +110,11 @@ mod linux {
             }
             let mut raw = saved;
             unsafe { libc::cfmakeraw(&mut raw) };
-            (unsafe { libc::tcsetattr(fd, libc::TCSAFLUSH, &raw) } == 0)
-                .then_some(Self { tty, saved })
+            (unsafe { libc::tcsetattr(fd, libc::TCSAFLUSH, &raw) } == 0).then_some(Self {
+                tty,
+                saved,
+                clear,
+            })
         }
 
         fn size(&self) -> Rect {
@@ -117,8 +153,13 @@ mod linux {
 
     impl Drop for Raw {
         fn drop(&mut self) {
-            // Leave a clear screen and the cursor back for whatever comes next.
-            let _ = self.tty.write_all(b"\x1b[0m\x1b[2J\x1b[H\x1b[?25h");
+            // Leave the cursor back (and a clear screen) for whatever comes next.
+            let tail: &[u8] = if self.clear {
+                b"\x1b[0m\x1b[2J\x1b[H\x1b[?25h"
+            } else {
+                b"\x1b[0m\x1b[?25h"
+            };
+            let _ = self.tty.write_all(tail);
             unsafe { libc::tcsetattr(self.tty.as_raw_fd(), libc::TCSAFLUSH, &self.saved) };
         }
     }
@@ -135,10 +176,13 @@ mod linux {
         else {
             return exit::FAILED;
         };
-        let Some(mut raw) = Raw::new(tty) else {
+        let Some(mut raw) = Raw::new(tty, args.mode == Mode::Unlock) else {
             return exit::FAILED;
         };
         let theme = wros_boot::theme(&args.theme);
+        if args.mode == Mode::Splash {
+            return show_progress(&args, &mut raw, &theme);
+        }
         let mut unlock = Unlock::from_env(|name| std::env::var(name).ok());
         let outcome = {
             let Ok(out) = raw.tty.try_clone() else {
@@ -203,5 +247,76 @@ mod linux {
             Outcome::Text => exit::TEXT,
             Outcome::Typing => exit::FAILED,
         }
+    }
+
+    /// systemd's boot progress, or the test's file.
+    fn progress(args: &Args) -> Option<f64> {
+        let text = match &args.progress_file {
+            Some(path) => std::fs::read_to_string(path).ok()?,
+            None => {
+                let out = std::process::Command::new("/usr/bin/busctl")
+                    .args([
+                        "get-property",
+                        "org.freedesktop.systemd1",
+                        "/org/freedesktop/systemd1",
+                        "org.freedesktop.systemd1.Manager",
+                        "Progress",
+                    ])
+                    .stdin(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .output()
+                    .ok()?;
+                String::from_utf8(out.stdout).ok()?
+            }
+        };
+        splash::parse_progress(&text)
+    }
+
+    fn show_progress(args: &Args, raw: &mut Raw, theme: &wros_shell::grimoire_theme::Theme) -> i32 {
+        unsafe {
+            libc::signal(
+                libc::SIGTERM,
+                on_stop as extern "C" fn(libc::c_int) as *const () as libc::sighandler_t,
+            );
+            libc::signal(
+                libc::SIGINT,
+                on_stop as extern "C" fn(libc::c_int) as *const () as libc::sighandler_t,
+            );
+        }
+        let Ok(out) = raw.tty.try_clone() else {
+            return exit::FAILED;
+        };
+        let viewport = Viewport::Fixed(raw.size());
+        let Ok(mut terminal) =
+            Terminal::with_options(CrosstermBackend::new(out), TerminalOptions { viewport })
+        else {
+            return exit::FAILED;
+        };
+        if raw.tty.write_all(b"\x1b[0m\x1b[2J\x1b[H").is_err() || terminal.hide_cursor().is_err() {
+            return exit::FAILED;
+        }
+        let started = Instant::now();
+        let mut finished: Option<Instant> = None;
+        let mut shown: f64 = -1.0;
+        let mut buf = [0u8; 64];
+        while !STOP.load(Ordering::SeqCst) && started.elapsed() < Duration::from_secs(180) {
+            let now = progress(args).unwrap_or(shown.max(0.0));
+            if (now - shown).abs() >= 0.005 {
+                if terminal.draw(|f| splash::draw(f, theme, now)).is_err() {
+                    return exit::FAILED;
+                }
+                shown = now;
+            }
+            if now >= 1.0
+                && finished.get_or_insert_with(Instant::now).elapsed() >= Duration::from_secs(3)
+            {
+                break;
+            }
+            // Keys typed while the laptop starts are read and dropped, never echoed.
+            if raw.read(150, &mut buf).is_err() {
+                std::thread::sleep(Duration::from_millis(150));
+            }
+        }
+        exit::UNLOCK
     }
 }

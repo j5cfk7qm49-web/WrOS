@@ -4,6 +4,7 @@
 
 pub mod keys;
 pub mod logo;
+pub mod splash;
 pub mod unlock;
 
 use wros_shell::grimoire_theme::{Theme, default_theme, from_config};

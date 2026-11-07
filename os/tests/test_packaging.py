@@ -914,7 +914,8 @@ class StageIntoRoot(unittest.TestCase):
         self.assertEqual(audit.audit_trust(root, fixture_fingerprints=set()), [self.fpr])
         self.assertEqual(audit.audit_units(root), ['wros-keyboard.service', 'wros-display.service',
                                                    'wros-offline-update.service', 'wros-update-reconcile.service',
-                                                   'wros-boot-ok.service', 'wros-boot-ok.service'])
+                                                   'wros-boot-ok.service', 'wros-boot-ok.service',
+                                                   'wros-boot-splash.service'])
         self.assertEqual(len(audit.audit_polkit(root)), 8)
         audit.audit_no_private_keys(root)
 

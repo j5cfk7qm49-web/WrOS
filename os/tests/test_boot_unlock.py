@@ -168,5 +168,32 @@ class Hook(unittest.TestCase):
         self.assertEqual(self.askpass.read_bytes(), WRAPPER.read_bytes())
 
 
+class ProgressScreen(unittest.TestCase):
+    """wros-boot-splash.service hands tty1 to the login screen and stays out of plain starts."""
+
+    def setUp(self):
+        self.unit = {}
+        for line in (ROOT / 'os/systemd/wros-boot-splash.service').read_text().splitlines():
+            if '=' in line and not line.startswith('#'):
+                key, value = line.split('=', 1)
+                self.unit.setdefault(key, []).append(value)
+
+    def words(self, key):
+        return ' '.join(self.unit.get(key, [])).split()
+
+    def test_it_stops_before_whatever_takes_tty1(self):
+        for unit in ('greetd.service', 'getty@tty1.service', 'wros-recovery.service', 'shutdown.target'):
+            self.assertIn(unit, self.words('Conflicts'))
+            self.assertIn(unit, self.words('Before'))
+
+    def test_it_runs_only_with_the_switch_on_and_never_on_a_plain_text_start(self):
+        self.assertEqual(self.unit['ConditionPathExists'], ['/etc/wros/boot-screen'])
+        self.assertEqual(self.unit['ConditionKernelCommandLine'], ['!wros.unlock=text'])
+        self.assertIn('= ratatui', self.unit['ExecCondition'][0])
+        self.assertEqual(self.unit['ExecStart'], ['/usr/lib/wros/wros-boot splash --tty /dev/tty1'])
+        self.assertEqual(self.unit['WantedBy'], ['sysinit.target'])
+        self.assertEqual(self.unit['DefaultDependencies'], ['no'])
+
+
 if __name__ == '__main__':
     unittest.main()

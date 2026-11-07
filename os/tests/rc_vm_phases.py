@@ -2473,6 +2473,21 @@ def ratatui_unlock(ctx, m, secrets_, layout, *, wrong_first=False, after_reset=N
     ctx.step(name + '-typed', layout=layout)
 
 
+def splash_record(g):
+    """How this boot's progress screen went: whether it ran, and when it stopped against the login."""
+    return g.run('systemctl show wros-boot-splash.service -p ConditionResult -p ExecMainStartTimestampMonotonic '
+                 '-p InactiveEnterTimestampMonotonic -p Result; '
+                 'systemctl show greetd.service -p ExecMainStartTimestampMonotonic | sed s/^/greetd/', 60)
+
+
+def splash_ran_before_login(record):
+    values = dict(line.split('=', 1) for line in record.splitlines() if '=' in line)
+    started = int(values.get('ExecMainStartTimestampMonotonic', '0') or 0)
+    stopped = int(values.get('InactiveEnterTimestampMonotonic', '0') or 0)
+    login = int(values.get('greetdExecMainStartTimestampMonotonic', '0') or 0)
+    return started > 0 and 0 < stopped <= login and values.get('Result') == 'success'
+
+
 def signed_in_again(ctx, m, st, secrets_):
     """After an unlock: the serial root shell, and the login screen on the console."""
     g = Guest(ctx, m, root_via_sudo=False)
@@ -2504,6 +2519,8 @@ def phase_bootscreen(ctx):
     # 1. The switch is off by default: Debian's own prompt, and a boot image without the start screen.
     g = session_ready(ctx, m, st, secrets_, layout, greeter=False)
     ctx.check('switch off: the boot image has no start screen', 'wros-boot' not in boot_image(g))
+    record = splash_record(g)
+    ctx.check('switch off: the progress screen does not run', 'ConditionResult=no' in record, record)
     ctx.check('wros-boot is installed', g.run('test -x /usr/lib/wros/wros-boot && echo yes').strip() == 'yes')
 
     # 2. Switch on: the boot image takes wros-boot and the wrapper, and keeps Debian's prompt.
@@ -2516,7 +2533,17 @@ def phase_bootscreen(ctx):
     # 3. The Ratatui screen: a wrong password, then the right one, then the login screen.
     resets = reboot(ctx, g, m, 'reboot-ratatui')
     ratatui_unlock(ctx, m, secrets_, layout, wrong_first=True, after_reset=resets, name='ratatui')
+    try:
+        text = m.wait_screen(r'Starting WrOS', 90, interval=0.5, name='progress')
+        m.shot('progress-screen')
+        ctx.result['progress_screen'] = text
+    except TimeoutError:
+        ctx.result['progress_screen'] = 'not caught on screen (the start may have been too quick)'
     g = signed_in_again(ctx, m, st, secrets_)
+    record = splash_record(g)
+    ctx.result['splash_record'] = record
+    ctx.check('the progress screen ran and stopped before the login screen started',
+              splash_ran_before_login(record), record)
     m.shot('login-after-ratatui')
     ctx.check('the Ratatui unlock opens the disk and reaches the login screen', True)
 

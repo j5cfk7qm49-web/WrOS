@@ -403,7 +403,7 @@ class PackageAwareAudit(unittest.TestCase):
             self.assertEqual(result['update_units_enabled'], [
                 'wros-keyboard.service', 'wros-display.service',
                 'wros-offline-update.service', 'wros-update-reconcile.service',
-                'wros-boot-ok.service', 'wros-boot-ok.service'])
+                'wros-boot-ok.service', 'wros-boot-ok.service', 'wros-boot-splash.service'])
             self.assertEqual(result['update_polkit_actions'], [
                 'org.wros.update.apply', 'org.wros.update.cancel', 'org.wros.update.fetch', 'org.wros.update.healthy',
                 'org.wros.update.media', 'org.wros.update.repair', 'org.wros.update.rollback',

@@ -146,8 +146,9 @@ Esc to the text prompt, the text-start entry, and timing on the Celeron.
    entry's `wros.unlock=text`, and packaging; 10 hook and wrapper tests.
 3. VM tests on an encrypted install, including the broken-binary case, with
    QEMU screenshots of the console.
-4. `wros-boot splash` with systemd's progress, handing over to greetd; the
-   **WrOS (text start)** boot entry.
+4. **Built (rc9):** `wros-boot splash` with systemd's progress, as
+   `wros-boot-splash.service`, stopped just before greetd takes tty1; not on a
+   `wros.unlock=text` start. Still to do: the **WrOS (text start)** boot entry.
 5. The logo in `wros-greeter`, and the theme copy kept up to date from Settings.
 6. Laptop checklist; then the default switch and the Settings choice; then remove
    the Plymouth theme.

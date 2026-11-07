@@ -90,6 +90,7 @@
     {"dest": "etc/systemd/system/wros-recovery.target", "source": "os/systemd/wros-recovery.target", "mode": "0644", "class": "config"},
     {"dest": "etc/systemd/system/wros-recovery.service", "source": "os/systemd/wros-recovery.service", "mode": "0644", "class": "config"},
     {"dest": "etc/systemd/system/wros-boot-ok.service", "source": "os/systemd/wros-boot-ok.service", "mode": "0644", "class": "config"},
+    {"dest": "etc/systemd/system/wros-boot-splash.service", "source": "os/systemd/wros-boot-splash.service", "mode": "0644", "class": "config"},
     {"dest": "etc/pam.d/wros-recovery", "source": "os/config/wros-recovery.pam", "mode": "0644", "class": "config"},
     {"dest": "etc/grub.d/06_wros_boot_check", "source": "os/grub/06_wros_boot_check", "mode": "0755", "class": "config"},
     {"dest": "etc/grub.d/42_wros_recovery", "source": "os/grub/42_wros_recovery", "mode": "0755", "class": "config"},
@@ -126,7 +127,8 @@
     {"unit": "wros-offline-update.service", "target": "system-update.target", "verify_install_section": true},
     {"unit": "wros-update-reconcile.service", "target": "multi-user.target", "verify_install_section": true},
     {"unit": "wros-boot-ok.service", "target": "multi-user.target", "verify_install_section": true},
-    {"unit": "wros-boot-ok.service", "target": "system-update.target", "verify_install_section": true}
+    {"unit": "wros-boot-ok.service", "target": "system-update.target", "verify_install_section": true},
+    {"unit": "wros-boot-splash.service", "target": "sysinit.target", "verify_install_section": true}
   ],
   "update_polkit_actions": {
     "org.wros.update.stage": "/usr/libexec/wros-update-stage",

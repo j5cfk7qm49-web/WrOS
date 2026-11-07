@@ -1,0 +1,25 @@
+[Unit]
+Description=WrOS start screen: the logo and boot progress until the login screen
+Documentation=file:/usr/share/doc/wros/RATATUI_BOOT.md
+DefaultDependencies=no
+After=systemd-vconsole-setup.service console-setup.service
+# Stopped just before the login screen (or a console login, or recovery) takes tty1.
+Before=greetd.service getty@tty1.service wros-recovery.service shutdown.target
+Conflicts=greetd.service getty@tty1.service wros-recovery.service shutdown.target
+# Only while the start screen is switched on, and never on a plain text start
+# (the WrOS recovery entry passes wros.unlock=text, so its messages stay visible).
+ConditionPathExists=/etc/wros/boot-screen
+ConditionKernelCommandLine=!wros.unlock=text
+
+[Service]
+Type=simple
+ExecCondition=/bin/sh -c 'test "$(cat /etc/wros/boot-screen)" = ratatui'
+ExecStart=/usr/lib/wros/wros-boot splash --tty /dev/tty1
+TimeoutStopSec=3
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=sysinit.target
