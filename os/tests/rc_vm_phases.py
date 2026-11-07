@@ -360,7 +360,8 @@ def grim_new_scene(g, name, text, layout='us'):
 
 
 def grim_logout_login(ctx, g, user, password, layout):
-    g.m.ctrl('q', layout)
+    # WrOS has no Quit (rc9): end the session as a shutdown would, which saves first.
+    g.run('pkill -TERM -x grimoire', 20, check=False)
     g.wait_vcs(1, r'Local account', 60, what='after-logout')
     greeter_login(ctx, g, g.m, user, password, layout, wrong_first=False)
     grim_dashboard(g)
@@ -1070,9 +1071,22 @@ def greeter_login(ctx, g, m, user, password, layout, *, wrong_first=True):
     m.type_text(user + '\n', layout)
     g.wait_vcs(1, r'\[hidden\]', 30, what='greeter-password-prompt-2')
     m.type_text(password + '\n', layout)
-    # The login opens the session as soon as the password is accepted.
-    screen = g.wait_vcs(1, r'\A(?!.*Local account)(?=.*(?:Resume writing|WrOS))', 90, what='grimoire-home')
-    ctx.check('correct greeter password accepted', 'Local account' not in screen)
+    screen = signed_in(g, m)
+    ctx.check('correct greeter password accepted', 'Sign in' not in screen)
+
+
+# Off the login screen and onto the writing app's.
+WRITING_SCREEN = r'\A(?!.*Sign in)(?=.*(?:Resume writing|WrOS))'
+
+
+def signed_in(g, m, label=''):
+    """After the password: rc9's login opens the session at once; earlier login screens (rc1 before an
+    update, or after going back) first show 'Open writing session' and wait for Enter."""
+    screen = g.wait_vcs(1, 'Open writing session|' + WRITING_SCREEN, 90, what='greeter-signed-in' + label)
+    if 'Open writing session' in screen:
+        m.key('ret')
+        screen = g.wait_vcs(1, WRITING_SCREEN, 90, what='grimoire-home' + label)
+    return screen
 
 
 def secret_scan(ctx, g, secrets_):
@@ -2075,7 +2089,8 @@ def phase_rc5(ctx):
         raise SystemExit('--base-disk (the update run disk.qcow2) is required')
     overlay = ctx.dir / 'disk.qcow2'
     vm.create_overlay(ctx.args.base_disk, overlay, base_format='qcow2')
-    rc7 = ctx.args.expect == '0.1.0~rc7'
+    # rc7's checks (power policy, lock and sleep) hold for every later version too.
+    rc7 = subprocess.run(['dpkg', '--compare-versions', ctx.args.expect, 'ge', '0.1.0~rc7']).returncode == 0
     def enable_sleep(machine):
         machine.args.extend(['-global', 'ICH9-LPC.disable_s3=0'])
     m = boot_installed(ctx, st, 'rc5', disk=overlay, fmt='qcow2', reboot=True,
@@ -2357,6 +2372,14 @@ def phase_autoback(ctx):
         m.type_text(user + '\n', layout)
         g.wait_vcs(1, r'\[hidden\]', 30, what='greeter-password-' + label)
         m.type_text(secrets_['login'] + '\n', layout)
+        # A login screen from before rc9 waits for Enter; rc9's opens the session at once (and this
+        # broken one ends at once, so the screen may go straight back to the login).
+        until = time.monotonic() + 15
+        while time.monotonic() < until:
+            if 'Open writing session' in g.screen(1):
+                m.key('ret')
+                break
+            time.sleep(0.5)
         deadline, out = time.monotonic() + 90, ''
         while time.monotonic() < deadline:
             rc, out = g.run('cat /var/lib/wros-update/probation.json', 20, check=False)
