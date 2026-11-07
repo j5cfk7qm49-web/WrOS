@@ -2477,7 +2477,7 @@ def splash_record(g):
     """How this boot's progress screen went: whether it ran, and when it stopped against the login."""
     return g.run('systemctl show wros-boot-splash.service -p ConditionResult -p ExecMainStartTimestampMonotonic '
                  '-p InactiveEnterTimestampMonotonic -p Result; '
-                 'systemctl show greetd.service -p ExecMainStartTimestampMonotonic | sed s/^/greetd/', 60)
+                 'systemctl show greetd.service -p ExecMainStartTimestampMonotonic | sed s/^/greetd/', 60)[1]
 
 
 def splash_ran_before_login(record):
@@ -2505,7 +2505,8 @@ def reboot(ctx, g, m, what):
 
 def boot_image(g):
     """What the current boot image holds of the start screen."""
-    return g.run('lsinitramfs /boot/initrd.img-$(uname -r) | grep -E "wros-boot$|cryptsetup/askpass" | sort', 120)
+    return g.run('lsinitramfs /boot/initrd.img-$(uname -r) | grep -E "wros-boot$|cryptsetup/askpass" | sort', 120,
+                 check=False)[1]
 
 
 def phase_bootscreen(ctx):
@@ -2518,10 +2519,12 @@ def phase_bootscreen(ctx):
 
     # 1. The switch is off by default: Debian's own prompt, and a boot image without the start screen.
     g = session_ready(ctx, m, st, secrets_, layout, greeter=False)
-    ctx.check('switch off: the boot image has no start screen', 'wros-boot' not in boot_image(g))
+    image = boot_image(g)
+    ctx.check('switch off: the boot image has the Debian prompt and no start screen',
+              'cryptsetup/askpass' in image and 'wros-boot' not in image and 'askpass.debian' not in image, image)
     record = splash_record(g)
     ctx.check('switch off: the progress screen does not run', 'ConditionResult=no' in record, record)
-    ctx.check('wros-boot is installed', g.run('test -x /usr/lib/wros/wros-boot && echo yes').strip() == 'yes')
+    ctx.check('wros-boot is installed', g.run('test -x /usr/lib/wros/wros-boot && echo yes')[1].strip() == 'yes')
 
     # 2. Switch on: the boot image takes wros-boot and the wrapper, and keeps Debian's prompt.
     g.run('echo ratatui > /etc/wros/boot-screen && update-initramfs -u', 900)
@@ -2569,7 +2572,9 @@ def phase_bootscreen(ctx):
 
     # 6. Switch off again: the boot image is Debian's.
     g.run('rm -f /etc/wros/boot-screen && update-initramfs -u', 900)
-    ctx.check('switch off again: the boot image has no start screen', 'wros-boot' not in boot_image(g))
+    image = boot_image(g)
+    ctx.check('switch off again: the boot image has no start screen',
+              'cryptsetup/askpass' in image and 'wros-boot' not in image and 'askpass.debian' not in image, image)
     resets = reboot(ctx, g, m, 'reboot-off')
     unlock(ctx, m, secrets_, layout, wrong_first=False, after_reset=resets)
     signed_in_again(ctx, m, st, secrets_)
