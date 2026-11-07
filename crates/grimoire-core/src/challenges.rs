@@ -113,10 +113,9 @@ struct Bank {
 pub fn catalog() -> &'static [Exercise] {
     static BANK: OnceLock<Vec<Exercise>> = OnceLock::new();
     BANK.get_or_init(|| {
-        let bank: Bank = serde_json::from_str(include_str!(
-            "../assets/wros/productivity-challenges.json"
-        ))
-        .expect("compiled original challenge bank");
+        let bank: Bank =
+            serde_json::from_str(include_str!("../assets/wros/productivity-challenges.json"))
+                .expect("compiled original challenge bank");
         assert_eq!(bank.version, 1);
         assert_eq!(bank.license, "MIT");
         assert_eq!(bank.source, "WrOS original exercises");

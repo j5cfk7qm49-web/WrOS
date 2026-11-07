@@ -19,6 +19,8 @@ mod scenery;
 mod session;
 mod shutdown;
 mod sync_service;
+#[cfg(feature = "test-driver")]
+mod test_driver;
 mod theme;
 mod ui;
 mod visualizer;
@@ -598,6 +600,8 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
     let mut handled_sleep = false;
     #[cfg(target_os = "linux")]
     let gauge_watch = installed_session().then(gauges::watch);
+    #[cfg(feature = "test-driver")]
+    let mut driver = test_driver::Driver::from_env();
 
     // Retained upstream fallback outside WrOS. Linux's parser instead belongs
     // to a separate, unprivileged re-exec process and dies with the editor.
@@ -724,6 +728,15 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
         }
         if std::mem::take(&mut first_screen) {
             session::mark_ready();
+        }
+        #[cfg(feature = "test-driver")]
+        if let Some(driver) = &mut driver {
+            driver.publish(app);
+            let mut leave = false;
+            driver.drain(app, |app, k| leave |= on_key(app, k, &mut confirm_quit));
+            if leave {
+                return Ok(());
+            }
         }
 
         let tick = if app.deck.state.low_power && !spectrum && app.reading.is_none() {

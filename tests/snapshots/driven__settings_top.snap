@@ -1,0 +1,34 @@
+---
+source: tests/driven.rs
+expression: plain(&app.screen())
+---
+┌WrOS · Settings───────────────────────────────────────────────────────────────────────────────────┐
+│▸ Writing ›                                                                                       │
+│  Look and keyboard ›                                                                             │
+│  System ›                                                                                        │
+│  Backups and accounts ›                                                                          │
+│  Updates and recovery ›                                                                          │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│↑↓ choose  Enter open  Esc back  F1 help                                                          │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘

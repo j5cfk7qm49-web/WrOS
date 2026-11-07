@@ -251,7 +251,8 @@ class ChecksPTY(unittest.TestCase):
             try:
                 terminal.shows('The Brass Key'); terminal.send(b'\x0bThe Brass Key\r')
                 terminal.send(b'\x0bInteractive tutorial\r'); terminal.screen_shows('Interactive tutorial')
-                terminal.send(b'\x1b[F\r'); terminal.screen_shows('Lesson 40')
+                # Lesson 40 is the grammar lesson; later lessons follow it, so count down from the top.
+                terminal.send(b'\x1b[H' + b'\x1b[B' * 39 + b'\r'); terminal.screen_shows('Lesson 40')
                 terminal.send(b'\r')
                 terminal.until(lambda: json.loads(progress.read_text())['active'] == 40, 'real demo lesson started, not auto-completed')
                 self.assertEqual(primary.read_bytes(), before)

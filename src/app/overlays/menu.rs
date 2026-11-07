@@ -345,10 +345,7 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "getting-started",
         ),
         Action::Dashboard => ("Opens the offline writing home screen.", "wros"),
-        Action::SystemSettings => (
-            "Shows local system status and safe OS controls.",
-            "wros",
-        ),
+        Action::SystemSettings => ("Shows local system status and safe OS controls.", "wros"),
         Action::Workspaces => ("Restores a saved writing layout.", "wros"),
         Action::Tutorial => ("Opens replayable, event-verified lessons.", "wros"),
         Action::ToggleOutline => ("Shows or hides the outline independently.", "wros"),

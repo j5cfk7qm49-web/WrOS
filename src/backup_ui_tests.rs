@@ -359,3 +359,21 @@ fn drive_folder_browser_materialization_and_sync_forms_preserve_both_editors_at_
         assert_ne!(desk.app.editor.text(), text);
     }
 }
+
+#[test]
+fn backups_own_pages_say_what_their_rows_just_did() {
+    // The rows moved off the Backups page (#90), so their results show where they are.
+    let mut desk = Desk::open(book("backup-subpage-notice", true), 100, 30);
+    desk.app.open_settings();
+    for page in [
+        Route::BackupDestinations,
+        Route::BackupKey,
+        Route::BackupQueue,
+        Route::GoogleDrive,
+    ] {
+        desk.app.deck.shell.nav.open(page);
+        desk.app.deck.shell.backup.notice = "Stale repository locks removed.".into();
+        desk.draw();
+        assert!(desk.shows("Stale repository locks removed."), "{page:?}");
+    }
+}

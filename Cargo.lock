@@ -954,6 +954,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "console"
+version = "0.16.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e96a4956774c13c126a8b5af4daa79384f4d826534c95a02d76afb39e2ab64e3"
+dependencies = [
+ "encode_unicode",
+ "libc",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "const-random"
 version = "0.1.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1968,6 +1979,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "encode_unicode"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34aa73646ffb006b8f5147f3dc182bd4bcb190227ce861fc4a4844bf8e3cb2c0"
+
+[[package]]
 name = "encoding_rs"
 version = "0.8.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2613,17 +2630,20 @@ dependencies = [
  "chrono",
  "cpal",
  "grimoire-core",
+ "insta",
  "libc",
  "ratatui",
  "rodio",
  "serde",
  "serde_json",
  "signal-hook",
+ "taria-ratatui",
  "ureq",
+ "vt100",
  "windows-sys 0.61.2",
- "wros-sys",
  "wros-input",
  "wros-shell",
+ "wros-sys",
  "zeroize",
 ]
 
@@ -3057,6 +3077,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "79cf5c93f93228cf8efb3ba362535fb11199ac548a09ce117c9b1adc3030d706"
 dependencies = [
  "rustversion",
+]
+
+[[package]]
+name = "insta"
+version = "1.49.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b67d3d2e287e4b86c10b3f3b641033d1f89b74bdb39d05f34952e2b9a6fe21cd"
+dependencies = [
+ "console",
+ "once_cell",
+ "similar",
+ "tempfile",
 ]
 
 [[package]]
@@ -5461,6 +5493,40 @@ dependencies = [
 ]
 
 [[package]]
+name = "taria"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c59878830a5ca46cff5c3f8ebffa81094b1bdfe38132af2ba620d0b10a7e416"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "taria-ratatui"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca3df9aeb2e757def75ad3a356434a06b998df8c64eccab2ccac8e6838dc8c0b"
+dependencies = [
+ "ratatui",
+ "serde_json",
+ "taria",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "tempfile"
+version = "3.27.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
+dependencies = [
+ "fastrand",
+ "getrandom 0.4.3",
+ "once_cell",
+ "rustix",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "tendril"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6148,6 +6214,27 @@ name = "void"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
+
+[[package]]
+name = "vt100"
+version = "0.18.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eb05cdd19ae8707bf6a0a269972c07e6358103a7079faec749dec318a5b3dc23"
+dependencies = [
+ "itoa",
+ "unicode-width",
+ "vte",
+]
+
+[[package]]
+name = "vte"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a5924018406ce0063cd67f8e008104968b74b563ee1b85dde3ed1f7cb87d3dbd"
+dependencies = [
+ "arrayvec",
+ "memchr",
+]
 
 [[package]]
 name = "vtparse"
@@ -6979,16 +7066,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc"
 
 [[package]]
-name = "wros-sys"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "libc",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "wros-greeter"
 version = "0.1.0"
 dependencies = [
@@ -7029,6 +7106,16 @@ name = "wros-shell"
 version = "0.1.0"
 dependencies = [
  "ratatui",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "wros-sys"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "libc",
  "serde",
  "serde_json",
 ]

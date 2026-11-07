@@ -31,10 +31,12 @@ class UnifiedShellPTY(unittest.TestCase):
                     before = primary.read_bytes()
                     terminal.send(b'\x0bWrOS settings\r')
                     terminal.screen_shows('WrOS · Settings')
+                    # Settings: Writing, Look and keyboard, System, Backups and accounts.
                     terminal.send(b'\x1b[H\x1b[B\x1b[B\x1b[B\r')
-                    terminal.screen_shows('Settings › Accounts')
-                    terminal.send(b'\r')
-                    terminal.screen_shows('Settings › Local accounts')
+                    terminal.screen_shows('Settings › Backups and accounts')
+                    # Backups and accounts: Backups, Google Drive, Local accounts.
+                    terminal.send(b'\x1b[H\x1b[B\x1b[B\r')
+                    terminal.screen_shows('Settings › Backups and accounts › Local accounts')
                     terminal.screen_shows('Local account list loaded')
                     terminal.paste('MODAL-PASTE-MUST-STAY-OUT-OF-THE-DRAFT')
                     terminal.send(b'\x18\x1a')
@@ -42,16 +44,14 @@ class UnifiedShellPTY(unittest.TestCase):
                     terminal.send(b'\x1b')
                     terminal.screen_shows('▸ Local accounts')
                     for heading, message in [
-                        ('Google account', 'Google Drive is not connected'),
-                        ('Google Drive', 'General Drive file browsing'),
-                        ('Synchronization', 'Readable Google Drive sync is set per book'),
+                        ('Google Drive', 'Google Drive is not connected'),
                         ('Backups', 'No repository configured'),
                     ]:
-                        terminal.send(b'\x1b[B\r')
-                        terminal.screen_shows('Settings › ' + heading)
+                        terminal.send(b'\x1b[A\r')
+                        terminal.screen_shows('Settings › Backups and accounts › ' + heading)
                         terminal.screen_shows(message)
                         if heading == 'Backups':
-                            terminal.screen_shows('New backup on a local drive')
+                            terminal.screen_shows('Where backups go')
                             self.assertNotIn('Google enrollment', terminal.screen.text)
                         terminal.paste('AVAILABILITY-SCREEN-PASTE')
                         self.assertEqual(primary.read_bytes(), before)
@@ -67,11 +67,11 @@ class UnifiedShellPTY(unittest.TestCase):
                             (captures/f'availability-{width}x{height}.txt').write_text(
                                 '\n'.join(line.rstrip(' \t') for line in terminal.screen.text.splitlines())+'\n')
                         terminal.send(b'\x1b')
-                        terminal.until(lambda: 'Settings › Accounts' in terminal.screen.text
+                        terminal.until(lambda: 'Settings › Backups and accounts' in terminal.screen.text
                                        and '▸ ' + heading in terminal.screen.text,
-                                       'returned Accounts route and selected ' + heading)
+                                       'returned to Backups and accounts and selected ' + heading)
                     terminal.send(b'\x1b')
-                    terminal.screen_shows('▸ Accounts')
+                    terminal.screen_shows('▸ Backups and accounts')
                     terminal.send(b'\x1b')
                     terminal.screen_shows(prefix)
                     terminal.paste(suffix)

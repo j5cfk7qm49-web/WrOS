@@ -741,6 +741,22 @@ fn setting_rows(app: &App, actions: &[Action]) -> Vec<Entry> {
         .collect()
 }
 
+/// The open Settings page as a test driver sees it: its title, and each row with
+/// whether it can be chosen.
+#[cfg(feature = "test-driver")]
+pub(crate) fn driver_page(app: &App) -> (String, Vec<(String, bool)>) {
+    let route = app.deck.shell.nav.current();
+    let title = breadcrumb(route).unwrap_or_else(|| "WrOS · Settings".into());
+    let rows = entries(app)
+        .into_iter()
+        .map(|entry| {
+            let choosable = !matches!(entry.choice, Choice::Information);
+            (entry.label, choosable)
+        })
+        .collect();
+    (title, rows)
+}
+
 fn entries(app: &App) -> Vec<Entry> {
     match app.deck.shell.nav.current() {
         route @ (Route::Settings | Route::Category(_)) => {
@@ -2608,7 +2624,13 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
         Route::Backups | Route::BackupForm
     ) || matches!(
         app.deck.shell.nav.current(),
-        Route::GoogleAccount | Route::GoogleDisconnectConfirm
+        // Backups' own pages say what their rows just did (#90 moved those rows here).
+        Route::GoogleAccount
+            | Route::GoogleDisconnectConfirm
+            | Route::GoogleDrive
+            | Route::BackupDestinations
+            | Route::BackupKey
+            | Route::BackupQueue
     ) && !app.deck.shell.backup.notice.is_empty();
     let chain_line = app.update_chain_line();
     let note = if uses_backup_notice {

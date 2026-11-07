@@ -1,5 +1,33 @@
 # Testing and verification
 
+## One command for a release candidate (#13, rc9)
+
+`tools/rc-check.sh` runs every check that needs no hardware and prints one
+summary line each: formatting, Clippy, the Rust tests, the app in a terminal, a
+debug build, and the Python tests with `GRIMOIRE_BINARY` set, so the Python
+screen tests (`test_*_pty.py`) run instead of skipping. `--vm CMD…` adds a VM
+chain run (`.audit-tools/rc9-vm-chain.sh …`) to the summary. Logs and
+`summary.txt` go to `target/rc-check`.
+
+## The app in a terminal, driven by name
+
+`tests/driven.rs` starts the real `grimoire` binary in a pseudo-terminal. The
+[vt100](https://crates.io/crates/vt100) parser reads what it draws, and
+[insta](https://insta.rs) keeps snapshots of whole screens in
+`tests/snapshots/`. With the `test-driver` feature the app also publishes the
+open Settings page and its rows over a private
+[taria](https://crates.io/crates/taria-ratatui) socket, so a test chooses
+"Backups and accounts" by name rather than by counting arrow presses; moving a
+page in the menu map doesn't break it. The feature is for test builds only: a
+release build with it refuses to compile, and WrOS packages never include it.
+
+```bash
+cargo test --no-default-features --features test-driver --test driven
+```
+
+After a deliberate screen change, review new snapshots with `cargo insta review`
+or rerun with `INSTA_UPDATE=always` and read the diff before committing.
+
 ## Native encrypted backup boundary (2026-10-31)
 
 The [complete Debian run](evidence/release-readiness-local.json) passed 1094 Rust
