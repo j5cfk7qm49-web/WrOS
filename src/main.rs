@@ -5,6 +5,7 @@ mod backup_service;
 mod books;
 #[cfg(target_os = "linux")]
 mod console_lock;
+mod gauges;
 mod help;
 mod library;
 mod lid;
@@ -594,6 +595,8 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
     let power_watch = app.deck.lock_available.then(console_lock::watch_power);
     #[cfg(target_os = "linux")]
     let mut handled_sleep = false;
+    #[cfg(target_os = "linux")]
+    let gauge_watch = installed_session().then(gauges::watch);
 
     // Retained upstream fallback outside WrOS. Linux's parser instead belongs
     // to a separate, unprivileged re-exec process and dies with the editor.
@@ -640,6 +643,10 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
                 }
                 Some(_) => {}
             }
+        }
+        #[cfg(target_os = "linux")]
+        if let Some(gauges) = gauge_watch.as_ref().and_then(|rx| rx.try_iter().last()) {
+            app.deck.gauges = gauges;
         }
         #[cfg(target_os = "linux")]
         if std::mem::take(&mut app.deck.lock_requested) {

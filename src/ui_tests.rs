@@ -421,6 +421,36 @@ fn at_80_columns_the_status_bar_leads_with_esc() {
     assert!(d.status().contains("Esc menu"), "editor: {}", d.status());
 }
 
+#[test]
+fn battery_light_and_volume_sit_at_the_right_of_the_status_bar() {
+    let mut d = Desk::open(book("status-gauges", true), 100, 30);
+    assert!(!d.status().contains("Bat "), "nothing read, nothing shown");
+    d.app.deck.gauges = crate::gauges::Gauges {
+        battery: Some(76),
+        charging: false,
+        light: Some(50),
+        volume: Some(70),
+        muted: false,
+    };
+    d.draw();
+    let status = d.status();
+    assert!(
+        status.trim_end().ends_with("Bat 76%  Light 50%  Vol 70%"),
+        "{status}"
+    );
+    assert!(
+        status.contains("Esc menu"),
+        "the hints still lead: {status}"
+    );
+    // Focus mode keeps to the scene, unless the battery runs low.
+    d.app.focus_mode = true;
+    d.draw();
+    assert!(!d.status().contains("Bat "), "{}", d.status());
+    d.app.deck.gauges.battery = Some(9);
+    d.draw();
+    assert!(d.status().trim_end().ends_with("Bat 9%"), "{}", d.status());
+}
+
 // ---- notes beside the scene ------------------------------------------------
 
 fn with_wren(tag: &str) -> Desk {
@@ -8269,9 +8299,9 @@ mod knowledge_ui_tests;
 #[path = "backup_ui_tests.rs"]
 mod backup_ui_tests;
 
-#[path = "tutorial_ui_tests.rs"]
-mod tutorial_ui_tests;
-#[path = "session_ui_tests.rs"]
-mod session_ui_tests;
 #[path = "lid_ui_tests.rs"]
 mod lid_ui_tests;
+#[path = "session_ui_tests.rs"]
+mod session_ui_tests;
+#[path = "tutorial_ui_tests.rs"]
+mod tutorial_ui_tests;

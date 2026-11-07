@@ -1335,17 +1335,37 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         ));
     }
 
+    // Battery, light and volume sit at the far right; hints fill the room left.
+    let gauges = app.deck.gauges.text(app.focus_mode);
+    let gauge_room = if gauges.is_empty() {
+        0
+    } else {
+        gauges.chars().count() + 2
+    };
     // Keep a gap after the message; drop whole hints rather than run into it.
     let used: usize = spans.iter().map(|s| s.content.chars().count()).sum();
-    let hints = fit_hints(&app.hints(), (area.width as usize).saturating_sub(used + 3));
+    let hints = fit_hints(
+        &app.hints(),
+        (area.width as usize).saturating_sub(used + 3 + gauge_room),
+    );
     let pad = (area.width as usize)
         .saturating_sub(used)
-        .saturating_sub(hints.chars().count() + 1);
+        .saturating_sub(hints.chars().count() + 1 + gauge_room);
     spans.push(Span::raw(" ".repeat(pad)));
     spans.push(Span::styled(
         format!("{hints} "),
         Style::default().fg(t.dim),
     ));
+    if !gauges.is_empty() {
+        spans.push(Span::styled(
+            format!(" {gauges} "),
+            Style::default().fg(if app.deck.gauges.low_battery() {
+                t.warn
+            } else {
+                t.dim
+            }),
+        ));
+    }
 
     f.render_widget(Paragraph::new(Line::from(spans)), area);
 }

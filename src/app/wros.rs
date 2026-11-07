@@ -139,6 +139,8 @@ pub struct Deck {
     /// What closing the lid does, and where the writer's choice is kept.
     pub lid_close: crate::lid::LidClose,
     pub lid_settings: Option<PathBuf>,
+    /// Battery, screen light and volume for the bottom bar.
+    pub gauges: crate::gauges::Gauges,
     pub power_pending: bool,
     pub installer_requested: bool,
     /// An app-only update is installed: save, then start the new writing app in place.
@@ -312,6 +314,7 @@ impl Deck {
             suspend_requested: false,
             lid_close,
             lid_settings,
+            gauges: crate::gauges::Gauges::default(),
             power_pending: false,
             installer_requested: false,
             app_restart_requested: false,
@@ -775,6 +778,14 @@ impl App {
                         "System status refreshed locally."
                     }
                     .into();
+                    // Settings just changed or read these: the bar shows them now.
+                    if s.battery_percent.is_some() {
+                        self.deck.gauges.battery = s.battery_percent;
+                        self.deck.gauges.charging = s.charging.unwrap_or(false);
+                    }
+                    if s.brightness_percent.is_some() {
+                        self.deck.gauges.light = s.brightness_percent;
+                    }
                     self.deck.snapshot = Some(s);
                 }
                 Ok(Reply::Message(message)) => {
@@ -968,6 +979,10 @@ impl App {
                     snapshot.time_synchronized = None;
                 }
                 Ok(Reply::Audio(audio)) => {
+                    if audio.available {
+                        self.deck.gauges.volume = audio.volume_percent;
+                        self.deck.gauges.muted = audio.muted;
+                    }
                     self.deck.note = audio.message.clone();
                     self.deck.shell.audio_status = Some(audio);
                 }

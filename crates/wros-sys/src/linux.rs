@@ -232,53 +232,62 @@ impl<R: Runner> Linux<R> {
                 .ok()
                 .and_then(|v| v.get("layout")?.as_str().map(str::to_string));
         }
-        if let Ok(entries) = fs::read_dir(self.sys.join("class/power_supply")) {
-            let mut charge = 0u64;
-            let mut full = 0u64;
-            let mut fallback = vec![];
-            let mut charging = false;
-            for e in entries.flatten() {
-                let p = e.path();
-                if read(&p.join("type")).as_deref() != Some("Battery") {
-                    continue;
-                }
-                charging |= read(&p.join("status")).as_deref() == Some("Charging");
-                if let (Some(n), Some(f)) = (
-                    number(&p.join("energy_now")),
-                    number(&p.join("energy_full")),
-                ) {
-                    charge = charge.saturating_add(n);
-                    full = full.saturating_add(f);
-                } else if let Some(p) = number(&p.join("capacity")) {
-                    fallback.push(p.min(100));
-                }
-            }
-            s.battery_percent = percentage(charge, full).or_else(|| {
-                fallback
-                    .iter()
-                    .sum::<u64>()
-                    .checked_div(fallback.len() as u64)
-                    .map(|p| p as u8)
-            });
-            s.charging = s.battery_percent.map(|_| charging);
-        }
-        if let Ok(entries) = fs::read_dir(self.sys.join("class/backlight")) {
-            for e in entries.flatten() {
-                let p = e.path();
-                if let (Some(n), Some(max)) = (
-                    number(&p.join("brightness")),
-                    number(&p.join("max_brightness")),
-                ) && let Some(percent) = percentage(n, max)
-                {
-                    s.brightness_percent = Some(percent);
-                    break;
-                }
-            }
-        }
+        (s.battery_percent, s.charging) = battery(&self.sys);
+        s.brightness_percent = brightness(&self.sys);
         s.available_bytes = available(&self.storage);
         s
     }
 }
+/// Battery charge and whether it is charging, from `<sys>/class/power_supply`. Several
+/// batteries add up; a battery without energy readings counts by its capacity.
+pub fn battery(sys: &Path) -> (Option<u8>, Option<bool>) {
+    let Ok(entries) = fs::read_dir(sys.join("class/power_supply")) else {
+        return (None, None);
+    };
+    let mut charge = 0u64;
+    let mut full = 0u64;
+    let mut fallback = vec![];
+    let mut charging = false;
+    for e in entries.flatten() {
+        let p = e.path();
+        if read(&p.join("type")).as_deref() != Some("Battery") {
+            continue;
+        }
+        charging |= read(&p.join("status")).as_deref() == Some("Charging");
+        if let (Some(n), Some(f)) = (
+            number(&p.join("energy_now")),
+            number(&p.join("energy_full")),
+        ) {
+            charge = charge.saturating_add(n);
+            full = full.saturating_add(f);
+        } else if let Some(p) = number(&p.join("capacity")) {
+            fallback.push(p.min(100));
+        }
+    }
+    let percent = percentage(charge, full).or_else(|| {
+        fallback
+            .iter()
+            .sum::<u64>()
+            .checked_div(fallback.len() as u64)
+            .map(|p| p as u8)
+    });
+    (percent, percent.map(|_| charging))
+}
+
+/// Screen brightness of the first backlight, from `<sys>/class/backlight`.
+pub fn brightness(sys: &Path) -> Option<u8> {
+    fs::read_dir(sys.join("class/backlight"))
+        .ok()?
+        .flatten()
+        .find_map(|e| {
+            let p = e.path();
+            percentage(
+                number(&p.join("brightness"))?,
+                number(&p.join("max_brightness"))?,
+            )
+        })
+}
+
 /// `NTP=` and `NTPSynchronized=` from `timedatectl show`; anything but yes/no is unknown.
 fn parse_time_sync(text: &str) -> (Option<bool>, Option<bool>) {
     let value = |key: &str| {
