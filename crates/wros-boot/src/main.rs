@@ -1,0 +1,207 @@
+//! `wros-boot unlock [PROMPT] [--tty PATH] [--theme PATH]`
+//!
+//! Run by the boot image's `askpass` wrapper in place of Debian's prompt. It draws
+//! on the console and reads keys from it; the password goes to standard output
+//! once, after Enter, with no newline, as Debian's `askpass` gives it to cryptsetup.
+//! Any other ending writes nothing and exits non-zero, and the wrapper runs
+//! Debian's prompt (see `wros_boot::exit`).
+
+#[cfg(target_os = "linux")]
+fn main() {
+    // Nothing is ever printed: not a panic message, and never a password.
+    std::panic::set_hook(Box::new(|_| {}));
+    let code = std::panic::catch_unwind(linux::run).unwrap_or(wros_boot::exit::FAILED);
+    std::process::exit(code);
+}
+
+#[cfg(not(target_os = "linux"))]
+fn main() {
+    std::process::exit(wros_boot::exit::FAILED);
+}
+
+#[cfg(target_os = "linux")]
+mod linux {
+    use ratatui::{Terminal, TerminalOptions, Viewport, backend::CrosstermBackend, layout::Rect};
+    use std::{
+        fs::{File, OpenOptions},
+        io::{Read, Write},
+        os::{fd::AsRawFd, unix::fs::OpenOptionsExt},
+        path::PathBuf,
+    };
+    use wros_boot::{
+        exit,
+        keys::Decoder,
+        unlock::{Outcome, Unlock},
+    };
+
+    /// How long an Esc waits for the rest of an arrow key's sequence.
+    const ESC_WAIT_MS: i32 = 60;
+
+    struct Args {
+        tty: PathBuf,
+        theme: PathBuf,
+    }
+
+    fn args() -> Option<Args> {
+        let mut args = std::env::args().skip(1);
+        if args.next().as_deref() != Some("unlock") {
+            return None;
+        }
+        let mut parsed = Args {
+            tty: "/dev/console".into(),
+            theme: wros_boot::THEME.into(),
+        };
+        while let Some(arg) = args.next() {
+            match arg.as_str() {
+                "--tty" => parsed.tty = args.next()?.into(),
+                "--theme" => parsed.theme = args.next()?.into(),
+                // Debian's prompt text ("Please unlock disk …"); the screen words its own.
+                _ => {}
+            }
+        }
+        Some(parsed)
+    }
+
+    /// The console in raw mode, put back as it was however the screen ends.
+    struct Raw {
+        tty: File,
+        saved: libc::termios,
+    }
+
+    impl Raw {
+        fn new(tty: File) -> Option<Self> {
+            let fd = tty.as_raw_fd();
+            let mut saved = unsafe { std::mem::zeroed::<libc::termios>() };
+            if unsafe { libc::tcgetattr(fd, &mut saved) } != 0 {
+                return None;
+            }
+            let mut raw = saved;
+            unsafe { libc::cfmakeraw(&mut raw) };
+            (unsafe { libc::tcsetattr(fd, libc::TCSAFLUSH, &raw) } == 0)
+                .then_some(Self { tty, saved })
+        }
+
+        fn size(&self) -> Rect {
+            let mut size = unsafe { std::mem::zeroed::<libc::winsize>() };
+            let ok = unsafe { libc::ioctl(self.tty.as_raw_fd(), libc::TIOCGWINSZ, &mut size) } == 0;
+            if ok && size.ws_col > 0 && size.ws_row > 0 {
+                Rect::new(0, 0, size.ws_col, size.ws_row)
+            } else {
+                Rect::new(0, 0, 80, 25)
+            }
+        }
+
+        /// Waits for a byte; `None` on time-out, `Err` when the console is gone.
+        fn read(&mut self, wait_ms: i32, buf: &mut [u8]) -> Result<Option<usize>, ()> {
+            let mut poll = libc::pollfd {
+                fd: self.tty.as_raw_fd(),
+                events: libc::POLLIN,
+                revents: 0,
+            };
+            match unsafe { libc::poll(&mut poll, 1, wait_ms) } {
+                0 => Ok(None),
+                n if n < 0 => {
+                    if std::io::Error::last_os_error().kind() == std::io::ErrorKind::Interrupted {
+                        Ok(None)
+                    } else {
+                        Err(())
+                    }
+                }
+                _ => match self.tty.read(buf) {
+                    Ok(0) | Err(_) => Err(()),
+                    Ok(n) => Ok(Some(n)),
+                },
+            }
+        }
+    }
+
+    impl Drop for Raw {
+        fn drop(&mut self) {
+            // Leave a clear screen and the cursor back for whatever comes next.
+            let _ = self.tty.write_all(b"\x1b[0m\x1b[2J\x1b[H\x1b[?25h");
+            unsafe { libc::tcsetattr(self.tty.as_raw_fd(), libc::TCSAFLUSH, &self.saved) };
+        }
+    }
+
+    pub fn run() -> i32 {
+        let Some(args) = args() else {
+            return exit::FAILED;
+        };
+        let Ok(tty) = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .custom_flags(libc::O_NOCTTY)
+            .open(&args.tty)
+        else {
+            return exit::FAILED;
+        };
+        let Some(mut raw) = Raw::new(tty) else {
+            return exit::FAILED;
+        };
+        let theme = wros_boot::theme(&args.theme);
+        let mut unlock = Unlock::from_env(|name| std::env::var(name).ok());
+        let outcome = {
+            let Ok(out) = raw.tty.try_clone() else {
+                return exit::FAILED;
+            };
+            let viewport = Viewport::Fixed(raw.size());
+            let Ok(mut terminal) =
+                Terminal::with_options(CrosstermBackend::new(out), TerminalOptions { viewport })
+            else {
+                return exit::FAILED;
+            };
+            // A plain clear: Ratatui's asks the terminal where the cursor is, and in the boot
+            // image nothing need answer.
+            if raw.tty.write_all(b"\x1b[0m\x1b[2J\x1b[H").is_err()
+                || terminal.hide_cursor().is_err()
+            {
+                return exit::FAILED;
+            }
+            let mut decoder = Decoder::default();
+            let mut buf = [0u8; 64];
+            loop {
+                if terminal.draw(|f| unlock.draw(f, &theme)).is_err() {
+                    return exit::FAILED;
+                }
+                let wait = if decoder.esc_pending() {
+                    ESC_WAIT_MS
+                } else {
+                    -1
+                };
+                let keys: Vec<_> = match raw.read(wait, &mut buf) {
+                    Err(()) => return exit::FAILED,
+                    Ok(None) => decoder.timeout().into_iter().collect(),
+                    Ok(Some(n)) => buf[..n].iter().filter_map(|&b| decoder.feed(b)).collect(),
+                };
+                buf.fill(0);
+                let mut finished = None;
+                for key in keys {
+                    match unlock.key(key) {
+                        Outcome::Typing => {}
+                        done => {
+                            finished = Some(done);
+                            break;
+                        }
+                    }
+                }
+                if let Some(done) = finished {
+                    break done;
+                }
+            }
+        };
+        drop(raw);
+        match outcome {
+            Outcome::Done => {
+                let mut stdout = std::io::stdout().lock();
+                if stdout.write_all(unlock.password().as_bytes()).is_err()
+                    || stdout.flush().is_err()
+                {
+                    return exit::FAILED;
+                }
+                exit::UNLOCK
+            }
+            Outcome::Text => exit::TEXT,
+            Outcome::Typing => exit::FAILED,
+        }
+    }
+}

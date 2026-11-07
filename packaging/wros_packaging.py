@@ -276,6 +276,11 @@ def postinst(manifest, stage):
               '        echo "wros: could not set the boot screen; boot is unchanged" >&2',
               '    fi',
               'fi',
+              # The Ratatui start screen (docs/RATATUI_BOOT.md), only while its switch is on: the boot
+              # image takes the new wros-boot. With the switch off the image stays Debian's.
+              'if [ -z "$root" ] && [ "$(cat /etc/wros/boot-screen 2>/dev/null)" = ratatui ] && [ -x /usr/sbin/update-initramfs ]; then',
+              '    /usr/sbin/update-initramfs -u >/dev/null 2>&1 || echo "wros: the start screen updates with the next boot image" >&2',
+              'fi',
               'if [ -z "$root" ] && [ -x /usr/sbin/update-grub ] && [ -e /boot/grub/grub.cfg ]; then',
               '    /usr/sbin/update-grub >/dev/null 2>&1 || echo "wros: update-grub failed; the boot menu is unchanged" >&2',
               'fi',

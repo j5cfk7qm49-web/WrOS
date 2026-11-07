@@ -48,6 +48,7 @@ echo "menuentry 'WrOS recovery' --class recovery --id wros-recovery {"
 echo "	insmod gzio"
 prepare_grub_to_access_device "${GRUB_DEVICE_BOOT}" | sed 's/^/\t/'
 # GRUB_CMDLINE_LINUX only, as Debian's own recovery entries: boot messages stay visible.
-echo "	linux	${rel_dirname}/${basename} root=${root_device} ro ${GRUB_CMDLINE_LINUX} systemd.unit=wros-recovery.target"
+# wros.unlock=text: the disk password always uses Debian's own prompt here.
+echo "	linux	${rel_dirname}/${basename} root=${root_device} ro ${GRUB_CMDLINE_LINUX} wros.unlock=text systemd.unit=wros-recovery.target"
 echo "	initrd	${rel_dirname}/${initrd}"
 echo "}"

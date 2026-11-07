@@ -111,7 +111,7 @@ path = "tests/driven.rs"
 required-features = ["test-driver"]
 
 [workspace]
-members = ["crates/grimoire-core", "crates/grimoire-app", "crates/wros-sys", "crates/wros-shell", "crates/wros-greeter", "crates/wros-input", "crates/wros-installer"]
+members = ["crates/grimoire-core", "crates/grimoire-app", "crates/wros-sys", "crates/wros-shell", "crates/wros-greeter", "crates/wros-boot", "crates/wros-input", "crates/wros-installer"]
 exclude = ["crates/crossterm-upstream"]
 
 [patch.crates-io]

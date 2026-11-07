@@ -55,7 +55,7 @@ PSEUDO_ROOT = pseudo_root_prefix()
 def copy_repo(destination):
     """The subset of the checkout the packaging path reads, as an editable copy."""
     destination = Path(destination)
-    for relative in ('packaging', 'os/config', 'os/systemd', 'os/grub', 'os/plymouth', 'os/scripts', 'os/helpers', 'os/licenses',
+    for relative in ('packaging', 'os/config', 'os/systemd', 'os/grub', 'os/plymouth', 'os/initramfs', 'os/scripts', 'os/helpers', 'os/licenses',
                      'tools/build-wros-debs.py', 'tools/stage-prose-runtime.py', 'tools/prepare-prose-tools.py',
                      'tools/audit-native-image.py',
                      'assets/dict/DICTIONARY-LICENSE', 'LICENSE', 'os/VERSION'):
@@ -96,6 +96,7 @@ def stub_inputs(base):
     (binaries / 'grimoire').write_bytes(GRIMOIRE)
     (binaries / 'wros-display-hw').write_bytes(DISPLAY_HW)
     (binaries / 'wros-greeter').write_bytes(GREETER)
+    (binaries / 'wros-boot').write_bytes(b'#!/bin/sh\nexit 20\n')
     for name in ('qwerty', 'colemak', 'colemak-dh-ansi', 'colemak-dh-iso'):
         (keymaps / (name + '.map')).write_bytes(('keymap ' + name + '\n').encode())
     return binaries, keymaps
@@ -852,6 +853,8 @@ class StageIntoRoot(unittest.TestCase):
         (work / 'grimoire').chmod(0o755)
         (work / 'wros-greeter').write_bytes(GREETER)  # found beside the app, as in a cargo target
         (work / 'wros-greeter').chmod(0o755)
+        (work / 'wros-boot').write_bytes(GREETER)
+        (work / 'wros-boot').chmod(0o755)
         (work / 'display-hw').write_bytes(DISPLAY_HW)
         keyring = work / 'keyring.gpg'
         keyring.write_bytes(self.keys.public(self.fpr))

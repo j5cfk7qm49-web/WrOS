@@ -35,7 +35,9 @@ here and are not kept up to date. Test evidence is in [`evidence/`](evidence/).
 - [CONSOLE_LOCK](CONSOLE_LOCK.md) and [POWER_SAFETY](POWER_SAFETY.md): locking,
   sleep and power.
 - [WARM_SCREEN](WARM_SCREEN.md): the warm screen.
-- [BOOT_SCREEN](BOOT_SCREEN.md): the logo and loading bar while the laptop starts.
+- [RATATUI_BOOT](RATATUI_BOOT.md): the start screens from power-on to the login,
+  drawn with Ratatui, with Debian's prompt behind them.
+- [BOOT_SCREEN](BOOT_SCREEN.md): the Plymouth theme the Ratatui screens replace.
 - [SETTINGS_MENU_PLAN](SETTINGS_MENU_PLAN.md): the Settings layout and how to
   move a page.
 - [UNIFIED_SHELL](UNIFIED_SHELL.md): one app for writing and system settings.

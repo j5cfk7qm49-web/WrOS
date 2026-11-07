@@ -123,6 +123,8 @@ class GrubRecovery(unittest.TestCase):
         self.kernel('6.12.0-1-amd64')
         entry = self.generate('42_wros_recovery', GRUB_CMDLINE_LINUX_DEFAULT='quiet loglevel=3')
         self.assertIn('systemd.unit=wros-recovery.target', entry)
+        # Recovery never depends on the Ratatui disk prompt.
+        self.assertIn(' wros.unlock=text ', entry)
         self.assertNotIn('loglevel', entry)
 
 

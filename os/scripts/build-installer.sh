@@ -42,6 +42,8 @@ binary=${GRIMOIRE_BINARY:-$repo/target/debug/grimoire}
 [[ -x $binary ]] || { echo 'Build Grimoire first or set GRIMOIRE_BINARY.' >&2; exit 2; }
 greeter=${WROS_GREETER_BINARY:-$repo/target/debug/wros-greeter}
 [[ -x $greeter ]] || { echo 'Build wros-greeter first or set WROS_GREETER_BINARY.' >&2; exit 2; }
+boot=${WROS_BOOT_BINARY:-$repo/target/debug/wros-boot}
+[[ -x $boot ]] || { echo 'Build wros-boot first or set WROS_BOOT_BINARY.' >&2; exit 2; }
 image=wros-installer
 volume=WROS_INSTALL
 application='WrOS - Writer OS (experimental)'
@@ -119,7 +121,7 @@ if [[ $profile == live-session ]]; then
         echo "Live kernel drifted from the qualified $abi: ${kernels[*]}" >&2; exit 1; }
 fi
 chroot chroot groupadd --system wros
-WROS_GREETER_BINARY="$greeter" bash "$repo/os/scripts/install-files.sh" "$base/chroot" "$binary" installer
+WROS_GREETER_BINARY="$greeter" WROS_BOOT_BINARY="$boot" bash "$repo/os/scripts/install-files.sh" "$base/chroot" "$binary" installer
 bash "$repo/os/scripts/stage-greeter.sh" "$base/chroot" "$greeter"
 if [[ $profile == live-session ]]; then
     bash "$repo/os/scripts/stage-live-session.sh" "$base/chroot" "$installer"

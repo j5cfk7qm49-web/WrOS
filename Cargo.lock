@@ -7066,6 +7066,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc"
 
 [[package]]
+name = "wros-boot"
+version = "0.1.0"
+dependencies = [
+ "insta",
+ "libc",
+ "ratatui",
+ "vt100",
+ "wros-shell",
+ "zeroize",
+]
+
+[[package]]
 name = "wros-greeter"
 version = "0.1.0"
 dependencies = [

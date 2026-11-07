@@ -10,7 +10,7 @@ def fingerprint():
     selected = sorted({p for p in paths if p and (
         p in ('Cargo.toml', 'Cargo.lock') or
         p.split('/')[0] in ('src', 'crates', 'assets') or
-        any(p.startswith(d+'/') for d in ('os/scripts', 'os/helpers', 'os/config', 'os/systemd', 'os/grub', 'os/plymouth', 'os/tests'))
+        any(p.startswith(d+'/') for d in ('os/scripts', 'os/helpers', 'os/config', 'os/systemd', 'os/grub', 'os/plymouth', 'os/initramfs', 'os/tests'))
     )})
     result = hashlib.sha256()
     for name in selected:

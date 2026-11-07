@@ -1,0 +1,20 @@
+#!/bin/sh
+# WrOS (docs/RATATUI_BOOT.md): the disk password on the Ratatui start screen, with
+# Debian's own prompt behind it. The boot image's hook puts this in place of
+# askpass and keeps Debian's as askpass.debian; the installed system's askpass is
+# never changed. Only an exit of 0 from wros-boot means a password was written;
+# every other ending, and wros.unlock=text on the kernel line, goes to Debian's.
+# The WROS_* variables are for the tests; nothing sets them in the boot image.
+
+boot=${WROS_BOOT_BINARY:-/usr/lib/wros/wros-boot}
+cmdline=${WROS_CMDLINE:-/proc/cmdline}
+debian=${WROS_ASKPASS_DEBIAN:-/usr/lib/cryptsetup/askpass.debian}
+[ -x "$debian" ] || debian=/lib/cryptsetup/askpass.debian
+
+case " $(cat "$cmdline" 2>/dev/null) " in
+    *" wros.unlock=text "*) exec "$debian" "$@" ;;
+esac
+if [ -x "$boot" ] && "$boot" unlock "$@"; then
+    exit 0
+fi
+exec "$debian" "$@"

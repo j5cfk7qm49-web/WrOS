@@ -110,9 +110,9 @@ jobs:
         run: |
           set -euo pipefail
           export PATH="/opt/cargo/bin:$PATH"
-          cargo build --release --locked --no-default-features -p grimoire-tui -p wros-greeter
+          cargo build --release --locked --no-default-features -p grimoire-tui -p wros-greeter -p wros-boot
           mkdir -p out/bin out/new
-          cp target/release/grimoire target/release/wros-greeter out/bin/
+          cp target/release/grimoire target/release/wros-greeter target/release/wros-boot out/bin/
           python3 -I tools/build-wros-debs.py --binaries-dir out/bin --version "$VERSION" --output out/new
       - name: Serve the release's offline-signed bundle
         if: steps.plan.outputs.release != ''

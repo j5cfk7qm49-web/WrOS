@@ -1,0 +1,68 @@
+#!/bin/sh
+# WrOS start screen in the boot image (docs/RATATUI_BOOT.md). Installed as
+# /usr/share/initramfs-tools/hooks/wros-boot; runs after cryptsetup's hook.
+#
+# Only while /etc/wros/boot-screen says "ratatui": copies wros-boot and the theme
+# into the image and wraps the image's askpass, keeping Debian's as
+# askpass.debian. Whatever goes wrong, the image keeps Debian's prompt and
+# update-initramfs still succeeds: this hook never fails.
+# The WROS_* variables are for the tests.
+PREREQ="cryptroot"
+prereqs() {
+    echo "$PREREQ"
+}
+case "$1" in
+    prereqs)
+        prereqs
+        exit 0
+        ;;
+esac
+
+. "${WROS_HOOK_FUNCTIONS:-/usr/share/initramfs-tools/hook-functions}"
+
+switch=${WROS_BOOT_SWITCH:-/etc/wros/boot-screen}
+binary=${WROS_BOOT_BINARY:-/usr/lib/wros/wros-boot}
+wrapper=${WROS_BOOT_WRAPPER:-/usr/share/wros/initramfs/askpass}
+theme=${WROS_BOOT_THEME:-/etc/wros/boot-theme.toml}
+
+say() {
+    echo "wros-boot: $*; the boot image keeps Debian's disk prompt" >&2
+}
+
+[ "$(cat "$switch" 2>/dev/null)" = ratatui ] || exit 0
+
+askpass=
+for candidate in "$DESTDIR/usr/lib/cryptsetup/askpass" "$DESTDIR/lib/cryptsetup/askpass"; do
+    if [ -f "$candidate" ] && [ ! -L "$candidate" ]; then
+        askpass=$candidate
+        break
+    fi
+done
+# No encrypted disk in this image: nothing to wrap.
+[ -n "$askpass" ] || exit 0
+
+if [ ! -x "$binary" ] || [ ! -f "$wrapper" ]; then
+    say "the start screen is not installed"
+    exit 0
+fi
+if ! copy_exec "$binary" /usr/lib/wros/wros-boot; then
+    say "could not copy the start screen"
+    exit 0
+fi
+if [ -f "$theme" ]; then
+    mkdir -p "$DESTDIR/etc/wros"
+    cp "$theme" "$DESTDIR/etc/wros/boot-theme.toml" 2>/dev/null || true
+fi
+# Debian's prompt moves aside once; a rebuilt image already has the wrapper in place.
+if [ ! -e "$askpass.debian" ]; then
+    if ! cp -p "$askpass" "$askpass.debian"; then
+        say "could not keep Debian's prompt aside"
+        exit 0
+    fi
+fi
+if ! cp "$wrapper" "$askpass.wros" || ! chmod 0755 "$askpass.wros" || ! mv -f "$askpass.wros" "$askpass"; then
+    rm -f "$askpass.wros"
+    say "could not install the wrapper"
+    exit 0
+fi
+exit 0

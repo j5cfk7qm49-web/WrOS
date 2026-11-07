@@ -30,6 +30,9 @@
   "files": [
     {"dest": "usr/bin/grimoire", "generated": "binary:grimoire", "mode": "0755", "class": "binary", "strip": true},
     {"dest": "usr/lib/wros/wros-greeter", "generated": "binary:wros-greeter", "mode": "0755", "class": "binary"},
+    {"dest": "usr/lib/wros/wros-boot", "generated": "binary:wros-boot", "mode": "0755", "class": "binary"},
+    {"dest": "usr/share/initramfs-tools/hooks/wros-boot", "source": "os/initramfs/wros-boot-hook", "mode": "0755", "class": "config"},
+    {"dest": "usr/share/wros/initramfs/askpass", "source": "os/initramfs/askpass", "mode": "0755", "class": "config"},
     {"dest": "usr/libexec/wros-display-hw", "generated": "binary:wros-display-hw", "mode": "0755", "class": "binary", "strip": true},
 
     {"dest": "usr/libexec/wros-keyboard", "source": "os/scripts/wros-keyboard", "mode": "0755", "class": "code"},
