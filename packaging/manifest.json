@@ -29,6 +29,7 @@
   ],
   "files": [
     {"dest": "usr/bin/grimoire", "generated": "binary:grimoire", "mode": "0755", "class": "binary", "strip": true},
+    {"dest": "usr/lib/wros/wros-greeter", "generated": "binary:wros-greeter", "mode": "0755", "class": "binary"},
     {"dest": "usr/libexec/wros-display-hw", "generated": "binary:wros-display-hw", "mode": "0755", "class": "binary", "strip": true},
 
     {"dest": "usr/libexec/wros-keyboard", "source": "os/scripts/wros-keyboard", "mode": "0755", "class": "code"},

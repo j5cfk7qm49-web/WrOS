@@ -14,6 +14,7 @@
 #   WROS_UPDATE_SIGNERS   pin file, one 40-hex primary fingerprint per line (required)
 #   WROS_PACKAGE_DEB      prebuilt wros_<os/VERSION>_amd64.deb              (optional)
 #   WROS_DISPLAY_HW_BINARY prebuilt wros-display-hw                         (optional)
+#   WROS_GREETER_BINARY   built wros-greeter (default: beside GRIMOIRE_BINARY)
 #   SOURCE_DATE_EPOCH, WROS_SOURCE_COMMIT                                   (optional; derived from git)
 set -euo pipefail
 repo=$(cd "$(dirname "$0")/../.." && pwd)
@@ -55,6 +56,9 @@ if [[ -n ${WROS_PACKAGE_DEB:-} ]]; then
 else
     mkdir "$work/bin" "$work/out"
     install -m 755 "$binary" "$work/bin/grimoire"
+    greeter=${WROS_GREETER_BINARY:-$(dirname "$binary")/wros-greeter}
+    [[ -x $greeter ]] || { echo 'Build wros-greeter first or set WROS_GREETER_BINARY.' >&2; exit 2; }
+    install -m 755 "$greeter" "$work/bin/wros-greeter"
     args=(--binaries-dir "$work/bin" --version "$version" --output "$work/out")
     if [[ -n ${WROS_DISPLAY_HW_BINARY:-} ]]; then args+=(--display-helper "$WROS_DISPLAY_HW_BINARY"); fi
     python3 "$repo/tools/build-wros-debs.py" "${args[@]}" > "$work/build.json"

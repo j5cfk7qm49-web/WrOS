@@ -253,6 +253,18 @@ def postinst(manifest, stage):
               'if [ ! -e "$system/ctrl-alt-del.target" ] && [ ! -L "$system/ctrl-alt-del.target" ]; then',
               '    ln -s /dev/null "$system/ctrl-alt-del.target" || echo "wros: could not mask Ctrl-Alt-Del" >&2',
               'fi',
+              # The login screen. The package owns only its copy in /usr/lib/wros; greetd runs the
+              # unowned /usr/bin copy, refreshed here. Going back to a version without the file then
+              # removes only the package copy and never the login itself.
+              'greeter="$root/usr/bin/wros-greeter"',
+              'packaged="$root/usr/lib/wros/wros-greeter"',
+              'if [ -f "$packaged" ] && [ -f "$greeter" ] && [ ! -L "$greeter" ] && ! cmp -s "$packaged" "$greeter"; then',
+              '    if cp "$packaged" "$greeter.wros-new" && chmod 0755 "$greeter.wros-new"; then',
+              '        mv -f "$greeter.wros-new" "$greeter" || echo "wros: could not update the login screen" >&2',
+              '    else',
+              '        rm -f "$greeter.wros-new"; echo "wros: could not update the login screen" >&2',
+              '    fi',
+              'fi',
               'if [ -z "$root" ] && [ -x /usr/sbin/update-grub ] && [ -e /boot/grub/grub.cfg ]; then',
               '    /usr/sbin/update-grub >/dev/null 2>&1 || echo "wros: update-grub failed; the boot menu is unchanged" >&2',
               'fi',

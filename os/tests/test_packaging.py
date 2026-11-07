@@ -22,6 +22,7 @@ EPOCH = 1700000000
 ENV = {'PATH': os.environ.get('PATH', '/usr/bin:/bin'), 'LC_ALL': 'C', 'TZ': 'UTC'}
 GRIMOIRE = b'#!/bin/sh\necho grimoire stub\n'
 DISPLAY_HW = b'#!/bin/sh\necho display helper stub\n'
+GREETER = b'#!/bin/sh\necho greeter stub\n'
 SIGNER_UID = 'WrOS RC Update Signer <rc-update@wros.invalid>'
 
 
@@ -94,6 +95,7 @@ def stub_inputs(base):
     keymaps.mkdir()
     (binaries / 'grimoire').write_bytes(GRIMOIRE)
     (binaries / 'wros-display-hw').write_bytes(DISPLAY_HW)
+    (binaries / 'wros-greeter').write_bytes(GREETER)
     for name in ('qwerty', 'colemak', 'colemak-dh-ansi', 'colemak-dh-iso'):
         (keymaps / (name + '.map')).write_bytes(('keymap ' + name + '\n').encode())
     return binaries, keymaps
@@ -272,6 +274,35 @@ class Builder(unittest.TestCase):
                                'verify_install_section': True}, manifest['enable'])
             self.assertFalse(marker.exists())  # staging leaves the boot menu to the installer
             self.assertEqual(sorted(p.name for p in root.iterdir()), ['bin', 'etc'])
+
+    def test_the_login_screen_is_refreshed_but_never_owned_by_the_package(self):
+        # Going back to a version without the file must not remove the login (#86), so the
+        # package owns only /usr/lib/wros/wros-greeter and the postinst refreshes /usr/bin's copy.
+        listing = run('dpkg-deb', '-c', str(self.deb)).stdout
+        self.assertIn('./usr/lib/wros/wros-greeter', listing)
+        self.assertNotIn('./usr/bin/wros-greeter', listing)
+        control = self.base / 'control-greeter'
+        run('dpkg-deb', '-e', str(self.deb), str(control))
+        with tempfile.TemporaryDirectory(prefix='wros-greeter-') as tmp:
+            root = Path(tmp)
+            (root / 'usr/lib/wros').mkdir(parents=True)
+            (root / 'usr/lib/wros/wros-greeter').write_bytes(GREETER)
+            env = dict(ENV, DPKG_ROOT=str(root))
+            installed = root / 'usr/bin/wros-greeter'
+            # No native login on this system: nothing is created.
+            run('sh', str(control / 'postinst'), 'configure', env=env)
+            self.assertFalse(installed.exists())
+            installed.parent.mkdir(parents=True)
+            installed.write_bytes(b'#!/bin/sh\necho old greeter\n')
+            run('sh', str(control / 'postinst'), 'configure', '0.1.0~rc7', env=env)
+            self.assertEqual(installed.read_bytes(), GREETER)
+            self.assertEqual(stat.S_IMODE(installed.stat().st_mode), 0o755)
+            self.assertFalse((root / 'usr/bin/wros-greeter.wros-new').exists())
+            # A link there is the administrator's, and is left alone.
+            installed.unlink()
+            installed.symlink_to('/usr/bin/true')
+            run('sh', str(control / 'postinst'), 'configure', env=env)
+            self.assertEqual(os.readlink(installed), '/usr/bin/true')
 
     def test_googles_client_is_packaged_only_when_the_build_is_given_it(self):
         listing = run('dpkg-deb', '-c', str(self.deb)).stdout
@@ -807,6 +838,8 @@ class StageIntoRoot(unittest.TestCase):
         (root / 'etc/pam.d').mkdir(parents=True)
         (work / 'grimoire').write_bytes(GRIMOIRE)
         (work / 'grimoire').chmod(0o755)
+        (work / 'wros-greeter').write_bytes(GREETER)  # found beside the app, as in a cargo target
+        (work / 'wros-greeter').chmod(0o755)
         (work / 'display-hw').write_bytes(DISPLAY_HW)
         keyring = work / 'keyring.gpg'
         keyring.write_bytes(self.keys.public(self.fpr))

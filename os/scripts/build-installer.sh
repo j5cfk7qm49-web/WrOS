@@ -119,7 +119,7 @@ if [[ $profile == live-session ]]; then
         echo "Live kernel drifted from the qualified $abi: ${kernels[*]}" >&2; exit 1; }
 fi
 chroot chroot groupadd --system wros
-bash "$repo/os/scripts/install-files.sh" "$base/chroot" "$binary" installer
+WROS_GREETER_BINARY="$greeter" bash "$repo/os/scripts/install-files.sh" "$base/chroot" "$binary" installer
 bash "$repo/os/scripts/stage-greeter.sh" "$base/chroot" "$greeter"
 if [[ $profile == live-session ]]; then
     bash "$repo/os/scripts/stage-live-session.sh" "$base/chroot" "$installer"
