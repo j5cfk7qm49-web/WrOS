@@ -306,26 +306,39 @@ fn drive_folder_browser_materialization_and_sync_forms_preserve_both_editors_at_
 
         desk.app.open_settings();
         desk.app.deck.shell.nav.open(Route::GoogleDrive);
-        desk.app.deck.shell.backup.status.drive_folder = "drive:WrOS-Library".into();
-        desk.app.deck.shell.backup.status.drive_entries = vec![DriveEntry {
-            path: "drive:WrOS-Library/Outline.md".into(),
-            name: "Outline.md".into(),
-            size: 1024,
-            modified: "2026-10-31T10:00:00Z".into(),
-            is_dir: false,
-            cached: true,
-        }];
+        desk.app.deck.shell.backup.status.google_connected = true;
+        desk.app.deck.shell.backup.status.drive_folder = "drive:Novels".into();
+        desk.app.deck.shell.backup.status.drive_entries = vec![
+            DriveEntry {
+                path: "drive:Novels/Outline.md".into(),
+                name: "Outline.md".into(),
+                size: 2048,
+                modified: "2026-10-31T10:00:00Z".into(),
+                is_dir: false,
+                cached: true,
+                local: "/home/writer/Outline.md".into(),
+                google_doc: false,
+            },
+            DriveEntry {
+                path: "drive:Novels/Notes".into(),
+                name: "Notes".into(),
+                google_doc: true,
+                ..Default::default()
+            },
+        ];
         desk.draw();
-        assert!(desk.shows("Browse app-scoped Google Drive folder"));
-        assert!(desk.shows("General Drive file browsing requires restricted scopes"));
-        assert!(desk.shows("Outline.md"));
+        assert!(desk.shows("My Drive › Novels"));
+        assert!(desk.shows("Up one folder"));
+        assert!(desk.shows("Outline.md · 2 KB · on this laptop"));
+        assert!(desk.shows("Notes · Google Doc"));
+        assert!(!desk.shows("scope"), "no access jargon on the page");
 
-        desk.app.open_backup_form(
-            FormKind::DriveMaterialize,
-            "drive:WrOS-Library/Outline.md".into(),
-        );
+        desk.app
+            .open_backup_form(FormKind::DriveMaterialize, "drive:Novels/Outline.md".into());
         desk.draw();
-        assert!(desk.shows("Materialize Google Drive item into a NEW local path"));
+        assert!(desk.shows("Copy from Google Drive to this laptop"));
+        assert!(desk.shows("From Drive - Outline.md"));
+        assert!(desk.shows("checked against Google Drive"));
         desk.key(KeyCode::Esc);
         assert_eq!(desk.app.deck.shell.nav.current(), Route::GoogleDrive);
 

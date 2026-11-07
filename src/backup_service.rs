@@ -116,6 +116,12 @@ pub struct DriveEntry {
     pub modified: String,
     pub is_dir: bool,
     pub cached: bool,
+    /// Where the copy on this laptop is, while it is still there.
+    #[serde(default)]
+    pub local: String,
+    /// A Google Doc, Sheet or Slides, which copies as an exported file.
+    #[serde(default)]
+    pub google_doc: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]

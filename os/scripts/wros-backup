@@ -1042,13 +1042,13 @@ class Service:
     def _validate_drive_subpath(self, descriptor, require_item=False):
         require(isinstance(descriptor, str) and len(descriptor) <= 1024
                 and not any(ord(c) < 32 for c in descriptor), 'Invalid Google Drive folder or path.')
-        require(descriptor.startswith('drive:'), 'Use a folder-scoped Google Drive path starting with drive: (broad root Drive browsing requires restricted scopes).')
-        sub = descriptor[6:].strip('/')
-        parts = [p for p in sub.split('/') if p]
-        require(parts and all(p not in ('.', '..') and '\0' not in p and '\\' not in p for p in parts),
-                'Choose a named Google Drive folder such as drive:WrOS-Library (root Drive browsing requires restricted scopes).')
+        require(descriptor.startswith('drive:'), 'A Google Drive path starts with drive:, for example drive:Novels.')
+        # "drive:" alone is the top of the writer's Drive.
+        parts = [p for p in descriptor[6:].split('/') if p]
+        require(all(p not in ('.', '..') and '\0' not in p and '\\' not in p for p in parts),
+                'That Google Drive path has an unsafe part.')
         if require_item:
-            require(len(parts) >= 2, 'Specify a file or project inside an app-scoped Drive folder, for example drive:WrOS-Library/Notes.md.')
+            require(parts, 'Choose a file or folder in Google Drive to copy.')
         return '/'.join(parts)
 
     def drive_list(self, folder):
@@ -1069,15 +1069,19 @@ class Service:
             is_dir = bool(row.get('IsDir', False))
             size = int(row.get('Size', 0)) if not is_dir and int(row.get('Size', 0)) >= 0 else 0
             modified = str(row.get('ModTime', ''))[:32]
-            rel_path = f'{sub}/{name}'
+            rel_path = f'{sub}/{name}' if sub else name
             cache_marker = self.drive_cache / (rel_path + '.json')
-            cached = False
+            cached, local = False, ''
             if cache_marker.is_file() and not cache_marker.is_symlink():
                 try:
                     cmeta = read_json(cache_marker)
-                    cached = cmeta.get('size') == size and cmeta.get('modified') == modified
+                    target = Path(str(cmeta.get('local_target', '')))
+                    # On this laptop while the copy is still there; up to date while Drive's matches it.
+                    if target.is_absolute() and target.exists() and not target.is_symlink():
+                        local = str(target)
+                        cached = cmeta.get('size') == size and cmeta.get('modified') == modified
                 except Exception:
-                    cached = False
+                    cached, local = False, ''
             entries.append({
                 'path': 'drive:' + rel_path,
                 'name': name,
@@ -1085,12 +1089,40 @@ class Service:
                 'modified': modified,
                 'is_dir': is_dir,
                 'cached': cached,
+                'local': local,
+                # Google Docs, Sheets and Slides have no file of their own; rclone exports them.
+                'google_doc': str(row.get('MimeType', '')).startswith('application/vnd.google-apps.'),
             })
         entries.sort(key=lambda e: (not e['is_dir'], e['name'].lower()))
         self.drive_folder = 'drive:' + sub
         self.drive_entries = entries
         self.save_drive_browser()
-        return self.status(f'Listed {len(entries)} item(s) in drive:{sub} (non-sensitive folder-scoped access).', refresh=False)
+        where = sub or 'the top of your Drive'
+        return self.status(f'{len(entries)} item(s) in {where}.', refresh=False)
+
+    def _check_copy(self, sub, payload_path):
+        """The staged copy matches Google Drive, or nothing is kept."""
+        if payload_path.is_dir():
+            # Docs, Sheets and Slides are exported, so they have no Drive checksum to compare.
+            ok, _, kind = classify_rclone_failure(
+                ['check', 'wros-google:' + sub, str(payload_path), '--one-way', '--drive-skip-gdocs'], self.env)
+        else:
+            ok, payload, kind = classify_rclone_failure(['lsjson', '--hash', '--stat', 'wros-google:' + sub], self.env)
+            if ok:
+                row = json.loads(payload) if payload.strip() else {}
+                remote = ((row.get('Hashes') or {}).get('md5') or '') if isinstance(row, dict) else ''
+                if not remote:
+                    return False  # A Google Doc: copied, but there is nothing to check it against.
+                digest = hashlib.md5()
+                with payload_path.open('rb') as copied:
+                    for block in iter(lambda: copied.read(1 << 20), b''):
+                        digest.update(block)
+                ok, kind = digest.hexdigest() == remote.lower(), 'mismatch'
+        if not ok:
+            if kind in ('reauthorization-required', 'offline', 'rate-limited', 'clock'):
+                self._record_google_failure(kind)
+            raise ValueError("The copy didn't match Google Drive, so it wasn't kept. Try again.")
+        return True
 
     def drive_materialize(self, remote, destination, project=None):
         sub = self._validate_drive_subpath(remote, require_item=True)
@@ -1108,6 +1140,7 @@ class Service:
             if not ok:
                 self._record_google_failure(failure_kind)
             require(payload_path.exists() and not payload_path.is_symlink(), 'Remote item was not found or is unsafe.')
+            checked = self._check_copy(sub, payload_path)
             info = payload_path.lstat()
             if stat.S_ISDIR(info.st_mode):
                 inv = inventory(payload_path)
@@ -1141,8 +1174,11 @@ class Service:
         for entry in self.drive_entries:
             if entry['path'] == 'drive:' + sub:
                 entry['cached'] = True
+                entry['local'] = str(target)
         self.save_drive_browser()
-        return self.status(f'Materialized drive:{sub} to {target}. Active manuscripts stay local; open the new local copy explicitly.', refresh=False)
+        if checked:
+            return self.status(f'Copied to {target} and checked against Google Drive.', refresh=False)
+        return self.status(f'Copied to {target}. A Google Doc has nothing to check the copy against.', refresh=False)
 
 
 

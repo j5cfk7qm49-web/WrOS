@@ -41,8 +41,8 @@ impl Form {
             FormKind::ExportKey => "Export recovery key to a safe separate place",
             FormKind::Google => "Connect Google Drive from a trusted computer",
             FormKind::GoogleFile => "Connect Google Drive from a file on a USB stick",
-            FormKind::DriveBrowse => "Browse app-scoped Google Drive folder",
-            FormKind::DriveMaterialize => "Materialize Google Drive item into a NEW local path",
+            FormKind::DriveBrowse => "Go to a Google Drive folder",
+            FormKind::DriveMaterialize => "Copy from Google Drive to this laptop",
         }
     }
     /// What submitting the filled-in form asks the backup helper to do.
@@ -93,10 +93,10 @@ impl Form {
             FormKind::ExportKey => &["New recovery key file (absolute path)"],
             FormKind::Google => &["Paste authorization JSON (hidden)"],
             FormKind::GoogleFile => &["Authorization file (absolute path)"],
-            FormKind::DriveBrowse => &["Google Drive folder (drive:Folder)"],
+            FormKind::DriveBrowse => &["Google Drive folder (drive:Novels/Drafts)"],
             FormKind::DriveMaterialize => &[
-                "Remote Drive item (drive:Folder/Name)",
-                "New local path (absolute)",
+                "From Google Drive",
+                "To a new folder or file on this laptop",
             ],
         };
         let mut rows = labels
@@ -136,11 +136,10 @@ impl Form {
                 rows.push("Your current settings are kept in a dated folder first.".into());
             }
         } else if self.kind == FormKind::DriveBrowse {
-            rows.push(
-                "Uses non-sensitive folder-scoped drive.file access (not broad root Drive).".into(),
-            );
+            rows.push("drive: alone is the top of your Drive.".into());
         } else if self.kind == FormKind::DriveMaterialize {
-            rows.push("Creates an independent local copy; active manuscripts stay local.".into());
+            rows.push("Nothing on this laptop is written over; the place must be new.".into());
+            rows.push("The copy is checked against Google Drive before it is kept.".into());
         }
         rows
     }
@@ -538,14 +537,14 @@ impl App {
             FormKind::Connect => self.deck.shell.backup.status.repository.clone(),
             FormKind::DriveBrowse => {
                 if self.deck.shell.backup.status.drive_folder.is_empty() {
-                    "drive:WrOS-Library".into()
+                    "drive:".into()
                 } else {
                     self.deck.shell.backup.status.drive_folder.clone()
                 }
             }
             FormKind::DriveMaterialize => {
                 if snapshot.is_empty() {
-                    "drive:WrOS-Library/".into()
+                    "drive:".into()
                 } else {
                     snapshot.clone()
                 }
@@ -553,14 +552,22 @@ impl App {
             _ => String::new(),
         };
         let second = if kind == FormKind::DriveMaterialize && !snapshot.is_empty() {
-            let item_name = snapshot.rsplit('/').next().unwrap_or("materialized");
-            self.project
-                .root
-                .parent()
-                .unwrap_or(Path::new("/tmp"))
-                .join(format!("drive-{item_name}"))
-                .to_string_lossy()
-                .into_owned()
+            // Beside the open book, under the item's own name, numbered if that is taken.
+            let inside = snapshot.strip_prefix("drive:").unwrap_or(&snapshot);
+            let item_name = inside.trim_matches('/').rsplit('/').next().unwrap_or("");
+            let item_name = if item_name.is_empty() {
+                "Drive"
+            } else {
+                item_name
+            };
+            let dir = self.project.root.parent().unwrap_or(Path::new("/tmp"));
+            let mut path = dir.join(format!("From Drive - {item_name}"));
+            let mut n = 2;
+            while path.exists() || path.is_symlink() {
+                path = dir.join(format!("From Drive - {item_name} {n}"));
+                n += 1;
+            }
+            path.to_string_lossy().into_owned()
         } else {
             String::new()
         };

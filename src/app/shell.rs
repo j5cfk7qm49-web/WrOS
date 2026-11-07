@@ -402,6 +402,8 @@ enum Choice {
     RepairOpen,
     RepairRun,
     Open(Route),
+    /// Show a Google Drive folder ("drive:" is the top) on the Drive files page.
+    DriveFolder(String),
     Action(Action),
     System(usize),
     Information,
@@ -501,53 +503,90 @@ fn kinds(app: &App, rows: &[Entry]) -> Vec<wros_shell::RowKind> {
 }
 
 /// Browsing and copying from the app's Google Drive folder, at the end of the Google Drive page.
+/// The Drive files page: one Drive folder at a time, folders first. A folder opens;
+/// a file, or the whole folder, copies to a new place on this laptop.
 fn drive_rows(app: &App) -> Vec<Entry> {
     use super::backup::FormKind;
     let backup = &app.deck.shell.backup;
-    let mut rows = vec![
-        Entry::new(
-            "Browse app-scoped Google Drive folder",
-            Choice::BackupForm(FormKind::DriveBrowse, String::new()),
-        ),
-        Entry::new(
-            "Materialize Drive item into a NEW local path",
-            Choice::BackupForm(FormKind::DriveMaterialize, String::new()),
-        ),
-        Entry::info(
-            "General Drive file browsing requires restricted scopes; WrOS uses folder-scoped drive.file access.",
-        ),
-        Entry::info(
-            "Active manuscripts stay local; materialization creates an independent local copy.",
-        ),
-    ];
-    if !backup.status.drive_folder.is_empty() {
-        rows.push(Entry::info(format!(
-            "Current folder scope: {}",
-            backup.status.drive_folder
-        )));
+    if !backup.status.google_connected {
+        return vec![Entry::info(
+            "Link Google Drive first, on the Google Drive page.",
+        )];
     }
-    for entry in &backup.status.drive_entries {
+    let folder = backup.status.drive_folder.as_str();
+    let inside = folder
+        .strip_prefix("drive:")
+        .unwrap_or("")
+        .trim_matches('/');
+    let mut rows = vec![Entry::info(if inside.is_empty() {
+        "My Drive".to_string()
+    } else {
+        format!("My Drive › {}", inside.replace('/', " › "))
+    })];
+    if folder.is_empty() {
+        rows.push(Entry::info("Reading your Drive…"));
+        return rows;
+    }
+    if !inside.is_empty() {
+        let up = inside.rsplit_once('/').map_or("", |(up, _)| up);
         rows.push(Entry::new(
-            format!(
-                "{} · {} · {} bytes\n{}{}",
-                entry.name,
-                if entry.is_dir { "folder" } else { "file" },
-                entry.size,
-                if entry.cached {
-                    "Cached locally"
-                } else {
-                    "Remote only"
-                },
-                if entry.modified.is_empty() {
-                    String::new()
-                } else {
-                    format!(" · {}", entry.modified)
-                }
-            ),
-            Choice::BackupForm(FormKind::DriveMaterialize, entry.path.clone()),
+            "Up one folder",
+            Choice::DriveFolder(format!("drive:{up}")),
+        ));
+        rows.push(Entry::new(
+            "Copy this whole folder to this laptop",
+            Choice::BackupForm(FormKind::DriveMaterialize, folder.to_string()),
         ));
     }
+    for entry in &backup.status.drive_entries {
+        let mut label = if entry.is_dir {
+            format!("{}/", entry.name)
+        } else if entry.google_doc {
+            format!("{} · Google Doc", entry.name)
+        } else {
+            format!("{} · {}", entry.name, size_label(entry.size))
+        };
+        if !entry.local.is_empty() {
+            label += if entry.cached {
+                " · on this laptop"
+            } else {
+                " · older copy on this laptop"
+            };
+        }
+        let choice = if entry.is_dir {
+            Choice::DriveFolder(entry.path.clone())
+        } else {
+            Choice::BackupForm(FormKind::DriveMaterialize, entry.path.clone())
+        };
+        rows.push(Entry::new(label, choice));
+        let local = std::path::Path::new(&entry.local);
+        if entry.is_dir && local.is_absolute() && crate::books::is_book(local) {
+            rows.push(Entry::new(
+                format!("Open the copy of {}", entry.name),
+                Choice::Action(Action::OpenBookAt(local.to_path_buf())),
+            ));
+        }
+    }
+    if backup.status.drive_entries.is_empty() {
+        rows.push(Entry::info("This folder is empty."));
+    }
+    rows.push(Entry::new(
+        "Go to a Drive folder by name",
+        Choice::BackupForm(FormKind::DriveBrowse, String::new()),
+    ));
+    rows.push(Entry::info(
+        "Copies are checked against Google Drive. Your books stay on this laptop.",
+    ));
     rows
+}
+
+/// "12 KB", "1.2 MB".
+fn size_label(bytes: u64) -> String {
+    match bytes {
+        b if b >= 1_048_576 => format!("{:.1} MB", b as f64 / 1_048_576.0),
+        b if b >= 1024 => format!("{} KB", b / 1024),
+        b => format!("{b} bytes"),
+    }
 }
 
 /// The Settings menu map (#90): each group page and the pages under it, in order.
@@ -594,6 +633,7 @@ const MENU: &[(Route, &[Route])] = &[
         Route::Category(Category::Accounts),
         &[Route::Backups, Route::GoogleAccount, Route::LocalAccounts],
     ),
+    (Route::GoogleAccount, &[Route::GoogleDrive]),
     (
         Route::Category(Category::Updates),
         &[Route::Panel(Panel::Updates), Route::Panel(Panel::Recovery)],
@@ -630,6 +670,7 @@ pub(crate) fn page_label(route: Route) -> &'static str {
         Route::SoundView => "Sound and volume",
         Route::Backups => "Backups",
         Route::GoogleAccount => "Google Drive",
+        Route::GoogleDrive => "Your Drive files",
         Route::LocalAccounts => "Local accounts",
         Route::BackupDestinations => "Where backups go",
         Route::BackupKey => "Recovery key",
@@ -1213,7 +1254,15 @@ fn entries(app: &App) -> Vec<Entry> {
                     Choice::BackupForm(super::backup::FormKind::GoogleFile, String::new()),
                 ));
             }
-            rows.extend(drive_rows(app));
+            let folder = &backup.status.drive_folder;
+            rows.push(Entry::new(
+                page_label(Route::GoogleDrive),
+                Choice::DriveFolder(if folder.is_empty() {
+                    "drive:".into()
+                } else {
+                    folder.clone()
+                }),
+            ));
             rows
         }
         Route::LinkPhone => {
@@ -2005,11 +2054,7 @@ impl App {
                 .backup
                 .request(crate::backup_service::Request::Status);
         }
-        let availability = match route {
-            Route::GoogleDrive => Some("Drive browsing is not configured."),
-            Route::SyncPanel => None,
-            _ => None,
-        };
+        let availability: Option<&str> = None;
         if let Some(message) = availability {
             self.deck.note = message.into();
             self.deck.shell.notices.push(message);
@@ -2182,6 +2227,17 @@ impl App {
                     }
                     Choice::BackupRequest(request) => self.deck.shell.backup.request(request),
                     Choice::BackupForm(kind, snapshot) => self.open_backup_form(kind, snapshot),
+                    Choice::DriveFolder(folder) => {
+                        if self.deck.shell.nav.current() != Route::GoogleDrive {
+                            self.deck.shell.nav.open(Route::GoogleDrive);
+                        }
+                        if self.deck.shell.backup.status.google_connected {
+                            self.deck
+                                .shell
+                                .backup
+                                .request(crate::backup_service::Request::DriveList { folder });
+                        }
+                    }
                     Choice::BackupNow => self.request_project_backup(),
                     Choice::SyncSwitch(on) => self.request_sync_switch(on),
                     Choice::SyncNow => self.request_sync_run(false),

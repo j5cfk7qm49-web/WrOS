@@ -1,5 +1,6 @@
 """Real Restic encrypted repositories and verified restore, with zero network."""
 import importlib.machinery
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -444,11 +445,13 @@ class EncryptedBackup(unittest.TestCase):
         self.assertEqual(self.service.current['verified'], before)
         self.assertEqual(module.inventory(self.project), original)
 
-    def test_drive_folder_scoped_browsing_and_explicit_local_materialization(self):
-        # Broad root Drive browsing and path traversal are refused before any rclone call.
-        for bad in ('drive:', 'drive:/', 'drive:..', 'drive:WrOS-Library/../secret', '/local/path'):
-            with self.assertRaisesRegex(ValueError, 'folder|drive:'):
+    def test_drive_browsing_from_the_top_and_a_checked_local_copy(self):
+        # Path traversal is refused before any rclone call.
+        for bad in ('drive:..', 'drive:WrOS-Library/../secret', '/local/path'):
+            with self.assertRaisesRegex(ValueError, 'unsafe|drive:'):
                 self.service.drive_list(bad)
+        with self.assertRaisesRegex(ValueError, 'Choose a file or folder'):
+            self.service.drive_materialize('drive:', str(self.base / 'x'), str(self.project))
 
         # Connect synthetic Google configuration.
         module.write_private(self.service.google, b'[wros-google]\ntype = drive\nscope = drive.file\n', exclusive=True)
@@ -475,17 +478,49 @@ class EncryptedBackup(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'already exists'):
             self.service.drive_materialize('drive:WrOS-Library/Outline.md', str(existing_file), str(self.project))
 
-        # Materialize to a new local path and verify cache status updates.
-        dest = self.base / 'materialized-outline.md'
-        def fake_copyto(args, env):
-            self.assertEqual(args[:2], ['copyto', 'wros-google:WrOS-Library/Outline.md'])
-            Path(args[2]).write_bytes(b'# Materialized Outline\n\n1. Act One\n')
-            return True, b'', ''
+        # A copy is checked against Drive's checksum before it is kept.
+        text = b'# Materialized Outline\n\n1. Act One\n'
+        def fake_rclone(remote_md5):
+            def run(args, env):
+                if args[0] == 'copyto':
+                    self.assertEqual(args[:2], ['copyto', 'wros-google:WrOS-Library/Outline.md'])
+                    Path(args[2]).write_bytes(text)
+                    return True, b'', ''
+                self.assertEqual(args, ['lsjson', '--hash', '--stat', 'wros-google:WrOS-Library/Outline.md'])
+                return True, json.dumps({'Name': 'Outline.md', 'Hashes': {'md5': remote_md5}}).encode(), ''
+            return run
 
-        with mock.patch.object(module, 'classify_rclone_failure', side_effect=fake_copyto):
+        bad_copy = self.base / 'bad-copy.md'
+        with mock.patch.object(module, 'classify_rclone_failure', side_effect=fake_rclone('0' * 32)):
+            with self.assertRaisesRegex(ValueError, "didn't match Google Drive"):
+                self.service.drive_materialize('drive:WrOS-Library/Outline.md', str(bad_copy), str(self.project))
+        self.assertFalse(bad_copy.exists())
+        self.assertEqual([p for p in self.base.iterdir() if p.name.startswith('.wros-drive-')], [])
+
+        dest = self.base / 'materialized-outline.md'
+        with mock.patch.object(module, 'classify_rclone_failure',
+                               side_effect=fake_rclone(hashlib.md5(text).hexdigest())):
             mat = self.service.drive_materialize('drive:WrOS-Library/Outline.md', str(dest), str(self.project))
-        self.assertEqual(dest.read_bytes(), b'# Materialized Outline\n\n1. Act One\n')
-        self.assertTrue(any(e['name'] == 'Outline.md' and e['cached'] for e in mat['drive_entries']))
+        self.assertEqual(dest.read_bytes(), text)
+        self.assertIn('checked against Google Drive', mat['notice'])
+        outline = next(e for e in mat['drive_entries'] if e['name'] == 'Outline.md')
+        self.assertTrue(outline['cached'])
+        self.assertEqual(outline['local'], str(dest))
+
+        # The top of the Drive lists; a Google Doc is marked as one.
+        top = json.dumps([
+            {'Name': 'Novel', 'Size': 0, 'ModTime': '2026-10-31T09:00:00Z', 'IsDir': True,
+             'MimeType': 'inode/directory'},
+            {'Name': 'Notes', 'Size': -1, 'ModTime': '2026-10-31T09:00:00Z', 'IsDir': False,
+             'MimeType': 'application/vnd.google-apps.document'},
+        ]).encode()
+        with mock.patch.object(module, 'classify_rclone_failure', return_value=(True, top, '')) as rclone_mock:
+            status = self.service.drive_list('drive:')
+        self.assertEqual(rclone_mock.call_args[0][0], ['lsjson', 'wros-google:'])
+        self.assertEqual(status['drive_folder'], 'drive:')
+        self.assertEqual([e['path'] for e in status['drive_entries']], ['drive:Novel', 'drive:Notes'])
+        self.assertEqual([e['google_doc'] for e in status['drive_entries']], [False, True])
+        self.assertEqual(status['drive_entries'][1]['size'], 0)
 
         # Revoked or offline errors update google_meta state cleanly.
         with mock.patch.object(module, 'classify_rclone_failure', return_value=(False, b'', 'reauthorization-required')):
