@@ -76,7 +76,7 @@ arbitrary host interpreter. Retained notices and model declarations remain in
 `docs/prose-model-licenses.json` and `docs/lexicon-licenses.json`.
 
 For a custom Cargo output, export `CARGO_TARGET_DIR` and/or `GRIMOIRE_BINARY`.
-For a separately provisioned runtime, set `WRITINGDECK_TOOLS_PYTHON` to its
+For a separately provisioned runtime, set `WROS_TOOLS_PYTHON` to its
 `runtime/bin/python3`. The package auditor also requires the matching wheel
 cache. Python tests fail if required genuine integrations are unavailable;
 root/missing-binary skips cannot count as passing qualification.

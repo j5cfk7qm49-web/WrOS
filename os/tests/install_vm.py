@@ -21,7 +21,7 @@ from installed_boot import verify as verify_boot
 REPO = Path(__file__).resolve().parents[2]
 BASE = REPO / 'build/installer'
 sys.path.insert(0, str(REPO / 'tools'))
-from writingdeck_source import fingerprint
+from wros_source import fingerprint
 
 
 def authenticate(run, result, secret):

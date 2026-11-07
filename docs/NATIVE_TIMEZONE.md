@@ -14,7 +14,7 @@ must be followed by a matching authoritative `Timezone` readback. Status also
 reads timedated: `/etc/timezone` can remain stale when `/etc/localtime` changes.
 Errors/mismatched readback keep writing available and require refresh/retry.
 
-Only the active local `writingdeck` group receives the existing
+Only the active local `wros` group receives the existing
 `org.freedesktop.timedate1.set-timezone` polkit action. There is no root editor,
 custom privileged helper, password prompt or grant for setting the clock, RTC,
 NTP, arbitrary commands or general administration. Those date/time controls are

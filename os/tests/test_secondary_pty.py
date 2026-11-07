@@ -106,7 +106,7 @@ class TerminalProcess:
 class IndependentEditorsPTY(unittest.TestCase):
     def test_real_f11_paste_save_undo_redo_and_quit_at_all_required_sizes(self):
         for width, height in [(80, 24), (100, 30), (120, 40), (160, 50)]:
-            with self.subTest(width=width, height=height), tempfile.TemporaryDirectory(prefix='writingdeck-pty-') as temporary:
+            with self.subTest(width=width, height=height), tempfile.TemporaryDirectory(prefix='wros-pty-') as temporary:
                 base = Path(temporary)
                 project, home = base / 'demo', base / 'home'
                 home.mkdir()

@@ -114,7 +114,7 @@ pub fn catalog() -> &'static [Exercise] {
     static BANK: OnceLock<Vec<Exercise>> = OnceLock::new();
     BANK.get_or_init(|| {
         let bank: Bank = serde_json::from_str(include_str!(
-            "../assets/writingdeck/productivity-challenges.json"
+            "../assets/wros/productivity-challenges.json"
         ))
         .expect("compiled original challenge bank");
         assert_eq!(bank.version, 1);

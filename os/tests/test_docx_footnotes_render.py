@@ -77,7 +77,7 @@ class ManuscriptPageFootnotes(unittest.TestCase):
                 self.assertNotEqual(positions[0]['page'],positions[-1]['page'],'repeated note must follow a later-page reference')
                 self.assertEqual(source.read_bytes(),before)
                 self.assertEqual((project/'novel.toml').read_text(encoding='utf-8'),meta)
-                if os.environ.get('WRITINGDECK_CAPTURE_PTY')=='1':
+                if os.environ.get('WROS_CAPTURE_PTY')=='1':
                     captures=ROOT/'build/verification/manuscript-footnotes';captures.mkdir(parents=True,exist_ok=True)
                     for path in [docx,pdf,bbox]:shutil.copyfile(path,captures/f'{format_}-{path.name}')
                     prefix=captures/f'{format_}-reference-page'
@@ -113,7 +113,7 @@ class ManuscriptPageFootnotes(unittest.TestCase):
             self.assertGreater(end_page,start_page,'the note must continue onto another page')
             self.assertGreater(float(start.get('yMin')),float(body.get('yMax')))
             self.assertEqual(source.read_text(encoding='utf-8'),text)
-            if os.environ.get('WRITINGDECK_CAPTURE_PTY')=='1':
+            if os.environ.get('WROS_CAPTURE_PTY')=='1':
                 captures=ROOT/'build/verification/manuscript-footnotes';captures.mkdir(parents=True,exist_ok=True)
                 shutil.copyfile(pdf,captures/'long-note.pdf')
                 for label,page in [('start',start_page),('finish',end_page)]:

@@ -11657,7 +11657,7 @@
       "retained_upstream_notice_source": null
     },
     {
-      "name": "writingdeck-sys",
+      "name": "wros-sys",
       "version": "0.1.0",
       "declared_license": "MIT",
       "repository": null,

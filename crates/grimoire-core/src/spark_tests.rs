@@ -53,7 +53,7 @@ fn compiled_corpus_has_1047_original_plots_84_independent_exercises_and_exact_pr
 #[test]
 fn malformed_corpus_duplicate_hash_unknown_fields_and_wrong_source_are_refused() {
     let original: serde_json::Value =
-        serde_json::from_str(include_str!("../assets/writingdeck/spark-corpus.json")).unwrap();
+        serde_json::from_str(include_str!("../assets/wros/spark-corpus.json")).unwrap();
     let mut cases = vec![];
     let mut v = original.clone();
     v["schema_version"] = 2.into();

@@ -7,7 +7,7 @@ from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-BASE = ROOT/'crates/grimoire-core/assets/writingdeck'
+BASE = ROOT/'crates/grimoire-core/assets/wros'
 
 
 class OriginalSparkCorpus(unittest.TestCase):

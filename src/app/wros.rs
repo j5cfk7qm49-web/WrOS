@@ -563,7 +563,7 @@ impl App {
         self.save_deck();
         self.deck.installer_requested = true;
     }
-    pub fn init_writingdeck(&mut self, launch: bool) {
+    pub fn init_wros(&mut self, launch: bool) {
         if launch {
             self.restore_workspace_views(resume::read(&self.project.root).is_none());
             self.focus_mode = self.deck.state.current().focus && self.open.is_some();

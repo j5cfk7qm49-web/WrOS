@@ -24,7 +24,7 @@ UEFI / Debian GRUB -> maintained Debian kernel + initramfs -> systemd
        + Deck (home, dual-editor workspaces, tutorial, cached settings)
        + Pins (metadata-only references, cached Project readers, explicit source editing)
        + Journal (append-only observation API, separate original reflection sources)
-       |   + bounded request queue -> system worker -> writingdeck-sys::Backend
+       |   + bounded request queue -> system worker -> wros-sys::Backend
        |       + Linux: fixed nmcli/brightnessctl/systemctl/pkexec arguments
        |       + Simulated: explicit label, no hardware/network writes
        + grimoire-core (ordinary files and new portable domain services)
@@ -34,7 +34,7 @@ privileged keyboard helper: fixed layouts only, root-owned files only
   -> independent 15-second systemd timer -> restore committed layout
 ```
 
-`crates/writingdeck-sys` knows OS capabilities but not manuscript contents. It never receives a book path or text. `grimoire-core` and `grimoire-app` remain free of Linux privilege/service dependencies. The TUI uses both layers. Pinned external Python analyzers already run in bounded optional workers.
+`crates/wros-sys` knows OS capabilities but not manuscript contents. It never receives a book path or text. `grimoire-core` and `grimoire-app` remain free of Linux privilege/service dependencies. The TUI uses both layers. Pinned external Python analyzers already run in bounded optional workers.
 Cloud adapters remain future workers, never synchronous input-loop work.
 `crates/wros-shell` now provides reusable bounded navigation/preferences,
 notifications and Ratatui menu presentation without editor, authentication,
@@ -80,7 +80,7 @@ This slice is not the full requested OS. See [FEATURE_MATRIX](FEATURE_MATRIX.md)
 | Tutorial progress | `.grimoire/writingdeck/tutorial.json` | Schema v1; verified event, skip and replay state; guarded save |
 | Shortcut aliases | `paths::data_dir()/writingdeck/shortcuts.json` | Per-machine v1; conflicts/unreadable files are not overwritten |
 | Committed console layout | `/etc/writingdeck/keyboard.json` | Root-owned; application changes only through helper/polkit |
-| Preview token + monotonic deadline | `/run/writingdeck/keyboard-preview.json` | Root-only, boot-ephemeral; never a manuscript setting |
+| Preview token + monotonic deadline | `/run/wros/keyboard-preview.json` | Root-only, boot-ephemeral; never a manuscript setting |
 | Package/image identity | `/etc/writingdeck/release`, `build/appliance/packages.lock.tsv` | Recipe/profile/base and actual resolved package inventory |
 
 `sync::save_guarded` detects ordinary external state changes. It is not a lock against an unrelated writer racing between check and rename. The M3b registry enforces exclusive ownership of the open views by project-contained canonical path and Unix device/inode, retaining missing-file leases and refreshing identity after atomic replacement. It is not an OS lock or cross-process compare-and-swap. Unknown schema versions must be rejected rather than normalized into older state.
@@ -99,7 +99,7 @@ Workspace restoration deliberately gives the existing newer resume record preced
 
 ## Security and services
 
-Use NetworkManager/logind/UPower/brightnessctl and maintained Debian services; do not create a root application server accepting arbitrary commands. The first helper accepts only four registered layout IDs and token-bound preview/confirm/cancel. The policy grants only that exact executable to active local members of `writingdeck`; there is no passwordless general sudo rule.
+Use NetworkManager/logind/UPower/brightnessctl and maintained Debian services; do not create a root application server accepting arbitrary commands. The first helper accepts only four registered layout IDs and token-bound preview/confirm/cancel. The policy grants only that exact executable to active local members of `wros`; there is no passwordless general sudo rule.
 
 Power requests are user-confirmed and require successful manuscript saves. Normal development does not install appliance login/polkit policies. Timezone, sound, updates, first-run account provisioning and screen-lock integration remain planned. An upstream authenticated tty2 is the maintenance path; a passwordless VM demo cannot provide production authentication or recovery guarantees.
 

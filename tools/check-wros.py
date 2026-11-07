@@ -109,7 +109,7 @@ def main():
         check(not feature.get('hardware_verified'), 'hardware claims require new identified hardware evidence/review')
         expected='| '+' | '.join(str(feature[k]).replace('|','\\|') for k in ['area','capability','status','verification','detail'])+' |'
         check(expected in (DOCS/'FEATURE_MATRIX.md').read_text(), f'matrix differs from machine inventory: {feature["capability"]}')
-    lessons = json.loads((ROOT/'crates/grimoire-core/assets/writingdeck/tutorial.json').read_text())
+    lessons = json.loads((ROOT/'crates/grimoire-core/assets/wros/tutorial.json').read_text())
     check([l['id'] for l in lessons] == list(range(1,41)), 'tutorial must retain IDs 1–39 plus supplemental 40 once each')
     check(lessons[25]['event'] == 'SpellingOpened' and lessons[39]['event'] == 'GrammarApplied', 'historic spelling cannot be reinterpreted as new grammar evidence')
     reference = DOCS/'keyboard-reference.html'
@@ -119,7 +119,7 @@ def main():
         OfflineHTML().feed(html)
         check(digest(ROOT/'assets/help/24-every-key.md') in html, 'printable keys stale; run tools/generate-keyboard-reference.py')
     if args.require_current_evidence:
-        from writingdeck_source import fingerprint
+        from wros_source import fingerprint
         current=fingerprint()
         results=load('evidence/test-results.json')
         vm=load('evidence/vm-boot.json')

@@ -6,7 +6,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-spec = importlib.util.spec_from_file_location('check_writingdeck', ROOT / 'tools/check-writingdeck.py')
+spec = importlib.util.spec_from_file_location('check_wros', ROOT / 'tools/check-wros.py')
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 

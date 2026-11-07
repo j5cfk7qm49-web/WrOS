@@ -19,7 +19,7 @@ import time
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'os/tests'))
 from test_installer_pty import InstallerTerminal
 from test_installer_pty import BINARY
-from writingdeck_source import fingerprint
+from wros_source import fingerprint
 
 
 def main():

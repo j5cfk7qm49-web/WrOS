@@ -61,7 +61,7 @@ class LexiconPTY(unittest.TestCase):
                     terminal.send(b'\x18\x1a')  # cut/undo cannot reach the hidden editor
                     self.assertEqual(primary.read_bytes(),before)
                     self.assertEqual(records(project),[], 'dictionary/copy is not authorship')
-                    if os.environ.get('WRITINGDECK_CAPTURE_PTY')=='1':
+                    if os.environ.get('WROS_CAPTURE_PTY')=='1':
                         (ROOT/'docs/evidence'/f'lexicon-pty-{width}x{height}.txt').write_text(terminal.screen.text+'\n')
                     terminal.send(b'\x1b'); ready(terminal,21)
                     terminal.send(b'\x1b'); terminal.screen_shows('Search word or phrase: hot')
@@ -119,7 +119,7 @@ class LexiconPTY(unittest.TestCase):
             finally:
                 terminal.close()
             missing=Path(tmp)/'missing-dataset'
-            with patch.dict(os.environ, {'WRITINGDECK_WORDNET_DIR':str(missing)}):
+            with patch.dict(os.environ, {'WROS_WORDNET_DIR':str(missing)}):
                 unavailable=TerminalProcess(project,home,80,24)
             try:
                 unavailable.shows('The Brass Key'); open_lexicon(unavailable)

@@ -89,7 +89,7 @@ class SparkPTY(unittest.TestCase):
                                    f"EXERCISE [{final['exercise']['id']}]" in terminal.screen.text and
                                    f"Spark save · notes/sparks/{final['id']}" in terminal.screen.text and
                                    terminal.output.endswith(b'\x1b[?25l'), 'completed same-result Spark frame')
-                    if os.environ.get('WRITINGDECK_CAPTURE_PTY') == '1':
+                    if os.environ.get('WROS_CAPTURE_PTY') == '1':
                         (ROOT/'docs/evidence'/f'spark-pty-{width}x{height}.txt').write_text(terminal.screen.text+'\n')
                     terminal.send(b'4')
                     terminal.until(lambda: current()['mode'] == 'daily', 'persisted local-civil-date daily result')

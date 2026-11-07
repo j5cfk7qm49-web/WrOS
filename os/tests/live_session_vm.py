@@ -18,7 +18,7 @@ from installed_boot import qmp
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT/'tools'))
-from writingdeck_source import fingerprint
+from wros_source import fingerprint
 
 PROBE = r'''
 import hashlib,json,os,pathlib,pwd,subprocess,sys,time,tomllib

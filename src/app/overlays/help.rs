@@ -35,7 +35,7 @@ impl App {
     /// The topic that explains where you are.
     pub fn help_context(&self) -> &'static str {
         match &self.overlay {
-            Overlay::Deck(_) => "writingdeck",
+            Overlay::Deck(_) => "wros",
             Overlay::Spark { .. } => "story-spark",
             Overlay::Checks { .. } => "writing-checks",
             Overlay::Lexicon => "lexicon",
@@ -78,7 +78,7 @@ impl App {
                 Focus::Tree => "outline",
                 Focus::Editor if self.focus_mode => "focus",
                 Focus::Editor => "writing",
-                Focus::Secondary => "writingdeck",
+                Focus::Secondary => "wros",
                 Focus::Pins => "pins",
                 Focus::Codex => "notebook",
                 Focus::Beside => "beside",

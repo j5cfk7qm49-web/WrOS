@@ -40,7 +40,7 @@ filtering (`/`), archiving (`d`/`h`), source viewing (`g`), and export isolation
 Contradictions require explicit Knows vs Does not know assertions on the exact same
 fact, character, scene, point, and source revision; no knowledge or chronology is
 guessed from prose. Captures under `build/verification/knowledge-screens` use
-`WRITINGDECK_CAPTURE_PTY=1`.
+`WROS_CAPTURE_PTY=1`.
 
 ## Local writing-session network boundary
 
@@ -53,7 +53,7 @@ verified. A second case adds the remote during an open session. The old binary
 fails before the first edit because opening the book pushes its history.
 No external server, credentials or real manuscript is involved. Captures under
 `build/verification/local-session-privacy-screens` use
-`WRITINGDECK_CAPTURE_PTY=1`. Native verified backup/restore remains separate.
+`WROS_CAPTURE_PTY=1`. Native verified backup/restore remains separate.
 
 
 ## Shared story registry recovery boundary
@@ -64,7 +64,7 @@ dependencies. `test_story_identity_pty.py` uses the actual app at all four
 sizes, retains the original registry as a fixture backup, proves wrong-target
 restore is refused without changing source/sidecars, exercises normal writing
 and Undo, then explicitly restores that registry and correctly restores scene B.
-Captures use `WRITINGDECK_CAPTURE_PTY=1` under
+Captures use `WROS_CAPTURE_PTY=1` under
 `build/verification/story-identity-screens`. [Scope and limits](STORY_IDENTITIES.md)
 distinguish this guard from automatic recovery or a cross-file transaction.
 
@@ -76,7 +76,7 @@ sizes for both milestones and variants. It creates two saved drafts, verifies
 the second is the one reviewed/restored, edits two independent passages, cancels
 the default confirmation, then restores only the second change. It checks
 original YAML/private text, recovery variant and dated-history bytes, Undo,
-offline help and a fresh process. Captures use `WRITINGDECK_CAPTURE_PTY=1` under
+offline help and a fresh process. Captures use `WROS_CAPTURE_PTY=1` under
 `build/verification/passage-restore-screens`. Core and controller regressions
 separately cover UTF-8/empty/EOF/bounds, changed revisions, backing files and both
 external/in-process metadata. [The scope](PASSAGE_RESTORE.md) retains limits.
@@ -90,7 +90,7 @@ through Java, requires a clean validator report without skipped coverage, and
 checks same-file note/return links, private exclusions, scene-local definitions,
 multiple paragraphs and unchanged source. Its compiled TUI workflow covers
 80x24, 100x30, 120x40 and 160x50, offline help, review/export, Undo and restart.
-Set `WRITINGDECK_CAPTURE_PTY=1` to retain packages/validator receipts in
+Set `WROS_CAPTURE_PTY=1` to retain packages/validator receipts in
 `build/verification/epub-footnotes` and four frames in `epub-footnote-screens`.
 These are build/test components; no OS image or all-reader/accessibility
 qualification is implied. [Scope and limits](EPUB_FOOTNOTES.md) stay explicit.
@@ -107,7 +107,7 @@ missing renderers rather than skipping. `test_docx_footnotes_render.py` checks
 real Word relationships, physical PDF pages and long-note continuation.
 `test_manuscript_footnote_pty.py` checks genuine async export, lesson 34,
 original editing/Undo and fresh-process progress at all four terminal sizes.
-Set `WRITINGDECK_CAPTURE_PTY=1` to retain disposable render artifacts under
+Set `WROS_CAPTURE_PTY=1` to retain disposable render artifacts under
 `build/verification/manuscript-footnotes` and terminal frames under
 `build/verification/manuscript-footnote-screens`. See
 [scope and limits](MANUSCRIPT_FOOTNOTES.md). The
@@ -135,7 +135,7 @@ Use `bash tools/test-m7b.sh` after provisioning the exact runtime described in
 [M7B](M7B.md). The unified verifier records source/tool hashes, the tested binary
 and runtime marker, exact overlapping Rust counts, ignored cases and real Python
 coverage; it refuses skipped Python methods or changed source. Custom output
-paths use `GRIMOIRE_BINARY`, `CARGO_TARGET_DIR` and `WRITINGDECK_TOOLS_PYTHON`.
+paths use `GRIMOIRE_BINARY`, `CARGO_TARGET_DIR` and `WROS_TOOLS_PYTHON`.
 Current software totals and their source identities are recorded in
 [STATUS](archive/STATUS.md); historical milestone counts do not qualify later changes. The independent image audit verifies Wi-Fi payloads.
 The 512-MiB zero-NIC TCG VM records successful native/proselint/WordNet/Harper
@@ -164,7 +164,7 @@ cargo test --workspace --no-default-features --locked --offline -j 2
 cargo clippy --workspace --all-targets --locked --offline -- -D warnings
 python3 -m unittest discover -s os/tests -p 'test_*.py' -v
 shellcheck os/scripts/*.sh os/scripts/writingdeck-session
-python3 tools/check-writingdeck.py
+python3 tools/check-wros.py
 ```
 
 First fetch/build needs installed dependencies/cached crates; `--offline` documents that running the cached tests itself needs no network. The default audio build needs ALSA headers. Build `cargo build --locked --offline --no-default-features -j 2` before Python tests to exercise the actual headless CLI; CLI and PTY tests explicitly skip if no binary exists. Upstream tests requiring particular external engines/export environments remain ignored unless those prerequisites are installed and explicitly exercised; report those, do not count them as passed.
@@ -199,24 +199,24 @@ The current VM records process RSS from `/proc/<pid>/status` for a stripped debu
 
 ## M3b evidence commands
 
-`cargo test -p grimoire-tui writingdeck_secondary --locked --offline` selects the 28 new behavior cases. `python3 -m unittest discover -s os/tests -p 'test_secondary_pty.py' -v` selects the actual application/PTY test, containing four terminal-size subcases. The complete Python discovery includes it; root or missing-binary skips must be reported, not counted as passed. Current full-suite totals and source identity are in [test-results.json](evidence/test-results.json). Run `python3 tools/check-writingdeck.py --require-current-evidence` after refreshing both software and VM records to reject stale-source evidence.
+`cargo test -p grimoire-tui wros_secondary --locked --offline` selects the 28 new behavior cases. `python3 -m unittest discover -s os/tests -p 'test_secondary_pty.py' -v` selects the actual application/PTY test, containing four terminal-size subcases. The complete Python discovery includes it; root or missing-binary skips must be reported, not counted as passed. Current full-suite totals and source identity are in [test-results.json](evidence/test-results.json). Run `python3 tools/check-wros.py --require-current-evidence` after refreshing both software and VM records to reject stale-source evidence.
 
 
 ## M4c workflow/preset acceptance
 
-Run `cargo test --no-default-features writingdeck_workflow --locked --offline -j2` for 24 dedicated workflow UI cases and `PYTHONPATH=os/tests python3 -m unittest test_workflow_pty test_cli -v` for the compiled workflow/CLI methods. Full discovery includes those; skips are not passes. M4c adds 45 Rust cases (16 workflow core, three workspace core, one pin-preview core, 24 UI, one alias), three actual compiled-app PTY methods and one read-only CLI method beyond M4b. [WORKFLOW](WORKFLOW.md) details the source/receipt/size/role/recovery contracts.
+Run `cargo test --no-default-features wros_workflow --locked --offline -j2` for 24 dedicated workflow UI cases and `PYTHONPATH=os/tests python3 -m unittest test_workflow_pty test_cli -v` for the compiled workflow/CLI methods. Full discovery includes those; skips are not passes. M4c adds 45 Rust cases (16 workflow core, three workspace core, one pin-preview core, 24 UI, one alias), three actual compiled-app PTY methods and one read-only CLI method beyond M4b. [WORKFLOW](WORKFLOW.md) details the source/receipt/size/role/recovery contracts.
 
 The actual four-size PTY flow saves and links an original scratch note, promotes once, verifies source/linked-manuscript bytes and metadata-only receipts, arms ordinary handoff prose, quits, launches a **separate process**, reads the saved intention, resumes actual manuscript context, edits and independently undoes the loaded original intention. Another four-size flow applies Research, edits its real Secondary, saves an empty workspace pin set and refuses a starter after external future-layout replacement. A future-workflow case preserves all index bytes while still allowing explicit original-handoff editing, with no false arm.
 
 Prepared creation/retry and exact-target completion-write-failure tests synthesize durable phase/I/O conditions and restore known metadata before retry. They verify retained receipt/original/snapshot bytes, not real kernel power cuts, locks or cross-file atomicity. Rendering remains file/command-free. The separate VM boot probe does not perform these workflow interactions. Curated real 80×24 terminal frames are in [workflow-pty-screen.txt](evidence/workflow-pty-screen.txt); the small cursor/erase/UTF-8 tracker is not a full terminal emulator.
 
-To recapture the curated demo-only terminal frames, first build the no-audio binary, then run `python3 tools/capture-writingdeck-screens.py` as a normal user. It uses new temporary projects/HOME, performs real saves/promotion/process restart and replaces only the two curated evidence text files; no user novel or host console mapping is opened. Review the resulting frames before recording their hashes.
+To recapture the curated demo-only terminal frames, first build the no-audio binary, then run `python3 tools/capture-wros-screens.py` as a normal user. It uses new temporary projects/HOME, performs real saves/promotion/process restart and replaces only the two curated evidence text files; no user novel or host console mapping is opened. Review the resulting frames before recording their hashes.
 
 ## Initial M5 verification
 
 The actual source-range/classification Editor/ledger tests use injected monotonic/civil clocks, IANA DST/travel/reset cases, actual paste/replay/batch receipts, unavailable word/time gaps, multipart partial-failure retention and deduplicated retry. Goal/calendar/sprint/challenge/collection domain tests supplement **30 real controller/UI tests**, including saved author status references and tutorial 18/20/21 completion/noncompletion. Existing regression assertions are retained; the new short nested Productivity menu is included in all menu/help/palette coverage.
 
-`os/tests/test_productivity_pty.py` executes the compiled non-root app at four sizes, with actual keyboard and bracketed-paste origins, undo/redo, calendar/target creation, measured sprint/challenge completion, normal quit, separate-process loaded-source editing/undo and future-ledger refusal/retry. `test_cli.py` additionally audits M5 metadata without any file changes. Capture optional current terminal frames with `WRITINGDECK_CAPTURE_PTY=1 python3 -m unittest discover -s os/tests -p test_productivity_pty.py -v`.
+`os/tests/test_productivity_pty.py` executes the compiled non-root app at four sizes, with actual keyboard and bracketed-paste origins, undo/redo, calendar/target creation, measured sprint/challenge completion, normal quit, separate-process loaded-source editing/undo and future-ledger refusal/retry. `test_cli.py` additionally audits M5 metadata without any file changes. Capture optional current terminal frames with `WROS_CAPTURE_PTY=1 python3 -m unittest discover -s os/tests -p test_productivity_pty.py -v`.
 
 The opt-in release-mode synthetic probe is `cargo run -p grimoire-core --no-default-features --example accounting_probe --release --locked --offline -- build/NEW-PROBE`. It refuses an existing target and removes only its newly created fixture. It measures source-range calls, actual Editor insertions and 1,024 synthetic ledger groups, not human typing, full UI latency, battery or physical flash endurance. See [accounting-benchmark.json](evidence/accounting-benchmark.json) and [DAILY_CHALLENGES](DAILY_CHALLENGES.md). Checkpoint crash tails, long-history archival, full loaded-card/log/analyzer and power-cut qualification remain explicit gates.
 

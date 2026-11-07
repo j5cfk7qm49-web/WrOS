@@ -2,7 +2,7 @@
 
 ## Implemented boundary
 
-`writingdeck-sys::Backend` receives typed requests and returns snapshots, messages or keyboard-preview tokens. The TUI's single bounded worker performs commands; rendering/input only uses cached data. The Linux runner uses fixed absolute executable paths, argument vectors (never a shell), bounded private stdin when required (`run_with_input`), command deadlines (8 seconds normally, 20 for nmcli, 60 for signed-bundle inspection) and a 64 KiB retained output cap. Missing packages, D-Bus, devices or authorization are errors/unavailable states, not success.
+`wros-sys::Backend` receives typed requests and returns snapshots, messages or keyboard-preview tokens. The TUI's single bounded worker performs commands; rendering/input only uses cached data. The Linux runner uses fixed absolute executable paths, argument vectors (never a shell), bounded private stdin when required (`run_with_input`), command deadlines (8 seconds normally, 20 for nmcli, 60 for signed-bundle inspection) and a 64 KiB retained output cap. Missing packages, D-Bus, devices or authorization are errors/unavailable states, not success.
 
 | Capability | Current adapter | Verification / limit |
 |---|---|---|
@@ -29,7 +29,7 @@ Files installed **only into the staged image** by current scripts:
 
 - `/usr/libexec/writingdeck-keyboard`: isolated Python interpreter, root-owned executable.
 - `/usr/share/polkit-1/actions/org.writingdeck.keyboard.policy`: exact executable annotation.
-- `/etc/polkit-1/rules.d/50-writingdeck-keyboard.rules`: only active local `writingdeck` group members; no general sudo or arbitrary systemctl/localectl permission.
+- `/etc/polkit-1/rules.d/50-wros-keyboard.rules`: only active local `wros` group members; no general sudo or arbitrary systemctl/localectl permission.
 - `/usr/share/writingdeck/keymaps/{qwerty,colemak,colemak-dh-ansi,colemak-dh-iso}.map`: compiled from maintained XKB.
 - `writingdeck-keyboard.service`: applies committed layout after console setup and before tty1.
 - `writingdeck-keyboard-revert.timer/.service`: independent rollback ownership.

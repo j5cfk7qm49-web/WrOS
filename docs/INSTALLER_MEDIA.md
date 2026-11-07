@@ -130,7 +130,7 @@ installation and safety acceptance remain separate gates.
 
 The shipping preseed only enables live copying, requires a normal account,
 disables direct root login and selects ordinary account groups including
-`writingdeck`. **It contains no disk, password, partition recipe or erase
+`wros` (and the `writingdeck` compatibility group). **It contains no disk, password, partition recipe or erase
 confirmation.** Debian asks for language, keyboard, timezone and account
 credentials. Its disk/encryption review and write-confirmation screens remain in control. Wi-Fi
 firmware is present both as installer archives and in the installed filesystem;

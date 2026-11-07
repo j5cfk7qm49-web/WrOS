@@ -103,7 +103,7 @@ from pathlib import Path
 import gzip,hashlib,json,subprocess,sys
 repo,dest,frontend,dsc,archive,kernel=map(Path,sys.argv[1:])
 sys.path.insert(0,str(repo/'tools'))
-from writingdeck_source import fingerprint
+from wros_source import fingerprint
 def digest(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 build=dest/'source/build'
 tree=build/'tmp/cdrom_isolinux/tree'

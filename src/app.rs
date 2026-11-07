@@ -1008,7 +1008,7 @@ impl App {
             if let Err(e) = app.ensure_document_claims() {
                 app.msg = format!("document identity warning: {e}; no unsafe save will be attempted");
             }
-            app.init_writingdeck(setup.background);
+            app.init_wros(setup.background);
             app.refresh_pin_sources();
             app.refresh_journal_source();
             app.refresh_workflow_sources();

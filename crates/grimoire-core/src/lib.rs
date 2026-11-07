@@ -66,3 +66,10 @@ pub mod speech;
 mod story_state;
 
 pub mod knowledge;
+
+/// A setting from the environment: `WROS_<name>`, or the older
+/// `WRITINGDECK_<name>` when only that one is set.
+pub fn env_setting(name: &str) -> Option<std::ffi::OsString> {
+    std::env::var_os(format!("WROS_{name}"))
+        .or_else(|| std::env::var_os(format!("WRITINGDECK_{name}")))
+}

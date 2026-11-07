@@ -46,7 +46,7 @@ pub fn command(mut args: impl Iterator<Item = String>) -> Result<()> {
                 .next()
                 .ok_or_else(|| anyhow::anyhow!("supply a quoted word/phrase"))?;
             let root = match args.next().as_deref() {
-                None => std::env::var_os("WRITINGDECK_WORDNET_DIR")
+                None => grimoire_core::env_setting("WORDNET_DIR")
                     .map(PathBuf::from)
                     .unwrap_or_else(|| PathBuf::from(grimoire_core::lexicon::DEFAULT_ROOT)),
                 Some("--data") => args

@@ -117,7 +117,7 @@ class EpubFootnotes(unittest.TestCase):
             self.assertIn('No errors or warnings detected', checked.stdout+checked.stderr)
             for path, before in originals.items():
                 self.assertEqual(path.read_bytes(), before)
-            if os.environ.get('WRITINGDECK_CAPTURE_PTY') == '1':
+            if os.environ.get('WROS_CAPTURE_PTY') == '1':
                 captures = ROOT/'build/verification/epub-footnotes'; captures.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(package, captures/'public-notes.epub')
                 shutil.copyfile(report, captures/'epubcheck.json')
@@ -150,7 +150,7 @@ class EpubFootnotes(unittest.TestCase):
                     self.assertEqual(check_links(self, package), 1)
                     self.assertEqual(len(list((project/'exports').iterdir())), 1)
                     self.assertEqual(primary.read_bytes(), changed.encode())
-                    if os.environ.get('WRITINGDECK_CAPTURE_PTY') == '1':
+                    if os.environ.get('WROS_CAPTURE_PTY') == '1':
                         captures = ROOT/'build/verification/epub-footnote-screens'; captures.mkdir(parents=True, exist_ok=True)
                         (captures/f'epub-footnotes-{width}x{height}.txt').write_text(terminal.screen.text+'\n', encoding='utf-8')
                     terminal.send(b'\x1b'); terminal.until(lambda: 'EXPORT FOR READERS' not in terminal.screen.text, 'returned to editor')

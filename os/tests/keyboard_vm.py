@@ -109,7 +109,7 @@ echo WROS_KEYBOARD_FIXTURE_STAGED
             deadline = started + 300
             while process.poll() is None and time.monotonic() < deadline:
                 content = serial.read_text(errors='replace') if serial.exists() else ''
-                if 'Kernel panic' in content or 'WRITINGDECK_VM_' in content:
+                if 'Kernel panic' in content or 'WROS_VM_' in content:
                     # A legacy probe means the fixture was not staged. Never
                     # spend the rest of the budget running the wrong test.
                     break

@@ -49,10 +49,10 @@ def main():
     uid = re.search(r'^Uid:\s+(\d+)', status, re.MULTILINE).group(1)
     assert uid != '0', 'Grimoire must never run as root'
     rss = re.search(r'^VmRSS:\s+(\d+)', status, re.MULTILINE).group(1)
-    marker('WRITINGDECK_VM_UI_PASS uid=' + uid + ' rss_kib=' + rss)
+    marker('WROS_VM_UI_PASS uid=' + uid + ' rss_kib=' + rss)
     # The active local writer is eligible for only the narrow keyboard action.
     command('/usr/bin/pkcheck', '--action-id', 'org.wros.keyboard', '--process', pid.name)
-    marker('WRITINGDECK_VM_POLKIT_PASS')
+    marker('WROS_VM_POLKIT_PASS')
     assert primary_symbol(18) == ord('e'), 'initial QWERTY E key'
     # Real Linux console keymap change + real independent systemd timer.
     preview = json.loads(command('/usr/libexec/wros-keyboard', 'preview', 'colemak-dh-ansi'))
@@ -60,28 +60,28 @@ def main():
     assert len(preview['token']) == 32
     time.sleep(16)
     assert primary_symbol(18) == ord('e'), 'unconfirmed preview must revert without Grimoire involvement'
-    marker('WRITINGDECK_VM_KEYBOARD_ROLLBACK_PASS')
+    marker('WROS_VM_KEYBOARD_ROLLBACK_PASS')
     preview = json.loads(command('/usr/libexec/wros-keyboard', 'preview', 'colemak'))
     command('/usr/libexec/wros-keyboard', 'confirm', preview['token'])
     assert json.loads(Path('/etc/wros/keyboard.json').read_text())['layout'] == 'colemak'
     command('/usr/libexec/wros-keyboard', 'boot')
     assert primary_symbol(18) == ord('f'), 'committed layout must apply again at boot'
-    marker('WRITINGDECK_VM_KEYBOARD_COMMIT_PASS')
+    marker('WROS_VM_KEYBOARD_COMMIT_PASS')
     grammar = json.loads(subprocess.check_output([
         '/usr/sbin/runuser', '-u', 'writer', '--', '/usr/bin/python3',
         '/usr/libexec/wros-vm-fixtures/guest-checks-probe.py'], text=True, stderr=subprocess.STDOUT, timeout=220))
     assert grammar['uid'] != 0 and len(grammar['checks']) == 6
-    marker('WRITINGDECK_VM_GRAMMAR_RESULT ' + json.dumps(grammar))
-    marker('WRITINGDECK_VM_GRAMMAR_PASS uid=' + str(grammar['uid']) + ' peak_rss_kib=' + str(grammar['kernel_peak_rss_kib']) )
+    marker('WROS_VM_GRAMMAR_RESULT ' + json.dumps(grammar))
+    marker('WROS_VM_GRAMMAR_PASS uid=' + str(grammar['uid']) + ' peak_rss_kib=' + str(grammar['kernel_peak_rss_kib']) )
     prose = json.loads(subprocess.check_output([
         '/usr/sbin/runuser', '-u', 'writer', '--', '/usr/bin/python3',
         '/usr/libexec/wros-vm-fixtures/guest-prose-probe.py'], text=True, stderr=subprocess.STDOUT, timeout=250))
     assert prose['uid'] != 0 and len(prose['engines']) == 3 and prose['wordnet_senses'] == 21
-    marker('WRITINGDECK_VM_PROSE_RESULT ' + json.dumps(prose))
+    marker('WROS_VM_PROSE_RESULT ' + json.dumps(prose))
     if prose['budget_limited_engines']:
-        marker('WRITINGDECK_VM_PROSE_CPU_LIMIT ' + ','.join(prose['budget_limited_engines']))
-    marker('WRITINGDECK_VM_PROSE_PASS uid=' + str(prose['uid']))
-    marker('WRITINGDECK_VM_PASS')
+        marker('WROS_VM_PROSE_CPU_LIMIT ' + ','.join(prose['budget_limited_engines']))
+    marker('WROS_VM_PROSE_PASS uid=' + str(prose['uid']))
+    marker('WROS_VM_PASS')
     time.sleep(4)  # Host captures an actual QEMU display screenshot via QMP.
 
 
@@ -89,9 +89,9 @@ if __name__ == '__main__':
     try:
         main()
     except Exception as exc:
-        marker('WRITINGDECK_VM_FAIL ' + repr(exc))
+        marker('WROS_VM_FAIL ' + repr(exc))
         if isinstance(exc, subprocess.CalledProcessError):
-            marker('WRITINGDECK_VM_FAILURE_OUTPUT ' + json.dumps(exc.output))
+            marker('WROS_VM_FAILURE_OUTPUT ' + json.dumps(exc.output))
         time.sleep(4)
     finally:
         subprocess.run(['/usr/bin/systemctl', 'poweroff'], check=False)

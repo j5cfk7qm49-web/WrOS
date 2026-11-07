@@ -56,7 +56,7 @@ class UnifiedShellPTY(unittest.TestCase):
                         terminal.paste('AVAILABILITY-SCREEN-PASTE')
                         self.assertEqual(primary.read_bytes(), before)
                         self.assertFalse((user_dir/'config/wros/google.json').exists())
-                        if heading == 'Backups' and os.environ.get('WRITINGDECK_CAPTURE_PTY') == '1':
+                        if heading == 'Backups' and os.environ.get('WROS_CAPTURE_PTY') == '1':
                             terminal.until(lambda: len(terminal.screen.text.splitlines()) == height
                                            and all(len(row) == width for row in terminal.screen.text.splitlines())
                                            and terminal.screen.text.splitlines()[0].startswith('┌')

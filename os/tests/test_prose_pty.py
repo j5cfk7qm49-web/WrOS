@@ -21,7 +21,7 @@ REVIEW = '.grimoire/writingdeck/review.json'
 VOICE = '.grimoire/writingdeck/voice-profiles.json'
 TUTORIAL = '.grimoire/writingdeck/tutorial.json'
 FICTION = '.grimoire/writingdeck/prose-settings.json'
-RUNTIME = Path(os.environ.get('WRITINGDECK_TOOLS_PYTHON', ROOT/'build/prose-runtime/runtime/bin/python3'))
+RUNTIME = Path(os.environ.get('WROS_TOOLS_PYTHON', ROOT/'build/prose-runtime/runtime/bin/python3'))
 
 
 def prose_fixture(base, text=TEXT):
@@ -99,7 +99,7 @@ class ProsePTY(unittest.TestCase):
             with self.subTest(width=width, height=height), tempfile.TemporaryDirectory(prefix='wd-prose-pty-') as tmp:
                 project, home, primary = prose_fixture(Path(tmp))
                 before = primary.read_bytes()
-                with patch.dict(os.environ, {'WRITINGDECK_TOOLS_PYTHON': str(RUNTIME)}):
+                with patch.dict(os.environ, {'WROS_TOOLS_PYTHON': str(RUNTIME)}):
                     terminal = TerminalProcess(project, home, width, height)
                 try:
                     terminal.shows('The Brass Key')
@@ -117,7 +117,7 @@ class ProsePTY(unittest.TestCase):
                     terminal.screen_shows('REVIEW QUEUE')
                     inspect_rule(terminal, 'wordy-phrase')
                     terminal.screen_shows('in order to')
-                    if os.environ.get('WRITINGDECK_CAPTURE_PTY') == '1':
+                    if os.environ.get('WROS_CAPTURE_PTY') == '1':
                         (ROOT/'docs/evidence'/f'prose-pty-{width}x{height}.txt').write_text(terminal.screen.text + '\n')
                     terminal.send(b'a')
                     terminal.screen_shows('One explicit original-source Replace.')
@@ -137,7 +137,7 @@ class ProsePTY(unittest.TestCase):
                     quit_normally(terminal)
                 finally:
                     terminal.close()
-                with patch.dict(os.environ, {'WRITINGDECK_TOOLS_PYTHON': str(RUNTIME)}):
+                with patch.dict(os.environ, {'WROS_TOOLS_PYTHON': str(RUNTIME)}):
                     restarted = TerminalProcess(project, home, width, height)
                 try:
                     restarted.shows('The Brass Key')
@@ -155,7 +155,7 @@ class ProsePTY(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='wd-prose-model-pty-') as tmp:
             project, home, primary = prose_fixture(Path(tmp), 'Café 🦊 e\u0301. The gate was opened by Mara.\n')
             before = primary.read_bytes()
-            with patch.dict(os.environ, {'WRITINGDECK_TOOLS_PYTHON': str(RUNTIME)}):
+            with patch.dict(os.environ, {'WROS_TOOLS_PYTHON': str(RUNTIME)}):
                 terminal = TerminalProcess(project, home, 120, 40)
             try:
                 terminal.shows('The Brass Key')
@@ -192,7 +192,7 @@ class ProsePTY(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='wd-prose-receipt-pty-') as tmp:
             project, home, primary = prose_fixture(Path(tmp))
             before = primary.read_bytes()
-            with patch.dict(os.environ, {'WRITINGDECK_TOOLS_PYTHON': str(RUNTIME)}):
+            with patch.dict(os.environ, {'WROS_TOOLS_PYTHON': str(RUNTIME)}):
                 terminal = TerminalProcess(project, home, 100, 30)
             try:
                 terminal.shows('The Brass Key'); terminal.send(b'\x0bThe Brass Key\r')
@@ -209,7 +209,7 @@ class ProsePTY(unittest.TestCase):
                 quit_normally(terminal)
             finally:
                 terminal.close()
-            with patch.dict(os.environ, {'WRITINGDECK_TOOLS_PYTHON': str(RUNTIME)}):
+            with patch.dict(os.environ, {'WROS_TOOLS_PYTHON': str(RUNTIME)}):
                 restarted = TerminalProcess(project, home, 100, 30)
             try:
                 restarted.shows('The Brass Key'); open_prose(restarted); run_prose(restarted)
@@ -223,7 +223,7 @@ class ProsePTY(unittest.TestCase):
             future = b'{"schema_version":999,"opaque":{"keep":"unchanged"}}\n'
             (project/REVIEW).write_bytes(future)
             (project/FICTION).write_bytes(future)
-            with patch.dict(os.environ, {'WRITINGDECK_TOOLS_PYTHON': '/no-such-writingdeck-prose-runtime'}):
+            with patch.dict(os.environ, {'WROS_TOOLS_PYTHON': '/no-such-wros-prose-runtime'}):
                 failed = TerminalProcess(project, home, 120, 40)
             try:
                 failed.shows('The Brass Key'); open_prose(failed)
@@ -252,7 +252,7 @@ class ProsePTY(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='wd-prose-voice-pty-') as tmp:
             project, home, primary = prose_fixture(Path(tmp), material)
             before = primary.read_bytes()
-            with patch.dict(os.environ, {'WRITINGDECK_TOOLS_PYTHON': str(RUNTIME)}):
+            with patch.dict(os.environ, {'WROS_TOOLS_PYTHON': str(RUNTIME)}):
                 terminal = TerminalProcess(project, home, 120, 40)
             try:
                 terminal.shows('The Brass Key'); terminal.send(b'\x0bThe Brass Key\r')
@@ -281,7 +281,7 @@ class ProsePTY(unittest.TestCase):
                 quit_normally(terminal)
             finally:
                 terminal.close()
-            with patch.dict(os.environ, {'WRITINGDECK_TOOLS_PYTHON': str(RUNTIME)}):
+            with patch.dict(os.environ, {'WROS_TOOLS_PYTHON': str(RUNTIME)}):
                 restarted = TerminalProcess(project, home, 120, 40)
             try:
                 restarted.shows('The Brass Key'); restarted.send(b'\x0bThe Brass Key\r')

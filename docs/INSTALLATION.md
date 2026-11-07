@@ -20,9 +20,9 @@ cargo run --locked --no-default-features -- new /path/to/new/book
 F12 reaches WrOS without changing your desktop keyboard, login, NetworkManager configuration or power state. Status reads may report missing system services. Actions occur only when explicitly requested and authorized by the host. Do not invoke a power action merely as a development test; use the simulator.
 
 ```sh
-cargo run --locked --no-default-features -- writingdeck status --simulate
-cargo run --locked --no-default-features -- writingdeck check-config /path/to/book
-cargo run --locked --no-default-features -- writingdeck tutorial-demo /path/to/NEW-demo
+cargo run --locked --no-default-features -- wros status --simulate
+cargo run --locked --no-default-features -- wros check-config /path/to/book
+cargo run --locked --no-default-features -- wros tutorial-demo /path/to/NEW-demo
 ```
 
 The tutorial creator refuses every existing target directory, including empty ones. No cloud credentials are needed. Once dependencies are fetched, the Rust tests/build can use `--offline`; first-time package/source downloads obviously need a repository or a prepared offline cache.

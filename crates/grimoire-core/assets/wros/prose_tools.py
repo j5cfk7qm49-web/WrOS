@@ -78,7 +78,7 @@ def configure_process():
     # Grimoire owner. Parent PID is numeric metadata, never source or credentials.
     if sys.platform.startswith('linux'):
         import ctypes
-        parent = int(os.environ.get('WRITINGDECK_PARENT_PID', os.getppid()))
+        parent = int(os.environ.get('WROS_PARENT_PID', os.getppid()))
         if os.getppid() != parent or ctypes.CDLL(None).prctl(1, 9, 0, 0, 0) != 0 or os.getppid() != parent:
             raise RuntimeError('offline worker parent binding unavailable')
     deny_kernel_network_and_children()

@@ -3352,7 +3352,7 @@ fn nothing_in_ctrl_k_is_missing_from_the_menu() {
 // ---- WritingDeck appliance foundation --------------------------------------
 
 #[test]
-fn writingdeck_dashboard_is_navigable_at_required_terminal_sizes() {
+fn wros_dashboard_is_navigable_at_required_terminal_sizes() {
     for (w, h) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
         let mut d = Desk::open(book(&format!("deck-home-{w}"), true), w, h);
         let before = d.app.editor.text();
@@ -3372,7 +3372,7 @@ fn writingdeck_dashboard_is_navigable_at_required_terminal_sizes() {
 }
 
 #[test]
-fn writingdeck_outline_toggles_without_focus_mode_and_persists() {
+fn wros_outline_toggles_without_focus_mode_and_persists() {
     let root = book("deck-outline", true);
     let mut d = Desk::open(root.clone(), 100, 30);
     d.key(KeyCode::F(10));
@@ -3389,7 +3389,7 @@ fn writingdeck_outline_toggles_without_focus_mode_and_persists() {
 }
 
 #[test]
-fn writingdeck_strict_focus_hides_reference_panes_without_closing_them() {
+fn wros_strict_focus_hides_reference_panes_without_closing_them() {
     let mut d = with_wren("deck-focus-codex");
     assert!(d.app.codex.is_some());
     d.ctrl('d');
@@ -3410,7 +3410,7 @@ fn writingdeck_strict_focus_hides_reference_panes_without_closing_them() {
 }
 
 #[test]
-fn writingdeck_widgets_keep_visibility_and_order_after_reload() {
+fn wros_widgets_keep_visibility_and_order_after_reload() {
     let mut d = Desk::open(book("deck-widgets", true), 80, 24);
     d.key(KeyCode::F(12));
     let first = d.app.deck.state.dashboard[0].widget;
@@ -3433,7 +3433,7 @@ fn writingdeck_widgets_keep_visibility_and_order_after_reload() {
 }
 
 #[test]
-fn writingdeck_workspaces_restore_document_cursor_and_width() {
+fn wros_workspaces_restore_document_cursor_and_width() {
     use crate::app::wros::Page;
     let mut d = Desk::open(book("deck-workspace", true), 120, 40);
     d.key(KeyCode::Tab);
@@ -3453,7 +3453,7 @@ fn writingdeck_workspaces_restore_document_cursor_and_width() {
 }
 
 #[test]
-fn writingdeck_custom_shortcuts_are_additive_and_logical() {
+fn wros_custom_shortcuts_are_additive_and_logical() {
     use crate::app::wros::Page;
     for layout in ["qwerty", "colemak", "colemak-dh"] {
         let mut d = Desk::open(book(&format!("deck-shortcuts-{layout}"), true), 100, 30);
@@ -3488,17 +3488,17 @@ fn writingdeck_custom_shortcuts_are_additive_and_logical() {
 }
 
 #[test]
-fn writingdeck_recovery_prompt_precedes_startup_dashboard() {
+fn wros_recovery_prompt_precedes_startup_dashboard() {
     let root = book("deck-startup-recovery", true);
     recovery::keep(&root, &first_scene(&root), "Recovered WritingDeck words.").unwrap();
     let mut d = Desk::open(root, 80, 24);
     d.app.deck.state.launch_dashboard = true;
-    d.app.init_writingdeck(true);
+    d.app.init_wros(true);
     assert!(matches!(d.app.overlay, Overlay::Recover { .. }));
 }
 
 #[test]
-fn writingdeck_keyboard_preview_field_is_not_manuscript_text() {
+fn wros_keyboard_preview_field_is_not_manuscript_text() {
     use crate::app::wros::Page;
     let mut d = Desk::open(book("deck-keyboard-field", true), 80, 24);
     let text = d.app.editor.text();
@@ -3561,7 +3561,7 @@ fn inserting_footnote_creates_one_undoable_edit_without_rewriting_existing_notes
 }
 
 #[test]
-fn writingdeck_export_tutorial_requires_a_real_demo_markdown_artifact() {
+fn wros_export_tutorial_requires_a_real_demo_markdown_artifact() {
     let root = std::env::temp_dir().join(format!("wd-export-lesson-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
     grimoire_core::tutorial::create_demo(&root).unwrap();
@@ -3625,7 +3625,7 @@ fn writingdeck_export_tutorial_requires_a_real_demo_markdown_artifact() {
 }
 
 #[test]
-fn writingdeck_tutorial_uses_actual_editor_and_persists_verified_progress() {
+fn wros_tutorial_uses_actual_editor_and_persists_verified_progress() {
     let root =
         std::env::temp_dir().join(format!("grimoire-deck-tutorial-ui-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
@@ -3650,7 +3650,7 @@ fn writingdeck_tutorial_uses_actual_editor_and_persists_verified_progress() {
 }
 
 #[test]
-fn writingdeck_every_lesson_links_to_real_searchable_offline_help() {
+fn wros_every_lesson_links_to_real_searchable_offline_help() {
     for l in grimoire_core::tutorial::lessons() {
         assert!(
             crate::help::TOPICS.iter().any(|t| t.id == l.help_topic),
@@ -3661,7 +3661,7 @@ fn writingdeck_every_lesson_links_to_real_searchable_offline_help() {
 }
 
 #[test]
-fn writingdeck_async_system_status_is_explicitly_simulated_and_does_not_block_writing() {
+fn wros_async_system_status_is_explicitly_simulated_and_does_not_block_writing() {
     use crate::app::wros::Page;
     let mut d = Desk::open(book("deck-system-worker", true), 100, 30);
     d.app.deck.simulate();
@@ -3692,7 +3692,7 @@ fn writingdeck_async_system_status_is_explicitly_simulated_and_does_not_block_wr
 }
 
 #[test]
-fn writingdeck_bad_layout_state_is_preserved_while_manuscript_still_saves() {
+fn wros_bad_layout_state_is_preserved_while_manuscript_still_saves() {
     let root = book("deck-layout-corrupt", true);
     let path = grimoire_core::workspaces::Store::path(&root);
     fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -3747,7 +3747,7 @@ fn choose_secondary(d: &mut Desk, note: &Path) {
 }
 
 #[test]
-fn writingdeck_secondary_works_at_all_four_sizes_and_saves_raw_frontmatter() {
+fn wros_secondary_works_at_all_four_sizes_and_saves_raw_frontmatter() {
     use grimoire_core::documents::Pane;
     for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
         let (mut d, note) =
@@ -3788,7 +3788,7 @@ fn writingdeck_secondary_works_at_all_four_sizes_and_saves_raw_frontmatter() {
 }
 
 #[test]
-fn writingdeck_secondary_and_primary_have_independent_undo_selection_and_clipboard() {
+fn wros_secondary_and_primary_have_independent_undo_selection_and_clipboard() {
     use grimoire_core::documents::Pane;
     let (mut d, note) = secondary_book("secondary-independent", 120, 40, false);
     choose_secondary(&mut d, &note);
@@ -3846,7 +3846,7 @@ fn writingdeck_secondary_and_primary_have_independent_undo_selection_and_clipboa
 }
 
 #[test]
-fn writingdeck_secondary_hiding_and_strict_focus_never_discard_or_focus_hidden_text() {
+fn wros_secondary_hiding_and_strict_focus_never_discard_or_focus_hidden_text() {
     use grimoire_core::documents::Pane;
     let (mut d, note) = secondary_book("secondary-focus", 80, 24, false);
     choose_secondary(&mut d, &note);
@@ -3894,7 +3894,7 @@ fn writingdeck_secondary_hiding_and_strict_focus_never_discard_or_focus_hidden_t
 }
 
 #[test]
-fn writingdeck_secondary_mouse_wheel_and_click_use_each_views_geometry() {
+fn wros_secondary_mouse_wheel_and_click_use_each_views_geometry() {
     use grimoire_core::documents::Pane;
     let (mut d, note) = secondary_book("secondary-mouse", 100, 30, true);
     choose_secondary(&mut d, &note);
@@ -3928,7 +3928,7 @@ fn writingdeck_secondary_mouse_wheel_and_click_use_each_views_geometry() {
 }
 
 #[test]
-fn writingdeck_secondary_autosave_also_saves_a_hidden_inactive_dirty_document() {
+fn wros_secondary_autosave_also_saves_a_hidden_inactive_dirty_document() {
     use grimoire_core::documents::Pane;
     let (mut d, note) = secondary_book("secondary-autosave", 120, 40, false);
     choose_secondary(&mut d, &note);
@@ -3952,7 +3952,7 @@ fn writingdeck_secondary_autosave_also_saves_a_hidden_inactive_dirty_document() 
 }
 
 #[test]
-fn writingdeck_secondary_find_replace_and_spelling_do_not_touch_primary() {
+fn wros_secondary_find_replace_and_spelling_do_not_touch_primary() {
     use grimoire_core::documents::Pane;
     let (mut d, note) = secondary_book("secondary-find-spell", 120, 40, false);
     choose_secondary(&mut d, &note);
@@ -3982,7 +3982,7 @@ fn writingdeck_secondary_find_replace_and_spelling_do_not_touch_primary() {
 }
 
 #[test]
-fn writingdeck_secondary_duplicate_selection_focuses_owner_instead_of_cloning_buffer() {
+fn wros_secondary_duplicate_selection_focuses_owner_instead_of_cloning_buffer() {
     use grimoire_core::documents::Pane;
     let (mut d, note) = secondary_book("secondary-owner", 120, 40, false);
     choose_secondary(&mut d, &note);
@@ -4005,7 +4005,7 @@ fn writingdeck_secondary_duplicate_selection_focuses_owner_instead_of_cloning_bu
 }
 
 #[test]
-fn writingdeck_secondary_conflict_keeps_external_version_and_local_copy_without_reflush() {
+fn wros_secondary_conflict_keeps_external_version_and_local_copy_without_reflush() {
     use grimoire_core::documents::Pane;
     let (mut d, note) = secondary_book("secondary-conflict", 120, 40, false);
     choose_secondary(&mut d, &note);
@@ -4058,7 +4058,7 @@ fn writingdeck_secondary_conflict_keeps_external_version_and_local_copy_without_
 }
 
 #[test]
-fn writingdeck_secondary_clean_external_adoption_and_tree_reload_preserve_other_selection() {
+fn wros_secondary_clean_external_adoption_and_tree_reload_preserve_other_selection() {
     use grimoire_core::documents::Pane;
     let (mut d, note) = secondary_book("secondary-external", 120, 40, false);
     choose_secondary(&mut d, &note);
@@ -4096,7 +4096,7 @@ fn writingdeck_secondary_clean_external_adoption_and_tree_reload_preserve_other_
 }
 
 #[test]
-fn writingdeck_secondary_failed_save_blocks_replacement_and_retains_both_recovery_copies() {
+fn wros_secondary_failed_save_blocks_replacement_and_retains_both_recovery_copies() {
     use grimoire_core::documents::Pane;
     let (mut d, note) = secondary_book("secondary-save-fail", 120, 40, false);
     choose_secondary(&mut d, &note);
@@ -4160,7 +4160,7 @@ fn writingdeck_secondary_failed_save_blocks_replacement_and_retains_both_recover
 }
 
 #[test]
-fn writingdeck_secondary_workspace_restart_restores_both_selections_free_scroll_size_and_focus() {
+fn wros_secondary_workspace_restart_restores_both_selections_free_scroll_size_and_focus() {
     use grimoire_core::documents::Pane;
     let (mut d, note) = secondary_book("secondary-restart", 120, 40, true);
     choose_secondary(&mut d, &note);
@@ -4179,7 +4179,7 @@ fn writingdeck_secondary_workspace_restart_restores_both_selections_free_scroll_
     assert!(secondary.scroll > secondary.line);
     assert!(d.app.try_quit());
     let mut reopened = Desk::open(d.root.clone(), 120, 40);
-    reopened.app.init_writingdeck(true);
+    reopened.app.init_wros(true);
     reopened.draw();
     assert_eq!(reopened.app.deck.state.version, 3);
     assert_eq!(reopened.app.view_position(Pane::Primary).unwrap(), primary);
@@ -4193,7 +4193,7 @@ fn writingdeck_secondary_workspace_restart_restores_both_selections_free_scroll_
 }
 
 #[test]
-fn writingdeck_secondary_restore_never_overrides_a_newer_primary_resume_record() {
+fn wros_secondary_restore_never_overrides_a_newer_primary_resume_record() {
     use grimoire_core::documents::Pane;
     let (mut d, note) = secondary_book("secondary-newer-resume", 120, 40, true);
     choose_secondary(&mut d, &note);
@@ -4211,7 +4211,7 @@ fn writingdeck_secondary_restore_never_overrides_a_newer_primary_resume_record()
     };
     grimoire_core::resume::write(&d.root, &record, "Scene One", "").unwrap();
     let mut reopened = Desk::open(d.root.clone(), 120, 40);
-    reopened.app.init_writingdeck(true);
+    reopened.app.init_wros(true);
     reopened.draw();
     assert_eq!(reopened.app.view_editor(Pane::Primary).unwrap().cy, 40);
     assert_eq!(reopened.app.view_editor(Pane::Primary).unwrap().cx, 2);
@@ -4231,7 +4231,7 @@ fn writingdeck_secondary_restore_never_overrides_a_newer_primary_resume_record()
 }
 
 #[test]
-fn writingdeck_secondary_workspace_can_swap_roles_without_duplicate_editors_or_lost_undo() {
+fn wros_secondary_workspace_can_swap_roles_without_duplicate_editors_or_lost_undo() {
     use app::wros::Page;
     use grimoire_core::{documents::Pane, workspaces::Position};
     let (mut d, note) = secondary_book("secondary-role-swap", 120, 40, false);
@@ -4288,7 +4288,7 @@ fn writingdeck_secondary_workspace_can_swap_roles_without_duplicate_editors_or_l
 }
 
 #[test]
-fn writingdeck_secondary_book_wide_replace_and_undo_update_inactive_buffers_too() {
+fn wros_secondary_book_wide_replace_and_undo_update_inactive_buffers_too() {
     use grimoire_core::documents::Pane;
     let (mut d, note) = secondary_book("secondary-replace-book", 120, 40, false);
     choose_secondary(&mut d, &note);
@@ -4318,7 +4318,7 @@ fn writingdeck_secondary_book_wide_replace_and_undo_update_inactive_buffers_too(
 
 #[cfg(unix)]
 #[test]
-fn writingdeck_secondary_external_alias_change_pauses_save_and_disk_adoption_without_data_loss() {
+fn wros_secondary_external_alias_change_pauses_save_and_disk_adoption_without_data_loss() {
     use grimoire_core::documents::Pane;
     use std::os::unix::fs::symlink;
     let (mut d, note) = secondary_book("secondary-alias-change", 120, 40, false);
@@ -4383,7 +4383,7 @@ fn writingdeck_secondary_external_alias_change_pauses_save_and_disk_adoption_wit
 }
 
 #[test]
-fn writingdeck_secondary_rename_and_trash_leave_primary_safe_and_keep_undo_recoverable() {
+fn wros_secondary_rename_and_trash_leave_primary_safe_and_keep_undo_recoverable() {
     use grimoire_core::documents::Pane;
     let (mut d, note) = secondary_book("secondary-rename-trash", 120, 40, false);
     choose_secondary(&mut d, &note);
@@ -4428,7 +4428,7 @@ fn writingdeck_secondary_rename_and_trash_leave_primary_safe_and_keep_undo_recov
 }
 
 #[test]
-fn writingdeck_secondary_resize_never_types_into_a_hidden_view_and_preserves_its_buffer() {
+fn wros_secondary_resize_never_types_into_a_hidden_view_and_preserves_its_buffer() {
     use grimoire_core::documents::Pane;
     let (mut d, note) = secondary_book("secondary-resize", 120, 40, false);
     choose_secondary(&mut d, &note);
@@ -4461,7 +4461,7 @@ fn writingdeck_secondary_resize_never_types_into_a_hidden_view_and_preserves_its
 }
 
 #[test]
-fn writingdeck_secondary_crash_rescue_and_recovery_restore_both_original_documents() {
+fn wros_secondary_crash_rescue_and_recovery_restore_both_original_documents() {
     use grimoire_core::documents::Pane;
     let (mut d, note) = secondary_book("secondary-crash-recovery", 120, 40, false);
     choose_secondary(&mut d, &note);
@@ -4474,7 +4474,7 @@ fn writingdeck_secondary_crash_rescue_and_recovery_restore_both_original_documen
     d.app.rescue();
     // Simulate the original process going away: a new App reads only files.
     let mut restarted = Desk::open(d.root.clone(), 120, 40);
-    restarted.app.init_writingdeck(true);
+    restarted.app.init_wros(true);
     restarted.draw();
     let Overlay::Recover { items, .. } = &restarted.app.overlay else {
         panic!("both drafts must be offered");
@@ -4512,7 +4512,7 @@ fn writingdeck_secondary_crash_rescue_and_recovery_restore_both_original_documen
 }
 
 #[test]
-fn writingdeck_secondary_tutorial_requires_a_real_demo_edit_not_opening_or_navigation() {
+fn wros_secondary_tutorial_requires_a_real_demo_edit_not_opening_or_navigation() {
     let root = std::env::temp_dir().join(format!(
         "grimoire-secondary-tutorial-{}",
         std::process::id()
@@ -4543,7 +4543,7 @@ fn writingdeck_secondary_tutorial_requires_a_real_demo_edit_not_opening_or_navig
 }
 
 #[test]
-fn writingdeck_secondary_tutorial_will_not_launch_a_writing_exercise_in_the_real_novel() {
+fn wros_secondary_tutorial_will_not_launch_a_writing_exercise_in_the_real_novel() {
     use app::wros::Page;
     let (mut d, note) = secondary_book("secondary-no-real-tutorial", 120, 40, false);
     let before = fs::read_to_string(first_scene(&d.root)).unwrap();
@@ -4557,7 +4557,7 @@ fn writingdeck_secondary_tutorial_will_not_launch_a_writing_exercise_in_the_real
 }
 
 #[test]
-fn writingdeck_secondary_external_rename_follows_both_views_and_preserves_clean_selections() {
+fn wros_secondary_external_rename_follows_both_views_and_preserves_clean_selections() {
     use grimoire_core::documents::Pane;
     let (mut d, note) = secondary_book("secondary-external-rename", 120, 40, false);
     choose_secondary(&mut d, &note);
@@ -4591,8 +4591,7 @@ fn writingdeck_secondary_external_rename_follows_both_views_and_preserves_clean_
 }
 
 #[test]
-fn writingdeck_secondary_dirty_external_rename_parks_local_words_instead_of_overwriting_moved_file()
-{
+fn wros_secondary_dirty_external_rename_parks_local_words_instead_of_overwriting_moved_file() {
     use grimoire_core::documents::Pane;
     let (mut d, note) = secondary_book("secondary-dirty-rename", 120, 40, false);
     choose_secondary(&mut d, &note);
@@ -4623,7 +4622,7 @@ fn writingdeck_secondary_dirty_external_rename_parks_local_words_instead_of_over
 }
 
 #[test]
-fn writingdeck_secondary_ambiguous_external_move_never_attaches_to_an_arbitrary_duplicate() {
+fn wros_secondary_ambiguous_external_move_never_attaches_to_an_arbitrary_duplicate() {
     use grimoire_core::documents::Pane;
     let (mut d, note) = secondary_book("secondary-ambiguous-rename", 120, 40, false);
     choose_secondary(&mut d, &note);
@@ -4644,7 +4643,7 @@ fn writingdeck_secondary_ambiguous_external_move_never_attaches_to_an_arbitrary_
 
 #[cfg(unix)]
 #[test]
-fn writingdeck_secondary_existing_symlink_and_hardlink_aliases_focus_the_owner() {
+fn wros_secondary_existing_symlink_and_hardlink_aliases_focus_the_owner() {
     use grimoire_core::documents::Pane;
     use std::os::unix::fs::symlink;
     let (mut d, note) = secondary_book("secondary-known-aliases", 120, 40, false);
@@ -4679,7 +4678,7 @@ fn writingdeck_secondary_existing_symlink_and_hardlink_aliases_focus_the_owner()
 }
 
 #[test]
-fn writingdeck_secondary_and_primary_refuse_non_utf8_edits_and_never_rewrite_lossy_bytes() {
+fn wros_secondary_and_primary_refuse_non_utf8_edits_and_never_rewrite_lossy_bytes() {
     use grimoire_core::documents::Pane;
     let (mut d, note) = secondary_book("secondary-read-only", 120, 40, false);
     choose_secondary(&mut d, &note);
@@ -4741,7 +4740,7 @@ fn writingdeck_secondary_and_primary_refuse_non_utf8_edits_and_never_rewrite_los
 }
 
 #[test]
-fn writingdeck_secondary_settling_an_open_conflict_copy_closes_it_before_trashing() {
+fn wros_secondary_settling_an_open_conflict_copy_closes_it_before_trashing() {
     use grimoire_core::documents::Pane;
     let (root, original, copy) = conflicted("secondary-settle-open-copy");
     let mut d = Desk::open(root, 140, 42);
@@ -4767,7 +4766,7 @@ fn writingdeck_secondary_settling_an_open_conflict_copy_closes_it_before_trashin
 }
 
 #[test]
-fn writingdeck_secondary_history_restore_refuses_non_utf8_and_cannot_replace_the_other_view() {
+fn wros_secondary_history_restore_refuses_non_utf8_and_cannot_replace_the_other_view() {
     use grimoire_core::documents::Pane;
     let (mut d, note) = secondary_book("secondary-history-read-only", 120, 40, false);
     choose_secondary(&mut d, &note);
@@ -4788,7 +4787,7 @@ fn writingdeck_secondary_history_restore_refuses_non_utf8_and_cannot_replace_the
 }
 
 #[test]
-fn writingdeck_secondary_recovery_refuses_non_utf8_without_discarding_the_kept_draft() {
+fn wros_secondary_recovery_refuses_non_utf8_without_discarding_the_kept_draft() {
     let (mut d, note) = secondary_book("secondary-recovery-non-utf8", 120, 40, false);
     choose_secondary(&mut d, &note);
     recovery::keep(&d.root, &note, "Unique recovered note words.\n").unwrap();
@@ -4821,7 +4820,7 @@ fn pin_document(d: &mut Desk, source: &Path) -> u64 {
 }
 
 #[test]
-fn writingdeck_pins_real_source_edit_save_and_undo_at_all_four_sizes() {
+fn wros_pins_real_source_edit_save_and_undo_at_all_four_sizes() {
     use grimoire_core::documents::Pane;
     for (w, h) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
         let (mut d, note) = secondary_book(&format!("pins-size-{w}"), w, h, true);
@@ -4867,7 +4866,7 @@ fn writingdeck_pins_real_source_edit_save_and_undo_at_all_four_sizes() {
 }
 
 #[test]
-fn writingdeck_pins_duplicate_cards_scroll_independently_and_keep_both_editors_positions() {
+fn wros_pins_duplicate_cards_scroll_independently_and_keep_both_editors_positions() {
     use grimoire_core::documents::Pane;
     let (mut d, note) = secondary_book("pins-independent", 160, 50, true);
     choose_secondary(&mut d, &note);
@@ -4928,7 +4927,7 @@ fn writingdeck_pins_duplicate_cards_scroll_independently_and_keep_both_editors_p
 }
 
 #[test]
-fn writingdeck_pins_narrow_tiny_and_strict_focus_hide_without_losing_cards() {
+fn wros_pins_narrow_tiny_and_strict_focus_hide_without_losing_cards() {
     let (mut d, note) = secondary_book("pins-fallback", 160, 50, true);
     pin_document(&mut d, &note);
     d.key(KeyCode::Esc);
@@ -4966,7 +4965,7 @@ fn writingdeck_pins_narrow_tiny_and_strict_focus_hide_without_losing_cards() {
 }
 
 #[test]
-fn writingdeck_pins_presentation_order_archive_trash_and_restart_are_metadata_only() {
+fn wros_pins_presentation_order_archive_trash_and_restart_are_metadata_only() {
     use grimoire_core::pins::{Color, Life, Store};
     let (mut d, note) = secondary_book("pins-persist", 160, 50, true);
     let original = fs::read(&note).unwrap();
@@ -5006,7 +5005,7 @@ fn writingdeck_pins_presentation_order_archive_trash_and_restart_are_metadata_on
 }
 
 #[test]
-fn writingdeck_pins_unknown_corrupt_and_future_metadata_are_preserved_not_reset() {
+fn wros_pins_unknown_corrupt_and_future_metadata_are_preserved_not_reset() {
     use grimoire_core::pins::{State, Store};
     let (mut d, note) = secondary_book("pins-invalid", 120, 40, false);
     let path = Store::path(&d.root);
@@ -5036,7 +5035,7 @@ fn writingdeck_pins_unknown_corrupt_and_future_metadata_are_preserved_not_reset(
 }
 
 #[test]
-fn writingdeck_pins_external_metadata_conflict_rolls_back_until_explicit_reload() {
+fn wros_pins_external_metadata_conflict_rolls_back_until_explicit_reload() {
     use grimoire_core::pins::Store;
     let (mut d, note) = secondary_book("pins-conflict", 120, 40, true);
     pin_document(&mut d, &note);
@@ -5058,7 +5057,7 @@ fn writingdeck_pins_external_metadata_conflict_rolls_back_until_explicit_reload(
 }
 
 #[test]
-fn writingdeck_pins_metadata_write_failure_keeps_previous_cards_and_manuscripts() {
+fn wros_pins_metadata_write_failure_keeps_previous_cards_and_manuscripts() {
     let (mut d, note) = secondary_book("pins-write-fail", 120, 40, true);
     pin_document(&mut d, &note);
     let original = fs::read(&note).unwrap();
@@ -5079,7 +5078,7 @@ fn writingdeck_pins_metadata_write_failure_keeps_previous_cards_and_manuscripts(
 }
 
 #[test]
-fn writingdeck_pins_unique_heading_tracks_insertions_and_missing_or_duplicate_is_explicit() {
+fn wros_pins_unique_heading_tracks_insertions_and_missing_or_duplicate_is_explicit() {
     use grimoire_core::pins::{Mode, Resolution};
     let (mut d, note) = secondary_book("pins-heading", 120, 40, true);
     fs::write(
@@ -5129,7 +5128,7 @@ fn writingdeck_pins_unique_heading_tracks_insertions_and_missing_or_duplicate_is
 }
 
 #[test]
-fn writingdeck_pins_quote_capture_uses_original_editor_selection_and_does_not_erase_it() {
+fn wros_pins_quote_capture_uses_original_editor_selection_and_does_not_erase_it() {
     use grimoire_core::documents::Pane;
     use grimoire_core::pins::Anchor;
     let (mut d, note) = secondary_book("pins-quote", 120, 40, true);
@@ -5150,7 +5149,7 @@ fn writingdeck_pins_quote_capture_uses_original_editor_selection_and_does_not_er
 }
 
 #[test]
-fn writingdeck_pins_known_rename_trash_and_undo_follow_without_source_divergence() {
+fn wros_pins_known_rename_trash_and_undo_follow_without_source_divergence() {
     use grimoire_core::documents::Pane;
     let (mut d, note) = secondary_book("pins-moves", 120, 40, false);
     let id = pin_document(&mut d, &note);
@@ -5180,7 +5179,7 @@ fn writingdeck_pins_known_rename_trash_and_undo_follow_without_source_divergence
 }
 
 #[test]
-fn writingdeck_pins_missing_source_keeps_reference_until_explicit_relink() {
+fn wros_pins_missing_source_keeps_reference_until_explicit_relink() {
     let (mut d, note) = secondary_book("pins-relink", 120, 40, false);
     let id = pin_document(&mut d, &note);
     let original = d.app.pins.state().pins[0].source.clone();
@@ -5202,7 +5201,7 @@ fn writingdeck_pins_missing_source_keeps_reference_until_explicit_relink() {
 }
 
 #[test]
-fn writingdeck_pins_existing_primary_and_secondary_owners_retain_undo_and_selection() {
+fn wros_pins_existing_primary_and_secondary_owners_retain_undo_and_selection() {
     use grimoire_core::documents::Pane;
     let (mut d, note) = secondary_book("pins-owner", 160, 50, false);
     choose_secondary(&mut d, &note);
@@ -5226,7 +5225,7 @@ fn writingdeck_pins_existing_primary_and_secondary_owners_retain_undo_and_select
 
 #[cfg(unix)]
 #[test]
-fn writingdeck_pins_symlink_and_hardlink_aliases_read_the_unsaved_owner_not_a_stale_node() {
+fn wros_pins_symlink_and_hardlink_aliases_read_the_unsaved_owner_not_a_stale_node() {
     use grimoire_core::documents::Pane;
     use std::os::unix::fs::symlink;
     let (mut d, _) = secondary_book("pins-aliases", 160, 50, false);
@@ -5257,7 +5256,7 @@ fn writingdeck_pins_symlink_and_hardlink_aliases_read_the_unsaved_owner_not_a_st
 
 #[cfg(unix)]
 #[test]
-fn writingdeck_pins_outside_project_symlink_and_internal_recovery_source_are_refused() {
+fn wros_pins_outside_project_symlink_and_internal_recovery_source_are_refused() {
     use std::os::unix::fs::symlink;
     let (mut d, _) = secondary_book("pins-contained", 120, 40, false);
     let outside = Desk::open(book("pins-outside", true), 80, 24);
@@ -5279,7 +5278,7 @@ fn writingdeck_pins_outside_project_symlink_and_internal_recovery_source_are_ref
 }
 
 #[test]
-fn writingdeck_pins_plain_typing_paste_and_editor_undo_shortcuts_cannot_mutate_hidden_source() {
+fn wros_pins_plain_typing_paste_and_editor_undo_shortcuts_cannot_mutate_hidden_source() {
     let (mut d, note) = secondary_book("pins-read-only", 160, 50, false);
     d.key(KeyCode::Tab);
     d.typed("Primary draft. ");
@@ -5329,7 +5328,7 @@ fn writingdeck_pins_plain_typing_paste_and_editor_undo_shortcuts_cannot_mutate_h
 }
 
 #[test]
-fn writingdeck_pins_scopes_follow_primary_context_not_the_secondary_note() {
+fn wros_pins_scopes_follow_primary_context_not_the_secondary_note() {
     use grimoire_core::pins::Scope;
     let (mut d, note) = secondary_book("pins-scope", 160, 50, false);
     let id = pin_document(&mut d, &note);
@@ -5357,7 +5356,7 @@ fn writingdeck_pins_scopes_follow_primary_context_not_the_secondary_note() {
 }
 
 #[test]
-fn writingdeck_pins_dashboard_cards_are_real_scoped_readers_with_independent_mouse_scroll() {
+fn wros_pins_dashboard_cards_are_real_scoped_readers_with_independent_mouse_scroll() {
     use grimoire_core::pins::Scope;
     let (mut d, note) = secondary_book("pins-dashboard", 100, 30, true);
     let id = pin_document(&mut d, &note);
@@ -5385,7 +5384,7 @@ fn writingdeck_pins_dashboard_cards_are_real_scoped_readers_with_independent_mou
 }
 
 #[test]
-fn writingdeck_pins_sidebar_list_scroll_is_distinct_from_per_card_scroll() {
+fn wros_pins_sidebar_list_scroll_is_distinct_from_per_card_scroll() {
     let (mut d, note) = secondary_book("pins-list-scroll", 160, 24, true);
     for _ in 0..9 {
         pin_document(&mut d, &note);
@@ -5428,7 +5427,7 @@ fn writingdeck_pins_sidebar_list_scroll_is_distinct_from_per_card_scroll() {
 }
 
 #[test]
-fn writingdeck_pins_render_uses_cached_body_and_cannot_recreate_deleted_metadata() {
+fn wros_pins_render_uses_cached_body_and_cannot_recreate_deleted_metadata() {
     use grimoire_core::pins::Store;
     let (mut d, note) = secondary_book("pins-cached-render", 120, 40, false);
     let id = pin_document(&mut d, &note);
@@ -5449,7 +5448,7 @@ fn writingdeck_pins_render_uses_cached_body_and_cannot_recreate_deleted_metadata
 }
 
 #[test]
-fn writingdeck_pins_source_shrink_is_visible_and_next_scroll_clamps_without_editing_source() {
+fn wros_pins_source_shrink_is_visible_and_next_scroll_clamps_without_editing_source() {
     let (mut d, note) = secondary_book("pins-shrink", 120, 40, true);
     pin_document(&mut d, &note);
     for _ in 0..10 {
@@ -5467,7 +5466,7 @@ fn writingdeck_pins_source_shrink_is_visible_and_next_scroll_clamps_without_edit
 }
 
 #[test]
-fn writingdeck_pins_failed_manuscript_save_blocks_source_replacement_and_keeps_recovery() {
+fn wros_pins_failed_manuscript_save_blocks_source_replacement_and_keeps_recovery() {
     use grimoire_core::documents::Pane;
     let (mut d, note) = secondary_book("pins-source-save-fail", 120, 40, false);
     let third = d.root.join("notes/third-pin-source.md");
@@ -5514,7 +5513,7 @@ fn writingdeck_pins_failed_manuscript_save_blocks_source_replacement_and_keeps_r
 }
 
 #[test]
-fn writingdeck_pins_lessons_require_actual_demo_pin_save_and_anchored_scroll_return() {
+fn wros_pins_lessons_require_actual_demo_pin_save_and_anchored_scroll_return() {
     use crate::app::wros::Page;
     let root = std::env::temp_dir().join(format!(
         "grimoire-ui-pins-shipped-tutorial-{}",
@@ -5556,7 +5555,7 @@ fn writingdeck_pins_lessons_require_actual_demo_pin_save_and_anchored_scroll_ret
 }
 
 #[test]
-fn writingdeck_pins_tutorial_never_uses_a_real_novel_as_an_exercise() {
+fn wros_pins_tutorial_never_uses_a_real_novel_as_an_exercise() {
     use crate::app::wros::Page;
     let (mut d, note) = secondary_book("pins-tutorial-real", 120, 40, true);
     let original = fs::read(&note).unwrap();
@@ -5572,7 +5571,7 @@ fn writingdeck_pins_tutorial_never_uses_a_real_novel_as_an_exercise() {
 }
 
 #[test]
-fn writingdeck_pins_old_layouts_gain_only_the_additive_dashboard_widget() {
+fn wros_pins_old_layouts_gain_only_the_additive_dashboard_widget() {
     use grimoire_core::workspaces::{Store, Widget};
     let root = book("pins-old-layout", true);
     let mut store = Store::load(&root).unwrap();
@@ -5596,7 +5595,7 @@ fn writingdeck_pins_old_layouts_gain_only_the_additive_dashboard_widget() {
 }
 
 #[test]
-fn writingdeck_pins_custom_alias_opens_board_without_typing_into_prose() {
+fn wros_pins_custom_alias_opens_board_without_typing_into_prose() {
     use crate::app::wros::Page;
     let (mut d, _) = secondary_book("pins-shortcut", 120, 40, false);
     let original = d.app.editor.text();
@@ -5618,7 +5617,7 @@ fn writingdeck_pins_custom_alias_opens_board_without_typing_into_prose() {
 }
 
 #[test]
-fn writingdeck_pins_tab_reveals_the_selected_card_instead_of_focusing_offscreen_content() {
+fn wros_pins_tab_reveals_the_selected_card_instead_of_focusing_offscreen_content() {
     let (mut d, note) = secondary_book("pins-focus-reveal", 160, 24, true);
     for _ in 0..9 {
         pin_document(&mut d, &note);
@@ -5644,7 +5643,7 @@ fn writingdeck_pins_tab_reveals_the_selected_card_instead_of_focusing_offscreen_
 }
 
 #[test]
-fn writingdeck_pins_order_skips_archived_cards_and_empty_collection_wheel_is_inert() {
+fn wros_pins_order_skips_archived_cards_and_empty_collection_wheel_is_inert() {
     use grimoire_core::pins::Life;
     let (mut d, note) = secondary_book("pins-filter-order", 120, 40, true);
     let a = pin_document(&mut d, &note);
@@ -5681,7 +5680,7 @@ fn writingdeck_pins_order_skips_archived_cards_and_empty_collection_wheel_is_ine
 }
 
 #[test]
-fn writingdeck_pins_external_source_conflict_stays_on_original_while_local_words_are_parked() {
+fn wros_pins_external_source_conflict_stays_on_original_while_local_words_are_parked() {
     let (mut d, note) = secondary_book("pins-source-conflict", 120, 40, false);
     let id = pin_document(&mut d, &note);
     d.key(KeyCode::Enter);
@@ -5713,7 +5712,7 @@ fn writingdeck_pins_external_source_conflict_stays_on_original_while_local_words
 }
 
 #[test]
-fn writingdeck_pins_non_utf8_source_stays_unavailable_without_destroying_its_bytes() {
+fn wros_pins_non_utf8_source_stays_unavailable_without_destroying_its_bytes() {
     let (mut d, note) = secondary_book("pins-source-nonutf8", 120, 40, false);
     let id = pin_document(&mut d, &note);
     let bytes = b"Raw \xff words remain.\n";
@@ -5729,7 +5728,7 @@ fn writingdeck_pins_non_utf8_source_stays_unavailable_without_destroying_its_byt
 }
 
 #[test]
-fn writingdeck_pins_strict_focus_does_not_focus_a_hidden_secondary_source_owner() {
+fn wros_pins_strict_focus_does_not_focus_a_hidden_secondary_source_owner() {
     use grimoire_core::documents::Pane;
     let (mut d, note) = secondary_book("pins-focus-owner", 160, 50, false);
     choose_secondary(&mut d, &note);
@@ -5748,7 +5747,7 @@ fn writingdeck_pins_strict_focus_does_not_focus_a_hidden_secondary_source_owner(
 
 #[cfg(unix)]
 #[test]
-fn writingdeck_pins_ambiguous_retained_editor_ownership_refuses_to_guess_a_body() {
+fn wros_pins_ambiguous_retained_editor_ownership_refuses_to_guess_a_body() {
     use grimoire_core::documents::Pane;
     use std::os::unix::fs::symlink;
     let (mut d, note) = secondary_book("pins-ambiguous-owner", 160, 50, false);
@@ -5803,7 +5802,7 @@ fn journal_manuscript_save(d: &mut Desk, text: &str) {
 }
 
 #[test]
-fn writingdeck_journal_saved_facts_and_original_reflection_work_at_four_sizes_and_restart() {
+fn wros_journal_saved_facts_and_original_reflection_work_at_four_sizes_and_restart() {
     use grimoire_core::documents::Pane;
     use grimoire_core::journal::Kind as FactKind;
     for (w, h) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
@@ -5869,7 +5868,7 @@ fn writingdeck_journal_saved_facts_and_original_reflection_work_at_four_sizes_an
     }
 }
 #[test]
-fn writingdeck_journal_view_navigation_and_note_only_saves_never_invent_writing_facts() {
+fn wros_journal_view_navigation_and_note_only_saves_never_invent_writing_facts() {
     let (mut d, _) = secondary_book("journal-no-phantoms", 100, 30, false);
     let file = journal_path(&d);
     d.app.run_action(palette::Action::Journal);
@@ -5894,7 +5893,7 @@ fn writingdeck_journal_view_navigation_and_note_only_saves_never_invent_writing_
     assert_eq!(d.app.journal.fact_count(), 0);
 }
 #[test]
-fn writingdeck_journal_negative_net_is_not_gross_deleted_or_active_time() {
+fn wros_journal_negative_net_is_not_gross_deleted_or_active_time() {
     let (mut d, _) = secondary_book("journal-negative", 100, 30, false);
     let total = d.app.project.total_words();
     d.app
@@ -5916,7 +5915,7 @@ fn writingdeck_journal_negative_net_is_not_gross_deleted_or_active_time() {
     }
 }
 #[test]
-fn writingdeck_journal_checkpoints_are_throttled_and_exit_request_is_idempotent() {
+fn wros_journal_checkpoints_are_throttled_and_exit_request_is_idempotent() {
     let (mut d, _) = secondary_book("journal-throttle", 100, 30, false);
     journal_manuscript_save(&mut d, "First real save. ");
     assert_eq!(journal_day(&d).facts.len(), 1);
@@ -5932,7 +5931,7 @@ fn writingdeck_journal_checkpoints_are_throttled_and_exit_request_is_idempotent(
     assert_eq!(journal_day(&d).facts.len(), 3);
 }
 #[test]
-fn writingdeck_journal_existing_source_yaml_undo_and_primary_ownership_are_preserved() {
+fn wros_journal_existing_source_yaml_undo_and_primary_ownership_are_preserved() {
     use grimoire_core::documents::Pane;
     let (mut d, research) = secondary_book("journal-owner", 160, 50, false);
     let path = reflection_path(&d);
@@ -5964,7 +5963,7 @@ fn writingdeck_journal_existing_source_yaml_undo_and_primary_ownership_are_prese
     assert!(d.app.editor.text().contains("Unique unsaved"));
 }
 #[test]
-fn writingdeck_journal_readonly_controls_cut_undo_paste_and_drag_cannot_mutate_hidden_editors() {
+fn wros_journal_readonly_controls_cut_undo_paste_and_drag_cannot_mutate_hidden_editors() {
     use grimoire_core::documents::Pane;
     let (mut d, _) = secondary_book("journal-readonly", 120, 40, true);
     d.app.activate_editor(Pane::Primary);
@@ -5986,7 +5985,7 @@ fn writingdeck_journal_readonly_controls_cut_undo_paste_and_drag_cannot_mutate_h
     assert_eq!(d.app.overlay, Overlay::Journal);
 }
 #[test]
-fn writingdeck_journal_cached_drawing_performs_no_source_reads_or_metadata_writes() {
+fn wros_journal_cached_drawing_performs_no_source_reads_or_metadata_writes() {
     let (mut d, _) = secondary_book("journal-cache", 100, 30, false);
     journal_manuscript_save(&mut d, "Saved. ");
     d.app.run_action(palette::Action::Journal);
@@ -6009,7 +6008,7 @@ fn writingdeck_journal_cached_drawing_performs_no_source_reads_or_metadata_write
     assert!(d.app.journal_body().is_err());
 }
 #[test]
-fn writingdeck_journal_fact_and_reflection_reader_scrolls_preserve_both_editor_positions() {
+fn wros_journal_fact_and_reflection_reader_scrolls_preserve_both_editor_positions() {
     use grimoire_core::documents::Pane;
     use grimoire_core::journal::{Kind as FactKind, Observation, Store};
     for (w, h) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
@@ -6055,7 +6054,7 @@ fn writingdeck_journal_fact_and_reflection_reader_scrolls_preserve_both_editor_p
     }
 }
 #[test]
-fn writingdeck_journal_unknown_future_and_corrupt_facts_preserve_bytes_and_block_unrecorded_quit() {
+fn wros_journal_unknown_future_and_corrupt_facts_preserve_bytes_and_block_unrecorded_quit() {
     use grimoire_core::journal::{Day, Store};
     for (tag, text) in [
         ("broken", "{ broken".into()),
@@ -6098,7 +6097,7 @@ fn writingdeck_journal_unknown_future_and_corrupt_facts_preserve_bytes_and_block
     }
 }
 #[test]
-fn writingdeck_journal_external_append_requires_explicit_reload_before_merging_pending_facts() {
+fn wros_journal_external_append_requires_explicit_reload_before_merging_pending_facts() {
     use grimoire_core::journal::{Kind as FactKind, Observation, Store};
     let (mut d, _) = secondary_book("journal-external", 100, 30, false);
     let date = d.app.journal.date.clone();
@@ -6126,7 +6125,7 @@ fn writingdeck_journal_external_append_requires_explicit_reload_before_merging_p
     assert_eq!(journal_day(&d).facts.len(), 3);
 }
 #[test]
-fn writingdeck_journal_io_failure_keeps_pending_observation_until_explicit_retry() {
+fn wros_journal_io_failure_keeps_pending_observation_until_explicit_retry() {
     let (mut d, _) = secondary_book("journal-io", 100, 30, false);
     let file = journal_path(&d);
     fs::create_dir_all(&file).unwrap();
@@ -6142,8 +6141,7 @@ fn writingdeck_journal_io_failure_keeps_pending_observation_until_explicit_retry
     assert_eq!(fs::read(first_scene(&d.root)).unwrap(), source);
 }
 #[test]
-fn writingdeck_journal_waiting_source_save_cannot_create_reflection_or_record_clean_facts_or_quit()
-{
+fn wros_journal_waiting_source_save_cannot_create_reflection_or_record_clean_facts_or_quit() {
     let (mut d, _) = secondary_book("journal-waiting", 100, 30, false);
     d.app
         .activate_editor(grimoire_core::documents::Pane::Primary);
@@ -6172,7 +6170,7 @@ fn writingdeck_journal_waiting_source_save_cannot_create_reflection_or_record_cl
 }
 #[cfg(unix)]
 #[test]
-fn writingdeck_journal_reflection_outside_and_manuscript_aliases_are_not_used_as_manual_sources() {
+fn wros_journal_reflection_outside_and_manuscript_aliases_are_not_used_as_manual_sources() {
     use std::os::unix::fs::symlink;
     let (mut d, _) = secondary_book("journal-source-containment", 100, 30, false);
     let file = reflection_path(&d);
@@ -6207,7 +6205,7 @@ fn writingdeck_journal_reflection_outside_and_manuscript_aliases_are_not_used_as
 }
 #[cfg(unix)]
 #[test]
-fn writingdeck_journal_non_utf8_reflection_is_unavailable_and_never_replaced() {
+fn wros_journal_non_utf8_reflection_is_unavailable_and_never_replaced() {
     let (mut d, _) = secondary_book("journal-nonutf8", 100, 30, false);
     let file = reflection_path(&d);
     fs::create_dir_all(file.parent().unwrap()).unwrap();
@@ -6222,7 +6220,7 @@ fn writingdeck_journal_non_utf8_reflection_is_unavailable_and_never_replaced() {
     assert_eq!(fs::read(file).unwrap(), bytes);
 }
 #[test]
-fn writingdeck_journal_strict_focus_cannot_create_or_focus_a_hidden_secondary_reflection() {
+fn wros_journal_strict_focus_cannot_create_or_focus_a_hidden_secondary_reflection() {
     use grimoire_core::documents::Pane;
     let (mut d, _) = secondary_book("journal-strict", 120, 40, false);
     d.app.activate_editor(Pane::Primary);
@@ -6247,7 +6245,7 @@ fn writingdeck_journal_strict_focus_cannot_create_or_focus_a_hidden_secondary_re
     assert_eq!(d.app.views.active, Pane::Primary);
 }
 #[test]
-fn writingdeck_journal_tutorial_requires_recorded_facts_review_and_actual_saved_reflection() {
+fn wros_journal_tutorial_requires_recorded_facts_review_and_actual_saved_reflection() {
     use crate::app::wros::Page;
     let root = std::env::temp_dir().join(format!(
         "grimoire-ui-journal-shipped-demo-{}",
@@ -6296,7 +6294,7 @@ fn writingdeck_journal_tutorial_requires_recorded_facts_review_and_actual_saved_
     );
 }
 #[test]
-fn writingdeck_journal_lesson_never_uses_an_ordinary_novel_for_its_exercise() {
+fn wros_journal_lesson_never_uses_an_ordinary_novel_for_its_exercise() {
     use crate::app::wros::Page;
     let (mut d, _) = secondary_book("journal-real-novel", 100, 30, false);
     let before = fs::read(first_scene(&d.root)).unwrap();
@@ -6309,7 +6307,7 @@ fn writingdeck_journal_lesson_never_uses_an_ordinary_novel_for_its_exercise() {
     assert_eq!(fs::read(first_scene(&d.root)).unwrap(), before);
 }
 #[test]
-fn writingdeck_journal_widget_alias_help_and_old_layouts_are_additive_without_default_rebinding() {
+fn wros_journal_widget_alias_help_and_old_layouts_are_additive_without_default_rebinding() {
     use crate::app::wros::Page;
     use grimoire_core::workspaces::{Store, Widget};
     let root = book("journal-layout-alias", true);
@@ -6351,7 +6349,7 @@ fn writingdeck_journal_widget_alias_help_and_old_layouts_are_additive_without_de
     assert_eq!(d.app.overlay, Overlay::Journal);
 }
 #[test]
-fn writingdeck_journal_selected_date_controls_only_its_own_reflection_source() {
+fn wros_journal_selected_date_controls_only_its_own_reflection_source() {
     let (mut d, _) = secondary_book("journal-date", 100, 30, false);
     let today = d.app.journal.date.clone();
     d.app.run_action(palette::Action::Journal);
@@ -6375,7 +6373,7 @@ fn writingdeck_journal_selected_date_controls_only_its_own_reflection_source() {
     assert!(d.app.journal_body().is_err());
 }
 #[test]
-fn writingdeck_journal_book_switch_resets_observation_baseline_and_never_leaks_other_reflections() {
+fn wros_journal_book_switch_resets_observation_baseline_and_never_leaks_other_reflections() {
     let (mut d, _) = secondary_book("journal-book-a", 100, 30, false);
     journal_manuscript_save(&mut d, "A book private writing. ");
     d.app.run_action(palette::Action::Journal);
@@ -6406,7 +6404,7 @@ fn writingdeck_journal_book_switch_resets_observation_baseline_and_never_leaks_o
 }
 #[cfg(unix)]
 #[test]
-fn writingdeck_journal_sources_and_book_switch_work_through_a_symlinked_root() {
+fn wros_journal_sources_and_book_switch_work_through_a_symlinked_root() {
     use grimoire_core::documents::Pane;
     use std::os::unix::fs::symlink;
     let root = book("journal-root-alias", true);
@@ -6456,7 +6454,7 @@ fn writingdeck_journal_sources_and_book_switch_work_through_a_symlinked_root() {
 }
 #[cfg(unix)]
 #[test]
-fn writingdeck_journal_ambiguous_retained_editor_aliases_refuse_to_guess_and_rescue_both_bodies() {
+fn wros_journal_ambiguous_retained_editor_aliases_refuse_to_guess_and_rescue_both_bodies() {
     use grimoire_core::documents::Pane;
     use std::os::unix::fs::symlink;
     let (mut d, research) = secondary_book("journal-ambiguous", 160, 50, false);
@@ -6488,8 +6486,7 @@ fn writingdeck_journal_ambiguous_retained_editor_aliases_refuse_to_guess_and_res
 }
 
 #[test]
-fn writingdeck_journal_explicit_snapshot_requires_real_saved_work_and_never_duplicates_unchanged_counts()
- {
+fn wros_journal_explicit_snapshot_requires_real_saved_work_and_never_duplicates_unchanged_counts() {
     let (mut d, _) = secondary_book("journal-explicit", 100, 30, false);
     d.app.run_action(palette::Action::Journal);
     d.key(KeyCode::Char('c'));
@@ -6511,7 +6508,7 @@ fn writingdeck_journal_explicit_snapshot_requires_real_saved_work_and_never_dupl
 }
 
 #[test]
-fn writingdeck_journal_unreadable_manuscript_totals_do_not_become_invented_complete_counts() {
+fn wros_journal_unreadable_manuscript_totals_do_not_become_invented_complete_counts() {
     let root = book("journal-incomplete", true);
     let source = first_scene(&root);
     let unknown = source.with_file_name("02-Unreadable.md");
@@ -6601,7 +6598,7 @@ fn workflow_intention(d: &mut Desk, body: &str) {
     assert!(d.app.workflow.state().unwrap().handoff.intention.is_some());
 }
 #[test]
-fn writingdeck_workflow_four_size_multi_note_scene_link_and_original_preserving_promotion() {
+fn wros_workflow_four_size_multi_note_scene_link_and_original_preserving_promotion() {
     for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
         let (mut d, _) = secondary_book(&format!("workflow-sizes-{width}"), width, height, false);
         let manuscript = fs::read(first_scene(&d.root)).unwrap();
@@ -6644,7 +6641,7 @@ fn writingdeck_workflow_four_size_multi_note_scene_link_and_original_preserving_
     }
 }
 #[test]
-fn writingdeck_workflow_existing_owner_raw_yaml_and_undo_remain_original() {
+fn wros_workflow_existing_owner_raw_yaml_and_undo_remain_original() {
     use grimoire_core::documents::Pane;
     let (mut d, _) = secondary_book("workflow-owner", 120, 40, false);
     let (id, path) = workflow_note(&mut d, "First original. ");
@@ -6677,7 +6674,7 @@ fn writingdeck_workflow_existing_owner_raw_yaml_and_undo_remain_original() {
     assert_eq!(fs::read(path).unwrap(), edited);
 }
 #[test]
-fn writingdeck_workflow_reader_scroll_cut_and_undo_never_follow_or_mutate_either_editor() {
+fn wros_workflow_reader_scroll_cut_and_undo_never_follow_or_mutate_either_editor() {
     use grimoire_core::documents::Pane;
     let (mut d, _) = secondary_book("workflow-reader", 100, 30, true);
     let (_, path) = workflow_note(
@@ -6702,7 +6699,7 @@ fn writingdeck_workflow_reader_scroll_cut_and_undo_never_follow_or_mutate_either
     assert_eq!(d.app.workflow.scroll, 0);
 }
 #[test]
-fn writingdeck_workflow_render_is_cache_only_even_when_originals_and_index_disappear() {
+fn wros_workflow_render_is_cache_only_even_when_originals_and_index_disappear() {
     let (mut d, _) = secondary_book("workflow-cache", 100, 30, false);
     let (_, path) = workflow_note(&mut d, "Cached original marker. ");
     d.app.run_action(palette::Action::Scratchpad);
@@ -6716,7 +6713,7 @@ fn writingdeck_workflow_render_is_cache_only_even_when_originals_and_index_disap
     fs::write(meta, raw).unwrap();
 }
 #[test]
-fn writingdeck_workflow_missing_original_is_not_recreated_or_promoted() {
+fn wros_workflow_missing_original_is_not_recreated_or_promoted() {
     let (mut d, _) = secondary_book("workflow-missing", 100, 30, false);
     let (id, path) = workflow_note(&mut d, "Keep missing source words. ");
     workflow_link(&mut d, id);
@@ -6736,7 +6733,7 @@ fn writingdeck_workflow_missing_original_is_not_recreated_or_promoted() {
     );
 }
 #[test]
-fn writingdeck_workflow_archive_trash_and_restore_never_delete_original_notes() {
+fn wros_workflow_archive_trash_and_restore_never_delete_original_notes() {
     let (mut d, _) = secondary_book("workflow-life", 100, 30, false);
     let (id, path) = workflow_note(&mut d, "Keep original throughout lifecycle. ");
     let raw = fs::read(&path).unwrap();
@@ -6761,7 +6758,7 @@ fn writingdeck_workflow_archive_trash_and_restore_never_delete_original_notes() 
     assert_eq!(fs::read(path).unwrap(), raw);
 }
 #[test]
-fn writingdeck_workflow_metadata_conflict_and_index_io_failure_roll_back_before_copying() {
+fn wros_workflow_metadata_conflict_and_index_io_failure_roll_back_before_copying() {
     let (mut d, _) = secondary_book("workflow-conflict", 100, 30, false);
     let (id, path) = workflow_note(&mut d, "Do not overwrite in promotion. ");
     workflow_link(&mut d, id);
@@ -6793,7 +6790,7 @@ fn writingdeck_workflow_metadata_conflict_and_index_io_failure_roll_back_before_
     assert_eq!(fs::read(&path).unwrap(), original);
 }
 #[test]
-fn writingdeck_workflow_unknown_future_state_never_creates_scratch_sources_or_rewrites_metadata() {
+fn wros_workflow_unknown_future_state_never_creates_scratch_sources_or_rewrites_metadata() {
     for raw in [
         "bad",
         "{\"version\":999}",
@@ -6814,8 +6811,7 @@ fn writingdeck_workflow_unknown_future_state_never_creates_scratch_sources_or_re
     }
 }
 #[test]
-fn writingdeck_workflow_waiting_dirty_source_blocks_new_note_handoff_and_starter_without_lost_buffers()
- {
+fn wros_workflow_waiting_dirty_source_blocks_new_note_handoff_and_starter_without_lost_buffers() {
     let (mut d, _) = secondary_book("workflow-waiting", 100, 30, false);
     d.app
         .activate_editor(grimoire_core::documents::Pane::Primary);
@@ -6846,7 +6842,7 @@ fn writingdeck_workflow_waiting_dirty_source_blocks_new_note_handoff_and_starter
     fs::rename(backup, path).unwrap();
 }
 #[test]
-fn writingdeck_workflow_strict_focus_cannot_create_or_focus_hidden_secondary() {
+fn wros_workflow_strict_focus_cannot_create_or_focus_hidden_secondary() {
     let (mut d, _) = secondary_book("workflow-strict", 100, 30, false);
     let (_, source) = workflow_note(&mut d, "Owned secondary note. ");
     d.app
@@ -6875,8 +6871,7 @@ fn writingdeck_workflow_strict_focus_cannot_create_or_focus_hidden_secondary() {
 }
 #[cfg(unix)]
 #[test]
-fn writingdeck_workflow_external_alias_collision_refuses_to_guess_and_rescues_both_original_contexts()
- {
+fn wros_workflow_external_alias_collision_refuses_to_guess_and_rescues_both_original_contexts() {
     use std::os::unix::fs::symlink;
     let (mut d, research) = secondary_book("workflow-aliases", 120, 40, false);
     let (_, note) = workflow_note(&mut d, "Original note source. ");
@@ -6901,7 +6896,7 @@ fn writingdeck_workflow_external_alias_collision_refuses_to_guess_and_rescues_bo
     }
 }
 #[test]
-fn writingdeck_workflow_non_utf8_original_cannot_be_promoted_or_replaced() {
+fn wros_workflow_non_utf8_original_cannot_be_promoted_or_replaced() {
     let (mut d, _) = secondary_book("workflow-utf8", 100, 30, false);
     let (id, path) = workflow_note(&mut d, "Before external bytes. ");
     workflow_link(&mut d, id);
@@ -6921,7 +6916,7 @@ fn writingdeck_workflow_non_utf8_original_cannot_be_promoted_or_replaced() {
     );
 }
 #[test]
-fn writingdeck_workflow_handoff_four_size_actual_original_reopen_and_context_resume() {
+fn wros_workflow_handoff_four_size_actual_original_reopen_and_context_resume() {
     use grimoire_core::documents::Pane;
     for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
         let (mut d, _) = secondary_book(&format!("handoff-sizes-{width}"), width, height, true);
@@ -6958,7 +6953,7 @@ fn writingdeck_workflow_handoff_four_size_actual_original_reopen_and_context_res
     }
 }
 #[test]
-fn writingdeck_workflow_handoff_requires_nonempty_prose_and_supports_no_manuscript_context() {
+fn wros_workflow_handoff_requires_nonempty_prose_and_supports_no_manuscript_context() {
     let (mut d, research) = secondary_book("handoff-no-context", 100, 30, false);
     d.app.run_action(palette::Action::Handoff);
     d.key(KeyCode::Char('s'));
@@ -6989,7 +6984,7 @@ fn writingdeck_workflow_handoff_requires_nonempty_prose_and_supports_no_manuscri
     );
 }
 #[test]
-fn writingdeck_workflow_handoff_does_not_override_source_recovery_priority() {
+fn wros_workflow_handoff_does_not_override_source_recovery_priority() {
     let (mut d, _) = secondary_book("handoff-recovery", 100, 30, false);
     workflow_intention(&mut d, "Recover first, intention later. ");
     let primary = first_scene(&d.root);
@@ -7005,7 +7000,7 @@ fn writingdeck_workflow_handoff_does_not_override_source_recovery_priority() {
     assert!(matches!(reopened.app.overlay, Overlay::Recover { .. }));
 }
 #[test]
-fn writingdeck_workflow_handoff_missing_source_is_reported_not_recreated_on_startup() {
+fn wros_workflow_handoff_missing_source_is_reported_not_recreated_on_startup() {
     let (mut d, _) = secondary_book("handoff-missing", 100, 30, false);
     workflow_intention(&mut d, "This original may move externally. ");
     let path = d.root.join("notes/handoff.md");
@@ -7018,7 +7013,7 @@ fn writingdeck_workflow_handoff_missing_source_is_reported_not_recreated_on_star
     assert!(reopened.app.handoff_body().is_err());
 }
 #[test]
-fn writingdeck_workflow_book_switch_separates_all_original_notes_and_handoff_metadata() {
+fn wros_workflow_book_switch_separates_all_original_notes_and_handoff_metadata() {
     let (mut d, _) = secondary_book("workflow-first", 100, 30, false);
     workflow_note(&mut d, "Private first-book scratch. ");
     workflow_intention(&mut d, "Private first-book intention. ");
@@ -7034,7 +7029,7 @@ fn writingdeck_workflow_book_switch_separates_all_original_notes_and_handoff_met
     );
 }
 #[test]
-fn writingdeck_workflow_lessons_require_real_promotion_and_handoff_reopen_in_safe_demo() {
+fn wros_workflow_lessons_require_real_promotion_and_handoff_reopen_in_safe_demo() {
     use crate::app::wros::Page;
     let root = std::env::temp_dir().join(format!("wd-workflow-tutorial-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
@@ -7081,7 +7076,7 @@ fn writingdeck_workflow_lessons_require_real_promotion_and_handoff_reopen_in_saf
     );
 }
 #[test]
-fn writingdeck_workflow_lessons_never_launch_writing_exercises_on_an_ordinary_novel() {
+fn wros_workflow_lessons_never_launch_writing_exercises_on_an_ordinary_novel() {
     use crate::app::wros::Page;
     let (mut d, _) = secondary_book("workflow-real", 100, 30, false);
     let before = fs::read(first_scene(&d.root)).unwrap();
@@ -7096,7 +7091,7 @@ fn writingdeck_workflow_lessons_never_launch_writing_exercises_on_an_ordinary_no
     assert!(!d.root.join("notes/handoff.md").exists());
 }
 #[test]
-fn writingdeck_workflow_starters_populate_real_original_panes_without_replacing_existing_prose() {
+fn wros_workflow_starters_populate_real_original_panes_without_replacing_existing_prose() {
     use grimoire_core::{documents::Pane, workspaces::Preset};
     for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
         let (mut d, _) = secondary_book(&format!("workflow-starters-{width}"), width, height, true);
@@ -7126,8 +7121,7 @@ fn writingdeck_workflow_starters_populate_real_original_panes_without_replacing_
     }
 }
 #[test]
-fn writingdeck_workflow_starter_refuses_unknown_or_concurrently_changed_layout_before_creating_sources()
- {
+fn wros_workflow_starter_refuses_unknown_or_concurrently_changed_layout_before_creating_sources() {
     use grimoire_core::workspaces::{Preset, Store};
     let (mut d, _) = secondary_book("workflow-preset-conflict", 100, 30, false);
     let path = Store::path(&d.root);
@@ -7142,7 +7136,7 @@ fn writingdeck_workflow_starter_refuses_unknown_or_concurrently_changed_layout_b
     assert_eq!(fs::read_to_string(path).unwrap(), "Future external layout");
 }
 #[test]
-fn writingdeck_workflow_workspace_pin_sets_filter_without_changing_global_card_lifecycle() {
+fn wros_workflow_workspace_pin_sets_filter_without_changing_global_card_lifecycle() {
     use grimoire_core::pins::Scope;
     let (mut d, research) = secondary_book("workflow-pinsets", 100, 30, false);
     d.app.pin_document(&first_scene(&d.root), None);
@@ -7176,7 +7170,7 @@ fn writingdeck_workflow_workspace_pin_sets_filter_without_changing_global_card_l
     assert_eq!(d.app.project.nodes[d.app.open.unwrap()].path, research);
 }
 #[test]
-fn writingdeck_workflow_workspace_pin_picker_cancel_and_save_are_explicit() {
+fn wros_workflow_workspace_pin_picker_cancel_and_save_are_explicit() {
     use crate::app::wros::Page;
     let (mut d, _) = secondary_book("workflow-pin-picker", 80, 24, false);
     d.app.pin_document(&first_scene(&d.root), None);
@@ -7197,7 +7191,7 @@ fn writingdeck_workflow_workspace_pin_picker_cancel_and_save_are_explicit() {
 }
 
 #[test]
-fn writingdeck_workflow_command_palette_remains_reachable_from_read_only_readers() {
+fn wros_workflow_command_palette_remains_reachable_from_read_only_readers() {
     let (mut d, _) = secondary_book("workflow-modal-palette", 80, 24, false);
     let before = fs::read(first_scene(&d.root)).unwrap();
     for overlay in [
@@ -7284,7 +7278,7 @@ fn metric_new_sprint(d: &mut Desk, index: usize, target: &str) {
 }
 
 #[test]
-fn writingdeck_productivity_keyboard_paste_undo_are_actual_source_operations_not_net_baselines() {
+fn wros_productivity_keyboard_paste_undo_are_actual_source_operations_not_net_baselines() {
     use grimoire_core::accounting::Role;
     let mut d = metric_writer("metrics-origins", 100, 30);
     metric_clock(&mut d);
@@ -7326,7 +7320,7 @@ fn writingdeck_productivity_keyboard_paste_undo_are_actual_source_operations_not
     );
 }
 #[test]
-fn writingdeck_productivity_both_editor_sources_are_attributed_and_hidden_notes_never_become_manuscript_words()
+fn wros_productivity_both_editor_sources_are_attributed_and_hidden_notes_never_become_manuscript_words()
  {
     use grimoire_core::accounting::Role;
     let (mut d, note) = secondary_book("metrics-two-panes", 120, 40, false);
@@ -7355,7 +7349,7 @@ fn writingdeck_productivity_both_editor_sources_are_attributed_and_hidden_notes_
     );
 }
 #[test]
-fn writingdeck_productivity_formatting_find_and_book_undo_do_not_reauthor_untouched_words() {
+fn wros_productivity_formatting_find_and_book_undo_do_not_reauthor_untouched_words() {
     use grimoire_core::accounting::Role;
     let mut d = metric_writer("metrics-replace", 120, 40);
     metric_clock(&mut d);
@@ -7385,7 +7379,7 @@ fn writingdeck_productivity_formatting_find_and_book_undo_do_not_reauthor_untouc
     assert_eq!(t.input.gaps + t.replay.gaps, 0);
 }
 #[test]
-fn writingdeck_productivity_idle_cutoff_pause_and_revision_mode_use_injected_monotonic_events() {
+fn wros_productivity_idle_cutoff_pause_and_revision_mode_use_injected_monotonic_events() {
     use grimoire_core::accounting::Role;
     let mut d = metric_writer("metrics-clock", 100, 30);
     let clock = metric_clock(&mut d);
@@ -7410,7 +7404,7 @@ fn writingdeck_productivity_idle_cutoff_pause_and_revision_mode_use_injected_mon
     assert_eq!(metric_totals(&d, Role::Manuscript).active_ms, 500);
 }
 #[test]
-fn writingdeck_productivity_calendar_goal_and_all_six_pages_are_real_at_four_sizes() {
+fn wros_productivity_calendar_goal_and_all_six_pages_are_real_at_four_sizes() {
     use crate::app::productivity::Page;
     for (w, h) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
         let mut d = metric_writer(&format!("metrics-pages-{w}"), w, h);
@@ -7471,7 +7465,7 @@ fn writingdeck_productivity_calendar_goal_and_all_six_pages_are_real_at_four_siz
     }
 }
 #[test]
-fn writingdeck_productivity_calendar_replacement_keeps_prior_rest_day_configuration() {
+fn wros_productivity_calendar_replacement_keeps_prior_rest_day_configuration() {
     let mut d = metric_writer("metrics-cal-history", 100, 30);
     metric_clock(&mut d);
     d.app.run_action(palette::Action::Calendar);
@@ -7496,7 +7490,7 @@ fn writingdeck_productivity_calendar_replacement_keeps_prior_rest_day_configurat
     );
 }
 #[test]
-fn writingdeck_productivity_invalid_target_or_date_keeps_original_settings_and_field() {
+fn wros_productivity_invalid_target_or_date_keeps_original_settings_and_field() {
     let mut d = metric_writer("metrics-bad-input", 100, 30);
     metric_clock(&mut d);
     d.app.run_action(palette::Action::Calendar);
@@ -7518,7 +7512,7 @@ fn writingdeck_productivity_invalid_target_or_date_keeps_original_settings_and_f
     assert!(matches!(d.app.overlay, Overlay::ProductivityInput { .. }));
 }
 #[test]
-fn writingdeck_productivity_measured_daily_completion_needs_accepted_subsequent_manuscript_work() {
+fn wros_productivity_measured_daily_completion_needs_accepted_subsequent_manuscript_work() {
     use grimoire_core::challenges::{Evidence, Status};
     let mut d = metric_writer("metrics-challenge", 120, 40);
     metric_clock(&mut d);
@@ -7579,7 +7573,7 @@ fn writingdeck_productivity_measured_daily_completion_needs_accepted_subsequent_
     );
 }
 #[test]
-fn writingdeck_productivity_creative_completion_stays_explicitly_self_reported() {
+fn wros_productivity_creative_completion_stays_explicitly_self_reported() {
     use grimoire_core::challenges::{Category, Evidence, Status};
     let mut d = metric_writer("metrics-selfreport", 100, 30);
     metric_clock(&mut d);
@@ -7609,8 +7603,7 @@ fn writingdeck_productivity_creative_completion_stays_explicitly_self_reported()
     );
 }
 #[test]
-fn writingdeck_productivity_reroll_is_explicit_preserves_acceptance_and_pasted_commands_are_ignored()
- {
+fn wros_productivity_reroll_is_explicit_preserves_acceptance_and_pasted_commands_are_ignored() {
     let mut d = metric_writer("metrics-reroll", 100, 30);
     metric_clock(&mut d);
     d.app.run_action(palette::Action::DailyChallenges);
@@ -7636,7 +7629,7 @@ fn writingdeck_productivity_reroll_is_explicit_preserves_acceptance_and_pasted_c
     );
 }
 #[test]
-fn writingdeck_productivity_filter_draft_cancellation_and_explicit_save_do_not_regenerate_today() {
+fn wros_productivity_filter_draft_cancellation_and_explicit_save_do_not_regenerate_today() {
     let mut d = metric_writer("metrics-filters", 100, 30);
     metric_clock(&mut d);
     d.app.run_action(palette::Action::DailyChallenges);
@@ -7658,7 +7651,7 @@ fn writingdeck_productivity_filter_draft_cancellation_and_explicit_save_do_not_r
     assert_eq!(d.app.productivity.day.as_ref().unwrap().value, old);
 }
 #[test]
-fn writingdeck_productivity_word_sprint_pause_resume_and_breaks_preserve_edits_and_real_time() {
+fn wros_productivity_word_sprint_pause_resume_and_breaks_preserve_edits_and_real_time() {
     use grimoire_core::productivity::SprintStatus;
     let mut d = metric_writer("metrics-sprint", 100, 30);
     let clock = metric_clock(&mut d);
@@ -7712,8 +7705,7 @@ fn writingdeck_productivity_word_sprint_pause_resume_and_breaks_preserve_edits_a
     assert!(d.app.editor.text().contains("excluded"));
 }
 #[test]
-fn writingdeck_productivity_no_editing_experiment_reports_deletions_without_blocking_or_losing_them()
- {
+fn wros_productivity_no_editing_experiment_reports_deletions_without_blocking_or_losing_them() {
     let mut d = metric_writer("metrics-noedit", 100, 30);
     let clock = metric_clock(&mut d);
     d.app.paste("existing words");
@@ -7751,7 +7743,7 @@ fn writingdeck_productivity_no_editing_experiment_reports_deletions_without_bloc
     assert!(d.app.editor.text().ends_with("words"));
 }
 #[test]
-fn writingdeck_productivity_sprint_restart_requires_resume_and_never_adds_offline_time() {
+fn wros_productivity_sprint_restart_requires_resume_and_never_adds_offline_time() {
     let mut d = metric_writer("metrics-sprint-restart", 100, 30);
     let clock = metric_clock(&mut d);
     metric_new_sprint(&mut d, 0, "1");
@@ -7781,7 +7773,7 @@ fn writingdeck_productivity_sprint_restart_requires_resume_and_never_adds_offlin
     );
 }
 #[test]
-fn writingdeck_productivity_failed_ledger_write_keeps_pending_records_blocks_normal_quit_and_retry_is_idempotent()
+fn wros_productivity_failed_ledger_write_keeps_pending_records_blocks_normal_quit_and_retry_is_idempotent()
  {
     let mut d = metric_writer("metrics-ledger-fail", 100, 30);
     metric_clock(&mut d);
@@ -7823,8 +7815,7 @@ fn writingdeck_productivity_failed_ledger_write_keeps_pending_records_blocks_nor
     );
 }
 #[test]
-fn writingdeck_productivity_unknown_settings_are_preserved_and_never_stop_original_markdown_saving()
-{
+fn wros_productivity_unknown_settings_are_preserved_and_never_stop_original_markdown_saving() {
     let root = book("metrics-future-settings", true);
     fs::create_dir_all(root.join(".grimoire/writingdeck")).unwrap();
     let future = b"{\"version\":999,\"future\":{\"retain\":true}}";
@@ -7847,8 +7838,8 @@ fn writingdeck_productivity_unknown_settings_are_preserved_and_never_stop_origin
     assert!(d.app.productivity.ledger.known.is_empty());
 }
 #[test]
-fn writingdeck_productivity_optional_badge_write_failure_does_not_punish_or_block_saved_prose_and_ledger()
- {
+fn wros_productivity_optional_badge_write_failure_does_not_punish_or_block_saved_prose_and_ledger()
+{
     let mut d = metric_writer("metrics-optional-fail", 100, 30);
     metric_clock(&mut d);
     let file = d.root.join(".grimoire/writingdeck/productivity.json");
@@ -7867,7 +7858,7 @@ fn writingdeck_productivity_optional_badge_write_failure_does_not_punish_or_bloc
     );
 }
 #[test]
-fn writingdeck_productivity_disable_everything_keeps_source_typing_and_existing_collection() {
+fn wros_productivity_disable_everything_keeps_source_typing_and_existing_collection() {
     let mut d = metric_writer("metrics-disabled", 100, 30);
     metric_clock(&mut d);
     d.typed("first ");
@@ -7898,7 +7889,7 @@ fn writingdeck_productivity_disable_everything_keeps_source_typing_and_existing_
     );
 }
 #[test]
-fn writingdeck_productivity_draw_is_cached_and_does_not_create_events_or_assignments() {
+fn wros_productivity_draw_is_cached_and_does_not_create_events_or_assignments() {
     let mut d = metric_writer("metrics-pure-draw", 80, 24);
     metric_clock(&mut d);
     let n = d.app.productivity.ledger.known.len();
@@ -7911,7 +7902,7 @@ fn writingdeck_productivity_draw_is_cached_and_does_not_create_events_or_assignm
     assert!(!d.root.join(".grimoire/writingdeck/ledger").exists());
 }
 #[test]
-fn writingdeck_productivity_current_goals_never_derive_gross_or_time_from_existing_source() {
+fn wros_productivity_current_goals_never_derive_gross_or_time_from_existing_source() {
     let root = book("metrics-native-only", true);
     let scene = first_scene(&root);
     fs::write(
@@ -7937,8 +7928,7 @@ fn writingdeck_productivity_current_goals_never_derive_gross_or_time_from_existi
     assert!(d.app.productivity.ledger.known.is_empty());
 }
 #[test]
-fn writingdeck_productivity_tutorial_18_20_21_require_real_persisted_actions_and_never_a_next_button()
- {
+fn wros_productivity_tutorial_18_20_21_require_real_persisted_actions_and_never_a_next_button() {
     use crate::app::wros::Page;
     let root = std::env::temp_dir().join(format!("wd-metrics-tutorial-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
@@ -7984,7 +7974,7 @@ fn writingdeck_productivity_tutorial_18_20_21_require_real_persisted_actions_and
     );
 }
 #[test]
-fn writingdeck_productivity_discoverable_short_menu_has_every_tool_and_correct_nested_back() {
+fn wros_productivity_discoverable_short_menu_has_every_tool_and_correct_nested_back() {
     for (w, h) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
         let mut d = metric_writer(&format!("metrics-menu-{w}"), w, h);
         d.key(KeyCode::Esc);
@@ -8019,7 +8009,7 @@ fn writingdeck_productivity_discoverable_short_menu_has_every_tool_and_correct_n
     }
 }
 #[test]
-fn writingdeck_productivity_tick_finalizes_due_timer_after_flushing_actual_pending_input() {
+fn wros_productivity_tick_finalizes_due_timer_after_flushing_actual_pending_input() {
     let mut d = metric_writer("metrics-due-pending", 100, 30);
     let clock = metric_clock(&mut d);
     metric_new_sprint(&mut d, 0, "1");
@@ -8046,8 +8036,7 @@ fn writingdeck_productivity_tick_finalizes_due_timer_after_flushing_actual_pendi
     );
 }
 #[test]
-fn writingdeck_productivity_reload_detects_un_ticked_timer_conflict_and_keeps_external_and_local_states()
- {
+fn wros_productivity_reload_detects_un_ticked_timer_conflict_and_keeps_external_and_local_states() {
     let mut d = metric_writer("metrics-live-conflict", 100, 30);
     let clock = metric_clock(&mut d);
     metric_new_sprint(&mut d, 0, "2");
@@ -8069,7 +8058,7 @@ fn writingdeck_productivity_reload_detects_un_ticked_timer_conflict_and_keeps_ex
     assert_eq!(fs::read(&file).unwrap(), bytes);
 }
 #[test]
-fn writingdeck_productivity_midnight_cache_and_repeated_day_retrieve_frozen_assignments_without_guessing_history()
+fn wros_productivity_midnight_cache_and_repeated_day_retrieve_frozen_assignments_without_guessing_history()
  {
     let mut d = metric_writer("metrics-civil-days", 100, 30);
     let clock = metric_clock(&mut d);
@@ -8095,7 +8084,7 @@ fn writingdeck_productivity_midnight_cache_and_repeated_day_retrieve_frozen_assi
     );
 }
 #[test]
-fn writingdeck_productivity_challenge_sprint_uses_remaining_target_and_frozen_accepted_mode_and_footnote_policy()
+fn wros_productivity_challenge_sprint_uses_remaining_target_and_frozen_accepted_mode_and_footnote_policy()
  {
     use grimoire_core::{accounting::Mode, productivity::SprintStatus};
     let mut d = metric_writer("metrics-challenge-sprint", 100, 30);
@@ -8140,8 +8129,7 @@ fn writingdeck_productivity_challenge_sprint_uses_remaining_target_and_frozen_ac
     );
 }
 #[test]
-fn writingdeck_productivity_unknown_challenge_day_is_preserved_while_original_prose_and_metrics_save()
- {
+fn wros_productivity_unknown_challenge_day_is_preserved_while_original_prose_and_metrics_save() {
     let mut d = metric_writer("metrics-future-day", 100, 30);
     metric_clock(&mut d);
     let file = d
@@ -8167,8 +8155,7 @@ fn writingdeck_productivity_unknown_challenge_day_is_preserved_while_original_pr
     assert_eq!(fs::read(&file).unwrap(), bytes);
 }
 #[test]
-fn writingdeck_productivity_oversize_word_gap_is_unavailable_not_a_fake_zero_or_complete_word_sprint()
- {
+fn wros_productivity_oversize_word_gap_is_unavailable_not_a_fake_zero_or_complete_word_sprint() {
     let mut d = metric_writer("metrics-word-gap", 100, 30);
     metric_clock(&mut d);
     d.app.paste(&"word ".repeat(52_500));
@@ -8195,7 +8182,7 @@ fn writingdeck_productivity_oversize_word_gap_is_unavailable_not_a_fake_zero_or_
     );
 }
 #[test]
-fn writingdeck_productivity_real_saved_finished_statuses_award_scene_and_chapter_references_without_copying_prose()
+fn wros_productivity_real_saved_finished_statuses_award_scene_and_chapter_references_without_copying_prose()
  {
     let mut d = metric_writer("metrics-finished-status", 100, 30);
     metric_clock(&mut d);
@@ -8250,8 +8237,7 @@ fn writingdeck_productivity_real_saved_finished_statuses_award_scene_and_chapter
     );
 }
 #[test]
-fn writingdeck_productivity_empty_collection_and_subjective_challenge_do_not_complete_lessons_20_or_21()
- {
+fn wros_productivity_empty_collection_and_subjective_challenge_do_not_complete_lessons_20_or_21() {
     use crate::app::wros::Page;
     let root = std::env::temp_dir().join(format!("wd-metrics-notutorial-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);

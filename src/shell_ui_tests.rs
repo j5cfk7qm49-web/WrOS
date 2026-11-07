@@ -864,7 +864,7 @@ fn live_media_opens_on_the_dashboard_with_install_chosen_and_confirms_before_ins
         desk.app.deck.live_session = true;
         desk.app.deck.installer_available = true;
         desk.app.overlay = Overlay::None;
-        desk.app.init_writingdeck(true);
+        desk.app.init_wros(true);
         desk.draw();
         assert!(desk.shows("Try WrOS here, or choose Install WrOS to disk"));
         assert!(desk.shows("▸ Install WrOS to disk"));

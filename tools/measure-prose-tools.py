@@ -17,7 +17,7 @@ import subprocess
 import tempfile
 import time
 
-from writingdeck_source import fingerprint
+from wros_source import fingerprint
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -29,7 +29,7 @@ def main():
     if os.geteuid() == 0 or args.output.exists():
         raise SystemExit('Use a non-root user and a new output file')
     binary = Path(os.environ.get('GRIMOIRE_BINARY', ROOT/'target/debug/grimoire'))
-    runtime = Path(os.environ.get('WRITINGDECK_TOOLS_PYTHON', ROOT/'build/prose-runtime/runtime/bin/python3'))
+    runtime = Path(os.environ.get('WROS_TOOLS_PYTHON', ROOT/'build/prose-runtime/runtime/bin/python3'))
     before_source = fingerprint()
     measurements = []
     fixtures = [
@@ -50,7 +50,7 @@ def main():
                     before = resource.getrusage(resource.RUSAGE_CHILDREN)
                     started = time.monotonic()
                     result = subprocess.run(command, capture_output=True, text=True, timeout=70,
-                                            env=os.environ | {'HOME': tmp, 'WRITINGDECK_TOOLS_PYTHON': str(runtime)})
+                                            env=os.environ | {'HOME': tmp, 'WROS_TOOLS_PYTHON': str(runtime)})
                     elapsed = time.monotonic()-started
                     after = resource.getrusage(resource.RUSAGE_CHILDREN)
                     if result.returncode:

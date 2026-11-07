@@ -13,7 +13,7 @@ BINARY = Path(os.environ.get('GRIMOIRE_BINARY', ROOT/'target/debug/grimoire'))
 @unittest.skipUnless(BINARY.is_file(), 'build the no-audio grimoire binary first')
 class HeadlessCLI(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory(prefix='writingdeck-cli-')
+        self.temp = tempfile.TemporaryDirectory(prefix='wros-cli-')
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.env = os.environ | {'HOME': str(self.root), 'XDG_DATA_HOME': str(self.root/'data'), 'XDG_CONFIG_HOME': str(self.root/'config')}

@@ -16,7 +16,7 @@ import subprocess
 import sys
 import tempfile
 
-from writingdeck_source import fingerprint
+from wros_source import fingerprint
 
 ROOT = Path(__file__).resolve().parents[1]
 

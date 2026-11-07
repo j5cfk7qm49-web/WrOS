@@ -44,7 +44,7 @@ class StoryIdentityPTY(unittest.TestCase):
                     terminal.send(b'r');terminal.paste('blocked');terminal.send(b'\x18\x1a')
                     self.assertEqual(target.read_bytes(),b.encode());self.assertEqual(primary.read_bytes(),a.encode())
                     self.assertFalse(registry.exists());self.assertEqual(milestone.read_bytes(),original_milestone)
-                    if os.environ.get('WRITINGDECK_CAPTURE_PTY')=='1':
+                    if os.environ.get('WROS_CAPTURE_PTY')=='1':
                         captures=ROOT/'build/verification/story-identity-screens';captures.mkdir(parents=True,exist_ok=True)
                         (captures/f'story-identity-{width}x{height}.txt').write_text(terminal.screen.text+'\n',encoding='utf-8')
                     terminal.send(b'\x1bOP');terminal.screen_shows('Continuity & draft milestones')

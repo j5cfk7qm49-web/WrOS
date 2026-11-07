@@ -26,4 +26,4 @@ This is a **recovered development snapshot**, not production installation media.
 - [Brand migration and backward compatibility](NAMING_MIGRATION.md)
 - [GitHub issues](https://github.com/j5cfk7qm49-web/WrOS/issues)
 
-Existing source filenames, package paths and CLI subcommands involving `writingdeck` are **legacy technical identifiers**, not the current product brand. Migrate only with tests and backward compatibility.
+The remaining old names are saved-data formats, compatibility links on installed systems and the old CLI alias, not the product brand. [Naming migration](NAMING_MIGRATION.md) lists them and why each stays.

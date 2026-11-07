@@ -38,7 +38,7 @@ The UI coalesces actual operations and uses an intended 30-second dirty checkpoi
 
 **A crash can lose the uncheckpointed tail.** No durable per-keystroke/session-coverage journal is claimed; recorded sums are not a complete all-day history. These are not OS locks, hostile-race CAS, cross-file transactions, power-cut certification, backup or cross-process attestation. Unknown/corrupt/future/externally conflicting files and original Markdown are preserved. Pending ledger/runtime failures block normal quit until repaired/retried or the existing explicitly warned force quit is chosen. A badge-only failure is optional: it preserves prose and recorded ledger and does not block normal quit. A changed sprint checkpoint is not treated as an optional badge write.
 
-`grimoire writingdeck check-config BOOK` audits settings, recognized ledger parts and existing challenge date files without creating a date or rewriting metadata. Unrecognized challenge filenames are left uninterpreted. Live metrics are local, not tamper-proof certificates; external editing/history replacement and cross-process merges are not authenticated measurement.
+`grimoire wros check-config BOOK` audits settings, recognized ledger parts and existing challenge date files without creating a date or rewriting metadata. Unrecognized challenge filenames are left uninterpreted. Live metrics are local, not tamper-proof certificates; external editing/history replacement and cross-process merges are not authenticated measurement.
 
 ## Goals and calendar
 

@@ -26,7 +26,7 @@ from fixture_storage import TARGET_BYTES, fixture_serial
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT/'tools'))
-from writingdeck_source import fingerprint
+from wros_source import fingerprint
 
 
 def digest(path):

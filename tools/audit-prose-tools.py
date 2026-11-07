@@ -28,7 +28,7 @@ def main():
     p.add_argument('--runtime', type=Path, default=ROOT/'build/prose-runtime/runtime')
     p.add_argument('--wordnet', type=Path, default=Path('/usr/share/wordnet'))
     args = p.parse_args()
-    spec = importlib.util.spec_from_file_location('writingdeck_prose_provisioner', ROOT/'tools/prepare-prose-tools.py')
+    spec = importlib.util.spec_from_file_location('wros_prose_provisioner', ROOT/'tools/prepare-prose-tools.py')
     provisioner = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(provisioner)
     lock = provisioner.locked_manifest()
@@ -36,7 +36,7 @@ def main():
     packages = {x['name'].lower().replace('_', '-'): x for x in lock['packages']}
     require(len(packages) == 49, 'complete reviewed package set changed; update/review audit')
     require(len(runtime['packages']) == len(packages), 'materialized runtime package set incomplete')
-    helper = ROOT/'crates/grimoire-core/assets/writingdeck/prose_tools.py'
+    helper = ROOT/'crates/grimoire-core/assets/wros/prose_tools.py'
     constants = {}
     for node in ast.parse(helper.read_text()).body:
         if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):

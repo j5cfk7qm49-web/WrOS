@@ -2,7 +2,7 @@
 
 ## Current implementation
 
-The compiled catalog at `crates/grimoire-core/assets/writingdeck/tutorial.json` retains **all 39 requested lesson IDs, supplemental grammar lesson 40, and lessons 41–45 for the system features added in rc4–rc7**. Every lesson now completes on a real event; none is planned-only. M7b adds real dictionary, prose and voice-review events; rc8 adds backup restore, sync, phone linking, warm screen, going back, Wi-Fi and lock events. Issue #11 tracks what is left.
+The compiled catalog at `crates/grimoire-core/assets/wros/tutorial.json` retains **all 39 requested lesson IDs, supplemental grammar lesson 40, and lessons 41–45 for the system features added in rc4–rc7**. Every lesson now completes on a real event; none is planned-only. M7b adds real dictionary, prose and voice-review events; rc8 adds backup restore, sync, phone linking, warm screen, going back, Wi-Fi and lock events. Issue #11 tracks what is left.
 
 Progress keeps lesson IDs this catalog does not have (a newer WrOS wrote them), so going back a version and forward again loses nothing. They are never counted, started, completed or awarded here. ID 0 is still refused.
 
@@ -11,7 +11,7 @@ Open F12 → Interactive tutorial, or use the menu/command palette. Arrow keys s
 Press `d` to create a **new** safe demonstration project and switch to it after saving the current project. Existing directories are never reused. Demo scenes, Markdown formatting, autosave, goals, corkboard and history use actual Grimoire code. Writing exercises cannot even be launched against an ordinary novel; they require the safe demo marker. Opening or switching panes alone cannot count as a text edit. Ordinary novels are not rewritten to satisfy lessons.
 
 ```sh
-grimoire writingdeck tutorial-demo /parent/NEW-demo
+grimoire wros tutorial-demo /parent/NEW-demo
 grimoire /parent/NEW-demo
 ```
 

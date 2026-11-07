@@ -37,7 +37,7 @@ class ExportPreflightPTY(unittest.TestCase):
                     terminal.screen_shows('TODO')
                     self.assertNotIn('PRIVATE_SECRET', terminal.screen.text)
                     self.assertNotIn('private', terminal.screen.text.lower())
-                    if os.environ.get('WRITINGDECK_CAPTURE_PTY') == '1':
+                    if os.environ.get('WROS_CAPTURE_PTY') == '1':
                         captures = ROOT/'build/verification/export-preflight-screens'
                         captures.mkdir(parents=True, exist_ok=True)
                         (captures/f'export-preflight-{width}x{height}.txt').write_text(terminal.screen.text+'\n', encoding='utf-8')

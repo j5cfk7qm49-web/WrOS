@@ -306,7 +306,7 @@ fn restart_app() -> Result<()> {
 }
 
 fn installed_session() -> bool {
-    std::env::var_os("WROS_OS").is_some() || std::env::var_os("WRITINGDECK_OS").is_some()
+    grimoire_core::env_setting("OS").is_some()
 }
 
 #[cfg(not(unix))]

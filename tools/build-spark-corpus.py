@@ -14,7 +14,7 @@ from pathlib import Path
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
-BASE = ROOT / 'crates/grimoire-core/assets/writingdeck'
+BASE = ROOT / 'crates/grimoire-core/assets/wros'
 SOURCE = BASE / 'corpus'
 VERSION = 'writingdeck-original-1'
 FEATURES = {'single-scene', 'multi-scene', 'continuous-time', 'time-jumps',

@@ -47,7 +47,7 @@ class ArgonWritingPTY(unittest.TestCase):
                     terminal.send(b'\r');terminal.screen_shows('Scene Comparison')
                     terminal.send(b'\r');terminal.paste('blocked');terminal.send(b'\x18\x1a')
                     self.assertEqual(primary.read_bytes(),changed.encode())
-                    if os.environ.get('WRITINGDECK_CAPTURE_PTY')=='1':
+                    if os.environ.get('WROS_CAPTURE_PTY')=='1':
                         captures=ROOT/'build/verification/argon-writing-screens';captures.mkdir(parents=True,exist_ok=True)
                         (captures/f'argon-writing-{width}x{height}.txt').write_text(terminal.screen.text+'\n',encoding='utf-8')
                     terminal.send(b'r');terminal.until(lambda:'Scene Comparison' not in terminal.screen.text,'restored to writer')

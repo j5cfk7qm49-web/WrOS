@@ -43,7 +43,7 @@ class CharacterKnowledgePTY(unittest.TestCase):
                     self.assertEqual(len(entries()[0]['previous']), 1)
                     terminal.send(b'v'); terminal.screen_shows('Character knowledge · retained versions'); terminal.send(b'\x1b[F'); terminal.screen_shows('EARLIER VERSION 1')
                     terminal.screen_shows('Knows the stated fact')
-                    if os.environ.get('WRITINGDECK_CAPTURE_PTY') == '1':
+                    if os.environ.get('WROS_CAPTURE_PTY') == '1':
                         captures = ROOT/'build/verification/knowledge-screens'; captures.mkdir(parents=True, exist_ok=True)
                         (captures/f'knowledge-{width}x{height}.txt').write_text(terminal.screen.text+'\n', encoding='utf-8')
                     terminal.paste('blocked hidden source'); terminal.send(b'\x18\x1a')

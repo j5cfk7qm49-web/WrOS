@@ -67,7 +67,7 @@ class ReviewNotesPTY(unittest.TestCase):
                     terminal.send(b'x')
                     terminal.until(lambda: state()['notes'][0]['current']['status'] == 'Resolved', 'revision-bound resolution')
                     terminal.screen_shows('Resolved saved')
-                    if os.environ.get('WRITINGDECK_CAPTURE_PTY') == '1':
+                    if os.environ.get('WROS_CAPTURE_PTY') == '1':
                         captures = ROOT/'build/verification/review-note-screens'
                         captures.mkdir(parents=True, exist_ok=True)
                         (captures/f'review-notes-{width}x{height}.txt').write_text(terminal.screen.text+'\n', encoding='utf-8')

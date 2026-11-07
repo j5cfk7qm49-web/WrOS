@@ -20,7 +20,7 @@ REPO = Path(__file__).resolve().parents[2]
 BASE = REPO / 'build/appliance'
 EVIDENCE = REPO / 'docs/evidence'
 sys.path.insert(0, str(REPO/'tools'))
-from writingdeck_source import fingerprint
+from wros_source import fingerprint
 
 
 def qmp_screenshot(path):
@@ -68,10 +68,10 @@ def main():
     with open(BASE / 'qemu.log', 'w') as log:
         process = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=log, stderr=log)
         try:
-            deadline = start + int(os.environ.get('WRITINGDECK_VM_TIMEOUT', '660'))
+            deadline = start + int(os.environ.get('WROS_VM_TIMEOUT', '660'))
             while process.poll() is None:
                 content = serial.read_text(errors='replace')
-                if ('WRITINGDECK_VM_PASS' in content or 'WRITINGDECK_VM_FAIL' in content or time.monotonic() - start > 70) and not screenshot:
+                if ('WROS_VM_PASS' in content or 'WROS_VM_FAIL' in content or time.monotonic() - start > 70) and not screenshot:
                     qmp_screenshot(BASE / 'dashboard.ppm')
                     screenshot = True
                 if time.monotonic() > deadline:
@@ -87,7 +87,7 @@ def main():
                     process.kill()
                     process.wait()
     content = serial.read_text(errors='replace')
-    markers = [line.strip() for line in content.splitlines() if 'WRITINGDECK_VM_' in line]
+    markers = [line.strip() for line in content.splitlines() if 'WROS_VM_' in line]
     result = {
         'kind': 'QEMU virtual hardware, NOT physical hardware verification',
         'recorded_at_utc': datetime.now(timezone.utc).isoformat(),
@@ -99,16 +99,16 @@ def main():
         'memory_mib': 512, 'vcpus': 2, 'network_devices': 0,
         'wall_seconds': round(time.monotonic() - start, 2), 'markers': markers,
         'passed': all(s in content for s in [
-            'WRITINGDECK_VM_UI_PASS', 'WRITINGDECK_VM_POLKIT_PASS',
-            'WRITINGDECK_VM_KEYBOARD_ROLLBACK_PASS', 'WRITINGDECK_VM_KEYBOARD_COMMIT_PASS',
-            'WRITINGDECK_VM_GRAMMAR_PASS', 'WRITINGDECK_VM_PROSE_PASS',
-            'WRITINGDECK_VM_PASS']) and 'WRITINGDECK_VM_FAIL' not in content,
+            'WROS_VM_UI_PASS', 'WROS_VM_POLKIT_PASS',
+            'WROS_VM_KEYBOARD_ROLLBACK_PASS', 'WROS_VM_KEYBOARD_COMMIT_PASS',
+            'WROS_VM_GRAMMAR_PASS', 'WROS_VM_PROSE_PASS',
+            'WROS_VM_PASS']) and 'WROS_VM_FAIL' not in content,
     }
-    grammar_lines = [line.split('WRITINGDECK_VM_GRAMMAR_RESULT ',1)[1] for line in content.splitlines() if 'WRITINGDECK_VM_GRAMMAR_RESULT ' in line]
+    grammar_lines = [line.split('WROS_VM_GRAMMAR_RESULT ',1)[1] for line in content.splitlines() if 'WROS_VM_GRAMMAR_RESULT ' in line]
     if grammar_lines:
         result['grammar'] = json.loads(grammar_lines[-1])
         (EVIDENCE/'vm-grammar.txt').write_text(result['grammar']['frame']+'\n')
-    prose_lines = [line.split('WRITINGDECK_VM_PROSE_RESULT ',1)[1] for line in content.splitlines() if 'WRITINGDECK_VM_PROSE_RESULT ' in line]
+    prose_lines = [line.split('WROS_VM_PROSE_RESULT ',1)[1] for line in content.splitlines() if 'WROS_VM_PROSE_RESULT ' in line]
     if prose_lines:
         result['prose'] = json.loads(prose_lines[-1])
     (EVIDENCE / 'vm-boot.json').write_text(json.dumps(result, indent=2) + '\n')

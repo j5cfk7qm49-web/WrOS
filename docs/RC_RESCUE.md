@@ -26,7 +26,7 @@ When the installed system boots to a login:
 - In Settings > Recovery, Repair runs the privileged entry point
   `/usr/libexec/wros-update-repair` through polkit (`pkexec`). The launcher refuses to run
   without a polkit caller, so a root shell cannot invoke it directly. From a local console
-  session of a `writingdeck` group member, `pkexec /usr/libexec/wros-update-repair` is
+  session of a `wros` group member, `pkexec /usr/libexec/wros-update-repair` is
   equivalent.
 - Repair uses only the retained update archives in `/var/lib/wros-update/staged/`, after
   re-authenticating them against the current keyring and signer pin. It runs
@@ -43,7 +43,7 @@ When the normal session will not start, but the laptop still boots:
   locked root account refuses.
 - The entry boots the newest kernel into `wros-recovery.target`, with no login screen and no
   network. After the disk passphrase, the menu on tty1 asks for the writer's own password (PAM
-  service `wros-recovery`; members of the `writingdeck` group only). Three wrong passwords
+  service `wros-recovery`; members of the `wros` group only). Three wrong passwords
   pause it for 30 seconds.
 - **Choices:**
   - go back to the kept version (installs when you restart);

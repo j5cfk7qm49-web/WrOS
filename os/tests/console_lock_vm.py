@@ -19,7 +19,7 @@ from installed_boot import qmp
 REPO = Path(__file__).resolve().parents[2]
 BASE = REPO / 'build/appliance'
 sys.path.insert(0, str(REPO / 'tools'))
-from writingdeck_source import fingerprint
+from wros_source import fingerprint
 
 
 def digest(path):

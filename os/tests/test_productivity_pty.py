@@ -86,7 +86,7 @@ class ProductivityPTY(unittest.TestCase):
                     serialized = '\n'.join(p.read_text() for p in (project/'.grimoire/writingdeck/ledger').glob('*/*.json'))
                     for prose in ['Keyboard recorded words', 'Copied separate passage', 'Sprint actual words', 'exercise exercise']:
                         self.assertNotIn(prose, serialized)
-                    if os.environ.get('WRITINGDECK_CAPTURE_PTY') == '1':
+                    if os.environ.get('WROS_CAPTURE_PTY') == '1':
                         terminal.screen_shows('[Completed]')
                         terminal.screen_shows('50 / 50')
                         path = ROOT/'docs/evidence'/f'productivity-pty-{width}x{height}.txt'

@@ -55,7 +55,7 @@ impl Default for Lexicon {
             word: 0,
             antonyms: false,
             notice: String::new(),
-            data_root: std::env::var_os("WRITINGDECK_WORDNET_DIR")
+            data_root: grimoire_core::env_setting("WORDNET_DIR")
                 .map(PathBuf::from)
                 .unwrap_or_else(|| PathBuf::from(wordnet::DEFAULT_ROOT)),
             launched: 0,

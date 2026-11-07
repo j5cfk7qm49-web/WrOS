@@ -644,7 +644,7 @@ def audit_capsule(capsule, iso_kernel_sha256, abi):
 
 
 def source_identity():
-    from writingdeck_source import fingerprint
+    from wros_source import fingerprint
     try:
         commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=REPO, text=True, stderr=subprocess.DEVNULL).strip()
         dirty = bool(subprocess.check_output(['git', 'status', '--porcelain', '--untracked-files=no'],

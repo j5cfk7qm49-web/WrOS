@@ -7,7 +7,7 @@ checkpoint. Both retain their complete ancestry. New qualification work is on
 
 **WrOS is an experimental offline-first Linux writing operating system**, built around the Grimoire novel-writing editor. This recovered development snapshot is not a finished or safe-to-install production OS. The official project remote is [WrOS on GitHub](https://github.com/j5cfk7qm49-web/WrOS); follow the [source-import handoff](docs/archive/CODEX_PROMPT.md), [WrOS overview](docs/WROS.md), [status history](docs/archive/STATUS.md), and [open issues](https://github.com/j5cfk7qm49-web/WrOS/issues).
 
-The previous working title was “WritingDeck OS.” Legacy code identifiers, CLI aliases, historical branches and existing saved-data formats temporarily retain `writingdeck` names for compatibility. See [naming migration](docs/NAMING_MIGRATION.md). **Grimoire and its upstream authors retain their original names and attribution.**
+The previous working title was “WritingDeck OS.” The old name remains only where changing it would break something: the hidden `.grimoire/writingdeck/` folder in each book, other saved-data names, compatibility links on installed systems, the old `grimoire writingdeck` command alias and historical branches. A test (`os/tests/test_name_leftovers.py`) keeps it that way. See [naming migration](docs/NAMING_MIGRATION.md). **Grimoire and its upstream authors retain their original names and attribution.**
 
 **WrOS is the platform.** [CI](docs/CI.md) qualifies the Debian runtime; Windows
 and macOS jobs are removed. The Grimoire description below retains upstream

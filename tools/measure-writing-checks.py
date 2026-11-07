@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT/'os/tests'))
 from test_checks_pty import check_fixture, open_checks, quit_normally, TEXT
 from test_secondary_pty import BINARY, TerminalProcess
-from writingdeck_source import fingerprint
+from wros_source import fingerprint
 
 
 def stats(process):

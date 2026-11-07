@@ -36,7 +36,7 @@ presentation must preserve the separately qualified credential/input owners.
 | Editor/panes | `App`, independent retained Editor contexts, exclusive source ownership, guarded save/recovery, workspace restoration | Extend in place; Settings must retain these objects, selection, free scroll, focus and undo |
 | Navigation | `Overlay`, per-feature `Page` enums, menus/palette, F10–F12 and logical aliases | Add a shared bounded navigation model and adapters; preserve existing routes during migration |
 | Settings | Native editor preferences plus a flat 13-action system pane | Migrate available actions into Writing, Interface, System and Accounts; do not simulate missing capabilities |
-| Services | `writingdeck-sys::Backend`, typed requests, cached Snapshot, one bounded off-thread worker and explicit errors | Reuse; no drawing/input-loop I/O, shell commands or manuscript arguments |
+| Services | `wros-sys::Backend`, typed requests, cached Snapshot, one bounded off-thread worker and explicit errors | Reuse; no drawing/input-loop I/O, shell commands or manuscript arguments |
 | Visuals/help | Existing Ratatui theme roles, menus/modals and event-driven tutorial | Extract reusable presentation without linking the editor into the greeter; add real feature exercises |
 | Login/lock | Installer-created PAM account/tty login plus experimental isolated native greetd client; secure locker absent | Greeter qualification is tracked separately from locker/input ownership; credentials stay outside the editor |
 | Cloud | No qualified OAuth/Drive mount/verified remote backup | Separate account, browse/cache, sync and backup state machines |

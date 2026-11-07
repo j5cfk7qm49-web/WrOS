@@ -22,7 +22,7 @@ from installed_boot import qmp
 REPO = Path(__file__).resolve().parents[2]
 BASE = REPO / 'build/appliance'
 sys.path.insert(0, str(REPO / 'tools'))
-from writingdeck_source import fingerprint
+from wros_source import fingerprint
 
 
 def digest(path):
@@ -124,7 +124,7 @@ echo WROS_DISPLAY_FIXTURE_STAGED
                 if 'WROS_DISPLAY_FAIL' in content:
                     qmp(control, 'screendump', {'filename': str(run / 'failed-screen.ppm')})
                     break
-                if 'Kernel panic' in content or 'WRITINGDECK_VM_' in content:
+                if 'Kernel panic' in content or 'WROS_VM_' in content:
                     break
                 def keys(*values):
                     qmp(control, 'send-key', {'keys': [{'type': 'qcode', 'data': value} for value in values], 'hold-time': 60})

@@ -243,7 +243,7 @@ impl Corpus {
 pub fn catalog() -> Result<&'static Corpus> {
     static CORPUS: OnceLock<std::result::Result<Corpus, String>> = OnceLock::new();
     match CORPUS.get_or_init(|| {
-        Corpus::parse(include_str!("../assets/writingdeck/spark-corpus.json"))
+        Corpus::parse(include_str!("../assets/wros/spark-corpus.json"))
             .map_err(|e| format!("{e:#}"))
     }) {
         Ok(c) => Ok(c),

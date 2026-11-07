@@ -7,7 +7,7 @@ it. An unconfirmed preview expires. Escape from the idle selector returns to
 login. If already answering PAM, Escape cancels that conversation first; the
 selector cannot open while credentials or authenticated session state exist.
 
-The selector reuses the existing root-owned `writingdeck-keyboard` helper. Its
+The selector reuses the existing root-owned `wros-keyboard` helper. Its
 token-bound transaction and systemd-owned 15-second rollback timer remain the
 authority; the timer is armed before changing the console map and survives a
 greeter crash. The layout change happens in the Linux console, without editing

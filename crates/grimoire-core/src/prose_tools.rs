@@ -21,7 +21,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-pub const PYTHON_CODE: &str = include_str!("../assets/writingdeck/prose_tools.py");
+pub const PYTHON_CODE: &str = include_str!("../assets/wros/prose_tools.py");
 pub const MAX_STDOUT: usize = 2_097_152;
 pub const MAX_WALL_MS: u64 = 60_000;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -84,7 +84,7 @@ pub struct Runtime {
 impl Default for Runtime {
     fn default() -> Self {
         Self {
-            python: std::env::var_os("WRITINGDECK_TOOLS_PYTHON")
+            python: crate::env_setting("TOOLS_PYTHON")
                 .map(PathBuf::from)
                 .unwrap_or_else(|| PathBuf::from("/opt/writingdeck/python/bin/python3")),
             wall_ms: MAX_WALL_MS,
@@ -220,7 +220,7 @@ pub fn analyze(
         .env_clear()
         .env("PATH", "/usr/bin:/bin")
         .env("HOME", "/nonexistent")
-        .env("WRITINGDECK_PARENT_PID", std::process::id().to_string())
+        .env("WROS_PARENT_PID", std::process::id().to_string())
         .env("LANG", "C.UTF-8")
         .env("OPENBLAS_NUM_THREADS", "1")
         .env("OMP_NUM_THREADS", "1")

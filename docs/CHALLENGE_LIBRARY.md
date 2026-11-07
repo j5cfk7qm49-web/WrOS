@@ -10,11 +10,11 @@ Research examined Cook's exact 1928 Archive edition, not a modern Tin House edit
 
 ## Stable records and provenance
 
-`crates/grimoire-core/assets/writingdeck/corpus/` contains fourteen original plot TSV files, the exercise TSV and explicit editorial decisions. IDs are literal and immutable: `wd-p-0001`–`wd-p-1051`, `wd-x-0001`–`wd-x-0084`. **Never rerun ID assignment or renumber held entries.** Plot rows have four fields; exercise rows nine. Existing IDs identify wording, not a generated Cartesian template.
+`crates/grimoire-core/assets/wros/corpus/` contains fourteen original plot TSV files, the exercise TSV and explicit editorial decisions. IDs are literal and immutable: `wd-p-0001`–`wd-p-1051`, `wd-x-0001`–`wd-x-0084`. **Never rerun ID assignment or renumber held entries.** Plot rows have four fields; exercise rows nine. Existing IDs identify wording, not a generated Cartesian template.
 
 The offline standard-library compiler `tools/build-spark-corpus.py` validates and builds:
 
-- `crates/grimoire-core/assets/writingdeck/spark-corpus.json`, schema 1, version **`writingdeck-original-1`**, 1,131 accepted records;
+- `crates/grimoire-core/assets/wros/spark-corpus.json`, schema 1, version **`writingdeck-original-1`**, 1,131 accepted records;
 - [spark-corpus-manifest.json](spark-corpus-manifest.json), exact compiled/source/decision SHA-256 values;
 - [spark-corpus.json](evidence/spark-corpus.json), counts, explicit holds, fixed stratified editorial resample, thirty-two closest lexical pairs and limitations.
 

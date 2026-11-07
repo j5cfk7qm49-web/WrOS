@@ -18,7 +18,7 @@ import sys
 import tempfile
 import time
 
-from writingdeck_source import fingerprint
+from wros_source import fingerprint
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -82,7 +82,7 @@ def main():
     record['terminal_library'] = json.loads(terminal)
     run('spark-corpus', ['python3', 'tools/build-spark-corpus.py', '--check'])
     run('diagnostic-assets', ['python3', 'tools/audit-writing-checks-assets.py'])
-    runtime = Path(os.environ.get('WRITINGDECK_TOOLS_PYTHON', ROOT/'build/prose-runtime/runtime/bin/python3')).parent.parent
+    runtime = Path(os.environ.get('WROS_TOOLS_PYTHON', ROOT/'build/prose-runtime/runtime/bin/python3')).parent.parent
     run('prose-assets', ['python3', 'tools/audit-prose-tools.py', '--runtime', str(runtime)])
     record['python_runtime_marker_sha256'] = hashlib.sha256((runtime/'.writingdeck-runtime.json').read_bytes()).hexdigest()
     for name, flags in [('default', []), ('no-audio', ['--no-default-features'])]:
@@ -112,23 +112,23 @@ def main():
     record['installer_components'] = json.loads((logs/'installer-components.json').read_bytes())
     record['installer_build_manifest_sha256'] = hashlib.sha256(manifest.read_bytes()).hexdigest()
     check, text = run('python', ['python3', '-m', 'unittest', 'discover', '-s', 'os/tests', '-p', 'test_*.py', '-v'],
-                      os.environ | {'WRITINGDECK_CAPTURE_PTY': '1'})
+                      os.environ | {'WROS_CAPTURE_PTY': '1'})
     summary = re.search(r'Ran (\d+) tests in ([\d.]+)s', text)
     skipped = len(re.findall(r'\.\.\. skipped ', text))
     if not summary or skipped or '\nOK\n' not in text:
         raise SystemExit('Missing/skipped Python coverage; no passing evidence published.')
     record['python'] = check | {'passed': int(summary.group(1)), 'failed': 0, 'skipped': skipped,
         'pty_scope': 'Actual non-root compiled app, new demo/HOME only; original edit/save/undo/restart, four terminal sizes, metadata failures/retry. Not a full emulator or physical certificate.'}
-    run('terminal-capture', ['python3', 'tools/capture-writingdeck-screens.py'])
+    run('terminal-capture', ['python3', 'tools/capture-wros-screens.py'])
     run('shellcheck', ['shellcheck', *map(str, sorted(Path('os/scripts').glob('*.sh'))), 'os/config/live/9998-wros-session', 'os/config/installer/native-crypto-passphrase', 'tools/test-m7b.sh'])
     sources = [*sorted(Path('os/tests').glob('*.py')), *sorted(Path('tools').glob('*.py')),
                Path('os/scripts/install-plan.py'), Path('os/scripts/wros-keyboard'), Path('os/scripts/wros-display'), Path('os/scripts/wros-lock'), Path('os/scripts/wros-backup'), Path('os/scripts/wros-update'), Path('os/scripts/wros-live-session'), Path('os/scripts/wros-install-session')]
     run('python-syntax', ['python3', '-m', 'py_compile', *map(str, sources)])
-    run('inventories', ['python3', 'tools/generate-writingdeck-manifests.py'])
+    run('inventories', ['python3', 'tools/generate-wros-manifests.py'])
     if (ROOT/'build/appliance/rootfs/etc/debian_version').is_file():
         run('wifi-image-payload', ['python3', 'tools/audit-wifi-image.py', 'build/appliance/rootfs'])
     run('printable-reference', ['python3', 'tools/generate-keyboard-reference.py'])
-    run('documentation', ['python3', 'tools/check-writingdeck.py'])
+    run('documentation', ['python3', 'tools/check-wros.py'])
     run('diff-whitespace', ['git', 'diff', '--check'])
     if fingerprint() != start_source or verifier_inputs() != start_inputs:
         raise SystemExit('Source changed during verification; no passing evidence published.')

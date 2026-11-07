@@ -36,7 +36,7 @@ Each workspace stores:
 - secondary visibility, proportion and active editor;
 - outline visibility/width and strict-focus preference.
 
-State is schema **v3** JSON under `.grimoire/writingdeck/layout.json`. V1/v2 files migrate in memory; inspecting them with `grimoire writingdeck check-config DIR` does not rewrite them. The next explicit guarded layout save writes v3. V2 pane positions/visibility/ratio remain intact; missing pin sets mean follow all. Future versions, invalid paths, unknown fields, corruption and external conflicts are preserved rather than overwritten. Bad UI state must not prevent manuscript saves.
+State is schema **v3** JSON under `.grimoire/writingdeck/layout.json`. V1/v2 files migrate in memory; inspecting them with `grimoire wros check-config DIR` does not rewrite them. The next explicit guarded layout save writes v3. V2 pane positions/visibility/ratio remain intact; missing pin sets mean follow all. Future versions, invalid paths, unknown fields, corruption and external conflicts are preserved rather than overwritten. Bad UI state must not prevent manuscript saves.
 
 Startup gives the upstream Primary resume record precedence: stale workspace coordinates/selection are not applied to another document or a newer cursor, and focus remains Primary when that resume differs. Explicitly choosing a workspace instead restores that workspace's positions. A workspace can swap which two documents occupy Primary/Secondary without duplicating their editors or losing in-process per-document undo.
 
@@ -54,7 +54,7 @@ If two previously distinct open paths become aliases, saves, reload adoption and
 
 ## Verification
 
-`src/ui_tests.rs` adds **28 `writingdeck_secondary_*` tests**, retaining the original home/layout/help/menu/key regressions. They cover all four terminal sizes, real editing, independent selection/undo/clipboard routing, hidden/tiny/wide layouts, mouse/free scroll, find/spelling, autosave of an inactive hidden buffer, YAML round-trip, alias ownership/revalidation, clean and dirty external changes/renames, ambiguous moves, book-wide replace/undo, save failure, crash rescue and dual recovery, non-UTF-8 refusal, history restore, trash/settled-conflict closure, workspace role swaps/restart and actual lesson 13 completion.
+`src/ui_tests.rs` adds **28 `wros_secondary_*` tests**, retaining the original home/layout/help/menu/key regressions. They cover all four terminal sizes, real editing, independent selection/undo/clipboard routing, hidden/tiny/wide layouts, mouse/free scroll, find/spelling, autosave of an inactive hidden buffer, YAML round-trip, alias ownership/revalidation, clean and dirty external changes/renames, ambiguous moves, book-wide replace/undo, save failure, crash rescue and dual recovery, non-UTF-8 refusal, history restore, trash/settled-conflict closure, workspace role swaps/restart and actual lesson 13 completion.
 
 Core registry tests cover canonical/device-inode ownership, rejected paths, failed claim retention, missing files and atomic replacement. Workspace tests cover v1 migration, both selections/positions and unknown/future/conflicting data preservation. Editor tests verify Unicode/multiline selection replacement as one undo step.
 

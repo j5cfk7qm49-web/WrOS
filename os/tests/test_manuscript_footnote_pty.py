@@ -53,7 +53,7 @@ class ManuscriptFootnotePTY(unittest.TestCase):
                         self.assertIn('word/footnotes.xml',archive.namelist())
                         self.assertNotIn(b'PRIVATE_MANUSCRIPT',archive.read('word/footnotes.xml'))
                     self.assertEqual(primary.read_bytes(),changed.encode())
-                    if os.environ.get('WRITINGDECK_CAPTURE_PTY')=='1':
+                    if os.environ.get('WROS_CAPTURE_PTY')=='1':
                         captures=ROOT/'build/verification/manuscript-footnote-screens';captures.mkdir(parents=True,exist_ok=True)
                         (captures/f'manuscript-footnotes-{width}x{height}.txt').write_text(terminal.screen.text+'\n',encoding='utf-8')
                     terminal.send(b'\x1b');terminal.until(lambda:'EXPORT FOR READERS' not in terminal.screen.text,'returned to original editor')

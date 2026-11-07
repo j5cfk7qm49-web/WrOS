@@ -10,7 +10,7 @@ import tempfile
 import unittest
 
 module = importlib.machinery.SourceFileLoader(
-    "writingdeck_keyboard", str(Path(__file__).parents[1] / "scripts/wros-keyboard")
+    "wros_keyboard", str(Path(__file__).parents[1] / "scripts/wros-keyboard")
 ).load_module()
 
 

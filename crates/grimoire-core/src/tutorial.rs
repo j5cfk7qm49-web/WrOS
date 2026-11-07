@@ -101,7 +101,7 @@ pub struct Lesson {
 pub fn lessons() -> &'static [Lesson] {
     static LESSONS: OnceLock<Vec<Lesson>> = OnceLock::new();
     LESSONS.get_or_init(|| {
-        serde_json::from_str(include_str!("../assets/writingdeck/tutorial.json"))
+        serde_json::from_str(include_str!("../assets/wros/tutorial.json"))
             .expect("compiled tutorial catalog is valid")
     })
 }

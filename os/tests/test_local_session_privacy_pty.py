@@ -62,7 +62,7 @@ class LocalSessionPrivacyPTY(unittest.TestCase):
                 terminal.until(lambda:time.monotonic() >= end, 'saved session event loop')
                 assert_local()
                 self.assertIn('Added λ Original', git('show', 'HEAD:'+primary.relative_to(project).as_posix()).decode())
-                if os.environ.get('WRITINGDECK_CAPTURE_PTY') == '1':
+                if os.environ.get('WROS_CAPTURE_PTY') == '1':
                     captures=ROOT/'build/verification/local-session-privacy-screens'; captures.mkdir(parents=True,exist_ok=True)
                     (captures/f'local-session-privacy-{width}x{height}.txt').write_text(terminal.screen.text+'\n',encoding='utf-8')
                 terminal.send(b'\x1b'); terminal.until(lambda:'WRITING SESSIONS' not in terminal.screen.text, 'history dismissed')

@@ -2,14 +2,14 @@
   {
     "id": 1,
     "title": "Starting the OS",
-    "help_topic": "writingdeck",
+    "help_topic": "wros",
     "event": "DashboardOpened",
     "instructions": "Open the WrOS home screen with F12. Use Resume writing to return to your manuscript. On the appliance, tty1 starts this interface after login."
   },
   {
     "id": 2,
     "title": "Keyboard layout selection",
-    "help_topic": "writingdeck",
+    "help_topic": "wros",
     "event": "LayoutConfirmed",
     "instructions": "Open System settings, then Keyboard layout. Preview a layout in the test field. Press Enter within 15 seconds to keep it, or Escape to revert. Linux translates characters; Grimoire never translates them twice."
   },
@@ -44,7 +44,7 @@
   {
     "id": 7,
     "title": "Switching workspaces",
-    "help_topic": "writingdeck",
+    "help_topic": "wros",
     "event": "WorkspaceSelected",
     "instructions": "Open Workspaces from the dashboard and choose another saved layout. Each workspace remembers its primary document position and outline settings."
   },
@@ -58,14 +58,14 @@
   {
     "id": 9,
     "title": "Managing panes",
-    "help_topic": "writingdeck",
+    "help_topic": "wros",
     "event": "OutlineToggled",
     "instructions": "Use F10 to toggle the outline independently. Tab only visits visible panes. F11 toggles an independent editor, taught in lesson 13; strict focus hides both side panes."
   },
   {
     "id": 10,
     "title": "Custom keyboard shortcuts",
-    "help_topic": "writingdeck",
+    "help_topic": "wros",
     "event": "ShortcutAdded",
     "instructions": "Open Keyboard shortcuts and add a Ctrl+Alt letter alias. Existing Grimoire bindings are protected. Instructions refer to logical letters under QWERTY, Colemak and Colemak-DH."
   },
@@ -86,7 +86,7 @@
   {
     "id": 13,
     "title": "Editing notes beside the manuscript",
-    "help_topic": "writingdeck",
+    "help_topic": "wros",
     "event": "SecondaryEdited",
     "instructions": "In the safe demo, choose The Other Door in the secondary document picker and type an original sentence in that independent editor. Tab changes panes; each keeps its selection and undo. F11 hides without discarding it. Only a real edit in the secondary demo buffer completes this exercise."
   },
@@ -261,7 +261,7 @@
   {
     "id": 38,
     "title": "Wi-Fi and system settings",
-    "help_topic": "writingdeck",
+    "help_topic": "wros",
     "event": "SystemOpened",
     "instructions": "Open Settings › System. Wi-Fi, battery, brightness, storage and updates each have a page here. A service this computer lacks says so; it never pretends to work."
   },
@@ -289,28 +289,28 @@
   {
     "id": 42,
     "title": "Warm screen",
-    "help_topic": "writingdeck",
+    "help_topic": "wros",
     "event": "WarmthKept",
     "instructions": "Open Settings › System › Display › Warm screen. Change the temperature or strength and preview it. The preview turns itself off after 15 seconds unless you choose Keep these display settings. Keeping a setting completes this lesson; it stays on after a restart."
   },
   {
     "id": 43,
     "title": "Going back a version",
-    "help_topic": "writingdeck",
+    "help_topic": "wros",
     "event": "GoBackReviewed",
     "instructions": "Open Settings › Updates and recovery › Updates and choose Go back to the version listed there. WrOS keeps the version it installed before this one. The next screen offers it: going back installs at the next restart, and you can cancel until then. Stay on this version leaves everything as it is. Seeing that screen with a kept version completes this lesson. If an update ever fails to start twice, WrOS goes back on its own."
   },
   {
     "id": 44,
     "title": "Finding Wi-Fi networks",
-    "help_topic": "writingdeck",
+    "help_topic": "wros",
     "event": "WifiScanned",
     "instructions": "Open Settings › System › Wi-Fi and networking and choose Scan Wi-Fi networks. Pick a network to join it. If the scan fails, the page says what to check. A finished scan completes this lesson."
   },
   {
     "id": 45,
     "title": "Locking and sleep",
-    "help_topic": "writingdeck",
+    "help_topic": "wros",
     "event": "SessionUnlocked",
     "instructions": "Open Settings › System › Battery and power and choose Lock writing session. WrOS saves first, then asks for your password; what you type there never reaches the book. Unlock to finish this lesson. Lock and suspend does the same and sleeps, and closing the lid while writing saves, locks and sleeps too."
   }

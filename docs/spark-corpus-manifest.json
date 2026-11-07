@@ -2,8 +2,8 @@
   "accepted_exercises": 84,
   "accepted_plots": 1047,
   "attribution": "WrOS contributors. Original AI-assisted drafting and agent editorial review; MIT to the extent rights subsist. No exclusive-copyright or independent-human-review claim.",
-  "corpus_file": "crates/grimoire-core/assets/writingdeck/spark-corpus.json",
-  "corpus_sha256": "c25c81986d87784fd404047f27591fb0f68961120c6cb043634b41f676ecb1e4",
+  "corpus_file": "crates/grimoire-core/assets/wros/spark-corpus.json",
+  "corpus_sha256": "47563aa3bd16251b9a08ca30d12f78901530f1a87c0d0b5c3137f8dd6e153ec4",
   "editorial_decisions_sha256": "b2885e9229957da45cb03e6a57311070a11d48f8c85df2a9489cd3f28841bcf0",
   "excluded_source_ids": [
     "plotto-1928",
@@ -12,77 +12,77 @@
   ],
   "files": [
     {
-      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-exercises.tsv",
+      "file": "crates/grimoire-core/assets/wros/corpus/original-exercises.tsv",
       "records": 84,
       "sha256": "a716ec5fd26dc4676d88eb99a788ccc1cddd8a7a000a7e536a9a6ac6ecfbb6df"
     },
     {
-      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-01.tsv",
+      "file": "crates/grimoire-core/assets/wros/corpus/original-plots-01.tsv",
       "records": 100,
       "sha256": "dd5a74d9df9d4fc723181414ea290ff47271a0593829fd364c9d4b3256e40ed4"
     },
     {
-      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-02.tsv",
+      "file": "crates/grimoire-core/assets/wros/corpus/original-plots-02.tsv",
       "records": 101,
       "sha256": "9f4ff89304f1dae153fcdf22382af2a3e6a7265f86647e70c05f76eae06fc271"
     },
     {
-      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-03.tsv",
+      "file": "crates/grimoire-core/assets/wros/corpus/original-plots-03.tsv",
       "records": 50,
       "sha256": "22b46eab24be9c26bc6e69077e3c087cc548de1181c30ee0fd55d21c67a52023"
     },
     {
-      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-04.tsv",
+      "file": "crates/grimoire-core/assets/wros/corpus/original-plots-04.tsv",
       "records": 75,
       "sha256": "9e25f305a021da02a00c725d47ee4296bd2591d482b72397501e7985b2cde11e"
     },
     {
-      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-05.tsv",
+      "file": "crates/grimoire-core/assets/wros/corpus/original-plots-05.tsv",
       "records": 75,
       "sha256": "30e2b27413c6ae8452beaaabc9ae43766db7c3de88b1bcfc9949d63ca29be07e"
     },
     {
-      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-06.tsv",
+      "file": "crates/grimoire-core/assets/wros/corpus/original-plots-06.tsv",
       "records": 75,
       "sha256": "cebb780373ffe2800cd7ee18f99c8241e2a4a9e34c69db059c59da4994ab18c2"
     },
     {
-      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-07.tsv",
+      "file": "crates/grimoire-core/assets/wros/corpus/original-plots-07.tsv",
       "records": 75,
       "sha256": "4acdc633092cfb369970d03b9152f9af72147ac108b8293483c45f3322aed855"
     },
     {
-      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-08.tsv",
+      "file": "crates/grimoire-core/assets/wros/corpus/original-plots-08.tsv",
       "records": 75,
       "sha256": "7a3590479843112561cfb5dc7109db113d655af6283ec163023e4ebd206382f3"
     },
     {
-      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-09.tsv",
+      "file": "crates/grimoire-core/assets/wros/corpus/original-plots-09.tsv",
       "records": 75,
       "sha256": "2fdcdb923735e25bbef6f6f82e9f468ecf8a2a3f84d8ea45a7906460f967026e"
     },
     {
-      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-10.tsv",
+      "file": "crates/grimoire-core/assets/wros/corpus/original-plots-10.tsv",
       "records": 75,
       "sha256": "c2250c24a4a46ffbd4a2773b53039fc14a1e6dab56523b665feea446aacf9205"
     },
     {
-      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-11.tsv",
+      "file": "crates/grimoire-core/assets/wros/corpus/original-plots-11.tsv",
       "records": 75,
       "sha256": "301d0f13e9ee53d9b6e87ac9ede72b7dc537a9c88cd4fcbb059ecde82037c6ea"
     },
     {
-      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-12.tsv",
+      "file": "crates/grimoire-core/assets/wros/corpus/original-plots-12.tsv",
       "records": 75,
       "sha256": "74d1d91984bb47fb14affa4aca78de770295f029670490db209b8aed3f2563f0"
     },
     {
-      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-13.tsv",
+      "file": "crates/grimoire-core/assets/wros/corpus/original-plots-13.tsv",
       "records": 75,
       "sha256": "71e5812e7e620c14206e90baa05fe12a5169f4bfeeec30ac139a3512930aa11c"
     },
     {
-      "file": "crates/grimoire-core/assets/writingdeck/corpus/original-plots-14.tsv",
+      "file": "crates/grimoire-core/assets/wros/corpus/original-plots-14.tsv",
       "records": 50,
       "sha256": "bacb08f76723e0997106fb095f92be072be0b82baa8353d1b96a3952731f618e"
     }

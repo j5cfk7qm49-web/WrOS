@@ -81,7 +81,7 @@ class NativeBackupPTY(unittest.TestCase):
                     restored = project.parent/(project.name + '-restored-' + identifier[:8])
                     self.assertEqual((restored/primary.relative_to(project)).read_bytes(), original)
                     self.assertEqual(primary.read_bytes(), original)
-                    if os.environ.get('WRITINGDECK_CAPTURE_PTY') == '1':
+                    if os.environ.get('WROS_CAPTURE_PTY') == '1':
                         captures = ROOT/'build/verification/backup-screens'
                         captures.mkdir(parents=True, exist_ok=True)
                         (captures/f'backup-{width}x{height}.txt').write_text(terminal.screen.text + '\n', encoding='utf-8')

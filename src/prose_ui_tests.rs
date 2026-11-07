@@ -6,7 +6,7 @@ use grimoire_core::{diagnostics::Profile, prose_tools, review_queue};
 use std::time::{Duration, Instant};
 const PROSE_TEXT: &str = "Café 🦊 e\u{301}. We waited in order to see. He could of gone.\n";
 fn tools_runtime() -> PathBuf {
-    let path = std::env::var_os("WRITINGDECK_TOOLS_PYTHON")
+    let path = grimoire_core::env_setting("TOOLS_PYTHON")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
             PathBuf::from(env!("CARGO_MANIFEST_DIR"))

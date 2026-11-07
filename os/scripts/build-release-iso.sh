@@ -150,7 +150,7 @@ state_done() { [[ -e $build/state/$1.done ]]; }
 state_mark() { date -u +%Y-%m-%dT%H:%M:%SZ > "$build/state/$1.done"; }
 
 source_fingerprint() {
-    as_builder python3 -I -c 'import sys; sys.path.insert(0, sys.argv[1]); import writingdeck_source as s; print(s.fingerprint()["sha256"])' "$repo/tools"
+    as_builder python3 -I -c 'import sys; sys.path.insert(0, sys.argv[1]); import wros_source as s; print(s.fingerprint()["sha256"])' "$repo/tools"
 }
 
 run_step() {

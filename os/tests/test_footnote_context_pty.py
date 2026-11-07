@@ -34,7 +34,7 @@ class FootnoteContextPTY(unittest.TestCase):
                     self.assertEqual(primary.read_bytes(), before.encode())
                     terminal.send(b'\x1b[F')
                     terminal.screen_shows('END_CONTEXT')
-                    if os.environ.get('WRITINGDECK_CAPTURE_PTY') == '1':
+                    if os.environ.get('WROS_CAPTURE_PTY') == '1':
                         captures = ROOT/'build/verification/footnote-context-screens'
                         captures.mkdir(parents=True, exist_ok=True)
                         (captures/f'footnote-context-{width}x{height}.txt').write_text(terminal.screen.text+'\n', encoding='utf-8')

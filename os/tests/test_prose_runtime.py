@@ -21,11 +21,11 @@ from unittest.mock import patch
 from test_secondary_pty import BINARY, ROOT
 from test_prose_pty import RUNTIME
 
-HELPER = ROOT/'crates/grimoire-core/assets/writingdeck/prose_tools.py'
+HELPER = ROOT/'crates/grimoire-core/assets/wros/prose_tools.py'
 
 
 def provisioner():
-    spec = importlib.util.spec_from_file_location('writingdeck_prose_provisioner', ROOT/'tools/prepare-prose-tools.py')
+    spec = importlib.util.spec_from_file_location('wros_prose_provisioner', ROOT/'tools/prepare-prose-tools.py')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -106,7 +106,7 @@ class ProseRuntime(unittest.TestCase):
         libc.close(fd)
         code = r'''
 import ctypes,json,os
-scope={'__name__':'writingdeck_kernel_probe'}
+scope={'__name__':'wros_kernel_probe'}
 exec(compile(open(HELPER).read(), HELPER, 'exec'),scope)
 scope['configure_process']()
 libc=ctypes.CDLL(None,use_errno=True)
@@ -140,7 +140,7 @@ print(json.dumps(checks))
             path = root/'synthetic.md'
             path.write_text('---\ntitle: untouched\n---\n\nCafé 🦊 e\u0301. The gate was opened by Mara. He could of gone.\n')
             before = path.read_bytes()
-            env = os.environ | {'WRITINGDECK_TOOLS_PYTHON': str(RUNTIME), 'HOME': str(root)}
+            env = os.environ | {'WROS_TOOLS_PYTHON': str(RUNTIME), 'HOME': str(root)}
             denied = subprocess.run([str(BINARY), 'writingdeck', 'prose', str(path), '--engine', 'nabokov'],
                                     env=env, capture_output=True, text=True, timeout=15)
             self.assertNotEqual(denied.returncode, 0)
@@ -154,7 +154,7 @@ print(json.dumps(checks))
             self.assertEqual(finding['expected'], 'was opened by Mara')
             self.assertEqual(finding['alternatives'], [])
             self.assertFalse(any(d['rule'].startswith(('NB5', 'NB7')) for d in report['findings']))
-            env['WRITINGDECK_TOOLS_PYTHON'] = '/no-such-pinned-runtime'
+            env['WROS_TOOLS_PYTHON'] = '/no-such-pinned-runtime'
             missing = subprocess.run([str(BINARY), 'writingdeck', 'prose', str(path), '--engine', 'proselint'],
                                      env=env, capture_output=True, text=True, timeout=15)
             self.assertNotEqual(missing.returncode, 0)
@@ -168,7 +168,7 @@ print(json.dumps(checks))
             source = root/'synthetic.md'
             source.write_text('The gate was opened by Mara. '*1800)
             before = hashlib.sha256(source.read_bytes()).hexdigest()
-            env = os.environ | {'WRITINGDECK_TOOLS_PYTHON': str(RUNTIME), 'HOME': str(root)}
+            env = os.environ | {'WROS_TOOLS_PYTHON': str(RUNTIME), 'HOME': str(root)}
             owner = subprocess.Popen([str(BINARY), 'writingdeck', 'prose', str(source), '--engine', 'nabokov', '--allow-model'],
                                      env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             child = None

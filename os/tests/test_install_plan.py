@@ -7,7 +7,7 @@ import tempfile
 import unittest
 
 SCRIPT = Path(__file__).parents[1] / 'scripts/install-plan.py'
-module = importlib.machinery.SourceFileLoader('writingdeck_install_plan', str(SCRIPT)).load_module()
+module = importlib.machinery.SourceFileLoader('wros_install_plan', str(SCRIPT)).load_module()
 
 
 class InstallPlan(unittest.TestCase):

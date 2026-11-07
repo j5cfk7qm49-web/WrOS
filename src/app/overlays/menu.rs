@@ -87,7 +87,7 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
     let (says, topic): (&str, &str) = match action {
         Action::Settings => (
             "WrOS writing, interface, system and account settings; return to the same manuscript.",
-            "writingdeck",
+            "wros",
         ),
         Action::FindAnything => (
             "Type a few letters to jump to any scene or note, or to run anything Grimoire can do.",
@@ -344,14 +344,14 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "Grimoire is free. A tip on Ko-fi helps it keep growing, and is never required.",
             "getting-started",
         ),
-        Action::Dashboard => ("Opens the offline writing home screen.", "writingdeck"),
+        Action::Dashboard => ("Opens the offline writing home screen.", "wros"),
         Action::SystemSettings => (
             "Shows local system status and safe OS controls.",
-            "writingdeck",
+            "wros",
         ),
-        Action::Workspaces => ("Restores a saved writing layout.", "writingdeck"),
-        Action::Tutorial => ("Opens replayable, event-verified lessons.", "writingdeck"),
-        Action::ToggleOutline => ("Shows or hides the outline independently.", "writingdeck"),
+        Action::Workspaces => ("Restores a saved writing layout.", "wros"),
+        Action::Tutorial => ("Opens replayable, event-verified lessons.", "wros"),
+        Action::ToggleOutline => ("Shows or hides the outline independently.", "wros"),
         Action::Scratchpad => (
             "Original Notes linked to scenes; explicit independent promotion keeps the original.",
             "scratchpad",
@@ -419,11 +419,11 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
         ),
         Action::ToggleSecondary => (
             "Shows or hides an independent editable document; its undo and selection stay intact.",
-            "writingdeck",
+            "wros",
         ),
         Action::SecondaryPicker | Action::EditSecondary(_) => (
             "Chooses a scene, note or research document for the independent editor. One buffer owns each file.",
-            "writingdeck",
+            "wros",
         ),
         Action::MenuBack => ("Back to the first menu.", "getting-started"),
         _ => ("", "getting-started"),

@@ -31,7 +31,7 @@ def fixture(base):
 class JournalPTY(unittest.TestCase):
     def test_saved_observations_reflection_paste_guard_undo_and_loaded_restart_at_four_sizes(self):
         for width, height in [(80, 24), (100, 30), (120, 40), (160, 50)]:
-            with self.subTest(width=width, height=height), tempfile.TemporaryDirectory(prefix='writingdeck-journal-pty-') as temporary:
+            with self.subTest(width=width, height=height), tempfile.TemporaryDirectory(prefix='wros-journal-pty-') as temporary:
                 project, home, primary = fixture(Path(temporary))
                 journal_dir = project/'.grimoire/writingdeck/journal'
 
@@ -119,7 +119,7 @@ class JournalPTY(unittest.TestCase):
                     restarted.close()
 
     def test_future_log_or_unknown_totals_refuse_normal_exit_and_force_warning_is_explicit(self):
-        with tempfile.TemporaryDirectory(prefix='writingdeck-journal-future-pty-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='wros-journal-future-pty-') as temporary:
             project, home, primary = fixture(Path(temporary))
             day = datetime.now().astimezone().date().isoformat()
             path = project/'.grimoire/writingdeck/journal'/f'{day}.json'
@@ -151,7 +151,7 @@ class JournalPTY(unittest.TestCase):
         # A save performed while the reader is open can leave an unavailable-
         # total warning with no queued fact. That warning must not hide the
         # explicit force-exit instruction either.
-        with tempfile.TemporaryDirectory(prefix='writingdeck-journal-unknown-pty-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='wros-journal-unknown-pty-') as temporary:
             project, home, primary = fixture(Path(temporary))
             unknown = project/'manuscript/unreadable-journal.md'
             original = b'\xff\xfe unreadable manuscript is not zero words'

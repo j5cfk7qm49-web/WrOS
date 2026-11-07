@@ -20,7 +20,7 @@ import sys
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
-from writingdeck_source import fingerprint
+from wros_source import fingerprint
 
 CASES = ('yes', 'no', 'back', 'half-close', 'truncated', 'malformed',
          'status-suffix', 'negative', 'error-status', 'nul', 'crlf',

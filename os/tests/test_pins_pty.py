@@ -35,7 +35,7 @@ def fixture(base):
 class PinsPTY(unittest.TestCase):
     def test_real_pins_source_edit_independent_scroll_archive_paste_guard_and_restart_at_four_sizes(self):
         for width, height in [(80, 24), (100, 30), (120, 40), (160, 50)]:
-            with self.subTest(width=width, height=height), tempfile.TemporaryDirectory(prefix='writingdeck-pins-pty-') as temporary:
+            with self.subTest(width=width, height=height), tempfile.TemporaryDirectory(prefix='wros-pins-pty-') as temporary:
                 project, home, source, primary = fixture(Path(temporary))
                 original_source, original_primary = source.read_bytes(), primary.read_bytes()
                 path = project / '.grimoire/writingdeck/pins.json'
@@ -117,7 +117,7 @@ class PinsPTY(unittest.TestCase):
                     restarted.close()
 
     def test_corrupt_metadata_is_reported_and_never_reset_by_actual_picker(self):
-        with tempfile.TemporaryDirectory(prefix='writingdeck-pins-bad-pty-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='wros-pins-bad-pty-') as temporary:
             project, home, source, primary = fixture(Path(temporary))
             original_source, original_primary = source.read_bytes(), primary.read_bytes()
             path = project / '.grimoire/writingdeck/pins.json'

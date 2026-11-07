@@ -75,7 +75,7 @@ class ChecksPTY(unittest.TestCase):
                     self.assertFalse((home/PERSONAL).exists())
                     self.assertEqual(primary.read_bytes(), before)
                     self.assertEqual(records(project), [], 'analysis is not authored input/activity')
-                    if os.environ.get('WRITINGDECK_CAPTURE_PTY') == '1':
+                    if os.environ.get('WROS_CAPTURE_PTY') == '1':
                         (ROOT/'docs/evidence'/f'checks-pty-{width}x{height}.txt').write_text(terminal.screen.text+'\n')
                     terminal.send(b'a\x13')
                     changed = before.replace(b'a apple', b'an apple', 1)

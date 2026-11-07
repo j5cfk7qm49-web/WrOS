@@ -17,14 +17,14 @@ linear ramp. Repeated adjustments always start from that original calibration.
 
 ## Service and security boundary
 
-Grimoire uses its existing bounded worker and typed `writingdeck-sys` requests.
+Grimoire uses its existing bounded worker and typed `wros-sys` requests.
 The render/input thread does no device, process or password work. Shared Settings
 retains both editors, selection, caret, scroll, focus and undo history. A late
 preview reply is cancelled without reopening Settings.
 
 The narrow root-owned `/usr/libexec/wros-display` endpoint accepts only status,
 bounded preview choices and token-bound Keep/Cancel. The `org.wros.display`
-polkit rule permits active local members of the existing `writingdeck` group;
+polkit rule permits active local members of the existing `wros` group;
 it grants no shell, command, path or device access. Other callers are denied.
 `pkexec --disable-internal-agent` prevents a competing terminal password reader
 ([upstream authentication-agent documentation](https://www.freedesktop.org/software/polkit/docs/latest/pkexec.1.html)).
