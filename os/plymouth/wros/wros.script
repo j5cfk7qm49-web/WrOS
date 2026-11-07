@@ -1,0 +1,84 @@
+# WrOS boot screen (#89): the logo, a loading bar under it, and in the bar's place
+# the disk password prompt when the disk asks. The words are pictures
+# (tools/make-bootscreen.py): Plymouth draws text only with a plugin the boot
+# image may not have. Esc shows the boot messages, as with every Plymouth theme.
+
+Window.SetBackgroundTopColor(0, 0, 0);
+Window.SetBackgroundBottomColor(0, 0, 0);
+
+centre_x = Window.GetX() + Window.GetWidth() / 2;
+centre_y = Window.GetY() + Window.GetHeight() / 2;
+
+logo.image = Image("logo.png");
+logo.sprite = Sprite(logo.image);
+logo.y = centre_y - logo.image.GetHeight();
+logo.sprite.SetPosition(centre_x - logo.image.GetWidth() / 2, logo.y, 1);
+
+below = logo.y + logo.image.GetHeight() + 40;
+
+box.image = Image("box.png");
+box.sprite = Sprite(box.image);
+box.x = centre_x - box.image.GetWidth() / 2;
+box.sprite.SetPosition(box.x, below, 1);
+
+bar.image = Image("bar.png");
+bar.sprite = Sprite();
+bar.sprite.SetPosition(box.x + 2, below + 2, 2);
+bar.shown = 0;
+
+fun progress_callback(duration, progress) {
+    width = Math.Int((box.image.GetWidth() - 4) * progress);
+    if (width < 1) width = 1;
+    if (width != bar.shown) {
+        bar.sprite.SetImage(bar.image.Scale(width, box.image.GetHeight() - 4));
+        bar.shown = width;
+    }
+}
+Plymouth.SetBootProgressFunction(progress_callback);
+
+prompt.image = Image("prompt.png");
+prompt.sprite = Sprite(prompt.image);
+prompt.sprite.SetPosition(centre_x - prompt.image.GetWidth() / 2, below, 3);
+prompt.sprite.SetOpacity(0);
+bullet.image = Image("bullet.png");
+bullets_shown = 0;
+
+fun hide_bullets() {
+    for (i = 0; i < bullets_shown; i++)
+        bullets[i].SetOpacity(0);
+}
+
+fun show_loading(on) {
+    box.sprite.SetOpacity(on);
+    bar.sprite.SetOpacity(on);
+    prompt.sprite.SetOpacity(1 - on);
+}
+
+# The disk asks for its password: the prompt, then a dot for each key typed.
+fun display_password_callback(text, count) {
+    show_loading(0);
+    hide_bullets();
+    step = bullet.image.GetWidth() + 6;
+    shown = Math.Min(count, 32);
+    left = centre_x - (shown * step) / 2;
+    for (i = 0; i < shown; i++) {
+        if (!bullets[i])
+            bullets[i] = Sprite(bullet.image);
+        bullets[i].SetPosition(left + i * step, below + prompt.image.GetHeight() + 20, 3);
+        bullets[i].SetOpacity(1);
+    }
+    bullets_shown = Math.Max(bullets_shown, shown);
+}
+Plymouth.SetDisplayPasswordFunction(display_password_callback);
+
+fun display_normal_callback() {
+    hide_bullets();
+    show_loading(1);
+}
+Plymouth.SetDisplayNormalFunction(display_normal_callback);
+
+fun quit_callback() {
+    hide_bullets();
+    prompt.sprite.SetOpacity(0);
+}
+Plymouth.SetQuitFunction(quit_callback);

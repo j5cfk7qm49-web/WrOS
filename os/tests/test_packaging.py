@@ -55,7 +55,7 @@ PSEUDO_ROOT = pseudo_root_prefix()
 def copy_repo(destination):
     """The subset of the checkout the packaging path reads, as an editable copy."""
     destination = Path(destination)
-    for relative in ('packaging', 'os/config', 'os/systemd', 'os/grub', 'os/scripts', 'os/helpers', 'os/licenses',
+    for relative in ('packaging', 'os/config', 'os/systemd', 'os/grub', 'os/plymouth', 'os/scripts', 'os/helpers', 'os/licenses',
                      'tools/build-wros-debs.py', 'tools/stage-prose-runtime.py', 'tools/prepare-prose-tools.py',
                      'tools/audit-native-image.py',
                      'assets/dict/DICTIONARY-LICENSE', 'LICENSE', 'os/VERSION'):
@@ -303,6 +303,18 @@ class Builder(unittest.TestCase):
             installed.symlink_to('/usr/bin/true')
             run('sh', str(control / 'postinst'), 'configure', env=env)
             self.assertEqual(os.readlink(installed), '/usr/bin/true')
+
+    def test_the_boot_screen_is_packaged_and_set_only_where_plymouth_is_installed(self):
+        listing = run('dpkg-deb', '-c', str(self.deb)).stdout
+        for name in ('wros.plymouth', 'wros.script', 'logo.png', 'box.png', 'bar.png', 'prompt.png', 'bullet.png'):
+            self.assertIn('./usr/share/plymouth/themes/wros/' + name, listing)
+        control = self.base / 'control-bootscreen'
+        run('dpkg-deb', '-e', str(self.deb), str(control))
+        postinst = (control / 'postinst').read_text()
+        self.assertIn('if [ -z "$root" ] && [ -x "$set_theme" ] && [ -f "$theme" ]', postinst)
+        # Under DPKG_ROOT (image staging) nothing tries to set a theme.
+        with tempfile.TemporaryDirectory(prefix='wros-bootscreen-') as tmp:
+            run('sh', str(control / 'postinst'), 'configure', env=dict(ENV, DPKG_ROOT=tmp))
 
     def test_googles_client_is_packaged_only_when_the_build_is_given_it(self):
         listing = run('dpkg-deb', '-c', str(self.deb)).stdout

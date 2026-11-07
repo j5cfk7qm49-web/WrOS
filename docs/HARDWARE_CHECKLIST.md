@@ -36,18 +36,13 @@ lags behind your typing; moving around feels no slower than on AC.
 7. Settings › System › Battery and power › **When the lid closes**: set it to
    *lock, stay awake* and close the lid; then *do nothing* and close the lid.
    Set it back to *lock and sleep*.
-8. On battery, let the charge run down while writing. Note what the status bar
-   says at 20%, at 10% and at 8%. At 8%, wait for the countdown, unlock after
-   the sleep and read the message. Once, plug in during the countdown.
 
 **Pass when:** each close saves first (the sentence is there after unlock),
 the screen after waking is the lock, never the book or the login screen; the
 Colemak password works at the lock; a wrong password is refused; after step 5
 the laptop stayed awake and locked; in step 6 every close locks; in step 7 the
 first close locks without sleeping and the second leaves the book open. Nothing
-you typed at the lock shows up in the book. In step 8 each warning appears once and
-names what happens at 8%; the countdown ends at the lock, never the login screen;
-plugging in says "Charging" and stops it.
+you typed at the lock shows up in the book.
 
 ## 3. Wi-Fi after sleep, and over a day
 
@@ -73,14 +68,17 @@ all shows the laptop kept its registered address.
 
 ## 5. Low battery
 
-1. Unplug the charger with a disposable book open and leave the laptop running
-   (keep the lid open, screen on) until the battery is nearly empty.
-2. WrOS saves and suspends on its own when the battery reports critical or
-   drops to 8 % while discharging.
-3. Plug in, wake it, unlock.
+1. Unplug the charger with a disposable book open and keep writing now and
+   then (lid open, screen on) until the battery is nearly empty. Note what the
+   bottom bar says at 20 %, at 10 % and at 8 %.
+2. At 8 % WrOS saves at once and counts down 30 seconds before it locks and
+   sleeps. Once, plug in during the countdown, then unplug again.
+3. After it sleeps, plug in, wake it, unlock.
 
-**Pass when:** it suspended before the battery died, the last words you typed
-before it suspended are in the book, and it woke to the lock.
+**Pass when:** each warning shows once and says what happens at 8 %; plugging in
+says "Charging" and stops the countdown; it suspended before the battery died,
+never went to the login screen, the last words you typed are in the book, and
+the unlock message says the battery made it sleep.
 
 ## 6. Shutdown and restart during a backup
 
@@ -118,6 +116,23 @@ Right after a release candidate installs on the laptop:
 
 **Pass when:** the page shows the volume, each choice changes it, and mute
 silences the speakers.
+
+## 10. Boot screen
+
+Needs Plymouth, which WrOS doesn't install: on the network, run
+`sudo apt-get install --no-install-recommends plymouth`, then
+`sudo plymouth-set-default-theme -R wros` (or wait for the next WrOS update,
+which sets it), then `sudo update-grub`.
+
+1. Restart. Watch from the boot menu to the login screen.
+2. At the disk password, type it in Colemak and press Enter. Once, type it
+   wrong first.
+3. Restart and press Esc while the logo shows.
+
+**Pass when:** only the WrOS logo and the loading bar show; the password prompt
+shows under the logo with one dot per key; the Colemak password unlocks and a
+wrong one asks again; Esc shows the boot messages. If the Colemak password is
+refused there, press Esc and type it at the text prompt, then report it.
 
 ## Collecting the log
 

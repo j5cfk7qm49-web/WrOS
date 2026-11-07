@@ -66,6 +66,7 @@
     {"dest": "etc/polkit-1/rules.d/50-wros-display.rules", "source": "os/config/50-wros-display.rules", "mode": "0644", "class": "config"},
     {"dest": "etc/apt/sources.list.d/wros.sources", "source": "os/config/apt/wros.sources", "mode": "0644", "class": "config"},
     {"dest": "usr/share/wros/foot.ini", "source": "os/config/foot.ini", "mode": "0644", "class": "config"},
+    {"tree": "os/plymouth/wros", "dest_dir": "usr/share/plymouth/themes/wros", "class": "config"},
     {"dest": "usr/share/wros/update-keyring.gpg", "source": "os/config/update-trust/wros-archive-keyring.gpg", "mode": "0644", "class": "config"},
     {"dest": "usr/lib/udev/rules.d/90-wros-backlight.rules", "source": "os/config/90-wros-backlight.rules", "mode": "0644", "class": "config"},
     {"dest": "usr/share/polkit-1/actions/org.wros.display.policy", "source": "os/config/org.wros.display.policy", "mode": "0644", "class": "config"},

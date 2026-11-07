@@ -265,6 +265,17 @@ def postinst(manifest, stage):
               '        rm -f "$greeter.wros-new"; echo "wros: could not update the login screen" >&2',
               '    fi',
               'fi',
+              # The boot screen, where Plymouth is installed (WrOS does not install it). Set once:
+              # rebuilding the boot image takes a while on the laptop.
+              'theme=/usr/share/plymouth/themes/wros/wros.plymouth',
+              'set_theme=/usr/sbin/plymouth-set-default-theme',
+              'if [ -z "$root" ] && [ -x "$set_theme" ] && [ -f "$theme" ] && [ "$("$set_theme" 2>/dev/null)" != wros ]; then',
+              '    if /usr/sbin/plymouth-set-default-theme wros; then',
+              '        /usr/sbin/update-initramfs -u >/dev/null 2>&1 || echo "wros: the boot screen shows after the next boot image update" >&2',
+              '    else',
+              '        echo "wros: could not set the boot screen; boot is unchanged" >&2',
+              '    fi',
+              'fi',
               'if [ -z "$root" ] && [ -x /usr/sbin/update-grub ] && [ -e /boot/grub/grub.cfg ]; then',
               '    /usr/sbin/update-grub >/dev/null 2>&1 || echo "wros: update-grub failed; the boot menu is unchanged" >&2',
               'fi',

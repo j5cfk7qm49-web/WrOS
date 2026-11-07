@@ -3,6 +3,7 @@ grub-mkconfig_lib and checked by grub-script-check. Only a fake /boot in a tempo
 directory is used; no device is probed and no configuration is written."""
 from pathlib import Path
 import shutil
+import os
 import subprocess
 import tempfile
 import unittest
@@ -105,15 +106,19 @@ class GrubRecovery(unittest.TestCase):
     def test_normal_boots_keep_kernel_errors_off_the_screen_from_the_first_second(self):
         # Seen on the laptop: ACPI firmware errors print before /etc/sysctl.d quiets the
         # console. Debian's /etc/default/grub sets "quiet"; update-grub then reads 60-wros.cfg.
-        def cmdline(default):
+        def cmdline(default, plymouthd='/nonexistent/plymouthd'):
             done = subprocess.run(['sh', '-c', f'GRUB_CMDLINE_LINUX_DEFAULT="{default}"; '
                                    f'. "{ROOT}/os/grub/60-wros.cfg"; . "{ROOT}/os/grub/60-wros.cfg"; '
                                    'printf %s "$GRUB_CMDLINE_LINUX_DEFAULT"'],
-                                  capture_output=True, text=True, check=True)
+                                  capture_output=True, text=True, check=True,
+                                  env=dict(os.environ, WROS_PLYMOUTHD=plymouthd))
             return done.stdout
         self.assertEqual(cmdline('quiet'), 'quiet loglevel=3')
         self.assertEqual(cmdline('quiet loglevel=3'), 'quiet loglevel=3')
         self.assertEqual(cmdline(''), 'loglevel=3')
+        # The boot screen (#89) only where Plymouth is installed, and never twice.
+        self.assertEqual(cmdline('quiet', '/bin/sh'), 'quiet loglevel=3 splash')
+        self.assertEqual(cmdline('quiet nosplash', '/bin/sh'), 'quiet nosplash loglevel=3')
         # The recovery entry uses GRUB_CMDLINE_LINUX only, so its messages stay visible.
         self.kernel('6.12.0-1-amd64')
         entry = self.generate('42_wros_recovery', GRUB_CMDLINE_LINUX_DEFAULT='quiet loglevel=3')
