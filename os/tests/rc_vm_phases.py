@@ -2444,10 +2444,117 @@ def phase_autoback(ctx):
     ctx.result['passed'] = True
 
 
+# The Ratatui start screen (docs/RATATUI_BOOT.md).
+RATATUI_PROMPT = r'Type your disk password'
+LOGO_TOP = ('+----------------+----------------+', '+--------+--------+')
+
+
+def ratatui_unlock(ctx, m, secrets_, layout, *, wrong_first=False, after_reset=None, name='ratatui'):
+    """Unlock at the Ratatui disk password screen; optionally a QWERTY-typed (wrong) password first."""
+    if after_reset is not None:
+        deadline = time.monotonic() + 120
+        while m.qmp.count('RESET') < after_reset and time.monotonic() < deadline:
+            time.sleep(0.5)
+        time.sleep(3)
+    text = m.wait_screen(RATATUI_PROMPT, 420, name=name + '-wait')
+    m.shot(name + '-prompt')
+    ctx.result[name + '_screen'] = text
+    ctx.check(name + ': the Ratatui screen shows the logo', any(top in text for top in LOGO_TOP), text[-1500:])
+    ctx.check(name + ': Debian\'s prompt is not on screen', 'Please unlock disk' not in text)
+    time.sleep(2)
+    if wrong_first:
+        m.type_text(secrets_['luks'] + '\n', 'us' if layout != 'us' else layout)
+        text = m.wait_screen(r"didn.t unlock the disk.*Try 2 of 3", 120, name=name + '-wrong')
+        m.shot(name + '-wrong')
+        ctx.check(name + ': a wrong password is refused and counted', True, text[-600:])
+        ctx.check(name + ': the typed password is not shown', secrets_['luks'] not in text)
+        time.sleep(2)
+    m.type_text(secrets_['luks'] + '\n', layout)
+    ctx.step(name + '-typed', layout=layout)
+
+
+def signed_in_again(ctx, m, st, secrets_):
+    """After an unlock: the serial root shell, and the login screen on the console."""
+    g = Guest(ctx, m, root_via_sudo=False)
+    g.shell.login(st['username'], secrets_['login'], 600)
+    g.become_root(secrets_['login'])
+    g.wait_vcs(1, r'Local account', 240, what='greeter-after-unlock')
+    return g
+
+
+def reboot(ctx, g, m, what):
+    resets = m.qmp.count('RESET')
+    g.run('(sleep 1; systemctl reboot) >/dev/null 2>&1 & echo reboot-requested')
+    return wait_reset(ctx, m, resets, 180, what)
+
+
+def boot_image(g):
+    """What the current boot image holds of the start screen."""
+    return g.run('lsinitramfs /boot/initrd.img-$(uname -r) | grep -E "wros-boot$|cryptsetup/askpass" | sort', 120)
+
+
+def phase_bootscreen(ctx):
+    st = load_state(ctx.args.install_run)
+    secrets_ = json.loads(Path(st['secrets']).read_text())
+    layout = st['layout']
+    overlay = ctx.dir / 'disk.qcow2'
+    vm.create_overlay(ctx.args.base_disk, overlay, base_format='qcow2')
+    m = boot_installed(ctx, st, 'bootscreen', disk=overlay, fmt='qcow2', reboot=True)
+
+    # 1. The switch is off by default: Debian's own prompt, and a boot image without the start screen.
+    g = session_ready(ctx, m, st, secrets_, layout, greeter=False)
+    ctx.check('switch off: the boot image has no start screen', 'wros-boot' not in boot_image(g))
+    ctx.check('wros-boot is installed', g.run('test -x /usr/lib/wros/wros-boot && echo yes').strip() == 'yes')
+
+    # 2. Switch on: the boot image takes wros-boot and the wrapper, and keeps Debian's prompt.
+    g.run('echo ratatui > /etc/wros/boot-screen && update-initramfs -u', 900)
+    image = boot_image(g)
+    ctx.result['boot_image_on'] = image
+    ctx.check('switch on: the boot image has wros-boot, the wrapper and Debian\'s prompt',
+              'usr/lib/wros/wros-boot' in image and 'askpass.debian' in image, image)
+
+    # 3. The Ratatui screen: a wrong password, then the right one, then the login screen.
+    resets = reboot(ctx, g, m, 'reboot-ratatui')
+    ratatui_unlock(ctx, m, secrets_, layout, wrong_first=True, after_reset=resets, name='ratatui')
+    g = signed_in_again(ctx, m, st, secrets_)
+    m.shot('login-after-ratatui')
+    ctx.check('the Ratatui unlock opens the disk and reaches the login screen', True)
+
+    # 4. Esc: Debian's text prompt, which unlocks.
+    resets = reboot(ctx, g, m, 'reboot-esc')
+    m.wait_screen(RATATUI_PROMPT, 420, name='esc-wait')
+    time.sleep(2)
+    m.key('esc')
+    unlock(ctx, m, secrets_, layout, wrong_first=False)
+    m.shot('after-esc-unlock')
+    g = signed_in_again(ctx, m, st, secrets_)
+    ctx.check('Esc goes to Debian\'s prompt, which unlocks', True)
+
+    # 5. A start screen that fails at once (here /usr/bin/false): Debian's prompt unlocks.
+    g.run('cp -p /usr/lib/wros/wros-boot /root/wros-boot.good && cp /usr/bin/false /usr/lib/wros/wros-boot '
+          '&& update-initramfs -u', 900)
+    resets = reboot(ctx, g, m, 'reboot-failing')
+    unlock(ctx, m, secrets_, layout, wrong_first=False, after_reset=resets)
+    m.shot('after-failing-start-screen')
+    g = signed_in_again(ctx, m, st, secrets_)
+    ctx.check('a failing start screen falls back to Debian\'s prompt, which unlocks', True)
+    g.run('cp -p /root/wros-boot.good /usr/lib/wros/wros-boot', 60)
+
+    # 6. Switch off again: the boot image is Debian's.
+    g.run('rm -f /etc/wros/boot-screen && update-initramfs -u', 900)
+    ctx.check('switch off again: the boot image has no start screen', 'wros-boot' not in boot_image(g))
+    resets = reboot(ctx, g, m, 'reboot-off')
+    unlock(ctx, m, secrets_, layout, wrong_first=False, after_reset=resets)
+    signed_in_again(ctx, m, st, secrets_)
+    ctx.check('switch off: Debian\'s prompt unlocks as before', True)
+    ctx.result['passed'] = True
+
+
 PHASES = {'firmware': phase_firmware, 'live': phase_live, 'install': phase_install,
           'install-failure': phase_install, 'installed-boot': phase_installed_boot,
           'update': phase_update, 'rescue': phase_rescue, 'peek': phase_peek, 'audit': phase_audit,
-          'rc5': phase_rc5, 'lock': phase_lock, 'goback': phase_goback, 'autoback': phase_autoback}
+          'rc5': phase_rc5, 'lock': phase_lock, 'goback': phase_goback, 'autoback': phase_autoback,
+          'bootscreen': phase_bootscreen}
 
 
 def main():
