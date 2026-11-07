@@ -185,7 +185,9 @@ class ProgressScreen(unittest.TestCase):
         # Seen in the VM (vm4): Conflicts=greetd.service let systemd drop the login screen's start
         # job at boot, and tty1 never showed the login.
         self.assertEqual(self.words('Conflicts'), ['shutdown.target'])
-        self.assertEqual(self.words('Before'), ['greetd.service', 'shutdown.target'])
+        # Seen in the VM too: ordered Before=greetd.service, the stop in greetd's ExecStartPre
+        # was refused and the progress screen outlived the login's start.
+        self.assertEqual(self.words('Before'), ['shutdown.target'])
         greetd = (ROOT / 'os/config/greetd.service').read_text()
         self.assertIn('ExecStartPre=-/usr/bin/systemctl stop wros-boot-splash.service', greetd)
         self.assertNotIn('wros-boot-splash', greetd.split('[Service]')[0])

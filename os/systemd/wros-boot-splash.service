@@ -5,8 +5,9 @@ DefaultDependencies=no
 After=systemd-vconsole-setup.service console-setup.service
 # The login screen stops this just before it takes tty1 (ExecStartPre in greetd.service).
 # No Conflicts= with it: both start in the same boot transaction, and systemd would drop
-# one of two conflicting jobs, which could be the login screen.
-Before=greetd.service shutdown.target
+# one of two conflicting jobs, which could be the login screen. And no Before= either:
+# a stop ordered against greetd's own start can't run from greetd's ExecStartPre.
+Before=shutdown.target
 Conflicts=shutdown.target
 # Only while the start screen is switched on, and never on a plain text start
 # (the WrOS recovery entry passes wros.unlock=text, so its messages stay visible).
