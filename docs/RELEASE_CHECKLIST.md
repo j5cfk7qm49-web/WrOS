@@ -31,17 +31,10 @@ isolation. The QEMU feature phase tests the installed locker and PAM.
 
 ## HP Stream hardware checks
 
-- Type in a disposable book for a normal session and check for lag, lost
-  characters, or slower navigation on battery power.
-- Close and reopen the lid during writing. Confirm that the text is saved and
-  the machine wakes to the lock. Check resume on battery and on AC power.
-- Run on battery in a disposable session until the reserve triggers. Confirm
-  the latest words survived and the machine wakes to the lock.
-- Use Wi-Fi for a day with normal lid cycles. Check that it reconnects and the
-  journal has no new Realtek power-save failures.
-- At school, scan and join from Settings. Confirm that the connection keeps
-  the laptop's registered hardware address.
-- Open the recovery menu at boot and check that it returns to the login screen.
+Run [HARDWARE_CHECKLIST](HARDWARE_CHECKLIST.md) on the laptop: typing speed,
+lid, lock and sleep, Wi-Fi after sleep and over a day, the school network, low
+battery, shutdown during a backup, the recovery boot, and what an update must
+carry over. Record the results in its table.
 
 ## Verify a live update after publication
 
