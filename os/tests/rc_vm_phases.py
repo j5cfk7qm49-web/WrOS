@@ -2464,7 +2464,8 @@ def ratatui_unlock(ctx, m, secrets_, layout, *, wrong_first=False, after_reset=N
     time.sleep(2)
     if wrong_first:
         m.type_text(secrets_['luks'] + '\n', 'us' if layout != 'us' else layout)
-        text = m.wait_screen(r"didn.t unlock the disk.*Try 2 of 3", 120, name=name + '-wrong')
+        # The OCR can read the f of "of" as [.
+        text = m.wait_screen(r"didn.t unlock the disk.*Try 2 o. 3", 120, name=name + '-wrong')
         m.shot(name + '-wrong')
         ctx.check(name + ': a wrong password is refused and counted', True, text[-600:])
         ctx.check(name + ': the typed password is not shown', secrets_['luks'] not in text)
