@@ -2494,6 +2494,7 @@ def signed_in_again(ctx, m, st, secrets_):
     g = Guest(ctx, m, root_via_sudo=False)
     g.shell.login(st['username'], secrets_['login'], 600)
     g.become_root(secrets_['login'])
+    g.shell.put('/tmp/rcg.py', GUEST.read_bytes(), '0644')
     g.wait_vcs(1, r'Local account', 240, what='greeter-after-unlock')
     return g
 
