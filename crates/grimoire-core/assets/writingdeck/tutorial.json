@@ -246,31 +246,31 @@
   },
   {
     "id": 36,
-    "title": "Google Drive backup",
+    "title": "Backing up and a test restore",
     "help_topic": "sync",
-    "event": null,
-    "instructions": "Authorize explicitly, verify a versioned off-device backup and perform a test restore. Credentials are required; planned."
+    "event": "BackupRestored",
+    "instructions": "Open Settings › Accounts › Backups. Back up this book; WrOS checks each backup after it makes it, and later backs up on its own after you save and pause. Then pick a backup and restore it. It goes into a new folder beside your book, so nothing you have is replaced. Restore with settings also brings back the settings saved in that backup, after keeping your current ones. A finished restore completes this lesson. Backups to Google Drive need Drive linked first (lesson 41)."
   },
   {
     "id": 37,
-    "title": "Mobile access",
+    "title": "Reading your book on your phone",
     "help_topic": "sync",
-    "event": null,
-    "instructions": "Turn on readable Google Drive sync for a book in Settings › Backups, then edit its Markdown files from Drive on a phone. Edits come back to WrOS; a paragraph changed on both sides waits for you to merge it. Converting to Google Docs is not a safe round trip."
+    "event": "SyncCompleted",
+    "instructions": "Open Settings › Accounts › Synchronization and turn on sync for this book. WrOS keeps a plain copy of its scenes in your Google Drive, so the Drive app on your phone can open them. Edits you make there come back to WrOS; a paragraph changed in both places waits for you to merge it. Converting a scene to a Google Doc is not a safe round trip. A finished sync completes this lesson."
   },
   {
     "id": 38,
     "title": "Wi-Fi and system settings",
     "help_topic": "writingdeck",
     "event": "SystemOpened",
-    "instructions": "Open actual System settings. Read the cached NetworkManager, battery and brightness status. Missing services are unavailable, not simulated hardware success."
+    "instructions": "Open Settings › System. Wi-Fi, battery, brightness, storage and updates each have a page here. A service this computer lacks says so; it never pretends to work."
   },
   {
     "id": 39,
     "title": "Recovery and troubleshooting",
     "help_topic": "history",
     "event": "RecoveryHelpOpened",
-    "instructions": "Open the offline History and recovery manual. Learn Ctrl+Alt+F2 for an authenticated maintenance console and the difference between autosave, recovery and backup. Destructive crash exercises are not run on your manuscript."
+    "instructions": "Open the offline History and recovery manual. It explains autosave, recovery and backups, and Ctrl+Alt+F2 for a maintenance console. If WrOS ever fails to start, press Esc while it starts: the recovery menu can show what happened, go back a version, or continue to the normal login. Nothing in this lesson touches your manuscript."
   },
   {
     "id": 40,
@@ -278,5 +278,40 @@
     "help_topic": "writing-checks",
     "event": "GrammarApplied",
     "instructions": "Use this safe demo only. In its manuscript, type a deliberate article mistake such as I have a apple. Open Writing checks from the palette. Read the bundled-model disclosure; permission is optional, and declining leaves editing and spelling available. To perform this exercise, explicitly permit a single local check, wait for the AnA Grammar finding, inspect its original-source location, then press a to apply that exact current suggestion. Merely opening, consenting, navigating, ignoring or enabling live work is insufficient. A genuine grammar replacement in the original demo manuscript completes this additional lesson; Undo remains available. No preset text or consent is inserted by the lesson. You may skip it without penalty."
+  },
+  {
+    "id": 41,
+    "title": "Linking Google Drive with your phone",
+    "help_topic": "sync",
+    "event": "PhoneLinked",
+    "instructions": "Open Settings › Accounts › Google account and choose Link Google Drive with your phone (or Relink). Scan the code with your phone's camera, sign in to Google and approve. If the phone asks, tap Finish linking. No second computer is needed. Linking finishes this lesson; you can relink at any time, and your book is not touched."
+  },
+  {
+    "id": 42,
+    "title": "Warm screen",
+    "help_topic": "writingdeck",
+    "event": "WarmthKept",
+    "instructions": "Open Settings › System › Display › Warm screen. Change the temperature or strength and preview it. The preview turns itself off after 15 seconds unless you choose Keep these display settings. Keeping a setting completes this lesson; it stays on after a restart."
+  },
+  {
+    "id": 43,
+    "title": "Going back a version",
+    "help_topic": "writingdeck",
+    "event": "GoBackReviewed",
+    "instructions": "Open Settings › System › Updates and choose Go back to the version listed there. WrOS keeps the version it installed before this one. The next screen offers it: going back installs at the next restart, and you can cancel until then. Stay on this version leaves everything as it is. Seeing that screen with a kept version completes this lesson. If an update ever fails to start twice, WrOS goes back on its own."
+  },
+  {
+    "id": 44,
+    "title": "Finding Wi-Fi networks",
+    "help_topic": "writingdeck",
+    "event": "WifiScanned",
+    "instructions": "Open Settings › System › Wi-Fi and networking and choose Scan Wi-Fi networks. Pick a network to join it. If the scan fails, the page says what to check. A finished scan completes this lesson."
+  },
+  {
+    "id": 45,
+    "title": "Locking and sleep",
+    "help_topic": "writingdeck",
+    "event": "SessionUnlocked",
+    "instructions": "Open Settings › System › Battery and power and choose Lock writing session. WrOS saves first, then asks for your password; what you type there never reaches the book. Unlock to finish this lesson. Lock and suspend does the same and sleeps, and closing the lid while writing saves, locks and sleeps too."
   }
 ]

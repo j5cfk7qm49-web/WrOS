@@ -1799,6 +1799,54 @@ impl App {
             _ => {}
         }
     }
+    /// Open a Settings page and do what choosing it does: fetch the status it shows.
+    pub(crate) fn open_route(&mut self, route: Route) {
+        self.deck.shell.nav.open(route);
+        if route == Route::GoogleDisconnectConfirm {
+            self.deck.shell.nav.select(0, 4);
+        }
+        if matches!(route, Route::Backups | Route::GoogleAccount) {
+            self.deck
+                .shell
+                .backup
+                .request(crate::backup_service::Request::Status);
+        }
+        let availability = match route {
+            Route::GoogleDrive => Some("Drive browsing is not configured."),
+            Route::SyncPanel => None,
+            _ => None,
+        };
+        if let Some(message) = availability {
+            self.deck.note = message.into();
+            self.deck.shell.notices.push(message);
+        }
+        if route == Route::WarmScreen && !self.deck.busy {
+            self.deck.request(wros_sys::Request::DisplayStatus);
+        }
+        if matches!(route, Route::Panel(Panel::Updates | Panel::Recovery)) {
+            // These panels show what the update helper reports,
+            // never a cached guess.
+            if !self.deck.busy {
+                self.refresh_recovery();
+            }
+        } else if matches!(route, Route::Panel(_))
+            && self.deck.snapshot.is_none()
+            && !self.deck.busy
+        {
+            self.deck.request(wros_sys::Request::Refresh);
+        }
+    }
+    /// Settings, already on the page at the end of `path` (the pages before it are
+    /// what Esc returns through).
+    pub(crate) fn open_settings_at(&mut self, path: &[Route]) {
+        self.open_settings();
+        if let Some((last, parents)) = path.split_last() {
+            for route in parents {
+                self.deck.shell.nav.open(*route);
+            }
+            self.open_route(*last);
+        }
+    }
     pub fn open_settings(&mut self) {
         let origin = match self.overlay {
             Overlay::Menu { .. } | Overlay::Deck(wros::Page::Home { .. }) => self.overlay.clone(),
@@ -2136,42 +2184,7 @@ impl App {
                         self.deck.shell.nav.open(Route::KeyboardWizard);
                     }
                     Choice::KeyboardWizardOpen => {}
-                    Choice::Open(route) => {
-                        self.deck.shell.nav.open(route);
-                        if route == Route::GoogleDisconnectConfirm {
-                            self.deck.shell.nav.select(0, 4);
-                        }
-                        if matches!(route, Route::Backups | Route::GoogleAccount) {
-                            self.deck
-                                .shell
-                                .backup
-                                .request(crate::backup_service::Request::Status);
-                        }
-                        let availability = match route {
-                            Route::GoogleDrive => Some("Drive browsing is not configured."),
-                            Route::SyncPanel => None,
-                            _ => None,
-                        };
-                        if let Some(message) = availability {
-                            self.deck.note = message.into();
-                            self.deck.shell.notices.push(message);
-                        }
-                        if route == Route::WarmScreen && !self.deck.busy {
-                            self.deck.request(wros_sys::Request::DisplayStatus);
-                        }
-                        if matches!(route, Route::Panel(Panel::Updates | Panel::Recovery)) {
-                            // These panels show what the update helper reports,
-                            // never a cached guess.
-                            if !self.deck.busy {
-                                self.refresh_recovery();
-                            }
-                        } else if matches!(route, Route::Panel(_))
-                            && self.deck.snapshot.is_none()
-                            && !self.deck.busy
-                        {
-                            self.deck.request(wros_sys::Request::Refresh);
-                        }
-                    }
+                    Choice::Open(route) => self.open_route(route),
                     Choice::View(route, request) if !self.deck.busy => {
                         self.deck.shell.nav.open(route);
                         self.clear_system_view(&request);

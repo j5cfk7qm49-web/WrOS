@@ -2,7 +2,9 @@
 
 ## Current implementation
 
-The compiled catalog at `crates/grimoire-core/assets/writingdeck/tutorial.json` retains **all 39 requested lesson IDs plus supplemental grammar lesson 40**. Thirty-seven have application-event hooks; three remain explicitly unavailable (3, 36 and 37). M7b adds real dictionary, prose and voice-review events. Full tutorial completion remains tracked separately in issue #11.
+The compiled catalog at `crates/grimoire-core/assets/writingdeck/tutorial.json` retains **all 39 requested lesson IDs, supplemental grammar lesson 40, and lessons 41–45 for the system features added in rc4–rc7**. Every lesson now completes on a real event; none is planned-only. M7b adds real dictionary, prose and voice-review events; rc8 adds backup restore, sync, phone linking, warm screen, going back, Wi-Fi and lock events. Issue #11 tracks what is left.
+
+Progress keeps lesson IDs this catalog does not have (a newer WrOS wrote them), so going back a version and forward again loses nothing. They are never counted, started, completed or awarded here. ID 0 is still refused.
 
 Open F12 → Interactive tutorial, or use the menu/command palette. Arrow keys select a lesson; Enter shows its instructions and then starts the real feature; `h` opens linked searchable offline help; `s` skips; Escape returns. Completed lessons can be replayed. Progress is schema-versioned, atomically guarded and stored with the project. There is no fake Next/Done button.
 
@@ -56,11 +58,16 @@ The demo contains original short text and a deliberate spelling error. Nothing i
 | 33 | Draft comparisons | Wired history view and durable milestone/variant workflow; creating a real snapshot or opening its comparison observes the existing event; optional guarded passage restore is explained without changing historic credit |
 | 34 | Footnotes | Wired: actual Word manuscript with page notes followed by successful matching nonempty PDF in the safe demo; viewing, Word alone, starting conversion and failures cannot complete it |
 | 35 | Export | Wired: real nonempty Markdown export in safe demo; canceled, failed and ordinary-novel attempts cannot complete the lesson; manuscript PDF/DOCX notes use the separate lesson 34 event |
-| 36 | Google Drive backup | Planned; live credentials required for provider acceptance |
-| 37 | Mobile access | Planned |
+| 36 | Backing up and a test restore | Wired: a restore that finished, into a new folder (with or without the backup's settings); a failed restore, a backup alone or opening Backups is insufficient |
+| 37 | Reading your book on your phone | Wired: a sync run that reported `synced`; a sync stopped for deletions (`confirm`) or `offline` is insufficient |
 | 38 | Wi-Fi/system settings | Wired: actual settings screen; hardware changes separately verified |
-| 39 | Recovery/troubleshooting | Wired: actual offline recovery manual; not a destructive crash simulation |
+| 39 | Recovery/troubleshooting | Wired: actual offline recovery manual, which now also explains the Esc recovery menu at boot; not a destructive crash simulation |
 | 40 | Optional local grammar: guarded review (supplemental) | Wired: explicit model permission, real completed grammar finding and actual current original-demo manuscript replacement; opening/navigation alone insufficient |
+| 41 | Linking Google Drive with your phone | Wired: phone linking finished with Drive connected; a helper reply without a connection is insufficient |
+| 42 | Warm screen | Wired: a previewed warmth the writer chose to keep; a cancelled or timed-out preview is insufficient |
+| 43 | Going back a version | Wired: the Go back screen reached with a kept previous version; nothing is staged, and staying is the default row |
+| 44 | Finding Wi-Fi networks | Wired: a finished Wi-Fi scan; opening the page is insufficient |
+| 45 | Locking and sleep | Wired: the console lock handed the session back after the password; the lock never reads the book's keyboard input |
 
 Lesson 35 requires a real, nonempty Markdown artifact under the safe demo's exports directory, not merely opening the export dialog, choosing formats, or reaching a TK warning. Async PDF work does not count as completed Markdown export. Its event does not claim rich-format page footnotes or successful PDF generation.
 

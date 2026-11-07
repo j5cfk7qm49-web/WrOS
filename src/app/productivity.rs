@@ -438,7 +438,7 @@ impl App {
                     Vec::new()
                 }
             };
-            for id in &self.deck.progress.completed {
+            for id in self.deck.progress.completed_lessons() {
                 let label = format!("Observed offline learning exercise {id}");
                 if next
                     .award(&format!("learning-{id}"), &label, false, &now.stamp())

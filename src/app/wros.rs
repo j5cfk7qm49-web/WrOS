@@ -480,6 +480,12 @@ impl App {
             }
         }
     }
+    /// The console lock handed the session back after the writer's password.
+    pub fn on_unlocked(&mut self) {
+        self.deck.note = "Writing session unlocked.".into();
+        self.deck.shell.notices.push(&self.deck.note);
+        self.observe_deck(tutorial::Event::SessionUnlocked);
+    }
     pub fn observe_deck(&mut self, event: tutorial::Event) {
         self.deck
             .observe(event, tutorial::is_demo(&self.project.root));
@@ -633,6 +639,15 @@ impl App {
     }
     pub fn tick_deck(&mut self) {
         self.deck.shell.backup.tick();
+        match self.deck.shell.backup.finished.take() {
+            Some(super::backup::Finished::Restore) => {
+                self.observe_deck(tutorial::Event::BackupRestored)
+            }
+            Some(super::backup::Finished::LinkPhone) => {
+                self.observe_deck(tutorial::Event::PhoneLinked)
+            }
+            None => {}
+        }
         self.tick_update_chain();
         self.tick_productivity();
         self.tick_online_updates();
@@ -664,6 +679,9 @@ impl App {
                     }
                     if matches!(request, Request::KeyboardConfirm(_)) {
                         self.observe_deck(tutorial::Event::LayoutConfirmed);
+                    }
+                    if matches!(request, Request::DisplayConfirm(_)) {
+                        self.observe_deck(tutorial::Event::WarmthKept);
                     }
                     if matches!(
                         request,
@@ -741,6 +759,7 @@ impl App {
                         networks.len()
                     );
                     self.deck.shell.wifi_networks = Some(networks);
+                    self.observe_deck(tutorial::Event::WifiScanned);
                 }
                 Ok(Reply::SavedWifi(profiles)) => {
                     self.deck.note = format!(
@@ -1450,6 +1469,7 @@ impl App {
         }
     }
     fn start_deck_lesson(&mut self, id: u8) {
+        use super::shell::{Category, Panel, Route};
         if tutorial::lessons()
             .iter()
             .find(|l| l.id == id)
@@ -1539,10 +1559,28 @@ impl App {
             32 => self.open_review_notes(),
             33 => self.open_history(),
             34 | 35 => self.run_action(Action::Export),
-            37 => {
-                self.open_settings();
-                self.deck.shell.nav.open(super::shell::Route::SyncPanel);
+            36 => self.open_settings_at(&[Route::Category(Category::Accounts), Route::Backups]),
+            37 => self.open_settings_at(&[Route::Category(Category::Accounts), Route::SyncPanel]),
+            41 => {
+                self.open_settings_at(&[Route::Category(Category::Accounts), Route::GoogleAccount])
             }
+            42 => self.open_settings_at(&[
+                Route::Category(Category::System),
+                Route::Panel(Panel::Display),
+                Route::WarmScreen,
+            ]),
+            43 => self.open_settings_at(&[
+                Route::Category(Category::System),
+                Route::Panel(Panel::Updates),
+            ]),
+            44 => self.open_settings_at(&[
+                Route::Category(Category::System),
+                Route::Panel(Panel::Network),
+            ]),
+            45 => self.open_settings_at(&[
+                Route::Category(Category::System),
+                Route::Panel(Panel::Power),
+            ]),
             38 => self.open_system_settings(),
             39 => {
                 self.open_help(Some("history"));
@@ -2009,7 +2047,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         Page::Tutorial { sel } => {
             title = format!(
                 "Interactive tutorial · {} / {} completed{}",
-                app.deck.progress.completed.len(),
+                app.deck.progress.completed_lessons().count(),
                 tutorial::lessons().len(),
                 if tutorial::is_demo(&app.project.root) {
                     " · SAFE DEMO"

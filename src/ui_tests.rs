@@ -3589,8 +3589,8 @@ fn writingdeck_tutorial_uses_actual_editor_and_persists_verified_progress() {
     d.app.deck.progress.start(4).unwrap();
     assert_eq!(d.app.deck.progress.active, Some(4));
     assert!(
-        d.app.deck.progress.start(36).is_err(),
-        "Google Drive live OAuth lesson remains unavailable without user credentials"
+        d.app.deck.progress.start(46).is_err(),
+        "a lesson this catalog lacks cannot start"
     );
     assert!(d.app.deck.progress.start(31).is_ok());
     d.app.deck.progress.start(25).unwrap();
@@ -8268,3 +8268,6 @@ mod knowledge_ui_tests;
 
 #[path = "backup_ui_tests.rs"]
 mod backup_ui_tests;
+
+#[path = "tutorial_ui_tests.rs"]
+mod tutorial_ui_tests;

@@ -1,5 +1,6 @@
 //! Replayable, event-verified lessons. No mock editor and no manual "done" bit.
-//! Original 39 required lessons plus supplemental opt-in model grammar; unsupported ones remain unavailable.
+//! Original 39 required lessons, supplemental opt-in model grammar, and lessons for the
+//! system features added since; a lesson whose feature is missing stays unavailable.
 use crate::{
     project,
     sync::{Fingerprint, SaveOutcome},
@@ -53,6 +54,13 @@ pub enum Event {
     ManuscriptFootnotesExported,
     SystemOpened,
     RecoveryHelpOpened,
+    BackupRestored,
+    SyncCompleted,
+    PhoneLinked,
+    WarmthKept,
+    GoBackReviewed,
+    WifiScanned,
+    SessionUnlocked,
 }
 impl Event {
     pub fn safe_outside_demo(self) -> bool {
@@ -72,6 +80,13 @@ impl Event {
                 | Self::ShortcutAdded
                 | Self::SystemOpened
                 | Self::RecoveryHelpOpened
+                | Self::BackupRestored
+                | Self::SyncCompleted
+                | Self::PhoneLinked
+                | Self::WarmthKept
+                | Self::GoBackReviewed
+                | Self::WifiScanned
+                | Self::SessionUnlocked
         )
     }
 }
@@ -108,6 +123,8 @@ impl Default for Progress {
     }
 }
 impl Progress {
+    /// Lessons a newer WrOS added stay in the file, so going back and forth keeps
+    /// them, but this catalog never counts, starts or completes them.
     fn validate(&self) -> Result<()> {
         if self.version != 1 {
             bail!("unsupported tutorial progress version; preserved");
@@ -117,11 +134,18 @@ impl Progress {
             .iter()
             .chain(&self.skipped)
             .chain(self.active.iter())
-            .any(|id| !lessons().iter().any(|lesson| lesson.id == *id))
+            .any(|id| *id == 0)
         {
             bail!("invalid tutorial lesson id");
         }
         Ok(())
+    }
+    /// Completed lessons this catalog has.
+    pub fn completed_lessons(&self) -> impl Iterator<Item = u8> + '_ {
+        self.completed
+            .iter()
+            .copied()
+            .filter(|id| lessons().iter().any(|lesson| lesson.id == *id))
     }
     pub fn start(&mut self, id: u8) -> Result<()> {
         let lesson = lessons()
@@ -254,14 +278,61 @@ mod tests {
     use super::*;
     #[test]
     fn all_required_lessons_are_present_and_unavailable_is_honest() {
-        assert_eq!(lessons().len(), 40);
+        assert_eq!(lessons().len(), 45);
         for (i, l) in lessons().iter().enumerate() {
             assert_eq!(l.id as usize, i + 1);
             assert!(!l.instructions.is_empty());
+            assert!(l.event.is_some(), "lesson {} has no real completion", l.id);
         }
         let mut p = Progress::default();
-        assert!(p.start(36).is_err());
-        assert!(p.completed.is_empty());
+        assert!(p.start(46).is_err());
+        assert!(p.active.is_none() && p.completed.is_empty());
+    }
+    #[test]
+    fn system_lessons_complete_only_on_their_own_finished_outcome_even_in_a_real_book() {
+        let cases = [
+            (36, Event::BackupRestored),
+            (37, Event::SyncCompleted),
+            (41, Event::PhoneLinked),
+            (42, Event::WarmthKept),
+            (43, Event::GoBackReviewed),
+            (44, Event::WifiScanned),
+            (45, Event::SessionUnlocked),
+        ];
+        for (id, event) in cases {
+            let mut p = Progress::default();
+            p.start(id).unwrap();
+            // Opening Settings, or another lesson's outcome, is not this one.
+            assert!(!p.observe(Event::SystemOpened, false));
+            for (_, other) in cases.iter().filter(|(other, _)| *other != id) {
+                assert!(!p.observe(*other, false), "{other:?} completed {id}");
+            }
+            assert!(p.observe(event, false), "{event:?} in a real book");
+            assert_eq!(p.completed, BTreeSet::from([id]));
+        }
+    }
+    #[test]
+    fn progress_from_a_newer_wros_is_kept_but_never_counted_or_awarded() {
+        let root = std::env::temp_dir().join(format!("wd-tutorial-newer-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let path = root.join(".grimoire/writingdeck/tutorial.json");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(
+            &path,
+            r#"{"version":1,"active":60,"completed":[4,58],"skipped":[59]}"#,
+        )
+        .unwrap();
+        let mut s = Store::load(&root).unwrap();
+        assert_eq!(s.progress.completed_lessons().collect::<Vec<_>>(), [4]);
+        assert!(!s.progress.observe(Event::TextEdited, true));
+        s.progress.start(5).unwrap();
+        assert!(s.progress.observe(Event::SceneOpened, true));
+        s.save().unwrap();
+        let again = Store::load(&root).unwrap().progress;
+        assert_eq!(again.completed, BTreeSet::from([4, 5, 58]));
+        assert_eq!(again.skipped, BTreeSet::from([59]));
+        assert_eq!(again.completed_lessons().count(), 2);
+        fs::remove_dir_all(root).unwrap();
     }
     #[test]
     fn actual_events_not_a_next_button_complete_lessons() {
@@ -329,7 +400,7 @@ mod supplemental_grammar_tests {
         p.validate().unwrap();
         p.skip(40);
         assert!(p.skipped.contains(&40));
-        p.completed.insert(41);
+        p.completed.insert(0);
         assert!(p.validate().is_err());
     }
 }

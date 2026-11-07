@@ -639,8 +639,7 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
                 save_or_rescue(app);
                 return Err(error);
             }
-            app.deck.note = "Writing session unlocked.".into();
-            app.deck.shell.notices.push(&app.deck.note);
+            app.on_unlocked();
         }
         #[cfg(target_os = "linux")]
         if std::mem::take(&mut app.deck.installer_requested) {

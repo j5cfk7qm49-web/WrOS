@@ -161,6 +161,18 @@ pub struct Backups {
     /// Automatic backups of the open book, and whether the running job is one.
     pub auto: AutoBackup,
     pub auto_running: bool,
+    /// What the running job is, when a tutorial lesson counts its outcome.
+    pub(crate) running: Option<Finished>,
+    /// The last such operation that finished well, until the app reads it.
+    pub finished: Option<Finished>,
+}
+
+/// A finished backup operation a tutorial lesson can count.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Finished {
+    Restore,
+    /// Linking ended with Drive connected.
+    LinkPhone,
 }
 
 /// When an automatic backup of the open book is due. Times are passed in, so the rules are
@@ -345,9 +357,15 @@ impl Backups {
             self.notice = "A backup operation is already running.".into();
             return;
         }
+        let kind = match &request {
+            Request::Restore { .. } => Some(Finished::Restore),
+            Request::LinkPhone => Some(Finished::LinkPhone),
+            _ => None,
+        };
         match service::spawn(request, self.state.clone()) {
             Ok(job) => {
                 self.job = Some(job);
+                self.running = kind;
                 self.notice = "Backup operation running; Escape returns to writing.".into();
             }
             Err(error) => self.notice = error,
@@ -462,6 +480,10 @@ impl Backups {
         let result = self.job.as_ref().map(|job| job.result.try_recv());
         match result {
             Some(Ok(Ok(status))) => {
+                self.finished = self
+                    .running
+                    .take()
+                    .filter(|kind| *kind != Finished::LinkPhone || status.google_connected);
                 self.notice = status.notice.clone();
                 self.status = status;
                 self.status_ok = true;
@@ -469,6 +491,7 @@ impl Backups {
                 self.finish_auto(true);
             }
             Some(Ok(Err(error))) => {
+                self.running = None;
                 self.sync_local_metadata();
                 self.notice = if self.auto_running {
                     format!("Automatic backup did not finish: {error}")
@@ -479,6 +502,7 @@ impl Backups {
                 self.finish_auto(false);
             }
             Some(Err(std::sync::mpsc::TryRecvError::Disconnected)) => {
+                self.running = None;
                 self.notice = "Backup worker stopped; refresh before retrying.".into();
                 self.job = None;
                 self.finish_auto(false);
@@ -649,8 +673,12 @@ impl App {
                             self.tree_stale = true;
                         }
                     }
+                    let synced = matches!(&result, Ok(reply) if reply.status == "synced");
                     let sync = &mut self.deck.shell.backup.sync;
                     sync.last = Some(result);
+                    if synced {
+                        self.observe_deck(grimoire_core::tutorial::Event::SyncCompleted);
+                    }
                 }
             }
             return;

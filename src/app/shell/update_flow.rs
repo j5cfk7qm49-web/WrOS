@@ -891,6 +891,15 @@ impl App {
     }
     pub(super) fn update_go_back_open(&mut self) {
         self.deck.shell.nav.open(Route::GoBackConfirm);
+        if self
+            .deck
+            .shell
+            .recovery
+            .as_ref()
+            .is_some_and(|r| r.previous_version.is_some())
+        {
+            self.observe_deck(grimoire_core::tutorial::Event::GoBackReviewed);
+        }
     }
     pub(super) fn update_go_back(&mut self) {
         if self.deck.busy {
