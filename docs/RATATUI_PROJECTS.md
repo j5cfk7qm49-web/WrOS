@@ -98,9 +98,13 @@ the writing app could draw itself, with no foot in between.
 - **Either way** the console session keeps the terminal backend, so the app
   would carry two backends.
 
-**Trial for rc10:** ratatui-wgpu (or soft_ratatui with a small window layer)
-against foot on the HP Stream: start time, typing delay, memory, Colemak and
-compose keys, and a day of writing. Keep foot unless the trial wins clearly.
+**Trial for rc10 (decided 2026-11-06):** foot against ratatui-wgpu under cage
+on the HP Stream: start time, typing delay, memory, disk space, Colemak and
+compose keys, and a day of writing. If neither is good enough, WrOS stays on
+the console session. Not in the trial: Alacritty (larger than foot, no
+pictures), kitty (heavy, needs Python), terminals Debian does not ship
+(WezTerm, Ghostty, Rio, kmscon), and drawing straight to the screen with
+soft_ratatui without cage.
 
 ## Decided for rc10 (2026-11-06)
 
