@@ -23,6 +23,21 @@ before recording **Restore checked**. These dates describe an actual prior resto
 check, not a claim that a disconnected device or remote repository is presently
 healthy. Local backups run without network access.
 
+Automatic backups (after you save and pause) check less, because a complete
+restore from Google Drive took about five minutes. While the book's last complete
+restore check is under a week old, an automatic backup:
+
+- compares the snapshot's list of files, folders and sizes with the book;
+- reads back the snapshot's manifest, which must list every file's SHA-256;
+- reads back only the files changed since the last checked snapshot, and
+  compares their SHA-256 hashes.
+
+Unchanged files are the same encrypted pieces the last complete restore read
+back. A complete restore runs again once a week has passed, when more than 200
+files changed, or when the shorter check cannot finish. **Back up now** always
+restores completely. Any difference stops the backup from being recorded as
+checked.
+
 Select a snapshot to restore into a **new folder**. The original and all existing
 destinations remain untouched. The destination is published only after Restic's
 verification and the complete manifest comparison pass. A failed restore remains

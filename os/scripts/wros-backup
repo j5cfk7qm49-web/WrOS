@@ -43,6 +43,11 @@ def now():
     return datetime.now(timezone.utc).isoformat()
 
 
+# An automatic backup reads back only the files changed since the last checked one; a
+# complete restore runs at least this often, and whenever more files than the limit changed.
+FULL_CHECK_AGE = timedelta(days=7)
+CHANGED_CHECK_LIMIT = 200
+
 KEEP_EVERY = timedelta(days=7)
 KEEP_DAILY = timedelta(days=90)
 
@@ -586,6 +591,83 @@ class Service:
         require(actual == expected['inventory'], 'Restored file names, bytes or SHA-256 hashes differ; restore is not verified.')
         return actual, profile
 
+    def check_path(self, root):
+        return self.state/'checked'/(hashlib.sha256(str(root).encode()).hexdigest() + '.json')
+
+    def last_check(self, root):
+        """The book's last checked snapshot, while it is in this repository and its last
+        complete restore is under FULL_CHECK_AGE old; otherwise None."""
+        try:
+            value = read_json(self.check_path(root))
+            full_at = datetime.fromisoformat(value['full_at'])
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
+        if (value.get('version') != 1 or value.get('repository') != self.current['repository']
+                or value.get('snapshot') not in self.current['verified']
+                or not isinstance(value.get('inventory'), dict)
+                or not isinstance(value['inventory'].get('files'), dict)
+                or datetime.now(timezone.utc) - full_at > FULL_CHECK_AGE):
+            return None
+        return value
+
+    def record_check(self, root, snapshot, inv, full_at):
+        path = self.check_path(root)
+        path.parent.mkdir(mode=0o700, exist_ok=True)
+        atomic_private(path, json.dumps({'version': 1, 'repository': self.current['repository'],
+                                         'snapshot': snapshot['id'], 'full_at': full_at,
+                                         'inventory': inv}).encode())
+
+    def dump_sha256(self, snapshot, relative, limit):
+        """SHA-256 of one file read back out of the snapshot (restic checks each piece's MAC)."""
+        private_file(Path(self.current['key']))
+        command = ['/usr/bin/restic', '--repo', self.repository(self.current['repository']),
+                   '--password-file', self.current['key'], '--quiet', 'dump', snapshot['id'],
+                   snapshot['path'] + '/' + relative]
+        digest, size = hashlib.sha256(), 0
+        with subprocess.Popen(command, env=self.env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                              stderr=subprocess.DEVNULL) as process:
+            while chunk := process.stdout.read(1024 * 1024):
+                size += len(chunk)
+                require(size <= limit, 'A file read back from the backup is larger than saved; not verified.')
+                digest.update(chunk)
+            require(process.wait(timeout=1800) == 0, 'A changed file could not be read back from the backup.')
+        return size, digest.hexdigest()
+
+    def check_changed(self, snapshot, original, previous, profile):
+        """Read back only what changed since the last checked snapshot. The snapshot's list of
+        files and sizes must be the book's, its manifest must be this backup's, and every changed
+        file must hash as saved. Unchanged files are the same pieces the last complete restore
+        read back; the weekly complete restore catches anything that went bad since."""
+        changed = sorted(p for p, v in original['files'].items() if previous['files'].get(p) != v)
+        prefix = snapshot['path'].rstrip('/') + '/'
+        files, directories = {}, set()
+        for line in self.restic(['ls', snapshot['id']]).splitlines():
+            node = json.loads(line) if line.strip() else {}
+            path = node.get('path', '') if isinstance(node, dict) else ''
+            if 'node' not in (node.get('struct_type'), node.get('message_type')) or not path.startswith(prefix):
+                continue
+            relative = path[len(prefix):]
+            if relative == MANIFEST or relative == PROFILE or relative.startswith(PROFILE + '/'):
+                continue
+            if node.get('type') == 'dir':
+                directories.add(relative)
+            else:
+                require(node.get('type') == 'file', 'The backup holds something other than files and folders.')
+                files[relative] = node.get('size')
+        require(files == {p: v['bytes'] for p, v in original['files'].items()}
+                and directories == set(original['directories']),
+                "The backup's list of files differs from the book; not verified.")
+        manifest = json.loads(run('/usr/bin/restic', ['--repo', self.repository(self.current['repository']),
+                                                      '--password-file', self.current['key'], '--quiet', 'dump',
+                                                      snapshot['id'], prefix + MANIFEST], self.env))
+        require(isinstance(manifest, dict) and manifest.get('inventory') == original
+                and manifest.get('profile') == profile, "The backup's manifest differs; not verified.")
+        for relative in changed:
+            expected = original['files'][relative]
+            require(self.dump_sha256(snapshot, relative, expected['bytes']) == (expected['bytes'], expected['sha256']),
+                    'A changed file read back from the backup differs; not verified.')
+        return len(changed)
+
     def validate_project_root(self, project):
         root = Path(project).resolve(strict=True)
         require(root.is_dir() and (root/'manuscript').is_dir(), 'Select a saved Grimoire project with a manuscript folder.')
@@ -746,14 +828,31 @@ class Service:
             require(identifier, 'Backup did not return a complete snapshot; no verification claimed.')
             snapshot = next((row for row in self.snapshots() if row['id'].startswith(identifier)), None)
             require(snapshot is not None, 'New snapshot cannot be found; no verification claimed.')
-            restored = Path(temporary)/'restore-check'
-            restored.mkdir(mode=0o700)
-            require(self.restore_into(snapshot, restored)[0] == original, 'Restore check differs from the saved project.')
+            previous = self.last_check(root) if automatic else None
+            changed = None
+            if previous and sum(1 for p, v in original['files'].items()
+                                if previous['inventory']['files'].get(p) != v) <= CHANGED_CHECK_LIMIT:
+                progress('Reading back the changed files')
+                try:
+                    changed = self.check_changed(snapshot, original, previous['inventory'], manifest.get('profile'))
+                    full_at = previous['full_at']
+                except (ValueError, OSError, subprocess.SubprocessError):
+                    changed = None  # The complete restore below decides.
+            if changed is None:
+                restored = Path(temporary)/'restore-check'
+                restored.mkdir(mode=0o700)
+                require(self.restore_into(snapshot, restored)[0] == original, 'Restore check differs from the saved project.')
+                full_at = now()
+            self.record_check(root, snapshot, original, full_at)
             self.current['verified'][snapshot['id']] = now()
             self.save()
             self.record_latest(root, snapshot)
             self.dequeue_project(root)
-        message = 'Backup verified by a complete restore; all file hashes match.'
+        if changed is None:
+            message = 'Backup verified by a complete restore; all file hashes match.'
+        else:
+            message = (f'Backup checked: {changed} changed file{"" if changed == 1 else "s"} read back and '
+                       f'matched; the rest matched the complete restore on {full_at[:10]}.')
         if same_device:
             message += ' Destination is on the same filesystem; keep an off-device copy too.'
         return self.status(message)

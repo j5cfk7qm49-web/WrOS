@@ -573,7 +573,7 @@ class AutomaticBackup(unittest.TestCase):
         first = self.service.backup(str(self.project), automatic=True)
         (self.project/'manuscript/01-scène.md').write_text('A second saved version.\n', encoding='utf-8')
         second = self.service.backup(str(self.project), automatic=True)
-        self.assertIn('verified', second['notice'])
+        self.assertIn('read back and matched', second['notice'])
         rows = json.loads(self.service.restic(['snapshots', '--tag', 'wros-project-v1,auto']))
         self.assertEqual(len(rows), 2, 'both automatic snapshots are recent: nothing pruned yet')
         newest = max(rows, key=lambda r: r['time'])['id']
@@ -594,6 +594,50 @@ class AutomaticBackup(unittest.TestCase):
             self.service.prune(now=module.datetime.now(module.timezone.utc))
         remaining = {r['id'] for r in json.loads(self.service.restic(['snapshots', '--tag', 'wros-project-v1']))}
         self.assertIn(latest, remaining)
+
+    def test_an_automatic_backup_reads_back_only_changed_files_until_a_week_has_passed(self):
+        self.initialize()
+        first = self.service.backup(str(self.project), automatic=True)
+        self.assertIn('complete restore', first['notice'])
+        scene = self.project/'manuscript/01-scène.md'
+        scene.write_text('A second saved version.\n', encoding='utf-8')
+        dumped = []
+        real_dump = self.service.dump_sha256
+        def dump(snapshot, relative, limit):
+            dumped.append(relative)
+            return real_dump(snapshot, relative, limit)
+        with mock.patch.object(self.service, 'restore_into', side_effect=AssertionError('no complete restore')), \
+                mock.patch.object(self.service, 'dump_sha256', side_effect=dump):
+            second = self.service.backup(str(self.project), automatic=True)
+        self.assertIn('1 changed file read back', second['notice'])
+        self.assertEqual(dumped, ['manuscript/01-scène.md'])
+        newest = second['snapshots'][0]['id']
+        self.assertIn(newest, self.service.current['verified'])
+
+        # A changed file that reads back differently is never called checked: the complete
+        # restore decides, and it fails too.
+        scene.write_text('A third saved version.\n', encoding='utf-8')
+        with mock.patch.object(self.service, 'dump_sha256', return_value=(0, '0' * 64)), \
+                mock.patch.object(self.service, 'restore_into', side_effect=ValueError('restore differs')):
+            with self.assertRaisesRegex(ValueError, 'restore differs'):
+                self.service.backup(str(self.project), automatic=True)
+
+        # A week after the last complete restore, the next one is complete again.
+        later = module.datetime.now(module.timezone.utc) + module.timedelta(days=8)
+        real_datetime = module.datetime
+        class Later(real_datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return later
+        with mock.patch.object(module, 'datetime', Later):
+            third = self.service.backup(str(self.project), automatic=True)
+        self.assertIn('complete restore', third['notice'])
+
+    def test_back_up_now_always_restores_completely(self):
+        self.initialize()
+        self.service.backup(str(self.project), automatic=True)
+        (self.project/'novel.toml').write_text('title = "Renamed"\n')
+        self.assertIn('complete restore', self.service.backup(str(self.project))['notice'])
 
     def test_the_app_asks_for_an_automatic_backup_by_its_own_operation(self):
         self.initialize()
