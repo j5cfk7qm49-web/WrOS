@@ -5,6 +5,29 @@ with `wros-shell`, and has no Grimoire/editor dependency. Debian's greetd and PA
 perform authentication and session setup. The editor never receives login input.
 This is a login implementation, **not a session locker or permission to suspend**.
 
+## The login form (from Lemurs)
+
+The screen the writer types into is the login form from
+[Lemurs](https://github.com/coastalwhite/lemurs) (MIT; `crates/wros-greeter/src/form.rs`,
+licence in `LICENSE-LEMURS`), ported to the workspace's Ratatui and drawn in the
+WrOS theme (#86). Lemurs itself is not installed: greetd keeps authenticating and
+starting the session, so the screen still runs without privileges and never
+checks a password itself.
+
+From top to bottom: Lemurs' session switcher, the **Local account** field and
+the **Password** field. Enter moves from the account to the password and signs
+in from the password; Tab and Shift+Tab move between them; Up and Down in the
+account field pick a local account; F2 opens the keyboard layout picker.
+
+The switcher shows only when cage and foot are installed. **Usual session**
+starts `/usr/libexec/wros-session` and follows the writer's choice in Settings
+(graphical or console). **Console session** starts it with `--console`: the
+console for this login only, without changing the setting.
+
+Changes from Lemurs: the password field shows a constant `[hidden]` instead of
+one mark per character; both fields are fixed-capacity, zeroized buffers;
+there are no power commands, no configuration file and no cached username.
+
 ## Protocol and credential boundaries
 
 The implementation follows the maintained [greetd IPC protocol](https://manpages.debian.org/trixie/greetd/greetd-ipc.7.en.html)
@@ -24,9 +47,12 @@ and error messages. Informational/error messages require explicit acknowledgment
 and send a null response. A rejected authentication is cancelled before another
 account attempt. If greetd cannot acknowledge cancellation of the failed PAM
 worker, the rejection remains visible and Enter exits for a fresh greetd service;
-uncertain session state is never reused. A successful authentication offers explicit entry
-into the fixed `/usr/libexec/writingdeck-session` command with fixed locale/terminal
-environment; no user-supplied command is accepted. That wrapper refuses root.
+uncertain session state is never reused. The form's password answers only PAM's
+first password question; any further question is shown on screen and answered by
+hand. A successful authentication starts the session at once: the fixed
+`/usr/libexec/wros-session` command, with `--console` only when the switcher asks,
+and a fixed locale/terminal environment. No user-supplied command is accepted.
+That wrapper refuses root.
 
 Secret input never appears on screen, even as a length-dependent mask. Typed
 responses and serialized requests are zeroized after use. Input is bounded to

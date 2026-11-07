@@ -13,3 +13,11 @@ Files: *
 Copyright: 2026 Josh King and WrOS contributors
 License: MIT
  The full MIT licence text is in /usr/share/doc/wros/LICENSE-grimoire.
+
+Files: crates/wros-greeter/src/form.rs
+Copyright: 2021 Gijs Burghoorn
+           2026 Josh King and WrOS contributors
+License: MIT
+ The login form is ported from Lemurs (https://github.com/coastalwhite/lemurs,
+ MIT or Apache-2.0, used here under MIT). The Lemurs MIT licence text is in
+ /usr/share/doc/wros/upstream/lemurs-LICENSE-MIT.txt.

@@ -226,8 +226,6 @@ def main():
         assert control.read(1) == b'H'
     assert no_echo() and secret not in screen()
     marker('HIDDEN')
-    wait(lambda: 'Open writing session' in screen(), 'PAM authentication')
-    marker('AUTHENTICATED')
     wait(lambda: 'Resume writing' in screen() and processes('grimoire'), 'native writing session', 70)
     app = processes('grimoire')[0]
     assert '\nUid:\t1000\t' in (app / 'status').read_text()
@@ -247,8 +245,6 @@ def main():
     marker('SWITCH_READY')
     wait(lambda: '[hidden]' in screen() and no_echo(), 'second account prompt')
     marker('SWITCH_PROMPT')
-    wait(lambda: 'Open writing session' in screen(), 'second account authentication')
-    marker('SWITCH_AUTHENTICATED')
     wait(lambda: 'Resume writing' in screen() and processes('grimoire'), 'second account writing session', 70)
     app = processes('grimoire')[0]
     assert '\nUid:\t1001\t' in (app / 'status').read_text()
@@ -284,7 +280,7 @@ if __name__ == '__main__':
             if 'wros-greeter: ' in line:
                 # Greeter diagnostics are static internal strings only.
                 marker('DIAGNOSTIC_' + line.split('wros-greeter: ', 1)[1])
-        for label in ('Local account', '[hidden]', 'Please wait', 'Login was not accepted', 'Open writing session',
+        for label in ('Local account', '[hidden]', 'Please wait', 'Login was not accepted',
                       'Login service read failed or timed out', 'Login service could not complete the request',
                       'Keyboard helper failed', 'Keyboard authorization unavailable', 'Keyboard process unavailable',
                       'Invalid login service response', 'Login service disconnected'):

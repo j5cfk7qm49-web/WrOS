@@ -1,68 +1,67 @@
 use super::*;
-use ratatui::{Terminal, backend::TestBackend};
+use form::{Action, Focus, Form};
+use ratatui::{
+    Terminal,
+    backend::TestBackend,
+    crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
+};
 
-fn begin() -> Conversation {
-    let mut flow = Conversation::default();
-    for c in "writer".chars() {
-        flow.type_char(c);
+fn press(form: &mut Form, code: KeyCode) -> Action {
+    form.key(KeyEvent::new(code, KeyModifiers::NONE))
+}
+
+fn type_text(form: &mut Form, text: &str) {
+    for c in text.chars() {
+        press(form, KeyCode::Char(c));
     }
-    assert!(matches!(flow.submit(), Some(Request::CreateSession { .. })));
+}
+
+fn json(request: &Request) -> serde_json::Value {
+    serde_json::from_slice(&encode(request).unwrap()).unwrap()
+}
+
+/// The form filled in and submitted: the conversation asks greetd for a session.
+fn begin_with(session: Session) -> Conversation {
+    let mut flow = Conversation::default();
+    let request = flow.begin("writer", "fixture-password", session).unwrap();
+    assert_eq!(json(&request)["username"], "writer");
     flow
 }
 
-#[test]
-fn account_picker_excludes_system_and_nonlogin_accounts_and_cannot_replace_secrets() {
-    let names = local_accounts(
-        "root:x:0:0::/root:/bin/bash\nwriter:x:1000:1000::/home/writer:/bin/bash\nnobody:x:65534:65534::/:/bin/sh\nservice:x:1001:1001::/:/usr/sbin/nologin\nclosed:x:1002:1002::/:/bin/false\nbad name:x:1003:1003::/:/bin/sh\nwriter:x:1000:1000::/home/writer:/bin/bash",
-    );
-    assert_eq!(names, vec!["writer"]);
-    let mut flow = Conversation::default();
-    flow.choose_account(&names[0]);
-    assert_eq!(&*flow.input, "writer");
-    flow.submit().unwrap();
-    prompt(&mut flow, MessageKind::Secret);
-    flow.type_char('x');
-    flow.choose_account("writer");
-    assert_eq!(&*flow.input, "x");
+fn begin() -> Conversation {
+    begin_with(Session::Usual)
 }
-fn prompt(flow: &mut Conversation, kind: MessageKind) {
+
+fn prompt(flow: &mut Conversation, kind: MessageKind) -> Option<Request> {
     flow.receive(Response::AuthMessage {
         auth_message_type: kind,
         auth_message: "PAM question".into(),
     })
-    .unwrap();
+    .unwrap()
+}
+
+fn screen(terminal: &Terminal<TestBackend>) -> String {
+    terminal
+        .backend()
+        .buffer()
+        .content
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect()
 }
 
 #[test]
-fn arbitrary_pam_conversation_then_fixed_session() {
+fn the_form_password_answers_pam_once_and_the_session_starts_at_once() {
     let mut flow = begin();
-    for kind in [
-        MessageKind::Info,
-        MessageKind::Secret,
-        MessageKind::Error,
-        MessageKind::Visible,
-        MessageKind::Secret,
-    ] {
-        prompt(&mut flow, kind);
-        flow.type_char('x');
-        let request = flow.submit().unwrap();
-        let json: serde_json::Value = serde_json::from_slice(&encode(&request).unwrap()).unwrap();
-        assert_eq!(
-            json["response"],
-            match kind {
-                MessageKind::Info | MessageKind::Error => serde_json::Value::Null,
-                _ => serde_json::Value::String("x".into()),
-            }
-        );
-        assert!(flow.input.is_empty());
-    }
-    flow.receive(Response::Success).unwrap();
-    assert_eq!(flow.phase, Phase::Authenticated);
-    let json: serde_json::Value =
-        serde_json::from_slice(&encode(&flow.submit().unwrap()).unwrap()).unwrap();
-    assert_eq!(json["cmd"], serde_json::json!([SESSION]));
+    let answer = prompt(&mut flow, MessageKind::Secret).unwrap();
+    assert_eq!(json(&answer)["response"], "fixture-password");
+    assert!(flow.secret.is_empty());
+    let start = flow.receive(Response::Success).unwrap().unwrap();
+    let start = json(&start);
+    assert_eq!(start["type"], "start_session");
+    assert_eq!(start["cmd"], serde_json::json!([SESSION]));
     assert_eq!(
-        json["env"],
+        start["env"],
         serde_json::json!(["TERM=linux", "LANG=C.UTF-8"])
     );
     flow.receive(Response::Success).unwrap();
@@ -70,11 +69,120 @@ fn arbitrary_pam_conversation_then_fixed_session() {
 }
 
 #[test]
+fn the_console_choice_asks_the_session_starter_for_the_console() {
+    let mut flow = begin_with(Session::Console);
+    prompt(&mut flow, MessageKind::Secret).unwrap();
+    let start = flow.receive(Response::Success).unwrap().unwrap();
+    assert_eq!(
+        json(&start)["cmd"],
+        serde_json::json!([SESSION, "--console"])
+    );
+}
+
+#[test]
+fn further_pam_questions_are_asked_on_screen_and_never_get_the_form_password() {
+    let mut flow = begin();
+    prompt(&mut flow, MessageKind::Secret).unwrap();
+    for kind in [
+        MessageKind::Info,
+        MessageKind::Secret,
+        MessageKind::Error,
+        MessageKind::Visible,
+    ] {
+        assert!(prompt(&mut flow, kind).is_none());
+        assert_eq!(flow.phase, Phase::Prompt(kind));
+        flow.type_char('x');
+        let answer = json(&flow.submit().unwrap());
+        assert_eq!(
+            answer["response"],
+            match kind {
+                MessageKind::Info | MessageKind::Error => serde_json::Value::Null,
+                _ => serde_json::Value::String("x".into()),
+            }
+        );
+        assert!(flow.input.is_empty());
+    }
+    // A notice before the password question also means the form's password is dropped.
+    let mut flow = begin();
+    assert!(prompt(&mut flow, MessageKind::Info).is_none());
+    assert!(flow.secret.is_empty());
+}
+
+#[test]
+fn account_picker_excludes_system_and_nonlogin_accounts() {
+    let names = local_accounts(
+        "root:x:0:0::/root:/bin/bash\nwriter:x:1000:1000::/home/writer:/bin/bash\nnobody:x:65534:65534::/:/bin/sh\nservice:x:1001:1001::/:/usr/sbin/nologin\nclosed:x:1002:1002::/:/bin/false\nbad name:x:1003:1003::/:/bin/sh\nwriter:x:1000:1000::/home/writer:/bin/bash",
+    );
+    assert_eq!(names, vec!["writer"]);
+    let mut form = Form::new(vec!["ann".into(), "writer".into()], false);
+    press(&mut form, KeyCode::Down);
+    assert_eq!(form.username.text(), "ann");
+    press(&mut form, KeyCode::Up);
+    assert_eq!(form.username.text(), "writer");
+    // Up and Down in the password field never change the account or the password.
+    press(&mut form, KeyCode::Enter);
+    type_text(&mut form, "x");
+    press(&mut form, KeyCode::Down);
+    assert_eq!(
+        (form.username.text(), form.password.text()),
+        ("writer", "x")
+    );
+}
+
+#[test]
+fn enter_moves_through_the_form_and_signs_in_from_the_password() {
+    let mut form = Form::new(vec![], true);
+    assert_eq!(form.focus, Focus::Username);
+    type_text(&mut form, "writer");
+    assert_eq!(press(&mut form, KeyCode::Enter), Action::None);
+    assert_eq!(form.focus, Focus::Password);
+    type_text(&mut form, "pw");
+    assert_eq!(press(&mut form, KeyCode::Enter), Action::Submit);
+    // The switcher sits above the account field and picks the session.
+    press(&mut form, KeyCode::BackTab);
+    press(&mut form, KeyCode::BackTab);
+    assert_eq!(form.focus, Focus::Switcher);
+    assert_eq!(form.session(), Session::Usual);
+    press(&mut form, KeyCode::Right);
+    assert_eq!(form.session(), Session::Console);
+    press(&mut form, KeyCode::Right);
+    assert_eq!(form.session(), Session::Console);
+    press(&mut form, KeyCode::Left);
+    assert_eq!(form.session(), Session::Usual);
+    // Without cage and foot there is nothing to switch.
+    let mut form = Form::new(vec![], false);
+    press(&mut form, KeyCode::BackTab);
+    assert_eq!(
+        (form.focus, form.session()),
+        (Focus::Username, Session::Usual)
+    );
+}
+
+#[test]
+fn fields_edit_in_place_and_wipe_what_they_remove() {
+    let mut form = Form::new(vec![], false);
+    type_text(&mut form, "a🙂c");
+    press(&mut form, KeyCode::Left);
+    press(&mut form, KeyCode::Backspace);
+    assert_eq!(form.username.text(), "ac");
+    press(&mut form, KeyCode::Home);
+    press(&mut form, KeyCode::Delete);
+    type_text(&mut form, "b");
+    assert_eq!(form.username.text(), "bc");
+    press(&mut form, KeyCode::End);
+    type_text(&mut form, "\n");
+    form.key(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));
+    assert!(form.username.is_empty());
+    for _ in 0..MAX_INPUT {
+        press(&mut form, KeyCode::Char('é'));
+    }
+    assert!(form.username.text().len() <= MAX_INPUT);
+}
+
+#[test]
 fn denial_cancels_before_retry_and_never_displays_description() {
     let mut flow = begin();
-    prompt(&mut flow, MessageKind::Secret);
-    flow.type_char('x');
-    flow.submit().unwrap();
+    prompt(&mut flow, MessageKind::Secret).unwrap();
     assert!(matches!(
         flow.receive(Response::Error {
             error_type: "auth_error".into(),
@@ -88,12 +196,13 @@ fn denial_cancels_before_retry_and_never_displays_description() {
     flow.receive(Response::Success).unwrap();
     assert_eq!(flow.phase, Phase::Username);
     assert!(!flow.notice.contains("PRIVATE"));
-    assert!(flow.input.is_empty());
+    assert!(flow.notice.contains("not accepted"));
 }
 
 #[test]
 fn escape_discards_secret_and_requires_cancel_ack() {
     let mut flow = begin();
+    prompt(&mut flow, MessageKind::Secret).unwrap();
     prompt(&mut flow, MessageKind::Secret);
     flow.type_char('x');
     assert!(matches!(flow.cancel(), Some(Request::CancelSession)));
@@ -106,8 +215,7 @@ fn escape_discards_secret_and_requires_cancel_ack() {
 #[test]
 fn failed_cancel_requires_fresh_service_instead_of_reusing_uncertain_state() {
     let mut flow = begin();
-    prompt(&mut flow, MessageKind::Secret);
-    flow.submit().unwrap();
+    prompt(&mut flow, MessageKind::Secret).unwrap();
     flow.receive(Response::Error {
         error_type: "auth_error".into(),
         description: "denied".into(),
@@ -127,13 +235,17 @@ fn failed_cancel_requires_fresh_service_instead_of_reusing_uncertain_state() {
 }
 
 #[test]
-fn no_start_before_success_and_reject_unexpected_responses() {
+fn bad_account_names_and_unexpected_responses_are_refused() {
     let mut flow = Conversation::default();
     assert!(flow.receive(Response::Success).is_err());
+    for name in ["", "bad name", "-x;sh", &"a".repeat(65)] {
+        assert!(flow.begin(name, "pw", Session::Usual).is_none(), "{name}");
+        assert!(flow.secret.is_empty());
+    }
     let mut flow = begin();
-    assert!(flow.submit().is_none());
+    assert!(flow.begin("writer", "again", Session::Usual).is_none());
+    prompt(&mut flow, MessageKind::Secret).unwrap();
     flow.receive(Response::Success).unwrap();
-    flow.submit().unwrap();
     assert!(
         flow.receive(Response::AuthMessage {
             auth_message_type: MessageKind::Secret,
@@ -145,32 +257,55 @@ fn no_start_before_success_and_reject_unexpected_responses() {
 
 #[test]
 fn secrets_never_render_at_any_supported_size() {
-    let mut flow = begin();
-    prompt(&mut flow, MessageKind::Secret);
-    for c in "fixture-secret-αβ".chars() {
-        flow.type_char(c);
-    }
+    let mut form = Form::new(vec![], true);
+    type_text(&mut form, "writer");
+    press(&mut form, KeyCode::Enter);
+    type_text(&mut form, "fixture-secret-αβ");
+    let mut flow = Conversation::default();
     for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50), (10, 3), (1, 1)] {
         let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-        terminal.draw(|frame| render(frame, &flow)).unwrap();
-        let screen: String = terminal
-            .backend()
-            .buffer()
-            .content
-            .iter()
-            .map(|cell| cell.symbol())
-            .collect();
-        assert!(!screen.contains("fixture-secret"));
-        assert!(!screen.contains('α'));
+        terminal.draw(|frame| render(frame, &flow, &form)).unwrap();
+        let shown = screen(&terminal);
+        assert!(!shown.contains("fixture-secret"));
+        assert!(!shown.contains('α'));
         if width >= 80 {
-            assert!(screen.contains("[hidden]"));
+            assert!(shown.contains(form::HIDDEN) && shown.contains("Local account"));
+            assert!(shown.contains("Usual session") && shown.contains("Console session"));
         }
     }
+    // A PAM question typed on screen is hidden the same way.
+    flow = begin();
+    prompt(&mut flow, MessageKind::Secret).unwrap();
+    prompt(&mut flow, MessageKind::Secret);
+    for c in "second-secret".chars() {
+        flow.type_char(c);
+    }
+    let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+    terminal.draw(|frame| render(frame, &flow, &form)).unwrap();
+    let shown = screen(&terminal);
+    assert!(!shown.contains("second-secret") && shown.contains("[hidden]"));
+}
+
+#[test]
+fn the_password_mark_does_not_show_its_length() {
+    let draw = |typed: &str| {
+        let mut form = Form::new(vec![], false);
+        type_text(&mut form, "writer");
+        press(&mut form, KeyCode::Enter);
+        type_text(&mut form, typed);
+        let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+        terminal
+            .draw(|frame| render(frame, &Conversation::default(), &form))
+            .unwrap();
+        terminal.backend().buffer().clone()
+    };
+    assert_eq!(draw("a"), draw("a much longer password"));
 }
 
 #[test]
 fn unicode_backspace_limit_and_control_filter() {
     let mut flow = begin();
+    prompt(&mut flow, MessageKind::Secret).unwrap();
     prompt(&mut flow, MessageKind::Secret);
     for c in "a🙂".chars() {
         flow.type_char(c);
@@ -206,36 +341,17 @@ fn malformed_protocol_has_only_static_diagnostics() {
         .is_err()
     );
 }
+
 #[test]
-fn keyboard_recovery_clears_username_and_cannot_open_during_pam() {
+fn keyboard_recovery_opens_only_before_sign_in() {
     let mut conversation = Conversation::default();
     let mut keyboard = crate::keyboard::Keyboard::default();
-    conversation.choose_account("writer");
     assert!(conversation.open_keyboard(&mut keyboard));
-    assert!(conversation.shown_input().is_empty());
     keyboard.open = false;
-    conversation.choose_account("writer");
-    conversation.submit().unwrap();
+    let mut conversation = begin();
     assert!(!conversation.open_keyboard(&mut keyboard) && !keyboard.open);
-    conversation
-        .receive(Response::AuthMessage {
-            auth_message_type: MessageKind::Secret,
-            auth_message: "Password:".into(),
-        })
-        .unwrap();
-    for c in "synthetic-secret".chars() {
-        conversation.type_char(c);
-    }
+    prompt(&mut conversation, MessageKind::Secret).unwrap();
     assert!(!conversation.open_keyboard(&mut keyboard) && !keyboard.open);
-    assert_eq!(conversation.shown_input(), "[hidden]");
-    let answer = conversation.submit().unwrap();
-    let Request::PostAuthMessageResponse {
-        response: Some(ref text),
-    } = answer
-    else {
-        panic!("wrong request");
-    };
-    assert_eq!(text, "synthetic-secret");
     conversation.receive(Response::Success).unwrap();
     assert!(!conversation.open_keyboard(&mut keyboard) && !keyboard.open);
 }

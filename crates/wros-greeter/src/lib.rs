@@ -3,11 +3,44 @@
 use serde::{Deserialize, Serialize};
 use zeroize::{Zeroize, Zeroizing};
 
+pub mod form;
 pub mod keyboard;
 
 pub const MAX_FRAME: usize = 16 * 1024;
 pub const MAX_INPUT: usize = 1024;
 pub const SESSION: &str = "/usr/libexec/wros-session";
+
+/// The session the login starts, from the form's switcher.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Session {
+    /// The writer's own choice from Settings: graphical or console.
+    Usual,
+    /// The console, for this login only.
+    Console,
+}
+impl Session {
+    pub fn title(self) -> &'static str {
+        match self {
+            Self::Usual => "Usual session",
+            Self::Console => "Console session",
+        }
+    }
+    fn command(self) -> Vec<String> {
+        match self {
+            Self::Usual => vec![SESSION.into()],
+            Self::Console => vec![SESSION.into(), "--console".into()],
+        }
+    }
+}
+
+/// A local account name: letters, digits, `_`, `-` and `.`, at most 64 bytes.
+fn valid_account(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 64
+        && name
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || b"_-.".contains(&c))
+}
 
 // Implement the documented JSON protocol independently; do not link the GPL
 // greetd_ipc crate into the MIT editor/shared presentation library.
@@ -126,10 +159,11 @@ pub enum Pending {
 }
 #[derive(Debug, PartialEq, Eq)]
 pub enum Phase {
+    /// The form is open.
     Username,
     Waiting(Pending),
+    /// PAM asked something the form did not answer (a second question, a notice).
     Prompt(MessageKind),
-    Authenticated,
     Retry,
     Restart,
     Done,
@@ -141,6 +175,9 @@ pub struct Conversation {
     pub notice: &'static str,
     // Fixed capacity prevents reallocation of typed secrets; no Debug/Clone.
     input: Zeroizing<String>,
+    /// The form's password, kept only until PAM's first password question.
+    secret: Zeroizing<String>,
+    session: Session,
 }
 impl Default for Conversation {
     fn default() -> Self {
@@ -149,6 +186,8 @@ impl Default for Conversation {
             prompt: "Local account".into(),
             notice: "Offline login",
             input: Zeroizing::new(String::with_capacity(MAX_INPUT)),
+            secret: Zeroizing::new(String::with_capacity(MAX_INPUT)),
+            session: Session::Usual,
         }
     }
 }
@@ -161,20 +200,34 @@ impl Conversation {
         keyboard.open = true;
         true
     }
-    pub fn choose_account(&mut self, name: &str) {
-        if self.phase == Phase::Username {
-            self.clear();
-            for c in name.chars().take(64) {
-                self.type_char(c);
-            }
+    /// Starts the login with what the form collected. The password goes to PAM
+    /// when it asks for one; the session starts as soon as PAM accepts.
+    pub fn begin(&mut self, username: &str, password: &str, session: Session) -> Option<Request> {
+        if self.phase != Phase::Username {
+            return None;
         }
+        if !valid_account(username) {
+            self.notice = "Enter a valid local account name";
+            return None;
+        }
+        self.clear();
+        if password.len() <= MAX_INPUT {
+            self.secret.push_str(password);
+        }
+        self.session = session;
+        self.phase = Phase::Waiting(Pending::Create);
+        self.prompt = "Please wait".into();
+        self.notice = "Signing in";
+        Some(Request::CreateSession {
+            username: username.into(),
+        })
     }
     pub fn type_char(&mut self, c: char) {
         if !c.is_control()
             && self.input.len() + c.len_utf8() <= MAX_INPUT
             && matches!(
                 self.phase,
-                Phase::Username | Phase::Prompt(MessageKind::Secret | MessageKind::Visible)
+                Phase::Prompt(MessageKind::Secret | MessageKind::Visible)
             )
         {
             self.input.push(c);
@@ -191,6 +244,7 @@ impl Conversation {
     }
     pub fn clear(&mut self) {
         self.input.zeroize();
+        self.secret.zeroize();
     }
     pub fn shown_input(&self) -> String {
         if matches!(self.phase, Phase::Prompt(MessageKind::Secret)) {
@@ -202,22 +256,6 @@ impl Conversation {
     }
     pub fn submit(&mut self) -> Option<Request> {
         let request = match self.phase {
-            Phase::Username => {
-                let name = self.input.as_str();
-                if name.is_empty()
-                    || name.len() > 64
-                    || !name
-                        .bytes()
-                        .all(|c| c.is_ascii_alphanumeric() || b"_-.".contains(&c))
-                {
-                    self.notice = "Enter a valid local account name";
-                    return None;
-                }
-                self.phase = Phase::Waiting(Pending::Create);
-                Request::CreateSession {
-                    username: name.into(),
-                }
-            }
             Phase::Prompt(kind) => {
                 let response = match kind {
                     MessageKind::Secret | MessageKind::Visible => Some(self.input.to_string()),
@@ -225,13 +263,6 @@ impl Conversation {
                 };
                 self.phase = Phase::Waiting(Pending::Answer);
                 Request::PostAuthMessageResponse { response }
-            }
-            Phase::Authenticated => {
-                self.phase = Phase::Waiting(Pending::Start);
-                Request::StartSession {
-                    cmd: vec![SESSION.into()],
-                    env: vec!["TERM=linux".into(), "LANG=C.UTF-8".into()],
-                }
             }
             Phase::Retry => {
                 self.clear();
@@ -247,7 +278,7 @@ impl Conversation {
     pub fn cancel(&mut self) -> Option<Request> {
         self.clear();
         match self.phase {
-            Phase::Prompt(_) | Phase::Authenticated => {
+            Phase::Prompt(_) => {
                 self.phase = Phase::Waiting(Pending::Cancel);
                 self.prompt = "Cancelling login".into();
                 self.notice = "Login cancelled";
@@ -257,16 +288,35 @@ impl Conversation {
         }
     }
     pub fn receive(&mut self, response: Response) -> Result<Option<Request>, &'static str> {
-        self.clear();
+        self.input.zeroize();
         let Phase::Waiting(pending) = self.phase else {
+            self.secret.zeroize();
             return Err("Unexpected login response");
         };
+        // The form's password answers PAM's first password question, and only that.
+        if let Response::AuthMessage {
+            auth_message_type: MessageKind::Secret,
+            ..
+        } = response
+            && pending == Pending::Create
+            && !self.secret.is_empty()
+        {
+            let answer = Some(self.secret.to_string());
+            self.secret.zeroize();
+            self.phase = Phase::Waiting(Pending::Answer);
+            return Ok(Some(Request::PostAuthMessageResponse { response: answer }));
+        }
+        self.secret.zeroize();
         match response {
             Response::Success => match pending {
                 Pending::Create | Pending::Answer => {
-                    self.phase = Phase::Authenticated;
-                    self.prompt = "Open writing session".into();
-                    self.notice = "Authenticated. Enter to continue; Escape to cancel";
+                    self.phase = Phase::Waiting(Pending::Start);
+                    self.prompt = "Opening your writing session".into();
+                    self.notice = "Signed in";
+                    return Ok(Some(Request::StartSession {
+                        cmd: self.session.command(),
+                        env: vec!["TERM=linux".into(), "LANG=C.UTF-8".into()],
+                    }));
                 }
                 Pending::Start => self.phase = Phase::Done,
                 Pending::Cancel => {
@@ -313,25 +363,40 @@ impl Conversation {
     }
 }
 
-pub fn render(frame: &mut ratatui::Frame, conversation: &Conversation) {
-    let rows = vec![conversation.prompt.clone(), conversation.shown_input()];
-    wros_shell::render_menu(
-        frame,
-        frame.area(),
-        wros_shell::Menu {
-            title: "WrOS · Sign in",
-            rows: &rows,
-            kinds: &[],
-            selected: 0,
-            notice: conversation.notice,
-            hint: if conversation.phase == Phase::Username {
-                "Enter: continue  F2: keyboard  Up/Down: accounts  Ctrl+Alt+F2: maintenance"
-            } else {
-                "Enter: continue  Esc: cancel for account/keyboard recovery  Ctrl+Alt+F2: maintenance"
+/// The Lemurs form while the writer signs in; PAM's own questions, if it asks
+/// any the form did not answer, in the WrOS menu.
+pub fn render(frame: &mut ratatui::Frame, conversation: &Conversation, form: &form::Form) {
+    let theme = wros_shell::Theme::default();
+    let title = "WrOS · Sign in";
+    if matches!(conversation.phase, Phase::Prompt(_) | Phase::Retry) {
+        let rows = vec![conversation.prompt.clone(), conversation.shown_input()];
+        wros_shell::render_menu(
+            frame,
+            frame.area(),
+            wros_shell::Menu {
+                title,
+                rows: &rows,
+                kinds: &[],
+                selected: 0,
+                notice: conversation.notice,
+                hint: "Enter: continue  Esc: cancel for account/keyboard recovery  Ctrl+Alt+F2: maintenance",
             },
-        },
-        wros_shell::Theme::default(),
-    );
+            theme,
+        );
+        return;
+    }
+    let hint = match form.focus {
+        form::Focus::Switcher => {
+            "Left/Right: session  Enter: continue  F2: keyboard  Ctrl+Alt+F2: maintenance"
+        }
+        form::Focus::Username => {
+            "Enter: continue  Up/Down: accounts  F2: keyboard  Ctrl+Alt+F2: maintenance"
+        }
+        form::Focus::Password => "Enter: sign in  Up: back  F2: keyboard  Ctrl+Alt+F2: maintenance",
+    };
+    let body =
+        wros_shell::render_panel(frame, frame.area(), title, conversation.notice, hint, theme);
+    form.render(frame, body, theme);
 }
 
 #[cfg(target_os = "linux")]

@@ -1070,10 +1070,9 @@ def greeter_login(ctx, g, m, user, password, layout, *, wrong_first=True):
     m.type_text(user + '\n', layout)
     g.wait_vcs(1, r'\[hidden\]', 30, what='greeter-password-prompt-2')
     m.type_text(password + '\n', layout)
-    screen = g.wait_vcs(1, r'Authenticated\.|Open writing session', 90, what='greeter-authenticated')
-    ctx.check('correct greeter password accepted', 'Authenticated' in screen or 'Open writing session' in screen)
-    m.key('ret')
-    g.wait_vcs(1, r'Resume writing|WrOS', 90, what='grimoire-home')
+    # The login opens the session as soon as the password is accepted.
+    screen = g.wait_vcs(1, r'\A(?!.*Local account)(?=.*(?:Resume writing|WrOS))', 90, what='grimoire-home')
+    ctx.check('correct greeter password accepted', 'Local account' not in screen)
 
 
 def secret_scan(ctx, g, secrets_):
@@ -2358,8 +2357,6 @@ def phase_autoback(ctx):
         m.type_text(user + '\n', layout)
         g.wait_vcs(1, r'\[hidden\]', 30, what='greeter-password-' + label)
         m.type_text(secrets_['login'] + '\n', layout)
-        g.wait_vcs(1, r'Authenticated\.|Open writing session', 90, what='greeter-authenticated-' + label)
-        m.key('ret')
         deadline, out = time.monotonic() + 90, ''
         while time.monotonic() < deadline:
             rc, out = g.run('cat /var/lib/wros-update/probation.json', 20, check=False)

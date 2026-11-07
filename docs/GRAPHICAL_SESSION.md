@@ -39,6 +39,8 @@ count.
 
 The recovery menu (Esc at boot) offers **Continue in the console session**
 when the writer has the graphical session on. It lasts until the next restart.
+The login screen's session switcher offers the same for one login: **Console
+session** starts `wros-session --console`.
 
 The graphical session gets the console's keyboard layout. A layout chosen in
 WrOS maps to XKB (`colemak` to `us(colemak)`, `colemak-dh-ansi` to

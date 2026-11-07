@@ -53,8 +53,7 @@ def snapshot():
         except (FileNotFoundError,ProcessLookupError): pass
     return processes,P('/dev/vcs1').read_bytes().decode('latin1')
 phase=sys.argv[1]
-required={'manual':['Local account','WrOS'],'password':['Password:'],
-          'authenticated':['Open writing session','Authenticated.'],
+required={'manual':['Local account','WrOS'],'password':['[hidden]'],
           'home':['WrOS','Live session','Resume writing'],
           'settings':['Interface','Accounts','System'],
           'system':['Wi-Fi and networking','Battery and power','Date and time'],
@@ -65,7 +64,7 @@ while True:
     if all(s in screen for s in required) and (phase!='session' or all(processes.get(n) for n in ('grimoire','wros-input'))):break
     assert time.monotonic()<deadline,'native UI readiness: '+phase
     time.sleep(0.15)
-if phase in ('manual','password','authenticated'):
+if phase in ('manual','password'):
     assert not marker['automatic'] and not processes.get('grimoire')
     assert len(processes.get('wros-greeter',[]))==1
     assert processes['wros-greeter'][0]['uid'][0]!='0'
@@ -207,7 +206,6 @@ def main():
                     qmp(control, 'screendump', {'filename':str(run/'manual-login.ppm')})
                     keys(['w','r','o','s','minus','l','i','v','e','ret'])
                     probe('password'); keys(['l','i','v','e','ret'])
-                    probe('authenticated'); keys(['ret'])
                 first = probe('session')
                 if 'Live session' not in first['screen'] or 'Resume writing' not in first['screen']:
                     keys(['f12']); time.sleep(1)

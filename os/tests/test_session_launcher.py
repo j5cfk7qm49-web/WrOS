@@ -154,6 +154,16 @@ class Launcher(unittest.TestCase):
         # Choosing the console does not count as the graphical session failing.
         self.assertEqual(m.failures(), 0)
 
+    def test_the_login_screen_can_ask_for_the_console_for_one_login(self):
+        m = self.machine()
+        launcher = session.Launcher({'HOME': str(m.home)}, m.home, 1000, m.runtime, exists=m.exists, run=m.run,
+                                    execve=m.execve, cmdline=m.cmdline, console_flag=m.flag, login_console=True)
+        with self.assertRaises(Exec):
+            launcher.start()
+        self.assertEqual((m.runs, m.notice(), m.failures()), ([], None, 0))
+        # The writer's own choice is unchanged, so the next login is graphical again.
+        self.assertEqual(m.start(), 0)
+
     def test_the_live_session_always_uses_the_console(self):
         m = self.machine()
         self.assertEqual(m.start({'HOME': str(m.home), 'WROS_LIVE_SESSION': '1'}), 'exec')

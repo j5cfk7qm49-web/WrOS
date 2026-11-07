@@ -3,7 +3,7 @@ name = "wros-greeter"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
-description = "Isolated WrOS login conversation with greetd; no editor or password verification"
+description = "WrOS login screen: the Lemurs login form on greetd; no editor or password verification"
 
 [dependencies]
 wros-shell = { path = "../wros-shell" }

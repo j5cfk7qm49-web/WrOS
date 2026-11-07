@@ -193,12 +193,8 @@ def verify(run, secret=None, native_session=False, unlock_secret=None):
                 if native_session:
                     console_until(lambda c: b'[hidden]' in c and secret.encode() not in c,
                                   'Native login exposed the typed password')
+                # Enter signs in; the native login opens the session as soon as PAM accepts.
                 keys('\n')
-                if native_session:
-                    console_until(lambda c: b'Open writing session' in c and b'Authenticated.' in c,
-                                  'Installed native PAM did not authenticate')
-                    result['native_login_verified'] = True
-                    keys('\n')
                 deadline = time.monotonic() + 45
                 while True:
                     start = len(content)
@@ -216,6 +212,7 @@ def verify(run, secret=None, native_session=False, unlock_secret=None):
                     if process_verified and any(title in console for title in (b'WrOS', b'WRITINGDECK OS')) and b'Resume writing' in console:
                         result['tty1_nonroot_session_verified'] = True
                         result['writing_ui_verified'] = True
+                        result['native_login_verified'] = native_session
                         break
                     if time.monotonic() > deadline:
                         raise RuntimeError('Authenticated tty1 did not render the actual writing dashboard')

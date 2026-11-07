@@ -140,8 +140,6 @@ def main():
     marker('LOGIN')
     wait(lambda: '[hidden]' in screen() and probe.no_echo(), 'password')
     marker('PASSWORD')
-    wait(lambda: 'Open writing session' in screen(), 'authenticated')
-    marker('AUTHENTICATED')
     wait(lambda: 'Resume writing' in screen() and processes('grimoire'), 'editor', 70)
     app = processes('grimoire')[0]
     assert '\nUid:\t1000\t' in (app / 'status').read_text()
@@ -220,8 +218,6 @@ def main():
         marker(label + '_LOGIN')
         wait(lambda: '[hidden]' in screen() and probe.no_echo(), label + ' login prompt')
         marker(label + '_PASSWORD')
-        wait(lambda: 'Open writing session' in screen(), label + ' PAM')
-        marker(label + '_AUTHENTICATED')
         wait(lambda: 'Resume writing' in screen() and processes('grimoire'), label + ' editor', 70)
         app = processes('grimoire')[0]
         assert '\nUid:\t1000\t' in (app / 'status').read_text()
@@ -282,7 +278,7 @@ if __name__ == '__main__':
                     marker('DIAGNOSTIC_' + name + '_WAIT_' + (proc / 'wchan').read_text().strip())
                 except OSError:
                     pass
-        for label in ('Local account', 'Open writing session', 'Resume writing', 'locking fixture original'):
+        for label in ('Local account', 'Resume writing', 'locking fixture original'):
             if label in screen():
                 marker('DIAGNOSTIC_TTY1_HAS_' + label.replace(' ', '_'))
         for line in command('systemctl', 'show', 'greetd', '-p', 'ActiveState', '-p', 'SubState', '-p', 'Result').stdout.decode().splitlines():

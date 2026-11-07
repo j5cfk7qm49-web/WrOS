@@ -36,7 +36,12 @@ mod linux {
         },
         time::{Duration, Instant},
     };
-    use wros_greeter::{Conversation, Phase, Request, keyboard, transport::Client};
+    use wros_greeter::{
+        Conversation, Phase, Request,
+        form::{Action, Form},
+        keyboard,
+        transport::Client,
+    };
 
     struct TerminalGuard;
     fn repaint<B: ratatui::backend::Backend>(terminal: &mut ratatui::Terminal<B>) {
@@ -113,7 +118,11 @@ mod linux {
         } else {
             vec![]
         };
-        let mut selected_account = None;
+        // The session switcher shows only when the graphical session can start.
+        let graphical = ["/usr/bin/cage", "/usr/bin/foot"]
+            .iter()
+            .all(|path| Path::new(path).is_file());
+        let mut form = Form::new(accounts, graphical);
         let (requests, incoming) = mpsc::sync_channel::<Request>(1);
         let (replies, completed) = mpsc::sync_channel(1);
         let worker = std::thread::spawn(move || {
@@ -172,6 +181,9 @@ mod linux {
                     Ok(response) => {
                         drain_input()?;
                         let followup = conversation.receive(response?)?;
+                        if conversation.phase == Phase::Username {
+                            form.reset();
+                        }
                         repaint(&mut terminal);
                         if let Some(request) = followup {
                             requests
@@ -197,7 +209,7 @@ mod linux {
                         if keyboard.open {
                             keyboard.render(frame, Instant::now());
                         } else {
-                            wros_greeter::render(frame, &conversation);
+                            wros_greeter::render(frame, &conversation, &form);
                         }
                     })
                     .map_err(|_| "terminal draw failed")?;
@@ -238,12 +250,14 @@ mod linux {
                     if !keyboard.open {
                         drain_input()?;
                         conversation.clear();
+                        form.reset();
                         conversation.notice = keyboard.notice;
                         repaint(&mut terminal);
                     }
                     continue;
                 }
                 if key.code == KeyCode::F(2) && conversation.open_keyboard(&mut keyboard) {
+                    form.reset();
                     drain_input()?;
                     repaint(&mut terminal);
                     continue;
@@ -264,21 +278,25 @@ mod linux {
                 if matches!(conversation.phase, Phase::Waiting(_)) {
                     continue;
                 }
-                match key.code {
-                    KeyCode::Up | KeyCode::Down
-                        if conversation.phase == Phase::Username && !accounts.is_empty() =>
-                    {
-                        let index = match (selected_account, key.code) {
-                            (None, KeyCode::Up) => accounts.len() - 1,
-                            (None, _) => 0,
-                            (Some(index), KeyCode::Up) => {
-                                (index + accounts.len() - 1) % accounts.len()
-                            }
-                            (Some(index), _) => (index + 1) % accounts.len(),
-                        };
-                        selected_account = Some(index);
-                        conversation.choose_account(&accounts[index]);
+                if conversation.phase == Phase::Username {
+                    if form.key(key) == Action::Submit {
+                        let request = conversation.begin(
+                            form.username.text(),
+                            form.password.text(),
+                            form.session(),
+                        );
+                        form.password.clear();
+                        match request {
+                            Some(request) => requests
+                                .try_send(request)
+                                .map_err(|_| "login request queue unavailable")?,
+                            None => form.reset(),
+                        }
                     }
+                    continue;
+                }
+                // A question from PAM the form did not answer.
+                match key.code {
                     KeyCode::Enter => {
                         if let Some(request) = conversation.submit() {
                             requests
@@ -316,24 +334,23 @@ mod linux {
         use ratatui::{
             Terminal,
             backend::{Backend, TestBackend},
+            crossterm::event::KeyEvent,
         };
 
         #[test]
         fn idle_console_wipe_recovers_without_input_and_keeps_secrets_hidden() {
             let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
-            let mut conversation = Conversation::default();
-            conversation.choose_account("writer");
-            conversation.submit().unwrap();
-            conversation
-                .receive(wros_greeter::Response::AuthMessage {
-                    auth_message_type: wros_greeter::MessageKind::Secret,
-                    auth_message: "Password:".into(),
-                })
-                .unwrap();
-            for c in "synthetic-secret".chars() {
-                conversation.type_char(c);
+            let conversation = Conversation::default();
+            let mut form = Form::new(vec![], false);
+            for c in "writer".chars() {
+                form.key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
             }
-            let draw = |frame: &mut ratatui::Frame| wros_greeter::render(frame, &conversation);
+            form.key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+            for c in "synthetic-secret".chars() {
+                form.key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
+            }
+            let draw =
+                |frame: &mut ratatui::Frame| wros_greeter::render(frame, &conversation, &form);
             terminal.draw(draw).unwrap();
             let expected = terminal.backend().buffer().clone();
             // Independent console output clears the actual device, not its
@@ -349,14 +366,14 @@ mod linux {
                     .map(|c| c.symbol())
                     .collect::<String>()
             };
-            assert!(!text(&terminal).contains("Password:"));
+            assert!(!text(&terminal).contains("Local account"));
             let start = Instant::now();
             let mut last = start;
             refresh(&mut terminal, &mut last, start + Duration::from_secs(1));
             terminal.draw(draw).unwrap();
             let recovered = text(&terminal);
             assert_eq!(terminal.backend().buffer(), &expected);
-            assert!(recovered.contains("Password:") && recovered.contains("[hidden]"));
+            assert!(recovered.contains("Local account") && recovered.contains("[hidden]"));
             assert!(!recovered.contains("synthetic-secret"));
         }
     }

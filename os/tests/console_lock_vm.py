@@ -138,7 +138,6 @@ mount -o remount,ro /dev/vda2 "$rootmnt"
                     chord('ctrl', 'k'); keys(text, True)
                 actions = {
                     'LOGIN': lambda: keys('writer', True), 'PASSWORD': lambda: keys(secret, True),
-                    'AUTHENTICATED': lambda: keys([], True),
                     'WRITING_READY': lambda: (keys(['esc']), palette('scene one'), keys(['home']), keys('locking fixture original')),
                     'SETTINGS_READY': lambda: palette('wros settings'),
                     'SYSTEM_READY': lambda: keys(['down', 'down'], True),
@@ -164,7 +163,6 @@ mount -o remount,ro /dev/vda2 "$rootmnt"
                     actions.update({
                         label + '_LOGIN': lambda: keys('writer', True),
                         label + '_PASSWORD': lambda: keys(secret, True),
-                        label + '_AUTHENTICATED': lambda: keys([], True),
                         label + '_NAVIGATE': lambda: (keys(['esc']), palette('wros settings'), keys(['home', 'down', 'down'], True), keys(['home', 'down', 'down'], True)),
                         label + '_LOCK': lambda: keys(['end'], True),
                         label + '_PROTECTED': lambda: (chord('ctrl', 'alt', 'f1'), chord('ctrl', 'alt', 'f2')),

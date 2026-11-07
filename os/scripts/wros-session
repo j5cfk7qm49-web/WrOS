@@ -113,12 +113,14 @@ class Launcher:
 
     def __init__(self, environ, home, uid, runtime_dir, exists=os.path.exists, run=subprocess.run,
                  execve=os.execve, cmdline=CMDLINE, console_flag=CONSOLE_THIS_BOOT,
-                 keyboard=KEYBOARD, debian_keyboard=DEBIAN_KEYBOARD, tty=None):
+                 keyboard=KEYBOARD, debian_keyboard=DEBIAN_KEYBOARD, tty=None, login_console=False):
         self.environ, self.home, self.uid = environ, Path(home), uid
         self.runtime_dir = Path(runtime_dir) if runtime_dir else None
         self.exists, self.run, self.execve = exists, run, execve
         self.cmdline, self.console_flag = cmdline, console_flag
         self.keyboard, self.debian_keyboard, self.tty = keyboard, debian_keyboard, tty
+        # The login screen's session switcher asked for the console, for this login only.
+        self.login_console = login_console
 
     @property
     def settings_path(self):
@@ -151,7 +153,7 @@ class Launcher:
     def choice(self):
         """('graphical', None) or ('console', the notice the app shows, or None)."""
         settings = read_json(self.settings_path) or {}
-        if settings.get('session') != 'graphical' or self.live():
+        if settings.get('session') != 'graphical' or self.live() or self.login_console:
             return 'console', None
         if self.console_asked():
             return 'console', RECOVERY_CHOSE
@@ -255,7 +257,7 @@ def main():
     log(f'WROS_SESSION uid={os.getuid()} tty={tty}')
     report_started()
     launcher = Launcher(os.environ, os.environ.get('HOME', '/nonexistent'), os.getuid(),
-                        os.environ.get('XDG_RUNTIME_DIR'), tty=0)
+                        os.environ.get('XDG_RUNTIME_DIR'), tty=0, login_console=sys.argv[1:] == ['--console'])
     try:
         return launcher.start()
     except Exception as error:  # noqa: BLE001 - writing must always open somewhere

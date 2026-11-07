@@ -161,9 +161,7 @@ mount -o remount,ro /dev/vda2 "$rootmnt"
                         ready.connect(str(handshake)); ready.sendall(b'H\n')
                     stage = 4
                 if 'WROS_GREETER_HIDDEN' in content and stage == 4:
-                    keys(''); stage = 5
-                if 'WROS_GREETER_AUTHENTICATED' in content and stage == 5:
-                    keys(''); stage = 6
+                    keys(''); stage = 6  # Enter signs in and opens the session.
                 if 'WROS_GREETER_TIMEZONE_READY' in content and timezone_stage == 0:
                     keys(['esc'], enter=False)
                     qmp(control, 'send-key', {'keys': [{'type': 'qcode', 'data': 'ctrl'}, {'type': 'qcode', 'data': 'k'}], 'hold-time': 40})
@@ -198,9 +196,7 @@ mount -o remount,ro /dev/vda2 "$rootmnt"
                     time.sleep(0.2)
                     keys(''); stage = 7
                 if 'WROS_GREETER_SWITCH_PROMPT' in content and stage == 7:
-                    keys(secret); stage = 8
-                if 'WROS_GREETER_SWITCH_AUTHENTICATED' in content and stage == 8:
-                    keys(''); stage = 9
+                    keys(secret); stage = 9
                 if 'WROS_GREETER_PASS' in content:
                     stage = 10
                 time.sleep(0.15)
