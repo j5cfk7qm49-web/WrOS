@@ -2,23 +2,22 @@
 
 ## Build and qualify the candidate
 
-1. Record the candidate commit and verify that `os/VERSION`, the RC contract
-   and the packaging test agree. Run the Rust workspace and Python suites in
-   the Debian 13 chroot. Keep the full logs and identify each failed test.
-2. From WSL, run the versioned `rc-x-rc7-release.sh` helper. It fetches the
-   local `rc7-build` commit into the release checkout, builds the package in
-   Debian 13 and signs the bundle with the offline release key. Keep the
-   signing directory outside the source tree. The helper removes its private
-   copy of the Google client file on exit.
-3. Run `rc-x-rc7-checkbundle.sh` on `rc7-release/wros-updates.tar`. Confirm the
+1. Record the candidate commit and set `os/VERSION` (the packaging test checks
+   it). Run `tools/rc-check.sh` in the Debian 13 chroot and keep its
+   `summary.txt`; name each failure that remains (the prose-runtime tests fail
+   without the provisioned runtime).
+2. From WSL, run the versioned `.audit-tools/rc-x-rc9-release.sh`. It fetches
+   the local `rc9-build` commit into the release checkout, builds `grimoire`,
+   `wros-greeter` and `wros-boot`, packages them and signs the bundle with the
+   offline release key, which stays outside the source tree.
+3. Run `rc-x-rc9-checkbundle.sh` on `rc9-release/wros-updates.tar`. Confirm the
    version, the pinned signer and the tarball SHA-256. Keep the release notes
    and GitHub release body beside the tarball.
-4. Run `rc7-vm-chain.sh` from WSL with the bundle and `--expect 0.1.0~rc7`.
-   The chain stages the update from an encrypted rc1 VM through Settings,
-   installs it at restart and checks the installed features. Run the rc6
-   disk migration as well. Record the run directories and inspect each
-   `result.json`. Check the old settings, Colemak, group IDs, recovery menu,
-   manual go-back evidence, and lock and suspend password isolation.
+4. Run `rc9-vm-chain.sh` with the bundle, starting from the saved rc7 disk (the
+   laptop's version): it updates through Settings, installs at restart and checks
+   the installed features. Then run `rc9-vm-bootscreen.sh` on the updated disk
+   for the start screen and every way back to Debian's prompt. Inspect each
+   `result.json`.
 5. Review the VM results and hardware checklist before approving the tag.
    Release tags use the checked `wros-updates.tar` as their live payload.
 

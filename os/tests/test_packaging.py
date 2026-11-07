@@ -796,8 +796,8 @@ class ManifestData(unittest.TestCase):
                 self.assertIn(entry.name, packaged_sources, 'unpackaged config ' + entry.name)
 
     def test_version_is_the_single_source(self):
-        self.assertEqual((ROOT / 'os/VERSION').read_text(), '0.1.0~rc7\n')
-        self.assertEqual(packaging.read_version(ROOT), '0.1.0~rc7')
+        self.assertEqual((ROOT / 'os/VERSION').read_text(), '0.1.0~rc9\n')
+        self.assertEqual(packaging.read_version(ROOT), '0.1.0~rc9')
         for bad in ('', '1:2', 'v1', '1 2', '1\t2'):
             with self.assertRaises(packaging.PackagingError):
                 packaging.check_version(bad)
@@ -1001,7 +1001,7 @@ class StageIntoRoot(unittest.TestCase):
         self.assertIn('newer wros', result.stderr)
         repo, root, env, work = self.prepare()
         binaries, keymaps = stub_inputs(work)
-        wrong = build(ROOT, work / 'prebuilt', binaries, keymaps, version='0.1.0~rc9')
+        wrong = build(ROOT, work / 'prebuilt', binaries, keymaps, version='0.0.1~not-this-tree')
         result = self.stage(repo, root, {**env, 'WROS_PACKAGE_DEB': str(wrong)}, work)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'not wros {TREE}', result.stderr)
