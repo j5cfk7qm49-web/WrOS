@@ -356,6 +356,12 @@ def ocr(image, font=None, offset=(0, 0)):
             x0, y0 = offset[0] + c * cw, offset[1] + r * ch
             parts = [raw[(y0 + y) * w + x0:(y0 + y) * w + x0 + cw] for y in range(ch)]
             cell_bytes = b''.join(parts)
+            if isinstance(font, NativeFont) and any(cell_bytes):
+                # Selection backgrounds differ from the page. Match glyph edges
+                # against each cell's own background rather than the whole page.
+                tile = image.crop((x0, y0, x0 + cw, y0 + ch))
+                local_bg = max(tile.getcolors(maxcolors=cw * ch))[1]
+                cell_bytes = ImageChops.difference(tile, Image.new('RGB', tile.size, local_bg)).convert('L').point(lambda v: 255 if v > 40 else 0).tobytes()
             if not any(cell_bytes):
                 chars.append(' ')
                 continue

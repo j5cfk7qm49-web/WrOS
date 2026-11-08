@@ -2653,7 +2653,34 @@ def phase_bootscreen(ctx):
               'wros.unlock=text' in cmdline and not any(word.startswith('systemd.unit=') for word in cmdline), cmdline)
     ctx.check('text start skips the progress screen', 'ConditionResult=no' in splash_record(g))
 
-    # 5. A start screen that fails at once (here /usr/bin/false): Debian's prompt unlocks.
+    # 5. Kill the renderer after it has switched to pixels, bypassing every Drop
+    # guard. Only the separate recovery executable can restore Debian's prompt.
+    crash_hook = r'''#!/bin/sh
+case "$1" in prereqs) echo wros-boot; exit 0;; esac
+cp "$DESTDIR/usr/lib/wros/wros-boot" "$DESTDIR/usr/lib/wros/wros-boot.real"
+cat > "$DESTDIR/usr/lib/wros/wros-boot" <<'CRASH'
+#!/bin/sh
+/usr/lib/wros/wros-boot.real "$@" &
+renderer=$!
+sleep 20
+kill -KILL "$renderer"
+wait "$renderer"
+exit 20
+CRASH
+chmod 0755 "$DESTDIR/usr/lib/wros/wros-boot"
+'''
+    g.shell.put('/etc/initramfs-tools/hooks/zz-rc-native-crash', crash_hook, '0755')
+    g.run('update-initramfs -u', 900)
+    resets = reboot(ctx, g, m, 'reboot-native-crash')
+    m.wait_screen(RATATUI_PROMPT, 420, name='native-before-crash')
+    ctx.check('the forced crash happens after native pixels appeared', native_pixels(m.shot('native-before-crash')))
+    unlock(ctx, m, secrets_, layout, wrong_first=False)
+    shutil.copyfile(ctx.dir / 'unlock-prompt.png', ctx.dir / 'native-crash-text-prompt.png')
+    g = signed_in_again(ctx, m, st, secrets_)
+    ctx.check('SIGKILL of the graphical unlock still reaches Debian and opens the disk', True)
+    g.run('rm -f /etc/initramfs-tools/hooks/zz-rc-native-crash', 30)
+
+    # A start screen that cannot draw at all also falls back.
     g.run('cp -p /usr/lib/wros/wros-boot /root/wros-boot.good && cp /usr/bin/false /usr/lib/wros/wros-boot '
           '&& update-initramfs -u', 900)
     resets = reboot(ctx, g, m, 'reboot-failing')

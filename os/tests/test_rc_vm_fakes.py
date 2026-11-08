@@ -25,6 +25,10 @@ class NativeScreenshot(unittest.TestCase):
         font = vm.NativeFont(atlas, 4, 6)
         screen = font.render('A ▸', 3, 1)
         self.assertEqual(vm.ocr(screen, font), ['A ▸'])
+        selected = font.render('A ▸', 3, 1, bg=(30, 50, 130))
+        canvas = Image.new('RGB', (16, 6))
+        canvas.paste(selected, (0, 0))
+        self.assertEqual(vm.ocr(canvas, font), ['A ▸'])
 
 
 @unittest.skipUnless(sys.platform == 'linux', 'needs unix sockets and bash')
