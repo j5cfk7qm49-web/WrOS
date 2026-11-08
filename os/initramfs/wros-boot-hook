@@ -2,7 +2,8 @@
 # WrOS start screen in the boot image (docs/RATATUI_BOOT.md). Installed as
 # /usr/share/initramfs-tools/hooks/wros-boot; runs after cryptsetup's hook.
 #
-# Only while /etc/wros/boot-screen says "ratatui": copies wros-boot and the theme
+# Enabled by default; an explicit "text" switch leaves Debian's image alone.
+# Copies wros-boot, its independent recovery helper and the theme
 # into the image and wraps the image's askpass, keeping Debian's as
 # askpass.debian. Whatever goes wrong, the image keeps Debian's prompt and
 # update-initramfs still succeeds: this hook never fails.

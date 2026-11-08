@@ -82,7 +82,7 @@ prompt or its outline get a visible fallback. This uses an explicit ANSI-16
 profile and conversion-only features: it never queries the password terminal.
 
 Settings › System › Display › **Start screen** chooses **WrOS** or **plain text**.
-The same helper writes or removes the switch and queues a boot-image rebuild.
+The same helper writes `ratatui` or `text` to the switch and queues a boot-image rebuild.
 The packaged `wros-boot-rebuild.path` starts the background service; changes made
 during a build cause a second build. An interrupted build is retried when the
 path unit starts again. Settings reports preparation and a failed rebuild; choose
@@ -126,11 +126,11 @@ network (dropbear's `passfifo`) and systemd's password agents. WrOS uses neither
 ## Rollout
 
 1. Build and test everything below on the test computer.
-2. On the laptop the hook first runs behind a switch, off by default:
-   `/etc/wros/boot-screen` containing `ratatui`. With the switch off the boot image
-   is exactly Debian's.
-3. Settings offers WrOS or plain text now. The switch remains off on a new
-   install; changing that default needs the owner's decision after the checklist.
+2. The owner chose graphical defaults on 2026-11-07. A missing switch, or
+   `/etc/wros/boot-screen` containing `ratatui`, enables the graphical boot image.
+3. Settings offers WrOS or plain text. An explicit `text` value keeps Debian's
+   original image; the text-start boot entry also overrides graphics for one boot.
+   The laptop checklist still covers the actual Intel display, timing and power use.
 
 ## Tests
 
@@ -150,6 +150,8 @@ a closed terminal exits without output.
 
 **Hook and wrapper tests**, in a fake boot image folder:
 - the hook copies `wros-boot`, keeps `askpass.debian` and installs the wrapper;
+- a missing switch enables graphics, while a missing or unrunnable recovery
+  helper keeps Debian's original prompt;
 - with the switch off, it changes nothing;
 - the wrapper runs Debian's prompt for `wros.unlock=text`, a missing binary, a
   failing binary, a crashing binary, and Esc, and passes the password through
@@ -184,4 +186,5 @@ Esc to the text prompt, the text-start entry, and timing on the Celeron.
    next to recovery, with the normal login and Debian's unlock prompt.
 5. **Built for rc10:** the shared login logo, theme helper, background rebuild
    and Settings choice. The Plymouth theme and its packaging are removed.
-6. Laptop checklist. The owner decides whether the switch may become the default.
+6. The owner requested graphical defaults. The laptop checklist still needs
+   hardware results; VM qualification does not establish them.

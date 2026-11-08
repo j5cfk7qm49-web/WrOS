@@ -1,5 +1,5 @@
 #!/bin/bash
-# Explicit experimental opt-in, only into an existing Debian staging root.
+# Stage the native login only into an existing Debian staging root.
 set -euo pipefail
 repo=$(cd "$(dirname "$0")/../.." && pwd)
 dest=$(realpath "${1:?usage: stage-greeter.sh STAGING_ROOT GREETER_BINARY}")
