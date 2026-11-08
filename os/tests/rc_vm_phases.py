@@ -162,7 +162,10 @@ class Guest:
         raise Failure('probe %s produced no RCJSON: %s' % (args, out[-300:]))
 
     def vcs(self, n):
-        return self.probe('vcs', str(n)).get('lines', [])
+        probe = self.probe('vcs', str(n))
+        if probe.get('graphics') and probe.get('active'):
+            return self.m.screen_text('native-tty%d' % n).splitlines()
+        return probe.get('lines', [])
 
     def snap(self):
         return self.probe('snap', timeout=120)
@@ -1038,7 +1041,9 @@ def unlock(ctx, m, secrets_, layout, *, wrong_first=True, after_reset=None):
         while m.qmp.count('RESET') < after_reset and time.monotonic() < deadline:
             time.sleep(0.5)
         time.sleep(3)
-    text = m.wait_screen(r'Please unlock disk', 420, name='unlock-wait')
+    text = m.wait_screen(r'Please unlock disk|' + RATATUI_PROMPT, 420, name='unlock-wait')
+    if re.search(RATATUI_PROMPT, text, re.I):
+        return ratatui_unlock(ctx, m, secrets_, layout, wrong_first=wrong_first)
     m.shot('unlock-prompt')
     ctx.step('unlock-prompt-seen', screen=text[-300:])
     ctx.check('unlock prompt is on tty1 only (no QA console argument)', True)
@@ -1953,9 +1958,10 @@ def menu_number(screen, label):
     return found[-1]
 
 
-def feature_console_lock(ctx, g, st, secrets_, layout, *, suspend=False):
+def feature_console_lock(ctx, g, st, secrets_, layout, *, suspend=False, signed_in=False):
     m, user = g.m, st['username']
-    greeter_login(ctx, g, m, user, secrets_['login'], layout, wrong_first=False)
+    if not signed_in:
+        greeter_login(ctx, g, m, user, secrets_['login'], layout, wrong_first=False)
     phrase = 'lockscene' + secrets.token_hex(4)
     second = 'locknote' + secrets.token_hex(4)
     grim_new_scene(g, 'Lock second scene', second, layout)
@@ -2517,6 +2523,13 @@ def console_has_green(path):
         return any(g > r + 40 and g > b + 40 for r, g, b in picture.convert('RGB').getdata())
 
 
+def native_pixels(path):
+    """Anti-aliased font edges distinguish pixels from the 16-colour console."""
+    from PIL import Image
+    with Image.open(path) as picture:
+        return len(picture.convert('RGB').getcolors(maxcolors=1 << 24)) > 64
+
+
 def wait_boot_prepared(ctx, g, *, enabled):
     deadline = time.monotonic() + 900
     while time.monotonic() < deadline:
@@ -2537,13 +2550,13 @@ def phase_bootscreen(ctx):
     vm.create_overlay(ctx.args.base_disk, overlay, base_format='qcow2')
     m = boot_installed(ctx, st, 'bootscreen', disk=overlay, fmt='qcow2', reboot=True)
 
-    # 1. The switch is off by default: Debian's own prompt, and a boot image without the start screen.
+    # 1. The owner chose graphical defaults for every stage of startup.
     g = session_ready(ctx, m, st, secrets_, layout, greeter=False)
     image = boot_image(g)
-    ctx.check('switch off: the boot image has the Debian prompt and no start screen',
-              'cryptsetup/askpass' in image and 'wros-boot' not in image and 'askpass.debian' not in image, image)
+    ctx.check('default: the boot image has native graphics and keeps Debian behind it',
+              'cryptsetup/askpass' in image and 'wros-boot' in image and 'askpass.debian' in image, image)
     record = splash_record(g)
-    ctx.check('switch off: the progress screen does not run', 'ConditionResult=no' in record, record)
+    ctx.check('default: the progress screen ran before login', splash_ran_before_login(record), record)
     ctx.check('wros-boot is installed', g.run('test -x /usr/lib/wros/wros-boot && echo yes')[1].strip() == 'yes')
 
     # 2. Accept a theme and choose the start screen through the installed app and polkit.
@@ -2563,9 +2576,6 @@ def phase_bootscreen(ctx):
     m.key('esc')
     grim_open_settings(g, layout)
     grim_to_panel(g, r'^Display')
-    g.wait_vcs(1, r'Start screen: plain text', 30, what='start-screen-choice')
-    g.choose(r'^Start screen: plain text')
-    m.key('ret')
     g.wait_vcs(1, r'Start screen: WrOS', 30, what='start-screen-on')
     wait_boot_prepared(ctx, g, enabled=True)
     theme = g.run('stat -c "%a %U" /etc/wros/boot-theme.toml; cat /etc/wros/boot-theme.toml')[1]
@@ -2586,6 +2596,7 @@ def phase_bootscreen(ctx):
     ratatui_unlock(ctx, m, secrets_, layout, wrong_first=True, after_reset=resets, name='ratatui')
     ctx.check('the custom accent reaches the real unlock console in green',
               console_has_green(ctx.dir / 'ratatui-prompt.png'))
+    ctx.check('disk unlock is native pixel output', native_pixels(ctx.dir / 'ratatui-prompt.png'))
     try:
         text = m.wait_screen(r'Starting WrOS', 90, interval=0.5, name='progress')
         m.shot('progress-screen')
@@ -2599,11 +2610,25 @@ def phase_bootscreen(ctx):
               splash_ran_before_login(record), record)
     m.shot('login-after-ratatui')
     ctx.check('the same green accent reaches the login console', console_has_green(ctx.dir / 'login-after-ratatui.png'))
+    ctx.check('login is native pixel output', native_pixels(ctx.dir / 'login-after-ratatui.png'))
     ctx.check('the Ratatui unlock opens the disk and reaches the login screen', True)
     login = g.screen(1)
     ctx.check('the shared logo sits above the complete login form',
               any(top in login and login.index(top) < login.index('Local account') for top in LOGO_TOP)
               and 'Password' in login, login)
+
+    greeter_login(ctx, g, m, st['username'], secrets_['login'], layout, wrong_first=False)
+    m.shot('native-writing')
+    ctx.check('the writing session defaults to native pixels',
+              g.probe('vcs', '1')['graphics'] and native_pixels(ctx.dir / 'native-writing.png'))
+    m.key('ctrl', 'alt', 'f2')
+    time.sleep(2)
+    ctx.check('native writing releases the display for another VT', g.run('fgconsole')[1].strip() == '2')
+    m.key('ctrl', 'alt', 'f1')
+    time.sleep(2)
+    ctx.check('native writing redraws after a VT switch', g.run('fgconsole')[1].strip() == '1'
+              and native_pixels(m.shot('native-after-vt')))
+    feature_console_lock(ctx, g, st, secrets_, layout, signed_in=True)
 
     # 4. Esc: Debian's text prompt, which unlocks.
     resets = reboot(ctx, g, m, 'reboot-esc')

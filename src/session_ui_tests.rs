@@ -26,19 +26,19 @@ fn turning_the_graphical_session_on_and_off_saves_the_choice() {
     let settings = desk.root.join("home/.config/wros/session.json");
     desk.app.deck.session_settings = Some(settings.clone());
     desk.draw();
-    assert!(desk.shows("Graphical session (preview): off · from the next login"));
+    assert!(desk.shows("Graphical session: off · from the next login"));
 
-    desk.choose("Graphical session (preview): off");
+    desk.choose("Graphical session: off");
     assert!(crate::session::graphical_chosen(&settings));
     assert_eq!(
         desk.app.deck.shell.notices.latest(),
         Some("Graphical session on. It starts at your next login.")
     );
-    assert!(desk.shows("Graphical session (preview): on"));
+    assert!(desk.shows("Graphical session: on"));
 
-    desk.choose("Graphical session (preview): on");
+    desk.choose("Graphical session: on");
     assert!(!crate::session::graphical_chosen(&settings));
-    assert!(desk.shows("Graphical session (preview): off"));
+    assert!(desk.shows("Graphical session: off"));
 }
 
 #[test]

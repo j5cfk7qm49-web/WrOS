@@ -1,12 +1,10 @@
 #!/usr/bin/python3 -I
 """Starts the writing app after a PAM login on tty1. Runs as the writer, never root.
 
-The console session is always there. The graphical one (cage running foot running
-grimoire) starts only when the writer turned it on, cage and foot are installed,
-recovery did not ask for the console this boot, and it has not failed twice in a
-row. If it ends before the app drew its first screen, the console session starts
-at once and the app says why. Exit returns to a login prompt rather than exposing
-an authenticated shell.
+Native graphical output is the default, including on live media. An explicit
+console choice or the text-start boot entry keeps the text path. The optional
+cage/foot trial retains its failure counter and immediate console fallback.
+Exit returns to login rather than exposing an authenticated shell.
 """
 import fcntl
 import json
@@ -148,15 +146,19 @@ class Launcher:
             words = self.cmdline.read_text(encoding='utf-8', errors='replace')[:LIMIT].split()
         except OSError:
             return False
-        return 'wros.session=console' in words
+        return 'wros.session=console' in words or 'wros.unlock=text' in words
 
     def choice(self):
         """('graphical', None) or ('console', the notice the app shows, or None)."""
         settings = read_json(self.settings_path) or {}
-        if settings.get('session') != 'graphical' or self.live() or self.login_console:
+        if settings.get('session') == 'console' or self.login_console:
             return 'console', None
         if self.console_asked():
             return 'console', RECOVERY_CHOSE
+        # A cage/foot trial needs an explicit backend. New and re-enabled sessions
+        # use the native renderer; missing DRM falls back inside the app.
+        if settings.get('backend') != 'foot' or self.live():
+            return 'drm', None
         if not (self.exists(CAGE) and self.exists(FOOT) and self.runtime_dir):
             return 'console', None
         if self.failures() >= MAX_FAILURES:
@@ -210,6 +212,11 @@ class Launcher:
 
     def start(self):
         kind, notice = self.choice()
+        if kind == 'drm':
+            env = self.base_environment()
+            env.update({'TERM': 'linux', 'WROS_SESSION': 'drm'})
+            self.execve(GRIMOIRE, [GRIMOIRE], env)
+            return 1
         if kind == 'graphical':
             if self.graphical():
                 self.set_failures(0)

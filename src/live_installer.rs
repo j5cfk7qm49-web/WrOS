@@ -64,7 +64,7 @@ fn console() -> bool {
 }
 
 pub fn handoff(
-    terminal: &mut ratatui::DefaultTerminal,
+    terminal: &mut crate::display::Terminal,
     input: &mut wros_input::Input,
 ) -> Result<Outcome> {
     if !available() || !console() || unsafe { libc::geteuid() } == 0 {
@@ -73,6 +73,7 @@ pub fn handoff(
     let proof = input
         .pause()
         .context("retiring writing input before starting live installer")?;
+    crate::display::suspend(terminal);
     let previous_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(|_| {}));
     let status_result = (|| -> Result<std::process::ExitStatus> {
@@ -106,7 +107,8 @@ pub fn handoff(
     if unsafe { libc::tcflush(0, libc::TCIFLUSH) } != 0 {
         bail!("Console input could not be cleared after installer handoff");
     }
-    *terminal = ratatui::try_init().context("restoring writing display after installer handoff")?;
+    *terminal =
+        crate::display::init().context("restoring writing display after installer handoff")?;
     terminal.clear()?;
     let _ = execute!(
         std::io::stdout(),

@@ -12,6 +12,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import rc_vm as vm
 
 
+class NativeScreenshot(unittest.TestCase):
+    def test_the_native_font_reads_the_same_ascii_and_selection_marker(self):
+        from PIL import Image
+        atlas = Image.new('RGB', (64, 108))
+        for index, points in ((ord('A') - 32, [(0, 0), (1, 1), (2, 2), (3, 3)]),
+                              (95, [(1, 0), (2, 1), (3, 2), (2, 3), (1, 4)])):
+            for style in range(3):
+                x, y = index % 16 * 4, (index // 16 + style * 6) * 6
+                for dx, dy in points:
+                    atlas.putpixel((x + dx, y + dy), (255, 255, 255))
+        font = vm.NativeFont(atlas, 4, 6)
+        screen = font.render('A ▸', 3, 1)
+        self.assertEqual(vm.ocr(screen, font), ['A ▸'])
+
+
 @unittest.skipUnless(sys.platform == 'linux', 'needs unix sockets and bash')
 class FakeGuest(unittest.TestCase):
     def setUp(self):

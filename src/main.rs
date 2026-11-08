@@ -6,6 +6,7 @@ mod battery;
 mod books;
 #[cfg(target_os = "linux")]
 mod console_lock;
+mod display;
 mod gauges;
 mod help;
 mod library;
@@ -225,12 +226,17 @@ fn main() -> Result<()> {
         app.msg = App::stranded_note(&stranded);
     }
 
-    let mut terminal = ratatui::try_init()
-        .context("this needs a real terminal — grimoire cannot run in a pipe")?;
+    let mut terminal =
+        display::init().context("this needs a real terminal — grimoire cannot run in a pipe")?;
 
     // Linux virtual consoles do not provide a real alternate screen. Clear
     // once so login/splash text cannot survive in cells absent from frame one.
     terminal.clear().context("clearing the writing console")?;
+    app.linux_console &= !display::graphical(&terminal);
+    if session::native() && !display::graphical(&terminal) {
+        app.deck.graphical_session = false;
+        app.msg = "Graphical display unavailable. WrOS opened in plain text.".into();
+    }
 
     // Cmd/Super only reaches a TUI when the terminal speaks the Kitty keyboard
     // protocol. Ghostty, Kitty, WezTerm and foot do; Apple Terminal does not.
@@ -270,6 +276,7 @@ fn main() -> Result<()> {
                 DisableMouseCapture,
                 DisableFocusChange
             );
+            display::suspend(&mut terminal);
             ratatui::restore();
             eprintln!("\nGrimoire hit a bug and closed. Anything unsaved was kept, and will be");
             eprintln!("offered back the next time you open this book.");
@@ -280,6 +287,7 @@ fn main() -> Result<()> {
     let _ = execute!(std::io::stdout(), DisableBracketedPaste, DisableFocusChange);
     let _ = execute!(std::io::stdout(), DisableMouseCapture);
     let _ = execute!(std::io::stdout(), PopKeyboardEnhancementFlags);
+    display::suspend(&mut terminal);
     ratatui::restore();
     if res.is_ok() && RESTART_APP.load(std::sync::atomic::Ordering::SeqCst) {
         return restart_app();
@@ -587,7 +595,7 @@ fn cmd_is_reachable() -> bool {
         || std::env::var("KITTY_WINDOW_ID").is_ok()
 }
 
-fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
+fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
     let mut confirm_quit = false;
     let mut last_frame = Instant::now();
     let mut first_screen = true;
@@ -767,124 +775,129 @@ fn run(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<()> {
                 return Ok(());
             }
         };
-        if app.deck.power_pending {
-            continue;
-        }
-
-        if let Event::Paste(text) = &ev {
-            if app.overlay == Overlay::Deck(app::wros::Page::Settings)
-                && app.deck.shell.nav.current() == app::shell::Route::BackupForm
-            {
-                app.paste_backup_form(text);
-                continue;
-            }
-            if app.overlay == Overlay::Deck(app::wros::Page::Settings)
-                && app.deck.shell.nav.current() == app::shell::Route::WifiConnect
-            {
-                app.paste_wifi_form(text);
-                continue;
-            }
-            if app.overlay == Overlay::Deck(app::wros::Page::Settings)
-                && app.deck.shell.nav.current() == app::shell::Route::UpdateBundleForm
-            {
-                app.paste_update_form(text);
-                continue;
-            }
-            if app.overlay == Overlay::Deck(app::wros::Page::Settings)
-                && app.deck.shell.nav.current() == app::shell::Route::ManualClock
-            {
-                app.paste_clock_form(text);
-                continue;
-            }
-            if app.overlay == Overlay::Deck(app::wros::Page::Settings)
-                && app.deck.shell.nav.current() == app::shell::Route::KeyboardWizard
-            {
-                app.paste_keyboard_wizard(text);
-                continue;
-            }
-            if app.overlay == Overlay::Continuity {
-                app.paste_continuity(text);
-                continue;
-            }
-            if app.overlay == Overlay::Milestones {
-                app.paste_milestones(text);
-                continue;
-            }
-            if app.overlay == Overlay::ReviewNotes {
-                app.paste_review_notes(text);
-                continue;
-            }
-            if app.overlay == Overlay::ProseDashboard {
-                app.paste_prose_dashboard(text);
-                continue;
-            }
-            if app.overlay == Overlay::Lexicon {
-                app.paste_lexicon(text);
-                continue;
-            }
-            if matches!(
-                app.overlay,
-                Overlay::Pins
-                    | Overlay::Journal
-                    | Overlay::Scratchpad
-                    | Overlay::Handoff
-                    | Overlay::Spark { .. }
-                    | Overlay::Checks { .. }
-                    | Overlay::Lexicon
-                    | Overlay::ProseDashboard
-                    | Overlay::Continuity
-                    | Overlay::Milestones
-                    | Overlay::ReviewNotes
-                    | Overlay::Footnotes { .. }
-                    | Overlay::FootnoteReader(_)
-                    | Overlay::Help { .. }
-                    | Overlay::Productivity { .. }
-                    | Overlay::Deck(_)
-            ) && !matches!(
-                app.overlay,
-                Overlay::Deck(app::wros::Page::KeyboardTest { .. })
-            ) {
-                app.msg = "Read-only preview. Enter explicitly edits the original source; pasted commands ignored.".into();
-                continue;
-            }
-            if matches!(app.overlay, Overlay::None) {
-                app.paste(text);
-            } else {
-                for c in text.chars().filter(|c| !c.is_control()) {
-                    app.on_overlay_key(Key::Char(c));
-                }
-            }
-            continue;
-        }
-
-        if let Event::Mouse(m) = ev {
-            match m.kind {
-                MouseEventKind::Up(MouseButton::Left) => app.drop_tree_drag(),
-                MouseEventKind::Down(MouseButton::Left) => app.on_click(m.column, m.row),
-                MouseEventKind::Down(MouseButton::Right) => app.on_right_click(m.column, m.row),
-                MouseEventKind::Drag(MouseButton::Left) => app.on_drag(m.column, m.row),
-                MouseEventKind::ScrollDown => app.on_scroll(m.column, m.row, true),
-                MouseEventKind::ScrollUp => app.on_scroll(m.column, m.row, false),
-                _ => {}
-            }
-            continue;
-        }
-
-        if matches!(ev, Event::FocusLost) {
-            app.pause_productivity_activity();
-            continue;
-        }
-        let Event::Key(k) = ev else {
-            continue;
-        };
-        if k.kind != KeyEventKind::Press {
-            continue;
-        }
-
-        if on_key(app, k, &mut confirm_quit) {
+        if dispatch_event(app, ev, &mut confirm_quit) {
             return Ok(());
         }
     }
+}
+
+/// Every renderer sends events through the same editing and modal rules.
+fn dispatch_event(app: &mut App, ev: Event, confirm_quit: &mut bool) -> bool {
+    if app.deck.power_pending {
+        return false;
+    }
+
+    if let Event::Paste(text) = &ev {
+        if app.overlay == Overlay::Deck(app::wros::Page::Settings)
+            && app.deck.shell.nav.current() == app::shell::Route::BackupForm
+        {
+            app.paste_backup_form(text);
+            return false;
+        }
+        if app.overlay == Overlay::Deck(app::wros::Page::Settings)
+            && app.deck.shell.nav.current() == app::shell::Route::WifiConnect
+        {
+            app.paste_wifi_form(text);
+            return false;
+        }
+        if app.overlay == Overlay::Deck(app::wros::Page::Settings)
+            && app.deck.shell.nav.current() == app::shell::Route::UpdateBundleForm
+        {
+            app.paste_update_form(text);
+            return false;
+        }
+        if app.overlay == Overlay::Deck(app::wros::Page::Settings)
+            && app.deck.shell.nav.current() == app::shell::Route::ManualClock
+        {
+            app.paste_clock_form(text);
+            return false;
+        }
+        if app.overlay == Overlay::Deck(app::wros::Page::Settings)
+            && app.deck.shell.nav.current() == app::shell::Route::KeyboardWizard
+        {
+            app.paste_keyboard_wizard(text);
+            return false;
+        }
+        if app.overlay == Overlay::Continuity {
+            app.paste_continuity(text);
+            return false;
+        }
+        if app.overlay == Overlay::Milestones {
+            app.paste_milestones(text);
+            return false;
+        }
+        if app.overlay == Overlay::ReviewNotes {
+            app.paste_review_notes(text);
+            return false;
+        }
+        if app.overlay == Overlay::ProseDashboard {
+            app.paste_prose_dashboard(text);
+            return false;
+        }
+        if app.overlay == Overlay::Lexicon {
+            app.paste_lexicon(text);
+            return false;
+        }
+        if matches!(
+            app.overlay,
+            Overlay::Pins
+                | Overlay::Journal
+                | Overlay::Scratchpad
+                | Overlay::Handoff
+                | Overlay::Spark { .. }
+                | Overlay::Checks { .. }
+                | Overlay::Lexicon
+                | Overlay::ProseDashboard
+                | Overlay::Continuity
+                | Overlay::Milestones
+                | Overlay::ReviewNotes
+                | Overlay::Footnotes { .. }
+                | Overlay::FootnoteReader(_)
+                | Overlay::Help { .. }
+                | Overlay::Productivity { .. }
+                | Overlay::Deck(_)
+        ) && !matches!(
+            app.overlay,
+            Overlay::Deck(app::wros::Page::KeyboardTest { .. })
+        ) {
+            app.msg = "Read-only preview. Enter explicitly edits the original source; pasted commands ignored.".into();
+            return false;
+        }
+        if matches!(app.overlay, Overlay::None) {
+            app.paste(text);
+        } else {
+            for c in text.chars().filter(|c| !c.is_control()) {
+                app.on_overlay_key(Key::Char(c));
+            }
+        }
+        return false;
+    }
+
+    if let Event::Mouse(m) = ev {
+        match m.kind {
+            MouseEventKind::Up(MouseButton::Left) => app.drop_tree_drag(),
+            MouseEventKind::Down(MouseButton::Left) => app.on_click(m.column, m.row),
+            MouseEventKind::Down(MouseButton::Right) => app.on_right_click(m.column, m.row),
+            MouseEventKind::Drag(MouseButton::Left) => app.on_drag(m.column, m.row),
+            MouseEventKind::ScrollDown => app.on_scroll(m.column, m.row, true),
+            MouseEventKind::ScrollUp => app.on_scroll(m.column, m.row, false),
+            _ => {}
+        }
+        return false;
+    }
+
+    if matches!(ev, Event::FocusLost) {
+        app.pause_productivity_activity();
+        return false;
+    }
+    let Event::Key(k) = ev else {
+        return false;
+    };
+    if k.kind != KeyEventKind::Press {
+        return false;
+    }
+
+    on_key(app, k, confirm_quit)
 }
 
 /// One key press, routed the way the running app routes it: the find bar's

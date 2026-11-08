@@ -27,7 +27,7 @@ fn main() {
 
 #[cfg(target_os = "linux")]
 mod linux {
-    use ratatui::{Terminal, TerminalOptions, Viewport, backend::CrosstermBackend, layout::Rect};
+    use ratatui::{Terminal, TerminalOptions, Viewport, backend::Backend, layout::Rect};
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::time::{Duration, Instant};
     use std::{
@@ -42,6 +42,7 @@ mod linux {
         splash,
         unlock::{Outcome, Unlock},
     };
+    use wros_graphics::Screen;
 
     /// How long an Esc waits for the rest of an arrow key's sequence.
     const ESC_WAIT_MS: i32 = 60;
@@ -179,7 +180,7 @@ mod linux {
         let Some(mut raw) = Raw::new(tty, args.mode == Mode::Unlock) else {
             return exit::FAILED;
         };
-        let theme = wros_boot::theme(&args.theme).for_console();
+        let theme = wros_boot::theme(&args.theme);
         if args.mode == Mode::Splash {
             return show_progress(&args, &mut raw, &theme);
         }
@@ -188,9 +189,18 @@ mod linux {
             let Ok(out) = raw.tty.try_clone() else {
                 return exit::FAILED;
             };
-            let viewport = Viewport::Fixed(raw.size());
-            let Ok(mut terminal) =
-                Terminal::with_options(CrosstermBackend::new(out), TerminalOptions { viewport })
+            let backend = Screen::new(out, !wros_graphics::text_start(), &raw.tty);
+            let theme = if backend.graphical() {
+                theme
+            } else {
+                theme.for_console()
+            };
+            let size = backend
+                .size()
+                .map(|s| Rect::new(0, 0, s.width, s.height))
+                .unwrap_or(raw.size());
+            let viewport = Viewport::Fixed(size);
+            let Ok(mut terminal) = Terminal::with_options(backend, TerminalOptions { viewport })
             else {
                 return exit::FAILED;
             };
@@ -210,7 +220,7 @@ mod linux {
                 let wait = if decoder.esc_pending() {
                     ESC_WAIT_MS
                 } else {
-                    -1
+                    100
                 };
                 let keys: Vec<_> = match raw.read(wait, &mut buf) {
                     Err(()) => return exit::FAILED,
@@ -286,10 +296,18 @@ mod linux {
         let Ok(out) = raw.tty.try_clone() else {
             return exit::FAILED;
         };
-        let viewport = Viewport::Fixed(raw.size());
-        let Ok(mut terminal) =
-            Terminal::with_options(CrosstermBackend::new(out), TerminalOptions { viewport })
-        else {
+        let backend = Screen::new(out, !wros_graphics::text_start(), &raw.tty);
+        let theme = if backend.graphical() {
+            theme.clone()
+        } else {
+            theme.for_console()
+        };
+        let size = backend
+            .size()
+            .map(|s| Rect::new(0, 0, s.width, s.height))
+            .unwrap_or(raw.size());
+        let viewport = Viewport::Fixed(size);
+        let Ok(mut terminal) = Terminal::with_options(backend, TerminalOptions { viewport }) else {
             return exit::FAILED;
         };
         if raw.tty.write_all(b"\x1b[0m\x1b[2J\x1b[H").is_err() || terminal.hide_cursor().is_err() {
@@ -301,8 +319,8 @@ mod linux {
         let mut buf = [0u8; 64];
         while !STOP.load(Ordering::SeqCst) && started.elapsed() < Duration::from_secs(180) {
             let now = progress(args).unwrap_or(shown.max(0.0));
-            if (now - shown).abs() >= 0.005 {
-                if terminal.draw(|f| splash::draw(f, theme, now)).is_err() {
+            {
+                if terminal.draw(|f| splash::draw(f, &theme, now)).is_err() {
                     return exit::FAILED;
                 }
                 shown = now;

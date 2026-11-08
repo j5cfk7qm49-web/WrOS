@@ -11,12 +11,11 @@ Before=shutdown.target
 Conflicts=shutdown.target
 # Only while the start screen is switched on, and never on a plain text start
 # (the WrOS recovery entry passes wros.unlock=text, so its messages stay visible).
-ConditionPathExists=/etc/wros/boot-screen
 ConditionKernelCommandLine=!wros.unlock=text
 
 [Service]
 Type=simple
-ExecCondition=/bin/sh -c 'test "$(cat /etc/wros/boot-screen)" = ratatui'
+ExecCondition=/bin/sh -c 'test ! -e /etc/wros/boot-screen || test "$(cat /etc/wros/boot-screen)" = ratatui'
 ExecStart=/usr/lib/wros/wros-boot splash --tty /dev/tty1
 TimeoutStopSec=3
 NoNewPrivileges=yes

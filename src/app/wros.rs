@@ -124,10 +124,10 @@ pub struct Deck {
     pub busy: bool,
     pub lock_available: bool,
     pub installer_available: bool,
-    /// Running inside the graphical session (cage + foot).
+    /// Running with native pixels or the cage/foot trial.
     pub graphical_session: bool,
     /// Where the writer's session choice is kept, when the choice can be offered:
-    /// an installed, non-live WrOS with cage and foot installed.
+    /// an installed, non-live WrOS with a graphical renderer available.
     pub session_settings: Option<std::path::PathBuf>,
     pub graphical_chosen: bool,
     pub boot_settings_available: bool,

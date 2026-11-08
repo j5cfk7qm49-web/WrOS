@@ -12,6 +12,7 @@ zeroize = "1.9"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = "0.2"
+wros-graphics = { path = "../wros-graphics" }
 
 [dev-dependencies]
 insta = "1.49"

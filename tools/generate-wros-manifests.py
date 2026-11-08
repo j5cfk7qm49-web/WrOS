@@ -17,7 +17,7 @@ def sha(path):
 
 def main():
     metadata = json.loads(subprocess.check_output(['cargo', 'metadata', '--format-version=1', '--locked', '--offline'], cwd=ROOT))
-    tree = subprocess.check_output(['cargo', 'tree', '--locked', '--offline', '--no-default-features', '-p', 'grimoire-tui', '--target', 'x86_64-unknown-linux-gnu', '--edges', 'normal,build', '--prefix', 'none', '--format', '{p}'], cwd=ROOT, text=True)
+    tree = subprocess.check_output(['cargo', 'tree', '--locked', '--offline', '--no-default-features', '--features', 'gui-drm', '-p', 'grimoire-tui', '--target', 'x86_64-unknown-linux-gnu', '--edges', 'normal,build', '--prefix', 'none', '--format', '{p}'], cwd=ROOT, text=True)
     used = {tuple(line.split()[:2]) for line in tree.splitlines()}
     manual = json.loads((ROOT/'docs/upstream-notice-sources.json').read_text())
     retained = {(p['name'], p['version']): p for p in manual['packages']}
@@ -82,7 +82,7 @@ def main():
         'scope': 'Locked Rust dependency graph (all resolved platforms/default features) + actual staged Debian package versions; not a blanket MIT license for the OS',
         'rust_packages': records, 'rust_notice_bundle': str(notice_path.relative_to(ROOT)),
         'missing_root_notice_files_requiring_review': missing,
-        'selected_build': {'target': 'x86_64-unknown-linux-gnu', 'package': 'grimoire-tui', 'default_features': False, 'missing_root_notice_files': missing_selected},
+        'selected_build': {'target': 'x86_64-unknown-linux-gnu', 'package': 'grimoire-tui', 'default_features': False, 'features': ['gui-drm'], 'missing_root_notice_files': missing_selected},
         'existing_dictionaries': {'notice': 'assets/dict/DICTIONARY-LICENSE', 'notice_sha256': sha(ROOT/'assets/dict/DICTIONARY-LICENSE'),
                                   'files': [{'file': str(p.relative_to(ROOT)), 'sha256': sha(p)} for p in sorted((ROOT/'assets/dict').iterdir()) if p.is_file()]},
         'debian_packages': debian,

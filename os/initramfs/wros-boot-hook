@@ -24,12 +24,19 @@ switch=${WROS_BOOT_SWITCH:-/etc/wros/boot-screen}
 binary=${WROS_BOOT_BINARY:-/usr/lib/wros/wros-boot}
 wrapper=${WROS_BOOT_WRAPPER:-/usr/share/wros/initramfs/askpass}
 theme=${WROS_BOOT_THEME:-/etc/wros/boot-theme.toml}
+reset=${WROS_CONSOLE_RESET:-/usr/lib/wros/wros-console-reset}
 
 say() {
     echo "wros-boot: $*; the boot image keeps Debian's disk prompt" >&2
 }
 
-[ "$(cat "$switch" 2>/dev/null)" = ratatui ] || exit 0
+[ ! -e "$switch" ] || [ "$(cat "$switch" 2>/dev/null)" = ratatui ] || exit 0
+
+# Native pixel output before the root disk is available. Firmware and dependency
+# discovery remain initramfs-tools' job; absent drivers leave the text path usable.
+for driver in i915 virtio_gpu bochs simpledrm; do
+    manual_add_modules "$driver" 2>/dev/null || true
+done
 
 askpass=
 for candidate in "$DESTDIR/usr/lib/cryptsetup/askpass" "$DESTDIR/lib/cryptsetup/askpass"; do
@@ -47,6 +54,10 @@ if [ ! -x "$binary" ] || [ ! -f "$wrapper" ]; then
 fi
 if ! copy_exec "$binary" /usr/lib/wros/wros-boot; then
     say "could not copy the start screen"
+    exit 0
+fi
+if ! copy_exec "$reset" /usr/lib/wros/wros-console-reset; then
+    say "could not copy the console recovery helper"
     exit 0
 fi
 if [ -f "$theme" ]; then

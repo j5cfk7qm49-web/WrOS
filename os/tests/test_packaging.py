@@ -58,7 +58,7 @@ def copy_repo(destination):
     for relative in ('packaging', 'os/config', 'os/systemd', 'os/grub', 'os/initramfs', 'os/scripts', 'os/helpers', 'os/licenses',
                      'tools/build-wros-debs.py', 'tools/stage-prose-runtime.py', 'tools/prepare-prose-tools.py',
                      'tools/audit-native-image.py',
-                     'assets/dict/DICTIONARY-LICENSE', 'LICENSE', 'os/VERSION'):
+                     'assets/dict/DICTIONARY-LICENSE', 'assets/DEJAVU-LICENSE', 'LICENSE', 'os/VERSION'):
         source = ROOT / relative
         target = destination / relative
         target.parent.mkdir(parents=True, exist_ok=True)

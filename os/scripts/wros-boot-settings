@@ -74,7 +74,7 @@ class Settings:
     def status(self):
         switch = self.config / 'boot-screen'
         regular(switch)
-        enabled = switch.exists() and switch.read_bytes().strip() == b'ratatui'
+        enabled = not switch.exists() or switch.read_bytes().strip() == b'ratatui'
         return {'enabled': enabled,
                 'pending': (self.state / 'pending').exists() or (self.state / 'building').exists(),
                 'failed': (self.state / 'failed').exists()}
@@ -94,7 +94,7 @@ class Settings:
             if enabled is True:
                 atomic(self.config / 'boot-screen', b'ratatui\n')
             elif enabled is False:
-                (self.config / 'boot-screen').unlink(missing_ok=True)
+                atomic(self.config / 'boot-screen', b'text\n')
             atomic(self.state / 'pending', b'pending\n')
         # The path unit starts the service and notices changes made during a build too.
         done = self.run(['/usr/bin/systemctl', 'start', '--no-block', 'wros-boot-rebuild.path'],

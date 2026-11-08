@@ -17,4 +17,5 @@ esac
 if [ -x "$boot" ] && "$boot" unlock "$@"; then
     exit 0
 fi
+"${WROS_CONSOLE_RESET:-/usr/lib/wros/wros-console-reset}" >/dev/null 2>&1 || true
 exec "$debian" "$@"

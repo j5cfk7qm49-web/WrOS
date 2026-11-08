@@ -152,7 +152,7 @@ fn console() -> bool {
 }
 
 pub fn handoff(
-    terminal: &mut ratatui::DefaultTerminal,
+    terminal: &mut crate::display::Terminal,
     input: &mut wros_input::Input,
     suspend: bool,
 ) -> Result<()> {
@@ -162,6 +162,7 @@ pub fn handoff(
     let proof = input
         .pause()
         .context("retiring writing input before lock")?;
+    crate::display::suspend(terminal);
     // A worker panic must not run Ratatui's global terminal-restoration hook
     // during authentication. No render, cursor query or event read occurs here.
     let previous_hook = std::panic::take_hook();
@@ -208,7 +209,7 @@ pub fn handoff(
     if unsafe { libc::tcflush(0, libc::TCIFLUSH) } != 0 {
         bail!("Console input could not be cleared after unlock");
     }
-    *terminal = ratatui::try_init().context("restoring writing display after unlock")?;
+    *terminal = crate::display::init().context("restoring writing display after unlock")?;
     terminal.clear()?;
     let _ = execute!(
         std::io::stdout(),

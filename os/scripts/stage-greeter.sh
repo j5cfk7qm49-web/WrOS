@@ -12,6 +12,7 @@ binary=${2:?usage: stage-greeter.sh STAGING_ROOT GREETER_BINARY}
     echo 'Stage the Debian greetd package and WrOS session first.' >&2; exit 2;
 }
 chroot "$dest" getent passwd _greetd >/dev/null
+chroot "$dest" usermod -a -G video _greetd
 [[ -x $dest/usr/libexec/wros-keyboard && -f $dest/usr/share/polkit-1/actions/org.wros.keyboard.policy ]] || {
     echo 'Stage the WrOS keyboard helper and policy first.' >&2; exit 2;
 }

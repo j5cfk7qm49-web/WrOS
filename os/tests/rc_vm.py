@@ -301,6 +301,38 @@ def _glyph_int(glyph):
     return int.from_bytes(bytes(255 if bit else 0 for row in glyph for bit in row), 'big')
 
 
+class NativeFont(Font):
+    """Templates from wros-graphics' font_atlas example, including its styles."""
+    def __init__(self, atlas, width, height):
+        self.width, self.height = width, height
+        pixels = atlas.convert('L')
+        self.glyphs, self._ints = {}, []
+        rows = atlas.height // height // 3
+        for style in range(3):
+            for index, char in enumerate(([chr(c) for c in range(32, 127)] + ['▸', '●'])[:16 * rows]):
+                left, top = index % 16 * width, (index // 16 + style * rows) * height
+                glyph = tuple(tuple(pixels.getpixel((left + x, top + y)) > 40
+                                    for x in range(width)) for y in range(height))
+                if style == 0:
+                    self.glyphs[char] = glyph
+                self._ints.append((char, _glyph_int(glyph)))
+
+
+def native_font():
+    from PIL import Image
+    path = os.environ.get('WROS_NATIVE_FONT')
+    if not path:
+        return None
+    cache = getattr(native_font, 'cache', None)
+    if cache is None:
+        data = Path(path).read_bytes()
+        match = re.search(rb'# cells (\d+) (\d+)\n', data[:100])
+        if not match:
+            raise ValueError('native font atlas has no cell geometry')
+        cache = native_font.cache = NativeFont(Image.open(path), int(match[1]), int(match[2]))
+    return cache
+
+
 def ocr(image, font=None, offset=(0, 0)):
     """Return the screen as text rows. Cells that match no glyph well become '?'."""
     from PIL import Image, ImageChops
@@ -341,7 +373,15 @@ def ocr(image, font=None, offset=(0, 0)):
 
 def png_text(path, font=None):
     from PIL import Image
-    return '\n'.join(ocr(Image.open(path), font))
+    picture = Image.open(path)
+    if font is not None:
+        return '\n'.join(ocr(picture, font))
+    candidates = ['\n'.join(ocr(picture))]
+    if native_font() is not None:
+        candidates.append('\n'.join(ocr(picture, native_font())))
+    # Firmware and Debian's prompt retain the console font; native screens use
+    # the exact rasterizer templates. Keep the more readable interpretation.
+    return max(candidates, key=lambda text: sum(map(len, re.findall(r'[A-Za-z]{3,}', text))) - text.count('?') * 2)
 
 
 def image_signature(path):

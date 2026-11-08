@@ -267,7 +267,10 @@ def postinst(manifest, stage):
               'fi',
               # The Ratatui start screen (docs/RATATUI_BOOT.md), only while its switch is on: the boot
               # image takes the new wros-boot. With the switch off the image stays Debian's.
-              'if [ -z "$root" ] && [ "$(cat /etc/wros/boot-screen 2>/dev/null)" = ratatui ] && [ -x /usr/sbin/update-initramfs ]; then',
+              'if command -v systemd-sysusers >/dev/null 2>&1; then',
+              '    systemd-sysusers --root="${root:-/}" wros-graphics.conf || echo "wros: native login permissions will be retried at boot" >&2',
+              'fi',
+              'if [ -z "$root" ] && { [ ! -e /etc/wros/boot-screen ] || [ "$(cat /etc/wros/boot-screen 2>/dev/null)" = ratatui ]; } && [ -x /usr/sbin/update-initramfs ]; then',
               '    /usr/sbin/update-initramfs -u >/dev/null 2>&1 || echo "wros: the start screen updates with the next boot image" >&2',
               'fi',
               'if [ -z "$root" ] && [ -x /usr/sbin/update-grub ] && [ -e /boot/grub/grub.cfg ]; then',
@@ -388,6 +391,10 @@ def build_deb(*, binaries_dir, version, output_dir, repo=REPO, keymaps_dir=None,
             shutil.copyfile(display_helper, binaries / 'wros-display-hw')
         if not (binaries / 'wros-display-hw').exists():
             compile_display_helper(repo, binaries / 'wros-display-hw')
+        if not (binaries / 'wros-console-reset').exists():
+            subprocess.run(['cc', '-static', '-Os', '-Wall', '-Wextra', '-Werror',
+                            '-fstack-protector-strong', '-o', str(binaries / 'wros-console-reset'),
+                            str(repo / 'os/helpers/wros-console-reset.c')], check=True)
         if keymaps_dir is None:
             keymaps_dir = tmp / 'keymaps'
             generate_keymaps(repo, keymaps_dir)

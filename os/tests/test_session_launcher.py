@@ -32,7 +32,7 @@ class Machine:
         self.installed, self.draws = installed, draws
         self.runs, self.execs = [], []
         if choice:
-            self.write(self.home / '.config/wros/session.json', {'version': 1, 'session': choice})
+            self.write(self.home / '.config/wros/session.json', {'version': 1, 'session': choice, 'backend': 'foot'})
 
     @staticmethod
     def write(path, value):
@@ -80,8 +80,8 @@ class Launcher(unittest.TestCase):
         self.addCleanup(temp.cleanup)
         return Machine(temp.name, **kwargs)
 
-    def test_the_console_session_is_the_default(self):
-        for kwargs in ({'choice': None}, {'choice': 'console'}, {'installed': False}):
+    def test_an_explicit_console_choice_is_respected(self):
+        for kwargs in ({'choice': 'console'},):
             with self.subTest(**kwargs):
                 m = self.machine(**kwargs)
                 self.assertEqual(m.start(), 'exec')
@@ -90,6 +90,11 @@ class Launcher(unittest.TestCase):
                 self.assertEqual((path, argv), ('/usr/bin/grimoire', ['/usr/bin/grimoire']))
                 self.assertEqual((env['TERM'], env['WROS_SESSION'], env['WROS_OS']), ('linux', 'console', '1'))
                 self.assertIsNone(m.notice())
+
+    def test_a_new_home_defaults_to_native_graphics(self):
+        m = self.machine(choice=None, installed=False)
+        self.assertEqual(m.start(), 'exec')
+        self.assertEqual(m.execs[-1][2]['WROS_SESSION'], 'drm')
 
     def test_the_graphical_session_runs_cage_foot_and_the_app(self):
         m = self.machine()
@@ -164,11 +169,12 @@ class Launcher(unittest.TestCase):
         # The writer's own choice is unchanged, so the next login is graphical again.
         self.assertEqual(m.start(), 0)
 
-    def test_the_live_session_always_uses_the_console(self):
+    def test_the_live_session_uses_native_graphics_without_a_compositor(self):
         m = self.machine()
         self.assertEqual(m.start({'HOME': str(m.home), 'WROS_LIVE_SESSION': '1'}), 'exec')
         self.assertEqual(m.runs, [])
         self.assertEqual(m.execs[-1][2]['WROS_LIVE_SESSION'], '1')
+        self.assertEqual(m.execs[-1][2]['WROS_SESSION'], 'drm')
 
     def test_no_runtime_folder_means_the_console(self):
         m = self.machine()

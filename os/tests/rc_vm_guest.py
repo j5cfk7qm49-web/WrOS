@@ -5,6 +5,7 @@ Never writes anything except to stdout. Output lines are prefixed `RCJSON` so th
 can find them in serial noise. Modes: vcs N | snap | keymap | tree PATH | find-text TEXT ROOT
 """
 import json
+import fcntl
 import os
 import pathlib
 import re
@@ -35,7 +36,16 @@ def vcs(n):
     # The console font maps the list marker U+25B8 and arrows U+2192/U+25BA/U+25B6 to one glyph, so
     # /dev/vcsu may report either; normalise a leading marker to U+25B8.
     lines = [re.sub('^([│┃| ]{0,2})[→►▶] ', lambda m: m.group(1) + '▸ ', line) for line in lines]
-    return {'rows': rows, 'cols': cols, 'lines': lines}
+    graphics = False
+    try:
+        with open('/dev/tty%d' % n, 'rb') as tty:
+            mode = bytearray(4)
+            fcntl.ioctl(tty, 0x4b3b, mode)  # KDGETMODE: no input is read.
+            graphics = struct.unpack('i', mode)[0] == 1
+    except OSError:
+        pass
+    return {'rows': rows, 'cols': cols, 'lines': lines, 'graphics': graphics,
+            'active': (text('/sys/class/tty/tty0/active') or '').strip() == 'tty%d' % n}
 
 
 def text(path, limit=1 << 20):

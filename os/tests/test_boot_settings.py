@@ -36,13 +36,13 @@ class BootSettings(unittest.TestCase):
 
         self.settings = self.module.Settings(self.root / 'etc', self.root / 'state', run)
 
-    def test_the_default_is_plain_text_and_a_theme_never_turns_the_switch_on(self):
-        self.assertEqual(self.settings.status(), {'enabled': False, 'pending': False, 'failed': False})
+    def test_the_default_is_graphical_and_a_theme_preserves_the_choice(self):
+        self.assertEqual(self.settings.status(), {'enabled': True, 'pending': False, 'failed': False})
         theme = 'name = "Nord"\n'
         status = self.settings.change('theme', theme)
         self.assertEqual((self.root / 'etc/boot-theme.toml').read_text(), theme)
         self.assertEqual((self.root / 'etc/boot-theme.toml').stat().st_mode & 0o777, 0o644)
-        self.assertFalse(status['enabled'])
+        self.assertTrue(status['enabled'])
         self.assertTrue(status['pending'])
         self.assertFalse((self.root / 'etc/boot-screen').exists())
         self.assertEqual(self.calls, [['/usr/bin/systemctl', 'start', '--no-block', 'wros-boot-rebuild.path']])
@@ -55,7 +55,9 @@ class BootSettings(unittest.TestCase):
         self.assertEqual(self.calls[-1], ['/usr/sbin/update-initramfs', '-u', '-k', 'all'])
         self.assertEqual(self.settings.status(), {'enabled': True, 'pending': False, 'failed': False})
         self.assertFalse(self.settings.change('screen', 'text', theme)['enabled'])
-        self.assertFalse((self.root / 'etc/boot-screen').exists())
+        self.assertEqual((self.root / 'etc/boot-screen').read_text(), 'text\n')
+        self.settings.change('theme', theme)
+        self.assertFalse(self.settings.status()['enabled'])
 
     def test_changes_during_a_rebuild_remain_queued_for_the_next_build(self):
         self.settings.change('theme', 'name = "Nord"\n')

@@ -111,7 +111,7 @@ jobs:
         run: |
           set -euo pipefail
           export PATH="/opt/cargo/bin:$PATH"
-          cargo build --release --locked --no-default-features -p grimoire-tui -p wros-greeter -p wros-boot
+          cargo build --release --locked --no-default-features --features gui-drm -p grimoire-tui -p wros-greeter -p wros-boot
           mkdir -p out/bin out/new
           cp target/release/grimoire target/release/wros-greeter target/release/wros-boot out/bin/
           python3 -I tools/build-wros-debs.py --binaries-dir out/bin --version "$VERSION" --output out/new

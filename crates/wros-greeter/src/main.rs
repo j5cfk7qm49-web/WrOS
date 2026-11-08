@@ -106,7 +106,8 @@ mod linux {
         let path = std::env::var_os("GREETD_SOCK").ok_or("login socket missing")?;
         let mut client = Client::connect(Path::new(&path))?;
         let interrupt = client.interrupter()?;
-        let mut terminal = ratatui::try_init().map_err(|_| "terminal initialization failed")?;
+        let mut terminal =
+            wros_graphics::init(true).map_err(|_| "terminal initialization failed")?;
         let _terminal_guard = TerminalGuard;
         drain_input()?;
         let mut passwd = String::new();
@@ -119,14 +120,15 @@ mod linux {
             vec![]
         };
         // The session switcher shows only when the graphical session can start.
-        let graphical = ["/usr/bin/cage", "/usr/bin/foot"]
-            .iter()
-            .all(|path| Path::new(path).is_file());
-        let mut form = Form::new(accounts, graphical);
+        let mut form = Form::new(accounts, true);
         let palette = std::fs::read_to_string("/etc/wros/boot-theme.toml")
             .map(|text| wros_shell::grimoire_theme::from_config(&text))
-            .unwrap_or_else(|_| wros_shell::grimoire_theme::default_theme())
-            .for_console();
+            .unwrap_or_else(|_| wros_shell::grimoire_theme::default_theme());
+        let palette = if terminal.backend().graphical() {
+            palette
+        } else {
+            palette.for_console()
+        };
         let (requests, incoming) = mpsc::sync_channel::<Request>(1);
         let (replies, completed) = mpsc::sync_channel(1);
         let worker = std::thread::spawn(move || {

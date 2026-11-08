@@ -148,6 +148,61 @@ impl Drop for Desk {
 // ---- Esc and the menu ---------------------------------------------------
 
 #[test]
+fn backend_events_keep_unicode_editing_save_and_undo_on_the_existing_path() {
+    let mut desk = Desk::open(book("backend-events", true), 100, 30);
+    desk.key(KeyCode::Tab);
+    let before = desk.app.editor.text();
+    for c in "Colemak é Ω".chars() {
+        assert!(!crate::dispatch_event(
+            &mut desk.app,
+            Event::Key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE)),
+            &mut desk.armed
+        ));
+    }
+    assert!(desk.app.editor.text().contains("Colemak é Ω"));
+    crate::dispatch_event(
+        &mut desk.app,
+        Event::Key(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::CONTROL)),
+        &mut desk.armed,
+    );
+    assert!(
+        fs::read_to_string(first_scene(&desk.root))
+            .unwrap()
+            .contains("Colemak é Ω")
+    );
+    for _ in 0..20 {
+        if desk.app.editor.text() == before {
+            break;
+        }
+        crate::dispatch_event(
+            &mut desk.app,
+            Event::Key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL)),
+            &mut desk.armed,
+        );
+    }
+    assert_eq!(desk.app.editor.text(), before);
+}
+
+#[test]
+fn backend_events_cannot_type_through_a_modal_or_treat_releases_as_typing() {
+    let mut desk = Desk::open(book("backend-modal", true), 100, 30);
+    desk.key(KeyCode::Tab);
+    let before = desk.app.editor.text();
+    let mut released = KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE);
+    released.kind = ratatui::crossterm::event::KeyEventKind::Release;
+    crate::dispatch_event(&mut desk.app, Event::Key(released), &mut desk.armed);
+    desk.key(KeyCode::Esc);
+    crate::dispatch_event(
+        &mut desk.app,
+        Event::Paste("do not enter the hidden book".into()),
+        &mut desk.armed,
+    );
+    assert_eq!(desk.app.editor.text(), before);
+    crate::dispatch_event(&mut desk.app, Event::FocusLost, &mut desk.armed);
+    assert_eq!(desk.app.editor.text(), before);
+}
+
+#[test]
 fn esc_from_the_tree_opens_the_menu_and_esc_closes_it() {
     let mut d = Desk::open(book("esc-tree", true), 120, 35);
     assert_eq!(d.app.focus, Focus::Tree);

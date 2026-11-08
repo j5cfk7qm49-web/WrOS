@@ -10,14 +10,19 @@ use std::{
 const CAGE: &str = "/usr/bin/cage";
 const FOOT: &str = "/usr/bin/foot";
 
-/// True inside the graphical session (cage running foot running this app).
+/// True inside a native or compositor-backed graphical session.
 pub fn graphical() -> bool {
-    std::env::var_os("WROS_SESSION").is_some_and(|kind| kind == "graphical")
+    std::env::var_os("WROS_SESSION").is_some_and(|kind| kind == "graphical" || kind == "drm")
 }
 
-/// The graphical session can start only once the writer installed cage and foot.
+pub fn native() -> bool {
+    std::env::var_os("WROS_SESSION").is_some_and(|kind| kind == "drm")
+}
+
+/// Native output is compiled in; the foot trial also needs its Debian packages.
 pub fn graphical_installed() -> bool {
-    Path::new(CAGE).is_file() && Path::new(FOOT).is_file()
+    cfg!(all(target_os = "linux", feature = "gui-drm"))
+        || (Path::new(CAGE).is_file() && Path::new(FOOT).is_file())
 }
 
 /// The writer's choice: `~/.config/wros/session.json`.
@@ -29,6 +34,9 @@ pub fn settings_path() -> Option<PathBuf> {
 
 /// Whether `settings` asks for the graphical session at the next login.
 pub fn graphical_chosen(settings: &Path) -> bool {
+    if !settings.exists() {
+        return true;
+    }
     fs::read(settings)
         .ok()
         .filter(|bytes| bytes.len() <= 65536)
@@ -42,7 +50,7 @@ pub fn choose(settings: &Path, graphical: bool) -> io::Result<()> {
     let kind = if graphical { "graphical" } else { "console" };
     write_private(
         settings,
-        &serde_json::json!({ "version": 1, "session": kind }),
+        &serde_json::json!({ "version": 1, "session": kind, "backend": "drm" }),
     )?;
     if graphical && let Some(state) = state_path(settings) {
         write_private(&state, &serde_json::json!({ "version": 1, "failures": 0 }))?;
@@ -107,7 +115,7 @@ mod tests {
         let home = scratch("choose");
         let settings = home.join(".config/wros/session.json");
         let state = home.join(".local/state/wros/session.json");
-        assert!(!graphical_chosen(&settings));
+        assert!(graphical_chosen(&settings));
         fs::create_dir_all(state.parent().unwrap()).unwrap();
         fs::write(&state, r#"{"version":1,"failures":2}"#).unwrap();
 

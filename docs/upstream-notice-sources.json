@@ -130,6 +130,24 @@
           "sha256": "64853d2f346cf20ad5a133c441e792d4b99b45adb2ef3acfa2b890d713e4ed0b"
         }
       ]
+    },
+    {
+      "name": "soft_ratatui",
+      "version": "0.2.0",
+      "package_vcs_commit": "5d43b9632d65f80fed5ce3618d871167af736103",
+      "reason": "Crate archive omits repository-root licenses; retained verbatim from the packaged VCS revision.",
+      "files": [
+        {
+          "file": "os/licenses/upstream/soft_ratatui-LICENSE-MIT.txt",
+          "url": "https://raw.githubusercontent.com/gold-silver-copper/soft_ratatui/5d43b9632d65f80fed5ce3618d871167af736103/LICENSE-MIT.md",
+          "sha256": "905252e7048c527ac0d8443e3e3b7fff39c5f71238b2e62bcf2d960f585110ca"
+        },
+        {
+          "file": "os/licenses/upstream/soft_ratatui-LICENSE-APACHE.txt",
+          "url": "https://raw.githubusercontent.com/gold-silver-copper/soft_ratatui/5d43b9632d65f80fed5ce3618d871167af736103/LICENSE-APACHE.txt",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        }
+      ]
     }
   ]
 }

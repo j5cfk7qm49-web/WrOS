@@ -1,0 +1,42 @@
+//! Exact glyph templates for VM screenshot OCR, rendered by the production backend.
+use ratatui::{
+    backend::Backend,
+    buffer::Cell,
+    style::{Color, Modifier},
+};
+use soft_ratatui::{CosmicText, SoftBackend};
+use std::io::{self, Write};
+
+fn main() -> io::Result<()> {
+    let font = include_bytes!("../../../assets/DejaVuSansMono.ttf");
+    let mut pixels = SoftBackend::<CosmicText>::new(16, 21, 16, font);
+    let glyphs: Vec<_> = (32..=126).map(char::from).chain(['▸', '●']).collect();
+    let mut cells = vec![];
+    for (style, modifier) in [Modifier::empty(), Modifier::BOLD, Modifier::ITALIC]
+        .into_iter()
+        .enumerate()
+    {
+        for (i, glyph) in glyphs.iter().enumerate() {
+            let mut cell = Cell::new(" ");
+            cell.set_char(*glyph)
+                .set_fg(Color::White)
+                .set_bg(Color::Black);
+            cell.modifier = modifier;
+            cells.push(((i % 16) as u16, (style * 7 + i / 16) as u16, cell));
+        }
+    }
+    pixels
+        .draw(cells.iter().map(|(x, y, cell)| (*x, *y, cell)))
+        .unwrap();
+    pixels.flush().unwrap();
+    let mut out = io::stdout().lock();
+    write!(
+        out,
+        "P6\n# cells {} {}\n{} {}\n255\n",
+        pixels.get_pixmap_width() / 16,
+        pixels.get_pixmap_height() / 21,
+        pixels.get_pixmap_width(),
+        pixels.get_pixmap_height()
+    )?;
+    out.write_all(pixels.get_pixmap_data())
+}

@@ -869,7 +869,7 @@ fn entries(app: &App) -> Vec<Entry> {
                         )),
                         Entry::new("Brightness -10%", Choice::System(5)),
                         Entry::new("Brightness +10%", Choice::System(6)),
-                        if app.deck.graphical_session {
+                        if app.deck.graphical_session && !crate::session::native() {
                             Entry::info("Warm screen · not in the graphical session yet")
                         } else {
                             Entry::new(
@@ -882,13 +882,13 @@ fn entries(app: &App) -> Vec<Entry> {
                         rows.extend([
                             Entry::new(
                                 format!(
-                                    "Graphical session (preview): {} · from the next login",
+                                    "Graphical session: {} · from the next login",
                                     if app.deck.graphical_chosen { "on" } else { "off" }
                                 ),
                                 Choice::GraphicalSession,
                             ),
                             Entry::info(
-                                "Preview: lock, sleep and the warm screen work only in the console session for now.",
+                                "Graphical writing starts by default. Plain text is available for recovery.",
                             ),
                         ]);
                     }

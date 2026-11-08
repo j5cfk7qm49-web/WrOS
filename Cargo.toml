@@ -42,6 +42,7 @@ libc = "0.2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 wros-input = { path = "crates/wros-input" }
+wros-graphics = { path = "crates/wros-graphics", optional = true }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Console"] }
@@ -94,7 +95,8 @@ lto = "thin"
 # for the spectrum view (macOS 14.6+). Default on; on Linux it needs ALSA
 # headers (libasound2-dev). Build with --no-default-features to omit it and
 # keep the other sources.
-default = ["audio"]
+default = ["audio", "gui-drm"]
+gui-drm = ["dep:wros-graphics"]
 pty-qa = []
 # Never in WrOS packages: a release build with it refuses to compile.
 test-driver = ["dep:taria-ratatui"]
@@ -111,7 +113,7 @@ path = "tests/driven.rs"
 required-features = ["test-driver"]
 
 [workspace]
-members = ["crates/grimoire-core", "crates/grimoire-app", "crates/wros-sys", "crates/wros-shell", "crates/wros-greeter", "crates/wros-boot", "crates/wros-input", "crates/wros-installer"]
+members = ["crates/grimoire-core", "crates/grimoire-app", "crates/wros-sys", "crates/wros-shell", "crates/wros-greeter", "crates/wros-boot", "crates/wros-input", "crates/wros-installer", "crates/wros-graphics"]
 exclude = ["crates/crossterm-upstream"]
 
 [patch.crates-io]

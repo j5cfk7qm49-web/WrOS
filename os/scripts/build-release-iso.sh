@@ -170,7 +170,7 @@ step_binaries() {
     as_builder env CARGO_TARGET_DIR="$cargo_target" bash -c '
         set -euo pipefail
         cd "$1"
-        cargo build --release --locked --no-default-features -j "$2" -p grimoire-tui -p wros-greeter -p wros-installer
+        cargo build --release --locked --no-default-features --features gui-drm -j "$2" -p grimoire-tui -p wros-greeter -p wros-boot -p wros-installer
     ' _ "$repo" "${WROS_CARGO_JOBS:-2}"
     for name in grimoire wros-greeter wros-installer; do
         [[ -x $cargo_target/release/$name && ! -L $cargo_target/release/$name ]] || die "cargo did not produce release/$name"

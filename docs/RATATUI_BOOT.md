@@ -5,8 +5,22 @@ login, is drawn with Ratatui, including the disk password. The disk password is
 the risky step, so every part has a way back to Debian's own prompt, and each is
 tested before it reaches the laptop.
 
-This replaces the Plymouth theme. The switch stays off by default until the
-owner has passed the laptop checklist.
+This replaces the Plymouth theme. The owner chose graphical defaults for disk
+unlock, loading, login and writing on 2026-11-07. These screens now use
+`soft_ratatui` with the bundled DejaVu Sans Mono font and DRM/KMS scanout.
+The kernel keyboard layout still applies, including before disk unlock.
+
+Missing `/etc/wros/boot-screen` now means graphical. An explicit `text` value
+disables the unlock and loading screens; `ratatui` enables them. Settings writes
+an explicit text value when turned off so a later update preserves the choice.
+The **WrOS (text start)** menu entry skips graphics throughout the boot and
+writing session. Esc at disk unlock still opens Debian's own prompt.
+
+If no supported DRM display is available, the same screens draw on the text
+console. A separate, statically linked `wros-console-reset` restores text mode
+before Debian's prompt after any unsuccessful renderer exit, including a crash.
+The initramfs hook copies that helper before installing the wrapper and keeps
+Debian's original prompt intact if either executable cannot be copied.
 
 ## What the writer sees
 

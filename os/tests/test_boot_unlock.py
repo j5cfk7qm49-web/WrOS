@@ -28,13 +28,15 @@ class Wrapper(unittest.TestCase):
         self.debian = script(self.tmp / 'askpass.debian', 'printf "debian-password:%s" "$1"\n')
         self.cmdline = self.tmp / 'cmdline'
         self.cmdline.write_text('BOOT_IMAGE=/vmlinuz root=/dev/mapper/root ro quiet splash\n')
+        self.reset_ran = self.tmp / 'reset-ran'
+        self.reset = script(self.tmp / 'reset', f'touch "{self.reset_ran}"\n')
 
     def boot(self, body):
         return script(self.tmp / 'wros-boot', f'touch "{self.ran}"\n' + body)
 
     def run_wrapper(self, boot=None, prompt='Please unlock disk root_crypt: '):
         env = dict(os.environ, WROS_CMDLINE=str(self.cmdline), WROS_ASKPASS_DEBIAN=str(self.debian),
-                   WROS_BOOT_BINARY=str(boot or self.tmp / 'missing'))
+                   WROS_BOOT_BINARY=str(boot or self.tmp / 'missing'), WROS_CONSOLE_RESET=str(self.reset))
         return subprocess.run(['sh', str(WRAPPER), prompt], env=env, capture_output=True, timeout=20)
 
     def test_a_password_from_the_start_screen_passes_through_unchanged(self):
@@ -55,6 +57,8 @@ class Wrapper(unittest.TestCase):
                 done = self.run_wrapper(self.boot(body))
                 self.assertEqual(done.stdout, b'debian-password:Please unlock disk root_crypt: ')
                 self.assertTrue(self.ran.exists())
+                self.assertTrue(self.reset_ran.exists())
+                self.reset_ran.unlink()
                 self.ran.unlink()
 
     def test_a_missing_or_unrunnable_start_screen_goes_to_debians_prompt(self):
@@ -89,6 +93,7 @@ class Hook(unittest.TestCase):
         self.askpass.chmod(0o755)
         self.switch = self.tmp / 'boot-screen'
         self.binary = script(self.tmp / 'wros-boot', 'exit 0\n')
+        self.reset = script(self.tmp / 'wros-console-reset', 'exit 0\n')
         self.theme = self.tmp / 'boot-theme.toml'
         self.theme.write_text('name = "Gruvbox"\n')
         self.copy_fails = self.tmp / 'copy-fails'
@@ -103,7 +108,7 @@ class Hook(unittest.TestCase):
     def run_hook(self, *args):
         env = dict(os.environ, DESTDIR=str(self.dest), WROS_HOOK_FUNCTIONS=str(self.functions),
                    WROS_BOOT_SWITCH=str(self.switch), WROS_BOOT_BINARY=str(self.binary),
-                   WROS_BOOT_WRAPPER=str(WRAPPER), WROS_BOOT_THEME=str(self.theme))
+                   WROS_BOOT_WRAPPER=str(WRAPPER), WROS_BOOT_THEME=str(self.theme), WROS_CONSOLE_RESET=str(self.reset))
         return subprocess.run(['sh', str(HOOK), *args], env=env, capture_output=True, text=True, timeout=20)
 
     def unchanged(self):
@@ -115,7 +120,7 @@ class Hook(unittest.TestCase):
         self.assertEqual(self.run_hook('prereqs').stdout.strip(), 'cryptroot')
 
     def test_with_the_switch_off_the_image_is_debians(self):
-        for content in (None, '', 'text\n', 'Ratatui\n'):
+        for content in ('', 'text\n', 'Ratatui\n'):
             with self.subTest(content=content):
                 if content is None:
                     self.switch.unlink(missing_ok=True)
@@ -124,6 +129,11 @@ class Hook(unittest.TestCase):
                 done = self.run_hook()
                 self.assertEqual(done.returncode, 0)
                 self.unchanged()
+
+    def test_missing_switch_installs_graphics_by_default(self):
+        done = self.run_hook()
+        self.assertEqual(done.returncode, 0)
+        self.assertEqual(self.askpass.read_bytes(), WRAPPER.read_bytes())
 
     def test_with_the_switch_on_the_wrapper_stands_in_front_of_debians_prompt(self):
         self.switch.write_text('ratatui\n')
@@ -197,7 +207,7 @@ class ProgressScreen(unittest.TestCase):
         self.assertNotIn('wros-boot-splash', (ROOT / 'os/config/greetd.service').read_text())
 
     def test_it_runs_only_with_the_switch_on_and_never_on_a_plain_text_start(self):
-        self.assertEqual(self.unit['ConditionPathExists'], ['/etc/wros/boot-screen'])
+        self.assertNotIn('ConditionPathExists', self.unit)
         self.assertEqual(self.unit['ConditionKernelCommandLine'], ['!wros.unlock=text'])
         self.assertIn('= ratatui', self.unit['ExecCondition'][0])
         self.assertEqual(self.unit['ExecStart'], ['/usr/lib/wros/wros-boot splash --tty /dev/tty1'])
