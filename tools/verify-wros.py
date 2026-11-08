@@ -96,7 +96,9 @@ def main():
         record['rust_suites'].append(check | {'configuration': name, 'passed': passed, 'failed': failed, 'ignored': ignored,
             'ignored_tests': [line.strip() for line in text.splitlines() if ' ... ignored' in line]})
         run('clippy-'+name, ['cargo', 'clippy', '--workspace', '--all-targets', *flags, '--locked', '--offline', '-j2', '--', '-D', 'warnings'])
-    run('build-no-audio', ['cargo', 'build', '--workspace', '--no-default-features', '--locked', '--offline', '-j2'])
+    # pty-qa adds only a debug-build test hook for the lock (test_rc7_pty); release builds never have it.
+    run('build-no-audio', ['cargo', 'build', '--workspace', '--no-default-features', '--features',
+                           'grimoire-tui/pty-qa', '--locked', '--offline', '-j2'])
     binary = Path(os.environ.get('GRIMOIRE_BINARY', ROOT/'target/debug/grimoire'))
     record['tested_no_audio_binary_sha256'] = hashlib.sha256(binary.read_bytes()).hexdigest()
     installer_source = Path(os.environ.get('WROS_INSTALLER_SOURCE_DESCRIPTOR', ROOT/'build/installer-source/cdebconf_0.280.dsc'))

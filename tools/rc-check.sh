@@ -49,8 +49,8 @@ step clippy cargo-clippy clippy --offline --locked --no-default-features --works
 step rust "${cargo[@]}" test --no-default-features --workspace --no-fail-fast
 step app-in-terminal "${cargo[@]}" test --no-default-features --features test-driver --test driven
 # The Python screen tests drive the debug binary; build it so they run instead of skipping.
-step build "${cargo[@]}" build --no-default-features
-step python env GRIMOIRE_BINARY="$target/debug/grimoire" \
+step build "${cargo[@]}" build --workspace --no-default-features --features grimoire-tui/pty-qa
+step python env GRIMOIRE_BINARY="$target/debug/grimoire" WROS_QA_PTY=1 \
     python3 -m unittest discover -s os/tests -p 'test_*.py'
 
 if [ "${1:-}" = --vm ]; then
