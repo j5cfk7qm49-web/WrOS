@@ -14,7 +14,6 @@ use std::{
     },
 };
 
-const FONT: &[u8] = include_bytes!("../../../assets/DejaVuSansMono.ttf");
 const KDSETMODE: libc::c_ulong = 0x4b3a;
 const VT_SETMODE: libc::c_ulong = 0x5602;
 const VT_GETMODE: libc::c_ulong = 0x5601;
@@ -151,10 +150,10 @@ impl Display {
         }
         // Construct the rasterizer before changing the physical display. A bad font
         // must never leave the disk prompt in graphics mode.
-        let probe = SoftBackend::<CosmicText>::new(1, 1, 16, FONT);
+        let probe = super::raster(1, 1);
         let cols = width as usize / probe.get_pixmap_width();
         let rows = height as usize / probe.get_pixmap_height();
-        let pixels = SoftBackend::<CosmicText>::new(cols as u16, rows as u16, 16, FONT);
+        let pixels = super::raster(cols as u16, rows as u16);
         let buffer =
             card.create_dumb_buffer((width.into(), height.into()), DrmFourcc::Xrgb8888, 32)?;
         let framebuffer = match card.add_framebuffer(&buffer, 24, 32) {

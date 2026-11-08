@@ -1,5 +1,11 @@
 # Ratatui projects that fit WrOS
 
+**Owner decision, 2026-11-07:** graphical rendering is now the default for disk
+unlock, loading, login and writing. The native software backend is integrated
+throughout those screens, with an explicit text recovery path. This supersedes
+the earlier off-by-default trial policy below; the three-backend comparison and
+the remaining rc10 libraries are still separate work. See [Graphical screens](GRAPHICAL_SESSION.md).
+
 Read through the whole [Awesome Ratatui](https://github.com/ratatui/awesome-ratatui)
 list (about 560 entries) on 2026-11-06, looking for projects that suit a writing
 laptop: an HP Stream (Celeron, 4 GB, 32 GB eMMC), offline most of the time,

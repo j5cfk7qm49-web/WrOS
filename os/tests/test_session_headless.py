@@ -29,7 +29,7 @@ class HeadlessSession(unittest.TestCase):
         self.home, self.run = self.temp / 'home', self.temp / 'run'
         self.run.mkdir(mode=0o700)
         (self.home / '.config/wros').mkdir(parents=True)
-        (self.home / '.config/wros/session.json').write_text('{"session": "graphical"}')
+        (self.home / '.config/wros/session.json').write_text('{"session": "graphical", "backend": "foot"}')
         self.keyboard = self.temp / 'keyboard.json'
         self.keyboard.write_text('{"version": 1, "layout": "colemak", "generation": "test"}')
         self.saved = (session.GRIMOIRE, session.FOOT_CONFIG, session.CAGE, session.FOOT)

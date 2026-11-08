@@ -13,6 +13,20 @@ import rc_vm as vm
 
 
 class NativeScreenshot(unittest.TestCase):
+    def test_antialias_edges_are_normalized_to_the_foreground_contrast(self):
+        from PIL import Image
+        atlas = Image.new('RGB', (176, 360))
+        index = ord('r') - 32
+        x, y = index % 16 * 11, index // 16 * 20
+        points = [(i % 11, i // 11, 255 if i < 4 else 50) for i in range(14)]
+        for dx, dy, value in points:
+            atlas.putpixel((x + dx, y + dy), (value,) * 3)
+        font = vm.NativeFont(atlas, 11, 20)
+        screen = Image.new('RGB', (11, 20))
+        for dx, dy, value in points:
+            screen.putpixel((dx, dy), (value * 3 // 4,) * 3)
+        self.assertEqual(vm.ocr(screen, font), ['r'])
+
     def test_the_native_font_reads_the_same_ascii_and_selection_marker(self):
         from PIL import Image
         atlas = Image.new('RGB', (64, 108))

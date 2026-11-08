@@ -361,7 +361,9 @@ def ocr(image, font=None, offset=(0, 0)):
                 # against each cell's own background rather than the whole page.
                 tile = image.crop((x0, y0, x0 + cw, y0 + ch))
                 local_bg = max(tile.getcolors(maxcolors=cw * ch))[1]
-                cell_bytes = ImageChops.difference(tile, Image.new('RGB', tile.size, local_bg)).convert('L').point(lambda v: 255 if v > 40 else 0).tobytes()
+                contrast = ImageChops.difference(tile, Image.new('RGB', tile.size, local_bg)).convert('L')
+                cutoff = contrast.getextrema()[1] * 40 / 255
+                cell_bytes = contrast.point(lambda v: 255 if v > cutoff else 0).tobytes()
             if not any(cell_bytes):
                 chars.append(' ')
                 continue

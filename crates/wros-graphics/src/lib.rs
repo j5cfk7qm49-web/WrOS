@@ -35,6 +35,108 @@ use ratatui::{
 };
 use std::io;
 
+/// The exact font and colour adapter used by scanout and the screenshot templates.
+pub fn raster(columns: u16, rows: u16) -> soft_ratatui::SoftBackend<soft_ratatui::CosmicText> {
+    let mut pixels = soft_ratatui::SoftBackend::<soft_ratatui::CosmicText>::new(
+        columns,
+        rows,
+        16,
+        include_bytes!("../../../assets/DejaVuSansMono.ttf"),
+    );
+    reset_colours(&mut pixels);
+    pixels
+}
+
+fn colour(colour: ratatui::style::Color, foreground: bool) -> ratatui::style::Color {
+    use ratatui::style::Color::*;
+    const ANSI: [(u8, u8, u8); 16] = [
+        (0, 0, 0),
+        (128, 0, 0),
+        (0, 128, 0),
+        (128, 128, 0),
+        (0, 0, 128),
+        (128, 0, 128),
+        (0, 128, 128),
+        (192, 192, 192),
+        (128, 128, 128),
+        (255, 0, 0),
+        (0, 255, 0),
+        (255, 255, 0),
+        (0, 0, 255),
+        (255, 0, 255),
+        (0, 255, 255),
+        (255, 255, 255),
+    ];
+    let index = match colour {
+        Rgb(..) => return colour,
+        Reset => {
+            return if foreground {
+                Rgb(221, 221, 221)
+            } else {
+                Rgb(0, 0, 0)
+            };
+        }
+        Black => 0,
+        Red => 1,
+        Green => 2,
+        Yellow => 3,
+        Blue => 4,
+        Magenta => 5,
+        Cyan => 6,
+        Gray => 7,
+        DarkGray => 8,
+        LightRed => 9,
+        LightGreen => 10,
+        LightYellow => 11,
+        LightBlue => 12,
+        LightMagenta => 13,
+        LightCyan => 14,
+        White => 15,
+        Indexed(index) => index,
+    };
+    let (r, g, b) = match index {
+        0..=15 => ANSI[index as usize],
+        16..=231 => {
+            let cube = [0, 95, 135, 175, 215, 255];
+            let n = (index - 16) as usize;
+            (cube[n / 36], cube[n / 6 % 6], cube[n % 6])
+        }
+        _ => {
+            let gray = 8 + 10 * (index - 232);
+            (gray, gray, gray)
+        }
+    };
+    Rgb(r, g, b)
+}
+
+fn normalize(cell: &mut Cell) {
+    cell.fg = colour(cell.fg, true);
+    cell.bg = colour(cell.bg, false);
+}
+
+fn reset_colours(pixels: &mut soft_ratatui::SoftBackend<soft_ratatui::CosmicText>) {
+    for cell in &mut pixels.buffer.content {
+        normalize(cell);
+    }
+    pixels.redraw();
+}
+
+fn draw_pixels<'a, I>(pixels: &mut soft_ratatui::SoftBackend<soft_ratatui::CosmicText>, cells: I)
+where
+    I: Iterator<Item = (u16, u16, &'a Cell)>,
+{
+    let cells: Vec<_> = cells
+        .map(|(x, y, cell)| {
+            let mut cell = cell.clone();
+            normalize(&mut cell);
+            (x, y, cell)
+        })
+        .collect();
+    pixels
+        .draw(cells.iter().map(|(x, y, cell)| (*x, *y, cell)))
+        .unwrap();
+}
+
 #[cfg(target_os = "linux")]
 mod kms;
 
@@ -94,7 +196,12 @@ impl<W: io::Write> Backend for Screen<W> {
     where
         I: Iterator<Item = (u16, u16, &'a Cell)>,
     {
-        delegate!(self, draw, content)
+        #[cfg(target_os = "linux")]
+        if let Some(display) = &mut self.graphics {
+            draw_pixels(&mut display.pixels, content);
+            return Ok(());
+        }
+        self.console.draw(content)
     }
     fn hide_cursor(&mut self) -> io::Result<()> {
         delegate!(self, hide_cursor)
@@ -109,10 +216,16 @@ impl<W: io::Write> Backend for Screen<W> {
         delegate!(self, set_cursor_position, p)
     }
     fn clear(&mut self) -> io::Result<()> {
-        delegate!(self, clear)
+        self.clear_region(ClearType::All)
     }
     fn clear_region(&mut self, kind: ClearType) -> io::Result<()> {
-        delegate!(self, clear_region, kind)
+        #[cfg(target_os = "linux")]
+        if let Some(display) = &mut self.graphics {
+            display.pixels.clear_region(kind).unwrap();
+            reset_colours(&mut display.pixels);
+            return Ok(());
+        }
+        self.console.clear_region(kind)
     }
     fn size(&self) -> io::Result<Size> {
         #[cfg(target_os = "linux")]
@@ -155,6 +268,36 @@ fn copy_rgb(rgb: &[u8], width: usize, height: usize, target: &mut [u8], pitch: u
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn native_pixels_start_and_clear_black_and_use_terminal_palette_colours() {
+        use super::*;
+        use ratatui::style::Color;
+        let mut pixels = raster(2, 1);
+        assert!(pixels.get_pixmap_data().iter().all(|&b| b == 0));
+        let mut cyan = Cell::new("█");
+        cyan.set_fg(Color::Cyan);
+        let mut red = Cell::new("█");
+        red.set_fg(Color::Indexed(196));
+        draw_pixels(&mut pixels, [(0, 0, &cyan), (1, 0, &red)].into_iter());
+        assert!(
+            pixels
+                .get_pixmap_data()
+                .as_chunks::<3>()
+                .0
+                .contains(&[0, 128, 128])
+        );
+        assert!(
+            pixels
+                .get_pixmap_data()
+                .as_chunks::<3>()
+                .0
+                .contains(&[255, 0, 0])
+        );
+        pixels.clear().unwrap();
+        reset_colours(&mut pixels);
+        assert!(pixels.get_pixmap_data().iter().all(|&b| b == 0));
+    }
+
     #[test]
     fn rgb_rows_respect_drm_pitch_and_black_margins() {
         let mut target = vec![0xff; 24];

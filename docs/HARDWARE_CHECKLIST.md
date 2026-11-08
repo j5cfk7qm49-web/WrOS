@@ -140,6 +140,22 @@ chosen colours reach all three logos. Plain text restores Debian's prompt.
 Record the restart and unlock times on the Celeron. If the Colemak password is
 refused at the WrOS prompt, press Esc and type it at the text prompt, then report it.
 
+## 11. Native graphical defaults (rc10)
+
+On the HP Stream, check that disk unlock, loading, login and writing all use the
+smooth native font and the chosen colours. A clean or updated system should do
+this without enabling a preview. Retest Colemak, accented letters and compose in
+writing; wrong and correct disk/login passwords; Esc at disk unlock; and the
+**WrOS (text start)** entry, which should keep every stage in text.
+
+While writing a disposable scene, switch to tty2 and back with Ctrl-Alt-F2/F1.
+The other VT should appear promptly and the writing page should redraw on return.
+Lock and unlock twice, then lock and sleep, wake and unlock. Pass when the same
+scene returns, lock keystrokes never enter the book, and the display stays usable.
+Check the warm-screen control before and after these handoffs. Record cold-start
+time, unlock-to-login time, memory and battery use on the Celeron; VM results do
+not establish those hardware measurements.
+
 ## Collecting the log
 
 Kernel and system messages need administrator rights. From the PC, over SSH,
