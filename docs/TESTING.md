@@ -25,6 +25,12 @@ release build with it refuses to compile, and WrOS packages never include it.
 cargo test --no-default-features --features test-driver --test driven
 ```
 
+Adding `gui-wgpu` runs the real writing window under headless cage with Mesa
+OpenGL. A test-only Wayland keyboard sends physical Colemak keys and a compose
+sequence, then saves and checks the disposable book. It needs `cage`, `foot`,
+`libxkbcommon-dev`, `libwayland-dev`, `libegl1-mesa-dev` and Mesa's runtime drivers.
+CI installs these packages and runs this test; a missing renderer is a failure.
+
 After a deliberate screen change, review new snapshots with `cargo insta review`
 or rerun with `INSTA_UPDATE=always` and read the diff before committing.
 

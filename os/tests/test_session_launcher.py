@@ -75,6 +75,27 @@ class Machine:
 
 
 class Launcher(unittest.TestCase):
+    def test_wgpu_runs_directly_under_cage_without_foot(self):
+        m = self.machine()
+        m.write(m.home / '.config/wros/session.json', {'session': 'graphical', 'backend': 'wgpu'})
+        m.write(m.etc / 'wros/keyboard.json', {'layout': 'colemak', 'generation': 'chosen'})
+        m.exists = lambda path: path == session.CAGE or (path != session.FOOT and Path(path).exists())
+        self.assertEqual(m.start(), 0)
+        argv, env = m.runs[-1]
+        self.assertEqual(argv, [session.CAGE, '-s', '--', session.GRIMOIRE])
+        self.assertEqual(env['WROS_SESSION'], 'wgpu')
+        self.assertEqual(env['XKB_DEFAULT_VARIANT'], 'colemak')
+
+    def test_failure_counts_belong_to_the_selected_compositor_backend(self):
+        m = self.machine(draws=False)
+        m.start()
+        m.start()
+        self.assertEqual(m.failures(), 2)
+        m.write(m.home / '.config/wros/session.json', {'session': 'graphical', 'backend': 'wgpu'})
+        m.draws = True
+        self.assertEqual(m.start(), 0)
+        self.assertEqual(m.runs[-1][1]['WROS_SESSION'], 'wgpu')
+
     def machine(self, **kwargs):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)

@@ -43,6 +43,10 @@ libc = "0.2"
 [target.'cfg(target_os = "linux")'.dependencies]
 wros-input = { path = "crates/wros-input" }
 wros-graphics = { path = "crates/wros-graphics", optional = true }
+ratatui-wgpu = { version = "0.6.0", default-features = false, optional = true }
+wgpu = { version = "30.0.0", optional = true }
+winit = { version = "0.30.13", default-features = false, features = ["wayland", "wayland-dlopen", "rwh_06"], optional = true }
+futures-lite = { version = "2.6", optional = true }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Console"] }
@@ -97,6 +101,7 @@ lto = "thin"
 # keep the other sources.
 default = ["audio", "gui-drm"]
 gui-drm = ["dep:wros-graphics"]
+gui-wgpu = ["dep:ratatui-wgpu", "dep:wgpu", "dep:winit", "dep:futures-lite"]
 pty-qa = []
 # Never in WrOS packages: a release build with it refuses to compile.
 test-driver = ["dep:taria-ratatui"]

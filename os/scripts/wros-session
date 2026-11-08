@@ -128,13 +128,15 @@ class Launcher:
     def state_path(self):
         return self.home / '.local/state/wros/session.json'
 
-    def failures(self):
+    def failures(self, backend='graphical'):
         state = read_json(self.state_path) or {}
+        if state.get('backend', 'graphical') != backend:
+            return 0
         count = state.get('failures')
         return count if isinstance(count, int) and 0 <= count <= 100 else 0
 
-    def set_failures(self, count):
-        write_json(self.state_path, {'version': 1, 'failures': count})
+    def set_failures(self, count, backend='graphical'):
+        write_json(self.state_path, {'version': 1, 'backend': backend, 'failures': count})
 
     def live(self):
         return 'WROS_LIVE_SESSION' in self.environ or any(self.exists(str(p)) for p in LIVE_MARKERS)
@@ -158,15 +160,17 @@ class Launcher:
             return 'console', None
         if self.console_asked():
             return 'console', RECOVERY_CHOSE
-        # A cage/foot trial needs an explicit backend. New and re-enabled sessions
+        # A compositor trial needs an explicit backend. New and re-enabled sessions
         # use the native renderer; missing DRM falls back inside the app.
-        if settings.get('backend') != 'foot' or self.live():
+        backend = settings.get('backend')
+        if backend not in ('foot', 'wgpu') or self.live():
             return 'drm', None
-        if not (self.exists(CAGE) and self.exists(FOOT) and self.runtime_dir):
+        kind = 'wgpu' if backend == 'wgpu' else 'graphical'
+        if not (self.exists(CAGE) and (backend != 'foot' or self.exists(FOOT)) and self.runtime_dir):
             return 'console', None
-        if self.failures() >= MAX_FAILURES:
+        if self.failures(kind) >= MAX_FAILURES:
             return 'console', FAILED_TWICE
-        return 'graphical', None
+        return kind, None
 
     def base_environment(self):
         env = dict(self.environ)
@@ -183,7 +187,7 @@ class Launcher:
             env['WROS_SESSION_NOTICE'] = notice
         self.execve(GRIMOIRE, [GRIMOIRE], env)
 
-    def graphical(self):
+    def graphical(self, kind='graphical'):
         """Runs cage until it ends. True when the app had drawn its first screen."""
         ready = self.runtime_dir / 'wros-session-ready'
         try:
@@ -195,8 +199,9 @@ class Launcher:
         env = self.base_environment()
         env.pop('TERM', None)
         env.update(xkb_environment(self.keyboard, self.debian_keyboard))
-        env.update({'WROS_SESSION': 'graphical', 'WROS_READY_FILE': str(ready)})
-        command = [CAGE, '-s', '--', FOOT, '--config=' + FOOT_CONFIG, '--', GRIMOIRE]
+        env.update({'WROS_SESSION': kind, 'WROS_READY_FILE': str(ready)})
+        client = [GRIMOIRE] if kind == 'wgpu' else [FOOT, '--config=' + FOOT_CONFIG, '--', GRIMOIRE]
+        command = [CAGE, '-s', '--', *client]
         try:
             self.run(command, env=env, stdin=subprocess.DEVNULL, check=False)
         except OSError:
@@ -220,12 +225,12 @@ class Launcher:
             env.update({'TERM': 'linux', 'WROS_SESSION': 'drm'})
             self.execve(GRIMOIRE, [GRIMOIRE], env)
             return 1
-        if kind == 'graphical':
-            if self.graphical():
-                self.set_failures(0)
+        if kind in ('graphical', 'wgpu'):
+            if self.graphical(kind):
+                self.set_failures(0, kind)
                 return 0
-            count = self.failures() + 1
-            self.set_failures(count)
+            count = self.failures(kind) + 1
+            self.set_failures(count, kind)
             log(f'WROS_SESSION graphical session failed before its first screen ({count})')
             self.restore_console()
             notice = FAILED_TWICE if count >= MAX_FAILURES else FAILED_ONCE

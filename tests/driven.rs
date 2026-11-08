@@ -273,6 +273,26 @@ impl Driver {
         self.next += 1;
         writeln!(self.writer, "{message}").unwrap();
     }
+
+    #[cfg(all(target_os = "linux", feature = "gui-wgpu"))]
+    fn input(&mut self, input: serde_json::Value) {
+        let id = self.next;
+        self.next += 1;
+        writeln!(
+            self.writer,
+            "{}",
+            serde_json::json!({"type":"input", "id":id, "input":input})
+        )
+        .unwrap();
+        let end = Instant::now() + WAIT;
+        while Instant::now() < end {
+            if self.tree()["after_input"] == id {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        panic!("the window did not acknowledge input {id}: {}", self.tree());
+    }
 }
 
 /// The first node in `tree` that `wanted` accepts.
@@ -376,4 +396,162 @@ fn typed_words_reach_the_book_and_the_published_tree_carries_no_prose() {
     });
     let tree = app.driver.tree().to_string();
     assert!(!tree.contains("Typed through the terminal"), "{tree}");
+}
+
+#[cfg(all(target_os = "linux", feature = "gui-wgpu"))]
+#[test]
+fn the_opengl_window_draws_and_saves_unicode_without_a_terminal_reader() {
+    let home = Home::new("wgpu");
+    let runtime = home.dir.join("run");
+    std::fs::create_dir(&runtime).unwrap();
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(&runtime, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let socket = home.dir.join("window.sock");
+    let ready = home.dir.join("ready");
+    let log = home.dir.join("window.log");
+    let child = Command::new("cage")
+        .args(["-s", "--", BINARY])
+        .arg(home.dir.join("book"))
+        .env_clear()
+        .envs(Home::env(&home.dir))
+        .env("PATH", "/usr/bin:/bin")
+        .env("LANG", "C.UTF-8")
+        .env("XDG_RUNTIME_DIR", &runtime)
+        .env("WLR_BACKENDS", "headless")
+        .env("WLR_RENDERER", "pixman")
+        .env("LIBGL_ALWAYS_SOFTWARE", "1")
+        .env("WLR_LIBINPUT_NO_DEVICES", "1")
+        .env("XKB_DEFAULT_LAYOUT", "us")
+        .env("XKB_DEFAULT_VARIANT", "colemak")
+        .env("WROS_SESSION", "wgpu")
+        .env("WROS_READY_FILE", &ready)
+        .env("WROS_TEST_DRIVER_SOCKET", &socket)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(std::fs::File::create(&log).unwrap())
+        .spawn()
+        .unwrap();
+    struct Running(Child);
+    impl Drop for Running {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+    let mut running = Running(child);
+    let deadline = Instant::now() + Duration::from_secs(45);
+    while !ready.exists() {
+        assert!(
+            Instant::now() < deadline && running.0.try_wait().unwrap().is_none(),
+            "no first GL frame: {}",
+            std::fs::read_to_string(&log).unwrap()
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    let mut driver = Driver::connect(&socket);
+    driver.input(serde_json::json!({"kind":"key", "key":"ctrl+k"}));
+    driver.input(serde_json::json!({"kind":"text", "text":"The Brass Key"}));
+    driver.input(serde_json::json!({"kind":"key", "key":"enter"}));
+    driver.input(serde_json::json!({"kind":"text", "text":"Window Café Ω. "}));
+    driver.input(serde_json::json!({"kind":"key", "key":"ctrl+s"}));
+
+    // These keys go through cage, XKB and winit, rather than the private driver.
+    // Physical C ; U K M A N spells "colemak"; right Alt, apostrophe, K composes é.
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let protocol = root.join("os/tests/protocols/virtual-keyboard-unstable-v1.xml");
+    for (mode, file) in [
+        ("client-header", "virtual-keyboard.h"),
+        ("private-code", "virtual-keyboard.c"),
+    ] {
+        assert!(
+            Command::new("wayland-scanner")
+                .arg(mode)
+                .arg(&protocol)
+                .arg(home.dir.join(file))
+                .status()
+                .unwrap()
+                .success()
+        );
+    }
+    let helper = home.dir.join("wayland-keys");
+    assert!(
+        Command::new("cc")
+            .args(["-Wall", "-Wextra", "-Werror", "-I"])
+            .arg(&home.dir)
+            .arg(root.join("os/tests/wayland-keys.c"))
+            .arg(home.dir.join("virtual-keyboard.c"))
+            .args(["-lwayland-client", "-lxkbcommon", "-o"])
+            .arg(&helper)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let wayland = std::fs::read_dir(&runtime)
+        .unwrap()
+        .filter_map(Result::ok)
+        .map(|e| e.file_name())
+        .find(|n| {
+            n.to_str()
+                .is_some_and(|n| n.starts_with("wayland-") && !n.ends_with(".lock"))
+        })
+        .expect("cage's socket");
+    let mut keys = Command::new(helper)
+        .env("XDG_RUNTIME_DIR", &runtime)
+        .env("WAYLAND_DISPLAY", wayland)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut replies = BufReader::new(keys.stdout.take().unwrap());
+    let mut reply = String::new();
+    replies.read_line(&mut reply).unwrap();
+    assert_eq!(reply, "ready\n");
+    for (code, control) in [
+        (46, 0),
+        (39, 0),
+        (22, 0),
+        (37, 0),
+        (50, 0),
+        (30, 0),
+        (49, 0),
+        (57, 0),
+        (100, 0),
+        (40, 0),
+        (37, 0),
+        (57, 0),
+        (32, 1),
+    ] {
+        writeln!(keys.stdin.as_mut().unwrap(), "{code} {control}").unwrap();
+        reply.clear();
+        replies.read_line(&mut reply).unwrap();
+        assert_eq!(reply, "sent\n");
+        std::thread::sleep(Duration::from_millis(30));
+    }
+    drop(keys.stdin.take());
+    assert!(keys.wait().unwrap().success());
+    fn contains(dir: &Path) -> bool {
+        std::fs::read_dir(dir)
+            .unwrap()
+            .filter_map(Result::ok)
+            .any(|entry| {
+                let path = entry.path();
+                if path.is_dir() {
+                    contains(&path)
+                } else {
+                    path.extension().is_some_and(|e| e == "md")
+                        && std::fs::read_to_string(path)
+                            .unwrap()
+                            .contains("Window Café Ω. colemak é ")
+                }
+            })
+    }
+    let deadline = Instant::now() + WAIT;
+    while !contains(&home.dir.join("book")) {
+        assert!(
+            Instant::now() < deadline,
+            "Colemak and compose input did not reach the saved scene"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    assert!(!driver.tree().to_string().contains("Window Café Ω"));
 }

@@ -12,11 +12,16 @@ const FOOT: &str = "/usr/bin/foot";
 
 /// True inside a native or compositor-backed graphical session.
 pub fn graphical() -> bool {
-    std::env::var_os("WROS_SESSION").is_some_and(|kind| kind == "graphical" || kind == "drm")
+    std::env::var_os("WROS_SESSION")
+        .is_some_and(|kind| kind == "graphical" || kind == "drm" || kind == "wgpu")
 }
 
 pub fn native() -> bool {
     std::env::var_os("WROS_SESSION").is_some_and(|kind| kind == "drm")
+}
+
+pub fn composited() -> bool {
+    std::env::var_os("WROS_SESSION").is_some_and(|kind| kind == "graphical" || kind == "wgpu")
 }
 
 /// Native output is compiled in; the foot trial also needs its Debian packages.

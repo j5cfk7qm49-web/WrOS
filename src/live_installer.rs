@@ -65,15 +65,18 @@ fn console() -> bool {
 
 pub fn handoff(
     terminal: &mut crate::display::Terminal,
-    input: &mut wros_input::Input,
+    input: &mut Option<wros_input::Input>,
 ) -> Result<Outcome> {
     if !available() || !console() || unsafe { libc::geteuid() } == 0 {
         bail!("Live installer handoff is unavailable in this session");
     }
+    let input = input
+        .as_mut()
+        .context("installer needs the console input reader")?;
     let proof = input
         .pause()
         .context("retiring writing input before starting live installer")?;
-    crate::display::suspend(terminal);
+    crate::display::suspend(terminal)?;
     let previous_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(|_| {}));
     let status_result = (|| -> Result<std::process::ExitStatus> {

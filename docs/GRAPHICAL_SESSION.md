@@ -14,8 +14,18 @@ a console choice for one login. Live sessions default to native graphics too.
 The existing cage/foot trial remains available with
 `{"version":1,"session":"graphical","backend":"foot"}` in
 `~/.config/wros/session.json`, after installing Debian's `cage` and `foot` packages.
-Its first-frame marker and two-failure fallback are retained. The comparison with
-the wgpu backend is still a separate rc10 trial task.
+Its first-frame marker and two-failure fallback are retained. Build the optional
+`gui-wgpu` feature and select `"backend":"wgpu"` in the same file to run Grimoire
+directly under cage. This uses ratatui-wgpu with OpenGL and a Wayland-only winit
+window. It does not install or select Vulkan drivers. Each compositor backend has
+its own startup failure count. New sessions still use the native renderer.
+
+The window sends logical keys, compose/IME commits and cell-based pointer events
+through the editor's existing event dispatch. It keeps the compositor's keyboard
+layout. A real cage headless test types Colemak and composed é through Wayland,
+saves the scene, and checks that the private test-driver tree contains no prose.
+Run `cargo test --no-default-features --features test-driver,gui-wgpu --test driven`
+with cage, Mesa, Wayland/XKB development packages and a writable `/dev/shm`.
 
 ## Lock, sleep and screen colour
 
@@ -30,7 +40,11 @@ and the live installer.
 For an ordinary VT switch, the renderer acknowledges release, restores the
 console and releases DRM master. It redraws on acquisition. Between modesets it
 does not hold DRM master, so the existing narrow warm-screen helper can set
-gamma. The cage/foot trial still needs its separate gamma and lock integration.
+gamma. Compositor sessions can redirect the independent lock helper to the
+authenticated, active tty1. The window clears its frame, retires queued input and
+composition, and pumps Wayland without dispatching keys until authentication has
+finished. The root helper's caller, tty1, logind and PAM checks remain unchanged.
+Compositor lock VM qualification and gamma integration remain trial work.
 
 ## Recovery and packaging
 
@@ -48,6 +62,11 @@ Building the ordinary terminal app with `--no-default-features` omits native
 graphics. WrOS release builders explicitly add `--features gui-drm`; desktop
 terminal launches continue to use their terminal unless the session launcher
 asks for native output.
+
+`grimoire --wros-renderers` reports the compiled renderer features as JSON without
+opening a book. `gui-wgpu` belongs only to the writing executable, so enabling the
+trial does not pull its window/graphics dependencies into the unlock or login
+executables.
 
 The release VM chain accepts `--bootscreen` to include graphical unlock,
 loading/login handoff, writing, VT switching, lock, renderer SIGKILL and text

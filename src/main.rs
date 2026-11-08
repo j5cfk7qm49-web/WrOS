@@ -27,6 +27,8 @@ mod ui;
 mod visualizer;
 mod viz_view;
 mod voice;
+#[cfg(all(target_os = "linux", feature = "gui-wgpu"))]
+mod window;
 mod wros_cli;
 
 #[cfg(test)]
@@ -62,6 +64,15 @@ const RAINBOW_TICK: Duration = Duration::from_millis(80);
 fn main() -> Result<()> {
     let mut args = std::env::args().skip(1);
     let first = args.next();
+    if first.as_deref() == Some("--wros-renderers") && args.next().is_none() {
+        println!(
+            "{}",
+            serde_json::json!({"console":true,
+            "drm":cfg!(all(target_os = "linux", feature = "gui-drm")),
+            "wgpu":cfg!(all(target_os = "linux", feature = "gui-wgpu"))})
+        );
+        return Ok(());
+    }
     #[cfg(target_os = "linux")]
     if first.as_deref() == Some(wros_input::WORKER_ARGUMENT) {
         let parent = args.next().and_then(|value| value.parse::<u32>().ok());
@@ -258,7 +269,7 @@ fn main() -> Result<()> {
         std::io::stdout(),
         PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES),
     );
-    app.super_keys = cmd_is_reachable();
+    app.super_keys = display::windowed(&terminal) || cmd_is_reachable();
 
     shutdown::install();
     let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -276,7 +287,7 @@ fn main() -> Result<()> {
                 DisableMouseCapture,
                 DisableFocusChange
             );
-            display::suspend(&mut terminal);
+            let _ = display::suspend(&mut terminal);
             ratatui::restore();
             eprintln!("\nGrimoire hit a bug and closed. Anything unsaved was kept, and will be");
             eprintln!("offered back the next time you open this book.");
@@ -287,7 +298,7 @@ fn main() -> Result<()> {
     let _ = execute!(std::io::stdout(), DisableBracketedPaste, DisableFocusChange);
     let _ = execute!(std::io::stdout(), DisableMouseCapture);
     let _ = execute!(std::io::stdout(), PopKeyboardEnhancementFlags);
-    display::suspend(&mut terminal);
+    let _ = display::suspend(&mut terminal);
     ratatui::restore();
     if res.is_ok() && RESTART_APP.load(std::sync::atomic::Ordering::SeqCst) {
         return restart_app();
@@ -601,7 +612,11 @@ fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
     let mut first_screen = true;
 
     #[cfg(target_os = "linux")]
-    let mut events = wros_input::Input::start(&std::env::current_exe()?)?;
+    let mut events = if display::windowed(terminal) {
+        None
+    } else {
+        Some(wros_input::Input::start(&std::env::current_exe()?)?)
+    };
     #[cfg(target_os = "linux")]
     let power_watch = app.deck.lock_available.then(console_lock::watch_power);
     #[cfg(target_os = "linux")]
@@ -756,7 +771,11 @@ fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
         } else {
             TICK
         };
-        let ev = match events.recv_timeout(tick) {
+        #[cfg(target_os = "linux")]
+        let received = display::receive(terminal, &events, tick);
+        #[cfg(not(target_os = "linux"))]
+        let received = events.recv_timeout(tick);
+        let ev = match received {
             Ok(Ok(ev)) => ev,
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
                 // The scenes animate on TICK whatever the repaint rate.

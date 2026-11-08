@@ -1,40 +1,76 @@
 //! The normal terminal build and the installed graphical writing screen.
 
-#[cfg(all(target_os = "linux", feature = "gui-drm"))]
-pub type Terminal = ratatui::Terminal<wros_graphics::Screen<std::io::Stdout>>;
-#[cfg(not(all(target_os = "linux", feature = "gui-drm")))]
-pub type Terminal = ratatui::DefaultTerminal;
+mod backend;
+pub type Terminal = ratatui::Terminal<backend::Backend>;
 
 pub fn init() -> std::io::Result<Terminal> {
-    #[cfg(all(target_os = "linux", feature = "gui-drm"))]
-    {
-        wros_graphics::init(std::env::var_os("WROS_SESSION").is_some_and(|v| v == "drm"))
+    #[cfg(all(target_os = "linux", feature = "gui-wgpu"))]
+    if std::env::var_os("WROS_SESSION").is_some_and(|v| v == "wgpu") {
+        return ratatui::Terminal::new(backend::Backend::Window(Box::new(
+            crate::window::Engine::new()?,
+        )));
     }
-    #[cfg(not(all(target_os = "linux", feature = "gui-drm")))]
-    {
-        ratatui::try_init()
+    use ratatui::crossterm::{
+        execute,
+        terminal::{EnterAlternateScreen, enable_raw_mode},
+    };
+    let result = (|| {
+        enable_raw_mode()?;
+        execute!(std::io::stdout(), EnterAlternateScreen)?;
+        ratatui::Terminal::new(backend::Backend::tty()?)
+    })();
+    if result.is_err() {
+        ratatui::restore();
     }
+    result
 }
 
 pub fn graphical(terminal: &Terminal) -> bool {
-    #[cfg(all(target_os = "linux", feature = "gui-drm"))]
-    {
-        terminal.backend().graphical()
+    terminal.backend().graphical()
+}
+
+pub fn windowed(terminal: &Terminal) -> bool {
+    terminal.backend().windowed()
+}
+
+pub fn suspend(terminal: &mut Terminal) -> std::io::Result<()> {
+    if windowed(terminal) {
+        terminal.hide_cursor()?;
+        terminal.draw(|_| {})?;
     }
-    #[cfg(not(all(target_os = "linux", feature = "gui-drm")))]
-    {
-        let _ = terminal;
-        false
+    terminal.backend_mut().suspend()
+}
+
+pub fn resume(terminal: &mut Terminal) -> std::io::Result<()> {
+    if windowed(terminal) {
+        terminal.backend_mut().resume_window()?;
+    } else {
+        *terminal = init()?;
+    }
+    terminal.clear()
+}
+
+#[cfg(target_os = "linux")]
+pub fn receive(
+    terminal: &mut Terminal,
+    input: &Option<wros_input::Input>,
+    wait: std::time::Duration,
+) -> Result<std::io::Result<ratatui::crossterm::event::Event>, std::sync::mpsc::RecvTimeoutError> {
+    match input {
+        Some(input) => input.recv_timeout(wait),
+        None => terminal.backend_mut().receive(wait),
     }
 }
 
-pub fn suspend(terminal: &mut Terminal) {
-    #[cfg(all(target_os = "linux", feature = "gui-drm"))]
-    {
-        terminal.backend_mut().suspend();
-    }
-    #[cfg(not(all(target_os = "linux", feature = "gui-drm")))]
-    {
-        let _ = terminal;
+#[cfg(target_os = "linux")]
+pub fn wait_for(
+    terminal: &mut Terminal,
+    child: &mut std::process::Child,
+) -> std::io::Result<std::process::ExitStatus> {
+    loop {
+        if let Some(status) = child.try_wait()? {
+            return Ok(status);
+        }
+        terminal.backend_mut().service_locked()?;
     }
 }
