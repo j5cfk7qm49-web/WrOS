@@ -17,9 +17,17 @@ pub enum Backend {
 }
 
 impl Backend {
+    #[cfg(all(target_os = "linux", feature = "gui-drm"))]
+    fn tty_mut(&mut self) -> Option<&mut Tty> {
+        match self {
+            Self::Tty(backend) => Some(backend),
+            #[cfg(feature = "gui-wgpu")]
+            Self::Window(_) => None,
+        }
+    }
     pub fn observe(&mut self, event: &ratatui::crossterm::event::Event) {
         #[cfg(all(target_os = "linux", feature = "gui-drm"))]
-        if let Self::Tty(backend) = self {
+        if let Some(backend) = self.tty_mut() {
             use ratatui::crossterm::event::Event;
             match event {
                 Event::Mouse(mouse) => {
@@ -34,7 +42,7 @@ impl Backend {
     }
     pub fn reclaim(&mut self) -> io::Result<()> {
         #[cfg(all(target_os = "linux", feature = "gui-drm"))]
-        if let Self::Tty(backend) = self {
+        if let Some(backend) = self.tty_mut() {
             backend.reclaim()?;
         }
         Ok(())

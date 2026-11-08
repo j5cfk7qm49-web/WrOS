@@ -47,6 +47,7 @@ counts() {
 step format cargo-fmt fmt --all --check
 step clippy cargo-clippy clippy --offline --locked --no-default-features --workspace --all-targets -- -D warnings
 step native-input "${cargo[@]}" test -p wros-input --features native
+step native-clippy cargo-clippy clippy --offline --locked --no-default-features --features gui-drm --all-targets -- -D warnings
 step graphical-clippy cargo-clippy clippy --offline --locked --no-default-features --features gui-drm,gui-wgpu,test-driver --all-targets -- -D warnings
 step rust "${cargo[@]}" test --no-default-features --workspace --no-fail-fast
 step app-in-terminal "${cargo[@]}" test --no-default-features --features test-driver,gui-wgpu --test driven
