@@ -10,6 +10,22 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import rc_vm as vm
 import rc_vm_forms as forms
+import rc_vm_phases as phases
+
+
+class RememberedMenu(unittest.TestCase):
+    def test_a_row_above_the_remembered_selection_can_be_reached(self):
+        guest = phases.Guest.__new__(phases.Guest)
+        labels = ['Keyboard', 'Display', 'Battery and power', 'Storage']
+        selected = [3]
+
+        class Machine:
+            def key(self, key):
+                selected[0] = 0 if key == 'home' else min(selected[0] + 1, len(labels) - 1)
+
+        guest.m = Machine()
+        guest.vcs = lambda _: [forms.MARK + labels[selected[0]] + ' ›']
+        self.assertEqual(guest.choose(r'^Display', limit=8), 'Display ›')
 
 
 def screen(*lines):

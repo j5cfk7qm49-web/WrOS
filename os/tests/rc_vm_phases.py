@@ -201,14 +201,16 @@ class Guest:
 
     def choose(self, pattern, n=1, limit=45):
         regex = re.compile(pattern, re.I)
-        seen = None
+        current = self.selected_row(n)
+        if current and regex.search(current):
+            return current
+        # Settings remembers the last row. Search from the beginning so a target
+        # above that row is reachable too; these lists do not wrap at the bottom.
+        self.m.key('home')
         for _ in range(limit):
             current = self.selected_row(n)
             if current and regex.search(current):
                 return current
-            if current == seen:
-                self.m.key('down')       # did not move: keep pushing to the end
-            seen = current
             self.m.key('down')
         raise Failure('could not select %r; selected %r' % (pattern, self.selected_row(n)))
 
