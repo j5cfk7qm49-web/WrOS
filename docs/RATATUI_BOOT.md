@@ -19,6 +19,8 @@ writing session. Esc at disk unlock still opens Debian's own prompt.
 If no supported DRM display is available, the same screens draw on the text
 console. A separate, statically linked `wros-console-reset` restores text mode
 before Debian's prompt after any unsuccessful renderer exit, including a crash.
+It restores line input and Enter's newline conversion, flushes typeahead and
+keeps echo off, so a killed raw-mode renderer cannot strand the plain prompt.
 The initramfs hook copies that helper before installing the wrapper and keeps
 Debian's original prompt intact if either executable cannot be copied.
 
