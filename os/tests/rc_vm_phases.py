@@ -2598,7 +2598,7 @@ def phase_bootscreen(ctx):
               console_has_green(ctx.dir / 'ratatui-prompt.png'))
     ctx.check('disk unlock is native pixel output', native_pixels(ctx.dir / 'ratatui-prompt.png'))
     try:
-        text = m.wait_screen(r'Starting WrOS', 90, interval=0.5, name='progress')
+        text = m.wait_screen(r'Starting WrOS', 8, interval=0.5, name='progress')
         m.shot('progress-screen')
         ctx.result['progress_screen'] = text
     except TimeoutError:
@@ -2665,6 +2665,7 @@ renderer=$!
 sleep 20
 kill -KILL "$renderer"
 wait "$renderer"
+[ "$?" = 137 ] && echo killed > /run/wros-native-crash-fired
 exit 20
 CRASH
 chmod 0755 "$DESTDIR/usr/lib/wros/wros-boot"
@@ -2674,10 +2675,12 @@ chmod 0755 "$DESTDIR/usr/lib/wros/wros-boot"
     resets = reboot(ctx, g, m, 'reboot-native-crash')
     m.wait_screen(RATATUI_PROMPT, 420, name='native-before-crash')
     ctx.check('the forced crash happens after native pixels appeared', native_pixels(m.shot('native-before-crash')))
+    m.wait_screen(r'Please unlock disk', 90, name='native-crash-debian')
     unlock(ctx, m, secrets_, layout, wrong_first=False)
     shutil.copyfile(ctx.dir / 'unlock-prompt.png', ctx.dir / 'native-crash-text-prompt.png')
     g = signed_in_again(ctx, m, st, secrets_)
-    ctx.check('SIGKILL of the graphical unlock still reaches Debian and opens the disk', True)
+    ctx.check('SIGKILL of the graphical unlock still reaches Debian and opens the disk',
+              g.run('cat /run/wros-native-crash-fired', 30)[1].strip() == 'killed')
     g.run('rm -f /etc/initramfs-tools/hooks/zz-rc-native-crash', 30)
 
     # A start screen that cannot draw at all also falls back.

@@ -108,6 +108,13 @@ class Launcher(unittest.TestCase):
         self.assertNotIn('TERM', env)  # foot sets its own
         self.assertEqual(m.failures(), 0)
 
+    def test_text_start_forces_text_writing_even_without_a_saved_session_choice(self):
+        m = self.machine(choice=None)
+        m.cmdline.write_text('root=UUID=x wros.unlock=text\n')
+        self.assertEqual(m.start(), 'exec')
+        self.assertEqual(m.execs[-1][2]['WROS_SESSION'], 'console')
+        self.assertEqual(m.runs, [])
+
     def test_a_graphical_session_that_never_draws_falls_back_to_the_console_at_once(self):
         m = self.machine(draws=False)
         self.assertEqual(m.start(), 'exec')
