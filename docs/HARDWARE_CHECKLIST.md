@@ -163,8 +163,16 @@ Colemak, compose, two locks and suspend/wake in each chosen session. Finish with
 a day of writing. Native input now uses libinput/XKB; check touchpad click, drag,
 two-finger scroll, key repeat, live layout changes and compose after VT switches,
 two locks and wake. No held modifier, drag or compose prefix should survive a
-handoff. Compositor warmth is still being built;
-the current chroot/VM measurements are recorded separately in that document.
+handoff. The current chroot/VM measurements are recorded separately in that document.
+
+In both foot and OpenGL, open Warm screen and check support. If supported, preview
+2200 K at full strength: the screen should visibly warm. Cancel, then preview and
+Keep; Off should restore the original colours. Let another preview expire without
+pressing Keep, then repeat an adjustment to check that warmth does not multiply.
+Retest after a console switch, two locks and suspend/wake, and after the next login.
+Pass when the saved choice returns or support is honestly unavailable, with no
+black screen, stranded preview or words lost. Warm colours can change calibrated
+colours while on; the compositor does not provide physical colour readback.
 
 ## Collecting the log
 

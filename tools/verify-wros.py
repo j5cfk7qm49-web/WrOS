@@ -99,6 +99,10 @@ def main():
     run('window-opengl', ['cargo', 'test', '--no-default-features', '--features',
                           'test-driver,gui-wgpu', '--test', 'driven', '--locked', '--offline', '-j2'])
     run('native-input', ['cargo', 'test', '-p', 'wros-input', '--features', 'native', '--locked', '--offline', '-j2'])
+    run('compositor-warmth', ['cargo', 'test', '--no-default-features', '--features', 'gui-drm',
+                             '--bin', 'grimoire', 'compositor_warmth', '--locked', '--offline', '-j2'])
+    run('colour-process', ['cargo', 'test', '--no-default-features', '--features', 'gui-drm',
+                         '--test', 'colour_process', '--locked', '--offline', '-j2'])
     run('lock-action-ready', ['cargo', 'test', '--no-default-features', '--features', 'test-driver',
                               '--bin', 'grimoire', 'locking_is_not_advertised', '--locked', '--offline', '-j2'])
     # pty-qa adds only a debug-build test hook for the lock (test_rc7_pty); release builds never have it.

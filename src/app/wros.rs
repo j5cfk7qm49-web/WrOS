@@ -67,6 +67,13 @@ struct Worker {
     simulated: bool,
 }
 impl Worker {
+    fn system() -> Self {
+        #[cfg(all(target_os = "linux", feature = "compositor-warmth"))]
+        if crate::session::composited() {
+            return Self::spawn(crate::compositor_warmth::backend());
+        }
+        Self::spawn(Box::new(wros_sys::linux::Linux::default()))
+    }
     fn spawn(mut backend: Box<dyn Backend>) -> Self {
         let simulated = backend.simulated();
         let (tx, requests) = mpsc::sync_channel::<Request>(1);
@@ -334,7 +341,9 @@ impl Deck {
             power_pending: false,
             installer_requested: false,
             app_restart_requested: false,
-            worker: None,
+            // Colour ownership starts at login, including when no Settings page
+            // is opened. Both system requests and Wayland work stay off-thread.
+            worker: (background && crate::session::composited()).then(Worker::system),
             enable_system: background,
             preview: None,
             recent: String::new(),
@@ -384,7 +393,7 @@ impl Deck {
                 self.note = "System operations disabled in this test session.".into();
                 return;
             }
-            self.worker = Some(Worker::spawn(Box::new(wros_sys::linux::Linux::default())));
+            self.worker = Some(Worker::system());
         }
         let powering_off = matches!(
             request,

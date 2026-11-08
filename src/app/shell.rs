@@ -870,8 +870,11 @@ fn entries(app: &App) -> Vec<Entry> {
                         )),
                         Entry::new("Brightness -10%", Choice::System(5)),
                         Entry::new("Brightness +10%", Choice::System(6)),
-                        if app.deck.graphical_session && !crate::session::native() {
-                            Entry::info("Warm screen · not in the graphical session yet")
+                        if app.deck.graphical_session
+                            && !crate::session::native()
+                            && !cfg!(all(target_os = "linux", feature = "compositor-warmth"))
+                        {
+                            Entry::info("Warm screen · unavailable in this build")
                         } else {
                             Entry::new(
                                 "Warm screen · blue light filter",
@@ -1638,7 +1641,11 @@ fn entries(app: &App) -> Vec<Entry> {
                                 "unavailable"
                             },
                             if s.applied {
-                                "matches display"
+                                if crate::session::composited() {
+                                    "accepted for this session"
+                                } else {
+                                    "matches display"
+                                }
                             } else {
                                 "not applied"
                             }

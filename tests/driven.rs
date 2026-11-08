@@ -425,6 +425,9 @@ fn the_opengl_window_draws_and_saves_unicode_without_a_terminal_reader() {
         .env("XKB_DEFAULT_LAYOUT", "us")
         .env("XKB_DEFAULT_VARIANT", "colemak")
         .env("WROS_SESSION", "wgpu")
+        // No native display was warmed in this headless fixture. Exercise the
+        // real compositor protocol, including the headless driver's refusal.
+        .env("WROS_COMPOSITOR_WARMTH", "ready")
         .env("WROS_READY_FILE", &ready)
         .env("WROS_TEST_DRIVER_SOCKET", &socket)
         .stdin(Stdio::null())
@@ -432,14 +435,20 @@ fn the_opengl_window_draws_and_saves_unicode_without_a_terminal_reader() {
         .stderr(std::fs::File::create(&log).unwrap())
         .spawn()
         .unwrap();
-    struct Running(Child);
+    struct Running(Child, PathBuf);
     impl Drop for Running {
         fn drop(&mut self) {
+            if std::thread::panicking() {
+                eprintln!(
+                    "window log: {}",
+                    std::fs::read_to_string(&self.1).unwrap_or_default()
+                );
+            }
             let _ = self.0.kill();
             let _ = self.0.wait();
         }
     }
-    let mut running = Running(child);
+    let mut running = Running(child, log.clone());
     let deadline = Instant::now() + Duration::from_secs(45);
     while !ready.exists() {
         assert!(
@@ -553,6 +562,40 @@ fn the_opengl_window_draws_and_saves_unicode_without_a_terminal_reader() {
             "Colemak and compose input did not reach the saved scene"
         );
         std::thread::sleep(Duration::from_millis(50));
+    }
+    assert!(!driver.tree().to_string().contains("Window Café Ω"));
+    driver.input(serde_json::json!({"kind":"act", "node":"open-settings", "action":"activate"}));
+    for label in [
+        "System",
+        "Display",
+        "Warm screen · blue light filter",
+        "Check display support",
+    ] {
+        let end = Instant::now() + WAIT;
+        let id = loop {
+            let tree = driver.tree();
+            let busy =
+                node(&tree, &|n| n["id"] == "system-busy").is_some_and(|n| n["value"] == "true");
+            if !busy && let Some(id) = row(&tree, label) {
+                break id;
+            }
+            assert!(Instant::now() < end, "no {label}: {tree}");
+            std::thread::sleep(Duration::from_millis(25));
+        };
+        driver.input(serde_json::json!({"kind":"act", "node":id, "action":"activate"}));
+    }
+    let end = Instant::now() + WAIT;
+    while !driver
+        .tree()
+        .to_string()
+        .contains("this display cannot accept screen warmth")
+    {
+        assert!(
+            Instant::now() < end,
+            "headless refusal not shown: {}",
+            driver.tree()
+        );
+        std::thread::sleep(Duration::from_millis(25));
     }
     assert!(!driver.tree().to_string().contains("Window Café Ω"));
 }

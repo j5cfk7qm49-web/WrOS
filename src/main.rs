@@ -4,6 +4,8 @@ mod app;
 mod backup_service;
 mod battery;
 mod books;
+#[cfg(all(target_os = "linux", feature = "compositor-warmth"))]
+mod compositor_warmth;
 #[cfg(target_os = "linux")]
 mod console_lock;
 mod display;
@@ -96,6 +98,13 @@ fn main() -> Result<()> {
     }
     if matches!(first.as_deref(), Some("writingdeck" | "wros")) {
         return wros_cli::command(args);
+    }
+    #[cfg(all(target_os = "linux", feature = "compositor-warmth"))]
+    if first.as_deref() == Some(compositor_warmth::ARGUMENT) {
+        if args.next().is_some() {
+            anyhow::bail!("invalid colour worker arguments");
+        }
+        return compositor_warmth::worker_main();
     }
 
     if matches!(first.as_deref(), Some("compile") | Some("index")) {

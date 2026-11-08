@@ -75,6 +75,28 @@ class Machine:
 
 
 class Launcher(unittest.TestCase):
+    def test_native_warmth_is_released_before_cage_and_failure_only_disables_warmth(self):
+        import subprocess
+        for success in (True, False):
+            m = self.machine()
+            effects = []
+            original_exists = m.exists
+            m.exists = lambda path: path == '/usr/libexec/wros-display' or original_exists(path)
+            def run(argv, **kwargs):
+                effects.append(argv)
+                if argv[0] == session.PKEXEC:
+                    verb = 'prepare-compositor' if len(effects) == 1 else 'finish-compositor'
+                    self.assertEqual(argv, [session.PKEXEC, '--disable-internal-agent',
+                                           '/usr/libexec/wros-display', verb])
+                    self.assertEqual(kwargs['timeout'], 12)
+                    return subprocess.CompletedProcess(argv, 0 if success else 1)
+                self.assertEqual(len(effects), 2)
+                self.assertEqual(kwargs['env'].get('WROS_COMPOSITOR_WARMTH'), 'ready' if success else 'unavailable')
+                Path(kwargs['env']['WROS_READY_FILE']).touch()
+            m.run = run
+            self.assertEqual(m.start(), 0)
+            self.assertEqual(len(effects), 3)
+
     def test_wgpu_runs_directly_under_cage_without_foot(self):
         m = self.machine()
         m.write(m.home / '.config/wros/session.json', {'session': 'graphical', 'backend': 'wgpu'})

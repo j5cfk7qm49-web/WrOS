@@ -39,6 +39,9 @@ def trial(ctx):
     if rc:
         raise phases.Failure(g.run('tail -35 /tmp/trial-apt.log')[1])
     g.run('install -m755 /mnt/trial/grimoire /usr/bin/grimoire')
+    display_helper = ctx.args.source_tree / 'os/scripts/wros-display'
+    g.shell.put('/usr/libexec/wros-display', display_helper.read_bytes(), '0755')
+    ctx.result['display_helper_sha256'] = phases.vm.sha256_file(display_helper)
     if ctx.args.delay_health:
         # Only this disposable VM's read-only health query is delayed. The real
         # updater still produces the reply; authentication helpers are unchanged.
@@ -103,6 +106,60 @@ def trial(ctx):
         raise phases.Failure(detail[-6000:])
     ctx.check('the graphical backend is running', rc == 0 or backend == 'drm')
     editor_pid = g.run('pgrep -xo grimoire')[1].strip()
+    def system_busy(tree):
+        nodes = [json.loads(tree)]
+        while nodes:
+            node = nodes.pop()
+            if isinstance(node, dict):
+                if node.get('id') == 'system-busy':
+                    return node.get('value') == 'true'
+                nodes.extend(node.values())
+            elif isinstance(node, list):
+                nodes.extend(node)
+        raise phases.Failure('the test tree has no system-busy state')
+    def warmth_page():
+        drive({'kind':'act', 'node':'open-settings', 'action':'activate'})
+        for row in ('System', 'Display', 'Warm screen · blue light filter'):
+            drive({'choose': row})
+        deadline = time.monotonic() + 25
+        while system_busy(drive()) and time.monotonic() < deadline:
+            time.sleep(.1)
+        drive({'choose': 'Check display support'})
+        deadline = time.monotonic() + 25
+        while time.monotonic() < deadline:
+            tree = drive({'kind': 'key', 'key': 'f24'})
+            if not system_busy(tree) and ('Display support: unavailable' in tree or 'Display support: available' in tree):
+                return tree
+            time.sleep(.1)
+        raise phases.Failure('the warm-screen support query did not finish')
+    if backend != 'drm':
+        colour_pid = g.run('pgrep -x wros-colours')[1].strip()
+        ctx.check('compositor colours have a separate process', bool(colour_pid) and colour_pid != editor_pid)
+        _, descriptors = g.run('for fd in /proc/' + colour_pid + '/fd/*; do readlink "$fd"; done')
+        ctx.check('the colour process has no keyboard devices or password terminal',
+                  '/dev/input/' not in descriptors and '/dev/tty' not in descriptors)
+        tree = warmth_page()
+        supported = 'Display support: available' in tree
+        ctx.result['compositor_warmth_supported'] = supported
+        # The installed QEMU display currently refuses gamma controls. Record
+        # that driver result explicitly; a future supported driver needs its own
+        # positive acceptance phase rather than silently changing this assertion.
+        ctx.check('the emulated display honestly reports unsupported compositor warmth', not supported
+                  and 'this display cannot accept screen warmth' in tree)
+        before = g.run('if test -f /etc/wros/display.json; then sha256sum /etc/wros/display.json; else echo missing; fi')[1]
+        drive({'choose': 'Filter: off'})
+        drive({'choose': 'Preview choice'})
+        deadline = time.monotonic() + 25
+        while time.monotonic() < deadline:
+            tree = drive({'kind': 'key', 'key': 'f24'})
+            if 'this display cannot accept screen warmth' in tree and not system_busy(tree):
+                break
+            time.sleep(.1)
+        after = g.run('if test -f /etc/wros/display.json; then sha256sum /etc/wros/display.json; else echo missing; fi')[1]
+        ctx.check('an unsupported compositor preview preserves the saved preference', before == after)
+        ctx.check('the compositor never starts a native display preview',
+                  g.run('test ! -e /run/wros-display/preview.json', check=False)[0] == 0)
+        m.shot('compositor-warmth-unavailable')
     def native_devices(pid='$(pgrep -xo wros-input)'):
         return g.run('for fd in /proc/' + pid + '/fd/*; do readlink "$fd"; done')[1]
     if backend == 'drm':
@@ -256,6 +313,11 @@ def trial(ctx):
         ctx.check('reader death ends the writer and restores the graphical login',
                   not any(p['comm'] in ('grimoire', 'wros-input', 'vlock-main') for p in g.snap()['procs']))
         ctx.check('reader death preserves the saved scene', bool(g.probe('find-text', 'colemak é qwerty xxxxx', home)))
+    else:
+        g.run('pkill -KILL -x wros-colours')
+        tree = warmth_page()
+        ctx.check('colour-worker death leaves the writer usable and reports warmth unavailable',
+                  'Display support: unavailable' in tree and g.run('pgrep -xo grimoire')[1].strip() == editor_pid)
     g.shell.put('/dev/shm/trial-pattern', wrong+'\n'+credentials['login']+'\n')
     rc, _ = g.run('grep -rlaF -f /dev/shm/trial-pattern /home >/dev/null; found=$?; '
                   'rm -f /dev/shm/trial-pattern; test "$found" = 1', check=False)

@@ -1,0 +1,480 @@
+{
+  "recorded_at_utc": "2026-11-08",
+  "scope": "Compositor colour process and native fallback; software protocol fixtures and no-NIC installed debug VMs",
+  "source": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "f5944927799e4e1dda95ff735b26887c79ff196f86bc05c5af7edf1cfe374ac8",
+    "file_count": 634,
+    "scope": "Cargo.toml/lock, src, crates, assets, os scripts/helpers/config/systemd/tests"
+  },
+  "extra_integration_tests_sha256": {
+    "tests/driven.rs": "f1aa5942251abca6fac820e13e9931d067391a736306bd397ea919a881c3f65f",
+    "tests/colour_process.rs": "97fef1f12af353de419d339eb6777af286efd5623b63ab2049f05c136e39edfa",
+    "tests/support/gamma.rs": "277bc1e0717f1381624f895ecfda014a3b8c218870bab74439a5f65d3cf7c20c"
+  },
+  "software": [
+    {
+      "name": "format",
+      "passed": true,
+      "log": "/home/builder/rc10-gamma-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "summaries": []
+    },
+    {
+      "name": "native-clippy",
+      "passed": true,
+      "log": "/home/builder/rc10-gamma-native-clippy.log",
+      "sha256": "e8ed46fb79119cb2e0fc59cf95da5713a21fbdd0757998cefe677ca4091ce122",
+      "summaries": []
+    },
+    {
+      "name": "combined-clippy",
+      "passed": true,
+      "log": "/home/builder/rc10-gamma-combined-clippy.log",
+      "sha256": "b64b673e91d4d99c5a84d42833e1d6895c3bd92174651a6c906559a6f32f63ac",
+      "summaries": []
+    },
+    {
+      "name": "unit",
+      "passed": true,
+      "log": "/home/builder/rc10-gamma-unit.log",
+      "sha256": "b701ff5f549910e110fa89d501dc941d1121e25a4e4568f808e19fc87a8518a8",
+      "summaries": [
+        "test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 552 filtered out; finished in 0.42s"
+      ]
+    },
+    {
+      "name": "process",
+      "passed": true,
+      "log": "/home/builder/rc10-gamma-process.log",
+      "sha256": "31fc7ec124d8ba97b1ea32346b3ab73adc1d12c9cb89fd771cfc01b01d4afe3d",
+      "summaries": [
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.21s"
+      ]
+    },
+    {
+      "name": "session-ui",
+      "passed": true,
+      "log": "/home/builder/rc10-gamma-session-ui.log",
+      "sha256": "3ef28cd4ca805c910d290d250a2b297f7122d483169ed3777537c617c4a1802f",
+      "summaries": [
+        "test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 553 filtered out; finished in 1.88s"
+      ]
+    },
+    {
+      "name": "session-ui-text",
+      "passed": true,
+      "log": "/home/builder/rc10-gamma-session-ui-text.log",
+      "sha256": "562fad87628ea71d8f5ad953296a093ffa658257b6d386f0ca53863317df2c79",
+      "summaries": [
+        "test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 543 filtered out; finished in 1.83s"
+      ]
+    },
+    {
+      "name": "driven",
+      "passed": true,
+      "log": "/home/builder/rc10-gamma-driven.log",
+      "sha256": "229ae31d7fa3fa5759297e8e95f4b760febf5ecec7c7690bdd55057c1a0e0fde",
+      "summaries": [
+        "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.97s"
+      ]
+    },
+    {
+      "name": "python-native",
+      "passed": true,
+      "log": "/home/builder/rc10-gamma-python-native.log",
+      "sha256": "7d662f054f1752f6be8f30f86fee004d781bcf4e194e607b5d4b5c6142ad7c4c",
+      "summaries": [
+        "Ran 26 tests in 0.880s",
+        "OK"
+      ]
+    },
+    {
+      "name": "python-compositor",
+      "passed": true,
+      "log": "/home/builder/rc10-gamma-python-compositor.log",
+      "sha256": "39fc7fa609b25f319c4e2170694f785c3b16832026ddb045427a7befd4304acd",
+      "summaries": [
+        "Ran 5 tests in 0.017s",
+        "OK"
+      ]
+    },
+    {
+      "name": "python-launcher",
+      "passed": true,
+      "log": "/home/builder/rc10-gamma-python-launcher.log",
+      "sha256": "67940570d8413d1c1db92f1dc71dcf94f07120b93cd60c4f664957b69cdc8cc3",
+      "summaries": [
+        "Ran 20 tests in 0.058s",
+        "OK"
+      ]
+    },
+    {
+      "name": "syntax",
+      "passed": true,
+      "log": "/home/builder/rc10-gamma-syntax.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "summaries": []
+    },
+    {
+      "name": "fixture-build",
+      "passed": true,
+      "log": "/home/builder/rc10-gamma-fixture-build.log",
+      "sha256": "444024a62024a27eb59d1a04c301e0d435a7b8e0bc722966a1765a581b76e9f6",
+      "summaries": []
+    },
+    {
+      "name": "inventory",
+      "passed": true,
+      "log": "/home/builder/rc10-gamma-inventory.log",
+      "sha256": "5126c26076a69762e127210b186fe952eccfcacf57dd48422c155b814e89f075",
+      "summaries": [
+        "753 Rust packages, 0 staged Debian packages, 72 missing root notice files to review; 1 used by the Linux no-audio build"
+      ]
+    }
+  ],
+  "tests_first_failures_retained": [
+    "/home/builder/rc10-gamma-first-red.log",
+    "/home/builder/rc10-gamma-transactions-red.log",
+    "/home/builder/rc10-gamma-handoff-red.log",
+    "/home/builder/rc10-gamma-native-return-red.log",
+    "/home/builder/rc10-gamma-process-red.log",
+    "/home/builder/rc10-gamma-saved-choice-red.log"
+  ],
+  "environment_failures": [
+    {
+      "log": "/home/builder/rc10-gamma-driven-diagnostic.log",
+      "passed": false,
+      "cause": "Missing chroot shared-memory mount after WSL restart; cage could not allocate buffers.",
+      "note": "The first equivalent driven failure log was later overwritten by the focused check. This diagnostic repeat retains the failure and cage log."
+    },
+    {
+      "log": "/home/builder/rc10-gamma-driven-shm-green.log",
+      "passed": false,
+      "cause": "Standalone retry lacked /proc and devpts after WSL stopped. The filename does not imply a pass."
+    }
+  ],
+  "environment_fix": "The external chroot runner and formatter now prepare proc/devpts/shared memory in the same WSL invocation as each check.",
+  "full_suite": "Not rerun at this focused checkpoint. rc10-native-input.json retains the earlier full summary and all named missing-runtime failures; full release qualification remains separate.",
+  "limits": [
+    "Gamma-control supplies failure events and sizes, no calibration readback or presentation acknowledgement.",
+    "Warmth uses linear curves while enabled; Off restores the compositor originals. Physical calibration is not certified.",
+    "The positive two-output test server is not a hardware display. Both installed emulated compositor drivers report unsupported honestly.",
+    "HP Stream positive compositor warmth, transitions, typing latency, power and day-of-writing checks remain owner-only.",
+    "The earlier renderer numbers precede native input and colour-process integration; they remain explicitly a baseline."
+  ],
+  "screenshot": {
+    "file": "docs/evidence/rc10-compositor-warmth.png",
+    "sha256": "d661e5f8acae6c2fd7c1ef733f56a439a04f0c915fd1fd208c8a08325f3abfcd",
+    "scope": "Disposable foot VM, unsupported-colour page; visually inspected"
+  },
+  "vms": [
+    {
+      "passed": true,
+      "seconds": 98.9,
+      "backend": "foot",
+      "editor_sha256": "b6d568010d6f4b3639b0b1fce58937898e280ffaa1db84e9c371bf35a8da1c0f",
+      "fixture_sha256": "f81be2cc65b5291022f04907724696327e254219b30e6a1d077f32f877c8939f",
+      "lock_helper_sha256": "669ae7ace2cb6a8bf782cc078147764c8ac03a945b78ef36f45f55e3000f6f2c",
+      "display_helper_sha256": "f9aac3ace389e77c7a552f0a0a6eb101403b2be31dd43efdba5fbd5002cd4825",
+      "compositor_warmth_supported": false,
+      "run": "/home/builder/rc-vm-runs/graphical-foot-20261108T185909Z",
+      "assertions": [
+        {
+          "name": "ratatui: the Ratatui screen shows the logo",
+          "passed": true
+        },
+        {
+          "name": "ratatui: Debian's prompt is not on screen",
+          "passed": true
+        },
+        {
+          "name": "the graphical writing app opened its private test socket",
+          "passed": true
+        },
+        {
+          "name": "the graphical backend is running",
+          "passed": true
+        },
+        {
+          "name": "compositor colours have a separate process",
+          "passed": true
+        },
+        {
+          "name": "the colour process has no keyboard devices or password terminal",
+          "passed": true
+        },
+        {
+          "name": "the emulated display honestly reports unsupported compositor warmth",
+          "passed": true
+        },
+        {
+          "name": "an unsupported compositor preview preserves the saved preference",
+          "passed": true
+        },
+        {
+          "name": "the compositor never starts a native display preview",
+          "passed": true
+        },
+        {
+          "name": "the maintained locker owns tty8",
+          "passed": true
+        },
+        {
+          "name": "the locker prevents returning to the writing screen",
+          "passed": true
+        },
+        {
+          "name": "the writing input reader is retired",
+          "passed": true
+        },
+        {
+          "name": "authentication returns to the writing settings",
+          "passed": true
+        },
+        {
+          "name": "a second lock returns to the same writing settings",
+          "passed": true
+        },
+        {
+          "name": "the same editor process survived both locks",
+          "passed": true
+        },
+        {
+          "name": "the writing session requested actual QEMU suspend",
+          "passed": true
+        },
+        {
+          "name": "wake and authentication return to the same editor",
+          "passed": true
+        },
+        {
+          "name": "colour-worker death leaves the writer usable and reports warmth unavailable",
+          "passed": true
+        },
+        {
+          "name": "neither lock password reached the saved book or recovery files",
+          "passed": true
+        },
+        {
+          "name": "no generated secret in /var/log, /etc or the journal",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "passed": true,
+      "seconds": 97.9,
+      "backend": "wgpu",
+      "editor_sha256": "b6d568010d6f4b3639b0b1fce58937898e280ffaa1db84e9c371bf35a8da1c0f",
+      "fixture_sha256": "f81be2cc65b5291022f04907724696327e254219b30e6a1d077f32f877c8939f",
+      "lock_helper_sha256": "669ae7ace2cb6a8bf782cc078147764c8ac03a945b78ef36f45f55e3000f6f2c",
+      "display_helper_sha256": "f9aac3ace389e77c7a552f0a0a6eb101403b2be31dd43efdba5fbd5002cd4825",
+      "compositor_warmth_supported": false,
+      "run": "/home/builder/rc-vm-runs/graphical-wgpu-20261108T190209Z",
+      "assertions": [
+        {
+          "name": "ratatui: the Ratatui screen shows the logo",
+          "passed": true
+        },
+        {
+          "name": "ratatui: Debian's prompt is not on screen",
+          "passed": true
+        },
+        {
+          "name": "the graphical writing app opened its private test socket",
+          "passed": true
+        },
+        {
+          "name": "the graphical backend is running",
+          "passed": true
+        },
+        {
+          "name": "compositor colours have a separate process",
+          "passed": true
+        },
+        {
+          "name": "the colour process has no keyboard devices or password terminal",
+          "passed": true
+        },
+        {
+          "name": "the emulated display honestly reports unsupported compositor warmth",
+          "passed": true
+        },
+        {
+          "name": "an unsupported compositor preview preserves the saved preference",
+          "passed": true
+        },
+        {
+          "name": "the compositor never starts a native display preview",
+          "passed": true
+        },
+        {
+          "name": "the maintained locker owns tty8",
+          "passed": true
+        },
+        {
+          "name": "the locker prevents returning to the writing screen",
+          "passed": true
+        },
+        {
+          "name": "the writing input reader is retired",
+          "passed": true
+        },
+        {
+          "name": "authentication returns to the writing settings",
+          "passed": true
+        },
+        {
+          "name": "a second lock returns to the same writing settings",
+          "passed": true
+        },
+        {
+          "name": "the same editor process survived both locks",
+          "passed": true
+        },
+        {
+          "name": "the writing session requested actual QEMU suspend",
+          "passed": true
+        },
+        {
+          "name": "wake and authentication return to the same editor",
+          "passed": true
+        },
+        {
+          "name": "colour-worker death leaves the writer usable and reports warmth unavailable",
+          "passed": true
+        },
+        {
+          "name": "neither lock password reached the saved book or recovery files",
+          "passed": true
+        },
+        {
+          "name": "no generated secret in /var/log, /etc or the journal",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "passed": true,
+      "seconds": 108.7,
+      "backend": "drm",
+      "editor_sha256": "b6d568010d6f4b3639b0b1fce58937898e280ffaa1db84e9c371bf35a8da1c0f",
+      "fixture_sha256": "f81be2cc65b5291022f04907724696327e254219b30e6a1d077f32f877c8939f",
+      "lock_helper_sha256": "669ae7ace2cb6a8bf782cc078147764c8ac03a945b78ef36f45f55e3000f6f2c",
+      "display_helper_sha256": "f9aac3ace389e77c7a552f0a0a6eb101403b2be31dd43efdba5fbd5002cd4825",
+      "compositor_warmth_supported": null,
+      "run": "/home/builder/rc-vm-runs/graphical-drm-20261108T190412Z",
+      "assertions": [
+        {
+          "name": "ratatui: the Ratatui screen shows the logo",
+          "passed": true
+        },
+        {
+          "name": "ratatui: Debian's prompt is not on screen",
+          "passed": true
+        },
+        {
+          "name": "the graphical writing app opened its private test socket",
+          "passed": true
+        },
+        {
+          "name": "the native session uses the device reader",
+          "passed": true
+        },
+        {
+          "name": "the graphical backend is running",
+          "passed": true
+        },
+        {
+          "name": "only the disposable reader owns native input devices",
+          "passed": true
+        },
+        {
+          "name": "physical Colemak, compose and live layout changes reach the saved scene",
+          "passed": true
+        },
+        {
+          "name": "the private tree contains no typed prose",
+          "passed": true
+        },
+        {
+          "name": "the pointer baseline is a static writing page",
+          "passed": true
+        },
+        {
+          "name": "native pointer motion draws the bounded cursor overlay",
+          "passed": true
+        },
+        {
+          "name": "native input and display release for another VT",
+          "passed": true
+        },
+        {
+          "name": "the inactive reader has released its input devices",
+          "passed": true
+        },
+        {
+          "name": "native devices return with tty1",
+          "passed": true
+        },
+        {
+          "name": "the maintained locker owns tty8",
+          "passed": true
+        },
+        {
+          "name": "the locker prevents returning to the writing screen",
+          "passed": true
+        },
+        {
+          "name": "the writing input reader is retired",
+          "passed": true
+        },
+        {
+          "name": "authentication returns to the writing settings",
+          "passed": true
+        },
+        {
+          "name": "a second lock returns to the same writing settings",
+          "passed": true
+        },
+        {
+          "name": "the same editor process survived both locks",
+          "passed": true
+        },
+        {
+          "name": "a fresh native reader owns devices after authentication",
+          "passed": true
+        },
+        {
+          "name": "the writing session requested actual QEMU suspend",
+          "passed": true
+        },
+        {
+          "name": "wake and authentication return to the same editor",
+          "passed": true
+        },
+        {
+          "name": "native input reacquires devices after wake",
+          "passed": true
+        },
+        {
+          "name": "reader death ends the writer and restores the graphical login",
+          "passed": true
+        },
+        {
+          "name": "reader death preserves the saved scene",
+          "passed": true
+        },
+        {
+          "name": "neither lock password reached the saved book or recovery files",
+          "passed": true
+        },
+        {
+          "name": "no generated secret in /var/log, /etc or the journal",
+          "passed": true
+        }
+      ]
+    }
+  ]
+}

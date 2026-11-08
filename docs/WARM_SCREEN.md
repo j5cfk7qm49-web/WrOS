@@ -11,11 +11,65 @@ when the driver supports them. The filter is initially off and needs no network.
 These are approximate manual warmth controls, not a measured display white point
 or a medical claim. The transform uses relative Planck spectral ratios at three
 representative wavelengths, normalized to 6500 K, with green/blue floors for
-legibility. It scales the captured calibration instead of replacing it with a
-linear ramp. Repeated adjustments always start from that original calibration.
+legibility. On the native display and console it scales captured calibration
+instead of replacing it with a linear ramp. Adjustments start from that calibration.
 6500 K, zero strength and Off preserve its exact sample values.
 
-## Service and security boundary
+## Under cage (foot and the OpenGL window)
+
+Both compositor sessions offer the same Warm screen page. The writing executable
+includes a small private colour worker. Its entry point runs before project or
+input setup. It binds only display outputs and the gamma-control protocol; it never
+binds a keyboard, pointer or surface. A bounded pipe carries only status, preview,
+Keep and Cancel. The worker has no book path or password terminal.
+
+Before cage starts, the authorized display helper stops the native boot colour
+service and restores any verified native baseline. A failed handoff disables
+compositor warmth while writing still opens. Once cage exits, the launcher queues
+the existing native service again, including before a console fallback. The two
+colour paths therefore do not try to own an active compositor's display together.
+
+The colour worker applies bounded curves through cage. Its own poll deadline
+reverts an unconfirmed preview after 15 seconds even if the writing process is
+stopped. Closing the request pipe ends the worker; losing its Wayland connection
+or destroying the controls returns outputs to the compositor's original curves.
+Off, zero strength and 6500 K release the controls instead of writing identity
+curves. Any failed output releases all controls. Hotplug invalidates the session's
+colour controls; reopen writing to check support again. Colour-worker failure
+leaves the writing app usable and makes warmth unavailable.
+
+This protocol supplies curve sizes and failure events, **no calibration readback
+or presentation acknowledgement**. Warmth uses linear curves while on and may
+change calibrated colours. Off restores the compositor's original curves. A
+successful reply means the compositor accepted the request, not that WrOS read
+back a physical display. The page labels this as an accepted session preference.
+The [protocol](https://gitlab.freedesktop.org/wlroots/wlr-protocols/-/blob/master/unstable/wlr-gamma-control-unstable-v1.xml)
+defines exclusive controls and restoration on destruction;
+[cage 0.2](https://github.com/cage-kiosk/cage/blob/v0.2.0/cage.c) exports that interface.
+
+Keep persists only bounded preferences through the existing polkit helper. The
+root helper never opens a Wayland socket. It checks the reviewed configuration
+hash, rejects native transaction state and preserves unknown settings. The
+fsynced generation is the commit receipt, including when a reply is lost. Keep
+must reach the colour worker before expiry; a failed save restores the previous
+confirmed choice. Saved compositor choices are applied at the next login.
+
+The protocol fixture exercises two outputs, malformed/missing/oversized support,
+partial failure, disconnect, hotplug and Off restoration. A separate-process test
+stops a disposable parent while the real worker expires its preview, checks that
+the worker has no input devices or tty, then closes its pipe and verifies exit.
+The real cage/OpenGL app test checks the headless driver's honest refusal while
+retaining physical Colemak, compose and saved Unicode text. These are protocol
+and software tests, not positive HP Stream gamma or calibration qualification.
+
+[The rc10 colour checkpoint](evidence/rc10-compositor-warmth.json) records the
+source identity, every focused software check and all three installed VM runs.
+The [foot VM screen](evidence/rc10-compositor-warmth.png) shows the honest
+unsupported-driver result. Both compositor VMs also pass two locks, suspend/wake,
+password scans and colour-worker crash isolation; the same executable passes the
+native input, lock, suspend and reader-crash regression.
+
+## Native service and security boundary
 
 Grimoire uses its existing bounded worker and typed `wros-sys` requests.
 The render/input thread does no device, process or password work. Shared Settings
@@ -115,5 +169,9 @@ Hotplug, mode changes, suspend/VT transitions and another color manager can
 invalidate ownership or topology. The helper conservatively refuses mismatched
 state and does not automatically reset another output. Full recovery across
 those transitions, physical multi-monitor/colorimeter checks, complete renewed
-installer acceptance and production display qualification remain open under
-**issue #30**. Do not claim production or universal laptop support from VM tests.
+installer acceptance and production display qualification remain on
+the hardware checklist. The native boot fix was
+[confirmed on the HP Stream for rc6](https://github.com/j5cfk7qm49-web/WrOS/issues/30#issuecomment-6691737700).
+That does not qualify the new compositor colour path, which remains part of
+[#92](https://github.com/j5cfk7qm49-web/WrOS/issues/92). Do not infer universal
+display support or physical colour accuracy from VM and protocol tests.

@@ -173,6 +173,36 @@ class Manager:
             return None
         return hashlib.sha256(read_file(self.config, 4096)).hexdigest()
 
+    def prepare_compositor(self):
+        """Return native colour ownership before cage starts; keep saved choices."""
+        self.saved()
+        if self.pending.exists() or self.pending.is_symlink():
+            self.rollback()
+        if self.baseline.exists() or self.baseline.is_symlink():
+            baseline = read_file(self.baseline)
+            decode(baseline)
+            if self.hardware.capture() != read_file(self.current):
+                raise ValueError('display changed externally; compositor handoff refused')
+            self.hardware.apply(baseline)
+            self.cleanup(disabled=True)
+        return {'status': 'prepared'}
+
+    def compositor_save(self, enabled, kelvin, strength, token, stamp):
+        """Persist bounded preferences only. The unprivileged compositor owns gamma."""
+        target = preference(enabled, kelvin, strength)
+        if not isinstance(token, str) or len(token) != 32 or any(c not in '0123456789abcdef' for c in token):
+            raise ValueError('invalid compositor preview token')
+        if not isinstance(stamp, str) or (stamp != 'missing' and
+                (len(stamp) != 64 or any(c not in '0123456789abcdef' for c in stamp))):
+            raise ValueError('invalid compositor preferences receipt')
+        self.saved()
+        if any(path.exists() or path.is_symlink() for path in (self.pending, self.baseline)):
+            raise ValueError('native display state still owns the colours')
+        if (self.config_stamp() or 'missing') != stamp:
+            raise ValueError('display preferences changed externally; original preserved')
+        json_write(self.config, {'version': 1, **target, 'generation': token}, 0o644)
+        return {'status': 'committed', **target}
+
     def timer(self, verb):
         self.run(['/usr/bin/systemctl', verb, 'wros-display-revert.timer'])
 
@@ -328,19 +358,34 @@ def main():
     if os.geteuid() != 0:
         raise PermissionError('use the authorized display action; never run WrOS as root')
     arguments = sys.argv[1:]
-    if not arguments or arguments[0] not in ('status', 'preview', 'confirm', 'cancel', 'boot', 'rollback'):
+    if not arguments or arguments[0] not in ('status', 'preview', 'confirm', 'cancel', 'boot', 'rollback',
+                                            'prepare-compositor', 'finish-compositor', 'compositor-save'):
         raise ValueError('unsupported display operation')
     verb = arguments[0]
     if os.environ.get('PKEXEC_UID') is not None and verb in ('boot', 'rollback'):
         raise PermissionError('operation reserved for root-owned systemd units')
-    expected = 4 if verb == 'preview' else 2 if verb in ('confirm', 'cancel') else 1
+    expected = 6 if verb == 'compositor-save' else 4 if verb == 'preview' else 2 if verb in ('confirm', 'cancel') else 1
     if len(arguments) != expected:
         raise ValueError('wrong display argument count')
     target = None
-    if verb == 'preview':
-        if arguments[1] not in ('on', 'off') or not all(value.isascii() and value.isdigit() for value in arguments[2:]):
+    if verb in ('preview', 'compositor-save'):
+        if arguments[1] not in ('on', 'off') or not all(value.isascii() and value.isdigit() for value in arguments[2:4]):
             raise ValueError('invalid warmth choice')
         target = preference(arguments[1] == 'on', int(arguments[2]), int(arguments[3]))
+    if verb == 'prepare-compositor':
+        # Outside the state lock: a boot helper may itself be waiting for the
+        # graphics driver. Stop it before returning the console's original curves.
+        subprocess.run(['/usr/bin/systemctl', 'stop', 'wros-display.service'], check=True,
+                       timeout=8, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                       env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'})
+    if verb == 'finish-compositor':
+        # cage has exited and released DRM. Reapply the saved native choice
+        # through the existing unit, including before a console fallback.
+        subprocess.run(['/usr/bin/systemctl', '--no-block', 'start', 'wros-display.service'],
+                       check=True, timeout=8, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                       env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'})
+        print(json.dumps({'status': 'queued'}))
+        return
     if verb == 'boot' and Manager().saved()['enabled']:
         Manager().wait_for_display()  # outside the lock, so a waiting boot never blocks a preview
     runtime = Path('/run/wros-display')
@@ -351,6 +396,8 @@ def main():
         fcntl.flock(lock, fcntl.LOCK_EX)
         manager = Manager()
         if verb == 'preview': result = manager.preview(**target)
+        elif verb == 'prepare-compositor': result = manager.prepare_compositor()
+        elif verb == 'compositor-save': result = manager.compositor_save(**target, token=arguments[4], stamp=arguments[5])
         elif verb == 'confirm': result = manager.resolve(arguments[1], True)
         elif verb == 'cancel': result = manager.resolve(arguments[1], False)
         else: result = getattr(manager, verb)()

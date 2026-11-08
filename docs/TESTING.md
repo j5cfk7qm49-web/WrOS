@@ -9,6 +9,15 @@ screen tests (`test_*_pty.py`) run instead of skipping. `--vm CMD…` adds a VM
 chain run (`.audit-tools/rc9-vm-chain.sh …`) to the summary. Logs and
 `summary.txt` go to `target/rc-check`.
 
+The rc10 gates also build the native input reader and compositor warmth. The
+colour tests use a private two-output Wayland server, never the host display.
+`cargo test --no-default-features --features gui-drm --test colour_process`
+stops a disposable parent to verify that preview expiry belongs to the separate
+colour process. Cage/OpenGL driven tests exercise the actual headless driver's
+unsupported-colour reply. The installed graphical VM harness records that reply,
+lock/suspend behaviour and colour-worker crash isolation separately from positive
+physical display qualification.
+
 ## The app in a terminal, driven by name
 
 `tests/driven.rs` starts the real `grimoire` binary in a pseudo-terminal. The

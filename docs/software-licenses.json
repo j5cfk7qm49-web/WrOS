@@ -2869,6 +2869,25 @@
       "retained_upstream_notice_source": null
     },
     {
+      "name": "downcast-rs",
+      "version": "1.2.1",
+      "declared_license": "MIT/Apache-2.0",
+      "repository": "https://github.com/marcianx/downcast-rs",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "8173d5c29b4f956d532781d2b86e4e30f83e6b7878dce18c919451d6ba707c90"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "fb252fecf98d9af8f1d9201c5860319a514f5a8a24700dc84fc6ea287a7a4958"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
       "name": "drm",
       "version": "0.14.1",
       "declared_license": "MIT",
@@ -7412,6 +7431,21 @@
       "retained_upstream_notice_source": null
     },
     {
+      "name": "quick-xml",
+      "version": "0.41.0",
+      "declared_license": "MIT",
+      "repository": "https://github.com/tafia/quick-xml",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE-MIT.md",
+          "sha256": "5b2c207dcf571267ebe0bbdd5bf321f561ddc22ff597e7b363e96f4539507a29"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
       "name": "quinn",
       "version": "0.11.12",
       "declared_license": "MIT OR Apache-2.0",
@@ -11160,6 +11194,96 @@
         {
           "file": "LICENSE-MIT",
           "sha256": "378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "wayland-backend",
+      "version": "0.3.17",
+      "declared_license": "MIT",
+      "repository": "https://github.com/smithay/wayland-rs",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "1cb6f4dee8c649f175736380495f0af0c753c87f22d50931692968bb24bf2161"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "wayland-client",
+      "version": "0.31.15",
+      "declared_license": "MIT",
+      "repository": "https://github.com/smithay/wayland-rs",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "1cb6f4dee8c649f175736380495f0af0c753c87f22d50931692968bb24bf2161"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "wayland-protocols",
+      "version": "0.32.13",
+      "declared_license": "MIT",
+      "repository": "https://github.com/smithay/wayland-rs",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "1cb6f4dee8c649f175736380495f0af0c753c87f22d50931692968bb24bf2161"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "wayland-protocols-wlr",
+      "version": "0.3.12",
+      "declared_license": "MIT",
+      "repository": "https://github.com/smithay/wayland-rs",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "1cb6f4dee8c649f175736380495f0af0c753c87f22d50931692968bb24bf2161"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "wayland-scanner",
+      "version": "0.31.11",
+      "declared_license": "MIT",
+      "repository": "https://github.com/smithay/wayland-rs",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "1cb6f4dee8c649f175736380495f0af0c753c87f22d50931692968bb24bf2161"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "wayland-sys",
+      "version": "0.31.11",
+      "declared_license": "MIT",
+      "repository": "https://github.com/smithay/wayland-rs",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "1cb6f4dee8c649f175736380495f0af0c753c87f22d50931692968bb24bf2161"
         }
       ],
       "retained_upstream_notice_source": null

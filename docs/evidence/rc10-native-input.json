@@ -464,8 +464,8 @@
     }
   ],
   "compositor_scope": "The 12-lock OpenGL stress run uses the final native fixture. Earlier compositor regressions precede notification filtering and diagnostic-only metadata; each executable hash is retained. The original second-lock timeout remains failed. The later controlled busy-state reproduction and fix are recorded separately in rc10-lock-action.json.",
+  "later_compositor_checkpoint": "rc10-compositor-warmth.json",
   "pending": [
-    "HP Stream input, touchpad, latency and power checks",
-    "Compositor gamma integration"
+    "HP Stream input, touchpad, latency, power and positive compositor-colour checks"
   ]
 }

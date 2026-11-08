@@ -47,6 +47,8 @@ counts() {
 step format cargo-fmt fmt --all --check
 step clippy cargo-clippy clippy --offline --locked --no-default-features --workspace --all-targets -- -D warnings
 step native-input "${cargo[@]}" test -p wros-input --features native
+step compositor-warmth "${cargo[@]}" test --no-default-features --features gui-drm --bin grimoire compositor_warmth -j2
+step colour-process "${cargo[@]}" test --no-default-features --features gui-drm --test colour_process -j2
 step native-clippy cargo-clippy clippy --offline --locked --no-default-features --features gui-drm --all-targets -- -D warnings
 step graphical-clippy cargo-clippy clippy --offline --locked --no-default-features --features gui-drm,gui-wgpu,test-driver --all-targets -- -D warnings
 step rust "${cargo[@]}" test --no-default-features --workspace --no-fail-fast

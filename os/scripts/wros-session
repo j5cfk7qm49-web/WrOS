@@ -20,6 +20,7 @@ FOOT_CONFIG = '/usr/share/wros/foot.ini'
 LOGGER = '/usr/bin/logger'
 PKEXEC = '/usr/bin/pkexec'
 HEALTHY = '/usr/libexec/wros-update-healthy'
+DISPLAY = '/usr/libexec/wros-display'
 UPDATE_STATUS = Path('/var/lib/wros-update/public/status.json')
 KEYBOARD = Path('/etc/wros/keyboard.json')
 DEBIAN_KEYBOARD = Path('/etc/default/keyboard')
@@ -200,13 +201,31 @@ class Launcher:
         env.pop('TERM', None)
         env.update(xkb_environment(self.keyboard, self.debian_keyboard))
         env.update({'WROS_SESSION': kind, 'WROS_READY_FILE': str(ready)})
+        # This is before cage takes the display. Failure leaves writing available
+        # but refuses compositor warmth rather than replacing uncertain colours.
+        env['WROS_COMPOSITOR_WARMTH'] = 'unavailable'
+        if self.display_handoff('prepare-compositor'):
+            env['WROS_COMPOSITOR_WARMTH'] = 'ready'
         client = [GRIMOIRE] if kind == 'wgpu' else [FOOT, '--config=' + FOOT_CONFIG, '--', GRIMOIRE]
         command = [CAGE, '-s', '--', *client]
         try:
             self.run(command, env=env, stdin=subprocess.DEVNULL, check=False)
         except OSError:
             return False
+        finally:
+            self.display_handoff('finish-compositor')
         return ready.exists()
+
+    def display_handoff(self, verb):
+        if self.exists(DISPLAY):
+            try:
+                result = self.run([PKEXEC, '--disable-internal-agent', DISPLAY, verb],
+                                  stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                  stderr=subprocess.DEVNULL, check=False, timeout=12)
+                return result.returncode == 0
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+        return False
 
     def restore_console(self):
         """A compositor that died may leave tty1 in graphics mode with the keyboard off."""

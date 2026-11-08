@@ -97,12 +97,18 @@ fn turning_the_graphical_session_on_and_off_saves_the_choice() {
 }
 
 #[test]
-fn console_only_features_say_so_in_the_graphical_session() {
+fn the_graphical_session_offers_warmth_when_this_build_has_its_compositor_client() {
     let mut desk = display_page("session-graphical");
     desk.app.deck.graphical_session = true;
     desk.draw();
-    assert!(desk.shows("Warm screen · not in the graphical session yet"));
-    assert!(!desk.shows("Warm screen · blue light filter"));
+    if cfg!(all(target_os = "linux", feature = "compositor-warmth")) {
+        desk.choose("Warm screen · blue light filter");
+        wait_system(&mut desk);
+        desk.draw();
+        assert!(desk.shows("Preview choice · keep within 15 seconds"));
+    } else {
+        assert!(desk.shows("Warm screen · unavailable in this build"));
+    }
     open_panel(&mut desk, Panel::Power);
     assert!(desk.shows("Lock and sleep · not in the graphical session yet"));
 }

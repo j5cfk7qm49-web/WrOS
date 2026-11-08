@@ -61,7 +61,17 @@ composition, and pumps Wayland without dispatching keys until authentication has
 finished. The root helper accepts logind's Wayland type only when the packaged
 cage executable is an ancestor with the same UID and session. It still requires
 the active local tty1, seat0, VT1, user class, trusted writer and independent
-vlock/PAM authentication. Gamma integration remains trial work.
+vlock/PAM authentication.
+
+Foot and OpenGL use a separate, unprivileged colour process for cage's gamma
+controls. It has no book path, input devices or password terminal. Its preview
+deadline runs even while the writing process is stopped; losing the process
+releases the compositor's original curves. The native colour service restores
+its baseline before cage starts and resumes after cage exits. Keep saves bounded
+preferences through the existing helper, which never connects to Wayland.
+The protocol offers no calibration readback or presentation acknowledgement:
+warmth may change calibrated colours while on, and the page reports protocol
+acceptance. Unsupported outputs are shown honestly. See [Warm screen](WARM_SCREEN.md).
 
 ## Recovery and packaging
 
@@ -98,7 +108,7 @@ set `WROS_NATIVE_FONT` to that PPM file when running the VM harness.
 The [native input qualification record](evidence/rc10-native-input.json) retains
 the isolated installed-VM checks for physical Colemak, compose, live layout
 changes, repeat, cursor pixels, device retirement on VT switches, two locks,
-suspend/wake and reader-crash recovery. The final native run is
+suspend/wake and reader-crash recovery. The input milestone's native run is
 `graphical-drm-20261108T123102Z`. Foot passed the lock/suspend regression. OpenGL
 passed a 12-lock stress run. A later controlled regression reproduced a second
 lock refused while the post-login health query was busy. The Lock row now shows

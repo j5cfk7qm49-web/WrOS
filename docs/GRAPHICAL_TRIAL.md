@@ -2,8 +2,9 @@
 
 Native graphics remains the default for unlock, loading, login and writing,
 following the owner's decision. The optional OpenGL writing window now works
-alongside the foot trial. Native device input is implemented; compositor warmth
-and the HP Stream measurements are still required before this trial is complete.
+alongside the foot trial. Native device input and compositor warmth are built.
+The HP Stream measurements and positive compositor-colour checks are still
+required before this trial is complete.
 
 ## Measurements, 2026-11-08
 
@@ -119,6 +120,10 @@ VM run directories under `/home/builder/rc-vm-runs/`:
 - `native-trial-20261108T073033Z`: native measurement tool on tty1, PASS.
 - `graphical-drm-20261108T123102Z`: native device input, VT/lock/suspend and reader-crash recovery, PASS.
 - `graphical-wgpu-20261108T123305Z`: 12 locks and suspend/wake, PASS.
+- `graphical-foot-20261108T185909Z` and `graphical-wgpu-20261108T190209Z`:
+  colour-worker isolation, honest driver refusal, two locks and suspend/wake, PASS.
+- `graphical-drm-20261108T190412Z`: native input/VT/lock/suspend and reader-crash
+  regression on the compositor-capable executable, PASS.
 
 The second-lock race in [#101](https://github.com/j5cfk7qm49-web/WrOS/issues/101)
 was reproduced by delaying the post-login health query: the screen offered Lock
@@ -134,6 +139,12 @@ Native evdev/xkbcommon, compose, live layout changes, key repeat and pointer inp
 run in the disposable reader. Logind delegates and revokes device descriptors;
 the editor receives no input-group grant. Its VT release, repeated lock and
 suspend/wake contract is described in [Graphical screens](GRAPHICAL_SESSION.md).
-Compositor gamma control, native hardware latency and the HP Stream's
-day-of-writing comparison remain open. The compositor
-warm-screen control remains unavailable until its separate gamma path is built.
+Compositor warmth now uses a separate colour process and cage's gamma controls,
+with an independent preview deadline and Off restoration. Protocol fault tests
+cover two outputs; the real headless driver honestly reports unavailable.
+The [colour checkpoint](evidence/rc10-compositor-warmth.json) retains exact source
+and executable identities, the separate-process expiry proof and the VM results.
+Neither protocol acceptance nor screenshots establish calibrated physical output.
+Native hardware latency, positive compositor-colour checks and the HP Stream's
+day-of-writing comparison remain open. [Warm screen](WARM_SCREEN.md) explains
+the calibration limits and the difference from the native colour helper.
