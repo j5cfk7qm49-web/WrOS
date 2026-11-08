@@ -12,7 +12,8 @@ from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT/'docs'
-REQUIRED = 'ROADMAP FEATURE_MATRIX ARCHITECTURE WRITING_DECK_OS INSTALLATION LINUX_SYSTEM_INTEGRATION COLEMAK WORKSPACES KEYBOARD_SHORTCUTS WRITING_TOOLS CHALLENGE_LIBRARY CONTENT_LICENSES STORY_SPARK DAILY_CHALLENGES WRITING_CHECKS SYNC_AND_BACKUP TUTORIAL TESTING'.split()
+# ROADMAP, STATUS and WRITING_DECK_OS moved to docs/archive (#87); README is the index of the rest.
+REQUIRED = 'README FEATURE_MATRIX ARCHITECTURE INSTALLATION LINUX_SYSTEM_INTEGRATION COLEMAK WORKSPACES KEYBOARD_SHORTCUTS WRITING_TOOLS CHALLENGE_LIBRARY CONTENT_LICENSES STORY_SPARK DAILY_CHALLENGES WRITING_CHECKS SYNC_AND_BACKUP TUTORIAL TESTING'.split()
 ERRORS = []
 
 def check(ok, message):
@@ -76,7 +77,7 @@ def main():
     parser.add_argument('--require-current-evidence', action='store_true', help='also reject stale-source or failed software/VM evidence')
     args=parser.parse_args()
     ERRORS.extend(line_ending_errors(ROOT))
-    for name in REQUIRED + ['STATUS']:
+    for name in REQUIRED:
         check((DOCS/(name+'.md')).is_file(), f'missing {name}.md')
     for path in DOCS.glob('*.md'):
         text = path.read_text()
@@ -110,7 +111,9 @@ def main():
         expected='| '+' | '.join(str(feature[k]).replace('|','\\|') for k in ['area','capability','status','verification','detail'])+' |'
         check(expected in (DOCS/'FEATURE_MATRIX.md').read_text(), f'matrix differs from machine inventory: {feature["capability"]}')
     lessons = json.loads((ROOT/'crates/grimoire-core/assets/wros/tutorial.json').read_text())
-    check([l['id'] for l in lessons] == list(range(1,41)), 'tutorial must retain IDs 1–39 plus supplemental 40 once each')
+    # Lessons only grow: 1–40 keep their IDs, and later releases add 41, 42… after them.
+    check(len(lessons) >= 40 and [l['id'] for l in lessons] == list(range(1, len(lessons) + 1)),
+          'tutorial must keep IDs 1–40 and number later lessons on from them, once each')
     check(lessons[25]['event'] == 'SpellingOpened' and lessons[39]['event'] == 'GrammarApplied', 'historic spelling cannot be reinterpreted as new grammar evidence')
     reference = DOCS/'keyboard-reference.html'
     check(reference.is_file(), 'printable reference missing')
@@ -134,7 +137,7 @@ def main():
     if ERRORS:
         print('\n'.join('ERROR: '+e for e in ERRORS), file=sys.stderr)
         return 1
-    print(f'PASS: {len(REQUIRED)} required docs + STATUS, local links, {len(features)} capability rows, {len(lessons)} lessons, content/dictionary hashes, notices, offline printable reference')
+    print(f'PASS: {len(REQUIRED)} required docs, local links, {len(features)} capability rows, {len(lessons)} lessons, content/dictionary hashes, notices, offline printable reference')
     if args.require_current_evidence:
         print('PASS: software and VM evidence fingerprints match the current source; this is NOT physical hardware verification')
     print(f'RELEASE GATE: {len(software.get("missing_root_notice_files_requiring_review", []))} all-platform Rust packages lack root-level notice files; {len(software.get("selected_build", {}).get("missing_root_notice_files", []))} used by the Linux no-audio build. No legal/hardware/production clearance implied.')
