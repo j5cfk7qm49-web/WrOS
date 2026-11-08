@@ -1072,7 +1072,7 @@
       "version": "1.2.1",
       "declared_license": "MIT OR Apache-2.0",
       "repository": "https://github.com/mbrubeck/by_address",
-      "used_in_linux_no_audio_build": false,
+      "used_in_linux_no_audio_build": true,
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "notice_files": [
         {
@@ -1604,6 +1604,21 @@
         {
           "file": "LICENSE-MIT",
           "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "console",
+      "version": "0.16.6",
+      "declared_license": "MIT",
+      "repository": "https://github.com/console-rs/console",
+      "used_in_linux_no_audio_build": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "2022c11b24fc1e50fa06a5959e40198a3464f560729ad3d00139abb8a328362d"
         }
       ],
       "retained_upstream_notice_source": null
@@ -3026,6 +3041,25 @@
         {
           "file": "LICENSE-MIT",
           "sha256": "b32b47118594bca5e21a37d64d9924bff856bf4f688c482b417cc5e885d6e7bf"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "encode_unicode",
+      "version": "1.0.0",
+      "declared_license": "Apache-2.0 OR MIT",
+      "repository": "https://github.com/tormol/encode_unicode",
+      "used_in_linux_no_audio_build": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "da23be69ad3ccf7a5823d62152efcd2b15de9482a5014fcb1b02844662d86abd"
         }
       ],
       "retained_upstream_notice_source": null
@@ -4763,6 +4797,21 @@
       "retained_upstream_notice_source": null
     },
     {
+      "name": "insta",
+      "version": "1.49.0",
+      "declared_license": "Apache-2.0",
+      "repository": "https://github.com/mitsuhiko/insta",
+      "used_in_linux_no_audio_build": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
       "name": "instability",
       "version": "0.3.13",
       "declared_license": "MIT",
@@ -6379,7 +6428,7 @@
       "version": "0.7.7",
       "declared_license": "MIT OR Apache-2.0",
       "repository": "https://github.com/Ogeon/palette",
-      "used_in_linux_no_audio_build": false,
+      "used_in_linux_no_audio_build": true,
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "notice_files": [
         {
@@ -6398,7 +6447,7 @@
       "version": "0.7.7",
       "declared_license": "MIT OR Apache-2.0",
       "repository": "https://github.com/Ogeon/palette",
-      "used_in_linux_no_audio_build": false,
+      "used_in_linux_no_audio_build": true,
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "notice_files": [
         {
@@ -6417,7 +6466,7 @@
       "version": "0.7.7",
       "declared_license": "MIT OR Apache-2.0",
       "repository": "https://github.com/Ogeon/palette",
-      "used_in_linux_no_audio_build": false,
+      "used_in_linux_no_audio_build": true,
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "notice_files": [
         {
@@ -8985,6 +9034,25 @@
       "retained_upstream_notice_source": null
     },
     {
+      "name": "tempfile",
+      "version": "3.27.0",
+      "declared_license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/Stebalien/tempfile",
+      "used_in_linux_no_audio_build": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "8b427f5bc501764575e52ba4f9d95673cf8f6d80a86d0d06599852e1a9a20a36"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
       "name": "tendril",
       "version": "0.5.1",
       "declared_license": "MIT OR Apache-2.0",
@@ -9071,6 +9139,25 @@
         {
           "file": "LICENSE",
           "sha256": "871afd9d691846de71e0b83812ba9c7ff00bc7b3ad102dedcaa109f2246d52ad"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "termprofile",
+      "version": "0.2.5",
+      "declared_license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/aschey/termprofile",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "43070e2d4e532684de521b885f385d0841030efa2b1a20bafb76133a5e1379c1"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "bbf8fc55adc5d9aeaac42f5a0e3f7e5fc0b5063e79ee8d719b2e4a9407e3b97c"
         }
       ],
       "retained_upstream_notice_source": null
@@ -10198,6 +10285,40 @@
       "used_in_linux_no_audio_build": false,
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "notice_files": [],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "vt100",
+      "version": "0.18.1",
+      "declared_license": "MIT",
+      "repository": "https://github.com/doy/vt100-rust",
+      "used_in_linux_no_audio_build": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "53a04b0a11073f3d0183c31a4b7bdf9a3f68d453adeec136e59e5a9d9a554370"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "vte",
+      "version": "0.15.0",
+      "declared_license": "Apache-2.0 OR MIT",
+      "repository": "https://github.com/alacritty/vte",
+      "used_in_linux_no_audio_build": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "e4c9b06fa850cb9b540a5e400e9f6394cf15efcf4098144de477d1d3dae10150"
+        }
+      ],
       "retained_upstream_notice_source": null
     },
     {
@@ -11657,11 +11778,11 @@
       "retained_upstream_notice_source": null
     },
     {
-      "name": "wros-sys",
+      "name": "wros-boot",
       "version": "0.1.0",
       "declared_license": "MIT",
       "repository": null,
-      "used_in_linux_no_audio_build": true,
+      "used_in_linux_no_audio_build": false,
       "source": "WrOS workspace",
       "notice_files": [
         {
@@ -11680,8 +11801,8 @@
       "source": "WrOS workspace",
       "notice_files": [
         {
-          "file": "LICENSE",
-          "sha256": "de028017fb22716dfc7b101cbb466e8ec278e8987145256770f97e0969ee127d"
+          "file": "LICENSE-LEMURS",
+          "sha256": "bf0e5b5d761320330cdd81f1d7c504b8e56a7e31e26d36528af1ec430a6716b6"
         }
       ],
       "retained_upstream_notice_source": null
@@ -11718,6 +11839,21 @@
     },
     {
       "name": "wros-shell",
+      "version": "0.1.0",
+      "declared_license": "MIT",
+      "repository": null,
+      "used_in_linux_no_audio_build": true,
+      "source": "WrOS workspace",
+      "notice_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "de028017fb22716dfc7b101cbb466e8ec278e8987145256770f97e0969ee127d"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "wros-sys",
       "version": "0.1.0",
       "declared_license": "MIT",
       "repository": null,

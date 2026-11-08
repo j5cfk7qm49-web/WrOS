@@ -179,7 +179,7 @@ mod linux {
         let Some(mut raw) = Raw::new(tty, args.mode == Mode::Unlock) else {
             return exit::FAILED;
         };
-        let theme = wros_boot::theme(&args.theme);
+        let theme = wros_boot::theme(&args.theme).for_console();
         if args.mode == Mode::Splash {
             return show_progress(&args, &mut raw, &theme);
         }

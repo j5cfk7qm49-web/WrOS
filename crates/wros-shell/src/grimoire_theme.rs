@@ -78,6 +78,33 @@ pub const ROLES: [&str; 12] = [
 ];
 
 impl Theme {
+    /// A drawing copy for the Linux console. The stored theme keeps its RGB colours.
+    /// An explicit profile avoids probing the disk-password input stream.
+    pub fn for_console(&self) -> Self {
+        let mut theme = self.clone();
+        for i in 0..ROLES.len() {
+            theme.set_role(
+                i,
+                termprofile::TermProfile::Ansi16
+                    .adapt_color(self.role(i))
+                    .unwrap_or(Color::Gray),
+            );
+        }
+        // Dark RGB borders can round to black. Keep the prompt and its outline visible.
+        for (i, fallback) in [
+            (0, Color::Gray),
+            (1, Color::Gray),
+            (2, Color::DarkGray),
+            (3, Color::DarkGray),
+            (5, Color::LightRed),
+        ] {
+            if matches!(theme.role(i), Color::Black | Color::Reset) {
+                theme.set_role(i, fallback);
+            }
+        }
+        theme
+    }
+
     /// Whose Pomodoro world this theme draws: its pick, else its own (a
     /// preset's name), and for Custom the glade.
     pub fn world(&self) -> &str {

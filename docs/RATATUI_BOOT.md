@@ -61,6 +61,12 @@ Settings says: "The start screen takes the new colours at the next restart."
 After an update, the first writing session carries over an existing theme too;
 later sessions leave an identical copy alone.
 
+The Linux console has sixteen colours. The unlock, progress and login programs
+adapt a drawing copy with [termprofile](https://github.com/aschey/termprofile),
+while keeping the saved RGB theme unchanged. Dark colours that would hide the
+prompt or its outline get a visible fallback. This uses an explicit ANSI-16
+profile and conversion-only features: it never queries the password terminal.
+
 Settings › System › Display › **Start screen** chooses **WrOS** or **plain text**.
 The same helper writes or removes the switch and queues a boot-image rebuild.
 The packaged `wros-boot-rebuild.path` starts the background service; changes made

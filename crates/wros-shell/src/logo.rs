@@ -187,4 +187,24 @@ mod tests {
         let (buf, _) = drawn_at(10, 3);
         assert!(rows(&buf).iter().any(|r| r.contains("WrOS")));
     }
+
+    #[test]
+    fn console_colours_are_named_ansi_colours_and_the_saved_theme_stays_rgb() {
+        use crate::grimoire_theme::{ROLES, presets, to_config};
+        for original in presets() {
+            let saved = to_config(&original);
+            let console = original.for_console();
+            for i in 0..ROLES.len() {
+                assert!(!matches!(
+                    console.role(i),
+                    Color::Rgb(..) | Color::Indexed(_)
+                ));
+            }
+            assert!(!matches!(console.accent, Color::Black | Color::Reset));
+            assert!(!matches!(console.border, Color::Black | Color::Reset));
+            assert!(!matches!(console.text, Color::Black | Color::Reset));
+            assert_eq!(to_config(&original), saved);
+            assert_eq!(console.for_console(), console);
+        }
+    }
 }

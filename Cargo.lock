@@ -5579,6 +5579,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "termprofile"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9755588fbabdf9695138d2e234ff7bcae6b514fa8f25af71c5bda99a7817128"
+dependencies = [
+ "anstyle",
+ "palette",
+ "ratatui-core",
+]
+
+[[package]]
 name = "termwiz"
 version = "0.23.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7120,6 +7131,7 @@ dependencies = [
  "ratatui",
  "serde",
  "serde_json",
+ "termprofile",
 ]
 
 [[package]]

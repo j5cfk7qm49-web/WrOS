@@ -10,6 +10,33 @@ use std::time::{Duration, Instant};
 
 const BINARY: &str = env!("CARGO_BIN_EXE_wros-boot");
 
+#[test]
+fn the_console_uses_sixteen_colours_even_when_the_environment_claims_rgb() {
+    let console = Console::start(
+        80,
+        25,
+        &[("COLORTERM", "truecolor"), ("FORCE_COLOR", "truecolor")],
+    );
+    {
+        let parser = console.screen.lock().unwrap();
+        let mut coloured = false;
+        for row in 0..25 {
+            for column in 0..80 {
+                let colour = parser.screen().cell(row, column).unwrap().fgcolor();
+                assert!(!matches!(colour, vt100::Color::Rgb(..)));
+                if let vt100::Color::Idx(index) = colour {
+                    assert!(index < 16);
+                    coloured |= !matches!(index, 0 | 7 | 8 | 15);
+                }
+            }
+        }
+        assert!(coloured, "the accent must reach the terminal as a colour");
+    }
+    console.type_bytes(b"\x1b");
+    let (code, stdout, stderr) = console.finish();
+    assert_eq!((code, stdout, stderr), (10, vec![], vec![]));
+}
+
 struct Console {
     master: Arc<OwnedFd>,
     screen: Arc<Mutex<vt100::Parser>>,
