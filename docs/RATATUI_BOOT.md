@@ -5,8 +5,8 @@ login, is drawn with Ratatui, including the disk password. The disk password is
 the risky step, so every part has a way back to Debian's own prompt, and each is
 tested before it reaches the laptop.
 
-This replaces the Plymouth theme in [BOOT_SCREEN](BOOT_SCREEN.md), which is
-removed once the Ratatui screens pass on the laptop.
+This replaces the Plymouth theme. The switch stays off by default until the
+owner has passed the laptop checklist.
 
 ## What the writer sees
 
@@ -42,7 +42,9 @@ with the characters the owner typed (`#` for the letters, `+ - |` for the boxes)
 in the active theme's accent and border colours. Plain ASCII is in every console
 font, so it looks the same before the unlock as after. It is 35 columns by 17
 rows; below that, a half-size copy of the same letters is used, and on a tiny
-screen just "WrOS". `crates/wros-boot/src/logo.rs` holds it as typed.
+screen just "WrOS". `crates/wros-shell/src/logo.rs` holds it as typed, shared by
+the unlock, progress and login screens. The Lemurs form stays below it, with a
+smaller logo on a 25-line console so all the fields remain visible.
 
 ratatui-splash-screen draws pictures with Braille dots, which the console's font
 doesn't have, so the start screens don't use it; a character logo needs no
@@ -52,8 +54,19 @@ picture. A fade-in can come from tachyonfx (rc10).
 the start screens read a root-owned copy of the active theme,
 `/etc/wros/boot-theme.toml`, in the same format as `~/.config/grimoire/theme.toml`.
 The hook copies it into the boot image; without it the default theme is used.
-Changing theme in Settings will update the copy and rebuild the boot image in
-the background (to build).
+Accepting a preset or saving a custom theme in Settings updates the copy through
+`wros-boot-settings`, authorized by polkit for an active, local member of `wros`.
+It accepts only bounded theme text and a fixed choice, never a user file path.
+Settings says: "The start screen takes the new colours at the next restart."
+After an update, the first writing session carries over an existing theme too;
+later sessions leave an identical copy alone.
+
+Settings › System › Display › **Start screen** chooses **WrOS** or **plain text**.
+The same helper writes or removes the switch and queues a boot-image rebuild.
+The packaged `wros-boot-rebuild.path` starts the background service; changes made
+during a build cause a second build. An interrupted build is retried when the
+path unit starts again. Settings reports preparation and a failed rebuild; choose
+**Prepare the start screen again** to retry. Reading the choice does not enable it.
 
 ### Boot image hook
 
@@ -96,9 +109,8 @@ network (dropbear's `passfifo`) and systemd's password agents. WrOS uses neither
 2. On the laptop the hook first runs behind a switch, off by default:
    `/etc/wros/boot-screen` containing `ratatui`. With the switch off the boot image
    is exactly Debian's.
-3. After the laptop passes its checklist, the update turns the switch on by
-   default. Settings › System › Display gets a choice: WrOS start screen or plain
-   text.
+3. Settings offers WrOS or plain text now. The switch remains off on a new
+   install; changing that default needs the owner's decision after the checklist.
 
 ## Tests
 
@@ -148,7 +160,8 @@ Esc to the text prompt, the text-start entry, and timing on the Celeron.
    QEMU screenshots of the console.
 4. **Built (rc9):** `wros-boot splash` with systemd's progress, as
    `wros-boot-splash.service`, stopped just before greetd takes tty1; not on a
-   `wros.unlock=text` start. Still to do: the **WrOS (text start)** boot entry.
-5. The logo in `wros-greeter`, and the theme copy kept up to date from Settings.
-6. Laptop checklist; then the default switch and the Settings choice; then remove
-   the Plymouth theme.
+   `wros.unlock=text` start. **Built for rc10:** the **WrOS (text start)** entry
+   next to recovery, with the normal login and Debian's unlock prompt.
+5. **Built for rc10:** the shared login logo, theme helper, background rebuild
+   and Settings choice. The Plymouth theme and its packaging are removed.
+6. Laptop checklist. The owner decides whether the switch may become the default.

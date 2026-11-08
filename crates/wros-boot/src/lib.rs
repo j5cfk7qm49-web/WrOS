@@ -3,7 +3,7 @@
 //! Debian's own prompt always stands behind them.
 
 pub mod keys;
-pub mod logo;
+pub use wros_shell::logo;
 pub mod splash;
 pub mod unlock;
 

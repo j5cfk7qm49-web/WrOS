@@ -366,13 +366,38 @@ impl Conversation {
 /// The Lemurs form while the writer signs in; PAM's own questions, if it asks
 /// any the form did not answer, in the WrOS menu.
 pub fn render(frame: &mut ratatui::Frame, conversation: &Conversation, form: &form::Form) {
-    let theme = wros_shell::Theme::default();
+    render_themed(
+        frame,
+        conversation,
+        form,
+        &wros_shell::grimoire_theme::default_theme(),
+    );
+}
+
+pub fn render_themed(
+    frame: &mut ratatui::Frame,
+    conversation: &Conversation,
+    form: &form::Form,
+    palette: &wros_shell::grimoire_theme::Theme,
+) {
+    use ratatui::layout::{Constraint, Layout, Rect};
+    use wros_shell::logo::Logo;
+    let theme = palette.into();
+    // Leave the complete Lemurs form visible even on a 25-line console.
+    let area = frame.area();
+    let height = Logo::height_for(Rect {
+        height: area.height.saturating_sub(14),
+        ..area
+    });
+    let [logo, body] =
+        Layout::vertical([Constraint::Length(height), Constraint::Min(0)]).areas(area);
+    frame.render_widget(Logo { theme: palette }, logo);
     let title = "WrOS · Sign in";
     if matches!(conversation.phase, Phase::Prompt(_) | Phase::Retry) {
         let rows = vec![conversation.prompt.clone(), conversation.shown_input()];
         wros_shell::render_menu(
             frame,
-            frame.area(),
+            body,
             wros_shell::Menu {
                 title,
                 rows: &rows,
@@ -394,8 +419,7 @@ pub fn render(frame: &mut ratatui::Frame, conversation: &Conversation, form: &fo
         }
         form::Focus::Password => "Enter: sign in  Up: back  F2: keyboard  Ctrl+Alt+F2: maintenance",
     };
-    let body =
-        wros_shell::render_panel(frame, frame.area(), title, conversation.notice, hint, theme);
+    let body = wros_shell::render_panel(frame, body, title, conversation.notice, hint, theme);
     form.render(frame, body, theme);
 }
 

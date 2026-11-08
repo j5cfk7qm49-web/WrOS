@@ -4,13 +4,13 @@
 //! disk is unlocked as in a terminal later. The letters take the theme's accent
 //! and the box its border. Where the full logo doesn't fit, a half-size copy does.
 
+use crate::grimoire_theme::Theme;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
     style::{Color, Style},
     widgets::Widget,
 };
-use wros_shell::grimoire_theme::Theme;
 
 /// The logo as the owner typed it: `+ - |` are the boxes, `#` the letters.
 pub const SKETCH: [&str; 17] = [
@@ -126,7 +126,7 @@ impl Widget for Logo<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wros_shell::grimoire_theme::default_theme;
+    use crate::grimoire_theme::default_theme;
 
     fn drawn_at(width: u16, height: u16) -> (Buffer, Theme) {
         let theme = default_theme();

@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
 pub mod grimoire_theme;
+pub mod logo;
 
 const HISTORY_LIMIT: usize = 16;
 const ROUTE_LIMIT: usize = 64;

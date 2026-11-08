@@ -61,7 +61,8 @@ class GrubRecovery(unittest.TestCase):
         out = self.generate('42_wros_recovery')
         self.assertIn("menuentry 'WrOS recovery'", out)
         self.assertIn('search --no-floppy --fs-uuid --set=root BOOT-UUID', out)
-        linux = next(line.split() for line in out.splitlines() if line.strip().startswith('linux'))
+        recovery = out.split("menuentry 'WrOS recovery'", 1)[1]
+        linux = next(line.split() for line in recovery.splitlines() if line.strip().startswith('linux'))
         self.assertEqual(linux[1], '/vmlinuz-6.12.113+deb13-amd64')
         self.assertIn('root=UUID=ROOT-UUID', linux)
         self.assertIn('resume=UUID=SWAP', linux)
@@ -73,6 +74,18 @@ class GrubRecovery(unittest.TestCase):
         self.kernel('6.12.113+deb13-amd64')
         out = self.generate('42_wros_recovery')
         self.assertIn('root=/dev/mapper/root', out)
+
+    def test_text_start_is_next_to_recovery_and_uses_the_normal_login(self):
+        self.kernel('6.12.113+deb13-amd64')
+        out = self.generate('42_wros_recovery')
+        self.assertIn("menuentry 'WrOS (text start)'", out)
+        text_entry = out.split("menuentry 'WrOS (text start)'", 1)[1].split('}', 1)[0]
+        self.assertIn('wros.unlock=text', text_entry)
+        self.assertIn('root=/dev/mapper/root', text_entry)
+        self.assertIn('resume=UUID=SWAP', text_entry)
+        self.assertNotIn('systemd.unit=', text_entry)
+        self.assertNotIn('quiet', text_entry)
+        self.assertNotIn('splash', text_entry)
 
     def test_no_entry_without_the_kernels_initramfs(self):
         # The encrypted root cannot be opened without it, so an entry would only fail.
@@ -106,19 +119,15 @@ class GrubRecovery(unittest.TestCase):
     def test_normal_boots_keep_kernel_errors_off_the_screen_from_the_first_second(self):
         # Seen on the laptop: ACPI firmware errors print before /etc/sysctl.d quiets the
         # console. Debian's /etc/default/grub sets "quiet"; update-grub then reads 60-wros.cfg.
-        def cmdline(default, plymouthd='/nonexistent/plymouthd'):
+        def cmdline(default):
             done = subprocess.run(['sh', '-c', f'GRUB_CMDLINE_LINUX_DEFAULT="{default}"; '
                                    f'. "{ROOT}/os/grub/60-wros.cfg"; . "{ROOT}/os/grub/60-wros.cfg"; '
                                    'printf %s "$GRUB_CMDLINE_LINUX_DEFAULT"'],
-                                  capture_output=True, text=True, check=True,
-                                  env=dict(os.environ, WROS_PLYMOUTHD=plymouthd))
+                                  capture_output=True, text=True, check=True)
             return done.stdout
         self.assertEqual(cmdline('quiet'), 'quiet loglevel=3')
         self.assertEqual(cmdline('quiet loglevel=3'), 'quiet loglevel=3')
         self.assertEqual(cmdline(''), 'loglevel=3')
-        # The boot screen (#89) only where Plymouth is installed, and never twice.
-        self.assertEqual(cmdline('quiet', '/bin/sh'), 'quiet loglevel=3 splash')
-        self.assertEqual(cmdline('quiet nosplash', '/bin/sh'), 'quiet nosplash loglevel=3')
         # The recovery entry uses GRUB_CMDLINE_LINUX only, so its messages stay visible.
         self.kernel('6.12.0-1-amd64')
         entry = self.generate('42_wros_recovery', GRUB_CMDLINE_LINUX_DEFAULT='quiet loglevel=3')

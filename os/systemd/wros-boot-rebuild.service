@@ -1,0 +1,8 @@
+[Unit]
+Description=Prepare the WrOS start screen for the next restart
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/wros-boot-settings rebuild
+TimeoutStartSec=16min
+UMask=0022

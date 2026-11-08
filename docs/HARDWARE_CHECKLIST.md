@@ -119,20 +119,26 @@ silences the speakers.
 
 ## 10. Boot screen
 
-Needs Plymouth, which WrOS doesn't install: on the network, run
-`sudo apt-get install --no-install-recommends plymouth`, then
-`sudo plymouth-set-default-theme -R wros` (or wait for the next WrOS update,
-which sets it), then `sudo update-grub`.
-
-1. Restart. Watch from the boot menu to the login screen.
+1. In Settings › System › Display, choose **Start screen: WrOS**. Wait until
+   preparation has finished (refresh local system status to check), then restart.
+   Watch from the boot menu to the login screen.
 2. At the disk password, type it in Colemak and press Enter. Once, type it
    wrong first.
-3. Restart and press Esc while the logo shows.
+3. Restart and press Esc at the disk password. Unlock at Debian's text prompt.
+4. Restart, press Esc to show the boot menu, and choose **WrOS (text start)**.
+   Unlock in Colemak and sign in as usual. Check the recovery entry too.
+5. Choose a different preset in Settings › Look and keyboard › Look › Themes.
+   Wait for preparation, restart, and check its accent and border on the unlock,
+   progress and login logos. Repeat with a custom theme.
+6. Choose **Start screen: plain text**, wait for preparation, and restart.
 
 **Pass when:** only the WrOS logo and the loading bar show; the password prompt
 shows under the logo with one dot per key; the Colemak password unlocks and a
-wrong one asks again; Esc shows the boot messages. If the Colemak password is
-refused there, press Esc and type it at the text prompt, then report it.
+wrong one asks again; Esc and text start reach Debian's prompt; the progress
+screen ends before the login and its logo sits above the complete form. The
+chosen colours reach all three logos. Plain text restores Debian's prompt.
+Record the restart and unlock times on the Celeron. If the Colemak password is
+refused at the WrOS prompt, press Esc and type it at the text prompt, then report it.
 
 ## Collecting the log
 

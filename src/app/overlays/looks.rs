@@ -31,7 +31,9 @@ impl App {
                         buf: String::new(),
                     };
                 } else {
-                    let _ = theme::save(&self.theme);
+                    if theme::save(&self.theme).is_ok() {
+                        self.sync_boot_theme();
+                    }
                     self.msg = format!("theme: {}", self.theme.name);
                     self.overlay = Overlay::None;
                 }
@@ -103,7 +105,9 @@ impl App {
             Key::Esc => {
                 commit(&mut self.theme, *field, buf);
                 self.theme.name = "Custom".into();
-                let _ = theme::save(&self.theme);
+                if theme::save(&self.theme).is_ok() {
+                    self.sync_boot_theme();
+                }
                 self.msg = "theme: Custom saved".into();
                 self.overlay = Overlay::None;
             }

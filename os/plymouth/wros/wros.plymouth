@@ -1,8 +1,0 @@
-[Plymouth Theme]
-Name=WrOS
-Description=The WrOS logo and a loading bar; the disk password prompt in the same place.
-ModuleName=script
-
-[script]
-ImageDir=/usr/share/plymouth/themes/wros
-ScriptFile=/usr/share/plymouth/themes/wros/wros.script

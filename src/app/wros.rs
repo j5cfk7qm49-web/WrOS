@@ -130,6 +130,9 @@ pub struct Deck {
     /// an installed, non-live WrOS with cage and foot installed.
     pub session_settings: Option<std::path::PathBuf>,
     pub graphical_chosen: bool,
+    pub boot_settings_available: bool,
+    pub boot_status: Option<wros_sys::boot::Status>,
+    pending_boot_theme: Option<String>,
     pub live_session: bool,
     /// An installed appliance session checks the WrOS update server after login and daily.
     pub online_updates: bool,
@@ -295,6 +298,12 @@ impl Deck {
             graphical_session: background && crate::session::graphical(),
             session_settings,
             graphical_chosen,
+            boot_settings_available: background
+                && !live_session
+                && crate::installed_session()
+                && Path::new("/usr/libexec/wros-boot-settings").is_file(),
+            boot_status: None,
+            pending_boot_theme: None,
             installer_available: {
                 #[cfg(target_os = "linux")]
                 {
@@ -401,6 +410,20 @@ impl Deck {
 }
 
 impl App {
+    pub(crate) fn sync_boot_theme_if_changed(&mut self, path: &Path) {
+        if self.deck.boot_settings_available
+            && fs::read_to_string(path).ok().as_deref() != Some(&theme::to_config(&self.theme))
+        {
+            self.sync_boot_theme();
+        }
+    }
+
+    pub(crate) fn sync_boot_theme(&mut self) {
+        if self.deck.boot_settings_available {
+            self.deck.pending_boot_theme = Some(theme::to_config(&self.theme));
+        }
+    }
+
     pub(crate) fn request_suspend(&mut self) -> bool {
         if !self.deck.suspend_available || !self.deck.lock_available || self.deck.live_session {
             self.deck.note = wros_sys::SUSPEND_UNAVAILABLE.into();
@@ -824,6 +847,16 @@ impl App {
                         self.deck.gauges.light = s.brightness_percent;
                     }
                     self.deck.snapshot = Some(s);
+                    if self.deck.boot_settings_available
+                        && self.deck.shell.nav.current()
+                            == super::shell::Route::Panel(super::shell::Panel::Display)
+                    {
+                        self.deck.request(Request::BootStatus);
+                    }
+                }
+                Ok(Reply::BootStatus(status)) => {
+                    self.deck.note = status.preparation().into();
+                    self.deck.boot_status = Some(status);
                 }
                 Ok(Reply::Message(message)) => {
                     self.on_update_message(&request, &message);
@@ -1070,7 +1103,14 @@ impl App {
                     {
                         form.password.clear();
                     }
-                    if matches!(request, Request::ScanWifi) {
+                    if matches!(
+                        request,
+                        Request::BootStatus | Request::BootTheme(_) | Request::BootScreen { .. }
+                    ) {
+                        self.deck.note =
+                            "Couldn't change the start screen. Your book is safe. Try again."
+                                .into();
+                    } else if matches!(request, Request::ScanWifi) {
                         self.deck.note = super::shell::WIFI_SCAN_FAILED.into();
                     } else if !self.on_update_error(&request, &e) {
                         self.deck.note = format!("Unavailable: {e}");
@@ -1084,6 +1124,11 @@ impl App {
                 self.deck.note = format!("SIMULATED · {}", self.deck.note);
             }
             self.deck.shell.notices.push(&self.deck.note);
+        }
+        if !self.deck.busy
+            && let Some(theme) = self.deck.pending_boot_theme.take()
+        {
+            self.deck.request(Request::BootTheme(theme));
         }
         if self
             .deck

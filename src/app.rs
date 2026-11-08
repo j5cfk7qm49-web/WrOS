@@ -806,6 +806,7 @@ impl App {
     pub fn new(project: Project) -> Result<Self> {
         let mut app = Self::with(project, Setup::from_config())?;
         app.state_file = Some(books::state_path());
+        app.sync_boot_theme_if_changed(Path::new("/etc/wros/boot-theme.toml"));
         Ok(app)
     }
 
@@ -2237,7 +2238,9 @@ impl App {
             Action::Theme(name) => {
                 if let Some(th) = theme::presets().into_iter().find(|t| t.name == name) {
                     self.theme = th;
-                    let _ = theme::save(&self.theme);
+                    if theme::save(&self.theme).is_ok() {
+                        self.sync_boot_theme();
+                    }
                     self.msg = format!("theme: {name}");
                 }
             }

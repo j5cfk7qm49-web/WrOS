@@ -420,6 +420,7 @@ enum Choice {
     Lock,
     LidClose,
     GraphicalSession,
+    BootScreen(bool),
     InstallerOpen,
     InstallerResolve(bool),
     ClockOpen,
@@ -803,15 +804,23 @@ fn entries(app: &App) -> Vec<Entry> {
             Entry::new("Continuity tracker", Choice::Action(Action::Continuity)),
             Entry::new("Revision notes", Choice::Action(Action::ReviewNotes)),
         ],
-        Route::LookPage => setting_rows(
-            app,
-            &[
-                Action::Themes,
-                Action::Icons,
-                Action::Workspaces,
-                Action::ToggleOutline,
-            ],
-        ),
+        Route::LookPage => {
+            let mut rows = setting_rows(
+                app,
+                &[
+                    Action::Themes,
+                    Action::Icons,
+                    Action::Workspaces,
+                    Action::ToggleOutline,
+                ],
+            );
+            if app.deck.boot_settings_available {
+                rows.push(Entry::info(
+                    "The start screen takes the new colours at the next restart.",
+                ));
+            }
+            rows
+        }
         Route::KeyboardPage => vec![
             Entry::new(
                 "Keyboard layout · QWERTY / Colemak / Colemak-DH",
@@ -882,6 +891,27 @@ fn entries(app: &App) -> Vec<Entry> {
                                 "Preview: lock, sleep and the warm screen work only in the console session for now.",
                             ),
                         ]);
+                    }
+                    if app.deck.boot_settings_available {
+                        if let Some(status) = &app.deck.boot_status {
+                            rows.push(Entry::new(
+                                format!(
+                                    "Start screen: {}",
+                                    if status.enabled { "WrOS" } else { "plain text" }
+                                ),
+                                Choice::BootScreen(false),
+                            ));
+                            rows.push(if status.failed && !status.pending {
+                                Entry::new(
+                                    "Prepare the start screen again",
+                                    Choice::BootScreen(true),
+                                )
+                            } else {
+                                Entry::info(status.preparation())
+                            });
+                        } else {
+                            rows.push(Entry::info("Start screen: refresh to read the choice."));
+                        }
                     }
                 }
                 Panel::Power => {
@@ -2078,6 +2108,12 @@ impl App {
         if route == Route::WarmScreen && !self.deck.busy {
             self.deck.request(wros_sys::Request::DisplayStatus);
         }
+        if route == Route::Panel(Panel::Display)
+            && self.deck.boot_settings_available
+            && !self.deck.busy
+        {
+            self.deck.request(wros_sys::Request::BootStatus);
+        }
         if matches!(route, Route::Panel(Panel::Updates | Panel::Recovery)) {
             // These panels show what the update helper reports,
             // never a cached guess.
@@ -2362,6 +2398,20 @@ impl App {
                     Choice::Lock => self.request_console_lock(),
                     Choice::LidClose => self.cycle_lid_close(),
                     Choice::GraphicalSession => self.toggle_graphical_session(),
+                    Choice::BootScreen(retry) => {
+                        if !self.deck.busy
+                            && let Some(status) = &self.deck.boot_status
+                        {
+                            self.deck.request(wros_sys::Request::BootScreen {
+                                enabled: if retry {
+                                    status.enabled
+                                } else {
+                                    !status.enabled
+                                },
+                                theme: crate::theme::to_config(&self.theme),
+                            });
+                        }
+                    }
                     Choice::InstallerOpen if !self.deck.busy => {
                         self.deck.shell.nav.open(Route::InstallerConfirm);
                         self.deck.shell.nav.select(0, 4);

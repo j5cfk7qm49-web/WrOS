@@ -2511,6 +2511,18 @@ def boot_image(g):
                  check=False)[1]
 
 
+def wait_boot_prepared(ctx, g, *, enabled):
+    deadline = time.monotonic() + 900
+    while time.monotonic() < deadline:
+        ctx.guard()
+        status = json.loads(g.run('/usr/libexec/wros-boot-settings status')[1])
+        if status['enabled'] == enabled and not status['pending']:
+            ctx.check('the background boot-image rebuild completed', not status['failed'], status)
+            return
+        time.sleep(2)
+    raise Failure('the background start-screen rebuild did not finish')
+
+
 def phase_bootscreen(ctx):
     st = load_state(ctx.args.install_run)
     secrets_ = json.loads(Path(st['secrets']).read_text())
@@ -2528,8 +2540,33 @@ def phase_bootscreen(ctx):
     ctx.check('switch off: the progress screen does not run', 'ConditionResult=no' in record, record)
     ctx.check('wros-boot is installed', g.run('test -x /usr/lib/wros/wros-boot && echo yes')[1].strip() == 'yes')
 
-    # 2. Switch on: the boot image takes wros-boot and the wrapper, and keeps Debian's prompt.
-    g.run('echo ratatui > /etc/wros/boot-screen && update-initramfs -u', 900)
+    # 2. Accept a theme and choose the start screen through the installed app and polkit.
+    greeter_login(ctx, g, m, st['username'], secrets_['login'], layout, wrong_first=False)
+    grim_editor(g)
+    m.key('f9')
+    g.wait_vcs(1, r'THEME', 30, what='boot-theme-picker')
+    for _ in range(20):
+        if re.search(r'● Nord\s', g.screen(1)):
+            break
+        m.key('down')
+    else:
+        raise Failure('the theme picker never selected Nord')
+    m.key('ret')
+    grim_open_settings(g, layout)
+    grim_to_panel(g, r'^Display')
+    g.wait_vcs(1, r'Start screen: plain text', 30, what='start-screen-choice')
+    g.choose(r'^Start screen: plain text')
+    m.key('ret')
+    g.wait_vcs(1, r'Start screen: WrOS', 30, what='start-screen-on')
+    wait_boot_prepared(ctx, g, enabled=True)
+    theme = g.run('stat -c "%a %U" /etc/wros/boot-theme.toml; cat /etc/wros/boot-theme.toml')[1]
+    ctx.check('Settings kept a root-owned copy of the active Nord theme',
+              '644 root' in theme and 'name = "Nord"' in theme, theme)
+    rc, extracted = g.run('mkdir /tmp/rc-boot-image && unmkinitramfs /boot/initrd.img-$(uname -r) /tmp/rc-boot-image '
+                          '&& find /tmp/rc-boot-image -path "*/etc/wros/boot-theme.toml" '
+                          '-exec cmp -s /etc/wros/boot-theme.toml {} \\; -print', 180)
+    ctx.check('the exact Settings theme reached the rebuilt boot image',
+              'etc/wros/boot-theme.toml' in extracted, extracted)
     image = boot_image(g)
     ctx.result['boot_image_on'] = image
     ctx.check('switch on: the boot image has wros-boot, the wrapper and Debian\'s prompt',
@@ -2551,6 +2588,10 @@ def phase_bootscreen(ctx):
               splash_ran_before_login(record), record)
     m.shot('login-after-ratatui')
     ctx.check('the Ratatui unlock opens the disk and reaches the login screen', True)
+    login = g.screen(1)
+    ctx.check('the shared logo sits above the complete login form',
+              any(top in login and login.index(top) < login.index('Local account') for top in LOGO_TOP)
+              and 'Password' in login, login)
 
     # 4. Esc: Debian's text prompt, which unlocks.
     resets = reboot(ctx, g, m, 'reboot-esc')
@@ -2561,6 +2602,17 @@ def phase_bootscreen(ctx):
     m.shot('after-esc-unlock')
     g = signed_in_again(ctx, m, st, secrets_)
     ctx.check('Esc goes to Debian\'s prompt, which unlocks', True)
+
+    # The ordinary text-start menu entry always keeps Debian's prompt behind the switch.
+    g.run('grub-reboot wros-text-start', 30)
+    resets = reboot(ctx, g, m, 'reboot-text-start')
+    unlock(ctx, m, secrets_, layout, wrong_first=False, after_reset=resets)
+    m.shot('text-start-unlock')
+    g = signed_in_again(ctx, m, st, secrets_)
+    cmdline = g.run('cat /proc/cmdline')[1].split()
+    ctx.check('WrOS (text start) uses Debian\'s prompt and the ordinary login',
+              'wros.unlock=text' in cmdline and not any(word.startswith('systemd.unit=') for word in cmdline), cmdline)
+    ctx.check('text start skips the progress screen', 'ConditionResult=no' in splash_record(g))
 
     # 5. A start screen that fails at once (here /usr/bin/false): Debian's prompt unlocks.
     g.run('cp -p /usr/lib/wros/wros-boot /root/wros-boot.good && cp /usr/bin/false /usr/lib/wros/wros-boot '
@@ -2573,7 +2625,14 @@ def phase_bootscreen(ctx):
     g.run('cp -p /root/wros-boot.good /usr/lib/wros/wros-boot', 60)
 
     # 6. Switch off again: the boot image is Debian's.
-    g.run('rm -f /etc/wros/boot-screen && update-initramfs -u', 900)
+    greeter_login(ctx, g, m, st['username'], secrets_['login'], layout, wrong_first=False)
+    grim_open_settings(g, layout)
+    grim_to_panel(g, r'^Display')
+    g.wait_vcs(1, r'Start screen: WrOS', 30, what='start-screen-off-choice')
+    g.choose(r'^Start screen: WrOS')
+    m.key('ret')
+    g.wait_vcs(1, r'Start screen: plain text', 30, what='start-screen-off')
+    wait_boot_prepared(ctx, g, enabled=False)
     image = boot_image(g)
     ctx.check('switch off again: the boot image has no start screen',
               'cryptsetup/askpass' in image and 'wros-boot' not in image and 'askpass.debian' not in image, image)

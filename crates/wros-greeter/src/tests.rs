@@ -303,6 +303,26 @@ fn the_password_mark_does_not_show_its_length() {
 }
 
 #[test]
+fn the_login_keeps_the_start_screens_logo_above_the_whole_form() {
+    let form = Form::new(vec![], true);
+    for (width, height, border) in [
+        (80, 25, "+--------+--------+"),
+        (100, 37, "+----------------+----------------+"),
+        (128, 48, "+----------------+----------------+"),
+        (170, 48, "+----------------+----------------+"),
+    ] {
+        let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+        terminal
+            .draw(|frame| render(frame, &Conversation::default(), &form))
+            .unwrap();
+        let shown = screen(&terminal);
+        let logo = shown.find(border).expect("the shared logo above the form");
+        assert!(logo < shown.find("Local account").unwrap());
+        assert!(shown.contains("Password") && shown.contains("Console session"));
+    }
+}
+
+#[test]
 fn unicode_backspace_limit_and_control_filter() {
     let mut flow = begin();
     prompt(&mut flow, MessageKind::Secret).unwrap();

@@ -123,6 +123,9 @@ mod linux {
             .iter()
             .all(|path| Path::new(path).is_file());
         let mut form = Form::new(accounts, graphical);
+        let palette = std::fs::read_to_string("/etc/wros/boot-theme.toml")
+            .map(|text| wros_shell::grimoire_theme::from_config(&text))
+            .unwrap_or_else(|_| wros_shell::grimoire_theme::default_theme());
         let (requests, incoming) = mpsc::sync_channel::<Request>(1);
         let (replies, completed) = mpsc::sync_channel(1);
         let worker = std::thread::spawn(move || {
@@ -209,7 +212,7 @@ mod linux {
                         if keyboard.open {
                             keyboard.render(frame, Instant::now());
                         } else {
-                            wros_greeter::render(frame, &conversation, &form);
+                            wros_greeter::render_themed(frame, &conversation, &form, &palette);
                         }
                     })
                     .map_err(|_| "terminal draw failed")?;

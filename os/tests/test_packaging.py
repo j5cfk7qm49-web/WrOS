@@ -55,7 +55,7 @@ PSEUDO_ROOT = pseudo_root_prefix()
 def copy_repo(destination):
     """The subset of the checkout the packaging path reads, as an editable copy."""
     destination = Path(destination)
-    for relative in ('packaging', 'os/config', 'os/systemd', 'os/grub', 'os/plymouth', 'os/initramfs', 'os/scripts', 'os/helpers', 'os/licenses',
+    for relative in ('packaging', 'os/config', 'os/systemd', 'os/grub', 'os/initramfs', 'os/scripts', 'os/helpers', 'os/licenses',
                      'tools/build-wros-debs.py', 'tools/stage-prose-runtime.py', 'tools/prepare-prose-tools.py',
                      'tools/audit-native-image.py',
                      'assets/dict/DICTIONARY-LICENSE', 'LICENSE', 'os/VERSION'):
@@ -305,14 +305,14 @@ class Builder(unittest.TestCase):
             run('sh', str(control / 'postinst'), 'configure', env=env)
             self.assertEqual(os.readlink(installed), '/usr/bin/true')
 
-    def test_the_boot_screen_is_packaged_and_set_only_where_plymouth_is_installed(self):
+    def test_the_ratatui_start_screen_replaces_the_plymouth_payload(self):
         listing = run('dpkg-deb', '-c', str(self.deb)).stdout
-        for name in ('wros.plymouth', 'wros.script', 'logo.png', 'box.png', 'bar.png', 'prompt.png', 'bullet.png'):
-            self.assertIn('./usr/share/plymouth/themes/wros/' + name, listing)
+        self.assertNotIn('/plymouth/', listing)
+        self.assertIn('./usr/libexec/wros-boot-settings', listing)
         control = self.base / 'control-bootscreen'
         run('dpkg-deb', '-e', str(self.deb), str(control))
         postinst = (control / 'postinst').read_text()
-        self.assertIn('if [ -z "$root" ] && [ -x "$set_theme" ] && [ -f "$theme" ]', postinst)
+        self.assertNotIn('plymouth-set-default-theme', postinst)
         # Under DPKG_ROOT (image staging) nothing tries to set a theme.
         with tempfile.TemporaryDirectory(prefix='wros-bootscreen-') as tmp:
             run('sh', str(control / 'postinst'), 'configure', env=dict(ENV, DPKG_ROOT=tmp))
@@ -912,7 +912,7 @@ class StageIntoRoot(unittest.TestCase):
         self.assertEqual(audit.audit_package(root)['version'], TREE)
         audit.audit_update_engine(root)
         self.assertEqual(audit.audit_trust(root, fixture_fingerprints=set()), [self.fpr])
-        self.assertEqual(audit.audit_units(root), ['wros-keyboard.service', 'wros-display.service',
+        self.assertEqual(audit.audit_units(root), ['wros-boot-rebuild.path', 'wros-keyboard.service', 'wros-display.service',
                                                    'wros-offline-update.service', 'wros-update-reconcile.service',
                                                    'wros-boot-ok.service', 'wros-boot-ok.service',
                                                    'wros-boot-splash.service'])

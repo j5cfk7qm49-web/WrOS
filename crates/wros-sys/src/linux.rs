@@ -620,6 +620,28 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
                 ],
             )
         }
+        Request::BootStatus | Request::BootTheme(_) | Request::BootScreen { .. } => {
+            let mut args = vec![
+                "--disable-internal-agent",
+                "/usr/libexec/wros-boot-settings",
+            ];
+            match request {
+                Request::BootStatus => args.push("status"),
+                Request::BootTheme(theme) | Request::BootScreen { theme, .. } => {
+                    if theme.is_empty() || theme.len() > 4096 || theme.contains('\0') {
+                        bail!("invalid start-screen theme");
+                    }
+                    if let Request::BootScreen { enabled, .. } = request {
+                        args.extend(["screen", if *enabled { "ratatui" } else { "text" }]);
+                    } else {
+                        args.push("theme");
+                    }
+                    args.push(theme);
+                }
+                _ => unreachable!(),
+            }
+            Invocation::new("/usr/bin/pkexec", &args)
+        }
         Request::DisplayStatus => Invocation::new(
             "/usr/bin/pkexec",
             &[
@@ -786,6 +808,19 @@ impl<R: Runner> Backend for Linux<R> {
             )));
         }
         let output = self.runner.run(&invocation(&request)?)?;
+        if matches!(
+            request,
+            Request::BootStatus | Request::BootTheme(_) | Request::BootScreen { .. }
+        ) {
+            let status: crate::boot::Status =
+                serde_json::from_str(&output).context("invalid start-screen status")?;
+            if let Request::BootScreen { enabled, .. } = request
+                && status.enabled != enabled
+            {
+                bail!("the start-screen choice could not be confirmed");
+            }
+            return Ok(Reply::BootStatus(status));
+        }
         if request == Request::ListTimezones {
             return Ok(Reply::Timezones(crate::timezone::catalog(&output)?));
         }
@@ -1588,6 +1623,59 @@ mod tests {
             "invalid service output must not become a catalog"
         );
     }
+    #[test]
+    fn start_screen_calls_are_noninteractive_and_require_a_confirmed_choice() {
+        let theme = "name = \"Nord\"\n";
+        let request = Request::BootScreen {
+            enabled: true,
+            theme: theme.into(),
+        };
+        let command = invocation(&request).unwrap();
+        assert_eq!(command.program, "/usr/bin/pkexec");
+        assert_eq!(
+            command.args,
+            [
+                "--disable-internal-agent",
+                "/usr/libexec/wros-boot-settings",
+                "screen",
+                "ratatui",
+                theme
+            ]
+        );
+        assert_eq!(command.timeout, Duration::from_secs(8));
+        for bad in [String::new(), "x".repeat(4097), "name = \"a\0b\"".into()] {
+            assert!(invocation(&Request::BootTheme(bad)).is_err());
+        }
+        struct Output(&'static str);
+        impl Runner for Output {
+            fn run(&mut self, _: &Invocation) -> Result<String> {
+                Ok(self.0.into())
+            }
+        }
+        for (output, accepted) in [
+            (r#"{"enabled":true,"pending":true,"failed":false}"#, true),
+            (r#"{"enabled":false,"pending":true,"failed":false}"#, false),
+            (r#"{"enabled":true}"#, false),
+            (
+                r#"{"enabled":true,"pending":false,"failed":false,"unexpected":true}"#,
+                false,
+            ),
+            ("not JSON", false),
+        ] {
+            let mut backend = Linux {
+                runner: Output(output),
+                sys: "/missing".into(),
+                etc: "/missing".into(),
+                storage: "/missing".into(),
+            };
+            assert_eq!(
+                backend.request(request.clone()).is_ok(),
+                accepted,
+                "{output}"
+            );
+        }
+    }
+
     #[test]
     fn display_calls_are_fixed_bounded_and_never_start_a_tty_auth_reader() {
         use crate::display::Warmth;

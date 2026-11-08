@@ -3,6 +3,7 @@
 //! Linux commands are fixed executables and argument vectors, never shell text.
 //! Call the Linux backend on a worker, not the input/render thread. Unsupported
 //! capabilities remain unavailable instead of being reported as successful.
+pub mod boot;
 pub mod display;
 pub mod keyboard;
 pub mod linux;
@@ -278,6 +279,12 @@ pub enum PowerAction {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Request {
+    BootStatus,
+    BootTheme(String),
+    BootScreen {
+        enabled: bool,
+        theme: String,
+    },
     Refresh,
     Wifi(bool),
     ScanWifi,
@@ -365,6 +372,7 @@ pub enum Request {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Reply {
+    BootStatus(boot::Status),
     Snapshot(Snapshot),
     Message(String),
     Timezones(Vec<String>),
@@ -432,6 +440,7 @@ pub struct Simulated {
     preview: Option<String>,
     display_preview: Option<(String, display::Warmth)>,
     warmth: display::Warmth,
+    boot: boot::Status,
 }
 
 impl Default for Simulated {
@@ -492,6 +501,7 @@ impl Default for Simulated {
             preview: None,
             display_preview: None,
             warmth: display::Warmth::default(),
+            boot: boot::Status::default(),
         }
     }
 }
@@ -557,6 +567,16 @@ impl Backend for Simulated {
             bail!("simulated service unavailable");
         }
         match request {
+            Request::BootStatus => Ok(Reply::BootStatus(self.boot.clone())),
+            Request::BootTheme(_) => {
+                self.boot.pending = true;
+                Ok(Reply::BootStatus(self.boot.clone()))
+            }
+            Request::BootScreen { enabled, .. } => {
+                self.boot.enabled = enabled;
+                self.boot.pending = true;
+                Ok(Reply::BootStatus(self.boot.clone()))
+            }
             Request::ListTimezones => Ok(Reply::Timezones(vec![
                 "America/Los_Angeles".into(),
                 "Asia/Tokyo".into(),

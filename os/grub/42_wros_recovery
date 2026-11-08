@@ -44,6 +44,13 @@ rel_dirname=$(make_system_path_relative_to_its_root "$kernels")
 rel_dirname=${rel_dirname%/}
 
 echo "Found WrOS recovery: $linux" >&2
+# An ordinary login with Debian's disk prompt and visible boot messages.
+echo "menuentry 'WrOS (text start)' --id wros-text-start {"
+echo "\tinsmod gzio"
+prepare_grub_to_access_device "${GRUB_DEVICE_BOOT}" | sed 's/^/\t/'
+echo "\tlinux\t${rel_dirname}/${basename} root=${root_device} ro ${GRUB_CMDLINE_LINUX} wros.unlock=text"
+echo "\tinitrd\t${rel_dirname}/${initrd}"
+echo "}"
 echo "menuentry 'WrOS recovery' --class recovery --id wros-recovery {"
 echo "	insmod gzio"
 prepare_grub_to_access_device "${GRUB_DEVICE_BOOT}" | sed 's/^/\t/'

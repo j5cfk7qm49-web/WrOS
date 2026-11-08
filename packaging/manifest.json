@@ -39,6 +39,11 @@
     {"dest": "usr/libexec/wros-session", "source": "os/scripts/wros-session", "mode": "0755", "class": "code"},
     {"dest": "usr/libexec/wros-name-migrate", "source": "os/scripts/wros-name-migrate.py", "mode": "0755", "class": "code"},
     {"dest": "usr/libexec/wros-display", "source": "os/scripts/wros-display", "mode": "0755", "class": "code"},
+    {"dest": "usr/libexec/wros-boot-settings", "source": "os/scripts/wros-boot-settings", "mode": "0755", "class": "code"},
+    {"dest": "usr/share/polkit-1/actions/org.wros.boot-settings.policy", "source": "os/config/org.wros.boot-settings.policy", "mode": "0644", "class": "config"},
+    {"dest": "etc/polkit-1/rules.d/50-wros-boot-settings.rules", "source": "os/config/50-wros-boot-settings.rules", "mode": "0644", "class": "config"},
+    {"dest": "etc/systemd/system/wros-boot-rebuild.service", "source": "os/systemd/wros-boot-rebuild.service", "mode": "0644", "class": "config"},
+    {"dest": "etc/systemd/system/wros-boot-rebuild.path", "source": "os/systemd/wros-boot-rebuild.path", "mode": "0644", "class": "config"},
     {"dest": "usr/libexec/wros-lock", "source": "os/scripts/wros-lock", "mode": "0755", "class": "code"},
     {"dest": "usr/libexec/wros-backup", "source": "os/scripts/wros-backup", "mode": "0755", "class": "code"},
     {"dest": "usr/libexec/wros-clock", "source": "os/scripts/wros-clock", "mode": "0755", "class": "code"},
@@ -69,7 +74,6 @@
     {"dest": "etc/polkit-1/rules.d/50-wros-display.rules", "source": "os/config/50-wros-display.rules", "mode": "0644", "class": "config"},
     {"dest": "etc/apt/sources.list.d/wros.sources", "source": "os/config/apt/wros.sources", "mode": "0644", "class": "config"},
     {"dest": "usr/share/wros/foot.ini", "source": "os/config/foot.ini", "mode": "0644", "class": "config"},
-    {"tree": "os/plymouth/wros", "dest_dir": "usr/share/plymouth/themes/wros", "class": "config"},
     {"dest": "usr/share/wros/update-keyring.gpg", "source": "os/config/update-trust/wros-archive-keyring.gpg", "mode": "0644", "class": "config"},
     {"dest": "usr/lib/udev/rules.d/90-wros-backlight.rules", "source": "os/config/90-wros-backlight.rules", "mode": "0644", "class": "config"},
     {"dest": "usr/share/polkit-1/actions/org.wros.display.policy", "source": "os/config/org.wros.display.policy", "mode": "0644", "class": "config"},
@@ -123,6 +127,7 @@
     {"dest": "usr/share/doc/wros/python-tool-notices.json", "source": "docs/python-tool-notices.json", "mode": "0644", "class": "doc"}
   ],
   "enable": [
+    {"unit": "wros-boot-rebuild.path", "target": "multi-user.target", "verify_install_section": true},
     {"unit": "wros-keyboard.service", "target": "multi-user.target", "verify_install_section": false},
     {"unit": "wros-display.service", "target": "multi-user.target", "verify_install_section": false},
     {"unit": "wros-offline-update.service", "target": "system-update.target", "verify_install_section": true},
