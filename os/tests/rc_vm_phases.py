@@ -2511,6 +2511,12 @@ def boot_image(g):
                  check=False)[1]
 
 
+def console_has_green(path):
+    from PIL import Image
+    with Image.open(path) as picture:
+        return any(g > r + 40 and g > b + 40 for r, g, b in picture.convert('RGB').getdata())
+
+
 def wait_boot_prepared(ctx, g, *, enabled):
     deadline = time.monotonic() + 900
     while time.monotonic() < deadline:
@@ -2546,12 +2552,15 @@ def phase_bootscreen(ctx):
     m.key('f9')
     g.wait_vcs(1, r'THEME', 30, what='boot-theme-picker')
     for _ in range(20):
-        if re.search(r'● Nord\s', g.screen(1)):
+        if '● Custom' in g.screen(1):
             break
         m.key('down')
     else:
-        raise Failure('the theme picker never selected Nord')
+        raise Failure('the theme picker never selected Custom')
     m.key('ret')
+    g.wait_vcs(1, r'CUSTOM THEME', 30, what='custom-boot-theme')
+    m.type_text('00ff00', layout)
+    m.key('esc')
     grim_open_settings(g, layout)
     grim_to_panel(g, r'^Display')
     g.wait_vcs(1, r'Start screen: plain text', 30, what='start-screen-choice')
@@ -2560,8 +2569,8 @@ def phase_bootscreen(ctx):
     g.wait_vcs(1, r'Start screen: WrOS', 30, what='start-screen-on')
     wait_boot_prepared(ctx, g, enabled=True)
     theme = g.run('stat -c "%a %U" /etc/wros/boot-theme.toml; cat /etc/wros/boot-theme.toml')[1]
-    ctx.check('Settings kept a root-owned copy of the active Nord theme',
-              '644 root' in theme and 'name = "Nord"' in theme, theme)
+    ctx.check('Settings kept a root-owned copy of the active custom green theme',
+              '644 root' in theme and 'name = "Custom"' in theme and 'accent = "#00ff00"' in theme, theme)
     rc, extracted = g.run('mkdir /tmp/rc-boot-image && unmkinitramfs /boot/initrd.img-$(uname -r) /tmp/rc-boot-image '
                           '&& find /tmp/rc-boot-image -path "*/etc/wros/boot-theme.toml" '
                           '-exec cmp -s /etc/wros/boot-theme.toml {} \\; -print', 180)
@@ -2575,6 +2584,8 @@ def phase_bootscreen(ctx):
     # 3. The Ratatui screen: a wrong password, then the right one, then the login screen.
     resets = reboot(ctx, g, m, 'reboot-ratatui')
     ratatui_unlock(ctx, m, secrets_, layout, wrong_first=True, after_reset=resets, name='ratatui')
+    ctx.check('the custom accent reaches the real unlock console in green',
+              console_has_green(ctx.dir / 'ratatui-prompt.png'))
     try:
         text = m.wait_screen(r'Starting WrOS', 90, interval=0.5, name='progress')
         m.shot('progress-screen')
@@ -2587,6 +2598,7 @@ def phase_bootscreen(ctx):
     ctx.check('the progress screen ran and stopped before the login screen started',
               splash_ran_before_login(record), record)
     m.shot('login-after-ratatui')
+    ctx.check('the same green accent reaches the login console', console_has_green(ctx.dir / 'login-after-ratatui.png'))
     ctx.check('the Ratatui unlock opens the disk and reaches the login screen', True)
     login = g.screen(1)
     ctx.check('the shared logo sits above the complete login form',
