@@ -751,7 +751,8 @@ pub(crate) fn driver_page(app: &App) -> (String, Vec<(String, bool)>) {
     let rows = entries(app)
         .into_iter()
         .map(|entry| {
-            let choosable = !matches!(entry.choice, Choice::Information);
+            let choosable = !matches!(entry.choice, Choice::Information)
+                && !(matches!(entry.choice, Choice::Lock) && app.deck.busy);
             (entry.label, choosable)
         })
         .collect();
@@ -957,7 +958,14 @@ fn entries(app: &App) -> Vec<Entry> {
                         if app.deck.live_session {
                             Entry::info("Live session · personal lock unavailable")
                         } else if app.deck.lock_available {
-                            Entry::new("Lock writing session", Choice::Lock)
+                            Entry::new(
+                                if app.deck.busy {
+                                    "Lock writing session · waiting for the current task"
+                                } else {
+                                    "Lock writing session"
+                                },
+                                Choice::Lock,
+                            )
                         } else if app.deck.graphical_session {
                             Entry::info("Lock and sleep · not in the graphical session yet")
                         } else {

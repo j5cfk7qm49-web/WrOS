@@ -39,6 +39,17 @@ def trial(ctx):
     if rc:
         raise phases.Failure(g.run('tail -35 /tmp/trial-apt.log')[1])
     g.run('install -m755 /mnt/trial/grimoire /usr/bin/grimoire')
+    if ctx.args.delay_health:
+        # Only this disposable VM's read-only health query is delayed. The real
+        # updater still produces the reply; authentication helpers are unchanged.
+        g.run('cp -p /usr/libexec/wros-update /usr/libexec/wros-update-trial-real')
+        g.shell.put('/usr/libexec/wros-update',
+                    '#!/usr/bin/python3 -I\nimport os, sys, time\nfrom pathlib import Path\n'
+                    'if sys.argv[1:] == ["recovery-status"]:\n'
+                    '    Path("/run/user/%d/health-delay-seen" % os.getuid()).touch()\n'
+                    f'    time.sleep({ctx.args.delay_health})\n'
+                    'os.execv("/usr/libexec/wros-update-trial-real", ["wros-update", *sys.argv[1:]])\n', '0755')
+        ctx.result['controlled_health_delay_seconds'] = ctx.args.delay_health
     launcher = (ctx.args.source_tree / 'os/scripts/wros-session').read_text()
     launcher = launcher.replace("if __name__ == '__main__':", "if __name__ == '__main__':\n    os.environ['WROS_TEST_DRIVER_SOCKET'] = '/run/user/%d/wros-vm-test.sock' % os.getuid()")
     launcher = launcher.replace('self.run(command, env=env, stdin=subprocess.DEVNULL, check=False)',
@@ -181,10 +192,26 @@ def trial(ctx):
     deadline = time.monotonic() + 45
     while g.run('fgconsole')[1].strip() != '1' and time.monotonic() < deadline:
         time.sleep(1)
-    tree = drive()
+    # A fresh acknowledged frame proves the app resumed; a connection's initial
+    # snapshot alone can be the retained frame from before authentication.
+    tree = drive({'kind':'key', 'key':'f24'})
     ctx.check('authentication returns to the writing settings', 'Battery and power' in tree)
     m.shot('compositor-unlocked')
     (ctx.dir / 'before-lock-2.json').write_text(drive())
+    if ctx.args.delay_health:
+        pending = json.loads(drive())
+        nodes = [pending]
+        busy = None
+        while nodes:
+            value = nodes.pop()
+            if isinstance(value, dict):
+                if value.get('id') == 'system-busy':
+                    busy = value.get('value')
+                    break
+                nodes.extend(value.values())
+            elif isinstance(value, list):
+                nodes.extend(value)
+        ctx.check('the controlled health query is pending before the second lock', busy == 'true')
     drive({'choose':'Lock writing session'}, True)
     g.wait_vcs(8, 'Press Enter to unlock', 45, what='compositor-lock-again')
     m.key('ret')
@@ -244,6 +271,7 @@ def main():
     parser.add_argument('--backend', choices=['drm', 'foot', 'wgpu'], required=True)
     parser.add_argument('--test-suspend', action='store_true')
     parser.add_argument('--lock-cycles', type=int, default=2, choices=range(2, 13))
+    parser.add_argument('--delay-health', type=int, default=0, choices=range(7))
     parser.add_argument('--hold', action='store_true')
     args = parser.parse_args()
     if os.geteuid() == 0:

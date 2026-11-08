@@ -463,10 +463,9 @@
       "failed_assertion": null
     }
   ],
-  "compositor_scope": "The 12-lock OpenGL stress run uses the final native fixture. Earlier compositor regressions precede notification filtering and diagnostic-only metadata; each executable hash is retained. The original second-lock timeout remains failed; issue 101 is unresolved.",
+  "compositor_scope": "The 12-lock OpenGL stress run uses the final native fixture. Earlier compositor regressions precede notification filtering and diagnostic-only metadata; each executable hash is retained. The original second-lock timeout remains failed. The later controlled busy-state reproduction and fix are recorded separately in rc10-lock-action.json.",
   "pending": [
     "HP Stream input, touchpad, latency and power checks",
-    "Compositor gamma integration",
-    "OpenGL second-lock timing investigation (issue 101)"
+    "Compositor gamma integration"
   ]
 }

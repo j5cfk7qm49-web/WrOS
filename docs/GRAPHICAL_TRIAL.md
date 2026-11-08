@@ -120,10 +120,15 @@ VM run directories under `/home/builder/rc-vm-runs/`:
 - `graphical-drm-20261108T123102Z`: native device input, VT/lock/suspend and reader-crash recovery, PASS.
 - `graphical-wgpu-20261108T123305Z`: 12 locks and suspend/wake, PASS.
 
-An earlier OpenGL second-lock timeout remains failed and is tracked in
-[#101](https://github.com/j5cfk7qm49-web/WrOS/issues/101). A successful repeat
-does not resolve it. [The input record](evidence/rc10-native-input.json) keeps
-the failed run alongside the passes and exact executable hashes.
+The second-lock race in [#101](https://github.com/j5cfk7qm49-web/WrOS/issues/101)
+was reproduced by delaying the post-login health query: the screen offered Lock
+while its busy guard refused the action. The row now explains the wait and its
+private action becomes available only when the request finishes. The VM client
+waits for that action and verifies the actual independent locker.
+[The lock regression record](evidence/rc10-lock-action.json) retains the controlled
+failure, its passing OpenGL and foot six-lock/suspend runs, the native regression,
+and the earlier failures. The original intermittent run had no busy-state capture;
+the controlled test establishes this cause without reconstructing that run's timing.
 
 Native evdev/xkbcommon, compose, live layout changes, key repeat and pointer input
 run in the disposable reader. Logind delegates and revokes device descriptors;

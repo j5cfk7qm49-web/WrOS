@@ -100,6 +100,10 @@ the isolated installed-VM checks for physical Colemak, compose, live layout
 changes, repeat, cursor pixels, device retirement on VT switches, two locks,
 suspend/wake and reader-crash recovery. The final native run is
 `graphical-drm-20261108T123102Z`. Foot passed the lock/suspend regression. OpenGL
-passed a 12-lock stress run, but an earlier second-lock timeout remains under
-investigation in [#101](https://github.com/j5cfk7qm49-web/WrOS/issues/101).
-The record preserves that failed run and the full software-check failures.
+passed a 12-lock stress run. A later controlled regression reproduced a second
+lock refused while the post-login health query was busy. The Lock row now shows
+that it is waiting and becomes actionable after the request finishes.
+[The follow-up record](evidence/rc10-lock-action.json) keeps the red/green checks
+for [#101](https://github.com/j5cfk7qm49-web/WrOS/issues/101), including six locks
+and suspend/wake. Earlier failed results and full software-check failures remain
+in the input record.

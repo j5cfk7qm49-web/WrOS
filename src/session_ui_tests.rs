@@ -15,6 +15,40 @@ fn display_page(tag: &str) -> Desk {
 }
 
 #[test]
+#[cfg(feature = "test-driver")]
+fn locking_is_not_advertised_as_an_action_during_a_pending_system_request() {
+    let mut desk = display_page("pending-lock-action");
+    desk.app.deck.lock_available = true;
+    open_panel(&mut desk, Panel::Power);
+    let (_, rows) = crate::app::shell::driver_page(&desk.app);
+    let lock = rows
+        .iter()
+        .position(|(name, _)| name.starts_with("Lock writing session"))
+        .unwrap();
+    desk.app.deck.shell.nav.select(lock, rows.len());
+    desk.app.deck.busy = true;
+    let (_, rows) = crate::app::shell::driver_page(&desk.app);
+    let (_, available) = rows
+        .iter()
+        .find(|(name, _)| name.starts_with("Lock writing session"))
+        .unwrap();
+    assert!(!available, "the request guard refuses a lock while busy");
+    desk.draw();
+    assert_eq!(desk.app.deck.shell.nav.selected(), lock);
+    assert!(desk.shows("Lock writing session · waiting"));
+    desk.app.request_console_lock();
+    assert!(!desk.app.deck.lock_requested);
+    desk.app.deck.busy = false;
+    let (_, rows) = crate::app::shell::driver_page(&desk.app);
+    assert!(
+        rows.iter()
+            .any(|(name, available)| name == "Lock writing session" && *available)
+    );
+    desk.app.request_console_lock();
+    assert!(desk.app.deck.lock_requested);
+}
+
+#[test]
 fn the_writer_adapts_the_console_theme_without_changing_saved_rgb_colours() {
     use ratatui::style::Color;
     let mut desk = display_page("writer-console-theme");

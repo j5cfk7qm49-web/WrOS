@@ -31,7 +31,17 @@ else:
     request = json.loads(sys.argv[1])
     if 'choose' in request:
         node = find(tree, request['choose'])
-        assert node, 'missing row: ' + request['choose']
+        deadline = time.monotonic() + 25
+        while node is None:
+            remaining = deadline - time.monotonic()
+            assert remaining > 0, 'row stayed unavailable: ' + request['choose']
+            s.settimeout(remaining)
+            line = stream.readline()
+            assert line, 'disconnected while waiting for row: ' + request['choose']
+            message = json.loads(line)
+            if message['type'] == 'snapshot':
+                tree = message
+                node = find(tree, request['choose'])
         request = {'kind': 'act', 'node': node, 'action': 'activate'}
     stamp = time.monotonic_ns() // 1000
     s.sendall((json.dumps({'type': 'input', 'id': stamp, 'input': request}) + '\n').encode())

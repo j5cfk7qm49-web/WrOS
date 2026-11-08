@@ -1,0 +1,441 @@
+{
+  "recorded_at_utc": "2026-11-08",
+  "scope": "Lock action availability while the post-login health query is pending; isolated no-NIC debug-fixture VMs",
+  "issue": 101,
+  "cause": "The existing lock guard refused busy requests, but the screen and private action tree still offered Lock. A controlled six-second delay reproduced a dequeued second action with no locker.",
+  "limits": "The original intermittent run had no busy-state capture. The controlled regression demonstrates the same outcome through the busy guard; it does not reconstruct the exact timing of the earlier run. No physical hardware qualification.",
+  "software_logs": [
+    "/home/builder/rc10-busy-lock-red.log",
+    "/home/builder/rc10-busy-client-red.log",
+    "/home/builder/rc10-busy-lock-green.log",
+    "/home/builder/rc10-busy-client-green.log",
+    "/home/builder/rc10-busy-driven-green.log",
+    "/home/builder/rc10-busy-lock-clippy.log",
+    "/home/builder/rc10-native-only-clippy-green.log",
+    "/home/builder/rc10-resumed-lock-focused.log"
+  ],
+  "runs": [
+    {
+      "passed": false,
+      "seconds": 119.3,
+      "backend": "wgpu",
+      "editor_sha256": "f6a06465be69008197b6979a22d5d12b96dc37e5caf8597554fb734e009bfb03",
+      "fixture_sha256": "76ea3ab910d31cbac816893d81e72a03754178127f5aac3b96d479a7320b44a1",
+      "lock_helper_sha256": "669ae7ace2cb6a8bf782cc078147764c8ac03a945b78ef36f45f55e3000f6f2c",
+      "controlled_health_delay_seconds": null,
+      "run": "/home/builder/rc-vm-runs/graphical-wgpu-20261108T121608Z",
+      "assertions": [
+        {
+          "name": "ratatui: the Ratatui screen shows the logo",
+          "passed": true
+        },
+        {
+          "name": "ratatui: Debian's prompt is not on screen",
+          "passed": true
+        },
+        {
+          "name": "the graphical writing app opened its private test socket",
+          "passed": true
+        },
+        {
+          "name": "the graphical backend is running",
+          "passed": true
+        },
+        {
+          "name": "the maintained locker owns tty8",
+          "passed": true
+        },
+        {
+          "name": "the locker prevents returning to the writing screen",
+          "passed": true
+        },
+        {
+          "name": "the writing input reader is retired",
+          "passed": true
+        },
+        {
+          "name": "authentication returns to the writing settings",
+          "passed": true
+        }
+      ],
+      "failure": "Second locker did not appear within 45 seconds."
+    },
+    {
+      "passed": false,
+      "seconds": 111.8,
+      "backend": "wgpu",
+      "editor_sha256": "9103326f63e48dc837c3e191fc3d43fd63451836be277f6ce9de6fbb062d8071",
+      "fixture_sha256": "edcdb4876887087519953dcb06a2d2a75d2f6f57038c6e0948b66cc1b1aeb97b",
+      "lock_helper_sha256": "669ae7ace2cb6a8bf782cc078147764c8ac03a945b78ef36f45f55e3000f6f2c",
+      "controlled_health_delay_seconds": 6,
+      "run": "/home/builder/rc-vm-runs/graphical-wgpu-20261108T125328Z",
+      "assertions": [
+        {
+          "name": "ratatui: the Ratatui screen shows the logo",
+          "passed": true
+        },
+        {
+          "name": "ratatui: Debian's prompt is not on screen",
+          "passed": true
+        },
+        {
+          "name": "the graphical writing app opened its private test socket",
+          "passed": true
+        },
+        {
+          "name": "the graphical backend is running",
+          "passed": true
+        },
+        {
+          "name": "the maintained locker owns tty8",
+          "passed": true
+        },
+        {
+          "name": "the locker prevents returning to the writing screen",
+          "passed": true
+        },
+        {
+          "name": "the writing input reader is retired",
+          "passed": true
+        },
+        {
+          "name": "authentication returns to the writing settings",
+          "passed": true
+        },
+        {
+          "name": "the controlled health query is pending before the second lock",
+          "passed": true
+        }
+      ],
+      "failure": "Second locker did not appear within 45 seconds."
+    },
+    {
+      "passed": true,
+      "seconds": 124.3,
+      "backend": "wgpu",
+      "editor_sha256": "6b7dcc3758cf23d0224ac71e255a036fbb9f6663dac7d7e5e68ccc17e351921b",
+      "fixture_sha256": "6770d69bd70c9abe23ba288fee3e91b665f118e7eab806a3aa68a075fed68e34",
+      "lock_helper_sha256": "669ae7ace2cb6a8bf782cc078147764c8ac03a945b78ef36f45f55e3000f6f2c",
+      "controlled_health_delay_seconds": 6,
+      "run": "/home/builder/rc-vm-runs/graphical-wgpu-20261108T130504Z",
+      "assertions": [
+        {
+          "name": "ratatui: the Ratatui screen shows the logo",
+          "passed": true
+        },
+        {
+          "name": "ratatui: Debian's prompt is not on screen",
+          "passed": true
+        },
+        {
+          "name": "the graphical writing app opened its private test socket",
+          "passed": true
+        },
+        {
+          "name": "the graphical backend is running",
+          "passed": true
+        },
+        {
+          "name": "the maintained locker owns tty8",
+          "passed": true
+        },
+        {
+          "name": "the locker prevents returning to the writing screen",
+          "passed": true
+        },
+        {
+          "name": "the writing input reader is retired",
+          "passed": true
+        },
+        {
+          "name": "authentication returns to the writing settings",
+          "passed": true
+        },
+        {
+          "name": "the controlled health query is pending before the second lock",
+          "passed": true
+        },
+        {
+          "name": "a second lock returns to the same writing settings",
+          "passed": true
+        },
+        {
+          "name": "the same editor process survived both locks",
+          "passed": true
+        },
+        {
+          "name": "lock cycle 3 returns to the same editor",
+          "passed": true
+        },
+        {
+          "name": "lock cycle 4 returns to the same editor",
+          "passed": true
+        },
+        {
+          "name": "lock cycle 5 returns to the same editor",
+          "passed": true
+        },
+        {
+          "name": "lock cycle 6 returns to the same editor",
+          "passed": true
+        },
+        {
+          "name": "the writing session requested actual QEMU suspend",
+          "passed": true
+        },
+        {
+          "name": "wake and authentication return to the same editor",
+          "passed": true
+        },
+        {
+          "name": "neither lock password reached the saved book or recovery files",
+          "passed": true
+        },
+        {
+          "name": "no generated secret in /var/log, /etc or the journal",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "run": "/home/builder/rc-vm-runs/graphical-foot-20261108T130735Z",
+      "passed": false,
+      "failure": "Fixture hash read failed with an input/output error; WSL interruption left no result.json. No lock qualification result.",
+      "retained_log": "/mnt/c/Users/lettuce/Documents/ChatGPT/WrOS/.audit-tools/run/rc10-busy-foot-vm-green.log",
+      "retained_log_sha256": "43d1dc42434a6ac7572028c0b6d4b3173988bd674cc61f3ae8fae257133a558d"
+    },
+    {
+      "passed": true,
+      "seconds": 129.6,
+      "backend": "foot",
+      "editor_sha256": "6b7dcc3758cf23d0224ac71e255a036fbb9f6663dac7d7e5e68ccc17e351921b",
+      "fixture_sha256": "6770d69bd70c9abe23ba288fee3e91b665f118e7eab806a3aa68a075fed68e34",
+      "lock_helper_sha256": "669ae7ace2cb6a8bf782cc078147764c8ac03a945b78ef36f45f55e3000f6f2c",
+      "controlled_health_delay_seconds": 6,
+      "run": "/home/builder/rc-vm-runs/graphical-foot-20261108T180512Z",
+      "assertions": [
+        {
+          "name": "ratatui: the Ratatui screen shows the logo",
+          "passed": true
+        },
+        {
+          "name": "ratatui: Debian's prompt is not on screen",
+          "passed": true
+        },
+        {
+          "name": "the graphical writing app opened its private test socket",
+          "passed": true
+        },
+        {
+          "name": "the graphical backend is running",
+          "passed": true
+        },
+        {
+          "name": "the maintained locker owns tty8",
+          "passed": true
+        },
+        {
+          "name": "the locker prevents returning to the writing screen",
+          "passed": true
+        },
+        {
+          "name": "the writing input reader is retired",
+          "passed": true
+        },
+        {
+          "name": "authentication returns to the writing settings",
+          "passed": true
+        },
+        {
+          "name": "the controlled health query is pending before the second lock",
+          "passed": true
+        },
+        {
+          "name": "a second lock returns to the same writing settings",
+          "passed": true
+        },
+        {
+          "name": "the same editor process survived both locks",
+          "passed": true
+        },
+        {
+          "name": "lock cycle 3 returns to the same editor",
+          "passed": true
+        },
+        {
+          "name": "lock cycle 4 returns to the same editor",
+          "passed": true
+        },
+        {
+          "name": "lock cycle 5 returns to the same editor",
+          "passed": true
+        },
+        {
+          "name": "lock cycle 6 returns to the same editor",
+          "passed": true
+        },
+        {
+          "name": "the writing session requested actual QEMU suspend",
+          "passed": true
+        },
+        {
+          "name": "wake and authentication return to the same editor",
+          "passed": true
+        },
+        {
+          "name": "neither lock password reached the saved book or recovery files",
+          "passed": true
+        },
+        {
+          "name": "no generated secret in /var/log, /etc or the journal",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "passed": true,
+      "seconds": 145.7,
+      "backend": "drm",
+      "editor_sha256": "6b7dcc3758cf23d0224ac71e255a036fbb9f6663dac7d7e5e68ccc17e351921b",
+      "fixture_sha256": "6770d69bd70c9abe23ba288fee3e91b665f118e7eab806a3aa68a075fed68e34",
+      "lock_helper_sha256": "669ae7ace2cb6a8bf782cc078147764c8ac03a945b78ef36f45f55e3000f6f2c",
+      "controlled_health_delay_seconds": null,
+      "run": "/home/builder/rc-vm-runs/graphical-drm-20261108T180745Z",
+      "assertions": [
+        {
+          "name": "ratatui: the Ratatui screen shows the logo",
+          "passed": true
+        },
+        {
+          "name": "ratatui: Debian's prompt is not on screen",
+          "passed": true
+        },
+        {
+          "name": "the graphical writing app opened its private test socket",
+          "passed": true
+        },
+        {
+          "name": "the native session uses the device reader",
+          "passed": true
+        },
+        {
+          "name": "the graphical backend is running",
+          "passed": true
+        },
+        {
+          "name": "only the disposable reader owns native input devices",
+          "passed": true
+        },
+        {
+          "name": "physical Colemak, compose and live layout changes reach the saved scene",
+          "passed": true
+        },
+        {
+          "name": "the private tree contains no typed prose",
+          "passed": true
+        },
+        {
+          "name": "the pointer baseline is a static writing page",
+          "passed": true
+        },
+        {
+          "name": "native pointer motion draws the bounded cursor overlay",
+          "passed": true
+        },
+        {
+          "name": "native input and display release for another VT",
+          "passed": true
+        },
+        {
+          "name": "the inactive reader has released its input devices",
+          "passed": true
+        },
+        {
+          "name": "native devices return with tty1",
+          "passed": true
+        },
+        {
+          "name": "the maintained locker owns tty8",
+          "passed": true
+        },
+        {
+          "name": "the locker prevents returning to the writing screen",
+          "passed": true
+        },
+        {
+          "name": "the writing input reader is retired",
+          "passed": true
+        },
+        {
+          "name": "authentication returns to the writing settings",
+          "passed": true
+        },
+        {
+          "name": "a second lock returns to the same writing settings",
+          "passed": true
+        },
+        {
+          "name": "the same editor process survived both locks",
+          "passed": true
+        },
+        {
+          "name": "a fresh native reader owns devices after authentication",
+          "passed": true
+        },
+        {
+          "name": "lock cycle 3 returns to the same editor",
+          "passed": true
+        },
+        {
+          "name": "lock cycle 4 returns to the same editor",
+          "passed": true
+        },
+        {
+          "name": "lock cycle 5 returns to the same editor",
+          "passed": true
+        },
+        {
+          "name": "lock cycle 6 returns to the same editor",
+          "passed": true
+        },
+        {
+          "name": "the writing session requested actual QEMU suspend",
+          "passed": true
+        },
+        {
+          "name": "wake and authentication return to the same editor",
+          "passed": true
+        },
+        {
+          "name": "native input reacquires devices after wake",
+          "passed": true
+        },
+        {
+          "name": "reader death ends the writer and restores the graphical login",
+          "passed": true
+        },
+        {
+          "name": "reader death preserves the saved scene",
+          "passed": true
+        },
+        {
+          "name": "neither lock password reached the saved book or recovery files",
+          "passed": true
+        },
+        {
+          "name": "no generated secret in /var/log, /etc or the journal",
+          "passed": true
+        }
+      ]
+    }
+  ],
+  "source_files_sha256": {
+    "src/app/shell.rs": "98013259e0d2b34f1e8f88e38ad06f597f09553a83d40ef789dd7bdd6d2f20ec",
+    "src/session_ui_tests.rs": "fd2564b77e0e0860d2bf11c2cfbdada069fc5230178b893f6d12678dd098c476",
+    "os/tests/graphical_driver.py": "d046d423293c1f7ce04d4bbf450bb0b10142cb99dde69fa859ce416d43120866",
+    "os/tests/graphical_session_vm.py": "ff7ac25d6d529320770078c159818cf6de9c162beb3a28b0ac4dc7182d72a4e4",
+    "os/tests/test_graphical_driver.py": "a9d8ee3f454f6f6d8b26da58d59369c218cef89ddac993a5eb61213c1d907171",
+    "tools/rc-check.sh": "8a2ce8bc8ad1e56e37381b7a9924f6c6ad593bd04dd99c2558e2dae44c1fb718",
+    "tools/verify-wros.py": "a71e5f195f5e93c01e9939efddb6e2d6fd75c488ac370112f68aad8030a65a0b"
+  }
+}
