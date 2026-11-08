@@ -150,7 +150,10 @@ class Launcher:
 
     def choice(self):
         """('graphical', None) or ('console', the notice the app shows, or None)."""
-        settings = read_json(self.settings_path) or {}
+        settings = read_json(self.settings_path)
+        if self.settings_path.exists() and (settings is None or settings.get('session') not in ('console', 'graphical')):
+            return 'console', None
+        settings = settings or {}
         if settings.get('session') == 'console' or self.login_console:
             return 'console', None
         if self.console_asked():

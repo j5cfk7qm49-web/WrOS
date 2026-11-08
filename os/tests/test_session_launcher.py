@@ -189,6 +189,7 @@ class Launcher(unittest.TestCase):
         m.write(m.home / '.config/wros/session.json', '{not json')
         self.assertEqual(m.start(), 'exec')
         self.assertEqual(m.runs, [])
+        self.assertEqual(m.execs[-1][2]['WROS_SESSION'], 'console')
         m = self.machine(draws=False)
         m.write(m.home / '.local/state/wros/session.json', {'failures': 'lots'})
         m.start()

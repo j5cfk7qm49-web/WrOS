@@ -48,7 +48,7 @@ done
 # No encrypted disk in this image: nothing to wrap.
 [ -n "$askpass" ] || exit 0
 
-if [ ! -x "$binary" ] || [ ! -f "$wrapper" ]; then
+if [ ! -x "$binary" ] || [ ! -x "$reset" ] || [ ! -f "$wrapper" ]; then
     say "the start screen is not installed"
     exit 0
 fi

@@ -9,8 +9,12 @@ use std::io::{self, Write};
 
 fn main() -> io::Result<()> {
     let font = include_bytes!("../../../assets/DejaVuSansMono.ttf");
-    let mut pixels = SoftBackend::<CosmicText>::new(16, 21, 16, font);
-    let glyphs: Vec<_> = (32..=126).map(char::from).chain(['▸', '●']).collect();
+    let glyphs: Vec<_> = (32..=126)
+        .map(char::from)
+        .chain("▸●›→↑↓←✓✗…•·—–│─┌┐└┘├┤┬┴┼".chars())
+        .collect();
+    let rows = glyphs.len().div_ceil(16);
+    let mut pixels = SoftBackend::<CosmicText>::new(16, rows as u16 * 3, 16, font);
     let mut cells = vec![];
     for (style, modifier) in [Modifier::empty(), Modifier::BOLD, Modifier::ITALIC]
         .into_iter()
@@ -22,7 +26,7 @@ fn main() -> io::Result<()> {
                 .set_fg(Color::White)
                 .set_bg(Color::Black);
             cell.modifier = modifier;
-            cells.push(((i % 16) as u16, (style * 7 + i / 16) as u16, cell));
+            cells.push(((i % 16) as u16, (style * rows + i / 16) as u16, cell));
         }
     }
     pixels
@@ -32,9 +36,14 @@ fn main() -> io::Result<()> {
     let mut out = io::stdout().lock();
     write!(
         out,
-        "P6\n# cells {} {}\n{} {}\n255\n",
+        "P6\n# cells {} {}\n# codepoints {}\n{} {}\n255\n",
         pixels.get_pixmap_width() / 16,
-        pixels.get_pixmap_height() / 21,
+        pixels.get_pixmap_height() / (rows * 3),
+        glyphs
+            .iter()
+            .map(|&c| (c as u32).to_string())
+            .collect::<Vec<_>>()
+            .join(" "),
         pixels.get_pixmap_width(),
         pixels.get_pixmap_height()
     )?;

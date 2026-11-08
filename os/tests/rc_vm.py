@@ -303,13 +303,13 @@ def _glyph_int(glyph):
 
 class NativeFont(Font):
     """Templates from wros-graphics' font_atlas example, including its styles."""
-    def __init__(self, atlas, width, height):
+    def __init__(self, atlas, width, height, glyphs=None):
         self.width, self.height = width, height
         pixels = atlas.convert('L')
         self.glyphs, self._ints = {}, []
         rows = atlas.height // height // 3
         for style in range(3):
-            for index, char in enumerate(([chr(c) for c in range(32, 127)] + ['▸', '●'])[:16 * rows]):
+            for index, char in enumerate((glyphs or [chr(c) for c in range(32, 127)] + ['▸', '●'])[:16 * rows]):
                 left, top = index % 16 * width, (index // 16 + style * rows) * height
                 glyph = tuple(tuple(pixels.getpixel((left + x, top + y)) > 40
                                     for x in range(width)) for y in range(height))
@@ -329,7 +329,9 @@ def native_font():
         match = re.search(rb'# cells (\d+) (\d+)\n', data[:100])
         if not match:
             raise ValueError('native font atlas has no cell geometry')
-        cache = native_font.cache = NativeFont(Image.open(path), int(match[1]), int(match[2]))
+        codes = re.search(rb'# codepoints ([0-9 ]+)\n', data[:4096])
+        glyphs = [chr(int(code)) for code in codes[1].split()] if codes else None
+        cache = native_font.cache = NativeFont(Image.open(path), int(match[1]), int(match[2]), glyphs)
     return cache
 
 

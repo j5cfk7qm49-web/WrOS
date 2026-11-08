@@ -151,6 +151,8 @@ class Hook(unittest.TestCase):
         self.switch.write_text('ratatui\n')
         cases = {
             'no start screen': lambda: self.binary.unlink(),
+            'no recovery helper': lambda: self.reset.unlink(),
+            'unrunnable recovery helper': lambda: self.reset.chmod(0o644),
             'copy fails': lambda: self.copy_fails.touch(),
         }
         for name, breaks in cases.items():
