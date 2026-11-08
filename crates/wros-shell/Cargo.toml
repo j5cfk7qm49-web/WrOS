@@ -7,6 +7,7 @@ description = "Shared WrOS presentation and navigation without editor, authentic
 
 [dependencies]
 ratatui = "0.30.2"
+tui-big-text = "0.8.9"
 serde = { version = "1.0", features = ["derive"] }
 # Conversion only: the disk-password screen must never query terminal input.
 termprofile = { version = "0.2.5", default-features = false, features = ["convert", "ratatui"] }

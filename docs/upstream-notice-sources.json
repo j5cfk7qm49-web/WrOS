@@ -3,6 +3,24 @@
   "independent_legal_clearance": false,
   "packages": [
     {
+      "name": "tui-big-text",
+      "version": "0.8.9",
+      "package_vcs_commit": "2485e99d18d9449b92a21c8285831a1058018890",
+      "reason": "Crate archive omits repository-root licenses; retained verbatim from the packaged VCS revision.",
+      "files": [
+        {
+          "file": "os/licenses/upstream/tui-big-text-LICENSE-MIT.txt",
+          "url": "https://raw.githubusercontent.com/ratatui/tui-widgets/2485e99d18d9449b92a21c8285831a1058018890/LICENSE-MIT",
+          "sha256": "a564ae9d634d041879e68b70e0c1d21f595ca301b71ef86e602792f5b6a4ec9b"
+        },
+        {
+          "file": "os/licenses/upstream/tui-big-text-LICENSE-APACHE.txt",
+          "url": "https://raw.githubusercontent.com/ratatui/tui-widgets/2485e99d18d9449b92a21c8285831a1058018890/LICENSE-APACHE",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        }
+      ]
+    },
+    {
       "name": "harper-core",
       "version": "2.13.0",
       "package_vcs_commit": "f4ebc61d77df1fc00b6aa8bc604e91af3534dad1",

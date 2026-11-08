@@ -1,0 +1,719 @@
+{
+  "recorded_at_utc": "2026-11-08",
+  "scope": "tui-big-text login and lock clocks; native VT ownership regression; installed console-font verification",
+  "source": {
+    "algorithm": "sha256(path + NUL + file bytes + NUL, sorted source paths)",
+    "sha256": "538044b56a86baffaaad8fec86928d853370ccc634233d1dc3a0b3d9a9f9c220",
+    "file_count": 636
+  },
+  "software": [
+    {
+      "name": "green",
+      "passed": true,
+      "log": "/home/builder/rc10-clock-green.log",
+      "sha256": "40620617a4bd952decd42f9be79b4432de2948abd838dd2da05e8b360a7972a6",
+      "summaries": [
+        "test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.04s",
+        "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 31 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s",
+        "test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "name": "clippy",
+      "passed": true,
+      "log": "/home/builder/rc10-clock-clippy.log",
+      "sha256": "c5dc43ad69eb0b98a1dcb54b65b6ba3e7582737e2ddca8827d680081659aa9fb",
+      "summaries": []
+    },
+    {
+      "name": "format",
+      "passed": true,
+      "log": "/home/builder/rc10-clock-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "summaries": []
+    },
+    {
+      "name": "build",
+      "passed": true,
+      "log": "/home/builder/rc10-clock-build.log",
+      "sha256": "212d4658d9d6fbf382776d641bf0ddeb7756e43be670b2136beb953384783d9d",
+      "summaries": []
+    },
+    {
+      "name": "boot-python",
+      "passed": true,
+      "log": "/home/builder/rc10-clock-boot-python.log",
+      "sha256": "513dce91d5da218f9cfd52f1b8d7f56f9766016d7126be81e45b22f70d0df6d8",
+      "summaries": [
+        "Ran 13 tests in 0.133s",
+        "OK"
+      ]
+    },
+    {
+      "name": "packaging",
+      "passed": true,
+      "log": "/home/builder/rc10-clock-packaging.log",
+      "sha256": "3c8b2f7d9fed9cf678782aa0953c2b65dd96547e7b76452c58e975ffbfb9bed9",
+      "summaries": [
+        "Ran 49 tests in 37.509s",
+        "OK"
+      ]
+    },
+    {
+      "name": "notices",
+      "passed": true,
+      "log": "/home/builder/rc10-clock-notices.log",
+      "sha256": "cfcbf76ce5d1b25c5ae19a65288c0b553ca82a3a414886b987e8927d38f1f564",
+      "summaries": [
+        "758 Rust packages, 0 staged Debian packages, 72 missing root notice files to review; 1 used by the Linux no-audio build"
+      ]
+    },
+    {
+      "name": "lock-boundary",
+      "passed": true,
+      "log": "/home/builder/rc10-lock-clock-green.log",
+      "sha256": "7a5ebb8aee2e8b1a07161d07e214188ea03e67a8ff103df7dbd7c496b9b2ec6c",
+      "summaries": [
+        "Ran 17 tests in 0.016s",
+        "OK"
+      ]
+    }
+  ],
+  "tests_first": [
+    {
+      "log": "/home/builder/rc10-clock-red.log",
+      "sha256": "87b8fcad1061616a90f1b8b72dc5fd7d9c50cb1e12cc58f2d24a5d0696f5e67d",
+      "passed": false
+    },
+    {
+      "log": "/home/builder/rc10-greeter-clock-red.log",
+      "sha256": "7b6a080375126fe1185692ee818e47286f49cfbca84e68a012fb8604470d7236",
+      "passed": false
+    },
+    {
+      "log": "/home/builder/rc10-lock-message-mode-red.log",
+      "sha256": "ec09b19aade43795d083e51d56d3d22fb1f26170d6f2142a88522bc4157b5ac3",
+      "passed": false
+    },
+    {
+      "log": "/home/builder/rc10-lock-clock-red.log",
+      "sha256": "6f96ae03cf860764f657121313ca3af87c9a0d80457ecb13d2fe94a41520c365",
+      "passed": false
+    },
+    {
+      "log": "/home/builder/rc10-clock-font-red.log",
+      "sha256": "6dbea57490b9bc15419e77320e38e7fc0f4f02c17d79542d40fdcc85d29228c2",
+      "passed": false
+    },
+    {
+      "log": "/home/builder/rc10-lock-font-red.log",
+      "sha256": "a7858ce949f4e4bb481c2a0546da797f8529418b2e2932b90a362a8c3d7b3e1f",
+      "passed": false
+    },
+    {
+      "log": "/home/builder/rc10-scanout-red.log",
+      "sha256": "5134f8f39b725221ddb0ee2f810e2a0738290c232f822d8409dd9f766dc1eb6f",
+      "passed": false
+    }
+  ],
+  "earlier_vm_results_retained": [
+    {
+      "run": "/home/builder/rc-vm-runs/graphical-drm-20261108T202707Z",
+      "result_sha256": "7b6089f888b25079ff48b73a6de67c026d9723415bb9d2146194d5625e196e0e",
+      "functional_passed": false,
+      "reason": "Initial new assertion stopped after detecting the time before the complete form wait. The retained final image has the whole form; the earlier decoded text was not saved."
+    },
+    {
+      "run": "/home/builder/rc-vm-runs/graphical-drm-20261108T203105Z",
+      "result_sha256": "5070b85bb95c258ffbdeb8ec043f18167d90b223a543f2466017653860012450",
+      "functional_passed": false,
+      "reason": "Native lock acquisition timed out before vlock started."
+    },
+    {
+      "run": "/home/builder/rc-vm-runs/graphical-drm-20261108T203524Z",
+      "result_sha256": "70dcfe7cdb1d0c114c065edd989c5674f3cfc7215ac920cca11ac7bf1e00e96a",
+      "functional_passed": false,
+      "reason": "Diagnostic helper: openvt child remained openvt, before exec of vlock."
+    },
+    {
+      "run": "/home/builder/rc-vm-runs/graphical-drm-20261108T203920Z",
+      "result_sha256": "c9231632e0456140b18be1369ba960d25732eb49e0209518517d04239b6a1be7",
+      "functional_passed": false,
+      "reason": "Diagnostic helper confirmed tty1 VT_PROCESS with SIGUSR1/SIGUSR2 and openvt blocked in vt_waitactive."
+    },
+    {
+      "run": "/home/builder/rc-vm-runs/graphical-drm-20261108T204330Z",
+      "result_sha256": "6eb4668ed76c571db2790b4f9e9ea6c9d6a408c71f989b5b30d86776d9a38789",
+      "functional_passed": true,
+      "reason": "VT fix passed all functional assertions; later screenshot review found replacement diamonds for half-block clock glyphs."
+    },
+    {
+      "run": "/home/builder/rc-vm-runs/graphical-foot-20261108T204729Z",
+      "result_sha256": "f32be8ec2192e2c6d28674c3ab8df92fc6f7c29564907c7eb8829d894cae7545",
+      "functional_passed": true,
+      "reason": "VT fix passed all functional assertions; this still used the half-block clock before the font correction."
+    },
+    {
+      "run": "/home/builder/rc-vm-runs/graphical-drm-20261108T205343Z",
+      "result_sha256": "9a7073a571d16447273a952125971ba95029f19693f38d4c0b2d54bbcc062b98",
+      "functional_passed": true,
+      "reason": "Full-block clock passed functional checks; a separate screenshot caught the live scanout partly cleared before the form rows were copied."
+    },
+    {
+      "run": "/home/builder/rc-vm-runs/graphical-drm-20261108T205806Z",
+      "result_sha256": "6ce69f84ea3ef8ab584ebab67b96702450c5a3ffe725be0f9e5380319e77b0fb",
+      "functional_passed": true,
+      "reason": "Twelve sampled idle frames passed with the old scanout clear too. The deterministic row-progress unit test is the red reproducer for the clear; sampling alone did not reproduce it in this run."
+    }
+  ],
+  "vms": [
+    {
+      "passed": true,
+      "seconds": 125.0,
+      "backend": "drm",
+      "editor_sha256": "6796683964b2b97979b5c9ae622f63ce9bca4f94413dd48e1565b33dcebb7866",
+      "greeter_sha256": "b854ec9fc11a75094f27621ab510208b90daf88cb7d865650ac4c641d55b4fbe",
+      "fixture_sha256": "fd1682691ec8f241eb4c0235f194ee6e0e5686b2b011238cce33e8f439b6401c",
+      "lock_helper_sha256": "8757a55f773b314be2bb8a434448b47fdc1801e79c5d14d4ce549cd09b8d45af",
+      "display_helper_sha256": "f9aac3ace389e77c7a552f0a0a6eb101403b2be31dd43efdba5fbd5002cd4825",
+      "run": "/home/builder/rc-vm-runs/graphical-drm-20261108T231112Z",
+      "result_sha256": "e4c4800bc43695ae1de6060863ce9d71c133d6f09d0af3c3e801168a30a48161",
+      "assertions": [
+        {
+          "name": "ratatui: the Ratatui screen shows the logo",
+          "passed": true
+        },
+        {
+          "name": "ratatui: Debian's prompt is not on screen",
+          "passed": true
+        },
+        {
+          "name": "the graphical login clock keeps the whole form visible",
+          "passed": true
+        },
+        {
+          "name": "the clock login uses the native graphical display",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 1 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 2 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 3 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 4 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 5 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 6 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 7 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 8 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 9 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 10 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 11 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 12 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "the graphical writing app opened its private test socket",
+          "passed": true
+        },
+        {
+          "name": "the native session uses the device reader",
+          "passed": true
+        },
+        {
+          "name": "the graphical backend is running",
+          "passed": true
+        },
+        {
+          "name": "only the disposable reader owns native input devices",
+          "passed": true
+        },
+        {
+          "name": "physical Colemak, compose and live layout changes reach the saved scene",
+          "passed": true
+        },
+        {
+          "name": "the private tree contains no typed prose",
+          "passed": true
+        },
+        {
+          "name": "the pointer baseline is a static writing page",
+          "passed": true
+        },
+        {
+          "name": "native pointer motion draws the bounded cursor overlay",
+          "passed": true
+        },
+        {
+          "name": "native input and display release for another VT",
+          "passed": true
+        },
+        {
+          "name": "the inactive reader has released its input devices",
+          "passed": true
+        },
+        {
+          "name": "native devices return with tty1",
+          "passed": true
+        },
+        {
+          "name": "the maintained locker owns tty8",
+          "passed": true
+        },
+        {
+          "name": "the maintained locker shows the labelled lock-start time",
+          "passed": true
+        },
+        {
+          "name": "the locker prevents returning to the writing screen",
+          "passed": true
+        },
+        {
+          "name": "the writing input reader is retired",
+          "passed": true
+        },
+        {
+          "name": "authentication returns to the writing settings",
+          "passed": true
+        },
+        {
+          "name": "a second lock returns to the same writing settings",
+          "passed": true
+        },
+        {
+          "name": "the same editor process survived both locks",
+          "passed": true
+        },
+        {
+          "name": "a fresh native reader owns devices after authentication",
+          "passed": true
+        },
+        {
+          "name": "lock cycle 3 returns to the same editor",
+          "passed": true
+        },
+        {
+          "name": "the writing session requested actual QEMU suspend",
+          "passed": true
+        },
+        {
+          "name": "wake and authentication return to the same editor",
+          "passed": true
+        },
+        {
+          "name": "native input reacquires devices after wake",
+          "passed": true
+        },
+        {
+          "name": "reader death ends the writer and restores the graphical login",
+          "passed": true
+        },
+        {
+          "name": "reader death preserves the saved scene",
+          "passed": true
+        },
+        {
+          "name": "neither lock password reached the saved book or recovery files",
+          "passed": true
+        },
+        {
+          "name": "no generated secret in /var/log, /etc or the journal",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "passed": true,
+      "seconds": 113.1,
+      "backend": "foot",
+      "editor_sha256": "6796683964b2b97979b5c9ae622f63ce9bca4f94413dd48e1565b33dcebb7866",
+      "greeter_sha256": "b854ec9fc11a75094f27621ab510208b90daf88cb7d865650ac4c641d55b4fbe",
+      "fixture_sha256": "fd1682691ec8f241eb4c0235f194ee6e0e5686b2b011238cce33e8f439b6401c",
+      "lock_helper_sha256": "8757a55f773b314be2bb8a434448b47fdc1801e79c5d14d4ce549cd09b8d45af",
+      "display_helper_sha256": "f9aac3ace389e77c7a552f0a0a6eb101403b2be31dd43efdba5fbd5002cd4825",
+      "run": "/home/builder/rc-vm-runs/graphical-foot-20261108T231403Z",
+      "result_sha256": "5add2628adffead3e070ddc6232e4105d96a257b5be0efe1c0f572b95558b400",
+      "assertions": [
+        {
+          "name": "ratatui: the Ratatui screen shows the logo",
+          "passed": true
+        },
+        {
+          "name": "ratatui: Debian's prompt is not on screen",
+          "passed": true
+        },
+        {
+          "name": "the graphical login clock keeps the whole form visible",
+          "passed": true
+        },
+        {
+          "name": "the clock login uses the native graphical display",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 1 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 2 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 3 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 4 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 5 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 6 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 7 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 8 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 9 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 10 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 11 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 12 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "the graphical writing app opened its private test socket",
+          "passed": true
+        },
+        {
+          "name": "the graphical backend is running",
+          "passed": true
+        },
+        {
+          "name": "compositor colours have a separate process",
+          "passed": true
+        },
+        {
+          "name": "the colour process has no keyboard devices or password terminal",
+          "passed": true
+        },
+        {
+          "name": "the emulated display honestly reports unsupported compositor warmth",
+          "passed": true
+        },
+        {
+          "name": "an unsupported compositor preview preserves the saved preference",
+          "passed": true
+        },
+        {
+          "name": "the compositor never starts a native display preview",
+          "passed": true
+        },
+        {
+          "name": "the maintained locker owns tty8",
+          "passed": true
+        },
+        {
+          "name": "the maintained locker shows the labelled lock-start time",
+          "passed": true
+        },
+        {
+          "name": "the locker prevents returning to the writing screen",
+          "passed": true
+        },
+        {
+          "name": "the writing input reader is retired",
+          "passed": true
+        },
+        {
+          "name": "authentication returns to the writing settings",
+          "passed": true
+        },
+        {
+          "name": "a second lock returns to the same writing settings",
+          "passed": true
+        },
+        {
+          "name": "the same editor process survived both locks",
+          "passed": true
+        },
+        {
+          "name": "lock cycle 3 returns to the same editor",
+          "passed": true
+        },
+        {
+          "name": "the writing session requested actual QEMU suspend",
+          "passed": true
+        },
+        {
+          "name": "wake and authentication return to the same editor",
+          "passed": true
+        },
+        {
+          "name": "colour-worker death leaves the writer usable and reports warmth unavailable",
+          "passed": true
+        },
+        {
+          "name": "neither lock password reached the saved book or recovery files",
+          "passed": true
+        },
+        {
+          "name": "no generated secret in /var/log, /etc or the journal",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "passed": true,
+      "seconds": 110.1,
+      "backend": "wgpu",
+      "editor_sha256": "6796683964b2b97979b5c9ae622f63ce9bca4f94413dd48e1565b33dcebb7866",
+      "greeter_sha256": "b854ec9fc11a75094f27621ab510208b90daf88cb7d865650ac4c641d55b4fbe",
+      "fixture_sha256": "fd1682691ec8f241eb4c0235f194ee6e0e5686b2b011238cce33e8f439b6401c",
+      "lock_helper_sha256": "8757a55f773b314be2bb8a434448b47fdc1801e79c5d14d4ce549cd09b8d45af",
+      "display_helper_sha256": "f9aac3ace389e77c7a552f0a0a6eb101403b2be31dd43efdba5fbd5002cd4825",
+      "run": "/home/builder/rc-vm-runs/graphical-wgpu-20261108T231556Z",
+      "result_sha256": "306e10306a0e7f99ca3e62846b2feca91ceafcf8c4b8727d80ee43014bd526c0",
+      "assertions": [
+        {
+          "name": "ratatui: the Ratatui screen shows the logo",
+          "passed": true
+        },
+        {
+          "name": "ratatui: Debian's prompt is not on screen",
+          "passed": true
+        },
+        {
+          "name": "the graphical login clock keeps the whole form visible",
+          "passed": true
+        },
+        {
+          "name": "the clock login uses the native graphical display",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 1 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 2 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 3 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 4 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 5 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 6 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 7 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 8 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 9 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 10 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 11 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "idle native redraw 12 keeps the complete form footer visible",
+          "passed": true
+        },
+        {
+          "name": "the graphical writing app opened its private test socket",
+          "passed": true
+        },
+        {
+          "name": "the graphical backend is running",
+          "passed": true
+        },
+        {
+          "name": "compositor colours have a separate process",
+          "passed": true
+        },
+        {
+          "name": "the colour process has no keyboard devices or password terminal",
+          "passed": true
+        },
+        {
+          "name": "the emulated display honestly reports unsupported compositor warmth",
+          "passed": true
+        },
+        {
+          "name": "an unsupported compositor preview preserves the saved preference",
+          "passed": true
+        },
+        {
+          "name": "the compositor never starts a native display preview",
+          "passed": true
+        },
+        {
+          "name": "the maintained locker owns tty8",
+          "passed": true
+        },
+        {
+          "name": "the maintained locker shows the labelled lock-start time",
+          "passed": true
+        },
+        {
+          "name": "the locker prevents returning to the writing screen",
+          "passed": true
+        },
+        {
+          "name": "the writing input reader is retired",
+          "passed": true
+        },
+        {
+          "name": "authentication returns to the writing settings",
+          "passed": true
+        },
+        {
+          "name": "a second lock returns to the same writing settings",
+          "passed": true
+        },
+        {
+          "name": "the same editor process survived both locks",
+          "passed": true
+        },
+        {
+          "name": "lock cycle 3 returns to the same editor",
+          "passed": true
+        },
+        {
+          "name": "the writing session requested actual QEMU suspend",
+          "passed": true
+        },
+        {
+          "name": "wake and authentication return to the same editor",
+          "passed": true
+        },
+        {
+          "name": "colour-worker death leaves the writer usable and reports warmth unavailable",
+          "passed": true
+        },
+        {
+          "name": "neither lock password reached the saved book or recovery files",
+          "passed": true
+        },
+        {
+          "name": "no generated secret in /var/log, /etc or the journal",
+          "passed": true
+        }
+      ]
+    }
+  ],
+  "screenshots": [
+    {
+      "file": "docs/evidence/rc10-login-clock.png",
+      "sha256": "ec10a65c63032cae9978606867ec4dff33655e53deafc807a3f71f7b0f7ac5c8",
+      "scope": "Final full-block clock in the installed native VM; visually inspected"
+    },
+    {
+      "file": "docs/evidence/rc10-lock-clock.png",
+      "sha256": "8b3054db6b0ac8e30221b284021d3d1f41b0e375c751fdcb0684a74b27be8cb4",
+      "scope": "Final full-block clock in the installed native VM; visually inspected"
+    }
+  ],
+  "behavior": [
+    "Login reads the system local time outside the pure shared presentation crate.",
+    "The large clock shares the logo header and leaves the full form visible at 80 by 25.",
+    "Only ASCII and full blocks are used: the installed console font lacks the compressed half-block glyphs.",
+    "The lock clock is explicitly a static Locked at time, prepared once before vlock starts.",
+    "The fixed message mode does not open a terminal, read stdin, or contact greetd. The integration test keeps stdin open without supplying a byte.",
+    "Missing, failed, untrusted, slow, oversized or invalid message output falls back to the original lock message.",
+    "Only Debian vlock/PAM reads unlock credentials; no clock thread or redraw runs during authentication.",
+    "The native renderer releases acquired VT ownership to automatic switching instead of replaying a previous process-controlled mode.",
+    "Each old scanout row remains visible until its replacement is copied; only row padding and unused rows are cleared."
+  ],
+  "issues": [
+    104,
+    105,
+    106
+  ],
+  "full_suite": "Focused checkpoint only. rc10-native-input.json retains the earlier full summary and named missing-runtime failures. Final release qualification is pending.",
+  "limits": [
+    "The lock clock intentionally shows lock-start time, not a ticking current-time claim.",
+    "The installed debug VMs have no NIC and use disposable overlays and generated credentials; no owner laptop or book was used.",
+    "HP Stream font, local-time and small-screen checks remain on HARDWARE_CHECKLIST.md.",
+    "The clock screens are not final package/update/boot-image qualification. Fades, picture splash and wider test-driver work are still pending.",
+    "The renderer measurement checkpoint precedes these interface changes and must not be treated as final release measurements.",
+    "The native renderer still uses one scanout buffer. Removing the clear does not establish tear-free physical scanout."
+  ]
+}

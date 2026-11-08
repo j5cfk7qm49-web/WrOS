@@ -380,8 +380,18 @@ pub fn render_themed(
     form: &form::Form,
     palette: &wros_shell::grimoire_theme::Theme,
 ) {
+    render_themed_with_clock(frame, conversation, form, palette, None);
+}
+
+pub fn render_themed_with_clock(
+    frame: &mut ratatui::Frame,
+    conversation: &Conversation,
+    form: &form::Form,
+    palette: &wros_shell::grimoire_theme::Theme,
+    time: Option<wros_shell::clock::Time>,
+) {
     use ratatui::layout::{Constraint, Layout, Rect};
-    use wros_shell::logo::Logo;
+    use wros_shell::{clock::Clock, logo::Logo};
     let theme = palette.into();
     // Leave the complete Lemurs form visible even on a 25-line console.
     let area = frame.area();
@@ -391,7 +401,34 @@ pub fn render_themed(
     });
     let [logo, body] =
         Layout::vertical([Constraint::Length(height), Constraint::Min(0)]).areas(area);
-    frame.render_widget(Logo { theme: palette }, logo);
+    // The clock shares the header with the logo rather than taking rows from
+    // the password form. Narrow screens retain the complete original form.
+    let logo_width = match height {
+        h if h == wros_shell::logo::FULL.1 => wros_shell::logo::FULL.0,
+        1 => 4,
+        _ => wros_shell::logo::compact()[0].len() as u16,
+    };
+    if let Some(time) =
+        time.filter(|_| logo.width >= logo_width + 3 + Clock::WIDTH && logo.height >= Clock::HEIGHT)
+    {
+        let width = logo_width + 3 + Clock::WIDTH;
+        let x = logo.x + (logo.width - width) / 2;
+        frame.render_widget(
+            Logo { theme: palette },
+            Rect::new(x, logo.y, logo_width, logo.height),
+        );
+        frame.render_widget(
+            Clock { time, theme },
+            Rect::new(
+                x + logo_width + 3,
+                logo.y + (logo.height - Clock::HEIGHT) / 2,
+                Clock::WIDTH,
+                Clock::HEIGHT,
+            ),
+        );
+    } else {
+        frame.render_widget(Logo { theme: palette }, logo);
+    }
     let title = "WrOS · Sign in";
     if matches!(conversation.phase, Phase::Prompt(_) | Phase::Retry) {
         let rows = vec![conversation.prompt.clone(), conversation.shown_input()];
@@ -421,6 +458,33 @@ pub fn render_themed(
     };
     let body = wros_shell::render_panel(frame, body, title, conversation.notice, hint, theme);
     form.render(frame, body, theme);
+}
+
+/// A one-shot message, prepared before vlock starts reading authentication input.
+pub fn lock_message(time: Option<wros_shell::clock::Time>) -> String {
+    use ratatui::{buffer::Buffer, layout::Rect, widgets::Widget};
+    use wros_shell::clock::Clock;
+    let mut message = String::from("\x1b[2J\x1b[3J\x1b[HWrOS - writing session locked\n");
+    if let Some(time) = time {
+        message.push_str(&format!("Locked at {}\n", time.label()));
+        let area = Rect::new(0, 0, Clock::WIDTH, Clock::HEIGHT);
+        let mut buffer = Buffer::empty(area);
+        Clock {
+            time,
+            theme: wros_shell::Theme::default(),
+        }
+        .render(area, &mut buffer);
+        // The caption above already supplies the small clock label. Emit the
+        // eight large rows once; vlock alone owns the terminal afterwards.
+        for y in 1..area.height {
+            for x in 0..area.width {
+                message.push_str(buffer[(x, y)].symbol());
+            }
+            message.push('\n');
+        }
+    }
+    message.push_str("Press Enter to unlock.");
+    message
 }
 
 #[cfg(target_os = "linux")]

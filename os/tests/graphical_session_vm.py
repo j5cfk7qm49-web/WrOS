@@ -9,6 +9,7 @@ import argparse
 import json
 from pathlib import Path
 import shlex
+import shutil
 import time
 import traceback
 import rc_vm_phases as phases
@@ -27,6 +28,7 @@ def trial(ctx):
     m = phases.boot_installed(ctx, state, 'graphical-trial', disk=disk, fmt='qcow2', extra=attach)
     g = phases.session_ready(ctx, m, state, credentials, state['layout'], greeter=False)
     ctx.guest = g
+    ctx.writer = state['username']
     g.run('mkdir -p /mnt/trial && mount -o ro,nodev,nosuid LABEL=WROS-TRIAL /mnt/trial')
     _, installed = g.run("dpkg-query -W -f='${binary:Package} ${Version}\\n'")
     (ctx.dir / 'installed-packages.txt').write_text(installed)
@@ -39,6 +41,29 @@ def trial(ctx):
     if rc:
         raise phases.Failure(g.run('tail -35 /tmp/trial-apt.log')[1])
     g.run('install -m755 /mnt/trial/grimoire /usr/bin/grimoire')
+    if ctx.args.test_clock:
+        g.run('install -m755 /mnt/trial/wros-greeter /usr/lib/wros/wros-greeter && '
+              'install -m755 /mnt/trial/wros-greeter /usr/bin/wros-greeter && systemctl restart greetd')
+        ctx.result['greeter_sha256'] = g.run('sha256sum /usr/lib/wros/wros-greeter')[1].split()[0]
+        login = g.wait_vcs(1, r'(?=.*\d\d:\d\d)(?=.*Local account)(?=.*Password)(?=.*Console session)(?=.*maintenance)',
+                           45, what='large-login-clock')
+        (ctx.dir / 'clock-login.txt').write_text(login)
+        ctx.check('the graphical login clock keeps the whole form visible',
+                  'Local account' in login and 'Password' in login and 'Console session' in login)
+        ctx.check('the clock login uses the native graphical display',
+                  bool(g.probe('vcs', '1').get('graphics')))
+        # Retain the exact image whose complete form was decoded, rather than
+        # making an unrelated screenshot after the screen assertion.
+        shutil.copyfile(ctx.dir / 'native-tty1.png', ctx.dir / 'large-login-clock.png')
+        from PIL import Image, ImageChops
+        with Image.open(ctx.dir / 'large-login-clock.png') as picture:
+            footer_rect = (0, picture.height * 3 // 4, picture.width, picture.height)
+            footer = picture.convert('RGB').crop(footer_rect)
+        for index, delay in enumerate((.013, .031, .047, .019, .061, .023, .041, .017, .053, .029, .037, .011)):
+            time.sleep(delay)
+            with Image.open(m.shot(f'idle-login-{index}')) as picture:
+                unchanged = ImageChops.difference(footer, picture.convert('RGB').crop(footer_rect)).getbbox() is None
+            ctx.check(f'idle native redraw {index + 1} keeps the complete form footer visible', unchanged)
     display_helper = ctx.args.source_tree / 'os/scripts/wros-display'
     g.shell.put('/usr/libexec/wros-display', display_helper.read_bytes(), '0755')
     ctx.result['display_helper_sha256'] = phases.vm.sha256_file(display_helper)
@@ -234,6 +259,9 @@ def trial(ctx):
             phases.hold_for_operator(ctx, g)
         raise phases.Failure(detail[-9000:])
     ctx.check('the maintained locker owns tty8', g.run('fgconsole')[1].strip() == '8')
+    if ctx.args.test_clock:
+        g.wait_vcs(8, r'Locked at \d\d:\d\d', 10, what='large-lock-clock')
+        ctx.check('the maintained locker shows the labelled lock-start time', True)
     m.key('alt', 'f1')
     ctx.check('the locker prevents returning to the writing screen', g.run('fgconsole')[1].strip() == '8')
     ctx.check('the writing input reader is retired', not any(p['comm']=='wros-input' for p in g.snap()['procs']))
@@ -332,6 +360,7 @@ def main():
         parser.add_argument('--' + name, type=Path, required=True)
     parser.add_argument('--backend', choices=['drm', 'foot', 'wgpu'], required=True)
     parser.add_argument('--test-suspend', action='store_true')
+    parser.add_argument('--test-clock', action='store_true', help='fixture also contains the greeter under test')
     parser.add_argument('--lock-cycles', type=int, default=2, choices=range(2, 13))
     parser.add_argument('--delay-health', type=int, default=0, choices=range(7))
     parser.add_argument('--hold', action='store_true')

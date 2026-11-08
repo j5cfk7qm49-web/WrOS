@@ -16,7 +16,6 @@ use std::{
 
 const KDSETMODE: libc::c_ulong = 0x4b3a;
 const VT_SETMODE: libc::c_ulong = 0x5602;
-const VT_GETMODE: libc::c_ulong = 0x5601;
 const VT_RELDISP: libc::c_ulong = 0x5605;
 
 #[repr(C)]
@@ -38,11 +37,11 @@ impl AsFd for Card {
 impl drm::Device for Card {}
 impl drm::control::Device for Card {}
 
-/// Owns the previous scanout and VT mode from the first change until restoration.
+/// Owns the previous scanout and its own VT control until restoration.
 pub(super) struct Display {
     card: Card,
     tty: File,
-    saved_vt: VtMode,
+    owns_vt: bool,
     crtc: crtc::Info,
     connectors: Vec<connector::Handle>,
     connector: connector::Handle,
@@ -164,16 +163,10 @@ impl Display {
                 return Err(error);
             }
         };
-        let mut saved_vt = VtMode::default();
-        if unsafe { libc::ioctl(tty.as_raw_fd(), VT_GETMODE, &mut saved_vt) } < 0 {
-            let _ = card.destroy_framebuffer(framebuffer);
-            let _ = card.destroy_dumb_buffer(buffer);
-            return Err(io::Error::last_os_error());
-        }
         let mut display = Self {
             card,
             tty: tty.try_clone()?,
-            saved_vt,
+            owns_vt: false,
             crtc,
             connectors,
             connector: connector.handle(),
@@ -209,6 +202,7 @@ impl Display {
         if unsafe { libc::ioctl(self.tty.as_raw_fd(), VT_SETMODE, &vt) } < 0 {
             return Err(io::Error::last_os_error());
         }
+        self.owns_vt = true;
         self.scanout()
     }
 
@@ -299,8 +293,14 @@ impl Drop for Display {
         if !self.released {
             self.restore();
         }
-        unsafe {
-            libc::ioctl(self.tty.as_raw_fd(), VT_SETMODE, &self.saved_vt);
+        if self.owns_vt {
+            // VT_SETMODE assigns VT_PROCESS to the calling process. Replaying
+            // a preceding renderer's mode cannot restore its ownership: it
+            // makes this writer the owner while it waits on the locker (#104).
+            // Release only control we acquired, before removing our handlers.
+            unsafe {
+                libc::ioctl(self.tty.as_raw_fd(), VT_SETMODE, &VtMode::default());
+            }
         }
         for signal in self.signals.drain(..) {
             signal_hook::low_level::unregister(signal);

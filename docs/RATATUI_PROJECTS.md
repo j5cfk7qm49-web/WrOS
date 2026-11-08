@@ -130,6 +130,20 @@ Python), and terminals Debian does not ship (WezTerm, Ghostty, Rio, kmscon).
 go into rc10 with the graphical session. The drawing backends above get the
 trial against foot.
 
+The shared **tui-big-text** clock is implemented for login and lock. Login shows
+local time beside the shared logo, leaving the full form visible at 80 by 25.
+Smaller layouts keep the form and omit the clock. The clock uses full-block
+characters supported by both the graphical font and installed Linux console;
+compressed half-block modes failed the installed-font screenshot check (#105).
+The lock shows **Locked at HH:MM**, a static lock-start time prepared once by
+the packaged greeter's write-only message mode. Debian vlock/PAM alone reads
+unlock credentials; no background clock redraw runs during authentication.
+If the message renderer is unavailable, the original lock message still works.
+The clock has no editor or authentication dependency. Its dependency notices
+are retained with the package. [Clock evidence](evidence/rc10-clocks.json)
+records the checks and limits. Fades, the graphical picture splash and the wider
+test driver remain the next library work.
+
 ## Suggested order for the rest
 
 1. termprofile with the graphical session (same look in both sessions).

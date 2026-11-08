@@ -22,6 +22,7 @@ ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8', 'LC_ALL': 'C.
        'HOME': '/nonexistent', 'TERM': 'linux'}
 PAM = ('# WrOS existing-session unlock; authentication is performed only by Debian vlock.\n'
        'auth requisite pam_succeed_if.so quiet uid > 0\n@include common-auth\n')
+LOCK_MESSAGE = '\033[2J\033[3J\033[HWrOS - writing session locked\nPress Enter to unlock.'
 
 
 def require(condition):
@@ -57,9 +58,27 @@ def account_name(uid, passwd):
     return names[0]
 
 
-def fixed_command(username):
+def lock_message():
+    # Prepare a bounded, write-only message before vlock owns the console.
+    # A missing/older renderer must never prevent the maintained locker starting.
+    try:
+        trusted_file('/usr/lib/wros/wros-greeter', True)
+        reply = subprocess.run(['/usr/lib/wros/wros-greeter', '--lock-message'],
+            stdin=subprocess.DEVNULL, capture_output=True, env=ENV, timeout=1, check=True)
+        require(len(reply.stdout) <= 8192)
+        message = reply.stdout.decode('utf-8')
+        prefix = '\033[2J\033[3J\033[H'
+        require(message.startswith(prefix + 'WrOS - writing session locked\n')
+                and message.endswith('Press Enter to unlock.')
+                and all(c == '\n' or ' ' <= c <= '~' or c == '█' for c in message[len(prefix):]))
+        return message
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return LOCK_MESSAGE
+
+
+def fixed_command(username, message=LOCK_MESSAGE):
     environment = ENV | {'USER': username,
-        'VLOCK_ALL_MESSAGE': '\033[2J\033[3J\033[HWrOS - writing session locked\nPress Enter to unlock.'}
+        'VLOCK_ALL_MESSAGE': message}
     return ['/usr/bin/openvt', '-c', '8', '-s', '-w', '--',
             '/usr/sbin/vlock-main', 'all', 'nosysrq'], environment
 
@@ -347,7 +366,7 @@ def worker(uid, parent, started, sleep=False):
         os.chmod('/dev/tty8', 0o600)
         if sleep:
             set_keyboard_for_sleep()
-        arguments, environment = fixed_command(username)
+        arguments, environment = fixed_command(username, lock_message())
         child = subprocess.Popen(arguments, stdin=None, stdout=subprocess.DEVNULL,
                                  stderr=subprocess.DEVNULL, env=environment)
         acquired = False

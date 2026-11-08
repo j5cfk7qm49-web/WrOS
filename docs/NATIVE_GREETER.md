@@ -147,3 +147,13 @@ helper with independent rollback. Its focused, real guest and current CI records
 are tracked separately from the older login evidence above. Issue #27 stays
 open for the remaining failure/transition matrix and integration; the independent
 secure locker, physical keyboards and sleep/resume remain separate gates.
+
+For rc10, login shows a large local-time clock beside the shared logo. The full
+form still fits at 80 by 25; narrower layouts omit the clock. The packaged binary
+also has a fixed `--lock-message` presentation mode: it writes a bounded static
+**Locked at** clock without opening a terminal or connecting to greetd. The
+independent lock helper prepares this once before starting Debian vlock/PAM.
+Failure falls back to the previous lock message. No clock redraw or input reader
+runs alongside the password exchange. [Clock evidence](evidence/rc10-clocks.json)
+records the focused software and installed-VM checks separately from the older
+login qualification above.

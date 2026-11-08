@@ -2670,6 +2670,63 @@
       "retained_upstream_notice_source": null
     },
     {
+      "name": "derive_builder",
+      "version": "0.20.2",
+      "declared_license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/colin-kiegel/rust-derive-builder",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "8c9612877aacfa1b42f5e80b679e6c3c93a7ba2bb99dfaf6e87e200dca4b4e6c"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "derive_builder_core",
+      "version": "0.20.2",
+      "declared_license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/colin-kiegel/rust-derive-builder",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "8c9612877aacfa1b42f5e80b679e6c3c93a7ba2bb99dfaf6e87e200dca4b4e6c"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "derive_builder_macro",
+      "version": "0.20.2",
+      "declared_license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/colin-kiegel/rust-derive-builder",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "8c9612877aacfa1b42f5e80b679e6c3c93a7ba2bb99dfaf6e87e200dca4b4e6c"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
       "name": "derive_more",
       "version": "1.0.0",
       "declared_license": "MIT",
@@ -3669,6 +3726,21 @@
         {
           "file": "LICENSE-MIT",
           "sha256": "7b4c9a3946dfcea7967582760e963e27799e225dcf20565c8ef55324bb017427"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "font8x8",
+      "version": "0.3.1",
+      "declared_license": "MIT",
+      "repository": "https://gitlab.com/saibatizoku/font8x8-rs",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "47d9e9e9a4c54af113e351891bff6cf732793880b83506af6d339976c681a1b5"
         }
       ],
       "retained_upstream_notice_source": null
@@ -10313,6 +10385,42 @@
         }
       ],
       "retained_upstream_notice_source": null
+    },
+    {
+      "name": "tui-big-text",
+      "version": "0.8.9",
+      "declared_license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/ratatui/tui-widgets",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "tui-big-text-LICENSE-APACHE.txt",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "file": "tui-big-text-LICENSE-MIT.txt",
+          "sha256": "a564ae9d634d041879e68b70e0c1d21f595ca301b71ef86e602792f5b6a4ec9b"
+        }
+      ],
+      "retained_upstream_notice_source": {
+        "name": "tui-big-text",
+        "version": "0.8.9",
+        "package_vcs_commit": "2485e99d18d9449b92a21c8285831a1058018890",
+        "reason": "Crate archive omits repository-root licenses; retained verbatim from the packaged VCS revision.",
+        "files": [
+          {
+            "file": "os/licenses/upstream/tui-big-text-LICENSE-MIT.txt",
+            "url": "https://raw.githubusercontent.com/ratatui/tui-widgets/2485e99d18d9449b92a21c8285831a1058018890/LICENSE-MIT",
+            "sha256": "a564ae9d634d041879e68b70e0c1d21f595ca301b71ef86e602792f5b6a4ec9b"
+          },
+          {
+            "file": "os/licenses/upstream/tui-big-text-LICENSE-APACHE.txt",
+            "url": "https://raw.githubusercontent.com/ratatui/tui-widgets/2485e99d18d9449b92a21c8285831a1058018890/LICENSE-APACHE",
+            "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+          }
+        ]
+      }
     },
     {
       "name": "type-map",

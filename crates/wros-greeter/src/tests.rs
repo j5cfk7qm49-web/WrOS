@@ -323,6 +323,58 @@ fn the_login_keeps_the_start_screens_logo_above_the_whole_form() {
 }
 
 #[test]
+fn the_large_login_clock_leaves_the_whole_password_form_visible() {
+    let mut form = Form::new(vec![], true);
+    type_text(&mut form, "writer");
+    press(&mut form, KeyCode::Enter);
+    type_text(&mut form, "disposable-test-secret");
+    for (width, height) in [(80, 25), (100, 37), (128, 48), (170, 48)] {
+        let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+        terminal
+            .draw(|frame| {
+                render_themed_with_clock(
+                    frame,
+                    &Conversation::default(),
+                    &form,
+                    &wros_shell::grimoire_theme::default_theme(),
+                    wros_shell::clock::Time::new(23, 45),
+                )
+            })
+            .unwrap();
+        let shown = screen(&terminal);
+        assert!(shown.contains("23:45"), "clock at {width} by {height}");
+        assert!(shown.contains(['▀', '▄', '█']));
+        assert!(
+            shown.contains("Local account")
+                && shown.contains("Password")
+                && shown.contains("Console session")
+        );
+        assert!(shown.contains("Enter: sign in") && shown.contains("[hidden]"));
+        assert!(!shown.contains("disposable-test-secret"));
+        assert!(shown.find("+--------").unwrap() < shown.find("Local account").unwrap());
+    }
+}
+
+#[test]
+fn the_lock_message_labels_its_static_clock_and_contains_no_input_protocol() {
+    let message = lock_message(wros_shell::clock::Time::new(0, 7));
+    assert!(message.starts_with("\x1b[2J\x1b[3J\x1b[H"));
+    assert!(message.contains("Locked at 00:07"));
+    assert!(message.contains(['▀', '▄', '█']));
+    assert!(
+        !message.contains(['▀', '▄']),
+        "the installed console font has full blocks only"
+    );
+    assert!(message.ends_with("Press Enter to unlock."));
+    assert!(!message.contains("\x1b[6n") && !message.contains("\x1b[?"));
+    assert!(message.len() < 8192);
+    assert!(message.lines().count() < 25);
+    let unavailable = lock_message(None);
+    assert!(!unavailable.contains("Locked at"));
+    assert!(unavailable.ends_with("Press Enter to unlock."));
+}
+
+#[test]
 fn unicode_backspace_limit_and_control_filter() {
     let mut flow = begin();
     prompt(&mut flow, MessageKind::Secret).unwrap();

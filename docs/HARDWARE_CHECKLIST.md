@@ -165,6 +165,14 @@ two-finger scroll, key repeat, live layout changes and compose after VT switches
 two locks and wake. No held modifier, drag or compose prefix should survive a
 handoff. The current chroot/VM measurements are recorded separately in that document.
 
+Check that the login clock shows the laptop's local time and that the full
+account, password and session choices fit beside the logo. On the lock screen,
+**Locked at** should show when locking began and stay still. Try a wrong password,
+then the right one; the clock must never overwrite the password prompt. Repeat
+after sleep and with **WrOS (text start)**. Both fonts should show complete digits.
+Leave login idle across a minute change: the full form should stay visible
+without blank flashes. Check writing redraws for flashes or tearing too.
+
 In both foot and OpenGL, open Warm screen and check support. If supported, preview
 2200 K at full strength: the screen should visibly warm. Cancel, then preview and
 Keep; Off should restore the original colours. Let another preview expire without

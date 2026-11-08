@@ -172,7 +172,7 @@ impl<W: io::Write> Screen<W> {
     }
 
     /// logind's native input controller changes VT modes on acquisition. The
-    /// renderer keeps its original saved mode and reclaims its own VT signals.
+    /// renderer reclaims its own VT signals and releases control on handoff.
     pub fn reclaim(&mut self) -> io::Result<()> {
         #[cfg(target_os = "linux")]
         if let Some(display) = &mut self.graphics {
@@ -269,21 +269,43 @@ impl<W: io::Write> Backend for Screen<W> {
 
 /// XRGB8888 scanout, including the device's row padding and unused lower rows.
 fn copy_rgb(rgb: &[u8], width: usize, height: usize, target: &mut [u8], pitch: usize, rows: usize) {
-    target.fill(0);
-    for (source, dest) in rgb
+    copy_rgb_with_progress(rgb, width, height, target, pitch, rows, |_, _| {});
+}
+
+fn copy_rgb_with_progress(
+    rgb: &[u8],
+    width: usize,
+    height: usize,
+    target: &mut [u8],
+    pitch: usize,
+    rows: usize,
+    mut copied: impl FnMut(&[u8], usize),
+) {
+    // This is live scanout. Keep each previous visible row until its new pixels
+    // arrive; clearing the whole mapping first exposes a blackout (#106).
+    let mut written = 0;
+    for (row, source) in rgb
         .chunks_exact(width * 3)
         .take(height.min(rows))
-        .zip(target.chunks_exact_mut(pitch))
+        .enumerate()
     {
+        let Some(dest) = target.get_mut(row * pitch..(row + 1) * pitch) else {
+            break;
+        };
+        let visible_bytes = (source.len() / 3).min(dest.len() / 4) * 4;
         for (pixel, out) in source
             .as_chunks::<3>()
             .0
             .iter()
             .zip(dest.as_chunks_mut::<4>().0.iter_mut())
         {
-            out[..3].copy_from_slice(&[pixel[2], pixel[1], pixel[0]]);
+            out.copy_from_slice(&[pixel[2], pixel[1], pixel[0], 0]);
         }
+        dest[visible_bytes..].fill(0);
+        written = row + 1;
+        copied(target, row + 1);
     }
+    target[written * pitch..].fill(0);
 }
 
 /// The native pointer is a scanout overlay, never part of the writing buffer.
@@ -366,6 +388,30 @@ mod tests {
                 3, 2, 1, 0, 6, 5, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
             ]
         );
+    }
+
+    #[test]
+    fn rgb_rows_remain_visible_until_their_replacements_are_copied() {
+        let mut target = [90, 80, 70, 0, 60, 50, 40, 0];
+        super::copy_rgb_with_progress(
+            &[1, 2, 3, 4, 5, 6],
+            1,
+            2,
+            &mut target,
+            4,
+            2,
+            |visible, rows| {
+                if rows == 1 {
+                    assert_eq!(&visible[..4], &[3, 2, 1, 0]);
+                    assert_eq!(
+                        &visible[4..],
+                        &[60, 50, 40, 0],
+                        "scanout must retain the previous lower row until its replacement is copied"
+                    );
+                }
+            },
+        );
+        assert_eq!(target, [3, 2, 1, 0, 6, 5, 4, 0]);
     }
 
     #[test]

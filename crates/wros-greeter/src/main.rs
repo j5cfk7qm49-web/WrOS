@@ -2,6 +2,21 @@
 fn main() {
     // Never format an authentication value or panic payload on screen/in logs.
     std::panic::set_hook(Box::new(|_| {}));
+    if std::env::args_os()
+        .skip(1)
+        .eq([std::ffi::OsString::from("--lock-message")])
+    {
+        // A write-only presentation command. It never sets up the greeter,
+        // opens a terminal, reads stdin or connects to the login service.
+        use std::io::Write;
+        if std::io::stdout()
+            .write_all(wros_greeter::lock_message(linux::local_time()).as_bytes())
+            .is_err()
+        {
+            std::process::exit(1);
+        }
+        return;
+    }
     if let Err(reason) = linux::run() {
         // Only fixed internal diagnostics reach syslog, never PAM/wire strings.
         let message = std::ffi::CString::new(reason).unwrap();
@@ -42,6 +57,19 @@ mod linux {
         keyboard,
         transport::Client,
     };
+
+    pub fn local_time() -> Option<wros_shell::clock::Time> {
+        let mut value = std::mem::MaybeUninit::<libc::tm>::uninit();
+        let now = unsafe { libc::time(std::ptr::null_mut()) };
+        if now == -1 || unsafe { libc::localtime_r(&now, value.as_mut_ptr()) }.is_null() {
+            return None;
+        }
+        let value = unsafe { value.assume_init() };
+        wros_shell::clock::Time::new(
+            u8::try_from(value.tm_hour).ok()?,
+            u8::try_from(value.tm_min).ok()?,
+        )
+    }
 
     struct TerminalGuard;
     fn repaint<B: ratatui::backend::Backend>(terminal: &mut ratatui::Terminal<B>) {
@@ -215,7 +243,13 @@ mod linux {
                         if keyboard.open {
                             keyboard.render(frame, Instant::now());
                         } else {
-                            wros_greeter::render_themed(frame, &conversation, &form, &palette);
+                            wros_greeter::render_themed_with_clock(
+                                frame,
+                                &conversation,
+                                &form,
+                                &palette,
+                                local_time(),
+                            );
                         }
                     })
                     .map_err(|_| "terminal draw failed")?;

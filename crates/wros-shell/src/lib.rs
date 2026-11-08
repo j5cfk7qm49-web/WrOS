@@ -9,6 +9,7 @@ use ratatui::{
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
+pub mod clock;
 pub mod grimoire_theme;
 pub mod logo;
 

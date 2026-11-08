@@ -129,6 +129,36 @@ class ConsoleLockBoundary(unittest.TestCase):
         self.assertIn('VLOCK_ALL_MESSAGE', environment)
         self.assertNotIn('-f', arguments)
 
+    def test_lock_clock_is_prepared_once_by_the_fixed_write_only_packaged_program(self):
+        message = '\x1b[2J\x1b[3J\x1b[HWrOS - writing session locked\nLocked at 12:34\n███\nPress Enter to unlock.'
+        reply = mock.Mock(stdout=message.encode(), stderr=b'')
+        with mock.patch.object(module, 'trusted_file') as trusted, \
+             mock.patch.object(module.subprocess, 'run', return_value=reply) as run:
+            self.assertEqual(module.lock_message(), message)
+            trusted.assert_called_once_with('/usr/lib/wros/wros-greeter', True)
+            run.assert_called_once_with(['/usr/lib/wros/wros-greeter', '--lock-message'],
+                stdin=module.subprocess.DEVNULL, capture_output=True, env=module.ENV,
+                timeout=1, check=True)
+            _, environment = module.fixed_command('writer', message)
+            self.assertEqual(environment['VLOCK_ALL_MESSAGE'], message)
+
+    def test_unavailable_or_invalid_clock_cannot_prevent_the_maintained_locker_starting(self):
+        for failure in (OSError(), module.subprocess.TimeoutExpired('clock', 1),
+                        module.subprocess.CalledProcessError(1, 'clock')):
+            with mock.patch.object(module, 'trusted_file'), \
+                 mock.patch.object(module.subprocess, 'run', side_effect=failure):
+                self.assertEqual(module.lock_message(), module.LOCK_MESSAGE)
+        with mock.patch.object(module, 'trusted_file', side_effect=ValueError), \
+             mock.patch.object(module.subprocess, 'run') as run:
+            self.assertEqual(module.lock_message(), module.LOCK_MESSAGE)
+            run.assert_not_called()
+        for output in (b'', b'x' * 8193, b'\xff', module.LOCK_MESSAGE.encode() + b'\x1b[6n',
+                       module.LOCK_MESSAGE.encode() + b'\x00',
+                       module.LOCK_MESSAGE.replace('Press Enter', '▀Press Enter').encode()):
+            with self.subTest(output=output[:30]), mock.patch.object(module, 'trusted_file'), \
+                 mock.patch.object(module.subprocess, 'run', return_value=mock.Mock(stdout=output)):
+                self.assertEqual(module.lock_message(), module.LOCK_MESSAGE)
+
     def test_account_identity_cannot_be_an_option_ambiguous_or_nonlogin(self):
         self.assertEqual(module.account_name(1000, 'writer:x:1000:1000::/home/writer:/bin/bash\n'), 'writer')
         for text in ('-root:x:1000:1000::/home/writer:/bin/bash\n',

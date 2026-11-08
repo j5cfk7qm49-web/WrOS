@@ -11,6 +11,11 @@ supports compose, key repeat and a cell-based mouse/touchpad with a visible curs
 Only root-owned XKB and Compose data are loaded. PTYs and unavailable native
 devices retain terminal input.
 
+Native redraw copies each visible row over its previous pixels, then clears
+padding and unused rows. It no longer blacks out the live scanout before each
+copy (#106). This still uses one scanout buffer; physical tearing and timing
+remain hardware checks.
+
 The writing session starts with `WROS_SESSION=drm`. Missing session settings mean
 native graphics; an explicit `session: "console"` retains text. Settings › System
 › Display › Graphical session changes the next login. The login form also offers
@@ -44,13 +49,24 @@ starts a new input process. Authentication continues to belong to vlock/PAM;
 Grimoire never receives lock credentials. The same handoff is used for suspend
 and the live installer.
 
+Login has a large local-time clock beside the shared logo. It shares header
+space so the password form still fits on a 25-line screen. The lock has a large
+**Locked at HH:MM** clock. This is the lock-start time, prepared once before
+vlock starts; the message does not redraw while PAM reads a password. A missing,
+failed or slow message renderer falls back to the original lock message.
+
+On release, the native renderer returns its VT to automatic console switching.
+It does not replay a preceding renderer's process-controlled mode: that ioctl
+would assign ownership to the writer while the writer waits for the locker,
+stranding the handoff. The installed clock regression exposed this as #104.
+
 Native devices are delegated through logind on the existing local tty1/seat0
 session. The writer receives no input-group membership. Before lock, the child
 closes every device and synchronously releases its seat controller; a killed or
 failed native child cannot acknowledge safe retirement. On a VT switch it closes
 devices and clears compose, modifier, drag and repeat state before resuming with
 fresh device descriptors. The renderer reasserts its VT signals after each seat
-acquisition without replacing the original restoration mode.
+acquisition and relinquishes them when handing back the console.
 
 For an ordinary VT switch, the renderer acknowledges release, restores the
 console and releases DRM master. It redraws on acquisition. Between modesets it
