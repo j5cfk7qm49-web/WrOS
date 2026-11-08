@@ -35,10 +35,13 @@ def trusted_file(path, executable=False):
     require(not executable or info.st_mode & 0o111)
 
 
-def session_allowed(values, uid):
+def session_allowed(values, uid, composited=False):
+    kind = values.get('Type')
+    if kind != 'tty' and (kind != 'wayland' or not composited):
+        return False
     return all(values.get(key) == value for key, value in {
         'User': str(uid), 'Active': 'yes', 'Remote': 'no', 'TTY': 'tty1',
-        'VTNr': '1', 'Seat': 'seat0', 'Type': 'tty', 'Class': 'user'}.items())
+        'VTNr': '1', 'Seat': 'seat0', 'Class': 'user'}.items())
 
 
 def account_name(uid, passwd):
@@ -84,6 +87,27 @@ def caller_session(parent):
         libc.free(pointer)
 
 
+def trusted_compositor(parent, uid, proc_root=Path('/proc'), cage=Path('/usr/bin/cage'), session_lookup=caller_session):
+    """Cage changes logind's Type to wayland. Require its packaged ancestor too."""
+    try:
+        trusted_file(cage, True)
+        session, pid = session_lookup(parent), parent
+        for _ in range(16):
+            if pid <= 1:
+                return False
+            path = proc_root / str(pid)
+            status = path.joinpath('status').read_text()
+            users = next(line.split()[1:] for line in status.splitlines() if line.startswith('Uid:'))
+            if users != [str(uid)] * 4:
+                return False
+            if os.path.samefile(path / 'exe', cage):
+                return session_lookup(pid) == session
+            pid = int(next(line.split()[1] for line in status.splitlines() if line.startswith('PPid:')))
+    except (OSError, ValueError, StopIteration):
+        return False
+    return False
+
+
 def validate_caller():
     require(os.geteuid() == 0 and sys.argv[1:] in ([], ['--suspend']))
     value = os.environ.get('PKEXEC_UID', '')
@@ -103,7 +127,8 @@ def validate_caller():
     fields = query(['/usr/bin/loginctl', '--no-pager', 'show-session', sid,
         '-p', 'User', '-p', 'Active', '-p', 'Remote', '-p', 'TTY', '-p', 'VTNr',
         '-p', 'Seat', '-p', 'Type', '-p', 'Class'])
-    require(session_allowed(dict(line.split('=', 1) for line in fields.splitlines()), uid))
+    values = dict(line.split('=', 1) for line in fields.splitlines())
+    require(session_allowed(values, uid, values.get('Type') == 'wayland' and trusted_compositor(parent, uid)))
     passwd = Path('/etc/passwd').read_bytes()
     require(len(passwd) <= 1024 * 1024)
     username = account_name(uid, passwd.decode('utf-8'))
@@ -307,7 +332,8 @@ def worker(uid, parent, started, sleep=False):
         fields = query(['/usr/bin/loginctl', '--no-pager', 'show-session', sid,
             '-p', 'User', '-p', 'Active', '-p', 'Remote', '-p', 'TTY', '-p', 'VTNr',
             '-p', 'Seat', '-p', 'Type', '-p', 'Class'])
-        require(session_allowed(dict(line.split('=', 1) for line in fields.splitlines()), uid))
+        values = dict(line.split('=', 1) for line in fields.splitlines())
+        require(session_allowed(values, uid, values.get('Type') == 'wayland' and trusted_compositor(parent, uid)))
         username = account_name(uid, Path('/etc/passwd').read_text())
         require(query(['/usr/bin/passwd', '-S', username]).split()[1] == 'P')
         require(query(['/usr/bin/passwd', '-S', 'root']).split()[1] == 'L')

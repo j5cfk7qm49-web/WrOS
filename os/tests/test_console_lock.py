@@ -11,6 +11,39 @@ module = importlib.machinery.SourceFileLoader('wros_lock', str(ROOT / 'os/script
 
 
 class ConsoleLockBoundary(unittest.TestCase):
+    def test_wayland_still_needs_the_active_owned_tty1_and_a_verified_compositor(self):
+        good = {'User': '1000', 'Active': 'yes', 'Remote': 'no', 'TTY': 'tty1',
+                'VTNr': '1', 'Seat': 'seat0', 'Type': 'wayland', 'Class': 'user'}
+        self.assertFalse(module.session_allowed(good, 1000))
+        self.assertTrue(module.session_allowed(good, 1000, composited=True))
+        for key, value in {'User': '1001', 'Active': 'no', 'Remote': 'yes', 'TTY': '',
+                           'VTNr': '2', 'Seat': 'seat1', 'Type': 'x11', 'Class': 'greeter'}.items():
+            self.assertFalse(module.session_allowed(good | {key: value}, 1000, composited=True))
+
+    def test_compositor_proof_requires_the_packaged_ancestor_uid_and_same_session(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            cage, other = root / 'cage', root / 'other'
+            cage.touch()
+            other.touch()
+            for pid, parent, exe in [(42, 43, other), (43, 1, cage)]:
+                path = root / str(pid)
+                path.mkdir()
+                (path / 'status').write_text(f'PPid:\t{parent}\nUid:\t1000\t1000\t1000\t1000\n')
+                (path / 'exe').symlink_to(exe)
+            with mock.patch.object(module, 'trusted_file') as trusted:
+                def check(session=lambda pid: '5'):
+                    return module.trusted_compositor(42, 1000, proc_root=root, cage=cage, session_lookup=session)
+                self.assertTrue(check())
+                trusted.assert_called_with(cage, True)
+                self.assertFalse(check(lambda pid: '5' if pid == 42 else '6'))
+                (root / '43/status').write_text('PPid:\t1\nUid:\t1001\t1001\t1001\t1001\n')
+                self.assertFalse(check())
+                (root / '43/status').write_text('PPid:\t1\nUid:\t1000\t1000\t1000\t1000\n')
+                (root / '43/exe').unlink()
+                (root / '43/exe').symlink_to(other)
+                self.assertFalse(check())
+
     def test_sleep_requires_protected_vt_with_keyboard_disabled_and_reader_retired(self):
         with mock.patch.object(module, 'console_state', return_value=(8, 0, 0)), \
              mock.patch.object(module, 'keyboard_mode', return_value=module.K_OFF), \

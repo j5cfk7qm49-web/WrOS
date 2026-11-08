@@ -19,6 +19,8 @@ Its first-frame marker and two-failure fallback are retained. Build the optional
 directly under cage. This uses ratatui-wgpu with OpenGL and a Wayland-only winit
 window. It does not install or select Vulkan drivers. Each compositor backend has
 its own startup failure count. New sessions still use the native renderer.
+The trial needs `cage`, `libegl1`, `libgles2`, `libgl1-mesa-dri`,
+`libwayland-egl1` and `libxkbcommon0`; foot also needs the `foot` package.
 
 The window sends logical keys, compose/IME commits and cell-based pointer events
 through the editor's existing event dispatch. It keeps the compositor's keyboard
@@ -43,8 +45,10 @@ does not hold DRM master, so the existing narrow warm-screen helper can set
 gamma. Compositor sessions can redirect the independent lock helper to the
 authenticated, active tty1. The window clears its frame, retires queued input and
 composition, and pumps Wayland without dispatching keys until authentication has
-finished. The root helper's caller, tty1, logind and PAM checks remain unchanged.
-Compositor lock VM qualification and gamma integration remain trial work.
+finished. The root helper accepts logind's Wayland type only when the packaged
+cage executable is an ancestor with the same UID and session. It still requires
+the active local tty1, seat0, VT1, user class, trusted writer and independent
+vlock/PAM authentication. Gamma integration remains trial work.
 
 ## Recovery and packaging
 
