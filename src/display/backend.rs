@@ -17,6 +17,28 @@ pub enum Backend {
 }
 
 impl Backend {
+    pub fn observe(&mut self, event: &ratatui::crossterm::event::Event) {
+        #[cfg(all(target_os = "linux", feature = "gui-drm"))]
+        if let Self::Tty(backend) = self {
+            use ratatui::crossterm::event::Event;
+            match event {
+                Event::Mouse(mouse) => {
+                    backend.pointer(Some(Position::new(mouse.column, mouse.row)))
+                }
+                Event::FocusLost => backend.pointer(None),
+                _ => {}
+            }
+        }
+        #[cfg(not(all(target_os = "linux", feature = "gui-drm")))]
+        let _ = event;
+    }
+    pub fn reclaim(&mut self) -> io::Result<()> {
+        #[cfg(all(target_os = "linux", feature = "gui-drm"))]
+        if let Self::Tty(backend) = self {
+            backend.reclaim()?;
+        }
+        Ok(())
+    }
     pub fn tty() -> io::Result<Self> {
         #[cfg(all(target_os = "linux", feature = "gui-drm"))]
         {

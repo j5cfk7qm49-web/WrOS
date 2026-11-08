@@ -98,6 +98,7 @@ def main():
         run('clippy-'+name, ['cargo', 'clippy', '--workspace', '--all-targets', *flags, '--locked', '--offline', '-j2', '--', '-D', 'warnings'])
     run('window-opengl', ['cargo', 'test', '--no-default-features', '--features',
                           'test-driver,gui-wgpu', '--test', 'driven', '--locked', '--offline', '-j2'])
+    run('native-input', ['cargo', 'test', '-p', 'wros-input', '--features', 'native', '--locked', '--offline', '-j2'])
     # pty-qa adds only a debug-build test hook for the lock (test_rc7_pty); release builds never have it.
     run('build-no-audio', ['cargo', 'build', '--workspace', '--no-default-features', '--features',
                            'grimoire-tui/pty-qa', '--locked', '--offline', '-j2'])

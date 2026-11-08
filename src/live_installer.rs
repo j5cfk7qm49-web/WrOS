@@ -126,6 +126,7 @@ pub fn handoff(
     input
         .resume(proof)
         .context("starting fresh writing input after installer handoff")?;
+    crate::display::reclaim(terminal).context("restoring graphical console ownership")?;
     Ok(outcome)
 }
 

@@ -4,7 +4,12 @@ Graphical rendering is the default for disk unlock, loading, login and writing,
 as requested by the owner on 2026-11-07. The installed build includes `gui-drm`.
 `soft_ratatui` shapes the shared Ratatui screens with DejaVu Sans Mono and sends
 pixels directly to a DRM/KMS dumb buffer. It needs neither a compositor nor
-Vulkan drivers. It keeps the existing keyboard layout and console input path.
+Vulkan drivers. Disk unlock, loading and login keep their console input path.
+The native writing session uses libinput devices and xkbcommon in its disposable
+input process. It reads Debian's keyboard layout, watches layout changes, and
+supports compose, key repeat and a cell-based mouse/touchpad with a visible cursor.
+Only root-owned XKB and Compose data are loaded. PTYs and unavailable native
+devices retain terminal input.
 
 The writing session starts with `WROS_SESSION=drm`. Missing session settings mean
 native graphics; an explicit `session: "console"` retains text. Settings › System
@@ -39,6 +44,14 @@ starts a new input process. Authentication continues to belong to vlock/PAM;
 Grimoire never receives lock credentials. The same handoff is used for suspend
 and the live installer.
 
+Native devices are delegated through logind on the existing local tty1/seat0
+session. The writer receives no input-group membership. Before lock, the child
+closes every device and synchronously releases its seat controller; a killed or
+failed native child cannot acknowledge safe retirement. On a VT switch it closes
+devices and clears compose, modifier, drag and repeat state before resuming with
+fresh device descriptors. The renderer reasserts its VT signals after each seat
+acquisition without replacing the original restoration mode.
+
 For an ordinary VT switch, the renderer acknowledges release, restores the
 console and releases DRM master. It redraws on acquisition. Between modesets it
 does not hold DRM master, so the existing narrow warm-screen helper can set
@@ -67,6 +80,10 @@ graphics. WrOS release builders explicitly add `--features gui-drm`; desktop
 terminal launches continue to use their terminal unless the session launcher
 asks for native output.
 
+Native writing builds need `libinput-dev`, `libudev-dev`, `libseat-dev` and
+`libxkbcommon-dev` in addition to libdrm. The package declares the corresponding
+runtime libraries, `xkb-data` and `libx11-data` for the system Compose table.
+
 `grimoire --wros-renderers` reports the compiled renderer features as JSON without
 opening a book. `gui-wgpu` belongs only to the writing executable, so enabling the
 trial does not pull its window/graphics dependencies into the unlock or login
@@ -77,3 +94,12 @@ loading/login handoff, writing, VT switching, lock, renderer SIGKILL and text
 recovery after the saved-system update and feature checks. Its screenshots use
 the exact glyph atlas from `cargo run -p wros-graphics --example font_atlas`;
 set `WROS_NATIVE_FONT` to that PPM file when running the VM harness.
+
+The [native input qualification record](evidence/rc10-native-input.json) retains
+the isolated installed-VM checks for physical Colemak, compose, live layout
+changes, repeat, cursor pixels, device retirement on VT switches, two locks,
+suspend/wake and reader-crash recovery. The final native run is
+`graphical-drm-20261108T123102Z`. Foot passed the lock/suspend regression. OpenGL
+passed a 12-lock stress run, but an earlier second-lock timeout remains under
+investigation in [#101](https://github.com/j5cfk7qm49-web/WrOS/issues/101).
+The record preserves that failed run and the full software-check failures.

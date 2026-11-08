@@ -7,7 +7,8 @@
     "priority": "optional",
     "maintainer": "WrOS maintainers <wros-maintainers@localhost.invalid>",
     "depends": [
-      "apt", "dpkg", "gpgv", "kbd", "libasound2t64", "libdrm2", "libgcc-s1", "passwd", "pkexec",
+      "apt", "dpkg", "gpgv", "kbd", "libasound2t64", "libdrm2", "libgcc-s1", "libinput10",
+      "libseat1", "libxkbcommon0", "libx11-data", "xkb-data", "passwd", "pkexec",
       "polkitd", "python3", "rclone", "restic", "systemd", "util-linux", "vlock"
     ],
     "summary": "WrOS installed-system integration (Writer's OS)",

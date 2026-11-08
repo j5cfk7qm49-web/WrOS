@@ -53,6 +53,7 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends build-essential pkg-config libasound2-dev libssl-dev libdrm-dev \
+            libinput-dev libudev-dev libseat-dev libxkbcommon-dev \
             python3 python3-debian ca-certificates curl git gnupg gpgv dpkg-dev console-setup keyboard-configuration
       - uses: actions/checkout@v7
         with:

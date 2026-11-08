@@ -76,11 +76,18 @@ fn main() -> Result<()> {
     #[cfg(target_os = "linux")]
     if first.as_deref() == Some(wros_input::WORKER_ARGUMENT) {
         let parent = args.next().and_then(|value| value.parse::<u32>().ok());
-        if let Some(parent) = parent
-            && args.next().is_none()
-        {
+        if let Some(parent) = parent {
             // Before any project, configuration, rescue or App initialization.
-            if wros_input::worker_main(parent).is_ok() {
+            let mode = args.next();
+            #[cfg(feature = "gui-drm")]
+            if mode.as_deref() == Some("native")
+                && let Some(config) = args.next()
+                && args.next().is_none()
+                && wros_input::native_worker_main(parent, &config).is_ok()
+            {
+                return Ok(());
+            }
+            if mode.is_none() && wros_input::worker_main(parent).is_ok() {
                 return Ok(());
             }
         }
@@ -612,11 +619,7 @@ fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
     let mut first_screen = true;
 
     #[cfg(target_os = "linux")]
-    let mut events = if display::windowed(terminal) {
-        None
-    } else {
-        Some(wros_input::Input::start(&std::env::current_exe()?)?)
-    };
+    let mut events = display::start_input(terminal)?;
     #[cfg(target_os = "linux")]
     let power_watch = app.deck.lock_available.then(console_lock::watch_power);
     #[cfg(target_os = "linux")]
@@ -625,6 +628,18 @@ fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
     let gauge_watch = installed_session().then(gauges::watch);
     #[cfg(feature = "test-driver")]
     let mut driver = test_driver::Driver::from_env();
+    #[cfg(feature = "test-driver")]
+    if let Some(driver) = driver.as_mut() {
+        #[cfg(target_os = "linux")]
+        let source = match &events {
+            Some(input) if input.is_native() => "evdev",
+            Some(_) => "terminal",
+            None => "window",
+        };
+        #[cfg(not(target_os = "linux"))]
+        let source = "terminal";
+        driver.input_backend(source);
+    }
 
     // Retained upstream fallback outside WrOS. Linux's parser instead belongs
     // to a separate, unprivileged re-exec process and dies with the editor.
@@ -912,7 +927,7 @@ fn dispatch_event(app: &mut App, ev: Event, confirm_quit: &mut bool) -> bool {
     let Event::Key(k) = ev else {
         return false;
     };
-    if k.kind != KeyEventKind::Press {
+    if k.kind == KeyEventKind::Release {
         return false;
     }
 

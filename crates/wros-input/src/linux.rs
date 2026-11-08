@@ -27,7 +27,13 @@ fn failure(message: &'static str) -> io::Error {
 
 #[derive(Serialize, Deserialize)]
 enum Wire {
-    Ready { version: u16, pid: u32, uid: u32 },
+    Ready {
+        version: u16,
+        pid: u32,
+        uid: u32,
+        #[serde(default)]
+        native: bool,
+    },
     Event(Event),
     EventRejected,
 }
@@ -111,6 +117,11 @@ fn write_frame(output: &mut impl Write, message: &Message) -> io::Result<()> {
 /// Private re-exec entry, called before any editor or project initialization.
 /// The caller sets terminal modes. This process only reads and transports input.
 pub fn worker_main(expected_parent: u32) -> io::Result<()> {
+    worker_context(expected_parent)?;
+    terminal_worker()
+}
+
+fn worker_context(expected_parent: u32) -> io::Result<()> {
     std::panic::set_hook(Box::new(|_| {}));
     let core = libc::rlimit {
         rlim_cur: 0,
@@ -130,28 +141,61 @@ pub fn worker_main(expected_parent: u32) -> io::Result<()> {
     {
         return Err(failure("Invalid input reader context"));
     }
+    Ok(())
+}
+
+#[cfg(feature = "native")]
+pub fn native_worker_main(expected_parent: u32, config: &str) -> io::Result<()> {
+    worker_context(expected_parent)?;
+    if config.len() > 512 {
+        return Err(failure("Invalid native input configuration"));
+    }
+    let config: crate::NativeConfig =
+        serde_json::from_str(config).map_err(|_| failure("Invalid native input configuration"))?;
+    config.validate()?;
+    // A PTY, absent keyboard or unavailable seat retains terminal input. Any
+    // acquired devices/controller are dropped before announcing this fallback.
+    let reader = match crate::native::Reader::new(config) {
+        Ok(reader) => reader,
+        Err(_) => return terminal_worker(),
+    };
     let mut output = io::stdout().lock();
+    ready(&mut output, true)?;
+    reader.run(|event| send_event(&mut output, event))
+}
+
+fn ready(output: &mut impl Write, native: bool) -> io::Result<()> {
     write_frame(
-        &mut output,
+        output,
         &Message(Some(Wire::Ready {
             version: 1,
             pid: std::process::id(),
             uid: unsafe { libc::geteuid() },
+            native,
         })),
-    )?;
+    )
+}
+
+fn send_event(output: &mut impl Write, event: Event) -> io::Result<()> {
+    let message = Message(Some(Wire::Event(event)));
+    let bytes = match encode(&message) {
+        Ok(bytes) => bytes,
+        Err(_) => {
+            write_frame(output, &Message(Some(Wire::EventRejected)))?;
+            return Err(failure("Input event rejected"));
+        }
+    };
+    write_bytes(output, &bytes)
+}
+
+fn terminal_worker() -> io::Result<()> {
+    let mut output = io::stdout().lock();
+    ready(&mut output, false)?;
     loop {
         // crossterm's complete AND partial parser state belongs exclusively to
         // this disposable address space. No terminal/event calls on other threads.
         let event = event::read().map_err(|_| failure("Terminal input failed"))?;
-        let message = Message(Some(Wire::Event(event)));
-        let bytes = match encode(&message) {
-            Ok(bytes) => bytes,
-            Err(_) => {
-                write_frame(&mut output, &Message(Some(Wire::EventRejected)))?;
-                return Err(failure("Input event rejected"));
-            }
-        };
-        write_bytes(&mut output, &bytes)?;
+        send_event(&mut output, event)?;
     }
 }
 
@@ -159,34 +203,49 @@ struct Running {
     child: Child,
     messages: Option<mpsc::Receiver<io::Result<Message>>>,
     reader: Option<JoinHandle<()>>,
+    graceful: bool,
 }
 impl Running {
     fn retire(&mut self) -> io::Result<()> {
-        // Cancel a blocked bounded send and wipe the queued event payloads.
-        self.messages.take();
+        // Native retirement must release logind's controller synchronously.
+        // Signal BEFORE disconnecting the pipe so a blocked writer can exit
+        // through its cleanup path. A killed reader cannot produce a proof.
         if self
             .child
             .try_wait()
             .map_err(|_| failure("Input reader wait failed"))?
             .is_none()
         {
-            let _ = self.child.kill();
-        }
-        let started = Instant::now();
-        loop {
-            match self.child.try_wait() {
-                Ok(Some(_)) => break,
-                Ok(None) if started.elapsed() < DEADLINE => thread::sleep(Duration::from_millis(5)),
-                _ => return Err(failure("Input reader exit unacknowledged")),
+            if self.graceful {
+                unsafe { libc::kill(self.child.id() as libc::pid_t, libc::SIGTERM) };
+            } else {
+                let _ = self.child.kill();
             }
         }
+        self.messages.take();
+        let started = Instant::now();
+        let retired = loop {
+            match self.child.try_wait() {
+                Ok(Some(status)) => break !self.graceful || status.success(),
+                Ok(None) if started.elapsed() < DEADLINE => thread::sleep(Duration::from_millis(5)),
+                _ => {
+                    let _ = self.child.kill();
+                    let _ = self.child.wait();
+                    break false;
+                }
+            }
+        };
         // Its only writer is now reaped, so EOF releases even a partial frame.
         if let Some(reader) = self.reader.take() {
             reader
                 .join()
                 .map_err(|_| failure("Input transport cleanup failed"))?;
         }
-        Ok(())
+        if retired {
+            Ok(())
+        } else {
+            Err(failure("Input reader retirement unacknowledged"))
+        }
     }
 }
 impl Drop for Running {
@@ -225,6 +284,9 @@ pub struct Input {
     owner: u64,
     epoch: u64,
     state: State,
+    #[cfg(feature = "native")]
+    config: Option<crate::NativeConfig>,
+    native: bool,
     _controller_thread: PhantomData<Rc<()>>,
 }
 impl Input {
@@ -235,18 +297,50 @@ impl Input {
             owner: NEXT_OWNER.fetch_add(1, Ordering::Relaxed),
             epoch: 0,
             state: State::Failed,
+            #[cfg(feature = "native")]
+            config: None,
+            native: false,
             _controller_thread: PhantomData,
         };
         input.spawn()?;
         Ok(input)
     }
+    #[cfg(feature = "native")]
+    pub fn start_native(executable: &Path, config: crate::NativeConfig) -> io::Result<Self> {
+        config.validate()?;
+        let mut input = Self {
+            executable: executable.into(),
+            owner: NEXT_OWNER.fetch_add(1, Ordering::Relaxed),
+            epoch: 0,
+            state: State::Failed,
+            config: Some(config),
+            native: false,
+            _controller_thread: PhantomData,
+        };
+        input.spawn()?;
+        Ok(input)
+    }
+    pub fn is_native(&self) -> bool {
+        self.native
+    }
     fn spawn(&mut self) -> io::Result<()> {
-        let mut child = Command::new(&self.executable)
-            .args([WORKER_ARGUMENT, &std::process::id().to_string()])
+        let mut command = Command::new(&self.executable);
+        command.args([WORKER_ARGUMENT, &std::process::id().to_string()]);
+        #[cfg(feature = "native")]
+        if let Some(config) = self.config {
+            command.args([
+                "native",
+                &serde_json::to_string(&config)
+                    .map_err(|_| failure("Invalid native input configuration"))?,
+            ]);
+        }
+        let mut child = command
             .env_clear()
             .env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
             .env("LANG", "C.UTF-8")
             .env("TERM", "xterm-256color")
+            .env("LIBSEAT_BACKEND", "logind")
+            .env("XDG_SESSION_TYPE", "tty")
             .current_dir("/")
             .stdin(Stdio::inherit())
             .stdout(Stdio::piped())
@@ -267,10 +361,11 @@ impl Input {
                 }
             }
         });
-        let running = Running {
+        let mut running = Running {
             child,
             messages: Some(receiver),
             reader: Some(reader),
+            graceful: cfg!(feature = "native"),
         };
         let ready = running
             .messages
@@ -278,10 +373,20 @@ impl Input {
             .unwrap()
             .recv_timeout(DEADLINE)
             .map_err(|_| failure("Input reader startup unacknowledged"))??;
-        if !matches!(ready.0, Some(Wire::Ready { version: 1, pid, uid }) if pid == running.child.id() && uid == unsafe { libc::geteuid() })
-        {
+        let Some(Wire::Ready {
+            version: 1,
+            pid,
+            uid,
+            native,
+        }) = ready.0
+        else {
+            return Err(failure("Invalid input reader startup"));
+        };
+        if pid != running.child.id() || uid != unsafe { libc::geteuid() } {
             return Err(failure("Invalid input reader startup"));
         }
+        self.native = native;
+        running.graceful = native;
         self.state = State::Active(running);
         Ok(())
     }
@@ -390,6 +495,9 @@ mod tests {
             owner: 1,
             epoch: 3,
             state: State::Paused(3),
+            #[cfg(feature = "native")]
+            config: None,
+            native: false,
             _controller_thread: PhantomData,
         };
         let proof = Paused { owner: 1, epoch: 3 };
@@ -397,6 +505,28 @@ mod tests {
         assert!(matches!(input.state, State::Paused(3)));
         assert!(input.resume(Paused { owner: 2, epoch: 3 }).is_err());
         assert!(input.resume(Paused { owner: 1, epoch: 2 }).is_err());
+        assert!(input.pause().is_err());
+        assert!(matches!(input.state, State::Failed));
+    }
+
+    #[test]
+    fn a_crashed_native_reader_cannot_acknowledge_device_retirement() {
+        let child = Command::new("/bin/false").spawn().unwrap();
+        let mut input = Input {
+            executable: PathBuf::from("/bin/false"),
+            owner: 1,
+            epoch: 0,
+            state: State::Active(Running {
+                child,
+                messages: None,
+                reader: None,
+                graceful: true,
+            }),
+            #[cfg(feature = "native")]
+            config: None,
+            native: true,
+            _controller_thread: PhantomData,
+        };
         assert!(input.pause().is_err());
         assert!(matches!(input.state, State::Failed));
     }

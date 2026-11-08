@@ -184,6 +184,31 @@ fn backend_events_keep_unicode_editing_save_and_undo_on_the_existing_path() {
 }
 
 #[test]
+fn backend_key_repeat_edits_but_key_release_does_not() {
+    use ratatui::crossterm::event::KeyEventKind;
+    let mut desk = Desk::open(book("backend-repeat", true), 100, 30);
+    desk.key(KeyCode::Tab);
+    let before = desk.app.editor.text();
+    for kind in [
+        KeyEventKind::Press,
+        KeyEventKind::Repeat,
+        KeyEventKind::Release,
+    ] {
+        crate::dispatch_event(
+            &mut desk.app,
+            Event::Key(KeyEvent::new_with_kind(
+                KeyCode::Char('Ω'),
+                KeyModifiers::NONE,
+                kind,
+            )),
+            &mut desk.armed,
+        );
+    }
+    assert_eq!(desk.app.editor.text().len(), before.len() + "ΩΩ".len());
+    assert!(desk.app.editor.text().contains("ΩΩ"));
+}
+
+#[test]
 fn backend_events_cannot_type_through_a_modal_or_treat_releases_as_typing() {
     let mut desk = Desk::open(book("backend-modal", true), 100, 30);
     desk.key(KeyCode::Tab);
@@ -900,10 +925,12 @@ fn the_linux_console_marks_words_without_underline_colours_it_would_misread() {
     // The Linux console reads ESC[58;...m as faint, blink and font switches that
     // stick to everything after the word: there the mark is a plain underline in colour.
     d.app.linux_console = true;
+    let stored = crate::theme::to_config(&d.app.theme);
+    let ansi = d.app.theme.for_console();
     d.draw();
     let word = cell(&d, "Teh cat");
     assert!(word.modifier.contains(Modifier::UNDERLINED));
-    assert_eq!(word.fg, d.app.theme.warn);
+    assert_eq!(word.fg, ansi.warn);
     let buffer = d.term.backend().buffer();
     assert!(
         buffer
@@ -912,8 +939,9 @@ fn the_linux_console_marks_words_without_underline_colours_it_would_misread() {
             .all(|c| c.underline_color == Color::Reset)
     );
     let after = cell(&d, "cat sat");
-    assert_eq!(after.fg, d.app.theme.text);
+    assert_eq!(after.fg, ansi.text);
     assert!(!after.modifier.contains(Modifier::UNDERLINED));
+    assert_eq!(crate::theme::to_config(&d.app.theme), stored);
 }
 
 /// What the Linux console makes of a background: it keeps only the top bit of each

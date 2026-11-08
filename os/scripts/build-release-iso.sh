@@ -90,6 +90,10 @@ preflight() {
     need_command mformat mtools;        need_command rsync rsync
     if command -v pkg-config >/dev/null 2>&1; then
         pkg-config --exists libdrm || { missing_commands+=(libdrm-dev); missing_notes+=(libdrm-dev); }
+        pkg-config --exists libinput || { missing_commands+=(libinput-dev); missing_notes+=(libinput-dev); }
+        pkg-config --exists libudev || { missing_commands+=(libudev-dev); missing_notes+=(libudev-dev); }
+        pkg-config --exists libseat || { missing_commands+=(libseat-dev); missing_notes+=(libseat-dev); }
+        pkg-config --exists xkbcommon || { missing_commands+=(libxkbcommon-dev); missing_notes+=(libxkbcommon-dev); }
         pkg-config --exists libdebian-installer || { missing_commands+=(libdebian-installer4-dev); missing_notes+=(libdebian-installer4-dev); }
     fi
     if command -v python3 >/dev/null 2>&1; then

@@ -54,6 +54,7 @@ pub(super) struct Display {
     release: Arc<AtomicBool>,
     acquire: Arc<AtomicBool>,
     signals: Vec<signal_hook::SigId>,
+    pointer: Option<(u16, u16)>,
 }
 
 fn ioctl(tty: &File, request: libc::c_ulong, arg: libc::c_int) -> io::Result<()> {
@@ -184,6 +185,7 @@ impl Display {
             release: Arc::new(AtomicBool::new(false)),
             acquire: Arc::new(AtomicBool::new(false)),
             signals: vec![],
+            pointer: None,
         };
         display.signals.push(signal_hook::flag::register(
             libc::SIGUSR1,
@@ -193,17 +195,21 @@ impl Display {
             libc::SIGUSR2,
             display.acquire.clone(),
         )?);
+        display.reclaim()?;
+        Ok(display)
+    }
+
+    pub fn reclaim(&mut self) -> io::Result<()> {
         let vt = VtMode {
             mode: 1,
             release: libc::SIGUSR1 as i16,
             acquire: libc::SIGUSR2 as i16,
             ..VtMode::default()
         };
-        if unsafe { libc::ioctl(display.tty.as_raw_fd(), VT_SETMODE, &vt) } < 0 {
+        if unsafe { libc::ioctl(self.tty.as_raw_fd(), VT_SETMODE, &vt) } < 0 {
             return Err(io::Error::last_os_error());
         }
-        display.scanout()?;
-        Ok(display)
+        self.scanout()
     }
 
     fn scanout(&mut self) -> io::Result<()> {
@@ -236,6 +242,7 @@ impl Display {
 
     pub fn present(&mut self) -> io::Result<()> {
         if self.release.swap(false, Ordering::Relaxed) {
+            self.pointer = None;
             self.restore();
             self.released = true;
             ioctl(&self.tty, VT_RELDISP, 1)?;
@@ -259,7 +266,31 @@ impl Display {
             pitch,
             height,
         );
+        if let Some(position) = self.pointer {
+            super::pointer_sprite(
+                mapping.as_mut(),
+                pitch,
+                height,
+                self.mode.size().0 as usize,
+                position,
+            );
+        }
         Ok(())
+    }
+
+    pub fn pointer(&mut self, position: Option<ratatui::layout::Position>) {
+        use ratatui::backend::Backend;
+        let cells = self.pixels.size().unwrap();
+        self.pointer = position.map(|p| {
+            (
+                p.x.saturating_mul(
+                    (self.pixels.get_pixmap_width() / usize::from(cells.width)) as u16,
+                ),
+                p.y.saturating_mul(
+                    (self.pixels.get_pixmap_height() / usize::from(cells.height)) as u16,
+                ),
+            )
+        });
     }
 }
 

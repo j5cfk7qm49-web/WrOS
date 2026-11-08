@@ -1,6 +1,6 @@
 # Editor input ownership prerequisite
 
-The Linux editor now reads terminal events through an unprivileged child
+The Linux editor reads terminal or native device events through an unprivileged child
 process. It re-executes the same installed binary in a private mode before any
 project, configuration, rescue or `App` initialization. There is no companion
 executable to find or install. The independent MIT `wros-input` crate has no
@@ -10,15 +10,24 @@ The parser needs a process boundary because crossterm can retain an incomplete
 escape sequence or bracketed paste internally. Pausing a thread and draining
 complete events cannot discard that private partial state. See crossterm's
 [read/poll contract](https://docs.rs/crossterm/0.29.0/crossterm/event/index.html).
-The child keeps the existing blocking read while idle, without a polling loop.
+The terminal child keeps its existing blocking read while idle. Native graphical
+writing uses libinput/XKB in the same private process, polling device, seat and
+keyboard-settings descriptors with no idle timer. Root-owned Debian keyboard and
+Compose data supply Colemak and compose; no owner configuration or prose enters
+the reader. Native input is restricted to the existing authenticated tty1 session
+and logind's seat0 device grants. A PTY or unavailable native keyboard falls back
+to the terminal reader.
 
 ## Handoff contract
 
-`Input::pause()` first stops delivery and discards its bounded pending queue,
-then kills and reaps the reader, joins its pipe-decoding thread and flushes
-kernel terminal typeahead. Only then does it return an opaque, single-use
-`Paused` proof. Killing the process discards its complete and partial parser
-state, including an unfinished paste. Failure produces no proof and no automatic
+`Input::pause()` stops delivery and discards its bounded pending queue, retires
+and reaps the reader, joins its pipe-decoding thread and flushes kernel terminal
+typeahead. The terminal parser is killed; a native reader handles SIGTERM by
+closing all libinput descriptors and synchronously releasing logind's controller.
+It must exit successfully: a crash, forced kill or failed release produces no
+native retirement proof. Only then does pause return an opaque, single-use
+`Paused` proof. Process exit discards complete and partial parser state, including
+an unfinished paste or compose sequence. Failure produces no proof and no automatic
 restart. Dropping the proof keeps input paused.
 
 An independent terminal owner must finish and exit before
@@ -45,14 +54,12 @@ different paste.
 
 ## Scope and acceptance
 
-This supplies the editor's reader-retirement primitive. **It does not lock the
-screen, authenticate an unlock, grant exclusive seat/VT ownership, or authorize
-suspend.** A credential prompt additionally requires a maintained independent
-locker with protected terminal ownership. That integration and an authoritative
-lock-ready acknowledgment before sleep remain issue #4. No lock command or
-password prompt is added to the editor; Suspend remains unavailable.
+This supplies the editor's reader-retirement primitive. Authentication, protected
+VT ownership and the lock-ready acknowledgment before suspend belong to the
+independent maintained locker described in [console locking](CONSOLE_LOCK.md).
+The editor receives no credential events.
 
-The future controller must also stop editor rendering and all terminal/cursor
+The main-thread controller also stops editor rendering and all terminal/cursor
 queries while another owner is active. The proof describes this input reader's
 retirement; it does not manage Ratatui or prevent unrelated processes from
 opening a terminal. A background locker started while the normal editor loop
@@ -67,7 +74,7 @@ saved on reader death, parent death leaves no executable reader, and private
 reader mode does not create a project in an invalid context. Existing four-size
 settings/cursor/undo/restart tests cover normal event routing.
 
-[Focused software qualification](evidence/input-ownership-focused.json) passed
+The original terminal-only [focused software qualification](evidence/input-ownership-focused.json) passed
 four unit tests, one thread-affinity compile-fail test and four real private-PTY
 ownership scenarios in both configurations, both workspace Clippys/build,
 three actual editor fault/context tests and the retained four-size Settings

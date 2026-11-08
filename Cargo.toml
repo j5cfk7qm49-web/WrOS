@@ -100,7 +100,7 @@ lto = "thin"
 # headers (libasound2-dev). Build with --no-default-features to omit it and
 # keep the other sources.
 default = ["audio", "gui-drm"]
-gui-drm = ["dep:wros-graphics"]
+gui-drm = ["dep:wros-graphics", "wros-input/native"]
 gui-wgpu = ["dep:ratatui-wgpu", "dep:wgpu", "dep:winit", "dep:futures-lite"]
 pty-qa = []
 # Never in WrOS packages: a release build with it refuses to compile.

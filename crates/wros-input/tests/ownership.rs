@@ -85,6 +85,15 @@ mod linux {
         let mut args = std::env::args().skip(1);
         if args.next().as_deref() == Some(WORKER_ARGUMENT) {
             let parent = args.next().unwrap().parse().unwrap();
+            #[cfg(feature = "native")]
+            if args.next().as_deref() == Some("native") {
+                let config = args.next().unwrap();
+                std::process::exit(if wros_input::native_worker_main(parent, &config).is_ok() {
+                    0
+                } else {
+                    1
+                });
+            }
             std::process::exit(if worker_main(parent).is_ok() { 0 } else { 1 });
         }
         assert_ne!(
@@ -102,7 +111,22 @@ mod linux {
             }
         }
         let mut pty = Pty::new();
+        #[cfg(feature = "native")]
+        let mut input = Input::start_native(
+            &executable,
+            wros_input::NativeConfig {
+                pixels: (800, 600),
+                cells: (100, 37),
+            },
+        )
+        .unwrap();
+        #[cfg(not(feature = "native"))]
         let mut input = Input::start(&executable).unwrap();
+        #[cfg(feature = "native")]
+        assert!(
+            !input.is_native(),
+            "a private PTY must retain its terminal input and never take a seat"
+        );
         pty.send(b"a");
         key(&input, 'a');
         let original_reader = child_pid();

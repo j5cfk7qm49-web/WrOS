@@ -280,5 +280,6 @@ pub fn handoff(
             .resume(proof)
             .context("starting fresh writing input after unlock")?;
     }
+    crate::display::reclaim(terminal).context("restoring graphical console ownership")?;
     Ok(())
 }

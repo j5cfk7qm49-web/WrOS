@@ -19,6 +19,12 @@ the old console and stops rendering and terminal queries. It keeps tty1
 non-echoing while starting the fixed polkit helper. The editor never prompts for
 or receives an unlock password.
 
+The native graphical reader additionally closes its libinput devices and releases
+logind's seat controller synchronously before its successful exit. A crash or
+forced kill cannot supply that retirement acknowledgment. Unlock starts a new
+reader with fresh XKB/compose state and device descriptors, then restores the
+renderer as the VT owner. Terminal and window input retain their existing paths.
+
 The root-owned helper requires the direct installed editor parent, matching
 non-root UIDs, an active local logind user session on seat0/tty1, tty1 descriptors,
 a password-bearing local writer and a locked root account. It checks fixed

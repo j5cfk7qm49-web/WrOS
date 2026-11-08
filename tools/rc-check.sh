@@ -46,6 +46,8 @@ counts() {
 # cargo-fmt and cargo-clippy by name: the same with rustup or with a toolchain installed alone.
 step format cargo-fmt fmt --all --check
 step clippy cargo-clippy clippy --offline --locked --no-default-features --workspace --all-targets -- -D warnings
+step native-input "${cargo[@]}" test -p wros-input --features native
+step graphical-clippy cargo-clippy clippy --offline --locked --no-default-features --features gui-drm,gui-wgpu,test-driver --all-targets -- -D warnings
 step rust "${cargo[@]}" test --no-default-features --workspace --no-fail-fast
 step app-in-terminal "${cargo[@]}" test --no-default-features --features test-driver,gui-wgpu --test driven
 # The Python screen tests drive the debug binary; build it so they run instead of skipping.

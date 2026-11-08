@@ -34,6 +34,11 @@ passwd
 libasound2t64
 libgcc-s1
 libdrm2
+libinput10
+libseat1
+libxkbcommon0
+libx11-data
+xkb-data
 git
 restic
 rclone

@@ -11,20 +11,33 @@ use taria_ratatui::{InputStatus, TariaLayer};
 #[cfg(not(debug_assertions))]
 compile_error!("test-driver is for test builds only; WrOS packages never include it");
 
-pub struct Driver(TariaLayer);
+pub struct Driver(TariaLayer, &'static str);
 
 impl Driver {
     pub fn from_env() -> Option<Self> {
         let path = std::env::var_os("WROS_TEST_DRIVER_SOCKET")?;
         TariaLayer::bind_at("wros", std::path::PathBuf::from(path))
             .ok()
-            .map(Self)
+            .map(|layer| Self(layer, "unknown"))
+    }
+
+    pub fn input_backend(&mut self, source: &'static str) {
+        self.1 = source;
     }
 
     /// What is on screen: a way into Settings, the status line, and the open
     /// Settings page's rows.
     pub fn publish(&mut self, app: &App) {
         let mut nodes = vec![
+            Node::new("system-busy", Role::Text)
+                .label("System request pending")
+                .value(app.deck.busy.to_string()),
+            Node::new("system-notice", Role::Text)
+                .label("System notice")
+                .value(app.deck.shell.notices.latest().unwrap_or("")),
+            Node::new("input-backend", Role::Text)
+                .label("Input backend")
+                .value(self.1),
             Node::new("open-settings", Role::Button)
                 .label("Open Settings")
                 .action(Action::Activate),

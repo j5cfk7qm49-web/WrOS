@@ -369,6 +369,7 @@ fn settings_pages_are_reached_by_name_and_drawn_as_their_snapshots() {
 fn a_narrow_console_lists_every_system_page() {
     let home = Home::new("narrow");
     let mut app = App::start(&home, 80, 24);
+    assert!(app.driver.tree().to_string().contains("system-busy"));
     app.activate("open-settings");
     app.choose("System");
     app.until("System", |s, _| s.contains("Settings › System"));

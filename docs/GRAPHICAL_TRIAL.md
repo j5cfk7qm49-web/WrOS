@@ -2,15 +2,19 @@
 
 Native graphics remains the default for unlock, loading, login and writing,
 following the owner's decision. The optional OpenGL writing window now works
-alongside the foot trial. The remaining native input and compositor warmth work
-is still required before this three-way trial is complete.
+alongside the foot trial. Native device input is implemented; compositor warmth
+and the HP Stream measurements are still required before this trial is complete.
 
 ## Measurements, 2026-11-08
+
+These retained baseline measurements precede native libinput/XKB integration;
+the native row used its terminal reader. Repeat the tool with the current build
+before treating the figures as final rc10 measurements.
 
 Release binaries used the same app source and Cargo lock, with audio disabled.
 The foot binary includes `gui-drm`; the window binary adds `gui-wgpu`. Both use
 DejaVu Sans Mono: foot's existing 11 pt setting and the native/window renderers'
-embedded 16 px font. These are the current trial configurations. The OpenGL instance explicitly selects GL;
+embedded 16 px font. The OpenGL instance explicitly selects GL;
 no Mesa Vulkan driver was installed. Three runs used fresh temporary homes and
 the same tutorial demo book. [Raw measurements and binary hashes](evidence/rc10-graphical-trial.json)
 retain every sample.
@@ -46,8 +50,8 @@ omit Google client configuration. Their size difference is about 2.10 MiB;
 the executable difference is about 6.57 MiB. Cage, Mesa and foot's Debian package
 costs are separate. These packages are local measurement artifacts.
 
-**Recommendation:** keep the chosen native default while completing its input
-work. Keep foot available as the compositor alternative. The chroot results give
+**Recommendation:** keep the chosen native default while qualifying its device
+input. Keep foot available as the compositor alternative. The chroot results give
 no reason to make wgpu the default: it takes more memory and starts more slowly
 with software Mesa. The HP Stream's Intel driver, typing delay, power use and a
 day of writing still decide whether that holds on the laptop.
@@ -113,10 +117,18 @@ VM run directories under `/home/builder/rc-vm-runs/`:
 - `graphical-foot-20261108T072444Z`: compositor locks and suspend/wake, PASS.
 - `graphical-wgpu-20261108T072744Z`: the same checks for OpenGL, PASS.
 - `native-trial-20261108T073033Z`: native measurement tool on tty1, PASS.
+- `graphical-drm-20261108T123102Z`: native device input, VT/lock/suspend and reader-crash recovery, PASS.
+- `graphical-wgpu-20261108T123305Z`: 12 locks and suspend/wake, PASS.
 
-Native evdev/xkbcommon, pointer input, compositor gamma control, native hardware
-latency, and the HP Stream's day-of-writing comparison remain open. Native
-writing currently uses the established kernel console keyboard map and retired
-TTY reader. Its existing VT release, repeated lock and suspend/wake VM evidence
-is described in [Graphical screens](GRAPHICAL_SESSION.md). The compositor
+An earlier OpenGL second-lock timeout remains failed and is tracked in
+[#101](https://github.com/j5cfk7qm49-web/WrOS/issues/101). A successful repeat
+does not resolve it. [The input record](evidence/rc10-native-input.json) keeps
+the failed run alongside the passes and exact executable hashes.
+
+Native evdev/xkbcommon, compose, live layout changes, key repeat and pointer input
+run in the disposable reader. Logind delegates and revokes device descriptors;
+the editor receives no input-group grant. Its VT release, repeated lock and
+suspend/wake contract is described in [Graphical screens](GRAPHICAL_SESSION.md).
+Compositor gamma control, native hardware latency and the HP Stream's
+day-of-writing comparison remain open. The compositor
 warm-screen control remains unavailable until its separate gamma path is built.

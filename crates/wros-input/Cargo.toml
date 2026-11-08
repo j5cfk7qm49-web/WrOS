@@ -5,6 +5,9 @@ edition = "2024"
 license = "MIT"
 description = "Unprivileged terminal reader retirement and explicit input ownership for WrOS"
 
+[features]
+native = ["dep:input", "dep:xkbcommon", "dep:signal-hook"]
+
 [[test]]
 name = "ownership"
 path = "tests/ownership.rs"
@@ -16,3 +19,6 @@ libc = "0.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 zeroize = "1.9"
+input = { version = "0.10.0", default-features = false, features = ["udev", "libinput_1_21"], optional = true }
+xkbcommon = { version = "0.9.0", default-features = false, optional = true }
+signal-hook = { version = "0.3", optional = true }

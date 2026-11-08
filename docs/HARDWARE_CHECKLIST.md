@@ -160,7 +160,10 @@ For the compositor comparison, use [GRAPHICAL_TRIAL](GRAPHICAL_TRIAL.md) and
 `tools/graphical-trial.sh` with a disposable demo book. Record the HP Stream's
 startup, memory, typing delay and power use for foot and OpenGL, then repeat
 Colemak, compose, two locks and suspend/wake in each chosen session. Finish with
-a day of writing. Native input and compositor warmth are still being built;
+a day of writing. Native input now uses libinput/XKB; check touchpad click, drag,
+two-finger scroll, key repeat, live layout changes and compose after VT switches,
+two locks and wake. No held modifier, drag or compose prefix should survive a
+handoff. Compositor warmth is still being built;
 the current chroot/VM measurements are recorded separately in that document.
 
 ## Collecting the log
