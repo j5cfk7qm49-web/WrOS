@@ -8,51 +8,58 @@ required before this trial is complete.
 
 ## Measurements, 2026-11-08
 
-These retained baseline measurements precede native libinput/XKB integration;
-the native row used its terminal reader. Repeat the tool with the current build
-before treating the figures as final rc10 measurements.
+This checkpoint includes native libinput/XKB and the compositor colour process.
+It precedes the remaining interface libraries, so it is not a final release
+measurement. The [earlier console-reader baseline](evidence/rc10-graphical-trial.json)
+is preserved separately; its latency values are summaries, not individual samples.
 
 Release binaries used the same app source and Cargo lock, with audio disabled.
 The foot binary includes `gui-drm`; the window binary adds `gui-wgpu`. Both use
 DejaVu Sans Mono: foot's existing 11 pt setting and the native/window renderers'
 embedded 16 px font. The OpenGL instance explicitly selects GL;
 no Mesa Vulkan driver was installed. Three runs used fresh temporary homes and
-the same tutorial demo book. [Raw measurements and binary hashes](evidence/rc10-graphical-trial.json)
-retain every sample.
+the same tutorial demo book. The measured executables were extracted from the
+unsigned comparison packages after their final ELF strip; their hashes match
+the package payloads. [Current observations and hashes](evidence/rc10-graphical-trial-current.json)
+retain every run and all 36 key/capture observations per compositor.
 
 | Renderer and environment | Median first draw | Median total RSS | App binary | Update package | Median key to screenshot |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| foot/cage, headless Debian chroot | 41.7 ms | 60.4 MiB | 27.31 MiB | 10.01 MiB | 54.3 ms |
-| wgpu/cage, OpenGL with software Mesa in that chroot | 294.0 ms | 182.5 MiB | 33.87 MiB | 12.11 MiB | 77.6 ms |
-| Native software DRM, separate QEMU/KVM guest | 31.3 ms | 32.2 MiB | 27.31 MiB | 10.01 MiB | Hardware check pending |
+| foot/cage, headless Debian chroot | 52.8 ms | 76.5 MiB | 27.71 MiB | 10.08 MiB | 55.5 ms |
+| wgpu/cage, OpenGL with software Mesa in that chroot | 275.3 ms | 195.8 MiB | 34.25 MiB | 12.28 MiB | 82.2 ms |
+| Native software DRM, separate QEMU/KVM guest | 45.9 ms | 39.0 MiB | 27.71 MiB | 10.08 MiB | Hardware check pending |
 
 The marker records the app's first completed draw, polled every 5 ms. Foot may
 still be painting those terminal bytes. The three startup samples were
-275.5/41.7/41.4 ms for foot and 479.1/264.3/294.0 ms for wgpu; filesystem and driver
+160.7/47.0/52.8 ms for foot and 463.8/275.3/275.3 ms for wgpu; filesystem and driver
 startup costs are visible in the variation. These were repeated starts, without
 forcing a cold filesystem cache.
 
 The key test sends physical Colemak keys through cage and waits for changed
-editor pixels using Wayland screen capture. Each run has 12 samples. Its number
-includes roughly 37 ms of capture and PNG decoding overhead; it is an upper
+editor pixels using Wayland screen capture at 1280×720. Each run has 12 samples;
+the table pools all 36, retained to 0.001 ms. The number
+includes roughly 38–39 ms of capture and PNG decoding overhead; it is an upper
 measurement through that capture path, with no overhead subtracted. Focus mode
 removes animated decorations, and two matching captures establish a stationary
 editor before each key. This does not measure the laptop panel's scanout.
 
 Memory sums the run's complete process tree, including foot's separate PTY
-session and the independent input reader. RSS can count shared pages twice.
+session, the independent input reader and the separate colour process. RSS can
+count shared pages twice.
 PSS is also recorded where readable; the protected input reader intentionally
 does not expose it. Native DRM needs a display device absent from this chroot,
-so its sample comes from a separate installed guest and is not a timing ranking
-against the other two rows. Native key-to-screen latency remains unmeasured.
+so its sample comes from a separate installed 1280×800 guest and is not a timing
+ranking against the other two rows. The guest verified real delegated input
+devices during measurement. Native key-to-screen latency remains unmeasured.
 
 The unsigned measurement packages contain identical boot/login payloads and
-omit Google client configuration. Their size difference is about 2.10 MiB;
-the executable difference is about 6.57 MiB. Cage, Mesa and foot's Debian package
+omit Google client configuration. The only differing payload is Grimoire itself.
+Their size difference is about 2.20 MiB; the executable difference is about
+6.53 MiB. Cage, Mesa and foot's Debian package
 costs are separate. These packages are local measurement artifacts.
 
-**Recommendation:** keep the chosen native default while qualifying its device
-input. Keep foot available as the compositor alternative. The chroot results give
+**Recommendation:** keep the chosen native default while completing its hardware
+checks. Keep foot available as the compositor alternative. The chroot results give
 no reason to make wgpu the default: it takes more memory and starts more slowly
 with software Mesa. The HP Stream's Intel driver, typing delay, power use and a
 day of writing still decide whether that holds on the laptop.

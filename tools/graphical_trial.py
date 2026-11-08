@@ -43,6 +43,10 @@ def environment(directory, headless, backend):
     if headless:
         env.update(WLR_BACKENDS='headless', WLR_RENDERER='pixman',
                    WLR_LIBINPUT_NO_DEVICES='1', LIBGL_ALWAYS_SOFTWARE='1')
+        if backend in ('graphical', 'wgpu'):
+            # This private fixture has no native colour owner to hand off. A real
+            # tty1 trial still refuses warmth unless the session launcher prepared it.
+            env['WROS_COMPOSITOR_WARMTH'] = 'ready'
     else:
         # libseat uses the existing authenticated session, never a new root session.
         for name in ('XDG_SESSION_ID', 'XDG_SEAT', 'XDG_VTNR', 'DBUS_SESSION_BUS_ADDRESS'):
@@ -177,6 +181,7 @@ def key(child, code, control=0):
 def key_latency(directory, env, samples):
     from PIL import Image
     child, env = keyboard(directory, env)
+    dimensions = []
     try:
         key(child, COLEMAK['k'], 1)
         for char in 'brass':
@@ -190,6 +195,7 @@ def key_latency(directory, env, samples):
             result = subprocess.run(['grim', '-'], env=env, capture_output=True, check=True, timeout=4)
             # Exclude the bottom status row's clock; compare actual editor pixels.
             with Image.open(io.BytesIO(result.stdout)) as picture:
+                dimensions[:] = picture.size
                 return picture.convert('RGB').crop((0, 0, picture.width, picture.height - 24)).tobytes()
 
         delays, overhead = [], []
@@ -207,6 +213,9 @@ def key_latency(directory, env, samples):
                     raise RuntimeError('the virtual key did not change editor pixels')
             delays.append((time.monotonic() - started) * 1000)
         return {'samples': samples, 'median_ms': round(statistics.median(delays), 3),
+                'samples_ms': [round(value, 3) for value in delays],
+                'capture_samples_ms': [round(value, 3) for value in overhead],
+                'frame_pixels': dimensions,
                 'maximum_ms': round(max(delays), 3),
                 'capture_median_ms': round(statistics.median(overhead), 3),
                 'method': 'virtual Colemak key to changed Wayland screenshot; includes capture overhead'}
