@@ -400,6 +400,19 @@ def image_signature(path):
     return hashlib.sha256(image.tobytes()).hexdigest()
 
 
+def frame_has_content(path):
+    """Detect visible content independently of the guest's console font."""
+    from PIL import Image
+    with Image.open(path) as picture:
+        gray = picture.convert('L')
+    histogram = gray.histogram()
+    background = max(range(256), key=histogram.__getitem__)
+    bounds = gray.point([255 if abs(level - background) >= 24 else 0
+                         for level in range(256)]).getbbox()
+    # A blinking cursor by itself is not evidence that the prompt is visible.
+    return bounds is not None and bounds[2] - bounds[0] >= 80 and bounds[3] - bounds[1] >= 6
+
+
 # --------------------------------------------------------------------------- serial shell
 
 
@@ -707,6 +720,15 @@ class Machine:
     def screen_text(self, name='screen'):
         path = self.shot(name)
         return png_text(path)
+
+    def wait_visible(self, name, timeout=12):
+        """Retain the captured display, separately from the console text check."""
+        deadline = time.monotonic() + timeout
+        while self.is_running() and time.monotonic() < deadline:
+            if frame_has_content(self.shot(name)):
+                return
+            time.sleep(.5)
+        raise TimeoutError(f'{name}: no visible content reached the display')
 
     def wait_screen(self, pattern, timeout=300, interval=2.0, name='wait'):
         """Wait for OCR'd framebuffer text matching a regex (tty1/initramfs, no serial)."""

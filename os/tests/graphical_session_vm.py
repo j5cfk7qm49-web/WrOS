@@ -67,6 +67,8 @@ def trial(ctx):
     display_helper = ctx.args.source_tree / 'os/scripts/wros-display'
     g.shell.put('/usr/libexec/wros-display', display_helper.read_bytes(), '0755')
     ctx.result['display_helper_sha256'] = phases.vm.sha256_file(display_helper)
+    if ctx.args.backend == 'drm':
+        ctx.result['native_warmth_before_login'] = json.loads(g.run('/usr/libexec/wros-display status')[1])
     if ctx.args.delay_health:
         # Only this disposable VM's read-only health query is delayed. The real
         # updater still produces the reply; authentication helpers are unchanged.
@@ -234,14 +236,6 @@ def trial(ctx):
         changed = ImageChops.difference(before, editor_pixels('native-pointer')).getbbox()
         ctx.check('native pointer motion draws the bounded cursor overlay', changed is not None
                   and changed[2] - changed[0] <= 10 and changed[3] - changed[1] <= 16)
-        m.key('ctrl', 'alt', 'f2')
-        time.sleep(2)
-        ctx.check('native input and display release for another VT', g.run('fgconsole')[1].strip() == '2')
-        ctx.check('the inactive reader has released its input devices', '/dev/input/event' not in native_devices())
-        m.key('ctrl', 'alt', 'f1')
-        time.sleep(2)
-        ctx.check('native devices return with tty1', g.run('fgconsole')[1].strip() == '1'
-                  and '/dev/input/event' in native_devices())
     _, properties = g.run("for sid in $(loginctl list-sessions --no-legend | awk '$2 == \"1000\" && $4 == \"seat0\" {print $1}'); do loginctl show-session $sid -p User -p Active -p Remote -p TTY -p VTNr -p Seat -p Type -p Class; done")
     (ctx.dir / 'session-properties.txt').write_text(properties)
     m.shot('graphical-writing')
@@ -259,6 +253,8 @@ def trial(ctx):
             phases.hold_for_operator(ctx, g)
         raise phases.Failure(detail[-9000:])
     ctx.check('the maintained locker owns tty8', g.run('fgconsole')[1].strip() == '8')
+    m.wait_visible('visible-lock')
+    ctx.check('the lock prompt reaches the display before any rescue VT switch', True)
     if ctx.args.test_clock:
         g.wait_vcs(8, r'Locked at \d\d:\d\d', 10, what='large-lock-clock')
         ctx.check('the maintained locker shows the labelled lock-start time', True)
@@ -268,6 +264,8 @@ def trial(ctx):
     m.shot('compositor-locked')
     m.key('ret')
     g.wait_vcs(8, 'Password:', 20, what='compositor-password')
+    m.wait_visible('visible-lock-password')
+    ctx.check('the password prompt reaches the display', True)
     wrong = 'trialwrongpassword'
     m.type_text(wrong+'\n', state['layout'])
     g.wait_vcs(8, r'\A(?!.*Password:).*Press Enter to unlock', 30, what='compositor-wrong-rejected')
@@ -281,6 +279,9 @@ def trial(ctx):
     # snapshot alone can be the retained frame from before authentication.
     tree = drive({'kind':'key', 'key':'f24'})
     ctx.check('authentication returns to the writing settings', 'Battery and power' in tree)
+    if backend == 'drm':
+        m.wait_visible('visible-native-unlock')
+        ctx.check('native writing is visible after unlocking without a rescue VT switch', True)
     m.shot('compositor-unlocked')
     (ctx.dir / 'before-lock-2.json').write_text(drive())
     if ctx.args.delay_health:
@@ -328,6 +329,8 @@ def trial(ctx):
         m.qmp.command('system_wakeup')
         time.sleep(4)
         g.wait_vcs(8, 'Press Enter to unlock', 30, what='compositor-wake-lock')
+        m.wait_visible('visible-wake-lock')
+        ctx.check('the lock prompt reaches the display after wake', True)
         m.key('ret')
         g.wait_vcs(8, 'Password:', 20, what='compositor-wake-password')
         m.type_text(credentials['login']+'\n', state['layout'])
@@ -336,6 +339,15 @@ def trial(ctx):
                   and g.run('pgrep -xo grimoire')[1].strip() == editor_pid)
     if backend == 'drm':
         ctx.check('native input reacquires devices after wake', '/dev/input/event' in native_devices())
+        # Exercise the first lock before a maintenance VT switch can refresh scanout.
+        m.key('ctrl', 'alt', 'f2')
+        time.sleep(2)
+        ctx.check('native input and display release for another VT', g.run('fgconsole')[1].strip() == '2')
+        ctx.check('the inactive reader has released its input devices', '/dev/input/event' not in native_devices())
+        m.key('ctrl', 'alt', 'f1')
+        time.sleep(2)
+        ctx.check('native devices return with tty1', g.run('fgconsole')[1].strip() == '1'
+                  and '/dev/input/event' in native_devices())
         g.run('pkill -KILL -x wros-input')
         g.wait_vcs(1, 'Local account', 45, what='native-reader-crash-greeter')
         ctx.check('reader death ends the writer and restores the graphical login',

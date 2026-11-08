@@ -173,6 +173,17 @@ after sleep and with **WrOS (text start)**. Both fonts should show complete digi
 Leave login idle across a minute change: the full form should stay visible
 without blank flashes. Check writing redraws for flashes or tearing too.
 
+For the [RC9 black lock report](https://github.com/j5cfk7qm49-web/WrOS/issues/107),
+boot RC10 with the saved Warm screen choice and take the first lock before
+visiting tty2. Check the lock screen, the password prompt after Enter, and the
+writing screen after unlock. Repeat with Warm screen Off, then repeat with
+warmth on using Lock and suspend. Pass when each screen appears on its own,
+warmth remains visible when enabled, and authentication blocks VT switching.
+If a screen goes black, record which of these steps triggered it, the selected
+session, and whether switching VTs restored the picture after unlocking.
+The [VM comparison](evidence/rc10-lock-visibility.md) covers visible pixels on
+the emulated display. The HP Stream is needed for the warmed case.
+
 In both foot and OpenGL, open Warm screen and check support. If supported, preview
 2200 K at full strength: the screen should visibly warm. Cancel, then preview and
 Keep; Off should restore the original colours. Let another preview expire without

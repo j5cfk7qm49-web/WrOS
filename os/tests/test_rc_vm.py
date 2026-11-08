@@ -28,6 +28,22 @@ class RememberedMenu(unittest.TestCase):
         self.assertEqual(guest.choose(r'^Display', limit=8), 'Display ›')
 
 
+class DisplayVisibility(unittest.TestCase):
+    def test_blank_frames_and_cursor_only_frames_are_rejected(self):
+        from PIL import Image, ImageDraw
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp, 'frame.png')
+            frame = Image.new('RGB', (240, 100), '#181411')
+            frame.save(path)
+            self.assertFalse(vm.frame_has_content(path))
+            ImageDraw.Draw(frame).rectangle((0, 0, 7, 15), fill='#f9ab67')
+            frame.save(path)
+            self.assertFalse(vm.frame_has_content(path))
+            ImageDraw.Draw(frame).text((0, 16), 'Press Enter to unlock.', fill='#f9ab67')
+            frame.save(path)
+            self.assertTrue(vm.frame_has_content(path))
+
+
 def screen(*lines):
     return ['  ' + line for line in lines]
 

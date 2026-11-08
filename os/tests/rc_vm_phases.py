@@ -1993,6 +1993,8 @@ def feature_console_lock(ctx, g, st, secrets_, layout, *, suspend=False, signed_
         g.choose(r'^Lock writing session$')
         m.key('ret')
     g.wait_vcs(8, r'Press Enter to unlock', 30, what='console-lock')
+    m.wait_visible('visible-console-lock')
+    ctx.check('the lock screen has visible content before any VT switch', True)
     ctx.check('tty8 owns input and tty1 has no reader or manuscript on screen',
               not any(p['comm'] == 'wros-input' for p in g.snap()['procs'])
               and not g.screen(1).strip()
@@ -2008,6 +2010,8 @@ def feature_console_lock(ctx, g, st, secrets_, layout, *, suspend=False, signed_
     g.wait_vcs(8, r"Password:", 15, what='lock-password-retry')
     m.type_text(secrets_['login'] + '\n', layout)
     g.wait_vcs(1, r'Lock writing session|Wi-Fi and networking', 40, what='lock-return')
+    m.wait_visible('visible-console-return')
+    ctx.check('writing is visible after unlock without a VT switch', True)
     procs = g.snap()['procs']
     ctx.check('Colemak unlock returned to the same editor with a fresh reader',
               any(p['pid'] == editor['pid'] and p['comm'] == 'grimoire' for p in procs)
