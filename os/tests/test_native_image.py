@@ -401,7 +401,7 @@ class PackageAwareAudit(unittest.TestCase):
             self.assertEqual(result['wros_package']['version'], packaging.read_version(ROOT))
             self.assertEqual(result['update_signers'], [info['fingerprint'], RELEASE_PRIMARY])
             self.assertEqual(result['update_units_enabled'], [
-                'wros-keyboard.service', 'wros-display.service',
+                'wros-boot-rebuild.path', 'wros-keyboard.service', 'wros-display.service',
                 'wros-offline-update.service', 'wros-update-reconcile.service',
                 'wros-boot-ok.service', 'wros-boot-ok.service', 'wros-boot-splash.service'])
             self.assertEqual(result['update_polkit_actions'], [
