@@ -12,7 +12,11 @@ on:
 jobs:
   linux:
     runs-on: ubuntu-latest
-    container: debian:13-slim
+    container:
+      image: debian:13-slim
+      # A real PID 1 that reaps orphans, as systemd does on WrOS: without it the runner's
+      # placeholder PID 1 leaves zombies that keep a stopped process group alive.
+      options: --init
     timeout-minutes: 45
     env:
       CARGO_HOME: /opt/cargo
@@ -23,18 +27,21 @@ jobs:
     steps:
       - name: Debian prerequisites
         run: |
+          # The slim image skips installing documentation; package tests check every file.
+          grep -l '^path-exclude' /etc/dpkg/dpkg.cfg.d/* 2>/dev/null | xargs -r rm -f
           sed 's/^Types:.*/Types: deb-src/' /etc/apt/sources.list.d/debian.sources > /etc/apt/sources.list.d/wros-build-sources.sources
           apt-get update
           apt-get install -y --no-install-recommends build-essential pkg-config libasound2-dev libssl-dev libdrm-dev python3 python3-venv python3-debian python3-apt wordnet-base ca-certificates curl git restic rclone shellcheck gnupg gpgv debian-archive-keyring autoconf automake libtool dpkg-dev patch cpio libdebian-installer4-dev debconf libreoffice-writer-nogui poppler-utils fonts-liberation epubcheck default-jre-headless squashfs-tools
           useradd -m -s /bin/bash builder
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Pinned Rust toolchain
         shell: bash
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
-          sh /tmp/rustup-init.sh -y --no-modify-path --profile minimal --default-toolchain 1.99.1 --component clippy,rustfmt
+          # rustup refuses a $HOME other than root's own; the toolchain still goes to RUSTUP_HOME.
+          HOME=/root sh /tmp/rustup-init.sh -y --no-modify-path --profile minimal --default-toolchain 1.99.1 --component clippy,rustfmt
           chown -R builder:builder /opt/cargo /opt/rustup "$GITHUB_WORKSPACE"
       - name: Fetch and verify locked build inputs
         shell: bash
@@ -55,7 +62,7 @@ jobs:
         run: runuser -u builder -- env PATH="/opt/cargo/bin:$PATH" cargo test --locked --no-default-features --features test-driver --test driven
       - name: Retain results for this commit
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: m7b-software-${{ github.sha }}
           path: |

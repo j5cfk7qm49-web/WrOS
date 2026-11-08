@@ -54,7 +54,7 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends build-essential pkg-config libasound2-dev libssl-dev libdrm-dev \
             python3 python3-debian ca-certificates curl git gnupg gpgv dpkg-dev console-setup keyboard-configuration
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Plan this run
@@ -101,7 +101,8 @@ jobs:
         shell: bash
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
-          sh /tmp/rustup-init.sh -y --no-modify-path --profile minimal --default-toolchain 1.99.1
+          # rustup refuses a $HOME other than root's own; the toolchain still goes to RUSTUP_HOME.
+          HOME=/root sh /tmp/rustup-init.sh -y --no-modify-path --profile minimal --default-toolchain 1.99.1
       - name: Build the wros package
         if: steps.plan.outputs.build != ''
         shell: bash
@@ -197,9 +198,9 @@ jobs:
           mkdir -p out/pages
           cp -r pages/. out/pages/
           find out/pages -type f | sort
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         if: steps.plan.outputs.deploy == 'true'
         with:
           path: out/pages
-      - uses: actions/deploy-pages@v4
+      - uses: actions/deploy-pages@v5
         if: steps.plan.outputs.deploy == 'true'
