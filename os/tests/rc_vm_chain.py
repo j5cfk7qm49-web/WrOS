@@ -34,7 +34,7 @@ def run_phase(root, label, *args):
     return Outcome(label, passed, result.parent)
 
 
-def qualify(root, install, bundle, expect, existing=None, start=None):
+def qualify(root, install, bundle, expect, existing=None, start=None, *, bootscreen=False):
     """Update an installed system to the bundle, then check the features on it. The start is
     rc1 as installed, or `start` = (disk, version): a saved disk at the version the test
     laptop runs, which is what an update really meets."""
@@ -51,6 +51,10 @@ def qualify(root, install, bundle, expect, existing=None, start=None):
     else:
         features = Outcome('features', False, skipped=True)
     outcomes = [update, features]
+    if bootscreen:
+        outcomes.append(run_phase(root, 'bootscreen', 'bootscreen', *source,
+                                  '--base-disk', update.run / 'disk.qcow2') if update.passed
+                        else Outcome('bootscreen', False, skipped=True))
     if existing:
         outcomes.append(run_phase(root, 'rc6-migration', 'update', *source, '--bundle', bundle,
                                   '--base-disk', existing, '--from-version', '0.1.0~rc6',
@@ -73,6 +77,7 @@ def main():
     parser.add_argument('--existing-disk', type=Path, help='optional rc6 qcow2 base for the migration')
     parser.add_argument('--start-disk', type=Path, help='update this saved installed disk instead of rc1')
     parser.add_argument('--start-version', help='the WrOS version on --start-disk')
+    parser.add_argument('--bootscreen', action='store_true', help='also qualify native startup and text recovery')
     args = parser.parse_args()
     if os.geteuid() == 0:
         parser.error('run as the unprivileged builder')
@@ -82,7 +87,8 @@ def main():
     if bool(args.start_disk) != bool(args.start_version):
         parser.error('--start-disk and --start-version go together')
     start = (args.start_disk, args.start_version) if args.start_disk else None
-    return summarize(qualify(root, args.install_run, args.bundle, args.expect, args.existing_disk, start))
+    return summarize(qualify(root, args.install_run, args.bundle, args.expect, args.existing_disk, start,
+                             bootscreen=args.bootscreen))
 
 
 if __name__ == '__main__':

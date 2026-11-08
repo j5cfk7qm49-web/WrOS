@@ -48,3 +48,9 @@ Building the ordinary terminal app with `--no-default-features` omits native
 graphics. WrOS release builders explicitly add `--features gui-drm`; desktop
 terminal launches continue to use their terminal unless the session launcher
 asks for native output.
+
+The release VM chain accepts `--bootscreen` to include graphical unlock,
+loading/login handoff, writing, VT switching, lock, renderer SIGKILL and text
+recovery after the saved-system update and feature checks. Its screenshots use
+the exact glyph atlas from `cargo run -p wros-graphics --example font_atlas`;
+set `WROS_NATIVE_FONT` to that PPM file when running the VM harness.

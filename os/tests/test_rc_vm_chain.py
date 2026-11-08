@@ -10,6 +10,29 @@ import rc_vm_chain as chain
 
 
 class ReleaseChain(unittest.TestCase):
+    def test_graphical_qualification_includes_bootscreen_on_the_clean_updated_disk(self):
+        with tempfile.TemporaryDirectory(prefix='wros-chain-') as tmp:
+            calls = []
+
+            def phase(_, label, *args):
+                calls.append((label, args))
+                return chain.Outcome(label, True, Path(tmp) / label)
+
+            with patch.object(chain, 'run_phase', side_effect=phase):
+                outcomes = chain.qualify(Path(tmp), Path('/install'), Path('/bundle'),
+                                         '0.1.0~rc10', bootscreen=True)
+            self.assertEqual([o.label for o in outcomes], ['rc1-update', 'features', 'bootscreen'])
+            self.assertEqual(calls[2][1][0], 'bootscreen')
+            args = calls[2][1]
+            self.assertEqual(args[args.index('--base-disk') + 1], Path(tmp) / 'rc1-update/disk.qcow2')
+
+    def test_bootscreen_is_skipped_if_the_update_failed(self):
+        with patch.object(chain, 'run_phase', return_value=chain.Outcome('rc1-update', False)):
+            outcomes = chain.qualify(Path('/runs'), Path('/install'), Path('/bundle'),
+                                     '0.1.0~rc10', bootscreen=True)
+        self.assertTrue(outcomes[-1].skipped)
+        self.assertEqual(outcomes[-1].label, 'bootscreen')
+
     def test_failed_update_skips_its_features_and_still_runs_the_rc6_migration(self):
         with tempfile.TemporaryDirectory(prefix='wros-chain-') as tmp:
             calls = []
