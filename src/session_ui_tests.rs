@@ -15,6 +15,27 @@ fn display_page(tag: &str) -> Desk {
 }
 
 #[test]
+fn the_writer_adapts_the_console_theme_without_changing_saved_rgb_colours() {
+    use ratatui::style::Color;
+    let mut desk = display_page("writer-console-theme");
+    desk.app.theme.accent = Color::Rgb(13, 199, 80);
+    let saved = crate::theme::to_config(&desk.app.theme);
+    let ansi = desk.app.theme.for_console().accent;
+    assert_ne!(ansi, desk.app.theme.accent);
+    for console in [true, false] {
+        desk.app.linux_console = console;
+        desk.draw();
+        let cells = &desk.term.backend().buffer().content;
+        let wanted = if console { ansi } else { desk.app.theme.accent };
+        assert!(cells.iter().any(|cell| cell.fg == wanted), "{wanted:?}");
+        if console {
+            assert!(!cells.iter().any(|cell| cell.fg == desk.app.theme.accent));
+        }
+        assert_eq!(crate::theme::to_config(&desk.app.theme), saved);
+    }
+}
+
+#[test]
 fn the_graphical_session_is_offered_only_when_it_can_start() {
     let desk = display_page("session-not-offered");
     assert!(!desk.shows("Graphical session"));

@@ -24,7 +24,11 @@ const MIN_TREE: u16 = 6;
 pub fn draw(f: &mut Frame, app: &mut App) {
     // Cloned once per frame so sub-renderers can read the theme while `app`
     // stays mutably borrowed for scroll and rect bookkeeping.
-    let mut t = app.theme.clone();
+    let mut t = if app.linux_console {
+        app.theme.for_console()
+    } else {
+        app.theme.clone()
+    };
     if app.linux_console {
         // The console keeps only the top bit of each channel for a background, so
         // every theme's dark selection shade turns black there: use its own blue.
