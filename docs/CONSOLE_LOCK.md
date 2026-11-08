@@ -44,6 +44,16 @@ acknowledged input reader. The same in-memory editor retains its writing context
 Failure leaves the proof unconsumed and closes the writing session through the
 existing save/rescue path.
 
+The rc10 cage sessions use the same independent locker. Foot retires its PTY
+reader; the OpenGL window clears its frame, disables composition and discards
+all pending window input. It pumps Wayland without dispatching keys during
+authentication. The helper gets fixed tty1 descriptors. Logind's Wayland type
+is accepted only with the packaged cage executable as an ancestor, matching
+UIDs and the same logind session; all active/local seat0, VT1, tty1 and user-class
+checks still apply. Both compositor modes passed repeated lock and actual
+suspend/wake VM checks, including password isolation; see
+[the graphical trial](GRAPHICAL_TRIAL.md).
+
 After validating the caller, the helper uses Debian `systemd-run --wait
 --collect` to place the fixed worker and its openvt/vlock children in a system
 service cgroup. A Linux PID handle monitors the original editor; its death

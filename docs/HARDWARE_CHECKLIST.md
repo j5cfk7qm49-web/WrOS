@@ -156,6 +156,13 @@ Check the warm-screen control before and after these handoffs. Record cold-start
 time, unlock-to-login time, memory and battery use on the Celeron; VM results do
 not establish those hardware measurements.
 
+For the compositor comparison, use [GRAPHICAL_TRIAL](GRAPHICAL_TRIAL.md) and
+`tools/graphical-trial.sh` with a disposable demo book. Record the HP Stream's
+startup, memory, typing delay and power use for foot and OpenGL, then repeat
+Colemak, compose, two locks and suspend/wake in each chosen session. Finish with
+a day of writing. Native input and compositor warmth are still being built;
+the current chroot/VM measurements are recorded separately in that document.
+
 ## Collecting the log
 
 Kernel and system messages need administrator rights. From the PC, over SSH,

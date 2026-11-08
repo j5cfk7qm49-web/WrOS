@@ -1,0 +1,328 @@
+{
+  "recorded_at_utc": "2026-11-08",
+  "scope": "Release binary renderer trial; software Mesa in the Debian chroot and a separate native DRM VM",
+  "app_source_commit": "6ed8902",
+  "foot": {
+    "headless": true,
+    "first_draw_method": "app first-frame marker; 5 ms polling",
+    "kernel": "6.18.54.1-microsoft-standard-WSL2",
+    "trial_script_sha256": "127faf321d0c9fb3d3685e334ebd9ef19c93c20cf9c1e6535da5c2da95a589d4",
+    "package_bytes": 10493468,
+    "native_latency": "requires a hardware measurement; Wayland capture does not cover direct DRM",
+    "backends": {
+      "foot": {
+        "binary_bytes": 28632328,
+        "binary_sha256": "833e08a6e1519346ebedafb7125a5c4028028cc45f01ba3ae1a178d085d70e98",
+        "compiled_renderers": {
+          "console": true,
+          "drm": true,
+          "wgpu": false
+        },
+        "runs": [
+          {
+            "first_draw_ms": 275.53,
+            "memory": {
+              "rss_kib": 64836,
+              "pss_kib": null,
+              "processes": [
+                {
+                  "name": "cage",
+                  "rss_kib": 19236,
+                  "pss_kib": 13454
+                },
+                {
+                  "name": "foot",
+                  "rss_kib": 17028,
+                  "pss_kib": 11048
+                },
+                {
+                  "name": "grimoire",
+                  "rss_kib": 22136,
+                  "pss_kib": 19161
+                },
+                {
+                  "name": "wros-input",
+                  "rss_kib": 6436,
+                  "pss_kib": null
+                }
+              ]
+            },
+            "key_to_screenshot": {
+              "samples": 12,
+              "median_ms": 54.319,
+              "maximum_ms": 75.299,
+              "capture_median_ms": 37.696,
+              "method": "virtual Colemak key to changed Wayland screenshot; includes capture overhead"
+            }
+          },
+          {
+            "first_draw_ms": 41.691,
+            "memory": {
+              "rss_kib": 61324,
+              "pss_kib": null,
+              "processes": [
+                {
+                  "name": "cage",
+                  "rss_kib": 16236,
+                  "pss_kib": 11885
+                },
+                {
+                  "name": "foot",
+                  "rss_kib": 16868,
+                  "pss_kib": 12544
+                },
+                {
+                  "name": "grimoire",
+                  "rss_kib": 21944,
+                  "pss_kib": 18803
+                },
+                {
+                  "name": "wros-input",
+                  "rss_kib": 6276,
+                  "pss_kib": null
+                }
+              ]
+            },
+            "key_to_screenshot": {
+              "samples": 12,
+              "median_ms": 73.533,
+              "maximum_ms": 74.632,
+              "capture_median_ms": 36.97,
+              "method": "virtual Colemak key to changed Wayland screenshot; includes capture overhead"
+            }
+          },
+          {
+            "first_draw_ms": 41.423,
+            "memory": {
+              "rss_kib": 61900,
+              "pss_kib": null,
+              "processes": [
+                {
+                  "name": "cage",
+                  "rss_kib": 16180,
+                  "pss_kib": 11870
+                },
+                {
+                  "name": "foot",
+                  "rss_kib": 17016,
+                  "pss_kib": 12453
+                },
+                {
+                  "name": "grimoire",
+                  "rss_kib": 22340,
+                  "pss_kib": 19311
+                },
+                {
+                  "name": "wros-input",
+                  "rss_kib": 6364,
+                  "pss_kib": null
+                }
+              ]
+            },
+            "key_to_screenshot": {
+              "samples": 12,
+              "median_ms": 53.251,
+              "maximum_ms": 74.06,
+              "capture_median_ms": 36.78,
+              "method": "virtual Colemak key to changed Wayland screenshot; includes capture overhead"
+            }
+          }
+        ],
+        "median_first_draw_ms": 41.691
+      }
+    },
+    "passed": true
+  },
+  "wgpu": {
+    "headless": true,
+    "first_draw_method": "app first-frame marker; 5 ms polling",
+    "kernel": "6.18.54.1-microsoft-standard-WSL2",
+    "trial_script_sha256": "127faf321d0c9fb3d3685e334ebd9ef19c93c20cf9c1e6535da5c2da95a589d4",
+    "package_bytes": 12694972,
+    "native_latency": "requires a hardware measurement; Wayland capture does not cover direct DRM",
+    "backends": {
+      "wgpu": {
+        "binary_bytes": 35517832,
+        "binary_sha256": "0c515475423a3b013352393b38e0e63796ca881eb4c0dc3b2aa1683d80347261",
+        "compiled_renderers": {
+          "console": true,
+          "drm": true,
+          "wgpu": true
+        },
+        "runs": [
+          {
+            "first_draw_ms": 479.127,
+            "memory": {
+              "rss_kib": 186928,
+              "pss_kib": 182705,
+              "processes": [
+                {
+                  "name": "cage",
+                  "rss_kib": 12448,
+                  "pss_kib": 10373
+                },
+                {
+                  "name": "grimoire",
+                  "rss_kib": 174480,
+                  "pss_kib": 172332
+                }
+              ]
+            },
+            "key_to_screenshot": {
+              "samples": 12,
+              "median_ms": 77.595,
+              "maximum_ms": 81.961,
+              "capture_median_ms": 37.248,
+              "method": "virtual Colemak key to changed Wayland screenshot; includes capture overhead"
+            }
+          },
+          {
+            "first_draw_ms": 264.284,
+            "memory": {
+              "rss_kib": 188224,
+              "pss_kib": 182453,
+              "processes": [
+                {
+                  "name": "cage",
+                  "rss_kib": 12336,
+                  "pss_kib": 10269
+                },
+                {
+                  "name": "grimoire",
+                  "rss_kib": 175888,
+                  "pss_kib": 172184
+                }
+              ]
+            },
+            "key_to_screenshot": {
+              "samples": 12,
+              "median_ms": 76.866,
+              "maximum_ms": 80.398,
+              "capture_median_ms": 37.27,
+              "method": "virtual Colemak key to changed Wayland screenshot; includes capture overhead"
+            }
+          },
+          {
+            "first_draw_ms": 293.964,
+            "memory": {
+              "rss_kib": 183684,
+              "pss_kib": 181151,
+              "processes": [
+                {
+                  "name": "cage",
+                  "rss_kib": 12348,
+                  "pss_kib": 10240
+                },
+                {
+                  "name": "grimoire",
+                  "rss_kib": 171336,
+                  "pss_kib": 170911
+                }
+              ]
+            },
+            "key_to_screenshot": {
+              "samples": 12,
+              "median_ms": 77.594,
+              "maximum_ms": 80.969,
+              "capture_median_ms": 37.431,
+              "method": "virtual Colemak key to changed Wayland screenshot; includes capture overhead"
+            }
+          }
+        ],
+        "median_first_draw_ms": 293.964
+      }
+    },
+    "passed": true
+  },
+  "native_vm": {
+    "headless": false,
+    "first_draw_method": "app first-frame marker; 5 ms polling",
+    "kernel": "6.12.113+deb13-amd64",
+    "trial_script_sha256": "127faf321d0c9fb3d3685e334ebd9ef19c93c20cf9c1e6535da5c2da95a589d4",
+    "package_bytes": null,
+    "native_latency": "requires a hardware measurement; Wayland capture does not cover direct DRM",
+    "backends": {
+      "drm": {
+        "binary_bytes": 28632328,
+        "binary_sha256": "833e08a6e1519346ebedafb7125a5c4028028cc45f01ba3ae1a178d085d70e98",
+        "compiled_renderers": {
+          "console": true,
+          "drm": true,
+          "wgpu": false
+        },
+        "runs": [
+          {
+            "first_draw_ms": 31.278,
+            "memory": {
+              "rss_kib": 32728,
+              "pss_kib": null,
+              "processes": [
+                {
+                  "name": "grimoire",
+                  "rss_kib": 26760,
+                  "pss_kib": 23697
+                },
+                {
+                  "name": "wros-input",
+                  "rss_kib": 5968,
+                  "pss_kib": null
+                }
+              ]
+            },
+            "key_to_screenshot": null
+          },
+          {
+            "first_draw_ms": 28.852,
+            "memory": {
+              "rss_kib": 33124,
+              "pss_kib": null,
+              "processes": [
+                {
+                  "name": "grimoire",
+                  "rss_kib": 27092,
+                  "pss_kib": 23869
+                },
+                {
+                  "name": "wros-input",
+                  "rss_kib": 6032,
+                  "pss_kib": null
+                }
+              ]
+            },
+            "key_to_screenshot": null
+          },
+          {
+            "first_draw_ms": 36.443,
+            "memory": {
+              "rss_kib": 32972,
+              "pss_kib": null,
+              "processes": [
+                {
+                  "name": "grimoire",
+                  "rss_kib": 27004,
+                  "pss_kib": 23829
+                },
+                {
+                  "name": "wros-input",
+                  "rss_kib": 5968,
+                  "pss_kib": null
+                }
+              ]
+            },
+            "key_to_screenshot": null
+          }
+        ],
+        "median_first_draw_ms": 31.278
+      }
+    },
+    "passed": true
+  },
+  "limitations": [
+    "First-draw markers use 5 ms polling; foot may still be painting terminal output.",
+    "Key-to-screenshot includes capture and PNG decoding overhead.",
+    "Native DRM runs in QEMU/KVM and cannot be ranked against the chroot timing.",
+    "PSS is unavailable for the protected input reader; RSS sums can count shared pages twice.",
+    "Unsigned measurement packages omit Google client configuration; default releases still omit gui-wgpu.",
+    "Native evdev/xkbcommon, compositor gamma, native hardware latency and a day of laptop writing remain pending."
+  ]
+}

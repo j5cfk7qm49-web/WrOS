@@ -26,8 +26,10 @@ here and are not kept up to date. Test evidence is in [`evidence/`](evidence/).
 
 - [LINUX_SYSTEM_INTEGRATION](LINUX_SYSTEM_INTEGRATION.md) and
   [LINUX_BASE_COMPARISON](LINUX_BASE_COMPARISON.md): the Debian base.
-- [GRAPHICAL_SESSION](GRAPHICAL_SESSION.md): cage and foot, with the console as
-  fallback.
+- [GRAPHICAL_SESSION](GRAPHICAL_SESSION.md): native graphical screens, compositor
+  alternatives and text recovery.
+- [GRAPHICAL_TRIAL](GRAPHICAL_TRIAL.md): renderer measurements, trial commands
+  and remaining hardware checks.
 - [RATATUI_PROJECTS](RATATUI_PROJECTS.md): libraries chosen for rc10 and the
   graphical trial.
 - [NATIVE_GREETER](NATIVE_GREETER.md) and
