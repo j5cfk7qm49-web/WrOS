@@ -6,11 +6,38 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import rc_vm as vm
 import rc_vm_forms as forms
 import rc_vm_phases as phases
+
+
+class InstalledPowerPolicy(unittest.TestCase):
+    def test_live_logind_checks_require_sleep_and_all_guarded_actions(self):
+        properties = ('HandlePowerKey HandlePowerKeyLongPress HandleRebootKey HandleRebootKeyLongPress '
+                      'HandleSuspendKey HandleSuspendKeyLongPress HandleHibernateKey HandleHibernateKeyLongPress '
+                      'HandleLidSwitch HandleLidSwitchExternalPower HandleLidSwitchDocked IdleAction').split()
+        capabilities = ('CanSuspend s "yes"\nCanHibernate s "na"\n'
+                        'CanHybridSleep s "no"\nCanSuspendThenHibernate s "no"')
+
+        def run(command, *_args, **_kwargs):
+            if 'busctl call' in command:
+                return 0, capabilities
+            if 'busctl get-property' in command:
+                for name in properties:
+                    self.assertIn(name, command)
+                return 0, '\n'.join(f'{name} s "ignore"' for name in properties)
+            self.assertEqual(command, 'systemctl start systemd-suspend.service')
+            return 1, 'systemd-suspend.service refused'
+
+        checks = {}
+        ctx = SimpleNamespace(result={}, check=lambda name, value, *_: checks.update({name: bool(value)}))
+        guest = SimpleNamespace(run=run, m=SimpleNamespace(qmp=SimpleNamespace(count=lambda _: 0)))
+        phases.feature_power_policy(ctx, guest)
+        self.assertTrue(checks['CanSuspend is available'])
+        self.assertTrue(all(checks.values()), checks)
 
 
 class RememberedMenu(unittest.TestCase):

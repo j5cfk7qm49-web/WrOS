@@ -6,18 +6,17 @@
    it). Run `tools/rc-check.sh` in the Debian 13 chroot and keep its
    `summary.txt`; name each failure that remains (the prose-runtime tests fail
    without the provisioned runtime).
-2. From WSL, run the versioned `.audit-tools/rc-x-rc9-release.sh`. It fetches
-   the local `rc9-build` commit into the release checkout, builds `grimoire`,
+2. From WSL, run the versioned `.audit-tools/rc-x-rc10-release.sh`. It fetches
+   the local `rc10-build` commit into the release checkout, builds `grimoire`,
    `wros-greeter` and `wros-boot`, packages them and signs the bundle with the
    offline release key, which stays outside the source tree.
-3. Run `rc-x-rc9-checkbundle.sh` on `rc9-release/wros-updates.tar`. Confirm the
+3. Run `rc-x-rc10-checkbundle.sh` on `rc10-release/wros-updates.tar`. Confirm the
    version, the pinned signer and the tarball SHA-256. Keep the release notes
    and GitHub release body beside the tarball.
-4. Run `rc9-vm-chain.sh` with the bundle, starting from the saved rc7 disk (the
-   laptop's version): it updates through Settings, installs at restart and checks
-   the installed features. Then run `rc9-vm-bootscreen.sh` on the updated disk
-   for the start screen and every way back to Debian's prompt. Inspect each
-   `result.json`.
+4. Run `rc10-vm-chain.sh` with the bundle, starting from the saved RC9 disk.
+   It updates through Settings and installs at restart. It then tests the
+   installed features, the graphical start screens and the paths back to
+   Debian's prompt. Inspect each `result.json` and keep the screen captures.
 5. Review the VM results and hardware checklist before approving the tag.
    Release tags use the checked `wros-updates.tar` as their live payload.
 

@@ -10,7 +10,7 @@ import rc_vm_chain as chain
 
 
 class ReleaseChain(unittest.TestCase):
-    def test_graphical_qualification_includes_bootscreen_on_the_clean_updated_disk(self):
+    def test_rc10_qualification_defaults_to_bootscreen_on_the_clean_updated_disk(self):
         with tempfile.TemporaryDirectory(prefix='wros-chain-') as tmp:
             calls = []
 
@@ -20,7 +20,7 @@ class ReleaseChain(unittest.TestCase):
 
             with patch.object(chain, 'run_phase', side_effect=phase):
                 outcomes = chain.qualify(Path(tmp), Path('/install'), Path('/bundle'),
-                                         '0.1.0~rc10', bootscreen=True)
+                                         '0.1.0~rc10')
             self.assertEqual([o.label for o in outcomes], ['rc1-update', 'features', 'bootscreen'])
             self.assertEqual(calls[2][1][0], 'bootscreen')
             args = calls[2][1]
@@ -29,7 +29,7 @@ class ReleaseChain(unittest.TestCase):
     def test_bootscreen_is_skipped_if_the_update_failed(self):
         with patch.object(chain, 'run_phase', return_value=chain.Outcome('rc1-update', False)):
             outcomes = chain.qualify(Path('/runs'), Path('/install'), Path('/bundle'),
-                                     '0.1.0~rc10', bootscreen=True)
+                                     '0.1.0~rc10~vm1')
         self.assertTrue(outcomes[-1].skipped)
         self.assertEqual(outcomes[-1].label, 'bootscreen')
 

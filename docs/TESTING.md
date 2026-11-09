@@ -1,13 +1,21 @@
 # Testing and verification
 
-## One command for a release candidate (#13, rc9)
+## One command for a release candidate (#13)
 
 `tools/rc-check.sh` runs every check that needs no hardware and prints one
 summary line each: formatting, Clippy, the Rust tests, the app in a terminal, a
 debug build, and the Python tests with `GRIMOIRE_BINARY` set, so the Python
 screen tests (`test_*_pty.py`) run instead of skipping. `--vm CMD…` adds a VM
-chain run (`.audit-tools/rc9-vm-chain.sh …`) to the summary. Logs and
+chain run (`.audit-tools/rc10-vm-chain.sh …`) to the summary. Logs and
 `summary.txt` go to `target/rc-check`.
+
+For RC10 and later, the chain runs the update, installed feature checks and
+start-screen checks. The two installed phases each get a fresh overlay of the
+updated disk. The features phase asks the running logind for all four sleep
+modes and the effective key, long-press, lid and idle actions. It also checks
+that direct suspend is refused until the protected lock is in place. The
+expanded power checks passed on the saved RC9 package in
+`/home/builder/rc-vm-runs/rc10-power-probe-20261109T042206Z`.
 
 The rc10 gates also build the native input reader and compositor warmth. The
 colour tests use a private two-output Wayland server, never the host display.

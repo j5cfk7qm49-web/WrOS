@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the installed RC update and feature phases and report their run directories."""
+"""Qualify an installed RC update, its features and startup, and report the runs."""
 import argparse
 from dataclasses import dataclass
 import json
@@ -34,10 +34,12 @@ def run_phase(root, label, *args):
     return Outcome(label, passed, result.parent)
 
 
-def qualify(root, install, bundle, expect, existing=None, start=None, *, bootscreen=False):
+def qualify(root, install, bundle, expect, existing=None, start=None, *, bootscreen=None):
     """Update an installed system to the bundle, then check the features on it. The start is
     rc1 as installed, or `start` = (disk, version): a saved disk at the version the test
     laptop runs, which is what an update really meets."""
+    if bootscreen is None:
+        bootscreen = subprocess.run(['dpkg', '--compare-versions', expect, 'ge', '0.1.0~rc10~']).returncode == 0
     source = ('--install-run', install)
     if start:
         disk, version = start
@@ -77,7 +79,8 @@ def main():
     parser.add_argument('--existing-disk', type=Path, help='optional rc6 qcow2 base for the migration')
     parser.add_argument('--start-disk', type=Path, help='update this saved installed disk instead of rc1')
     parser.add_argument('--start-version', help='the WrOS version on --start-disk')
-    parser.add_argument('--bootscreen', action='store_true', help='also qualify native startup and text recovery')
+    parser.add_argument('--bootscreen', action=argparse.BooleanOptionalAction,
+                        help='qualify native startup and text recovery (default for RC10 and later)')
     args = parser.parse_args()
     if os.geteuid() == 0:
         parser.error('run as the unprivileged builder')

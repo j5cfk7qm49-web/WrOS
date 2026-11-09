@@ -2083,14 +2083,17 @@ def feature_power_policy(ctx, g):
     _, capabilities = g.run('for mode in CanSuspend CanHibernate CanHybridSleep CanSuspendThenHibernate; '
                             'do printf "%s " "$mode"; busctl call ' + service + '"$mode" || exit 1; done')
     ctx.result['logind_sleep_capabilities'] = capabilities
+    ctx.check('CanSuspend is available', re.search(r'^CanSuspend s "yes"$', capabilities, re.M), capabilities)
     for mode in ('CanHibernate', 'CanHybridSleep', 'CanSuspendThenHibernate'):
         ctx.check(mode + ' is disabled', re.search(r'^' + mode + r' s "(?:no|na)"$', capabilities, re.M))
-    properties = ('HandleLidSwitch HandleLidSwitchExternalPower HandleLidSwitchDocked '
-                  'HandlePowerKey HandleRebootKey HandleSuspendKey HandleHibernateKey IdleAction')
-    _, policy = g.run('busctl get-property ' + service + properties)
+    properties = ('HandlePowerKey HandlePowerKeyLongPress HandleRebootKey HandleRebootKeyLongPress '
+                  'HandleSuspendKey HandleSuspendKeyLongPress HandleHibernateKey HandleHibernateKeyLongPress '
+                  'HandleLidSwitch HandleLidSwitchExternalPower HandleLidSwitchDocked IdleAction')
+    _, policy = g.run('for property in ' + properties + '; '
+                      'do printf "%s " "$property"; busctl get-property ' + service + '"$property" || exit 1; done')
     ctx.result['logind_power_policy'] = policy
     ctx.check('logind leaves physical key, lid and idle actions to WrOS',
-              policy.strip().splitlines() == ['s "ignore"'] * len(properties.split()), policy)
+              policy.strip().splitlines() == [f'{name} s "ignore"' for name in properties.split()], policy)
     rc, refusal = g.run('systemctl start systemd-suspend.service', 30, check=False)
     ctx.check('the suspend unit refuses to start without the protected lock',
               rc != 0 and 'systemd-suspend.service' in refusal and g.m.qmp.count('SUSPEND') == 0, refusal)
