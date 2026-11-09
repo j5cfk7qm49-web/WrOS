@@ -447,9 +447,14 @@ fn failed_wifi_scan_shows_the_writer_how_to_retry() {
         );
     });
     app.activate("open-settings");
-    for label in ["System", "Wi-Fi and networking", "Scan Wi-Fi networks"] {
+    for label in ["System", "Wi-Fi and networking"] {
         app.choose(label);
     }
+    app.until("the Wi-Fi page and an idle system service", |_, t| {
+        row(t, "Scan Wi-Fi networks").is_some()
+            && node(t, &|n| n["id"] == "system-busy").is_some_and(|n| n["value"] == "false")
+    });
+    app.choose("Scan Wi-Fi networks");
     app.until("the failed scan and retry instructions", |s, t| {
         s.contains("Couldn't scan for Wi-Fi")
             && s.contains("Make sure Wi-Fi is on")
@@ -563,6 +568,7 @@ fn the_opengl_window_draws_and_saves_unicode_without_a_terminal_reader() {
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(std::fs::File::create(&log).unwrap())
+        .process_group(0)
         .spawn()
         .unwrap();
     struct Running(Child, PathBuf);
@@ -574,7 +580,8 @@ fn the_opengl_window_draws_and_saves_unicode_without_a_terminal_reader() {
                     std::fs::read_to_string(&self.1).unwrap_or_default()
                 );
             }
-            let _ = self.0.kill();
+            // Cage and its writing client share this fixture's private process group.
+            unsafe { libc::killpg(self.0.id() as libc::pid_t, libc::SIGKILL) };
             let _ = self.0.wait();
         }
     }
