@@ -713,6 +713,10 @@ fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
             let suspend = std::mem::take(&mut app.deck.suspend_requested);
             let animate = !app.deck.state.low_power
                 && (display::graphical(terminal) || session::composited());
+            #[cfg(feature = "test-driver")]
+            if let Some(driver) = driver.as_mut() {
+                driver.publish_lock_handoff();
+            }
             if let Err(error) = console_lock::handoff(
                 terminal,
                 &mut events,
@@ -721,6 +725,10 @@ fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
             ) {
                 save_or_rescue(app);
                 return Err(error);
+            }
+            #[cfg(feature = "test-driver")]
+            {
+                driver = driver.and_then(test_driver::Driver::reopen_after_lock);
             }
             app.on_unlocked();
         }
@@ -814,6 +822,9 @@ fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
                 driver.drain(app, |app, k| leave |= on_key(app, k, &mut confirm_quit));
                 if leave {
                     return Ok(());
+                }
+                if app.deck.lock_requested {
+                    continue;
                 }
             }
         }

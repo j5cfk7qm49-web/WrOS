@@ -1,5 +1,5 @@
 //! The real app in a pseudo-terminal (#13). vt100 reads what it draws, taria's
-//! socket lets the test choose Settings rows by name, and insta keeps snapshots
+//! socket lets the test choose controls by name, and insta keeps snapshots
 //! of the screens. Build with `--features test-driver`; see docs/TESTING.md.
 #![cfg(unix)]
 
@@ -64,6 +64,15 @@ struct App {
 
 impl App {
     fn start(home: &Home, width: u16, height: u16) -> Self {
+        Self::start_with(home, width, height, |_| {})
+    }
+
+    fn start_with(
+        home: &Home,
+        width: u16,
+        height: u16,
+        configure: impl FnOnce(&mut Command),
+    ) -> Self {
         let (mut master, mut slave) = (0, 0);
         let size = libc::winsize {
             ws_row: height,
@@ -97,6 +106,7 @@ impl App {
             .stdin(Stdio::from(slave.try_clone().unwrap()))
             .stdout(Stdio::from(slave.try_clone().unwrap()))
             .stderr(Stdio::from(slave));
+        configure(&mut command);
         unsafe {
             command.pre_exec(|| {
                 // Its own session, with the pseudo-terminal as its terminal.
@@ -148,8 +158,9 @@ impl App {
             screen,
             driver,
         };
-        app.until("the book", |s, _| {
-            s.contains("Brass Key") || s.contains("WrOS")
+        app.until("the book and its first tree", |s, t| {
+            (s.contains("Brass Key") || s.contains("WrOS"))
+                && node(t, &|n| n["id"] == "system-busy").is_some()
         });
         app
     }
@@ -180,7 +191,7 @@ impl App {
         }
     }
 
-    /// Chooses the row labelled `label` on the open Settings page.
+    /// Chooses the row labelled `label` on the open page or menu.
     fn choose(&mut self, label: &str) {
         self.until(label, |_, tree| row(tree, label).is_some());
         let id = row(&self.driver.tree(), label).unwrap();
@@ -265,17 +276,10 @@ impl Driver {
     }
 
     fn act(&mut self, node: &str) {
-        let message = serde_json::json!({
-            "type": "input",
-            "id": self.next,
-            "input": {"kind": "act", "node": node, "action": "activate"},
-        });
-        self.next += 1;
-        writeln!(self.writer, "{message}").unwrap();
+        self.send_input(serde_json::json!({"kind": "act", "node": node, "action": "activate"}));
     }
 
-    #[cfg(all(target_os = "linux", feature = "gui-wgpu"))]
-    fn input(&mut self, input: serde_json::Value) {
+    fn send_input(&mut self, input: serde_json::Value) -> u64 {
         let id = self.next;
         self.next += 1;
         writeln!(
@@ -284,6 +288,12 @@ impl Driver {
             serde_json::json!({"type":"input", "id":id, "input":input})
         )
         .unwrap();
+        id
+    }
+
+    #[cfg(all(target_os = "linux", feature = "gui-wgpu"))]
+    fn input(&mut self, input: serde_json::Value) {
+        let id = self.send_input(input);
         let end = Instant::now() + WAIT;
         while Instant::now() < end {
             if self.tree()["after_input"] == id {
@@ -327,6 +337,126 @@ fn plain(screen: &str) -> String {
         .map(str::trim_end)
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+#[test]
+fn menu_and_dialog_actions_use_labels_without_publishing_the_draft_name() {
+    let home = Home::new("menu-dialog");
+    let mut app = App::start(&home, 100, 30);
+    app.activate("open-menu");
+    app.choose("Help & about");
+    app.until("help menu", |s, _| s.contains("GRIMOIRE › HELP & ABOUT"));
+    app.choose("Back");
+    app.choose("Start a new book…");
+    app.until("new book dialog", |s, t| {
+        s.contains("START A NEW BOOK") && node(t, &|n| n["role"] == "dialog").is_some()
+    });
+    app.send(b"Private draft title");
+    app.until("typed title", |s, _| s.contains("Private draft title"));
+    assert!(
+        !app.driver
+            .tree()
+            .to_string()
+            .contains("Private draft title")
+    );
+    app.activate("dialog-new-book-cancel");
+    app.until("cancelled dialog", |s, t| {
+        !s.contains("START A NEW BOOK") && node(t, &|n| n["role"] == "dialog").is_none()
+    });
+    assert!(!home.dir.join("Private draft title").exists());
+}
+
+#[cfg(all(target_os = "linux", feature = "pty-qa"))]
+#[test]
+fn lock_handoff_has_a_public_status_and_discards_queued_driver_actions() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let home = Home::new("lock-driver");
+    let locker = home.dir.join("locker");
+    std::fs::write(
+        &locker,
+        r#"#!/bin/sh
+exec timeout --foreground 20 sh -c '
+    printf "QA locker is waiting\r\n"
+    IFS= read -r gate
+    test "$gate" = release
+'
+"#,
+    )
+    .unwrap();
+    std::fs::set_permissions(&locker, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let mut app = App::start_with(&home, 100, 30, |command| {
+        command.env("WROS_QA_LOCK_HELPER", &locker);
+    });
+    app.activate("open-settings");
+    for label in ["System", "Battery and power", "Lock writing session"] {
+        app.choose(label);
+    }
+    app.until("independent locker and public lock status", |s, t| {
+        s.contains("QA locker is waiting") && node(t, &|n| n["id"] == "lock-handoff").is_some()
+    });
+    let tree = app.driver.tree();
+    assert!(
+        node(&tree, &|n| n["actions"]
+            .as_array()
+            .is_some_and(|a| !a.is_empty()))
+        .is_none()
+    );
+    assert!(node(&tree, &|n| n["id"] == "page" || n["id"] == "status").is_none());
+    app.driver.act("open-settings");
+    app.driver
+        .send_input(serde_json::json!({"kind": "text", "text": "queued-during-lock"}));
+    app.send(b"release\n");
+    app.until("writing display restored", |s, _| {
+        s.contains("Battery and power")
+    });
+    app.driver = Driver::connect(&home.dir.join("driver.sock"));
+    app.until("same page on the fresh driver connection", |_, t| {
+        row(t, "Lock writing session").is_some()
+            && node(t, &|n| n["value"] == "Writing session unlocked.").is_some()
+    });
+    assert!(!app.screen().contains("queued-during-lock"));
+    app.choose("Lock writing session");
+    app.until("second lock through the fresh connection", |s, t| {
+        s.contains("QA locker is waiting") && node(t, &|n| n["id"] == "lock-handoff").is_some()
+    });
+    app.send(b"release\n");
+    app.until("writing display restored again", |s, _| {
+        s.contains("Battery and power")
+    });
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn failed_wifi_scan_shows_the_writer_how_to_retry() {
+    use grimoire_core::project::{Kind, Project};
+
+    let home = Home::new("wifi-scan");
+    let book = Project::load(&home.dir.join("book")).unwrap();
+    let scene = &book
+        .nodes
+        .iter()
+        .find(|n| n.in_manuscript && n.kind == Kind::Scene)
+        .unwrap()
+        .path;
+    let before = std::fs::read(scene).unwrap();
+    let mut app = App::start_with(&home, 100, 30, |command| {
+        command.env(
+            "DBUS_SYSTEM_BUS_ADDRESS",
+            format!("unix:path={}/missing-bus", home.dir.display()),
+        );
+    });
+    app.activate("open-settings");
+    for label in ["System", "Wi-Fi and networking", "Scan Wi-Fi networks"] {
+        app.choose(label);
+    }
+    app.until("the failed scan and retry instructions", |s, t| {
+        s.contains("Couldn't scan for Wi-Fi")
+            && s.contains("Make sure Wi-Fi is on")
+            && row(t, "Refresh scan").is_some()
+    });
+    assert!(!app.screen().contains("nmcli"));
+    assert_eq!(std::fs::read(scene).unwrap(), before);
 }
 
 #[test]

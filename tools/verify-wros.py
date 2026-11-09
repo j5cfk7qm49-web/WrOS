@@ -97,7 +97,7 @@ def main():
             'ignored_tests': [line.strip() for line in text.splitlines() if ' ... ignored' in line]})
         run('clippy-'+name, ['cargo', 'clippy', '--workspace', '--all-targets', *flags, '--locked', '--offline', '-j2', '--', '-D', 'warnings'])
     run('window-opengl', ['cargo', 'test', '--no-default-features', '--features',
-                          'test-driver,gui-wgpu', '--test', 'driven', '--locked', '--offline', '-j2'])
+                          'test-driver,gui-wgpu,pty-qa', '--test', 'driven', '--locked', '--offline', '-j2'])
     run('native-input', ['cargo', 'test', '-p', 'wros-input', '--features', 'native', '--locked', '--offline', '-j2'])
     run('compositor-warmth', ['cargo', 'test', '--no-default-features', '--features', 'gui-drm',
                              '--bin', 'grimoire', 'compositor_warmth', '--locked', '--offline', '-j2'])

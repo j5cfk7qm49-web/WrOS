@@ -141,8 +141,10 @@ def trial(ctx):
             break
         time.sleep(1)
     ctx.check('the graphical writing app opened its private test socket', rc == 0)
+    driver_command = 'runuser -u ' + user + ' -- python3 /tmp/trial-client.py'
+
     def drive(request=None, send_only=False):
-        command = 'runuser -u ' + user + ' -- python3 /tmp/trial-client.py'
+        command = driver_command
         if request is not None:
             command += ' ' + shlex.quote(json.dumps(request))
         if send_only:
@@ -151,6 +153,19 @@ def trial(ctx):
         if not send_only:
             (ctx.dir / 'last-tree.json').write_text(reply)
         return reply
+
+    def wait_for_writer():
+        # Unlock closes the old connection. Retry snapshots only, so no action
+        # from the locked connection can be replayed into the resumed writer.
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            rc, reply = g.run('timeout 4s ' + driver_command, 6, check=False)
+            if rc == 0 and 'Writing session unlocked.' in reply and 'Battery and power' in reply:
+                (ctx.dir / 'last-tree.json').write_text(reply)
+                return
+            time.sleep(.1)
+        raise phases.Failure('the test driver did not publish the writing settings after unlock')
+
     tree = drive()
     if backend == 'drm':
         ctx.check('the native session uses the device reader', 'evdev' in tree)
@@ -292,6 +307,10 @@ def trial(ctx):
     m.key('alt', 'f1')
     ctx.check('the locker prevents returning to the writing screen', g.run('fgconsole')[1].strip() == '8')
     ctx.check('the writing input reader is retired', not any(p['comm']=='wros-input' for p in g.snap()['procs']))
+    if ctx.args.test_driver_lock:
+        lock_view = json.loads(drive())['root']['children']
+        ctx.check('the private tree exposes only a read-only lock handoff status',
+                  [item['id'] for item in lock_view] == ['lock-handoff'] and not lock_view[0].get('actions'))
     m.shot('compositor-locked')
     m.key('ret')
     g.wait_vcs(8, 'Password:', 20, what='compositor-password')
@@ -303,13 +322,8 @@ def trial(ctx):
     m.key('ret')
     g.wait_vcs(8, 'Password:', 20, what='compositor-password-retry')
     m.type_text(credentials['login']+'\n', state['layout'])
-    deadline = time.monotonic() + 45
-    while g.run('fgconsole')[1].strip() != '1' and time.monotonic() < deadline:
-        time.sleep(1)
-    # A fresh acknowledged frame proves the app resumed; a connection's initial
-    # snapshot alone can be the retained frame from before authentication.
-    tree = drive({'kind':'key', 'key':'f24'})
-    ctx.check('authentication returns to the writing settings', 'Battery and power' in tree)
+    wait_for_writer()
+    ctx.check('authentication returns to the writing settings', g.run('fgconsole')[1].strip() == '1')
     if backend == 'drm':
         m.wait_visible('visible-native-unlock')
         ctx.check('native writing is visible after unlocking without a rescue VT switch', True)
@@ -334,8 +348,8 @@ def trial(ctx):
     m.key('ret')
     g.wait_vcs(8, 'Password:', 20, what='compositor-password-again')
     m.type_text(credentials['login']+'\n', state['layout'])
-    time.sleep(3)
-    ctx.check('a second lock returns to the same writing settings', 'Battery and power' in drive())
+    wait_for_writer()
+    ctx.check('a second lock returns to the same writing settings', True)
     ctx.check('the same editor process survived both locks', g.run('pgrep -xo grimoire')[1].strip() == editor_pid)
     if backend == 'drm':
         ctx.check('a fresh native reader owns devices after authentication', '/dev/input/event' in native_devices())
@@ -346,9 +360,8 @@ def trial(ctx):
         m.key('ret')
         g.wait_vcs(8, 'Password:', 20, what=f'graphical-password-{cycle}')
         m.type_text(credentials['login']+'\n', state['layout'])
-        time.sleep(3)
-        ctx.check(f'lock cycle {cycle} returns to the same editor', 'Battery and power' in drive()
-                  and g.run('pgrep -xo grimoire')[1].strip() == editor_pid)
+        wait_for_writer()
+        ctx.check(f'lock cycle {cycle} returns to the same editor', g.run('pgrep -xo grimoire')[1].strip() == editor_pid)
     if ctx.args.test_suspend:
         drive({'choose':'Lock and suspend'})
         drive({'kind':'key','key':'right'})
@@ -365,9 +378,8 @@ def trial(ctx):
         m.key('ret')
         g.wait_vcs(8, 'Password:', 20, what='compositor-wake-password')
         m.type_text(credentials['login']+'\n', state['layout'])
-        time.sleep(3)
-        ctx.check('wake and authentication return to the same editor', 'Battery and power' in drive()
-                  and g.run('pgrep -xo grimoire')[1].strip() == editor_pid)
+        wait_for_writer()
+        ctx.check('wake and authentication return to the same editor', g.run('pgrep -xo grimoire')[1].strip() == editor_pid)
     if backend == 'drm':
         ctx.check('native input reacquires devices after wake', '/dev/input/event' in native_devices())
         # Exercise the first lock before a maintenance VT switch can refresh scanout.
@@ -405,6 +417,7 @@ def main():
     parser.add_argument('--test-suspend', action='store_true')
     parser.add_argument('--test-clock', action='store_true', help='fixture also contains the greeter under test')
     parser.add_argument('--test-splash', action='store_true', help='capture the picture as the graphical session opens')
+    parser.add_argument('--test-driver-lock', action='store_true', help='check the private view while authentication owns the console')
     parser.add_argument('--lock-cycles', type=int, default=2, choices=range(2, 13))
     parser.add_argument('--delay-health', type=int, default=0, choices=range(7))
     parser.add_argument('--hold', action='store_true')

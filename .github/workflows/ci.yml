@@ -62,7 +62,7 @@ jobs:
         run: runuser -u builder -- env PATH="/opt/cargo/bin:$PATH" bash tools/test-m7b.sh
       - name: The app in a terminal and OpenGL window (tests/driven.rs)
         shell: bash
-        run: runuser -u builder -- env PATH="/opt/cargo/bin:$PATH" cargo test --locked --no-default-features --features test-driver,gui-wgpu --test driven
+        run: runuser -u builder -- env PATH="/opt/cargo/bin:$PATH" cargo test --locked --no-default-features --features test-driver,gui-wgpu,pty-qa --test driven
       - name: Retain results for this commit
         if: always()
         uses: actions/upload-artifact@v7

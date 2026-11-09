@@ -36,28 +36,6 @@ def reader_children(pid):
 @unittest.skipUnless(BINARY.is_file(), 'build the writing binary first')
 @unittest.skipIf(os.geteuid() == 0, 'the PTY must run as an unprivileged writer')
 class Rc7PTY(unittest.TestCase):
-    def test_failed_wifi_scan_shows_the_writer_how_to_retry(self):
-        with tempfile.TemporaryDirectory(prefix='wros-wifi-pty-') as tmp:
-            project, home, primary = fixture(Path(tmp))
-            before = primary.read_bytes()
-            with patch.dict(os.environ, {'DBUS_SYSTEM_BUS_ADDRESS': f'unix:path={tmp}/no-system-bus'}):
-                terminal = TerminalProcess(project, home, 100, 30)
-            try:
-                system_settings(terminal)
-                terminal.send(b'\r')
-                terminal.screen_shows('Enable Wi-Fi radio')
-                terminal.screen_shows('System status refreshed locally.')
-                terminal.send(DOWN * 3)
-                terminal.screen_shows('▸ Scan Wi-Fi networks')
-                terminal.send(b'\r')
-                terminal.screen_shows("Couldn't scan for Wi-Fi")
-                terminal.screen_shows('Make sure Wi-Fi is on')
-                self.assertIn('Refresh scan', terminal.screen.text)
-                self.assertNotIn('nmcli', terminal.screen.text)
-                self.assertEqual(primary.read_bytes(), before)
-            finally:
-                terminal.close()
-
     @unittest.skipUnless(os.environ.get('WROS_QA_PTY') == '1', 'build with --features pty-qa')
     def test_lock_retires_the_reader_and_discards_credentials_and_typeahead(self):
         with tempfile.TemporaryDirectory(prefix='wros-lock-pty-') as tmp:

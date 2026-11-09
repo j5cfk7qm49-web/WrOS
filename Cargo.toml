@@ -32,8 +32,8 @@ serde_json = "1.0.151"
 serde = { version = "1.0", features = ["derive"] }
 zeroize = "1.9"
 ureq = { version = "3.4.1", features = ["json"] }
-# Test builds only (feature test-driver): publishes the Settings page and its rows
-# over a private socket, so screen tests choose rows by name.
+# Test builds only (feature test-driver): publishes controls over a private
+# socket, so screen tests choose them by name.
 taria-ratatui = { version = "0.4.0", optional = true }
 
 # Saving on the way out when the terminal window is closed or the machine asks

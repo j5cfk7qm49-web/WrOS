@@ -154,7 +154,11 @@ graphical writing session opens. A key or paste can skip the brief picture and
 still reach the writer. The console and low-power sessions open without the
 picture. [Startup picture evidence](evidence/rc10-startup-picture.md)
 
-The wider test driver is the remaining library work.
+**taria-ratatui** publishes menu rows and dialog controls in debug test builds.
+The lock handoff shows only a status. On return the test client reconnects, so
+actions queued during authentication cannot reach the writer. The PTY fixture
+checks this alongside the separate credential and physical-input tests.
+[Test driver](TESTING.md#the-app-in-a-terminal-driven-by-name)
 
 ## Suggested order for the rest
 

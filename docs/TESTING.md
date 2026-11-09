@@ -23,15 +23,20 @@ physical display qualification.
 `tests/driven.rs` starts the real `grimoire` binary in a pseudo-terminal. The
 [vt100](https://crates.io/crates/vt100) parser reads what it draws, and
 [insta](https://insta.rs) keeps snapshots of whole screens in
-`tests/snapshots/`. With the `test-driver` feature the app also publishes the
-open Settings page and its rows over a private
-[taria](https://crates.io/crates/taria-ratatui) socket, so a test chooses
-"Backups and accounts" by name rather than by counting arrow presses; moving a
-page in the menu map doesn't break it. The feature is for test builds only: a
-release build with it refuses to compile, and WrOS packages never include it.
+`tests/snapshots/`. In test builds, the app publishes Settings and menu rows,
+along with naming and deletion dialog controls, over a private socket. Tests can
+choose rows like **Backups and accounts** by name. Dialog fields and manuscript
+text stay outside the published view. A release build with `test-driver`
+refuses to compile. [taria](https://crates.io/crates/taria-ratatui)
+
+During a lock handoff the driver publishes one status with no controls. The
+locker owns the terminal, and the driver discards its old connection after
+unlock. Tests reconnect to the same writing process to resume driving it.
+The `pty-qa` fixture exercises this boundary. The installed VM still checks
+the real locker and the visible password prompt. [RC10 evidence](evidence/rc10-test-driver.md)
 
 ```bash
-cargo test --no-default-features --features test-driver --test driven
+cargo test --no-default-features --features test-driver,pty-qa --test driven
 ```
 
 Adding `gui-wgpu` runs the real writing window under headless cage with Mesa
