@@ -215,7 +215,11 @@ impl Shot {
 
     fn draw(&mut self) {
         let app = &mut self.app;
-        self.term.draw(|f| ui::draw(f, app)).unwrap();
+        self.term
+            .draw(|f| {
+                ui::draw(f, app, None);
+            })
+            .unwrap();
     }
 
     fn key(&mut self, code: KeyCode, mods: KeyModifiers) {

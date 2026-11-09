@@ -667,6 +667,44 @@
       "retained_upstream_notice_source": null
     },
     {
+      "name": "bon",
+      "version": "3.10.3",
+      "declared_license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/elastio/bon",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "8f8dbb74f833dc8a2619fd1e86be60b06791c706e1be9e1b559ae715bbbc4551"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "bon-macros",
+      "version": "3.10.3",
+      "declared_license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/elastio/bon",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "8f8dbb74f833dc8a2619fd1e86be60b06791c706e1be9e1b559ae715bbbc4551"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
       "name": "boxcar",
       "version": "0.2.14",
       "declared_license": "MIT",
@@ -6038,6 +6076,25 @@
       "retained_upstream_notice_source": null
     },
     {
+      "name": "micromath",
+      "version": "2.1.0",
+      "declared_license": "Apache-2.0 OR MIT",
+      "repository": "https://github.com/tarcieri/micromath",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "38f262c50f3decca88d8b380fd4f05d5aed8ec42dd7e783d065ce34b04fb171b"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
       "name": "minimal-lexical",
       "version": "0.2.1",
       "declared_license": "MIT/Apache-2.0",
@@ -7386,6 +7443,25 @@
       "declared_license": "MIT OR Apache-2.0",
       "repository": "https://github.com/dtolnay/prettyplease",
       "used_in_linux_no_audio_build": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "prettyplease",
+      "version": "0.3.0",
+      "declared_license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/dtolnay/prettyplease",
+      "used_in_linux_no_audio_build": true,
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "notice_files": [
         {
@@ -9614,6 +9690,21 @@
         {
           "file": "LICENSE",
           "sha256": "1f14f9ce70a5fdedab449bb32cd7d3f20e6e9d18c2a2b74221fc203db8684d43"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "tachyonfx",
+      "version": "0.24.0",
+      "declared_license": "MIT",
+      "repository": "https://github.com/ratatui/tachyonfx",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "01e7cbd34ac04ab7ccc5d9b865f19752797b3b04d9c9fef2a577ca346fcfa70a"
         }
       ],
       "retained_upstream_notice_source": null

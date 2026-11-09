@@ -141,8 +141,16 @@ unlock credentials; no background clock redraw runs during authentication.
 If the message renderer is unavailable, the original lock message still works.
 The clock has no editor or authentication dependency. Its dependency notices
 are retained with the package. [Clock evidence](evidence/rc10-clocks.json)
-records the checks and limits. Fades, the graphical picture splash and the wider
-test driver remain the next library work.
+records the checks and limits.
+
+**TachyonFX** fades the first writing frame over 210 ms and tutorial highlights
+over 150 ms. The writing loop continues to handle keys during both effects.
+After retiring writing input, the graphical lock shows a 150 ms fade on a
+simple **Locking…** card, then hands the screen and keyboard to Debian's locker.
+Console and low-power sessions keep static colours. [Transition evidence](evidence/rc10-motion.md)
+
+The graphical picture splash and the wider test driver are the remaining
+library work.
 
 ## Suggested order for the rest
 

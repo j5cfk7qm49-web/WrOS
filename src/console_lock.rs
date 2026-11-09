@@ -188,6 +188,7 @@ pub fn handoff(
     terminal: &mut crate::display::Terminal,
     input: &mut Option<wros_input::Input>,
     suspend: bool,
+    transition_theme: Option<&crate::theme::Theme>,
 ) -> Result<()> {
     if !available() || (suspend && !suspend_available()) {
         bail!("Console locking is unavailable in this session");
@@ -204,6 +205,9 @@ pub fn handoff(
         .map(wros_input::Input::pause)
         .transpose()
         .context("retiring writing input before lock")?;
+    if let Some(theme) = transition_theme {
+        crate::motion::before_lock(terminal, theme);
+    }
     crate::display::suspend(terminal)?;
     // A worker panic must not run Ratatui's global terminal-restoration hook
     // during authentication. No render, cursor query or event read occurs here.

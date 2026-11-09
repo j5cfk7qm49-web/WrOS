@@ -21,7 +21,11 @@ const SCENE_H: u16 = (scene::H + 2) as u16;
 const MUSIC_H: u16 = 4;
 const MIN_TREE: u16 = 6;
 
-pub fn draw(f: &mut Frame, app: &mut App) {
+pub fn draw(
+    f: &mut Frame,
+    app: &mut App,
+    motion: Option<(&mut crate::motion::Motion, bool)>,
+) -> bool {
     // Cloned once per frame so sub-renderers can read the theme while `app`
     // stays mutably borrowed for scroll and rect bookkeeping.
     let mut t = if app.linux_console {
@@ -122,9 +126,20 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         crate::app::overlays::draw(f, app, f.area(), &t);
     }
 
+    let animating = motion.is_some_and(|(motion, graphical)| {
+        motion.paint(
+            f.buffer_mut(),
+            graphical,
+            app.deck.state.low_power,
+            crate::motion::Highlight::from_overlay(&app.overlay),
+            &t,
+            std::time::Instant::now(),
+        )
+    });
     if t.is_rainbow() {
         paint_rainbow(f.buffer_mut(), t.accent, rainbow_phase());
     }
+    animating
 }
 
 /// Seconds for the Rainbow theme's colours to flow once round the wheel:

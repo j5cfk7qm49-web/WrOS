@@ -73,7 +73,11 @@ impl Desk {
 
     fn draw(&mut self) {
         let app = &mut self.app;
-        self.term.draw(|f| ui::draw(f, app)).unwrap();
+        self.term
+            .draw(|f| {
+                ui::draw(f, app, None);
+            })
+            .unwrap();
     }
 
     fn press(&mut self, k: KeyEvent) {

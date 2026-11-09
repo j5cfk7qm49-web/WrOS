@@ -15,6 +15,7 @@ mod library;
 mod lid;
 #[cfg(target_os = "linux")]
 mod live_installer;
+mod motion;
 mod music;
 mod palette;
 mod scene;
@@ -626,6 +627,7 @@ fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
     let mut confirm_quit = false;
     let mut last_frame = Instant::now();
     let mut first_screen = true;
+    let mut motion = motion::Motion::default();
 
     #[cfg(target_os = "linux")]
     let mut events = display::start_input(terminal)?;
@@ -705,7 +707,14 @@ fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
         #[cfg(target_os = "linux")]
         if std::mem::take(&mut app.deck.lock_requested) {
             let suspend = std::mem::take(&mut app.deck.suspend_requested);
-            if let Err(error) = console_lock::handoff(terminal, &mut events, suspend) {
+            let animate = !app.deck.state.low_power
+                && (display::graphical(terminal) || session::composited());
+            if let Err(error) = console_lock::handoff(
+                terminal,
+                &mut events,
+                suspend,
+                animate.then_some(&app.theme),
+            ) {
                 save_or_rescue(app);
                 return Err(error);
             }
@@ -769,7 +778,11 @@ fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
 
         // If the terminal itself goes away, drawing to it or reading from it
         // fails: save what there is before reporting that.
-        if let Err(e) = terminal.draw(|f| ui::draw(f, app)) {
+        let graphical = display::graphical(terminal) || session::composited();
+        let mut animating = false;
+        if let Err(e) = terminal.draw(|f| {
+            animating = ui::draw(f, app, Some((&mut motion, graphical)));
+        }) {
             save_or_rescue(app);
             return Err(e.into());
         }
@@ -788,7 +801,7 @@ fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
 
         let tick = if app.deck.state.low_power && !spectrum && app.reading.is_none() {
             Duration::from_secs(1)
-        } else if spectrum || app.reading.is_some() {
+        } else if animating || spectrum || app.reading.is_some() {
             FAST_TICK
         } else if app.theme.is_rainbow() {
             RAINBOW_TICK
