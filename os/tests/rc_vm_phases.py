@@ -2615,9 +2615,9 @@ def phase_bootscreen(ctx):
               console_has_green(ctx.dir / 'ratatui-prompt.png'))
     ctx.check('disk unlock is native pixel output', native_pixels(ctx.dir / 'ratatui-prompt.png'))
     try:
-        text = m.wait_screen(r'Starting WrOS', 8, interval=0.5, name='progress')
-        m.shot('progress-screen')
+        text = m.wait_screen(r'Starting WrOS', 8, interval=0.5, name='progress-screen')
         ctx.result['progress_screen'] = text
+        ctx.check('the progress screen is native pixel output', native_pixels(ctx.dir / 'progress-screen.png'))
     except TimeoutError:
         ctx.result['progress_screen'] = 'not caught on screen (the start may have been too quick)'
     g = signed_in_again(ctx, m, st, secrets_)
