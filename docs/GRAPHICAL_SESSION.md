@@ -2,7 +2,8 @@
 
 Graphical rendering is the default for disk unlock, loading, login and writing,
 as requested by the owner on 2026-11-07. The installed build includes `gui-drm`.
-`soft_ratatui` shapes the shared Ratatui screens with DejaVu Sans Mono and sends
+`soft_ratatui` shapes the shared Ratatui screens with WrOS Mono, which extends
+DejaVu Sans Mono with Braille for the startup picture. It sends
 pixels directly to a DRM/KMS dumb buffer. It needs neither a compositor nor
 Vulkan drivers. Disk unlock, loading and login keep their console input path.
 The native writing session uses libinput devices and xkbcommon in its disposable
@@ -36,7 +37,7 @@ The window sends logical keys, compose/IME commits and cell-based pointer events
 through the editor's existing event dispatch. It keeps the compositor's keyboard
 layout. A real cage headless test types Colemak and composed é through Wayland,
 saves the scene, and checks that the private test-driver tree contains no prose.
-Run `cargo test --no-default-features --features test-driver,gui-wgpu --test driven`
+Run `cargo test --no-default-features --features test-driver,gui-wgpu,pty-qa --test driven`
 with cage, Mesa, Wayland/XKB development packages and a writable `/dev/shm`.
 
 ## Lock, sleep and screen colour

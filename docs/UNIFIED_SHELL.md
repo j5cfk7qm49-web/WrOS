@@ -44,7 +44,7 @@ presentation must preserve the separately qualified credential/input owners.
 
 The recovered M7b milestone is qualified separately. Experimental installer
 media, installed Wi-Fi payload, cancellation/no-disk and post-interruption boot
-evidence remain preserved in [INSTALLER_MEDIA](INSTALLER_MEDIA.md). Those do not
+evidence remain preserved in [INSTALLER_MEDIA](archive/INSTALLER_MEDIA.md). Those do not
 qualify the unified shell, greeter, locking or cloud features.
 
 ## Process and data boundaries

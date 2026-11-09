@@ -7,11 +7,12 @@
 
 WrOS is a **dedicated, offline-first Linux writing appliance**: a complete boot-to-writing OS, not just a TUI application. It targets low-resource laptops with QWERTY/Colemak/Colemak-DH input, a manuscript editor and dashboard, sticky/reference panes, NaNoWriMo-oriented goals and daily challenges, Story Spark creative prompts, offline grammar/prose analysis, a guided tutorial, safe backup and operating-system management.
 
-## Recovery snapshot status
+## Current release work
 
-This is a **recovered development snapshot**, not production installation media. Historical verified software and networkless VM evidence exists through M7a. Later M7b lexicon/Nabokov/proselint/voice/revision code was interrupted and has not received complete build, test, resource or release qualification. Real installer/authentication, secure screen lock, signed updates, physical laptop validation, full tutorial, continuity tracker, genuine page-footnote exports, independent corpus rights review and verified Google Drive backups remain incomplete.
-
-**Source may not yet be on GitHub:** The recovery archive retains full Git history and WIP changes. [Codex continuation instructions](archive/CODEX_CONTINUATION.md) explain safe import without overwriting the remote placeholder `main` branch. Verify the remote rather than assuming the source was pushed.
+RC10 defaults to graphical disk unlock, loading, login and writing. The installed
+session keeps a separate authenticated lock and plain startup recovery. The
+release checklist covers the package update, startup VM and physical HP Stream
+checks. [Graphical screens](GRAPHICAL_SESSION.md) · [Release checklist](RELEASE_CHECKLIST.md)
 
 ## Read next
 

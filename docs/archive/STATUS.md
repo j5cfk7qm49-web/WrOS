@@ -271,7 +271,7 @@ nonrecursive bind before native input. The later full-copy attempt exposed APT
 provider/archive composition faults. The corrected build and software CI passed;
 another full installation retry is deferred while the environment is completed.
 This adds no production root launcher or completed encrypted
-installation claim. Read the [scope and retained attempts](../NATIVE_ENCRYPTED_INSTALL.md).
+installation claim. Read the [scope and retained attempts](NATIVE_ENCRYPTED_INSTALL.md).
 
 ## Offline encryption runtime and refreshed live image qualified
 
@@ -298,7 +298,7 @@ and [write-question](../evidence/encrypted-media-review.png) captures are retain
 This is image composition, live-role and refusal acceptance. Full encrypted
 target installation/authenticated boot, owned interruption cleanup, production
 installer handoff/completion UI and physical qualification remain open. Read the
-[encrypted-media scope](../ENCRYPTED_INSTALLER_MEDIA.md). [Draft PR 50](https://github.com/j5cfk7qm49-web/WrOS/pull/50)
+[encrypted-media scope](ENCRYPTED_INSTALLER_MEDIA.md). [Draft PR 50](https://github.com/j5cfk7qm49-web/WrOS/pull/50)
 retains this increment.
 
 ## Native disk-write refusal passed in the Grimoire TUI
@@ -327,7 +327,7 @@ The [artifact provenance](../evidence/native-target-ci-provenance.json) matches
 local/guest source and verifier inputs, retaining tested merge `639a8b3d...007db`. No new live image or production root launcher is
 claimed. Encrypted target installation/authenticated boot, owned interruption
 cleanup, production handoff, refreshed media and physical qualification remain
-open. Read the [target-review scope](../NATIVE_INSTALLER_TARGET.md).
+open. Read the [target-review scope](NATIVE_INSTALLER_TARGET.md).
 
 ## Authenticated installer capsule — local software, diskless native menu and Debian CI passed
 
@@ -362,7 +362,7 @@ matches local/guest source and verifier inputs, retaining tested merge
 `dabf179afc0af76571a09cbf9f12e9de9f5c0a62`. The extra local gate audits the
 existing Wi-Fi staging payload. [Draft PR 48](https://github.com/j5cfk7qm49-web/WrOS/pull/48)
 retains this increment.
-Read the [backend integration boundaries](../NATIVE_INSTALLER_ENGINE.md).
+Read the [backend integration boundaries](NATIVE_INSTALLER_ENGINE.md).
 
 ## Live Grimoire session — image, local software, guest and Debian CI passed
 
@@ -442,7 +442,7 @@ passed [972 Rust/configuration, 124 Python/zero skips, both Clippys and 20 gates
 Its [artifact provenance](../evidence/terminal-input-ci-provenance.json) matches the
 local/guest/image source; tested merge is `8a5119cfb73c3fe30ba109adf0b12d442764c961`.
 The extra local gate audits the existing staged Wi-Fi image. Read the
-[input boundaries](../TERMINAL_INPUT.md).
+[input boundaries](TERMINAL_INPUT.md).
 
 This does not deliver a new live ISO, native lock presentation, privileged live
 launcher, LUKS installation, suspend/resume or physical qualification.
@@ -471,7 +471,7 @@ the local source and exact module; tested merge is
 `3ee24e819de4558327b9047f6174802c00ac71ed`. The actual initrd build and its image
 backend checks are separate local qualification; CI does not repeat that build.
 
-Read the [component recipe and live boundaries](../LIVE_INSTALLER_IMAGE.md).
+Read the [component recipe and live boundaries](LIVE_INSTALLER_IMAGE.md).
 Root supervision, live-only startup, complete matching offline media, disk/LUKS
 review and fresh live install/reboot qualification remain open. No new complete
 ISO or disk-writing grant is delivered by this increment.
@@ -502,7 +502,7 @@ matches the local source and records tested merge `a1980a13d2bd3f4e05d20915f1ea2
 The [original APT provisioning failure](../evidence/installer-closed-ci-attempts.json)
 remains failed. The extra local gate audits the existing staged Wi-Fi image.
 
-Read the [backend boundary](../INSTALLER_BACKEND.md). Root launch supervision, live
+Read the [backend boundary](INSTALLER_BACKEND.md). Root launch supervision, live
 media staging and fresh install/reboot qualification remain open. No new ISO or
 disk-writing permission is delivered by this increment.
 
@@ -802,7 +802,7 @@ Native greeter/lock, Google linking and Drive browsing remain unfinished
 Source import #1 is complete. The historical foundation remains at `3360ec5`;
 M7b was merged through PR #15 at `268fa63`; #2 and reproduced defects #16–#18
 are closed. The default development branch is `writingdeck/m7b-wip`; placeholder
-`main` is unchanged. A subsequent [experimental installer-media increment](../INSTALLER_MEDIA.md)
+`main` is unchanged. A subsequent [experimental installer-media increment](INSTALLER_MEDIA.md)
 is being tested. Real Debian and macOS CI passed on `881bd47` in run
 [`40409883083`](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40409883083),
 including 911 Rust tests per overlapping Debian configuration and 70 Python

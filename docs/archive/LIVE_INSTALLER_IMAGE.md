@@ -62,22 +62,22 @@ private RAM answers, complete matching offline media/package pools, native disk
 review, interruption/child cleanup, LUKS and fresh authenticated install/reboot
 qualification. Earlier normal-install evidence cannot certify this new path.
 
-The [actual build manifest](evidence/live-image-build.json) retains 103 udeb
+The [actual build manifest](../evidence/live-image-build.json) retains 103 udeb
 hashes and compressed-artifact identities. The resulting image backend passed
-[12 native form checks](evidence/live-image-backend-frontend.json) and
-[14 fault cases](evidence/live-image-backend-faults.json) as a normal user with
+[12 native form checks](../evidence/live-image-backend-frontend.json) and
+[14 fault cases](../evidence/live-image-backend-faults.json) as a normal user with
 private no-network/noexec-RAM fixtures. The
-[source and driver record](evidence/live-image-local-provenance.json) and
-[original failed attempts](evidence/live-image-attempts.json) retain their scope.
+[source and driver record](../evidence/live-image-local-provenance.json) and
+[original failed attempts](../evidence/live-image-attempts.json) retain their scope.
 This component build is separate from the standard software CI gates; it is
 not performed implicitly during every Rust test run.
 
 [Debian CI 40673836623](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40673836623)
 passed 972 Rust/configuration, 123 Python/zero skips, both Clippys and all 19
-software gates. Its [artifact provenance](evidence/live-image-ci-provenance.json)
+software gates. Its [artifact provenance](../evidence/live-image-ci-provenance.json)
 matches the final local component source and exact transport module. Earlier
 passing records before the final configuration README update remain preserved
-in [their original scope](evidence/live-image-before-readme/README.md).
+in [their original scope](../evidence/live-image-before-readme/README.md).
 
 The next [offline native/text package pool](NATIVE_INSTALLER_ENGINE.md) now
 retains 401 authenticated packages, both required kernel ABIs and strict

@@ -1,11 +1,11 @@
 # WrOS documents
 
-The current documents, by subject. Writers' help pages are in
-[`assets/help/`](../assets/help/), not here.
+The current documents, by subject. Start with the project README or open the
+writer's help pages. [WrOS README](../README.md) · [Help pages](../assets/help/)
 
-Older handover notes, contribution reviews, status snapshots and the plans for
-past release candidates are in [`archive/`](archive/). They record how WrOS got
-here and are not kept up to date. Test evidence is in [`evidence/`](evidence/).
+Earlier handovers, contribution reviews, installer experiments and release
+plans are preserved in the archive. Test results live in the evidence folder.
+[Archive](archive/) · [Evidence](evidence/)
 
 ## Start here
 
@@ -49,20 +49,14 @@ here and are not kept up to date. Test evidence is in [`evidence/`](evidence/).
 ## Keyboard and input
 
 - [KEYBOARD_SHORTCUTS](KEYBOARD_SHORTCUTS.md), [COLEMAK](COLEMAK.md)
-- [TERMINAL_INPUT](TERMINAL_INPUT.md) and [INPUT_OWNERSHIP](INPUT_OWNERSHIP.md)
+- [Input ownership and terminal reads](INPUT_OWNERSHIP.md)
 
 ## Installing
 
-- [INSTALLATION](INSTALLATION.md): building images and installing safely.
-- [INSTALLER_MEDIA](INSTALLER_MEDIA.md),
-  [ENCRYPTED_INSTALLER_MEDIA](ENCRYPTED_INSTALLER_MEDIA.md),
-  [LIVE_INSTALLER_IMAGE](LIVE_INSTALLER_IMAGE.md)
-- [NATIVE_INSTALLER](NATIVE_INSTALLER.md),
-  [NATIVE_INSTALLER_ENGINE](NATIVE_INSTALLER_ENGINE.md),
-  [NATIVE_INSTALLER_TARGET](NATIVE_INSTALLER_TARGET.md),
-  [INSTALLER_BACKEND](INSTALLER_BACKEND.md),
-  [INSTALLER_KEYBOARD](INSTALLER_KEYBOARD.md),
-  [NATIVE_ENCRYPTED_INSTALL](NATIVE_ENCRYPTED_INSTALL.md)
+- Use the live installer, update an installed system, or build a disposable VM.
+  [Installation guide](INSTALLATION.md)
+- Review the installer backend, input handoff, and encrypted target boundary.
+  [Installer design](NATIVE_INSTALLER.md)
 
 ## Backups and sync
 

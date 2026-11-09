@@ -31,7 +31,7 @@ host target, exposes no NIC/shared directory, uses no account credential and
 checks the original artifact's whole-file SHA-256 before and after. It exercises
 actual boot-service adoption, Linux `dumpkeys`/`loadkeys`, systemd timer rollback,
 committed-layout preservation and refusal to replace an unregistered system map.
-The [actual guest record](evidence/installer-keyboard-vm.json) passed in **84.71
+The [actual guest record](../evidence/installer-keyboard-vm.json) passed in **84.71
 seconds**, with 512 MiB/two vCPUs, Nehalem TCG and no NIC. All four integration
 contracts passed and the original whole-image SHA-256 was unchanged. This tests
 helper integration with a

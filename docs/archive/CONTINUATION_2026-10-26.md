@@ -349,7 +349,7 @@ The experimental `os/scripts/build-installer.sh` completed a Debian live-build
 ISO with offline writing/runtime/WordNet and Wi-Fi firmware. Actual media/rootfs
 audits and the Debian signature chain for the cached installer kernel/initrd
 passed. Five new non-root media/authentication/hash-chain regressions pass.
-See [INSTALLER_MEDIA](../INSTALLER_MEDIA.md) for exact boundaries; #3 remains open.
+See [INSTALLER_MEDIA](INSTALLER_MEDIA.md) for exact boundaries; #3 remains open.
 The first actual no-NIC QEMU installation powered off normally after 1,016.21 s
 and its installed disk reached a real tty1 login prompt. The acceptance record
 remains failed because `in-target` hid earlier payload markers in syslog and

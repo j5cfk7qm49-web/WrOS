@@ -18,7 +18,7 @@ Each archive's size, SHA-256, control identity and dependency fields are checked
 Missing archives can be fetched by APT with private state and explicit
 `--download`; the default requires existing verified archives.
 
-The [actual offline build](evidence/native-pool-build.json) contains **401
+The [actual offline build](../evidence/native-pool-build.json) contains **401
 packages / 163,256,088 bytes**, including **92 kernel components** for live
 `6.12.113+deb13-amd64` and the separate `6.12.107+deb13-amd64` installer.
 Native/text, partitioning, crypto, EFI bootloader, account, finish and recovery
@@ -28,7 +28,7 @@ satisfied by inventing a provider or borrowing a package from the builder.
 
 Cdebconf stays pinned at 0.280 for the qualified transport ABI. Every archive
 payload is checked to prevent a later unpack from replacing the native
-fail-closed passthrough module. The [focused verification](evidence/native-pool-local.json)
+fail-closed passthrough module. The [focused verification](../evidence/native-pool-local.json)
 passed nine non-root offline fixture tests, including actual Debian archives,
 epoch/virtual dependency cases, signature-policy boundaries, changed inputs,
 path escape and module collision. GPG is mocked only in policy unit tests;
@@ -65,14 +65,14 @@ and the diskless guest guard. Synthetic kernel/module bytes are confined to
 unit fixtures; actual staging uses the separately qualified Debian image and
 the pinned transport hash. This distinction is retained in the test sources.
 
-The [actual staged capsule](evidence/native-capsule-build.json) and
-[eighteen focused checks](evidence/native-engine-focused.json) passed. The
-[diskless no-NIC guest](evidence/native-engine-menu-vm.json) then passed in
+The [actual staged capsule](../evidence/native-capsule-build.json) and
+[eighteen focused checks](../evidence/native-engine-focused.json) passed. The
+[diskless no-NIC guest](../evidence/native-engine-menu-vm.json) then passed in
 **122.03 seconds**: Debian's maintained startup and menu presented actionable
 language and location forms through the actual non-root WrOS frontend on tty7.
-Actual [language](evidence/native-engine-language.png) and
-[location](evidence/native-engine-location.png) captures show the shared
-Grimoire palette and panel code, with their [pixel identities](evidence/native-engine-captures.json).
+Actual [language](../evidence/native-engine-language.png) and
+[location](../evidence/native-engine-location.png) captures show the shared
+Grimoire palette and panel code, with their [pixel identities](../evidence/native-engine-captures.json).
 
 This is a guarded VM fixture with a separate read-only QA medium, not a root
 grant installed in the live ISO. It rejects writable media, verifies its QEMU
@@ -88,7 +88,7 @@ byte checks on the exact initrd and package-index paths Debian reads. Its
 separate host kernel check uses noninteractive debconf; later installer forms
 use the independent native stream. The backend's inherited descriptor avoids
 debconf's reserved low descriptors. Original upstream files and copyrights are
-retained in the fixture payload. [Earlier failed observations](evidence/native-engine-attempts.json)
+retained in the fixture payload. [Earlier failed observations](../evidence/native-engine-attempts.json)
 keep their original sources and results.
 
 The next integration must package this path into the live image with a trusted
@@ -98,13 +98,13 @@ checks remain open. The diskless fixture proves startup, native form exchange
 and service-stop containment; it has no target disk and cannot qualify an
 installation. No host disk or account was changed.
 
-The [full local software run](evidence/native-engine-local.json) passed 973
+The [full local software run](../evidence/native-engine-local.json) passed 973
 Rust/configuration, 153 Python/zero skips, both Clippys and 21 gates. Its
-[source and binary provenance](evidence/native-engine-local-provenance.json)
+[source and binary provenance](../evidence/native-engine-local-provenance.json)
 matches the focused and guest reports.
 [Debian CI 40740207303](https://github.com/j5cfk7qm49-web/WrOS/actions/runs/40740207303)
 also passed 973 Rust/configuration, 153 Python/zero skips, both Clippys and 20
-gates. [Artifact provenance](evidence/native-engine-ci-provenance.json) records
+gates. [Artifact provenance](../evidence/native-engine-ci-provenance.json) records
 the tested merge and ZIP digest; local/guest source and verifier inputs match.
 The actual capsule build and diskless guest remain separately scoped local
 acceptance. Neither result qualifies target installation or a root launcher.

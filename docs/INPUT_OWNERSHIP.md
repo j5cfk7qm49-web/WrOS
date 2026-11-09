@@ -1,4 +1,4 @@
-# Editor input ownership prerequisite
+# Input ownership and terminal reads
 
 The Linux editor reads terminal or native device events through an unprivileged child
 process. It re-executes the same installed binary in a private mode before any
@@ -17,6 +17,19 @@ Compose data supply Colemak and compose; no owner configuration or prose enters
 the reader. Native input is restricted to the existing authenticated tty1 session
 and logind's seat0 device grants. A PTY or unavailable native keyboard falls back
 to the terminal reader.
+
+## Terminal read readiness
+
+The pinned Crossterm parser could leave bytes unread after a large raw input
+burst. The retained patch remembers readability between returned events and
+checks for remaining bytes before waiting again. It preserves descriptor flags
+and the existing event parser. Closed input or a read error ends the reader.
+[Patch and upstream notice](../os/config/terminal/README.md)
+
+The terminal tests cover ASCII and Unicode at read boundaries, long masked
+password fields, and typeahead after submission. The backend fixture also
+checks whitespace and literal backslashes in a hidden field.
+[Terminal read evidence](archive/TERMINAL_INPUT.md)
 
 ## Handoff contract
 

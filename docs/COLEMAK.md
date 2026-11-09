@@ -17,7 +17,7 @@ that case because it cannot promise a safe rollback to an unregistered map.
 The helper reports this reason without changing the keyboard. An administrator
 can select a supported layout through Debian's keyboard configuration before
 using WrOS preview. The configuration schema and legacy paths are unchanged.
-See [installer keyboard qualification](INSTALLER_KEYBOARD.md) for exact test
+See [installer keyboard qualification](archive/INSTALLER_KEYBOARD.md) for exact test
 boundaries; a new installer ISO with this correction still needs qualification.
 
 ## Important scope

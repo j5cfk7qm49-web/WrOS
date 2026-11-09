@@ -1,7 +1,7 @@
 #!/bin/bash
 # Ordered, fail-closed driver for the WrOS release-candidate live/installer ISO.
 #
-# Run as root inside the isolated Debian 13 amd64 builder (see docs/INSTALLER_MEDIA.md).
+# Run as root inside the isolated Debian 13 amd64 builder (see docs/INSTALLATION.md).
 # Steps that must not run as root (cargo, prose runtime, Debian source builds,
 # the offline pool, the capsule stager, the media audit) run as WROS_BUILD_USER.
 #

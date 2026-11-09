@@ -38,7 +38,7 @@ media must not preseed passwords or rely on a prefilled password value.
 It aborts on broken transport, incomplete/oversized frames, embedded NUL/CR and
 invalid/error statuses. Back is allowed only for GO with
 backup enabled. Module developer logging is compiled out locally, so compiling
-the full maintained backend still works. See the [failure boundary](../../../docs/INSTALLER_BACKEND.md).
+the full maintained backend still works. See the [failure boundary](../../../docs/archive/INSTALLER_BACKEND.md).
 
 Build non-root with `os/scripts/build-installer-frontend.sh`, passing the pinned
 Debian source descriptor and a new output directory. Fetch the source descriptor
@@ -59,7 +59,7 @@ stay on tmpfs, including when mounted noexec.
 `build-live-backend.sh` can now add this module as a local udeb to a matching
 Debian Security kernel/initrd, using retained upstream build machinery and an
 explicit initrd-only dependency profile. See the [component recipe and actual
-image backend evidence](../../../docs/LIVE_INSTALLER_IMAGE.md). This does not
+image backend evidence](../../../docs/archive/LIVE_INSTALLER_IMAGE.md). This does not
 expose a privileged launcher or complete a live ISO.
 
 ## Colemak in the keymap question
