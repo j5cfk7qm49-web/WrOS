@@ -273,7 +273,7 @@ class ChecksPTY(unittest.TestCase):
             restarted = TerminalProcess(project, home, 100, 30)
             try:
                 restarted.shows('The Brass Key')
-                restarted.send(b'\x0bInteractive tutorial\r'); restarted.screen_shows('2 / 45 completed')
+                restarted.send(b'\x0bInteractive tutorial\r'); restarted.screen_shows('2 / 50 completed')
                 self.assertEqual(primary.read_bytes(), before)
                 self.assertEqual(json.loads(progress.read_text())['completed'], [26, 40])
                 quit_normally(restarted)
