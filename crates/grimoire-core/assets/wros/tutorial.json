@@ -312,6 +312,41 @@
     "title": "Locking and sleep",
     "help_topic": "wros",
     "event": "SessionUnlocked",
-    "instructions": "Open Settings › System › Battery and power and choose Lock writing session. WrOS saves first, then asks for your password; what you type there never reaches the book. Unlock to finish this lesson. Lock and suspend does the same and sleeps, and closing the lid while writing saves, locks and sleeps too."
+    "instructions": "Open Settings › System › Battery and power and choose Lock writing session. WrOS saves first, then asks for your password. Unlock to finish this lesson. Lock and suspend also puts the laptop to sleep. Lesson 46 covers the lid choice."
+  },
+  {
+    "id": 46,
+    "title": "Choosing what the lid does",
+    "help_topic": "wros",
+    "event": "LidChoiceSaved",
+    "instructions": "Open Settings › System › Battery and power. Choose When the lid closes to cycle through lock and sleep, lock and stay awake, and do nothing. Stop on the choice you want. Saving a choice finishes this lesson."
+  },
+  {
+    "id": 47,
+    "title": "Battery warnings",
+    "help_topic": "wros",
+    "event": "BatteryWarningShown",
+    "instructions": "In Battery and power, check the current charge. On battery, WrOS warns at 20% and 10%. At the 8% reserve it saves your words and counts down before locking and sleeping, if this laptop supports sleep. Plug in to stay awake. The next battery warning finishes this lesson."
+  },
+  {
+    "id": 48,
+    "title": "Finding files on Google Drive",
+    "help_topic": "sync",
+    "event": "DriveFolderListed",
+    "instructions": "Open Settings › Backups and accounts › Google Drive. Link Drive first if you need to. Choose Your Drive files and wait for the folder to open. You can open another folder or copy a file to this laptop. Seeing a finished folder listing completes the lesson."
+  },
+  {
+    "id": 49,
+    "title": "Practising a paragraph merge",
+    "help_topic": "sync",
+    "event": "MergePractised",
+    "instructions": "Start this exercise in a safe demo. The merge panel shows two sample changes to one paragraph. Choose 1 for yours, 2 for Drive's, or 3 to keep both in that order. WrOS shows your practice result and finishes the lesson. Escape goes back so you can try again."
+  },
+  {
+    "id": 50,
+    "title": "Using the start screen",
+    "help_topic": "wros",
+    "event": "StartScreenSaved",
+    "instructions": "Open Settings › System › Display and choose Start screen to switch between WrOS and plain text. Saving the choice finishes the lesson. The next restart uses that choice when preparation finishes. For one start only, press Esc at WrOS's graphical disk password prompt to use the plain prompt."
   }
 ]

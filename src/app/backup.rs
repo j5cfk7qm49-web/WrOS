@@ -172,6 +172,7 @@ pub enum Finished {
     Restore,
     /// Linking ended with Drive connected.
     LinkPhone,
+    DriveList,
 }
 
 /// When an automatic backup of the open book is due. Times are passed in, so the rules are
@@ -359,6 +360,7 @@ impl Backups {
         let kind = match &request {
             Request::Restore { .. } => Some(Finished::Restore),
             Request::LinkPhone => Some(Finished::LinkPhone),
+            Request::DriveList { .. } => Some(Finished::DriveList),
             _ => None,
         };
         match service::spawn(request, self.state.clone()) {
@@ -479,10 +481,13 @@ impl Backups {
         let result = self.job.as_ref().map(|job| job.result.try_recv());
         match result {
             Some(Ok(Ok(status))) => {
-                self.finished = self
-                    .running
-                    .take()
-                    .filter(|kind| *kind != Finished::LinkPhone || status.google_connected);
+                self.finished = self.running.take().filter(|kind| match kind {
+                    Finished::Restore => true,
+                    Finished::LinkPhone => status.google_connected,
+                    Finished::DriveList => {
+                        status.google_connected && !status.drive_folder.is_empty()
+                    }
+                });
                 self.notice = status.notice.clone();
                 self.status = status;
                 self.status_ok = true;

@@ -5,6 +5,7 @@
 use super::*;
 use grimoire_core::merge::{self, Choice, Piece};
 use grimoire_core::project::Settle;
+use grimoire_core::tutorial::Event;
 
 /// The three ways to settle one, in the order they're offered.
 const CHOICES: [Settle; 3] = [Settle::TakeCopy, Settle::KeepOriginal, Settle::KeepBoth];
@@ -146,7 +147,22 @@ impl App {
             return self.finish_merge(copy, text, false);
         }
         self.overlay = Overlay::Merge {
-            copy,
+            copy: Some(copy),
+            pieces,
+            choices: Vec::new(),
+            side: 0,
+            scroll: [0, 0],
+        };
+    }
+
+    pub(crate) fn open_merge_practice(&mut self) {
+        let pieces = merge::three_way(
+            "Mara reached the gate.\n",
+            "Mara opened the gate.\n",
+            "Mara locked the gate.\n",
+        );
+        self.overlay = Overlay::Merge {
+            copy: None,
             pieces,
             choices: Vec::new(),
             side: 0,
@@ -181,8 +197,10 @@ impl App {
             Key::Home => return *at = 0,
             Key::End => return *at = max,
             Key::Esc => {
-                let copy = copy.clone();
-                self.overlay = Overlay::Settle { copy, sel: 0 };
+                self.overlay = match copy.clone() {
+                    Some(copy) => Overlay::Settle { copy, sel: 0 },
+                    None => Overlay::Deck(wros::Page::Lesson { id: 49 }),
+                };
                 return;
             }
             _ => return,
@@ -192,8 +210,16 @@ impl App {
         *scroll = [0, 0];
         if choices.len() == merge::clashes(pieces) {
             let text = merge::assemble(pieces, choices);
-            let copy = copy.clone();
-            self.finish_merge(copy, text, false);
+            if let Some(copy) = copy.clone() {
+                self.finish_merge(copy, text, false);
+            } else {
+                self.overlay = Overlay::Deck(wros::Page::Lesson { id: 49 });
+                self.observe_deck(Event::MergePractised);
+                self.msg = format!(
+                    "Practice result: {}",
+                    text.split_whitespace().collect::<Vec<_>>().join(" ")
+                );
+            }
         }
     }
 
@@ -319,6 +345,7 @@ impl App {
 /// the words that differ between them marked.
 pub(super) fn draw_merge(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     let Overlay::Merge {
+        copy,
         pieces,
         choices,
         side,
@@ -341,7 +368,12 @@ pub(super) fn draw_merge(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     };
     let box_area = centred(area, 84, area.height.saturating_sub(4).min(32));
     f.render_widget(Clear, box_area);
-    let block = pane_block("MERGE", true, t);
+    let title = if copy.is_some() {
+        "MERGE"
+    } else {
+        "MERGE PRACTICE"
+    };
+    let block = pane_block(title, true, t);
     let inner = block.inner(box_area);
     f.render_widget(block, box_area);
     let iw = inner.width as usize;

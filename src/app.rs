@@ -593,7 +593,8 @@ pub enum Overlay {
     /// Each version scrolls on its own; `side` is the one the keys move
     /// (0 yours, 1 Drive's).
     Merge {
-        copy: PathBuf,
+        /// The tutorial uses sample paragraphs without a file to settle.
+        copy: Option<PathBuf>,
         pieces: Vec<grimoire_core::merge::Piece>,
         choices: Vec<grimoire_core::merge::Choice>,
         side: usize,

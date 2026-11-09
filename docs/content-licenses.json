@@ -13,10 +13,10 @@
       "license": "MIT",
       "edition": "0.1.0-dev",
       "file": "crates/grimoire-core/assets/wros/tutorial.json",
-      "sha256": "f15174394dca3c7597a81932536758815289a4ee53de353af8c6e4b0207b6425",
-      "item_count": 45,
+      "sha256": "0708a835b16b76c0c7438ec14dfda6ba022a6488cc43b5e4a82f44fda6e1b735",
+      "item_count": 50,
       "license_notice": "LICENSE",
-      "modifications": "Original 39 lessons, supplemental grammar lesson 40 and five WrOS system lessons; review events require actual completed actions. No third-party exercise text."
+      "modifications": "Original 39 lessons, supplemental grammar lesson 40 and ten further WrOS lessons. Completion follows an action in the app or an observed system event. The merge practice uses original sample paragraphs."
     },
     {
       "id": "writingdeck-original-demo",
@@ -27,7 +27,7 @@
       "license": "MIT",
       "edition": "0.1.0-dev",
       "file": "crates/grimoire-core/src/tutorial.rs",
-      "sha256": "6c85ab076dd19996e77e3912eb6d3717d94a14123649e633530247fd033eea98",
+      "sha256": "96e151e62cee7465e415b4260e92b49d3a5db0d57ede4caa51ae073793bd51da",
       "item_count": 2,
       "license_notice": "LICENSE",
       "modifications": "Original demo scene strings embedded in the creation function"

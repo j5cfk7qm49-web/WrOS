@@ -2,7 +2,10 @@
 
 ## Current implementation
 
-The compiled catalog at `crates/grimoire-core/assets/wros/tutorial.json` retains **all 39 requested lesson IDs, supplemental grammar lesson 40, and lessons 41–45 for the system features added in rc4–rc7**. Every lesson now completes on a real event; none is planned-only. M7b adds real dictionary, prose and voice-review events; rc8 adds backup restore, sync, phone linking, warm screen, going back, Wi-Fi and lock events. Issue #11 tracks what is left.
+The compiled catalog at `crates/grimoire-core/assets/wros/tutorial.json` has 50
+lessons. It preserves IDs 1–45 and adds the lid choice, battery warnings,
+Drive folders, paragraph merge practice and the start screen. Each lesson
+completes when its action or system event occurs. [Issue #11](https://github.com/j5cfk7qm49-web/WrOS/issues/11)
 
 Progress keeps lesson IDs this catalog does not have (a newer WrOS wrote them), so going back a version and forward again loses nothing. They are never counted, started, completed or awarded here. ID 0 is still refused.
 
@@ -25,7 +28,7 @@ The demo contains original short text and a deliberate spelling error. Nothing i
 |---|---|---|
 | 1 | Starting the OS/home | Wired: actual dashboard opened; boot itself separately VM-tested |
 | 2 | Keyboard layout selection | Wired: helper-confirmed layout; only installed console service can verify it |
-| 3 | Creating a novel | Planned tutorial event (existing new-book feature retained) |
+| 3 | Creating a novel | Wired: a new book is created successfully |
 | 4 | Writing and Markdown | Wired: actual demo editor text changes |
 | 5 | Scene/chapter navigation | Wired: actual open document changes |
 | 6 | Corkboard | Wired: actual corkboard overlay |
@@ -68,6 +71,11 @@ The demo contains original short text and a deliberate spelling error. Nothing i
 | 43 | Going back a version | Wired: the Go back screen reached with a kept previous version; nothing is staged, and staying is the default row |
 | 44 | Finding Wi-Fi networks | Wired: a finished Wi-Fi scan; opening the page is insufficient |
 | 45 | Locking and sleep | Wired: the console lock handed the session back after the password; the lock never reads the book's keyboard input |
+| 46 | Choosing what the lid does | A lid choice was written to settings |
+| 47 | Battery warnings | A new warning appeared during discharge |
+| 48 | Finding files on Google Drive | A folder listing finished while Your Drive files was open |
+| 49 | Practising a paragraph merge | The real merge panel assembled the chosen sample paragraphs in a safe demo |
+| 50 | Using the start screen | The helper saved the chosen start screen. The boot VM checks the Esc fallback separately |
 
 Lesson 35 requires a real, nonempty Markdown artifact under the safe demo's exports directory, not merely opening the export dialog, choosing formats, or reaching a TK warning. Async PDF work does not count as completed Markdown export. Its event does not claim rich-format page footnotes or successful PDF generation.
 
@@ -85,7 +93,7 @@ Instructions use arrows, Enter/Escape and function keys for physical-layout-inde
 
 ## Tests and continuation rule
 
-Core tests verify 39 stable lesson IDs, unavailable lesson rejection, event matching, safe-demo gating, skip/replay, persisted progress and exclusive new-demo creation. TUI pin tests verify actual source selection/save and anchored scroll-and-return for lessons 11/12; opening a page or pressing Home without prior anchored scrolling is insufficient. TUI tests type/paste through the actual secondary routing/editor and validate persisted lesson 13 completion and replay, reject real-novel exercise launch, and prove open/navigation alone cannot complete it. Core tests and retained baseline lessons verify event matching, help topics and required sizes. Add new completion evidence and safe-demo tasks in the same change that implements each future feature. A feature's tutorial must never be marked complete simply because its informational page exists.
+Core tests verify all 50 IDs, rejection of unknown lessons, event matching, safe-demo gating, skip/replay, persisted progress and exclusive new-demo creation. TUI pin tests verify actual source selection/save and anchored scroll-and-return for lessons 11/12; opening a page or pressing Home without prior anchored scrolling is insufficient. TUI tests type/paste through the actual secondary routing/editor and validate persisted lesson 13 completion and replay, reject real-novel exercise launch, and prove open/navigation alone cannot complete it. Core tests and retained baseline lessons verify event matching, help topics and required sizes. Add new completion evidence and safe-demo tasks in the same change that implements each future feature.
 
 Lessons 15/16 exercise the original-source workflows described in [WORKFLOW](WORKFLOW.md). Lesson 16's event verifies a new App context with the saved source, not a measured reboot or process identity; separate compiled-app PTYs perform actual quit/restart and edit/undo the loaded original. Blank/failed/paste-only navigation and ordinary novels cannot manufacture completion. All 39 full exercises are not yet delivered.
 

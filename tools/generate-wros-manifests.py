@@ -155,7 +155,7 @@ def main():
                 entry['sha256'] = sha(ROOT/entry['file'])
             if entry['id'] == 'writingdeck-original-tutorial':
                 entry['item_count'] = len(json.loads((ROOT/entry['file']).read_text()))
-                entry['modifications'] = 'Original 39 lessons, supplemental grammar lesson 40 and five WrOS system lessons; review events require actual completed actions. No third-party exercise text.'
+                entry['modifications'] = 'Original 39 lessons, supplemental grammar lesson 40 and ten further WrOS lessons. Completion follows an action in the app or an observed system event. The merge practice uses original sample paragraphs.'
         content_path.write_text(json.dumps(content, indent=2, ensure_ascii=False)+'\n')
     print(f'{len(records)} Rust packages, {len(debian)} staged Debian packages, {len(missing)} missing root notice files to review; {len(missing_selected)} used by the Linux no-audio build')
 

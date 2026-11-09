@@ -61,6 +61,11 @@ pub enum Event {
     GoBackReviewed,
     WifiScanned,
     SessionUnlocked,
+    LidChoiceSaved,
+    BatteryWarningShown,
+    DriveFolderListed,
+    MergePractised,
+    StartScreenSaved,
 }
 impl Event {
     pub fn safe_outside_demo(self) -> bool {
@@ -87,6 +92,10 @@ impl Event {
                 | Self::GoBackReviewed
                 | Self::WifiScanned
                 | Self::SessionUnlocked
+                | Self::LidChoiceSaved
+                | Self::BatteryWarningShown
+                | Self::DriveFolderListed
+                | Self::StartScreenSaved
         )
     }
 }
@@ -278,14 +287,14 @@ mod tests {
     use super::*;
     #[test]
     fn all_required_lessons_are_present_and_unavailable_is_honest() {
-        assert_eq!(lessons().len(), 45);
+        assert_eq!(lessons().len(), 50);
         for (i, l) in lessons().iter().enumerate() {
             assert_eq!(l.id as usize, i + 1);
             assert!(!l.instructions.is_empty());
             assert!(l.event.is_some(), "lesson {} has no real completion", l.id);
         }
         let mut p = Progress::default();
-        assert!(p.start(46).is_err());
+        assert!(p.start(51).is_err());
         assert!(p.active.is_none() && p.completed.is_empty());
     }
     #[test]
@@ -298,6 +307,10 @@ mod tests {
             (43, Event::GoBackReviewed),
             (44, Event::WifiScanned),
             (45, Event::SessionUnlocked),
+            (46, Event::LidChoiceSaved),
+            (47, Event::BatteryWarningShown),
+            (48, Event::DriveFolderListed),
+            (50, Event::StartScreenSaved),
         ];
         for (id, event) in cases {
             let mut p = Progress::default();
@@ -359,6 +372,9 @@ mod tests {
         p.start(3).unwrap();
         assert!(p.observe(Event::NovelCreated, false));
         assert!(p.completed.contains(&3));
+        p.start(49).unwrap();
+        assert!(!p.observe(Event::MergePractised, false));
+        assert!(p.observe(Event::MergePractised, true));
     }
     #[test]
     fn demo_cannot_overwrite_an_existing_project_and_progress_round_trips() {

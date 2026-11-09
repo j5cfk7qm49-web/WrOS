@@ -472,6 +472,9 @@ impl App {
             && (step == Step::Save || !said.contains(" seconds"))
         {
             self.deck.shell.notices.push(said);
+            if battery.discharging {
+                self.observe_deck(tutorial::Event::BatteryWarningShown);
+            }
         }
         match step {
             Step::Sleep => return Some(true),
@@ -505,7 +508,8 @@ impl App {
             return;
         };
         let next = self.deck.lid_close.next();
-        self.deck.note = match crate::lid::save(&settings, next) {
+        let saved = crate::lid::save(&settings, next);
+        self.deck.note = match &saved {
             Ok(()) => {
                 self.deck.lid_close = next;
                 match next {
@@ -524,6 +528,9 @@ impl App {
             Err(error) => format!("Couldn't save the lid choice: {error}"),
         };
         self.deck.shell.notices.push(&self.deck.note);
+        if saved.is_ok() {
+            self.observe_deck(tutorial::Event::LidChoiceSaved);
+        }
     }
 
     pub(super) fn power_wait_reason(&mut self) -> Option<&'static str> {
@@ -823,6 +830,13 @@ impl App {
             Some(super::backup::Finished::LinkPhone) => {
                 self.observe_deck(tutorial::Event::PhoneLinked)
             }
+            Some(super::backup::Finished::DriveList)
+                if self.overlay == Overlay::Deck(Page::Settings)
+                    && self.deck.shell.nav.current() == super::shell::Route::GoogleDrive =>
+            {
+                self.observe_deck(tutorial::Event::DriveFolderListed)
+            }
+            Some(super::backup::Finished::DriveList) => {}
             None => {}
         }
         self.tick_update_chain();
@@ -865,7 +879,12 @@ impl App {
                 }
                 Ok(Reply::BootStatus(status)) => {
                     self.deck.note = status.preparation().into();
+                    let saved = matches!(request, Request::BootScreen { enabled, .. } if enabled == status.enabled)
+                        && !status.failed;
                     self.deck.boot_status = Some(status);
+                    if saved {
+                        self.observe_deck(tutorial::Event::StartScreenSaved);
+                    }
                 }
                 Ok(Reply::Message(message)) => {
                     self.on_update_message(&request, &message);
@@ -1780,7 +1799,10 @@ impl App {
             }
             43 => self.open_settings_page(Route::Panel(Panel::Updates)),
             44 => self.open_settings_page(Route::Panel(Panel::Network)),
-            45 => self.open_settings_page(Route::Panel(Panel::Power)),
+            45..=47 => self.open_settings_page(Route::Panel(Panel::Power)),
+            48 => self.open_settings_page(Route::GoogleAccount),
+            49 => self.open_merge_practice(),
+            50 => self.open_settings_page(Route::Panel(Panel::Display)),
             38 => self.open_system_settings(),
             39 => {
                 self.open_help(Some("history"));
