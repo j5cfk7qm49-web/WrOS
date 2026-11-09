@@ -1353,17 +1353,19 @@ def phase_update(ctx):
     vm.create_overlay(ctx.args.base_disk or st['disk'], overlay,
                       base_format='qcow2' if ctx.args.base_disk else 'raw')
     media = vm.make_update_media(bundle, ctx.dir / 'update-media.img', ctx.args.media_fs, 48)
-    debs = sorted(p.relative_to(bundle).as_posix() for p in bundle.rglob('*.deb'))
-    ctx.check('bundle carries exactly one wros deb', len(debs) == 1 and debs[0].split('/')[-1].startswith('wros_'), debs)
-    ctx.result['bundle_deb'] = debs[0]
-    ctx.target = debs[0].split('/')[-1].split('_')[1]  # the version the bundle installs
-    ctx.result['bundle_deb_sha256'] = vm.sha256_file(bundle / debs[0])
+    debs = sorted(p.relative_to(bundle) for p in bundle.rglob('*.deb'))
+    wros_debs = [p for p in debs if p.name.startswith('wros_')]
+    ctx.check('bundle carries exactly one wros deb', len(wros_debs) == 1, [p.as_posix() for p in debs])
+    wros_deb = wros_debs[0]
+    ctx.result['bundle_deb'] = wros_deb.as_posix()
+    ctx.target = wros_deb.name.split('_')[1]  # the version the bundle installs
+    ctx.result['bundle_deb_sha256'] = vm.sha256_file(bundle / wros_deb)
     ctx.result['media_fs'] = ctx.args.media_fs
     if variant == 'tamper':
         if ctx.args.media_fs != 'ext4':
             raise SystemExit('tamper needs ext4 media')
-        vm.flip_byte_in_ext4(media, '/' + debs[0], 4096)
-        ctx.step('media-tampered', deb=debs[0])
+        vm.flip_byte_in_ext4(media, '/' + wros_deb.as_posix(), 4096)
+        ctx.step('media-tampered', deb=wros_deb.as_posix())
 
     def attach(machine):
         machine.usb_stick(media, readonly=True, ident='updatemedia')

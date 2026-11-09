@@ -8,8 +8,10 @@
    without the provisioned runtime).
 2. From WSL, run the versioned `.audit-tools/rc-x-rc10-release.sh`. It fetches
    the local `rc10-build` commit into the release checkout, builds `grimoire`,
-   `wros-greeter` and `wros-boot`, packages them and signs the bundle with the
-   offline release key, which stays outside the source tree.
+   `wros-greeter` and `wros-boot`, and packages them. The release script selects
+   the missing runtime archives from Debian's signed package index using the
+   saved RC9 package database. It checks that the whole set installs offline
+   before signing with the release key, which stays outside the source tree.
 3. Run `rc-x-rc10-checkbundle.sh` on `rc10-release/wros-updates.tar`. Confirm the
    version, the pinned signer and the tarball SHA-256. Keep the release notes
    and GitHub release body beside the tarball.
@@ -37,10 +39,10 @@ carry over. Record the results in its table.
 ## Verify a live update after publication
 
 1. Check that the Pages deployment succeeded and that its `updates/` contains
-   `InRelease`, `Release`, `Release.gpg`, `Packages` and the release package.
+   `InRelease`, `Release`, `Release.gpg`, `Packages` and the bundle's packages.
    Run `python3 -I tools/publish-updates.py published <updates-url> <empty-dir>`
-   in a fresh local directory. Compare the downloaded package SHA-256 with the
-   offline bundle.
+   in a fresh local directory. Compare each downloaded package's SHA-256 with
+   its entry in the offline bundle.
 2. On a disposable older WrOS installation, open **Settings › Updates and recovery › Updates**
    and choose **Check for WrOS updates**. Review the version, signer and validity
    dates. Confirm staging, restart, unlock and check that Settings reports the

@@ -9,6 +9,7 @@ import io
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -260,8 +261,12 @@ class PublishedPackage(unittest.TestCase):
         base = Path(cls.tmp.name)
         (base / 'debs').mkdir()
         cls.deb = support.make_deb(base / 'debs', 'wros', '0.1.0~rc3', arch='amd64')
+        cls.library = support.make_deb(base / 'debs', 'libdisplay-fixture', '1.0', arch='amd64')
         cls.site = base / 'site'
         support.write_bundle(cls.site / 'updates', [cls.deb], cls.gpg)
+        support.write_bundle(cls.site / 'with-library', [cls.deb, cls.library], cls.gpg)
+        support.write_bundle(cls.site / 'corrupt-library', [cls.deb, cls.library], cls.gpg)
+        next((cls.site / 'corrupt-library' / 'pool').glob('libdisplay-fixture_*.deb')).write_bytes(b'corrupt')
         support.write_bundle(cls.site / 'foreign', [cls.deb], cls.gpg, signer='other')
         cls.keyring = base / 'keyring.gpg'
         cls.gpg.export(['archive'], cls.keyring)
@@ -283,12 +288,36 @@ class PublishedPackage(unittest.TestCase):
 
     def test_only_a_published_package_signed_by_the_pinned_key_is_re_signed(self):
         with tempfile.TemporaryDirectory(prefix='wros-publish-out-') as out:
-            deb = publish.published_deb(self.url + 'updates/', Path(out), keyring=self.keyring, pin=self.pin)
+            [deb] = publish.published_debs(self.url + 'updates/', Path(out), keyring=self.keyring, pin=self.pin)
             self.assertEqual(deb.read_bytes(), self.deb.read_bytes())
             with self.assertRaisesRegex(ValueError, 'pinned'):
-                publish.published_deb(self.url + 'foreign/', Path(out), keyring=self.keyring, pin=self.pin)
+                publish.published_debs(self.url + 'foreign/', Path(out), keyring=self.keyring, pin=self.pin)
             # Nothing published yet: nothing to re-sign, not an error.
-            self.assertIsNone(publish.published_deb(self.url + 'empty/', Path(out), keyring=self.keyring, pin=self.pin))
+            self.assertEqual(publish.published_debs(self.url + 'empty/', Path(out), keyring=self.keyring, pin=self.pin), [])
+
+    def test_refresh_keeps_every_authenticated_archive_and_refuses_a_corrupt_library(self):
+        with tempfile.TemporaryDirectory(prefix='wros-publish-out-') as out:
+            with self.assertRaisesRegex(ValueError, 'libdisplay-fixture.*does not match'):
+                publish.published_debs(self.url + 'corrupt-library/', Path(out), keyring=self.keyring, pin=self.pin)
+        with tempfile.TemporaryDirectory(prefix='wros-publish-out-') as out:
+            workspace = Path(out)
+            for path in ('tools/publish-updates.py', 'tools/build-update-bundle.py',
+                         'os/scripts/wros-update-engine.py'):
+                target = workspace / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(ROOT / path, target)
+            trust = workspace / 'os/config/update-trust'
+            trust.mkdir(parents=True)
+            shutil.copyfile(self.keyring, trust / 'wros-archive-keyring.gpg')
+            (trust / 'update-signers').write_text(self.pin + '\n')
+            result = subprocess.run(['bash', '-c', workflow_script('Sign into the site')],
+                                    cwd=workspace, capture_output=True, text=True,
+                                    env=self.gpg.env | {'UPDATE_URL': self.url + 'with-library/', 'BUILD': '',
+                                                        'GITHUB_WORKSPACE': out})
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            debs = (workspace / 'out/pages/updates/pool').glob('*.deb')
+            self.assertEqual({deb.name: deb.read_bytes() for deb in debs},
+                             {deb.name: deb.read_bytes() for deb in (self.deb, self.library)})
 
 
 if __name__ == '__main__':

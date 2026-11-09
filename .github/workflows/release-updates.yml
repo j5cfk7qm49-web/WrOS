@@ -4,8 +4,8 @@ name: release-updates
 # Design: docs/archive/superpowers/specs/2026-11-01-online-wros-updates-design.md
 #
 # Pages replaces the whole site on every deploy, so each run republishes the live
-# updates/ folder: a tag serves its offline-signed asset, and a refresh re-signs the package already there
-# (after checking it against the committed keyring and pin).
+# updates/ folder: a tag serves its offline-signed asset, and a refresh re-signs the packages already there
+# (after checking them against the committed keyring and pin).
 #
 # Until the WROS_UPDATE_SIGNING_SUBKEY secret is set, CI signs nothing: a release tag
 # (or a dispatch naming one) serves the release's wros-updates.tar asset, signed offline
@@ -169,18 +169,21 @@ jobs:
           set -euo pipefail
           PIN=$(grep -v '^#' os/config/update-trust/update-signers | tr -d ' \n')
           sign() {
-            python3 -I tools/build-update-bundle.py "$1" --out "$2" --gnupg-home "$GNUPGHOME" \
+            local out=$1
+            shift
+            python3 -I tools/build-update-bundle.py "$@" --out "$out" --gnupg-home "$GNUPGHOME" \
               --key-id "$PIN" --expect-fingerprint "$PIN" --valid-days 21
             keyring="$GITHUB_WORKSPACE/os/config/update-trust/wros-archive-keyring.gpg"
-            gpgv --keyring "$keyring" "$2/InRelease" >/dev/null 2>&1
-            gpgv --keyring "$keyring" "$2/Release.gpg" "$2/Release" >/dev/null 2>&1
+            gpgv --keyring "$keyring" "$out/InRelease" >/dev/null 2>&1
+            gpgv --keyring "$keyring" "$out/Release.gpg" "$out/Release" >/dev/null 2>&1
           }
           mkdir -p out/pages out/live
           live=$(python3 tools/publish-updates.py published "$UPDATE_URL" out/live)
           [ -n "$live" ] || { echo 'No published update to refresh.' >&2; exit 1; }
-          sign "$live" out/pages/updates
+          readarray -t live_debs <<< "$live"
+          sign out/pages/updates "${live_debs[@]}"
           if [ "$BUILD" = updates-scratch ]; then
-            sign out/new/wros_*_amd64.deb out/pages/updates-scratch
+            sign out/pages/updates-scratch out/new/wros_*_amd64.deb
           fi
           find out/pages -type f | sort
       - name: Remove signing material from the runner

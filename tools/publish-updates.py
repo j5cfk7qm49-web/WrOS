@@ -3,10 +3,10 @@
 
   version TAG              print the Debian version a v* tag publishes; refuse one that
                            differs from the first line of os/VERSION
-  published URL OUTDIR     download the currently published wros .deb for re-signing, only
+  published URL OUTDIR     download every currently published .deb for re-signing, only
                            if its InRelease verifies against the committed keyring with the
-                           pinned primary and the .deb matches the signed index; print its
-                           path, or nothing when nothing is published yet
+                           pinned primary and every .deb matches the signed index; print the
+                           paths, or nothing when nothing is published yet
   check-bundle TAR OUTDIR VERSION
                            unpack a bundle signed outside CI (a release asset) into OUTDIR
                            and verify it as a WrOS computer would: the committed keyring and
@@ -62,24 +62,13 @@ def cleartext(inrelease):
     return '\n'.join(line[2:] if line.startswith('- ') else line for line in lines[start:end])
 
 
-def stanza_fields(text):
-    stanzas = []
-    for block in text.strip('\n').split('\n\n'):
-        fields = {}
-        for line in block.splitlines():
-            key, _, value = line.partition(':')
-            fields[key] = value.strip()
-        stanzas.append(fields)
-    return stanzas
-
-
-def published_deb(base_url, outdir, *, keyring=KEYRING, pin=None):
+def published_debs(base_url, outdir, *, keyring=KEYRING, pin=None):
     pin = (pin or PIN.read_text().split()[0]).upper()
     try:
         inrelease = fetch(base_url + 'InRelease', 1024 * 1024)
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
-            return None
+            return []
         raise
     with tempfile.TemporaryDirectory(prefix='wros-published-') as tmp:
         (Path(tmp) / 'InRelease').write_bytes(inrelease)
@@ -103,13 +92,21 @@ def published_deb(base_url, outdir, *, keyring=KEYRING, pin=None):
     packages = fetch(base_url + 'Packages', size)
     if hashlib.sha256(packages).hexdigest() != digest or len(packages) != size:
         raise ValueError('the published Packages index does not match its signed InRelease')
-    wros = next(s for s in stanza_fields(packages.decode('utf-8')) if s.get('Package') == 'wros')
-    data = fetch(base_url + wros['Filename'], int(wros['Size']))
-    if hashlib.sha256(data).hexdigest() != wros['SHA256'] or len(data) != int(wros['Size']):
-        raise ValueError('the published wros package does not match the signed index')
-    path = Path(outdir) / Path(wros['Filename']).name
-    path.write_bytes(data)
-    return path
+    engine = load_engine()
+    archives = engine.parse_packages_index(packages.decode('utf-8'))
+    engine.check_architectures(archives, 'amd64')
+    if not any(package['name'] == 'wros' for package in archives):
+        raise ValueError('the signed update index lists no wros package')
+    paths = []
+    for package in archives:
+        data = fetch(base_url + package['filename'], package['size'])
+        if hashlib.sha256(data).hexdigest() != package['sha256'] or len(data) != package['size']:
+            raise ValueError(f"the published {package['name']} package does not match the signed index")
+        path = Path(outdir) / package['filename']
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        paths.append(path)
+    return paths
 
 
 def load_engine():
@@ -169,8 +166,7 @@ def main(argv):
         verified = check_bundle(args.tar, args.outdir, args.version)
         print(f"verified wros {args.version}, signed by {verified['signer_fingerprint']}")
     else:
-        path = published_deb(args.url, args.outdir)
-        if path is not None:
+        for path in published_debs(args.url, args.outdir):
             print(path)
     return 0
 
