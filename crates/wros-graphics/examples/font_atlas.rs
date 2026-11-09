@@ -8,7 +8,7 @@ use soft_ratatui::{CosmicText, SoftBackend};
 use std::io::{self, Write};
 
 fn main() -> io::Result<()> {
-    let font = include_bytes!("../../../assets/DejaVuSansMono.ttf");
+    let font = include_bytes!("../../../assets/WrOSMono.ttf");
     let glyphs: Vec<_> = (32..=126)
         .map(char::from)
         .chain("▸●›→↑↓←✓✗…•·—–│─┌┐└┘├┤┬┴┼".chars())

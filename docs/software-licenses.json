@@ -347,6 +347,25 @@
       "retained_upstream_notice_source": null
     },
     {
+      "name": "async-trait",
+      "version": "0.1.92",
+      "declared_license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/dtolnay/async-trait",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
       "name": "atomic",
       "version": "0.6.1",
       "declared_license": "Apache-2.0/MIT",
@@ -1182,6 +1201,25 @@
           "file": "COPYING",
           "sha256": "01c266bced4a434da0051174d6bee16a4c82cf634e2679b6155d40d75012390f"
         },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f"
+        },
+        {
+          "file": "UNLICENSE",
+          "sha256": "7e12e5df4bae12cb21581ba157ced20e1986a0508dd10d0e8a4ab9a4cf94e85c"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "byteorder-lite",
+      "version": "0.1.0",
+      "declared_license": "Unlicense OR MIT",
+      "repository": "https://github.com/image-rs/byteorder-lite",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
         {
           "file": "LICENSE-MIT",
           "sha256": "0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f"
@@ -3504,6 +3542,25 @@
       "retained_upstream_notice_source": null
     },
     {
+      "name": "fdeflate",
+      "version": "0.3.7",
+      "declared_license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/image-rs/fdeflate",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "c77a4cf9da729987d0fe7ccd811e3bd27393914ddf3d23467c18cc22954513b3"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
       "name": "fid-rs",
       "version": "0.2.0",
       "declared_license": "MIT OR Apache-2.0",
@@ -4669,7 +4726,7 @@
       "version": "0.4.3",
       "declared_license": "MIT OR Apache-2.0",
       "repository": "https://github.com/KokaKiwi/rust-hex",
-      "used_in_linux_no_audio_build": false,
+      "used_in_linux_no_audio_build": true,
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "notice_files": [
         {
@@ -5025,6 +5082,25 @@
         {
           "file": "LICENSE-MIT",
           "sha256": "8b43ce8accd61e9d370b5ca9e9c4f953279b5c239926c62315b40e24df51b726"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "image",
+      "version": "0.25.10",
+      "declared_license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/image-rs/image",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "c77a4cf9da729987d0fe7ccd811e3bd27393914ddf3d23467c18cc22954513b3"
         }
       ],
       "retained_upstream_notice_source": null
@@ -6119,6 +6195,33 @@
     },
     {
       "name": "miniz_oxide",
+      "version": "0.8.9",
+      "declared_license": "MIT OR Zlib OR Apache-2.0",
+      "repository": "https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "4108245a1f2df9d4e94df8abed5b4ba0759bb2f9b40a6b939f1be141077ae50b"
+        },
+        {
+          "file": "LICENSE-APACHE.md",
+          "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+        },
+        {
+          "file": "LICENSE-MIT.md",
+          "sha256": "799e9ca9d179295ef372f25d3769cdda7d25bb2668add6a6a1e22d1e4c678b8d"
+        },
+        {
+          "file": "LICENSE-ZLIB.md",
+          "sha256": "0a54e647fe54104658b5e563c04c6f9edf251710e47bce692e0bd990a4ddaa39"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "miniz_oxide",
       "version": "0.9.1",
       "declared_license": "MIT OR Zlib OR Apache-2.0",
       "repository": "https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide",
@@ -6170,6 +6273,25 @@
         {
           "file": "LICENSE",
           "sha256": "f49c827d045a2d3afd6e487de64be159db4ce6f5be021a64c5387bf6b5e1d8c6"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "moxcms",
+      "version": "0.8.1",
+      "declared_license": "BSD-3-Clause OR Apache-2.0",
+      "repository": "https://github.com/awxkee/moxcms.git",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE-APACHE.md",
+          "sha256": "90bf2d659c43045111b65c733ab2a6d4cbcb422a098368c8c58a9ba3db4ed0c5"
+        },
+        {
+          "file": "LICENSE.md",
+          "sha256": "2aa92cada6431e75615e3fe6cb1a9082c98f777d48ae1c087c0da0e37f7b8bff"
         }
       ],
       "retained_upstream_notice_source": null
@@ -7294,6 +7416,25 @@
       "retained_upstream_notice_source": null
     },
     {
+      "name": "png",
+      "version": "0.18.1",
+      "declared_license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/image-rs/image-png",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "eaf40297c75da471f7cda1f3458e8d91b4b2ec866e609527a13acfa93b638652"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
       "name": "portable-atomic",
       "version": "1.15.0",
       "declared_license": "Apache-2.0 OR MIT",
@@ -7576,6 +7717,25 @@
       "used_in_linux_no_audio_build": false,
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "notice_files": [],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "pxfm",
+      "version": "0.1.30",
+      "declared_license": "BSD-3-Clause OR Apache-2.0",
+      "repository": "https://github.com/awxkee/pxfm",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE-APACHE.md",
+          "sha256": "90bf2d659c43045111b65c733ab2a6d4cbcb422a098368c8c58a9ba3db4ed0c5"
+        },
+        {
+          "file": "LICENSE.md",
+          "sha256": "2aa92cada6431e75615e3fe6cb1a9082c98f777d48ae1c087c0da0e37f7b8bff"
+        }
+      ],
       "retained_upstream_notice_source": null
     },
     {
@@ -7990,6 +8150,25 @@
         {
           "file": "LICENSE",
           "sha256": "e43659b17e780ed7dab2636dd9e0d6ca272faad9d116b575e25e346b0b0206e3"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "ratatui-splash-screen",
+      "version": "0.1.5",
+      "declared_license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/orhun/ratatui-splash-screen",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "9e57d8c97c5c870bb25c6791588d8884bb003d1a212b3b2f162ba3249dd70ac2"
         }
       ],
       "retained_upstream_notice_source": null
@@ -8930,6 +9109,25 @@
         {
           "file": "LICENSE-MIT",
           "sha256": "b4eb00df6e2a4d22518fcaa6a2b4646f249b3a3c9814509b22bd2091f1392ff1"
+        }
+      ],
+      "retained_upstream_notice_source": null
+    },
+    {
+      "name": "sha256",
+      "version": "1.6.0",
+      "declared_license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/baoyachi/sha256-rs",
+      "used_in_linux_no_audio_build": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "notice_files": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "6abdf02d42aac209df5134166911ba7930b535fb5316e2a7801d42fa128f8ae3"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "3b6285c9fd80ee3ec0bbaecdab2ea5a9b2159ba510492cb248557d9487e1e6f7"
         }
       ],
       "retained_upstream_notice_source": null

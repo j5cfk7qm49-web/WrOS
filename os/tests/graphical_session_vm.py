@@ -14,6 +14,34 @@ import time
 import traceback
 import rc_vm_phases as phases
 
+
+def wait_for_startup_picture(ctx, machine):
+    from PIL import Image
+
+    # Use raw captures to sample the brief first frame without PNG encoding.
+    path = ctx.dir / 'startup-frame.ppm'
+    deadline = time.monotonic() + 15
+    try:
+        while time.monotonic() < deadline:
+            machine.qmp.command('screendump', filename=str(path), format='ppm')
+            with Image.open(path) as picture:
+                w, h = picture.size
+                centre = picture.crop((w // 4, h // 4, w * 3 // 4, h * 3 // 4))
+                colours = centre.getcolors(65536) or []
+                # The logo has a range of gold shades with a fixed red/blue
+                # relationship. One text colour on a login or writing frame
+                # does not satisfy this check.
+                gold = [rgb for _, rgb in colours if 217 <= rgb[0] <= 237
+                        and 149 <= rgb[1] <= 221 and abs(rgb[2] - (91 + 3 * (rgb[0] - 219))) <= 3]
+                if len(gold) >= 16:
+                    picture.save(ctx.dir / 'graphical-startup.png')
+                    return True
+            time.sleep(.025)
+        return False
+    finally:
+        path.unlink(missing_ok=True)
+
+
 def trial(ctx):
     state = phases.load_state(ctx.args.install_run)
     credentials = json.loads(Path(state['secrets']).read_text())
@@ -102,7 +130,10 @@ def trial(ctx):
     g.run('chown ' + user + ':' + user + ' ' + home + '/.config/wros/session.json')
     m.type_text(user + '\n', state['layout'])
     g.wait_vcs(1, r'\[hidden\]', 30, what='trial-greeter-password')
-    m.type_text(credentials['login'] + '\n', state['layout'])
+    m.type_text(credentials['login'], state['layout'])
+    m.key('ret', gap=0)
+    if ctx.args.test_splash:
+        ctx.check('the picture reaches the graphical display before writing', wait_for_startup_picture(ctx, m))
     deadline = time.monotonic() + 90
     while time.monotonic() < deadline:
         rc, _ = g.run('test -S /run/user/1000/wros-vm-test.sock', check=False)
@@ -373,6 +404,7 @@ def main():
     parser.add_argument('--backend', choices=['drm', 'foot', 'wgpu'], required=True)
     parser.add_argument('--test-suspend', action='store_true')
     parser.add_argument('--test-clock', action='store_true', help='fixture also contains the greeter under test')
+    parser.add_argument('--test-splash', action='store_true', help='capture the picture as the graphical session opens')
     parser.add_argument('--lock-cycles', type=int, default=2, choices=range(2, 13))
     parser.add_argument('--delay-health', type=int, default=0, choices=range(7))
     parser.add_argument('--hold', action='store_true')

@@ -41,7 +41,7 @@ pub fn raster(columns: u16, rows: u16) -> soft_ratatui::SoftBackend<soft_ratatui
         columns,
         rows,
         16,
-        include_bytes!("../../../assets/DejaVuSansMono.ttf"),
+        include_bytes!("../../../assets/WrOSMono.ttf"),
     );
     reset_colours(&mut pixels);
     pixels
@@ -348,6 +348,28 @@ fn pointer_sprite(target: &mut [u8], pitch: usize, rows: usize, width: usize, at
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_graphical_font_renders_distinct_braille_dot_patterns() {
+        use super::{Backend, Cell, raster};
+        use ratatui::style::Color;
+
+        let draw = |glyph| {
+            let mut pixels = raster(1, 1);
+            let mut cell = Cell::new(" ");
+            cell.set_char(glyph)
+                .set_fg(Color::White)
+                .set_bg(Color::Black);
+            super::draw_pixels(&mut pixels, [(0, 0, &cell)].into_iter());
+            pixels.flush().unwrap();
+            pixels.get_pixmap_data().to_vec()
+        };
+        let top = draw('⠉');
+        let bottom = draw('⣀');
+        assert!(top.iter().any(|&value| value > 100));
+        assert!(bottom.iter().any(|&value| value > 100));
+        assert!(top != bottom, "both dot patterns drew the same pixels");
+    }
+
     #[test]
     fn native_pixels_start_and_clear_black_and_use_terminal_palette_colours() {
         use super::*;

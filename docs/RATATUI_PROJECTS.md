@@ -149,8 +149,12 @@ After retiring writing input, the graphical lock shows a 150 ms fade on a
 simple **Locking…** card, then hands the screen and keyboard to Debian's locker.
 Console and low-power sessions keep static colours. [Transition evidence](evidence/rc10-motion.md)
 
-The graphical picture splash and the wider test driver are the remaining
-library work.
+**ratatui-splash-screen** shows the four-box WrOS logo in Braille dots as the
+graphical writing session opens. A key or paste can skip the brief picture and
+still reach the writer. The console and low-power sessions open without the
+picture. [Startup picture evidence](evidence/rc10-startup-picture.md)
+
+The wider test driver is the remaining library work.
 
 ## Suggested order for the rest
 

@@ -74,7 +74,7 @@ impl Engine {
         });
         let pixels = futures_lite::future::block_on(
             ratatui_wgpu::Builder::from_font(
-                ratatui_wgpu::Font::new(include_bytes!("../assets/DejaVuSansMono.ttf"))
+                ratatui_wgpu::Font::new(include_bytes!("../assets/WrOSMono.ttf"))
                     .ok_or_else(|| io::Error::other("WrOS font could not be loaded"))?,
             )
             .with_instance(instance)

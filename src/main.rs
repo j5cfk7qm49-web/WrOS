@@ -36,6 +36,7 @@ mod wros_cli;
 
 #[cfg(test)]
 mod shots;
+mod splash;
 #[cfg(test)]
 mod ui_tests;
 
@@ -628,6 +629,9 @@ fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
     let mut last_frame = Instant::now();
     let mut first_screen = true;
     let mut motion = motion::Motion::default();
+    let graphical = display::graphical(terminal) || session::composited();
+    let mut splash = splash::Splash::new(graphical, app.deck.state.low_power);
+    let mut early_input = None;
 
     #[cfg(target_os = "linux")]
     let mut events = display::start_input(terminal)?;
@@ -780,26 +784,43 @@ fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
         // fails: save what there is before reporting that.
         let graphical = display::graphical(terminal) || session::composited();
         let mut animating = false;
+        let mut splash_wait = None;
         if let Err(e) = terminal.draw(|f| {
-            animating = ui::draw(f, app, Some((&mut motion, graphical)));
+            splash_wait = splash
+                .as_mut()
+                .and_then(|splash| splash.draw(f, Instant::now()));
+            if splash_wait.is_none() {
+                animating = ui::draw(f, app, Some((&mut motion, graphical)));
+            }
         }) {
             save_or_rescue(app);
             return Err(e.into());
         }
-        if std::mem::take(&mut first_screen) {
-            session::mark_ready();
-        }
-        #[cfg(feature = "test-driver")]
-        if let Some(driver) = &mut driver {
-            driver.publish(app);
-            let mut leave = false;
-            driver.drain(app, |app, k| leave |= on_key(app, k, &mut confirm_quit));
-            if leave {
-                return Ok(());
+        if splash_wait.is_none() {
+            splash = None;
+            if std::mem::take(&mut first_screen) {
+                session::mark_ready();
+            }
+            if let Some(event) = early_input.take() {
+                if dispatch_event(app, event, &mut confirm_quit) {
+                    return Ok(());
+                }
+                continue;
+            }
+            #[cfg(feature = "test-driver")]
+            if let Some(driver) = &mut driver {
+                driver.publish(app);
+                let mut leave = false;
+                driver.drain(app, |app, k| leave |= on_key(app, k, &mut confirm_quit));
+                if leave {
+                    return Ok(());
+                }
             }
         }
 
-        let tick = if app.deck.state.low_power && !spectrum && app.reading.is_none() {
+        let tick = if let Some(wait) = splash_wait {
+            wait
+        } else if app.deck.state.low_power && !spectrum && app.reading.is_none() {
             Duration::from_secs(1)
         } else if animating || spectrum || app.reading.is_some() {
             FAST_TICK
@@ -831,6 +852,16 @@ fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
                 return Ok(());
             }
         };
+        if splash_wait.is_some() {
+            if splash::dismisses(&ev) {
+                splash = None;
+                // A click on the picture must never activate a hidden control.
+                if !matches!(ev, Event::Mouse(_)) {
+                    early_input = Some(ev);
+                }
+            }
+            continue;
+        }
         if dispatch_event(app, ev, &mut confirm_quit) {
             return Ok(());
         }

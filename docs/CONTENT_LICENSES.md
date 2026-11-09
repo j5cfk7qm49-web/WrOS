@@ -29,7 +29,13 @@ A full OS also contains GPL and other independently licensed packages. The repos
 
 ## Software inventory generation
 
-`python3 tools/generate-wros-manifests.py` uses cached `cargo metadata --locked --offline`, retains Rust package notices in `os/licenses/RUST-THIRD-PARTY-NOTICES.txt`, hashes bundled original/dictionary files, and inventories the **staged guest** Debian packages. It marks which resolved crates belong to the Linux no-audio native build. The current inventory contains 763 resolved packages and 72 without root-level retained notices. The clock widget's repository-root notices are retained from its packaged source revision. The fade library and its new dependencies supply notices in their archives. One selected package, `drm-fourcc`, remains under the owner-deferred #97 review. The all-platform inventory includes crates outside the selected build. Full OS corresponding-source review remains open. Regenerate after dependency or content changes and review the diff.
+`python3 tools/generate-wros-manifests.py` uses cached `cargo metadata --locked --offline`, retains Rust package notices in `os/licenses/RUST-THIRD-PARTY-NOTICES.txt`, hashes bundled original/dictionary files, and inventories the **staged guest** Debian packages. It marks which resolved crates belong to the Linux no-audio native build. The current inventory contains 773 resolved packages and 72 without root-level retained notices. The clock widget's repository-root notices are retained from its packaged source revision. The fade and splash libraries and their new dependencies supply notices in their archives. One selected package, `drm-fourcc`, remains under the owner-deferred #97 review. The all-platform inventory includes crates outside the selected build. Full OS corresponding-source review remains open. Regenerate after dependency or content changes and review the diff.
+
+`assets/WrOSMono.ttf` extends the existing DejaVu Sans Mono 2.37 font with the
+Braille block from DejaVu Sans 2.37. WrOS fits the added outlines to the mono
+advance and gives the resulting font its own family name. The packaged notice
+covers both source fonts. `assets/wros-startup.png` colours the owner's four-box
+WrOS sketch from `crates/wros-shell/src/logo.rs`. [Font notice](../assets/DEJAVU-LICENSE)
 
 ## M3b content review
 
