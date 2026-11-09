@@ -1247,6 +1247,12 @@ def pinned_signers(g):
     return out.strip()
 
 
+def poweroff(g):
+    # Keep the serial shell alive long enough to acknowledge the request.
+    g.run('(sleep 1; systemctl poweroff) >/dev/null 2>&1 & echo poweroff-requested')
+    return g.m.wait_exit(180)
+
+
 def wait_reset(ctx, m, previous, timeout=600, what='reset', dump_every=30):
     deadline = time.monotonic() + timeout
     shots = 0
@@ -1554,7 +1560,7 @@ def phase_update(ctx):
     if manuscript:
         hits = g2.probe('find-text', manuscript['phrase'], '/home')
         ctx.check('manuscript intact after update', bool(hits), hits)
-    g2.run('poweroff', 20, check=False)
+    ctx.check('the updated VM powered off cleanly', poweroff(g2) == 0)
     ctx.result['passed'] = True
 
 

@@ -40,6 +40,25 @@ class InstalledPowerPolicy(unittest.TestCase):
         self.assertTrue(all(checks.values()), checks)
 
 
+class InstalledShutdown(unittest.TestCase):
+    def test_update_shutdown_acknowledges_before_stopping_and_waits_for_qemu(self):
+        steps = []
+
+        def run(command, *_args, **_kwargs):
+            self.assertRegex(command, r'\(sleep [1-9]; systemctl poweroff\).*& echo')
+            steps.append('request')
+            return 0, 'poweroff-requested'
+
+        def wait_exit(timeout):
+            self.assertGreater(timeout, 20)
+            steps.append('exit')
+            return 0
+
+        guest = SimpleNamespace(run=run, m=SimpleNamespace(wait_exit=wait_exit))
+        self.assertEqual(phases.poweroff(guest), 0)
+        self.assertEqual(steps, ['request', 'exit'])
+
+
 class RememberedMenu(unittest.TestCase):
     def test_a_row_above_the_remembered_selection_can_be_reached(self):
         guest = phases.Guest.__new__(phases.Guest)
