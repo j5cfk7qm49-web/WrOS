@@ -1381,9 +1381,21 @@ def stage_update(ctx, g, layout):
     ctx.result['media_dir_modes'] = modes
     ctx.step('media-dir-modes', modes=modes)
     ctx.check('media directories are traversable by the writer (0755)', re.search(r'root:root 755 /run/wros-update$', modes, re.M) is not None and re.search(r'root:root 755 /run/wros-update/media$', modes, re.M) is not None, modes)
-    ctx.check('review shows wros %s -> %s' % (ctx.args.from_version, ctx.target),
-              re.search(r'wros.*' + re.escape(ctx.args.from_version) + r'.*' + re.escape(ctx.target),
-                        review, re.S) is not None, review[-900:])
+    shown = re.search(r'wros.*' + re.escape(ctx.args.from_version) + r'.*' + re.escape(ctx.target),
+                      review, re.S) is not None
+    if not shown and re.search(r'\d+ package changes', review):
+        # Releases before rc11 list packages by name, so with ~90 runtime packages the
+        # wros line is below the visible list. Ask the same unprivileged review the
+        # app ran for the exact entry instead.
+        _, out = g.run('sudo -n -u writer /usr/libexec/wros-update review /run/wros-update/media/0', 180, check=False)
+        try:
+            entries = {p['name']: p for p in json.loads(out[out.index('{'):])['packages']}
+        except (ValueError, KeyError, TypeError):
+            entries = {}
+        wros = entries.get('wros', {})
+        ctx.result['review_engine_wros'] = wros
+        shown = (wros.get('from_version'), wros.get('to_version')) == (ctx.args.from_version, ctx.target)
+    ctx.check('review shows wros %s -> %s' % (ctx.args.from_version, ctx.target), shown, review[-900:])
     signer = pinned_signers(g)
     ctx.check('review shows the pinned signer', bool(signer) and signer.lower() in review.lower().replace(' ', ''),
               (signer, review[-500:]))
