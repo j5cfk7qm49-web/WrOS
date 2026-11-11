@@ -3,6 +3,20 @@
   "independent_legal_clearance": false,
   "packages": [
     {
+      "name": "drm-fourcc",
+      "version": "2.2.0",
+      "package_vcs_commit": "7b9f80060ffd4b35cd236437e65a17fb517d163c",
+      "notice_vcs_commit": "bb1b81f184650e1418e1dce512e34071675206d7",
+      "reason": "The archive declares MIT but omits the text. The maintainer added the text for the existing Cargo.toml declaration in upstream pull request 21.",
+      "files": [
+        {
+          "file": "os/licenses/upstream/drm-fourcc-LICENSE-MIT.txt",
+          "url": "https://raw.githubusercontent.com/dzfranklin/drm-fourcc-rs/bb1b81f184650e1418e1dce512e34071675206d7/LICENSE",
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ]
+    },
+    {
       "name": "tui-big-text",
       "version": "0.8.9",
       "package_vcs_commit": "2485e99d18d9449b92a21c8285831a1058018890",

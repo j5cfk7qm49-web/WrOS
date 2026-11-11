@@ -7,6 +7,7 @@ manuscript, profile, host device, credential or network connection.
 import hashlib
 import json
 from pathlib import Path
+import re
 import subprocess
 import tomllib
 
@@ -29,11 +30,13 @@ def main():
         base = Path(package['manifest_path']).parent
         vcs = json.loads((base/'.cargo_vcs_info.json').read_text())['git']['sha1']
         assert vcs == record['package_vcs_commit'], f'notice VCS mismatch: {package["name"]}'
+        notice_vcs = record.get('notice_vcs_commit', vcs)
+        assert re.fullmatch(r'[0-9a-f]{40}', notice_vcs), 'invalid notice source revision'
         for item in record['files']:
             file = ROOT/item['file']
             assert file.is_relative_to(ROOT/'os/licenses/upstream'), 'notice outside retained directory'
             assert file.is_file() and digest(file) == item['sha256'], f'notice drift: {file}'
-            assert '/'+vcs+'/' in item['url'], 'notice URL is not revision-pinned'
+            assert '/'+notice_vcs+'/' in item['url'], 'notice URL is not revision-pinned'
             notices.add(item['file'])
     model = json.loads((ROOT/'docs/model-licenses.json').read_text())
     assert model['schema_version'] == 1 and not model['default_enabled']
