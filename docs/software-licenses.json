@@ -3057,8 +3057,26 @@
       "repository": "https://github.com/danielzfranklin/drm-fourcc-rs",
       "used_in_linux_no_audio_build": true,
       "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notice_files": [],
-      "retained_upstream_notice_source": null
+      "notice_files": [
+        {
+          "file": "drm-fourcc-LICENSE-MIT.txt",
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ],
+      "retained_upstream_notice_source": {
+        "name": "drm-fourcc",
+        "version": "2.2.0",
+        "package_vcs_commit": "7b9f80060ffd4b35cd236437e65a17fb517d163c",
+        "notice_vcs_commit": "bb1b81f184650e1418e1dce512e34071675206d7",
+        "reason": "The archive declares MIT but omits the text. The maintainer added the text for the existing Cargo.toml declaration in upstream pull request 21.",
+        "files": [
+          {
+            "file": "os/licenses/upstream/drm-fourcc-LICENSE-MIT.txt",
+            "url": "https://raw.githubusercontent.com/dzfranklin/drm-fourcc-rs/bb1b81f184650e1418e1dce512e34071675206d7/LICENSE",
+            "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+          }
+        ]
+      }
     },
     {
       "name": "drm-sys",
@@ -13622,7 +13640,6 @@
     "cubecl-std@0.8.1",
     "dasp_sample@0.11.0",
     "dispatch2@0.3.1",
-    "drm-fourcc@2.2.0",
     "embassy-time@0.4.0",
     "embassy-time-driver@0.2.2",
     "gl_generator@0.14.0",
@@ -13685,9 +13702,7 @@
     "features": [
       "gui-drm"
     ],
-    "missing_root_notice_files": [
-      "drm-fourcc@2.2.0"
-    ]
+    "missing_root_notice_files": []
   },
   "existing_dictionaries": {
     "notice": "assets/dict/DICTIONARY-LICENSE",
