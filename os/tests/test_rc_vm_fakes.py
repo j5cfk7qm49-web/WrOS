@@ -143,6 +143,42 @@ class OfflineInstallNetwork(unittest.TestCase):
                             phases.check_install_network_capture(ctx)
 
 
+class GreeterRetry(unittest.TestCase):
+    def test_credentials_wait_for_the_reset_form_or_a_requested_restart(self):
+        ready = 'WrOS · Sign in\nLocal account\nPassword\nEnter: continue  Up/Down: accounts'
+        password = 'WrOS · Sign in\nLocal account\nwriter\nPassword\n[hidden]\nEnter: sign in'
+        rejected = ('WrOS · Sign in\nLocal account\nwriter\nPassword\n'
+                    'Login was not accepted. Try again\nEnter: sign in')
+        restart = 'WrOS · Sign in\nEnter to restart login\nLogin was not accepted. Try again'
+        for needs_restart in (False, True):
+            with self.subTest(needs_restart=needs_restart):
+                # Use the actual screen polling so a label on the pending
+                # rejection frame cannot masquerade as a ready account form.
+                frames = iter([ready, password, rejected, rejected,
+                               *([restart, ready] if needs_restart else [ready]),
+                               password, 'WrOS\nResume writing'])
+                current = ['']
+                guest = phases.Guest.__new__(phases.Guest)
+                guest.ctx = mock.Mock()
+                def screen(n):
+                    current[0] = next(frames)
+                    return current[0]
+                guest.screen = screen
+                machine = mock.Mock()
+                guest.m = machine
+                def type_text(text, layout):
+                    expected = ready if text == 'writer\n' else password
+                    self.assertEqual(current[0], expected, 'credentials sent before the form was ready')
+                machine.type_text.side_effect = type_text
+                with mock.patch.object(phases.time, 'sleep'):
+                    phases.greeter_login(guest.ctx, guest, machine, 'writer', 'synthetic-password', 'colemak')
+                self.assertEqual(machine.type_text.call_args_list, [
+                    mock.call('writer\n', 'colemak'), mock.call('synthetic-password\n', 'us'),
+                    mock.call('writer\n', 'colemak'), mock.call('synthetic-password\n', 'colemak')])
+                self.assertEqual(machine.key.call_args_list, [mock.call('ret')] if needs_restart else [])
+                guest.ctx.check.assert_any_call('correct greeter password accepted', True)
+
+
 class SerialLoginDeadline(unittest.TestCase):
     def test_delayed_ready_marker_uses_the_requested_budget_without_waiting_forever(self):
         for ready_delay, succeeds in ((80, True), (130, False)):

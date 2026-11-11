@@ -1154,8 +1154,13 @@ def unlock(ctx, m, secrets_, layout, *, wrong_first=True, after_reset=None):
     ctx.step('luks-typed', layout=layout)
 
 
+# The account label is also drawn while PAM is cancelling a failed attempt.
+# Only the account-focus hint proves that the form has reset and accepts keys.
+GREETER_READY = r'Local account.*Up/Down: accounts'
+
+
 def greeter_login(ctx, g, m, user, password, layout, *, wrong_first=True):
-    g.wait_vcs(1, r'Local account', 240, what='greeter')
+    g.wait_vcs(1, GREETER_READY, 240, what='greeter')
     m.shot('greeter')
     if wrong_first:
         m.type_text(user + '\n', layout)
@@ -1164,9 +1169,13 @@ def greeter_login(ctx, g, m, user, password, layout, *, wrong_first=True):
         screen = g.wait_vcs(1, r'Login was not accepted', 60, what='greeter-rejected')
         m.shot('greeter-rejected')
         ctx.check('wrong greeter password rejected', True)
+        # Rejection can appear before the cancellation reply. Wait for either
+        # the reset form or Debian greetd's explicit restart prompt, rather than
+        # sending the next credentials into an exchange that discards input.
+        screen = g.wait_vcs(1, r'Enter to restart login|' + GREETER_READY, 60, what='greeter-reset')
         if 'Enter to restart login' in screen:
             m.key('ret')
-        g.wait_vcs(1, r'Local account', 30, what='greeter-again')
+            g.wait_vcs(1, GREETER_READY, 60, what='greeter-again')
     m.type_text(user + '\n', layout)
     g.wait_vcs(1, r'\[hidden\]', 30, what='greeter-password-prompt-2')
     m.type_text(password + '\n', layout)
