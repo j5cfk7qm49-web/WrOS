@@ -142,6 +142,34 @@ class OfflineInstallNetwork(unittest.TestCase):
                             phases.check_install_network_capture(ctx)
 
 
+class SerialLoginDeadline(unittest.TestCase):
+    def test_delayed_ready_marker_uses_the_requested_budget_without_waiting_forever(self):
+        for ready_delay, succeeds in ((80, True), (130, False)):
+            with self.subTest(ready_delay=ready_delay):
+                clock = [1000.0]
+                delays = iter((10, 2, ready_delay))
+                serial = mock.Mock()
+                def expect(pattern, timeout):
+                    delay = next(delays)
+                    clock[0] += min(delay, timeout)
+                    if delay > timeout:
+                        raise TimeoutError('synthetic delayed login marker')
+                serial.expect.side_effect = expect
+                def sleep(seconds):
+                    clock[0] += seconds
+                with (mock.patch.object(vm.time, 'monotonic', side_effect=lambda: clock[0]),
+                      mock.patch.object(vm.time, 'sleep', side_effect=sleep)):
+                    shell = vm.Shell(serial)
+                    if succeeds:
+                        shell.login('writer', 'synthetic-password', timeout=120)
+                        self.assertLess(clock[0], 1120)
+                    else:
+                        with self.assertRaises(TimeoutError):
+                            shell.login('writer', 'synthetic-password', timeout=120)
+                        self.assertEqual(clock[0], 1120)
+                self.assertEqual(serial.send.call_count, 4)
+
+
 class NativeScreenshot(unittest.TestCase):
     def test_antialias_edges_are_normalized_to_the_foreground_contrast(self):
         from PIL import Image

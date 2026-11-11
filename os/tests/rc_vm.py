@@ -514,16 +514,18 @@ class Shell:
 
     def login(self, user, password, timeout=300):
         s = self.serial
-        s.expect(re.compile(r'login: ?'), timeout)
+        deadline = time.monotonic() + timeout
+        remaining = lambda: max(0, deadline - time.monotonic())
+        s.expect(re.compile(r'login: ?'), remaining())
         s.send(user + '\n')
-        s.expect(re.compile(r'[Pp]assword: ?'), 30)
+        s.expect(re.compile(r'[Pp]assword: ?'), min(30, remaining()))
         s.send(password + '\n')
         # Plain, echo-free, prompt-free bash: only our markers appear in output.
         time.sleep(1.5)
         s.send("exec env PS1= TERM=dumb HISTFILE= bash --noediting --norc --noprofile\n")
         time.sleep(1)
         s.send('stty -echo -onlcr; echo RCSHELL_READY_%s\n' % user)
-        s.expect(re.compile(r'^RCSHELL_READY_%s\r?$' % re.escape(user), re.M), 45)
+        s.expect(re.compile(r'^RCSHELL_READY_%s\r?$' % re.escape(user), re.M), remaining())
 
     def run(self, command, timeout=60, check=True, quiet_secret=None):
         tag = secrets.token_hex(6)
