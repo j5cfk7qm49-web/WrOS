@@ -54,10 +54,11 @@ impl Backend {
                 .read(true)
                 .write(true)
                 .open("/dev/tty")?;
-            Ok(Self::Tty(Box::new(Tty::new(
+            Ok(Self::Tty(Box::new(Tty::with_text_size(
                 io::stdout(),
                 crate::session::native(),
                 &tty,
+                wros_graphics::TextSize::Writing,
             ))))
         }
         #[cfg(not(all(target_os = "linux", feature = "gui-drm")))]
@@ -91,7 +92,7 @@ impl Backend {
             Self::Window(window) => window.paused(true),
             Self::Tty(backend) => {
                 #[cfg(all(target_os = "linux", feature = "gui-drm"))]
-                backend.suspend();
+                backend.suspend()?;
                 #[cfg(not(all(target_os = "linux", feature = "gui-drm")))]
                 let _ = backend;
                 Ok(())

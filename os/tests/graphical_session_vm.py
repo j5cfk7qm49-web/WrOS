@@ -8,11 +8,68 @@ only into this disposable VM; neither a release binary nor an owner book is used
 import argparse
 import json
 from pathlib import Path
+import re
 import shlex
 import shutil
+import subprocess
 import time
 import traceback
 import rc_vm_phases as phases
+
+
+PHONE_CODE = 'WROS-QR-VM-123456789'
+
+
+def install_phone_fixture(ctx, g):
+    """Replace only the Google HTTP responses in this no-NIC overlay."""
+    source = (ctx.args.source_tree / 'os/scripts/wros-link.py').read_text(encoding='utf-8')
+    g.shell.put('/usr/lib/wros-backup/link.py', source + f'''
+
+def _vm_phone_http(method, url, form=None, token=None):
+    if method == 'POST' and url == DEVICE_URL and form['scope'] == LIMITED_SCOPE and token is None:
+        return 200, {{'device_code': 'vm-pending-device', 'user_code': {PHONE_CODE!r},
+                      'expires_in': 1800, 'interval': 5}}
+    if method == 'POST' and url == TOKEN_URL and form['grant_type'] == DEVICE_GRANT and token is None:
+        return 428, {{'error': 'authorization_pending'}}
+    raise AssertionError('Unexpected phone-link fixture request')
+
+
+class _VmPhoneLink(Link):
+    def __init__(self, clients, **kwargs):
+        super().__init__(clients, http=_vm_phone_http, **kwargs)
+
+
+Link = _VmPhoneLink
+''', '0644')
+    clients = {name: {'client_id': f'vm-{name}', 'client_secret': f'test-{name}'}
+               for name in ('linking', 'mailbox')}
+    g.shell.put('/usr/share/wros/google-client.json', json.dumps(clients), '0644')
+
+
+def check_phone_link(ctx, g, drive, home):
+    credentials = shlex.quote(home + '/.local/share/grimoire/wros/backup/rclone.conf')
+    stamp = f'if test -f {credentials}; then sha256sum {credentials}; fi'
+    before = g.run(stamp)[1]
+    drive({'kind': 'act', 'node': 'open-settings', 'action': 'activate'})
+    for row in ('Backups and accounts', 'Google Drive', 'Link Google Drive with your phone'):
+        drive({'choose': row})
+    deadline = time.monotonic() + 25
+    decoded = ''
+    while time.monotonic() < deadline:
+        image = g.m.shot('phone-link-qr')
+        result = subprocess.run(['zbarimg', '--quiet', '--raw', str(image)], capture_output=True,
+                                text=True, timeout=5, check=False)
+        if result.returncode == 0:
+            decoded = result.stdout.strip()
+            break
+        time.sleep(.2)
+    pattern = r'https://j5cfk7qm49-web\.github\.io/WrOS/l/#[A-Za-z0-9_-]{43}\.-\.' + PHONE_CODE
+    ctx.check('the phone-link QR decodes to the expected offline approval URL',
+              re.fullmatch(pattern, decoded) is not None)
+    tree = drive({'kind': 'key', 'key': 'escape'})
+    ctx.check('Escape cancels linking and returns to the Google Drive settings',
+              'Link Google Drive with your phone' in tree)
+    ctx.check('cancelling the phone offer leaves stored credentials unchanged', g.run(stamp)[1] == before)
 
 
 def wait_for_startup_picture(ctx, machine):
@@ -61,7 +118,9 @@ def trial(ctx):
     _, installed = g.run("dpkg-query -W -f='${binary:Package} ${Version}\\n'")
     (ctx.dir / 'installed-packages.txt').write_text(installed)
     g.shell.put('/tmp/trial-sources.list', 'deb https://deb.debian.org/debian trixie main\n')
-    g.run('mkdir -p /var/cache/wros-trial/archives/partial && cp /mnt/trial/debs/*.deb /var/cache/wros-trial/archives/', 90)
+    # These packages stay on the read-only fixture. Recopying the entire cache
+    # into every overlay adds gigabytes of unrelated I/O before each test.
+    g.run('mkdir -p /var/cache/wros-trial/archives/partial && ln -sf /mnt/trial/debs/*.deb /var/cache/wros-trial/archives/', 90)
     rc, _ = g.run('apt-get -y --no-download --no-install-recommends -o Debug::NoLocking=1 '
           '-o Dir::Etc::sourcelist=/tmp/trial-sources.list -o Dir::Etc::sourceparts=- '
           '-o Dir::Cache::archives=/var/cache/wros-trial/archives -o Dir::State::lists=/mnt/trial/lists '
@@ -69,6 +128,10 @@ def trial(ctx):
     if rc:
         raise phases.Failure(g.run('tail -35 /tmp/trial-apt.log')[1])
     g.run('install -m755 /mnt/trial/grimoire /usr/bin/grimoire')
+    rc, _ = g.run('test -x /mnt/trial/cage', check=False)
+    if rc == 0:
+        g.run('install -m755 /mnt/trial/cage /usr/lib/wros/cage')
+        ctx.result['cage_sha256'] = g.run('sha256sum /usr/lib/wros/cage')[1].split()[0]
     if ctx.args.test_clock:
         g.run('install -m755 /mnt/trial/wros-greeter /usr/lib/wros/wros-greeter && '
               'install -m755 /mnt/trial/wros-greeter /usr/bin/wros-greeter && systemctl restart greetd')
@@ -128,6 +191,8 @@ def trial(ctx):
     g.run('install -d -m700 -o ' + user + ' -g ' + user + ' ' + home + '/.config/wros')
     g.shell.put(home + '/.config/wros/session.json', json.dumps({'session': 'graphical', 'backend': backend}))
     g.run('chown ' + user + ':' + user + ' ' + home + '/.config/wros/session.json')
+    if ctx.args.test_phone_link:
+        install_phone_fixture(ctx, g)
     m.type_text(user + '\n', state['layout'])
     g.wait_vcs(1, r'\[hidden\]', 30, what='trial-greeter-password')
     m.type_text(credentials['login'], state['layout'])
@@ -179,6 +244,9 @@ def trial(ctx):
         raise phases.Failure(detail[-6000:])
     ctx.check('the graphical backend is running', rc == 0 or backend == 'drm')
     editor_pid = g.run('pgrep -xo grimoire')[1].strip()
+    if ctx.args.test_phone_link:
+        check_phone_link(ctx, g, drive, home)
+
     def system_busy(tree):
         nodes = [json.loads(tree)]
         while nodes:
@@ -214,20 +282,22 @@ def trial(ctx):
         tree = warmth_page()
         supported = 'Display support: available' in tree
         ctx.result['compositor_warmth_supported'] = supported
-        # The installed QEMU display currently refuses gamma controls. Record
-        # that driver result explicitly; a future supported driver needs its own
-        # positive acceptance phase rather than silently changing this assertion.
-        ctx.check('the emulated display honestly reports unsupported compositor warmth', not supported
-                  and 'this display cannot accept screen warmth' in tree)
+        cage_version = g.run("dpkg-query -W -f='${Version}' cage")[1].strip()
+        reason = ("Debian 13's Cage cannot apply screen warmth" if cage_version == '0.2.0-2' and 'cage_sha256' not in ctx.result
+                  else 'this display cannot accept screen warmth')
+        # Stock Cage must refuse before attempting gamma. With a different
+        # build, the emulated output itself currently refuses gamma controls.
+        ctx.check('the session reports why compositor warmth is unavailable', not supported and reason in tree)
         before = g.run('if test -f /etc/wros/display.json; then sha256sum /etc/wros/display.json; else echo missing; fi')[1]
         drive({'choose': 'Filter: off'})
         drive({'choose': 'Preview choice'})
         deadline = time.monotonic() + 25
         while time.monotonic() < deadline:
             tree = drive({'kind': 'key', 'key': 'f24'})
-            if 'this display cannot accept screen warmth' in tree and not system_busy(tree):
+            if reason in tree and not system_busy(tree):
                 break
             time.sleep(.1)
+        ctx.check('the unsupported compositor refuses the preview', reason in tree and not system_busy(tree))
         after = g.run('if test -f /etc/wros/display.json; then sha256sum /etc/wros/display.json; else echo missing; fi')[1]
         ctx.check('an unsupported compositor preview preserves the saved preference', before == after)
         ctx.check('the compositor never starts a native display preview',
@@ -261,16 +331,30 @@ def trial(ctx):
         m.key('x', hold=650, gap=.85)
         m.ctrl('s', 'us')
         time.sleep(1)
-        ctx.check('physical Colemak, compose and live layout changes reach the saved scene',
-                  bool(g.probe('find-text', 'colemak é qwerty xxxxx', home)))
+        input_hits = g.probe('find-text', 'colemak é qwerty xxxxx', home)
+        if not input_hits:
+            program = ('from pathlib import Path; import json; '
+                       f'root=Path({home!r})/"Documents/Grimoire/manuscript"; '
+                       'print(json.dumps({str(p): p.read_text()[-300:] '
+                       'for p in root.rglob("*native-input*.md")}))')
+            # Only the synthetic scene created above; no owner manuscript.
+            (ctx.dir / 'native-input-scene.json').write_text(g.run('python3 -I -c ' + shlex.quote(program))[1])
+        ctx.check('physical Colemak, compose and live layout changes reach the saved scene', bool(input_hits))
         ctx.check('the private tree contains no typed prose', 'colemak é qwerty' not in drive())
         layout('colemak')
         drive({'kind':'key', 'key':'ctrl+d'})  # Focus mode removes animated scenery.
         time.sleep(.5)
         from PIL import Image, ImageChops
+        reader = next(p for p in g.snap()['procs'] if p['comm'] == 'wros-input'
+                      and p['ppid'] == int(editor_pid))
+        dimensions = json.loads(reader['cmd'][-1])
+        height, rows = dimensions['pixels'][1], dimensions['cells'][1]
+        # The status row ends at the bottom of the cell grid. The scanout may
+        # have extra pixels below it, depending on the writing font and mode.
+        status_top = height - height // rows
         def editor_pixels(name):
             with Image.open(m.shot(name)) as image:
-                return image.convert('RGB').crop((0, 0, image.width, image.height - 24))
+                return image.convert('RGB').crop((0, 0, image.width, status_top))
         before = editor_pixels('native-before-pointer')
         time.sleep(.5)
         ctx.check('the pointer baseline is a static writing page',
@@ -288,6 +372,12 @@ def trial(ctx):
     drive({'kind':'act', 'node':'open-settings', 'action':'activate'})
     drive({'choose':'System'})
     drive({'choose':'Battery and power'})
+    if ctx.args.test_drm_contention:
+        g.run('install -m755 /mnt/trial/hold-drm-master /tmp/hold-drm-master; '
+              '/tmp/hold-drm-master >/tmp/hold-drm-master.log 2>&1 & echo probe-started')
+        # A subshell: `exit` inside the shell's own { } group would log the serial shell out.
+        rc, _ = g.run('(for n in $(seq 1 100); do grep -q "holding master" /tmp/hold-drm-master.log && exit 0; sleep .01; done; exit 1)', check=False)
+        ctx.check('a competing colour-helper DRM owner is active before the first lock', rc == 0)
     drive({'choose':'Lock writing session'}, True)
     try:
         g.wait_vcs(8, 'Press Enter to unlock', 45, what='compositor-lock')
@@ -301,6 +391,9 @@ def trial(ctx):
     ctx.check('the maintained locker owns tty8', g.run('fgconsole')[1].strip() == '8')
     m.wait_visible('visible-lock')
     ctx.check('the lock prompt reaches the display before any rescue VT switch', True)
+    if ctx.args.test_drm_contention:
+        ctx.check('the colour-helper ownership was released during the lock handoff',
+                  'released master' in g.run('cat /tmp/hold-drm-master.log')[1])
     if ctx.args.test_clock:
         g.wait_vcs(8, r'Locked at \d\d:\d\d', 10, what='large-lock-clock')
         ctx.check('the maintained locker shows the labelled lock-start time', True)
@@ -363,9 +456,28 @@ def trial(ctx):
         wait_for_writer()
         ctx.check(f'lock cycle {cycle} returns to the same editor', g.run('pgrep -xo grimoire')[1].strip() == editor_pid)
     if ctx.args.test_suspend:
+        if ctx.args.test_slow_suspend:
+            dropin = '/run/systemd/system/systemd-suspend.service.d'
+            g.run('install -d ' + dropin)
+            # This pre-start command runs after the installed lock guard.
+            g.shell.put(dropin + '/99-wros-fixture-delay.conf',
+                        '[Service]\nExecStartPre=/bin/sh -c '
+                        '"touch /run/wros-fixture-sleep-ready && exec /usr/bin/sleep 29"\n', '0644')
+            g.run('systemctl daemon-reload')
         drive({'choose':'Lock and suspend'})
         drive({'kind':'key','key':'right'})
         drive({'kind':'key','key':'enter'}, True)
+        if ctx.args.test_slow_suspend:
+            rc, _ = g.run("timeout 10 sh -c 'until test -e /run/wros-fixture-sleep-ready; "
+                          "do sleep .1; done'", 15, check=False)
+            ctx.check('the delayed sleep unit passed the lock guard', rc == 0)
+            time.sleep(22)  # Beyond the old 20-second wait, before the delayed sleep starts.
+            read_mode = ("import fcntl, struct; f = open('/dev/tty8', 'rb'); "
+                         "print(struct.unpack('i', fcntl.ioctl(f, 0x4b44, bytes(4)))[0])")
+            rc, mode = g.run('test -f /run/wros-lock/suspend && python3 -c ' + shlex.quote(read_mode),
+                             5, check=False)
+            ctx.check('the proof and disabled keyboard survive the delayed sleep preparation',
+                      rc == 0 and mode.strip() == '4')
         deadline = time.monotonic() + 45
         while m.qmp.count('SUSPEND') == 0 and time.monotonic() < deadline:
             time.sleep(.2)
@@ -415,13 +527,22 @@ def main():
         parser.add_argument('--' + name, type=Path, required=True)
     parser.add_argument('--backend', choices=['drm', 'foot', 'wgpu'], required=True)
     parser.add_argument('--test-suspend', action='store_true')
+    parser.add_argument('--test-slow-suspend', action='store_true',
+                        help='delay the guarded sleep unit beyond the former keyboard timeout')
     parser.add_argument('--test-clock', action='store_true', help='fixture also contains the greeter under test')
     parser.add_argument('--test-splash', action='store_true', help='capture the picture as the graphical session opens')
+    parser.add_argument('--test-drm-contention', action='store_true', help='hold DRM master briefly during the first native lock')
     parser.add_argument('--test-driver-lock', action='store_true', help='check the private view while authentication owns the console')
+    parser.add_argument('--test-phone-link', action='store_true', help='decode a fixture phone-link QR in the no-NIC guest')
     parser.add_argument('--lock-cycles', type=int, default=2, choices=range(2, 13))
     parser.add_argument('--delay-health', type=int, default=0, choices=range(7))
     parser.add_argument('--hold', action='store_true')
     args = parser.parse_args()
+    if args.test_drm_contention and args.backend != 'drm':
+        parser.error('--test-drm-contention requires the native DRM backend')
+    args.test_suspend |= args.test_slow_suspend
+    if args.test_phone_link and not shutil.which('zbarimg'):
+        parser.error('--test-phone-link needs zbarimg')
     if os.geteuid() == 0:
         parser.error('run as the unprivileged builder')
     ctx = phases.Ctx('graphical-' + args.backend, args)
@@ -433,10 +554,11 @@ def main():
         ctx.log(error)
         if hasattr(ctx, 'guest'):
             try:
+                ctx.guest.m.shot('failure-final')
                 _, diagnostic = ctx.guest.run(
                     'fgconsole; ps -eo pid,ppid,stat,comm; '
                     'systemctl show wros-console-lock.service -p ActiveState -p SubState -p Result; '
-                    'journalctl -b --no-pager -u wros-console-lock.service -n50; '
+                    'journalctl -b --no-pager -u wros-console-lock.service -u systemd-suspend.service -n70; '
                     'journalctl -b --no-pager -t wros-session -n50; '
                     'tail -40 /run/user/1000/trial-window.log', check=False)
                 (ctx.dir / 'failure-state.log').write_text(diagnostic)
@@ -444,6 +566,8 @@ def main():
                 (ctx.dir / 'failure-tree.json').write_text(tree)
             except Exception as failure:
                 ctx.log('Failure-state capture unavailable: ' + type(failure).__name__)
+            if args.hold:
+                phases.hold_for_operator(ctx, ctx.guest)
     finally:
         ctx.finish(error)
     return 0 if ctx.result['passed'] else 1
