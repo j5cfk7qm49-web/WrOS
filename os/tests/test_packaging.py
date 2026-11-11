@@ -97,6 +97,7 @@ def stub_inputs(base):
     (binaries / 'wros-display-hw').write_bytes(DISPLAY_HW)
     (binaries / 'wros-greeter').write_bytes(GREETER)
     (binaries / 'wros-boot').write_bytes(b'#!/bin/sh\nexit 20\n')
+    (binaries / 'cage').write_bytes(b'#!/bin/sh\necho cage stub\n')
     for name in ('qwerty', 'colemak', 'colemak-dh-ansi', 'colemak-dh-iso'):
         (keymaps / (name + '.map')).write_bytes(('keymap ' + name + '\n').encode())
     return binaries, keymaps
