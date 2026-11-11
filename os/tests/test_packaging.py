@@ -55,9 +55,9 @@ PSEUDO_ROOT = pseudo_root_prefix()
 def copy_repo(destination):
     """The subset of the checkout the packaging path reads, as an editable copy."""
     destination = Path(destination)
-    for relative in ('packaging', 'os/config', 'os/systemd', 'os/grub', 'os/initramfs', 'os/scripts', 'os/helpers', 'os/licenses',
+    for relative in ('packaging', 'os/config', 'os/systemd', 'os/grub', 'os/initramfs', 'os/scripts', 'os/helpers', 'os/licenses', 'os/vendor',
                      'tools/build-wros-debs.py', 'tools/stage-prose-runtime.py', 'tools/prepare-prose-tools.py',
-                     'tools/audit-native-image.py',
+                     'tools/audit-native-image.py', 'tools/build-cage.py',
                      'assets/dict/DICTIONARY-LICENSE', 'assets/DEJAVU-LICENSE', 'LICENSE', 'os/VERSION'):
         source = ROOT / relative
         target = destination / relative
@@ -796,8 +796,8 @@ class ManifestData(unittest.TestCase):
                 self.assertIn(entry.name, packaged_sources, 'unpackaged config ' + entry.name)
 
     def test_version_is_the_single_source(self):
-        self.assertEqual((ROOT / 'os/VERSION').read_text(), '0.1.0~rc10\n')
-        self.assertEqual(packaging.read_version(ROOT), '0.1.0~rc10')
+        self.assertEqual((ROOT / 'os/VERSION').read_text(), '0.1.0~rc11\n')
+        self.assertEqual(packaging.read_version(ROOT), '0.1.0~rc11')
         for bad in ('', '1:2', 'v1', '1 2', '1\t2'):
             with self.assertRaises(packaging.PackagingError):
                 packaging.check_version(bad)
@@ -917,7 +917,12 @@ class StageIntoRoot(unittest.TestCase):
                                                    'wros-boot-ok.service', 'wros-boot-ok.service',
                                                    'wros-boot-splash.service'])
         self.assertEqual(len(audit.audit_polkit(root)), 8)
-        audit.audit_no_private_keys(root)
+        # A user namespace can read its staged shadow databases, which sysusers
+        # may create mode 0000. Scan in the same context used to stage the image.
+        run(*PSEUDO_ROOT, sys.executable, '-B', '-c',
+            'import runpy, sys; from pathlib import Path; '
+            'runpy.run_path(sys.argv[1])["audit_no_private_keys"](Path(sys.argv[2]))',
+            str(repo / 'tools/audit-native-image.py'), str(root))
 
     def test_restaging_is_idempotent_and_keeps_the_writers_layout(self):
         repo, root, env, work = self.prepare()
