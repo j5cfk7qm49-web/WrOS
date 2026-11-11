@@ -127,10 +127,13 @@ impl Display {
                 .write(true)
                 .open(format!("/dev/dri/card{index}"))?,
         );
-        acquire_master(|| {
-            active_console(tty)?;
-            card.acquire_master_lock()
-        }, Duration::from_secs(2))?;
+        acquire_master(
+            || {
+                active_console(tty)?;
+                card.acquire_master_lock()
+            },
+            Duration::from_secs(2),
+        )?;
         let resources = card.resource_handles()?;
         let connector = resources
             .connectors()
@@ -244,10 +247,13 @@ impl Display {
     fn with_master<T>(&self, operation: impl FnOnce() -> io::Result<T>) -> io::Result<T> {
         // The colour helper briefly owns master between modesets. A VT handoff
         // must wait for it instead of silently leaving fbcon on the old buffer.
-        acquire_master(|| {
-            active_console(&self.tty)?;
-            self.card.acquire_master_lock()
-        }, Duration::from_secs(2))?;
+        acquire_master(
+            || {
+                active_console(&self.tty)?;
+                self.card.acquire_master_lock()
+            },
+            Duration::from_secs(2),
+        )?;
         let result = operation();
         let released = self.card.release_master_lock();
         result.and_then(|value| released.map(|()| value))
@@ -381,11 +387,20 @@ mod tests {
         .unwrap();
         assert_eq!(calls, 3);
         let mut inactive_attempts = 0;
-        assert!(acquire_master(|| {
-            inactive_attempts += 1;
-            Err(io::Error::other("not the active console"))
-        }, Duration::from_secs(2)).is_err());
-        assert_eq!(inactive_attempts, 1, "an inactive console must not keep retrying");
+        assert!(
+            acquire_master(
+                || {
+                    inactive_attempts += 1;
+                    Err(io::Error::other("not the active console"))
+                },
+                Duration::from_secs(2)
+            )
+            .is_err()
+        );
+        assert_eq!(
+            inactive_attempts, 1,
+            "an inactive console must not keep retrying"
+        );
         for code in [libc::EACCES, libc::EBUSY, libc::EIO] {
             let error = acquire_master(|| Err(io::Error::from_raw_os_error(code)), Duration::ZERO)
                 .unwrap_err();
