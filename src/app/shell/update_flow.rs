@@ -263,7 +263,14 @@ pub(super) fn review_rows(app: &App) -> Vec<Entry> {
         plural(review.packages.len(), "package change", "package changes"),
         plural(review.removals.len(), "removal", "removals")
     )));
-    rows.extend(review.packages.iter().map(|p| info(package_line(p))));
+    // WrOS itself first: a bundle carrying Debian runtime packages lists dozens of
+    // libraries, and the release being installed must not scroll out of sight.
+    let (wros, others): (Vec<_>, Vec<_>) = review.packages.iter().partition(|p| p.name == "wros");
+    rows.extend(
+        wros.into_iter()
+            .chain(others)
+            .map(|p| info(package_line(p))),
+    );
     rows.extend(
         review
             .removals
