@@ -33,6 +33,8 @@ KEPT = [
     (r'opt/writingdeck\b|\.writingdeck-runtime\.json', 'the installed prose-tools runtime'),
     (r'/etc/writingdeck\b|/usr/share/writingdeck\b|/usr/share/doc/writingdeck\b',
      'compatibility links to /etc/wros and /usr/share/wros'),
+    (r'(?<![\w/])etc/writingdeck/VM-DEMO-ONLY(?![\w/-])',
+     'the inactive legacy marker alias checked by the media audit'),
     (r'writingdeck-(keyboard|session)(-revert)?(\.service|\.timer)?\b|writingdeck\.sh\b',
      'compatibility links for the keyboard units and session helper'),
     (r'org\.writingdeck\.keyboard', "the older greeter's keyboard permission"),
@@ -79,6 +81,8 @@ class NameLeftovers(unittest.TestCase):
     def test_the_kept_list_catches_a_new_stray_name(self):
         self.assertTrue(WORD.search(KEPT_RE.sub('', 'see tools/writingdeck_helper.py')))
         self.assertFalse(WORD.search(KEPT_RE.sub('', 'reads .grimoire/writingdeck/pins.json')))
+        self.assertFalse(WORD.search(KEPT_RE.sub('', "checks 'etc/writingdeck/VM-DEMO-ONLY'")))
+        self.assertTrue(WORD.search(KEPT_RE.sub('', "adds 'etc/writingdeck/new-feature'")))
 
 
 if __name__ == '__main__':

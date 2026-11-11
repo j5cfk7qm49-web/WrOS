@@ -170,6 +170,44 @@ class SerialLoginDeadline(unittest.TestCase):
                 self.assertEqual(serial.send.call_count, 4)
 
 
+class MachineStartup(unittest.TestCase):
+    def test_slow_socket_creation_is_bounded_and_child_failure_is_immediate(self):
+        for ready_delay, exit_code in ((30, None), (None, None), (None, 1)):
+            with self.subTest(ready_delay=ready_delay, exit_code=exit_code), tempfile.TemporaryDirectory() as directory:
+                machine = vm.Machine(directory, 'startup')
+                clock = [1000.0]
+                child = mock.Mock()
+                child.poll.return_value = exit_code
+                exists = Path.exists
+                def ready(path):
+                    if path in (machine.qmp_sock, machine.serial_sock):
+                        return ready_delay is not None and clock[0] >= 1000 + ready_delay
+                    return exists(path)
+                def sleep(seconds):
+                    clock[0] += seconds
+                try:
+                    with (mock.patch.object(vm.os, 'geteuid', return_value=1000),
+                          mock.patch.object(vm.subprocess, 'Popen', return_value=child),
+                          mock.patch.object(Path, 'exists', autospec=True, side_effect=ready),
+                          mock.patch.object(vm, 'Serial'),
+                          mock.patch.object(vm.time, 'monotonic', side_effect=lambda: clock[0]),
+                          mock.patch.object(vm.time, 'sleep', side_effect=sleep)):
+                        if ready_delay is not None:
+                            self.assertIs(machine.start(timeout=60), machine)
+                            self.assertGreaterEqual(clock[0], 1030)
+                            machine.serial.connect.assert_called_once()
+                        else:
+                            with self.assertRaisesRegex(RuntimeError, 'exit=%r' % exit_code):
+                                machine.start(timeout=60)
+                            if exit_code is not None:
+                                self.assertEqual(clock[0], 1000)
+                            else:
+                                self.assertLess(clock[0], 1060.2)
+                finally:
+                    if machine.log:
+                        machine.log.close()
+
+
 class NativeScreenshot(unittest.TestCase):
     def test_antialias_edges_are_normalized_to_the_foreground_contrast(self):
         from PIL import Image

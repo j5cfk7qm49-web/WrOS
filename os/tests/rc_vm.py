@@ -642,7 +642,7 @@ class Machine:
                  '-serial', 'unix:%s,server=on,wait=off' % self.serial_sock,
                  '-qmp', 'unix:%s,server=on,wait=off' % self.qmp_sock] + smbios + self.args)
 
-    def start(self):
+    def start(self, timeout=120):
         if os.geteuid() == 0:
             raise RuntimeError('run QEMU as the unprivileged builder')
         for sock in (self.serial_sock, self.qmp_sock):
@@ -651,10 +651,12 @@ class Machine:
         (self.run / (self.name + '-command.json')).write_text(json.dumps(self.command, indent=1) + '\n')
         self.log = open(self.run / (self.name + '-qemu.log'), 'wb')
         self.process = subprocess.Popen(self.command, stdin=subprocess.DEVNULL, stdout=self.log, stderr=self.log)
-        deadline = time.monotonic() + 20
+        deadline = time.monotonic() + timeout
         while not (self.qmp_sock.exists() and self.serial_sock.exists()):
-            if self.process.poll() is not None or time.monotonic() > deadline:
-                raise RuntimeError('QEMU did not start: %s' % (self.run / (self.name + '-qemu.log')))
+            status = self.process.poll()
+            if status is not None or time.monotonic() > deadline:
+                raise RuntimeError('QEMU did not start (exit=%r, timeout=%ss): %s'
+                                   % (status, timeout, self.run / (self.name + '-qemu.log')))
             time.sleep(0.1)
         self.serial = Serial(self.serial_sock, self.run / (self.name + '-serial.log'), self.is_running)
         self.serial.connect()
