@@ -852,8 +852,11 @@ def debian_sources_template(root):
 
 
 def install_debian_sources(root=Path('/')):
-    """Copy the image's Debian online sources into the target. Runs after the offline
-    install's only `apt-get update`, so the installer itself never goes online."""
+    """Restore Debian online sources after the media-based bootstrap.
+
+    Additional drivers/packages can use these sources when Internet is available;
+    the base installation does not depend on reaching a Debian mirror.
+    """
     root = Path(root)
     data = debian_sources_template(root)
     target = root / DEBIAN_SOURCES
