@@ -25,9 +25,27 @@ PAM = ('# WrOS existing-session unlock; authentication is performed only by Debi
 LOCK_MESSAGE = '\033[2J\033[3J\033[HWrOS - writing session locked\nPress Enter to unlock.'
 
 
-def require(condition):
+class LockRefused(ValueError):
+    pass
+
+
+def require(condition, reason='console lock precondition failed'):
     if not condition:
-        raise ValueError('console lock precondition failed')
+        raise LockRefused(reason)
+
+
+def log_failure(stage, error):
+    # The journal gets fixed descriptions and numeric status only. Never echo
+    # command output, input, paths from an exception, or account fields.
+    if isinstance(error, LockRefused):
+        detail = str(error)
+    elif isinstance(error, OSError):
+        detail = f'OS error {error.errno}'
+    elif isinstance(error, subprocess.CalledProcessError):
+        detail = f'command exited with status {error.returncode}'
+    else:
+        detail = type(error).__name__
+    print(f'WrOS console lock: {stage}: {detail}', file=sys.stderr)
 
 
 def trusted_file(path, executable=False):
@@ -106,10 +124,16 @@ def caller_session(parent):
         libc.free(pointer)
 
 
-def trusted_compositor(parent, uid, proc_root=Path('/proc'), cage=Path('/usr/bin/cage'), session_lookup=caller_session):
+def trusted_compositor(parent, uid, proc_root=Path('/proc'), cage=None, session_lookup=caller_session):
     """Cage changes logind's Type to wayland. Require its packaged ancestor too."""
     try:
-        trusted_file(cage, True)
+        candidates = (cage,) if cage is not None else (Path('/usr/lib/wros/cage'), Path('/usr/bin/cage'))
+        compositors = []
+        for candidate in candidates:
+            if not candidate.exists():
+                continue
+            trusted_file(candidate, True)
+            compositors.append(candidate)
         session, pid = session_lookup(parent), parent
         for _ in range(16):
             if pid <= 1:
@@ -119,7 +143,7 @@ def trusted_compositor(parent, uid, proc_root=Path('/proc'), cage=Path('/usr/bin
             users = next(line.split()[1:] for line in status.splitlines() if line.startswith('Uid:'))
             if users != [str(uid)] * 4:
                 return False
-            if os.path.samefile(path / 'exe', cage):
+            if any(os.path.samefile(path / 'exe', candidate) for candidate in compositors):
                 return session_lookup(pid) == session
             pid = int(next(line.split()[1] for line in status.splitlines() if line.startswith('PPid:')))
     except (OSError, ValueError, StopIteration):
@@ -172,18 +196,23 @@ def console_state(fd=0):
 
 def input_reader_retired(parent, proc_root=Path("/proc")):
     """Verify that the editor parent has no running --wros-input-reader child (crates/wros-input)."""
-    tasks_dir = proc_root / str(parent) / "task"
-    if not tasks_dir.is_dir():
+    if not (proc_root / str(parent)).is_dir():
         return False
-    for children_file in tasks_dir.glob("*/children"):
-        for pid in children_file.read_text().split():
-            cmdline_file = proc_root / pid / "cmdline"
-            try:
-                cmdline = cmdline_file.read_bytes()
-            except OSError:
+    # PPid in /proc/PID/stat names the parent process, even when a different
+    # thread created the child. A thread can disappear during the handoff,
+    # and its /task/TID/children listing can omit other, surviving children.
+    for process in proc_root.iterdir():
+        if not process.name.isascii() or not process.name.isdecimal():
+            continue
+        try:
+            fields = (process / 'stat').read_bytes().rsplit(b')', 1)[1].split()
+            if int(fields[1]) != parent:
                 continue
-            if b"--wros-input-reader" in cmdline:
+            arguments = (process / 'cmdline').read_bytes().split(b'\0')
+            if b'--wros-input-reader' in arguments:
                 return False
+        except (FileNotFoundError, ProcessLookupError):
+            continue
     return True
 
 
@@ -232,11 +261,11 @@ def set_keyboard_for_sleep():
     fd = tty8()
     try:
         previous = keyboard_mode(fd)
-        require(previous in (1, K_UNICODE))  # K_XLATE or K_UNICODE
+        require(previous in (1, K_UNICODE), 'tty8 was not in a text keyboard mode')
         (RUN / 'keyboard-mode').write_text(str(previous))
         termios.tcflush(fd, termios.TCIFLUSH)
         fcntl.ioctl(fd, KDSKBMODE, K_OFF)
-        require(keyboard_mode(fd) == K_OFF)
+        require(keyboard_mode(fd) == K_OFF, 'tty8 keyboard could not be disabled')
     finally:
         os.close(fd)  # openvt must acquire a free tty8.
 
@@ -264,12 +293,20 @@ def suspend(parent, locker):
         proof.write_text(f'{parent} {locker}\n')
         # Go through logind so NetworkManager receives PrepareForSleep and can
         # quiesce and reconnect. The sleep unit rechecks the proof at entry.
-        query(['/usr/bin/systemctl', 'suspend'])
-        deadline = time.monotonic() + 20
-        while query(['/usr/bin/busctl', '--timeout=2s', 'get-property', 'org.freedesktop.login1',
-                     '/org/freedesktop/login1', 'org.freedesktop.login1.Manager',
-                     'PreparingForSleep']) != 'b false':
-            require(time.monotonic() < deadline)
+        request_error = None
+        try:
+            query(['/usr/bin/systemctl', 'suspend'])
+        except (OSError, subprocess.SubprocessError) as error:
+            request_error = error
+        while True:
+            preparing = query(['/usr/bin/busctl', '--timeout=2s', 'get-property', 'org.freedesktop.login1',
+                               '/org/freedesktop/login1', 'org.freedesktop.login1.Manager',
+                               'PreparingForSleep'])
+            if preparing == 'b false':
+                return request_error
+            require(preparing == 'b true', 'could not verify suspend completion')
+            # A slow sleep unit can still enter suspend after its guard has
+            # passed. Keep tty8 input disabled for the whole operation.
             time.sleep(0.2)
     finally:
         proof.unlink(missing_ok=True)
@@ -341,31 +378,40 @@ def worker(uid, parent, started, sleep=False):
     uid, parent = int(uid), int(parent)
     require(0 < uid < 2**31 and parent > 1 and started.isascii() and started.isdigit())
     parent_fd = os.pidfd_open(parent)
+    stage = 'checking the writer'
     try:
-        require(birth(parent) == started and os.path.samefile(f'/proc/{parent}/exe', '/usr/bin/grimoire'))
-        require(input_reader_retired(parent))
+        require(birth(parent) == started and os.path.samefile(f'/proc/{parent}/exe', '/usr/bin/grimoire'),
+                'writer identity changed')
+        require(input_reader_retired(parent), 'writing input retirement could not be verified')
         status = Path(f'/proc/{parent}/status').read_text()
         users = next(line.split()[1:] for line in status.splitlines() if line.startswith('Uid:'))
-        require(users == [str(uid)] * 4)
+        require(users == [str(uid)] * 4, 'writer UID changed')
+        stage = 'checking the logind session'
         sid = caller_session(parent)
         fields = query(['/usr/bin/loginctl', '--no-pager', 'show-session', sid,
             '-p', 'User', '-p', 'Active', '-p', 'Remote', '-p', 'TTY', '-p', 'VTNr',
             '-p', 'Seat', '-p', 'Type', '-p', 'Class'])
         values = dict(line.split('=', 1) for line in fields.splitlines())
-        require(session_allowed(values, uid, values.get('Type') == 'wayland' and trusted_compositor(parent, uid)))
+        require(session_allowed(values, uid, values.get('Type') == 'wayland' and trusted_compositor(parent, uid)),
+                'the active local tty1 session or compositor could not be verified')
+        stage = 'checking the account and PAM policy'
         username = account_name(uid, Path('/etc/passwd').read_text())
         require(query(['/usr/bin/passwd', '-S', username]).split()[1] == 'P')
         require(query(['/usr/bin/passwd', '-S', 'root']).split()[1] == 'L')
         require(Path('/etc/pam.d/vlock').read_text() == PAM)
+        stage = 'checking the lock VT'
         fd = os.open('/dev/tty1', os.O_RDWR | os.O_NOCTTY | os.O_CLOEXEC)
         os.dup2(fd, 0)
         if fd != 0:
             os.close(fd)
         active, _, used = console_state()
-        require(active == 1 and not used & (1 << 8))
+        require(active == 1, 'tty1 is no longer active')
+        require(not used & (1 << 8), 'tty8 is already in use')
         os.chmod('/dev/tty8', 0o600)
         if sleep:
+            stage = 'disabling tty8 input before suspend'
             set_keyboard_for_sleep()
+        stage = 'acquiring the maintained locker'
         arguments, environment = fixed_command(username, lock_message())
         child = subprocess.Popen(arguments, stdin=None, stdout=subprocess.DEVNULL,
                                  stderr=subprocess.DEVNULL, env=environment)
@@ -373,7 +419,7 @@ def worker(uid, parent, started, sleep=False):
         deadline = time.monotonic() + 8
         while child.poll() is None:
             if select.select([parent_fd], [], [], 0)[0]:
-                return 1
+                raise LockRefused('writer exited before unlock')
             try:
                 locker = None if acquired else ready(child)
             except (OSError, ValueError):
@@ -381,17 +427,25 @@ def worker(uid, parent, started, sleep=False):
             if locker:
                 acquired = True
                 if sleep:
-                    try:
-                        suspend(parent, locker)
-                    except (OSError, subprocess.SubprocessError, ValueError):
-                        print('WrOS could not suspend. The writing session stays locked.', file=sys.stderr)
+                    stage = 'waiting for logind to finish suspend'
+                    error = suspend(parent, locker)
+                    if error is not None:
+                        log_failure('suspend command reported an error; writing stays locked', error)
+                    stage = 'restoring tty8 input after suspend'
                     restore_keyboard()
+                stage = 'waiting for authenticated unlock'
             if not acquired and time.monotonic() >= deadline:
-                return 1
+                raise LockRefused('vlock did not secure tty8 before the deadline')
             time.sleep(0.05)
         # openvt propagates normal child exits and maps signal death to 127.
         # vlock returns zero only after PAM success, SIGTERM returns one.
-        return 0 if acquired and child.returncode == 0 and not select.select([parent_fd], [], [], 0)[0] else 1
+        require(child.returncode == 0, f'openvt or vlock exited with status {child.returncode}')
+        require(acquired, 'the lock console never became ready')
+        require(not select.select([parent_fd], [], [], 0)[0], 'writer exited before unlock')
+        return 0
+    except Exception as error:
+        log_failure(stage, error)
+        return 1
     finally:
         os.close(parent_fd)
 

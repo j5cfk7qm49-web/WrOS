@@ -100,9 +100,11 @@ root-only runtime directory. The systemd suspend service independently checks
 the worker, the active protected VT, the disabled keyboard and the retired
 reader, and that the lock service is running and owns the locker. It has no
 unit dependency on the lock service: one kept the finished service loaded, so
-systemd refused every later lock in the same boot (#93). The worker asks logind to suspend so NetworkManager can prepare and
-resume with the system. On wake, it flushes typeahead and restores the keyboard
-for PAM unlock. The cleanup path restores the keyboard if the worker stops.
+systemd refused every later lock in the same boot (#93). The worker asks logind
+to suspend so NetworkManager can prepare and resume with the system. It waits
+for logind to finish before flushing typeahead and restoring the keyboard for
+PAM unlock. If completion cannot be verified, the writing session closes
+safely and the lock service restores the keyboard during cleanup.
 
 ## Limits and verification
 
