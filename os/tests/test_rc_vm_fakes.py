@@ -7,9 +7,139 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import rc_vm as vm
+import rc_vm_phases as phases
+
+
+class InstallerReceipt(unittest.TestCase):
+    def test_vm_receipt_keeps_the_release_version_and_the_boot_binary_location(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            iso = base / 'candidate.iso'
+            iso.write_bytes(b'ISO fixture')
+            boot_hash = 'b' * 64
+            digests = {name: {'squashfs_sha256': 'a' * 64}
+                       for name in ('grimoire', 'wros-greeter', 'wros-installer')}
+            digests['wros-boot'] = {'squashfs_sha256': boot_hash}
+            iso.with_suffix('.receipt.json').write_text(json.dumps({
+                'version': '0.1.0~rc11', 'iso': {'sha256': vm.sha256_file(iso)}, 'binaries': digests,
+            }))
+            with mock.patch.object(phases, 'BASE', base / 'runs'):
+                ctx = phases.Ctx('install', SimpleNamespace(iso=str(iso)))
+                try:
+                    self.assertEqual(ctx.result['release_version'], '0.1.0~rc11')
+                    self.assertEqual(ctx.result['receipt_iso_sha256'], vm.sha256_file(iso))
+                    hashes = phases.receipt_binary_hashes(ctx.result['receipt_binaries_sha256'])
+                    self.assertEqual(hashes['/usr/lib/wros/wros-boot'], boot_hash)
+                    self.assertNotIn('/usr/bin/wros-boot', hashes)
+                    self.assertEqual(len(hashes), 4)
+                    self.assertEqual(phases.receipt_binary_hashes(digests | {'wros-boot': {}}), {})
+                finally:
+                    ctx.log_file.close()
+
+
+class FirmwareShutdown(unittest.TestCase):
+    def test_poweroff_may_lose_its_serial_marker_only_after_a_clean_vm_exit(self):
+        for error in (RuntimeError('guest stopped'), TimeoutError('missing serial marker')):
+            for running, exit_code in ((False, 0), (False, 1), (True, None)):
+                with self.subTest(error=type(error).__name__, running=running, exit_code=exit_code):
+                    guest = phases.Guest.__new__(phases.Guest)
+                    guest.shell = mock.Mock()
+                    guest.shell.run.side_effect = error
+                    guest.m = mock.Mock()
+                    guest.m.is_running.return_value = running
+                    guest.m.wait_exit.return_value = exit_code
+                    if not running and exit_code == 0:
+                        self.assertEqual(guest.run('sudo -n /sbin/poweroff'), (0, ''))
+                        with self.assertRaises(type(error)):
+                            guest.run('echo still running')
+                    else:
+                        with self.assertRaises(type(error)):
+                            guest.run('sudo -n /sbin/poweroff')
+
+    def test_nonzero_exit_or_timeout_cannot_pass_firmware_boot(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with (mock.patch.object(phases, 'BASE', Path(directory)),
+                  mock.patch.object(phases, 'boot_live') as boot,
+                  mock.patch.object(phases, 'live_login'),
+                  mock.patch.object(phases, 'assert_live_state')):
+                for name, outcome, error in (('ok', 0, None), ('failed', 1, phases.Failure),
+                                              ('timeout', TimeoutError('QEMU did not exit'), TimeoutError)):
+                    with self.subTest(name=name):
+                        ctx = phases.Ctx(name, SimpleNamespace(secboot=False))
+                        boot.return_value.wait_exit.side_effect = (
+                            outcome if isinstance(outcome, Exception) else None)
+                        boot.return_value.wait_exit.return_value = outcome
+                        try:
+                            if error is None:
+                                phases.phase_firmware(ctx)
+                                self.assertTrue(ctx.result['passed'])
+                            else:
+                                with self.assertRaises(error):
+                                    phases.phase_firmware(ctx)
+                                self.assertFalse(ctx.result['passed'])
+                        finally:
+                            ctx.log_file.close()
+
+
+class InstallerCompletion(unittest.TestCase):
+    def test_waits_for_cleanup_to_finish_and_preserves_a_failed_final_verdict(self):
+        for clean in (True, False):
+            with self.subTest(clean=clean):
+                ctx = SimpleNamespace(args=SimpleNamespace(layout='colemak'), result={}, guard=lambda: None)
+                guest = mock.Mock()
+                snapshots = [
+                    {'active_vt': 'tty7', 'installer_unit': state,
+                     'run_files': {'outcome.json': {'outcome': 'completed', 'host_cleanup_verified': False}}}
+                    for state in ('active', 'deactivating')
+                ]
+                final = {'active_vt': 'tty1', 'installer_unit': 'inactive' if clean else 'failed',
+                         'run_files': {'outcome.json': {'outcome': 'completed', 'host_cleanup_verified': clean}}}
+                guest.snap.side_effect = [*snapshots, final]
+                with mock.patch.object(phases.time, 'sleep'):
+                    self.assertIs(phases.run_installer(ctx, guest, {}), final)
+                self.assertEqual(guest.snap.call_count, 3)
+                self.assertEqual(ctx.result['installer_steps'], [])
+
+
+class FirmwareMenu(unittest.TestCase):
+    def test_background_or_partial_menu_is_not_ready_for_enter(self):
+        from PIL import Image, ImageDraw
+        for rows, footer in ((False, False), (True, False), (False, True), (True, True)):
+            with self.subTest(rows=rows, footer=footer):
+                picture = Image.new('RGB', (800, 600))
+                draw = ImageDraw.Draw(picture)
+                draw.rectangle((40, 40, 200, 200), fill='white')
+                if rows:
+                    draw.rectangle((80, 320, 500, 330), fill='white')
+                if footer:
+                    draw.rectangle((240, 556, 600, 566), fill='white')
+                self.assertEqual(phases.firmware_menu_ready(picture), rows and footer)
+
+
+class OfflineInstallNetwork(unittest.TestCase):
+    def test_optional_network_attempts_are_allowed_but_isolated_install_must_complete(self):
+        for isolated, outcome in ((True, 'completed'), (False, 'completed'), (True, 'failed')):
+            with self.subTest(isolated=isolated, outcome=outcome):
+                ctx = mock.Mock()
+                ctx.dir = Path('/synthetic-capture')
+                ctx.result = {'network_namespace_isolated': isolated, 'outcome': {'outcome': outcome}}
+                def check(name, condition, detail=None):
+                    if not condition:
+                        raise phases.Failure(name)
+                ctx.check.side_effect = check
+                attempts = 'DNS attempt to a time server\nDNS attempt to the update repository\n'
+                with mock.patch.object(phases.subprocess, 'check_output', side_effect=['DHCP request\n', attempts]):
+                    if isolated and outcome == 'completed':
+                        phases.check_install_network_capture(ctx)
+                        self.assertEqual(ctx.result['installer_ipv4_attempts'], attempts.splitlines())
+                    else:
+                        with self.assertRaises(phases.Failure):
+                            phases.check_install_network_capture(ctx)
 
 
 class NativeScreenshot(unittest.TestCase):

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Check the live-build installer tree and the REAL ISO artifact built from it.
 
-``audit(base)`` is the tree gate (staged chroot, offline pool, archives). The
+``audit(base)`` checks a root filesystem and the offline package pool. The
+root tree gate extracts the built SquashFS and records its digest. The
 release gate ``audit_release`` additionally opens the finished ISO with
 xorriso and the real squashfs with unsquashfs, so what is checked is what a
 person would flash: boot records, the native-installer capsule, kernel ABI,
@@ -44,8 +45,7 @@ ENCRYPTION_PAYLOAD = {
 
 PROFILES = ('live-session', 'installer')
 # Binaries shipped from cargo, and where they land in the image.
-BINARY_PATHS = {'grimoire': 'usr/bin/grimoire', 'wros-greeter': 'usr/bin/wros-greeter',
-                'wros-installer': 'usr/bin/wros-installer'}
+BINARY_PATHS = media_constants.BINARY_PATHS
 # Helper scripts copied verbatim from os/scripts/<name> to usr/libexec/<name>.
 # 'required' helpers must exist in the image; the update launchers become
 # required automatically as soon as their source file exists in the repository.
@@ -106,13 +106,13 @@ def load_tool(name, filename):
     return module
 
 
-def audit(base):
-    """Tree gate: the staged chroot and the live-build binary tree."""
+def audit(base, root=None):
+    """Check a root filesystem together with the live-build offline package pool."""
     base = Path(base)
+    root = base / 'chroot' if root is None else Path(root)
     wifi = load_tool('wifi_audit', 'audit-wifi-image.py')
     # This invokes dpkg-query against the staged database and checks real files.
-    result = wifi.audit(base / 'chroot')
-    root = base / 'chroot'
+    result = wifi.audit(root)
     encryption = encryption_inventory(root)
     native = load_tool('native_audit', 'audit-native-image.py')
     native_result = native.audit(root)
@@ -131,9 +131,11 @@ def audit(base):
     if any(line.split(':')[0] in ('writer', 'user', 'builder') for line in (root / 'etc/passwd').read_text().splitlines()):
         raise ValueError('build/demo account present before installer account setup')
     for relative in ('binary/live/filesystem.squashfs', 'binary/install/vmlinuz',
-                     'binary/install/initrd.gz', 'chroot/usr/bin/grimoire'):
+                     'binary/install/initrd.gz'):
         if not (base / relative).is_file() or (base / relative).stat().st_size == 0:
             raise ValueError('missing installer payload: ' + relative)
+    if not (root / 'usr/bin/grimoire').is_file() or (root / 'usr/bin/grimoire').stat().st_size == 0:
+        raise ValueError('missing installer payload: ' + str(root / 'usr/bin/grimoire'))
     expected = {row['package'] for row in json.loads((REPO / 'os/config/wifi-firmware.json').read_text())['firmware']}
     packages = set()
     encryption_archives = {}
@@ -243,10 +245,12 @@ def boot_structure(iso):
 
 
 def same_boot_structure(current, baseline):
-    """Re-mastering may move data, never the boot records themselves."""
+    """Compare boot entries and partition types across a remaster."""
     def shape(parsed):
+        # Cylinder alignment describes the image size, which changes with the capsule.
+        area = [flag for flag in parsed['system_area'] if flag not in ('cyl-align-on', 'cyl-align-off')]
         return ([{k: v for k, v in entry.items() if k != 'lba'} for entry in parsed['el_torito']],
-                parsed['system_area'], parsed['gpt_partitions'], parsed['gpt_paths'])
+                area, parsed['gpt_partitions'], parsed['gpt_paths'])
     require(shape(current) == shape(baseline),
             'Re-mastered ISO boot records differ from the original live-build ISO')
 
@@ -431,6 +435,12 @@ def deny_list(rootfs, listing, boot_configs):
     """Every QA/test leftover the shipped image must not carry. Returns nothing or raises."""
     problems = []
     for path in sorted(listing):
+        # Name migration retains this alias even on images with no VM marker.
+        if (path == 'etc/writingdeck/VM-DEMO-ONLY'
+                and listing[path] == ('l', '../wros/VM-DEMO-ONLY')
+                and 'etc/wros/VM-DEMO-ONLY' not in listing
+                and not (rootfs / 'etc/wros').is_symlink()):
+            continue
         if QA_NAMES.search(path):
             problems.append('QA/test file shipped: ' + path)
     if 'etc/sudoers.d/live' in listing:
@@ -644,22 +654,28 @@ def audit_capsule(capsule, iso_kernel_sha256, abi):
 
 
 def source_identity():
-    from wros_source import fingerprint
+    from wros_source import fingerprint, is_dirty
     try:
         commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=REPO, text=True, stderr=subprocess.DEVNULL).strip()
-        dirty = bool(subprocess.check_output(['git', 'status', '--porcelain', '--untracked-files=no'],
-                                             cwd=REPO, text=True, stderr=subprocess.DEVNULL).strip())
+        dirty = is_dirty()
     except (OSError, subprocess.SubprocessError) as error:
         raise ValueError('cannot determine the git commit of the build source') from error
     return {'git_commit': commit, 'git_dirty': dirty, 'source_fingerprint': fingerprint()}
 
 
 def tree_gate(base):
-    """The tree gate reads the root-owned staging chroot (polkitd makes /etc/polkit-1/rules.d
-    root:polkitd 0750), so it must run as root; an unprivileged run would misread denied paths."""
-    require(os.geteuid() == 0, 'the tree gate reads the root-owned live-build chroot: run --tree-only as root')
-    result = audit(base)
+    """Audit the shipped root with its recorded ownership and modes."""
+    require(os.geteuid() == 0, 'the tree gate reads the root-owned filesystem: run --tree-only as root')
+    squashfs = Path(base) / 'binary/live/filesystem.squashfs'
+    require(squashfs.is_file() and not squashfs.is_symlink(), 'missing or unsafe built squashfs')
+    digest = sha256_file(squashfs)
+    with tempfile.TemporaryDirectory(prefix='wros-tree-audit-') as directory:
+        root = Path(directory) / 'rootfs'
+        squash_extract(squashfs, root)
+        result = audit(base, root=root)
+    require(sha256_file(squashfs) == digest, 'squashfs changed during its tree audit')
     result['tree_gate_uid'] = 0
+    result['squashfs_sha256'] = digest
     return result
 
 
@@ -670,6 +686,11 @@ def load_tree_result(path, base):
     require(isinstance(tree, dict) and tree.get('passed') is True and tree.get('tree_gate_uid') == 0,
             'tree-gate result did not pass as root')
     require(tree.get('build_tree') == str(Path(base).resolve()), 'tree-gate result is for a different build tree')
+    require(isinstance(tree.get('squashfs_sha256'), str)
+            and re.fullmatch(r'[0-9a-f]{64}', tree['squashfs_sha256']),
+            'tree-gate result is missing its squashfs digest')
+    require(tree['squashfs_sha256'] == sha256_file(Path(base) / 'binary/live/filesystem.squashfs'),
+            'tree-gate result is for a different squashfs')
     return tree
 
 
@@ -680,8 +701,9 @@ def audit_release(base, iso, profile='live-session', binaries=None, baseline=Non
     require(profile in PROFILES, 'unknown profile')
     require(iso.is_file() and not iso.is_symlink(), 'ISO to audit is missing or a symlink')
     live = profile == 'live-session'
-    require(binaries or not live, 'the live profile needs the input binaries (--binary NAME=PATH)')
-    tree = load_tree_result(Path(tree_result), base) if tree_result is not None else audit(base)
+    require(not live or BINARY_PATHS.keys() <= (binaries or {}).keys(),
+            'the live profile must compare all shipped Rust binaries (--binary NAME=PATH)')
+    tree = load_tree_result(Path(tree_result), base) if tree_result is not None else None
     own = scratch is None
     scratch = Path(tempfile.mkdtemp(prefix='wros-media-audit-')) if own else Path(scratch)
     scratch.mkdir(parents=True, exist_ok=True)
@@ -693,6 +715,10 @@ def audit_release(base, iso, profile='live-session', binaries=None, baseline=Non
         require('/live' in top, 'ISO has no /live directory')
         squashfs = scratch / 'filesystem.squashfs'
         iso_extract(iso, [('/live/filesystem.squashfs', squashfs)])
+        squashfs_digest = sha256_file(squashfs)
+        if tree is not None:
+            require(tree['squashfs_sha256'] == squashfs_digest,
+                    'ISO squashfs differs from the filesystem that passed the tree audit')
         listing = squash_listing(squashfs)
         abi = squash_kernel_abi(listing)
         kernel_name = '/live/vmlinuz-' + abi
@@ -704,6 +730,9 @@ def audit_release(base, iso, profile='live-session', binaries=None, baseline=Non
                 'ISO /live kernel differs from the squashfs kernel')
         rootfs = scratch / 'rootfs'
         squash_extract(squashfs, rootfs)
+        if tree is None:
+            tree = audit(base, root=rootfs)
+            tree['squashfs_sha256'] = squashfs_digest
         boot_configs = {}
         for directory in ('/isolinux', '/boot/grub', '/EFI'):
             wanted = [p for p in iso_paths(iso, '-find', directory, '-type', 'f') if p.endswith(('.cfg', '.conf'))]
@@ -719,13 +748,11 @@ def audit_release(base, iso, profile='live-session', binaries=None, baseline=Non
         result = {'schema_version': 2, 'passed': True, 'profile': profile, 'interim': bool(interim),
                   'tree': tree, 'boot': boot,
                   'iso': {'name': iso.name, 'bytes': iso.stat().st_size, 'sha256': sha256_file(iso)},
-                  'squashfs': {'sha256': sha256_file(squashfs), 'kernel_abi': abi, 'entries': len(listing)},
+                  'squashfs': {'sha256': squashfs_digest, 'kernel_abi': abi, 'entries': len(listing)},
                   'deny_list_clean': True, 'boot_tested': False}
         if binaries:
             result['binaries'] = compare_binaries(squashfs, binaries, scratch)
         if live:
-            require({'grimoire', 'wros-greeter', 'wros-installer'} <= set(binaries),
-                    'the live profile must compare grimoire, wros-greeter and wros-installer')
             require(boot_configs and any('wros.live=1' in text and 'boot=live' in text for text in boot_configs.values()),
                     'no boot entry requests boot=live wros.live=1')
             result['boot_menu'] = check_live_boot_menu(boot_configs)
@@ -769,7 +796,7 @@ def main():
     parser.add_argument('--scratch', type=Path, help='work directory (default: a temporary directory)')
     parser.add_argument('--interim', action='store_true', help='allow absent update-trust inputs (never for the RC)')
     parser.add_argument('--tree-only', action='store_true',
-                        help='run only the tree gate on the root-owned build chroot (must run as root)')
+                        help='audit the built SquashFS with recorded ownership (must run as root)')
     parser.add_argument('--tree-result', type=Path,
                         help='use a passed root --tree-only result for this build tree instead of re-reading the chroot')
     args = parser.parse_args()

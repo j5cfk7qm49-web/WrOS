@@ -23,6 +23,7 @@ import struct
 import subprocess
 import threading
 import time
+from functools import lru_cache
 from pathlib import Path
 
 OVMF_DIR = Path('/usr/share/OVMF')
@@ -318,21 +319,17 @@ class NativeFont(Font):
                 self._ints.append((char, _glyph_int(glyph)))
 
 
-def native_font():
+@lru_cache(maxsize=2)
+def native_font(path):
     from PIL import Image
-    path = os.environ.get('WROS_NATIVE_FONT')
-    if not path:
-        return None
-    cache = getattr(native_font, 'cache', None)
-    if cache is None:
-        data = Path(path).read_bytes()
-        match = re.search(rb'# cells (\d+) (\d+)\n', data[:100])
-        if not match:
-            raise ValueError('native font atlas has no cell geometry')
-        codes = re.search(rb'# codepoints ([0-9 ]+)\n', data[:4096])
-        glyphs = [chr(int(code)) for code in codes[1].split()] if codes else None
-        cache = native_font.cache = NativeFont(Image.open(path), int(match[1]), int(match[2]), glyphs)
-    return cache
+    data = Path(path).read_bytes()
+    match = re.search(rb'# cells (\d+) (\d+)\n', data[:100])
+    if not match:
+        raise ValueError('native font atlas has no cell geometry')
+    codes = re.search(rb'# codepoints ([0-9 ]+)\n', data[:4096])
+    glyphs = [chr(int(code)) for code in codes[1].split()] if codes else None
+    with Image.open(path) as atlas:
+        return NativeFont(atlas, int(match[1]), int(match[2]), glyphs)
 
 
 def ocr(image, font=None, offset=(0, 0)):
@@ -387,8 +384,9 @@ def png_text(path, font=None):
     if font is not None:
         return '\n'.join(ocr(picture, font))
     candidates = ['\n'.join(ocr(picture))]
-    if native_font() is not None:
-        candidates.append('\n'.join(ocr(picture, native_font())))
+    for name in ('WROS_NATIVE_FONT', 'WROS_NATIVE_WRITING_FONT'):
+        if atlas := os.environ.get(name):
+            candidates.append('\n'.join(ocr(picture, native_font(atlas))))
     # Firmware and Debian's prompt retain the console font; native screens use
     # the exact rasterizer templates. Keep the more readable interpretation.
     return max(candidates, key=lambda text: sum(map(len, re.findall(r'[A-Za-z]{3,}', text))) - text.count('?') * 2)
@@ -572,7 +570,7 @@ class Shell:
 
 class Machine:
     """One disposable QEMU instance. Builds an explicit command line (recorded in
-    `command` for the result.json), never attaches a host disk and never a NIC."""
+    `command` for the result.json), never attaches a host disk and has no NIC by default."""
 
     def __init__(self, run, name, memory=4096, smp=2, accel='kvm', reboot=False):
         self.run = Path(run)
