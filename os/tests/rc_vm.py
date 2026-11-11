@@ -780,6 +780,9 @@ def make_update_media(bundle_dir, image, fs='ext4', size_mb=48, label='WROS-UPDA
     if not (bundle / 'InRelease').is_file() and not (bundle / 'Release').is_file():
         raise ValueError('not an update bundle directory: %s' % bundle)
     image = Path(image)
+    # size_mb is a floor: a bundle carrying Debian runtime packages can outgrow it.
+    payload = sum(p.stat().st_size for p in bundle.rglob('*') if p.is_file())
+    size_mb = max(size_mb, ((payload * 5 // 4) >> 20) + 16)
     with open(image, 'xb') as stream:
         stream.truncate(size_mb << 20)
     if fs == 'ext4':
