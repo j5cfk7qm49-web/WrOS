@@ -1,5 +1,6 @@
 """QMP event handling and the serial-shell marker protocol, against local fakes."""
 import json
+import errno
 import socket
 import subprocess
 import sys
@@ -168,6 +169,22 @@ class SerialLoginDeadline(unittest.TestCase):
                             shell.login('writer', 'synthetic-password', timeout=120)
                         self.assertEqual(clock[0], 1120)
                 self.assertEqual(serial.send.call_count, 4)
+
+
+class SparseDiskDigest(unittest.TestCase):
+    def test_unavailable_extent_queries_cannot_report_an_unchanged_disk(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'target'
+            path.write_bytes(b'actual target data')
+            for code in (errno.EINVAL, errno.EIO):
+                with self.subTest(errno=code), mock.patch.object(vm.os, 'lseek', side_effect=OSError(code, 'extent query failed')):
+                    with self.assertRaises(OSError) as caught:
+                        vm.sparse_digest(path)
+                    self.assertEqual(caught.exception.errno, code)
+            path.write_bytes(b'\0' * 4096)
+            expected = vm.sparse_digest(path)
+            with mock.patch.object(vm.os, 'lseek', side_effect=OSError(errno.ENXIO, 'no more data')):
+                self.assertEqual(vm.sparse_digest(path), expected)
 
 
 class MachineStartup(unittest.TestCase):

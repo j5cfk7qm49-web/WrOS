@@ -10,6 +10,7 @@ by a kernel argument or a file on the media.
 The module is import-safe on a host without QEMU; only Machine.start() needs it.
 """
 import base64
+import errno
 import gzip
 import hashlib
 import json
@@ -60,7 +61,9 @@ def sparse_digest(path, block=4096, window=1 << 22):
         while offset < end:
             try:
                 start = os.lseek(stream.fileno(), offset, os.SEEK_DATA)
-            except OSError:  # ENXIO: no more data
+            except OSError as error:
+                if error.errno != errno.ENXIO:
+                    raise
                 break
             stop = os.lseek(stream.fileno(), start, os.SEEK_HOLE)
             position = start
