@@ -34,6 +34,11 @@ class EncryptedBackup(unittest.TestCase):
     def initialize(self):
         return self.service.configure(str(self.repo))
 
+    def connect_test_drive(self):
+        token = {'access_token': 'test-access', 'refresh_token': 'test-grant', 'expiry': '2027-01-01T00:00:00Z'}
+        with mock.patch.object(module, 'classify_rclone_failure', return_value=(True, b'{"total":1000}', '')):
+            self.service.connect_google(json.dumps(token))
+
     def test_encrypted_snapshot_restores_after_original_is_deleted_and_key_is_imported(self):
         result = self.initialize()
         key = Path(result['recovery_key'])
@@ -453,10 +458,10 @@ class EncryptedBackup(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Choose a file or folder'):
             self.service.drive_materialize('drive:', str(self.base / 'x'), str(self.project))
 
-        # Connect synthetic Google configuration.
-        module.write_private(self.service.google, b'[wros-google]\ntype = drive\nscope = drive.file\n', exclusive=True)
+        self.connect_test_drive()
+        text = b'# Materialized Outline\n\n1. Act One\n'
         listing_json = json.dumps([
-            {'Name': 'Outline.md', 'Path': 'Outline.md', 'Size': 25, 'ModTime': '2026-10-31T10:00:00Z', 'IsDir': False},
+            {'Name': 'Outline.md', 'Path': 'Outline.md', 'Size': len(text), 'ModTime': '2026-10-31T10:00:00Z', 'IsDir': False},
             {'Name': 'ResearchFolder', 'Path': 'ResearchFolder', 'Size': 0, 'ModTime': '2026-10-31T09:00:00Z', 'IsDir': True},
         ]).encode('utf-8')
         with mock.patch.object(module, 'classify_rclone_failure', return_value=(True, listing_json, '')) as rclone_mock:
@@ -479,7 +484,6 @@ class EncryptedBackup(unittest.TestCase):
             self.service.drive_materialize('drive:WrOS-Library/Outline.md', str(existing_file), str(self.project))
 
         # A copy is checked against Drive's checksum before it is kept.
-        text = b'# Materialized Outline\n\n1. Act One\n'
         def fake_rclone(remote_md5):
             def run(args, env):
                 if args[0] == 'copyto':
@@ -507,6 +511,16 @@ class EncryptedBackup(unittest.TestCase):
         self.assertTrue(outline['cached'])
         self.assertEqual(outline['local'], str(dest))
 
+        uncached = self.base / 'materialized-without-cache.md'
+        with mock.patch.object(module, 'classify_rclone_failure',
+                               side_effect=fake_rclone(hashlib.md5(text).hexdigest())), \
+             mock.patch.object(module, 'atomic_private', side_effect=OSError('cache is read-only')):
+            mat = self.service.drive_materialize('drive:WrOS-Library/Outline.md', str(uncached), str(self.project))
+        self.assertIn('checked against Google Drive', mat['notice'])
+        self.assertIn('could not save the copy location', mat['notice'])
+        self.assertEqual(uncached.read_bytes(), text)
+        self.assertEqual(dest.read_bytes(), text)
+
         # The top of the Drive lists; a Google Doc is marked as one.
         top = json.dumps([
             {'Name': 'Novel', 'Size': 0, 'ModTime': '2026-10-31T09:00:00Z', 'IsDir': True,
@@ -527,6 +541,146 @@ class EncryptedBackup(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'expired or was revoked'):
                 self.service.drive_list('drive:WrOS-Library')
         self.assertEqual(self.service.google_meta['state'], 'reauthorization-required')
+
+    def test_drive_relink_does_not_show_the_previous_grants_listing_or_copies(self):
+        contents = b'# Old account draft\n'
+        modified = '2026-11-01T10:00:00Z'
+        target = self.base / 'previous-local-draft.md'
+        token = {'access_token': 'test-access-a', 'refresh_token': 'test-grant-a', 'expiry': modified}
+
+        def rclone(args, env):
+            if args[0] == 'about':
+                return True, b'{"total":1000}', ''
+            if args == ['lsjson', 'wros-google:']:
+                return True, json.dumps([{'Name': 'Draft.md', 'Size': len(contents), 'ModTime': modified}]).encode(), ''
+            if args[:2] == ['copyto', 'wros-google:Draft.md']:
+                Path(args[2]).write_bytes(contents)
+                return True, b'', ''
+            self.assertEqual(args, ['lsjson', '--hash', '--stat', 'wros-google:Draft.md'])
+            return True, json.dumps({'Hashes': {'md5': hashlib.md5(contents).hexdigest()}}).encode(), ''
+
+        with mock.patch.object(module, 'classify_rclone_failure', side_effect=rclone):
+            self.service.connect_google(json.dumps(token))
+            self.service.drive_list('drive:')
+            self.service.drive_materialize('drive:Draft.md', str(target))
+            refreshed = self.service.connect_google(json.dumps(token | {'access_token': 'test-access-refreshed'}))
+            self.assertEqual(refreshed['drive_entries'][0]['local'], str(target))
+
+            relinked = self.service.connect_google(json.dumps(token | {'refresh_token': 'test-grant-b'}))
+            self.assertEqual(relinked['drive_entries'], [])
+            self.assertEqual(relinked['drive_folder'], '')
+            reopened = module.Service(self.service.state)
+            self.assertEqual(reopened.status(refresh=False)['drive_entries'], [])
+            row, = reopened.drive_list('drive:')['drive_entries']
+            self.assertFalse(row['cached'])
+            self.assertEqual(row['local'], '')
+            self.assertEqual(reopened.disconnect_google()['drive_entries'], [])
+        self.assertEqual(target.read_bytes(), contents)
+
+    def test_missing_drive_paths_and_a_file_removed_during_copy_do_not_mark_drive_offline(self):
+        # Exercise the installed rclone and its exit codes using a disposable local remote.
+        remote = self.base / 'fake-drive'
+        remote.mkdir()
+        module.write_private(self.service.google,
+                             f'[wros-google]\ntype = alias\nremote = {remote}\n'.encode(), exclusive=True)
+        target = self.base / 'local-copy.md'
+        with self.assertRaisesRegex(ValueError, 'could not be found on Google Drive'):
+            self.service.drive_list('drive:Missing folder')
+        with self.assertRaisesRegex(ValueError, 'could not be found on Google Drive'):
+            self.service.drive_materialize('drive:Missing.md', str(target))
+
+        source = remote / 'Removed.md'
+        source.write_bytes(b'copy stage must not be kept')
+        run_rclone = module.classify_rclone_failure
+
+        def remove_after_copy(args, env):
+            result = run_rclone(args, env)
+            if args[0] == 'copyto' and result[0]:
+                source.unlink()
+            return result
+
+        with mock.patch.object(module, 'classify_rclone_failure', side_effect=remove_after_copy):
+            with self.assertRaisesRegex(ValueError, 'could not be found on Google Drive'):
+                self.service.drive_materialize('drive:Removed.md', str(target))
+        self.assertFalse(target.exists())
+        self.assertFalse(list(self.base.glob('.wros-drive-materialize-*')))
+        self.assertEqual(module.Service(self.service.state).status(refresh=False)['google_state'], 'connected')
+
+    def test_drive_keeps_literal_names_and_new_cache_markers_do_not_collide_with_legacy_paths(self):
+        self.connect_test_drive()
+        previous = self.base / 'existing-local-copy'
+        previous.write_bytes(b'old copy')
+        legacy = self.service.state / 'drive-cache'
+        legacy.mkdir(mode=0o700)
+        marker = legacy / 'Novel.json'
+        record = json.dumps({'version': 1, 'remote': 'drive:Novel', 'local_target': str(previous),
+                             'size': len(b'old copy'), 'modified': '2026-11-01T10:00:00Z'}).encode()
+        module.write_private(marker, record, exclusive=True)
+        unscoped = self.service.state / 'drive-browser.json'
+        old_listing = b'{"version":1,"folder":"drive:Old","entries":[{"path":"drive:Old/Novel"}]}'
+        module.write_private(unscoped, old_listing, exclusive=True)
+        self.assertEqual(module.Service(self.service.state).status(refresh=False)['drive_entries'], [])
+        spaced_name = ' Draft.md '
+        text = b'# The requested draft\n'
+        modified = '2026-11-02T10:00:00Z'
+
+        def rclone(args, env):
+            if args == ['lsjson', 'wros-google:']:
+                return True, json.dumps([
+                    {'Name': 'Novel', 'Size': len(b'old copy'), 'ModTime': '2026-11-01T10:00:00Z'},
+                    {'Name': 'Novel.json', 'IsDir': True},
+                ]).encode(), ''
+            if args == ['lsjson', 'wros-google:Novel.json']:
+                return True, json.dumps([
+                    {'Name': spaced_name, 'Size': len(text), 'ModTime': modified},
+                ]).encode(), ''
+            if args[:2] == ['copyto', 'wros-google:Novel.json/' + spaced_name]:
+                Path(args[2]).write_bytes(text)
+                return True, b'', ''
+            self.assertEqual(args, ['lsjson', '--hash', '--stat', 'wros-google:Novel.json/' + spaced_name])
+            return True, json.dumps({'Hashes': {'md5': hashlib.md5(text).hexdigest()}}).encode(), ''
+
+        with mock.patch.object(module, 'classify_rclone_failure', side_effect=rclone):
+            root = self.service.drive_list('drive:')
+            self.assertEqual(next(e for e in root['drive_entries'] if e['name'] == 'Novel')['local'], '')
+            entry, = self.service.drive_list('drive:Novel.json')['drive_entries']
+            self.assertEqual(entry['path'], 'drive:Novel.json/' + spaced_name)
+            target = self.base / 'working-draft.md'
+            result = self.service.drive_materialize(entry['path'], str(target), str(self.project))
+            self.assertIn('checked against Google Drive', result['notice'])
+            reopened = module.Service(self.service.state)
+            updated, = reopened.drive_list('drive:Novel.json')['drive_entries']
+            self.assertTrue(updated['cached'])
+            self.assertEqual(updated['local'], str(target))
+        self.assertEqual(target.read_bytes(), text)
+        self.assertEqual(marker.read_bytes(), record)
+        self.assertEqual(unscoped.read_bytes(), old_listing)
+        self.assertEqual(previous.read_bytes(), b'old copy')
+
+    def test_an_export_without_a_drive_checksum_is_only_a_local_copy(self):
+        self.connect_test_drive()
+        target = self.base / 'exported.docx'
+        listing = json.dumps([{'Name': 'Notes.docx', 'Size': -1, 'ModTime': '2026-11-01T10:00:00Z',
+                               'MimeType': 'application/vnd.google-apps.document'}]).encode()
+
+        def rclone(args, env):
+            if args == ['lsjson', 'wros-google:']:
+                return True, listing, ''
+            if args[0] == 'copyto':
+                Path(args[2]).write_bytes(b'exported text')
+                return True, b'', ''
+            return True, b'{"Hashes":{}}', ''
+
+        with mock.patch.object(module, 'classify_rclone_failure', side_effect=rclone):
+            self.service.drive_list('drive:')
+            result = self.service.drive_materialize('drive:Notes.docx', str(target))
+            entry, = result['drive_entries']
+            self.assertFalse(entry['cached'])
+            self.assertEqual(entry['local'], str(target))
+            entry, = module.Service(self.service.state).drive_list('drive:')['drive_entries']
+            self.assertFalse(entry['cached'])
+            self.assertEqual(entry['local'], str(target))
+        self.assertEqual(target.read_bytes(), b'exported text')
 
 
 

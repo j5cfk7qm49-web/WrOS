@@ -76,6 +76,26 @@ impl Counts {
             ..self
         }
     }
+    /// Recorded word additions under the selected footnote policy.
+    pub fn added_words(self, footnotes: bool) -> i128 {
+        i128::from(self.added)
+            + if footnotes {
+                i128::from(self.foot_added)
+            } else {
+                0
+            }
+    }
+
+    /// Recorded word removals under the selected footnote policy.
+    pub fn removed_words(self, footnotes: bool) -> i128 {
+        i128::from(self.removed)
+            + if footnotes {
+                i128::from(self.foot_removed)
+            } else {
+                0
+            }
+    }
+
     pub fn net(self, footnotes: bool) -> i128 {
         self.added as i128 - self.removed as i128 + self.from_footnote as i128
             - self.to_footnote as i128

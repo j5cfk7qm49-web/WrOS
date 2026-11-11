@@ -383,6 +383,23 @@ pub struct CodexPane {
     pub scroll: usize,
 }
 
+impl CodexPane {
+    pub fn appearances_layout(&self, inner: Rect) -> (Rect, std::ops::Range<usize>) {
+        let height = (self.appears.len() + 2)
+            .min(usize::from(inner.height / 2))
+            .max(3)
+            .min(usize::from(inner.height)) as u16;
+        let area = Rect {
+            y: inner.bottom().saturating_sub(height),
+            height,
+            ..inner
+        };
+        let room = usize::from(height.saturating_sub(1));
+        let start = self.sel.saturating_sub(room.saturating_sub(1));
+        (area, start..(start + room).min(self.appears.len()))
+    }
+}
+
 /// A second scene shown read-only beside the one being written, for
 /// continuity. Held by path so it survives the tree being re-read.
 #[derive(Debug, Clone, PartialEq)]
@@ -848,7 +865,8 @@ impl App {
             .iter()
             .position(|n| n.area == project::Area::Format && n.kind == Kind::Scene)
             .filter(|_| never_opened);
-        let baseline = load_baseline(&project)?;
+        let baseline_date = today_string();
+        let baseline = load_baseline(&project, &baseline_date)?;
         // Open the first scene straight away so launching lands you on prose
         // rather than an empty pane. Focus stays on the tree, so a stray
         // keystroke can't wander into the manuscript.
@@ -903,7 +921,7 @@ impl App {
             editor: productivity::source_editor(""),
             focus: Focus::Tree,
             baseline,
-            baseline_date: today_string(),
+            baseline_date,
             msg: String::new(),
             quit: false,
             edit_width: 60,
@@ -1414,11 +1432,12 @@ impl App {
         false
     }
 
-    /// Called every tick: save once typing has paused, or once changes have
-    /// waited too long.
     /// "Today" starts again at midnight, even with Grimoire left open.
     pub fn tick_today(&mut self) {
-        let date = today_string();
+        self.tick_today_at(today_string());
+    }
+
+    fn tick_today_at(&mut self, date: String) {
         if date != self.baseline_date {
             // The day that's ending goes into the Progress page's record.
             self.note_day(true);
@@ -1477,9 +1496,7 @@ impl App {
     }
 
     fn set_baseline(&mut self, n: usize) {
-        if n == self.baseline {
-            return;
-        }
+        // A new date needs its own baseline even if the word total stayed the same.
         self.baseline = n;
         let dir = self.project.root.join(".grimoire");
         write_baseline(&dir, &dir.join("progress.toml"), &self.baseline_date, n);
@@ -2623,6 +2640,25 @@ impl App {
     }
 
     fn replace_in_book(&mut self, query: &str, with: &str) {
+        let opts = self.find_opts;
+        let (total, scenes) = self.replace_book_sources(
+            format!("replace “{query}” with “{with}”"),
+            false,
+            |editor| editor.replace_matches(query, with, opts),
+        );
+        let m = self.mod_label();
+        self.msg = format!(
+            "replaced {total} in {scenes} scene{} — {m}Z takes back all of it",
+            if scenes == 1 { "" } else { "s" }
+        );
+    }
+
+    fn replace_book_sources(
+        &mut self,
+        what: String,
+        manuscript_only: bool,
+        replace: impl Fn(&mut Editor) -> usize,
+    ) -> (usize, usize) {
         self.flush();
         let root = self.project.root.clone();
         let mut changed = Vec::new();
@@ -2632,13 +2668,17 @@ impl App {
             if self.project.nodes[i].kind != Kind::Scene
                 || self.project.in_trash(i)
                 || self.project.nodes[i].read_only
+                || (manuscript_only && !self.project.nodes[i].in_manuscript)
             {
                 continue;
             }
             let before = self.project.nodes[i].body.clone();
             let mut meter = Editor::from_text(&before);
             meter.measure_operations(self.productivity.tracking());
-            let n = meter.replace_matches(query, with, self.find_opts);
+            let n = replace(&mut meter);
+            if n == 0 {
+                continue;
+            }
             let text = meter.text();
             let counts = if self.productivity.tracking() {
                 meter.take_mutations().into_iter().fold(
@@ -2655,9 +2695,6 @@ impl App {
                     ..Default::default()
                 }
             };
-            if n == 0 {
-                continue;
-            }
             // Every scene's version from before goes into its history.
             let path = self.project.nodes[i].path.clone();
             let _ = history::snapshot(&root, &path, &self.project.nodes[i].file_text(), None);
@@ -2672,16 +2709,12 @@ impl App {
         self.commit_saves();
         if scenes > 0 {
             self.record(TreeStep::Replaced {
-                what: format!("replace “{query}” with “{with}”"),
+                what,
                 scenes: changed,
                 metrics,
             });
         }
-        let m = self.mod_label();
-        self.msg = format!(
-            "replaced {total} in {scenes} scene{} — {m}Z takes back all of it",
-            if scenes == 1 { "" } else { "s" }
-        );
+        (total, scenes)
     }
 
     /// Put each scene a book-wide replace changed back to `to` (from `from`).
@@ -3697,26 +3730,11 @@ impl App {
     }
 
     fn fix_name(&mut self, variant: &str, name: &str) {
-        let root = self.project.root.clone();
-        let mut total = 0;
-        for i in 0..self.project.nodes.len() {
-            let n = &self.project.nodes[i];
-            if n.kind != Kind::Scene || !n.in_manuscript || self.project.in_trash(i) || n.read_only
-            {
-                continue;
-            }
-            let (text, count) = search::replace_word(&n.body, variant, name);
-            if count == 0 {
-                continue;
-            }
-            let path = n.path.clone();
-            let _ = history::snapshot(&root, &path, &n.file_text(), None);
-            self.project.nodes[i].body = text;
-            self.update_document_editor(i);
-            self.mark_changed(i);
-            total += count;
-        }
-        self.commit_saves();
+        let (total, _) = self.replace_book_sources(
+            format!("fix “{variant}” to “{name}”"),
+            true,
+            |editor| editor.replace_name(variant, name),
+        );
         self.msg = format!(
             "{variant} → {name} in {total} place{}",
             if total == 1 { "" } else { "s" }
@@ -3875,6 +3893,7 @@ impl App {
             String::new()
         };
         self.msg = format!("made {made}{next}{also}");
+        self.back_to_cork(Some(&path));
     }
 
     // ---- renaming and deleting ---------------------------------------------
@@ -3973,6 +3992,7 @@ impl App {
             }
             self.msg = format!("renamed to {}", self.project.nodes[i].title);
         }
+        self.back_to_cork(Some(&to));
     }
 
     pub fn start_delete(&mut self) {
@@ -5014,17 +5034,14 @@ impl App {
         } else if hit(self.rect_codex, x, y) && self.codex.is_some() {
             self.flush();
             self.focus = Focus::Codex;
-            // A click on an "appears in" row opens that scene.
-            let list_top = self.rect_codex.y
-                + self
-                    .rect_codex
-                    .height
-                    .saturating_sub(self.codex.as_ref().map_or(0, |p| p.appears.len() as u16));
-            if y >= list_top
-                && let Some(pane) = &mut self.codex
-            {
-                pane.sel = (y - list_top) as usize;
-                self.on_codex_key(Key::Enter);
+            if let Some(pane) = &mut self.codex {
+                let (list, mut visible) = pane.appearances_layout(self.rect_codex);
+                if let Some(row) = y.checked_sub(list.y.saturating_add(1))
+                    && let Some(index) = visible.nth(usize::from(row))
+                {
+                    pane.sel = index;
+                    self.on_codex_key(Key::Enter);
+                }
             }
         } else if hit(self.rect_beside, x, y) && self.beside.is_some() {
             self.flush();
@@ -5960,8 +5977,7 @@ fn today_string() -> String {
 /// doesn't make "today" jump.
 const COUNT_RULE: u32 = 2;
 
-fn load_baseline(project: &Project) -> Result<usize> {
-    let today = today_string();
+fn load_baseline(project: &Project, today: &str) -> Result<usize> {
     let dir = project.root.join(".grimoire");
     let path = dir.join("progress.toml");
     let total = project.total_words();
@@ -5989,13 +6005,13 @@ fn load_baseline(project: &Project) -> Result<usize> {
                     .map(|n| n.body.split_whitespace().count())
                     .sum();
                 baseline = (baseline + total).saturating_sub(before);
-                write_baseline(&dir, &path, &today, baseline);
+                write_baseline(&dir, &path, today, baseline);
             }
             return Ok(baseline);
         }
     }
 
-    write_baseline(&dir, &path, &today, total);
+    write_baseline(&dir, &path, today, total);
     Ok(total)
 }
 
@@ -6134,19 +6150,64 @@ mod today_tests {
     fn a_new_counting_rule_mid_day_leaves_today_where_it_was() {
         let d = book("rule");
         let p = Project::load(&d).unwrap();
+        let today = today_string();
         assert_eq!(p.total_words(), 11);
         // This morning, counted the old way, the book stood at 12: today +3.
         fs::create_dir_all(d.join(".grimoire")).unwrap();
         fs::write(
             d.join(".grimoire/progress.toml"),
-            format!("date = \"{}\"\nbaseline = 12\n", today_string()),
+            format!("date = \"{today}\"\nbaseline = 12\n"),
         )
         .unwrap();
-        let baseline = load_baseline(&p).unwrap();
+        let baseline = load_baseline(&p, &today).unwrap();
         assert_eq!(p.total_words() as i64 - baseline as i64, 3);
         // Written back under the new rule, so it isn't moved twice.
-        assert_eq!(load_baseline(&p).unwrap(), baseline);
+        assert_eq!(load_baseline(&p, &today).unwrap(), baseline);
         let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn today_matches_the_progress_log_after_reopening_a_book_left_open_at_midnight() {
+        let root = book("midnight");
+        let mut app = App::with(
+            Project::load(&root).unwrap(),
+            Setup {
+                music: music::Config::default(),
+                theme: theme::default_theme(),
+                settings: Settings::default(),
+                background: false,
+            },
+        )
+        .unwrap();
+        app.baseline_date = "2026-11-08".into();
+        let dir = root.join(".grimoire");
+        write_baseline(
+            &dir,
+            &dir.join("progress.toml"),
+            &app.baseline_date,
+            app.baseline,
+        );
+
+        let today = "2026-11-09";
+        app.tick_today_at(today.into());
+        app.overlay = Overlay::None;
+        app.focus = app.editor_focus();
+        app.editor.scene_end();
+        app.paste("\n\n[^note]: Two words.\n");
+        assert!(app.commit_saves());
+        app.note_day(true);
+        let log = grimoire_core::days::read(&root);
+        assert_eq!(log.len(), 1);
+        assert_eq!(log[0].written, 3); // Native count includes the definition marker.
+        assert_eq!(app.today_words(), log[0].written);
+
+        let reopened = Project::load(&root).unwrap();
+        let baseline = load_baseline(&reopened, today).unwrap();
+        assert_eq!(
+            reopened.total_words() as i64 - baseline as i64,
+            log[0].written
+        );
+        let _ = fs::remove_dir_all(&root);
     }
 }
 

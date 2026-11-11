@@ -28,9 +28,27 @@
   "vcpus": 2,
   "cpu_model": "Nehalem (no AVX)",
   "acceleration": "TCG",
-  "installer_question_verified": false,
-  "corrected_installer_iso_verified": false,
+  "installer_question_verified": true,
+  "corrected_installer_iso_verified": true,
   "physical_keyboard_verified": false,
   "production_release_qualified": false,
+  "installer_first_boot": {
+    "install_run": "install-20261106T075438Z",
+    "install_result_sha256": "dffd9d83ea3a0523b9492faef0cf414dceff98314b2b5981b1e9147f1452eabf",
+    "iso_sha256": "bf6cb50714d52da4328d9725303d75a9c0f2fafeacce05953be4b15064d4007b",
+    "iso_source_commit": "09ec6bdbf4aad7b166831190401283c2dac957df",
+    "installed_package": "0.1.0~rc1",
+    "first_boot_run": "installer-keyboard-first-boot-20261110T065318Z",
+    "first_boot_result_sha256": "2de5d2a3da289b34aef8bbb0f086b60689797761198d4c3ebc5434ebd0bb644d",
+    "passed": true,
+    "network_devices": 0,
+    "target_storage": "Copy-on-write overlay of the completed installation",
+    "checks": [
+      "Selected Colemak at Debian Installer's extended keyboard question.",
+      "The first disk unlock rejected the passphrase typed as QWERTY and accepted it as Colemak.",
+      "Debian's keyboard file, WrOS's installer-adopted preference and the tty1 keymap all used Colemak.",
+      "The greeter rejected the wrong password and accepted the correct password typed as Colemak."
+    ]
+  },
   "earlier_fixture_failures": "Retained: missing Debian ORDER file; klibc mount invocation; unavailable cp command; Windows-mount ENODATA; primary serial console stalling console-setup. No production helper limit, keymap assertion or rollback budget was relaxed."
 }

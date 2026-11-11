@@ -38,6 +38,8 @@ ARCHIVE_LIMIT = 1024 * 1024 * 1024
 DEFAULT_KEYRING = Path('/usr/share/keyrings/wros-archive-keyring.gpg')
 DEFAULT_SIGNERS = Path('/usr/share/wros/update-signers')
 PACKAGE_KEYRING = Path('/usr/share/wros/update-keyring.gpg')
+KEYRING_LIMIT = 1024 * 1024
+RETAINED_KEYRING = 'rollback-keyring'
 DEFAULT_STATE_DIR = Path('/var/lib/wros-update')
 DEFAULT_TRIGGER = Path('/system-update')
 DEFAULT_DPKG_DIR = Path('/var/lib/dpkg')
@@ -501,13 +503,53 @@ def keyring_primary_fingerprints(data):
     return primaries
 
 
+def pinned_keyring(data, pins):
+    primaries = keyring_primary_fingerprints(data)
+    if not primaries or set(primaries) - pins:
+        fail('update keyring holds a primary key the signer pin does not name')
+    return data
+
+
+def supplemental_keyring(path, pins, *, retained=False):
+    if path is None or not os.path.lexists(path):
+        return None
+    try:
+        limit = KEYRING_LIMIT + 129 if retained else KEYRING_LIMIT
+        require_trusted_file(path, 'supplemental update keyring', limit)
+        data = read_regular_bytes(path, limit)
+        if retained:
+            version, separator, data = data.partition(b'\n')
+            version = version.decode('ascii')
+            if not separator or VERSION_RE.fullmatch(version) is None or len(data) > KEYRING_LIMIT:
+                fail('invalid retained update keyring version')
+            return version, pinned_keyring(data, pins)
+        return pinned_keyring(data, pins)
+    except (OSError, ValueError) as exc:
+        print(f'wros-update: ignoring {path}: {exc}', file=sys.stderr)
+        return None
+
+
+def retain_rollback_keyring(store, signers, installed_version):
+    if installed_version is None:
+        return
+    path = store.dir / RETAINED_KEYRING
+    pins = load_pinned_signers(signers)
+    retained = supplemental_keyring(path, pins, retained=True)
+    if retained and compare_dpkg_versions(retained[0], 'gt', installed_version):
+        return  # already going back from a newer release
+    data = supplemental_keyring(PACKAGE_KEYRING, pins)
+    if data is not None:
+        atomic_write(path, installed_version.encode('ascii') + b'\n' + data, mode=0o644)
+
+
 def verify_signed_metadata(meta, keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNERS, package_keyring=None):
     """gpgv against the WrOS keyrings only, then compare the PRIMARY fingerprint to the pins.
 
     The image keyring and pin are image inputs no package can replace. A `wros`
     package may add PACKAGE_KEYRING to bring a new signing subkey, but only if every
-    primary key in it is pinned. With the system keyring, the package keyring is used
-    by default; callers passing their own keyring opt in explicitly.
+    primary key in it is pinned. The system uses the current package keyring or the
+    retained keyring of the newer package it rolled back from. Callers supplying
+    their own keyring can opt into a supplemental keyring explicitly.
 
     meta is {'InRelease': bytes} or {'Release': bytes, 'Release.gpg': bytes}; the very
     bytes verified are the bytes parsed.  Returns (primary_fingerprint, release_text).
@@ -515,21 +557,19 @@ def verify_signed_metadata(meta, keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNER
     pins = load_pinned_signers(signers)
     keyring = Path(keyring)
     require_trusted_file(keyring, 'update verification keyring')
+    retained = None
     if package_keyring is None and keyring == DEFAULT_KEYRING:
         package_keyring = PACKAGE_KEYRING
-    extra = []
-    if package_keyring is not None and os.path.lexists(package_keyring):
-        # A bad package keyring is set aside, never given to gpgv: it lends no trust, and an
-        # update signed by the pinned primary (which could repair it) still verifies.
-        package_keyring = Path(package_keyring)
-        try:
-            require_trusted_file(package_keyring, 'packaged update keyring')
-            primaries = keyring_primary_fingerprints(package_keyring.read_bytes())
-            if not primaries or set(primaries) - set(pins):
-                fail('update keyring holds a primary key the signer pin does not name')
-            extra = ['--keyring', str(package_keyring)]
-        except (OSError, ValueError) as exc:
-            print(f'wros-update: ignoring {package_keyring}: {exc}', file=sys.stderr)
+        retained = supplemental_keyring(DEFAULT_STATE_DIR / RETAINED_KEYRING, pins, retained=True)
+    # Once a newer package is installed, use its keyring alone so revoked or
+    # retired subkeys do not survive in an indefinitely accumulated keyring.
+    extra_data = None
+    if retained:
+        installed = load_installed_dpkg_database().get('wros', {}).get('version')
+        if installed is not None and compare_dpkg_versions(installed, 'lt', retained[0]):
+            extra_data = retained[1]
+    if extra_data is None:
+        extra_data = supplemental_keyring(package_keyring, pins)
     if 'InRelease' in meta:
         names = ['InRelease']
         cmd_tail = ['InRelease']
@@ -544,6 +584,11 @@ def verify_signed_metadata(meta, keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNER
         directory = Path(temporary)
         for name in names:
             (directory / name).write_bytes(meta[name])
+        extra = []
+        if extra_data is not None:
+            supplemental = directory / 'supplemental.gpg'
+            supplemental.write_bytes(extra_data)
+            extra = ['--keyring', str(supplemental)]
         result = subprocess.run(
             ['/usr/bin/gpgv', '--status-fd', '1', '--keyring', str(keyring), *extra, *cmd_tail],
             cwd=directory,
@@ -864,10 +909,10 @@ def verify_open_bundle(bundle, *, keyring, signers, dpkg_dir, now, host_arch, la
     if last_applied is not None and release.get('date') <= last_applied:
         fail('update bundle is not newer than the last applied update (replay refused)')
     packages_rel = select_packages_entry(release['entries'])
-    if not bundle.exists('Packages'):
+    if not bundle.exists(packages_rel):
         fail('signed Release metadata does not authenticate a Packages index in this bundle')
     expected_pkg_sha, expected_pkg_size = release['entries'][packages_rel]
-    packages_raw = bundle.read('Packages', LIMIT)
+    packages_raw = bundle.read(packages_rel, LIMIT)
     if hashlib.sha256(packages_raw).hexdigest() != expected_pkg_sha or len(packages_raw) != expected_pkg_size:
         fail('Packages index SHA-256 or byte size does not match signed Release metadata')
     packages = parse_packages_index(packages_raw.decode('utf-8', errors='strict'))
@@ -2063,6 +2108,9 @@ def apply_staged_transaction(*, state_dir, trigger_path, dpkg_dir, runner, now, 
                 if details['manifest'].get('live_apply') is not True or not still:
                     fail(f'this update needs a restart to install ({reason or "it was staged for one"})')
             plan_with_apt(deb_paths, packages, dpkg_dir, store.work, allow_downgrades=going_back)
+            if going_back and keyring == DEFAULT_KEYRING and any(p['name'] == 'wros' for p in packages):
+                installed_wros = load_installed_dpkg_database(dpkg_dir).get('wros', {}).get('version')
+                retain_rollback_keyring(store, signers, installed_wros)
         except ValueError as exc:
             if live:
                 raise  # nothing was journaled or removed: it stays staged for the restart

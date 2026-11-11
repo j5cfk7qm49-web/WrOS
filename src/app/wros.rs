@@ -493,11 +493,14 @@ impl App {
         }
     }
 
-    /// Acts on `power_event`. False means it has to wait (a backup is running)
-    /// and should be asked again.
+    /// Acts on `power_event`. False means the event must be retried after
+    /// the current system or backup operation finishes.
     pub(crate) fn request_power_lock(&mut self, sleep: bool) -> bool {
         if sleep {
             return self.request_suspend();
+        }
+        if self.deck.busy {
+            return false;
         }
         self.request_console_lock();
         true

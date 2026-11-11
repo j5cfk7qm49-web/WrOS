@@ -59,7 +59,7 @@ impl App {
                 Overlay::Create { .. } | Overlay::Rename { .. } | Overlay::Confirm { .. }
             )
         {
-            self.back_to_cork();
+            self.back_to_cork(None);
         }
     }
 

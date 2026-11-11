@@ -247,7 +247,9 @@ pub(super) fn draw_sessions(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             if items.is_empty() {
                 lines.push(Line::from(Span::styled(" no scenes or notes changed", dim)));
             }
-            for (i, c) in items.iter().enumerate().take(room.saturating_sub(2)) {
+            let visible = room.saturating_sub(2);
+            let start = csel.saturating_sub(visible.saturating_sub(1));
+            for (i, c) in items.iter().enumerate().skip(start).take(visible) {
                 let on = i == *csel;
                 let delta = c.words_after as i64 - c.words_before as i64;
                 let what = match &c.kind {

@@ -3042,6 +3042,7 @@ dependencies = [
  "signal-hook",
  "tachyonfx",
  "taria-ratatui",
+ "tempfile",
  "ureq",
  "vt100",
  "wayland-client",

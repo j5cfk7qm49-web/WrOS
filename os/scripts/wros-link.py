@@ -6,7 +6,7 @@ The laptop shows a QR code for https://…/WrOS/l/#<challenge>.<address>.<user c
 signs in once, with full Drive access, and Google answers the site's /link/ page with a code for
 the laptop and a short-lived token for the page. The page saves the code in the writer's Drive
 as "WrOS linking <key>", then offers two ways back:
-- Wi-Fi: "Finish linking" opens http://<address>/linked?code=… on this laptop's listener.
+- Wi-Fi: "Finish linking" sends the code and this session's challenge to the laptop's listener.
 - Anywhere: the writer approves the laptop's own limited sign-in (Google's device page, with the
   user code this laptop shows). That sign-in can see only files WrOS made, so it finds the saved
   code, reads it and deletes it.
@@ -19,6 +19,7 @@ WrOS updates replace only the wros package and cannot bring a QR library with th
 """
 import base64
 import hashlib
+import hmac
 import ipaddress
 import json
 import secrets
@@ -350,7 +351,7 @@ def local_address():
 
 
 class Listener:
-    """http://<address>:<port>/linked?code=… for the phone's "Finish linking"; one code, then closed."""
+    """Accept the phone's "Finish linking" callback for this session."""
 
     PAGE = ('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">'
             '<title>WrOS</title><body style="font:20px system-ui;background:#111;color:#eee;margin:32px 16px">'
@@ -363,7 +364,7 @@ class Listener:
         self.server.listen(4)
         self.address = self.server.getsockname()
 
-    def wait(self, seconds):
+    def wait(self, seconds, state):
         """(code, answer) for a well-formed /linked request within `seconds`, else (None, None)."""
         self.server.settimeout(max(seconds, 0.01))
         try:
@@ -381,11 +382,14 @@ class Listener:
             line = request.split(b'\r\n', 1)[0].decode('ascii', 'replace').split(' ')
             if len(line) == 3 and line[0] == 'GET':
                 target = urllib.parse.urlsplit(line[1])
-                code = urllib.parse.parse_qs(target.query).get('code', [''])[0]
-                if target.path == '/linked' and 10 <= len(code) <= 512 and code.isprintable() and ' ' not in code:
+                query = urllib.parse.parse_qs(target.query)
+                code = query.get('code', [''])[0]
+                returned_state = query.get('state', [''])[0]
+                if (target.path == '/linked' and hmac.compare_digest(returned_state.encode(), state.encode())
+                        and 10 <= len(code) <= 512 and all(32 < ord(ch) < 127 for ch in code)):
                     return code, lambda text: self.answer(client, 200, text)
             self.answer(client, 404, 'This is not a WrOS linking address.')
-        except OSError:
+        except (OSError, ValueError):
             client.close()
         return None, None
 
@@ -435,7 +439,8 @@ class Link:
         self.http, self.clock, self.sleep = http, clock, sleep
         self.listener, self.offer = listener, offer
         self.verifier = verifier or secrets.token_urlsafe(48)
-        self.key = MAILBOX_PREFIX + challenge(self.verifier)[:16]
+        self.challenge = challenge(self.verifier)
+        self.key = MAILBOX_PREFIX + self.challenge[:16]
         self.answer = None
 
     def run(self):
@@ -444,7 +449,7 @@ class Link:
         if status != 200 or not isinstance(device.get('user_code'), str):
             raise ValueError('Google did not start the sign-in; check the network and try again.')
         address = pack_address(*self.listener.address) if self.listener else '-'
-        url = f"{PAGES}/l/#{challenge(self.verifier)}.{address}.{device['user_code']}"
+        url = f"{PAGES}/l/#{self.challenge}.{address}.{device['user_code']}"
         self.offer({'link': url, 'code': device['user_code'], 'qr': qr_rows(url)})
         interval = max(int(device.get('interval', 5)), 5)
         deadline = self.clock() + min(LINK_SECONDS, int(device.get('expires_in', LINK_SECONDS)))
@@ -452,14 +457,19 @@ class Link:
         while self.clock() < deadline:
             started = self.clock()
             if self.listener:
-                code, answer = self.listener.wait(interval)
+                code, answer = self.listener.wait(interval, self.challenge)
                 if code:
                     self.answer = answer
-                    return self.exchange(code), 'wifi'
+                    token = self.exchange(code)
+                    if token is not None:
+                        return token, 'wifi'
+                    answer('WrOS did not link with this approval. Scan the laptop code again.')
+                    self.answer = None
             if limited:
-                code = self.collect(limited)
-                if code:
-                    return self.exchange(code), 'drive'
+                for code in self.collect(limited):
+                    token = self.exchange(code)
+                    if token is not None:
+                        return token, 'drive'
                 if self.clock() - approved_at > MAILBOX_SECONDS:
                     raise ValueError('The laptop was approved, but the phone had not saved its approval '
                                      'in Drive. Scan the code again.')
@@ -479,23 +489,31 @@ class Link:
                 self.sleep(remaining)
         raise ValueError('Linking did not finish in 25 minutes. Start it again when the phone is ready.')
 
-    def collect(self, limited):
-        """The code the phone saved, read and then deleted with the limited access."""
+    def collect(self, limited, *, discard=False):
+        """Read and remove the phone's matching mailbox entries."""
         query = urllib.parse.urlencode({'q': f"name = '{self.key}' and trashed = false",
                                         'fields': 'files(id)', 'spaces': 'drive'})
         status, listing = self.http('GET', f'{DRIVE_FILES}?{query}', token=limited)
         files = listing.get('files', []) if status == 200 and isinstance(listing, dict) else []
-        if not files:
-            return None
-        status, body = self.http('GET', f"{DRIVE_FILES}/{files[0]['id']}?alt=media", token=limited)
-        self.http('DELETE', f"{DRIVE_FILES}/{files[0]['id']}", token=limited)
-        code = body.decode('utf-8', 'replace').strip() if status == 200 and isinstance(body, bytes) else ''
-        return code or None
+        codes = []
+        for entry in files:
+            url = f"{DRIVE_FILES}/{entry['id']}"
+            if not discard:
+                status, body = self.http('GET', f'{url}?alt=media', token=limited)
+                if status != 200 or not isinstance(body, bytes):
+                    continue
+                code = body.decode('utf-8', 'replace').strip()
+                if 10 <= len(code) <= 512 and all(32 < ord(ch) < 127 for ch in code):
+                    codes.append(code)
+            self.http('DELETE', url, token=limited)
+        return codes
 
     def exchange(self, code):
         status, token = self.http('POST', TOKEN_URL, {
             'code': code, 'client_id': self.linking['client_id'], 'client_secret': self.linking['client_secret'],
             'redirect_uri': RETURN_URL, 'grant_type': 'authorization_code', 'code_verifier': self.verifier})
+        if status == 400 and token.get('error') == 'invalid_grant':
+            return None
         if status != 200 or not isinstance(token.get('refresh_token'), str) or not token.get('access_token'):
             self.fail('WrOS did not link: Google refused the approval. Scan the code on the laptop again.')
             raise ValueError(f"Google refused the approval ({token.get('error', status)}). Start linking again.")
@@ -509,7 +527,7 @@ class Link:
             self.answer('Google Drive is linked. You can close this page.')
             self.answer = None
         if via == 'wifi':
-            self.collect(token['access_token'])  # the phone saved a copy for the other way
+            self.collect(token['access_token'], discard=True)  # the phone saved a copy for the other way
         if self.listener:
             self.listener.close()
 

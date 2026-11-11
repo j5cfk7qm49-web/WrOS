@@ -60,7 +60,8 @@
     const port = bytes[4] * 256 + bytes[5];
     if ((a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)) && port >= 1024) {
       document.getElementById('go').href =
-        'http://' + [a, b, c, d].join('.') + ':' + port + '/linked?code=' + encodeURIComponent(code);
+        'http://' + [a, b, c, d].join('.') + ':' + port + '/linked?'
+        + new URLSearchParams({ code, state: challenge });
       document.getElementById('wifi').hidden = false;
     }
   }

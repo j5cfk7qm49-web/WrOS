@@ -453,26 +453,37 @@ pub(crate) fn run_helper(
             .map(|_| bytes)
     });
     let start = Instant::now();
-    loop {
+    let status = loop {
         if cancelled.load(Ordering::Relaxed) || start.elapsed() >= Duration::from_secs(1900) {
             terminate(&mut child);
-            let _ = reader.join();
+            // A descendant may still own stdout. Do not let joining its
+            // reader turn cancellation into another unbounded wait.
             return Err(cancelled_message.into());
         }
         match child.try_wait() {
-            Ok(Some(_)) => break,
-            Ok(None) => std::thread::sleep(Duration::from_millis(50)),
+            Ok(Some(status)) if reader.is_finished() => break status,
+            Ok(_) => std::thread::sleep(Duration::from_millis(50)),
             Err(_) => {
                 terminate(&mut child);
                 return Err(unavailable());
             }
         }
-    }
+    };
     let bytes = reader
         .join()
         .map_err(|_| unavailable())?
         .map_err(|_| unavailable())?;
     if bytes.len() > 2 * 1024 * 1024 {
+        return Err(unavailable());
+    }
+    // Expected helper failures carry an explanatory error response. Keep it
+    // for the caller, but an unsuccessful process cannot report success.
+    if !status.success()
+        && serde_json::from_slice::<serde_json::Value>(&bytes)
+            .ok()
+            .and_then(|reply| reply.get("ok").and_then(serde_json::Value::as_bool))
+            != Some(false)
+    {
         return Err(unavailable());
     }
     Ok(bytes)
@@ -498,6 +509,72 @@ fn helper_command(installed_session: bool) -> Command {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn helper_failure_cannot_be_reported_as_a_successful_response() {
+        let temp = tempfile::tempdir().unwrap();
+        let script = temp.path().join("reply.py");
+        std::fs::write(&script, "print('{\"ok\":true}')\nraise SystemExit(1)\n").unwrap();
+        assert!(
+            run_helper(
+                &script,
+                b"",
+                &[],
+                &AtomicBool::new(false),
+                None,
+                "unavailable",
+                "cancelled"
+            )
+            .is_err()
+        );
+        let reply = "{\"ok\":false,\"error\":\"Destination already exists\"}";
+        std::fs::write(&script, format!("print('{reply}')\nraise SystemExit(1)\n")).unwrap();
+        assert_eq!(
+            run_helper(
+                &script,
+                b"",
+                &[],
+                &AtomicBool::new(false),
+                None,
+                "unavailable",
+                "cancelled"
+            )
+            .unwrap(),
+            format!("{reply}\n").as_bytes()
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cancellation_still_works_after_a_helper_leaves_inherited_pipes_open() {
+        let temp = tempfile::tempdir().unwrap();
+        let script = temp.path().join("reply.py");
+        std::fs::write(
+            &script,
+            "import subprocess\nsubprocess.Popen(['/bin/sleep', '2'])\n",
+        )
+        .unwrap();
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let flag = cancelled.clone();
+        let cancel = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(100));
+            flag.store(true, Ordering::Relaxed);
+        });
+        let start = Instant::now();
+        let result = run_helper(
+            &script,
+            b"",
+            &[],
+            &cancelled,
+            None,
+            "unavailable",
+            "cancelled",
+        );
+        cancel.join().unwrap();
+        assert_eq!(result, Err("cancelled".into()));
+        assert!(start.elapsed() < Duration::from_secs(1));
+    }
 
     #[test]
     fn only_well_formed_progress_lines_are_shown() {

@@ -118,6 +118,49 @@ fn linking_from_the_phone_shows_the_code_to_scan_and_the_code_to_type() {
 }
 
 #[test]
+fn linking_fits_the_hp_stream_writing_grids() {
+    use crate::backup_service::{Job, LinkOffer, Progress};
+    use ratatui::style::Color;
+
+    for (width, height) in [(124, 38), (136, 42)] {
+        let mut desk = Desk::open(book(&format!("link-compact-{width}"), true), width, height);
+        desk.app.open_settings();
+        desk.app.deck.shell.nav.open(Route::LinkPhone);
+        desk.app.deck.shell.backup.job = Some(Job::running_for_test(Some(Progress {
+            phase: "Waiting for your phone".into(),
+            percent: None,
+            offer: Some(LinkOffer {
+                link: "https://j5cfk7qm49-web.github.io/WrOS/l/#abc".into(),
+                code: "WROS-QR-VM-123456789".into(),
+                qr: (0..45)
+                    .map(|row| {
+                        if row % 2 == 0 {
+                            "01".repeat(22) + "0"
+                        } else {
+                            "10".repeat(22) + "1"
+                        }
+                    })
+                    .collect(),
+            }),
+        })));
+        desk.draw();
+        assert!(desk.shows("WROS-QR-VM-123456789"), "{width} by {height}");
+        let cells: Vec<_> = desk
+            .term
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .filter(|cell| cell.symbol() == "▀")
+            .collect();
+        assert_eq!(cells.len(), 45 * 23);
+        assert_eq!((cells[0].fg, cells[0].bg), (Color::White, Color::Black));
+        assert_eq!((cells[1].fg, cells[1].bg), (Color::Black, Color::White));
+        assert_eq!(cells[22 * 45 + 1].bg, Color::White, "pad the last half-row");
+    }
+}
+
+#[test]
 fn the_home_screen_says_when_the_book_was_last_backed_up() {
     let mut desk = Desk::open(book("backup-home", true), 120, 40);
     desk.app.overlay = Overlay::Deck(Page::Home { sel: 0 });
@@ -358,6 +401,52 @@ fn drive_folder_browser_materialization_and_sync_forms_preserve_both_editors_at_
         desk.ctrl('z');
         assert_ne!(desk.app.editor.text(), text);
     }
+}
+
+#[test]
+fn failed_drive_refresh_does_not_reload_an_unscoped_listing() {
+    let mut desk = Desk::open(book("drive-legacy-listing", true), 100, 30);
+    let state = desk.root.join(".grimoire/backup-test-state");
+    fs::create_dir_all(&state).unwrap();
+    fs::write(
+        state.join("drive-browser.json"),
+        r#"{
+            "version": 1,
+            "folder": "drive:Other account",
+            "entries": [{
+                "path": "drive:Other account/Outline.md",
+                "name": "Outline.md",
+                "size": 20,
+                "modified": "2026-11-01T10:00:00Z",
+                "is_dir": false,
+                "cached": true,
+                "local": "/home/writer/old.md"
+            }]
+        }"#,
+    )
+    .unwrap();
+    let backup = &mut desk.app.deck.shell.backup;
+    backup.status.google_connected = true;
+    backup.status.drive_folder = "drive:Current".into();
+    backup.job = Some(
+        crate::backup_service::spawn_work("test", |_, _| Err("Drive is offline".into())).unwrap(),
+    );
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while backup.job.is_some() && std::time::Instant::now() < deadline {
+        backup.tick();
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    assert_eq!(backup.notice, "Drive is offline");
+    assert_eq!(backup.status.drive_folder, "drive:Current");
+    assert!(backup.status.drive_entries.is_empty());
+
+    backup.status.drive_folder.clear();
+    desk.app.open_settings();
+    desk.app.deck.shell.nav.open(Route::GoogleDrive);
+    desk.draw();
+    assert!(desk.shows("Drive is offline"));
+    assert!(desk.shows("Retry loading My Drive"));
+    assert!(!desk.shows("Reading your Drive…"));
 }
 
 #[test]

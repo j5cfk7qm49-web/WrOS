@@ -4306,7 +4306,7 @@
       "version": "0.4.3",
       "declared_license": "MIT OR Apache-2.0",
       "repository": "https://github.com/rust-random/getrandom",
-      "used_in_linux_no_audio_build": false,
+      "used_in_linux_no_audio_build": true,
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "notice_files": [
         {
@@ -9949,7 +9949,7 @@
       "version": "3.27.0",
       "declared_license": "MIT OR Apache-2.0",
       "repository": "https://github.com/Stebalien/tempfile",
-      "used_in_linux_no_audio_build": false,
+      "used_in_linux_no_audio_build": true,
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "notice_files": [
         {

@@ -47,6 +47,15 @@ class Plan(unittest.TestCase):
                                 first=True))
         self.assertEqual(plan, {'a.md': 'adopt', 'b.md': 'park', 'c.md': 'upload', 'd.md': 'download'})
 
+    def test_a_drive_file_without_a_checksum_is_never_treated_as_missing(self):
+        path = 'f.md'
+        for first, base, local in ((True, {}, {path: 'local'}), (False, {}, {}),
+                                   (False, {path: 'base'}, {path: 'base'}),
+                                   (False, {path: 'base'}, {})):
+            with self.subTest(first=first, base=base, local=local):
+                self.assertEqual(module.plan(base, local, {path: None}, first),
+                                 [(path, 'unverifiable')])
+
 
 class Sync(unittest.TestCase):
     def setUp(self):
@@ -76,6 +85,34 @@ class Sync(unittest.TestCase):
     def sync(self, **kwargs):
         return self.service.sync(str(self.book), **kwargs)
 
+    def test_remote_paths_must_stay_inside_the_book(self):
+        for path in ('/outside.md', '../outside.md', 'notes/../../outside.md',
+                     'notes//scene.md', 'notes\\scene.md', ''):
+            with self.subTest(path=path), mock.patch.object(self.service, 'rclone') as remote:
+                remote.return_value.returncode = 0
+                remote.return_value.stdout = json.dumps([{'Path': path, 'Hashes': {'md5': 'a'}}]).encode()
+                with self.assertRaisesRegex(ValueError, 'path'):
+                    self.service.scan_remote('My Book')
+
+    def test_duplicate_drive_names_are_unverifiable(self):
+        rows = [{'Path': 'scene.md', 'Hashes': {'md5': digest}} for digest in ('a', 'b')]
+        with mock.patch.object(self.service, 'rclone') as remote:
+            remote.return_value.returncode = 0
+            remote.return_value.stdout = json.dumps(rows).encode()
+            self.assertEqual(self.service.scan_remote('My Book'), {'scene.md': None})
+
+    def test_project_identity_cannot_choose_paths_outside_sync_state(self):
+        for project_id, folder in (('../outside', 'My Book'), ('/tmp/outside', 'My Book'),
+                                   ('12345678-1234-1234-1234-123456789abc', '../outside')):
+            with self.subTest(project_id=project_id, folder=folder):
+                (self.book / '.grimoire/sync.json').write_text(json.dumps({
+                    'version': 1, 'project_id': project_id, 'drive_folder': folder,
+                }))
+                with mock.patch.object(self.service, 'rclone') as remote:
+                    with self.assertRaisesRegex(ValueError, 'identity'):
+                        self.service.enable(str(self.book))
+                    remote.assert_not_called()
+
     def test_first_sync_uploads_the_book_but_no_hidden_or_parked_files(self):
         enabled = self.service.enable(str(self.book))
         self.assertEqual(enabled['drive_folder'], 'My Book')
@@ -87,6 +124,24 @@ class Sync(unittest.TestCase):
         self.assertEqual(uploaded, ['.wros-sync.json', 'manuscript/01-Part/01-Scene.md', 'notes/ideas.md',
                                     'research/map.bin'])
         self.assertEqual(self.sync()['uploaded'], 0)
+
+    def test_missing_drive_checksum_preserves_both_versions_and_reports_the_skip(self):
+        self.service.enable(str(self.book))
+        self.sync()
+        scene = 'manuscript/01-Part/01-Scene.md'
+        local, remote = self.book / scene, self.remote / scene
+        before = local.read_bytes()
+        remote.write_bytes(b'Drive revision')
+        listing = self.service.scan_remote('My Book')
+        listing[scene] = None
+
+        with mock.patch.object(self.service, 'scan_remote', return_value=listing):
+            result = self.sync()
+        self.assertEqual(result['skipped'], [scene])
+        self.assertIn('without a Google Drive checksum', result['message'])
+        self.assertEqual(result['deleted'], 0)
+        self.assertEqual(local.read_bytes(), before)
+        self.assertEqual(remote.read_bytes(), b'Drive revision')
 
     def test_edits_flow_both_ways_and_replaced_versions_go_to_history(self):
         self.service.enable(str(self.book))

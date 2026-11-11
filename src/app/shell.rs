@@ -525,7 +525,14 @@ fn drive_rows(app: &App) -> Vec<Entry> {
         format!("My Drive › {}", inside.replace('/', " › "))
     })];
     if folder.is_empty() {
-        rows.push(Entry::info("Reading your Drive…"));
+        if backup.job.is_some() {
+            rows.push(Entry::info("Reading your Drive…"));
+        } else {
+            rows.push(Entry::new(
+                "Retry loading My Drive",
+                Choice::DriveFolder("drive:".into()),
+            ));
+        }
         return rows;
     }
     if !inside.is_empty() {
@@ -551,7 +558,7 @@ fn drive_rows(app: &App) -> Vec<Entry> {
             label += if entry.cached {
                 " · on this laptop"
             } else {
-                " · older copy on this laptop"
+                " · copy on this laptop"
             };
         }
         let choice = if entry.is_dir {
@@ -2622,7 +2629,7 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
             .job
             .as_ref()
             .and_then(|job| job.offer())
-        && draw_link_offer(frame, area, &offer)
+        && draw_link_offer(frame, area, &offer, app.linux_console)
     {
         return;
     }
@@ -2767,38 +2774,52 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
     );
 }
 
-/// The phone-linking screen: the QR code on the left, what to do on the right. Light modules are
-/// white blocks, so the code reads dark-on-light on the black console. False when it cannot fit.
+/// Draw the QR code and phone instructions. Keep full blocks where they fit
+/// and on the Linux console, whose font may lack half blocks.
 fn draw_link_offer(
     frame: &mut ratatui::Frame,
     area: Rect,
     offer: &crate::backup_service::LinkOffer,
+    linux_console: bool,
 ) -> bool {
     use ratatui::style::{Color, Style};
     use ratatui::text::{Line, Span};
     use ratatui::widgets::{Clear, Paragraph, Wrap};
-    let width = offer.qr.first().map_or(0, String::len) as u16 * 2;
-    let height = offer.qr.len() as u16;
-    if area.width < width + 30 || area.height < height {
+    let modules = offer.qr.first().map_or(0, String::len) as u16;
+    let rows = offer.qr.len() as u16;
+    let (compact, width, height) = if area.width >= modules * 2 + 30 && area.height >= rows {
+        (false, modules * 2, rows)
+    } else if !linux_console && area.width >= modules + 30 && area.height >= rows.div_ceil(2) {
+        (true, modules, rows.div_ceil(2))
+    } else {
         return false;
-    }
+    };
     frame.render_widget(Clear, area);
     let top = area.y + (area.height - height) / 2;
+    let color = |module| {
+        if module == b'0' {
+            Color::White
+        } else {
+            Color::Black
+        }
+    };
     let code: Vec<Line> = offer
         .qr
-        .iter()
-        .map(|row| {
+        .chunks(if compact { 2 } else { 1 })
+        .map(|rows| {
+            let lower = rows.get(1).map(String::as_bytes);
             Line::from(
-                row.bytes()
-                    .map(|b| {
-                        Span::styled(
-                            "██",
-                            Style::default().fg(if b == b'0' {
-                                Color::White
-                            } else {
-                                Color::Black
-                            }),
-                        )
+                rows[0]
+                    .bytes()
+                    .enumerate()
+                    .map(|(column, module)| {
+                        let style = Style::default().fg(color(module));
+                        if compact {
+                            let lower_module = lower.map_or(b'0', |row| row[column]);
+                            Span::styled("▀", style.bg(color(lower_module)))
+                        } else {
+                            Span::styled("██", style)
+                        }
                     })
                     .collect::<Vec<_>>(),
             )

@@ -326,7 +326,8 @@ impl App {
             Ok(())
         })?;
         self.snapshot_before_story_restore()?;
-        self.editor.set_text(body);
+        self.editor
+            .set_text_as(body, grimoire_core::measure::Origin::Restore);
         self.flush();
         self.overlay = Overlay::None;
         self.focus = self.editor_focus();
@@ -708,11 +709,10 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
             }
         }
         Page::ReviewPassage => {
-            let [choices, preview] = ratatui::layout::Layout::vertical([
-                ratatui::layout::Constraint::Length(6),
-                ratatui::layout::Constraint::Min(0),
-            ])
-            .areas(area);
+            use ratatui::layout::{Constraint, Layout};
+
+            let [choices, preview] =
+                Layout::vertical([Constraint::Length(6), Constraint::Min(0)]).areas(area);
             let rows = vec![
                 "Cancel — keep current writing".into(),
                 "Restore this saved passage".into(),
@@ -738,20 +738,66 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
                 "PgUp/PgDn scroll both wordings · Cancel is selected when this review opens",
                 theme.into(),
             );
-            let text = m.passages.get(m.passage).map_or_else(|| "No changed passage.".into(), |p|
-                format!("Passage {} of {} · current UTF-8 bytes {}..{}\n\nCURRENT WORDING:\n{}\n\nSAVED WORDING:\n{}",
-                    m.passage + 1, m.passages.len(), p.current_range.start, p.current_range.end,
-                    if p.current.is_empty() { "(no text — insertion point)".into() } else { plain(&p.current) },
-                    if p.saved.is_empty() { "(no text — removes this current passage)".into() } else { plain(&p.saved) }));
-            let paragraph = Paragraph::new(text)
-                .wrap(Wrap { trim: false })
-                .style(Style::default().fg(theme.text));
-            let max = paragraph
-                .line_count(body.width)
-                .saturating_sub(body.height as usize)
-                .min(u16::MAX as usize) as u16;
-            m.max_scroll.set(max);
-            f.render_widget(paragraph.scroll((m.scroll.min(max), 0)), body);
+            let style = Style::default().fg(theme.text);
+            let Some(passage) = m.passages.get(m.passage) else {
+                m.max_scroll.set(0);
+                f.render_widget(Paragraph::new("No changed passage.").style(style), body);
+                return;
+            };
+            let summary = format!(
+                "Passage {} of {} · current UTF-8 bytes {}..{}",
+                m.passage + 1,
+                m.passages.len(),
+                passage.current_range.start,
+                passage.current_range.end,
+            );
+            let current = if passage.current.is_empty() {
+                "(no text — insertion point)".into()
+            } else {
+                plain(&passage.current)
+            };
+            let saved = if passage.saved.is_empty() {
+                "(no text — removes this current passage)".into()
+            } else {
+                plain(&passage.saved)
+            };
+            let wording = if body.width >= 100 {
+                let [caption, comparison] =
+                    Layout::vertical([Constraint::Length(2), Constraint::Min(0)]).areas(body);
+                f.render_widget(Paragraph::new(summary).style(style), caption);
+                let [left, right] =
+                    Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
+                        .spacing(2)
+                        .areas(comparison);
+                [
+                    (left, "CURRENT WORDING", current),
+                    (right, "SAVED WORDING", saved),
+                ]
+                .into_iter()
+                .map(|(column, title, text)| {
+                    let [heading, text_area] =
+                        Layout::vertical([Constraint::Length(2), Constraint::Min(0)]).areas(column);
+                    f.render_widget(Paragraph::new(title).style(style), heading);
+                    (text_area, text)
+                })
+                .collect()
+            } else {
+                vec![(
+                    body,
+                    format!("{summary}\n\nCURRENT WORDING\n{current}\n\nSAVED WORDING\n{saved}"),
+                )]
+            };
+            let mut max_scroll = 0;
+            for (area, text) in wording {
+                let paragraph = Paragraph::new(text).wrap(Wrap { trim: false }).style(style);
+                let limit = paragraph
+                    .line_count(area.width)
+                    .saturating_sub(area.height as usize)
+                    .min(u16::MAX as usize) as u16;
+                max_scroll = max_scroll.max(limit);
+                f.render_widget(paragraph.scroll((m.scroll.min(limit), 0)), area);
+            }
+            m.max_scroll.set(max_scroll);
         }
         Page::DiffMilestone | Page::DiffVariant => {
             let body = wros_shell::render_panel(

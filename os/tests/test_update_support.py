@@ -63,13 +63,14 @@ class Gpg:
         self.run('--passphrase', '', '--pinentry-mode', 'loopback', '--quick-generate-key', email, 'rsa2048', usage, '0')
         listing = self.run('--with-colons', '--list-keys', email, stdout=subprocess.PIPE, text=True).stdout
         primary = next(line.split(':')[9] for line in listing.splitlines() if line.startswith('fpr:'))
+        primary_only = self.run('--export', primary, stdout=subprocess.PIPE).stdout
         subkey = None
         if with_subkey:
             self.run('--passphrase', '', '--pinentry-mode', 'loopback', '--quick-add-key', primary, 'rsa2048', 'sign', '0')
             listing = self.run('--with-colons', '--list-keys', '--with-subkey-fingerprint', email,
                                stdout=subprocess.PIPE, text=True).stdout
             subkey = [line.split(':')[9] for line in listing.splitlines() if line.startswith('fpr:')][1]
-        self.keys[name] = {'email': email, 'primary': primary, 'subkey': subkey}
+        self.keys[name] = {'email': email, 'primary': primary, 'subkey': subkey, 'primary_only': primary_only}
         return self.keys[name]
 
     def export(self, names, path):

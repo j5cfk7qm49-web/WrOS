@@ -197,6 +197,8 @@ def classify_rclone_failure(arguments, env):
             require(output.tell() <= MAX_JSON, 'Tool response exceeded the supported size; no verification claimed.')
             output.seek(0)
             return True, output.read(), ''
+        if result.returncode in (3, 4):  # rclone: directory or file not found
+            return False, b'', 'not-found'
         err_out.seek(0)
         return False, b'', rclone_failure_kind(err_out.read(65536).decode('utf-8', errors='replace'))
 
@@ -364,8 +366,8 @@ class Service:
         self.queue_path = state/'queue.json'
         # book folder -> its latest verified snapshot; restic only knows the staging copy.
         self.latest_path = state/'latest.json'
-        self.drive_browser_path = state/'drive-browser.json'
-        self.drive_cache = state/'drive-cache'
+        self.drive_browser_path = state/'drive-browser-v2.json'
+        self.drive_cache = state/'drive-cache-v3'
         self.clients_path = Path(GOOGLE_CLIENTS)
         self.profile_config = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home()/'.config')))/'grimoire'
         self.keyboard_file = Path('/etc/wros/keyboard.json')
@@ -407,15 +409,7 @@ class Service:
                         and isinstance(item['inventory_sha256'], str) and re.fullmatch('[a-f0-9]{64}', item['inventory_sha256']),
                         'Invalid backup queue entry; original preserved.')
             self.queue = qdata['items']
-        self.drive_folder = 'drive:WrOS-Library'
-        self.drive_entries = []
-        if self.drive_browser_path.exists() or self.drive_browser_path.is_symlink():
-            bdata = read_json(self.drive_browser_path)
-            require(isinstance(bdata, dict) and bdata.get('version') == 1
-                    and set(bdata) <= {'version', 'folder', 'entries'},
-                    'Unknown Drive browser metadata; original preserved.')
-            self.drive_folder = str(bdata.get('folder', 'drive:WrOS-Library'))
-            self.drive_entries = list(bdata.get('entries', []))
+        self._load_drive_browser()
 
     def save(self):
         atomic_private(self.config, (json.dumps(self.current) + '\n').encode())
@@ -430,9 +424,35 @@ class Service:
     def save_queue(self):
         atomic_private(self.queue_path, (json.dumps({'version': 1, 'items': self.queue}) + '\n').encode())
 
+    def _load_drive_browser(self):
+        self.drive_scope = ''
+        self.drive_folder = ''
+        self.drive_entries = []
+        try:
+            config = configparser.ConfigParser(interpolation=None)
+            path = private_file(self.google)
+            if path.stat().st_size > MAX_JSON:
+                return
+            config.read_string(path.read_text(encoding='utf-8'))
+            refresh = json.loads(config['wros-google']['token']).get('refresh_token')
+            if not isinstance(refresh, str) or not refresh:
+                return
+            # Access-token renewal keeps the refresh grant. Relinking can switch Drives.
+            self.drive_scope = hashlib.sha256(b'WrOS Drive browser\0' + refresh.encode('utf-8')).hexdigest()
+            saved = read_json(self.drive_browser_path)
+        except (OSError, ValueError, KeyError, AttributeError, configparser.Error):
+            return
+        if (isinstance(saved, dict) and saved.get('version') == 2 and saved.get('scope') == self.drive_scope
+                and isinstance(saved.get('folder'), str) and isinstance(saved.get('entries'), list)):
+            self.drive_folder = saved['folder']
+            self.drive_entries = saved['entries']
+
     def save_drive_browser(self):
+        if not self.drive_scope:
+            return
         atomic_private(self.drive_browser_path, (json.dumps({
-            'version': 1,
+            'version': 2,
+            'scope': self.drive_scope,
             'folder': self.drive_folder,
             'entries': self.drive_entries,
         }) + '\n').encode())
@@ -1016,6 +1036,7 @@ class Service:
             quota = json.loads(payload)
             require(isinstance(quota, dict) and 'total' in quota, 'Google Drive authorization could not be verified.')
             atomic_private(self.google, candidate.read_bytes())
+            self._load_drive_browser()
             ts = now()
             self.google_meta = {
                 'version': 1,
@@ -1108,6 +1129,7 @@ class Service:
             size = self.google.stat().st_size
             write_private(self.google, b'\x00' * max(size, 64), exclusive=False)
             self.google.unlink()
+        self._load_drive_browser()
         self.google_meta = None
         self.save_account()
         if ended:
@@ -1119,6 +1141,8 @@ class Service:
 
 
     def _record_google_failure(self, failure_kind):
+        if failure_kind == 'not-found':
+            raise ValueError('That file or folder could not be found on Google Drive. Refresh the folder and try again.')
         ts = now()
         base = self.google_meta or {
             'version': 1,
@@ -1150,6 +1174,14 @@ class Service:
             require(parts, 'Choose a file or folder in Google Drive to copy.')
         return '/'.join(parts)
 
+    def _drive_cache_marker(self, sub):
+        # A flat key keeps an item's cache record separate from any Drive
+        # folder whose name happens to match a record's file name. The grant
+        # also separates copies made from different Drives on this laptop.
+        if self.drive_scope:
+            key = hashlib.sha256(f'{self.drive_scope}\0{sub}'.encode('utf-8')).hexdigest()
+            return self.drive_cache / (key + '.json')
+
     def drive_list(self, folder):
         sub = self._validate_drive_subpath(folder, require_item=False)
         require(self.google.exists() or self.google.is_symlink(), 'Connect Google Drive first.')
@@ -1162,25 +1194,33 @@ class Service:
         entries = []
         for row in rows:
             require(isinstance(row, dict), 'Invalid Google Drive entry metadata.')
-            name = str(row.get('Name') or row.get('Path') or '').strip()
-            require(name and '/' not in name and name not in ('.', '..') and not any(ord(c) < 32 for c in name),
+            name = row.get('Name') or row.get('Path')
+            require(isinstance(name, str) and name and '/' not in name and name not in ('.', '..')
+                    and not any(ord(c) < 32 for c in name),
                     'Unsupported Google Drive entry name.')
             is_dir = bool(row.get('IsDir', False))
             size = int(row.get('Size', 0)) if not is_dir and int(row.get('Size', 0)) >= 0 else 0
             modified = str(row.get('ModTime', ''))[:32]
             rel_path = f'{sub}/{name}' if sub else name
-            cache_marker = self.drive_cache / (rel_path + '.json')
+            # Google Docs, Sheets and Slides are exported by rclone.
+            google_doc = not is_dir and str(row.get('MimeType', '')).startswith('application/vnd.google-apps.')
+            cache_marker = self._drive_cache_marker(rel_path)
             cached, local = False, ''
-            if cache_marker.is_file() and not cache_marker.is_symlink():
+            if cache_marker is not None and cache_marker.is_file() and not cache_marker.is_symlink():
                 try:
                     cmeta = read_json(cache_marker)
                     target = Path(str(cmeta.get('local_target', '')))
-                    # On this laptop while the copy is still there; up to date while Drive's matches it.
-                    if target.is_absolute() and target.exists() and not target.is_symlink():
+                    target_matches = target.is_dir() if is_dir else target.is_file()
+                    if (cmeta.get('remote') == 'drive:' + rel_path and target.is_absolute()
+                            and target_matches and not target.is_symlink()):
                         local = str(target)
-                        cached = cmeta.get('size') == size and cmeta.get('modified') == modified
-                except Exception:
-                    cached, local = False, ''
+                        # A folder's timestamp cannot establish the freshness of
+                        # all its files. Old markers also lack verification status.
+                        cached = (not is_dir and not google_doc and cmeta.get('verified') is True
+                                  and bool(modified) and cmeta.get('size') == size
+                                  and cmeta.get('modified') == modified)
+                except (AttributeError, OSError, ValueError):
+                    pass
             entries.append({
                 'path': 'drive:' + rel_path,
                 'name': name,
@@ -1189,8 +1229,7 @@ class Service:
                 'is_dir': is_dir,
                 'cached': cached,
                 'local': local,
-                # Google Docs, Sheets and Slides have no file of their own; rclone exports them.
-                'google_doc': str(row.get('MimeType', '')).startswith('application/vnd.google-apps.'),
+                'google_doc': google_doc,
             })
         entries.sort(key=lambda e: (not e['is_dir'], e['name'].lower()))
         self.drive_folder = 'drive:' + sub
@@ -1218,7 +1257,7 @@ class Service:
                         digest.update(block)
                 ok, kind = digest.hexdigest() == remote.lower(), 'mismatch'
         if not ok:
-            if kind in ('reauthorization-required', 'offline', 'rate-limited', 'clock'):
+            if kind in ('reauthorization-required', 'offline', 'rate-limited', 'clock', 'not-found'):
                 self._record_google_failure(kind)
             raise ValueError("The copy didn't match Google Drive, so it wasn't kept. Try again.")
         return True
@@ -1259,25 +1298,38 @@ class Service:
                 raise ValueError('Materialized item is not a regular file or directory.')
         finally:
             shutil.rmtree(stage, ignore_errors=True)
-        cache_marker = self.drive_cache / (sub + '.json')
-        cache_marker.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        matched_mod = next((e['modified'] for e in self.drive_entries if e['path'] == 'drive:' + sub), '')
-        atomic_private(cache_marker, (json.dumps({
-            'version': 1,
-            'remote': 'drive:' + sub,
-            'local_target': str(target),
-            'size': size,
-            'modified': matched_mod,
-            'materialized_at': now(),
-        }) + '\n').encode())
-        for entry in self.drive_entries:
-            if entry['path'] == 'drive:' + sub:
-                entry['cached'] = True
+        if stat.S_ISDIR(info.st_mode):
+            notice = f'Copied to {target}. The Drive check covered ordinary files and skipped Google Docs exports.'
+        elif checked:
+            notice = f'Copied to {target} and checked against Google Drive.'
+        else:
+            notice = f'Copied to {target}. Drive provided no checksum for this item.'
+        entry = next((e for e in self.drive_entries if e['path'] == 'drive:' + sub), None)
+        modified = entry['modified'] if entry else ''
+        try:
+            marker = self._drive_cache_marker(sub)
+            if marker is None:
+                raise OSError('unknown Drive grant')
+            self.drive_cache.mkdir(mode=0o700, exist_ok=True)
+            if self.drive_cache.is_symlink():
+                raise OSError('unsafe Drive cache directory')
+            atomic_private(marker, (json.dumps({
+                'version': 1,
+                'remote': 'drive:' + sub,
+                'local_target': str(target),
+                'size': size,
+                'modified': modified,
+                'verified': checked,
+                'materialized_at': now(),
+            }) + '\n').encode())
+            if entry is not None:
+                entry['cached'] = (checked and not entry['is_dir'] and not entry['google_doc']
+                                   and bool(modified) and entry['size'] == size)
                 entry['local'] = str(target)
-        self.save_drive_browser()
-        if checked:
-            return self.status(f'Copied to {target} and checked against Google Drive.', refresh=False)
-        return self.status(f'Copied to {target}. A Google Doc has nothing to check the copy against.', refresh=False)
+            self.save_drive_browser()
+        except OSError:
+            notice += ' The browser could not save the copy location.'
+        return self.status(notice, refresh=False)
 
 
 

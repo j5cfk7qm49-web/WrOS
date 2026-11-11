@@ -271,7 +271,7 @@ pub(super) fn draw_names(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     let Overlay::Names { drifts, sel } = &app.overlay else {
         return;
     };
-    let h = (drifts.len() as u16 * 2).min(20) + 6;
+    let h = (drifts.len().min(10) as u16 * 2 + 6).min(area.height);
     let box_area = centred(area, area.width.saturating_sub(4).min(90), h);
     f.render_widget(Clear, box_area);
     let block = pane_block("NAMES THAT DRIFTED", true, t);
@@ -285,7 +285,9 @@ pub(super) fn draw_names(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         )),
         Line::from(""),
     ];
-    for (i, d) in drifts.iter().enumerate().take(10) {
+    let visible = usize::from(inner.height).saturating_sub(lines.len() + 1) / 2;
+    let start = sel.saturating_sub(visible.saturating_sub(1));
+    for (i, d) in drifts.iter().enumerate().skip(start).take(visible) {
         let on = i == *sel;
         let mut scenes: Vec<&str> = Vec::new();
         for h in &d.hits {

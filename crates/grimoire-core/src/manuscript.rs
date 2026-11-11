@@ -184,16 +184,32 @@ pub fn spell(n: usize) -> String {
 /// Regenerate the managed block, leaving everything the author wrote alone.
 pub fn write_project_file(p: &Project) -> Result<PathBuf> {
     let path = project_file(&p.root);
-    let existing = std::fs::read_to_string(&path).unwrap_or_default();
+    let existing = match std::fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(error) => return Err(error.into()),
+    };
     let body = structure_block(p);
 
-    let out = if existing.is_empty() {
-        format!("{}\n{body}\n", scaffold_head(p))
-    } else if let (Some(a), Some(b)) = (existing.find(BEGIN), existing.find(END)) {
-        // Splice: keep the author's prose above and below untouched.
-        format!("{}{body}{}", &existing[..a], &existing[b + END.len()..])
-    } else {
-        format!("{}\n\n{body}\n", existing.trim_end())
+    let mut markers = existing
+        .split_inclusive('\n')
+        .scan(0, |offset, line| {
+            let start = *offset;
+            *offset += line.len();
+            Some((start, line.trim_end_matches(['\r', '\n'])))
+        })
+        .filter(|(_, line)| matches!(*line, BEGIN | END));
+    let out = match (markers.next(), markers.next(), markers.next()) {
+        (None, None, None) if existing.is_empty() => format!("{}\n{body}\n", scaffold_head(p)),
+        (None, None, None) => format!("{}\n\n{body}\n", existing.trim_end()),
+        (Some((a, BEGIN)), Some((b, END)), None) => {
+            // Keep the author's prose above and below the managed block.
+            format!("{}{body}{}", &existing[..a], &existing[b + END.len()..])
+        }
+        _ => anyhow::bail!(
+            "{} has mismatched Grimoire structure markers",
+            path.display()
+        ),
     };
 
     crate::atomic::write_text(&path, &out)?;
@@ -331,7 +347,9 @@ fn emit(p: &Project, idx: usize, s: &mut String) {
 
 fn front_value(front: &str, key: &str) -> Option<String> {
     for line in front.lines() {
-        let (k, v) = line.split_once(':')?;
+        let Some((k, v)) = line.split_once(':') else {
+            continue;
+        };
         if k.trim() == key {
             let v = v.trim().trim_matches('"').trim();
             return (!v.is_empty()).then(|| v.to_string());
@@ -425,6 +443,46 @@ mod tests {
     fn level(p: &Project, title: &str) -> Section {
         let i = p.nodes.iter().position(|n| n.title == title);
         section_of(p, i.unwrap_or_else(|| panic!("no {title} in the tree")))
+    }
+
+    #[test]
+    fn synopsis_can_follow_blank_lines_comments_and_list_items() {
+        let d = book("synopsis");
+        fs::write(
+            d.join("manuscript/01-part-one/01-chapter-one/01-opening.md"),
+            "---\ntitle: Opening\n\n# Note\naliases:\n  - Start\nsynopsis: \"The ferry leaves.\"\n---\n\nWords.\n",
+        )
+        .unwrap();
+        let path = write_project_file(&Project::load(&d).unwrap()).unwrap();
+        assert!(
+            fs::read_to_string(path)
+                .unwrap()
+                .contains("> The ferry leaves.")
+        );
+        fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn mismatched_outline_markers_leave_the_author_file_intact() {
+        let d = book("markers");
+        let p = Project::load(&d).unwrap();
+        let path = project_file(&d);
+        for text in [
+            format!("{END}\nAuthor notes\n{BEGIN}\n"),
+            format!("Author notes\n{BEGIN}\n"),
+            format!("{BEGIN}\n{BEGIN}\nAuthor notes\n{END}\n"),
+        ] {
+            fs::write(&path, &text).unwrap();
+            for _ in 0..2 {
+                assert!(write_project_file(&p).is_err());
+                assert_eq!(fs::read_to_string(&path).unwrap(), text);
+            }
+        }
+        let prefix = format!("This example mentions `{BEGIN}`.\n\n");
+        fs::write(&path, format!("{prefix}{BEGIN}\nOld outline\n{END}\n")).unwrap();
+        write_project_file(&p).unwrap();
+        assert!(fs::read_to_string(&path).unwrap().starts_with(&prefix));
+        fs::remove_dir_all(&d).unwrap();
     }
 
     #[test]

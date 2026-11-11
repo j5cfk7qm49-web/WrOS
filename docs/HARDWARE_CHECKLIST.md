@@ -193,6 +193,59 @@ Pass when the saved choice returns or support is honestly unavailable, with no
 black screen, stranded preview or words lost. Warm colours can change calibrated
 colours while on; the compositor does not provide physical colour readback.
 
+## 12. Brightness and volume keys
+
+Use this check before choosing bindings for the HP Stream's media keys.
+Record the release and selected writing session, then note the brightness,
+volume and mute values in Settings.
+
+On the maintenance console, use Debian's `evtest` to identify the input device
+that reports each key. Install the `evtest` package there if needed. List the
+device names and handlers with the following command.
+
+```sh
+grep -E 'N: Name=|H: Handlers=' /proc/bus/input/devices
+```
+
+Replace `eventN` with the handler for the device being checked. This probe
+prints the five media keys and ends after 30 seconds.
+
+```sh
+sudo timeout 30s evtest /dev/input/eventN |
+  grep --line-buffered -E 'KEY_(BRIGHTNESSUP|BRIGHTNESSDOWN|VOLUMEUP|VOLUMEDOWN|MUTE)'
+```
+
+Press each key once, then hold it briefly. Record the device, event name,
+press/release/repeat values and the value shown in Settings afterwards.
+Check whether the firmware already changes brightness on a single press.
+Repeat from login, writing and the lock screen. These observations determine
+whether WrOS needs a binding or an updated display of the hardware's own change.
+Attach the five-key results to
+[issue 80](https://github.com/j5cfk7qm49-web/WrOS/issues/80).
+
+## 13. Phone linking and document exchange
+
+Use a disposable book for these checks when the Drive integration changes.
+Record the Google project's publishing status and the phone/browser versions.
+
+1. On Android Chrome, complete the link from the QR shown by WrOS. Record any
+   browser permission prompt and whether the account appears connected in
+   Settings. Cancel a second link attempt and check the existing connection.
+2. Record the successful link date. After eight days, reopen WrOS and browse
+   Drive using the saved connection. Record the result in
+   [issue 28](https://github.com/j5cfk7qm49-web/WrOS/issues/28).
+3. Create a small book containing Unicode, emphasized text, two scenes, a
+   footnote with two paragraphs and a private annotation. Export a DOCX and
+   check its public text before sending the disposable file to Google Docs.
+4. On the iPhone, change one sentence in Google Docs, download a DOCX, and
+   import it into a new review book. Compare the sentence, emphasis, scene
+   order, note references and both footnote paragraphs. Check the private
+   annotation in the original book.
+5. Back up the disposable book with WrOS's Google client. Record its size,
+   elapsed backup time and elapsed verification time, then perform a test
+   restore into a new folder. Put the document and timing results in
+   [issue 10](https://github.com/j5cfk7qm49-web/WrOS/issues/10).
+
 ## Collecting the log
 
 Kernel and system messages need administrator rights. From the PC, over SSH,

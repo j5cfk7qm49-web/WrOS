@@ -394,8 +394,6 @@ def validate_caller():
                 f'{name} must be masked')
     verify_launcher()
     require_memory_headroom()
-    verify_launcher()
-    require_memory_headroom()
     deadline = time.monotonic() + 5.0
     while not input_readers_retired():
         require(time.monotonic() < deadline, 'writing input reader has not retired')

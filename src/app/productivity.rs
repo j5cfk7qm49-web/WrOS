@@ -347,6 +347,7 @@ impl App {
             &now.day(),
             Role::Manuscript,
         );
+        let footnotes = self.productivity.config.include_footnotes;
         self.productivity.summary = if !self.productivity.snapshot.complete {
             "Recorded metrics unavailable/incomplete; no totals guessed".into()
         } else if totals.input.gaps + totals.replay.gaps > 0 {
@@ -361,9 +362,9 @@ impl App {
             format!(
                 "{} +{} / −{} · net {}",
                 now.day(),
-                totals.input.added,
-                totals.input.removed,
-                totals.net(self.productivity.config.include_footnotes)
+                totals.input.added_words(footnotes),
+                totals.input.removed_words(footnotes),
+                totals.net(footnotes)
             )
         };
         self.productivity.stats_date = now.day();
@@ -814,6 +815,7 @@ impl App {
         }
         match page {
             Page::Overview => {
+                let footnotes = p.config.include_footnotes;
                 rows.push(format!(
                     "Tracking {} · {:?} · idle cutoff {}s · footnotes {}",
                     if p.tracking() {
@@ -823,11 +825,7 @@ impl App {
                     },
                     p.config.mode,
                     p.config.idle_seconds,
-                    if p.config.include_footnotes {
-                        "included"
-                    } else {
-                        "separate"
-                    }
+                    if footnotes { "included" } else { "separate" }
                 ));
                 rows.push("Measured replacements, not baselines/Git; words use source policy v1, not rendered/native export counts.".into());
                 let now = p.clock.now(); // Called by input/checkpoint, never by draw.
@@ -852,12 +850,19 @@ impl App {
                     let t = Totals::collect(p.ledger.known.iter(), &now.day(), &now.day(), role);
                     rows.push(format!(
                         "{name}: input +{} / −{} · net {} · {} word gaps",
-                        t.input.added,
-                        t.input.removed,
-                        t.net(p.config.include_footnotes),
+                        t.input.added_words(footnotes),
+                        t.input.removed_words(footnotes),
+                        t.net(footnotes),
                         t.input.gaps + t.replay.gaps
                     ));
-                    rows.push(format!("  keyboard +{} · paste +{} · undo/redo/restore net {} · footnotes +{} / −{}",t.typed.added,t.pasted.added,t.replay.net(true),t.input.foot_added,t.input.foot_removed));
+                    rows.push(format!(
+                        "  keyboard +{} · paste +{} · undo/redo/restore net {} · footnotes +{} / −{}",
+                        t.typed.added_words(footnotes),
+                        t.pasted.added_words(footnotes),
+                        t.replay.net(footnotes),
+                        t.input.foot_added,
+                        t.input.foot_removed
+                    ));
                     rows.push(format!(
                         "  inter-edit active {:.1}s · keyboard-pair {:.1}s · unassigned {:.1}s",
                         t.active_ms as f64 / 1000.,
@@ -895,7 +900,7 @@ impl App {
                 if p.config.goals.is_empty() {
                     rows.push("No advanced goals yet. n chooses a configurable daily/weekly/monthly/novel/scene/time/revision/deadline target.".into());
                 }
-                rows.push("Native source counts retain Grimoire's whitespace/private-note policy; the footnote switch changes only ledger goals.".into());
+                rows.push("The footnote setting applies to recorded totals and word goals. Native goals use the manuscript's own word count.".into());
             }
             Page::GoalTypes => {
                 selected = Some(rows.len() + sel);

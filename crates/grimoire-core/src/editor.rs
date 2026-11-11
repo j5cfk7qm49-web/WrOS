@@ -348,15 +348,24 @@ impl Editor {
     /// Replace actual find ranges, in reverse source order, as one undo step.
     /// Unchanged paragraphs/words are not represented as replacement input.
     pub fn replace_matches(&mut self, query: &str, with: &str, opts: crate::search::Opts) -> usize {
+        self.replace_matching_ranges(with, |line| crate::search::matches_with(line, query, opts))
+    }
+
+    /// Correct a drifted name using the exact-word and possessive rules.
+    pub fn replace_name(&mut self, from: &str, to: &str) -> usize {
+        self.replace_matching_ranges(to, |line| crate::search::exact_name_matches(line, from))
+    }
+
+    fn replace_matching_ranges(
+        &mut self,
+        with: &str,
+        matches: impl Fn(&str) -> Vec<(usize, usize)>,
+    ) -> usize {
         let hits: Vec<_> = self
             .lines
             .iter()
             .enumerate()
-            .flat_map(|(line, text)| {
-                crate::search::matches_with(text, query, opts)
-                    .into_iter()
-                    .map(move |(a, b)| (line, a, b))
-            })
+            .flat_map(|(line, text)| matches(text).into_iter().map(move |(a, b)| (line, a, b)))
             .collect();
         if hits.is_empty() {
             return 0;
@@ -487,18 +496,21 @@ impl Editor {
         let chars: Vec<char> = self.lines[line].chars().collect();
         let m: Vec<char> = mark.chars().collect();
         let n = m.len();
-        // A single * mustn't be mistaken for half of a **.
-        let star = |i: Option<usize>| i.and_then(|i| chars.get(i)).is_some_and(|c| *c == '*');
+        // Odd runs carry italics, possibly alongside bold. An even run carries bold alone.
+        let italic = |stars: usize| !stars.is_multiple_of(2);
         let around = a >= n
             && b + n <= chars.len()
             && chars[a - n..a] == m[..]
             && chars[b..b + n] == m[..]
-            && !(n == 1 && (star(a.checked_sub(2)) || star(Some(b + 1))));
+            && (mark != "*"
+                || (italic(chars[..a].iter().rev().take_while(|&&c| c == '*').count())
+                    && italic(chars[b..].iter().take_while(|&&c| c == '*').count())));
         let inside = b - a >= 2 * n
             && chars[a..a + n] == m[..]
             && chars[b - n..b] == m[..]
-            && !(n == 1
-                && (chars.get(a + 1) == Some(&'*') || chars.get(b.wrapping_sub(2)) == Some(&'*')));
+            && (mark != "*"
+                || (italic(chars[a..b].iter().take_while(|&&c| c == '*').count())
+                    && italic(chars[a..b].iter().rev().take_while(|&&c| c == '*').count())));
         let (left_start, left_end, right_start, right_end, insert, sel) = if around {
             (a - n, a, b, b + n, "", (a - n, b - n))
         } else if inside {
@@ -847,6 +859,7 @@ impl Editor {
             let start = (self.cy, self.cx);
             self.select(start, end);
             self.delete_selection();
+            self.hist.last = None;
         }
     }
 
@@ -858,6 +871,7 @@ impl Editor {
             let end = (self.cy, self.cx);
             self.select(start, end);
             self.delete_selection();
+            self.hist.last = None;
         }
     }
 
@@ -1126,6 +1140,26 @@ mod tests {
     }
 
     #[test]
+    fn typing_after_word_deletion_has_its_own_undo_step() {
+        for backwards in [false, true] {
+            let mut e = Editor::from_text("old");
+            if backwards {
+                e.scene_end();
+                e.delete_word_back();
+            } else {
+                e.delete_word_forward();
+            }
+            e.insert('n');
+            e.insert('e');
+            e.insert('w');
+            assert!(e.undo());
+            assert_eq!(e.text(), "");
+            assert!(e.undo());
+            assert_eq!(e.text(), "old");
+        }
+    }
+
+    #[test]
     fn italics_and_bold_go_on_and_come_off() {
         let mut e = Editor::from_text("It was very late.");
         e.select((0, 7), (0, 11));
@@ -1143,6 +1177,8 @@ mod tests {
         e.select((0, 14), (0, 18));
         assert!(e.toggle_wrap("*"));
         assert_eq!(e.lines[0], "It was very ***late***.");
+        assert!(e.toggle_wrap("*"));
+        assert_eq!(e.lines[0], "It was very **late**.");
         // Selected with its marks, too.
         let mut e = Editor::from_text("a *word* here");
         e.select((0, 2), (0, 8));
@@ -1150,6 +1186,10 @@ mod tests {
         assert_eq!(e.lines[0], "a word here");
         assert!(e.undo());
         assert_eq!(e.lines[0], "a *word* here", "one undo step");
+        let mut e = Editor::from_text("***word***");
+        e.select_all();
+        assert!(e.toggle_wrap("*"));
+        assert_eq!(e.text(), "**word**");
     }
 
     #[test]

@@ -96,7 +96,7 @@ class Listener:
         self.codes, self.answers, self.closed = list(codes), [], False
         self.address = ('192.168.1.20', 31020)
 
-    def wait(self, seconds):
+    def wait(self, seconds, state):
         if self.codes:
             return self.codes.pop(0), self.answers.append
         return None, None
@@ -132,7 +132,8 @@ class Linking(unittest.TestCase):
 
     def test_the_wifi_answer_wins_and_the_saved_code_is_cleaned_up_with_full_access(self):
         challenge = link.challenge('v' * 64)
-        google = Google(files={'f1': ('WrOS linking ' + challenge[:16], 'code-from-phone')})
+        google = Google(files={'f1': ('WrOS linking ' + challenge[:16], 'code-from-phone'),
+                               'f2': ('WrOS linking ' + challenge[:16], 'duplicate-code')})
         listener = Listener(codes=['code-from-phone'])
         session, (token, via) = self.run_link(google, listener)
         self.assertEqual(via, 'wifi')
@@ -171,12 +172,20 @@ class Linking(unittest.TestCase):
             self.run_link(Google(), Listener())
         self.assertGreaterEqual(self.clock.now - 1000, link.LINK_SECONDS)
 
-    def test_a_refused_exchange_is_reported_and_the_phone_is_told(self):
-        listener = Listener(codes=['stale-code'])
-        google = Google(exchange=(400, {'error': 'invalid_grant'}))
-        with self.assertRaisesRegex(ValueError, 'Google refused'):
-            self.run_link(google, listener)
+    def test_a_refused_approval_keeps_the_session_open(self):
+        listener = Listener(codes=['stale-code', 'code-from-phone'])
+
+        class GoogleWithStaleCode(Google):
+            def __call__(self, method, url, form=None, token=None):
+                if url == link.TOKEN_URL and form.get('code') == 'stale-code':
+                    return 400, {'error': 'invalid_grant'}
+                return super().__call__(method, url, form, token)
+
+        session, (token, via) = self.run_link(GoogleWithStaleCode(), listener)
         self.assertTrue(any('did not link' in answer for answer in listener.answers))
+        self.assertEqual(via, 'wifi')
+        session.finish(token, via)
+        self.assertTrue(listener.closed)
 
     def test_a_device_sign_in_the_writer_declines_leaves_the_wifi_way_open(self):
         google = Google(device_answers=[(403, {'error': 'access_denied'})])
@@ -197,12 +206,16 @@ class RealListener(unittest.TestCase):
                 client.sendall(request.encode())
                 return client
 
-            other = ask('GET /elsewhere HTTP/1.1\r\nHost: x\r\n\r\n')
-            code, answer = server.wait(2)
-            self.assertIsNone(code)
-            self.assertIn(b'404', other.recv(4096))
-            client = ask('GET /linked?code=4%2F0AVG-code HTTP/1.1\r\nHost: x\r\n\r\n')
-            code, answer = server.wait(2)
+            state = link.challenge('v' * 64)
+            for target in ('/elsewhere', '/linked?code=4%2F0AVG-code',
+                           '/linked?code=4%2F0AVG-code&state=wrong'):
+                with ask(f'GET {target} HTTP/1.1\r\nHost: x\r\n\r\n') as other:
+                    code, answer = server.wait(2, state)
+                    self.assertIsNone(code)
+                    self.assertIn(b'404', other.recv(4096))
+            client = ask(f'GET /linked?code=4%2F0AVG-code&state={state} HTTP/1.1\r\nHost: x\r\n\r\n')
+            self.addCleanup(client.close)
+            code, answer = server.wait(2, state)
             self.assertEqual(code, '4/0AVG-code')
             answer('Google Drive is linked. You can close this page.')
             reply = client.recv(4096)

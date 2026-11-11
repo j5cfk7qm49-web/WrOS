@@ -52,6 +52,7 @@ class SignedUpdateTests(unittest.TestCase):
         release_headers='',
         signer='archive',
         subkey=True,
+        packages_rel='Packages',
     ):
         pool_dir = bundle_dir / 'pool'
         pool_dir.mkdir(parents=True, exist_ok=True)
@@ -70,7 +71,8 @@ class SignedUpdateTests(unittest.TestCase):
             f'SHA256: {deb_sha}\n'
         )
         packages_bytes = packages_text.encode('utf-8')
-        (bundle_dir / 'Packages').write_bytes(packages_bytes)
+        (bundle_dir / packages_rel).parent.mkdir(parents=True, exist_ok=True)
+        (bundle_dir / packages_rel).write_bytes(packages_bytes)
         pkg_sha = hashlib.sha256(packages_bytes).hexdigest()
         release_text = (
             'Origin: WrOS\n'
@@ -78,7 +80,7 @@ class SignedUpdateTests(unittest.TestCase):
             'Codename: trixie\n'
             f'{release_headers or support.fresh_headers()}'
             'SHA256:\n'
-            f' {pkg_sha} {len(packages_bytes)} Packages\n'
+            f' {pkg_sha} {len(packages_bytes)} {packages_rel}\n'
         )
         if detached:
             (bundle_dir / 'Release').write_bytes(release_text.encode('utf-8'))
@@ -98,6 +100,16 @@ class SignedUpdateTests(unittest.TestCase):
                 self.assertEqual(verified['packages'][0]['name'], 'grimoire')
                 self.assertEqual(verified['packages'][0]['version'], '0.7.6')
                 self.assertEqual(verified['signer_fingerprint'], self.gpg.keys['archive']['primary'].upper())
+
+    def test_signed_suite_layout_uses_the_authenticated_packages_path(self):
+        with tempfile.TemporaryDirectory(prefix='wros-bundle-') as tmp:
+            bundle = Path(tmp) / 'bundle'
+            relative = 'main/binary-amd64/Packages'
+            self.build_signed_bundle(bundle, packages_rel=relative)
+            self.assertEqual(self.verify(bundle)['package_count'], 1)
+            (bundle / relative).rename(bundle / 'Packages')
+            with self.assertRaisesRegex(ValueError, 'Packages index'):
+                self.verify(bundle)
 
     def test_bundle_signed_directly_by_primary_key_without_subkey(self):
         solo_sys = support.SystemFixture(
@@ -235,8 +247,7 @@ class SignedUpdateTests(unittest.TestCase):
             self.build_signed_bundle(bundle)  # signed by the archive key's subkey
             primary = self.gpg.keys['archive']['primary'].upper()
             image = tmp / 'image-keyring.gpg'
-            self.gpg.run('--output', str(image), '--export-filter', 'drop-subkey=usage =~ s',
-                         '--export', self.gpg.keys['archive']['email'])
+            image.write_bytes(self.gpg.keys['archive']['primary_only'])
             package = tmp / 'update-keyring.gpg'
             self.gpg.export(['archive'], package)
             self.assertEqual(update.keyring_primary_fingerprints(package.read_bytes()), [primary])
@@ -266,6 +277,27 @@ class SignedUpdateTests(unittest.TestCase):
                         update.verify_bundle(bundle, keyring=keyring, signers=self.signers, host_arch='amd64',
                                              package_keyring=both)
                 self.assertIn('primary key the signer pin does not name', warned.getvalue())
+
+    def test_rollback_uses_the_newer_keyring_only_while_its_package_is_rolled_back(self):
+        with tempfile.TemporaryDirectory(prefix='wros-rollback-keyring-') as tmp:
+            tmp = Path(tmp)
+            bundle = tmp / 'bundle'
+            self.build_signed_bundle(bundle)
+            image, package = tmp / 'image.gpg', tmp / 'package.gpg'
+            primary_only = self.gpg.keys['archive']['primary_only']
+            image.write_bytes(primary_only)
+            self.gpg.export(['archive'], package)
+            with mock.patch.multiple(update, DEFAULT_KEYRING=image, PACKAGE_KEYRING=package,
+                                     DEFAULT_STATE_DIR=tmp), mock.patch.object(
+                    update, 'load_installed_dpkg_database') as installed:
+                update.retain_rollback_keyring(update.Store(tmp), self.signers, '0.1.0~rc10')
+                package.write_bytes(primary_only)
+                installed.return_value = {'wros': {'version': '0.1.0~rc9'}}
+                update.verify_bundle(bundle, keyring=image, signers=self.signers, host_arch='amd64')
+                # A newer package that drops this subkey takes precedence.
+                installed.return_value = {'wros': {'version': '0.1.0~rc11'}}
+                with self.assertRaisesRegex(ValueError, 'GPG signature verification failed'):
+                    update.verify_bundle(bundle, keyring=image, signers=self.signers, host_arch='amd64')
 
     def test_a_trigger_queued_only_in_unincorp_is_unfinished_dpkg_work(self):
         # dpkg-trigger outside a dpkg run queues work in triggers/Unincorp and

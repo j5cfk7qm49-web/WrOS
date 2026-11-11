@@ -1,6 +1,6 @@
 //! Native setup, encrypted snapshots and restore-to-new-folder controls.
 use super::*;
-use crate::backup_service::{self as service, DriveEntry, QueuedBackup, Request, Secret, Status};
+use crate::backup_service::{self as service, QueuedBackup, Request, Secret, Status};
 use zeroize::Zeroizing;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -396,20 +396,6 @@ impl Backups {
             && let Ok(parsed) = serde_json::from_value::<Vec<QueuedBackup>>(items.clone())
         {
             self.status.queued_backups = parsed;
-        }
-        let browser_path = self.state.join("drive-browser.json");
-        if !browser_path.is_symlink()
-            && let Ok(text) = fs::read_to_string(&browser_path)
-            && let Ok(bdata) = serde_json::from_str::<serde_json::Value>(&text)
-        {
-            if let Some(folder) = bdata.get("folder").and_then(|v| v.as_str()) {
-                self.status.drive_folder = folder.to_string();
-            }
-            if let Some(entries) = bdata.get("entries")
-                && let Ok(parsed) = serde_json::from_value::<Vec<DriveEntry>>(entries.clone())
-            {
-                self.status.drive_entries = parsed;
-            }
         }
     }
     fn finish_auto(&mut self, ok: bool) {

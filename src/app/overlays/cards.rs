@@ -112,7 +112,7 @@ impl App {
                     _ => self.start_delete(),
                 }
                 if self.overlay == Overlay::None {
-                    self.back_to_cork();
+                    self.back_to_cork(None);
                 }
             }
             // Rearranging: the card, and its scene, one place earlier or later.
@@ -135,17 +135,20 @@ impl App {
         }
     }
 
-    /// Back to the corkboard after a prompt from it, on the scene that's open
-    /// if it's on the board (a card just made), or where it was.
-    pub(super) fn back_to_cork(&mut self) {
-        let Some(board) = self.cork_back.take() else {
+    /// Return to the selected card, or highlight a card just created.
+    pub(in crate::app) fn back_to_cork(&mut self, path: Option<&Path>) {
+        let Some(mut board) = self.cork_back.take() else {
             return;
         };
-        let note = std::mem::take(&mut self.msg);
+        if let Overlay::Cork { scope, sel, .. } = &mut board {
+            let count: usize = cork::board(&self.project, self.cork_scope(scope))
+                .iter()
+                .map(|group| group.cards.len())
+                .sum();
+            *sel = (*sel).min(count.saturating_sub(1));
+        }
         self.overlay = board;
-        self.msg = note;
-        if let Some(open) = self.open {
-            let path = self.project.nodes[open].path.clone();
+        if let Some(path) = path {
             self.cork_select(|n| n.path == path);
         }
     }

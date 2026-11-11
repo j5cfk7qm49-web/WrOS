@@ -11,7 +11,7 @@ use ratatui::{
     widgets::Paragraph,
 };
 use wros_shell::grimoire_theme::Theme;
-use zeroize::Zeroizing;
+use zeroize::{Zeroize, Zeroizing};
 
 /// Longer than any disk password a writer types; more is ignored.
 pub const MAX_CHARS: usize = 512;
@@ -62,7 +62,7 @@ impl Unlock {
             Key::Backspace => {
                 self.password.pop();
             }
-            Key::Clear => self.password.clear(),
+            Key::Clear => self.password.zeroize(),
             Key::Enter => return Outcome::Done,
             Key::Esc => return Outcome::Text,
         }

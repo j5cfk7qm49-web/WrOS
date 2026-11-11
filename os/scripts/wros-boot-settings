@@ -1,9 +1,11 @@
 #!/usr/bin/python3 -I
 """Fixed start-screen files and a queued boot-image rebuild. No user file paths."""
 import fcntl
+import grp
 import json
 import os
 from pathlib import Path
+import pwd
 import re
 import subprocess
 import sys
@@ -130,6 +132,17 @@ class Settings:
 def main(args):
     if os.geteuid() != 0:
         raise ValueError('The start-screen service needs authorization.')
+    uid = os.environ.get('PKEXEC_UID')
+    if uid is not None:
+        if args == ['rebuild'] or re.fullmatch(r'[0-9]{4,5}', uid) is None or not 1000 <= int(uid) < 65534:
+            raise ValueError('The start-screen service needs authorization.')
+        try:
+            caller = pwd.getpwuid(int(uid))
+            required = {grp.getgrnam(name).gr_gid for name in ('wros', 'writingdeck')}
+        except KeyError:
+            raise ValueError('The start-screen service needs authorization.') from None
+        if not required.issubset(os.getgrouplist(caller.pw_name, caller.pw_gid)):
+            raise ValueError('The start-screen service needs authorization.')
     settings = Settings(Path('/etc/wros'), Path('/var/lib/wros/boot-screen'))
     if args == ['rebuild']:
         settings.rebuild()
