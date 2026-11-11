@@ -60,6 +60,14 @@ Plain Markdown in Drive can be backed up and opened with a compatible editor; ed
 
 Required round-trip fixture: Unicode, YAML unknown fields/comments, scene metadata, inline Markdown, contextual footnotes, private annotations and chapter order. Compare body/metadata/reference identity, not just rendered appearance. If conversion loses information, document and enforce a safer one-way review or manual merge workflow; do not promise faithful Docs synchronization.
 
+Word imports preserve footnote references and definitions in the scenes that use
+them. Repeated references share one definition per scene, and multiple note
+paragraphs retain their formatting. Imported labels use Word's numeric IDs under
+the `docx-` prefix. A synthetic WrOS export saved again by LibreOffice retained
+Unicode text and both paragraphs of its footnote through the app's import command.
+The import creates a new book for review. The live iPhone and Google Docs check
+remains in [issue 10](https://github.com/j5cfk7qm49-web/WrOS/issues/10).
+
 ## Status and credential gates
 
 No Google account was enrolled or manuscript transmitted during implementation.
