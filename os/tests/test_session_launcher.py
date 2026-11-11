@@ -75,13 +75,36 @@ class Machine:
 
 
 class Launcher(unittest.TestCase):
+    def test_the_packaged_compositor_takes_precedence_over_stock_cage(self):
+        import subprocess
+        m = self.machine()
+        original = m.exists
+        m.exists = lambda path: path in (session.PACKAGED_CAGE, session.DISPLAY) or original(path)
+        seen = []
+        def run(argv, **kwargs):
+            seen.append(argv)
+            if argv[0] == session.PKEXEC:
+                return subprocess.CompletedProcess(argv, 0)
+            self.assertEqual(argv[0], session.PACKAGED_CAGE)
+            self.assertEqual(kwargs['env']['WROS_COMPOSITOR_WARMTH'], 'ready')
+            Path(kwargs['env']['WROS_READY_FILE']).touch()
+            return subprocess.CompletedProcess(argv, 0)
+        m.run = run
+        self.assertEqual(m.start(), 0)
+        self.assertFalse(any(argv[0] == session.DPKG_QUERY for argv in seen))
+
     def test_native_warmth_is_released_before_cage_and_failure_only_disables_warmth(self):
         import subprocess
-        for success in (True, False):
+        for success, cage_status, warmth in (
+            (True, b'installed\t0.2.0-2', 'unsupported-cage'),
+            (True, b'installed\t0.3.0-1', 'ready'),
+            (False, b'', 'unavailable'),
+        ):
             m = self.machine()
             effects = []
             original_exists = m.exists
             m.exists = lambda path: path == '/usr/libexec/wros-display' or original_exists(path)
+            cage_call = 3 if success else 2
             def run(argv, **kwargs):
                 effects.append(argv)
                 if argv[0] == session.PKEXEC:
@@ -90,12 +113,17 @@ class Launcher(unittest.TestCase):
                                            '/usr/libexec/wros-display', verb])
                     self.assertEqual(kwargs['timeout'], 12)
                     return subprocess.CompletedProcess(argv, 0 if success else 1)
-                self.assertEqual(len(effects), 2)
-                self.assertEqual(kwargs['env'].get('WROS_COMPOSITOR_WARMTH'), 'ready' if success else 'unavailable')
+                if argv[0] == session.DPKG_QUERY:
+                    self.assertTrue(success)
+                    self.assertEqual(len(effects), 2)
+                    self.assertEqual(argv[1:], ['-W', '-f=${db:Status-Status}\\t${Version}', 'cage'])
+                    return subprocess.CompletedProcess(argv, 0, stdout=cage_status)
+                self.assertEqual(len(effects), cage_call)
+                self.assertEqual(kwargs['env'].get('WROS_COMPOSITOR_WARMTH'), warmth)
                 Path(kwargs['env']['WROS_READY_FILE']).touch()
             m.run = run
             self.assertEqual(m.start(), 0)
-            self.assertEqual(len(effects), 3)
+            self.assertEqual(len(effects), cage_call + 1)
 
     def test_wgpu_runs_directly_under_cage_without_foot(self):
         m = self.machine()

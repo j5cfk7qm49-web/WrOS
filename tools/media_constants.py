@@ -17,9 +17,10 @@ ROOT = Path(__file__).resolve().parents[1]
 INSTALL_SESSION = ROOT / 'os/scripts/wros-install-session'
 POOL_BUILDER = ROOT / 'tools/build-live-installer-pool.py'
 
-# Rust binaries in both the live image and the installed target.
+# Compiled executables in both the live image and the installed target.
 BINARY_PATHS = {'grimoire': 'usr/bin/grimoire', 'wros-greeter': 'usr/bin/wros-greeter',
-                'wros-boot': 'usr/lib/wros/wros-boot', 'wros-installer': 'usr/bin/wros-installer'}
+                'wros-boot': 'usr/lib/wros/wros-boot', 'wros-installer': 'usr/bin/wros-installer',
+                'cage': 'usr/lib/wros/cage'}
 
 # Debian trixie debian-installer-launcher 44 (arch all). live-build does not
 # install it, and wros-install-session sources plugins/live from it, so the

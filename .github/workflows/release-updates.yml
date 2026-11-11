@@ -54,6 +54,7 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends build-essential pkg-config libasound2-dev libssl-dev libdrm-dev \
             libinput-dev libudev-dev libseat-dev libxkbcommon-dev \
+            libwayland-dev libegl1-mesa-dev meson ninja-build libwlroots-0.18-dev \
             python3 python3-debian ca-certificates curl git gnupg gpgv dpkg-dev console-setup keyboard-configuration
       - uses: actions/checkout@v7
         with:
@@ -112,7 +113,7 @@ jobs:
         run: |
           set -euo pipefail
           export PATH="/opt/cargo/bin:$PATH"
-          cargo build --release --locked --no-default-features --features gui-drm -p grimoire-tui -p wros-greeter -p wros-boot
+          cargo build --release --locked --no-default-features --features gui-drm,gui-wgpu -p grimoire-tui -p wros-greeter -p wros-boot
           mkdir -p out/bin out/new
           cp target/release/grimoire target/release/wros-greeter target/release/wros-boot out/bin/
           python3 -I tools/build-wros-debs.py --binaries-dir out/bin --version "$VERSION" --output out/new

@@ -88,9 +88,11 @@ preflight() {
     need_command autoreconf autoconf;   need_command runuser util-linux
     need_command sha256sum coreutils;   need_command git git
     need_command cargo cargo;           need_command qemu-system-x86_64 qemu-system-x86
+    need_command meson meson;           need_command ninja ninja-build
     need_command mformat mtools;        need_command rsync rsync
     if command -v pkg-config >/dev/null 2>&1; then
         pkg-config --exists libdrm || { missing_commands+=(libdrm-dev); missing_notes+=(libdrm-dev); }
+        pkg-config --exists wlroots-0.18 || { missing_commands+=(libwlroots-0.18-dev); missing_notes+=(libwlroots-0.18-dev); }
         pkg-config --exists libinput || { missing_commands+=(libinput-dev); missing_notes+=(libinput-dev); }
         pkg-config --exists libudev || { missing_commands+=(libudev-dev); missing_notes+=(libudev-dev); }
         pkg-config --exists libseat || { missing_commands+=(libseat-dev); missing_notes+=(libseat-dev); }
@@ -179,9 +181,10 @@ step_binaries() {
     as_builder env CARGO_TARGET_DIR="$cargo_target" bash -c '
         set -euo pipefail
         cd "$1"
-        cargo build --release --locked --no-default-features --features gui-drm -j "$2" -p grimoire-tui -p wros-greeter -p wros-boot -p wros-installer
+        cargo build --release --locked --no-default-features --features gui-drm,gui-wgpu -j "$2" -p grimoire-tui -p wros-greeter -p wros-boot -p wros-installer
     ' _ "$repo" "${WROS_CARGO_JOBS:-2}"
-    local -a names=(grimoire wros-greeter wros-boot wros-installer)
+    as_builder python3 "$repo/tools/build-cage.py" --output "$cargo_target/release/cage"
+    local -a names=(grimoire wros-greeter wros-boot wros-installer cage)
     local name
     for name in "${names[@]}"; do
         [[ -x $cargo_target/release/$name && ! -L $cargo_target/release/$name ]] || die "cargo did not produce release/$name"
@@ -296,6 +299,7 @@ audit_media() {   # exits non-zero unless the real ISO passes; writes the audit 
         --binary "wros-greeter=$cargo_target/release/wros-greeter"
         --binary "wros-boot=$cargo_target/release/wros-boot"
         --binary "wros-installer=$cargo_target/release/wros-installer"
+        --binary "cage=$cargo_target/release/cage"
         --scratch "$build/audit-scratch"
         --tree-result "$build/tree-audit.json")
     ((interim == 0)) || args+=(--interim)

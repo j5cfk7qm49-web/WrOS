@@ -9,6 +9,8 @@ Vulkan drivers. Disk unlock, loading and login keep their console input path.
 The native writing session uses libinput devices and xkbcommon in its disposable
 input process. It reads Debian's keyboard layout, watches layout changes, and
 supports compose, key repeat and a cell-based mouse/touchpad with a visible cursor.
+The writer uses 14-pixel WrOS Mono in 10×18-pixel cells. A 1366×768 panel fits
+136 columns and 42 rows at its selected display mode. Startup and login use 16-pixel type.
 Only root-owned XKB and Compose data are loaded. PTYs and unavailable native
 devices retain terminal input.
 
@@ -107,6 +109,18 @@ graphics. WrOS release builders explicitly add `--features gui-drm`; desktop
 terminal launches continue to use their terminal unless the session launcher
 asks for native output.
 
+rc11 release builds include both `gui-drm` and `gui-wgpu` for the writing
+executable. Foot, Mesa and the patched private Cage are included in the image and
+package dependencies, so the compositor options are available after installation.
+The native renderer remains the default. Build the private compositor with
+`python3 tools/build-cage.py --output /path/to/cage`; its additional build
+dependencies are `meson`, `ninja-build` and `libwlroots-0.18-dev`.
+
+Native console restoration retries brief DRM-master contention from the colour
+helper. Restoration errors propagate before the maintained locker starts;
+switching to text mode after a failed framebuffer restoration is no longer
+treated as a successful handoff.
+
 Native writing builds need `libinput-dev`, `libudev-dev`, `libseat-dev` and
 `libxkbcommon-dev` in addition to libdrm. The package declares the corresponding
 runtime libraries, `xkb-data` and `libx11-data` for the system Compose table.
@@ -119,8 +133,9 @@ executables.
 The release VM chain accepts `--bootscreen` to include graphical unlock,
 loading/login handoff, writing, VT switching, lock, renderer SIGKILL and text
 recovery after the saved-system update and feature checks. Its screenshots use
-the exact glyph atlas from `cargo run -p wros-graphics --example font_atlas`;
-set `WROS_NATIVE_FONT` to that PPM file when running the VM harness.
+exact glyph atlases from `cargo run -p wros-graphics --example font_atlas`.
+Set `WROS_NATIVE_FONT` to the startup atlas. Generate the writing atlas by adding
+`-- --writing` to the command and set `WROS_NATIVE_WRITING_FONT` to that PPM file.
 
 The [native input qualification record](evidence/rc10-native-input.json) retains
 the isolated installed-VM checks for physical Colemak, compose, live layout

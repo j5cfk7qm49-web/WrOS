@@ -45,7 +45,7 @@ GUEST = Path(__file__).with_name('rc_vm_guest.py')
 LIVE_USER, LIVE_PASSWORD = 'wros-live', 'live'   # Debian's public live credential, not a secret
 TARGET_BYTES = 16 * 1024 ** 3
 INSTALL_NIC_MAC = '52:54:00:57:52:01'
-LEGACY_BINARY_NAMES = BINARY_PATHS.keys() - {'wros-boot'}
+LEGACY_BINARY_NAMES = BINARY_PATHS.keys() - {'wros-boot', 'cage'}
 # installer keymap list entry to choose, and entries to avoid, per requested layout
 LAYOUT_CHOICES = {'dvorak': (r'^Dvorak$', ''), 'colemak': (r'^Colemak$', ''),
                   'colemak_dh': (r'^Colemak Mod-DH \(ANSI\)$', '')}

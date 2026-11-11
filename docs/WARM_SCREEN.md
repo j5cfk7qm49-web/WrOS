@@ -29,7 +29,7 @@ compositor warmth while writing still opens. Once cage exits, the launcher queue
 the existing native service again, including before a console fallback. The two
 colour paths therefore do not try to own an active compositor's display together.
 
-The colour worker applies bounded curves through cage. Its own poll deadline
+The colour worker requests bounded curves through cage. Its own poll deadline
 reverts an unconfirmed preview after 15 seconds even if the writing process is
 stopped. Closing the request pipe ends the worker; losing its Wayland connection
 or destroying the controls returns outputs to the compositor's original curves.
@@ -46,6 +46,21 @@ back a physical display. The page labels this as an accepted session preference.
 The [protocol](https://gitlab.freedesktop.org/wlroots/wlr-protocols/-/blob/master/unstable/wlr-gamma-control-unstable-v1.xml)
 defines exclusive controls and restoration on destruction;
 [cage 0.2](https://github.com/cage-kiosk/cage/blob/v0.2.0/cage.c) exports that interface.
+
+The stock Cage 0.2.0-2 package in Debian 13 advertises gamma controls and
+leaves gamma requests unapplied. rc11 carries a small patched Cage at
+`/usr/lib/wros/cage`: gamma changes and control destruction schedule real output
+commits, and driver refusal reaches the colour worker. The launcher prefers this
+copy; an older installation with only stock Cage still reports warmth unavailable.
+Both paths preserve the saved setting. The complete MIT-licensed build source,
+upstream checksums and changes are retained in
+[the Cage source record](../os/vendor/cage/WROS-SOURCE.md).
+[Debian Cage output code](https://sources.debian.org/src/cage/0.2.0-2/output.c/) · [Debian wlroots gamma control](https://sources.debian.org/src/wlroots/0.18.2-3/types/wlr_gamma_control_v1.c)
+
+The actual patched compositor passes a headless regression with a test gamma
+driver: it commits the requested curves, restores on release, and reports a
+rejected commit. Stock Cage fails that same check. This establishes the compositor
+integration; the HP Stream's physical colour and wake behavior still need testing.
 
 Keep persists only bounded preferences through the existing polkit helper. The
 root helper never opens a Wayland socket. It checks the reviewed configuration
