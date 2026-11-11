@@ -3748,6 +3748,40 @@ fn wros_every_lesson_links_to_real_searchable_offline_help() {
 }
 
 #[test]
+fn wros_every_catalog_lesson_launches_from_the_tutorial_menu_in_a_safe_demo() {
+    use crate::app::wros::Page;
+    for (width, height) in [(80, 24), (136, 42)] {
+        for lesson in grimoire_core::tutorial::lessons() {
+            let root = std::env::temp_dir().join(format!(
+                "grimoire-tutorial-launch-{}-{width}-{}",
+                lesson.id,
+                std::process::id()
+            ));
+            let _ = fs::remove_dir_all(&root);
+            grimoire_core::tutorial::create_demo(&root).unwrap();
+            let mut desk = Desk::open(root, width, height);
+            desk.app.deck.simulate();
+            desk.app.overlay = Overlay::Deck(Page::Tutorial {
+                sel: lesson.id as usize - 1,
+            });
+            desk.key(KeyCode::Enter);
+            assert_eq!(
+                desk.app.overlay,
+                Overlay::Deck(Page::Lesson { id: lesson.id })
+            );
+            desk.key(KeyCode::Enter);
+            assert_ne!(
+                desk.app.overlay,
+                Overlay::Deck(Page::Lesson { id: lesson.id }),
+                "lesson {} stayed on its instructions at {width}×{height}: {}",
+                lesson.id,
+                desk.app.deck.note
+            );
+        }
+    }
+}
+
+#[test]
 fn wros_async_system_status_is_explicitly_simulated_and_does_not_block_writing() {
     use crate::app::wros::Page;
     let mut d = Desk::open(book("deck-system-worker", true), 100, 30);
