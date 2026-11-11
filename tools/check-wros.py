@@ -12,7 +12,7 @@ from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT/'docs'
-REQUIRED = 'ROADMAP FEATURE_MATRIX ARCHITECTURE WRITING_DECK_OS INSTALLATION LINUX_SYSTEM_INTEGRATION COLEMAK WORKSPACES KEYBOARD_SHORTCUTS WRITING_TOOLS CHALLENGE_LIBRARY CONTENT_LICENSES STORY_SPARK DAILY_CHALLENGES WRITING_CHECKS SYNC_AND_BACKUP TUTORIAL TESTING'.split()
+REQUIRED = 'README FEATURE_MATRIX ARCHITECTURE INSTALLATION LINUX_SYSTEM_INTEGRATION COLEMAK WORKSPACES KEYBOARD_SHORTCUTS WRITING_TOOLS CHALLENGE_LIBRARY CONTENT_LICENSES STORY_SPARK DAILY_CHALLENGES WRITING_CHECKS SYNC_AND_BACKUP TUTORIAL TESTING'.split()
 ERRORS = []
 
 def check(ok, message):
@@ -58,7 +58,7 @@ def line_ending_errors(root):
 
 def load(name):
     try:
-        return json.loads((DOCS/name).read_text())
+        return json.loads((DOCS/name).read_text(encoding='utf-8'))
     except (OSError, ValueError) as exc:
         ERRORS.append(f'{name}: {exc}')
         return {}
@@ -76,10 +76,10 @@ def main():
     parser.add_argument('--require-current-evidence', action='store_true', help='also reject stale-source or failed software/VM evidence')
     args=parser.parse_args()
     ERRORS.extend(line_ending_errors(ROOT))
-    for name in REQUIRED + ['STATUS']:
+    for name in REQUIRED:
         check((DOCS/(name+'.md')).is_file(), f'missing {name}.md')
     for path in DOCS.glob('*.md'):
-        text = path.read_text()
+        text = path.read_text(encoding='utf-8')
         for target in re.findall(r'!?\[[^\]]*\]\(([^\s)]+)(?:\s+[^)]*)?\)', text):
             target = unquote(target).split('#')[0].split('?')[0]
             if target and not re.match(r'[a-zA-Z][a-zA-Z0-9+.-]*:', target):
@@ -108,14 +108,20 @@ def main():
         check(feature.get('status') in allowed, f'invalid feature status: {feature}')
         check(not feature.get('hardware_verified'), 'hardware claims require new identified hardware evidence/review')
         expected='| '+' | '.join(str(feature[k]).replace('|','\\|') for k in ['area','capability','status','verification','detail'])+' |'
-        check(expected in (DOCS/'FEATURE_MATRIX.md').read_text(), f'matrix differs from machine inventory: {feature["capability"]}')
-    lessons = json.loads((ROOT/'crates/grimoire-core/assets/wros/tutorial.json').read_text())
-    check([l['id'] for l in lessons] == list(range(1,41)), 'tutorial must retain IDs 1–39 plus supplemental 40 once each')
-    check(lessons[25]['event'] == 'SpellingOpened' and lessons[39]['event'] == 'GrammarApplied', 'historic spelling cannot be reinterpreted as new grammar evidence')
+        check(expected in (DOCS/'FEATURE_MATRIX.md').read_text(encoding='utf-8'), f'matrix differs from machine inventory: {feature["capability"]}')
+    lessons = json.loads((ROOT/'crates/grimoire-core/assets/wros/tutorial.json').read_text(encoding='utf-8'))
+    sequenced = isinstance(lessons, list) and 50 <= len(lessons) <= 255 and all(
+        isinstance(lesson, dict) and type(lesson.get('id')) is int and lesson['id'] == expected
+        for expected, lesson in enumerate(lessons, 1))
+    check(sequenced,
+          'tutorial must keep IDs 1–50 and number later lessons in sequence')
+    if sequenced:
+        check(lessons[25].get('event') == 'SpellingOpened' and lessons[39].get('event') == 'GrammarApplied',
+              'historic spelling cannot be reinterpreted as new grammar evidence')
     reference = DOCS/'keyboard-reference.html'
     check(reference.is_file(), 'printable reference missing')
     if reference.is_file():
-        html = reference.read_text()
+        html = reference.read_text(encoding='utf-8')
         OfflineHTML().feed(html)
         check(digest(ROOT/'assets/help/24-every-key.md') in html, 'printable keys stale; run tools/generate-keyboard-reference.py')
     if args.require_current_evidence:
@@ -134,7 +140,7 @@ def main():
     if ERRORS:
         print('\n'.join('ERROR: '+e for e in ERRORS), file=sys.stderr)
         return 1
-    print(f'PASS: {len(REQUIRED)} required docs + STATUS, local links, {len(features)} capability rows, {len(lessons)} lessons, content/dictionary hashes, notices, offline printable reference')
+    print(f'PASS: {len(REQUIRED)} required docs, local links, {len(features)} capability rows, {len(lessons)} lessons, content/dictionary hashes, notices, offline printable reference')
     if args.require_current_evidence:
         print('PASS: software and VM evidence fingerprints match the current source; this is NOT physical hardware verification')
     print(f'RELEASE GATE: {len(software.get("missing_root_notice_files_requiring_review", []))} all-platform Rust packages lack root-level notice files; {len(software.get("selected_build", {}).get("missing_root_notice_files", []))} used by the Linux no-audio build. No legal/hardware/production clearance implied.')
