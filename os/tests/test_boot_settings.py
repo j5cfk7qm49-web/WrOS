@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -118,7 +119,8 @@ class BootSettings(unittest.TestCase):
         self.assertEqual(action.find('annotate').text, '/usr/libexec/wros-boot-settings')
         self.assertTrue(all(item.text == 'no' for item in action.find('defaults')))
         rule = (ROOT / 'os/config/50-wros-boot-settings.rules').read_text()
-        for term in ('subject.local', 'subject.active', 'subject.isInGroup("wros")'):
+        for term in ('subject.local', 'subject.active', 'subject.isInGroup("wros")',
+                     'subject.isInGroup("writingdeck")'):
             self.assertIn(term, rule)
         service = (ROOT / 'os/systemd/wros-boot-rebuild.service').read_text()
         path = (ROOT / 'os/systemd/wros-boot-rebuild.path').read_text()
@@ -131,6 +133,20 @@ class BootSettings(unittest.TestCase):
                      'etc/systemd/system/wros-boot-rebuild.path'):
             self.assertIn(dest, files)
         self.assertNotIn('etc/wros/boot-screen', files)
+
+    def test_pkexec_cannot_rebuild_or_change_settings_without_both_groups(self):
+        with mock.patch.object(self.module.os, 'geteuid', return_value=0), mock.patch.dict(
+                self.module.os.environ, {'PKEXEC_UID': '1000'}), mock.patch.object(
+                self.module, 'Settings', return_value=self.settings), mock.patch.object(
+                self.module.pwd, 'getpwuid', return_value=mock.Mock(pw_name='writer', pw_gid=1000)), mock.patch.object(
+                self.module.grp, 'getgrnam', side_effect=lambda name: mock.Mock(gr_gid={'wros': 998, 'writingdeck': 999}[name])
+        ), mock.patch.object(self.module.os, 'getgrouplist', return_value=[1000, 998]) as groups:
+            with self.assertRaisesRegex(ValueError, 'needs authorization'):
+                self.module.main(['theme', 'name = "Nord"'])
+            groups.return_value.append(999)
+            with self.assertRaisesRegex(ValueError, 'needs authorization'):
+                self.module.main(['rebuild'])
+            self.assertEqual(self.calls, [])
 
 
 if __name__ == '__main__':

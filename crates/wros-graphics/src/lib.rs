@@ -35,16 +35,37 @@ use ratatui::{
 };
 use std::io;
 
-/// The exact font and colour adapter used by scanout and the screenshot templates.
+#[derive(Clone, Copy)]
+pub enum TextSize {
+    Startup,
+    Writing,
+}
+
+impl TextSize {
+    /// The same font and colour adapter serves scanout and screenshot templates.
+    pub fn raster(
+        self,
+        columns: u16,
+        rows: u16,
+    ) -> soft_ratatui::SoftBackend<soft_ratatui::CosmicText> {
+        let font_px = match self {
+            Self::Startup => 16,
+            // Foot's 11-point font fits 18-pixel rows at the default scale.
+            Self::Writing => 14,
+        };
+        let mut pixels = soft_ratatui::SoftBackend::<soft_ratatui::CosmicText>::new(
+            columns,
+            rows,
+            font_px,
+            include_bytes!("../../../assets/WrOSMono.ttf"),
+        );
+        reset_colours(&mut pixels);
+        pixels
+    }
+}
+
 pub fn raster(columns: u16, rows: u16) -> soft_ratatui::SoftBackend<soft_ratatui::CosmicText> {
-    let mut pixels = soft_ratatui::SoftBackend::<soft_ratatui::CosmicText>::new(
-        columns,
-        rows,
-        16,
-        include_bytes!("../../../assets/WrOSMono.ttf"),
-    );
-    reset_colours(&mut pixels);
-    pixels
+    TextSize::Startup.raster(columns, rows)
 }
 
 fn colour(colour: ratatui::style::Color, foreground: bool) -> ratatui::style::Color {
@@ -149,13 +170,17 @@ pub struct Screen<W: io::Write> {
 
 impl<W: io::Write> Screen<W> {
     pub fn new(writer: W, graphical: bool, tty: &std::fs::File) -> Self {
+        Self::with_text_size(writer, graphical, tty, TextSize::Startup)
+    }
+
+    pub fn with_text_size(writer: W, graphical: bool, tty: &std::fs::File, size: TextSize) -> Self {
         #[cfg(not(target_os = "linux"))]
-        let _ = (graphical, tty);
+        let _ = (graphical, tty, size);
         Self {
             console: CrosstermBackend::new(writer),
             #[cfg(target_os = "linux")]
             graphics: graphical
-                .then(|| kms::Display::open(tty))
+                .then(|| kms::Display::open(tty, size))
                 .and_then(Result::ok),
         }
     }
@@ -192,11 +217,15 @@ impl<W: io::Write> Screen<W> {
     }
 
     /// Drop DRM master and restore the console before the independent locker starts.
-    pub fn suspend(&mut self) {
+    pub fn suspend(&mut self) -> io::Result<()> {
         #[cfg(target_os = "linux")]
         {
+            if let Some(display) = &mut self.graphics {
+                display.restore()?;
+            }
             self.graphics = None;
         }
+        Ok(())
     }
 }
 

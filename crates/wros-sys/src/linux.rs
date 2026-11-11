@@ -145,6 +145,17 @@ impl Runner for ProcessRunner {
             // The detached readers end when the pipes close.
             bail!("{} timed out; no success assumed", cmd.program);
         };
+        // An exited launcher can leave a descendant holding a pipe open.
+        // The same deadline applies to draining it as to waiting for the child.
+        while !out.is_finished() || !err.is_finished() {
+            if start.elapsed() > cmd.timeout {
+                bail!(
+                    "{} timed out while reading its reply; no success assumed",
+                    cmd.program
+                );
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
         let stdout = out
             .join()
             .map_err(|_| anyhow::anyhow!("stdout reader failed"))??;
@@ -1417,6 +1428,16 @@ mod tests {
             ["-s", "dist-upgrade"]
         );
     }
+    #[test]
+    fn process_timeout_also_bounds_pipes_inherited_by_a_child() {
+        let mut command = Invocation::new("/bin/sh", &["-c", "sleep 2 & exit 0"]);
+        command.timeout = Duration::from_millis(100);
+        let started = Instant::now();
+        let result = ProcessRunner.run(&command);
+        assert!(result.is_err());
+        assert!(started.elapsed() < Duration::from_secs(1));
+    }
+
     #[test]
     fn process_runner_rejects_truncation_and_invalid_utf8_instead_of_partial_success() {
         let mut runner = ProcessRunner;

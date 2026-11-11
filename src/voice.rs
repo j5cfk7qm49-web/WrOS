@@ -31,8 +31,15 @@ const ABBREVIATIONS: &[&str] = &[
 /// aren't said, and a sentence with nothing left to say is skipped.
 pub fn sentences(lines: &[String]) -> Vec<Sentence> {
     let mut out = Vec::new();
-    for (line, text) in lines.iter().enumerate() {
-        let chars: Vec<char> = text.chars().collect();
+    let marks = grimoire_core::notes::line_spans(lines);
+    for (line, (text, marks)) in lines.iter().zip(marks).enumerate() {
+        let mut chars: Vec<char> = text.chars().collect();
+        // Mask notes before splitting sentences, without shifting source offsets.
+        for (start, end, kind) in marks {
+            if kind == grimoire_core::notes::MarkKind::Note {
+                chars[start..end].fill(' ');
+            }
+        }
         let mut start = 0;
         let mut i = 0;
         while i < chars.len() {
@@ -82,16 +89,14 @@ pub fn sentences(lines: &[String]) -> Vec<Sentence> {
 
 fn push(out: &mut Vec<Sentence>, line: usize, chars: &[char], start: usize, end: usize) {
     let raw: String = chars[start..end].iter().collect();
-    let said = grimoire_core::notes::strip_notes(&raw)
-        .replace(['*', '_', '#'], "")
-        .replace("%%", "");
+    let said = raw.replace(['*', '_', '#'], "");
     let said = said.split_whitespace().collect::<Vec<_>>().join(" ");
     if said.chars().any(char::is_alphanumeric) {
         let lead = raw.chars().take_while(|c| c.is_whitespace()).count();
         out.push(Sentence {
             line,
             start: start + lead,
-            end,
+            end: end - raw.chars().rev().take_while(|c| c.is_whitespace()).count(),
             text: said,
         });
     }
@@ -699,6 +704,23 @@ mod tests {
             said(&["%% fix this later %%", "Then she left."]),
             ["Then she left."]
         );
+    }
+
+    #[test]
+    fn note_punctuation_never_splits_prose_or_leaks_into_speech() {
+        let lines = [
+            "She waited. %% Check the map. Ask Bob! %% Then she left.",
+            "Before. %% A note begins.",
+            "Private words.",
+            "%% Café opened.",
+        ]
+        .map(str::to_string);
+        let spoken = sentences(&lines);
+        assert_eq!(
+            spoken.iter().map(|s| s.text.as_str()).collect::<Vec<_>>(),
+            ["She waited.", "Then she left.", "Before.", "Café opened."]
+        );
+        assert_eq!((spoken[3].line, spoken[3].start, spoken[3].end), (3, 3, 15));
     }
 
     #[test]

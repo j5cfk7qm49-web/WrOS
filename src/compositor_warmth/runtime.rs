@@ -3,7 +3,7 @@ use super::{
     process::{Process, read_command},
     protocol::Protocol,
 };
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::{
@@ -84,7 +84,7 @@ impl Saved {
                     stamp: "missing".into(),
                 });
             }
-            Err(error) => return Err(error.into()),
+            Err(error) => return Err(error).context("reading /etc/wros/display.json"),
         };
         let metadata = file.metadata()?;
         if !metadata.is_file() || metadata.uid() != 0 || metadata.mode() & 0o022 != 0 {
@@ -238,8 +238,12 @@ fn token() -> Result<String> {
 
 fn serve(requests: Receiver<Message>, mut wake: UnixStream) {
     let opened = (|| -> Result<_> {
-        if std::env::var("WROS_COMPOSITOR_WARMTH").as_deref() != Ok("ready") {
-            bail!("screen warmth could not take over safely; writing is available");
+        match std::env::var("WROS_COMPOSITOR_WARMTH").as_deref() {
+            Ok("ready") => (),
+            Ok("unsupported-cage") => bail!(
+                "Debian 13's Cage cannot apply screen warmth. Display warmth is available in the native DRM session on supported hardware."
+            ),
+            _ => bail!("screen warmth could not take over safely; writing is available"),
         }
         let saved = Saved::read()?;
         let mut screen = Protocol::connect()?;

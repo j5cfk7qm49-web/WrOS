@@ -91,6 +91,11 @@ def is_parked(name):
     return ' (from ' in Path(name).stem
 
 
+def safe_relative(path):
+    return (isinstance(path, str) and '\\' not in path and '\x00' not in path
+            and all(part not in ('', '.', '..') for part in path.split('/')))
+
+
 def synced_name(relative):
     """Hidden names at any depth and parked copies never sync."""
     parts = relative.split('/')
@@ -128,7 +133,10 @@ def plan(base, local, remote, first):
     actions = []
     for path in sorted(set(base) | set(local) | set(remote)):
         b, l, r = base.get(path), local.get(path), remote.get(path)
-        if l == r:
+        if r is None and path in remote:
+            # Drive listed the file but gave us no checksum to compare it with.
+            action = 'unverifiable'
+        elif l == r:
             action = 'forget' if l is None else ('none' if l == b else 'adopt')
         elif first:
             action = 'upload' if r is None else ('download' if l is None else 'park')
@@ -190,17 +198,30 @@ class Service:
         remote = {}
         for row in rows:
             path = row.get('Path', '')
+            require(safe_relative(path), 'Google Drive returned an unsafe file path; sync stopped.')
             if synced_name(path):
-                remote[path] = (row.get('Hashes') or {}).get('md5') or (row.get('Hashes') or {}).get('MD5')
+                # Drive permits multiple files with the same name. rclone's
+                # path cannot identify which one a later copy would use.
+                remote[path] = (None if path in remote else
+                                (row.get('Hashes') or {}).get('md5') or (row.get('Hashes') or {}).get('MD5'))
         return remote
 
     # ------------------------------------------------------------- identity
 
     def identity(self, root):
         value = read_json(root / '.grimoire/sync.json', None)
-        if isinstance(value, dict) and value.get('version') == 1 and value.get('project_id') and value.get('drive_folder'):
-            return value
-        return None
+        if value is None:
+            return None
+        valid = isinstance(value, dict) and value.get('version') == 1
+        project_id = value.get('project_id') if valid else None
+        folder = value.get('drive_folder') if valid else None
+        try:
+            valid = isinstance(project_id, str) and str(uuid.UUID(project_id)) == project_id
+        except ValueError:
+            valid = False
+        require(valid and safe_relative(folder) and '/' not in folder,
+                'The book has an invalid sync identity; no files were changed.')
+        return value
 
     def marker(self, folder):
         result = self.rclone('cat', REMOTE + f'{LIVE}/{folder}/{MARKER}', check=False)
@@ -280,7 +301,9 @@ class Service:
             if deletes and (deletes > DELETE_LIMIT or emptied) and not allow_deletes:
                 return summary | {'status': 'confirm', 'deletes': deletes,
                                   'message': f'Stopped: this sync would delete {deletes} files.'}
-            work = [(p, a) for p, a in actions if a not in ('none',)]
+            unverifiable = [p for p, a in actions if a == 'unverifiable']
+            summary['skipped'].extend(unverifiable)
+            work = [(p, a) for p, a in actions if a not in ('none', 'unverifiable')]
             stamp = datetime.now().astimezone()
             for index, (path, action) in enumerate(work):
                 progress('Syncing with Google Drive', index / max(len(work), 1))
@@ -305,6 +328,8 @@ class Service:
         summary['synced_at'] = datetime.now(timezone.utc).isoformat()
         summary['message'] = (f"Synced: {summary['uploaded']} up, {summary['downloaded']} down, "
                               f"{summary['deleted']} deleted" + (f", {len(pending)} to merge" if pending else '') + '.')
+        if unverifiable:
+            summary['message'] += f' Skipped {len(unverifiable)} without a Google Drive checksum.'
         return summary
 
     # ------------------------------------------------------------- actions

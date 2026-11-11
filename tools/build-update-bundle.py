@@ -156,6 +156,7 @@ def build(args):
     out = Path(args.out)
     if out.is_symlink() or (out.exists() and (not out.is_dir() or any(out.iterdir()))):
         raise BuildError('--out must not exist or must be an empty directory')
+    out = out.absolute()
 
     packages = []
     seen = set()

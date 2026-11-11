@@ -588,6 +588,118 @@ fn esc_closes_an_open_note_from_the_editor() {
 }
 
 #[test]
+fn codex_clicks_follow_the_visible_appearance_rows() {
+    let mut d = with_wren("codex-click-scroll");
+    let pane = d.app.codex.as_mut().unwrap();
+    let scene = d.app.project.nodes[d.app.open.unwrap()].path.clone();
+    pane.appears = (0..30)
+        .map(|i| grimoire_core::codex::Appearance {
+            scene: scene.clone(),
+            place: format!("Appearance {i}"),
+            count: 1,
+        })
+        .collect();
+    pane.sel = 25;
+    d.draw();
+    click(&mut d, "A courier.");
+    click(&mut d, "Appears in 30 scenes");
+    assert_eq!(d.app.codex.as_ref().unwrap().sel, 25);
+    let (x, y) = at(&d, "Appears in 30 scenes");
+    let first = d
+        .app
+        .codex
+        .as_ref()
+        .unwrap()
+        .appearances_layout(d.app.rect_codex)
+        .1
+        .start;
+    assert!(first > 0);
+    d.app.on_click(x, y + 1);
+    assert_eq!(d.app.codex.as_ref().unwrap().sel, first);
+}
+
+#[test]
+fn name_fixes_can_be_undone_across_open_and_closed_scenes() {
+    use grimoire_core::search::{Drift, Name};
+    let root = book("name-fix-undo", true);
+    let first = first_scene(&root);
+    let second = first.with_file_name("02-Second.md");
+    fs::write(&first, "Wrenn's coat was wet.").unwrap();
+    fs::write(&second, "Wrenn left before dawn.").unwrap();
+    let mut d = Desk::open(root, 120, 35);
+    d.app.focus = Focus::Editor;
+    d.app.overlay = Overlay::Names {
+        drifts: vec![Drift {
+            variant: "Wrenn".into(),
+            name: Name {
+                name: "Wren".into(),
+                section: "Characters".into(),
+            },
+            hits: vec![],
+        }],
+        sel: 0,
+    };
+    d.key(KeyCode::Char('f'));
+    assert_eq!(d.app.editor.text().trim(), "Wren's coat was wet.");
+    assert_eq!(
+        fs::read_to_string(&second).unwrap().trim(),
+        "Wren left before dawn."
+    );
+    d.ctrl('z');
+    assert_eq!(d.app.editor.text().trim(), "Wrenn's coat was wet.");
+    assert_eq!(
+        fs::read_to_string(&second).unwrap().trim(),
+        "Wrenn left before dawn."
+    );
+}
+
+#[test]
+fn name_and_session_lists_keep_a_far_selection_on_screen() {
+    use grimoire_core::search::{Drift, Name};
+    use grimoire_core::sessions::{Change, ChangeKind, Session};
+    let mut d = Desk::open(book("overlay-scroll", true), 120, 24);
+    d.app.overlay = Overlay::Names {
+        drifts: (0..40)
+            .map(|i| Drift {
+                variant: format!("Variant {i}"),
+                name: Name {
+                    name: "Wren".into(),
+                    section: "Characters".into(),
+                },
+                hits: vec![],
+            })
+            .collect(),
+        sel: 39,
+    };
+    d.draw();
+    assert!(d.shows("▸ Variant 39"));
+    d.app.overlay = Overlay::Sessions {
+        list: vec![Session {
+            hash: "test".into(),
+            when: chrono::Local::now(),
+            label: "An editing session".into(),
+        }],
+        sel: 0,
+        pending: None,
+        backup: String::new(),
+        changes: Some((
+            0,
+            (0..40)
+                .map(|i| Change {
+                    path: format!("scene-{i}.md").into(),
+                    kind: ChangeKind::Modified,
+                    words_before: 10,
+                    words_after: 15,
+                })
+                .collect(),
+            39,
+        )),
+    };
+    d.draw();
+    assert!(d.shows("▸ scene-39.md"));
+}
+
+#[test]
 fn ctrl_o_again_puts_the_note_away() {
     let mut d = with_wren("note-toggle");
     d.ctrl('o');
@@ -3083,6 +3195,22 @@ fn cards_are_added_renamed_moved_and_deleted_from_the_corkboard() {
         d.app.project.nodes[cards[*sel].idx].title.clone()
     };
     assert_eq!(card(&d), "The Lighthouse");
+
+    // Cancelling a prompt on a different card must keep that selection.
+    let Overlay::Cork { sel, .. } = &mut d.app.overlay else {
+        unreachable!()
+    };
+    let created = *sel;
+    *sel = if created == 0 { 1 } else { 0 };
+    let selected = card(&d);
+    assert_ne!(selected, "The Lighthouse");
+    d.key(KeyCode::Char('r'));
+    d.key(KeyCode::Esc);
+    assert_eq!(card(&d), selected);
+    let Overlay::Cork { sel, .. } = &mut d.app.overlay else {
+        unreachable!()
+    };
+    *sel = created;
 
     // Moved one place earlier, still highlighted.
     d.key(KeyCode::Char('<'));
@@ -7441,6 +7569,46 @@ fn wros_productivity_keyboard_paste_undo_are_actual_source_operations_not_net_ba
     );
 }
 #[test]
+fn wros_productivity_includes_footnote_words_by_default_and_remembers_opt_out() {
+    let mut d = metric_writer("metrics-footnote-default", 120, 40);
+    metric_clock(&mut d);
+    d.typed("Body ");
+    d.app.paste("\n\n[^note]: First second ");
+    d.typed("third ");
+    d.app.paste("undone ");
+    d.ctrl('z');
+    d.ctrl('s');
+
+    d.app.run_action(palette::Action::Productivity);
+    d.draw();
+    assert!(d.shows("footnotes included"));
+    assert!(d.shows("Manuscript: input +5 / −0 · net 4"));
+    assert!(d.shows("keyboard +2 · paste +3 · undo/redo/restore net -1 · footnotes +4 / −0"));
+    assert!(d.app.productivity.summary.ends_with("+5 / −0 · net 4"));
+
+    d.app.run_action(palette::Action::MeasuredGoals);
+    d.key(KeyCode::Char('n'));
+    d.key(KeyCode::Enter);
+    metric_field(&mut d, "10");
+    assert!(d.shows("5 / 10"));
+
+    d.app.run_action(palette::Action::Productivity);
+    d.key(KeyCode::Char('f'));
+    assert!(d.shows("footnotes separate"));
+    assert!(d.shows("Manuscript: input +1 / −0 · net 1"));
+    assert!(d.shows("keyboard +1 · paste +0 · undo/redo/restore net 0 · footnotes +4 / −0"));
+    assert!(d.app.productivity.summary.ends_with("+1 / −0 · net 1"));
+    d.app.run_action(palette::Action::MeasuredGoals);
+    d.draw();
+    assert!(d.shows("1 / 10"));
+    assert!(
+        !crate::app::productivity::Productivity::load(&d.root)
+            .config
+            .include_footnotes
+    );
+}
+
+#[test]
 fn wros_productivity_both_editor_sources_are_attributed_and_hidden_notes_never_become_manuscript_words()
  {
     use grimoire_core::accounting::Role;
@@ -8219,11 +8387,12 @@ fn wros_productivity_challenge_sprint_uses_remaining_target_and_frozen_accepted_
     d.key(KeyCode::Char('f'));
     d.key(KeyCode::Char('m'));
     assert_eq!(d.app.productivity.config.mode, Mode::Revision);
+    assert!(!d.app.productivity.config.include_footnotes);
     metric_new_sprint(&mut d, 4, "99");
     let s = d.app.productivity.sprint.as_ref().unwrap();
     assert_eq!(s.target, 30);
     assert_eq!(s.mode, Some(Mode::Drafting));
-    assert!(!s.include_footnotes);
+    assert!(s.include_footnotes);
     assert_eq!(s.challenge.as_ref().unwrap().0, "2026-10-25");
     d.key(KeyCode::Esc);
     d.app.paste(&"revision ".repeat(50));

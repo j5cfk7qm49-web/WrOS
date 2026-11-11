@@ -391,6 +391,10 @@ def build_deb(*, binaries_dir, version, output_dir, repo=REPO, keymaps_dir=None,
             shutil.copyfile(display_helper, binaries / 'wros-display-hw')
         if not (binaries / 'wros-display-hw').exists():
             compile_display_helper(repo, binaries / 'wros-display-hw')
+        if not (binaries / 'cage').exists():
+            subprocess.run([sys.executable, str(Path(repo) / 'tools/build-cage.py'),
+                            '--output', str(binaries / 'cage')], check=True,
+                           stdout=sys.stderr)  # meson's progress must not reach the JSON on stdout
         if not (binaries / 'wros-console-reset').exists():
             subprocess.run(['cc', '-static', '-Os', '-Wall', '-Wextra', '-Werror',
                             '-fstack-protector-strong', '-o', str(binaries / 'wros-console-reset'),

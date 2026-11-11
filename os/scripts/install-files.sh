@@ -63,6 +63,8 @@ else
     boot=${WROS_BOOT_BINARY:-$(dirname "$binary")/wros-boot}
     [[ -x $boot ]] || { echo 'Build wros-boot first or set WROS_BOOT_BINARY.' >&2; exit 2; }
     install -m 755 "$boot" "$work/bin/wros-boot"
+    cage=${WROS_CAGE_BINARY:-$(dirname "$binary")/cage}
+    if [[ -x $cage && ! -L $cage ]]; then install -m 755 "$cage" "$work/bin/cage"; fi
     args=(--binaries-dir "$work/bin" --version "$version" --output "$work/out")
     if [[ -n ${WROS_DISPLAY_HW_BINARY:-} ]]; then args+=(--display-helper "$WROS_DISPLAY_HW_BINARY"); fi
     python3 "$repo/tools/build-wros-debs.py" "${args[@]}" > "$work/build.json"

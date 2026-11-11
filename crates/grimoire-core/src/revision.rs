@@ -209,9 +209,12 @@ const STOP: &[&str] = &[
 /// "walked", "walking", "walks" → "walk": close enough to hear the echo.
 fn stem(word: &str) -> String {
     let w = word.trim_end_matches("'s").trim_end_matches("’s");
-    for (suffix, min) in [("ing", 6), ("ed", 5), ("es", 5), ("ly", 5), ("s", 4)] {
-        if w.len() >= min && w.ends_with(suffix) && !(suffix == "s" && w.ends_with("ss")) {
-            return w[..w.len() - suffix.len()].to_string();
+    for suffix in ["ing", "ed", "es", "ly", "s"] {
+        if let Some(base) = w.strip_suffix(suffix)
+            && base.chars().count() >= 4
+            && !(suffix == "s" && w.ends_with("ss"))
+        {
+            return base.to_string();
         }
     }
     w.to_string()
@@ -313,6 +316,12 @@ mod tests {
         assert_eq!(e[1], vec![(0, 7)]);
         let none = echoes(&lines("They said that. They said that."), &[]);
         assert!(none.iter().all(Vec::is_empty));
+    }
+
+    #[test]
+    fn suffixes_cannot_reduce_an_accented_word_below_the_echo_threshold() {
+        let e = echoes(&lines("Nées. Puis nées."), &[]);
+        assert_eq!(e[0], vec![(0, 4), (11, 15)]);
     }
 
     #[test]

@@ -1,6 +1,7 @@
 """Compositor preferences never grant the session direct DRM access."""
 import importlib.machinery
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -25,7 +26,12 @@ class CompositorPreferences(unittest.TestCase):
         return self.manager.compositor_save(True, 2200, 75, token, stamp)
 
     def test_keep_is_durable_and_checks_the_reviewed_configuration(self):
-        self.assertEqual(self.save()['status'], 'committed')
+        self.manager.config.parent.mkdir()
+        previous = os.umask(0o077)
+        try:
+            self.assertEqual(self.save()['status'], 'committed')
+        finally:
+            os.umask(previous)
         saved = self.manager.saved()
         self.assertEqual(saved, {'version': 1, 'enabled': True, 'kelvin': 2200,
                                 'strength': 75, 'generation': 'a' * 32})
@@ -40,9 +46,13 @@ class CompositorPreferences(unittest.TestCase):
     def test_unknown_preferences_and_native_transactions_are_preserved(self):
         self.manager.config.parent.mkdir()
         self.manager.config.write_text('{"version":99}')
+        self.manager.config.chmod(0o600)
         with self.assertRaises(ValueError):
             self.save()
+        with self.assertRaises(ValueError):
+            self.manager.prepare_compositor()
         self.assertEqual(self.manager.config.read_text(), '{"version":99}')
+        self.assertEqual(self.manager.config.stat().st_mode & 0o777, 0o600)
         self.manager.config.unlink()
         for owned in (self.manager.pending, self.manager.baseline):
             owned.write_bytes(b'owned native state')
@@ -78,6 +88,23 @@ class CompositorPreferences(unittest.TestCase):
         self.assertFalse(self.manager.current.exists())
         self.assertEqual(events, ['capture', 'apply', 'stop'])
         self.assertFalse(self.manager.config.exists())
+
+    def test_prepare_makes_old_root_only_preferences_readable(self):
+        self.save()
+        original = self.manager.config.read_bytes()
+        self.manager.config.chmod(0o600)
+        self.manager.prepare_compositor()
+        self.assertEqual(self.manager.config.stat().st_mode & 0o777, 0o644)
+        self.assertEqual(self.manager.config.read_bytes(), original)
+
+    def test_prepare_does_not_change_permissions_through_a_link(self):
+        self.save()
+        self.manager.config.chmod(0o600)
+        linked = self.root / 'other.json'
+        os.link(self.manager.config, linked)
+        with self.assertRaisesRegex(ValueError, 'linked display preferences'):
+            self.manager.prepare_compositor()
+        self.assertEqual(linked.stat().st_mode & 0o777, 0o600)
 
     def test_prepare_preserves_a_display_changed_by_another_owner(self):
         from test_display_manager import FakeHardware

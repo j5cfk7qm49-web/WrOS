@@ -1,3 +1,4 @@
+use super::TextSize;
 use drm::{
     Device as _,
     buffer::{Buffer, DrmFourcc},
@@ -12,6 +13,7 @@ use std::{
         Arc,
         atomic::{AtomicBool, Ordering},
     },
+    time::{Duration, Instant},
 };
 
 const KDSETMODE: libc::c_ulong = 0x4b3a;
@@ -64,20 +66,53 @@ fn ioctl(tty: &File, request: libc::c_ulong, arg: libc::c_int) -> io::Result<()>
     }
 }
 
-impl Display {
-    pub fn open(tty: &File) -> io::Result<Self> {
-        // Never take over a PTY or another user's background VT.
-        let mut active = [0u16; 3];
-        let mut device = 0u32;
-        if unsafe { libc::ioctl(tty.as_raw_fd(), 0x5603, active.as_mut_ptr()) } < 0
-            || unsafe { libc::ioctl(tty.as_raw_fd(), 0x80045432u64, &mut device) } < 0
-            || device != ((4 << 8) | active[0] as u32)
-        {
-            return Err(io::Error::other("not a Linux virtual console"));
+fn acquire_master(
+    mut acquire: impl FnMut() -> io::Result<()>,
+    timeout: Duration,
+) -> io::Result<()> {
+    let deadline = Instant::now() + timeout;
+    loop {
+        match acquire() {
+            Ok(()) => return Ok(()),
+            Err(error)
+                if matches!(
+                    error.raw_os_error(),
+                    Some(libc::EACCES | libc::EPERM | libc::EBUSY | libc::EINTR)
+                ) && Instant::now() < deadline =>
+            {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Err(error) => return Err(error),
         }
+    }
+}
+
+fn raster_for_mode(size: TextSize, width: u16, height: u16) -> SoftBackend<CosmicText> {
+    let probe = size.raster(1, 1);
+    let cols = width as usize / probe.get_pixmap_width();
+    let rows = height as usize / probe.get_pixmap_height();
+    size.raster(cols as u16, rows as u16)
+}
+
+fn active_console(tty: &File) -> io::Result<()> {
+    let mut active = [0u16; 3];
+    let mut device = 0u32;
+    if unsafe { libc::ioctl(tty.as_raw_fd(), 0x5603, active.as_mut_ptr()) } < 0
+        || unsafe { libc::ioctl(tty.as_raw_fd(), 0x80045432u64, &mut device) } < 0
+        || device != ((4 << 8) | active[0] as u32)
+    {
+        return Err(io::Error::other("not the active Linux virtual console"));
+    }
+    Ok(())
+}
+
+impl Display {
+    pub fn open(tty: &File, size: TextSize) -> io::Result<Self> {
+        // Never take over a PTY or another user's background VT.
+        active_console(tty)?;
         let mut last = io::Error::other("no connected display");
         for index in 0..16 {
-            match Self::on_card(tty, index) {
+            match Self::on_card(tty, index, size) {
                 Ok(display) => return Ok(display),
                 Err(error) => last = error,
             }
@@ -85,14 +120,20 @@ impl Display {
         Err(last)
     }
 
-    fn on_card(tty: &File, index: u32) -> io::Result<Self> {
+    fn on_card(tty: &File, index: u32, size: TextSize) -> io::Result<Self> {
         let card = Card(
             OpenOptions::new()
                 .read(true)
                 .write(true)
                 .open(format!("/dev/dri/card{index}"))?,
         );
-        card.acquire_master_lock()?;
+        acquire_master(
+            || {
+                active_console(tty)?;
+                card.acquire_master_lock()
+            },
+            Duration::from_secs(2),
+        )?;
         let resources = card.resource_handles()?;
         let connector = resources
             .connectors()
@@ -150,10 +191,7 @@ impl Display {
         }
         // Construct the rasterizer before changing the physical display. A bad font
         // must never leave the disk prompt in graphics mode.
-        let probe = super::raster(1, 1);
-        let cols = width as usize / probe.get_pixmap_width();
-        let rows = height as usize / probe.get_pixmap_height();
-        let pixels = super::raster(cols as u16, rows as u16);
+        let pixels = raster_for_mode(size, width, height);
         let buffer =
             card.create_dumb_buffer((width.into(), height.into()), DrmFourcc::Xrgb8888, 32)?;
         let framebuffer = match card.add_framebuffer(&buffer, 24, 32) {
@@ -206,39 +244,55 @@ impl Display {
         self.scanout()
     }
 
-    fn scanout(&mut self) -> io::Result<()> {
-        self.card.acquire_master_lock()?;
-        self.card.set_crtc(
-            self.crtc.handle(),
-            Some(self.framebuffer),
-            (0, 0),
-            &[self.connector],
-            Some(self.mode),
+    fn with_master<T>(&self, operation: impl FnOnce() -> io::Result<T>) -> io::Result<T> {
+        // The colour helper briefly owns master between modesets. A VT handoff
+        // must wait for it instead of silently leaving fbcon on the old buffer.
+        acquire_master(
+            || {
+                active_console(&self.tty)?;
+                self.card.acquire_master_lock()
+            },
+            Duration::from_secs(2),
         )?;
-        ioctl(&self.tty, KDSETMODE, 1)?;
-        // Scanout and mapped-buffer writes do not require master. Let the narrow
-        // warm-screen helper take it between modesets, just as on the console.
-        self.card.release_master_lock()
+        let result = operation();
+        let released = self.card.release_master_lock();
+        result.and_then(|value| released.map(|()| value))
     }
 
-    fn restore(&self) {
-        let _ = self.card.acquire_master_lock();
-        let _ = self.card.set_crtc(
-            self.crtc.handle(),
-            self.crtc.framebuffer(),
-            self.crtc.position(),
-            &self.connectors,
-            self.crtc.mode(),
-        );
-        let _ = ioctl(&self.tty, KDSETMODE, 0);
-        let _ = self.card.release_master_lock();
+    fn scanout(&mut self) -> io::Result<()> {
+        // Mapped-buffer writes need no master; release it after the modeset so
+        // the narrow colour helper can work between handoffs.
+        self.with_master(|| {
+            self.card.set_crtc(
+                self.crtc.handle(),
+                Some(self.framebuffer),
+                (0, 0),
+                &[self.connector],
+                Some(self.mode),
+            )?;
+            ioctl(&self.tty, KDSETMODE, 1)
+        })
+    }
+
+    pub fn restore(&mut self) -> io::Result<()> {
+        self.with_master(|| {
+            self.card.set_crtc(
+                self.crtc.handle(),
+                self.crtc.framebuffer(),
+                self.crtc.position(),
+                &self.connectors,
+                self.crtc.mode(),
+            )?;
+            ioctl(&self.tty, KDSETMODE, 0)
+        })?;
+        self.released = true;
+        Ok(())
     }
 
     pub fn present(&mut self) -> io::Result<()> {
         if self.release.swap(false, Ordering::Relaxed) {
             self.pointer = None;
-            self.restore();
-            self.released = true;
+            self.restore()?;
             ioctl(&self.tty, VT_RELDISP, 1)?;
         }
         if self.acquire.swap(false, Ordering::Relaxed) {
@@ -291,7 +345,7 @@ impl Display {
 impl Drop for Display {
     fn drop(&mut self) {
         if !self.released {
-            self.restore();
+            let _ = self.restore();
         }
         if self.owns_vt {
             // VT_SETMODE assigns VT_PROCESS to the calling process. Replaying
@@ -308,5 +362,60 @@ impl Drop for Display {
         let _ = self.card.destroy_framebuffer(self.framebuffer);
         let _ = self.card.destroy_dumb_buffer(self.buffer);
         let _ = self.card.release_master_lock();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui::{backend::Backend, layout::Size};
+
+    #[test]
+    fn a_brief_colour_owner_is_retried_but_permanent_failure_is_reported() {
+        let mut calls = 0;
+        acquire_master(
+            || {
+                calls += 1;
+                if calls < 3 {
+                    Err(io::Error::from_raw_os_error(libc::EACCES))
+                } else {
+                    Ok(())
+                }
+            },
+            Duration::from_secs(2),
+        )
+        .unwrap();
+        assert_eq!(calls, 3);
+        let mut inactive_attempts = 0;
+        assert!(
+            acquire_master(
+                || {
+                    inactive_attempts += 1;
+                    Err(io::Error::other("not the active console"))
+                },
+                Duration::from_secs(2)
+            )
+            .is_err()
+        );
+        assert_eq!(
+            inactive_attempts, 1,
+            "an inactive console must not keep retrying"
+        );
+        for code in [libc::EACCES, libc::EBUSY, libc::EIO] {
+            let error = acquire_master(|| Err(io::Error::from_raw_os_error(code)), Duration::ZERO)
+                .unwrap_err();
+            assert_eq!(error.raw_os_error(), Some(code));
+        }
+    }
+
+    #[test]
+    fn the_writer_fits_more_cells_at_the_same_panel_resolution() {
+        let mut writing = raster_for_mode(TextSize::Writing, 1366, 768);
+        let mut startup = raster_for_mode(TextSize::Startup, 1366, 768);
+        let writing = writing.window_size().unwrap();
+        let startup = startup.window_size().unwrap();
+        assert_eq!(writing.columns_rows, Size::new(136, 42));
+        assert_eq!(writing.pixels, Size::new(1360, 756));
+        assert_eq!(startup.columns_rows, Size::new(124, 38));
     }
 }

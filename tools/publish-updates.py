@@ -22,6 +22,7 @@ import importlib.util
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -124,9 +125,18 @@ def check_bundle(tar, outdir, version, *, keyring=KEYRING, pin=PIN):
     try:
         with tarfile.open(tar) as archive:
             for member in archive.getmembers():
-                if not (member.isfile() or member.isdir()):
+                relative = Path(member.name)
+                if relative.anchor or '..' in relative.parts or '\\' in member.name:
+                    raise ValueError(f'the bundle path is outside the output directory: {member.name}')
+                destination = outdir / relative
+                if member.isdir():
+                    destination.mkdir(parents=True, exist_ok=True)
+                elif member.isfile():
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    with archive.extractfile(member) as source, destination.open('xb') as output:
+                        shutil.copyfileobj(source, output)
+                else:
                     raise ValueError(f'the bundle holds something other than files: {member.name}')
-            archive.extractall(outdir, filter='data')
     except tarfile.TarError as exc:
         raise ValueError(f'the bundle could not be unpacked safely: {exc}') from None
     engine = load_engine()

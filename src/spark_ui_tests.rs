@@ -571,12 +571,12 @@ fn provenance_and_context_help_are_real_scrollable_offline_content() {
 #[test]
 fn tutorial_22_requires_real_plot_save_and_23_requires_exercise_favorite() {
     let mut d = demo_spark("lessons22-23");
-    d.app.deck.progress.start(22).unwrap();
+    start_spark_lesson(&mut d, 22);
     d.key(KeyCode::Char('1'));
     assert!(!d.app.deck.progress.completed.contains(&22));
     d.key(KeyCode::Char('s'));
     assert!(d.app.deck.progress.completed.contains(&22), "{}", d.app.msg);
-    d.app.deck.progress.start(23).unwrap();
+    start_spark_lesson(&mut d, 23);
     d.key(KeyCode::Char('2'));
     assert!(!d.app.deck.progress.completed.contains(&23));
     d.key(KeyCode::Char('f'));
@@ -586,7 +586,7 @@ fn tutorial_22_requires_real_plot_save_and_23_requires_exercise_favorite() {
 fn tutorial_24_requires_persisted_independent_joint_rerolls_favorite_and_new_scene() {
     let mut d = demo_spark("lesson24");
     let before = original_sources(&d);
-    d.app.deck.progress.start(24).unwrap();
+    start_spark_lesson(&mut d, 24);
     d.key(KeyCode::Char('3'));
     d.key(KeyCode::Char('f'));
     d.key(KeyCode::Char('p'));
@@ -596,6 +596,18 @@ fn tutorial_24_requires_persisted_independent_joint_rerolls_favorite_and_new_sce
     spark_action(&mut d, 7);
     assert!(d.app.deck.progress.completed.contains(&24), "{}", d.app.msg);
     assert_originals(&before);
+}
+
+fn start_spark_lesson(d: &mut Desk, id: u8) {
+    d.app.overlay = Overlay::Deck(app::wros::Page::Tutorial {
+        sel: usize::from(id) - 1,
+    });
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.overlay, Overlay::Deck(app::wros::Page::Lesson { id }));
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.deck.progress.active, Some(id));
+    assert!(matches!(d.app.overlay, Overlay::Spark { .. }));
+    assert!(!d.app.deck.progress.completed.contains(&id));
 }
 #[test]
 fn tutorial_actions_on_real_novel_cannot_complete_demo_exercises() {

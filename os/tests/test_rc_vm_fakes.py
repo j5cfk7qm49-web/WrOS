@@ -38,6 +38,9 @@ class InstallerReceipt(unittest.TestCase):
                     self.assertEqual(hashes['/usr/lib/wros/wros-boot'], boot_hash)
                     self.assertNotIn('/usr/bin/wros-boot', hashes)
                     self.assertEqual(len(hashes), 4)
+                    with_cage = phases.receipt_binary_hashes(digests | {'cage': {'squashfs_sha256': 'c' * 64}})
+                    self.assertEqual(with_cage['/usr/lib/wros/cage'], 'c' * 64)
+                    self.assertEqual(len(with_cage), 5)
                     self.assertEqual(phases.receipt_binary_hashes(digests | {'wros-boot': {}}), {})
                 finally:
                     ctx.log_file.close()
@@ -224,6 +227,15 @@ class SparseDiskDigest(unittest.TestCase):
 
 
 class MachineStartup(unittest.TestCase):
+    def test_an_overlong_socket_path_is_refused_before_qemu_starts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            machine = vm.Machine(Path(directory) / ('long-' * 20), 'startup')
+            with (mock.patch.object(vm.os, 'geteuid', return_value=1000),
+                  mock.patch.object(vm.subprocess, 'Popen') as spawn):
+                with self.assertRaisesRegex(ValueError, 'shorter RC_VM_BASE'):
+                    machine.start()
+                spawn.assert_not_called()
+
     def test_slow_socket_creation_is_bounded_and_child_failure_is_immediate(self):
         for ready_delay, exit_code in ((30, None), (None, None), (None, 1)):
             with self.subTest(ready_delay=ready_delay, exit_code=exit_code), tempfile.TemporaryDirectory() as directory:

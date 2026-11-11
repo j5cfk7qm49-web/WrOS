@@ -242,7 +242,9 @@ fn prompt_secret(label: &str) -> String {
     use std::process::Command;
     let out = Command::new("sh")
         .arg("-c")
-        .arg(format!("printf '  {label}: ' >&2; stty -echo 2>/dev/null; read -r v; stty echo 2>/dev/null; printf '\\n' >&2; printf '%s' \"$v\""))
+        .arg("printf '  %s: ' \"$1\" >&2; stty -echo 2>/dev/null; read -r v; stty echo 2>/dev/null; printf '\\n' >&2; printf '%s' \"$v\"")
+        .arg("grimoire")
+        .arg(label)
         .output();
     match out {
         Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).trim().to_string(),
@@ -434,6 +436,9 @@ fn client_pids(main_only: bool) -> Vec<String> {
 }
 
 fn download_and_install(arch: &str) -> Result<()> {
+    use sha2::{Digest, Sha256};
+    use std::fs::File;
+    use std::io::{self, Read};
     use std::process::Command;
 
     let agent = ureq::Agent::config_builder()
@@ -467,23 +472,35 @@ fn download_and_install(arch: &str) -> Result<()> {
         .as_str()
         .ok_or_else(|| anyhow!("asset has no download url"))?
         .to_string();
-    let mb = pick["size"].as_u64().unwrap_or(0) / 1_048_576;
+    let size = pick["size"]
+        .as_u64()
+        .filter(|&size| size > 0)
+        .context("release asset has no valid size")?;
+    let digest = pick["digest"]
+        .as_str()
+        .and_then(|digest| digest.strip_prefix("sha256:"))
+        .filter(|digest| digest.len() == 64 && digest.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        .context("release asset has no valid SHA-256 digest")?;
 
-    let tmp = std::env::temp_dir().join(&name);
-    let expect = pick["size"].as_u64().unwrap_or(0);
-    let have = std::fs::metadata(&tmp).map(|m| m.len()).unwrap_or(0);
-    if have > 0 && have == expect {
-        println!("  Already downloaded {name} — reusing it.");
-    } else {
-        if mb > 0 {
-            println!("  Downloading {name} ({mb} MB)…");
-        } else {
-            println!("  Downloading {name}…");
-        }
-        let mut res = agent.get(&url).header("User-Agent", APP_ID).call()?;
-        let mut out = std::fs::File::create(&tmp)?;
-        std::io::copy(&mut res.body_mut().as_reader(), &mut out)?;
-        drop(out);
+    let mut staging = tempfile::Builder::new();
+    staging.prefix("grimoire-music-");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        staging.permissions(std::fs::Permissions::from_mode(0o700));
+    }
+    let download = staging.tempdir()?;
+    let tmp = download.path().join(format!("youtube-music{ext}"));
+    println!("  Downloading {name} ({} MB)…", size.div_ceil(1_048_576));
+    let mut res = agent.get(&url).header("User-Agent", APP_ID).call()?;
+    let written = io::copy(
+        &mut res.body_mut().as_reader().take(size.saturating_add(1)),
+        &mut File::create_new(&tmp)?,
+    )?;
+    let mut sha256 = Sha256::new();
+    io::copy(&mut File::open(&tmp)?, &mut sha256)?;
+    if written != size || !format!("{:x}", sha256.finalize()).eq_ignore_ascii_case(digest) {
+        anyhow::bail!("downloaded {name} does not match its GitHub release metadata");
     }
 
     if cfg!(target_os = "macos") {
@@ -556,7 +573,6 @@ fn download_and_install(arch: &str) -> Result<()> {
         println!("  Installed to {}", dest.display());
     }
 
-    let _ = std::fs::remove_file(&tmp);
     Ok(())
 }
 

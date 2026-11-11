@@ -15,6 +15,8 @@ import sys
 
 GRIMOIRE = '/usr/bin/grimoire'
 CAGE = '/usr/bin/cage'
+PACKAGED_CAGE = '/usr/lib/wros/cage'
+DPKG_QUERY = '/usr/bin/dpkg-query'
 FOOT = '/usr/bin/foot'
 FOOT_CONFIG = '/usr/share/wros/foot.ini'
 LOGGER = '/usr/bin/logger'
@@ -167,7 +169,8 @@ class Launcher:
         if backend not in ('foot', 'wgpu') or self.live():
             return 'drm', None
         kind = 'wgpu' if backend == 'wgpu' else 'graphical'
-        if not (self.exists(CAGE) and (backend != 'foot' or self.exists(FOOT)) and self.runtime_dir):
+        if not ((self.exists(PACKAGED_CAGE) or self.exists(CAGE))
+                and (backend != 'foot' or self.exists(FOOT)) and self.runtime_dir):
             return 'console', None
         if self.failures(kind) >= MAX_FAILURES:
             return 'console', FAILED_TWICE
@@ -205,9 +208,10 @@ class Launcher:
         # but refuses compositor warmth rather than replacing uncertain colours.
         env['WROS_COMPOSITOR_WARMTH'] = 'unavailable'
         if self.display_handoff('prepare-compositor'):
-            env['WROS_COMPOSITOR_WARMTH'] = 'ready'
+            env['WROS_COMPOSITOR_WARMTH'] = 'unsupported-cage' if self.stock_cage_without_gamma() else 'ready'
         client = [GRIMOIRE] if kind == 'wgpu' else [FOOT, '--config=' + FOOT_CONFIG, '--', GRIMOIRE]
-        command = [CAGE, '-s', '--', *client]
+        cage = PACKAGED_CAGE if self.exists(PACKAGED_CAGE) else CAGE
+        command = [cage, '-s', '--', *client]
         try:
             self.run(command, env=env, stdin=subprocess.DEVNULL, check=False)
         except OSError:
@@ -215,6 +219,20 @@ class Launcher:
         finally:
             self.display_handoff('finish-compositor')
         return ready.exists()
+
+    def stock_cage_without_gamma(self):
+        if self.exists(PACKAGED_CAGE):
+            return False  # This package carries the wlroots 0.18 gamma commit integration.
+        # Debian 13's Cage creates the gamma manager but never handles its
+        # set_gamma event. The protocol alone cannot detect that false success.
+        try:
+            result = self.run([DPKG_QUERY, '-W', '-f=${db:Status-Status}\\t${Version}', 'cage'],
+                              env={'LC_ALL': 'C'}, stdin=subprocess.DEVNULL,
+                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                              check=False, timeout=2)
+            return result.returncode == 0 and result.stdout.strip() == b'installed\t0.2.0-2'
+        except (OSError, subprocess.TimeoutExpired):
+            return False
 
     def display_handoff(self, verb):
         if self.exists(DISPLAY):

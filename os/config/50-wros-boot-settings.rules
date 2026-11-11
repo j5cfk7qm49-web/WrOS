@@ -1,7 +1,7 @@
 // Fixed start-screen files only; no user-selected paths or commands.
 polkit.addRule(function(action, subject) {
     if (action.id == "org.wros.boot-settings" && subject.local && subject.active &&
-        subject.isInGroup("wros")) {
+        subject.isInGroup("wros") && subject.isInGroup("writingdeck")) {
         return polkit.Result.YES;
     }
 });

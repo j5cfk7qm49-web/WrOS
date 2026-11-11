@@ -158,22 +158,8 @@ impl Snapshot {
             return None;
         }
         Some(match metric {
-            Metric::InputAdded => {
-                t.input.added as i128
-                    + if footnotes {
-                        t.input.foot_added as i128
-                    } else {
-                        0
-                    }
-            }
-            Metric::TypedAdded => {
-                t.typed.added as i128
-                    + if footnotes {
-                        t.typed.foot_added as i128
-                    } else {
-                        0
-                    }
-            }
+            Metric::InputAdded => t.input.added_words(footnotes),
+            Metric::TypedAdded => t.typed.added_words(footnotes),
             Metric::NetInput => t.net(footnotes),
             Metric::RevisionOperations => t.revision_operations as i128,
             Metric::ActiveMinutes => {
@@ -684,7 +670,7 @@ impl Default for Settings {
             tracking: true,
             idle_seconds: 60,
             mode: Mode::Drafting,
-            include_footnotes: false,
+            include_footnotes: true,
             achievements: true,
             notifications: false,
             challenges: true,

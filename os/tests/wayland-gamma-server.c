@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 
 struct screen { int id; struct wl_global *global; };
@@ -47,7 +48,12 @@ static void set_gamma(struct wl_client *client, struct wl_resource *resource, in
     if (control->screen->id == 1) {
         if (!strcmp(mode, "partial")) zwlr_gamma_control_v1_send_failed(resource);
         if (!strcmp(mode, "remove")) wl_global_remove(screens[0].global);
-        if (!strcmp(mode, "disconnect")) wl_display_terminate(display);
+        if (!strcmp(mode, "disconnect")) {
+            /* Terminating the event loop alone can still deliver a sync reply
+             * from this batch. Cut the connection before that reply. */
+            shutdown(wl_client_get_fd(client), SHUT_RDWR);
+            wl_display_terminate(display);
+        }
     }
 }
 

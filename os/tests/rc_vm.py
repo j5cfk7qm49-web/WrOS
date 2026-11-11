@@ -648,6 +648,8 @@ class Machine:
     def start(self, timeout=120):
         if os.geteuid() == 0:
             raise RuntimeError('run QEMU as the unprivileged builder')
+        if any(len(os.fsencode(str(sock))) >= 108 for sock in (self.serial_sock, self.qmp_sock)):
+            raise ValueError('VM socket path exceeds the Unix socket limit; use a shorter RC_VM_BASE')
         for sock in (self.serial_sock, self.qmp_sock):
             sock.unlink(missing_ok=True)
         self.command = self.command_line()

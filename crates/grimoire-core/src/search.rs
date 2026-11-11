@@ -399,11 +399,7 @@ pub fn replace_word(text: &str, from: &str, to: &str) -> (String, usize) {
     let lines: Vec<String> = text
         .split('\n')
         .map(|line| {
-            let hits: Vec<(usize, usize)> = capitalised_words(line)
-                .into_iter()
-                .filter(|(_, _, w)| w == from)
-                .map(|(s, e, _)| (s, e))
-                .collect();
+            let hits = exact_name_matches(line, from);
             count += hits.len();
             if hits.is_empty() {
                 line.to_string()
@@ -413,6 +409,14 @@ pub fn replace_word(text: &str, from: &str, to: &str) -> (String, usize) {
         })
         .collect();
     (lines.join("\n"), count)
+}
+
+pub(crate) fn exact_name_matches(line: &str, name: &str) -> Vec<(usize, usize)> {
+    capitalised_words(line)
+        .into_iter()
+        .filter(|(_, _, word)| word == name)
+        .map(|(start, end, _)| (start, end))
+        .collect()
 }
 
 #[cfg(test)]

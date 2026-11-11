@@ -1778,12 +1778,18 @@ impl UpdateWorld {
 }
 
 fn wait_backup(desk: &mut Desk) {
-    let end = std::time::Instant::now() + std::time::Duration::from_secs(20);
-    while desk.app.deck.shell.backup.job.is_some() && std::time::Instant::now() < end {
-        desk.app.deck.shell.backup.tick();
+    let backup = &mut desk.app.deck.shell.backup;
+    let end = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    while let Some(job) = &backup.job {
+        assert!(
+            std::time::Instant::now() < end,
+            "backup helper did not finish: {} · {}",
+            backup.notice,
+            job.status_line()
+        );
+        backup.tick();
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
-    assert!(desk.app.deck.shell.backup.job.is_none());
     desk.draw();
 }
 

@@ -5,6 +5,9 @@ use app::prose_dashboard::{Filter, Page as ProsePage};
 use grimoire_core::{diagnostics::Profile, prose_tools, review_queue};
 use std::time::{Duration, Instant};
 const PROSE_TEXT: &str = "Café 🦊 e\u{301}. We waited in order to see. He could of gone.\n";
+// A model request runs both proselint and Nabokov, each with its own budget.
+const PROSE_WAIT: Duration = Duration::from_millis(2 * prose_tools::MAX_WALL_MS + 10_000);
+
 fn tools_runtime() -> PathBuf {
     let path = grimoire_core::env_setting("TOOLS_PYTHON")
         .map(PathBuf::from)
@@ -28,13 +31,13 @@ fn prose_desk(tag: &str, w: u16, h: u16) -> Desk {
     d
 }
 fn wait_prose(d: &mut Desk) {
-    let limit = Instant::now() + Duration::from_secs(30);
+    let limit = Instant::now() + PROSE_WAIT;
     while d.app.prose_dashboard.result.is_none() {
-        d.app.tick_prose_dashboard();
-        d.draw();
         assert!(Instant::now() < limit, "{}", d.app.prose_dashboard.notice);
+        d.app.tick_prose_dashboard();
         std::thread::sleep(Duration::from_millis(10));
     }
+    d.draw();
 }
 fn select_prose(d: &mut Desk, engine: &str, rule: &str) {
     d.app.prose_dashboard.filter = Filter::All;
@@ -403,10 +406,10 @@ fn queued_requests_coalesce_and_genuine_model_work_on_an_older_edit_is_never_pub
     d.key(KeyCode::Char('d'));
     d.key(KeyCode::Char('y'));
     d.app.editor.insert('x');
-    let limit = Instant::now() + Duration::from_secs(30);
+    let limit = Instant::now() + PROSE_WAIT;
     while d.app.prose_dashboard.pending() {
+        assert!(Instant::now() < limit, "{}", d.app.prose_dashboard.notice);
         d.app.tick_prose_dashboard();
-        assert!(Instant::now() < limit);
         std::thread::sleep(Duration::from_millis(10));
     }
     assert!(d.app.prose_dashboard.result.is_none());

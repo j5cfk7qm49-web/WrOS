@@ -80,7 +80,21 @@ pub fn versions(root: &Path, scene: &Path) -> Vec<Version> {
             Some(Version { file, when, text })
         })
         .collect();
-    out.sort_by(|a, b| b.when.cmp(&a.when).then_with(|| b.file.cmp(&a.file)));
+    let sequence = |version: &Version| {
+        version
+            .file
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .and_then(|s| s.split('-').nth(3))
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(1)
+    };
+    out.sort_by(|a, b| {
+        b.when
+            .cmp(&a.when)
+            .then_with(|| sequence(b).cmp(&sequence(a)))
+            .then_with(|| b.file.cmp(&a.file))
+    });
     out
 }
 
@@ -435,6 +449,22 @@ mod tests {
                 .starts_with(d.join(".grimoire/history/manuscript/01-Act-One/01-Gravel"))
         );
         fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn double_digit_snapshots_in_one_second_are_newest_first() {
+        let root = root("many-snapshots");
+        let scene = root.join("manuscript/scene.md");
+        let now = Local::now();
+        for n in 1..=12 {
+            assert!(snapshot_at(&root, &scene, &format!("Draft {n}"), None, now).unwrap());
+        }
+        let kept = versions(&root, &scene);
+        assert_eq!(kept.len(), 12);
+        assert_eq!(kept[0].text, "Draft 12");
+        assert_eq!(kept[11].text, "Draft 1");
+        assert!(!snapshot_at(&root, &scene, "Draft 12", None, now).unwrap());
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

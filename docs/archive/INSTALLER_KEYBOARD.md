@@ -59,6 +59,11 @@ unreachable from the real installer until the `wros-installer-keymaps` udeb
 (ANSI/ISO) to it and set `KEYMAP=y` for the installed initramfs, so the disk
 passphrase prompt uses the same layout as the installer.
 
-Issue #24 and installer #3 remain open until their actual guest/installer
-acceptance passes. QWERTY/Colemak-DH physical ANSI/ISO, modifier, recovery and
-suspend/resume checks still require authorized hardware.
+The later installer run selected Colemak through Debian's keyboard question.
+On a fresh overlay of that installation, disk unlock rejected QWERTY input and
+accepted Colemak. WrOS recorded the adopted layout, tty1 used Colemak, and
+the greeter accepted the password typed in that layout. The receipt identifies
+the tested ISO and installed package. [Installer and first-boot record](../evidence/installer-keyboard-vm.json)
+
+QWERTY/Colemak-DH physical ANSI/ISO, modifier, recovery and suspend/resume checks
+remain part of [installer qualification](https://github.com/j5cfk7qm49-web/WrOS/issues/3).

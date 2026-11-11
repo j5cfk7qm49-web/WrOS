@@ -22,6 +22,7 @@ use anyhow::{Context, Result};
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 /// Waits between tries at the rename, in milliseconds: about a second and a
@@ -73,12 +74,33 @@ pub(crate) fn write_with(
     rename: &dyn Fn(&Path, &Path) -> io::Result<()>,
     wait: &dyn Fn(u64),
 ) -> Result<()> {
-    let tmp = temp_path(path);
+    // Exclusive creation keeps overlapping saves and stale temporary files
+    // from sharing an inode. Never truncate or remove a file we did not create.
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let mut tmp = temp_path(path);
+    let mut f = loop {
+        match fs::File::create_new(&tmp) {
+            Ok(file) => break file,
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                let base = temp_path(path);
+                let name = base.file_name().unwrap_or_default().to_string_lossy();
+                tmp = base.with_file_name(format!(
+                    "{}.{}.tmp",
+                    name.trim_end_matches(".tmp"),
+                    NEXT.fetch_add(1, Ordering::Relaxed)
+                ));
+            }
+            Err(error) => {
+                return Err(error)
+                    .with_context(|| format!("creating a save for {}", path.display()));
+            }
+        }
+    };
     let written = (|| -> io::Result<()> {
-        let mut f = fs::File::create(&tmp)?;
         f.write_all(bytes)?;
         f.sync_all()
     })();
+    drop(f);
     if let Err(e) = written {
         let _ = fs::remove_file(&tmp);
         return Err(e).with_context(|| format!("writing {}", path.display()));
@@ -147,6 +169,41 @@ mod tests {
             "the old shape too"
         );
         assert!(!is_temp(Path::new("/book/01-Scene-One.md")));
+    }
+
+    #[test]
+    fn overlapping_saves_keep_separate_temporary_files() {
+        let d = scratch("overlap");
+        let path = d.join("scene.md");
+        write_with(
+            &path,
+            b"outer save",
+            &|from, to| {
+                write_text(to, "inner save").unwrap();
+                assert_eq!(fs::read(from).unwrap(), b"outer save");
+                fs::rename(from, to)
+            },
+            &|_| {},
+        )
+        .unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(), "outer save");
+        assert_eq!(fs::read_dir(&d).unwrap().count(), 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn an_existing_temporary_symlink_cannot_overwrite_another_file() {
+        let d = scratch("temp-link");
+        let path = d.join("scene.md");
+        let other = d.join("other.md");
+        fs::write(&other, "other writing").unwrap();
+        let tmp = temp_path(&path);
+        std::os::unix::fs::symlink(&other, &tmp).unwrap();
+        write_text(&path, "saved writing").unwrap();
+        assert_eq!(fs::read_to_string(&other).unwrap(), "other writing");
+        assert!(tmp.is_symlink());
+        assert!(!path.is_symlink());
+        assert_eq!(fs::read_to_string(path).unwrap(), "saved writing");
     }
 
     #[test]

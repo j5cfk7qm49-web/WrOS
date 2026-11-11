@@ -161,6 +161,23 @@ fn passage_review_defaults_cancel_then_restores_only_selected_wording_with_undo_
             d.key(KeyCode::Char('p'));
             assert!(d.shows("gold"));
             assert!(d.shows("blue"));
+            let rows = d.rows();
+            let heading = rows
+                .iter()
+                .find(|row| row.contains("CURRENT WORDING"))
+                .unwrap();
+            if width >= 120 {
+                assert!(
+                    heading.contains("SAVED WORDING"),
+                    "both column headings at {width}"
+                );
+                assert!(
+                    rows.iter()
+                        .any(|row| row.contains("gold") && row.contains("blue"))
+                );
+            } else {
+                assert!(!heading.contains("SAVED WORDING"));
+            }
             d.key(KeyCode::Down);
             d.key(KeyCode::Enter);
             assert_eq!(d.app.overlay, Overlay::None, "{}", d.app.milestones.notice);

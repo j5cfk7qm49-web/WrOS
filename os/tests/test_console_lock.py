@@ -1,5 +1,7 @@
 """Pure privilege/argv/session validation; never opens or changes a host VT."""
+from contextlib import redirect_stderr
 import importlib.machinery
+from io import StringIO
 import re
 from pathlib import Path
 import tempfile
@@ -55,6 +57,44 @@ class ConsoleLockBoundary(unittest.TestCase):
                     self.assertFalse(module.can_sleep(42, 99, 8))
             with mock.patch.object(module, 'keyboard_mode', return_value=module.K_UNICODE):
                 self.assertFalse(module.can_sleep(42, 99, 8))
+
+    def test_slow_suspend_keeps_its_proof_until_logind_finishes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Path(temp)
+            states = iter(('b true', 'b true', 'b false'))
+
+            def query(argv):
+                self.assertEqual((run / 'suspend').read_text(), '42 99\n')
+                if argv[0] == '/usr/bin/systemctl':
+                    self.assertEqual(argv[1:], ['suspend'])
+                    return ''
+                self.assertEqual(argv[-1], 'PreparingForSleep')
+                return next(states)
+
+            with mock.patch.object(module, 'RUN', run), \
+                 mock.patch.object(module, 'tty8', return_value=8), \
+                 mock.patch.object(module, 'can_sleep', return_value=True), \
+                 mock.patch.object(module, 'query', side_effect=query), \
+                 mock.patch.object(module.time, 'monotonic', side_effect=(0, 21)), \
+                 mock.patch.object(module.time, 'sleep') as wait, \
+                 mock.patch.object(module.os, 'close'):
+                self.assertIsNone(module.suspend(42, 99))
+            self.assertEqual(wait.call_count, 2)
+            self.assertFalse((run / 'suspend').exists())
+
+    def test_a_refused_request_can_restore_input_only_after_a_confirmed_idle_state(self):
+        refused = module.subprocess.CalledProcessError(1, ['/usr/bin/systemctl', 'suspend'])
+        with tempfile.TemporaryDirectory() as temp, \
+             mock.patch.object(module, 'RUN', Path(temp)), \
+             mock.patch.object(module, 'tty8', return_value=8), \
+             mock.patch.object(module, 'can_sleep', return_value=True), \
+             mock.patch.object(module.os, 'close'):
+            with mock.patch.object(module, 'query', side_effect=(refused, 'b false')):
+                self.assertIs(module.suspend(42, 99), refused)
+            with mock.patch.object(module, 'query', side_effect=(refused, 'unknown')):
+                with self.assertRaisesRegex(ValueError, 'suspend completion'):
+                    module.suspend(42, 99)
+            self.assertFalse((Path(temp) / 'suspend').exists())
 
     def test_suspend_unit_requires_the_proof_without_holding_the_lock_unit_loaded(self):
         # A unit dependency on the lock service keeps its finished run loaded, and systemd-run then
@@ -203,18 +243,38 @@ class ConsoleLockBoundary(unittest.TestCase):
                     module.main()
 
     def test_reader_detection_matches_the_actual_worker_argument(self):
-        import tempfile
         with tempfile.TemporaryDirectory(prefix="wros-lock-sleep-") as tmp:
             proc = Path(tmp) / "proc"
             task_dir = proc / "42" / "task" / "42"
             task_dir.mkdir(parents=True)
-            (task_dir / "children").write_text("99\n")
+            # A process-wide child can be missed by a task's children listing.
+            (task_dir / "children").write_text("")
             worker_dir = proc / "99"
             worker_dir.mkdir(parents=True)
+            process_stat = worker_dir / "stat"
+            process_stat.write_text("99 (wros)input) S 42\n")
             # The argument the editor really starts its input reader with (crates/wros-input).
             rust = (ROOT / 'crates/wros-input/src/linux.rs').read_text()
             argument = re.search(r'pub const WORKER_ARGUMENT: &str = "([^"]+)";', rust).group(1)
             (worker_dir / "cmdline").write_bytes(b"/usr/bin/grimoire\0" + argument.encode() + b"\x0042\0")
             self.assertFalse(module.input_reader_retired(42, proc_root=proc))
-            (task_dir / "children").write_text("")
+            process_stat.write_text("99 (wros)input) S 7\n")
             self.assertTrue(module.input_reader_retired(42, proc_root=proc))
+            process_stat.unlink()
+            self.assertTrue(module.input_reader_retired(42, proc_root=proc))
+
+    def test_worker_logs_the_failed_step_without_command_output(self):
+        error = module.subprocess.CalledProcessError(2, ['loginctl'], stderr=b'private output')
+        with mock.patch.object(module, 'secure_process'), \
+             mock.patch.object(module.os, 'pidfd_open', return_value=9), \
+             mock.patch.object(module.os, 'close'), \
+             mock.patch.object(module, 'birth', return_value='1234'), \
+             mock.patch.object(module.os.path, 'samefile', return_value=True), \
+             mock.patch.object(module, 'input_reader_retired', return_value=True), \
+             mock.patch.object(Path, 'read_text', return_value='Uid:\t1000\t1000\t1000\t1000\n'), \
+             mock.patch.object(module, 'caller_session', return_value='3'), \
+             mock.patch.object(module, 'query', side_effect=error), \
+             redirect_stderr(StringIO()) as journal:
+            self.assertEqual(module.worker('1000', '42', '1234', sleep=True), 1)
+        self.assertEqual(journal.getvalue(),
+                         'WrOS console lock: checking the logind session: command exited with status 2\n')

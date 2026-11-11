@@ -310,6 +310,11 @@ pub fn save_scene(path: &Path, text: &str, front: Option<&str>, seen: &Stamp) ->
     }
 }
 
+/// Keep a draft beside the current scene without changing the scene itself.
+pub fn park_scene(path: &Path, text: &str, front: Option<&str>) -> Result<PathBuf> {
+    sync::write_conflict_copy(path, &whole_file(front, text))
+}
+
 /// Throw away a parked version once the writer has settled the conflict —
 /// either because they took this device's words into the scene (so the copy is
 /// now a duplicate that would sit in the outline pretending to be a lost
@@ -452,10 +457,7 @@ pub mod shelf {
     /// finding it out with a paragraph in hand.
     pub fn choose(config: &Path, dir: &Path) -> Result<PathBuf> {
         fs::create_dir_all(dir).with_context(|| format!("making {}", dir.display()))?;
-        let probe = dir.join(".grimoire-write-test");
-        fs::write(&probe, b"grimoire")
-            .with_context(|| format!("{} cannot be written to", dir.display()))?;
-        let _ = fs::remove_file(&probe);
+        check_writable(dir).with_context(|| format!("{} cannot be written to", dir.display()))?;
 
         fs::create_dir_all(config)?;
         let text = serde_json::to_string_pretty(&Saved {
@@ -463,6 +465,32 @@ pub mod shelf {
         })?;
         grimoire_core::project::write_atomic(&settings(config), &text)?;
         Ok(dir.to_path_buf())
+    }
+
+    /// Probe an ordinary folder without touching another probe or an old
+    /// file left by an interrupted check. Verify a write, not just creation.
+    pub fn check_writable(dir: &Path) -> Result<()> {
+        use std::io::Write;
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        loop {
+            let probe = dir.join(format!(
+                ".grimoire-write-test-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            let mut file = match fs::File::create_new(&probe) {
+                Ok(file) => file,
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(error.into()),
+            };
+            let written = file.write_all(b"grimoire").and_then(|()| file.sync_all());
+            drop(file);
+            let removed = fs::remove_file(probe);
+            written?;
+            removed?;
+            return Ok(());
+        }
     }
 
     /// One row in the folder picker.
@@ -524,12 +552,23 @@ pub mod shelf {
     /// book is left alone: the new folder may be someone else's vault, full of
     /// notes that are none of Grimoire's business.
     pub fn move_books(from: &Path, to: &Path) -> Result<usize> {
+        let from = from.canonicalize()?;
+        fs::create_dir_all(to)?;
+        let to = to.canonicalize()?;
         if from == to {
             return Ok(0);
         }
-        fs::create_dir_all(to)?;
+        let books = books(&from);
+        // Check every book before moving any of them. Copying a book into
+        // itself recurses into the copy indefinitely on a cross-device move.
+        for book in &books {
+            anyhow::ensure!(
+                !to.starts_with(book.path.canonicalize()?),
+                "The new shelf cannot be inside a book being moved."
+            );
+        }
         let mut moved = 0;
-        for book in books(from) {
+        for book in books {
             let Some(name) = book.path.file_name() else {
                 continue;
             };
@@ -556,12 +595,21 @@ pub mod shelf {
     /// and so is its folder, renamed to say so — nothing is removed that
     /// isn't safe at `to`. True when nothing was left behind.
     pub(crate) fn move_by_copy(from: &Path, to: &Path) -> Result<bool> {
+        anyhow::ensure!(
+            from.symlink_metadata()?.is_dir(),
+            "Only ordinary book folders can be moved."
+        );
         copy_dir(from, to)?;
         let left = take_copied(from, to)?;
         if left == 0 {
-            // only empty folders remain
-            let _ = fs::remove_dir_all(from);
-            return Ok(true);
+            // A sync client can add a file after the last read. Only remove
+            // an empty directory; a late arrival must remain at the old shelf.
+            match fs::remove_dir(from) {
+                Ok(()) => return Ok(true),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(true),
+                Err(error) if error.kind() == std::io::ErrorKind::DirectoryNotEmpty => {}
+                Err(error) => return Err(error.into()),
+            }
         }
         let name = from
             .file_name()
@@ -579,19 +627,31 @@ pub mod shelf {
     /// files stayed.
     fn take_copied(from: &Path, to: &Path) -> Result<usize> {
         let mut left = 0;
-        for entry in fs::read_dir(from)?.flatten() {
+        for entry in fs::read_dir(from)? {
+            let entry = entry?;
             let path = entry.path();
             let target = to.join(entry.file_name());
-            if path.is_dir() {
+            let kind = entry.file_type()?;
+            if kind.is_dir() {
                 fs::create_dir_all(&target)?;
                 left += take_copied(&path, &target)?;
                 let _ = fs::remove_dir(&path); // only if now empty
                 continue;
             }
-            if fs::read(&target).ok() != fs::read(&path).ok() {
+            anyhow::ensure!(
+                kind.is_file(),
+                "Linked and special files cannot be moved by copying."
+            );
+            let original = fs::read(&path)?;
+            let matches = match fs::read(&target) {
+                Ok(copy) => copy == original,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+                Err(error) => return Err(error.into()),
+            };
+            if !matches {
                 fs::copy(&path, &target)?;
             }
-            if fs::read(&target).ok() == fs::read(&path).ok() {
+            if fs::read(&target)? == fs::read(&path)? {
                 fs::remove_file(&path)?;
             } else {
                 left += 1;
@@ -602,12 +662,18 @@ pub mod shelf {
 
     fn copy_dir(from: &Path, to: &Path) -> Result<()> {
         fs::create_dir_all(to)?;
-        for entry in fs::read_dir(from)?.flatten() {
+        for entry in fs::read_dir(from)? {
+            let entry = entry?;
             let path = entry.path();
             let target = to.join(entry.file_name());
-            if path.is_dir() {
+            let kind = entry.file_type()?;
+            if kind.is_dir() {
                 copy_dir(&path, &target)?;
             } else {
+                anyhow::ensure!(
+                    kind.is_file(),
+                    "Linked and special files cannot be moved by copying."
+                );
                 fs::copy(&path, &target)?;
                 #[cfg(test)]
                 super::tests::copied(&path);
@@ -674,6 +740,90 @@ mod tests {
             "the desktop's words are still the scene"
         );
         fs::remove_dir_all(&base).unwrap();
+    }
+
+    #[test]
+    fn a_stale_write_probe_does_not_prevent_choosing_a_writable_shelf() {
+        let base = shelf("stale-probe");
+        let dir = base.join("books");
+        fs::create_dir_all(&dir).unwrap();
+        let stale = dir.join(".grimoire-write-test");
+        fs::write(&stale, "pre-existing file").unwrap();
+        shelf::choose(&base.join("config"), &dir).unwrap();
+        assert_eq!(fs::read_to_string(stale).unwrap(), "pre-existing file");
+        assert_eq!(fs::read_dir(&dir).unwrap().count(), 1);
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
+    fn moving_a_shelf_inside_one_of_its_books_is_refused() {
+        let base = shelf("nested-move");
+        let book = create_book(&base, "Book").unwrap();
+        // A pre-existing destination book avoids unbounded recursion in the
+        // old copy fallback, while still proving the invalid move is accepted.
+        let to = book.path.join("nested");
+        fs::create_dir_all(to.join("Book")).unwrap();
+        assert!(shelf::move_books(&base, &to).is_err());
+        assert!(book.path.join("novel.toml").exists());
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn shelf_copy_never_removes_files_from_a_linked_folder() {
+        let base = shelf("linked-move");
+        let from = base.join("book");
+        let outside = base.join("outside");
+        fs::create_dir_all(&from).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        let original = outside.join("scene.md");
+        fs::write(&original, "external words").unwrap();
+        std::os::unix::fs::symlink(&outside, from.join("linked")).unwrap();
+        assert!(shelf::move_by_copy(&from, &base.join("copy")).is_err());
+        assert_eq!(fs::read_to_string(original).unwrap(), "external words");
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unreadable_files_during_a_shelf_move_are_never_treated_as_equal() {
+        use std::os::unix::fs::PermissionsExt;
+        let base = shelf("unreadable-move");
+        let from = base.join("book");
+        let to = base.join("copy");
+        fs::create_dir_all(&from).unwrap();
+        let original = from.join("scene.md");
+        fs::write(&original, "keep these words").unwrap();
+        let copied = to.join("scene.md");
+        let locked = copied.clone();
+        COPIED.with(|hook| {
+            *hook.borrow_mut() = Some(Box::new(move |source| {
+                fs::set_permissions(source, fs::Permissions::from_mode(0o000)).unwrap();
+                fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
+            }));
+        });
+        let result = shelf::move_by_copy(&from, &to);
+        COPIED.with(|hook| *hook.borrow_mut() = None);
+        assert!(result.is_err());
+        assert!(original.exists());
+        fs::set_permissions(&original, fs::Permissions::from_mode(0o600)).unwrap();
+        assert_eq!(fs::read_to_string(original).unwrap(), "keep these words");
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
+    fn windows_frontmatter_stays_out_of_the_mobile_editor() {
+        let base = shelf("windows-front");
+        let path = base.join("scene.md");
+        let front = "title: Windows scene\r\ncompile: false\r\n";
+        fs::write(&path, format!("---\r\n{front}---\r\n\r\nWords.\r\n")).unwrap();
+        let scene = read_scene(&path).unwrap();
+        assert_eq!(scene.front.as_deref(), Some(front));
+        assert_eq!(scene.title, "Windows scene");
+        assert_eq!(scene.text, "Words.\r\n");
+        save_scene(&path, "Changed.\n", scene.front.as_deref(), &scene.seen).unwrap();
+        assert_eq!(read_scene(&path).unwrap().front, scene.front);
+        fs::remove_dir_all(base).unwrap();
     }
 
     #[test]

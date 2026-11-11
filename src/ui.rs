@@ -1193,14 +1193,9 @@ fn draw_codex(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
     let w = inner.width as usize;
 
     // The appearances list takes the bottom; the note fills the rest.
-    let list_h = (pane.appears.len() as u16 + 2).min(inner.height / 2).max(3);
+    let (list_area, visible) = pane.appearances_layout(inner);
     let note_area = Rect {
-        height: inner.height.saturating_sub(list_h),
-        ..inner
-    };
-    let list_area = Rect {
-        y: inner.y + note_area.height,
-        height: list_h,
+        height: inner.height - list_area.height,
         ..inner
     };
 
@@ -1236,9 +1231,8 @@ fn draw_codex(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
         Style::default().fg(t.accent),
     ))];
     let open_path = app.open.map(|i| app.project.nodes[i].path.clone());
-    let room = (list_h as usize).saturating_sub(1);
-    let start = pane.sel.saturating_sub(room.saturating_sub(1));
-    for (i, a) in pane.appears.iter().enumerate().skip(start).take(room) {
+    for i in visible {
+        let a = &pane.appears[i];
         let here = open_path.as_ref() == Some(&a.scene);
         let on = focused && i == pane.sel;
         let count = format!(" ×{}", a.count);

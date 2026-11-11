@@ -1273,7 +1273,10 @@ pub fn write_atomic(path: &Path, text: &str) -> Result<()> {
 /// Split a `---` fenced YAML frontmatter block off the front of a file.
 pub fn split_frontmatter(raw: &str) -> (Option<String>, String) {
     let s = raw.strip_prefix("\u{feff}").unwrap_or(raw);
-    let Some(rest) = s.strip_prefix("---\n") else {
+    let Some(rest) = s
+        .strip_prefix("---\n")
+        .or_else(|| s.strip_prefix("---\r\n"))
+    else {
         return (None, s.to_string());
     };
     // Find the closing fence at the start of a line.
@@ -1283,7 +1286,7 @@ pub fn split_frontmatter(raw: &str) -> (Option<String>, String) {
         if trimmed == "---" {
             let front = rest[..offset].to_string();
             let body = rest[offset + line.len()..]
-                .trim_start_matches('\n')
+                .trim_start_matches(['\r', '\n'])
                 .to_string();
             return (Some(front), body);
         }

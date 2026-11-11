@@ -103,6 +103,34 @@ fn a_closed_lid_does_what_the_writer_chose_and_a_low_battery_always_sleeps() {
 }
 
 #[test]
+fn lock_only_lid_close_waits_for_the_current_system_request() {
+    let mut desk = Desk::open(book("lid-waits-for-system", true), 100, 30);
+    desk.app.deck.lock_available = true;
+    desk.app.deck.lid_close = LidClose::Lock;
+    desk.app.overlay = Overlay::None;
+    desk.app.focus = Focus::Editor;
+    desk.typed("Save this before the lid locks. ");
+    desk.app.deck.busy = true;
+
+    let now = std::time::Instant::now();
+    let battery = crate::battery::Reading::default();
+    assert_eq!(desk.app.power_event(true, battery, now), Some(false));
+    assert!(!desk.app.request_power_lock(false));
+    assert!(!desk.app.deck.lock_requested);
+
+    desk.app.deck.busy = false;
+    assert_eq!(desk.app.power_event(true, battery, now), Some(false));
+    assert!(desk.app.request_power_lock(false));
+    assert!(desk.app.deck.lock_requested);
+    assert!(!desk.app.deck.suspend_requested);
+    assert!(
+        fs::read_to_string(first_scene(&desk.root))
+            .unwrap()
+            .contains("Save this before the lid locks.")
+    );
+}
+
+#[test]
 fn battery_warnings_and_the_countdown_show_in_the_status_bar_and_notices() {
     use crate::battery::{GRACE, Reading};
     use std::time::Instant;

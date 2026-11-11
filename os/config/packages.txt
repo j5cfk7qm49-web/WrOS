@@ -34,6 +34,10 @@ passwd
 libasound2t64
 libgcc-s1
 libdrm2
+cage
+foot
+libegl1
+libgl1-mesa-dri
 libinput10
 libseat1
 libxkbcommon0
