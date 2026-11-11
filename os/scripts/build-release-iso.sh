@@ -42,12 +42,13 @@ FALLBACK_VERSION='0.1.0~rc1'
 IMAGE_NAME=wros-live
 DEBIAN_MIRROR=https://deb.debian.org/debian
 SECURITY_MIRROR=https://security.debian.org/debian-security
+LINUX_IMAGE_DEB='linux-image-6.12.116+deb13-amd64_6.12.116-1_amd64.deb'
 INPUT_FILES=(
     "$DEBIAN_MIRROR/pool/main/c/cdebconf/cdebconf_0.280.dsc"
     "$DEBIAN_MIRROR/pool/main/c/cdebconf/cdebconf_0.280.tar.xz"
     "$DEBIAN_MIRROR/pool/main/d/debian-installer/debian-installer_20250803+deb13u7.dsc"
     "$DEBIAN_MIRROR/pool/main/d/debian-installer/debian-installer_20250803+deb13u7.tar.xz"
-    "$SECURITY_MIRROR/pool/updates/main/l/linux/linux-image-6.12.113+deb13-amd64_6.12.113-1_amd64.deb"
+    "$SECURITY_MIRROR/pool/updates/main/l/linux-signed-amd64/$LINUX_IMAGE_DEB"
 )
 
 log() { printf '[%s] %s\n' "$(date -u +%H:%M:%S)" "$*" >&2; }
@@ -154,7 +155,11 @@ state_done() { [[ -e $build/state/$1.done ]]; }
 state_mark() { date -u +%Y-%m-%dT%H:%M:%SZ > "$build/state/$1.done"; }
 
 source_fingerprint() {
-    as_builder python3 -I -c 'import sys; sys.path.insert(0, sys.argv[1]); import wros_source as s; print(s.fingerprint()["sha256"])' "$repo/tools"
+    as_builder python3 -IB -c 'import sys; sys.path.insert(0, sys.argv[1]); import wros_source as s; print(s.fingerprint()["sha256"])' "$repo/tools"
+}
+
+source_dirty() {
+    as_builder python3 -IB -c 'import sys; sys.path.insert(0, sys.argv[1]); import wros_source as s; print("dirty" if s.is_dirty() else "")' "$repo/tools"
 }
 
 run_step() {
@@ -176,10 +181,12 @@ step_binaries() {
         cd "$1"
         cargo build --release --locked --no-default-features --features gui-drm -j "$2" -p grimoire-tui -p wros-greeter -p wros-boot -p wros-installer
     ' _ "$repo" "${WROS_CARGO_JOBS:-2}"
-    for name in grimoire wros-greeter wros-installer; do
+    local -a names=(grimoire wros-greeter wros-boot wros-installer)
+    local name
+    for name in "${names[@]}"; do
         [[ -x $cargo_target/release/$name && ! -L $cargo_target/release/$name ]] || die "cargo did not produce release/$name"
     done
-    (cd "$cargo_target/release" && sha256sum grimoire wros-greeter wros-installer) > "$build/input-binaries.sha256"
+    (cd "$cargo_target/release" && sha256sum "${names[@]}") > "$build/input-binaries.sha256"
 }
 
 step_prose_runtime() {
@@ -228,7 +235,7 @@ step_installer_frontend() {
 step_live_backend() {
     as_builder bash "$repo/os/scripts/build-live-backend.sh" \
         "$inputs/debian-installer_20250803+deb13u7.dsc" \
-        "$inputs/linux-image-6.12.113+deb13-amd64_6.12.113-1_amd64.deb" \
+        "$inputs/$LINUX_IMAGE_DEB" \
         "$build/frontend" "$build/backend"
 }
 
@@ -237,6 +244,7 @@ step_live_image() {
     # to install-files.sh. build-installer.sh --live stops after 'lb binary'.
     env GRIMOIRE_BINARY="$cargo_target/release/grimoire" \
         WROS_GREETER_BINARY="$cargo_target/release/wros-greeter" \
+        WROS_BOOT_BINARY="$cargo_target/release/wros-boot" \
         WROS_INSTALLER_BINARY="$cargo_target/release/wros-installer" \
         WROS_PROSE_RUNTIME="$build/prose-runtime/runtime" \
         bash "$repo/os/scripts/build-installer.sh" --live --build-dir "$live"
@@ -286,13 +294,14 @@ audit_media() {   # exits non-zero unless the real ISO passes; writes the audit 
         --baseline-iso "$live/wros-live-amd64.hybrid.iso.capsule-less"
         --binary "grimoire=$cargo_target/release/grimoire"
         --binary "wros-greeter=$cargo_target/release/wros-greeter"
+        --binary "wros-boot=$cargo_target/release/wros-boot"
         --binary "wros-installer=$cargo_target/release/wros-installer"
         --scratch "$build/audit-scratch"
         --tree-result "$build/tree-audit.json")
     ((interim == 0)) || args+=(--interim)
     rm -rf "$build/audit-scratch" "$build/tree-audit.json"
-    # The tree gate reads the root-owned staging chroot (polkitd keeps /etc/polkit-1/rules.d
-    # root:polkitd 0750), so it runs as root and read-only; the ISO bytes are audited unprivileged.
+    # The tree gate extracts the shipped filesystem with its recorded ownership.
+    # It runs as root; the subsequent ISO audit checks the same filesystem digest.
     if python3 -I "$repo/tools/audit-installer-media.py" "$live" --tree-only > "$build/tree-audit.json.partial" 2> "$json.err"; then
         chmod 0644 "$build/tree-audit.json.partial"
         mv "$build/tree-audit.json.partial" "$build/tree-audit.json"
@@ -535,8 +544,7 @@ main() {
     [[ $version =~ ^[0-9][A-Za-z0-9.+~-]*$ ]] || die "invalid version in os/VERSION: $version" 2
 
     build=${build_arg:-$repo/build/release-iso/$(date -u +%Y%m%dT%H%M%SZ)}
-    inputs=${WROS_INPUT_CACHE:-$build/inputs}
-    [[ -z ${WROS_INPUT_CACHE:-} ]] && inputs=$build/inputs
+    inputs=$build/inputs
     live=$build/live
     mastered=$build/mastered
     release_dir=${output_arg:-$build/release}
@@ -547,12 +555,12 @@ main() {
         resumed=1
     else
         [[ ! -e $build ]] || die "build directory exists (finished artifacts are never reused or deleted): $build; use --resume or a new --build-dir" 2
-        install -d -m 755 -o "$build_user" "$build"
-        install -d -m 755 "$build/state" "$build/logs"
     fi
     commit=$(git -C "$repo" rev-parse HEAD) || die 'the build source must be a git checkout' 2
-    if [[ -n $(git -C "$repo" status --porcelain --untracked-files=no) ]] && ((allow_dirty == 0)); then
-        die 'the working tree has uncommitted changes; commit them (or use --interim --allow-dirty)' 2
+    if ((allow_dirty == 0)); then
+        local dirty
+        dirty=$(source_dirty)
+        [[ -z $dirty ]] || die 'the build source has uncommitted changes or untracked inputs; commit them (or use --interim --allow-dirty)' 2
     fi
     if [[ -z ${SOURCE_DATE_EPOCH:-} ]]; then
         SOURCE_DATE_EPOCH=$(git -C "$repo" log -1 --format=%ct)
@@ -564,6 +572,8 @@ main() {
             die 'the source changed since this build started; refusing to resume (--accept-source-drift records the drift in the receipt)' 2
         fi
     else
+        install -d -m 755 -o "$build_user" "$build"
+        install -d -m 755 "$build/state" "$build/logs"
         printf '%s\n' "$fingerprint" > "$build/state/source-fingerprint"
         printf '%s\n' "$commit" > "$build/state/git-commit"
     fi

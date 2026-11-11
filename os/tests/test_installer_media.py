@@ -28,6 +28,7 @@ class InstallerMedia(unittest.TestCase):
     def archive(self, base, name, version='1', payload=None, section='main'):
         package = base/'packages'/name
         (package/'DEBIAN').mkdir(parents=True, exist_ok=True)
+        (package/'DEBIAN').chmod(0o755)
         (package/'DEBIAN/control').write_text(
             f'Package: {name}\nVersion: {version}\nArchitecture: all\n'
             'Maintainer: Fixture <fixture@example.invalid>\nDescription: synthetic policy fixture, not bootable\n')
@@ -311,6 +312,15 @@ GPT partition path : 2 /boot/grub/efi.img
 
             # Compare against self baseline
             module.same_boot_structure(structure, structure)
+            alignment = dict(structure, system_area=[
+                flag for flag in structure['system_area'] if not flag.startswith('cyl-align-')
+            ] + ['cyl-align-off'])
+            module.same_boot_structure(alignment, structure)
+            missing_gpt = dict(structure, system_area=[
+                flag for flag in structure['system_area'] if flag != 'GPT'
+            ])
+            with self.assertRaisesRegex(ValueError, 'Re-mastered ISO boot records differ'):
+                module.same_boot_structure(missing_gpt, structure)
 
             # Altered baseline partition count raises
             altered = dict(structure, gpt_partitions=1)
@@ -387,6 +397,16 @@ GPT start and size : 2 102048 5760
             qa_listing = dict(listing, **{'etc/wros/VM-DEMO-ONLY': ('-', None)})
             with self.assertRaisesRegex(ValueError, 'QA/test file shipped'):
                 module.deny_list(rootfs, qa_listing, boot_configs)
+            alias = 'etc/writingdeck/VM-DEMO-ONLY'
+            compatibility = dict(listing, **{alias: ('l', '../wros/VM-DEMO-ONLY')})
+            module.deny_list(rootfs, compatibility, boot_configs)
+            for changed in (
+                dict(compatibility, **{'etc/wros/VM-DEMO-ONLY': ('-', None)}),
+                dict(compatibility, **{alias: ('l', '/etc/shadow')}),
+                dict(compatibility, **{alias: ('-', None)}),
+            ):
+                with self.assertRaisesRegex(ValueError, 'QA/test file shipped'):
+                    module.deny_list(rootfs, changed, boot_configs)
 
             # live sudoers file in listing fails
             live_sudo = dict(listing, **{'etc/sudoers.d/live': ('-', None)})
@@ -505,21 +525,121 @@ GPT start and size : 2 102048 5760
         self.assertIn('audit_media', script_text)
         self.assertIn('publish_release', script_text)
         self.assertIn('mv -- "$final.receipt.json.partial" "$final.receipt.json"', script_text)
+        self.assertIn('WROS_BOOT_BINARY="$cargo_target/release/wros-boot"', script_text)
+        self.assertIn('--binary "wros-boot=$cargo_target/release/wros-boot"', script_text)
+        self.assertEqual(module.BINARY_PATHS['wros-boot'], 'usr/lib/wros/wros-boot')
+
+    def test_release_build_stages_inputs_separately_from_shared_cache(self):
+        driver = ROOT / 'os/scripts/build-release-iso.sh'
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            cache = base / 'cache'
+            cache.mkdir()
+            artifact = cache / 'fixture.dsc'
+            artifact.write_bytes(b'cached source bytes')
+            build = base / 'build'
+            result = subprocess.run(['bash', '-c', '''
+                source "$1"
+                preflight() { :; }
+                preflight_inputs() { build_user=$(id -un); }
+                as_builder() { "$@"; }
+                source_fingerprint() { echo fixture-source; }
+                git() { echo fixture-commit; }
+                INPUT_FILES=(https://example.invalid/fixture.dsc)
+                STEPS=(inputs)
+                export SOURCE_DATE_EPOCH=1 WROS_INPUT_CACHE="$2"
+                export WROS_UPDATE_KEYRING=fixture WROS_UPDATE_SIGNERS=fixture
+                main --interim --allow-dirty --build-dir "$3"
+            ''', '_', str(driver), str(cache), str(build)], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            staged = build / 'inputs' / artifact.name
+            self.assertTrue(staged.is_file(), result.stderr)
+            self.assertEqual(staged.read_bytes(), artifact.read_bytes())
+            self.assertFalse(staged.samefile(artifact))
+
+    def test_release_source_fingerprint_tracks_build_inputs_but_ignores_outputs(self):
+        source_spec = importlib.util.spec_from_file_location('wros_source', ROOT / 'tools/wros_source.py')
+        source = importlib.util.module_from_spec(source_spec)
+        source_spec.loader.exec_module(source)
+        inputs = ('os/VERSION', 'os/licenses/NOTICE.txt', 'os/python-tools/requirements.txt',
+                  '.cargo/config.toml', 'tools/build-live-installer-pool.py',
+                  'packaging/manifest.json', 'packaging/wros_packaging.py', 'LICENSE',
+                  'docs/guide.md', 'docs/local-licenses.json', 'docs/feature-status.json',
+                  'docs/keyboard-reference.html', 'docs/python-tools-lock.json', 'docs/python-tool-notices.json')
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            subprocess.run(['git', 'init', '-q', str(base)], check=True)
+            with mock.patch.object(source, 'ROOT', base):
+                for relative in inputs:
+                    with self.subTest(path=relative):
+                        before = source.fingerprint()
+                        path = base / relative
+                        path.parent.mkdir(parents=True, exist_ok=True)
+                        path.write_bytes(b'build input')
+                        self.assertNotEqual(source.fingerprint(), before)
+                before = source.fingerprint()
+                for relative in ('docs/evidence/test.json', 'docs/archive/historical.md', 'build/fixture.iso'):
+                    path = base / relative
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(b'build output')
+                self.assertEqual(source.fingerprint(), before)
+
+    def test_release_build_refuses_untracked_inputs_before_allocating_a_build_directory(self):
+        driver = ROOT / 'os/scripts/build-release-iso.sh'
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory) / 'repo'
+            (repo / 'tools').mkdir(parents=True)
+            shutil.copyfile(ROOT / 'tools/wros_source.py', repo / 'tools/wros_source.py')
+            subprocess.run(['git', 'init', '-q'], cwd=repo, check=True)
+            subprocess.run(['git', 'add', 'tools/wros_source.py'], cwd=repo, check=True)
+            subprocess.run(['git', '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+                            'commit', '-qm', 'fixture'], cwd=repo, check=True)
+
+            def run_driver(build, *flags):
+                return subprocess.run(['bash', '-c', '''
+                    source "$1"
+                    repo=$2
+                    preflight() { :; }
+                    preflight_inputs() { build_user=$(id -un); }
+                    as_builder() { "$@"; }
+                    STEPS=()
+                    export SOURCE_DATE_EPOCH=1 WROS_UPDATE_KEYRING=fixture WROS_UPDATE_SIGNERS=fixture
+                    main --build-dir "$3" "${@:4}"
+                ''', '_', str(driver), str(repo), str(build), *flags], capture_output=True, text=True)
+
+            (repo / 'untracked-build.log').write_text('local diagnostic output')
+            clean = run_driver(repo / 'clean-build')
+            self.assertEqual(clean.returncode, 0, clean.stderr)
+            (repo / 'os/licenses').mkdir(parents=True)
+            (repo / 'os/licenses/NOTICE.txt').write_text('untracked release input')
+            build = repo / 'new-build'
+            rejected = run_driver(build)
+            self.assertNotEqual(rejected.returncode, 0, rejected.stderr)
+            self.assertIn('uncommitted', rejected.stderr)
+            self.assertFalse(build.exists())
+            interim = run_driver(build, '--interim', '--allow-dirty')
+            self.assertEqual(interim.returncode, 0, interim.stderr)
 
     def test_tree_gate_runs_as_root_and_its_result_is_bound_to_the_build_tree(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp) / 'live'
             base.mkdir()
+            squashfs = base / 'binary/live/filesystem.squashfs'
+            squashfs.parent.mkdir(parents=True)
+            squashfs.write_bytes(b'squashfs fixture')
             with mock.patch.object(module.os, 'geteuid', return_value=1000):
                 with self.assertRaisesRegex(ValueError, 'run --tree-only as root'):
                     module.tree_gate(base)
-            passed = {'passed': True, 'tree_gate_uid': 0, 'build_tree': str(base.resolve())}
+            passed = {'passed': True, 'tree_gate_uid': 0, 'build_tree': str(base.resolve()),
+                      'squashfs_sha256': module.sha256_file(squashfs)}
             result = Path(tmp) / 'tree-audit.json'
             result.write_text(json.dumps(passed))
             self.assertEqual(module.load_tree_result(result, base)['build_tree'], str(base.resolve()))
             for name, value in {'failed': dict(passed, passed=False),
                                 'unprivileged': dict(passed, tree_gate_uid=1000),
-                                'other tree': dict(passed, build_tree='/elsewhere')}.items():
+                                'other tree': dict(passed, build_tree='/elsewhere'),
+                                'no digest': dict(passed, squashfs_sha256=None),
+                                'other squashfs': dict(passed, squashfs_sha256='0' * 64)}.items():
                 with self.subTest(name=name):
                     result.write_text(json.dumps(value))
                     with self.assertRaises(ValueError):
@@ -530,6 +650,30 @@ GPT start and size : 2 102048 5760
                 module.load_tree_result(link, base)
             with self.assertRaisesRegex(ValueError, 'missing'):
                 module.load_tree_result(Path(tmp) / 'absent.json', base)
+
+    def test_tree_gate_audits_the_filesystem_extracted_from_the_built_image(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory) / 'live'
+            squashfs = base / 'binary/live/filesystem.squashfs'
+            squashfs.parent.mkdir(parents=True)
+            squashfs.write_bytes(b'shipped filesystem fixture')
+
+            def extract(source, root):
+                self.assertEqual(source, squashfs)
+                root.mkdir()
+                (root / 'marker').write_text('shipped root')
+
+            def audit(source, root):
+                self.assertEqual(source, base)
+                self.assertEqual((root / 'marker').read_text(), 'shipped root')
+                return {'passed': True, 'build_tree': str(base.resolve())}
+
+            with (mock.patch.object(module.os, 'geteuid', return_value=0),
+                  mock.patch.object(module, 'squash_extract', side_effect=extract),
+                  mock.patch.object(module, 'audit', side_effect=audit)):
+                result = module.tree_gate(base)
+            self.assertEqual(result['squashfs_sha256'], module.sha256_file(squashfs))
+            self.assertEqual(result['tree_gate_uid'], 0)
 
     def test_driver_runs_the_tree_gate_as_root_before_the_unprivileged_iso_audit(self):
         script = (ROOT / 'os/scripts/build-release-iso.sh').read_text()

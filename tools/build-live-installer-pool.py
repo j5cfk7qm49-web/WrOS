@@ -23,7 +23,7 @@ import apt_pkg
 from debian.deb822 import Packages, Release
 from debian.debfile import DebFile
 
-ABI = '6.12.113+deb13-amd64'
+ABI = '6.12.116+deb13-amd64'
 RESCUE_ABI = '6.12.107+deb13-amd64'
 CDEBCONF_VERSION = '0.280'
 INDEX = 'main/debian-installer/binary-amd64/Packages'

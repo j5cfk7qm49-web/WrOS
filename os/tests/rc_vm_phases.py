@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
 """WrOS release-candidate VM qualification: phase drivers.
 
-Runs as the unprivileged `builder` user inside the Debian builder chroot (see
-.audit-tools/rc-vm-go.sh). Every phase gets a fresh run directory, a result.json with
+Runs as the unprivileged `builder` user inside the Debian builder chroot.
+Every phase gets a fresh run directory, a result.json with
 the ISO sha256 and the exact QEMU commands, screendumps and serial transcripts.
 Failed attempts are never overwritten.
 
     rc_vm_phases.py firmware   --iso ISO [--secboot]
     rc_vm_phases.py live       --iso ISO         (phases 1-3: live writing, refusal, cancel)
-    rc_vm_phases.py install    --iso ISO         (phase 4)
+    rc_vm_phases.py install    --iso ISO [--audit-network]  (phase 4)
     rc_vm_phases.py install-failure --iso ISO --kill backend|writer   (phases 5/6)
     rc_vm_phases.py installed-boot --install-run DIR                  (phase 6)
     rc_vm_phases.py update     --install-run DIR --bundle DIR [--variant ok|cancel|tamper|powercut|badstage]
     rc_vm_phases.py rescue     --iso ISO --install-run DIR
 
-Hard rules: no NIC, only freshly created disposable images, generated secrets only,
-no QA kernel arguments (the serial channel is a QEMU SMBIOS credential).
+Only disposable disks and generated secrets. No QA kernel arguments (the
+serial channel is a QEMU SMBIOS credential). VMs have no NIC by default.
+The IPv4 install audit requires a fresh network namespace and tcpdump. It
+records network attempts while checking installation without Internet access.
 """
 import argparse
 import base64
@@ -35,10 +37,15 @@ import rc_vm as vm
 import rc_vm_forms as forms
 from fixture_storage import fixture_serial
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
+from media_constants import BINARY_PATHS
+
 BASE = Path(os.environ.get('RC_VM_BASE', '/home/builder/rc-vm-runs'))
 GUEST = Path(__file__).with_name('rc_vm_guest.py')
 LIVE_USER, LIVE_PASSWORD = 'wros-live', 'live'   # Debian's public live credential, not a secret
 TARGET_BYTES = 16 * 1024 ** 3
+INSTALL_NIC_MAC = '52:54:00:57:52:01'
+LEGACY_BINARY_NAMES = BINARY_PATHS.keys() - {'wros-boot'}
 # installer keymap list entry to choose, and entries to avoid, per requested layout
 LAYOUT_CHOICES = {'dvorak': (r'^Dvorak$', ''), 'colemak': (r'^Colemak$', ''),
                   'colemak_dh': (r'^Colemak Mod-DH \(ANSI\)$', '')}
@@ -48,6 +55,19 @@ KEYMAP_ROWS_EXPECTED = [r'^Colemak$', r'^Colemak Mod-DH \(ANSI\)$', r'^Colemak M
 def harness_commit():
     path = Path(__file__).resolve().parents[2] / 'HARNESS_COMMIT'
     return path.read_text().strip() if path.exists() else 'unknown'
+
+
+def receipt_binary_hashes(binaries):
+    if (not isinstance(binaries, dict) or not LEGACY_BINARY_NAMES <= binaries.keys()
+            or not binaries.keys() <= BINARY_PATHS.keys()):
+        return {}
+    hashes = {}
+    for name, row in binaries.items():
+        digest = row.get('squashfs_sha256') if isinstance(row, dict) else None
+        if not isinstance(digest, str) or re.fullmatch(r'[0-9a-f]{64}', digest) is None:
+            return {}
+        hashes['/' + BINARY_PATHS[name]] = digest
+    return hashes
 
 
 class Failure(Exception):
@@ -74,6 +94,9 @@ class Ctx:
             if receipt.is_file():
                 data = json.loads(receipt.read_text())
                 self.result['release_commit'] = data.get('git_commit')
+                self.result['release_version'] = data.get('version')
+                if isinstance(data.get('iso'), dict):
+                    self.result['receipt_iso_sha256'] = data['iso'].get('sha256')
                 self.result['receipt'] = str(receipt)
                 self.result['receipt_sha256'] = vm.sha256_file(receipt)
                 self.result['receipt_binaries_sha256'] = data.get('binaries')
@@ -148,9 +171,9 @@ class Guest:
     def run(self, command, timeout=60, check=True):
         try:
             return self.shell.run(command, timeout, check)
-        except RuntimeError as error:
+        except (RuntimeError, TimeoutError):
             # a power-off command legitimately ends the guest before its end marker can be read
-            if 'poweroff' in command and 'guest stopped' in str(error):
+            if 'poweroff' in command and not self.m.is_running() and self.m.wait_exit(0) == 0:
                 return 0, ''
             raise
 
@@ -218,21 +241,30 @@ class Guest:
 # ----------------------------------------------------------------------------- boot helpers
 
 
+def firmware_menu_ready(picture):
+    """The live-build theme needs both menu rows and its bottom help text."""
+    gray = picture.convert('L')
+    width, height = gray.size
+    regions = ((width // 16, height * 45 // 100, width * 15 // 16, height * 4 // 5),
+               (width // 8, height * 84 // 100, width * 15 // 16, height))
+    return all(sum(gray.crop(region).histogram()[41:]) >= 20 for region in regions)
+
+
 def wait_for_firmware_menu(ctx, m, name='grub-menu', timeout=120):
-    """Wait until something stable and non-black is on screen, then return its path."""
+    """Wait for a stable menu, rather than the earlier static background."""
     from PIL import Image
     deadline = time.monotonic() + timeout
     previous = None
     while time.monotonic() < deadline:
         path = m.shot('probe-' + name)
-        image = Image.open(path).convert('L')
-        bright = sum(1 for p in image.resize((100, 75)).getdata() if p > 40)
+        with Image.open(path) as image:
+            ready = firmware_menu_ready(image)
         signature = vm.image_signature(path)
-        if bright > 40 and signature == previous:
+        if ready and signature == previous:
             final = m.run / (name + '.png')
             shutil.copyfile(path, final)
             return final
-        previous = signature if bright > 40 else None
+        previous = signature if ready else None
         time.sleep(2)
     raise Failure('firmware menu never appeared')
 
@@ -309,6 +341,36 @@ def make_target(ctx, name='target.img', size=TARGET_BYTES):
     return path, token
 
 
+def attach_install_audit_nic(machine):
+    # Keep normal DHCP, DNS and default-route advertisements. The host-side
+    # namespace has no usable links, so QEMU cannot forward packets anywhere.
+    capture = str(machine.run / 'install.pcap').replace(',', ',,')
+    machine.args += [
+        '-netdev', 'user,id=install-net,ipv6=off',
+        '-device', f'virtio-net-pci,netdev=install-net,mac={INSTALL_NIC_MAC}',
+        '-object', f'filter-dump,id=install-capture,netdev=install-net,file={capture}',
+    ]
+
+
+def check_install_network_capture(ctx):
+    capture = ctx.dir / 'install.pcap'
+
+    def packets(expression, limit):
+        return subprocess.check_output(['tcpdump', '-nn', '-q', '-r', str(capture),
+                                        '-c', str(limit), expression], text=True).splitlines()
+
+    guest_ipv4 = f'ether src {INSTALL_NIC_MAC} and ip'
+    dhcp = 'udp src port 68 and udp dst port 67'
+    ctx.check('capture contains DHCP from the installer VM', packets(f'{guest_ipv4} and {dhcp}', 1))
+    attempts = packets(f'{guest_ipv4} and not ({dhcp})', 20)
+    ctx.result['installer_ipv4_attempts'] = attempts
+    ctx.result['installer_network_policy'] = 'network when available, media fallback without Internet'
+    ctx.step('installer-network-attempts-recorded', sampled=len(attempts))
+    ctx.check('installation completed without Internet access',
+              ctx.result.get('network_namespace_isolated') is True
+              and ctx.result.get('outcome', {}).get('outcome') == 'completed')
+
+
 def on_dashboard(g):
     lines = g.vcs(1)
     return bool(lines) and 'Resume writing' in '\n'.join(lines) and 'GRIMOIRE' not in lines[0]
@@ -376,6 +438,7 @@ def grim_logout_login(ctx, g, user, password, layout):
     g.wait_vcs(1, r'Local account', 60, what='after-logout')
     greeter_login(ctx, g, g.m, user, password, layout, wrong_first=False)
     grim_dashboard(g)
+    g.choose(r'^Resume writing$')
     g.m.key('ret')           # Resume writing
     time.sleep(3)
     return g.screen(1)
@@ -392,11 +455,7 @@ def phase_firmware(ctx):
         assert_live_state(ctx, g, media)
         ctx.step('media-booted', media=media)
         g.run('sudo -n /sbin/poweroff', 20, check=False)
-        try:
-            m.wait_exit(90)
-        except TimeoutError:
-            m.kill()
-        ctx.check('%s boot ended cleanly' % media, True)
+        ctx.check('%s boot ended cleanly' % media, m.wait_exit(90) == 0)
     if ctx.args.secboot:
         try:
             m = boot_live(ctx, 'fw-secboot', 'cdrom', secboot=True)
@@ -497,6 +556,7 @@ def phase_live(ctx):
     ctx.check('target hash unchanged after cancel', vm.sparse_digest(target) == before)
     ctx.check('no leftover mappers', snap3['mappers'] in ([], ['control']), snap3['mappers'])
     g.run('sudo -n /sbin/poweroff', 20, check=False)
+    ctx.check('live guest shut down cleanly after cancellation', m.wait_exit(120) == 0)
     ctx.result['passed'] = True
 
 
@@ -636,7 +696,16 @@ def run_installer(ctx, g, secrets_, *, after_action=None, stuck_seconds=1500, de
         snap = g.snap()
         vt = snap['active_vt']
         seen_vt7 = seen_vt7 or vt == 'tty7'
-        if 'outcome.json' in snap['run_files'] or (seen_vt7 and vt == 'tty1' and snap['installer_unit'] != 'active'):
+        unit_stopped = snap['installer_unit'] in ('inactive', 'failed')
+        if 'outcome.json' in snap['run_files']:
+            # The worker writes a provisional outcome before ExecStopPost releases
+            # target storage and publishes the final cleanup verdict.
+            if not unit_stopped:
+                time.sleep(1)
+                continue
+            ctx.result['installer_steps'] = steps
+            return snap
+        if seen_vt7 and vt == 'tty1' and unit_stopped:
             ctx.result['installer_steps'] = steps
             return snap
         form = forms.parse_form(snap['vcs7'])
@@ -698,6 +767,11 @@ def run_installer(ctx, g, secrets_, *, after_action=None, stuck_seconds=1500, de
 
 def phase_install(ctx):
     kill = getattr(ctx.args, 'kill', None)
+    audit_network = getattr(ctx.args, 'audit_network', False)
+    receipt = ctx.result.get('receipt_binaries_sha256')
+    wanted = receipt_binary_hashes(receipt)
+    if 'receipt' in ctx.result:
+        ctx.check('release receipt identifies the shipped binaries', bool(wanted))
     target, token = make_target(ctx)
     before = ctx.result['target']['sparse_digest_before']
     layout = ctx.args.layout
@@ -709,12 +783,24 @@ def phase_install(ctx):
     ctx.result['secrets_file'] = 'secrets.json (0600, never copied to evidence)'
     ctx.result['layout_selected'] = layout
     ctx.result['secrets_meaningful_for_layout'] = {k: vm.wrong_layout_differs(v, layout) for k, v in secrets_.items()}
-    m = boot_live(ctx, 'install', 'cdrom', target=target, serial_token=token, memory=4096)
+    m = boot_live(ctx, 'install', 'cdrom', target=target, serial_token=token, memory=4096,
+                  extra=attach_install_audit_nic if audit_network else None)
     g = live_login(ctx, m)
     assert_live_state(ctx, g, 'install')
-    rc, hashes = g.run('sha256sum /usr/bin/grimoire /usr/bin/wros-greeter /usr/bin/wros-installer', 30)
+    if audit_network:
+        _, dns = g.run('command nmcli -c no -t -f IP4.DNS device show', 30)
+        _, route = g.run('command ip -j -4 route get 192.0.2.1', 30)
+        routes = json.loads(route)
+        ctx.check('live NIC has the virtual DHCP route and DNS',
+                  any(row.get('gateway') == '10.0.2.2' for row in routes)
+                  and any(line.split(':', 1)[-1] == '10.0.2.3' for line in dns.splitlines()),
+                  {'route': routes, 'dns': dns})
+    paths = wanted.keys() if wanted else {'/' + BINARY_PATHS[name] for name in LEGACY_BINARY_NAMES}
+    rc, hashes = g.run('sha256sum ' + ' '.join(sorted(paths)), 30)
     live_hashes = {line.split()[1]: line.split()[0] for line in hashes.split('\n') if line.strip()}
     ctx.result['live_binary_sha256'] = live_hashes
+    if wanted:
+        ctx.check('live binaries match the receipt squashfs hashes', live_hashes == wanted, live_hashes)
     grim_open_settings(g)
     grim_to_panel(g, r'Storage')
     g.choose(r'Install WrOS to disk')
@@ -762,16 +848,16 @@ def phase_install(ctx):
     ctx.step('completion-note', screen=screen[-600:])
     ctx.check('no secret in serial transcript', not any(m.serial.contains(v) for v in secrets_.values()))
     g.run('sudo -n /sbin/poweroff', 20, check=False)
-    try:
-        m.wait_exit(180)
-    except TimeoutError:
-        m.kill()
+    ctx.check('live guest shut down cleanly after installation', m.wait_exit(180) == 0)
+    if audit_network:
+        check_install_network_capture(ctx)
     after = vm.sparse_digest(target)
     ctx.check('target changed by the install', after != before)
     (ctx.dir / 'install-state.json').write_text(json.dumps({
         'disk': str(target), 'vars': str(ctx.dir / 'install-OVMF_VARS.fd'), 'secrets': str(secrets_path),
         'serial': fixture_serial(token), 'layout': layout, 'run_dir': str(ctx.dir),
-        'username': 'writer', 'binary_sha256': live_hashes}, indent=1) + '\n')
+        'username': 'writer', 'binary_sha256': live_hashes,
+        'release_version': ctx.result.get('release_version'), 'receipt_binaries_sha256': receipt}, indent=1) + '\n')
     ctx.result['passed'] = True
 
 
@@ -1068,8 +1154,13 @@ def unlock(ctx, m, secrets_, layout, *, wrong_first=True, after_reset=None):
     ctx.step('luks-typed', layout=layout)
 
 
+# The account label is also drawn while PAM is cancelling a failed attempt.
+# Only the account-focus hint proves that the form has reset and accepts keys.
+GREETER_READY = r'Local account.*Up/Down: accounts'
+
+
 def greeter_login(ctx, g, m, user, password, layout, *, wrong_first=True):
-    g.wait_vcs(1, r'Local account', 240, what='greeter')
+    g.wait_vcs(1, GREETER_READY, 240, what='greeter')
     m.shot('greeter')
     if wrong_first:
         m.type_text(user + '\n', layout)
@@ -1078,9 +1169,13 @@ def greeter_login(ctx, g, m, user, password, layout, *, wrong_first=True):
         screen = g.wait_vcs(1, r'Login was not accepted', 60, what='greeter-rejected')
         m.shot('greeter-rejected')
         ctx.check('wrong greeter password rejected', True)
+        # Rejection can appear before the cancellation reply. Wait for either
+        # the reset form or Debian greetd's explicit restart prompt, rather than
+        # sending the next credentials into an exchange that discards input.
+        screen = g.wait_vcs(1, r'Enter to restart login|' + GREETER_READY, 60, what='greeter-reset')
         if 'Enter to restart login' in screen:
             m.key('ret')
-        g.wait_vcs(1, r'Local account', 30, what='greeter-again')
+            g.wait_vcs(1, GREETER_READY, 60, what='greeter-again')
     m.type_text(user + '\n', layout)
     g.wait_vcs(1, r'\[hidden\]', 30, what='greeter-password-prompt-2')
     m.type_text(password + '\n', layout)
@@ -1114,6 +1209,11 @@ def secret_scan(ctx, g, secrets_):
 
 def phase_installed_boot(ctx):
     st = load_state(ctx.args.install_run)
+    version = ctx.result.get('release_version') or st.get('release_version') or '0.1.0~rc1'
+    receipt = ctx.result.get('receipt_binaries_sha256') or st.get('receipt_binaries_sha256')
+    wanted = receipt_binary_hashes(receipt)
+    ctx.result['installed_vs_receipt'] = wanted
+    ctx.check('release receipt identifies the shipped binaries', bool(wanted))
     secrets_ = json.loads(Path(st['secrets']).read_text())
     layout = st['layout']
     user = st['username']
@@ -1140,7 +1240,7 @@ def phase_installed_boot(ctx):
                     "cat /etc/default/keyboard; ls /etc/writingdeck; pkexec --disable-internal-agent /bin/true 2>&1 | head -2", 60, check=False)
     ctx.result['installed_state'] = out
     ctx.check('no live user or runtime marker', 'no such user' in out.lower() and 'RUNLIVE' not in out and 'SUDOERSLIVE' not in out, out[:400])
-    ctx.check('wros package is 0.1.0~rc1', re.search(r'^wros\s+0\.1\.0~rc1', out, re.M) is not None, out[:300])
+    ctx.check(f'wros package is {version}', re.search(r'^wros[ \t]+' + re.escape(version) + r'$', out, re.M) is not None, out[:300])
     ctx.check('root is locked', re.search(r'root L', out) is not None)
     ctx.check('installed /etc/default/keyboard carries the installer-selected layout',
               (re.search(r'XKBVARIANT="?colemak', out) is not None) if layout.startswith('colemak')
@@ -1159,17 +1259,16 @@ def phase_installed_boot(ctx):
     ctx.step('console-keymap-after-login', layout=installed_layout)
     rc, kb = g.run('cat /etc/writingdeck/keyboard.json; echo; test -e /etc/writingdeck/installer-keyboard-pending && echo PENDING_STILL_PRESENT; '
                    'lsinitramfs /boot/initrd.img-$(uname -r) | grep -ci keymap; '
-                   'sha256sum /usr/bin/grimoire /usr/bin/wros-greeter /usr/bin/wros-installer; '
+                   f'sha256sum {" ".join(sorted(wanted))}; '
                    'systemctl is-active live-config.service wros-live-session.service 2>&1; ls /run/wros-live 2>&1', 60, check=False)
     ctx.result['installed_keyboard_and_hashes'] = kb
     ctx.step('keyboard-adoption-observed', keyboard=kb[:700])
+    installed_lines = set(kb.splitlines())
     ctx.check('installed binaries equal the live image binaries',
-              all(('%s  %s' % (h, n)) in kb for n, h in st.get('binary_sha256', {}).items()) and bool(st.get('binary_sha256')), kb)
-    receipt_bins = ctx.result.get('receipt_binaries_sha256') or {}
-    want = {'/usr/bin/' + n: v.get('squashfs_sha256') for n, v in receipt_bins.items() if isinstance(v, dict)}
-    ctx.result['installed_vs_receipt'] = want
+              all(f'{h}  {n}' in installed_lines for n, h in st.get('binary_sha256', {}).items())
+              and bool(st.get('binary_sha256')), kb)
     ctx.check('installed binaries equal the receipt squashfs hashes',
-              bool(want) and all(('%s  %s' % (h, n)) in kb for n, h in want.items() if h), want)
+              all(f'{h}  {n}' in installed_lines for n, h in wanted.items()), wanted)
     ctx.check('no live runtime state on the installed system', 'No such file' in kb.split('wros-live-session.service')[-1] or 'inactive' in kb, kb[-300:])
     # writing round trip
     phrase = 'rcboot' + secrets.token_hex(5)
@@ -1202,10 +1301,7 @@ def phase_installed_boot(ctx):
     secret_scan(ctx, g, secrets_)
     ctx.check('no secret in serial transcript', not any(m.serial.contains(v) for v in secrets_.values()))
     g.run('poweroff', 20, check=False)
-    try:
-        m.wait_exit(120)
-    except TimeoutError:
-        m.kill()
+    ctx.check('installed guest shut down cleanly after first boot', m.wait_exit(120) == 0)
     ctx.result['passed'] = True
 
 
@@ -2765,12 +2861,27 @@ def main():
     parser.add_argument('--unfinished', action='store_true', help='rescue: leave initramfs-tools trigger-pending first (repair path)')
     parser.add_argument('--hold', action='store_true', help='on a stage failure keep the VM up for read-only operator commands (cmd.txt)')
     parser.add_argument('--diagnose', action='store_true', help='install phase: collect installer logs and state read-only before stopping')
+    parser.add_argument('--audit-network', action='store_true',
+                        help='install: capture IPv4 and verify offline fallback with an isolated DHCP NIC; requires unshare --net and tcpdump')
     args = parser.parse_args()
     if os.geteuid() == 0:
         raise SystemExit('run as the unprivileged builder')
+    if args.audit_network:
+        if args.phase != 'install' or args.kill:
+            parser.error('--audit-network requires a complete install phase')
+        if not shutil.which('ip') or not shutil.which('tcpdump'):
+            parser.error('--audit-network requires iproute2 and tcpdump')
+        links = json.loads(subprocess.check_output(['ip', '-j', 'link', 'show']))
+        if len(links) != 1 or links[0]['ifname'] != 'lo' or 'UP' in links[0]['flags']:
+            parser.error('--audit-network requires a fresh network namespace with no active links')
     ctx = Ctx(args.phase + (('-' + args.kill) if args.kill else '') + (('-' + args.variant) if args.phase == 'update' else ''), args)
+    if args.audit_network:
+        ctx.result['network_namespace_isolated'] = True
     error = None
     try:
+        if ctx.result.get('receipt_iso_sha256') is not None:
+            ctx.check('ISO matches the release receipt',
+                      ctx.result['iso_sha256_before'] == ctx.result['receipt_iso_sha256'])
         PHASES[args.phase](ctx)
     except Failure as failure:
         error = 'Failure: %s' % failure

@@ -6,19 +6,32 @@
    it). Run `tools/rc-check.sh` in the Debian 13 chroot and keep its
    `summary.txt`; name each failure that remains (the prose-runtime tests fail
    without the provisioned runtime).
-2. From WSL, run the versioned `.audit-tools/rc-x-rc10-release.sh`. It fetches
-   the local `rc10-build` commit into the release checkout, builds `grimoire`,
-   `wros-greeter` and `wros-boot`, and packages them. The release script selects
-   the missing runtime archives from Debian's signed package index using the
-   saved RC9 package database. It checks that the whole set installs offline
-   before signing with the release key, which stays outside the source tree.
-3. Run `rc-x-rc10-checkbundle.sh` on `rc10-release/wros-updates.tar`. Confirm the
-   version, the pinned signer and the tarball SHA-256. Keep the release notes
-   and GitHub release body beside the tarball.
-4. Run `rc10-vm-chain.sh` with the bundle, starting from the saved RC9 disk.
-   It updates through Settings and installs at restart. It then tests the
-   installed features, the graphical start screens and the paths back to
-   Debian's prompt. Inspect each `result.json` and keep the screen captures.
+2. In the Debian build environment, run `cargo build --release --locked
+   --no-default-features --features gui-drm -p grimoire-tui -p wros-greeter
+   -p wros-boot`. Copy those three binaries into a clean directory and give it
+   to `tools/build-wros-debs.py --binaries-dir "$binary_dir" --output "$package_dir"`.
+   Include the approved Google client configuration for release builds that
+   offer phone linking.
+3. Check the offline APT plan against the saved installation at the version
+   being upgraded. Include any missing runtime archives from Debian's signed
+   package index. Sign that exact set with `tools/build-update-bundle.py`
+   using the release key outside the source tree. Archive the signed index
+   files and `pool/` as `wros-updates.tar`. Run `python3 -I
+   tools/publish-updates.py check-bundle "$tarball" "$verified_bundle" "$version"`
+   with an empty verification directory. Keep the tarball SHA-256 and release notes.
+4. Run the tracked VM chain against the verified bundle and the saved
+   baseline disk. It updates through Settings and tests the installed
+   features, graphical startup and the paths back to Debian's prompt. Keep
+   each `result.json` and the screen captures.
+
+   ```sh
+   python3 os/tests/rc_vm_chain.py --install-run "$install_run" \
+     --bundle "$verified_bundle" --expect "$version" \
+     --start-disk "$baseline_disk" --start-version "$baseline_version"
+   ```
+
+   Generate the matching startup and writing glyph atlases for the graphical
+   checks. [Graphical session test setup](GRAPHICAL_SESSION.md)
 5. Review the VM results and hardware checklist before approving the tag.
    Release tags use the checked `wros-updates.tar` as their live payload.
 
@@ -28,6 +41,29 @@ In the Debian chroot, build with `cargo build --offline --locked
 to that debug executable and run `WROS_QA_PTY=1 PYTHONPATH=os/tests python3 -m
 unittest test_rc7_pty`. The fixture locker tests input retirement and typeahead
 isolation. The QEMU feature phase tests the installed locker and PAM.
+
+## Check installation without Internet
+
+Use the audited ISO in the Debian builder with QEMU, `iproute2`, and `tcpdump`.
+Run the full install with a wired virtual NIC inside a fresh Linux network
+namespace. The guest gets a DHCP route and DNS address, while the host namespace
+has no active links to the Internet. The installation must finish using the
+media when online sources cannot be reached. Keep the IPv4 capture as a record
+of attempted network access; DNS, network-time and update requests are allowed.
+
+Network time and update checks stay enabled by default. An online installation
+may retrieve missing drivers or packages. The offline image still carries the
+base packages and firmware for its supported hardware; additional hardware can
+use Debian's network-assisted setup when a connection is available.
+
+```sh
+sudo unshare --net runuser -u builder -- python3 os/tests/rc_vm_phases.py \
+  install --iso "$iso" --layout colemak --audit-network
+```
+
+Keep the result and the private `install.pcap`. The installer VM uses its own
+disposable disk. This check covers IPv4 during a wired installation. Verify
+Wi-Fi provisioning separately on the laptop.
 
 ## HP Stream hardware checks
 
@@ -70,6 +106,9 @@ keyring. Start with a release that will distribute the new public subkey.
    pinned primary. Commit the public keyring with the workflow on the default
    branch. Build and publish an offline-signed release that carries this public
    keyring. Install that release on the laptop before enabling weekly signing.
+   When testing rollback across this rotation, use a target version that can
+   read the retained rollback keyring. Older targets need a fresh bundle
+   signed directly by the pinned primary with a date above their replay floor.
 3. On the offline machine, export the exact secret subkey to a private file.
    If it has a passphrase, import this subkey-only export into a disposable
    GnuPG home and use `gpg --edit-key "$PRIMARY"` with `passwd` there to clear

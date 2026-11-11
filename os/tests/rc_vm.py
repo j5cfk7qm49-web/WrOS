@@ -10,6 +10,7 @@ by a kernel argument or a file on the media.
 The module is import-safe on a host without QEMU; only Machine.start() needs it.
 """
 import base64
+import errno
 import gzip
 import hashlib
 import json
@@ -23,6 +24,7 @@ import struct
 import subprocess
 import threading
 import time
+from functools import lru_cache
 from pathlib import Path
 
 OVMF_DIR = Path('/usr/share/OVMF')
@@ -59,7 +61,9 @@ def sparse_digest(path, block=4096, window=1 << 22):
         while offset < end:
             try:
                 start = os.lseek(stream.fileno(), offset, os.SEEK_DATA)
-            except OSError:  # ENXIO: no more data
+            except OSError as error:
+                if error.errno != errno.ENXIO:
+                    raise
                 break
             stop = os.lseek(stream.fileno(), start, os.SEEK_HOLE)
             position = start
@@ -318,21 +322,17 @@ class NativeFont(Font):
                 self._ints.append((char, _glyph_int(glyph)))
 
 
-def native_font():
+@lru_cache(maxsize=2)
+def native_font(path):
     from PIL import Image
-    path = os.environ.get('WROS_NATIVE_FONT')
-    if not path:
-        return None
-    cache = getattr(native_font, 'cache', None)
-    if cache is None:
-        data = Path(path).read_bytes()
-        match = re.search(rb'# cells (\d+) (\d+)\n', data[:100])
-        if not match:
-            raise ValueError('native font atlas has no cell geometry')
-        codes = re.search(rb'# codepoints ([0-9 ]+)\n', data[:4096])
-        glyphs = [chr(int(code)) for code in codes[1].split()] if codes else None
-        cache = native_font.cache = NativeFont(Image.open(path), int(match[1]), int(match[2]), glyphs)
-    return cache
+    data = Path(path).read_bytes()
+    match = re.search(rb'# cells (\d+) (\d+)\n', data[:100])
+    if not match:
+        raise ValueError('native font atlas has no cell geometry')
+    codes = re.search(rb'# codepoints ([0-9 ]+)\n', data[:4096])
+    glyphs = [chr(int(code)) for code in codes[1].split()] if codes else None
+    with Image.open(path) as atlas:
+        return NativeFont(atlas, int(match[1]), int(match[2]), glyphs)
 
 
 def ocr(image, font=None, offset=(0, 0)):
@@ -387,8 +387,9 @@ def png_text(path, font=None):
     if font is not None:
         return '\n'.join(ocr(picture, font))
     candidates = ['\n'.join(ocr(picture))]
-    if native_font() is not None:
-        candidates.append('\n'.join(ocr(picture, native_font())))
+    for name in ('WROS_NATIVE_FONT', 'WROS_NATIVE_WRITING_FONT'):
+        if atlas := os.environ.get(name):
+            candidates.append('\n'.join(ocr(picture, native_font(atlas))))
     # Firmware and Debian's prompt retain the console font; native screens use
     # the exact rasterizer templates. Keep the more readable interpretation.
     return max(candidates, key=lambda text: sum(map(len, re.findall(r'[A-Za-z]{3,}', text))) - text.count('?') * 2)
@@ -516,16 +517,18 @@ class Shell:
 
     def login(self, user, password, timeout=300):
         s = self.serial
-        s.expect(re.compile(r'login: ?'), timeout)
+        deadline = time.monotonic() + timeout
+        remaining = lambda: max(0, deadline - time.monotonic())
+        s.expect(re.compile(r'login: ?'), remaining())
         s.send(user + '\n')
-        s.expect(re.compile(r'[Pp]assword: ?'), 30)
+        s.expect(re.compile(r'[Pp]assword: ?'), min(30, remaining()))
         s.send(password + '\n')
         # Plain, echo-free, prompt-free bash: only our markers appear in output.
         time.sleep(1.5)
         s.send("exec env PS1= TERM=dumb HISTFILE= bash --noediting --norc --noprofile\n")
         time.sleep(1)
         s.send('stty -echo -onlcr; echo RCSHELL_READY_%s\n' % user)
-        s.expect(re.compile(r'^RCSHELL_READY_%s\r?$' % re.escape(user), re.M), 45)
+        s.expect(re.compile(r'^RCSHELL_READY_%s\r?$' % re.escape(user), re.M), remaining())
 
     def run(self, command, timeout=60, check=True, quiet_secret=None):
         tag = secrets.token_hex(6)
@@ -572,7 +575,7 @@ class Shell:
 
 class Machine:
     """One disposable QEMU instance. Builds an explicit command line (recorded in
-    `command` for the result.json), never attaches a host disk and never a NIC."""
+    `command` for the result.json), never attaches a host disk and has no NIC by default."""
 
     def __init__(self, run, name, memory=4096, smp=2, accel='kvm', reboot=False):
         self.run = Path(run)
@@ -642,7 +645,7 @@ class Machine:
                  '-serial', 'unix:%s,server=on,wait=off' % self.serial_sock,
                  '-qmp', 'unix:%s,server=on,wait=off' % self.qmp_sock] + smbios + self.args)
 
-    def start(self):
+    def start(self, timeout=120):
         if os.geteuid() == 0:
             raise RuntimeError('run QEMU as the unprivileged builder')
         for sock in (self.serial_sock, self.qmp_sock):
@@ -651,10 +654,12 @@ class Machine:
         (self.run / (self.name + '-command.json')).write_text(json.dumps(self.command, indent=1) + '\n')
         self.log = open(self.run / (self.name + '-qemu.log'), 'wb')
         self.process = subprocess.Popen(self.command, stdin=subprocess.DEVNULL, stdout=self.log, stderr=self.log)
-        deadline = time.monotonic() + 20
+        deadline = time.monotonic() + timeout
         while not (self.qmp_sock.exists() and self.serial_sock.exists()):
-            if self.process.poll() is not None or time.monotonic() > deadline:
-                raise RuntimeError('QEMU did not start: %s' % (self.run / (self.name + '-qemu.log')))
+            status = self.process.poll()
+            if status is not None or time.monotonic() > deadline:
+                raise RuntimeError('QEMU did not start (exit=%r, timeout=%ss): %s'
+                                   % (status, timeout, self.run / (self.name + '-qemu.log')))
             time.sleep(0.1)
         self.serial = Serial(self.serial_sock, self.run / (self.name + '-serial.log'), self.is_running)
         self.serial.connect()

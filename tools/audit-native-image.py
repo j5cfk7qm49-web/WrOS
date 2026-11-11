@@ -133,6 +133,8 @@ def audit_package(root):
         if not stat.S_ISREG(info.st_mode):
             raise ValueError('package-owned path is not a regular file: ' + row)
         owned.add(row.lstrip('/'))
+    if packaging.GOOGLE_CLIENTS_DEST in owned:
+        specs.append(packaging.Spec(packaging.GOOGLE_CLIENTS_DEST, 0o644, 'config'))
     wanted = {spec.dest for spec in specs}
     if owned - wanted:
         raise ValueError('wros package owns a file the manifest does not list: ' + sorted(owned - wanted)[0])
@@ -169,6 +171,9 @@ def audit_package(root):
         if spec.dest == 'etc/wros/release':
             if ('WROS_VERSION=' + expected + '\n').encode() not in data:
                 raise ValueError('/etc/wros/release does not carry the package version')
+        if spec.dest == packaging.GOOGLE_CLIENTS_DEST:
+            if data != packaging.google_clients_bytes(path):
+                raise ValueError('packaged Google clients differ from the canonical build format')
     for conffile in packaging.conffile_paths(specs):
         listed = (admindir / 'info/wros.conffiles').read_text().split() if (admindir / 'info/wros.conffiles').exists() else []
         if conffile not in listed:
@@ -286,8 +291,11 @@ def audit_no_private_keys(root):
             info = path.lstat()
             if not stat.S_ISREG(info.st_mode) or info.st_size == 0 or info.st_size > SCAN_LIMIT:
                 continue
-            with path.open('rb') as handle:
-                data = handle.read(SCAN_LIMIT)
+            try:
+                with path.open('rb') as handle:
+                    data = handle.read(SCAN_LIMIT)
+            except PermissionError:
+                raise ValueError(f'cannot scan {shown} for private keys; run with access to the staged root') from None
             if b'\0' not in data[:8192] and PRIVATE_BLOCK.search(data):
                 raise ValueError('private key material present: ' + shown)
             key_like = name.endswith(KEY_SUFFIXES) or shown.startswith(tuple(d + '/' for d in KEY_BEARING_DIRS))

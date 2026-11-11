@@ -3,6 +3,7 @@ import contextlib
 import dataclasses
 import hashlib
 import importlib.util
+import json
 from pathlib import Path
 import shutil
 import stat
@@ -410,6 +411,31 @@ class PackageAwareAudit(unittest.TestCase):
                 'org.wros.update.stage'])
             self.assertFalse(result['update_engine_uses_debian_keyring'])
             self.assertTrue(result['private_key_material_absent'])
+
+    def test_optional_packaged_google_clients_follow_package_integrity_and_schema_checks(self):
+        tmp, root, info = staged_image()
+        with tmp:
+            relative = packaging.GOOGLE_CLIENTS_DEST
+            path = root / relative
+            clients = {name: {'client_id': f'{name}.invalid', 'client_secret': 'synthetic'}
+                       for name in ('linking', 'mailbox')}
+            data = (json.dumps(clients, sort_keys=True) + '\n').encode()
+            path.write_bytes(data)
+            path.chmod(0o644)
+            with (root / 'var/lib/dpkg/info/wros.list').open('a') as listing:
+                listing.write('/' + relative + '\n')
+            replace_package_file(root, relative, data)
+            module.audit_package(root)
+            path.chmod(0o664)
+            with self.assertRaisesRegex(ValueError, 'unsafe package file permissions'):
+                module.audit_package(root)
+            path.chmod(0o644)
+            path.write_bytes(b'changed')
+            with self.assertRaisesRegex(ValueError, 'md5sum'):
+                module.audit_package(root)
+            replace_package_file(root, relative, b'{}\n')
+            with self.assertRaisesRegex(ValueError, 'Google client file'):
+                module.audit_package(root)
 
     def test_package_must_be_installed_at_the_repository_version(self):
         version = packaging.read_version(ROOT)

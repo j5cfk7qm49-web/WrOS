@@ -11,6 +11,7 @@ repo=$(cd "$(dirname "$0")/../.." && pwd)
 dsc=$(realpath "$1")
 archive="$(dirname "$dsc")/debian-installer_20250803+deb13u7.tar.xz"
 kernel=$(realpath "$2")
+abi=$(python3 -I -c 'import sys; sys.path.insert(0, sys.argv[1]); from media_constants import qualified_kernel_abi; print(qualified_kernel_abi())' "$repo/tools")
 frontend=$(realpath "$3")
 dest=$(realpath -m "$4")
 [[ ! -e $dest && ! -L $dest && $dest =~ ^/[a-zA-Z0-9/_.-]+$ ]] || {
@@ -19,7 +20,7 @@ dest=$(realpath -m "$4")
 printf '%s  %s\n' \
     2542e25aff5b98f318d2cf9c642c384e254141ad98b6871e2048e1a5e9a2ab2e "$dsc" \
     3703614db280645e10ce4efd6e255081495c48f2acd66bbdbfca571b4ae860b6 "$archive" \
-    a4ad0bf9f084b199dd2b12cb8a2ed918abb442da467f40b772166a267c784a5b "$kernel" | sha256sum -c -
+    0cee1131391727e0974245f197cfb22f3d8715ac2428574b290aaf16ff6eda1c "$kernel" | sha256sum -c -
 [[ $(dpkg --print-architecture) == amd64 ]] || { echo 'Only Debian amd64 is qualified.' >&2; exit 2; }
 python3 - "$repo" "$frontend" <<'PY'
 from pathlib import Path
@@ -81,9 +82,9 @@ install -m644 "$repo/os/config/installer/keymaps/xkb-keymap.templates" "$repo/os
 dpkg-deb --root-owner-group -Zxz --build "$keymaps" build/localudebs/wros-installer-keymaps.udeb
 cd build
 cat > config/local <<CONFIG
-LINUX_KERNEL_ABI = 6.12.113+deb13
-DRM_DIR = $dest/kernel/usr/lib/modules/6.12.113+deb13-amd64/kernel/drivers/gpu/drm
-DRIVERS_DIR = $dest/kernel/usr/lib/modules/6.12.113+deb13-amd64/kernel/drivers
+LINUX_KERNEL_ABI = ${abi%-amd64}
+DRM_DIR = $dest/kernel/usr/lib/modules/$abi/kernel/drivers/gpu/drm
+DRIVERS_DIR = $dest/kernel/usr/lib/modules/$abi/kernel/drivers
 EXTRAS += wros-cdebconf-passthrough wros-installer-keymaps apt-cdrom-setup
 CONFIG
 keyring=/usr/share/keyrings/debian-archive-keyring.pgp
@@ -98,16 +99,16 @@ epoch=$(dpkg-parsechangelog -l ../debian/changelog -S Timestamp)
 DEB_BUILD_PROFILES=wros-initrd SOURCE_DATE_EPOCH="$epoch" \
     fakeroot make build_cdrom_isolinux TARGET='dest/cdrom/initrd.gz dest/cdrom/vmlinuz' EXTRATARGETS= DEPTHCHARGE=
 install -m644 dest/cdrom/initrd.gz dest/cdrom/vmlinuz "$dest/"
-python3 - "$repo" "$dest" "$frontend" "$dsc" "$archive" "$kernel" <<'PY'
+python3 - "$repo" "$dest" "$frontend" "$dsc" "$archive" "$kernel" "$abi" <<'PY'
 from pathlib import Path
 import gzip,hashlib,json,subprocess,sys
-repo,dest,frontend,dsc,archive,kernel=map(Path,sys.argv[1:])
+repo,dest,frontend,dsc,archive,kernel=map(Path,sys.argv[1:7])
+version=sys.argv[7]
 sys.path.insert(0,str(repo/'tools'))
 from wros_source import fingerprint
 def digest(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 build=dest/'source/build'
 tree=build/'tmp/cdrom_isolinux/tree'
-version='6.12.113+deb13-amd64'
 assert sorted(p.name for p in (tree/'usr/lib/modules').iterdir())==[version]
 assert digest(dest/'vmlinuz')==digest(dest/('kernel/boot/vmlinuz-'+version))
 expected=digest(frontend/'passthrough.so')
