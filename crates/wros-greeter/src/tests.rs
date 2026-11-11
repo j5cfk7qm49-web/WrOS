@@ -427,3 +427,25 @@ fn keyboard_recovery_opens_only_before_sign_in() {
     conversation.receive(Response::Success).unwrap();
     assert!(!conversation.open_keyboard(&mut keyboard) && !keyboard.open);
 }
+
+#[test]
+fn every_login_hint_fits_an_80_column_console_and_offers_power() {
+    let flow = Conversation::default();
+    let mut form = Form::new(vec![], true);
+    for (focus, key) in [
+        (Focus::Username, KeyCode::BackTab),
+        (Focus::Switcher, KeyCode::Tab),
+        (Focus::Username, KeyCode::Tab),
+        (Focus::Password, KeyCode::Tab),
+    ] {
+        assert_eq!(form.focus, focus);
+        let mut terminal = Terminal::new(TestBackend::new(80, 25)).unwrap();
+        terminal.draw(|frame| render(frame, &flow, &form)).unwrap();
+        let shown = screen(&terminal);
+        assert!(
+            shown.contains("F1: power  F2: keyboard  Ctrl+Alt+F2: maintenance"),
+            "{focus:?}"
+        );
+        press(&mut form, key);
+    }
+}

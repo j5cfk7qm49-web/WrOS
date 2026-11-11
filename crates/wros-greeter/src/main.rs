@@ -54,7 +54,7 @@ mod linux {
     use wros_greeter::{
         Conversation, Phase, Request,
         form::{Action, Form},
-        keyboard,
+        keyboard, power,
         transport::Client,
     };
 
@@ -69,6 +69,17 @@ mod linux {
             u8::try_from(value.tm_hour).ok()?,
             u8::try_from(value.tm_min).ok()?,
         )
+    }
+
+    /// A fixed notice for the journal; never a PAM or wire string.
+    fn info(message: &'static std::ffi::CStr) {
+        unsafe {
+            libc::syslog(
+                libc::LOG_INFO,
+                c"wros-greeter: %s".as_ptr(),
+                message.as_ptr(),
+            );
+        }
     }
 
     struct TerminalGuard;
@@ -181,13 +192,45 @@ mod linux {
                 }
             }
         });
+        let (power_requests, power_incoming) = mpsc::sync_channel::<power::Action>(1);
+        let (power_replies, power_completed) = mpsc::sync_channel(1);
+        // Like the keyboard worker: no terminal reader, PAM or account state.
+        std::thread::spawn(move || {
+            while let Ok(action) = power_incoming.recv() {
+                if power_replies
+                    .send((action, power::execute(action)))
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        });
         let result = (|| {
             let mut conversation = Conversation::default();
             let mut keyboard = keyboard::Keyboard::default();
+            let mut power = power::Power::default();
             let mut last_refresh = Instant::now();
             loop {
+                match power_completed.try_recv() {
+                    Ok((action, reply)) => {
+                        drain_input()?;
+                        power.receive(action, reply);
+                        repaint(&mut terminal);
+                    }
+                    Err(mpsc::TryRecvError::Disconnected) => {
+                        return Err("power worker disconnected");
+                    }
+                    Err(mpsc::TryRecvError::Empty) => {}
+                }
                 if stop.load(Ordering::Relaxed) {
-                    return Err("login interrupted");
+                    // systemd stopping the login for a shutdown or restart the
+                    // menu requested is the expected outcome, not a failed login,
+                    // even when the stop arrives before systemctl's own reply.
+                    return if power.is_busy() {
+                        Ok(())
+                    } else {
+                        Err("login interrupted")
+                    };
                 }
                 match keyboard_completed.try_recv() {
                     Ok((command, reply)) => {
@@ -240,7 +283,9 @@ mod linux {
                 refresh(&mut terminal, &mut last_refresh, Instant::now());
                 terminal
                     .draw(|frame| {
-                        if keyboard.open {
+                        if power.open {
+                            power.render(frame, (&palette).into());
+                        } else if keyboard.open {
                             keyboard.render(frame, Instant::now());
                         } else {
                             wros_greeter::render_themed_with_clock(
@@ -260,6 +305,30 @@ mod linux {
                     continue;
                 };
                 if key.kind == KeyEventKind::Release {
+                    continue;
+                }
+                if power.open {
+                    match key.code {
+                        KeyCode::Up => power.choose(-1),
+                        KeyCode::Down => power.choose(1),
+                        KeyCode::Esc => power.escape(),
+                        KeyCode::Enter => {
+                            if let Some(action) = power.enter() {
+                                // Logged before the request: systemd may stop
+                                // the login before systemctl's reply arrives.
+                                info(action.logged());
+                                drain_input()?;
+                                power_requests
+                                    .try_send(action)
+                                    .map_err(|_| "power queue unavailable")?;
+                            }
+                        }
+                        _ => {}
+                    }
+                    if !power.open {
+                        drain_input()?;
+                        repaint(&mut terminal);
+                    }
                     continue;
                 }
                 if keyboard.open {
@@ -294,6 +363,15 @@ mod linux {
                         conversation.notice = keyboard.notice;
                         repaint(&mut terminal);
                     }
+                    continue;
+                }
+                if key.code == KeyCode::F(1) && conversation.phase == Phase::Username {
+                    // Nothing typed so far survives the menu, as with F2.
+                    conversation.clear();
+                    form.reset();
+                    power.open();
+                    drain_input()?;
+                    repaint(&mut terminal);
                     continue;
                 }
                 if key.code == KeyCode::F(2) && conversation.open_keyboard(&mut keyboard) {
@@ -364,6 +442,8 @@ mod linux {
         drop(completed);
         drop(keyboard_requests);
         drop(keyboard_completed);
+        drop(power_requests);
+        drop(power_completed);
         worker.join().map_err(|_| "login worker failed")?;
         result
     }

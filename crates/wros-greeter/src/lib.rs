@@ -5,6 +5,7 @@ use zeroize::{Zeroize, Zeroizing};
 
 pub mod form;
 pub mod keyboard;
+pub mod power;
 
 pub const MAX_FRAME: usize = 16 * 1024;
 pub const MAX_INPUT: usize = 1024;
@@ -447,14 +448,17 @@ pub fn render_themed_with_clock(
         );
         return;
     }
+    // At most 78 columns: the whole line fits inside the panel on an 80-column console.
     let hint = match form.focus {
         form::Focus::Switcher => {
-            "Left/Right: session  Enter: continue  F2: keyboard  Ctrl+Alt+F2: maintenance"
+            "Left/Right: session  F1: power  F2: keyboard  Ctrl+Alt+F2: maintenance"
         }
         form::Focus::Username => {
-            "Enter: continue  Up/Down: accounts  F2: keyboard  Ctrl+Alt+F2: maintenance"
+            "Up/Down: accounts  F1: power  F2: keyboard  Ctrl+Alt+F2: maintenance"
         }
-        form::Focus::Password => "Enter: sign in  Up: back  F2: keyboard  Ctrl+Alt+F2: maintenance",
+        form::Focus::Password => {
+            "Enter: sign in  Up: back  F1: power  F2: keyboard  Ctrl+Alt+F2: maintenance"
+        }
     };
     let body = wros_shell::render_panel(frame, body, title, conversation.notice, hint, theme);
     form.render(frame, body, theme);

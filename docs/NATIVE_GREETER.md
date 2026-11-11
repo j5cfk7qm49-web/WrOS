@@ -17,7 +17,8 @@ checks a password itself.
 From top to bottom: Lemurs' session switcher, the **Local account** field and
 the **Password** field. Enter moves from the account to the password and signs
 in from the password; Tab and Shift+Tab move between them; Up and Down in the
-account field pick a local account; F2 opens the keyboard layout picker.
+account field pick a local account; F1 opens the power menu and F2 the
+keyboard layout picker.
 
 The switcher shows only when cage and foot are installed. **Usual session**
 starts `/usr/libexec/wros-session` and follows the writer's choice in Settings
@@ -26,7 +27,30 @@ console for this login only, without changing the setting.
 
 Changes from Lemurs: the password field shows a constant `[hidden]` instead of
 one mark per character; both fields are fixed-capacity, zeroized buffers;
-there are no power commands, no configuration file and no cached username.
+there is no configuration file and no cached username.
+
+## Shutting down and restarting
+
+Lemurs' power controls are a menu here. F1 opens **WrOS · Power** with **Back
+to login** selected, then **Shut down** and **Restart**. Enter confirms the
+selected row; Escape or Back to login returns to an empty form. Opening the menu
+discards anything typed into the form, as F2 does. It is offered only while the
+form is open, not during a PAM question.
+
+The greeter runs the same fixed requests as Settings, `systemctl
+--no-ask-password poweroff` or `reboot`, with no shell, terminal or inherited
+environment. No WrOS polkit rule is involved. greetd gives the greeter an
+active, local logind session of class `greeter` on seat0, and Debian's logind
+policy allows active local sessions to power off and reboot, including while
+other sessions exist. Refusals and timeouts show fixed text and return to the
+menu. The power button stays ignored, as before.
+
+As it makes the request, the greeter records `shutdown requested from the login
+screen` or `restart requested from the login screen` in the journal.
+If systemd's stop signal reaches the greeter while a request is pending or
+accepted, it exits normally instead of reporting a failed login. A boot that
+ends at the login screen never counts against a new update's probation, so
+shutting down or restarting here cannot roll an update back.
 
 ## Protocol and credential boundaries
 
