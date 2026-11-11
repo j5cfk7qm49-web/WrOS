@@ -1773,13 +1773,18 @@ impl App {
             19 => self.run_action(Action::StartSprint),
             20 => self.open_productivity(super::productivity::Page::Achievements),
             21 => self.open_productivity(super::productivity::Page::Challenges),
+            22..=24 => self.open_spark(),
             25 => self.open_lexicon(),
             27..=29 => self.open_prose_dashboard(),
             30 => {
                 self.open_prose_dashboard();
                 self.prose_dashboard.page = super::prose_dashboard::Page::Voice;
             }
-            26 => self.spelling(),
+            26 => {
+                self.overlay = Overlay::None;
+                self.focus = self.editor_focus();
+                self.spelling();
+            }
             40 => {
                 self.overlay = Overlay::None;
                 self.focus = self.editor_focus();
@@ -1787,7 +1792,11 @@ impl App {
             }
             31 => self.open_continuity(),
             32 => self.open_review_notes(),
-            33 => self.open_history(),
+            33 => {
+                self.overlay = Overlay::None;
+                self.focus = self.editor_focus();
+                self.open_history();
+            }
             34 | 35 => self.run_action(Action::Export),
             // Pages by name; the Settings menu map knows where each one sits.
             36 | 37 => self.open_settings_page(Route::Backups),
