@@ -3177,3 +3177,70 @@ fn after_going_back_by_itself_wros_says_so_after_login() {
         desk.rows().join("\n")
     );
 }
+
+#[test]
+fn the_writer_changes_their_password_from_local_accounts_without_it_reaching_the_screen() {
+    // #121: three hidden fields; a mismatch is refused here; the secrets go only in the request.
+    use wros_sys::Simulated;
+    for (width, height) in [(80, 24), (120, 40)] {
+        let mut desk = Desk::open(
+            book(&format!("password-change-{width}"), true),
+            width,
+            height,
+        );
+        desk.app
+            .deck
+            .use_test_backend(Box::new(Simulated::laptop()));
+        desk.app.open_settings();
+        for _ in 0..3 {
+            desk.key(KeyCode::Down);
+        }
+        desk.key(KeyCode::Enter);
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::LocalAccounts);
+        assert!(!desk.shows("not available here yet"));
+        desk.choose("Change your password");
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::ChangePassword);
+        assert!(desk.shows("Current password:"));
+        let rows = desk.app.deck.shell.password_form.as_ref().unwrap().rows();
+        assert!(
+            rows.iter()
+                .any(|r| r.contains("disk password at start-up stays the same"))
+        );
+        desk.typed("OldPass-λ1");
+        desk.key(KeyCode::Enter);
+        desk.typed("NewPass-λ2");
+        desk.key(KeyCode::Enter);
+        desk.typed("NewPass-λ3");
+        assert!(!desk.shows("OldPass") && !desk.shows("NewPass"));
+        assert!(desk.shows("[hidden]"));
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        assert!(
+            desk.shows("differ"),
+            "a mismatch is caught before anything is sent"
+        );
+        assert!(!desk.app.deck.busy);
+        // The repeat was cleared; type it again and change.
+        desk.key(KeyCode::Down);
+        desk.typed("NewPass-λ2");
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Down);
+        desk.key(KeyCode::Enter);
+        wait_system(&mut desk);
+        assert!(desk.shows("SIMULATED: password changed."));
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::LocalAccounts);
+        assert!(desk.app.deck.shell.password_form.is_none());
+        // Escape discards a half-typed form.
+        desk.choose("Change your password");
+        desk.typed("half");
+        desk.key(KeyCode::Esc);
+        assert_eq!(desk.app.deck.shell.nav.current(), Route::LocalAccounts);
+        assert!(desk.app.deck.shell.password_form.is_none());
+        close_settings(&mut desk);
+    }
+}

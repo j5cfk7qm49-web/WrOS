@@ -2081,6 +2081,12 @@ impl App {
             return;
         }
         if self.overlay == Overlay::Deck(wros::Page::Settings)
+            && self.deck.shell.nav.current() == shell::Route::ChangePassword
+        {
+            self.paste_password_form(text);
+            return;
+        }
+        if self.overlay == Overlay::Deck(wros::Page::Settings)
             && self.deck.shell.nav.current() == shell::Route::UpdateBundleForm
         {
             self.paste_update_form(text);

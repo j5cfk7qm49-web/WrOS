@@ -906,6 +906,14 @@ impl App {
                     ) {
                         self.deck.request(Request::DisplayStatus);
                     }
+                    if matches!(request, Request::ChangePassword { .. }) {
+                        self.deck.shell.password_form = None;
+                        if matches!(self.overlay, Overlay::Deck(Page::Settings))
+                            && self.deck.shell.nav.current() == super::shell::Route::ChangePassword
+                        {
+                            self.deck.shell.nav.back();
+                        }
+                    }
                     if let Request::ConnectWifi { ssid, .. } = &request {
                         self.deck.shell.wifi_form = None;
                         if let Some(networks) = &mut self.deck.shell.wifi_networks {

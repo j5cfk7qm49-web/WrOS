@@ -790,6 +790,43 @@ pub fn validate_wifi_ssid(ssid: &str) -> Result<()> {
     Ok(())
 }
 
+/// A login password the helper may pass to passwd: not empty, under 512
+/// bytes, and no control characters (a newline would end it early).
+pub fn validate_login_password(password: &str) -> Result<()> {
+    ensure!(
+        !password.is_empty(),
+        "type your current password and a new one"
+    );
+    ensure!(password.len() < 512, "passwords must be under 512 bytes");
+    ensure!(
+        !password.chars().any(char::is_control),
+        "passwords cannot hold control characters"
+    );
+    Ok(())
+}
+
+/// wros-passwd's one JSON line: a change, or the reason it did not happen.
+pub fn password_reply(output: &str) -> Result<crate::Reply> {
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Raw {
+        changed: bool,
+        message: String,
+    }
+    let raw: Raw = serde_json::from_str(output.trim()).context("invalid password helper reply")?;
+    ensure!(
+        !raw.message.is_empty()
+            && raw.message.len() <= 300
+            && !raw.message.chars().any(char::is_control),
+        "invalid password helper reply"
+    );
+    if raw.changed {
+        Ok(crate::Reply::Message(raw.message))
+    } else {
+        anyhow::bail!("{}", raw.message)
+    }
+}
+
 pub fn validate_wifi_password(password: &str) -> Result<()> {
     ensure!(
         ((8..=63).contains(&password.len()) && !password.chars().any(char::is_control))

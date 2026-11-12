@@ -56,6 +56,7 @@
     {"dest": "usr/libexec/wros-backup", "source": "os/scripts/wros-backup", "mode": "0755", "class": "code"},
     {"dest": "usr/libexec/wros-clock", "source": "os/scripts/wros-clock", "mode": "0755", "class": "code"},
     {"dest": "usr/libexec/wros-sound", "source": "os/scripts/wros-sound", "mode": "0755", "class": "code"},
+    {"dest": "usr/libexec/wros-passwd", "source": "os/scripts/wros-passwd", "mode": "0755", "class": "code"},
     {"dest": "usr/libexec/wros-media-key", "source": "os/scripts/wros-media-key", "mode": "0755", "class": "code"},
 
     {"dest": "usr/libexec/wros-update", "source": "os/scripts/wros-update", "mode": "0755", "class": "code"},

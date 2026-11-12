@@ -899,6 +899,12 @@ fn dispatch_event(app: &mut App, ev: Event, confirm_quit: &mut bool) -> bool {
             return false;
         }
         if app.overlay == Overlay::Deck(app::wros::Page::Settings)
+            && app.deck.shell.nav.current() == app::shell::Route::ChangePassword
+        {
+            app.paste_password_form(text);
+            return false;
+        }
+        if app.overlay == Overlay::Deck(app::wros::Page::Settings)
             && app.deck.shell.nav.current() == app::shell::Route::UpdateBundleForm
         {
             app.paste_update_form(text);

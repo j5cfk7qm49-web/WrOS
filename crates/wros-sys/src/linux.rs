@@ -580,6 +580,7 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
         Request::ListLocalAccounts | Request::GetGoogleStatus => {
             bail!("read-only local request handled directly by Linux backend")
         }
+        Request::ChangePassword { .. } => Invocation::new("/usr/libexec/wros-passwd", &[]),
         Request::Brightness(p) => {
             if !(1..=100).contains(p) {
                 bail!("brightness must be 1..100");
@@ -727,6 +728,25 @@ impl<R: Runner> Backend for Linux<R> {
                 email: None,
                 status_message: "Google enrollment is not configured in this build.".into(),
             }));
+        }
+        if let Request::ChangePassword { current, new } = &request {
+            let (Some(current), Some(new)) = (current.as_ref(), new.as_ref()) else {
+                bail!("type your current password and a new one");
+            };
+            crate::system_views::validate_login_password(current.as_str())?;
+            crate::system_views::validate_login_password(new.as_str())?;
+            let cmd = invocation(&request)?;
+            let mut input = format!("{}\n{}\n", current.as_str(), new.as_str()).into_bytes();
+            let result = self.runner.run_with_input(&cmd, &input);
+            scrub_bytes(&mut input);
+            let output = result.map_err(|e| {
+                let redacted = e
+                    .to_string()
+                    .replace(current.as_str(), "[hidden]")
+                    .replace(new.as_str(), "[hidden]");
+                anyhow::anyhow!("{redacted}")
+            })?;
+            return crate::system_views::password_reply(&output);
         }
         if let Request::ConnectWifi { ssid, password } = &request {
             let cmd = invocation(&request)?;
@@ -1287,6 +1307,84 @@ mod tests {
         }
         assert_eq!(backend.runner.0.len(), 5);
     }
+    #[test]
+    fn a_password_change_sends_both_secrets_on_stdin_and_reports_the_helpers_answer() {
+        // #121: /usr/libexec/wros-passwd drives passwd; secrets never reach argv or errors.
+        struct PasswdRunner {
+            reply: &'static str,
+            calls: Vec<(Invocation, String)>,
+        }
+        impl Runner for PasswdRunner {
+            fn run(&mut self, cmd: &Invocation) -> Result<String> {
+                self.run_with_input(cmd, &[])
+            }
+            fn run_with_input(&mut self, cmd: &Invocation, input: &[u8]) -> Result<String> {
+                self.calls
+                    .push((cmd.clone(), String::from_utf8_lossy(input).into_owned()));
+                Ok(self.reply.into())
+            }
+        }
+        let backend = |reply| Linux {
+            runner: PasswdRunner {
+                reply,
+                calls: Vec::new(),
+            },
+            sys: "/missing".into(),
+            etc: "/missing".into(),
+            storage: "/missing".into(),
+        };
+        let change = |current: &str, new: &str| Request::ChangePassword {
+            current: Some(crate::WifiSecret::new(current)),
+            new: Some(crate::WifiSecret::new(new)),
+        };
+        let mut ok = backend(
+            r#"{"changed": true, "message": "Password changed. Use it to sign in and to unlock."}"#,
+        );
+        let reply = ok
+            .request(change("OLD_SECRET_VALUE", "NEW_SECRET_VALUE"))
+            .unwrap();
+        assert_eq!(
+            reply,
+            Reply::Message("Password changed. Use it to sign in and to unlock.".into())
+        );
+        let (cmd, input) = &ok.runner.calls[0];
+        assert_eq!(cmd.program, "/usr/libexec/wros-passwd");
+        assert!(cmd.args.is_empty());
+        assert_eq!(input, "OLD_SECRET_VALUE\nNEW_SECRET_VALUE\n");
+        assert!(!format!("{:?}", change("OLD_SECRET_VALUE", "x")).contains("OLD_SECRET_VALUE"));
+
+        let mut wrong =
+            backend(r#"{"changed": false, "message": "The current password is wrong."}"#);
+        let error = wrong
+            .request(change("OLD_SECRET_VALUE", "NEW_SECRET_VALUE"))
+            .unwrap_err()
+            .to_string();
+        assert_eq!(error, "The current password is wrong.");
+
+        for bad in [
+            "",
+            "not json",
+            r#"{"changed": true}"#,
+            r#"{"changed": true, "message": "", "x": 1}"#,
+        ] {
+            let mut odd = backend(bad);
+            assert!(odd.request(change("a", "b")).is_err(), "{bad}");
+        }
+        // Refused before the helper runs: missing, multi-line or oversized secrets.
+        let mut never = backend("{}");
+        for request in [
+            Request::ChangePassword {
+                current: None,
+                new: Some(crate::WifiSecret::new("b")),
+            },
+            change("a\nb", "c"),
+            change("a", &"x".repeat(600)),
+        ] {
+            assert!(never.request(request).is_err());
+        }
+        assert!(never.runner.calls.is_empty());
+    }
+
     #[test]
     fn wifi_enrollment_passes_secret_on_stdin_never_argv_and_verifies_active_connection() {
         use std::collections::VecDeque;

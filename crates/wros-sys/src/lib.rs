@@ -318,6 +318,15 @@ pub enum Request {
     DisplayConfirm(String),
     DisplayCancel(String),
     ListLocalAccounts,
+    // The writer's own login password (#121). Both secrets are redacted from
+    // Debug, skipped by Serialize, and reach /usr/libexec/wros-passwd only on
+    // its private stdin.
+    ChangePassword {
+        #[serde(skip)]
+        current: Option<WifiSecret>,
+        #[serde(skip)]
+        new: Option<WifiSecret>,
+    },
     GetGoogleStatus,
     ConnectGoogleAccount,
     DisconnectGoogleAccount,
@@ -737,6 +746,17 @@ impl Backend for Simulated {
                     bail!("saved Wi-Fi profile not found");
                 }
                 Ok(Reply::Message(format!("Removed saved connection {uuid}")))
+            }
+            Request::ChangePassword { current, new } => {
+                let (Some(current), Some(new)) = (current.as_ref(), new.as_ref()) else {
+                    bail!("type your current password and a new one");
+                };
+                system_views::validate_login_password(current.as_str())?;
+                system_views::validate_login_password(new.as_str())?;
+                if current == new {
+                    bail!("The new password is the same as the current one.");
+                }
+                Ok(Reply::Message("SIMULATED: password changed.".into()))
             }
             Request::ListLocalAccounts => Ok(Reply::LocalAccounts(vec![LocalAccount {
                 username: "writer".into(),

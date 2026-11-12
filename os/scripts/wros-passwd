@@ -1,0 +1,146 @@
+#!/usr/bin/python3 -I
+"""Change the writer's own login password with Debian's passwd (#121).
+
+Runs as the writer, unprivileged: /usr/bin/passwd is the setuid program that checks the current
+password through PAM and writes the new one. It is driven through a pseudo-terminal, as desktop
+settings panels do, because it reads passwords only from a terminal. The current and new
+passwords arrive as two lines on standard input, never as arguments, and are never printed.
+Prints one JSON line: {"changed": bool, "message": str}.
+
+    printf '%s\\n%s\\n' "$current" "$new" | wros-passwd
+"""
+import json
+import os
+import pty
+import re
+import select
+import signal
+import sys
+import time
+
+PASSWD = '/usr/bin/passwd'
+TIMEOUT = 30
+LIMIT = 512
+CURRENT = re.compile(rb'(current|old)[^:\n]*password[^:\n]*:\s*$', re.I)
+NEW = re.compile(rb'(?<!retype )(?<!repeat )new [^:\n]*password[^:\n]*:\s*$', re.I)
+RETYPE = re.compile(rb'(retype|repeat)[^:\n]*password[^:\n]*:\s*$', re.I)
+DONE = re.compile(rb'password updated successfully', re.I)
+WRONG = re.compile(rb'authentication (token manipulation error|failure)', re.I)
+# What PAM says when it refuses a new password, kept short and plain.
+REFUSAL = re.compile(rb'^(?:BAD PASSWORD: |passwd: )?((?:you must|bad:|the password|password is|it is|it does|'
+                     rb'is too|too |no password|password unchanged|sorry)[^\r\n]{0,160})', re.I | re.M)
+
+
+def refused(transcript):
+    for match in REFUSAL.finditer(transcript):
+        text = match.group(1).decode('ascii', 'replace').strip().rstrip('.')
+        if text and 'password unchanged' not in text.lower():
+            return f'That password was refused: {text}.'
+    return 'That password was refused. Choose a longer one, not like the old one.'
+
+
+class Terminal:
+    """passwd on a pseudo-terminal: read until a prompt matches, answer it."""
+
+    def __init__(self, argv, env):
+        self.pid, self.fd = pty.fork()
+        if self.pid == 0:
+            os.execve(argv[0], argv, env)
+        self.buffer = b''
+        self.transcript = b''
+
+    def expect(self, patterns, deadline):
+        while True:
+            for index, pattern in enumerate(patterns):
+                if pattern.search(self.buffer):
+                    self.buffer = b''
+                    return index
+            left = deadline - time.monotonic()
+            if left <= 0:
+                return None
+            ready, _, _ = select.select([self.fd], [], [], left)
+            if not ready:
+                return None
+            try:
+                chunk = os.read(self.fd, 4096)
+            except OSError:
+                chunk = b''
+            if not chunk:
+                for index, pattern in enumerate(patterns):
+                    if pattern.search(self.buffer):
+                        return index
+                return None
+            self.buffer += chunk
+            self.transcript = (self.transcript + chunk)[-8192:]
+
+    def send(self, secret):
+        os.write(self.fd, secret.encode() + b'\n')
+
+    def finish(self):
+        try:
+            os.kill(self.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        try:
+            _, status = os.waitpid(self.pid, 0)
+        except ChildProcessError:
+            status = 0
+        os.close(self.fd)
+        return status
+
+
+def change(current, new, argv=(PASSWD,)):
+    if not current or not new:
+        return False, 'Type your current password and a new one.'
+    if new == current:
+        return False, 'The new password is the same as the current one.'
+    env = {'PATH': '/usr/bin:/bin', 'LANG': 'C', 'LC_ALL': 'C', 'TERM': 'dumb'}
+    deadline = time.monotonic() + TIMEOUT
+    term = Terminal(list(argv), env)
+    try:
+        step = term.expect([CURRENT, NEW], deadline)
+        if step == 0:
+            term.send(current)
+            step = term.expect([NEW, WRONG, DONE], deadline)
+            if step == 1:
+                return False, 'The current password is wrong.'
+            if step != 0:
+                return False, 'passwd did not ask for the new password.'
+        elif step is None:
+            return False, 'passwd did not answer.'
+        term.send(new)
+        step = term.expect([RETYPE, NEW, WRONG], deadline)
+        if step != 0:
+            return False, refused(term.transcript)
+        term.send(new)
+        step = term.expect([DONE, NEW, WRONG], deadline)
+        if step == 0:
+            return True, 'Password changed. Use it to sign in and to unlock.'
+        if step == 2:
+            return False, 'The current password is wrong.'
+        return False, refused(term.transcript)
+    finally:
+        term.finish()
+
+
+def main(stdin=sys.stdin.buffer, argv=(PASSWD,)):
+    data = stdin.read(2 * LIMIT + 4)
+    lines = data.split(b'\n')
+    if len(lines) < 2 or any(len(line) > LIMIT for line in lines[:2]):
+        print(json.dumps({'changed': False, 'message': 'Passwords must be under 512 bytes.'}))
+        return 0
+    try:
+        current, new = (line.decode('utf-8') for line in lines[:2])
+    except UnicodeDecodeError:
+        print(json.dumps({'changed': False, 'message': 'Passwords must be text.'}))
+        return 0
+    if any(ord(c) < 32 or ord(c) == 127 for c in current + new):
+        print(json.dumps({'changed': False, 'message': 'Passwords cannot hold control characters.'}))
+        return 0
+    changed, message = change(current, new, argv)
+    print(json.dumps({'changed': changed, 'message': message}))
+    return 0  # the JSON line says what happened; the caller reads it
+
+
+if __name__ == '__main__':
+    sys.exit(main())

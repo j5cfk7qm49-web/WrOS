@@ -68,6 +68,7 @@ pub enum Route {
     SavedWifi,
     SavedWifiProfile,
     LocalAccounts,
+    ChangePassword,
     GoogleAccount,
     GoogleDisconnectConfirm,
     GoogleDrive,
@@ -166,6 +167,53 @@ impl WifiForm {
     }
 }
 
+/// Change the writer's own password (#121). The three fields stay hidden and
+/// are cleared as soon as they are sent or the form closes.
+pub struct PasswordForm {
+    pub current: Zeroizing<String>,
+    pub new: Zeroizing<String>,
+    pub repeat: Zeroizing<String>,
+    pub selected: usize,
+}
+impl PasswordForm {
+    pub const ACTIONS: usize = 5;
+    pub fn new() -> PasswordForm {
+        PasswordForm {
+            current: Zeroizing::new(String::new()),
+            new: Zeroizing::new(String::new()),
+            repeat: Zeroizing::new(String::new()),
+            selected: 0,
+        }
+    }
+    fn field(&mut self) -> Option<&mut Zeroizing<String>> {
+        match self.selected {
+            0 => Some(&mut self.current),
+            1 => Some(&mut self.new),
+            2 => Some(&mut self.repeat),
+            _ => None,
+        }
+    }
+    pub fn clear(&mut self) {
+        for field in [&mut self.current, &mut self.new, &mut self.repeat] {
+            *field = Zeroizing::new(String::new());
+        }
+        self.selected = 0;
+    }
+    pub fn rows(&self) -> Vec<String> {
+        let shown = |s: &str| if s.is_empty() { "" } else { "[hidden]" };
+        vec![
+            format!("Current password: {}", shown(&self.current)),
+            format!("New password: {}", shown(&self.new)),
+            format!("Repeat new password: {}", shown(&self.repeat)),
+            "Cancel and return to local accounts".into(),
+            "Change password".into(),
+            "This changes the password you sign in and unlock with. The disk password at start-up stays the same."
+                .into(),
+            "Input stays hidden. Escape discards this form.".into(),
+        ]
+    }
+}
+
 pub struct UpdateBundleForm {
     pub bundle_dir: String,
     pub selected: usize,
@@ -258,6 +306,7 @@ pub struct Shell {
     pub timezone_choice: Option<String>,
     pub wifi_networks: Option<Vec<wros_sys::WifiNetwork>>,
     pub wifi_form: Option<WifiForm>,
+    pub password_form: Option<PasswordForm>,
     pub wifi_saved: Option<Vec<wros_sys::SavedWifi>>,
     pub wifi_saved_choice: Option<wros_sys::SavedWifi>,
     pub local_accounts: Option<Vec<wros_sys::LocalAccount>>,
@@ -301,6 +350,7 @@ impl Shell {
             timezone_choice: None,
             wifi_networks: None,
             wifi_form: None,
+            password_form: None,
             wifi_saved: None,
             wifi_saved_choice: None,
             local_accounts: None,
@@ -383,6 +433,7 @@ enum Choice {
     GoogleDisconnectResolve(bool),
     WifiSelect(wros_sys::WifiNetwork),
     WifiDisconnect,
+    PasswordOpen,
     SavedWifiSelect(wros_sys::SavedWifi),
     SavedWifiResolve(SavedWifiAction),
     UpdateBundleOpen,
@@ -483,6 +534,7 @@ fn form_options(app: &App) -> Option<usize> {
     match shell.nav.current() {
         Route::BackupForm => shell.backup.form.as_ref().map(|f| f.field_count() + 1),
         Route::WifiConnect => shell.wifi_form.as_ref().map(|f| f.action_count()),
+        Route::ChangePassword => shell.password_form.as_ref().map(|_| PasswordForm::ACTIONS),
         Route::UpdateBundleForm => shell.update_form.as_ref().map(|_| 3),
         _ => None,
     }
@@ -680,6 +732,7 @@ pub(crate) fn page_label(route: Route) -> &'static str {
         Route::GoogleAccount => "Google Drive",
         Route::GoogleDrive => "Your Drive files",
         Route::LocalAccounts => "Local accounts",
+        Route::ChangePassword => "Change password",
         Route::BackupDestinations => "Where backups go",
         Route::BackupKey => "Recovery key",
         Route::BackupQueue => "Offline queue",
@@ -1087,6 +1140,13 @@ fn entries(app: &App) -> Vec<Entry> {
             .as_ref()
             .map(|form| form.rows().into_iter().map(Entry::info).collect())
             .unwrap_or_default(),
+        Route::ChangePassword => app
+            .deck
+            .shell
+            .password_form
+            .as_ref()
+            .map(|form| form.rows().into_iter().map(Entry::info).collect())
+            .unwrap_or_default(),
         Route::SavedWifi => {
             let mut rows = vec![Entry::new(
                 "Refresh saved profiles",
@@ -1173,8 +1233,9 @@ fn entries(app: &App) -> Vec<Entry> {
                     "Local accounts unavailable; refresh to try again.",
                 ));
             }
+            rows.push(Entry::new("Change your password", Choice::PasswordOpen));
             rows.push(Entry::info(
-                "Account creation and password changes are not available here yet.",
+                "Other accounts are added from the maintenance console (Ctrl+Alt+F2).",
             ));
             rows
         }
@@ -1823,6 +1884,84 @@ impl App {
             form.password.push_str(text);
         }
     }
+    pub fn paste_password_form(&mut self, text: &str) {
+        let Some(form) = &mut self.deck.shell.password_form else {
+            return;
+        };
+        if let Some(field) = form.field()
+            && field.len() + text.len() < 512
+            && !text.chars().any(char::is_control)
+        {
+            field.push_str(text);
+        }
+    }
+    pub fn on_password_form_key(&mut self, key: Key) {
+        let Some(form) = &mut self.deck.shell.password_form else {
+            return;
+        };
+        let count = PasswordForm::ACTIONS;
+        match key {
+            Key::Home => form.selected = 0,
+            Key::Esc => {
+                self.deck.shell.password_form = None;
+                self.deck.shell.nav.back();
+            }
+            Key::Tab | Key::Down => form.selected = (form.selected + 1) % count,
+            Key::Up => form.selected = (form.selected + count - 1) % count,
+            Key::Backspace => {
+                if let Some(field) = form.field() {
+                    field.pop();
+                }
+            }
+            Key::Delete => {
+                if let Some(field) = form.field() {
+                    *field = Zeroizing::new(String::new());
+                }
+            }
+            Key::Char(c) if !c.is_control() && form.selected < 3 => {
+                self.paste_password_form(&c.to_string());
+            }
+            Key::Enter if form.selected < 3 => form.selected += 1,
+            Key::Enter if form.selected == 3 => {
+                self.deck.shell.password_form = None;
+                self.deck.shell.nav.back();
+            }
+            Key::Enter => {
+                if self.deck.busy {
+                    return;
+                }
+                let problem = if form.current.is_empty() || form.new.is_empty() {
+                    Some("Type your current password and a new one.".to_string())
+                } else if form.new.as_str() != form.repeat.as_str() {
+                    Some("The new password and its repeat differ.".to_string())
+                } else if form.new.as_str() == form.current.as_str() {
+                    Some("The new password is the same as the current one.".to_string())
+                } else {
+                    wros_sys::system_views::validate_login_password(&form.new)
+                        .and_then(|()| {
+                            wros_sys::system_views::validate_login_password(&form.current)
+                        })
+                        .err()
+                        .map(|e| e.to_string())
+                };
+                if let Some(problem) = problem {
+                    form.repeat = Zeroizing::new(String::new());
+                    form.selected = if form.current.is_empty() { 0 } else { 1 };
+                    self.deck.note = problem;
+                    self.deck.shell.notices.push(&self.deck.note);
+                    return;
+                }
+                let current = wros_sys::WifiSecret::new(form.current.as_str());
+                let new = wros_sys::WifiSecret::new(form.new.as_str());
+                form.clear();
+                self.deck.request(wros_sys::Request::ChangePassword {
+                    current: Some(current),
+                    new: Some(new),
+                });
+            }
+            _ => {}
+        }
+    }
     pub fn paste_update_form(&mut self, text: &str) {
         let Some(form) = &mut self.deck.shell.update_form else {
             return;
@@ -2210,6 +2349,10 @@ impl App {
             self.on_wifi_form_key(key);
             return;
         }
+        if self.deck.shell.nav.current() == Route::ChangePassword {
+            self.on_password_form_key(key);
+            return;
+        }
         if self.deck.shell.nav.current() == Route::UpdateBundleForm {
             self.on_update_form_key(key);
             return;
@@ -2272,6 +2415,7 @@ impl App {
             Key::Esc | Key::Left => {
                 self.deck.shell.warm_wait = false;
                 self.deck.shell.wifi_form = None;
+                self.deck.shell.password_form = None;
                 self.deck.shell.wifi_saved_choice = None;
                 self.deck.shell.update_form = None;
                 self.deck.shell.clock_form = None;
@@ -2388,6 +2532,10 @@ impl App {
                             }
                         }
                     }
+                    Choice::PasswordOpen if !self.deck.busy => {
+                        self.deck.shell.password_form = Some(PasswordForm::new());
+                        self.deck.shell.nav.open(Route::ChangePassword);
+                    }
                     Choice::UpdateBundleOpen if !self.deck.busy => {
                         self.deck.shell.update_form = Some(UpdateBundleForm {
                             bundle_dir: String::new(),
@@ -2399,6 +2547,7 @@ impl App {
                     | Choice::WifiDisconnect
                     | Choice::SavedWifiSelect(_)
                     | Choice::SavedWifiResolve(_)
+                    | Choice::PasswordOpen
                     | Choice::UpdateBundleOpen => {}
                     Choice::UpdateFindMedia => self.update_find_media(),
                     Choice::UpdateOnlineCheck => self.update_online_check(),
@@ -2735,6 +2884,12 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
                     .wifi_form
                     .as_ref()
                     .map_or(0, |form| form.selected)
+            } else if app.deck.shell.nav.current() == Route::ChangePassword {
+                app.deck
+                    .shell
+                    .password_form
+                    .as_ref()
+                    .map_or(0, |form| form.selected)
             } else if app.deck.shell.nav.current() == Route::UpdateBundleForm {
                 app.deck
                     .shell
@@ -2761,6 +2916,7 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
                 app.deck.shell.nav.current(),
                 Route::BackupForm
                     | Route::WifiConnect
+                    | Route::ChangePassword
                     | Route::UpdateBundleForm
                     | Route::ManualClock
                     | Route::KeyboardWizard
