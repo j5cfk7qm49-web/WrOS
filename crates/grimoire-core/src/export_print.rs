@@ -186,6 +186,122 @@ struct Span {
     italic: bool,
     bold: bool,
     small: bool,
+    /// A footnote reference: the note's number, from 1. Its text is empty.
+    note: Option<usize>,
+}
+
+/// A footnote: its paragraphs, set at the foot of the page.
+type Note = Vec<Vec<Span>>;
+
+/// Marks a footnote reference in compiled text until it becomes a [`Span`]:
+/// private-use characters no author types and no inline rule touches.
+const NOTE_OPEN: char = '\u{E000}';
+const NOTE_CLOSE: char = '\u{E001}';
+
+/// The book's footnotes, numbered through the whole book.
+#[derive(Default)]
+struct Notes {
+    list: Vec<Note>,
+}
+
+impl Notes {
+    /// `text` with its footnote definitions taken out and each reference
+    /// replaced by a marker for the next note number. A reference without a
+    /// definition, a definition used nowhere, or two definitions with one label
+    /// stop the export, as for the manuscript formats.
+    fn take(&mut self, text: &str) -> Result<String> {
+        if !text.contains("[^") {
+            return Ok(text.to_string());
+        }
+        let analysis = crate::footnotes::analyze_footnotes(text);
+        if analysis.references.is_empty() && analysis.definitions.is_empty() {
+            return Ok(text.to_string());
+        }
+        if !analysis.missing_definitions.is_empty() || !analysis.duplicate_definitions.is_empty() {
+            bail!("resolve missing or duplicate footnotes before exporting the paperback");
+        }
+        if !analysis.unused_definitions.is_empty() {
+            bail!(
+                "a footnote is defined but never cited; cite or remove it before exporting the paperback"
+            );
+        }
+        let mut edits: Vec<(std::ops::Range<usize>, String)> = analysis
+            .definition_ranges
+            .iter()
+            .map(|(_, range)| (range.clone(), String::new()))
+            .collect();
+        for reference in &analysis.references {
+            let key = crate::footnotes::normalize(&reference.label);
+            let Some(definition) = analysis.definitions.get(&key) else {
+                bail!("resolve missing or duplicate footnotes before exporting the paperback");
+            };
+            self.list.push(note_paras(&definition.content));
+            edits.push((
+                reference.offset..reference.end_offset,
+                format!("{NOTE_OPEN}{}{NOTE_CLOSE}", self.list.len()),
+            ));
+        }
+        edits.sort_by_key(|(range, _)| std::cmp::Reverse(range.start));
+        let mut out = text.to_string();
+        for (range, with) in edits {
+            out.replace_range(range, &with);
+        }
+        Ok(out)
+    }
+}
+
+/// A footnote's text as paragraphs: blank lines part them, indented
+/// continuation lines join the paragraph they continue.
+fn note_paras(content: &str) -> Note {
+    content
+        .split("\n\n")
+        .map(|para| {
+            para.lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty())
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .filter(|para| !para.is_empty())
+        .map(|para| spans(&para, 0))
+        .collect()
+}
+
+/// Spans with their note markers split out as note references.
+fn with_notes(spans: Vec<Span>) -> Vec<Span> {
+    let mut out = Vec::with_capacity(spans.len());
+    for span in spans {
+        if !span.text.contains(NOTE_OPEN) {
+            out.push(span);
+            continue;
+        }
+        let mut rest = span.text.as_str();
+        while let Some(open) = rest.find(NOTE_OPEN) {
+            let after = &rest[open + NOTE_OPEN.len_utf8()..];
+            let Some(close) = after.find(NOTE_CLOSE) else {
+                break;
+            };
+            if open > 0 {
+                out.push(Span {
+                    text: rest[..open].to_string(),
+                    ..span.clone()
+                });
+            }
+            out.push(Span {
+                text: String::new(),
+                note: after[..close].parse().ok(),
+                ..span.clone()
+            });
+            rest = &after[close + NOTE_CLOSE.len_utf8()..];
+        }
+        if !rest.is_empty() {
+            out.push(Span {
+                text: rest.to_string(),
+                ..span
+            });
+        }
+    }
+    out
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -330,6 +446,7 @@ fn plain_span(text: &str) -> Vec<Span> {
         italic: false,
         bold: false,
         small: false,
+        note: None,
     }]
 }
 
@@ -364,11 +481,12 @@ fn spans(text: &str, caps: usize) -> Vec<Span> {
                     italic: r.italic,
                     bold: r.bold,
                     small,
+                    note: None,
                 });
             }
         }
     }
-    out
+    with_notes(out)
 }
 
 /// Blank lines that sink an opener's heading about a third of the way down.
@@ -382,10 +500,17 @@ fn sink(layout: &Layout, out: &mut Vec<Para>) {
 
 /// A scene's text as book paragraphs. `opening`: the chapter's first scene,
 /// whose first paragraph gets the small-capital lead-in or the drop cap.
-fn scene_paras(body: &str, layout: &Layout, opening: bool, out: &mut Vec<Para>) {
+fn scene_paras(
+    body: &str,
+    layout: &Layout,
+    opening: bool,
+    notes: &mut Notes,
+    out: &mut Vec<Para>,
+) -> Result<()> {
+    let body = notes.take(body)?;
     let mut first = true;
     let mut lead = opening;
-    for block in blocks(body) {
+    for block in blocks(&body) {
         match block {
             Block::Para(t) => {
                 if lead {
@@ -416,11 +541,19 @@ fn scene_paras(body: &str, layout: &Layout, opening: bool, out: &mut Vec<Para>) 
             }
         }
     }
+    Ok(())
 }
 
 /// A page of front or back matter, as the author wrote it.
-fn matter_paras(body: &str, heading: Style, para: Style, out: &mut Vec<Para>) {
-    for block in blocks(body) {
+fn matter_paras(
+    body: &str,
+    heading: Style,
+    para: Style,
+    notes: &mut Notes,
+    out: &mut Vec<Para>,
+) -> Result<()> {
+    let body = notes.take(body)?;
+    for block in blocks(&body) {
         out.push(match block {
             Block::Para(t) => Para::new(para, spans(t, 0)),
             Block::Heading(t) => Para::new(heading, spans(t, 0)),
@@ -428,11 +561,13 @@ fn matter_paras(body: &str, heading: Style, para: Style, out: &mut Vec<Para>) {
             Block::Quote(t) => Para::new(Style::Quote, spans(t, 0)),
         });
     }
+    Ok(())
 }
 
 /// The whole book as sections of paragraphs.
-fn build(b: &Book, pr: &Print) -> Vec<Section> {
+fn build(b: &Book, pr: &Print) -> Result<(Vec<Section>, Vec<Note>)> {
     let layout = &pr.layout;
+    let mut notes = Notes::default();
     let mut out: Vec<Section> = Vec::new();
     let section = |start, heads, paras| Section {
         start,
@@ -494,16 +629,34 @@ fn build(b: &Book, pr: &Print) -> Vec<Section> {
             let start = match i {
                 0 => {
                     sink(layout, &mut paras);
-                    matter_paras(f, Style::BookTitle, Style::BookAuthor, &mut paras);
+                    matter_paras(
+                        f,
+                        Style::BookTitle,
+                        Style::BookAuthor,
+                        &mut notes,
+                        &mut paras,
+                    )?;
                     Start::Right
                 }
                 1 => {
-                    matter_paras(f, Style::MatterHeading, Style::Copyright, &mut paras);
+                    matter_paras(
+                        f,
+                        Style::MatterHeading,
+                        Style::Copyright,
+                        &mut notes,
+                        &mut paras,
+                    )?;
                     Start::Next
                 }
                 _ => {
                     sink(layout, &mut paras);
-                    matter_paras(f, Style::MatterHeading, Style::MatterCentered, &mut paras);
+                    matter_paras(
+                        f,
+                        Style::MatterHeading,
+                        Style::MatterCentered,
+                        &mut notes,
+                        &mut paras,
+                    )?;
                     Start::Right
                 }
             };
@@ -541,13 +694,13 @@ fn build(b: &Book, pr: &Print) -> Vec<Section> {
                     if i > 0 {
                         paras.push(Para::text(Style::Ornament, &layout.ornament));
                     }
-                    scene_paras(s, layout, i == 0, &mut paras);
+                    scene_paras(s, layout, i == 0, &mut notes, &mut paras)?;
                 }
                 out.push(section(Start::Right, Heads::Chapter, paras));
             }
             Piece::Scene(s) => {
                 let mut paras = Vec::new();
-                scene_paras(s, layout, true, &mut paras);
+                scene_paras(s, layout, true, &mut notes, &mut paras)?;
                 out.push(section(Start::Right, Heads::Chapter, paras));
             }
         }
@@ -560,12 +713,18 @@ fn build(b: &Book, pr: &Print) -> Vec<Section> {
     for (i, text) in pr.back.iter().enumerate() {
         let mut paras = Vec::new();
         paras.extend(std::iter::repeat_with(Para::blank).take(4));
-        matter_paras(text, Style::MatterHeading, Style::MatterText, &mut paras);
+        matter_paras(
+            text,
+            Style::MatterHeading,
+            Style::MatterText,
+            &mut notes,
+            &mut paras,
+        )?;
         let start = if i == 0 { Start::Right } else { Start::Next };
         out.push(section(start, Heads::None, paras));
     }
     out.retain(|s| s.paras.iter().any(|p| p.style != Style::Blank));
-    out
+    Ok((out, notes.list))
 }
 
 /// A style's look, shared by the two writers so the DOCX and the PDF are the
@@ -769,6 +928,13 @@ fn tw(pt: f64) -> i64 {
 fn docx_runs(spans: &[Span]) -> String {
     let mut out = String::new();
     for s in spans {
+        if let Some(n) = s.note {
+            let _ = write!(
+                out,
+                "<w:r><w:rPr><w:rStyle w:val=\"FootnoteReference\"/></w:rPr><w:footnoteReference w:id=\"{n}\"/></w:r>"
+            );
+            continue;
+        }
         out.push_str("<w:r>");
         if s.bold || s.italic || s.small {
             out.push_str("<w:rPr>");
@@ -908,7 +1074,13 @@ fn docx_styles(layout: &Layout, lang: &str) -> String {
     s
 }
 
-fn docx(b: &Book, pr: &Print, sections: &[Section], pages: usize) -> Result<Vec<u8>> {
+fn docx(
+    b: &Book,
+    pr: &Print,
+    sections: &[Section],
+    notes: &[Note],
+    pages: usize,
+) -> Result<Vec<u8>> {
     let layout = &pr.layout;
     let (w, h) = layout.trim.inches();
     let (top, bottom, inside, outside) = margins(pages);
@@ -1030,7 +1202,76 @@ fn docx(b: &Book, pr: &Print, sections: &[Section], pages: usize) -> Result<Vec<
         ("word/footer-folio.xml".into(), folio),
         ("word/footer-blank.xml".into(), blank_footer),
     ];
+    let mut files = files;
+    if !notes.is_empty() {
+        for (name, xml) in &mut files {
+            match name.as_str() {
+                "[Content_Types].xml" => {
+                    *xml = xml.replace(
+                        "</Types>",
+                        "<Override PartName=\"/word/footnotes.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml\"/></Types>",
+                    );
+                }
+                "word/_rels/document.xml.rels" => {
+                    *xml = xml.replace(
+                        "</Relationships>",
+                        "<Relationship Id=\"rIdFootnotes\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes\" Target=\"footnotes.xml\"/></Relationships>",
+                    );
+                }
+                "word/settings.xml" => {
+                    *xml = xml.replace(
+                        "<w:compat>",
+                        "<w:footnotePr><w:pos w:val=\"pageBottom\"/><w:footnote w:id=\"-1\"/><w:footnote w:id=\"0\"/></w:footnotePr><w:compat>",
+                    );
+                }
+                "word/styles.xml" => {
+                    *xml = xml.replace("</w:styles>", &docx_note_styles(layout));
+                }
+                _ => {}
+            }
+        }
+        files.push(("word/footnotes.xml".into(), docx_notes(notes)));
+    }
     pack(&files)
+}
+
+/// The footnote text and reference styles: smaller type, single-spaced.
+fn docx_note_styles(layout: &Layout) -> String {
+    let half = ((layout.size * 0.8) * 2.0).round() as i64;
+    format!(
+        "<w:style w:type=\"paragraph\" w:styleId=\"FootnoteText\"><w:name w:val=\"Footnote Text\"/>\
+         <w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/>\
+         <w:ind w:left=\"0\" w:right=\"0\" w:firstLine=\"0\"/><w:jc w:val=\"both\"/></w:pPr>\
+         <w:rPr><w:sz w:val=\"{half}\"/><w:szCs w:val=\"{half}\"/></w:rPr></w:style>\
+         <w:style w:type=\"character\" w:styleId=\"FootnoteReference\"><w:name w:val=\"Footnote Reference\"/>\
+         <w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr></w:style></w:styles>"
+    )
+}
+
+/// `word/footnotes.xml`: Word's two separators, then each note in order.
+fn docx_notes(notes: &[Note]) -> String {
+    let mut out = format!(
+        "{XML_HEAD}<w:footnotes xmlns:w=\"{W_NS}\" xmlns:r=\"{R_NS}\">\
+         <w:footnote w:type=\"separator\" w:id=\"-1\"><w:p><w:pPr><w:spacing w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr><w:r><w:separator/></w:r></w:p></w:footnote>\
+         <w:footnote w:type=\"continuationSeparator\" w:id=\"0\"><w:p><w:pPr><w:spacing w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr><w:r><w:continuationSeparator/></w:r></w:p></w:footnote>"
+    );
+    for (i, note) in notes.iter().enumerate() {
+        let _ = write!(out, "<w:footnote w:id=\"{}\">", i + 1);
+        for (j, para) in note.iter().enumerate() {
+            out.push_str("<w:p><w:pPr><w:pStyle w:val=\"FootnoteText\"/></w:pPr>");
+            if j == 0 {
+                out.push_str(
+                    "<w:r><w:rPr><w:rStyle w:val=\"FootnoteReference\"/></w:rPr><w:footnoteRef/></w:r>\
+                     <w:r><w:t xml:space=\"preserve\"> </w:t></w:r>",
+                );
+            }
+            out.push_str(&docx_runs(para));
+            out.push_str("</w:p>");
+        }
+        out.push_str("</w:footnote>");
+    }
+    out.push_str("</w:footnotes>\n");
+    out
 }
 
 const CONTENT_TYPES: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
@@ -1125,7 +1366,7 @@ fn opener_style(s: &Section, first: Style) -> String {
 /// styles as the DOCX, with page styles that do what DOCX section breaks
 /// can't in LibreOffice — a right-hand-only opener page whose skipped left
 /// page stays blank, and a body page style with left and right heads.
-fn fodt(b: &Book, pr: &Print, sections: &[Section], pages: usize) -> String {
+fn fodt(b: &Book, pr: &Print, sections: &[Section], notes: &[Note], pages: usize) -> String {
     let layout = &pr.layout;
     let (w, h) = layout.trim.inches();
     let (top, bottom, inside, outside) = margins(pages);
@@ -1197,7 +1438,11 @@ fn fodt(b: &Book, pr: &Print, sections: &[Section], pages: usize) -> String {
          <style:text-properties fo:font-size=\"{small}\" fo:font-variant=\"small-caps\" fo:letter-spacing=\"1.5pt\"/></style:style>\n\
          <style:style style:name=\"Folio\" style:family=\"paragraph\">\
          <style:paragraph-properties fo:text-align=\"center\"/><style:text-properties fo:font-size=\"{small}\"/></style:style>\n\
-         </office:styles>"
+         <style:style style:name=\"Footnote\" style:family=\"paragraph\">\
+         <style:paragraph-properties fo:text-align=\"justify\" fo:margin-left=\"0in\" fo:text-indent=\"0in\" \
+         fo:margin-top=\"0in\" fo:margin-bottom=\"0in\"/><style:text-properties fo:font-size=\"{note}\"/></style:style>\n\
+         </office:styles>",
+        note = pt(layout.size * 0.8)
     );
 
     // Automatic styles: the page layouts, a paragraph style per (master,
@@ -1300,6 +1545,27 @@ fn fodt(b: &Book, pr: &Print, sections: &[Section], pages: usize) -> String {
     let span_xml = |spans: &[Span]| {
         let mut out = String::new();
         for sp in spans {
+            if let Some(n) = sp.note {
+                let body: String = notes
+                    .get(n - 1)
+                    .map(|note| {
+                        note.iter()
+                            .map(|para| {
+                                format!(
+                                    "<text:p text:style-name=\"Footnote\">{}</text:p>",
+                                    fodt_spans(para)
+                                )
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let _ = write!(
+                    out,
+                    "<text:note text:id=\"ftn{n}\" text:note-class=\"footnote\">\
+                     <text:note-citation>{n}</text:note-citation><text:note-body>{body}</text:note-body></text:note>"
+                );
+                continue;
+            }
             let bits = u8::from(sp.italic) | (u8::from(sp.bold) << 1) | (u8::from(sp.small) << 2);
             let text = xml_escape(&sp.text);
             if bits == 0 {
@@ -1335,16 +1601,34 @@ fn fodt(b: &Book, pr: &Print, sections: &[Section], pages: usize) -> String {
     s
 }
 
+/// Spans as ODF text, for a footnote's paragraphs (which hold no notes).
+fn fodt_spans(spans: &[Span]) -> String {
+    let mut out = String::new();
+    for sp in spans {
+        let bits = u8::from(sp.italic) | (u8::from(sp.bold) << 1) | (u8::from(sp.small) << 2);
+        let text = xml_escape(&sp.text);
+        if bits == 0 {
+            out.push_str(&text);
+        } else {
+            let _ = write!(
+                out,
+                "<text:span text:style-name=\"t{bits}\">{text}</text:span>"
+            );
+        }
+    }
+    out
+}
+
 /// The print edition: the DOCX, and the LibreOffice document for the PDF.
 pub(crate) fn paperback(b: &Book, pr: &Print) -> Result<(Vec<u8>, String)> {
-    let sections = build(b, pr);
+    let (sections, notes) = build(b, pr)?;
     if sections.is_empty() {
         bail!("there's nothing in the book to print yet");
     }
     let pages = estimate_pages(b, &pr.layout, pr.back.len());
     Ok((
-        docx(b, pr, &sections, pages)?,
-        fodt(b, pr, &sections, pages),
+        docx(b, pr, &sections, &notes, pages)?,
+        fodt(b, pr, &sections, &notes, pages),
     ))
 }
 

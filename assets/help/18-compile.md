@@ -22,9 +22,8 @@ When the book is ready to send, *Export…* in the menu (*Export for readers* in
   It lists missing, duplicate and unused footnotes, public TK/TODO/FIXME
   markers and empty-source notices. `↑`/`↓`, Page Up/Down and Home/End scroll;
   `Esc` returns to the same export settings. Reopen the review to refresh it.
-  It also reports when the current rich-format selection is blocked by the
-  paperback footnote-export guard; deselect Paperback for supported manuscript
-  Word/PDF and EPUB notes, or use Markdown to preserve the syntax. Rich export
+  Word, PDF, EPUB and the paperback all set footnotes as real notes (the
+  paperback at the foot of each page); Markdown keeps the syntax. Rich export
   validates renderable note structure when exporting; this review does not render pages.
   It does not write export files or check links, continuity, revision notes,
   rendered pages or externally changed files. It inspects at most 512 scenes,
@@ -55,5 +54,6 @@ are retained. Link targets appear as exact readable text. No resource is fetched
 Missing, duplicate, uncited, empty or nested notes and unsupported lists, images,
 tables or raw HTML refuse export before any companion files are written.
 Your original Markdown/YAML and Undo are preserved. The limits match the
-manuscript notes documented in **Notes and TKs**. Paperback notes remain guarded.
+manuscript notes documented in **Notes and TKs**. The paperback sets them at the
+foot of each page.
 EPUB-only output does not complete the Word/PDF exercise in lesson 34.

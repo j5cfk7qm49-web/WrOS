@@ -176,8 +176,6 @@ pub fn tks(p: &Project, opts: &ExportOptions) -> Result<Vec<String>> {
 
 pub struct ExportPreflight {
     pub report: crate::preflight::PreflightReport,
-    /// Sections that the existing rich-export guard would reject.
-    pub unsupported_footnotes: Vec<String>,
 }
 
 /// Review original source selected for export. Indices are transient and are
@@ -291,60 +289,7 @@ pub fn preflight(p: &Project, opts: &ExportOptions) -> Result<ExportPreflight> {
             ),
         });
     }
-    let unsupported_footnotes = if opts.docx || opts.pdf || opts.epub || opts.paperback {
-        unsupported_footnote_locations(p, &selected, opts)
-    } else {
-        Vec::new()
-    };
-    Ok(ExportPreflight {
-        report,
-        unsupported_footnotes,
-    })
-}
-
-/// The selected content that still uses Markdown footnotes in the unfinished
-/// paperback path. Inspect the *compiled*
-/// scope, never unrelated notes, skipped scenes or unselected chapters.
-fn unsupported_footnote_locations(p: &Project, b: &Book<'_>, opts: &ExportOptions) -> Vec<String> {
-    if !opts.paperback {
-        return Vec::new();
-    }
-    let mut locations = Vec::new();
-    let mut inspect = |where_: &str, text: &str| {
-        let analysis = crate::footnotes::analyze_footnotes(text);
-        if !analysis.references.is_empty() || !analysis.definitions.is_empty() {
-            locations.push(where_.to_string());
-        }
-    };
-
-    for piece in &b.pieces {
-        match piece {
-            Piece::Part { .. } => {}
-            Piece::Chapter { title, scenes, .. } => {
-                for (i, scene) in scenes.iter().enumerate() {
-                    inspect(&format!("chapter '{title}', scene {}", i + 1), scene);
-                }
-            }
-            Piece::Scene(scene) => inspect("unnested manuscript scene", scene),
-        }
-    }
-
-    // Front/back matter is edition-specific; scanning every source file would
-    // incorrectly block an export over a different selection or edition.
-    for (enabled, edition, label) in [(opts.paperback, Edition::Paperback, "paperback")] {
-        if enabled {
-            for text in front_pages(p, edition) {
-                inspect(&format!("{label} front matter"), &text);
-            }
-            for text in back_pages(p, edition) {
-                inspect(&format!("{label} back matter"), &text);
-            }
-        }
-    }
-
-    locations.sort();
-    locations.dedup();
-    locations
+    Ok(ExportPreflight { report })
 }
 
 /// Write the chosen formats to `<book>/exports/`.
@@ -356,16 +301,6 @@ pub fn export(p: &Project, opts: &ExportOptions) -> Result<Exported> {
     let mut book = book(p, opts.parts.as_deref(), opts.scope)?;
     if book.pieces.is_empty() {
         bail!("there's nothing written to export yet");
-    }
-    // Paperback notes still need their own package/rendering integration.
-    if opts.docx || opts.pdf || opts.epub || opts.paperback {
-        let affected = unsupported_footnote_locations(p, &book, opts);
-        if let Some(first) = affected.first() {
-            bail!(
-                "footnotes in {first} ({} affected section(s)): paperback footnote rendering is not implemented; deselect Paperback. No export files were changed.",
-                affected.len()
-            );
-        }
     }
     // Validate/serialize Word before creating any output, including companion
     // formats. Invalid or unsupported note structures cannot publish a partial
@@ -672,7 +607,7 @@ pub(crate) fn prose(body: &str, hyphen: typeset::SpacedHyphen) -> Cow<'_, str> {
     };
     // Footnote labels, link targets and table delimiters must reach the
     // Markdown parser intact. Publishing adapters typeset parsed prose runs;
-    // Markdown preserves this source and paperback notes remain guarded.
+    // Markdown preserves this source; every rich format sets real notes.
     if trimmed.contains("[^") {
         if trimmed.len() > 2 * 1024 * 1024 {
             return trimmed; // The bounded Word adapter will refuse it.
@@ -2847,10 +2782,6 @@ mod tests {
             ..all_options()
         };
         let review = preflight(&p, &opts).unwrap();
-        assert!(
-            review.unsupported_footnotes.is_empty(),
-            "Word/PDF note structure is validated before writing, not blocked wholesale"
-        );
         let report = review.report;
         assert_eq!(report.errors_count(), 1);
         assert_eq!(report.warnings_count(), 0);
@@ -2883,7 +2814,6 @@ mod tests {
         )
         .unwrap();
         assert!(selected.report.is_clean());
-        assert!(selected.unsupported_footnotes.is_empty());
         assert!(!d.join("exports").exists());
         fs::remove_dir_all(&d).unwrap();
     }
@@ -2903,13 +2833,7 @@ mod tests {
         )
         .unwrap();
         assert!(rich.report.is_clean());
-        assert!(!rich.unsupported_footnotes.is_empty());
-        assert!(
-            preflight(&p, &all_options())
-                .unwrap()
-                .unsupported_footnotes
-                .is_empty()
-        );
+        assert!(preflight(&p, &all_options()).unwrap().report.is_clean());
         let markdown = preflight(
             &p,
             &ExportOptions {
@@ -2921,7 +2845,6 @@ mod tests {
         )
         .unwrap();
         assert!(markdown.report.is_clean());
-        assert!(markdown.unsupported_footnotes.is_empty());
         put(
             &d,
             file,
@@ -2940,7 +2863,7 @@ mod tests {
     }
 
     #[test]
-    fn paperback_footnotes_fail_before_writing_any_export_and_markdown_preserves_them() {
+    fn paperback_footnotes_become_page_footnotes_and_markdown_preserves_them() {
         let d = book_dir("footnote-export-guard");
         put(
             &d,
@@ -2948,17 +2871,11 @@ mod tests {
             "A supported claim[^note].\n\n[^note]: A λ-rich footnote.\n",
         );
         let p = Project::load(&d).unwrap();
-        let blocked = ExportOptions {
+        let paperback = ExportOptions {
             paperback: true,
             ..all_options()
         };
-        let error = export(&p, &blocked).unwrap_err().to_string();
-        assert!(error.contains("chapter 'Chapter One', scene 1"), "{error}");
-        assert!(error.contains("deselect Paperback"), "{error}");
-        assert!(
-            !d.join("exports").exists(),
-            "a failed export must not create files"
-        );
+        export(&p, &paperback).unwrap();
 
         let markdown_only = ExportOptions {
             docx: false,
@@ -2975,9 +2892,6 @@ mod tests {
             "{contents}"
         );
 
-        let before = fs::read(&out.files[0]).unwrap();
-        assert!(export(&p, &blocked).is_err());
-        assert_eq!(before, fs::read(&out.files[0]).unwrap());
         fs::remove_dir_all(&d).unwrap();
     }
 
@@ -3454,8 +3368,8 @@ mod tests {
                     ..all_options()
                 }
             )
-            .is_err(),
-            "including the footnoted chapter in paperback must be rejected"
+            .is_ok(),
+            "the footnoted chapter's notes become paperback footnotes"
         );
         fs::remove_dir_all(&d).unwrap();
     }
@@ -4497,6 +4411,87 @@ mod tests {
         };
         let (docx, fodt) = crate::export_print::paperback(&b, &print).unwrap();
         (unzip_bytes(&docx), fodt)
+    }
+
+    #[test]
+    fn paperback_footnotes_are_numbered_page_notes_in_both_print_files() {
+        // #120: Word footnotes in the print DOCX, ODF notes in the document behind the PDF.
+        let d = book_dir("paperback-notes");
+        put(
+            &d,
+            "manuscript/01-Act-One/01-Chapter-One/01-Scene-One.md",
+            "A *claim*[^a] and another[^b].\n\n%% [^hidden]: a private note %%\n\n\
+             [^a]: First note, with *emphasis*.\n\n[^b]: Second note.\n\n    It has two paragraphs.\n",
+        );
+        put(
+            &d,
+            "manuscript/01-Act-One/02-Chapter-Two/01-Scene-One.md",
+            "Later[^c] in the book.\n\n[^c]: Third & last.\n",
+        );
+        let p = Project::load(&d).unwrap();
+        let (files, fodt) = paperback_files(&p, None);
+        let document = text_of(&files, "word/document.xml");
+        let notes = text_of(&files, "word/footnotes.xml");
+        for id in 1..=3 {
+            assert!(
+                document.contains(&format!("<w:footnoteReference w:id=\"{id}\"/>")),
+                "{document}"
+            );
+            assert!(
+                notes.contains(&format!("<w:footnote w:id=\"{id}\">")),
+                "{notes}"
+            );
+        }
+        assert!(notes.contains("First note, with "), "{notes}");
+        assert!(notes.contains("It has two paragraphs."), "{notes}");
+        assert!(notes.contains("Third &amp; last."), "{notes}");
+        assert!(text_of(&files, "[Content_Types].xml").contains("wordprocessingml.footnotes+xml"));
+        assert!(text_of(&files, "word/_rels/document.xml.rels").contains("footnotes.xml"));
+        assert!(text_of(&files, "word/styles.xml").contains("FootnoteText"));
+        for text in [document, notes, fodt.as_str()] {
+            assert!(
+                !text.contains("[^"),
+                "no Markdown note syntax reaches print"
+            );
+            assert!(!text.contains("private note"), "private notes stay out");
+            assert!(!text.contains('\u{E000}'), "no reference marker survives");
+        }
+        assert_eq!(
+            fodt.matches("text:note-class=\"footnote\"").count(),
+            3,
+            "{fodt}"
+        );
+        assert!(
+            fodt.contains("<text:note-citation>2</text:note-citation>"),
+            "{fodt}"
+        );
+        assert!(fodt.contains("It has two paragraphs."), "{fodt}");
+        assert!(fodt.contains("style:name=\"Footnote\""), "{fodt}");
+        roxmltree::Document::parse(&fodt).unwrap();
+        roxmltree::Document::parse(document).unwrap();
+        roxmltree::Document::parse(notes).unwrap();
+
+        // An unresolved reference stops the paperback before any file is written.
+        put(
+            &d,
+            "manuscript/01-Act-One/02-Chapter-Two/01-Scene-One.md",
+            "Later[^missing] in the book.\n",
+        );
+        let p = Project::load(&d).unwrap();
+        let error = export(
+            &p,
+            &ExportOptions {
+                docx: false,
+                epub: false,
+                markdown: false,
+                paperback: true,
+                ..all_options()
+            },
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("footnote"), "{error}");
+        fs::remove_dir_all(&d).unwrap();
     }
 
     #[test]

@@ -26,7 +26,8 @@ runs; literal code and targets remain exact. Markdown keeps footnoted syntax.
 
 Missing, duplicate, uncited, empty or nested notes and unsupported structures
 such as lists, images or raw HTML in footnoted scenes refuse before any output
-directory or companion format is written. Paperback notes remain guarded.
+directory or companion format is written. The paperback sets the same notes
+at the foot of its pages, in its Word file and its PDF.
 Markdown-only export remains available. Bounds are 2 MiB and 8192 markers per
 scene, 64 KiB per definition, 4096 references and 16 MiB of rendered note XML
 per document. These are bounded manuscript notes, not full Markdown publishing

@@ -489,7 +489,7 @@
       "status": "Tested",
       "verification": "Full Debian suite; actual LibreOffice/Poppler pagination and four-size compiled TUI export/lesson/Undo/restart",
       "hardware_verified": false,
-      "detail": "Bounded manuscript paragraphs, repeated/multiparagraph/long notes; original bytes/Undo retained. Paperback and unsupported structures remain guarded; EPUB has separate validation"
+      "detail": "Bounded manuscript paragraphs, repeated/multiparagraph/long notes; original bytes/Undo retained. Paperback sets them as page footnotes; unsupported structures remain guarded; EPUB has separate validation"
     },
     {
       "area": "Publishing",

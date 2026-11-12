@@ -163,10 +163,6 @@ impl App {
                     "Review is read-only. Esc returns to export; reopen to refresh.".into(),
                     String::new(),
                 ];
-                if !result.unsupported_footnotes.is_empty() {
-                    lines.push(format!("Rich export is blocked: paperback footnotes are not implemented ({} affected sections). Deselect Paperback; manuscript Word/PDF and EPUB support bounded notes.", result.unsupported_footnotes.len()));
-                    lines.push(String::new());
-                }
                 if report.issues.is_empty() {
                     lines.push("No issues found by these checks.".into());
                 }

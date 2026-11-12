@@ -134,7 +134,8 @@ impl App {
             self.msg = "no public Markdown footnotes in this book yet · use [^name] and [^name]: definition".into();
             return;
         }
-        self.msg = "Original source · manuscript Word/PDF and EPUB notes available; paperback notes remain guarded".into();
+        self.msg =
+            "Original source · Word, PDF, EPUB and paperback exports set these as footnotes".into();
         self.overlay = Overlay::Footnotes { sel: 0, rows };
     }
 

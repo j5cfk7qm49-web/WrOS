@@ -1835,12 +1835,12 @@ fn export_preflight_reviews_selected_source_without_writing_at_four_sizes() {
         let editor = d.app.editor.text();
         d.app.open_export();
         if let Overlay::Export { formats, .. } = &mut d.app.overlay {
-            formats[2] = true; // Paperback still refuses public footnotes.
+            formats[2] = true; // Paperback sets footnotes too; the review is unchanged by it.
         }
         d.key(KeyCode::Char('p'));
         assert!(d.shows("EXPORT PREFLIGHT"));
         assert!(d.shows("Loaded source snapshot"));
-        assert!(d.shows("Rich export is blocked"));
+        assert!(!d.shows("Rich export is blocked"));
         d.key(KeyCode::End);
         assert!(d.shows("lost"));
         assert!(d.shows("TODO"));

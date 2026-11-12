@@ -23,8 +23,8 @@ Missing, duplicate, uncited, empty or nested notes refuse the export. Lists,
 tables, images and raw HTML in footnoted scenes remain unsupported and refuse
 before creating the output directory or changing Word/Markdown companions or
 previous outputs. Bounds are 2 MiB and 8192 markers per scene, 64 KiB per
-definition, 4096 notes per EPUB and 16 MiB rendered note content. Paperback
-footnotes remain guarded. Markdown-only output retains footnote syntax.
+definition, 4096 notes per EPUB and 16 MiB rendered note content. The
+paperback sets notes at the foot of its pages. Markdown-only output retains footnote syntax.
 
 The Export dialog, source preflight, footnote reader and offline help reflect
 the available editions. Lesson 34 still requires real manuscript Word notes and
