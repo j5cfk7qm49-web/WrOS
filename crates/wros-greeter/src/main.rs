@@ -384,6 +384,15 @@ mod linux {
                     || (key.code == KeyCode::Char('c')
                         && key.modifiers.contains(KeyModifiers::CONTROL))
                 {
+                    if conversation.phase == Phase::Username {
+                        // No login has started, so there is nothing to cancel: clear the form
+                        // instead of exiting for greetd to restart the screen.
+                        conversation.clear();
+                        form.reset();
+                        drain_input()?;
+                        repaint(&mut terminal);
+                        continue;
+                    }
                     if let Some(request) = conversation.cancel() {
                         requests
                             .try_send(request)

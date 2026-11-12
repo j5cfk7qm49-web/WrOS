@@ -91,12 +91,18 @@ powers off in the middle of it. The backup listed afterwards verifies.
 
 ## 7. Recovery boot
 
-1. Restart. While WrOS starts, press Esc.
-2. In the recovery menu, choose **Show what happened**, read it, go back.
-3. Choose **Continue to the normal login**.
+The boot menu is hidden and waits only two seconds, before the disk password.
+Pressing Esc later, at the login screen, does not reach it.
 
-**Pass when:** the menu appears, both choices work, and the normal login and
-book open afterwards.
+1. Restart. As soon as the HP logo goes, tap Esc a few times until the boot
+   menu appears. If the disk password shows instead, restart and tap sooner.
+2. Choose **WrOS recovery**. Unlock the disk at the text prompt, then give the
+   writer's password when the recovery menu asks.
+3. Choose **Show what happened**, read it, go back.
+4. Choose **Continue to the normal login**.
+
+**Pass when:** the boot menu appears, the recovery menu opens after both
+passwords, both choices work, and the normal login and book open afterwards.
 
 ## 8. After an update
 
@@ -263,3 +269,8 @@ output with the results; it contains no book text.
 | Release | Date | Check | Result | Notes |
 | --- | --- | --- | --- | --- |
 | 0.1.0~rc7 | 2026-11-06 | 4. School network | Pass | Joined the open, MAC-filtered school network from the Wi-Fi page. |
+| 0.1.0~rc11 | 2026-11-11 | 8. After an update | Pass | The reissued RC11 bundle installed over RC10. |
+| 0.1.0~rc11 | 2026-11-11 | 2. Lid, lock and sleep | Pass | Lock, lock and suspend, and lid close, in the native and Foot sessions. |
+| 0.1.0~rc11 | 2026-11-11 | 11. Warm screen | Pass | Warmth works in the native and Foot sessions. |
+| 0.1.0~rc11 | 2026-11-11 | 9. Sound | Pass | The Sound and volume page works. |
+| 0.1.0~rc11 | 2026-11-11 | 7. Recovery boot | Not run | Esc at the login screen does not open the boot menu; steps rewritten. |

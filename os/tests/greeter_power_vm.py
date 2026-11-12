@@ -4,7 +4,8 @@ Boots a qcow2 overlay of an installed disk (never the disk itself), records
 whether logind authorizes the login screen's own process to power off and
 restart, then, with --fixture, installs the greeter under test from a read-only
 WROS-TRIAL image and drives the menu: Back to login and Escape change nothing,
-Restart boots the guest again, and Shut down ends QEMU.
+Escape on the form clears it in place, Restart boots the guest again, and
+Shut down ends QEMU.
 """
 import argparse
 import json
@@ -107,6 +108,17 @@ def trial(ctx):
     g.wait_vcs(1, LOGIN_READY, 30, what='escape-to-login')
     time.sleep(3)
     ctx.check('Back to login and Escape request nothing', m.is_running() and m.qmp.count('RESET') == baseline)
+
+    # Escape on the form clears it in place; the login screen must not exit and restart.
+    greeter = g.run('pgrep -xo wros-greeter')[1].strip()
+    m.type_text('esccheck', state['layout'])
+    g.wait_vcs(1, 'esccheck', 15, what='typed-before-escape')
+    m.key('esc')
+    time.sleep(3)
+    login = g.wait_vcs(1, LOGIN_READY, 30, what='escape-on-form')
+    after = g.run('pgrep -xo wros-greeter', check=False)[1].strip()
+    ctx.check('Escape on the form clears it without restarting the login screen',
+              'esccheck' not in login and after == greeter, {'before': greeter, 'after': after})
 
     position = cursor(g)
     resets = m.qmp.count('RESET')

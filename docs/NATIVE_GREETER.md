@@ -87,9 +87,9 @@ swap recovery, or all allocator/runtime copies. Full-device encryption is separa
 
 The greeter has one terminal reader; no editor exists during authentication.
 Pending-phase input is discarded. Kernel and parsed-event typeahead are drained
-at protocol transitions and before terminal handoff. Escape cancels an idle PAM
-conversation; during an outstanding request it disconnects and exits for greetd
-to restart. SIGTERM/HUP/INT restore the terminal and exit without starting a session.
+at protocol transitions and before terminal handoff. Escape on the form clears
+it in place. Escape cancels an idle PAM conversation; during an outstanding
+request it disconnects and exits for greetd to restart. SIGTERM/HUP/INT restore the terminal and exit without starting a session.
 
 ## Experimental image integration
 
