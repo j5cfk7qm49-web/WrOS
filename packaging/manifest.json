@@ -9,7 +9,8 @@
     "depends": [
       "apt", "cage", "dpkg", "foot", "gpgv", "kbd", "libasound2t64", "libdrm2", "libegl1", "libgl1-mesa-dri", "libgcc-s1", "libinput10",
       "libseat1", "libxkbcommon0", "libx11-data", "xkb-data", "passwd", "pkexec",
-      "polkitd", "python3", "rclone", "restic", "systemd", "util-linux", "vlock", "brightnessctl", "triggerhappy"
+      "polkitd", "python3", "rclone", "restic", "systemd", "util-linux", "vlock", "brightnessctl", "triggerhappy",
+      "pipewire", "pipewire-bin", "pipewire-alsa", "pipewire-pulse", "wireplumber", "dbus-user-session", "playerctl", "espeak-ng"
     ],
     "summary": "WrOS installed-system integration (Writer's OS)",
     "description": [

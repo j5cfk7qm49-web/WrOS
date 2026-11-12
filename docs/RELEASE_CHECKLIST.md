@@ -7,7 +7,7 @@
    `summary.txt`; name each failure that remains (the prose-runtime tests fail
    without the provisioned runtime).
 2. In the Debian build environment, run `cargo build --release --locked
-   --no-default-features --features gui-drm -p grimoire-tui -p wros-greeter
+   --no-default-features --features gui-drm,gui-wgpu,audio -p grimoire-tui -p wros-greeter
    -p wros-boot`. Copy those three binaries into a clean directory and give it
    to `tools/build-wros-debs.py --binaries-dir "$binary_dir" --output "$package_dir"`.
    Include the approved Google client configuration for release builds that

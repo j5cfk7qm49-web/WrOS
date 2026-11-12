@@ -646,6 +646,9 @@ pub fn setup_for(source: Source) -> Result<()> {
                 println!("  Just have Spotify open. Nothing to sign into.");
             } else {
                 println!("  Needs `playerctl` installed; Spotify exposes MPRIS through it.");
+                println!(
+                    "  The desktop app, spotifyd, spotify_player or ncspot all work (Premium)."
+                );
             }
             Ok(())
         }

@@ -33,6 +33,14 @@ util-linux
 login
 passwd
 libasound2t64
+pipewire
+pipewire-bin
+pipewire-alsa
+pipewire-pulse
+wireplumber
+dbus-user-session
+playerctl
+espeak-ng
 libgcc-s1
 libdrm2
 cage

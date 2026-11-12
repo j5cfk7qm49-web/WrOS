@@ -10,6 +10,12 @@ use anyhow::Result;
 
 pub(super) struct Spotify;
 
+/// The MPRIS names of Spotify players, in the order playerctl prefers them:
+/// the desktop app, then the terminal clients built on librespot (spotifyd as a
+/// background player, spotify_player and ncspot as TUIs). All need Premium.
+#[cfg(not(target_os = "macos"))]
+const PLAYERS: &str = "spotify,spotifyd,spotify_player,ncspot";
+
 impl Spotify {
     #[cfg(target_os = "macos")]
     fn read(&self) -> Result<State> {
@@ -51,11 +57,11 @@ impl Spotify {
 
     #[cfg(not(target_os = "macos"))]
     fn read(&self) -> Result<State> {
-        // playerctl speaks MPRIS, which every Linux Spotify build exposes.
+        // playerctl speaks MPRIS, which every Linux Spotify player exposes.
         let out = std::process::Command::new("playerctl")
             .args([
                 "-p",
-                "spotify",
+                PLAYERS,
                 "metadata",
                 "--format",
                 "{{status}}|{{title}}|{{artist}}|{{mpris:length}}|{{position}}",
@@ -117,7 +123,7 @@ impl Spotify {
             _ => return Ok(()),
         };
         let _ = std::process::Command::new("playerctl")
-            .args(["-p", "spotify"])
+            .args(["-p", PLAYERS])
             .args(&args)
             .output()?;
         Ok(())

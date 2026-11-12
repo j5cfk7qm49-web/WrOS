@@ -25,6 +25,7 @@ Notes (`%% … %%`) are never read out, and neither are the `*` and `_` around i
 Grimoire reads with whatever voice your computer has, and nothing leaves your computer:
 
 - **On a Mac** and **on Windows**, the computer's own voice, already there.
+- **On WrOS**, eSpeak NG, which WrOS includes.
 - **On Linux**, Speech Dispatcher or eSpeak if either is installed (`sudo apt install espeak-ng`, `sudo dnf install espeak-ng`).
 - **Piper**, anywhere, for a voice that sounds like a person. It's free and works offline. Install it with `pipx install piper-tts`. Then make a folder called `piper-voices` in `~/.local/share`, go into it, and download a voice there: `python3 -m piper.download_voices en_US-lessac-medium`. Grimoire finds it by itself.
 

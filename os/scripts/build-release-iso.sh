@@ -181,7 +181,7 @@ step_binaries() {
     as_builder env CARGO_TARGET_DIR="$cargo_target" bash -c '
         set -euo pipefail
         cd "$1"
-        cargo build --release --locked --no-default-features --features gui-drm,gui-wgpu -j "$2" -p grimoire-tui -p wros-greeter -p wros-boot -p wros-installer
+        cargo build --release --locked --no-default-features --features gui-drm,gui-wgpu,audio -j "$2" -p grimoire-tui -p wros-greeter -p wros-boot -p wros-installer
     ' _ "$repo" "${WROS_CARGO_JOBS:-2}"
     as_builder python3 "$repo/tools/build-cage.py" --output "$cargo_target/release/cage"
     local -a names=(grimoire wros-greeter wros-boot wros-installer cage)

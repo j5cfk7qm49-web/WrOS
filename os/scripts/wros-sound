@@ -3,6 +3,9 @@
 
 Reads and sets the ALSA Master control through libasound, which the wros
 package already depends on, so no mixer program (amixer) has to be installed.
+It works on the sound card's own mixer (sysdefault), not ALSA's default device:
+with PipeWire, default is the writer's PipeWire session, which the key handler
+(run as wros-keys, #80) cannot reach. PipeWire follows the card's volume.
 Runs as the writer, who is in the audio group. Prints one JSON line:
 {"available": bool, "volume_percent": int or null, "muted": bool, "message": str}.
 
@@ -16,6 +19,8 @@ import json
 import sys
 
 CONTROL = b'Master'
+# The default card's hardware mixer; see the module notes.
+MIXER = b'sysdefault'
 STEP_PERCENT = 5
 FRONT_LEFT = 0
 
@@ -33,7 +38,7 @@ class AlsaMixer:
         lib.snd_mixer_find_selem.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
         self.check(lib.snd_mixer_open(ctypes.byref(self.handle), 0), 'open the mixer')
         try:
-            self.check(lib.snd_mixer_attach(self.handle, b'default'), 'find a sound card')
+            self.check(lib.snd_mixer_attach(self.handle, MIXER), 'find a sound card')
             self.check(lib.snd_mixer_selem_register(self.handle, None, None), 'read the mixer')
             self.check(lib.snd_mixer_load(self.handle), 'read the mixer')
             sid = ctypes.c_void_p()
