@@ -6,7 +6,9 @@ package already depends on, so no mixer program (amixer) has to be installed.
 Runs as the writer, who is in the audio group. Prints one JSON line:
 {"available": bool, "volume_percent": int or null, "muted": bool, "message": str}.
 
-    wros-sound status | set <0-100> | mute | unmute
+    wros-sound status | set <0-100> | up | down | toggle | mute | unmute
+
+up and down move the volume one step (the brightness and volume keys, #80); up also unmutes.
 """
 import ctypes
 import ctypes.util
@@ -14,6 +16,7 @@ import json
 import sys
 
 CONTROL = b'Master'
+STEP_PERCENT = 5
 FRONT_LEFT = 0
 
 
@@ -89,12 +92,12 @@ class AlsaMixer:
 
 
 def parse_args(argv):
-    if argv == ['status'] or argv == ['mute'] or argv == ['unmute']:
+    if len(argv) == 1 and argv[0] in ('status', 'up', 'down', 'toggle', 'mute', 'unmute'):
         return argv[0], None
     if len(argv) == 2 and argv[0] == 'set' and argv[1].isdigit() and len(argv[1]) <= 3 \
             and int(argv[1]) <= 100:
         return 'set', int(argv[1])
-    raise ValueError('usage: wros-sound status | set <0-100> | mute | unmute')
+    raise ValueError('usage: wros-sound status | set <0-100> | up | down | toggle | mute | unmute')
 
 
 def percent(mixer):
@@ -111,9 +114,21 @@ def run(action, value, mixer):
         mixer.set_volume(low + round(value * (high - low) / 100))
         if mixer.has_switch():
             mixer.set_switch(True)
+    elif action in ('up', 'down'):
+        low, high = mixer.volume_range()
+        now = mixer.volume()
+        step = STEP_PERCENT if action == 'up' else -STEP_PERCENT
+        target = low + round(min(100, max(0, percent(mixer) + step)) * (high - low) / 100)
+        if target == now:  # a coarse card: still move one of its own steps
+            target = now + (1 if action == 'up' else -1)
+        mixer.set_volume(min(high, max(low, target)))
+        if action == 'up' and mixer.has_switch():
+            mixer.set_switch(True)
+    elif action == 'toggle' and mixer.has_switch():
+        mixer.set_switch(not mixer.switch_on())
     elif action in ('mute', 'unmute') and mixer.has_switch():
         mixer.set_switch(action == 'unmute')
-    elif action == 'mute':
+    elif action in ('mute', 'toggle'):
         mixer.set_volume(mixer.volume_range()[0])
     volume = percent(mixer)
     muted = not mixer.switch_on() if mixer.has_switch() else volume == 0

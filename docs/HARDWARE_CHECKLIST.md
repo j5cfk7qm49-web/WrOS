@@ -201,33 +201,35 @@ colours while on; the compositor does not provide physical colour readback.
 
 ## 12. Brightness and volume keys
 
-Use this check before choosing bindings for the HP Stream's media keys.
-Record the release and selected writing session, then note the brightness,
-volume and mute values in Settings.
+WrOS handles these keys through Debian's triggerhappy (#80), the same way on any
+laptop.
 
-On the maintenance console, use Debian's `evtest` to identify the input device
-that reports each key. Install the `evtest` package there if needed. List the
-device names and handlers with the following command.
+1. In the writing session, press Brightness down until it stops, then
+   Brightness up a few times. Hold each key for a second.
+2. Press Volume up, Volume down and Mute, then Mute again. Hold Volume up.
+3. Repeat a few presses at the login screen and on the lock screen.
+
+**Pass when:** each press moves brightness or volume one step and a held key
+keeps going; the screen never goes fully dark; Mute silences the speakers and
+the second press brings the sound back; the bottom bar shows the new value
+within about a second; nothing typed appears in the book or the password field.
+If one press moves brightness two steps, or a key does nothing, run the probe
+below and attach it to [issue 80](https://github.com/j5cfk7qm49-web/WrOS/issues/80)
+with `systemctl status triggerhappy` from the maintenance console.
+
+**Probe.** On the maintenance console, list the input devices and handlers:
 
 ```sh
 grep -E 'N: Name=|H: Handlers=' /proc/bus/input/devices
 ```
 
-Replace `eventN` with the handler for the device being checked. This probe
-prints the five media keys and ends after 30 seconds.
+Replace `eventN` with the handler for the device being checked. This prints the
+five media keys and ends after 30 seconds (install `evtest` first if needed).
 
 ```sh
 sudo timeout 30s evtest /dev/input/eventN |
   grep --line-buffered -E 'KEY_(BRIGHTNESSUP|BRIGHTNESSDOWN|VOLUMEUP|VOLUMEDOWN|MUTE)'
 ```
-
-Press each key once, then hold it briefly. Record the device, event name,
-press/release/repeat values and the value shown in Settings afterwards.
-Check whether the firmware already changes brightness on a single press.
-Repeat from login, writing and the lock screen. These observations determine
-whether WrOS needs a binding or an updated display of the hardware's own change.
-Attach the five-key results to
-[issue 80](https://github.com/j5cfk7qm49-web/WrOS/issues/80).
 
 ## 13. Phone linking and document exchange
 

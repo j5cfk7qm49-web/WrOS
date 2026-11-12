@@ -25,6 +25,7 @@ pciutils
 usbutils
 upower
 brightnessctl
+triggerhappy
 power-profiles-daemon
 python3
 ca-certificates

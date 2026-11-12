@@ -79,6 +79,36 @@ class SoundHelperTests(unittest.TestCase):
         _, reply = call(['unmute'], mixer)
         self.assertFalse(reply['muted'])
 
+    def test_up_and_down_move_one_step_and_up_unmutes(self):
+        mixer = FakeMixer(raw=60, on=False)
+        _, reply = call(['up'], mixer)
+        self.assertEqual((reply['volume_percent'], reply['muted']), (74, False))
+        _, reply = call(['down'], mixer)
+        self.assertEqual(reply['volume_percent'], 69)
+        mixer.on = False
+        _, reply = call(['down'], mixer)
+        self.assertEqual((reply['volume_percent'], reply['muted']), (64, True))
+
+    def test_up_and_down_stop_at_the_ends(self):
+        mixer = FakeMixer(raw=87)
+        _, reply = call(['up'], mixer)
+        self.assertEqual((mixer.raw, reply['volume_percent']), (87, 100))
+        mixer.raw = 1
+        _, reply = call(['down'], mixer)
+        self.assertEqual((mixer.raw, reply['volume_percent']), (0, 0))
+        _, reply = call(['down'], mixer)
+        self.assertEqual(mixer.raw, 0)
+
+    def test_toggle_flips_the_mute_switch(self):
+        mixer = FakeMixer(raw=60)
+        _, reply = call(['toggle'], mixer)
+        self.assertEqual((reply['volume_percent'], reply['muted']), (69, True))
+        _, reply = call(['toggle'], mixer)
+        self.assertFalse(reply['muted'])
+        no_switch = FakeMixer(raw=60, switch=False)
+        _, reply = call(['toggle'], no_switch)
+        self.assertEqual((reply['volume_percent'], reply['muted']), (0, True))
+
     def test_a_card_without_a_mute_switch_mutes_by_volume_zero(self):
         mixer = FakeMixer(raw=60, switch=False)
         _, reply = call(['mute'], mixer)

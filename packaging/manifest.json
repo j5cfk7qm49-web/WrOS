@@ -9,7 +9,7 @@
     "depends": [
       "apt", "cage", "dpkg", "foot", "gpgv", "kbd", "libasound2t64", "libdrm2", "libegl1", "libgl1-mesa-dri", "libgcc-s1", "libinput10",
       "libseat1", "libxkbcommon0", "libx11-data", "xkb-data", "passwd", "pkexec",
-      "polkitd", "python3", "rclone", "restic", "systemd", "util-linux", "vlock"
+      "polkitd", "python3", "rclone", "restic", "systemd", "util-linux", "vlock", "brightnessctl", "triggerhappy"
     ],
     "summary": "WrOS installed-system integration (Writer's OS)",
     "description": [
@@ -36,6 +36,9 @@
     {"dest": "usr/lib/wros/wros-console-reset", "generated": "binary:wros-console-reset", "mode": "0755", "class": "binary"},
     {"dest": "usr/share/doc/wros/DEJAVU-LICENSE", "source": "assets/DEJAVU-LICENSE", "mode": "0644", "class": "doc"},
     {"dest": "usr/lib/sysusers.d/wros-graphics.conf", "source": "os/config/wros-graphics.conf", "mode": "0644", "class": "config"},
+    {"dest": "usr/lib/sysusers.d/wros-keys.conf", "source": "os/config/wros-keys-sysusers.conf", "mode": "0644", "class": "config"},
+    {"dest": "usr/lib/tmpfiles.d/wros-keys.conf", "source": "os/config/wros-keys-tmpfiles.conf", "mode": "0644", "class": "config"},
+    {"dest": "usr/lib/wros/keys/wros-keys.conf", "source": "os/config/wros-keys-triggers.conf", "mode": "0644", "class": "config"},
     {"dest": "usr/share/initramfs-tools/hooks/wros-boot", "source": "os/initramfs/wros-boot-hook", "mode": "0755", "class": "config"},
     {"dest": "usr/share/wros/initramfs/askpass", "source": "os/initramfs/askpass", "mode": "0755", "class": "config"},
     {"dest": "usr/libexec/wros-display-hw", "generated": "binary:wros-display-hw", "mode": "0755", "class": "binary", "strip": true},
@@ -53,6 +56,7 @@
     {"dest": "usr/libexec/wros-backup", "source": "os/scripts/wros-backup", "mode": "0755", "class": "code"},
     {"dest": "usr/libexec/wros-clock", "source": "os/scripts/wros-clock", "mode": "0755", "class": "code"},
     {"dest": "usr/libexec/wros-sound", "source": "os/scripts/wros-sound", "mode": "0755", "class": "code"},
+    {"dest": "usr/libexec/wros-media-key", "source": "os/scripts/wros-media-key", "mode": "0755", "class": "code"},
 
     {"dest": "usr/libexec/wros-update", "source": "os/scripts/wros-update", "mode": "0755", "class": "code"},
     {"dest": "usr/libexec/wros-update-stage", "source": "os/scripts/wros-update-stage", "mode": "0755", "class": "code"},
@@ -101,6 +105,7 @@
     {"dest": "etc/systemd/system/wros-boot-ok.service", "source": "os/systemd/wros-boot-ok.service", "mode": "0644", "class": "config"},
     {"dest": "etc/systemd/system/wros-boot-splash.service", "source": "os/systemd/wros-boot-splash.service", "mode": "0644", "class": "config"},
     {"dest": "usr/lib/systemd/system/greetd.service.d/60-wros-start-screen.conf", "source": "os/config/greetd-start-screen.conf", "mode": "0644", "class": "config"},
+    {"dest": "usr/lib/systemd/system/triggerhappy.service.d/60-wros.conf", "source": "os/config/triggerhappy-wros.conf", "mode": "0644", "class": "config"},
     {"dest": "etc/pam.d/wros-recovery", "source": "os/config/wros-recovery.pam", "mode": "0644", "class": "config"},
     {"dest": "etc/grub.d/06_wros_boot_check", "source": "os/grub/06_wros_boot_check", "mode": "0755", "class": "config"},
     {"dest": "etc/grub.d/42_wros_recovery", "source": "os/grub/42_wros_recovery", "mode": "0755", "class": "config"},
@@ -113,6 +118,7 @@
     {"dest": "etc/sysctl.d/60-wros-sysrq.conf", "source": "os/config/60-wros-sysrq.conf", "mode": "0644", "class": "config"},
     {"dest": "etc/sysctl.d/60-wros-quiet-console.conf", "source": "os/config/60-wros-quiet-console.conf", "mode": "0644", "class": "config"},
     {"dest": "etc/modprobe.d/60-wros-wifi-power.conf", "source": "os/config/60-wros-wifi-power.conf", "mode": "0644", "class": "config"},
+    {"dest": "etc/modprobe.d/60-wros-brightness-keys.conf", "source": "os/config/60-wros-brightness-keys.conf", "mode": "0644", "class": "config"},
     {"dest": "etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf", "source": "os/config/60-wros-no-connectivity-check.conf", "mode": "0644", "class": "config"},
 
     {"generated": "keymaps", "dest_dir": "usr/share/wros/keymaps", "names": ["qwerty.map", "colemak.map", "colemak-dh-ansi.map", "colemak-dh-iso.map"], "mode": "0644", "class": "generated"},

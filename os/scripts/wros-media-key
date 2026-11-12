@@ -1,0 +1,115 @@
+#!/usr/bin/python3 -I
+"""Brightness and volume keys for WrOS (#80).
+
+Debian's triggerhappy runs this as the wros-keys account for the triggers in
+/usr/lib/wros/keys/wros-keys.conf. The kernel names these keys the same way on every
+computer, so they work on any laptop: at the login screen, while writing and on the lock
+screen. Brightness goes to the screen's backlight through brightnessctl (the video group may
+write it); volume through wros-sound (the audio group may change the card's mixer).
+
+A held key repeats; a press that arrives while the previous one is still running is dropped
+rather than queued. After each change the app is told to read brightness and volume again.
+
+    wros-media-key brightness-up | brightness-down | volume-up | volume-down | mute
+"""
+import fcntl
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+STEP_PERCENT = 5
+# Never darker than this: a screen at zero looks like a laptop that died.
+LOWEST_PERCENT = 5
+STATE = Path('/run/wros-keys')
+SYS = Path('/sys')
+BRIGHTNESSCTL = '/usr/bin/brightnessctl'
+SOUND = '/usr/libexec/wros-sound'
+SOUND_ACTIONS = {'volume-up': 'up', 'volume-down': 'down', 'mute': 'toggle'}
+ACTIONS = ('brightness-up', 'brightness-down', *SOUND_ACTIONS)
+ENV = {'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8'}
+
+
+def backlight(sys_root):
+    """The screen's backlight: its name, brightness and maximum, or None."""
+    try:
+        entries = sorted((sys_root / 'class/backlight').iterdir())
+    except OSError:
+        return None
+    for entry in entries:
+        try:
+            now = int((entry / 'brightness').read_text().strip())
+            top = int((entry / 'max_brightness').read_text().strip())
+        except (OSError, ValueError):
+            continue
+        if top > 0:
+            return entry.name, now, top
+    return None
+
+
+def brightness_target(now, top, up):
+    """The raw brightness one step up or down; each press moves at least one hardware step."""
+    lowest = max(1, -(-top * LOWEST_PERCENT // 100))
+    step = max(1, round(top * STEP_PERCENT / 100))
+    target = now + step if up else now - step
+    return min(top, max(lowest, target))
+
+
+def change_brightness(up, sys_root=SYS, run=subprocess.run):
+    found = backlight(sys_root)
+    if found is None:
+        return False
+    name, now, top = found
+    target = brightness_target(now, top, up)
+    if target == now:
+        return False
+    run([BRIGHTNESSCTL, '--quiet', '--class=backlight', '--device=' + name, 'set', str(target)],
+        env=ENV, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        timeout=5, check=True)
+    return True
+
+
+def change_volume(action, run=subprocess.run):
+    run([SOUND, SOUND_ACTIONS[action]], env=ENV, stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5, check=True)
+    return True
+
+
+def tell_the_app(state):
+    """Touch the file the app watches, so its status bar shows the new value at once."""
+    try:
+        (state / 'changed').write_text('')
+    except OSError:
+        pass
+
+
+def main(argv, state=STATE, sys_root=SYS, run=subprocess.run):
+    if len(argv) != 1 or argv[0] not in ACTIONS:
+        print('usage: wros-media-key ' + ' | '.join(ACTIONS), file=sys.stderr)
+        return 2
+    action = argv[0]
+    lock = None
+    try:
+        lock = os.open(state / 'lock', os.O_RDWR | os.O_CREAT | os.O_CLOEXEC, 0o600)
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return 0  # the previous press is still being applied; drop this repeat
+    except OSError:
+        pass  # no state directory: still change it, just without the lock
+    try:
+        if action.startswith('brightness-'):
+            changed = change_brightness(action == 'brightness-up', sys_root, run)
+        else:
+            changed = change_volume(action, run)
+    except (OSError, subprocess.SubprocessError):
+        return 1
+    finally:
+        if lock is not None:
+            os.close(lock)
+    if changed:
+        tell_the_app(state)
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]))

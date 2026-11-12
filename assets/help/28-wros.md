@@ -42,13 +42,17 @@ unfinished services. Display → Warm screen has an offline filter on supported
 drivers: 1000–6500 K, initial 2200 K, strength/Off and a 15-second Keep/Cancel
 preview. Off restores original color curves. Unsupported drivers are unavailable;
 this is separate from the theme picker. No Google account is required for local
-writing. Suspend remains unavailable until lock-before-suspend and resume have
-been qualified.
+writing. Battery and power → Lock and suspend saves, locks, then sleeps.
 
 ## System settings
 
-System settings uses a background worker and cached status. NetworkManager controls Wi-Fi radio and scanning; brightnessctl controls supported backlights. Power controls require confirmation and successful manuscript saving. Unsupported services report unavailable, never success. Native connection enrollment is still unfinished. `nmtui` remains available
-only as an emergency maintenance tool while that work is completed.
+System settings uses a background worker and cached status. NetworkManager controls Wi-Fi radio and scanning; brightnessctl controls supported backlights. Power controls require confirmation and successful manuscript saving. Unsupported services report unavailable, never success. The Wi-Fi page joins networks; `nmtui`
+stays on the maintenance console for emergencies.
+
+The keyboard's brightness and volume keys work everywhere: at the login screen,
+while writing and on the lock screen. The screen never goes fully dark, mute
+switches sound off and on, and the bottom bar shows the new value within half a
+second.
 
 Network → Scan Wi-Fi networks shows a native list with signal/security and the
 active network. Saved Wi-Fi profiles shows the profiles visible to this session;

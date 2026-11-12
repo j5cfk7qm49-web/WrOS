@@ -268,7 +268,7 @@ def postinst(manifest, stage):
               # The Ratatui start screen (docs/RATATUI_BOOT.md), only while its switch is on: the boot
               # image takes the new wros-boot. With the switch off the image stays Debian's.
               'if command -v systemd-sysusers >/dev/null 2>&1; then',
-              '    systemd-sysusers --root="${root:-/}" wros-graphics.conf || echo "wros: native login permissions will be retried at boot" >&2',
+              '    systemd-sysusers --root="${root:-/}" wros-graphics.conf wros-keys.conf || echo "wros: native login and key permissions will be retried at boot" >&2',
               'fi',
               'if [ -z "$root" ] && { [ ! -e /etc/wros/boot-screen ] || [ "$(cat /etc/wros/boot-screen 2>/dev/null)" = ratatui ]; } && [ -x /usr/sbin/update-initramfs ]; then',
               '    /usr/sbin/update-initramfs -u >/dev/null 2>&1 || echo "wros: the start screen updates with the next boot image" >&2',

@@ -1,6 +1,7 @@
 //! Battery, screen light and volume at the right of the bottom bar (#81). Read
 //! every 30 seconds on a thread of its own, so a slow sound helper never holds
-//! up typing; Settings updates them at once when it changes one.
+//! up typing; Settings updates them at once when it changes one, and the
+//! brightness and volume keys (#80) within half a second.
 
 /// Below this, the battery shows even in focus mode.
 pub const LOW_BATTERY: u8 = 15;
@@ -68,13 +69,45 @@ pub fn read() -> Gauges {
     gauges
 }
 
+/// Touched by `/usr/libexec/wros-media-key` after a brightness or volume key (#80).
+#[cfg(target_os = "linux")]
+const KEYS_CHANGED: &str = "/run/wros-keys/changed";
+
+/// True once when the key marker's time differs from the one last seen.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn marker_moved(
+    seen: &mut Option<std::time::SystemTime>,
+    now: Option<std::time::SystemTime>,
+) -> bool {
+    let moved = now != *seen;
+    *seen = now;
+    moved
+}
+
 /// Reads the gauges now and every 30 seconds after, until the receiver is gone.
+/// A brightness or volume key reads them again within half a second.
 #[cfg(target_os = "linux")]
 pub fn watch() -> std::sync::mpsc::Receiver<Gauges> {
+    use std::time::Duration;
+    const EVERY: Duration = Duration::from_secs(30);
+    const LOOK: Duration = Duration::from_millis(500);
+    let modified = || {
+        std::fs::metadata(KEYS_CHANGED)
+            .and_then(|m| m.modified())
+            .ok()
+    };
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
+        let mut seen = modified();
         while tx.send(read()).is_ok() {
-            std::thread::sleep(std::time::Duration::from_secs(30));
+            let mut waited = Duration::ZERO;
+            while waited < EVERY {
+                std::thread::sleep(LOOK);
+                waited += LOOK;
+                if marker_moved(&mut seen, modified()) {
+                    break;
+                }
+            }
         }
     });
     rx
@@ -107,6 +140,20 @@ mod tests {
             ..Gauges::default()
         };
         assert_eq!(desktop.text(false), "Light 40%");
+    }
+
+    #[test]
+    fn a_key_press_is_noticed_once_and_a_missing_marker_is_not_a_press() {
+        use std::time::{Duration, SystemTime};
+        let mut seen = None;
+        assert!(!marker_moved(&mut seen, None));
+        let first = SystemTime::UNIX_EPOCH + Duration::from_secs(10);
+        assert!(marker_moved(&mut seen, Some(first)));
+        assert!(!marker_moved(&mut seen, Some(first)));
+        assert!(marker_moved(
+            &mut seen,
+            Some(first + Duration::from_millis(1))
+        ));
     }
 
     #[test]
