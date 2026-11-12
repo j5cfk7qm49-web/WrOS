@@ -12,9 +12,13 @@
    to `tools/build-wros-debs.py --binaries-dir "$binary_dir" --output "$package_dir"`.
    Include the approved Google client configuration for release builds that
    offer phone linking.
-3. Check the offline APT plan against the saved installation at the version
-   being upgraded. Include any missing runtime archives from Debian's signed
-   package index. Sign that exact set with `tools/build-update-bundle.py`
+3. Choose the bundle's Debian packages with `tools/collect-update-runtime.py
+   "$wros_deb" "$baseline_dpkg_status" "$work"`, where the status file is
+   `/var/lib/dpkg/status` from the saved installation being upgraded. It plans
+   the offline install against that installation, downloads each missing or
+   older package from Debian 13 with its updates and security archives, and
+   refuses any package older than Debian's newest (#117). Sign the wros
+   package and `$work/runtime/*.deb` with `tools/build-update-bundle.py`
    using the release key outside the source tree. Archive the signed index
    files and `pool/` as `wros-updates.tar`. Run `python3 -I
    tools/publish-updates.py check-bundle "$tarball" "$verified_bundle" "$version"`

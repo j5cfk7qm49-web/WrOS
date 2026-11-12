@@ -120,6 +120,12 @@ fn package_line(p: &UpdatePackage) -> String {
         ("reinstall", Some(from)) => {
             format!("Reinstall {}: {} → {}", p.name, from, p.to_version)
         }
+        ("keep", Some(from)) => {
+            format!(
+                "Keep {} {}: newer than the bundled {}",
+                p.name, from, p.to_version
+            )
+        }
         (_, Some(from)) => format!("Upgrade {}: {} → {}", p.name, from, p.to_version),
         (_, None) => format!("Change {}: → {}", p.name, p.to_version),
     }

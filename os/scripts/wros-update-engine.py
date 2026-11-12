@@ -805,10 +805,32 @@ def load_installed_dpkg_database(dpkg_dir=DEFAULT_DPKG_DIR):
     return installed
 
 
+# Packages WrOS itself builds (grimoire is the writing app's own package name outside WrOS).
+# Every other bundled package is a Debian dependency.
+WROS_PACKAGES = frozenset({'wros', 'grimoire'})
+
+
+def keeps_newer(pkg, installed):
+    """A bundled Debian dependency older than the installed one: the installed, newer version stays.
+
+    Debian's security and point updates move these packages on after a bundle is built (#117).
+    WrOS's own packages are never kept back; an older one is a downgrade."""
+    have = installed.get(pkg['name'])
+    return (pkg['name'] not in WROS_PACKAGES and have is not None
+            and compare_dpkg_versions(pkg['version'], 'lt', have['version']))
+
+
+def to_install(packages, actions):
+    """The bundled packages APT installs: all but those kept at a newer installed version."""
+    return [p for p in packages if actions.get(p['name']) != 'keep']
+
+
 def evaluate_bundle_against_installed(packages, installed, allow_downgrade=False):
     """Enforce anti-downgrade, held-package protection, and dependency/conflict checks.
 
-    allow_downgrade is only for going back to the retained previous version."""
+    A Debian dependency already installed at a newer version is kept ('keep') and never handed to
+    APT. allow_downgrade is only for going back to the retained previous version, and then only
+    WrOS's own packages go back: Debian dependencies stay at their installed versions."""
     merged_versions = {name: [info['version']] for name, info in installed.items()}
     for info in installed.values():
         for prov_name, prov_ver in info['provides']:
@@ -818,6 +840,9 @@ def evaluate_bundle_against_installed(packages, installed, allow_downgrade=False
     for pkg in packages:
         name = pkg['name']
         ver = pkg['version']
+        if keeps_newer(pkg, installed):
+            actions[name] = 'keep'
+            continue
         if name in installed:
             inst_ver = installed[name]['version']
             if installed[name]['held'] and not compare_dpkg_versions(ver, 'eq', inst_ver):
@@ -846,7 +871,7 @@ def evaluate_bundle_against_installed(packages, installed, allow_downgrade=False
             for v in versions
         )
 
-    for pkg in packages:
+    for pkg in to_install(packages, actions):
         for clause in pkg.get('depends', ()):
             if not any(matches_constraint(dep_name, rel, ver) for dep_name, rel, ver in clause):
                 formatted = ' | '.join(
@@ -1338,14 +1363,15 @@ def remove_staged(store):
 
 
 def kept_version(tree):
-    """'0.1.0~rc5' for a kept tree holding only the wros package (the usual update), else each
+    """'0.1.0~rc5' for a kept tree holding the wros package (the usual update), else each
     package's label; None when there is none. Settings and recovery say "Go back to <this>"."""
     try:
         require_private_entry(tree, 'dir')
         manifest = json.loads(read_regular_bytes(tree / 'manifest.json', 262144).decode('utf-8'))
         packages = manifest['packages']
-        if len(packages) == 1 and packages[0].get('name') == 'wros' and isinstance(packages[0].get('version'), str):
-            return clean_text(packages[0]['version'], 200) or None
+        wros = [p for p in packages if p.get('name') == 'wros' and isinstance(p.get('version'), str)]
+        if wros:  # bundles since rc11 also carry Debian dependencies; the version is WrOS's
+            return clean_text(wros[0]['version'], 200) or None
         return ', '.join(clean_text(label, 200) for label in package_labels(packages)) or None
     except (ValueError, OSError, KeyError, TypeError):
         return None
@@ -1653,8 +1679,9 @@ def stage_update(bundle_dir, review_id, *, keyring=DEFAULT_KEYRING, signers=DEFA
                     fail('update bundle changed since it was reviewed; review it again')
                 staged_entries, live = write_tree(bundle, raw, partial, tx_id, when, dpkg_dir)
             # APT's solver runs without our POSIX locks held (it takes its own).
-            plan_with_apt([partial / 'packages' / e['staged_filename'] for e in staged_entries],
-                          staged_entries, dpkg_dir, store.work)
+            installing = [e for e in staged_entries if e['action'] != 'keep']
+            plan_with_apt([partial / 'packages' / e['staged_filename'] for e in installing],
+                          installing, dpkg_dir, store.work)
             if os.path.lexists(store.staged):
                 remove_staged(store)  # orphan or retained archives of a resolved failure
             os.rename(partial, store.staged)
@@ -1703,8 +1730,9 @@ def write_tree(bundle, raw, partial, tx_id, when, dpkg_dir):
             'filename': pkg['filename'], 'size': pkg['size'], 'sha256': pkg['sha256'],
             'staged_filename': staged_name, 'action': raw['actions'][pkg['name']],
         })
+    installing = [e for e in entries if e['action'] != 'keep']
     live, live_reason = live_apply_check(
-        entries, [partial / 'packages' / e['staged_filename'] for e in entries], dpkg_dir)
+        installing, [partial / 'packages' / e['staged_filename'] for e in installing], dpkg_dir)
     metadata_hashes = {}
     for name, data in [*raw['meta'].items(), ('Packages', raw['packages_raw'])]:
         descriptor = os.open(partial / 'metadata' / name,
@@ -1811,7 +1839,7 @@ def stage_rollback_locked(store, *, keyring, signers, dpkg_dir, trigger_path, wh
         fail('there is no previous version to go back to')
     try:
         current = json.loads(read_regular_bytes(store.installed / 'manifest.json', 262144).decode('utf-8'))
-        current_versions = {p['name']: p['version'] for p in current['packages']}
+        current_versions = {p['name']: p['version'] for p in current['packages'] if p.get('action') != 'keep'}
     except (ValueError, OSError, KeyError, TypeError):
         fail('the installed update is not recorded, so going back is unavailable')
     tx_id = secrets.token_hex(16)
@@ -1822,20 +1850,26 @@ def stage_rollback_locked(store, *, keyring, signers, dpkg_dir, trigger_path, wh
                                         now=when, host_arch=host_arch, last_applied=None, mode='rollback',
                                         suites=suites)
             installed = load_installed_dpkg_database(dpkg_dir=dpkg_dir)
-            if any(installed.get(name, {}).get('version') != version
-                   for name, version in current_versions.items()):
-                fail('the installed packages are not the update kept as installed; going back is unavailable')
-            if any(details['actions'].get(p['name']) != 'downgrade' for p in details['packages']):
+            # WrOS must still be exactly the update kept as installed. Debian may since have moved
+            # its dependencies on, never back (#117).
+            for name, version in current_versions.items():
+                have = installed.get(name, {}).get('version')
+                wanted = 'eq' if name in WROS_PACKAGES else 'ge'
+                if have is None or not compare_dpkg_versions(have, wanted, version):
+                    fail('the installed packages are not the update kept as installed; going back is unavailable')
+            if details['actions'].get('wros') != 'downgrade':
                 fail('the previous version is not older than the installed one')
             shutil.copytree(store.previous, partial, symlinks=True)
-            entries = [p | {'action': 'downgrade'} for p in details['packages']]
+            records = [p | {'action': details['actions'][p['name']]} for p in details['packages']]
+            entries = [p for p in records if p['action'] != 'keep']
             deb_paths = [partial / 'packages' / p['staged_filename'] for p in entries]
             live, live_reason = live_apply_check(entries, deb_paths, dpkg_dir)
             manifest = details['manifest'] | {
                 'transaction_id': tx_id, 'recorded_at_utc': when.isoformat(), 'rollback': True,
                 'automatic': automatic, 'rollback_from': package_labels(current['packages']),
                 'live_apply': live, 'live_apply_reason': live_reason,
-                'packages': [dict(record, action='downgrade') for record in details['manifest']['packages']]}
+                'packages': [dict(record, action=details['actions'][record['name']])
+                             for record in details['manifest']['packages']]}
             json_write(partial / 'manifest.json', manifest)
             for directory in (partial / 'packages', partial / 'metadata', partial):
                 fsync_dir(directory)
@@ -2098,7 +2132,9 @@ def apply_staged_transaction(*, state_dir, trigger_path, dpkg_dir, runner, now, 
             with acquire_posix_dpkg_locks(dpkg_dir):
                 details = revalidate_staged(staged_dir, keyring=keyring, signers=signers, dpkg_dir=dpkg_dir,
                                             now=when, host_arch=host_arch, last_applied=store.last_applied())
-            tx_id, packages = details['tx_id'], details['packages']
+            tx_id, bundled = details['tx_id'], details['packages']
+            packages = to_install(bundled, details['actions'])
+            kept = [p for p in bundled if details['actions'].get(p['name']) == 'keep']
             labels = package_labels(packages)
             deb_paths = [staged_dir / 'packages' / p['staged_filename'] for p in packages]
             going_back = details['rollback']
@@ -2132,6 +2168,8 @@ def apply_staged_transaction(*, state_dir, trigger_path, dpkg_dir, runner, now, 
             installed_after = load_installed_dpkg_database(dpkg_dir)
             if any(installed_after.get(p['name'], {}).get('version') != p['version'] for p in packages):
                 fail('offline apt-get did not install the reviewed package versions')
+            if any(not keeps_newer(p, installed_after) for p in kept):
+                fail('a newer installed Debian package was replaced during the update')
         except Exception as exc:
             reason = str(exc) if str(exc).startswith('offline apt-get') else \
                 'offline apt-get transaction failed or was interrupted; authenticated archives retained for rescue'
@@ -2192,8 +2230,10 @@ def repair_locked(store, *, dpkg_dir, trigger_path, keyring, signers, run, when,
         try:
             details = revalidate_staged(store.staged, keyring=keyring, signers=signers, dpkg_dir=dpkg_dir,
                                         now=when, host_arch=host_arch, last_applied=None, mode='repair')
-            debs = [store.staged / 'packages' / p['staged_filename'] for p in details['packages']]
-            plan_with_apt(debs, details['packages'], dpkg_dir, store.work, require_complete=False)
+            installed = load_installed_dpkg_database(dpkg_dir=dpkg_dir)
+            installing = [p for p in details['packages'] if not keeps_newer(p, installed)]
+            debs = [store.staged / 'packages' / p['staged_filename'] for p in installing]
+            plan_with_apt(debs, installing, dpkg_dir, store.work, require_complete=False)
             ensure_dpkg_unlocked(dpkg_dir)
             run(apt_command(debs, dpkg_dir, store.work))
             steps.append('apt-get install of retained archives')
@@ -2478,8 +2518,9 @@ def review_bundle(bundle_dir, *, keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNER
                                  host_arch=host_arch, last_applied=last_applied, suites=suites)
         if use_apt:
             with tempfile.TemporaryDirectory(prefix='wros-update-review-') as scratch:
-                debs = [Path(bundle_dir) / p['filename'] for p in raw['packages']]
-                plan_with_apt(debs, raw['packages'], dpkg_dir, scratch)
+                installing = to_install(raw['packages'], raw['actions'])
+                debs = [Path(bundle_dir) / p['filename'] for p in installing]
+                plan_with_apt(debs, installing, dpkg_dir, scratch)
     packages = []
     for pkg in raw['packages']:
         before = raw['installed'].get(pkg['name'])

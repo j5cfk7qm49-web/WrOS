@@ -342,6 +342,49 @@ class SignedUpdateTests(unittest.TestCase):
                 verified = self.verify(bundle)
             self.assertTrue(verified['verified'])
 
+    def test_a_newer_installed_debian_dependency_is_kept_not_refused(self):
+        # #117: a bundle built before a Debian security update carries the older version.
+        installed = {
+            'wros': {'version': '0.1.0~rc11', 'held': False, 'provides': []},
+            'xserver-common': {'version': '2:21.1.16-1.3+deb13u4', 'held': False, 'provides': []},
+            'cage': {'version': '0.2.0-2', 'held': False, 'provides': []},
+        }
+        packages = [
+            {'name': 'wros', 'version': '0.1.0~rc12',
+             'depends': [[('xserver-common', '>=', '2:21.1.16-1.3+deb13u3')], [('cage', None, None)]]},
+            {'name': 'xserver-common', 'version': '2:21.1.16-1.3+deb13u3',
+             'depends': [[('never-installed', None, None)]]},
+            {'name': 'cage', 'version': '0.2.0-2'},
+        ]
+        actions = update.evaluate_bundle_against_installed(packages, installed)
+        self.assertEqual(actions, {'wros': 'upgrade', 'xserver-common': 'keep', 'cage': 'reinstall'})
+        self.assertEqual([p['name'] for p in update.to_install(packages, actions)], ['wros', 'cage'])
+        # A dependency that needs the bundled (older) version is still unsatisfied.
+        strict = [dict(packages[0], depends=[[('xserver-common', '=', '2:21.1.16-1.3+deb13u3')]]), packages[1]]
+        with self.assertRaisesRegex(ValueError, 'unsatisfied dependency'):
+            update.evaluate_bundle_against_installed(strict, installed)
+        # WrOS's own package is never kept back: older is a refused downgrade.
+        with self.assertRaisesRegex(ValueError, 'refusing package downgrade'):
+            update.evaluate_bundle_against_installed([dict(packages[0], version='0.1.0~rc10')], installed)
+        # Going back downgrades WrOS only; Debian dependencies stay at their installed versions.
+        back = update.evaluate_bundle_against_installed(
+            [dict(packages[0], version='0.1.0~rc10'), packages[1]], installed, allow_downgrade=True)
+        self.assertEqual(back, {'wros': 'downgrade', 'xserver-common': 'keep'})
+        # A held Debian package that is newer is simply left alone.
+        held = dict(installed, **{'xserver-common': dict(installed['xserver-common'], held=True)})
+        self.assertEqual(update.evaluate_bundle_against_installed(packages[1:2], held), {'xserver-common': 'keep'})
+
+    def test_the_go_back_label_names_wros_even_with_bundled_dependencies(self):
+        with tempfile.TemporaryDirectory(prefix='wros-kept-') as tmp:
+            tree = Path(tmp) / 'previous'
+            tree.mkdir(mode=0o700)
+            packages = [{'name': 'cage', 'version': '0.2.0-2'}, {'name': 'wros', 'version': '0.1.0~rc11'},
+                        {'name': 'foot', 'version': '1.21.0-2'}]
+            (tree / 'manifest.json').write_text(__import__('json').dumps({'packages': packages}))
+            os.chmod(tree / 'manifest.json', 0o600)
+            with mock.patch.object(update, 'require_private_entry'):
+                self.assertEqual(update.kept_version(tree), '0.1.0~rc11')
+
     def test_freshness_anti_downgrade_dependency_and_posix_dpkg_lock_checks(self):
         now = FIXED_NOW
         with tempfile.TemporaryDirectory(prefix='wros-update-policy-') as tmp:

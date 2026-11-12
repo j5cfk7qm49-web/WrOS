@@ -134,6 +134,30 @@ fn review_success_is_parsed_strictly_and_runs_unprivileged() {
 }
 
 #[test]
+fn a_debian_dependency_kept_at_its_newer_installed_version_is_reviewed() {
+    // #117: the engine keeps a newer installed Debian package instead of refusing the bundle.
+    let kept = review_json().replace(
+        r#"{"name":"wros-help","from_version":null,"to_version":"1:2.0-1","action":"install"}"#,
+        r#"{"name":"xserver-common","from_version":"2:21.1.16-1.3+deb13u4","to_version":"2:21.1.16-1.3+deb13u3","action":"keep"}"#,
+    );
+    assert_ne!(kept, review_json());
+    let fakes = Fakes::new();
+    fakes.helper("wros-update", &echo(&kept));
+    let Reply::UpdateReview(review) = fakes.backend().request(review_request()).unwrap() else {
+        panic!("expected a review");
+    };
+    assert_eq!(review.packages[1].action, "keep");
+    // A kept package always names the installed version it keeps.
+    let unnamed = kept.replace(
+        r#""from_version":"2:21.1.16-1.3+deb13u4""#,
+        r#""from_version":null"#,
+    );
+    let fakes = Fakes::new();
+    fakes.helper("wros-update", &echo(&unnamed));
+    assert!(fakes.backend().request(review_request()).is_err());
+}
+
+#[test]
 fn stage_success_requires_the_reviewed_identity_to_be_echoed() {
     let fakes = Fakes::new();
     // $1 is the bundle directory and $2 the review identity the writer approved.

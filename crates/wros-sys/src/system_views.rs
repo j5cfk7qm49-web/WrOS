@@ -449,7 +449,8 @@ pub fn update_review(output: &str) -> Result<UpdateReview> {
         package_version(&p.to_version)?;
         match (p.action.as_str(), &p.from_version) {
             ("install", None) => {}
-            ("upgrade" | "reinstall", Some(from)) => package_version(from)?,
+            // "keep": a Debian dependency already installed at a newer version stays (#117).
+            ("upgrade" | "reinstall" | "keep", Some(from)) => package_version(from)?,
             _ => anyhow::bail!("update package action does not match its previous version"),
         }
         ensure!(
