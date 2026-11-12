@@ -25,7 +25,11 @@ fn launch(desk: &mut Desk, id: u8) {
     desk.app.overlay = Overlay::Deck(Page::Lesson { id });
     desk.draw();
     desk.key(KeyCode::Enter);
-    assert_eq!(desk.app.deck.progress.active, Some(id));
+    assert_eq!(
+        desk.app.deck.progress.active,
+        Some(id),
+        "lesson {id} did not start"
+    );
 }
 
 fn done(desk: &Desk, id: u8) -> bool {
@@ -318,4 +322,173 @@ fn start_screen_lesson_needs_a_saved_choice() {
     wait_system(&mut desk);
     assert_ne!(desk.app.deck.boot_status.as_ref().unwrap().enabled, before);
     assert!(done(&desk, 50));
+}
+
+/// #11: the lessons no feature test completed yet, each by doing what its instructions say.
+#[test]
+fn the_remaining_lessons_complete_by_doing_what_they_teach() {
+    // Lessons whose page opens the very thing they teach finish as they start.
+    let start = |desk: &mut Desk, id: u8| {
+        desk.app.overlay = Overlay::Deck(Page::Lesson { id });
+        desk.draw();
+        desk.key(KeyCode::Enter);
+    };
+    // Each lesson in its own safe demo book, as the tutorial's `d` makes it.
+    let fresh = |tag: &str| {
+        let root = std::env::temp_dir().join(format!(
+            "grimoire-ui-tutorial-complete-{tag}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        grimoire_core::tutorial::create_demo(&root).unwrap();
+        let mut desk = Desk::open(root, 100, 30);
+        desk.app.deck.simulate();
+        desk
+    };
+
+    // 1 · F12 opens the home screen.
+    let mut desk = fresh("dashboard");
+    start(&mut desk, 1);
+    assert!(done(&desk, 1), "lesson 1");
+    assert!(desk.shows("Resume writing"));
+
+    // 2 · preview a console layout, type in it, keep it.
+    let mut desk = fresh("keyboard");
+    start(&mut desk, 2);
+    assert!(!done(&desk, 2));
+    desk.key(KeyCode::Enter);
+    wait_system(&mut desk);
+    desk.typed("qwfp");
+    desk.key(KeyCode::Enter);
+    wait_system(&mut desk);
+    assert!(done(&desk, 2), "lesson 2: {}", desk.app.deck.note);
+
+    // 5 · the outline opens the other scene (the safe demo has two).
+    let mut desk = fresh("scene");
+    launch(&mut desk, 5);
+    assert_eq!(desk.app.overlay, Overlay::None, "the outline is in front");
+    let before = desk.app.open;
+    let rows = desk.app.visible.len();
+    for _ in 0..rows {
+        desk.key(KeyCode::Down);
+        let item = desk.app.visible[desk.app.sel];
+        let node = &desk.app.project.nodes[item];
+        if Some(item) != before
+            && node.kind == grimoire_core::project::Kind::Scene
+            && node.in_manuscript
+        {
+            desk.key(KeyCode::Enter);
+            break;
+        }
+    }
+    assert_ne!(
+        desk.app.open, before,
+        "overlay {:?} focus {:?} sel {:?} visible {:?}",
+        desk.app.overlay, desk.app.focus, desk.app.sel, desk.app.visible
+    );
+    assert!(done(&desk, 5), "lesson 5");
+
+    // 6 · the corkboard, then back without touching prose.
+    let mut desk = fresh("cork");
+    let text = desk.app.editor.text();
+    start(&mut desk, 6);
+    desk.key(KeyCode::Right);
+    desk.key(KeyCode::Esc);
+    assert!(done(&desk, 6), "lesson 6");
+    assert_eq!(desk.app.editor.text(), text);
+
+    // 7 · choose another saved workspace.
+    let mut desk = fresh("workspace");
+    start(&mut desk, 7);
+    desk.key(KeyCode::Down);
+    desk.key(KeyCode::Enter);
+    assert!(done(&desk, 7), "lesson 7");
+
+    // 8 · strict focus, and Ctrl-D back out.
+    let mut desk = fresh("focus");
+    start(&mut desk, 8);
+    assert!(desk.app.focus_mode);
+    desk.ctrl('d');
+    assert!(!desk.app.focus_mode);
+    assert!(done(&desk, 8), "lesson 8");
+
+    // 9 · F10 toggles the outline.
+    let mut desk = fresh("outline");
+    start(&mut desk, 9);
+    let shown = desk.app.deck.state.current().outline;
+    desk.key(KeyCode::F(10));
+    assert_ne!(desk.app.deck.state.current().outline, shown);
+    assert!(done(&desk, 9), "lesson 9");
+
+    // 10 · a Ctrl+Alt alias for a shortcut.
+    let mut desk = fresh("shortcut");
+    start(&mut desk, 10);
+    assert!(!done(&desk, 10));
+    desk.key(KeyCode::Enter);
+    desk.press(KeyEvent::new(
+        KeyCode::Char('j'),
+        KeyModifiers::CONTROL | KeyModifiers::ALT,
+    ));
+    assert!(done(&desk, 10), "lesson 10: {}", desk.app.deck.note);
+
+    // 17 · a saved goal change.
+    let mut desk = fresh("goals");
+    start(&mut desk, 17);
+    let goals = (
+        desk.app.project.meta.target_words,
+        desk.app.project.meta.daily_target,
+    );
+    desk.typed("1234");
+    desk.key(KeyCode::Enter);
+    assert_ne!(
+        (
+            desk.app.project.meta.target_words,
+            desk.app.project.meta.daily_target
+        ),
+        goals
+    );
+    assert!(done(&desk, 17), "lesson 17");
+
+    // 19 · a running sprint.
+    let mut desk = fresh("sprint");
+    start(&mut desk, 19);
+    desk.key(KeyCode::Enter);
+    assert!(desk.app.sprint.is_some());
+    assert!(done(&desk, 19), "lesson 19");
+
+    // 33 · write, then open the scene's history from the outline (H).
+    let mut desk = fresh("history");
+    launch(&mut desk, 33);
+    desk.typed("A changed opening line. ");
+    for _ in 0..4 {
+        if desk.app.focus == Focus::Tree {
+            break;
+        }
+        desk.key(KeyCode::Tab);
+    }
+    if let Some(at) = desk
+        .app
+        .visible
+        .iter()
+        .position(|&i| Some(i) == desk.app.open)
+    {
+        desk.app.sel = at;
+    }
+    desk.key(KeyCode::Char('H'));
+    assert!(
+        matches!(desk.app.overlay, Overlay::History { .. }),
+        "{}",
+        desk.app.msg
+    );
+    assert!(done(&desk, 33), "lesson 33");
+
+    // 38 · System settings, and 39 · the recovery manual, are what they open.
+    let mut desk = fresh("system");
+    start(&mut desk, 38);
+    wait_system(&mut desk);
+    assert!(done(&desk, 38), "lesson 38");
+    let mut desk = fresh("recovery-help");
+    start(&mut desk, 39);
+    assert!(done(&desk, 39), "lesson 39");
+    assert!(desk.shows("recovery") || desk.shows("Recovery"));
 }

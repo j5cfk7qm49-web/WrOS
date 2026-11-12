@@ -270,7 +270,7 @@
     "title": "Recovery and troubleshooting",
     "help_topic": "history",
     "event": "RecoveryHelpOpened",
-    "instructions": "Open the offline History and recovery manual. It explains autosave, recovery and backups, and Ctrl+Alt+F2 for a maintenance console. If WrOS ever fails to start, press Esc while it starts: the recovery menu can show what happened, go back a version, or continue to the normal login. Nothing in this lesson touches your manuscript."
+    "instructions": "Open the offline History and recovery manual. It explains autosave, recovery and backups, and Ctrl+Alt+F2 for a maintenance console. If WrOS ever fails to start, restart and tap Esc as the laptop's logo goes, then choose WrOS recovery: it can show what happened, go back a version, or continue to the normal login. Nothing in this lesson touches your manuscript."
   },
   {
     "id": 40,
