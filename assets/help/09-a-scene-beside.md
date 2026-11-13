@@ -3,7 +3,7 @@
 Keep another scene open next to the one you're writing — to check what someone said three chapters ago without losing your place.
 
 - `v` in the outline shows the selected scene beside, **read-only**.
-- Or *Open a scene beside…* in *Esc › Writing tools* (*Open a scene beside this one…* in `Ctrl-K`), which lets you pick a scene by name.
+- Or *Open a scene beside…* on the *View* menu (*Open a scene beside this one…* in `Ctrl-K`), which lets you pick a scene by name.
 
 The scene beside is for reading:
 
@@ -11,4 +11,4 @@ The scene beside is for reading:
 - `Enter` swaps: you start writing in that scene instead.
 - `Esc` (or `q` inside it) closes it.
 
-It shares its space with a note from the notebook, so opening one closes the other. On a narrow window there isn't room for both, and Grimoire says so.
+It shares its space with a note from the notebook, so opening one closes the other. On a narrow window there isn't room for both, and WrOS says so.

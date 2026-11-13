@@ -1,6 +1,6 @@
 # On disk
 
-A book is an ordinary folder you can open, copy and back up without Grimoire.
+A book is an ordinary folder you can open, copy and back up without WrOS.
 
 ## The folder
 
@@ -25,7 +25,7 @@ Folders are containers, at any depth, and `.md` files are scenes or notes. A lea
 
 Both are in `Ctrl-K`:
 
-- *Update project map* writes `project.md`: every part, chapter and scene, with word counts and a link to each file, in a marked block Grimoire rewrites each time. Anything you write above or below the block is left alone.
+- *Update project map* writes `project.md`: every part, chapter and scene, with word counts and a link to each file, in a marked block WrOS rewrites each time. Anything you write above or below the block is left alone.
 - *Compile manuscript (Markdown)* writes the whole book as one Markdown file, `title-manuscript.md` beside `novel.toml`, through the same compile as Export.
 
 ## A scene's frontmatter
@@ -37,11 +37,11 @@ The lines between `---` at the top of a scene:
 - `target` — the scene's word target.
 - `compile: false` — keep it in the outline but out of exports.
 
-A note can have `aliases` too. Grimoire only changes the one line it means to, so Obsidian and anything else can keep fields of their own there.
+A note can have `aliases` too. WrOS only changes the one line it means to, so Obsidian and anything else can keep fields of their own there.
 
 ## novel.toml
 
-`title`, `author`, `target_words`, `daily_target`, and `part_label` (what the book calls its parts: Part, Act, Book). Below them, tables Grimoire writes for you: `[contact]` (author details), `[manuscript]` (the manuscript's look), and optionally `[ebook]` and `[paperback]`.
+`title`, `author`, `target_words`, `daily_target`, and `part_label` (what the book calls its parts: Part, Act, Book). Below them, tables WrOS writes for you: `[contact]` (author details), `[manuscript]` (the manuscript's look), and optionally `[ebook]` and `[paperback]`.
 
 ## Your settings
 

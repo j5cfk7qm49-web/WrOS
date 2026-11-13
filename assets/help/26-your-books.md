@@ -4,7 +4,7 @@ Every book lives in a folder of its own, and you can have as many as you like. S
 
 ## Starting a new book
 
-*Esc › Start a new book…* (or type *new book* in `Ctrl-K`).
+*File › Start a new book…* (or type *new book* in `Ctrl-K`).
 
 Type a name and press `Enter`. That's all. `Tab` first picks what it starts as:
 
@@ -24,9 +24,9 @@ Got a draft already? See *Bringing in a draft*, just below.
 
 ## Bringing in a draft
 
-Already have a draft somewhere else? Bring it in and it becomes a Grimoire book, split up and ready to work on. Grimoire reads a **Word file** (`.docx`), **Markdown** (`.md`) or **plain text** (`.txt`). From Google Docs, *File › Download › Microsoft Word* first.
+Already have a draft somewhere else? Bring it in and it becomes a WrOS book, split up and ready to work on. WrOS reads a **Word file** (`.docx`), **Markdown** (`.md`) or **plain text** (`.txt`). From Google Docs, *File › Download › Microsoft Word* first.
 
-*Esc › Open another book… › Bring in a draft…*, or type a draft's path into *Start a new book…*. You can type the path, or drag the file into the terminal window. `Ctrl-K` › *Bring in a draft* works too, and from a terminal it's `grimoire import <file>`.
+*File › Open another book… › Bring in a draft…*, or type a draft's path into *Start a new book…*. You can type the path, or drag the file into the terminal window. `Ctrl-K` › *Bring in a draft* works too, and from a terminal it's `grimoire import <file>`.
 
 Here's how it's split up:
 
@@ -35,13 +35,13 @@ Here's how it's split up:
 - **Scenes** start at a scene break: `***`, `* * *`, `#` or `~` on a line of its own. A heading one level below the chapters starts a titled scene.
 - *Italics* and **bold** come across.
 - Anything before the first chapter, like a title page, is kept in **Notes**, so it doesn't turn into a chapter.
-- An *END* on its own at the very end is left off, since Grimoire's export adds its own.
+- An *END* on its own at the very end is left off, since WrOS's export adds its own.
 
 The draft itself is never changed. The new book goes beside the one you had open, named after the draft, and opens straight away. It tells you how many chapters, scenes and words came across, and every word lands somewhere.
 
 ## Switching books
 
-*Esc › Open another book…* lists the books you've had open on this computer, newest first. Pick one and press `Enter`: the book you're in is saved and closed, and the other opens right where you left off.
+*File › Open another book…* lists the books you've had open on this computer, newest first. Pick one and press `Enter`: the book you're in is saved and closed, and the other opens right where you left off.
 
 - *A book in another folder…* opens one that isn't on the list yet. Type its folder.
 - In `Ctrl-K`, type part of a book's name. Every book on the list is there as *Open the book …*.
@@ -54,6 +54,6 @@ In *Open another book…*, move to a book and press `x`. A box names the book an
 
 Deleting removes the book's folder and everything in it from this laptop, and it can't be undone here. Backups of it, and any copy on Google Drive, are kept. The book you have open can't be deleted: open another one first.
 
-## Which book opens when Grimoire starts
+## Which book opens when WrOS starts
 
 `grimoire` on its own opens the book in the folder you're in, if you're in one. Otherwise it opens the last book you had open, so after a switch that's the one you switched to.

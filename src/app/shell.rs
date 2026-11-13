@@ -21,7 +21,7 @@ pub enum Category {
     Updates,
 }
 impl Category {
-    fn label(self) -> &'static str {
+    pub(crate) fn label(self) -> &'static str {
         match self {
             Self::Writing => "Writing",
             Self::Interface => "Look and keyboard",
@@ -827,6 +827,15 @@ fn setting_rows(app: &App, actions: &[Action]) -> Vec<Entry> {
                 .find(|(_, action)| action == wanted)
                 .map(|(label, action)| Entry::new(label.clone(), Choice::Action(action.clone())))
         })
+        .collect()
+}
+
+/// The rows a Settings page shows, by label.
+#[cfg(test)]
+pub(crate) fn page_labels(app: &App, route: Route) -> Vec<String> {
+    page_entries(app, route)
+        .into_iter()
+        .map(|e| e.label)
         .collect()
 }
 

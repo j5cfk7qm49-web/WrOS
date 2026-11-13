@@ -1,8 +1,8 @@
 # The corkboard
 
-A corkboard is how a lot of writers plan: every scene on an index card, pinned up in order, so the whole story is in front of you at once. You can see where it sags, move a card to try a scene somewhere else, and jot what each scene is for. Grimoire's corkboard is the book's own scenes, so anything you change here changes the book.
+A corkboard is how a lot of writers plan: every scene on an index card, pinned up in order, so the whole story is in front of you at once. You can see where it sags, move a card to try a scene somewhere else, and jot what each scene is for. WrOS's corkboard is the book's own scenes, so anything you change here changes the book.
 
-`b` in the outline (or *Esc › This book › Corkboard…*, or *Corkboard* in `Ctrl-K`) lays a part out as index cards, chapter by chapter. Each card shows the scene's POV, status, synopsis, and its words against its target. A card with no synopsis shows the scene's first line.
+`b` in the outline (or *View › Corkboard…*, or *Corkboard* in `Ctrl-K`) lays a part out as index cards, chapter by chapter. Each card shows the scene's POV, status, synopsis, and its words against its target. A card with no synopsis shows the scene's first line.
 
 ## Moving around
 

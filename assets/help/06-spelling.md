@@ -15,14 +15,14 @@ A fix is a single step to undo with `Ctrl-Z`.
 
 Under the suggestions are three ways to stop a word being called a mistake:
 
-- **Ignore for now**: until you close Grimoire.
+- **Ignore for now**: until you close WrOS.
 - **Always ignore — this book**: added to `dictionary.txt` in the book's folder, so it travels with the book.
 - **Always ignore — every book**: added to your own list in `~/.config/grimoire/dictionary.txt`.
 
 The underline disappears everywhere the word appears, straight away.
 
-Spellcheck can be turned off and on in *Esc › Settings*.
+Spellcheck can be turned off and on in *Settings › Writing › Editor*.
 
 ## Which English
 
-Grimoire knows **American, British, Canadian and Australian English**. *Esc › Settings › Spelling* steps through them (or `Ctrl-K` › *Spelling*), and it's remembered. British spelling uses *-ise* (*realise*, *colour*); all four accept *grey* and the other words novelists reach for.
+WrOS knows **American, British, Canadian and Australian English**. *Settings › Writing › Editor › Spelling* steps through them (or `Ctrl-K` › *Spelling*), and it's remembered. British spelling uses *-ise* (*realise*, *colour*); all four accept *grey* and the other words novelists reach for.

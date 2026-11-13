@@ -909,3 +909,165 @@ fn about_credits_grimoiretui_and_names_mit_and_the_outline_has_no_book_art() {
     assert!(d.shows("MIT License"));
     assert!(d.shows("###"), "the WrOS logo heads it");
 }
+
+/// Does the path `segments` (after its menu title) lead somewhere real?
+fn resolves(app: &App, title: Title, segments: &[&str]) -> Result<(), String> {
+    use crate::app::shell::{Category, Route, menu, page_label, page_labels};
+    // "Turn typewriter scrolling off" names a row whose end says its state.
+    let like = |label: &str, said: &str| {
+        let words = |s: &str| -> Vec<String> {
+            s.trim_end_matches(['…', '›', ' '])
+                .split_whitespace()
+                .map(|w| w.trim_matches([':', '…']).to_lowercase())
+                // A row that shows or hides names the state it would change to.
+                .map(|w| if w == "hide" { "show".to_string() } else { w })
+                .collect()
+        };
+        let (label, mut said) = (words(label), words(said));
+        // A switch's row says its other state ("Turn music off" for "on").
+        if said.len() > 1 && matches!(said.last().map(String::as_str), Some("on" | "off")) {
+            said.pop();
+        }
+        let n = said.len().min(3);
+        n > 0 && label.len() >= n && label[..n] == said[..n]
+    };
+    let Some((first, rest)) = segments.split_first() else {
+        return Ok(());
+    };
+    if title == Title::Settings {
+        let group = [
+            Category::Writing,
+            Category::Interface,
+            Category::System,
+            Category::Accounts,
+            Category::Updates,
+        ]
+        .into_iter()
+        .find(|c| like(c.label(), first))
+        .ok_or_else(|| format!("no Settings group {first}"))?;
+        let mut route = Route::Category(group);
+        for seg in rest {
+            let pages: Vec<Route> = menu()
+                .iter()
+                .find(|(g, _)| *g == route)
+                .map(|(_, pages)| pages.to_vec())
+                .unwrap_or_default();
+            if let Some(page) = pages.iter().find(|r| like(page_label(**r), seg)) {
+                route = *page;
+                continue;
+            }
+            if page_labels(app, route).iter().any(|l| like(l, seg)) {
+                return Ok(()); // a row on the page; what it opens is its own
+            }
+            return Err(format!("{seg} is not on {:?}", route));
+        }
+        return Ok(());
+    }
+    let row = app
+        .bar_rows(title)
+        .into_iter()
+        .find(|r| like(&r.label, first))
+        .ok_or_else(|| format!("no {first} in {}", title.label()))?;
+    if let (A::Side(side), Some(next)) = (&row.action, rest.first()) {
+        app.side_rows(*side)
+            .iter()
+            .find(|r| like(&r.label, next))
+            .ok_or_else(|| format!("no {next} in {}", side.label()))?;
+    }
+    Ok(())
+}
+
+#[test]
+fn every_path_in_help_and_the_tutorial_is_a_real_menu_path() {
+    let d = everything_offered("bar-help-paths");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut texts: Vec<(String, String)> = std::fs::read_dir(root.join("assets/help"))
+        .unwrap()
+        .flatten()
+        .map(|e| {
+            (
+                e.file_name().to_string_lossy().into_owned(),
+                std::fs::read_to_string(e.path()).unwrap(),
+            )
+        })
+        .collect();
+    texts.push((
+        "tutorial.json".into(),
+        std::fs::read_to_string(root.join("crates/grimoire-core/assets/wros/tutorial.json"))
+            .unwrap(),
+    ));
+    let titles = Title::ALL.map(|t| t.label());
+    let mut wrong = vec![];
+    let mut seen = 0;
+    for (name, text) in &texts {
+        assert!(
+            !text.contains("Esc ›"),
+            "{name} still names the old Esc menu"
+        );
+        // Paths read "Title › Row › …": cut each at the first character that
+        // can't be part of a name.
+        for (at, _) in text.match_indices(" › ") {
+            let start = text[..at]
+                .rfind(|c: char| !(c.is_alphanumeric() || c == ' ' || c == '-'))
+                .map_or(0, |i| i + text[i..].chars().next().unwrap().len_utf8());
+            let head = text[start..at].trim();
+            let Some(title) = titles.iter().position(|t| head.ends_with(t)) else {
+                continue;
+            };
+            // Only paths that begin at a title, not the middle of one.
+            if !head.ends_with(&format!(" {}", titles[title])) && head != titles[title] {
+                continue;
+            }
+            if text[..start].ends_with(" › ") {
+                continue;
+            }
+            let tail = &text[at + " › ".len()..];
+            let end = tail
+                .find(['*', '.', ',', '(', ')', '"', ';', ':', '\n', '`'])
+                .unwrap_or(tail.len());
+            let path: Vec<&str> = tail[..end]
+                .split(" › ")
+                .map(|s| {
+                    // "Keyboard, then …" or "Updates and choose …" end a path.
+                    let s = s.split(" or ").next().unwrap();
+                    let s = s.split(" in the ").next().unwrap();
+                    let s = s.split(" and choose").next().unwrap();
+                    let s = s.split(" and turn").next().unwrap();
+                    let s = s
+                        .split(" and ")
+                        .next()
+                        .filter(|_| {
+                            !s.starts_with("Look and")
+                                && !s.starts_with("Backups and")
+                                && !s.starts_with("Updates and")
+                                && !s.starts_with("Calendar and")
+                                && !s.starts_with("Dictionary and")
+                                && !s.starts_with("Prose and")
+                                && !s.starts_with("Notes and")
+                                && !s.starts_with("Battery and")
+                                && !s.starts_with("Date and")
+                                && !s.starts_with("Sound and")
+                                && !s.starts_with("Wi-Fi and")
+                        })
+                        .unwrap_or(s);
+                    s.trim()
+                })
+                .collect();
+            // Other programs' own menus, described as steps in them.
+            let elsewhere = ["Download", "Privacy & Security"];
+            if path.first().is_some_and(|p| elsewhere.contains(p)) {
+                continue;
+            }
+            seen += 1;
+            if let Err(e) = resolves(&d.app, Title::ALL[title], &path) {
+                wrong.push(format!(
+                    "{name}: {} › {}: {e}",
+                    titles[title],
+                    path.join(" › ")
+                ));
+            }
+        }
+    }
+    assert!(seen > 20, "found {seen} paths");
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}

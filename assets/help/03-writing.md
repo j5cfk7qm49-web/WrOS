@@ -18,7 +18,7 @@ Open a scene from the outline and press `Tab` (or click the page) to write in it
 
 - `Ctrl-I` puts **italics** on the selected words, or on the word the cursor is in. `Ctrl-I` again takes them off.
 - `Ctrl-B` does the same with **bold**.
-- Both are in *Esc › Writing tools* too, and in `Ctrl-K` (*Italic*, *Bold*). Some terminals send `Ctrl-I` as `Tab`; the menu always works.
+- Both are on the *Edit* menu too, and in `Ctrl-K` (*Italic*, *Bold*). Some terminals send `Ctrl-I` as `Tab`; the menu always works.
 
 In the file, italics are `*stars*` and bold is `**double stars**`, the way Markdown writes them, and every export turns them into real italics and bold.
 - Typing over a selection replaces it. `Backspace` or `Delete` removes it.
@@ -30,7 +30,7 @@ In the file, italics are `*stars*` and bold is `**double stars**`, the way Markd
 
 ## Saving
 
-A scene is saved two seconds after you stop typing. The status bar shows `○ saving` while a change waits and a brief `✓ saved` once it's written. If a save ever fails, the words go to recovery and Grimoire keeps trying.
+A scene is saved two seconds after you stop typing. The status bar shows `○ saving` while a change waits and a brief `✓ saved` once it's written. If a save ever fails, the words go to recovery and WrOS keeps trying.
 
 ## Useful while writing
 

@@ -1,15 +1,15 @@
 # Music
 
-Music is **off until you turn it on**: *Esc › Settings › Turn music on*. Then *Music source…* (also in Settings) chooses where it comes from.
+Music is **off until you turn it on**: *Settings › Look and keyboard › Music › Turn music on*. Then *Music source…* (also in Settings) chooses where it comes from.
 
 | Source | How it works |
 |---|---|
 | YouTube Music | drives the th-ch desktop app through its API Server. Set up with `grimoire music-setup youtube-music` |
 | Spotify | drives the Spotify desktop app, on macOS and Linux. Nothing to set up |
-| Jellyfin | Grimoire plays your own music from your server. Set up with `grimoire music-setup jellyfin` |
+| Jellyfin | WrOS plays your own music from your server. Set up with `grimoire music-setup jellyfin` |
 | Plex | the same, from Plex. Set up with `grimoire music-setup plex` |
 
-Grimoire never pulls audio out of YouTube Music or Spotify — it presses the buttons of the app you already pay for.
+WrOS never pulls audio out of YouTube Music or Spotify — it presses the buttons of the app you already pay for.
 
 ## From anywhere
 

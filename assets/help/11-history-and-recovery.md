@@ -1,6 +1,6 @@
 # History & recovery
 
-Grimoire never lets go of your words. There are several nets under them.
+WrOS never lets go of your words. There are several nets under them.
 
 ## Autosave
 
@@ -18,7 +18,7 @@ The copies live in `.grimoire/history/`, as plain Markdown.
 
 ## Recovery
 
-If a save fails (a full disk, a file another program has locked) or Grimoire stops unexpectedly, the words go to `.grimoire/recovery/`. Next time the book opens, Grimoire offers them back:
+If a save fails (a full disk, a file another program has locked) or WrOS stops unexpectedly, the words go to `.grimoire/recovery/`. Next time the book opens, WrOS offers them back:
 
 - **Restore them**: the saved versions go into each scene's history first.
 - **Keep the saved versions**: the recovered words go to the Trash, not away.
@@ -28,4 +28,4 @@ Choose with `↑` `↓` and press `Enter`; no other key decides, so a stray keys
 
 ## The Trash
 
-Deleting moves things to the **Trash** section at the bottom of the outline, and `Ctrl-Z` brings them back to where they were. Only deleting something that is already in the Trash removes it for good, and Grimoire asks first.
+Deleting moves things to the **Trash** section at the bottom of the outline, and `Ctrl-Z` brings them back to where they were. Only deleting something that is already in the Trash removes it for good, and WrOS asks first.

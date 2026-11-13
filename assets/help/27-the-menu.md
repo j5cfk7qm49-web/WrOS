@@ -1,72 +1,75 @@
-# The menu, row by row
+# The menu bar, menu by menu
 
-`Esc` opens the menu from anywhere. The first screen is short on purpose: a row with a › opens a small group of its own, and `←` or `Esc` comes back out.
+The menus run along the top of the screen: **WrOS, File, Edit, View, Book, Tools, Settings, Help**. `Esc` lights the bar on the menu you used last; `←` `→` move along it, and `↓` or `Enter` opens the lit one. A menu's underlined letter opens it straight away, so *Esc, then B* opens Book. In the graphical session `Alt` and the letter does the same, and `F10` opens the bar too. A tap of the `Super` key opens **Find anything** just under the bar; `←` or `→` from there goes into the menus.
 
-Whichever row is highlighted says what it does, just under the list. `?` opens the help on it.
+Inside a menu, `↑` `↓` (or `j` `k`) move, a letter jumps to the next row starting with it, and `Enter` runs the row. Rows with a › open beside it. The highlighted row says what it does on the status line at the bottom, and `?` opens the help on it. A row that can't run right now is dim and says why. `Esc` closes the menu.
 
-## The first screen
+The mouse works everywhere on the bar: click a menu to open it, move across the titles to switch, click a row to run it, use the wheel to move through a menu, and click anywhere else to close it.
 
-- **Find anything…** (`Ctrl-K`): type a few letters to jump to any scene or note, or to run anything Grimoire can do.
+## WrOS
+
+- **Overview** (`F12`): your book at a glance. See *WrOS*.
+- **About WrOS**: what it's built on and who made it, and the license.
+- **Install WrOS to disk…**: only on a live USB stick.
+- **Lock**, **Sleep**, **Restart…** and **Shut down…**: as in Settings › System › Battery and power, and they ask first in the same way.
+- **Quit** (`Ctrl-Q`): where WrOS offers it; everything is saved first.
+
+## File
+
 - **Settle conflicts…**: only there when a sync service has left two copies of a scene that disagree. See *Sync & conflicts*.
-- **This book ›**: making, renaming and deleting.
-- **Writing tools ›**: help while you're in the middle of a scene.
-- **Export…**: the book as a Word file, a PDF, an EPUB or a paperback. See *Compile*.
 - **Start a new book…** and **Open another book…**: see *Your books*. *Open another book…* is also where *Bring in a draft…* lives, for a draft from Word, Markdown or a text file.
-- **Settings ›**: how Grimoire looks and sounds.
-- **Help & about ›**: this help, the version, the license, and Donate.
-- **Quit Grimoire** (`Ctrl-Q`): everything is saved first.
-
-## This book
-
-- **Corkboard…** (`b` in the outline): every scene as an index card, to see the whole book at a glance. See *The corkboard*.
-- **New scene…** (`n`): at the end of the chapter you're in. You name it first.
-- **New chapter…** (`c`): at the end of the part you're in, already named for you.
-- **New part…** (`p`): at the end of the manuscript. If your book calls its parts acts, this row says so.
-- **New folder…** (`N`): beside the one selected, for anything that isn't a chapter.
-- **Rename…** (`r`): the file is renamed to match.
-- **Delete…** (`d`): moves it to the Trash at the bottom of the outline, and asks first.
-- **Move up** (`K`) and **Move down** (`J`): the scene or folder you're on, one place. You can also drag rows with the mouse.
-- **Scene history…** (`H`): every saved version of the scene, to compare or bring back. See *History & recovery*.
-- **Search the whole book…** (`/`): a word or phrase in every scene and note, with replace. See *Find & replace*.
-- **Goals…**: how many words the book is aiming for, and each day. Presets include a month of drafting (50,000 words).
-- **Writing sessions…**: your sittings, like a diary, each one to look back at. See *Writing sessions*.
+- **Export…**: the book as a Word file, a PDF, an EPUB or a paperback. See *Compile*.
+- **Compile to Markdown** and **Update the project map**: see *On disk*.
+- **Back up now**: the open book, to the places Settings › Backups and accounts names.
+- **Writing sessions…** and **Save this session now**: your sittings, like a diary. See *Writing sessions*.
 - **Move writing history out…**: only for an older book in a synced folder. See *Writing sessions*.
 
-## Writing tools
+## Edit
 
-Some of these want a scene open, so they show up once you're in one.
-
-- **Scene details…** (`i` in the outline): status, POV, synopsis, word target, and whether it goes in exports. See *The outline*.
+- **Undo** (`Ctrl-Z`), **Redo** (`Ctrl-Y`), **Cut** (`Ctrl-X`), **Copy** (`Ctrl-C`), **Paste** (`Ctrl-V`) and **Select all** (`Ctrl-A`): in the page you're writing.
+- **Find and replace…** (`Ctrl-F`): in this scene; press it again for the whole book.
+- **Search the whole book…** (`/`): a word or phrase in every scene and note, with replace. See *Find & replace*.
 - **Italic** (`Ctrl-I`) and **Bold** (`Ctrl-B`): on the selection or the word at the cursor, and off again.
-- **Focus mode** (`Ctrl-D`): everything but the page goes away, so it's just you and the words. `Ctrl-D` again brings it all back.
-- **Find & replace…** (`Ctrl-F`): in this scene; press it again for the whole book.
-- **Open a scene beside…** (`v`): another scene next to this one, to read from while you write.
-- **Notes & TKs…** (`Ctrl-T`): every note and TK in the book, in one list. TK is the editor's mark for "to come": something to fill in later.
-- **Next scene still in draft**: opens the next scene that isn't marked revised or done. Handy for a revision pass.
-- **Turn echo words on**: lights up a word you've used again within about forty words of the last time, like "the lamp… the lamp". Little words like *the* and *and*, and your characters' names, are left out. It's easy to miss while you write and easy to fix once you can see it. The same row turns it off.
-- **Check names…**: finds names spelled two ways, like Oren and Orin. See *The notebook & names*.
-- **Start a sprint…**: a word goal and a number of minutes, and the status bar keeps count. See *Sprints & targets*.
-- **Progress…**: your words each week, your pace lately, and roughly when you'll reach your goal. No streaks, ever.
-- **Read aloud**: reads the scene out loud from where you are, highlighting each sentence. `Space` pauses, `←` `→` skip, `Esc` stops. See *Revision*.
+- **Insert footnote here**.
+
+## View
+
+- **Focus mode** (`Ctrl-D`): everything but the page goes away. `Ctrl-D` again brings it all back.
+- **Show the outline** / **Hide the outline**: the outline column, without entering focus mode. It has no key of its own unless you give it one in Settings › Look and keyboard › Keyboard.
+- **Show the pins sidebar** / **Hide the pins sidebar**. See *Pins*.
+- **Open a scene beside…** (`v`) and **Look up the name here** (`Ctrl-O`).
+- **Show the second pane** (`F11`) and **Choose second document…**: a second document you can edit beside the first.
+- **Corkboard…** (`b` in the outline): every scene as an index card. See *The corkboard*.
+- **Themes…** (`F9`) and **Workspaces…**.
+
+## Book
+
+- **New scene…** (`n`), **New chapter…** (`c`), **New part…** (`p`) and **New folder…** (`N`). If your book calls its parts acts, the row says so.
+- **Rename…** (`r`) and **Delete…** (`d`): the file is renamed to match; deleting moves it to the Trash and asks first.
+- **Restore from the Trash** (`u`): with something in the Trash selected.
+- **Move up** (`K`) and **Move down** (`J`): you can also drag rows with the mouse.
+- **Scene details…**: status, POV, synopsis, word target, and whether it goes in exports. See *The outline*.
+- **Scene history…** (`H`): every saved version of the scene. See *History & recovery*.
+- **Goals…**: how many words the book is aiming for, and each day.
+
+## Tools
+
+- **Start a sprint…** / **Stop the sprint**: see *Sprints & targets*.
+- **Start the timer** (`F2`) and **Reset the timer** (`F3`): the Pomodoro.
+- **Read aloud**, **Read chapter aloud** and **Read manuscript aloud**. See *Revision*.
 - **Music player…** (`F7`): while music is on.
+- **Dictionary and thesaurus…** and **Writing checks…**.
+- **Revision ›**: Notes and TKs (`Ctrl-T`), the next TK or note, the next scene still in draft, echo words, Check names, the footnote navigator, the continuity tracker, draft milestones, revision notes and the prose and revision dashboard.
+- **Notes ›**: the Pinboard, Pin this document, the writing journal, the scratchpad and the session handoff.
+- **Practice ›**: Story Spark, daily challenges, Progress, the recorded edit ledger, advanced goals, the calendar and rest days, advanced sprints and the milestone collection.
 
 ## Settings
 
-- **Themes…** (`F9`): your colours. Each one shows as you move through the list, and `Esc` puts the old one back.
-- **Music source…** and **Turn music on**: music stays off until you want it. See *Music*.
-- **Turn spellcheck off / on**: the underline under words that might be misspelt.
-- **Spelling**: which English it knows: American, British, Canadian or Australian.
-- **Turn tree icons on / off**: a little symbol beside each row of the outline.
-- **Line width**: how long a line of prose can run. Each press tries the next: 60, 72, 80 or 100 columns, or the whole pane.
-- **Turn typewriter scrolling off / on**: in focus mode, the line you're writing stays near the middle of the screen.
-- **Reading voice…**: who reads aloud. A natural Piper voice if you have one, or your computer's own. See *Revision*.
-- **Manuscript look…** and **Author details…**: how the exported manuscript looks, and the name and contact details on its title page.
+**Writing**, **Look and keyboard**, **System**, **Backups and accounts** and **Updates and recovery**: each opens Settings on that group, in a box over the page. See *Settings*.
 
-Switches stay on screen after you press them, so you can see the change.
-
-## Help & about
+## Help
 
 - **Help…** (`?`, or `F1` from anywhere): this.
-- **About Grimoire…**: which version you're running, and who made it: Catfinity Studios, makers of Catfinity.
+- **Interactive tutorial…**: lessons you do, not read.
 - **License…**: free to use, even for work you sell. Credit is all it asks.
-- **Donate…**: Grimoire is free, and a tip on Ko-fi is always appreciated, never required.
+- **Donate…**: GrimoireTUI, which WrOS is built on, is free, and a tip on Ko-fi is always appreciated, never required.

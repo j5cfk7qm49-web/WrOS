@@ -50,7 +50,7 @@ Lesson 32 in the safe demo verifies a real changed-anchor save.
 Each annotated document receives a durable number in the project sidecar.
 Its relative path is a locator, never a project-tree index or scene title.
 Adding unrelated scenes and moving the entire project do not change this ID.
-Grimoire's own rename, reorder, trash and restore operations retain that ID.
+WrOS's own rename, reorder, trash and restore operations retain that ID.
 Before moving source files, a guarded intent marks affected identities as
 unavailable; successful completion updates all locators together. An interrupted
 or failed move needs explicit reconnection and cannot silently reuse an old path.

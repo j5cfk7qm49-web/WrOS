@@ -4,7 +4,7 @@
 
 ## Two kinds of material, not two text writers
 
-Open **Writing journal** in Ctrl-K or Writing tools, use its home widget, or press dashboard `j`. Left/Right select the previous/next local date; `t` returns to today. Tab switches between read-only recorded facts and a cached reflection preview. Up/Down/PgUp/PgDn/Home/End scroll only this reader. Escape leaves it.
+Open **Writing journal** from Tools › Notes or Ctrl-K, or use its Overview widget. Left/Right select the previous/next local date; `t` returns to today. Tab switches between read-only recorded facts and a cached reflection preview. Up/Down/PgUp/PgDn/Home/End scroll only this reader. Escape leaves it.
 
 **Facts** are schema-v1 JSON observations, logically append-only through the core API. There is no UI for manually changing a fact or replacing it with an invented achievement. An atomic guarded transaction rewrites the daily JSON representation, but never edits/removes an existing fact. This is not OS-enforced append-only storage, attestation or a file lock.
 

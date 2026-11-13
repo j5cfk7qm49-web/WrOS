@@ -33,7 +33,7 @@ When the book is ready to send, *Export…* in the menu (*Export for readers* in
 
 ## Look…
 
-The manuscript's format, also in *Esc › Settings › Manuscript look…*: **Modern** (Times) or **Classic** (Courier, underlined italics, straight quotes), US Letter or A4, double or 1.5 spacing, the chapter heading style (Chapter One, CHAPTER ONE, Chapter 1, 1, or the chapter's title), first paragraphs indented or flush, END / THE END / nothing, how a spaced hyphen is set, and the header keyword. `↑` `↓` choose, `←` `→` change, `Esc` saves.
+The manuscript's format, also in *Settings › Writing › Manuscript › Manuscript look…*: **Modern** (Times) or **Classic** (Courier, underlined italics, straight quotes), US Letter or A4, double or 1.5 spacing, the chapter heading style (Chapter One, CHAPTER ONE, Chapter 1, 1, or the chapter's title), first paragraphs indented or flush, END / THE END / nothing, how a spaced hyphen is set, and the header keyword. `↑` `↓` choose, `←` `→` change, `Esc` saves.
 
 ## Author details…
 

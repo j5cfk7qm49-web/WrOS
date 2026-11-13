@@ -7,7 +7,7 @@ filter on supported displays. Start at 2200 K for very warm light, or choose
 restores unconfirmed changes if WrOS exits. Off restores the original color
 curves. Unsupported drivers report unavailable and leave the screen unchanged.
 
-*Esc › Settings* opens a menu of its own. Switches stay open to show their new state; `←` or `Esc` goes back to the main menu. Each row says what it does while it's highlighted.
+The *Settings* menu opens Settings on one of its five groups, in a box over the page: Writing, Look and keyboard, System, Backups and accounts, and Updates and recovery. `Esc` steps back a page, and closes it from the first. Switches stay on screen to show their new state, and each row says what it does while it's highlighted. The mouse works here too: click a row, or click outside the box to close it. These rows from older versions now live in Settings' pages:
 
 - **Themes…**: the nineteen themes and your own (see *Themes*). Also `F9`.
 - **Music source…**: YouTube Music, Spotify, Jellyfin or Plex.

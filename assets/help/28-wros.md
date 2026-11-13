@@ -1,16 +1,16 @@
 # WrOS (Writer's OS)
 
-WrOS (formerly codenamed WritingDeck OS) is an offline-first Debian writing appliance built around Grimoire. It is an independent project, not endorsed by NaNoWriMo. This is a development foundation, not a complete production OS.
+WrOS (formerly codenamed WritingDeck OS) is an offline-first Debian writing appliance built around WrOS. It is an independent project, not endorsed by NaNoWriMo. This is a development foundation, not a complete production OS.
 
 ## Overview
 
-Press `F12`, or choose WrOS › Overview. Esc returns to the manuscript. Daily and novel goals, weekly progress, sprints, recent scenes and available system status use real Grimoire data. Local saving and local history are not off-device backup.
+Press `F12`, or choose WrOS › Overview. Esc returns to the manuscript. Daily and novel goals, weekly progress, sprints, recent scenes and available system status use real WrOS data. Local saving and local history are not off-device backup.
 
 Arrow keys select a row. Enter opens it. On a widget, `h` hides it and `J` or `K` moves it. Configure widgets restores hidden widgets. All choices are saved outside manuscript text.
 
 ## Toggle outline
 
-View › Outline shows or hides the left outline column without entering focus mode; it has no key of its own unless you give it one in Keyboard shortcuts. `F10` opens the menu bar. `Ctrl-D` is strict focus: reference panes, outline, scenery and music controls disappear. Their documents stay open and return afterward. Tab never focuses a hidden pane.
+*View › Show the outline* (or *Hide the outline*) shows or hides the left outline column without entering focus mode; it has no key of its own unless you give it one in Keyboard shortcuts. `F10` opens the menu bar. `Ctrl-D` is strict focus: reference panes, outline, scenery and music controls disappear. Their documents stay open and return afterward. Tab never focuses a hidden pane.
 
 ## Workspaces
 
@@ -69,12 +69,12 @@ Storage → Mounted filesystems shows local mount paths and capacity. Updates �
 Preview cached package plan runs a read-only APT simulation, including proposed
 removals. It uses the existing package cache; it does not establish repository
 freshness, download or install updates, or qualify recovery. Nothing is scheduled
-at restart by this preview. The screens use the same Grimoire navigation and keep
+at restart by this preview. The screens use the same WrOS navigation and keep
 the current writing buffers, caret, selection and undo in place.
 
 Keyboard layout selects QWERTY, Colemak or Colemak-DH ANSI/ISO on appliance tty1. A root-owned helper previews for 15 seconds with an independent systemd rollback timer. Type in the preview field; Enter keeps it, Escape reverts. The test field never changes a manuscript. Desktop and SSH sessions must use their own OS layout configuration.
 
-Keyboard shortcuts adds aliases to actions using Ctrl+Alt letters or F10-F12. Established Grimoire bindings are protected. Shortcuts use logical letters: Colemak text is not remapped again. Plain letters always remain prose.
+Keyboard shortcuts adds aliases to actions using Ctrl+Alt letters or F10-F12. Established WrOS bindings are protected. Shortcuts use logical letters: Colemak text is not remapped again. Plain letters always remain prose.
 
 Low-power mode reduces redraws and disables the visualizer; requesting an OS power profile can fail independently. Start-at-dashboard is optional; disable it to restore the selected workspace directly.
 

@@ -4,7 +4,7 @@
 
 ## Multiple original scratch notes
 
-Open **Scratchpad** through Ctrl-K, Writing tools, its home widget or dashboard `s`. Each explicit new note is an ordinary UTF-8 original at `notes/scratchpad/000001.md` (monotonic project-local ID). Nothing is created merely by drawing the widget or opening the reader.
+Open **Scratchpad** through Tools › Notes, Ctrl-K or its Overview widget. Each explicit new note is an ordinary UTF-8 original at `notes/scratchpad/000001.md` (monotonic project-local ID). Nothing is created merely by drawing the widget or opening the reader.
 
 | Key | Explicit action |
 |---|---|
@@ -42,7 +42,7 @@ Markdown content and unrelated YAML are retained using the existing frontmatter 
 
 ## Original next-session intention
 
-Open **Session handoff** through Ctrl-K, Writing tools, its widget or dashboard `o`. Enter requests the ordinary original `notes/handoff.md` in Secondary; `e` requests Primary. A missing original is created empty only by this explicit editing request. Write your own next action there; no intention, advice, retrospective or measured session duration is generated.
+Open **Session handoff** through Tools › Notes, Ctrl-K or its widget. Enter requests the ordinary original `notes/handoff.md` in Secondary; `e` requests Primary. A missing original is created empty only by this explicit editing request. Write your own next action there; no intention, advice, retrospective or measured session duration is generated.
 
 In the reader, `s` saves through the ordinary Project/editor path and arms next open only when nonempty saved prose is known. `o` explicitly toggles startup display (arming requires that saved intention). `g` returns to the optional captured manuscript position; source availability/ownership and coordinate clamping are checked rather than guessing a different document. PgUp/PgDn/Home/End scroll this cached preview, `r` reloads, Esc leaves it.
 

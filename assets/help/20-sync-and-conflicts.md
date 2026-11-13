@@ -29,13 +29,13 @@ to copy it to this laptop and open it: the copy goes beside the book you have
 open, and opens once the check passes. You write on that copy; the book on
 Drive stays as it was.
 
-A book is a folder, so any sync service carries it: Dropbox, Google Drive, pCloud, Box, OneDrive, iCloud Drive. Grimoire makes sure none of them can cost you words.
+A book is a folder, so any sync service carries it: Dropbox, Google Drive, pCloud, Box, OneDrive, iCloud Drive. WrOS makes sure none of them can cost you words.
 
 ## Two devices change one scene
 
-**Nothing is ever written over.** Before every save Grimoire checks the file on disk. If it changed somewhere else, the other version stays the scene, and your words from here are kept beside it as a *parked copy*.
+**Nothing is ever written over.** Before every save WrOS checks the file on disk. If it changed somewhere else, the other version stays the scene, and your words from here are kept beside it as a *parked copy*.
 
-Sync services make their own copies when two devices clash — Dropbox's "conflicted copy", pCloud's "(conflicted)", Box's "(1)", and so on. Grimoire recognises all of them. They appear right under their scene, marked with where they came from ("Dropbox copy"), and they're never counted or exported twice. They move with their scene.
+Sync services make their own copies when two devices clash — Dropbox's "conflicted copy", pCloud's "(conflicted)", Box's "(1)", and so on. WrOS recognises all of them. They appear right under their scene, marked with where they came from ("Dropbox copy"), and they're never counted or exported twice. They move with their scene.
 
 While there are any, the status bar says `⚠ 1 conflict`.
 
@@ -53,7 +53,7 @@ One `Ctrl-Z` takes it back. Nothing is ever deleted.
 
 ## Files that aren't here yet
 
-A file your sync service hasn't downloaded (online-only, still arriving, or offline) is shown in the outline as *offline* and is never saved over. Grimoire reads it once it arrives. Export waits until every scene can be read.
+A file your sync service hasn't downloaded (online-only, still arriving, or offline) is shown in the outline as *offline* and is never saved over. WrOS reads it once it arrives. Export waits until every scene can be read.
 
 ## Files that blink
 
@@ -61,7 +61,7 @@ Some services replace a file by removing it for a moment. A scene that vanishes 
 
 ## Names
 
-Everything Grimoire names is safe on every service and computer: no characters Windows forbids, nothing too long, and never two names that differ only by capitals or accents (on a Mac, on Windows and in Box, `Wren.md` and `wren.md` are the same file). If two such files are already in a folder, both are shown marked *name clash* for you to rename.
+Everything WrOS names is safe on every service and computer: no characters Windows forbids, nothing too long, and never two names that differ only by capitals or accents (on a Mac, on Windows and in Box, `Wren.md` and `wren.md` are the same file). If two such files are already in a folder, both are shown marked *name clash* for you to rename.
 
 ## Good habits
 

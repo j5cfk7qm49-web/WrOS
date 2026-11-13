@@ -11,7 +11,7 @@ Workspaces provides Drafting, Planning, Research, Revision and Focus slots. `n` 
 ## M3b: two genuinely editable documents — Tested
 
 - **F11**, with no secondary assigned, opens Choose secondary document. Type a scene, character, note or research title and press Enter.
-- With a secondary assigned, F11 hides/shows it without discarding its text, cursor, selection, free scroll or in-memory undo history. Use **Writing tools → Choose secondary document**, or the command palette, to replace its document after the existing save/recovery checks.
+- With a secondary assigned, F11 hides/shows it without discarding its text, cursor, selection, free scroll or in-memory undo history. Use **View › Choose second document…**, or the command palette, to replace its document after the existing save/recovery checks.
 - Tab/Shift-Tab and clicks change the focused pane. Typing, bracketed paste, selection, undo/redo, cut/copy, find/replace and spelling act on that pane. Each document has its own complete `Editor`; the clipboard, dictionary, find preferences and project-level operations remain shared.
 - Selecting an already-open document focuses its owner instead of creating a competing buffer. Canonical paths and Unix device/inode identity cover symlink and hard-link aliases. Only project-contained regular files can seed a new editable view; unreadable/non-UTF-8 documents cannot seed a new secondary editor.
 - Both views use **the original Project guarded saves, autosave, history, unavailable-file handling, conflict parking and crash recovery**. Raw YAML frontmatter remains raw. There is no second direct-write path.

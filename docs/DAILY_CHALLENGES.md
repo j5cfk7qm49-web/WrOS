@@ -4,7 +4,7 @@
 
 ## Finding the features
 
-Ctrl-K offers **Productivity ledger**, **Advanced goals**, **Calendar and rest days**, **Advanced sprints**, **Milestone collection**, and **Daily challenges**. Esc → Writing tools → Productivity tools provides the same six actions without enlarging the first menu. Six optional dashboard widgets and six additive logical aliases expose them too; existing default chords and old widget order/visibility survive.
+Ctrl-K offers **Productivity ledger**, **Advanced goals**, **Calendar and rest days**, **Advanced sprints**, **Milestone collection**, and **Daily challenges**. Tools › Practice provides the same six actions. Six optional Overview widgets and six additive logical aliases expose them too; existing default chords and old widget order/visibility survive.
 
 The feature reader has six numbered tabs: 1 edits, 2 goals, 3 calendar, 4 sprints, 5 collection, 6 challenges. Tab cycles pages. Arrows choose rows; PgUp/PgDn scroll; Esc returns; F1 explains policy. Readers do not accept pasted text as commands or modify an underlying editor selection. `r` explicitly reloads/retries metadata; this is not a prose reload or automatic conflict merge.
 

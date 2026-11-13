@@ -4,7 +4,7 @@
 
 ## Open and use
 
-Choose **Writing tools → Productivity tools → Story Spark**, the palette's **Story Spark**, its additive dashboard widget, or an explicitly configured logical alias. No default key was rebound. Merely opening the reader generates nothing.
+Choose **Tools › Practice › Story Spark…**, the palette's **Story Spark**, its additive Overview widget, or an explicitly configured logical alias. No default key was rebound. Merely opening the reader generates nothing.
 
 - **1** plot-only; **2** independently usable exercise-only; **3** compatible combination; **4** fixed daily combination.
 - **p** replaces only plot, **e** only exercise, **r** both. Requested components really must change. The kept component remains exact even after changing future filters; compatibility is checked again. Empty pools report an explanation and retain the previous result.

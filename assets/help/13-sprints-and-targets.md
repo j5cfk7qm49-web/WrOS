@@ -2,7 +2,7 @@
 
 ## Word targets
 
-*Esc › This book › Goals…* sets how many words the book is aiming for and how many a day. Type the numbers, or start from a preset:
+*Book › Goals…* sets how many words the book is aiming for and how many a day. Type the numbers, or start from a preset:
 
 - **A month of drafting**: 50,000 words, about 1,667 a day for thirty days.
 - **A short story**: 5,000 words, 500 a day.
@@ -18,14 +18,14 @@ Notes and TKs never count.
 
 ## Progress
 
-*Esc › Writing tools › Progress…* (or a click on the word count at the bottom left, or `Ctrl-K` › *Progress*) shows how the book is coming along:
+*Tools › Practice › Progress…* (or a click on the word count at the bottom left, or `Ctrl-K` › *Progress*) shows how the book is coming along:
 
 - The book's words against its goal, as a bar.
 - **Each week**: what you wrote in each of the last eight weeks, as bars.
 - **Your pace**: about how many words a week you've written lately, and roughly when you'll reach your goal at that pace.
 - **Today**: what you've written so far, against what you aim for in a day.
 
-It's there to encourage, never to nag. There are no streaks and no days in a row, and a quiet week is just a short bar. Grimoire starts keeping the record the first time you write with this version, one line a day in the book's hidden `.grimoire` folder, so the weeks fill in as you go.
+It's there to encourage, never to nag. There are no streaks and no days in a row, and a quiet week is just a short bar. WrOS starts keeping the record the first time you write with this version, one line a day in the book's hidden `.grimoire` folder, so the weeks fill in as you go.
 
 ## Sprints
 

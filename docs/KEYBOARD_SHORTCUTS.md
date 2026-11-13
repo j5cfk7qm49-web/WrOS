@@ -42,7 +42,7 @@ Pinboard (`p` on home or Ctrl-K) uses Up/Down for card/list selection, PgUp/PgDn
 
 ## Journal controls
 
-Dashboard j, Writing tools or Ctrl-K opens Writing journal. Left/Right/t select dates, Tab changes facts/reflection view, scrolling does not move either editor, c records current clean measured counts, Enter/e explicitly edits the original reflection, and r reloads/retries pending facts. Reader paste never executes these letters as commands. F1 links the full [journal help](JOURNAL.md); the printable reference includes these modal keys. The explicit force-quit warning is prefixed and outranks journal metadata/count warnings so it stays visible at 80 columns.
+Tools › Notes › Writing journal… or Ctrl-K opens Writing journal. Left/Right/t select dates, Tab changes facts/reflection view, scrolling does not move either editor, c records current clean measured counts, Enter/e explicitly edits the original reflection, and r reloads/retries pending facts. Reader paste never executes these letters as commands. F1 links the full [journal help](JOURNAL.md); the printable reference includes these modal keys. The explicit force-quit warning is prefixed and outranks journal metadata/count warnings so it stays visible at 80 columns.
 
 ## Layout and terminal limits
 
@@ -60,7 +60,7 @@ Dashboard s/o or Ctrl-K opens Scratchpad/Session handoff. Ctrl-K works from the 
 
 ## Recorded productivity tools
 
-Esc → Writing tools → Productivity tools and Ctrl-K expose all six M5 pages. The six additive alias targets have no forced new default chord. In the reader: 1–6/Tab choose pages, arrows choose, PgUp/PgDn scroll, r reloads/retries metadata, F1 gives policy, Esc returns. Each page labels its explicit create/accept/pause/rest-day/filter/disable controls. Numeric/date fields retain invalid input and original settings. Read-only pages suppress paste/cut/undo/drag commands rather than passing them to a hidden source editor. Lessons 18/20/21 use actual persisted actions, not opening a page. Full controls and limits: [DAILY_CHALLENGES](DAILY_CHALLENGES.md).
+Tools › Practice and Ctrl-K expose all six M5 pages. The six additive alias targets have no forced new default chord. In the reader: 1–6/Tab choose pages, arrows choose, PgUp/PgDn scroll, r reloads/retries metadata, F1 gives policy, Esc returns. Each page labels its explicit create/accept/pause/rest-day/filter/disable controls. Numeric/date fields retain invalid input and original settings. Read-only pages suppress paste/cut/undo/drag commands rather than passing them to a hidden source editor. Lessons 18/20/21 use actual persisted actions, not opening a page. Full controls and limits: [DAILY_CHALLENGES](DAILY_CHALLENGES.md).
 
 ## M6 Story Spark
 

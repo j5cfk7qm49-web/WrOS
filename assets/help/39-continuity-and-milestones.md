@@ -78,7 +78,7 @@ active scene (such as a different point of view or ending).
   stay bound to that exact reviewed snapshot, including the second or later
   entry in a list.
 - Press `r` inside the comparison view to restore the snapshot or
-  variant into the active editor. Before replacing the buffer, Grimoire
+  variant into the active editor. Before replacing the buffer, WrOS
   saves the current wording as a recovery variant and in dated history. Failed
   recovery/history writes, changed source or changed metadata refuse the restore.
   `Ctrl-Z` undoes a successful restore in the original editor.

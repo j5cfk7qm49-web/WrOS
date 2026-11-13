@@ -5,7 +5,7 @@
 - `↑` `↓` (or `j` `k`) **preview each theme live** as you move, so you choose by looking.
 - `Enter` keeps it; `Esc` puts back what you had.
 
-Every theme is dark: Grimoire draws on your terminal's own background.
+Every theme is dark: WrOS draws on your terminal's own background.
 
 ## Rainbow
 

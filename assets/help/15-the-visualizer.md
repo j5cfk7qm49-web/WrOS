@@ -10,7 +10,7 @@ It listens to the computer's own output, only while the view is on screen.
 
 - **On a Mac** (macOS 14.6 or later): your terminal needs permission under *System Settings › Privacy & Security › Screen & System Audio Recording › System Audio Recording Only*. Until then the pane says it's hearing only silence.
 - **On WrOS**: it hears whatever the laptop plays (Jellyfin, Plex, Read aloud, a Spotify player) through PipeWire, which WrOS runs in your writing session.
-- **On Linux**: through PipeWire's `pw-record`, or PulseAudio's `parec`, whichever is installed. To listen to an output other than the default, start Grimoire with `GRIMOIRE_MONITOR=<sink>` set.
+- **On Linux**: through PipeWire's `pw-record`, or PulseAudio's `parec`, whichever is installed. To listen to an output other than the default, start WrOS with `GRIMOIRE_MONITOR=<sink>` set.
 - **On Windows**: not yet.
 
 If it can't listen, the pane says why in one line, and `←` `→` still move on.

@@ -15,10 +15,10 @@ Writing sessions keep a snapshot of the book each time you sit down to write, la
 
 ## Where it's kept
 
-The history is kept on **this computer**, outside the book's folder, where no sync service can damage it: in Grimoire's data folder (`~/.local/share/grimoire` on Linux, `~/Library/Application Support/grimoire` on a Mac, `%APPDATA%\grimoire` on Windows). Each computer keeps its own.
+The history is kept on **this computer**, outside the book's folder, where no sync service can damage it: in WrOS's data folder (`~/.local/share/grimoire` on Linux, `~/Library/Application Support/grimoire` on a Mac, `%APPDATA%\grimoire` on Windows). Each computer keeps its own.
 
 Writing sessions stay local. A configured Git remote does not cause WrOS to push them on startup, save, quit or restart. Adding a remote is not consent to upload your manuscript. Local history is not an independent backup; the native verified backup/restore workflow remains unfinished.
 
 ## Older books
 
-A book from an earlier version may keep its history in a `.git` folder inside the book. That keeps working — but if the book is in a sync service, *Esc › This book* offers **Move writing history out…** (in `Ctrl-K`, *Move writing history out of the synced folder*), which copies it to the data folder, checks the copy, and moves the old one to the Trash. Your scenes are never touched.
+A book from an earlier version may keep its history in a `.git` folder inside the book. That keeps working — but if the book is in a sync service, *File* offers **Move writing history out…** (in `Ctrl-K`, *Move writing history out of the synced folder*), which copies it to the data folder, checks the copy, and moves the old one to the Trash. Your scenes are never touched.

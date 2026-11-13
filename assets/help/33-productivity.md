@@ -6,7 +6,7 @@ Open **Productivity ledger**, **Advanced goals**, **Calendar and rest days**, **
 
 The local ledger observes actual text replacements in both source editors. Keyboard input, deliberate paste, find/spelling replacements, formatting, undo/redo and explicit history restoration have separate origins. Programmatic loads and external-file adoption are not authored input. Ordinary Markdown stays authoritative; no manuscript prose is copied into these JSON records.
 
-Word policy v1 counts whitespace-delimited source units containing alphanumeric characters, excluding private notes/TKs and Markdown footnote labels. It is **not** the native Grimoire whitespace counter or a full rendered-Markdown parser: code and link destinations can count. A surviving character preserves a unit's identity while you grow a word; full selection replacement removes and adds actual units, even at equal final word count. Formatting markers do not re-author the inner prose. Footnote additions/deletions and reclassification remain separate; the optional footnote switch applies to ledger goals, not native source counts.
+Word policy v1 counts whitespace-delimited source units containing alphanumeric characters, excluding private notes/TKs and Markdown footnote labels. It is **not** the native WrOS whitespace counter or a full rendered-Markdown parser: code and link destinations can count. A surviving character preserves a unit's identity while you grow a word; full selection replacement removes and adds actual units, even at equal final word count. Formatting markers do not re-author the inner prose. Footnote additions/deletions and reclassification remain separate; the optional footnote switch applies to ledger goals, not native source counts.
 
 Gross input additions/deletions exclude undo, redo and historical restoration. Recorded editor net includes their signed changes and footnote transfers, but not file creation/import/promotion/reordering or external changes. Paste is included in input-addition goals and excluded from keyboard-only goals. A change of source or mode never invents an interval of writing.
 
@@ -30,7 +30,7 @@ Pasted commands in these read-only pages are ignored; they cannot accept/reroll 
 
 ## Goals and calendar
 
-Advanced goals cover daily, Monday–Sunday weekly, monthly, current native novel/scene totals, observed active minutes, Revision-mode operations, footnote additions and configured deadline windows. Native source totals retain Grimoire's own word policy; they are not retroactive gross or active-time evidence.
+Advanced goals cover daily, Monday–Sunday weekly, monthly, current native novel/scene totals, observed active minutes, Revision-mode operations, footnote additions and configured deadline windows. Native source totals retain WrOS's own word policy; they are not retroactive gross or active-time evidence.
 
 The offline November preset targets 50,000 **recorded editor net words** over November 1–30. It is not affiliation, endorsement or certification of new exclusive typing. Start/end, target and rest days are explicit choices. Pace includes today if it is a working date; ahead/behind compares the end-of-day plan. Forecast requires at least three recorded work dates and assumes the mean of the last at most seven recorded dates repeats, including cuts. Missing days are not silently zero, forecasts are estimates, and no workdays left yields an unavailable pace rather than division by zero. Earlier calendar configurations are retained when a new preset replaces one.
 

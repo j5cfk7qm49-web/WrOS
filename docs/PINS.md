@@ -4,7 +4,7 @@
 
 ## One source, several readers
 
-Choose **Pinboard** or **Pin current document** in Writing tools or Ctrl-K; dashboard `p` opens Pinboard. `n` chooses an existing project Markdown document. A card stores a reference and presentation metadata, not another editable body. Multiple cards may reference one source and keep independent scroll/presentation state.
+Choose **Pinboard…** or **Pin this document** in Tools › Notes or Ctrl-K. `n` chooses an existing project Markdown document. A card stores a reference and presentation metadata, not another editable body. Multiple cards may reference one source and keep independent scroll/presentation state.
 
 The cached preview reads the current authoritative Project node, preferring its existing editor owner over a stale alias node. `Enter` explicitly requests the source in Secondary; `e` requests Primary. An already-owned canonical/symlink/hard-link identity focuses its existing editor instead. Both editors keep their original undo, selection, guarded saves, YAML, history, unavailable/conflict handling and recovery. Save/identity failures block unsafe replacement; buffers stay in memory and recovery is attempted. Cards have no direct manuscript write path.
 
