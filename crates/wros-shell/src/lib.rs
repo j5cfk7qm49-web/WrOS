@@ -255,6 +255,17 @@ pub struct Menu<'a> {
 
 /// Shared clipped menu with a visible selection and fixed help/status area.
 pub fn render_menu(frame: &mut Frame, area: Rect, menu: Menu<'_>, theme: Theme) {
+    render_menu_at(frame, area, menu, theme);
+}
+
+/// [`render_menu`], returning the list's area and the first row shown in it,
+/// so a click can be matched to a row.
+pub fn render_menu_at(
+    frame: &mut Frame,
+    area: Rect,
+    menu: Menu<'_>,
+    theme: Theme,
+) -> (Rect, usize) {
     let body = render_panel(frame, area, menu.title, menu.notice, menu.hint, theme);
     let rows = menu
         .rows
@@ -279,6 +290,7 @@ pub fn render_menu(frame: &mut Frame, area: Rect, menu: Menu<'_>, theme: Theme) 
         body,
         &mut selected,
     );
+    (body, selected.offset())
 }
 
 /// Common system-panel geometry: the pane border with its bold title, then

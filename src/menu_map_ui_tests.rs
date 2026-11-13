@@ -43,10 +43,14 @@ fn every_page_on_the_map_is_reached_by_name_and_titled_by_its_path() {
             assert_eq!(desk.app.deck.shell.nav.current(), page, "{page:?}");
             let crumbs: Vec<&str> = path_to(page).into_iter().map(page_label).collect();
             let title = format!("Settings › {}", crumbs.join(" › "));
+            // The box's border carries the title.
             assert!(
-                desk.rows()[0].contains(&title),
+                desk.rows().iter().any(|r| r.contains(&title)),
                 "{page:?}: {}",
-                desk.rows()[0]
+                desk.rows().join(
+                    "
+"
+                )
             );
             while desk.app.overlay != Overlay::None {
                 desk.key(KeyCode::Esc);

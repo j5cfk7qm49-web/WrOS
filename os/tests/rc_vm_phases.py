@@ -217,9 +217,11 @@ class Guest:
 
     # Grimoire navigation (list highlight is the shared "▸ " marker) ------------
     def selected_row(self, n=1):
-        for line in self.vcs(n):
+        # The text after the marker up to the box's edge: from rc13 Settings is
+        # a box over the page, with page text beside it on the same line.
+        for line in forms.inside_box(self.vcs(n)):
             if forms.MARK in line:
-                return line.split(forms.MARK, 1)[1].strip().strip('│| ').strip()
+                return line.split(forms.MARK, 1)[1].split('│', 1)[0].strip().strip('| ').strip()
         return None
 
     def choose(self, pattern, n=1, limit=45):

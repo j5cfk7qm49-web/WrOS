@@ -24,9 +24,29 @@ class Form:
         return re.search(pattern, self.raw, re.I | re.S) is not None
 
 
+def inside_box(lines):
+    """From rc13 Settings is a box over the page, with page text beside it on
+    the same lines. Keep only the box: the columns between the borders round
+    the highlighted row, on the lines from the box's top border to its bottom.
+    A full-screen panel, or a screen with no highlight, comes back unchanged."""
+    lines = list(lines)
+    marked = next((i for i, l in enumerate(lines) if MARK in l), None)
+    if marked is None:
+        return lines
+    at = lines[marked].index(MARK)
+    left = lines[marked].rfind('│', 0, at)
+    right = lines[marked].find('│', at)
+    if left < 0 or right < 0:
+        return lines
+    corner = lambda i, chars: len(lines[i]) > left and lines[i][left] in chars
+    top = next((i for i in range(marked, -1, -1) if corner(i, '┌╭')), 0)
+    bottom = next((i for i in range(marked, len(lines)) if corner(i, '└╰')), len(lines) - 1)
+    return [l[left:right + 1] for l in lines[top:bottom + 1]]
+
+
 def parse_form(lines):
     cleaned = []
-    for line in lines:
+    for line in inside_box(lines):
         # panel borders and padding
         stripped = line.strip().strip('│┃|').strip()
         if stripped[:1] in ('┌', '└', '├'):

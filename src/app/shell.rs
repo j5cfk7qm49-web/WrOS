@@ -2971,8 +2971,17 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
     } else {
         app.deck.shell.notices.latest().unwrap_or(&app.deck.note)
     };
+    // A box over the page, sized to it, the page still showing around it.
+    let widest = rows
+        .iter()
+        .map(|r| r.chars().count() + 4)
+        .chain([title.chars().count() + 4, note.chars().count() + 2])
+        .max()
+        .unwrap_or(0);
+    let area = settings_box(area, rows.len(), widest);
+    app.settings_area.set(area);
     frame.render_widget(ratatui::widgets::Clear, area);
-    wros_shell::render_menu(
+    let (body, offset) = wros_shell::render_menu_at(
         frame,
         area,
         wros_shell::Menu {
@@ -3036,6 +3045,118 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
         },
         theme.into(),
     );
+    let mut hits = app.settings_hits.borrow_mut();
+    hits.clear();
+    for line in 0..body.height as usize {
+        let i = offset + line;
+        if i < rows.len() {
+            hits.push((Rect::new(body.x, body.y + line as u16, body.width, 1), i));
+        }
+    }
+}
+
+/// Where the Settings box goes on `screen`: centred under the menu bar, as wide
+/// as its widest line and as tall as its rows, clear of the status line, so the
+/// page shows around it. A screen too small for that gets all of it.
+pub(crate) fn settings_box(screen: Rect, rows: usize, widest: usize) -> Rect {
+    if screen.width < 70 || screen.height < 20 {
+        return screen;
+    }
+    // The menu bar above and the status line below stay in view.
+    let room = Rect::new(screen.x, screen.y + 1, screen.width, screen.height - 2);
+    let w = (widest as u16 + 6).clamp(56, room.width - 4);
+    // Rows, the border, the notice and the hint line, and a line of air.
+    let h = (rows as u16 + 5).clamp(10, room.height);
+    Rect::new(
+        room.x + (room.width - w) / 2,
+        room.y + (room.height - h) / 2,
+        w,
+        h,
+    )
+}
+
+impl App {
+    /// Forms take their own keys; a click doesn't choose a row in them.
+    fn settings_form_open(&self) -> bool {
+        matches!(
+            self.deck.shell.nav.current(),
+            Route::BackupForm
+                | Route::WifiConnect
+                | Route::ChangePassword
+                | Route::UpdateBundleForm
+                | Route::ManualClock
+                | Route::KeyboardWizard
+        )
+    }
+
+    fn settings_row_at(&self, x: u16, y: u16) -> Option<usize> {
+        self.settings_hits
+            .borrow()
+            .iter()
+            .find(|(r, _)| x >= r.x && x < r.right() && y == r.y)
+            .map(|(_, i)| *i)
+    }
+
+    /// A click with Settings up: a row opens (or runs), as Enter on it would;
+    /// outside the box closes Settings, unless a form is being filled in.
+    /// True if Settings took the click.
+    pub fn settings_click(&mut self, x: u16, y: u16) -> bool {
+        if self.overlay != Overlay::Deck(wros::Page::Settings) {
+            return false;
+        }
+        let area = self.settings_area.get();
+        let inside = x >= area.x && x < area.right() && y >= area.y && y < area.bottom();
+        if self.settings_form_open() {
+            return true;
+        }
+        if !inside {
+            for _ in 0..12 {
+                if self.overlay != Overlay::Deck(wros::Page::Settings) {
+                    break;
+                }
+                self.on_settings_key(Key::Esc);
+            }
+            return true;
+        }
+        if let Some(i) = self.settings_row_at(x, y) {
+            let rows = entries(self);
+            let kinds = kinds(self, &rows);
+            if kinds
+                .get(i)
+                .is_some_and(|k| *k != wros_shell::RowKind::Info)
+            {
+                self.deck.shell.nav.select(i, rows.len());
+                self.on_settings_key(Key::Enter);
+            }
+        }
+        true
+    }
+
+    /// The pointer over a Settings row lights it.
+    pub fn settings_hover(&mut self, x: u16, y: u16) {
+        if self.overlay != Overlay::Deck(wros::Page::Settings) || self.settings_form_open() {
+            return;
+        }
+        if let Some(i) = self.settings_row_at(x, y) {
+            let rows = entries(self);
+            let kinds = kinds(self, &rows);
+            if kinds
+                .get(i)
+                .is_some_and(|k| *k != wros_shell::RowKind::Info)
+            {
+                self.deck.shell.nav.select(i, rows.len());
+            }
+        }
+    }
+
+    /// The wheel over Settings moves its highlight, as ↑↓ do. True if it did.
+    pub fn settings_wheel(&mut self, down: bool) -> bool {
+        if self.overlay != Overlay::Deck(wros::Page::Settings) {
+            return false;
+        }
+        self.on_settings_key(if down { Key::Down } else { Key::Up });
+        true
+    }
 }
 
 /// Draw the QR code and phone instructions. Keep full blocks where they fit

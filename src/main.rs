@@ -990,7 +990,10 @@ fn dispatch_event(app: &mut App, ev: Event, confirm_quit: &mut bool) -> bool {
             MouseEventKind::ScrollDown => app.on_scroll(m.column, m.row, true),
             MouseEventKind::ScrollUp => app.on_scroll(m.column, m.row, false),
             // Moving across the bar's titles switches menus; over a row, lights it.
-            MouseEventKind::Moved => app.bar_hover(m.column, m.row),
+            MouseEventKind::Moved => {
+                app.bar_hover(m.column, m.row);
+                app.settings_hover(m.column, m.row);
+            }
             _ => {}
         }
         return false;

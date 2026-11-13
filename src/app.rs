@@ -244,6 +244,9 @@ pub struct App {
     /// In a graphical session (native or under Cage), where Alt and a menu's
     /// letter opens that menu; a terminal keeps Alt-b and Alt-f for words.
     pub alt_menus: bool,
+    /// Where the Settings box and its rows were drawn, for the mouse.
+    pub settings_area: std::cell::Cell<Rect>,
+    pub settings_hits: std::cell::RefCell<Vec<(Rect, usize)>>,
     /// The menu bar's title last used: Esc lights it again (File at first).
     pub bar_last: Title,
     /// Where the menu bar's titles and the open dropdowns' rows were drawn,
@@ -972,6 +975,8 @@ impl App {
             create_hits: Vec::new(),
             view_hits: Vec::new(),
             alt_menus: false,
+            settings_area: std::cell::Cell::default(),
+            settings_hits: std::cell::RefCell::default(),
             bar_last: Title::default(),
             bar_hits: std::cell::RefCell::default(),
             theme: setup.theme,
@@ -5002,7 +5007,7 @@ impl App {
     pub fn on_click(&mut self, x: u16, y: u16) {
         // The menu bar first: its titles, an open menu's rows, or a click away
         // that closes the menu.
-        if self.bar_click(x, y) {
+        if self.bar_click(x, y) || self.settings_click(x, y) {
             return;
         }
         if self.pin_click(x, y) {
@@ -5235,7 +5240,7 @@ impl App {
     /// Wheel scrolls whichever pane is under the pointer, without stealing focus.
     pub fn on_scroll(&mut self, x: u16, y: u16, down: bool) {
         const STEP: usize = 3;
-        if self.bar_scroll(down) {
+        if self.bar_scroll(down) || self.settings_wheel(down) {
             return;
         }
         if self.pin_wheel(x, y, down) {

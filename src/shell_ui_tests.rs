@@ -3271,3 +3271,94 @@ fn the_writer_changes_their_password_from_local_accounts_without_it_reaching_the
         close_settings(&mut desk);
     }
 }
+
+// ---- the Settings box (rc13) ----------------------------------------------
+
+#[test]
+fn settings_opens_as_a_box_with_the_page_visible_around_it() {
+    let mut d = Desk::open(book("settings-box", true), 120, 40);
+    d.key(KeyCode::Tab);
+    d.app.open_settings();
+    d.draw();
+    let area = d.app.settings_area.get();
+    assert!(area.width < 120 && area.height < 39, "{area:?}");
+    assert!(
+        area.y >= 1 && area.bottom() < 40,
+        "clear of the bar and the status line"
+    );
+    let rows = d.rows();
+    assert!(
+        rows[0].contains("File  Edit"),
+        "the bar stays: {:?}",
+        rows[0]
+    );
+    assert!(
+        rows.iter().any(|r| r.contains("Novel Format")),
+        "the outline shows beside it"
+    );
+    assert!(
+        rows[39].contains("today"),
+        "the status line stays: {:?}",
+        rows[39]
+    );
+    // Its look: the shared bold title and shaded marker.
+    assert!(d.shows("▸ Writing"), "{}", rows.join("\n"));
+}
+
+#[test]
+fn settings_covers_the_screen_only_when_it_must() {
+    let screen = ratatui::layout::Rect::new(0, 0, 80, 24);
+    let boxed = crate::app::shell::settings_box(screen, 8, 30);
+    assert!(boxed.width < 80 && boxed.height < 24, "{boxed:?}");
+    let small = ratatui::layout::Rect::new(0, 0, 60, 20);
+    assert_eq!(crate::app::shell::settings_box(small, 8, 30), small);
+    let long = crate::app::shell::settings_box(screen, 60, 30);
+    assert!(
+        long.y >= 1 && long.bottom() <= 23,
+        "a long page scrolls inside: {long:?}"
+    );
+}
+
+#[test]
+fn battery_and_power_is_still_the_third_row_under_system() {
+    use crate::app::shell::{Panel, menu};
+    let system = menu()
+        .iter()
+        .find(|(group, _)| *group == Route::Category(Category::System))
+        .map(|(_, pages)| *pages)
+        .unwrap();
+    assert_eq!(system[2], Route::Panel(Panel::Power));
+}
+
+#[test]
+fn settings_rows_take_the_mouse() {
+    let mut d = Desk::open(book("settings-mouse", true), 120, 40);
+    d.app.open_settings();
+    d.draw();
+    let hit = |d: &Desk, i: usize| {
+        d.app
+            .settings_hits
+            .borrow()
+            .iter()
+            .find(|(_, at)| *at == i)
+            .map(|(r, _)| *r)
+            .unwrap()
+    };
+    // Hover lights a row, the wheel moves it, a click opens it.
+    let system = hit(&d, 2);
+    d.app.settings_hover(system.x + 3, system.y);
+    assert_eq!(d.app.deck.shell.nav.selected(), 2);
+    d.app.on_scroll(system.x + 3, system.y, false);
+    assert_eq!(d.app.deck.shell.nav.selected(), 1);
+    d.app.on_click(system.x + 3, system.y);
+    d.draw();
+    assert_eq!(
+        d.app.deck.shell.nav.current(),
+        Route::Category(Category::System)
+    );
+    // A click outside the box closes Settings, and reaches nothing under it.
+    let sel = d.app.sel;
+    d.app.on_click(1, 20);
+    assert_eq!(d.app.overlay, Overlay::None);
+    assert_eq!(d.app.sel, sel);
+}

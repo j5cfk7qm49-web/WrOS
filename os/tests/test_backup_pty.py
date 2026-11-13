@@ -12,12 +12,15 @@ from test_secondary_pty import BINARY, ROOT, TerminalProcess
 
 
 def choose(terminal, text):
+    from rc_vm_forms import inside_box
     complete = lambda: terminal.output.endswith(b'\x1b[?25l')
     # Home selects the first option, which can sit below a description row.
-    first = lambda: next((i for i, row in enumerate(terminal.screen.text.splitlines()) if '▸' in row), None)
+    # Read inside the Settings box: page text sits beside it from rc13.
+    box = lambda: inside_box(terminal.screen.text.splitlines())
+    first = lambda: next((i for i, row in enumerate(box()) if '▸' in row), None)
     at_first = lambda: complete() and first() is not None and not any(
-        row.strip() and '▸' not in row and not row.lstrip('│').startswith('    ')
-        for row in terminal.screen.text.splitlines()[1:first()])
+        row.strip('│ ') and '▸' not in row and not row.lstrip('│').startswith('    ')
+        for row in box()[1:first()])
     # A key pressed while a page is still answering its first request can go unread: press again.
     for attempt in range(5):
         terminal.send(b'\x1b[H')

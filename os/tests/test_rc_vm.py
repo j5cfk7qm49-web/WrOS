@@ -256,3 +256,30 @@ class Ocr(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class InsideTheSettingsBox(unittest.TestCase):
+    """rc13: Settings is a box over the page; helpers read only the box."""
+
+    SCREEN = [
+        "  WrOS  File  Edit  View  Book  Tools  Settings  Help        ✓ ",
+        "┌ Outline ──────┐ ┌ WrOS · Settings › System ──┐ text beside",
+        "│ Novel Format  │ │   Wi-Fi and networking ›    │ more prose",
+        "│ Manuscript    │ │ ▸ Battery and power ›       │ │ prose here",
+        "│ Chapter One   │ │                             │ even more",
+        "└───────────────┘ └─────────────────────────────┘",
+    ]
+
+    def test_only_the_box_is_kept(self):
+        box = forms.inside_box(self.SCREEN)
+        self.assertTrue(box[0].startswith('┌ WrOS · Settings'), box)
+        self.assertTrue(all(row.startswith(('│', '┌', '└')) for row in box), box)
+        self.assertFalse(any('prose' in row or 'Outline' in row for row in box), box)
+
+    def test_the_selected_row_ends_at_the_box_edge(self):
+        row = next(l for l in forms.inside_box(self.SCREEN) if forms.MARK in l)
+        self.assertEqual(row.split(forms.MARK, 1)[1].split('│', 1)[0].strip(), 'Battery and power ›')
+
+    def test_a_full_screen_panel_is_left_alone(self):
+        full = ["┌ Install WrOS ┐", "│ ▸ Yes        │", "└──────────────┘"]
+        self.assertEqual(forms.inside_box(full), full)

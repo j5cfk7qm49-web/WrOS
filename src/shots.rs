@@ -719,5 +719,14 @@ fn previews() {
     s.draw();
     frames.push(s.json("settings-menu", None));
 
+    s.app.close_bar();
+    s.app.open_settings_page(crate::app::shell::Route::Category(
+        crate::app::shell::Category::System,
+    ));
+    s.draw();
+    s.key(KeyCode::Down, none);
+    s.key(KeyCode::Down, none);
+    frames.push(s.json("settings-box", None));
+
     fs::write(&out, format!("[{}]", frames.join(","))).unwrap();
 }
