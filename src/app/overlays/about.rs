@@ -1,5 +1,5 @@
-//! About Grimoire: which version this is, and who made it — with a way to
-//! the studio's site.
+//! About WrOS: what it is, the credit to GrimoireTUI and the studio that
+//! makes it (with a way to its site), and the license.
 
 use super::*;
 use ratatui::layout::Alignment;
@@ -103,14 +103,11 @@ pub(super) fn draw_about(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
 
     let mut lines: Vec<Line> = vec![
         Line::from(""),
-        centre(
-            "G R I M O I R E".into(),
-            accent.add_modifier(Modifier::BOLD),
-        ),
-        centre("a terminal writing desk for novels".into(), dim),
-        centre(format!("version {version}"), text),
+        centre("W r O S".into(), accent.add_modifier(Modifier::BOLD)),
+        centre("a computer for writing".into(), dim),
+        centre(format!("built on GrimoireTUI {version}"), text),
         Line::from(""),
-        centre("Made by".into(), dim),
+        centre("GrimoireTUI is by Josh King and".into(), dim),
         centre(STUDIO.into(), text.add_modifier(Modifier::BOLD)),
         centre(
             format!("↗ {}", STUDIO_URL.trim_start_matches("https://")),
@@ -131,21 +128,23 @@ pub(super) fn draw_about(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         hint_line(" ↵ studio  c Catfinity  d donate  l license  esc close", t)
             .alignment(Alignment::Center),
     ];
-    // The spellbook heads it when there's room.
-    let art_h = if area.height >= lines.len() as u16 + 13 {
-        crate::ui::BOOK_ART.len() as u16 + 1
+    // The WrOS logo heads it when there's room.
+    let logo = wros_shell::logo::compact();
+    let art_h = if area.height >= lines.len() as u16 + logo.len() as u16 + 6 {
+        logo.len() as u16 + 1
     } else {
         0
     };
     let w = 56u16.min(area.width);
     let box_area = centred(area, w, lines.len() as u16 + art_h + 2);
     f.render_widget(Clear, box_area);
-    let block = pane_block("ABOUT", true, t);
+    let block = pane_block("About WrOS", true, t);
     let inner = block.inner(box_area);
     f.render_widget(block, box_area);
     if art_h > 0 {
         let art = Rect::new(inner.x, inner.y + 1, inner.width, art_h - 1);
-        crate::ui::draw_book_art(f, art, t, app.frame);
+        let rows: Vec<Line> = logo.iter().map(|row| centre(row.clone(), accent)).collect();
+        f.render_widget(Paragraph::new(rows), art);
     }
     let body = Rect::new(
         inner.x,

@@ -1248,7 +1248,7 @@ impl App {
             self.editor.place(cy, cx);
         }
         self.msg = format!(
-            "{} isn't UTF-8 text, so Grimoire shows it but won't change it — resave it as UTF-8 to edit it here",
+            "{} isn't UTF-8 text, so WrOS shows it but won't change it — resave it as UTF-8 to edit it here",
             self.project.nodes[i].title
         );
     }
@@ -1638,7 +1638,7 @@ impl App {
                     self.update_document_editor(i);
                     let m = self.mod_label();
                     self.msg = format!(
-                        "{title} was changed outside Grimoire — showing that version ({m}Z goes back)"
+                        "{title} was changed outside WrOS — showing that version ({m}Z goes back)"
                     );
                 }
             }
@@ -1654,13 +1654,13 @@ impl App {
             }
             DiskChange::Gone => {
                 if open {
-                    self.msg = format!("{title} was moved or deleted outside Grimoire");
+                    self.msg = format!("{title} was moved or deleted outside WrOS");
                 }
                 self.tree_stale = true;
             }
             DiskChange::GoneParked(copy) => {
                 self.msg = format!(
-                    "{title} was moved or deleted outside Grimoire — your unsaved words are in the Trash as “{}”",
+                    "{title} was moved or deleted outside WrOS — your unsaved words are in the Trash as “{}”",
                     name(&copy)
                 );
                 self.tree_stale = true;
@@ -1757,7 +1757,7 @@ impl App {
                     self.reveal(j);
                 }
                 self.msg = format!(
-                    "{} was moved outside Grimoire — followed it",
+                    "{} was moved outside WrOS — followed it",
                     self.project.nodes[j].title
                 );
             } else {
@@ -3757,7 +3757,7 @@ impl App {
                 if let Some(s) = &mut self.speller {
                     s.add_words([word.to_string()]);
                 }
-                self.msg = format!("“{word}” ignored until you close Grimoire");
+                self.msg = format!("“{word}” ignored until you close WrOS");
             }
             Ignore::Book => self.add_to_book(word),
             Ignore::Everywhere => {

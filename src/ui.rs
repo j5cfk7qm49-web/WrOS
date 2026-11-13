@@ -285,84 +285,13 @@ pub(crate) fn pane_block<'a>(title: &'a str, focused: bool, t: &Theme) -> Block<
     wros_shell::look::pane_block(title, focused, t.into())
 }
 
-/// An open spellbook, pages sloping away from the reader, with light rising
-/// from its spine. Drawn above the tree
-/// when the pane is at least this tall, so the art never costs a short
-/// terminal its outline.
-pub(crate) const BOOK_ART: [&str; 7] = [
-    "    ✧   ·    ✦    ·   ✧",
-    "      ______ ☾ ______",
-    "    _/      ╲│╱      \\_",
-    "   // ≈≈≈ ≈≈ │ ≈≈ ≈≈≈ \\\\",
-    "  // ≈ ≈≈ ✧  │  ✧ ≈≈ ≈ \\\\",
-    " //__________│__________\\\\",
-    " `───────────┴───────────'",
-];
-const BOOK_ART_MIN_TREE: u16 = 24;
-
-/// Cover in the accent (so Rainbow paints it), pages in dim ink, the moon in
-/// the moon's colour, and sparkles that twinkle on staggered beats like the
-/// clearing's stars.
-pub(crate) fn draw_book_art(f: &mut Frame, area: Rect, t: &Theme, frame: u64) {
-    let width = BOOK_ART
-        .iter()
-        .map(|l| l.chars().count())
-        .max()
-        .unwrap_or(0) as u16;
-    let x0 = area.x + area.width.saturating_sub(width) / 2;
-    let mut spark = 0u64;
-    for (row, line) in BOOK_ART.iter().enumerate() {
-        let y = area.y + row as u16;
-        if y >= area.bottom() {
-            break;
-        }
-        let spans: Vec<Span> = line
-            .chars()
-            .map(|c| {
-                let (glyph, colour) = match c {
-                    '✦' | '✧' | '·' if row == 0 => {
-                        spark += 1;
-                        let beat = (frame / (4 + spark % 3) + spark) % 4;
-                        match beat {
-                            0 => ('✦', t.sun),
-                            1 | 3 => ('✧', blend(t.sun, t.dim, 0.35)),
-                            _ => ('·', t.dim),
-                        }
-                    }
-                    '╲' | '╱' => (c, blend(t.sun, t.dim, 0.5)),
-                    '☾' => (c, t.moon),
-                    '✧' => (c, t.bloom),
-                    '≈' => (c, t.dim),
-                    ' ' => (c, t.dim),
-                    _ => (c, t.accent),
-                };
-                Span::styled(glyph.to_string(), Style::default().fg(colour))
-            })
-            .collect();
-        f.render_widget(
-            Paragraph::new(Line::from(spans)),
-            Rect::new(x0, y, width.min(area.right().saturating_sub(x0)), 1),
-        );
-    }
-}
-
 fn draw_tree(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
     let focused = app.focus == Focus::Tree;
     // The book's own name heads the tree; Manuscript is a section inside it.
     let book = app.project.meta.title.trim().to_uppercase();
     let block = pane_block(if book.is_empty() { "UNTITLED" } else { &book }, focused, t);
-    let mut inner = block.inner(area);
+    let inner = block.inner(area);
     f.render_widget(block, area);
-    // A spellbook heads the tree when there's room for it and the tree too.
-    if inner.height >= BOOK_ART_MIN_TREE {
-        let [art, rest] = Layout::vertical([
-            Constraint::Length(BOOK_ART.len() as u16 + 1),
-            Constraint::Min(1),
-        ])
-        .areas(inner);
-        draw_book_art(f, art, t, app.frame);
-        inner = rest;
-    }
     app.rect_tree = inner;
 
     let height = inner.height as usize;

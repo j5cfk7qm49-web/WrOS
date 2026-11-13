@@ -67,7 +67,7 @@ pub fn command(mut args: impl Iterator<Item = String>) -> Result<()> {
                 .map(PathBuf::from)
                 .ok_or_else(|| anyhow::anyhow!("supply the manuscript folder"))?;
             if !root.join("manuscript").is_dir() {
-                bail!("not a Grimoire project (no manuscript directory)");
+                bail!("not a book (no manuscript directory)");
             }
             if args.next().is_some() {
                 bail!("too many configuration arguments");

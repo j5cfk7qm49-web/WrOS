@@ -1801,9 +1801,7 @@ fn page_entries(app: &App, route: Route) -> Vec<Entry> {
                 "Start encrypted WrOS installer on console tty7",
                 Choice::InstallerResolve(true),
             ),
-            Entry::info(
-                "Retires writing input on tty1 while the shared Grimoire installer runs on tty7.",
-            ),
+            Entry::info("Retires writing input on tty1 while the WrOS installer runs on tty7."),
             Entry::info(
                 "Disk writes remain default-No inside the installer until you explicitly confirm.",
             ),

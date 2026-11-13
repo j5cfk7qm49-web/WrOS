@@ -311,7 +311,7 @@ fn main() -> Result<()> {
             );
             let _ = display::suspend(&mut terminal);
             ratatui::restore();
-            eprintln!("\nGrimoire hit a bug and closed. Anything unsaved was kept, and will be");
+            eprintln!("\nWrOS hit a bug and closed. Anything unsaved was kept, and will be");
             eprintln!("offered back the next time you open this book.");
             std::process::exit(101);
         }

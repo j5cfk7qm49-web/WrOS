@@ -628,7 +628,7 @@ pub fn setup_for(source: Source) -> Result<()> {
     match source {
         Source::YouTubeMusic => setup(),
         Source::Spotify if cfg!(windows) => {
-            println!("Spotify isn't supported on Windows yet — Grimoire drives it through");
+            println!("Spotify isn't supported on Windows yet — WrOS drives it through");
             println!("AppleScript on macOS and MPRIS on Linux, and Windows has neither.");
             println!();
             println!("  YouTube Music, Jellyfin and Plex all work here:");
@@ -640,7 +640,7 @@ pub fn setup_for(source: Source) -> Result<()> {
             cfg.source = Source::Spotify;
             cfg.enabled = true;
             cfg.save()?;
-            println!("Spotify needs no setup — Grimoire drives the desktop app directly.");
+            println!("Spotify needs no setup — WrOS drives the desktop app directly.");
             println!();
             if cfg!(target_os = "macos") {
                 println!("  Just have Spotify open. Nothing to sign into.");
@@ -659,8 +659,8 @@ pub fn setup_for(source: Source) -> Result<()> {
 
 fn setup_jellyfin() -> Result<()> {
     let mut cfg = Config::load();
-    println!("Connecting Grimoire to Jellyfin.\n");
-    println!("  Grimoire plays these tracks itself — your files, your server,");
+    println!("Connecting WrOS to Jellyfin.\n");
+    println!("  WrOS plays these tracks itself — your files, your server,");
     println!("  nothing else needs to be running.\n");
 
     let server = prompt(
@@ -702,8 +702,8 @@ fn setup_jellyfin() -> Result<()> {
 
 fn setup_plex() -> Result<()> {
     let mut cfg = Config::load();
-    println!("Connecting Grimoire to Plex.\n");
-    println!("  Grimoire plays these tracks itself — your files, your server.\n");
+    println!("Connecting WrOS to Plex.\n");
+    println!("  WrOS plays these tracks itself — your files, your server.\n");
     println!("  Plex has no password login for apps. Get a token by opening any");
     println!("  item in the Plex web app, choosing Get Info → View XML, and");
     println!("  copying the X-Plex-Token value from the address bar.\n");
@@ -746,7 +746,7 @@ pub fn setup() -> Result<()> {
     let cfg = Config::load();
     let port = cfg.port;
 
-    println!("Setting up music for Grimoire.\n");
+    println!("Setting up music for WrOS.\n");
 
     println!("Looking for YouTube Music…");
     if installed() {
@@ -762,10 +762,10 @@ pub fn setup() -> Result<()> {
         } else {
             println!("  not installed.\n");
         }
-        println!("  Grimoire can fetch it from github.com/th-ch/youtube-music.");
+        println!("  WrOS can fetch it from github.com/th-ch/youtube-music.");
         if cfg!(target_os = "macos") {
             println!("  That build is ad-hoc signed rather than notarised, so macOS");
-            println!("  blocks it until the quarantine flag is cleared. Grimoire will");
+            println!("  blocks it until the quarantine flag is cleared. WrOS will");
             println!("  clear it and re-sign the app locally so it will launch.\n");
         }
         if !ask("  Download and install it now?") {
@@ -834,7 +834,7 @@ pub fn setup() -> Result<()> {
 
     println!();
     println!("Done. Sign in to YouTube Music and press play —");
-    println!("Grimoire picks it up within a second or two. F4/F5/F6 control it.");
+    println!("WrOS picks it up within a second or two. F4/F5/F6 control it.");
     Ok(())
 }
 

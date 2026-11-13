@@ -2302,13 +2302,11 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                 "Appliance tty1 only; desktop/SSH layouts belong to their OS.".into(),
                 "Custom layouts require administrator-reviewed registration (planned).".into(),
             ]);
-            hint = "↑↓ choose  Enter preview  Esc system · no character remapping in Grimoire";
+            hint = "↑↓ choose  Enter preview  Esc system · no character remapping in WrOS";
         }
         Page::KeyboardWait => {
             title = "Applying a temporary keyboard layout…".into();
-            rows.push(
-                "An independent systemd timer owns rollback even if Grimoire crashes.".into(),
-            );
+            rows.push("An independent systemd timer owns rollback even if WrOS crashes.".into());
             hint = "Esc cancels when the service replies";
         }
         Page::KeyboardTest { text } => {

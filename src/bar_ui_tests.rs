@@ -844,3 +844,68 @@ fn a_setting_switched_from_a_menu_keeps_it_open() {
     assert!(d.app.echo_on);
     assert!(d.shows("▸ Turn echo words off"), "{}", d.rows().join("\n"));
 }
+
+#[test]
+fn no_grimoire_name_on_a_screen_the_bar_opens() {
+    let mut d = everything_offered("bar-brand");
+    d.app.deck.live_session = false;
+    let rows: Vec<(String, crate::app::overlays::BarRow)> = all_rows(&d.app);
+    for (menu, row) in rows {
+        // The credit, the license and the Donate screen keep the name, as does
+        // the theme called Grimoire (saved theme settings name it). Rows that
+        // reach the computer or leave are not opened here.
+        if matches!(
+            row.action,
+            A::About
+                | A::License
+                | A::Donate
+                | A::Themes
+                | A::Help
+                | A::Quit
+                | A::Lock
+                | A::Sleep
+                | A::Restart
+                | A::ShutDown
+                | A::InstallToDisk
+                | A::BackUpNow
+                | A::ReadAloud
+                | A::ReadChapterAloud
+                | A::ReadManuscriptAloud
+                | A::Side(_)
+                | A::SettingsGroup(_)
+        ) {
+            continue;
+        }
+        d.app.overlay = Overlay::None;
+        d.app.run_action(row.action.clone());
+        d.draw();
+        // The test book is named after its temporary folder, grimoire-ui-…
+        let screen = d
+            .rows()
+            .join("\n")
+            .replace("Grimoire Ui", "")
+            .replace("GRIMOIRE UI", "");
+        assert!(
+            !screen.contains("Grimoire"),
+            "{menu} › {}:\n{screen}",
+            row.label
+        );
+        for _ in 0..4 {
+            d.key(KeyCode::Esc);
+        }
+        d.app.focus_mode = false;
+    }
+}
+
+#[test]
+fn about_credits_grimoiretui_and_names_mit_and_the_outline_has_no_book_art() {
+    let mut d = Desk::open(book("bar-about", true), 160, 50);
+    assert!(!d.shows("☾"), "no spellbook in the outline");
+    d.menu(&["WrOS", "About WrOS"]);
+    assert!(d.shows("About WrOS"), "{}", d.rows().join("\n"));
+    assert!(d.shows("built on GrimoireTUI"));
+    assert!(d.shows("Josh King"));
+    assert!(d.shows("Catfinity Studios"));
+    assert!(d.shows("MIT License"));
+    assert!(d.shows("###"), "the WrOS logo heads it");
+}

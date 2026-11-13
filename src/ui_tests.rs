@@ -147,10 +147,34 @@ impl Desk {
         }
     }
 
+    /// The screen's rows, only inside the Settings box while Settings is up
+    /// (the page shows beside it from rc13).
+    fn box_rows(&self) -> Vec<String> {
+        if self.app.overlay != Overlay::Deck(crate::app::wros::Page::Settings) {
+            return self.rows();
+        }
+        let a = self.app.settings_area.get();
+        self.rows()
+            .into_iter()
+            .skip(a.y as usize)
+            .take(a.height as usize)
+            .map(|r| {
+                r.chars()
+                    .skip(a.x as usize)
+                    .take(a.width as usize)
+                    .collect()
+            })
+            .collect()
+    }
+
     /// Down the menu screen that's up to the row starting `label`, and ↵.
     fn choose(&mut self, label: &str) {
         for _ in 0..40 {
-            if self.shows(&format!("▸ {label}")) {
+            if self
+                .box_rows()
+                .iter()
+                .any(|r| r.contains(&format!("▸ {label}")))
+            {
                 self.key(KeyCode::Enter);
                 return;
             }
@@ -812,16 +836,15 @@ fn the_theme_picker_scrolls_on_a_short_terminal() {
 // ---- the book at the top of the tree, and where focus mode is ----------------
 
 #[test]
-fn a_tall_tree_is_headed_by_the_spellbook_and_clicks_still_land() {
+fn a_tall_tree_starts_at_the_top_and_clicks_still_land() {
     let mut d = Desk::open(book("art-tall", true), 120, 42);
-    assert!(d.shows("`───────────┴───────────'"), "the book is drawn");
+    assert!(!d.shows("┴───"), "no spellbook (rc13)");
     let rows = d.rows();
-    let art = rows.iter().position(|r| r.contains("┴")).unwrap();
     let novel = rows
         .iter()
         .position(|r| r.contains("Novel Format"))
         .unwrap();
-    assert!(novel > art, "the tree starts below the book");
+    assert_eq!(novel, 2, "under the bar and the outline's border");
     // Clicking Scene Two's row opens Scene Two, not whatever is a book's
     // height further down the list.
     let left = |r: &String| r.chars().take(30).collect::<String>();
@@ -2616,7 +2639,10 @@ fn about_says_the_version_and_who_made_it_and_links_to_the_studio() {
     let mut d = Desk::open(book("about", true), 120, 40);
     d.menu(&["WrOS", "About WrOS"]);
     assert!(matches!(d.app.overlay, Overlay::About));
-    assert!(d.shows(&format!("version {}", env!("CARGO_PKG_VERSION"))));
+    assert!(d.shows(&format!(
+        "built on GrimoireTUI {}",
+        env!("CARGO_PKG_VERSION")
+    )));
     assert!(d.shows("Catfinity Studios"));
     assert!(d.shows("catfinity.com"));
     // A click on the link, and Enter, both head for the studio's site.

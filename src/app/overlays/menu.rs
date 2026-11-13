@@ -290,7 +290,7 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "compile",
         ),
         Action::Help => (
-            "Everything Grimoire does, in plain words. Type to search it.",
+            "Everything WrOS does, in plain words. Type to search it.",
             "getting-started",
         ),
         Action::About => (

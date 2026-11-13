@@ -249,7 +249,7 @@ impl App {
                 Where::Free(p) | Where::Taken(p) => {
                     self.msg = if draft {
                         format!(
-                            "{} isn't a draft Grimoire can read: a Word file (.docx), Markdown (.md) or text (.txt)",
+                            "{} isn't a draft WrOS can read: a Word file (.docx), Markdown (.md) or text (.txt)",
                             books::pretty(&p)
                         )
                     } else {
