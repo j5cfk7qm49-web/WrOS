@@ -15,7 +15,7 @@ fn main() -> io::Result<()> {
     };
     let glyphs: Vec<_> = (32..=126)
         .map(char::from)
-        .chain("▸●›→↑↓←✓✗…•·—–│─┌┐└┘├┤┬┴┼".chars())
+        .chain("▸●›→↑↓←✓✗…•·—–│─┌┐└┘├┤┬┴┼⚠○◌⇅▂▄▆⊘♪▮☀".chars())
         .collect();
     let rows = glyphs.len().div_ceil(16);
     let mut pixels = size.raster(16, rows as u16 * 3);
