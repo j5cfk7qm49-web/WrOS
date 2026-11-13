@@ -112,7 +112,7 @@ impl App {
                 if let Overlay::Spelling { line, end, .. } = self.overlay {
                     self.overlay = Overlay::None;
                     self.editor.place(line, end);
-                    self.spelling();
+                    self.spelling_next();
                 }
             }
             Key::Esc => self.overlay = Overlay::None,

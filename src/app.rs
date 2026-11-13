@@ -3652,6 +3652,17 @@ impl App {
     /// F8: suggestions for the misspelt word at the cursor, or, if the cursor
     /// isn't on one, jump to the next misspelling and offer those.
     pub fn spelling(&mut self) {
+        self.spelling_from(false);
+    }
+
+    /// The spelling box's "next": the next misspelt word after the one it
+    /// leaves, never that word again (#123: a caret at a word's end counts
+    /// as on it).
+    pub fn spelling_next(&mut self) {
+        self.spelling_from(true);
+    }
+
+    fn spelling_from(&mut self, next_only: bool) {
         if self.open.is_none() {
             self.msg = "open a scene to check its spelling".into();
             return;
@@ -3669,14 +3680,14 @@ impl App {
         };
         let here = bad(cy)
             .into_iter()
-            .find(|&(a, b)| cx >= a && cx <= b)
+            .find(|&(a, b)| !next_only && cx >= a && cx <= b)
             .map(|(a, b)| (cy, a, b));
         let target = here.or_else(|| {
             let lines = &self.editor.lines;
             (0..lines.len())
                 .map(|k| (cy + k) % lines.len())
                 .flat_map(|l| bad(l).into_iter().map(move |(a, b)| (l, a, b)))
-                .find(|&(l, a, _)| (l, a) > (cy, cx) || l < cy)
+                .find(|&(l, a, _)| (l, a) >= (cy, cx) || l < cy)
         });
         let Some((line, start, end)) = target else {
             self.msg = "no misspellings in this scene".into();

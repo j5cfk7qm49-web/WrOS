@@ -1071,3 +1071,39 @@ fn every_path_in_help_and_the_tutorial_is_a_real_menu_path() {
     assert!(seen > 20, "found {seen} paths");
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
+
+#[test]
+fn f8_next_in_the_spelling_box_reaches_the_next_misspelt_word() {
+    // Issue 123: "next" reopened the same word.
+    let mut d = Desk::open(book("spell-next", true), 120, 35);
+    d.app.load_speller_now();
+    d.key(KeyCode::Tab);
+    d.app.editor.set_text("Teh cat sat on teh mat.");
+    d.app.editor.place(0, 0);
+    d.key(KeyCode::F(8));
+    assert!(
+        matches!(
+            d.app.overlay,
+            Overlay::Spelling {
+                line: 0,
+                start: 0,
+                ..
+            }
+        ),
+        "{:?}",
+        d.app.overlay
+    );
+    d.key(KeyCode::F(8));
+    assert!(
+        matches!(
+            d.app.overlay,
+            Overlay::Spelling {
+                line: 0,
+                start: 15,
+                ..
+            }
+        ),
+        "next goes on to the second: {:?}",
+        d.app.overlay
+    );
+}
