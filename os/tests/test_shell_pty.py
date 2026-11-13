@@ -57,10 +57,13 @@ class UnifiedShellPTY(unittest.TestCase):
                         self.assertEqual(primary.read_bytes(), before)
                         self.assertFalse((user_dir/'config/wros/google.json').exists())
                         if heading == 'Backups' and os.environ.get('WROS_CAPTURE_PTY') == '1':
+                            # rc13: the menu bar on top and the Settings box over the page.
+                            from rc_vm_forms import inside_box
+                            box = lambda: inside_box(terminal.screen.text.splitlines())
                             terminal.until(lambda: len(terminal.screen.text.splitlines()) == height
                                            and all(len(row) == width for row in terminal.screen.text.splitlines())
-                                           and terminal.screen.text.splitlines()[0].startswith('┌')
-                                           and terminal.screen.text.splitlines()[-1].startswith('└'),
+                                           and terminal.screen.text.splitlines()[0].lstrip().startswith('WrOS')
+                                           and box()[0].startswith('┌') and box()[-1].startswith('└'),
                                            'complete native availability frame')
                             captures = Path(__file__).resolve().parents[2]/'build/verification/native-feature-screens'
                             captures.mkdir(parents=True, exist_ok=True)
@@ -73,6 +76,7 @@ class UnifiedShellPTY(unittest.TestCase):
                     terminal.send(b'\x1b')
                     terminal.screen_shows('▸ Backups and accounts')
                     terminal.send(b'\x1b')
+                    terminal.screen_lacks('WrOS · Settings')
                     terminal.screen_shows(prefix)
                     terminal.paste(suffix)
                     terminal.send(b'\x13')
@@ -135,6 +139,7 @@ class UnifiedShellPTY(unittest.TestCase):
                     terminal.send(b'\x1b')
                     terminal.screen_shows('▸ System')
                     terminal.send(b'\x1b')
+                    terminal.screen_lacks('WrOS · Settings')
                     terminal.screen_shows(prefix)
                     terminal.paste(suffix)
                     terminal.send(b'\x13')

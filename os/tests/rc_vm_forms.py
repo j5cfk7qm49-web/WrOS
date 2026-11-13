@@ -30,18 +30,24 @@ def inside_box(lines):
     the highlighted row, on the lines from the box's top border to its bottom.
     A full-screen panel, or a screen with no highlight, comes back unchanged."""
     lines = list(lines)
-    marked = next((i for i, l in enumerate(lines) if MARK in l), None)
-    if marked is None:
-        return lines
-    at = lines[marked].index(MARK)
-    left = lines[marked].rfind('│', 0, at)
-    right = lines[marked].find('│', at)
-    if left < 0 or right < 0:
-        return lines
-    corner = lambda i, chars: len(lines[i]) > left and lines[i][left] in chars
-    top = next((i for i in range(marked, -1, -1) if corner(i, '┌╭')), 0)
-    bottom = next((i for i in range(marked, len(lines)) if corner(i, '└╰')), len(lines) - 1)
-    return [l[left:right + 1] for l in lines[top:bottom + 1]]
+    boxes = []
+    # Every highlight on screen: the outline's collapsed folders use the same
+    # arrow, so the one in the box titled WrOS · Settings wins.
+    for marked, line in enumerate(lines):
+        at = line.find(MARK)
+        while at >= 0:
+            left = line.rfind('│', 0, at)
+            right = line.find('│', at)
+            if left >= 0 and right >= 0:
+                corner = lambda i, chars: len(lines[i]) > left and lines[i][left] in chars
+                top = next((i for i in range(marked, -1, -1) if corner(i, '┌╭')), 0)
+                bottom = next((i for i in range(marked, len(lines)) if corner(i, '└╰')), len(lines) - 1)
+                box = [l[left:right + 1] for l in lines[top:bottom + 1]]
+                if box[0].lstrip('┌╭ ').startswith('WrOS · Settings'):
+                    return box
+                boxes.append(box)
+            at = line.find(MARK, at + 1)
+    return boxes[0] if boxes else lines
 
 
 def parse_form(lines):

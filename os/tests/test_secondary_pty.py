@@ -72,7 +72,7 @@ class TerminalProcess:
         deadline = time.monotonic() + timeout
         while not condition():
             if time.monotonic() >= deadline:
-                raise AssertionError(description + '\n' + repr(self.output[-2500:]))
+                raise AssertionError(description + '\n' + self.screen.text + '\n' + repr(self.output[-1500:]))
             if select.select([self.master], [], [], min(0.1, deadline - time.monotonic()))[0]:
                 try:
                     chunk = os.read(self.master, 65536)
@@ -95,6 +95,13 @@ class TerminalProcess:
 
     def screen_shows(self, text):
         self.until(lambda: text in self.screen.text, 'terminal screen did not show ' + repr(text))
+
+    def screen_lacks(self, text):
+        """Wait for `text` to leave the screen. rc13's boxes leave the page
+        visible around them, so seeing the page's words doesn't prove a box
+        closed; a paste sent before the app reads the Esc that closes it would
+        share a read with that Esc, and two Escs read together are one key."""
+        self.until(lambda: text not in self.screen.text, 'terminal screen still showed ' + repr(text))
 
     def shows(self, text):
         needle = text.encode()

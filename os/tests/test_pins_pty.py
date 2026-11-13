@@ -30,6 +30,16 @@ def fixture(base):
     return project, home, source, primary
 
 
+def settle(terminal, condition, description):
+    """rc13: moving through the pins (PageDown, Home) stays in memory and is
+    written when the Pinboard is left. Leave it, wait for the file, reopen it
+    on the same card."""
+    terminal.send(b'\x1b')
+    terminal.until(condition, description)
+    terminal.send(b'\x0bPinboard\r')
+    terminal.screen_shows('Pinboard ·')
+
+
 @unittest.skipUnless(BINARY.is_file(), 'build the no-audio binary first')
 @unittest.skipIf(os.geteuid() == 0, 'interactive writing application must not run as root')
 class PinsPTY(unittest.TestCase):
@@ -51,26 +61,26 @@ class PinsPTY(unittest.TestCase):
                     terminal.until(lambda: path.is_file() and len(state()['pins']) == 1, 'persistent first reference')
                     self.assertEqual(state()['pins'][0]['source'], 'notes/pin-source.md')
                     terminal.send(b'h\x1b[6~')  # capture real heading + terminal PageDown
-                    terminal.until(lambda: state()['pins'][0]['scroll'] == 3, 'anchored card scrolling')
+                    settle(terminal, lambda: state()['pins'][0]['scroll'] == 3, 'anchored card scrolling')
                     self.assertEqual(state()['pins'][0]['anchor'], {'kind': 'heading', 'text': 'Anchor'})
                     self.assertEqual(state()['pins'][0]['mode'], 'anchored')
                     self.assertEqual(source.read_bytes(), original_source)
                     self.assertEqual(primary.read_bytes(), original_primary)
                     self.assertNotIn('Original reference paragraph', path.read_text())
                     terminal.send(b'\x1b[H')  # actual terminal Home, not an app method
-                    terminal.until(lambda: state()['pins'][0]['scroll'] == 0, 'return to unique heading anchor')
+                    settle(terminal, lambda: state()['pins'][0]['scroll'] == 0, 'return to unique heading anchor')
                     before_paste = state()
                     terminal.paste('dauJKhqfbn Commands must not run from pasted prose.')
                     # Ratatui emits differential runs, not whole title words.
                     # A subsequent real scroll is the processing barrier; if
                     # pasted commands ran, this card/collection would change.
                     terminal.send(b'\x1b[6~')
-                    terminal.until(lambda: state()['pins'][0]['scroll'] == 3, 'paste ignored before next real scroll')
+                    settle(terminal, lambda: state()['pins'][0]['scroll'] == 3, 'paste ignored before next real scroll')
                     after_barrier = state()
                     after_barrier['pins'][0]['scroll'] = 0
                     self.assertEqual(after_barrier, before_paste)
                     terminal.send(b'\x1b[H')
-                    terminal.until(lambda: state()['pins'][0]['scroll'] == 0, 'restore anchor after paste barrier')
+                    settle(terminal, lambda: state()['pins'][0]['scroll'] == 0, 'restore anchor after paste barrier')
                     terminal.send(b'\r')  # explicitly edit the original source beside Primary
                     terminal.paste('PTY pin source edit.\n')
                     terminal.send(b'\x13')
@@ -83,7 +93,7 @@ class PinsPTY(unittest.TestCase):
                     terminal.send(b'nPin Source\r')
                     terminal.until(lambda: len(state()['pins']) == 2, 'second card of same source')
                     terminal.send(b'\x1b[6~')
-                    terminal.until(lambda: state()['pins'][1]['scroll'] == 3, 'independent second card scroll')
+                    settle(terminal, lambda: state()['pins'][1]['scroll'] == 3, 'independent second card scroll')
                     self.assertEqual(state()['pins'][0]['scroll'], 0)
                     self.assertEqual(state()['pins'][0]['source'], state()['pins'][1]['source'])
                     terminal.send(b'a')
@@ -103,10 +113,10 @@ class PinsPTY(unittest.TestCase):
                 try:
                     restarted.shows('The Brass Key')
                     restarted.send(b'\x0bPinboard\r\x1b[6~')
-                    restarted.until(lambda: state()['pins'][1]['scroll'] == 6, 'restart loaded the selected card and its prior scroll')
+                    settle(restarted, lambda: state()['pins'][1]['scroll'] == 6, 'restart loaded the selected card and its prior scroll')
                     self.assertEqual(state()['pins'][0]['scroll'], 0)
                     restarted.send(b'\x1b[5~')
-                    restarted.until(lambda: state()['pins'][1]['scroll'] == 3, 'restore persisted scroll after restart proof')
+                    settle(restarted, lambda: state()['pins'][1]['scroll'] == 3, 'restore persisted scroll after restart proof')
                     self.assertEqual(state(), persisted)
                     self.assertEqual(source.read_bytes(), source_saved)
                     self.assertEqual(primary.read_bytes(), original_primary)

@@ -280,6 +280,20 @@ class InsideTheSettingsBox(unittest.TestCase):
         row = next(l for l in forms.inside_box(self.SCREEN) if forms.MARK in l)
         self.assertEqual(row.split(forms.MARK, 1)[1].split('│', 1)[0].strip(), 'Battery and power ›')
 
+    def test_an_outline_arrow_beside_the_box_is_not_its_highlight(self):
+        # The outline draws collapsed folders with the same arrow, higher up.
+        screen = [
+            "  WrOS  File  Edit  View  Book  Tools  Settings  Help        ✓ ",
+            "┌ Outline ─────────┐",
+            "│  ▸ Manuscript Format┌ WrOS · Settings ──────┐",
+            "│  ▸ Paperback        │▸ Writing ›            │ │",
+            "│  ▸ Ebook            │  System ›             │ │",
+            "└──────────────────── └───────────────────────┘",
+        ]
+        box = forms.inside_box(screen)
+        self.assertTrue(box[0].startswith('┌ WrOS · Settings'), box)
+        self.assertIn('▸ Writing ›', box[1])
+
     def test_a_full_screen_panel_is_left_alone(self):
         full = ["┌ Install WrOS ┐", "│ ▸ Yes        │", "└──────────────┘"]
         self.assertEqual(forms.inside_box(full), full)

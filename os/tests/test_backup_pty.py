@@ -9,6 +9,12 @@ import unittest
 
 from test_journal_pty import fixture
 from test_secondary_pty import BINARY, ROOT, TerminalProcess
+from rc_vm_forms import inside_box
+
+
+def box_title(terminal):
+    """The Settings box's title (rc13: the box sits over the page, under the bar)."""
+    return inside_box(terminal.screen.text.splitlines())[0].strip('┌─┐ ')
 
 
 def choose(terminal, text):
@@ -30,14 +36,15 @@ def choose(terminal, text):
         except AssertionError:
             if attempt == 4:
                 raise
+    # The outline beside the box draws collapsed folders with the same arrow.
     for _ in range(30):
-        terminal.until(lambda: '▸' in terminal.screen.text, 'selected native menu row')
-        if any('▸ ' + text in row for row in terminal.screen.text.splitlines()):
+        terminal.until(lambda: any('▸' in row for row in box()), 'selected native menu row')
+        if any('▸ ' + text in row for row in box()):
             terminal.send(b'\r')
             return
-        previous = next(row for row in terminal.screen.text.splitlines() if '▸' in row)
+        previous = next(row for row in box() if '▸' in row)
         terminal.send(b'\x1b[B')
-        terminal.until(lambda: complete() and next((row for row in terminal.screen.text.splitlines() if '▸' in row), '') != previous,
+        terminal.until(lambda: complete() and next((row for row in box() if '▸' in row), '') != previous,
                        'next native menu selection')
     raise AssertionError('Native menu entry not found: ' + text + '\n' + terminal.screen.text)
 
@@ -62,8 +69,10 @@ class NativeBackupPTY(unittest.TestCase):
     def back_to_backups(self, terminal):
         terminal.send(b'\x1b')
         # The subpages' titles begin with this one's, so match the whole title.
-        terminal.until(lambda: terminal.screen.text.splitlines()[0].startswith(
-            '┌WrOS · Settings › Backups and accounts › Backups─'), 'back on the Backups page')
+        # rc13: the box's top border, not the screen's first line (the menu bar).
+        from rc_vm_forms import inside_box
+        terminal.until(lambda: box_title(terminal) == 'WrOS · Settings › Backups and accounts › Backups',
+                       'back on the Backups page')
 
     def open_google_drive(self, terminal):
         terminal.send(b'\x0bWrOS settings\r')
@@ -122,11 +131,12 @@ class NativeBackupPTY(unittest.TestCase):
                     terminal.screen_shows('Destination already exists')
                     self.assertEqual(primary.read_bytes(), original)
                     terminal.send(b'\x1b')
-                    terminal.until(lambda: terminal.screen.text.splitlines()[0].startswith(
-                        '┌WrOS · Settings › Backups and accounts─'), 'back on Backups and accounts')
+                    terminal.until(lambda: box_title(terminal) == 'WrOS · Settings › Backups and accounts',
+                                   'back on Backups and accounts')
                     terminal.send(b'\x1b')
                     terminal.screen_shows('▸ Backups and accounts')
                     terminal.send(b'\x1b')
+                    terminal.screen_lacks('WrOS · Settings')
                     terminal.screen_shows('Original λ words for')
                     terminal.send(b'\x1a\x13')
                     terminal.until(lambda: prefix.encode() not in primary.read_bytes(), 'original Undo retained after backup and restore')
@@ -150,7 +160,7 @@ class NativeBackupPTY(unittest.TestCase):
                     if 'Paste authorization JSON' in terminal.screen.text:
                         break
                     time.sleep(0.5)
-                    if any(row.startswith('│▸ Connect Google Drive') for row in terminal.screen.text.splitlines()):
+                    if any(row.startswith('│▸ Connect Google Drive') for row in inside_box(terminal.screen.text.splitlines())):
                         terminal.send(b'\r')
                 terminal.screen_shows('Paste authorization JSON')
                 terminal.paste('{"access_token":"PRIVATE_ACCESS_FIXTURE","refresh_token":"PRIVATE_REFRESH_FIXTURE"}')
