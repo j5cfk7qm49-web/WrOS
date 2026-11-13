@@ -1,34 +1,14 @@
 ---
 source: tests/driven.rs
-expression: plain(&app.screen())
+expression: settings_box(&app.screen())
 ---
-┌WrOS · Settings › Updates and recovery────────────────────────────────────────────────────────────┐
-│  Updates ›                                                                                       │
-│▸ Recovery ›                                                                                      │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│Unavailable: starting /usr/libexec/wros-update (is its package installed?): No such file or direct│
-│↑↓ choose  Enter open  Esc back  F1 help                                                          │
-└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ WrOS · Settings › Updates and recovery ──────────────────────────────────────────────────────┐
+│  Updates ›                                                                                   │
+│▸ Recovery ›                                                                                  │
+│                                                                                              │
+│                                                                                              │
+│                                                                                              │
+│                                                                                              │
+│Unavailable: starting /usr/libexec/wros-update (is its package installed?): No such file or di│
+│↑↓ choose  Enter open  Esc back  F1 help                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘

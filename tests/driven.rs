@@ -465,6 +465,33 @@ fn failed_wifi_scan_shows_the_writer_how_to_retry() {
     assert_eq!(std::fs::read(scene).unwrap(), before);
 }
 
+/// rc13: just the Settings box, which sits over the page under the menu bar
+/// (the page beside it carries a clock and an animation).
+fn settings_box(screen: &str) -> String {
+    let rows: Vec<&str> = screen.lines().collect();
+    let Some((top, left)) = rows.iter().enumerate().find_map(|(i, row)| {
+        row.find("┌ WrOS · Settings")
+            .map(|at| (i, row[..at].chars().count()))
+    }) else {
+        return plain(screen);
+    };
+    let width = rows[top]
+        .chars()
+        .skip(left)
+        .position(|c| c == '┐')
+        .map_or(0, |at| at + 1);
+    let mut out = vec![];
+    for row in &rows[top..] {
+        let cut: String = row.chars().skip(left).take(width).collect();
+        let bottom = cut.starts_with('└');
+        out.push(cut.trim_end().to_string());
+        if bottom {
+            break;
+        }
+    }
+    out.join("\n")
+}
+
 #[test]
 fn settings_pages_are_reached_by_name_and_drawn_as_their_snapshots() {
     let home = Home::new("settings");
@@ -473,7 +500,7 @@ fn settings_pages_are_reached_by_name_and_drawn_as_their_snapshots() {
     app.until("Settings", |_, tree| {
         node(tree, &|n| n["id"] == "page").is_some()
     });
-    insta::assert_snapshot!("settings_top", plain(&app.screen()));
+    insta::assert_snapshot!("settings_top", settings_box(&app.screen()));
 
     for (group, page) in [
         ("Backups and accounts", "Google Drive"),
@@ -498,7 +525,7 @@ fn settings_pages_are_reached_by_name_and_drawn_as_their_snapshots() {
     app.until("the Updates and recovery page", |s, _| {
         s.contains("Settings › Updates and recovery")
     });
-    insta::assert_snapshot!("updates_and_recovery", plain(&app.screen()));
+    insta::assert_snapshot!("updates_and_recovery", settings_box(&app.screen()));
 }
 
 #[test]
