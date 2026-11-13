@@ -1970,9 +1970,9 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     }
     f.render_widget(Clear, area);
     let heading = if app.deck.live_session {
-        "Overview · Live session"
+        "WrOS · Overview · Live session"
     } else {
-        "Overview"
+        "WrOS · Overview"
     };
     let block = crate::ui::pane_block(heading, true, t);
     let inner = block.inner(area);

@@ -393,10 +393,28 @@ def grim_editor(g):
     g.wait_vcs(1, r'GRIMOIRE', 20, what='editor')
 
 
+def wros_rc(g):
+    """The installed WrOS release candidate's number (13 for 0.1.0~rc13), or 0."""
+    # Not cached: an update in the same run changes it.
+    _, version = g.run("dpkg-query -W -f='${Version}' wros", 20, check=False)
+    match = re.search(r'~rc(\d+)', version or '')
+    return int(match.group(1)) if match else 0
+
+
 def grim_open_settings(g, layout='us'):
-    grim_dashboard(g)
-    g.choose(r'^Settings$')
-    g.m.key('ret')
+    if wros_rc(g) >= 13:
+        # rc13: the menu bar replaced the dashboard's Settings row. Find anything
+        # opens Settings at its first page in any version that has the bar.
+        grim_editor(g)
+        g.m.ctrl('k', layout)
+        time.sleep(0.8)
+        g.m.type_text('wros settings', layout)
+        g.wait_vcs(1, r'WrOS settings', 20, what='palette-settings')
+        g.m.key('ret')
+    else:
+        grim_dashboard(g)
+        g.choose(r'^Settings$')
+        g.m.key('ret')
     g.wait_vcs(1, r'Writing.*(?:Interface|Look and keyboard).*System', 30, what='settings-root')
 
 
@@ -440,7 +458,8 @@ def grim_logout_login(ctx, g, user, password, layout):
     g.wait_vcs(1, r'Local account', 60, what='after-logout')
     greeter_login(ctx, g, g.m, user, password, layout, wrong_first=False)
     grim_dashboard(g)
-    g.choose(r'^Resume writing$')
+    # rc12 had a Resume writing row as well as the tile; rc13 keeps the tile.
+    g.choose(r'^Resume writing\b')
     g.m.key('ret')           # Resume writing
     time.sleep(3)
     return g.screen(1)

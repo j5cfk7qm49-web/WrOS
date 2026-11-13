@@ -387,7 +387,8 @@ def png_text(path, font=None):
     if font is not None:
         return '\n'.join(ocr(picture, font))
     candidates = ['\n'.join(ocr(picture))]
-    for name in ('WROS_NATIVE_FONT', 'WROS_NATIVE_WRITING_FONT'):
+    # From rc13 the native session draws Unifont; its atlas is a third candidate.
+    for name in ('WROS_NATIVE_FONT', 'WROS_NATIVE_WRITING_FONT', 'WROS_NATIVE_UNIFONT'):
         if atlas := os.environ.get(name):
             candidates.append('\n'.join(ocr(picture, native_font(atlas))))
     # Firmware and Debian's prompt retain the console font; native screens use
