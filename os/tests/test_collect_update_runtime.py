@@ -9,6 +9,22 @@ collect = importlib.machinery.SourceFileLoader(
 
 
 class CollectRuntimeTests(unittest.TestCase):
+    @unittest.skipUnless(Path('/usr/bin/dpkg-deb').exists(), 'needs dpkg-deb')
+    def test_fields_are_read_from_a_real_package_one_or_several_at_a_time(self):
+        import subprocess
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            tree = Path(tmp) / 'tree'
+            (tree / 'DEBIAN').mkdir(parents=True)
+            (tree / 'DEBIAN/control').write_text(
+                'Package: wros\nVersion: 0.1.0~rc12\nArchitecture: amd64\nMaintainer: WrOS <wros@invalid>\n'
+                'Description: test\n multi-line: text that looks like a field\n')
+            deb = Path(tmp) / 'wros.deb'
+            subprocess.run(['/usr/bin/dpkg-deb', '--root-owner-group', '--build', str(tree), str(deb)],
+                           check=True, capture_output=True)
+            self.assertEqual(collect.deb_field(deb, 'Package'), ['wros'])
+            self.assertEqual(collect.deb_field(deb, 'Package', 'Version'), ['wros', '0.1.0~rc12'])
+
     def test_sources_include_debians_updates_and_security_archives(self):
         lines = collect.SOURCES.splitlines()
         self.assertEqual([line.split()[2] for line in lines], ['trixie', 'trixie-updates', 'trixie-security'])

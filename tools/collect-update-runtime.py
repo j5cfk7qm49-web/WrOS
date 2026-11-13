@@ -58,8 +58,10 @@ def stale(candidates, chosen):
 
 
 def deb_field(archive, *names):
-    out = subprocess.check_output(['/usr/bin/dpkg-deb', '--field', str(archive), *names], text=True)
-    fields = dict(line.split(': ', 1) for line in out.splitlines() if ': ' in line)
+    # Asked for one field, dpkg-deb prints the bare value; so read the whole control file instead.
+    out = subprocess.check_output(['/usr/bin/dpkg-deb', '--field', str(archive)], text=True)
+    fields = dict(line.split(': ', 1) for line in out.splitlines()
+                  if ': ' in line and not line[:1].isspace())
     return [fields[name] for name in names]
 
 
