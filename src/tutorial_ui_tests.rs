@@ -350,7 +350,7 @@ fn the_remaining_lessons_complete_by_doing_what_they_teach() {
     let mut desk = fresh("dashboard");
     start(&mut desk, 1);
     assert!(done(&desk, 1), "lesson 1");
-    assert!(desk.shows("Resume writing"));
+    assert!(desk.shows("Configure widgets"), "Overview is up");
 
     // 2 · preview a console layout, type in it, keep it.
     let mut desk = fresh("keyboard");

@@ -4,7 +4,7 @@
     "title": "Starting the OS",
     "help_topic": "wros",
     "event": "DashboardOpened",
-    "instructions": "Open the WrOS home screen with F12. Use Resume writing to return to your manuscript. On the appliance, tty1 starts this interface after login."
+    "instructions": "Open Overview with F12 (or WrOS › Overview): your book at a glance. Esc returns to your manuscript. On the appliance, tty1 starts this interface after login."
   },
   {
     "id": 2,

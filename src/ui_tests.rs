@@ -3467,14 +3467,26 @@ fn spelling_can_be_british_canadian_or_australian() {
 // ---- WritingDeck appliance foundation --------------------------------------
 
 #[test]
-fn wros_dashboard_is_navigable_at_required_terminal_sizes() {
-    for (w, h) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+fn overview_keeps_tiles_and_configure_widgets_only_at_every_size() {
+    for (w, h) in [(80, 24), (100, 30), (120, 40), (160, 50), (170, 48)] {
         let mut d = Desk::open(book(&format!("deck-home-{w}"), true), w, h);
         let before = d.app.editor.text();
         d.key(KeyCode::F(12));
-        assert!(d.shows("WrOS"));
-        assert!(d.shows("Resume writing"));
-        assert!(d.shows("encrypted backup"));
+        assert!(d.shows("Overview"), "titled Overview at {w}x{h}");
+        assert!(!d.shows("WrOS dashboard"));
+        assert!(d.shows("encrypted backup"), "the tiles stay");
+        for gone in ["Goals ›", "Workspaces", "Interactive tutorial"] {
+            assert!(
+                !d.rows()
+                    .iter()
+                    .any(|r| r.trim_start_matches(['│', ' ', '▸']).starts_with(gone)),
+                "{gone} row at {w}x{h}"
+            );
+        }
+        assert_eq!(
+            crate::app::wros::home_actions(&d.app.deck),
+            [crate::app::wros::HomeAction::Widgets]
+        );
         d.key(KeyCode::End);
         assert!(d.shows("▸ Configure widgets"));
         d.key(KeyCode::Enter);
@@ -3484,6 +3496,23 @@ fn wros_dashboard_is_navigable_at_required_terminal_sizes() {
         assert_eq!(d.app.editor.text(), before);
         assert_eq!(d.app.focus, Focus::Editor);
     }
+}
+
+#[test]
+fn overview_on_live_media_offers_install_first() {
+    let mut d = Desk::open(book("deck-home-live", true), 120, 40);
+    d.app.deck.live_session = true;
+    d.app.deck.installer_available = true;
+    d.key(KeyCode::F(12));
+    assert_eq!(
+        crate::app::wros::home_actions(&d.app.deck),
+        [
+            crate::app::wros::HomeAction::InstallWros,
+            crate::app::wros::HomeAction::Widgets
+        ]
+    );
+    assert!(d.shows("Install WrOS to disk"), "{}", d.rows().join("\n"));
+    assert!(d.shows("Overview · Live session"));
 }
 
 #[test]

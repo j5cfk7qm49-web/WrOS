@@ -92,7 +92,7 @@ impl Worker {
     }
 }
 const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 23] = [
-    (ShortcutAction::Dashboard, "WrOS dashboard"),
+    (ShortcutAction::Dashboard, "Overview"),
     (ShortcutAction::SystemSettings, "System settings"),
     (ShortcutAction::Tutorial, "Interactive tutorial"),
     (ShortcutAction::Outline, "Toggle outline"),
@@ -1300,18 +1300,6 @@ impl App {
                         } else {
                             match actions[sel - n] {
                                 HomeAction::InstallWros => self.open_installer_confirm(),
-                                HomeAction::Resume => self.overlay = Overlay::None,
-                                HomeAction::Goals => self.run_action(Action::Goals),
-                                HomeAction::Progress => self.run_action(Action::Progress),
-                                HomeAction::Workspaces => {
-                                    self.overlay = Overlay::Deck(Page::Workspaces {
-                                        sel: self.deck.state.selected,
-                                    })
-                                }
-                                HomeAction::Settings => self.open_settings(),
-                                HomeAction::Tutorial => {
-                                    self.overlay = Overlay::Deck(Page::Tutorial { sel: 0 })
-                                }
                                 HomeAction::Widgets => {
                                     self.overlay = Overlay::Deck(Page::Widgets { sel: 0 })
                                 }
@@ -1909,15 +1897,11 @@ impl App {
 }
 /// The dashboard's action rows, after its widgets. One list feeds both drawing and Enter.
 #[derive(Debug, Clone, Copy, PartialEq)]
+/// Overview's rows, under its tiles. Everything else it once launched is on
+/// the menu bar (rc13).
 pub enum HomeAction {
     /// Live media only, and listed first: installing is what most people boot the stick for.
     InstallWros,
-    Resume,
-    Goals,
-    Progress,
-    Workspaces,
-    Settings,
-    Tutorial,
     Widgets,
 }
 
@@ -1925,12 +1909,6 @@ impl HomeAction {
     pub fn label(self) -> &'static str {
         match self {
             HomeAction::InstallWros => "Install WrOS to disk",
-            HomeAction::Resume => "Resume writing",
-            HomeAction::Goals => "Goals",
-            HomeAction::Progress => "Progress",
-            HomeAction::Workspaces => "Workspaces",
-            HomeAction::Settings => "Settings",
-            HomeAction::Tutorial => "Interactive tutorial",
             HomeAction::Widgets => "Configure widgets",
         }
     }
@@ -1941,15 +1919,7 @@ pub fn home_actions(deck: &Deck) -> Vec<HomeAction> {
     install
         .then_some(HomeAction::InstallWros)
         .into_iter()
-        .chain([
-            HomeAction::Resume,
-            HomeAction::Goals,
-            HomeAction::Progress,
-            HomeAction::Workspaces,
-            HomeAction::Settings,
-            HomeAction::Tutorial,
-            HomeAction::Widgets,
-        ])
+        .chain([HomeAction::Widgets])
         .collect()
 }
 
@@ -2000,9 +1970,9 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     }
     f.render_widget(Clear, area);
     let heading = if app.deck.live_session {
-        "WrOS · Live session"
+        "Overview · Live session"
     } else {
-        "WrOS · offline first"
+        "Overview"
     };
     let block = crate::ui::pane_block(heading, true, t);
     let inner = block.inner(area);

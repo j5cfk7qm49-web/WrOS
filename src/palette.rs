@@ -281,8 +281,8 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
     let part = app.project.meta.part_noun();
     let mut v = vec![
         Entry {
-            label: "WrOS dashboard".into(),
-            detail: "WrOS home screen".into(),
+            label: "Overview".into(),
+            detail: "your book at a glance".into(),
             key: "F12".into(),
             action: Action::Dashboard,
         },

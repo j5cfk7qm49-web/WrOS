@@ -2,9 +2,9 @@
 
 WrOS (formerly codenamed WritingDeck OS) is an offline-first Debian writing appliance built around Grimoire. It is an independent project, not endorsed by NaNoWriMo. This is a development foundation, not a complete production OS.
 
-## WrOS dashboard
+## Overview
 
-Press `F12`, or choose WrOS dashboard in the menu. Resume writing returns to the manuscript. Daily and novel goals, weekly progress, sprints, recent scenes and available system status use real Grimoire data. Local saving and local history are not off-device backup.
+Press `F12`, or choose WrOS › Overview. Esc returns to the manuscript. Daily and novel goals, weekly progress, sprints, recent scenes and available system status use real Grimoire data. Local saving and local history are not off-device backup.
 
 Arrow keys select a row. Enter opens it. On a widget, `h` hides it and `J` or `K` moves it. Configure widgets restores hidden widgets. All choices are saved outside manuscript text.
 

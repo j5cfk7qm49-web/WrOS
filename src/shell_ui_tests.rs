@@ -834,7 +834,7 @@ fn live_session_uses_shared_surfaces_and_never_requests_personal_lock() {
         desk.app.deck.lock_available = true; // A stale capability must not enable a personal lock.
         desk.key(KeyCode::F(12));
         desk.draw();
-        assert!(desk.shows("WrOS · Live session"));
+        assert!(desk.shows("Overview · Live session"));
         desk.key(KeyCode::Esc);
         system_panel(&mut desk, 2);
         desk.draw();
