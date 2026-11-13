@@ -24,7 +24,10 @@ fn main() -> std::io::Result<()> {
     let out = std::path::Path::new(&args[2]);
     std::fs::create_dir_all(out)?;
     for frame in frames.as_array().expect("a list of frames") {
-        let (w, h) = (frame["w"].as_u64().unwrap() as u16, frame["h"].as_u64().unwrap() as u16);
+        let (w, h) = (
+            frame["w"].as_u64().unwrap() as u16,
+            frame["h"].as_u64().unwrap() as u16,
+        );
         let mut pixels = TextSize::Writing.raster(w, h);
         let mut cells = vec![];
         for (y, row) in frame["rows"].as_array().unwrap().iter().enumerate() {
