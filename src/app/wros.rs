@@ -152,6 +152,12 @@ pub struct Deck {
     pub lid_settings: Option<PathBuf>,
     /// Battery, screen light and volume for the bottom bar.
     pub gauges: crate::gauges::Gauges,
+    /// When a brightness key last changed the light: it shows for a moment.
+    pub light_flash: Option<std::time::Instant>,
+    /// "14:07", worked out on the tick so drawing never reads the time zone.
+    pub clock: String,
+    /// The book's backup, for the bar's line, also worked out on the tick.
+    pub backup_mark: Option<super::BackupMark>,
     /// Battery warnings and the countdown at the reserve.
     pub battery: crate::battery::Watch,
     /// Quit is offered only outside WrOS: in a WrOS session, leaving the app just ends
@@ -337,6 +343,9 @@ impl Deck {
             lid_close,
             lid_settings,
             gauges: crate::gauges::Gauges::default(),
+            light_flash: None,
+            clock: String::new(),
+            backup_mark: None,
             battery: crate::battery::Watch::default(),
             quit_offered: !crate::installed_session(),
             power_pending: false,
@@ -763,6 +772,14 @@ impl App {
         self.save_deck();
         self.observe_deck(tutorial::Event::OutlineToggled);
     }
+    /// New readings from the gauges' thread; a change of light (its key) shows
+    /// the light for a moment.
+    pub fn set_gauges(&mut self, gauges: crate::gauges::Gauges, now: std::time::Instant) {
+        if self.deck.gauges.light.is_some() && gauges.light != self.deck.gauges.light {
+            self.deck.light_flash = Some(now);
+        }
+        self.deck.gauges = gauges;
+    }
     pub fn deck_shortcut(&mut self, action: ShortcutAction) {
         match action {
             ShortcutAction::Dashboard => self.open_dashboard(),
@@ -840,6 +857,9 @@ impl App {
     }
     pub fn tick_deck(&mut self) {
         self.deck.shell.backup.tick();
+        let now = chrono::Local::now();
+        self.deck.clock = now.format("%H:%M").to_string();
+        self.deck.backup_mark = self.read_backup_mark(now);
         match self.deck.shell.backup.finished.take() {
             Some(super::backup::Finished::Restore) => {
                 self.observe_deck(tutorial::Event::BackupRestored)

@@ -682,6 +682,17 @@ fn previews() {
 
     let mut s = Shot::new("p-desk", "Lost Forest", w, h, false);
     s.key(KeyCode::Tab, none);
+    s.app.deck.gauges = crate::gauges::Gauges {
+        battery: Some(84),
+        charging: false,
+        light: Some(60),
+        volume: Some(55),
+        muted: false,
+        wifi: Some(crate::gauges::Wifi::Bars(2)),
+    };
+    s.app.deck.clock = "14:07".into();
+    s.app.deck.backup_mark = Some(crate::app::BackupMark::Done("13:52".into()));
+    s.draw();
     frames.push(s.json("desk", None));
 
     s.key(KeyCode::Esc, none);

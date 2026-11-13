@@ -131,6 +131,7 @@ pub fn draw(
     draw_status(f, app, status, &t);
     if bar_line {
         crate::app::overlays::draw_bar_line(f, app, bar, &t);
+        draw_status_marks(f, app, bar, &t);
     } else if matches!(
         app.overlay,
         Overlay::Bar { .. }
@@ -1220,6 +1221,12 @@ fn draw_codex(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
     f.render_widget(Paragraph::new(list), list_area);
 }
 
+/// The bottom bar. Left: the book's words against its target, the progress
+/// bar, today's words, a running sprint and the one-line message (or, with a
+/// menu open, what its highlighted row does). Right: Wi-Fi, volume, battery
+/// and the clock, the clock dropping first when there's no room; the message
+/// is never shortened for them. Focus mode keeps to the scene, and still
+/// warns of a failed save, conflicts or a low battery.
 fn draw_status(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     let total = app.project.total_words();
     let target = app.project.meta.target_words.max(1);
@@ -1231,7 +1238,6 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     } else {
         thousands(today as usize)
     };
-
     let today_style = Style::default().fg(if today >= app.project.meta.daily_target as i64 {
         t.accent
     } else {
@@ -1239,14 +1245,13 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     });
 
     let mut spans = if app.focus_mode {
-        // Focus mode keeps to the scene: its name, its words, and today.
         let (title, words) = app.open.map_or((String::new(), 0), |i| {
             (
                 app.project.nodes[i].title.clone(),
                 app.project.nodes[i].words(),
             )
         });
-        vec![
+        let mut spans = vec![
             Span::raw(" "),
             Span::styled(title, Style::default().fg(t.accent)),
             Span::styled(
@@ -1254,7 +1259,13 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                 Style::default().fg(t.dim),
             ),
             Span::styled(format!("  today {today_text}"), today_style),
-        ]
+        ];
+        // The marks the hidden bar would show, when they're warnings.
+        for (text, style) in status_marks(app, t, true) {
+            spans.push(Span::raw("  "));
+            spans.push(Span::styled(text, style));
+        }
+        spans
     } else {
         vec![
             Span::raw(" "),
@@ -1275,38 +1286,6 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         ));
     }
 
-    // Two versions of a scene are waiting to be settled: say so everywhere,
-    // focus mode too, until they are.
-    let conflicts = app.conflicts().len();
-    if conflicts > 0 {
-        spans.push(Span::styled(
-            format!(
-                "  ⚠ {conflicts} conflict{}",
-                if conflicts == 1 { "" } else { "s" }
-            ),
-            Style::default().fg(t.warn),
-        ));
-    }
-
-    // Autosave keeps this quiet: a dim note while a change waits to be
-    // written, a brief tick once it is, and red only when saving failed.
-    let dirty = app.project.dirty_count();
-    match &app.save_state {
-        crate::app::SaveState::Failed(_) if dirty > 0 => spans.push(Span::styled(
-            format!("  ● {dirty} not saved"),
-            Style::default().fg(t.warn),
-        )),
-        // Held until a file can be read again: kept, not failed.
-        crate::app::SaveState::Waiting(_) if dirty > 0 => spans.push(Span::styled(
-            format!("  ◌ {dirty} waiting"),
-            Style::default().fg(t.sun),
-        )),
-        _ if dirty > 0 => spans.push(Span::styled("  ○ saving", Style::default().fg(t.dim))),
-        crate::app::SaveState::Saved(at) if at.elapsed() < std::time::Duration::from_secs(3) => {
-            spans.push(Span::styled("  ✓ saved", Style::default().fg(t.dim)))
-        }
-        _ => {}
-    }
     // What the battery is about to make WrOS do comes first, in warning colour.
     // With a menu open, the highlighted row says what it does.
     if let Some(battery) = app.deck.battery.showing(std::time::Instant::now()) {
@@ -1326,31 +1305,199 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         ));
     }
 
-    // Battery, light and volume sit at the far right. (Key hints left the bar
-    // in rc13: the menus teach the keys.)
-    let gauges = app.deck.gauges.text(app.focus_mode);
-    let gauge_room = if gauges.is_empty() {
-        0
-    } else {
-        gauges.chars().count() + 2
-    };
     let used: usize = spans.iter().map(|s| s.content.chars().count()).sum();
-    let pad = (area.width as usize)
-        .saturating_sub(used)
-        .saturating_sub(gauge_room);
-    spans.push(Span::raw(" ".repeat(pad)));
-    if !gauges.is_empty() {
-        spans.push(Span::styled(
-            format!(" {gauges} "),
-            Style::default().fg(if app.deck.gauges.low_battery() {
-                t.warn
-            } else {
-                t.dim
-            }),
-        ));
+    let light = app
+        .deck
+        .light_flash
+        .is_some_and(|at| at.elapsed() < crate::gauges::LIGHT_SHOWN);
+    let clock = if app.focus_mode {
+        String::new()
+    } else {
+        app.deck.clock.clone()
+    };
+    let items = crate::gauges::fit(
+        app.deck
+            .gauges
+            .items(app.focus_mode, app.linux_console, light, &clock),
+        (area.width as usize).saturating_sub(used + 1),
+    );
+    let room: usize = items.iter().map(|(_, s)| s.chars().count() + 2).sum();
+    spans.push(Span::raw(
+        " ".repeat((area.width as usize).saturating_sub(used + room)),
+    ));
+    let dim = Style::default().fg(t.dim);
+    for (item, text) in items {
+        spans.push(Span::raw(" "));
+        match (item, app.deck.gauges.wifi) {
+            // Lit bars for the signal there is, the rest dim.
+            (crate::gauges::Item::Wifi, Some(crate::gauges::Wifi::Bars(n)))
+                if !app.linux_console =>
+            {
+                for (i, c) in text.chars().enumerate() {
+                    let lit = i < n as usize;
+                    spans.push(Span::styled(
+                        c.to_string(),
+                        if lit {
+                            Style::default().fg(t.text)
+                        } else {
+                            dim
+                        },
+                    ));
+                }
+            }
+            (crate::gauges::Item::Battery, _) if app.deck.gauges.low_battery() => {
+                spans.push(Span::styled(text, Style::default().fg(t.warn)));
+            }
+            _ => spans.push(Span::styled(text, dim)),
+        }
+        spans.push(Span::raw(" "));
     }
 
     f.render_widget(Paragraph::new(Line::from(spans)), area);
+}
+
+/// The marks at the right of the menu bar's line: conflicts waiting to be
+/// settled, whether the words are saved, and the book's backup. With
+/// `warnings_only`, just the ones that need attention (focus mode).
+pub(crate) fn status_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(String, Style)> {
+    let console = app.linux_console;
+    let mut out = vec![];
+    let conflicts = app.conflicts().len();
+    if conflicts > 0 {
+        out.push((
+            if console {
+                format!(
+                    "{conflicts} conflict{}",
+                    if conflicts == 1 { "" } else { "s" }
+                )
+            } else {
+                format!("⚠ {conflicts}")
+            },
+            Style::default().fg(t.warn),
+        ));
+    }
+    // Saved is a steady dim tick; saving, waiting and not saved say so.
+    let dirty = app.project.dirty_count();
+    let save = match &app.save_state {
+        crate::app::SaveState::Failed(_) if dirty > 0 => Some((
+            if console {
+                format!("{dirty} not saved")
+            } else {
+                format!("● {dirty}")
+            },
+            Style::default().fg(t.warn),
+            true,
+        )),
+        crate::app::SaveState::Waiting(_) if dirty > 0 => Some((
+            if console {
+                format!("{dirty} waiting")
+            } else {
+                format!("◌ {dirty}")
+            },
+            Style::default().fg(t.sun),
+            false,
+        )),
+        _ if dirty > 0 => Some((
+            if console {
+                "saving".into()
+            } else {
+                "○".into()
+            },
+            Style::default().fg(t.dim),
+            false,
+        )),
+        _ => Some((
+            if console {
+                "saved".into()
+            } else {
+                "✓".into()
+            },
+            Style::default().fg(t.dim),
+            false,
+        )),
+    };
+    if let Some((text, style, warn)) = save
+        && (warn || !warnings_only)
+    {
+        out.push((text, style));
+    }
+    if let Some(mark) = app.backup_mark() {
+        use crate::app::BackupMark;
+        let (text, style, warn) = match mark {
+            BackupMark::Done(at) => (
+                if console {
+                    format!("backed up {at}")
+                } else {
+                    format!("⇅ {at}")
+                },
+                Style::default().fg(t.dim),
+                false,
+            ),
+            BackupMark::Running => (
+                if console {
+                    "backing up".into()
+                } else {
+                    "⇅…".into()
+                },
+                Style::default().fg(t.accent),
+                false,
+            ),
+            BackupMark::Waiting => (
+                if console {
+                    "backup waiting".into()
+                } else {
+                    "⇅◌".into()
+                },
+                Style::default().fg(t.sun),
+                false,
+            ),
+            BackupMark::Failed => (
+                if console {
+                    "backup failed".into()
+                } else {
+                    "⇅!".into()
+                },
+                Style::default().fg(t.warn),
+                true,
+            ),
+        };
+        if warn || !warnings_only {
+            out.push((text, style));
+        }
+    }
+    out
+}
+
+/// The marks drawn at the right end of the bar's line, clear of its titles.
+pub(crate) fn draw_status_marks(f: &mut Frame, app: &App, line: Rect, t: &Theme) {
+    let titles_end = app
+        .bar_hits
+        .borrow()
+        .iter()
+        .map(|(r, _)| r.right())
+        .max()
+        .unwrap_or(line.x);
+    let mut marks = status_marks(app, t, false);
+    // The backup's time goes first if there's no room, then the rest from the right.
+    while !marks.is_empty() {
+        let width: u16 = marks
+            .iter()
+            .map(|(s, _)| s.chars().count() as u16 + 2)
+            .sum::<u16>()
+            + 1;
+        if titles_end + 2 + width <= line.right() {
+            let mut spans = vec![];
+            for (text, style) in marks {
+                spans.push(Span::raw("  "));
+                spans.push(Span::styled(text, style));
+            }
+            spans.push(Span::raw(" "));
+            let area = Rect::new(line.right() - width, line.y, width, 1);
+            f.render_widget(Paragraph::new(Line::from(spans)), area);
+            return;
+        }
+        marks.pop();
+    }
 }
 
 // ── overlays ─────────────────────────────────────────────────────────

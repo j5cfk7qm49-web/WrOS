@@ -479,6 +479,18 @@ pub struct ExportReview {
     max_scroll: std::cell::Cell<u16>,
 }
 
+/// The book's backup, as the bar's line shows it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BackupMark {
+    /// Backed up, at this time ("14:02", or "12 Nov" before today).
+    Done(String),
+    Running,
+    /// Queued until the backup place can be reached.
+    Waiting,
+    /// The last automatic backup failed; stays until one works.
+    Failed,
+}
+
 /// Modal state. Only one can be up at a time.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Overlay {
@@ -5327,6 +5339,51 @@ impl App {
             ("Manuscript look…".into(), Action::ManuscriptLook),
             ("Author details…".into(), Action::AuthorDetails),
         ]
+    }
+
+    /// The book's backup from what is already known (nothing is read here).
+    pub fn backup_mark(&self) -> Option<BackupMark> {
+        self.deck.backup_mark.clone()
+    }
+
+    pub(crate) fn read_backup_mark(
+        &self,
+        now: chrono::DateTime<chrono::Local>,
+    ) -> Option<BackupMark> {
+        let backups = &self.deck.shell.backup;
+        if backups.auto.failing() {
+            return Some(BackupMark::Failed);
+        }
+        if backups.job.is_some() {
+            return Some(BackupMark::Running);
+        }
+        if !backups.status.configured {
+            return None;
+        }
+        let here = self.project.root.display().to_string();
+        let ours =
+            |project: &str| !project.is_empty() && (project == here || here.ends_with(project));
+        if backups
+            .status
+            .queued_backups
+            .iter()
+            .any(|q| ours(&q.project))
+        {
+            return Some(BackupMark::Waiting);
+        }
+        let last = backups
+            .status
+            .snapshots
+            .iter()
+            .filter(|s| ours(&s.project))
+            .filter_map(|s| chrono::DateTime::parse_from_rfc3339(&s.time).ok())
+            .max()?
+            .with_timezone(&chrono::Local);
+        Some(BackupMark::Done(if last.date_naive() == now.date_naive() {
+            last.format("%H:%M").to_string()
+        } else {
+            last.format("%-d %b").to_string()
+        }))
     }
 
     /// A tap of Super: Find anything, just under the lit menu bar. A second

@@ -353,29 +353,129 @@ fn the_palette_runs_the_same_actions() {
 // ---- the status bar ------------------------------------------------------
 
 #[test]
-fn battery_light_and_volume_sit_at_the_right_of_the_status_bar() {
+fn wifi_volume_battery_and_clock_sit_at_the_right_of_the_status_bar() {
     let mut d = Desk::open(book("status-gauges", true), 100, 30);
-    assert!(!d.status().contains("Bat "), "nothing read, nothing shown");
+    assert!(!d.status().contains('▮'), "nothing read, nothing shown");
     d.app.deck.gauges = crate::gauges::Gauges {
         battery: Some(76),
         charging: false,
         light: Some(50),
         volume: Some(70),
         muted: false,
+        wifi: Some(crate::gauges::Wifi::Bars(2)),
     };
+    d.app.deck.clock = "14:07".into();
     d.draw();
     let status = d.status();
     assert!(
-        status.trim_end().ends_with("Bat 76%  Light 50%  Vol 70%"),
+        status.trim_end().ends_with("▂▄▆  ♪70%  ▮76%  14:07"),
         "{status}"
     );
+    assert!(!status.contains('☀'), "the light only after its key");
+    // Two of three bars lit.
+    let row = d.term.backend().buffer().area.height - 1;
+    let x = status
+        .find('▂')
+        .map(|b| status[..b].chars().count() as u16)
+        .unwrap();
+    let buf = d.term.backend().buffer();
+    assert_ne!(
+        buf[(x + 1, row)].fg,
+        buf[(x + 2, row)].fg,
+        "lit bars differ from the unlit one"
+    );
+    // A brightness key shows the light for a moment.
+    let mut brighter = d.app.deck.gauges;
+    brighter.light = Some(60);
+    d.app.set_gauges(brighter, std::time::Instant::now());
+    d.draw();
+    assert!(d.status().contains("☀60%"), "{}", d.status());
+    // The console spells them out.
+    d.app.linux_console = true;
+    d.draw();
+    assert!(
+        d.status()
+            .contains("Wi-Fi 2/3  Vol 70%  Light 60%  Bat 76%  14:07"),
+        "{}",
+        d.status()
+    );
+    d.app.linux_console = false;
     // Focus mode keeps to the scene, unless the battery runs low.
     d.app.focus_mode = true;
     d.draw();
-    assert!(!d.status().contains("Bat "), "{}", d.status());
+    assert!(!d.status().contains('▮'), "{}", d.status());
     d.app.deck.gauges.battery = Some(9);
     d.draw();
-    assert!(d.status().trim_end().ends_with("Bat 9%"), "{}", d.status());
+    assert!(d.status().trim_end().ends_with("▮9%"), "{}", d.status());
+}
+
+#[test]
+fn narrow_screens_keep_the_message_whole_and_drop_the_clock_first() {
+    let mut d = Desk::open(book("status-narrow", true), 80, 24);
+    d.app.deck.gauges = crate::gauges::Gauges {
+        battery: Some(76),
+        volume: Some(70),
+        wifi: Some(crate::gauges::Wifi::Bars(3)),
+        ..Default::default()
+    };
+    d.app.deck.clock = "14:07".into();
+    d.app.msg = "the whole message stays put".into();
+    d.draw();
+    let status = d.status();
+    assert!(status.contains("the whole message stays put"), "{status}");
+    assert!(status.contains('▮'), "the battery stays longest: {status}");
+    assert!(!status.contains("14:07"), "the clock goes first: {status}");
+}
+
+#[test]
+fn status_top_right_shows_conflicts_then_save_then_backup() {
+    let (root, _, _) = conflicted("status-top");
+    let mut d = Desk::open(root, 120, 35);
+    d.app.deck.backup_mark = Some(crate::app::BackupMark::Done("14:02".into()));
+    d.draw();
+    let top = d.rows()[0].clone();
+    assert!(top.trim_end().ends_with("⚠ 1  ✓  ⇅ 14:02"), "{top}");
+    // A failed backup stays in the warning colour until one works.
+    d.app.deck.backup_mark = Some(crate::app::BackupMark::Failed);
+    d.draw();
+    let top = d.rows()[0].clone();
+    assert!(top.trim_end().ends_with("⇅!"), "{top}");
+    let x = top.chars().count() as u16 - 2;
+    let buf = d.term.backend().buffer();
+    let mark = (0..120)
+        .rev()
+        .find(|&x| buf[(x, 0)].symbol() == "!")
+        .unwrap();
+    let _ = x;
+    assert_eq!(buf[(mark, 0)].fg, d.app.theme.warn);
+    // The console says it in words.
+    d.app.linux_console = true;
+    d.draw();
+    assert!(
+        d.rows()[0].contains("1 conflict  saved  backup failed"),
+        "{}",
+        d.rows()[0]
+    );
+}
+
+#[test]
+fn focus_mode_still_shows_a_failed_save_and_conflicts() {
+    let (root, _, _) = conflicted("status-focus");
+    let mut d = Desk::open(root, 120, 35);
+    d.key(KeyCode::Tab);
+    d.ctrl('d');
+    assert!(d.app.focus_mode);
+    d.app.deck.backup_mark = Some(crate::app::BackupMark::Done("14:02".into()));
+    d.draw();
+    let status = d.status();
+    assert!(status.contains("⚠ 1"), "{status}");
+    assert!(
+        !status.contains('✓') && !status.contains('⇅'),
+        "only warnings: {status}"
+    );
+    d.app.deck.backup_mark = Some(crate::app::BackupMark::Failed);
+    d.draw();
+    assert!(d.status().contains("⇅!"), "{}", d.status());
 }
 
 // ---- notes beside the scene ------------------------------------------------
@@ -1383,7 +1483,11 @@ fn a_sync_apps_copy_is_named_in_the_tree_and_the_status_bar_warns() {
     let (root, _, _) = conflicted("conflict-badge");
     let d = Desk::open(root, 140, 42);
     assert!(d.shows("Dropbox copy"), "the tree names whose copy it is");
-    assert!(d.status().contains("⚠ 1 conflict"), "{}", d.status());
+    assert!(
+        d.rows()[0].contains("⚠ 1"),
+        "the bar warns: {}",
+        d.rows()[0]
+    );
     // and it isn't counted: the book is only the scene's five words
     assert_eq!(d.app.project.total_words(), 5);
 }
@@ -1416,7 +1520,7 @@ fn settling_takes_the_copy_and_ctrl_z_puts_both_back() {
     d.ctrl('z');
     assert!(fs::read_to_string(&scene).unwrap().contains("left at dawn"));
     assert!(copy.exists(), "the copy is back beside it");
-    assert!(d.status().contains("⚠ 1 conflict"));
+    assert!(d.rows()[0].contains("⚠ 1"), "{}", d.rows()[0]);
 }
 
 #[test]
@@ -1528,7 +1632,7 @@ fn unsaved_words_wait_for_a_file_that_cannot_be_read() {
     set_mode(&scene, 0o000);
     assert!(d.app.commit_saves(), "waiting isn't a failure");
     d.draw();
-    assert!(d.status().contains("waiting"), "{}", d.status());
+    assert!(d.rows()[0].contains("◌ 1"), "{}", d.rows()[0]);
     assert!(d.app.msg.contains("can't be saved yet"), "{}", d.app.msg);
     assert_eq!(d.app.project.dirty_count(), 1, "still unsaved, not dropped");
     let rel = scene.strip_prefix(&root).unwrap();

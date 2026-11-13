@@ -30,6 +30,7 @@ mod ui;
 mod visualizer;
 mod viz_view;
 mod voice;
+mod wifi;
 #[cfg(all(target_os = "linux", feature = "gui-wgpu"))]
 mod window;
 mod wros_cli;
@@ -709,7 +710,7 @@ fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
         }
         #[cfg(target_os = "linux")]
         if let Some(gauges) = gauge_watch.as_ref().and_then(|rx| rx.try_iter().last()) {
-            app.deck.gauges = gauges;
+            app.set_gauges(gauges, std::time::Instant::now());
         }
         #[cfg(target_os = "linux")]
         if std::mem::take(&mut app.deck.lock_requested) {
