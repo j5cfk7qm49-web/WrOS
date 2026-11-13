@@ -43,28 +43,39 @@ pub enum TextSize {
 
 impl TextSize {
     /// The same font and colour adapter serves scanout and screenshot templates.
-    pub fn raster(
-        self,
-        columns: u16,
-        rows: u16,
-    ) -> soft_ratatui::SoftBackend<soft_ratatui::CosmicText> {
-        let font_px = match self {
-            Self::Startup => 16,
-            // Foot's 11-point font fits 18-pixel rows at the default scale.
-            Self::Writing => 14,
+    /// Startup and writing share Unifont's 8×16 cell: Unifont is crisp only at
+    /// its own size (and whole multiples of it).
+    pub fn raster(self, columns: u16, rows: u16) -> Pixels {
+        let _ = self;
+        let mut pixels = soft_ratatui::SoftBackend {
+            buffer: ratatui::buffer::Buffer::empty(ratatui::layout::Rect::new(0, 0, columns, rows)),
+            cursor: false,
+            cursor_pos: (0, 0),
+            cursor_config: soft_ratatui::CursorConfig::default(),
+            char_width: unifont::CELL_WIDTH,
+            char_height: unifont::CELL_HEIGHT,
+            frame_count: 0,
+            blink_config: soft_ratatui::BlinkConfig::default(),
+            rgb_pixmap: soft_ratatui::RgbPixmap::new(
+                unifont::CELL_WIDTH * columns as usize,
+                unifont::CELL_HEIGHT * rows as usize,
+            ),
+            always_redraw_list: rustc_hash::FxHashSet::default(),
+            raster_backend: unifont::Unifont,
+            rendered_cursor: None,
         };
-        let mut pixels = soft_ratatui::SoftBackend::<soft_ratatui::CosmicText>::new(
-            columns,
-            rows,
-            font_px,
-            include_bytes!("../../../assets/WrOSMono.ttf"),
-        );
+        let _ = pixels.clear();
         reset_colours(&mut pixels);
         pixels
     }
 }
 
-pub fn raster(columns: u16, rows: u16) -> soft_ratatui::SoftBackend<soft_ratatui::CosmicText> {
+/// The software raster every graphical screen draws into.
+pub type Pixels = soft_ratatui::SoftBackend<unifont::Unifont>;
+
+pub mod unifont;
+
+pub fn raster(columns: u16, rows: u16) -> Pixels {
     TextSize::Startup.raster(columns, rows)
 }
 
@@ -135,14 +146,47 @@ fn normalize(cell: &mut Cell) {
     cell.bg = colour(cell.bg, false);
 }
 
-fn reset_colours(pixels: &mut soft_ratatui::SoftBackend<soft_ratatui::CosmicText>) {
+fn reset_colours(pixels: &mut Pixels) {
     for cell in &mut pixels.buffer.content {
         normalize(cell);
     }
     pixels.redraw();
+    let area = pixels.buffer.area;
+    let all: Vec<_> = (0..area.height)
+        .flat_map(|y| (0..area.width).map(move |x| (x, y)))
+        .collect();
+    repair_wide(pixels, all.into_iter());
 }
 
-fn draw_pixels<'a, I>(pixels: &mut soft_ratatui::SoftBackend<soft_ratatui::CosmicText>, cells: I)
+/// A two-cell character (Chinese, Japanese, Korean) is drawn across its own
+/// cell and the next; drawing that next cell's blank afterwards would cut it
+/// in half. Draw the wide character again over any cell just touched.
+fn repair_wide(pixels: &mut Pixels, touched: impl Iterator<Item = (u16, u16)>) {
+    use unicode_width::UnicodeWidthStr;
+    for (x, y) in touched {
+        if x == 0 {
+            continue;
+        }
+        let left = pixels.buffer[(x - 1, y)].clone();
+        if left.symbol().width() < 2 {
+            continue;
+        }
+        soft_ratatui::RasterBackend::draw_cell(
+            &mut pixels.raster_backend,
+            x - 1,
+            y,
+            &left,
+            &mut pixels.always_redraw_list,
+            false,
+            false,
+            pixels.char_width,
+            pixels.char_height,
+            &mut pixels.rgb_pixmap,
+        );
+    }
+}
+
+fn draw_pixels<'a, I>(pixels: &mut Pixels, cells: I)
 where
     I: Iterator<Item = (u16, u16, &'a Cell)>,
 {
@@ -156,6 +200,7 @@ where
     pixels
         .draw(cells.iter().map(|(x, y, cell)| (*x, *y, cell)))
         .unwrap();
+    repair_wide(pixels, cells.iter().map(|(x, y, _)| (*x, *y)));
 }
 
 #[cfg(target_os = "linux")]

@@ -42,6 +42,19 @@ saves the scene, and checks that the private test-driver tree contains no prose.
 Run `cargo test --no-default-features --features test-driver,gui-wgpu,pty-qa --test driven`
 with cage, Mesa, Wayland/XKB development packages and a writable `/dev/shm`.
 
+## Font (rc13)
+
+The native session draws in GNU Unifont's own 8×16 bitmaps instead of
+rasterising WrOS Mono (DejaVu Sans Mono) through cosmic-text. Pixels are the
+font's pixels, so text matches the console's Fixed 8×16, which Debian builds
+from Unifont. A 1366×768 panel holds 170×48 cells (it held 136×42). The startup,
+login and writing screens share the 8×16 cell, since Unifont is crisp only at
+its own size. A glyph wider than its cells is squeezed into them and never
+paints its neighbours; a character Unifont lacks shows a box. Details and
+sources: `assets/fonts/UNIFONT-SOURCE.md`. Previews:
+`docs/evidence/rc13-font/` (1:1 and 2× screens, and each one-cell drawing
+beside Unifont's own). The Foot session keeps DejaVu Sans Mono for now.
+
 ## Lock, sleep and screen colour
 
 The native writer stays in its authenticated tty1 session. Before starting the

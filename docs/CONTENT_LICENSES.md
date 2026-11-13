@@ -37,6 +37,17 @@ advance and gives the resulting font its own family name. The packaged notice
 covers both source fonts. `assets/wros-startup.png` colours the owner's four-box
 WrOS sketch from `crates/wros-shell/src/logo.rs`. [Font notice](../assets/DEJAVU-LICENSE)
 
+From rc13 the native graphical session draws in GNU Unifont 18.0.01
+(`assets/fonts/unifont-18.0.01.hex.gz`, unmodified upstream file, signature
+checked against Paul Hardy's key 95D2E9AB8740D8046387FD151A09227B1F435A33).
+WrOS adds one-cell drawings for 18 symbols Unifont draws two cells wide
+(`assets/fonts/wros-narrow.txt`); `crates/wros-graphics/build.rs` combines the
+two at build time. WrOS uses Unifont under the SIL Open Font License 1.1
+(Unifont is also offered under GPL 2 or later with the font-embedding
+exception); no Reserved Font Name is declared. `assets/WrOSMono.ttf` stays for
+the optional windowed renderer and is no longer used by the native session.
+[Unifont source and hashes](../assets/fonts/UNIFONT-SOURCE.md) · [OFL text](../assets/fonts/UNIFONT-OFL-1.1.txt)
+
 ## M3b content review
 
 Lesson 13 now instructs an actual safe-demo secondary edit; its wording is original MIT project text, as are the unchanged two demo scenes. Regenerate the bundled tutorial/demo hashes after reviewing this catalog change. No evaluated third-party candidate has been promoted to bundled status by adding the document engine or these tests.

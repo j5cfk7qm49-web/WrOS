@@ -1,10 +1,10 @@
 use super::TextSize;
+use crate::Pixels;
 use drm::{
     Device as _,
     buffer::{Buffer, DrmFourcc},
     control::{Device as _, connector, crtc, dumbbuffer::DumbBuffer, framebuffer},
 };
-use soft_ratatui::{CosmicText, SoftBackend};
 use std::{
     fs::{File, OpenOptions},
     io,
@@ -50,7 +50,7 @@ pub(super) struct Display {
     mode: drm::control::Mode,
     buffer: DumbBuffer,
     framebuffer: framebuffer::Handle,
-    pub pixels: SoftBackend<CosmicText>,
+    pub pixels: Pixels,
     released: bool,
     release: Arc<AtomicBool>,
     acquire: Arc<AtomicBool>,
@@ -87,7 +87,7 @@ fn acquire_master(
     }
 }
 
-fn raster_for_mode(size: TextSize, width: u16, height: u16) -> SoftBackend<CosmicText> {
+fn raster_for_mode(size: TextSize, width: u16, height: u16) -> Pixels {
     let probe = size.raster(1, 1);
     let cols = width as usize / probe.get_pixmap_width();
     let rows = height as usize / probe.get_pixmap_height();
@@ -409,13 +409,13 @@ mod tests {
     }
 
     #[test]
-    fn the_writer_fits_more_cells_at_the_same_panel_resolution() {
-        let mut writing = raster_for_mode(TextSize::Writing, 1366, 768);
-        let mut startup = raster_for_mode(TextSize::Startup, 1366, 768);
-        let writing = writing.window_size().unwrap();
-        let startup = startup.window_size().unwrap();
-        assert_eq!(writing.columns_rows, Size::new(136, 42));
-        assert_eq!(writing.pixels, Size::new(1360, 756));
-        assert_eq!(startup.columns_rows, Size::new(124, 38));
+    fn the_writing_grid_is_170_by_48_at_1366_by_768() {
+        // Unifont's 8x16 cell, as on the console: startup and writing alike.
+        for size in [TextSize::Writing, TextSize::Startup] {
+            let mut pixels = raster_for_mode(size, 1366, 768);
+            let window = pixels.window_size().unwrap();
+            assert_eq!(window.columns_rows, Size::new(170, 48));
+            assert_eq!(window.pixels, Size::new(1360, 768));
+        }
     }
 }
