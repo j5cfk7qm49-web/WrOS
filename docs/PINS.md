@@ -14,7 +14,7 @@ Plain typing does not edit a card body. Pasted prose in Pinboard is ignored rath
 
 | Control | Effect |
 |---|---|
-| Up / Down | Select card; list viewport follows selection |
+| Up / Down, j / k | Select card; list viewport follows selection |
 | PgUp / PgDn | Scroll only the selected card by three wrapped rows |
 | Mouse wheel inside a card | Scroll that reference without taking editor focus |
 | Mouse wheel over Pinboard list | Move list selection, not the source cursor |
@@ -32,7 +32,7 @@ Plain typing does not edit a card body. Pasted prose in Pinboard is ignored rath
 | a / d / u | Archive card / recoverably trash card / restore it to Active |
 | Tab in Pinboard | Cycle Active, Archived, Trashed collections |
 | R | Explicitly reload pin metadata; source disk adoption remains guarded separately |
-| Esc | Leave Pinboard or return from category input |
+| Esc | Leave Pinboard or return from category input; in the sidebar, hide it (rc13) |
 
 Pinboard, Toggle pins sidebar and Pin current document are optional custom-alias actions. Existing F10/F11/F12 defaults remain unchanged.
 
@@ -71,3 +71,12 @@ This is not an OS file lock, hostile-filesystem-race defense, cross-process comp
 These PTYs answer the initial cursor query but do not emulate every terminal feature or certify physical layouts. The separate whole-VM probe covers boot/system/console keyboards, **not pin interaction**. Current aggregate results and source/binary identities are in [STATUS](archive/STATUS.md) and [test-results.json](evidence/test-results.json).
 
 M4c adds per-workspace card-ID filters to sidebar/dashboard only; Pinboard remains global and no body is copied. A bounded last-row fallback keeps an overscrolled/reflowed cached preview readable without rewriting source/scroll from rendering. Its new core test is counted with M4c, not the historical 46-test M4a increment. See [WORKSPACES](WORKSPACES.md).
+
+## rc13: selection and scroll stay in memory
+
+Moving the selection or a card's scroll (arrows, j/k, PgUp/PgDn, the wheel,
+a click) changes only the in-memory state. It is written with the next real
+change (add, remove, reorder, recolour, resize, scope, anchor), when the pins
+are left, or when the app closes, through the same guarded save. The sidebar's
+selected card uses the shared shaded `▸` title; the Pinboard's footer shows the
+keys used most and `?` opens the full list.

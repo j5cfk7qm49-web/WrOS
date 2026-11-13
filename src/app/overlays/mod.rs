@@ -135,7 +135,7 @@ impl App {
 
 /// How a list answers the keys that move through it.
 #[derive(Debug, Clone, Copy)]
-struct Nav {
+pub(crate) struct Nav {
     /// j and k move too — not in a list you type a filter into.
     letters: bool,
     /// Past either end, go round to the other.
@@ -146,25 +146,25 @@ struct Nav {
 }
 
 /// An ordinary list.
-const LIST: Nav = Nav {
+pub(crate) const LIST: Nav = Nav {
     letters: true,
     wrap: false,
     pages: true,
 };
 /// A short menu that goes round.
-const RING: Nav = Nav {
+pub(crate) const RING: Nav = Nav {
     letters: true,
     wrap: true,
     pages: false,
 };
 /// A list under a box you type into: letters are for typing.
-const TYPED: Nav = Nav {
+pub(crate) const TYPED: Nav = Nav {
     letters: false,
     wrap: false,
     pages: true,
 };
 /// A list beside something PgUp/PgDn scroll.
-const LINES: Nav = Nav {
+pub(crate) const LINES: Nav = Nav {
     letters: true,
     wrap: false,
     pages: false,
@@ -173,7 +173,7 @@ const LINES: Nav = Nav {
 /// Move `sel` through a list of `len` rows for ↑↓ — and j/k, PgUp/PgDn and
 /// Home/End as `nav` allows. True if `key` was one of them, so the overlay
 /// can stop there.
-fn list_nav(key: Key, sel: &mut usize, len: usize, nav: Nav) -> bool {
+pub(crate) fn list_nav(key: Key, sel: &mut usize, len: usize, nav: Nav) -> bool {
     let step: isize = match key {
         Key::Down => 1,
         Key::Up => -1,

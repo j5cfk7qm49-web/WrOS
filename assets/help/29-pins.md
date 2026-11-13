@@ -4,7 +4,7 @@ A pin is a project-local reference to an existing Markdown document, not another
 
 ## Read cards, edit sources
 
-`Up` and `Down` select cards. `PgUp` and `PgDn` scroll inside the selected card, not its source editor. A mouse wheel over a sidebar or dashboard card scrolls that card without stealing editor focus. A wheel over Pinboard's list moves the list; over its preview it scrolls the card. Click a sidebar card to focus it, or a dashboard card to select it in Pinboard.
+`Up` and `Down` (or `j` and `k`) select cards; `Esc` in the sidebar hides it, and View › Show the pins sidebar brings it back. `PgUp` and `PgDn` scroll inside the selected card, not its source editor. A mouse wheel over a sidebar or dashboard card scrolls that card without stealing editor focus. A wheel over Pinboard's list moves the list; over its preview it scrolls the card. Click a sidebar card to focus it, or a dashboard card to select it in Pinboard.
 
 Cards are plain-Markdown previews. They cannot be typed into. `Enter` explicitly opens the original source in the independent editor; `e` requests Primary. An already-owned file or alias focuses its existing editor instead of creating a competing buffer. Existing save, undo, history, conflict and recovery protections apply. A failed save or identity check blocks replacement. Pasted prose in Pinboard is ignored, never treated as card commands.
 
@@ -16,7 +16,7 @@ Cards start in **Free** mode: scrolling is relative to the start of the current 
 
 ## Presentation and scope
 
-**Toggle pins sidebar** is available in Writing tools and Ctrl-K. `v` shows or hides the sidebar; `[` and `]` change its width. Cards are retained when the writing area is too narrow or strict focus hides them. Ctrl-K → Pinboard remains available. With two editable documents, the sidebar only appears if at least 72 writing columns remain. Strict focus never tab-focuses a hidden card.
+View › Show the pins sidebar (or Find anything) shows it. `v` shows or hides the sidebar; `[` and `]` change its width. Cards are retained when the writing area is too narrow or strict focus hides them. Ctrl-K → Pinboard remains available. With two editable documents, the sidebar only appears if at least 72 writing columns remain. Strict focus never tab-focuses a hidden card.
 
 `space` collapses a card, `+` and `-` change its height, `c` cycles its color, `g` edits its category, and `J` and `K` change its order. These settings and scroll positions persist outside manuscript text.
 
@@ -29,3 +29,29 @@ Cards start in **Free** mode: scrolling is relative to the start of the current 
 Metadata lives in `.grimoire/writingdeck/pins.json`, with guarded atomic writes. Invalid, unknown, future-version, externally changed or unwritable configuration is preserved and reported; a failed transaction leaves the previous cards in memory. `R` explicitly reloads metadata. This is not a backup. No automatic reset silently discards damaged metadata.
 
 Known in-app file moves update references. A deleted, unreadable, outside-project or unrecognized source remains an explicit unavailable card; it is never silently replaced by another note. Recreate or restore the original file, or use `b` to choose a new source. Containment and alias checks run on input/reload and the bounded disk-check tick, never during rendering. They do not provide an OS-level file lock or protection from a malicious filesystem race.
+
+## Every Pinboard key
+
+The Pinboard's footer shows the keys used most; `?` opens this page.
+
+| Key | Does |
+|---|---|
+| `↑` `↓` `j` `k` | choose a card |
+| `PgUp` `PgDn` | scroll inside the card |
+| `Home` | back to the card's anchor |
+| `Enter` / `e` | open the source beside, or in the main pane |
+| `n` | pin a document |
+| `b` | point the card at another document |
+| `h` / `q` | anchor to a heading / the selected quote |
+| `f` | free or anchored scrolling |
+| `s` / `g` | scope / category |
+| `space` | fold the card |
+| `+` / `-` | taller / shorter |
+| `[` / `]` | narrower / wider sidebar |
+| `c` | colour |
+| `J` / `K` | move the card down / up |
+| `a` / `d` / `u` | archive / trash / restore |
+| `Tab` | Active, Archived and Trash |
+| `v` | show or hide the sidebar |
+| `R` | reload the pins file |
+| `Esc` | close the Pinboard; in the sidebar, hide it |

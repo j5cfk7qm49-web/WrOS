@@ -59,6 +59,22 @@ impl Pins {
     pub fn state(&self) -> &State {
         self.store.as_ref().map_or(&self.fallback, |s| &s.state)
     }
+    /// Selection and scroll: in memory, written later (see [`Pins::flush`]).
+    pub fn view(&mut self, edit: impl FnOnce(&mut State)) {
+        match &mut self.store {
+            Some(store) => store.view(edit),
+            None => edit(&mut self.fallback),
+        }
+    }
+    /// Write a moved selection or scroll now: leaving the pins, or quitting.
+    pub fn flush(&mut self) {
+        if let Some(store) = &mut self.store
+            && let Err(e) = store.flush()
+        {
+            self.warning =
+                format!("Pins NOT saved: {e:#}. Previous cards kept; R reloads metadata.");
+        }
+    }
     pub fn update<T>(&mut self, edit: impl FnOnce(&mut State) -> Result<T>) -> Result<T> {
         let Some(store) = &mut self.store else {
             bail!("{}", self.warning);
@@ -222,9 +238,7 @@ impl App {
         self.refresh_pin_sources();
         self.overlay = Overlay::Pins;
         self.tree_drag = None;
-        self.msg =
-            "Pinboard · n pin document · Enter edit source · ? help · no source text is copied"
-                .into();
+        self.msg = "The Pinboard. n pins a document; Enter opens a card's source.".into();
         self.pin_select_valid(true);
     }
     pub fn pin_picker(&mut self, relink: Option<u64>) {
@@ -442,10 +456,7 @@ impl App {
             .is_none_or(|id| !ids.contains(&id))
             && let Some(&id) = ids.first()
         {
-            let _ = self.pins.update(|s| {
-                s.selected = Some(id);
-                Ok(())
-            });
+            self.pins.view(|s| s.selected = Some(id));
         }
     }
     pub fn prepare_pin_focus(&mut self) {
@@ -469,34 +480,34 @@ impl App {
         {
             return;
         }
-        if let Err(e) = self.pins.update(|s| {
+        self.pins.view(|s| {
             s.selected = Some(ids[at]);
             s.sidebar_scroll = start;
-            Ok(())
-        }) {
-            self.msg = e.to_string();
-        }
+        });
     }
-    fn pin_move_selection(&mut self, down: bool, board: bool) {
+    /// ↑↓ and j/k move through the cards with the shared list keys. True if
+    /// `key` was one of them.
+    fn pin_move_selection(&mut self, key: Key, board: bool) -> bool {
         let ids = if board {
             self.board_ids()
         } else {
             self.pin_ids(false)
         };
-        if ids.is_empty() {
-            return;
-        }
         let at = self
             .pins
             .state()
             .selected
             .and_then(|id| ids.iter().position(|&n| n == id))
             .unwrap_or(0);
-        let next = if down {
-            (at + 1).min(ids.len() - 1)
-        } else {
-            at.saturating_sub(1)
-        };
+        let mut next = at;
+        // PgUp/PgDn scroll the card and Home returns to its anchor, so the
+        // list takes only the arrows and j/k.
+        if !super::overlays::list_nav(key, &mut next, ids.len(), super::overlays::LINES) {
+            return false;
+        }
+        if ids.is_empty() {
+            return true;
+        }
         let id = ids[next];
         let page = if board {
             self.pins.board_page.get()
@@ -505,7 +516,7 @@ impl App {
         }
         .max(1);
         let available = self.pins.rect.height.saturating_sub(2) as usize;
-        if let Err(e) = self.pins.update(|s| {
+        self.pins.view(|s| {
             s.selected = Some(id);
             if board {
                 if next < s.board_scroll {
@@ -516,10 +527,8 @@ impl App {
             } else {
                 s.sidebar_scroll = sidebar_start(s, &ids, next, available);
             }
-            Ok(())
-        }) {
-            self.msg = e.to_string();
-        }
+        });
+        true
     }
     fn pin_scroll(&mut self, id: u64, down: bool, step: usize) {
         let Some(pin) = self.pins.state().pins.iter().find(|p| p.id == id) else {
@@ -568,12 +577,11 @@ impl App {
                 .saturating_sub(step)
                 .min(preview.total_rows.saturating_sub(1))
         };
-        if let Err(e) = self.pins.update(|s| {
-            s.pin_mut(id)?.scroll = next;
-            Ok(())
-        }) {
-            self.msg = e.to_string();
-        }
+        self.pins.view(|s| {
+            if let Ok(pin) = s.pin_mut(id) {
+                pin.scroll = next;
+            }
+        });
     }
     fn pin_restore_anchor(&mut self) {
         let Some(pin) = self.pin_selected() else {
@@ -726,8 +734,7 @@ impl App {
         if !board && self.focus != Focus::Pins {
             return;
         }
-        if matches!(key, Key::Up | Key::Down) {
-            self.pin_move_selection(key == Key::Down, board);
+        if self.pin_move_selection(key, board) {
             return;
         }
         if key == Key::Char('R') {
@@ -743,8 +750,17 @@ impl App {
             return;
         }
         match key {
-            Key::Esc => {
+            // Esc closes the Pinboard; in the sidebar it hides the sidebar, as Esc
+            // closes a note or a scene beside. View › Show the pins sidebar
+            // brings it back.
+            Key::Esc if board => {
                 self.overlay = Overlay::None;
+                self.focus = self.editor_focus();
+            }
+            Key::Esc => {
+                if self.pins.state().sidebar_visible {
+                    self.toggle_pins();
+                }
                 self.focus = self.editor_focus();
             }
             Key::Char('n') => self.pin_picker(None),
@@ -955,18 +971,11 @@ impl App {
         };
         if let Some((id, _)) = chosen {
             self.flush();
-            match self.pins.update(|s| {
-                s.selected = Some(id);
-                Ok(())
-            }) {
-                Ok(()) => {
-                    if dashboard {
-                        self.open_pinboard();
-                    } else if self.overlay == Overlay::None {
-                        self.focus = Focus::Pins;
-                    }
-                }
-                Err(e) => self.msg = e.to_string(),
+            self.pins.view(|s| s.selected = Some(id));
+            if dashboard {
+                self.open_pinboard();
+            } else if self.overlay == Overlay::None {
+                self.focus = Focus::Pins;
             }
             return true;
         }
@@ -984,7 +993,7 @@ impl App {
                     self.pin_scroll(id, down, 3);
                 }
             } else {
-                self.pin_move_selection(down, true);
+                self.pin_move_selection(if down { Key::Down } else { Key::Up }, true);
             }
             return true;
         }
@@ -1015,7 +1024,7 @@ impl App {
             return true;
         }
         if super::hit(self.pins.rect, x, y) {
-            self.pin_move_selection(down, false);
+            self.pin_move_selection(if down { Key::Down } else { Key::Up }, false);
             return true;
         }
         false
@@ -1060,12 +1069,13 @@ fn draw_card(f: &mut Frame, app: &App, pin: &Pin, area: Rect, t: &Theme, focused
         .pin_node(pin.id)
         .and_then(|i| app.project.nodes.get(i))
         .map_or_else(|| pin.source.display().to_string(), |n| n.title.clone());
+    let selected = Some(pin.id) == app.pins.state().selected;
     let title = format!(
-        "{} {} · {}{}",
-        if Some(pin.id) == app.pins.state().selected {
-            "▶"
+        "{}{} · {}{}",
+        if selected {
+            wros_shell::look::MARKER
         } else {
-            "·"
+            ""
         },
         safe(&title),
         if pin.category.is_empty() {
@@ -1076,6 +1086,15 @@ fn draw_card(f: &mut Frame, app: &App, pin: &Pin, area: Rect, t: &Theme, focused
         if pin.collapsed { " [+]" } else { "" }
     );
     let mut block = crate::ui::pane_block(&title, focused, t);
+    if selected {
+        let look: wros_shell::Theme = t.into();
+        block = ratatui::widgets::Block::default()
+            .borders(ratatui::widgets::Borders::ALL)
+            .title(ratatui::text::Span::styled(
+                format!(" {title} "),
+                wros_shell::look::highlight(look).add_modifier(ratatui::style::Modifier::BOLD),
+            ));
+    }
     block = block.border_style(Style::default().fg(if focused {
         t.accent
     } else {
@@ -1216,7 +1235,7 @@ pub fn sidebar(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) -> Rect {
 }
 pub fn draw_board(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     f.render_widget(Clear, area);
-    let title = format!("PINBOARD · {:?} · metadata-only", app.pins.board_life);
+    let title = format!("Pinboard · {:?}", app.pins.board_life);
     let block = crate::ui::pane_block(&title, true, t);
     let inner = block.inner(area);
     f.render_widget(block, area);
@@ -1233,8 +1252,9 @@ pub fn draw_board(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         );
         return;
     }
-    let hint = "↑↓ card · PgUp/PgDn scroll · Home anchor · h heading · q quote · f free/anchor\nEnter source beside · e primary · n pin · b relink · v sidebar · s scope · g category\nspace fold · +/- height · [] sidebar width · c color · J/K order · a archive · d trash · u restore · Tab collection · R reload · Esc close";
-    let help_height = if inner.height >= 15 { 3 } else { 1 };
+    // The keys used most, lit; the rest are on the help page behind ?.
+    let hint = " ↑↓ card   Enter source   n pin   a archive   d trash   ? all keys   esc close";
+    let help_height = 1;
     let status_height = if app.pins.warning.is_empty() { 1 } else { 2 };
     let usable = inner.height.saturating_sub(help_height + status_height);
     let list_width = (inner.width / 3)
@@ -1307,7 +1327,7 @@ pub fn draw_board(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         Rect::new(inner.x, y, inner.width, status_height),
     );
     f.render_widget(
-        Paragraph::new(hint).style(Style::default().fg(t.dim)),
+        Paragraph::new(crate::ui::hint_line(hint, t)),
         Rect::new(inner.x, y + status_height, inner.width, help_height),
     );
 }

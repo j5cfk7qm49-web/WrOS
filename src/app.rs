@@ -1471,6 +1471,13 @@ impl App {
     }
 
     /// "Today" starts again at midnight, even with Grimoire left open.
+    /// A selection or scroll moved in the pins is written once they're left.
+    pub fn tick_pins(&mut self) {
+        if self.focus != Focus::Pins && self.overlay != Overlay::Pins {
+            self.pins.flush();
+        }
+    }
+
     pub fn tick_today(&mut self) {
         self.tick_today_at(today_string());
     }
@@ -5421,7 +5428,10 @@ impl App {
     /// has focus — so a second Esc opens it. Closing the menu leaves you in
     /// the pane you were in.
     pub fn escape(&mut self) {
-        if self.focus.is_editor() && self.editor.has_selection() {
+        if self.focus == Focus::Pins {
+            // Esc in the pins sidebar hides it.
+            self.on_pin_key(Key::Esc);
+        } else if self.focus.is_editor() && self.editor.has_selection() {
             self.editor.clear_selection();
         } else if !self.focus_mode && self.side_room && self.codex.is_some() {
             self.close_codex();

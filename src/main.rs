@@ -317,6 +317,7 @@ fn main() -> Result<()> {
         }
     };
 
+    app.pins.flush();
     let _ = execute!(std::io::stdout(), DisableBracketedPaste, DisableFocusChange);
     let _ = execute!(std::io::stdout(), DisableMouseCapture);
     let _ = execute!(std::io::stdout(), PopKeyboardEnhancementFlags);
@@ -760,6 +761,7 @@ fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
         app.autosave_tick();
         app.sync_tick();
         app.tick_today();
+        app.tick_pins();
         app.tick_speller();
         app.tick_checks();
         app.tick_lexicon();

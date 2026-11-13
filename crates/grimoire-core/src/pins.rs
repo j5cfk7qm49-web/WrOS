@@ -272,6 +272,8 @@ pub struct Store {
     pub state: State,
     root: PathBuf,
     seen: Option<Fingerprint>,
+    /// Selection or scroll moved since the file was last written.
+    view_dirty: bool,
 }
 impl Store {
     pub fn path(root: &Path) -> PathBuf {
@@ -314,7 +316,12 @@ impl Store {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => (State::default(), None),
             Err(e) => return Err(e.into()),
         };
-        Ok(Self { state, root, seen })
+        Ok(Self {
+            state,
+            root,
+            seen,
+            view_dirty: false,
+        })
     }
     pub fn update<T>(&mut self, edit: impl FnOnce(&mut State) -> Result<T>) -> Result<T> {
         let mut next = self.state.clone();
@@ -330,12 +337,32 @@ impl Store {
             SaveOutcome::Written => {
                 self.seen = Some(Fingerprint::of(&text));
                 self.state = next;
+                self.view_dirty = false;
                 Ok(result)
             }
             SaveOutcome::Conflict { .. } => {
                 bail!("pins changed externally; original not overwritten; reload the board")
             }
         }
+    }
+}
+
+impl Store {
+    /// Move the selection or a card's scroll: in memory only. The next real
+    /// change writes it, or [`Store::flush`] when the pane is left. Moving
+    /// through the cards never writes the file.
+    pub fn view(&mut self, edit: impl FnOnce(&mut State)) {
+        edit(&mut self.state);
+        self.view_dirty = true;
+    }
+
+    /// Write the selection and scroll if they moved, with the same guard
+    /// against outside changes as any other write.
+    pub fn flush(&mut self) -> Result<()> {
+        if self.view_dirty {
+            self.update(|_| Ok(()))?;
+        }
+        Ok(())
     }
 }
 
@@ -858,4 +885,36 @@ fn excerpt_reflow_or_shortened_source_never_leaves_an_overscrolled_reader_blank(
         .lines
         .is_empty()
     );
+}
+
+#[cfg(test)]
+mod view_tests {
+    use super::*;
+
+    #[test]
+    fn moving_the_selection_writes_nothing_until_flushed() {
+        let root = std::env::temp_dir().join(format!("pins-view-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let mut store = Store::load(&root).unwrap();
+        store
+            .update(|s| {
+                s.sidebar_visible = true;
+                Ok(())
+            })
+            .unwrap();
+        let path = Store::path(&fs::canonicalize(&root).unwrap());
+        let before = fs::read(&path).unwrap();
+        for scroll in 1..20 {
+            store.view(|s| s.sidebar_scroll = scroll);
+        }
+        assert_eq!(fs::read(&path).unwrap(), before, "moving wrote nothing");
+        assert_eq!(store.state.sidebar_scroll, 19, "but the move is kept");
+        store.flush().unwrap();
+        assert_ne!(fs::read(&path).unwrap(), before, "leaving writes it once");
+        let after = fs::read(&path).unwrap();
+        store.flush().unwrap();
+        assert_eq!(fs::read(&path).unwrap(), after, "nothing more to write");
+        let _ = fs::remove_dir_all(&root);
+    }
 }

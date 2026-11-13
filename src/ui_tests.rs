@@ -5135,7 +5135,7 @@ fn wros_pins_narrow_tiny_and_strict_focus_hide_without_losing_cards() {
     assert_eq!(d.app.pins.state(), &state);
     d.app.run_action(palette::Action::Pinboard);
     d.draw();
-    assert!(d.shows("PINBOARD"));
+    assert!(d.shows("Pinboard"));
     d.key(KeyCode::Esc);
     d.term = Terminal::new(TestBackend::new(160, 50)).unwrap();
     d.draw();
@@ -5232,7 +5232,8 @@ fn wros_pins_external_metadata_conflict_rolls_back_until_explicit_reload() {
     external.pins[0].category = "Other writer".into();
     let text = serde_json::to_string_pretty(&external).unwrap();
     fs::write(&path, &text).unwrap();
-    d.key(KeyCode::PageDown);
+    // A real change (the card's height) meets the guard; scrolling writes nothing.
+    d.key(KeyCode::Char('+'));
     assert_eq!(d.app.pins.state(), &old);
     assert_eq!(fs::read_to_string(&path).unwrap(), text);
     assert!(d.app.pins.warning.contains("NOT saved"));
@@ -5240,6 +5241,7 @@ fn wros_pins_external_metadata_conflict_rolls_back_until_explicit_reload() {
     assert_eq!(d.app.pins.state(), &external);
     assert!(d.app.pins.warning.is_empty());
     d.key(KeyCode::PageDown);
+    d.app.pins.flush();
     assert_eq!(Store::load(&d.root).unwrap().state.pins[0].scroll, 3);
 }
 
@@ -5253,7 +5255,7 @@ fn wros_pins_metadata_write_failure_keeps_previous_cards_and_manuscripts() {
     let parked = dir.with_extension("kept");
     fs::rename(&dir, &parked).unwrap();
     fs::write(&dir, "directory unavailable").unwrap();
-    d.key(KeyCode::PageDown);
+    d.key(KeyCode::Char('+'));
     assert_eq!(d.app.pins.state(), &old);
     assert!(d.app.pins.warning.contains("NOT saved"));
     assert_eq!(fs::read(&note).unwrap(), original);
@@ -8548,6 +8550,8 @@ mod bar_ui_tests;
 mod lid_ui_tests;
 #[path = "menu_map_ui_tests.rs"]
 mod menu_map_ui_tests;
+#[path = "pins_ui_tests.rs"]
+mod pins_ui_tests;
 #[path = "session_ui_tests.rs"]
 mod session_ui_tests;
 #[path = "tutorial_ui_tests.rs"]
