@@ -660,6 +660,8 @@ impl App {
                 self.workflow.selected = self.scratch_ids().first().copied();
                 self.workflow.scroll = 0;
             }
+            // differs: the scratchpad is typed into, so letters are text; the
+            // handoff below is a page of text that scrolls rather than a list.
             Key::Up | Key::Down if !handoff => {
                 let ids = self.scratch_ids();
                 if !ids.is_empty() {

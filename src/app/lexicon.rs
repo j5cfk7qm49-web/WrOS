@@ -264,14 +264,12 @@ impl App {
                     }
                 }
                 Key::Char('r') => self.lexicon.request(),
-                Key::Up => self.lexicon.selected = self.lexicon.selected.saturating_sub(1),
-                Key::Down => {
+                // Senses move with the shared list keys; PgUp/PgDn scroll the page.
+                Key::Up | Key::Down | Key::Char('j' | 'k') => {
                     let len = self.lexicon.result.as_ref().map_or(0, |r| r.senses.len());
-                    self.lexicon.selected = self
-                        .lexicon
-                        .selected
-                        .saturating_add(1)
-                        .min(len.saturating_sub(1));
+                    let mut sel = self.lexicon.selected;
+                    super::overlays::list_nav(key, &mut sel, len, super::overlays::LINES);
+                    self.lexicon.selected = sel;
                 }
                 Key::Home => self.lexicon.selected = 0,
                 Key::End => {
@@ -290,13 +288,11 @@ impl App {
                         self.lexicon.antonyms = !self.lexicon.antonyms;
                         self.lexicon.word = 0;
                     }
-                    Key::Up => self.lexicon.word = self.lexicon.word.saturating_sub(1),
-                    Key::Down => {
-                        self.lexicon.word = self
-                            .lexicon
-                            .word
-                            .saturating_add(1)
-                            .min(self.lexicon.words().len().saturating_sub(1))
+                    Key::Up | Key::Down | Key::Char('j' | 'k') => {
+                        let len = self.lexicon.words().len();
+                        let mut word = self.lexicon.word;
+                        super::overlays::list_nav(key, &mut word, len, super::overlays::LINES);
+                        self.lexicon.word = word;
                     }
                     Key::Home => self.lexicon.word = 0,
                     Key::End => self.lexicon.word = self.lexicon.words().len().saturating_sub(1),

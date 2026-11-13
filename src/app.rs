@@ -5256,6 +5256,25 @@ impl App {
         if self.help_wheel(down, STEP) {
             return;
         }
+        // WrOS's own screens: the wheel moves the list (or scrolls the page)
+        // as ↑↓ do there.
+        if matches!(
+            self.overlay,
+            Overlay::Checks { .. }
+                | Overlay::Lexicon
+                | Overlay::ProseDashboard
+                | Overlay::Continuity
+                | Overlay::Milestones
+                | Overlay::ReviewNotes
+                | Overlay::Spark { .. }
+                | Overlay::Productivity { .. }
+                | Overlay::Journal
+                | Overlay::Handoff
+                | Overlay::Deck(wros::Page::Home { .. })
+        ) {
+            self.on_overlay_key(if down { Key::Down } else { Key::Up });
+            return;
+        }
         // The merge panel scrolls the version under the pointer.
         if let Overlay::Merge { side, scroll, .. } = &mut self.overlay {
             let panes = self.merge_panes.get();

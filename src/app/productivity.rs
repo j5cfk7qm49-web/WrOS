@@ -1433,6 +1433,8 @@ impl App {
             return;
         }
         let count = self.productivity_count(page);
+        // differs: past either end of its list, ↑↓ go on to scroll the page,
+        // and its pages type numbers and letters, so j/k stay letters here.
         if matches!(key, Key::Up | Key::Down | Key::Home | Key::End) && count > 0 {
             sel = match key {
                 Key::Up => sel.saturating_sub(1),

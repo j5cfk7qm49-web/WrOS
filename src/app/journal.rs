@@ -502,6 +502,7 @@ impl App {
             Key::Char('c') => self.capture_journal_checkpoint(),
             Key::Enter => self.edit_journal_reflection(false),
             Key::Char('e') => self.edit_journal_reflection(true),
+            // differs: the journal is a page of text that scrolls, not a list.
             Key::Home => self.journal.scroll = 0,
             Key::Up | Key::PageUp => {
                 self.journal.scroll =

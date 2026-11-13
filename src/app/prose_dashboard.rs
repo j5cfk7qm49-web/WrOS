@@ -1074,11 +1074,7 @@ impl App {
                     self.prose_dashboard.alternative.saturating_sub(1);
                 Ok(())
             }
-            Key::Up => {
-                self.prose_dashboard.selected = self.prose_dashboard.selected.saturating_sub(1);
-                Ok(())
-            }
-            Key::Down => {
+            Key::Up | Key::Down | Key::Char('j' | 'k') => {
                 let n = match page {
                     Page::Sources => self.prose_dashboard.sources.len(),
                     Page::Voice => self
@@ -1088,8 +1084,9 @@ impl App {
                         .map_or(0, |s| s.value.profiles.len()),
                     _ => self.prose_dashboard.visible().len(),
                 };
-                self.prose_dashboard.selected =
-                    (self.prose_dashboard.selected + 1).min(n.saturating_sub(1));
+                let mut sel = self.prose_dashboard.selected;
+                super::overlays::list_nav(key, &mut sel, n, super::overlays::LINES);
+                self.prose_dashboard.selected = sel;
                 Ok(())
             }
             Key::Home => {

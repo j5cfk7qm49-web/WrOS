@@ -430,6 +430,20 @@ impl App {
                 self.milestones.nav.move_by(-1, len);
                 Ok(())
             }
+            (Page::Milestones, Key::Home | Key::End) => {
+                let len = self
+                    .milestones
+                    .store
+                    .as_ref()
+                    .map_or(0, |s| s.value.milestones.len());
+                let at = if key == Key::Home {
+                    0
+                } else {
+                    len.saturating_sub(1)
+                };
+                self.milestones.nav.select(at, len);
+                Ok(())
+            }
             (Page::Variants, Key::Down | Key::Char('j')) => {
                 let len = self
                     .current_story_document_id()

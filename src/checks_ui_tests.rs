@@ -632,3 +632,32 @@ fn empty_stale_slots_do_not_bypass_once_worker_idle_cleanup() {
     d.app.tick_checks_at(30_001);
     assert!(d.app.checks.worker.is_none());
 }
+
+#[test]
+fn the_findings_list_moves_with_the_shared_list_keys() {
+    let mut d = check_desk("check-keys", 100, 30);
+    let mut report = contract_report(&d);
+    let finding = report.findings[0].clone();
+    report.findings.push(finding.clone());
+    report.findings.push(finding);
+    d.app.install_check_report_for_test(report);
+    d.app.overlay = Overlay::Checks {
+        page: app::checks::Page::Findings,
+    };
+    d.draw();
+    let len = d.app.visible_checks().len();
+    assert!(len >= 2, "{len} findings");
+    d.key(KeyCode::Char('j'));
+    assert_eq!(d.app.checks.selected, 1, "j moves down");
+    d.key(KeyCode::Char('k'));
+    assert_eq!(d.app.checks.selected, 0, "k moves up");
+    d.key(KeyCode::End);
+    assert_eq!(d.app.checks.selected, len - 1);
+    d.key(KeyCode::Home);
+    assert_eq!(d.app.checks.selected, 0);
+    d.key(KeyCode::PageDown);
+    assert_eq!(d.app.checks.selected, len - 1, "PgDn stops at the end");
+    // The wheel moves it too.
+    d.app.on_scroll(10, 10, false);
+    assert_eq!(d.app.checks.selected, len - 2, "the wheel moves up");
+}

@@ -629,6 +629,8 @@ impl App {
             return;
         }
         let len = self.spark_len(page);
+        // differs: past either end of its list, ↑↓ go on to scroll the page,
+        // and its letters choose exercises, so j/k stay letters here.
         if len > 0 && matches!(key, Key::Up | Key::Down | Key::Home | Key::End) {
             sel = match key {
                 Key::Up => sel.saturating_sub(1),

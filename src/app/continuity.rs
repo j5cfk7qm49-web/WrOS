@@ -435,6 +435,19 @@ impl App {
                 self.continuity.nav.move_by(-1, len);
                 Ok(())
             }
+            (
+                Page::Facts | Page::Timeline | Page::Threads | Page::Conflicts,
+                Key::Home | Key::End,
+            ) => {
+                let len = self.continuity_list_len(page);
+                let at = if key == Key::Home {
+                    0
+                } else {
+                    len.saturating_sub(1)
+                };
+                self.continuity.nav.select(at, len);
+                Ok(())
+            }
             (Page::Facts, Key::Char('n')) => {
                 self.continuity.fact_draft = Some(FactDraft {
                     category: Some(FactCategory::Character),

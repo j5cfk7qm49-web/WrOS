@@ -552,7 +552,7 @@ impl App {
         }
         Some(report)
     }
-    fn visible_checks(&self) -> Vec<&Diagnostic> {
+    pub(crate) fn visible_checks(&self) -> Vec<&Diagnostic> {
         self.current_check_report()
             .into_iter()
             .flat_map(|r| &r.findings)
@@ -955,27 +955,18 @@ impl App {
                         }
                     }
                     Key::Char('u') => self.reload_checks(),
-                    Key::Down | Key::Char('j') | Key::PageDown => {
+                    // The findings list moves with the shared list keys.
+                    Key::Down
+                    | Key::Up
+                    | Key::Char('j' | 'k')
+                    | Key::PageDown
+                    | Key::PageUp
+                    | Key::Home
+                    | Key::End => {
                         let len = self.visible_checks().len();
-                        let step = if key == Key::PageDown { 10 } else { 1 };
-                        self.checks.selected = self
-                            .checks
-                            .selected
-                            .saturating_add(step)
-                            .min(len.saturating_sub(1));
-                        self.checks.alternative = 0;
-                    }
-                    Key::Up | Key::Char('k') | Key::PageUp => {
-                        let step = if key == Key::PageUp { 10 } else { 1 };
-                        self.checks.selected = self.checks.selected.saturating_sub(step);
-                        self.checks.alternative = 0;
-                    }
-                    Key::Home => {
-                        self.checks.selected = 0;
-                        self.checks.alternative = 0;
-                    }
-                    Key::End => {
-                        self.checks.selected = self.visible_checks().len().saturating_sub(1);
+                        let mut sel = self.checks.selected;
+                        super::overlays::list_nav(key, &mut sel, len, super::overlays::LIST);
+                        self.checks.selected = sel;
                         self.checks.alternative = 0;
                     }
                     Key::Tab | Key::Right => {
