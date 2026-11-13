@@ -258,6 +258,28 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class NativePixels(unittest.TestCase):
+    """The unlock screen's native check: theme colours, not anti-aliasing."""
+
+    def picture(self, colours):
+        from PIL import Image
+        image = Image.new('RGB', (len(colours), 1))
+        image.putdata(colours)
+        path = Path(tempfile.mkdtemp(prefix='native-pixels-')) / 'screen.png'
+        image.save(path)
+        return path
+
+    def test_crisp_unifont_in_theme_colours_is_native(self):
+        import rc_vm_phases
+        path = self.picture([(0, 0, 0), (0, 255, 0), (242, 240, 255), (74, 69, 96), (143, 138, 168)])
+        self.assertTrue(rc_vm_phases.native_pixels(path))
+
+    def test_the_sixteen_colour_console_is_not(self):
+        import rc_vm_phases
+        path = self.picture(sorted(rc_vm_phases.CONSOLE_PALETTE))
+        self.assertFalse(rc_vm_phases.native_pixels(path))
+
+
 class InsideTheSettingsBox(unittest.TestCase):
     """rc13: Settings is a box over the page; helpers read only the box."""
 

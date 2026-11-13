@@ -2669,11 +2669,23 @@ def console_has_green(path):
         return any(g > r + 40 and g > b + 40 for r, g, b in picture.convert('RGB').getdata())
 
 
+# Linux's default console palette. WrOS never reprograms it, so any other
+# colour on screen was drawn by the native pixel renderer.
+CONSOLE_PALETTE = {
+    (0, 0, 0), (170, 0, 0), (0, 170, 0), (170, 85, 0), (0, 0, 170), (170, 0, 170),
+    (0, 170, 170), (170, 170, 170), (85, 85, 85), (255, 85, 85), (85, 255, 85),
+    (255, 255, 85), (85, 85, 255), (255, 85, 255), (85, 255, 255), (255, 255, 255),
+}
+
+
 def native_pixels(path):
-    """Anti-aliased font edges distinguish pixels from the 16-colour console."""
+    """The theme's own colours distinguish native pixels from the 16-colour
+    console. (Until rc12 anti-aliased edges did; rc13's Unifont is a crisp
+    bitmap font, so a native screen may have only a handful of colours.)"""
     from PIL import Image
     with Image.open(path) as picture:
-        return len(picture.convert('RGB').getcolors(maxcolors=1 << 24)) > 64
+        colours = picture.convert('RGB').getcolors(maxcolors=1 << 24)
+    return sum(1 for _, rgb in colours if rgb not in CONSOLE_PALETTE) >= 2
 
 
 def wait_boot_prepared(ctx, g, *, enabled):
