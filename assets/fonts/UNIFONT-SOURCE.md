@@ -21,7 +21,8 @@ one cell when it builds the embedded table: scaled evenly to seven pixels wide
 at the original's height, strokes carried by their thinned centre lines,
 choosing among pixel alignments the result closest to the original that keeps
 its strokes and holes. `wros-narrow.txt` holds hand drawings, in the frame of
-Unifont's own one-cell symbols, for the 18 the interface itself uses. `crates/wros-graphics/build.rs`
+Unifont's own one-cell symbols, for the 18 the interface itself uses and
+five writer symbols (✔ ❖ ♻ ✂ ⚙) whose automatic fitting lost their shape. `crates/wros-graphics/build.rs`
 replaces Unifont's drawing of each with WrOS's when it builds the embedded
 table. The test `every_interface_symbol_is_as_wide_as_the_layout_gives_it`
 fails if the interface starts using another such symbol.
