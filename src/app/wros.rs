@@ -91,7 +91,7 @@ impl Worker {
         Self { tx, rx, simulated }
     }
 }
-const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 22] = [
+const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 23] = [
     (ShortcutAction::Dashboard, "WrOS dashboard"),
     (ShortcutAction::SystemSettings, "System settings"),
     (ShortcutAction::Tutorial, "Interactive tutorial"),
@@ -114,6 +114,7 @@ const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 22] = [
     (ShortcutAction::Achievements, "Milestone collection"),
     (ShortcutAction::DailyChallenges, "Daily challenges"),
     (ShortcutAction::StorySpark, "Story Spark"),
+    (ShortcutAction::MenuBar, "Open the menu bar"),
 ];
 
 pub struct Deck {
@@ -749,9 +750,15 @@ impl App {
         self.msg = if w.outline {
             "outline shown"
         } else {
-            "outline hidden · F10 restores it"
+            "outline hidden"
         }
-        .into();
+        .to_string();
+        if !self.deck.state.current().outline {
+            self.msg = match self.deck.shortcuts.chord_for(ShortcutAction::Outline) {
+                Some(key) => format!("outline hidden · {key} restores it"),
+                None => "outline hidden · View › Outline restores it".into(),
+            };
+        }
         self.deck.dirty = true;
         self.save_deck();
         self.observe_deck(tutorial::Event::OutlineToggled);
@@ -780,6 +787,7 @@ impl App {
             ShortcutAction::Achievements => self.run_action(Action::Achievements),
             ShortcutAction::DailyChallenges => self.run_action(Action::DailyChallenges),
             ShortcutAction::StorySpark => self.run_action(Action::StorySpark),
+            ShortcutAction::MenuBar => self.open_menu(),
         }
     }
     pub fn add_deck_shortcut(&mut self, chord: &str) {
@@ -794,9 +802,15 @@ impl App {
             let action = SHORTCUT_ACTIONS[sel].0;
             let mut shortcuts = self.deck.shortcuts.clone();
             shortcuts.bindings.retain(|b| b.chord != chord);
+            if action == ShortcutAction::MenuBar {
+                // One key for the bar: the new one replaces F10 (Esc still opens it).
+                shortcuts
+                    .bindings
+                    .retain(|b| b.action != ShortcutAction::MenuBar);
+            }
             shortcuts.bindings.push(Binding { chord, action });
             shortcuts.validate()?;
-            let text = serde_json::to_string_pretty(&shortcuts)? + "\n";
+            let text = serde_json::to_string_pretty(&shortcuts.to_saved())? + "\n";
             fs::create_dir_all(self.deck.shortcuts_path.parent().unwrap())?;
             match grimoire_core::sync::save_guarded(
                 &self.deck.shortcuts_path,

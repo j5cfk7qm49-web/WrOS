@@ -8,7 +8,7 @@ The upstream shortcuts remain functional. `assets/help/24-every-key.md` is the c
 | F2 / F3 | Timer start-pause / reset |
 | F4–F7 | Existing music controls (optional, off by default) |
 | F8 / F9 | Spelling suggestions / themes |
-| **F10** | Toggle left outline column |
+| **F10** | Open the menu bar (from rc13; the outline has no default key) |
 | **F11** | Choose/show/hide the independent editable secondary pane; menu/palette chooses a replacement |
 | **F12** | WrOS home dashboard |
 | **Ctrl-D** | Strict focus; same established shortcut, tightened hiding/focus behavior |
@@ -32,7 +32,9 @@ Aliases persist per machine at `paths::data_dir()/writingdeck/shortcuts.json`, u
 ]}
 ```
 
-Available alias actions: dashboard, system-settings, tutorial, outline, secondary, focus, save, find, palette, pinboard, pins (sidebar toggle), pin-current, journal, scratchpad, handoff. More complete shortcut customization is planned. F10/F11/F12 remain default fallback actions even if aliases are removed; an explicit alias on one of these keys takes precedence.
+Available alias actions: dashboard, system-settings, tutorial, outline, secondary, focus, save, find, palette, pinboard, pins (sidebar toggle), pin-current, journal, scratchpad, handoff, menu-bar.
+
+From rc13, F10 opens the menu bar. That default lives in the code, not the file: rc13 writes `menu-bar` to the file only when you bind the menu bar to a key yourself, so rc12 can still read a file rc13 saved after a go-back. A file that already gives F10 to something (rc12 wrote `F10 → outline` with its defaults) keeps it; Esc still opens the bar there. A file that leaves F10 free gets the menu bar on F10. More complete shortcut customization is planned. F10/F11/F12 remain default fallback actions even if aliases are removed; an explicit alias on one of these keys takes precedence.
 
 ## Card controls
 

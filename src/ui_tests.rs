@@ -3682,7 +3682,16 @@ fn wros_dashboard_is_navigable_at_required_terminal_sizes() {
 fn wros_outline_toggles_without_focus_mode_and_persists() {
     let root = book("deck-outline", true);
     let mut d = Desk::open(root.clone(), 100, 30);
+    // F10 opens the menu (rc13); the outline has no default key.
     d.key(KeyCode::F(10));
+    assert!(d.menu_open());
+    d.key(KeyCode::Esc);
+    let toggle = |d: &mut Desk| {
+        d.ctrl('k');
+        d.typed("toggle outline");
+        d.key(KeyCode::Enter);
+    };
+    toggle(&mut d);
     assert!(!d.app.deck.state.current().outline);
     assert!(!d.app.focus_mode);
     assert_eq!(d.app.rect_tree.width, 0);
@@ -3691,7 +3700,7 @@ fn wros_outline_toggles_without_focus_mode_and_persists() {
     assert_eq!(d.app.focus, Focus::Editor);
     let store = grimoire_core::workspaces::Store::load(&root).unwrap();
     assert!(!store.state.current().outline);
-    d.key(KeyCode::F(10));
+    toggle(&mut d);
     assert!(d.app.rect_tree.width > 0);
 }
 

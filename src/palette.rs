@@ -210,7 +210,7 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
         Entry::new("System settings", "", Action::SystemSettings),
         Entry::new("Workspaces", "", Action::Workspaces),
         Entry::new("Interactive tutorial", "", Action::Tutorial),
-        Entry::new("Toggle outline", "F10", Action::ToggleOutline),
+        Entry::new("Toggle outline", "", Action::ToggleOutline),
         Entry::new(
             "Toggle editable secondary pane",
             "F11",

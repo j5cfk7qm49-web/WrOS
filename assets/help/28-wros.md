@@ -10,7 +10,7 @@ Arrow keys select a row. Enter opens it. On a widget, `h` hides it and `J` or `K
 
 ## Toggle outline
 
-`F10` shows or hides the left outline column without entering focus mode. `Ctrl-D` is strict focus: reference panes, outline, scenery and music controls disappear. Their documents stay open and return afterward. Tab never focuses a hidden pane.
+View › Outline shows or hides the left outline column without entering focus mode; it has no key of its own unless you give it one in Keyboard shortcuts. `F10` opens the menu bar. `Ctrl-D` is strict focus: reference panes, outline, scenery and music controls disappear. Their documents stay open and return afterward. Tab never focuses a hidden pane.
 
 ## Workspaces
 

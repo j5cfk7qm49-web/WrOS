@@ -32,7 +32,7 @@
 | `F7` | the music player |
 | `F8` | spelling suggestions |
 | `F9` | themes |
-| `F10` | show or hide the outline |
+| `F10` | open the menu bar |
 | `F11` | show or hide an independent editable document |
 | `F12` | WrOS home screen |
 

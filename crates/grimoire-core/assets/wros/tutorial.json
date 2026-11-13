@@ -60,7 +60,7 @@
     "title": "Managing panes",
     "help_topic": "wros",
     "event": "OutlineToggled",
-    "instructions": "Use F10 to toggle the outline independently. Tab only visits visible panes. F11 toggles an independent editor, taught in lesson 13; strict focus hides both side panes."
+    "instructions": "Show or hide the outline on its own: type toggle outline in Find anything (Ctrl+K) and press Enter, or bind it a key in Keyboard shortcuts. Tab only visits visible panes. F11 toggles an independent editor, taught in lesson 13; strict focus hides both side panes."
   },
   {
     "id": 10,

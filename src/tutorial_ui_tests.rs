@@ -412,11 +412,13 @@ fn the_remaining_lessons_complete_by_doing_what_they_teach() {
     assert!(!desk.app.focus_mode);
     assert!(done(&desk, 8), "lesson 8");
 
-    // 9 · F10 toggles the outline.
+    // 9 · the outline shows and hides on its own (Find anything › outline).
     let mut desk = fresh("outline");
     start(&mut desk, 9);
     let shown = desk.app.deck.state.current().outline;
-    desk.key(KeyCode::F(10));
+    desk.ctrl('k');
+    desk.typed("toggle outline");
+    desk.key(KeyCode::Enter);
     assert_ne!(desk.app.deck.state.current().outline, shown);
     assert!(done(&desk, 9), "lesson 9");
 
