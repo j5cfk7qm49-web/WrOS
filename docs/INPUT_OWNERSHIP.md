@@ -107,3 +107,13 @@ four standalone ownership scenarios also ran in each CI configuration. Its
 source fingerprint matches the focused and guest records; tested merge is
 `25c2b9fd1b7b132f5f966c94c47fe9e6a0b30f95`. CI binaries are recorded independently.
 Previous keyboard/login evidence retains its original source.
+
+## Super (rc13)
+
+In the native session the input process reports a tap of Super on its own
+(press and release with no other key between) as one `KeyCode::Modifier(LeftSuper)`
+press, sent on the release. The app opens Find anything with the menu bar
+for it. Super held with another key sends nothing at all: on WrOS Super is
+not a second Ctrl, and a chord never types its letter into the page. The
+console cannot see Super; under Foot or the window renderer Ctrl+K is the way
+into Find anything.

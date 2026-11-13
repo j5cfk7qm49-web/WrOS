@@ -164,6 +164,9 @@ struct Keyboard {
     state: xkb::State,
     table: compose::Table,
     compose: compose::State,
+    /// Super went down and nothing else has been pressed since: releasing it
+    /// is a tap, which opens Find anything and the menu bar.
+    super_alone: bool,
 }
 
 impl Keyboard {
@@ -207,12 +210,14 @@ impl Keyboard {
             state,
             table,
             compose,
+            super_alone: false,
         })
     }
 
     fn reset(&mut self) {
         self.state = xkb::State::new(&self.map);
         self.compose = compose::State::new(&self.table, compose::STATE_NO_FLAGS);
+        self.super_alone = false;
     }
 
     fn modifiers(&self) -> KeyModifiers {
@@ -249,6 +254,34 @@ impl Keyboard {
         );
         let symbol = self.state.key_get_one_sym(code);
         let modifiers = self.modifiers();
+        {
+            use xkb::keysyms::{KEY_Super_L, KEY_Super_R};
+            if matches!(symbol.raw(), KEY_Super_L | KEY_Super_R) {
+                // Super on its own: a tap reaches the app on release, as the
+                // Super key itself. Held with another key it is nothing.
+                if pressed {
+                    self.super_alone = true;
+                    return vec![];
+                }
+                return if std::mem::take(&mut self.super_alone) {
+                    vec![Event::Key(KeyEvent::new_with_kind(
+                        KeyCode::Modifier(crossterm::event::ModifierKeyCode::LeftSuper),
+                        KeyModifiers::NONE,
+                        KeyEventKind::Press,
+                    ))]
+                } else {
+                    vec![]
+                };
+            }
+            if pressed {
+                self.super_alone = false;
+            }
+            // On WrOS Super is not a second Ctrl: a chord with it does nothing
+            // and never types its letter into the page.
+            if modifiers.contains(KeyModifiers::SUPER) {
+                return vec![];
+            }
+        }
         let mut composed = None;
         if pressed {
             if modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::SUPER) {
@@ -343,6 +376,41 @@ mod tests {
         assert!(
             matches!(event.as_slice(), [Event::Key(k)] if k.code == KeyCode::Char('s') && k.modifiers == KeyModifiers::CONTROL)
         );
+    }
+
+    #[test]
+    fn a_bare_super_tap_is_reported_once_on_release() {
+        let mut keys = keyboard();
+        assert!(
+            keys.key(125, true).is_empty(),
+            "nothing while Super is down"
+        );
+        let event = keys.key(125, false);
+        assert!(
+            matches!(event.as_slice(), [Event::Key(k)] if k.code == KeyCode::Modifier(crossterm::event::ModifierKeyCode::LeftSuper) && k.kind == KeyEventKind::Press),
+            "{event:?}"
+        );
+        assert!(keys.key(126, true).is_empty());
+        assert!(
+            !keys.key(126, false).is_empty(),
+            "the right Super key taps too"
+        );
+    }
+
+    #[test]
+    fn super_with_a_key_is_not_a_tap() {
+        let mut keys = keyboard();
+        keys.key(125, true);
+        assert!(
+            keys.key(30, true).is_empty(),
+            "Super+letter sends nothing on WrOS"
+        );
+        assert!(keys.key(30, false).is_empty());
+        assert!(keys.key(125, false).is_empty(), "a chord is not a tap");
+        // Retirement mid-press forgets the half tap.
+        keys.key(125, true);
+        keys.reset();
+        assert!(keys.key(125, false).is_empty());
     }
 
     #[test]

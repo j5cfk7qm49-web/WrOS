@@ -477,6 +477,20 @@ mod tests {
         }
     }
     #[test]
+    fn a_super_tap_survives_the_wire() {
+        let event = Event::Key(crossterm::event::KeyEvent::new(
+            KeyCode::Modifier(crossterm::event::ModifierKeyCode::LeftSuper),
+            crossterm::event::KeyModifiers::NONE,
+        ));
+        let mut bytes = Vec::new();
+        write_frame(&mut bytes, &Message(Some(Wire::Event(event.clone())))).unwrap();
+        let Some(Wire::Event(actual)) = read_frame(&mut bytes.as_slice()).unwrap().0.take() else {
+            panic!("wrong frame");
+        };
+        assert_eq!(actual, event);
+    }
+
+    #[test]
     fn oversized_paste_is_rejected_without_an_unbounded_serialized_copy() {
         let mut bytes = Vec::new();
         assert!(
