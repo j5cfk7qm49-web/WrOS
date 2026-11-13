@@ -167,8 +167,8 @@ fn main() -> io::Result<()> {
                 ),
             ])];
             lines.push(Line::from(vec![
-                Span::styled(" Unifont, wide:  ", Style::default().fg(DIM)),
-                Span::raw("☆ ✔ ✚ ❖ (no WrOS drawing: squeezed into one cell)"),
+                Span::styled(" Scaled evenly:  ", Style::default().fg(DIM)),
+                Span::raw("☆ ✔ ✚ ❖ ☎ ☂ ♛ ⚑ ⚙ ➜ ⬆ ⬟ ✈ ✉ (typed by a writer; no WrOS drawing)"),
             ]));
             lines.push(Line::from(""));
             lines.push(Line::from(vec![

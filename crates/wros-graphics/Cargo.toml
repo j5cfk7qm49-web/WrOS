@@ -13,6 +13,7 @@ unicode-width = "0.2"
 
 [build-dependencies]
 flate2 = "1.1"
+unicode-width = "0.2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 drm = "0.14"

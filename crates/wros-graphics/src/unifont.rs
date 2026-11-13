@@ -248,10 +248,31 @@ mod tests {
     }
 
     #[test]
+    fn a_wide_symbol_is_scaled_evenly_into_one_cell() {
+        // Unifont draws ☆ two cells wide; the layout gives it one. Halving it in
+        // both directions keeps a star's proportions: no taller than it is wide.
+        let star = glyph('☆').unwrap();
+        assert!(!star.wide);
+        let rows: Vec<usize> = (0..CELL_HEIGHT)
+            .filter(|&y| (0..8).any(|x| star.pixel(x, y)))
+            .collect();
+        let cols: Vec<usize> = (0..8)
+            .filter(|&x| (0..CELL_HEIGHT).any(|y| star.pixel(x, y)))
+            .collect();
+        let (h, w) = (rows.len(), cols.len());
+        assert!(h <= 8 && h <= w + 1, "{w}x{h}");
+        // Its outline survives: an enclosed hole, as in Unifont's drawing.
+        assert!((0..CELL_HEIGHT).any(|y| {
+            (1..7).any(|x| !star.pixel(x, y) && star.pixel(x - 1, y) && star.pixel(x + 1, y))
+        }));
+    }
+
+    #[test]
     fn a_wide_glyph_never_paints_outside_its_cells() {
-        // ☆ is two cells in Unifont and one in the layout, with no WrOS drawing.
-        assert!(glyph('☆').unwrap().wide);
-        let with = render("a☆b", Modifier::BOLD | Modifier::ITALIC);
+        // क is a letter Unifont draws two cells wide and the layout gives one;
+        // a letter keeps its height, squeezed into its cell.
+        assert!(glyph('क').unwrap().wide);
+        let with = render("aकb", Modifier::BOLD | Modifier::ITALIC);
         let without = render("a b", Modifier::BOLD | Modifier::ITALIC);
         assert_eq!(cell_pixels(&with, 0), cell_pixels(&without, 0));
         assert_eq!(cell_pixels(&with, 2), cell_pixels(&without, 2));

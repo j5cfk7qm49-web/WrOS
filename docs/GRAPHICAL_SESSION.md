@@ -50,10 +50,15 @@ font's pixels, so text matches the console's Fixed 8×16, which Debian builds
 from Unifont. A 1366×768 panel holds 170×48 cells (it held 136×42). The startup,
 login and writing screens share the 8×16 cell, since Unifont is crisp only at
 its own size. A glyph wider than its cells is squeezed into them and never
-paints its neighbours; a character Unifont lacks shows a box. Details and
-sources: `assets/fonts/UNIFONT-SOURCE.md`. Previews:
-`docs/evidence/rc13-font/` (1:1 and 2× screens, and each one-cell drawing
-beside Unifont's own and the earlier drawing). The Foot session keeps DejaVu Sans Mono for now.
+paints its neighbours; a character Unifont lacks shows a box. Symbols
+(U+2000-U+2BFF) that Unifont draws two cells wide but the layout gives one
+are fitted into the cell at build time, scaled evenly so they keep their
+shape; the 18 the interface itself uses are drawn by hand in the frame of
+Unifont's own one-cell symbols. Letters of scripts drawn two cells wide keep
+their height and are squeezed. Details and sources:
+`assets/fonts/UNIFONT-SOURCE.md`. Previews: `docs/evidence/rc13-font/`
+(1:1 and 2x screens, and `one-cell-sheet.png`: each one-cell drawing beside
+Unifont's own and the earlier squeezed drawing). The Foot session keeps DejaVu Sans Mono for now.
 
 ## Lock, sleep and screen colour
 
