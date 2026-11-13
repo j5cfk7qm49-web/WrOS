@@ -4,7 +4,7 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Padding, Paragraph};
+use ratatui::widgets::{Block, Padding, Paragraph};
 
 use crate::app::{App, Focus, Overlay};
 use crate::music::State as MusicState;
@@ -247,7 +247,7 @@ fn draw_left(f: &mut Frame, app: &mut App, main: Rect, t: &Theme) -> Rect {
 
 /// How a key looks in a popup's footer: lit, so it stands out from what it does.
 pub(crate) fn key_style(t: &Theme) -> Style {
-    Style::default().fg(t.accent).add_modifier(Modifier::BOLD)
+    wros_shell::look::key_style(t.into())
 }
 
 /// A popup footer like " y delete   esc keep it", its keys lit and the rest dim.
@@ -256,66 +256,11 @@ pub(crate) fn hint_line(text: &str, t: &Theme) -> Line<'static> {
 }
 
 pub(crate) fn hint_spans(text: &str, t: &Theme) -> Vec<Span<'static>> {
-    let dim = Style::default().fg(t.dim);
-    hint_parts(text)
-        .into_iter()
-        .map(|(part, key)| Span::styled(part, if key { key_style(t) } else { dim }))
-        .collect()
-}
-
-/// Split a footer into (text, is it a key). Hints are separated by two or
-/// more spaces or " · ", and each starts with its key — "↵ choose",
-/// "PgUp PgDn scroll", "any other key cancels" — unless it's typing ("type a
-/// name"), which has none.
-fn hint_parts(text: &str) -> Vec<(String, bool)> {
-    let mut out = Vec::new();
-    let mut rest = text;
-    while !rest.is_empty() {
-        let gap = if rest.starts_with(" · ") {
-            " · ".len()
-        } else {
-            rest.len() - rest.trim_start_matches(' ').len()
-        };
-        if gap > 0 {
-            out.push((rest[..gap].to_string(), false));
-            rest = &rest[gap..];
-            continue;
-        }
-        let end = [rest.find("  "), rest.find(" · ")]
-            .into_iter()
-            .flatten()
-            .min()
-            .unwrap_or(rest.len());
-        let hint = &rest[..end];
-        let key = if hint == "type" || hint.starts_with("type ") {
-            0
-        } else {
-            ["any other key", "any key", "PgUp PgDn", "[ ]"]
-                .into_iter()
-                .find(|k| hint.starts_with(k))
-                .map_or_else(|| hint.find(' ').unwrap_or(hint.len()), str::len)
-        };
-        if key > 0 {
-            out.push((hint[..key].to_string(), true));
-        }
-        if key < hint.len() {
-            out.push((hint[key..].to_string(), false));
-        }
-        rest = &rest[end..];
-    }
-    out
+    wros_shell::look::hint_spans(text, t.into())
 }
 
 pub(crate) fn pane_block<'a>(title: &'a str, focused: bool, t: &Theme) -> Block<'a> {
-    Block::default()
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(if focused { t.accent } else { t.border }))
-        .title(Span::styled(
-            format!(" {title} "),
-            Style::default()
-                .fg(if focused { t.accent } else { t.dim })
-                .add_modifier(Modifier::BOLD),
-        ))
+    wros_shell::look::pane_block(title, focused, t.into())
 }
 
 /// An open spellbook, pages sloping away from the reader, with light rising
@@ -1480,41 +1425,6 @@ mod tests {
         );
         assert_eq!(fit_hints(hints, 30), "Tab pane  ↵ fold  n scene");
         assert_eq!(fit_hints(hints, 5), "");
-    }
-
-    #[test]
-    fn popup_footers_light_their_keys() {
-        let keys = |text: &str| -> Vec<String> {
-            let parts = hint_parts(text);
-            assert_eq!(
-                parts.iter().map(|(p, _)| p.as_str()).collect::<String>(),
-                text
-            );
-            parts
-                .into_iter()
-                .filter(|(_, k)| *k)
-                .map(|(p, _)| p)
-                .collect()
-        };
-        assert_eq!(keys(" y delete   esc keep it"), ["y", "esc"]);
-        assert_eq!(keys(" type a name   ↵ create   esc cancel"), ["↵", "esc"]);
-        assert_eq!(
-            keys("↑↓ pick a version   PgUp PgDn scroll   ↵ restore it"),
-            ["↑↓", "PgUp PgDn", "↵"]
-        );
-        assert_eq!(
-            keys("↑↓ scroll   any other key: back to sessions"),
-            ["↑↓", "any other key"]
-        );
-        assert_eq!(keys(" type hex · ↵ next · esc save & close"), ["↵", "esc"]);
-        assert_eq!(
-            keys(" space pause  ←→ seek 10s  [ ] prev/next  +/- volume"),
-            ["space", "←→", "[ ]", "+/-"]
-        );
-        assert_eq!(
-            keys("   ↵ next  ↑ previous  Tab replace  ⌘F whole book"),
-            ["↵", "↑", "Tab", "⌘F"]
-        );
     }
 
     #[test]

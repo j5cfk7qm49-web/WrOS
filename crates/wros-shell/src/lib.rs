@@ -4,7 +4,7 @@ use ratatui::{
     Frame,
     layout::{Constraint, Layout, Rect},
     style::{Color, Style},
-    widgets::{Block, List, ListItem, ListState, Paragraph},
+    widgets::{List, ListItem, ListState, Paragraph},
 };
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
@@ -12,6 +12,7 @@ use std::collections::VecDeque;
 pub mod clock;
 pub mod grimoire_theme;
 pub mod logo;
+pub mod look;
 
 const HISTORY_LIMIT: usize = 16;
 const ROUTE_LIMIT: usize = 64;
@@ -219,6 +220,9 @@ pub struct Theme {
     pub accent: Color,
     pub dim: Color,
     pub border: Color,
+    /// The shaded highlight row's background.
+    pub sel: Color,
+    pub warn: Color,
 }
 /// Project the exact Grimoire palette onto the common system widgets.
 impl From<&grimoire_theme::Theme> for Theme {
@@ -228,6 +232,8 @@ impl From<&grimoire_theme::Theme> for Theme {
             accent: theme.accent,
             dim: theme.dim,
             border: theme.border,
+            sel: theme.sel,
+            warn: theme.warn,
         }
     }
 }
@@ -268,16 +274,17 @@ pub fn render_menu(frame: &mut Frame, area: Rect, menu: Menu<'_>, theme: Theme) 
     frame.render_stateful_widget(
         List::new(rows)
             .style(Style::default().fg(theme.text))
-            .highlight_style(Style::default().fg(theme.accent))
-            .highlight_symbol("▸ "),
+            .highlight_style(look::highlight(theme))
+            .highlight_symbol(look::MARKER),
         body,
         &mut selected,
     );
 }
 
-/// Common Grimoire system-panel geometry. Forms and progress use the same
-/// border, content area and fixed status/help lines as Settings and login.
-/// Returns the clipped body; callers own their content and input state.
+/// Common system-panel geometry: the pane border with its bold title, then
+/// fixed status and hint lines under the body. Forms and progress use it as
+/// Settings and login do. Returns the clipped body; callers own their content
+/// and input state.
 pub fn render_panel(
     frame: &mut Frame,
     area: Rect,
@@ -286,9 +293,7 @@ pub fn render_panel(
     hint: &str,
     theme: Theme,
 ) -> Rect {
-    let border = Block::bordered()
-        .title(title)
-        .border_style(Style::default().fg(theme.border));
+    let border = look::pane_block(title, true, theme);
     let inner = border.inner(area);
     frame.render_widget(border, area);
     let [body, status, help] = Layout::vertical([
@@ -302,7 +307,7 @@ pub fn render_panel(
         status,
     );
     frame.render_widget(
-        Paragraph::new(hint).style(Style::default().fg(theme.accent)),
+        Paragraph::new(ratatui::text::Line::from(look::hint_spans(hint, theme))),
         help,
     );
     body
@@ -437,6 +442,49 @@ mod tests {
         assert!(!last.chars().any(char::is_control));
     }
     #[test]
+    fn render_menu_uses_the_shaded_marker_row() {
+        use ratatui::{Terminal, backend::TestBackend};
+        let theme = Theme::default();
+        let mut terminal = Terminal::new(TestBackend::new(40, 10)).unwrap();
+        let rows = vec!["Writing".to_string(), "System".to_string()];
+        terminal
+            .draw(|frame| {
+                render_menu(
+                    frame,
+                    frame.area(),
+                    Menu {
+                        title: "Settings",
+                        rows: &rows,
+                        kinds: &[RowKind::Opens, RowKind::Opens],
+                        selected: 1,
+                        notice: "",
+                        hint: "↵ open  esc back",
+                    },
+                    theme,
+                )
+            })
+            .unwrap();
+        let buf = terminal.backend().buffer();
+        let line = |y: u16| (0..40).map(|x| buf[(x, y)].symbol()).collect::<String>();
+        assert!(line(2).starts_with("│▸ System ›"), "{:?}", line(2));
+        assert_eq!(buf[(3, 2)].bg, theme.sel);
+        assert_eq!(buf[(3, 2)].fg, theme.accent);
+        assert!(
+            buf[(2, 0)]
+                .modifier
+                .contains(ratatui::style::Modifier::BOLD),
+            "bold title"
+        );
+        let hint_key = (0..40).find(|x| buf[(*x, 8)].symbol() == "↵").unwrap();
+        assert!(
+            buf[(hint_key, 8)]
+                .modifier
+                .contains(ratatui::style::Modifier::BOLD),
+            "lit key"
+        );
+    }
+
+    #[test]
     fn very_narrow_menus_clip_without_panicking() {
         use ratatui::{Terminal, backend::TestBackend};
         for (width, height) in [(1, 1), (20, 5), (80, 24)] {
@@ -462,6 +510,8 @@ mod tests {
                             accent: Color::Yellow,
                             dim: Color::Gray,
                             border: Color::Blue,
+                            sel: Color::DarkGray,
+                            warn: Color::Red,
                         },
                     )
                 })
