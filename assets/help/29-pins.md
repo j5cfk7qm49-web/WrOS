@@ -16,7 +16,7 @@ Cards start in **Free** mode: scrolling is relative to the start of the current 
 
 ## Presentation and scope
 
-View › Show the pins sidebar (or Find anything) shows it. `v` shows or hides the sidebar; `[` and `]` change its width. Cards are retained when the writing area is too narrow or strict focus hides them. Ctrl-K → Pinboard remains available. With two editable documents, the sidebar only appears if at least 72 writing columns remain. Strict focus never tab-focuses a hidden card.
+View › Show the pins sidebar, or Toggle pins sidebar in Find anything, shows it. `v` shows or hides the sidebar; `[` and `]` change its width. Cards are retained when the writing area is too narrow or strict focus hides them. Ctrl-K → Pinboard remains available. With two editable documents, the sidebar only appears if at least 72 writing columns remain. Strict focus never tab-focuses a hidden card.
 
 `space` collapses a card, `+` and `-` change its height, `c` cycles its color, `g` edits its category, and `J` and `K` change its order. These settings and scroll positions persist outside manuscript text.
 
