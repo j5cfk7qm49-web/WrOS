@@ -8,10 +8,21 @@ impl App {
             query,
             sel,
             entries,
+            under_bar,
         } = &mut self.overlay
         else {
             return;
         };
+        // Under the menu bar, ← and → leave the search for the menus.
+        if *under_bar && matches!(key, Key::Left | Key::Right) {
+            let title = if key == Key::Left {
+                crate::palette::Title::ALL[crate::palette::Title::ALL.len() - 1]
+            } else {
+                crate::palette::Title::ALL[0]
+            };
+            self.open_bar(Some(title), true);
+            return;
+        }
         if list_nav(key, sel, palette::filter(entries, query).len(), TYPED) {
             return;
         }
@@ -42,6 +53,7 @@ pub(super) fn draw_palette(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         query,
         sel,
         entries,
+        under_bar,
     } = &app.overlay
     else {
         return;
@@ -50,11 +62,21 @@ pub(super) fn draw_palette(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     let rows = 14usize;
     let w = area.width.saturating_sub(4).min(84);
     let h = rows as u16 + 5;
-    let box_area = Rect {
-        x: area.x + (area.width - w) / 2,
-        y: area.y + 2.min(area.height.saturating_sub(h)),
-        width: w,
-        height: h.min(area.height),
+    // Opened by Super, it hangs just under the bar's left end.
+    let box_area = if *under_bar {
+        Rect {
+            x: area.x + 1.min(area.width.saturating_sub(w)),
+            y: area.y + 1.min(area.height.saturating_sub(h)),
+            width: w,
+            height: h.min(area.height.saturating_sub(1)),
+        }
+    } else {
+        Rect {
+            x: area.x + (area.width - w) / 2,
+            y: area.y + 2.min(area.height.saturating_sub(h)),
+            width: w,
+            height: h.min(area.height),
+        }
     };
     f.render_widget(Clear, box_area);
     let block = pane_block("FIND ANYTHING", true, t);
@@ -77,13 +99,19 @@ pub(super) fn draw_palette(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         let key_w = e.key.chars().count();
         let label_w = e.label.chars().count().min(iw.saturating_sub(key_w + 6));
         let label = truncate(&e.label, label_w);
-        let detail_room = iw.saturating_sub(label.chars().count() + key_w + 7);
+        // Where it lives on the menu bar, so searching teaches the menus.
+        let path = app
+            .bar_path(&e.action)
+            .map(|p| format!("{p}  "))
+            .unwrap_or_default();
+        let path_w = path.chars().count();
+        let detail_room = iw.saturating_sub(label.chars().count() + key_w + path_w + 7);
         let detail = if e.detail.is_empty() || detail_room < 6 {
             String::new()
         } else {
             format!("  {}", truncate(&e.detail, detail_room))
         };
-        let used = 3 + label.chars().count() + detail.chars().count();
+        let used = 3 + label.chars().count() + detail.chars().count() + path_w;
         let pad = iw.saturating_sub(used + key_w + 1);
         let row = Line::from(vec![
             Span::styled(
@@ -96,6 +124,7 @@ pub(super) fn draw_palette(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             ),
             Span::styled(detail, dim),
             Span::raw(" ".repeat(pad)),
+            Span::styled(path, dim),
             Span::styled(e.key.clone(), Style::default().fg(t.sun)),
             Span::raw(" "),
         ]);

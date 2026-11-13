@@ -2529,6 +2529,7 @@ impl App {
             query: String::new(),
             sel: 0,
             entries,
+            under_bar: false,
         };
     }
     pub fn apply_starter_preset(&mut self, slot: usize, preset: workspaces::Preset) {

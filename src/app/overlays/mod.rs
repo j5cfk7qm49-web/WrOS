@@ -14,6 +14,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 
 mod about;
+mod bar;
 mod cards;
 mod command;
 mod conflicts;
@@ -36,6 +37,9 @@ mod shelf;
 mod spelling;
 mod versions;
 
+#[cfg(test)]
+pub(crate) use bar::BarRow;
+pub use bar::{BarHit, draw_bar_line};
 pub use details::Field as DetailField;
 pub use footnote_reader::Reader as FootnoteReader;
 pub use footnotes::FootnoteRow;
@@ -98,7 +102,7 @@ impl App {
             Overlay::Names { .. } => self.on_names_key(key),
             Overlay::Recover { .. } => self.on_recover_key(key),
             Overlay::History { .. } => self.on_history_key(key),
-            Overlay::Menu { .. } | Overlay::Sub { .. } => self.on_menu_key(key),
+            Overlay::Bar { .. } => self.on_bar_key(key),
             Overlay::NewBook { .. } => self.on_new_book_key(key),
             Overlay::Books { .. } => self.on_books_key(key),
             Overlay::DeleteBook { .. } => self.on_delete_book_key(key),
@@ -252,7 +256,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         Overlay::Names { .. } => spelling::draw_names(f, app, area, t),
         Overlay::Recover { .. } => recover::draw_recover(f, app, area, t),
         Overlay::History { .. } => versions::draw_history(f, app, area, t),
-        Overlay::Menu { .. } | Overlay::Sub { .. } => menu::draw_menu(f, app, area, t),
+        Overlay::Bar { .. } => bar::draw_dropdowns(f, app, area, t),
         Overlay::NewBook { .. } => shelf::draw_new_book(f, app, area, t),
         Overlay::Books { .. } => shelf::draw_books(f, app, area, t),
         Overlay::DeleteBook { .. } => shelf::draw_delete_book(f, app, area, t),

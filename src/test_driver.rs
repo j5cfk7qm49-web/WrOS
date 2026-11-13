@@ -4,7 +4,6 @@
 
 use crate::app::shell::{Route, driver_page};
 use crate::app::{App, Key, Overlay};
-use crate::palette::Sub;
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use taria_ratatui::taria::{Action, AgentInput, Node, Role};
 use taria_ratatui::{InputStatus, TariaLayer};
@@ -84,19 +83,15 @@ impl Driver {
             ));
         }
         if let Some((id, label, selected)) = menu(&app.overlay) {
-            nodes.push(
-                Node::new(id, Role::List).label(label).children(
-                    app.menu_rows()
-                        .into_iter()
-                        .enumerate()
-                        .map(|(i, (label, _))| {
-                            Node::new(format!("{id}/{label}"), Role::ListItem)
-                                .label(label)
-                                .focused(i == selected)
-                                .action(Action::Activate)
-                        }),
-                ),
-            );
+            nodes.push(Node::new(id.clone(), Role::List).label(label).children(
+                app.bar_open_rows().into_iter().enumerate().map(|(i, row)| {
+                    let label = row.label;
+                    Node::new(format!("{id}/{label}"), Role::ListItem)
+                        .label(label)
+                        .focused(i == selected)
+                        .action(Action::Activate)
+                }),
+            ));
         }
         if let Some((id, title, accept, _)) = dialog(&app.overlay) {
             nodes.push(Node::new(id, Role::Dialog).label(title).children([
@@ -151,14 +146,22 @@ fn button(id: impl Into<String>, label: &str) -> Node {
 fn activate(app: &mut App, id: &str, key: &mut impl FnMut(&mut App, KeyEvent)) -> InputStatus {
     match id {
         "open-settings" => app.open_settings(),
-        "open-menu" if app.overlay == Overlay::None => app.open_menu(),
+        "open-menu" if app.overlay == Overlay::None => app.open_bar(None, true),
         _ => {
             if let Some((scope, _, _)) = menu(&app.overlay)
-                && let Some(label) = id.strip_prefix(scope).and_then(|id| id.strip_prefix('/'))
-                && let Some(index) = app.menu_rows().iter().position(|row| row.0 == label)
-                && let Overlay::Menu { sel } | Overlay::Sub { sel, .. } = &mut app.overlay
+                && let Some(label) = id
+                    .strip_prefix(scope.as_str())
+                    .and_then(|id| id.strip_prefix('/'))
+                && let Some(index) = app
+                    .bar_open_rows()
+                    .iter()
+                    .position(|row| row.label == label)
+                && let Overlay::Bar { sel, side, .. } = &mut app.overlay
             {
-                *sel = index;
+                match side {
+                    Some((_, at)) => *at = index,
+                    None => *sel = index,
+                }
                 key(app, KeyCode::Enter.into());
             } else if let Some((scope, _, _, accept)) = dialog(&app.overlay)
                 && let Some(action) = id.strip_prefix(scope)
@@ -185,19 +188,28 @@ fn activate(app: &mut App, id: &str, key: &mut impl FnMut(&mut App, KeyEvent)) -
     InputStatus::Delivered
 }
 
-fn menu(overlay: &Overlay) -> Option<(&'static str, &'static str, usize)> {
-    let (id, label, selected) = match overlay {
-        Overlay::Menu { sel } => ("menu-main", "Grimoire", sel),
-        Overlay::Sub { sub, sel } => match sub {
-            Sub::Book => ("menu-book", "This book", sel),
-            Sub::Writing => ("menu-writing", "Writing tools", sel),
-            Sub::Productivity => ("menu-productivity", "Productivity", sel),
-            Sub::Settings => ("menu-settings", "Settings", sel),
-            Sub::Help => ("menu-help", "Help & about", sel),
-        },
-        _ => return None,
-    };
-    Some((id, label, *selected))
+fn menu(overlay: &Overlay) -> Option<(String, &'static str, usize)> {
+    match overlay {
+        Overlay::Bar {
+            side: Some((side, at)),
+            ..
+        } => Some((
+            format!("menu-{}", side.label().to_lowercase()),
+            side.label(),
+            *at,
+        )),
+        Overlay::Bar {
+            title,
+            open: true,
+            sel,
+            ..
+        } => Some((
+            format!("menu-{}", title.label().to_lowercase()),
+            title.label(),
+            *sel,
+        )),
+        _ => None,
+    }
 }
 
 // Form values and manuscript names are deliberately absent from this view.

@@ -6,7 +6,6 @@
 
 use super::*;
 use crate::app::Setup;
-use crate::palette::Sub;
 use grimoire_core::recovery;
 use grimoire_core::settings::Settings;
 use grimoire_core::spell;
@@ -127,7 +126,25 @@ impl Desk {
     }
 
     fn menu_open(&self) -> bool {
-        matches!(self.app.overlay, Overlay::Menu { .. })
+        matches!(self.app.overlay, Overlay::Bar { .. })
+    }
+
+    /// Esc, the first title's letter, then each row by name: `menu(&["Tools",
+    /// "Revision", "Check names…"])`.
+    fn menu(&mut self, path: &[&str]) {
+        let (title, rows) = path.split_first().expect("a menu");
+        let title = crate::palette::Title::ALL
+            .into_iter()
+            .find(|t| t.label() == *title)
+            .unwrap_or_else(|| panic!("no {title} menu"));
+        if !self.menu_open() {
+            self.key(KeyCode::Esc);
+        }
+        assert!(self.menu_open(), "Esc lights the bar");
+        self.key(KeyCode::Char(title.letter()));
+        for row in rows {
+            self.choose(row);
+        }
     }
 
     /// Down the menu screen that's up to the row starting `label`, and ↵.
@@ -236,11 +253,9 @@ fn esc_from_the_tree_opens_the_menu_and_esc_closes_it() {
     let mut d = Desk::open(book("esc-tree", true), 120, 35);
     assert_eq!(d.app.focus, Focus::Tree);
     d.key(KeyCode::Esc);
-    assert!(d.menu_open());
-    assert!(d.shows("Quit Grimoire"));
+    assert!(matches!(d.app.overlay, Overlay::Bar { open: false, .. }));
     d.key(KeyCode::Esc);
     assert_eq!(d.app.overlay, Overlay::None);
-    assert!(!d.shows("Quit Grimoire"));
     assert_eq!(d.app.focus, Focus::Tree);
 }
 
@@ -254,7 +269,6 @@ fn closing_the_menu_leaves_you_in_the_editor() {
     d.key(KeyCode::Esc);
     assert_eq!(d.app.overlay, Overlay::None);
     assert_eq!(d.app.focus, Focus::Editor);
-    assert!(d.status().contains("F8 spelling"), "{}", d.status());
 }
 
 #[test]
@@ -282,12 +296,12 @@ fn quit_grimoire_saves_and_leaves() {
     let mut d = Desk::open(root, 120, 35);
     d.key(KeyCode::Tab);
     d.typed("Zyx marker");
-    d.key(KeyCode::Esc);
-    // Up from the first row wraps to the last: Quit Grimoire.
+    d.menu(&["WrOS"]);
+    // Up from the first row wraps to the last: Quit.
     d.key(KeyCode::Up);
-    assert!(d.shows("▸ Quit Grimoire"));
+    assert!(d.shows("▸ Quit"));
     d.key(KeyCode::Enter);
-    assert!(d.left, "Enter on Quit Grimoire leaves");
+    assert!(d.left, "Enter on Quit leaves");
     let saved = fs::read_to_string(&scene).unwrap();
     assert!(saved.contains("Zyx marker"), "{saved}");
 }
@@ -319,191 +333,11 @@ fn the_menu_acts_on_the_scene_being_written() {
     // The tree's cursor wanders off to Scene Three; then back to writing.
     d.keys(&[KeyCode::Down, KeyCode::Down]);
     d.key(KeyCode::Tab);
-    d.key(KeyCode::Esc);
-    d.choose("This book");
-    d.choose("Delete…");
+    d.menu(&["Book", "Delete…"]);
     match &d.app.overlay {
         Overlay::Confirm { name, .. } => assert_eq!(name, "Scene One"),
         other => panic!("expected the delete prompt, got {other:?}"),
     }
-}
-
-#[test]
-fn the_first_menu_is_short_and_the_rest_is_one_step_down() {
-    let d = Desk::open(book("menu-rows", true), 120, 35);
-    let labels = |rows: Vec<(String, palette::Action)>| -> Vec<String> {
-        rows.into_iter().map(|(l, _)| l).collect()
-    };
-    let top = labels(d.app.menu());
-    assert!(top.len() <= 10, "{top:?}");
-    for want in [
-        "Find anything…",
-        "This book",
-        "Writing tools",
-        "Export…",
-        "Start a new book…",
-        "Open another book…",
-        "Settings",
-        "Help & about",
-    ] {
-        assert!(
-            top.iter().any(|l| l.starts_with(want)),
-            "no {want} in {top:?}"
-        );
-    }
-    assert!(top.last().unwrap().starts_with("Quit Grimoire"));
-    let writing = labels(d.app.submenu(Sub::Writing));
-    for want in [
-        "Focus mode",
-        "Open a scene beside…",
-        "Notes & TKs…",
-        "Next scene still in draft",
-        "Turn echo words on",
-        "Start a sprint…",
-    ] {
-        assert!(
-            writing.iter().any(|l| l.starts_with(want)),
-            "no {want} in {writing:?}"
-        );
-    }
-    assert!(
-        !writing.iter().any(|l| l.contains("Music player")),
-        "music is off"
-    );
-    for sub in [
-        Sub::Book,
-        Sub::Writing,
-        Sub::Productivity,
-        Sub::Settings,
-        Sub::Help,
-    ] {
-        assert_eq!(labels(d.app.submenu(sub)).last().unwrap(), "Back");
-    }
-}
-
-#[test]
-fn every_menu_row_says_what_it_does_and_has_a_help_topic() {
-    let d = Desk::open(book("menu-about", true), 120, 35);
-    let mut rows = d.app.menu();
-    for sub in [
-        Sub::Book,
-        Sub::Writing,
-        Sub::Productivity,
-        Sub::Settings,
-        Sub::Help,
-    ] {
-        rows.extend(d.app.submenu(sub));
-    }
-    for (label, action) in rows {
-        let (says, topic) = crate::app::overlays::about_row(&action, "part");
-        assert!(!says.is_empty(), "{label} says nothing");
-        assert!(!says.contains('—'), "{label}: no em dashes");
-        assert_eq!(
-            crate::help::TOPICS[crate::help::index(topic)].id,
-            topic,
-            "{label}"
-        );
-    }
-}
-
-#[test]
-fn the_highlighted_row_explains_itself_and_question_mark_opens_its_page() {
-    let mut d = Desk::open(book("menu-explain", true), 120, 35);
-    d.key(KeyCode::Tab);
-    d.key(KeyCode::Esc);
-    d.choose("Writing tools");
-    for _ in 0..10 {
-        if d.shows("▸ Turn echo words on") {
-            break;
-        }
-        d.key(KeyCode::Down);
-    }
-    assert!(
-        d.shows("like \"the lamp… the lamp\""),
-        "{}",
-        d.rows().join("\n")
-    );
-    d.key(KeyCode::Char('?'));
-    assert_eq!(help_topic(&d), Some("revision"));
-    d.key(KeyCode::Esc);
-    assert!(
-        matches!(
-            d.app.overlay,
-            Overlay::Sub {
-                sub: Sub::Writing,
-                ..
-            }
-        ),
-        "closing the help comes back to the group"
-    );
-}
-
-#[test]
-fn writing_menu_keeps_selected_action_explanation_and_help_at_all_supported_sizes() {
-    for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
-        let mut d = Desk::open(book("menu-scroll-about", true), width, height);
-        d.key(KeyCode::Esc);
-        d.choose("Writing tools");
-        let rows = d.app.menu_rows();
-        for (label, action) in rows {
-            assert!(
-                d.shows(&format!("▸ {label}")),
-                "selected {label} at {width}x{height}"
-            );
-            let (says, topic) = crate::app::overlays::about_row(&action, "part");
-            let beginning = says
-                .split_whitespace()
-                .take(2)
-                .collect::<Vec<_>>()
-                .join(" ");
-            assert!(
-                d.shows(&beginning),
-                "{label} explanation at {width}x{height}"
-            );
-            assert!(d.shows("? more   esc back"), "footer at {width}x{height}");
-            d.key(KeyCode::Char('?'));
-            assert_eq!(help_topic(&d), Some(topic));
-            d.key(KeyCode::Esc);
-            d.key(KeyCode::Down);
-        }
-    }
-}
-
-#[test]
-fn settings_and_back_again() {
-    let mut d = Desk::open(book("settings", true), 120, 35);
-    d.key(KeyCode::Esc);
-    let at = d
-        .app
-        .menu()
-        .iter()
-        .position(|(_, a)| *a == palette::Action::Submenu(Sub::Settings))
-        .unwrap();
-    for _ in 0..at {
-        d.key(KeyCode::Down);
-    }
-    d.key(KeyCode::Enter);
-    assert!(matches!(
-        d.app.overlay,
-        Overlay::Sub {
-            sub: Sub::Settings,
-            ..
-        }
-    ));
-    assert!(d.shows("Line width: 72 columns"));
-    assert!(d.shows("typewriter scrolling"));
-    d.key(KeyCode::Esc);
-    assert_eq!(d.app.overlay, Overlay::Menu { sel: at });
-}
-
-#[test]
-fn a_short_terminal_scrolls_the_menu_to_quit() {
-    let mut d = Desk::open(book("short", true), 80, 16);
-    d.key(KeyCode::Esc);
-    assert!(d.shows("Find anything"));
-    assert!(d.shows("esc close"), "the key hints stay in view");
-    d.key(KeyCode::Up);
-    assert!(d.shows("▸ Quit Grimoire"));
 }
 
 #[test]
@@ -517,14 +351,6 @@ fn the_palette_runs_the_same_actions() {
 }
 
 // ---- the status bar ------------------------------------------------------
-
-#[test]
-fn at_80_columns_the_status_bar_leads_with_esc() {
-    let mut d = Desk::open(book("status80", true), 80, 24);
-    assert!(d.status().contains("Esc menu"), "tree: {}", d.status());
-    d.key(KeyCode::Tab);
-    assert!(d.status().contains("Esc menu"), "editor: {}", d.status());
-}
 
 #[test]
 fn battery_light_and_volume_sit_at_the_right_of_the_status_bar() {
@@ -542,10 +368,6 @@ fn battery_light_and_volume_sit_at_the_right_of_the_status_bar() {
     assert!(
         status.trim_end().ends_with("Bat 76%  Light 50%  Vol 70%"),
         "{status}"
-    );
-    assert!(
-        status.contains("Esc menu"),
-        "the hints still lead: {status}"
     );
     // Focus mode keeps to the scene, unless the battery runs low.
     d.app.focus_mode = true;
@@ -579,7 +401,6 @@ fn with_wren(tag: &str) -> Desk {
 fn esc_closes_an_open_note_from_the_editor() {
     let mut d = with_wren("note-esc");
     assert_eq!(d.app.focus, Focus::Editor);
-    assert!(d.status().contains("Esc close note"), "{}", d.status());
     d.key(KeyCode::Esc);
     assert!(d.app.codex.is_none());
     assert!(!d.menu_open(), "the first Esc only closes the note");
@@ -856,7 +677,7 @@ fn the_rainbow_theme_paints_its_accent_as_a_spectrum() {
     assert_eq!(flat, 0, "no cell is left in the flat accent");
     // The focused tree's top border runs through several hues.
     assert!(
-        fg_colours_in_row(&d, 0).len() >= 5,
+        fg_colours_in_row(&d, 1).len() >= 5,
         "the border is one colour"
     );
 }
@@ -866,7 +687,7 @@ fn a_flat_theme_keeps_its_accent() {
     let d = Desk::open(book("flat-accent", true), 120, 35);
     let accent = d.app.theme.accent;
     let buf = d.term.backend().buffer();
-    assert_eq!(buf[(0, 0)].fg, accent, "the focused border is the accent");
+    assert_eq!(buf[(0, 1)].fg, accent, "the focused border is the accent");
 }
 
 #[test]
@@ -920,8 +741,8 @@ fn a_short_tree_keeps_its_rows_and_skips_the_book() {
     let d = Desk::open(book("art-short", true), 80, 24);
     assert!(!d.shows("┴───"), "no book on a short terminal");
     assert!(
-        d.rows()[1].contains("Novel Format"),
-        "the tree starts at the top"
+        d.rows()[2].contains("Novel Format"),
+        "the tree starts at the top, under the bar"
     );
 }
 
@@ -934,11 +755,6 @@ fn focus_mode_is_named_where_it_can_be_used() {
     );
     d.key(KeyCode::Tab);
     assert_eq!(d.app.focus, Focus::Editor);
-    assert!(
-        d.status().contains("Esc menu  ^D focus mode"),
-        "{}",
-        d.status()
-    );
     // Running, the timer is "writing", so "focus" only ever means focus mode.
     d.key(KeyCode::F(2));
     assert!(d.shows("writing · "), "timer label while running");
@@ -975,11 +791,6 @@ fn the_music_pane_says_its_keys_when_focused() {
         d.key(KeyCode::Tab);
     }
     assert_eq!(d.app.focus, Focus::Music);
-    assert!(
-        d.shows("[ prev · space ⏯ · ] next"),
-        "the pane's edge names the keys"
-    );
-    assert!(d.status().contains("[ ] track"), "{}", d.status());
 }
 
 // ---- spelling: click a misspelt word ----------------------------------------
@@ -1524,15 +1335,13 @@ fn a_synced_book_with_history_inside_offers_to_move_it_out() {
         "only once"
     );
     d.draw();
-    d.key(KeyCode::Esc);
-    d.choose("This book");
+    d.menu(&["File"]);
     assert!(d.shows("Move writing history out…"), "offered in the menu");
     d.choose("Move writing history out");
     assert!(!root.join(".git").exists(), "moved out: {}", d.status());
     assert!(!d.app.history_in_book);
     assert!(d.status().contains("moved out"), "{}", d.status());
-    d.key(KeyCode::Esc);
-    d.choose("This book");
+    d.menu(&["File"]);
     assert!(!d.shows("Move writing history out…"), "no longer offered");
     drop(d);
     let _ = fs::remove_dir_all(&base);
@@ -1990,7 +1799,7 @@ fn the_rainbow_flows_over_time() {
         .into_iter()
         .find(|t| t.is_rainbow())
         .unwrap();
-    let corner = |d: &Desk| d.term.backend().buffer()[(0, 0)].fg;
+    let corner = |d: &Desk| d.term.backend().buffer()[(0, 1)].fg;
     d.draw();
     let before = corner(&d);
     // A quarter of a cycle later the same cell is a different colour.
@@ -2019,13 +1828,7 @@ fn reading(d: &Desk) -> bool {
 #[test]
 fn the_menu_has_a_help_row_that_opens_it() {
     let mut d = Desk::open(book("help-menu", true), 120, 35);
-    d.key(KeyCode::Esc);
-    // Just above Quit, at the bottom: Help & about, then Help first in it.
-    for _ in 0..2 {
-        d.key(KeyCode::Up); // round from the top: Quit, Help & about
-    }
-    assert!(d.shows("▸ Help & about"));
-    d.key(KeyCode::Enter);
+    d.menu(&["Help"]);
     assert!(d.shows("▸ Help…"), "the menu offers it");
     d.key(KeyCode::Enter);
     assert_eq!(
@@ -2046,7 +1849,6 @@ fn the_menu_has_a_help_row_that_opens_it() {
 fn question_mark_in_the_outline_opens_the_help_on_the_outline() {
     let mut d = Desk::open(book("help-q", true), 120, 35);
     assert_eq!(d.app.focus, Focus::Tree);
-    assert!(d.status().contains("? help"), "{}", d.status());
     d.key(KeyCode::Char('?'));
     assert_eq!(help_topic(&d), Some("outline"));
     assert!(d.shows("The outline"));
@@ -2060,7 +1862,6 @@ fn question_mark_on_the_page_is_typed() {
     let mut d = Desk::open(book("help-type", true), 140, 42);
     d.key(KeyCode::Tab);
     // `?` can't be the help here, so the status bar names F1 where it fits.
-    assert!(d.status().contains("F1 help"), "{}", d.status());
     d.typed("Who?");
     assert_eq!(d.app.overlay, Overlay::None);
     assert!(scene_text(&d).contains("Who?"), "{}", scene_text(&d));
@@ -2146,7 +1947,6 @@ fn each_place_opens_the_help_on_its_own_topic() {
     assert_eq!(open(&mut d), Some("focus"));
     d.ctrl('d');
     focus_on(&mut d, Focus::Clearing);
-    assert!(d.status().contains("? help"), "{}", d.status());
     assert_eq!(open(&mut d), Some("pomodoro"));
     d.key(KeyCode::Right);
     assert_eq!(d.app.pane_mode, scene::Mode::Visualizer);
@@ -2173,7 +1973,6 @@ fn each_place_opens_the_help_on_its_own_topic() {
 
     let (mut d, _rx) = music_desk("help-music");
     focus_on(&mut d, Focus::Music);
-    assert!(d.status().contains("? help"), "{}", d.status());
     d.key(KeyCode::Char('?'));
     assert_eq!(help_topic(&d), Some("music"));
 }
@@ -2711,9 +2510,7 @@ fn every_key_in_every_key_does_something() {
 #[test]
 fn about_says_the_version_and_who_made_it_and_links_to_the_studio() {
     let mut d = Desk::open(book("about", true), 120, 40);
-    d.key(KeyCode::Esc);
-    d.choose("Help & about");
-    d.choose("About Grimoire");
+    d.menu(&["WrOS", "About WrOS"]);
     assert!(matches!(d.app.overlay, Overlay::About));
     assert!(d.shows(&format!("version {}", env!("CARGO_PKG_VERSION"))));
     assert!(d.shows("Catfinity Studios"));
@@ -2782,9 +2579,7 @@ fn about_opens_the_license_which_says_commercial_use_is_fine_with_credit() {
 #[test]
 fn donate_says_it_is_never_required_and_links_to_kofi() {
     let mut d = Desk::open(book("donate", true), 120, 40);
-    d.key(KeyCode::Esc);
-    d.choose("Help & about");
-    d.choose("Donate…");
+    d.menu(&["Help", "Donate…"]);
     assert!(matches!(d.app.overlay, Overlay::Donate));
     assert!(d.shows("never"));
     assert!(d.shows("required"));
@@ -2818,8 +2613,7 @@ fn a_new_book_from_the_menu_saves_this_one_and_opens_the_new_one() {
     d.app.state_file = Some(state.clone());
     d.key(KeyCode::Tab);
     d.typed("Words from the first book");
-    d.key(KeyCode::Esc);
-    d.choose("Start a new book…");
+    d.menu(&["File", "Start a new book…"]);
     assert!(d.shows("START A NEW BOOK"));
     // Typing is typing here: ? and q are letters.
     d.typed("?q");
@@ -2843,8 +2637,7 @@ fn a_new_book_from_the_menu_saves_this_one_and_opens_the_new_one() {
     assert!(remembered.starts_with(&format!("last = \"{}\"", d.app.project.root.display())));
 
     // And back again, from Open another book.
-    d.key(KeyCode::Esc);
-    d.choose("Open another book…");
+    d.menu(&["File", "Open another book…"]);
     assert!(d.shows("OPEN ANOTHER BOOK"));
     d.key(KeyCode::Enter);
     assert_eq!(d.app.project.root, fs::canonicalize(&first).unwrap());
@@ -3056,9 +2849,7 @@ fn progress_shows_the_weeks_and_the_pace_and_a_click_on_the_count_opens_it() {
         .unwrap();
     }
     let mut d = Desk::open(root.clone(), 120, 40);
-    d.key(KeyCode::Esc);
-    d.choose("Writing tools");
-    d.choose("Progress…");
+    d.menu(&["Tools", "Practice", "Progress…"]);
     assert!(d.shows("PROGRESS"), "{}", d.rows().join("\n"));
     assert!(d.shows("Each week"));
     assert!(d.shows("this week"));
@@ -3143,9 +2934,7 @@ fn read_aloud_highlights_each_sentence_and_the_keys_skip_pause_and_stop() {
     .unwrap();
     let mut d = Desk::open(root, 120, 35);
     d.key(KeyCode::Tab);
-    d.key(KeyCode::Esc);
-    d.choose("Writing tools");
-    d.choose("Read aloud");
+    d.menu(&["Tools", "Read aloud"]);
     assert_eq!(d.app.overlay, Overlay::Reading);
     assert!(d.shows("reading aloud"), "{}", d.status());
     assert!(d.shows("sentence 1 of 3"), "{}", d.status());
@@ -3180,17 +2969,16 @@ fn read_aloud_highlights_each_sentence_and_the_keys_skip_pause_and_stop() {
 #[test]
 fn the_reading_voice_is_picked_in_settings() {
     let mut d = Desk::open(book("voices", true), 120, 35);
-    d.key(KeyCode::Esc);
-    d.choose("Settings");
-    d.choose("Reading voice…");
+    d.menu(&["Settings", "Writing", "Reading voice…"]);
     assert!(d.shows("READING VOICE"));
     assert!(d.shows("Automatic: the most natural one here"));
     d.key(KeyCode::Down);
     d.key(KeyCode::Enter);
+    // Chosen from Settings, the box comes back over the page; the choice is said.
     assert!(
-        d.status().contains("Read aloud will use Silent"),
+        d.app.msg.contains("Read aloud will use Silent"),
         "{}",
-        d.status()
+        d.app.msg
     );
 }
 
@@ -3198,9 +2986,7 @@ fn the_reading_voice_is_picked_in_settings() {
 fn goals_take_a_month_of_drafting_preset_and_save_to_novel_toml() {
     let root = book("goals", true);
     let mut d = Desk::open(root.clone(), 120, 35);
-    d.key(KeyCode::Esc);
-    d.choose("This book");
-    d.choose("Goals…");
+    d.menu(&["Book", "Goals…"]);
     assert!(d.shows("GOALS"));
     assert!(d.shows("A month of drafting"));
     assert!(!d.shows("NaNo"));
@@ -3238,17 +3024,6 @@ fn goals_take_a_month_of_drafting_preset_and_save_to_novel_toml() {
     d.key(KeyCode::Esc);
     assert_eq!(d.app.overlay, Overlay::None);
     assert_eq!(d.app.project.meta.target_words, 52_000);
-}
-
-#[test]
-fn the_corkboard_is_named_in_the_outline_hints_and_the_menu() {
-    let mut d = Desk::open(book("cork-hint", true), 150, 40);
-    assert_eq!(d.app.focus, Focus::Tree);
-    assert!(d.status().contains("b corkboard"), "{}", d.status());
-    d.key(KeyCode::Esc);
-    d.choose("This book");
-    d.choose("Corkboard…");
-    assert!(matches!(d.app.overlay, Overlay::Cork { .. }));
 }
 
 #[test]
@@ -3329,38 +3104,6 @@ fn cards_are_added_renamed_moved_and_deleted_from_the_corkboard() {
 }
 
 #[test]
-fn find_names_history_and_moving_are_in_the_menu_and_hints() {
-    let mut d = Desk::open(book("pass", true), 150, 40);
-    let labels = |rows: Vec<(String, palette::Action)>| -> Vec<String> {
-        rows.into_iter().map(|(l, _)| l).collect()
-    };
-    let bookrows = labels(d.app.submenu(Sub::Book));
-    for want in [
-        "Corkboard…",
-        "Move up",
-        "Move down",
-        "Scene history…",
-        "Search the whole book…",
-        "Writing sessions…",
-    ] {
-        assert!(
-            bookrows.iter().any(|l| l.starts_with(want)),
-            "no {want} in {bookrows:?}"
-        );
-    }
-    d.key(KeyCode::Tab);
-    let tools = labels(d.app.submenu(Sub::Writing));
-    for want in ["Find & replace…", "Check names…", "Read aloud"] {
-        assert!(
-            tools.iter().any(|l| l.starts_with(want)),
-            "no {want} in {tools:?}"
-        );
-    }
-    assert!(d.status().contains("^F find"), "{}", d.status());
-    assert!(d.status().contains("^T notes"), "{}", d.status());
-}
-
-#[test]
 fn ctrl_v_pastes_what_was_copied_and_ctrl_a_selects_the_scene() {
     let mut d = Desk::open(book("paste", true), 120, 35);
     d.key(KeyCode::Tab);
@@ -3413,12 +3156,12 @@ fn ctrl_b_and_ctrl_i_mark_the_word_at_the_cursor() {
         "{:?}",
         d.app.editor.lines[0]
     );
-    // Both are in Writing tools, for terminals where Ctrl-I is Tab.
+    // Both are on the Edit menu, for terminals where Ctrl-I is Tab.
     let tools: Vec<String> = d
         .app
-        .submenu(Sub::Writing)
+        .bar_rows(crate::palette::Title::Edit)
         .into_iter()
-        .map(|(l, _)| l)
+        .map(|r| r.label)
         .collect();
     assert!(
         tools.iter().any(|l| l.starts_with("Italic"))
@@ -3456,7 +3199,6 @@ fn u_in_the_trash_puts_a_deleted_scene_back_where_it_was() {
     d.app.reveal(trashed);
     d.draw();
     assert!(d.app.selection_in_trash(), "found it in the Trash");
-    assert!(d.status().contains("u restore"), "{}", d.status());
     d.key(KeyCode::Char('u'));
     assert!(scene.exists(), "back where it was: {}", d.status());
     assert!(d.status().contains("restored"), "{}", d.status());
@@ -3535,17 +3277,18 @@ fn a_double_click_picks_a_word_and_boxes_on_top_keep_their_clicks() {
             .is_some_and(|t| t.starts_with("The lighthouse"))
     );
 
-    // With the menu up, a click on the outline behind it does nothing, and
-    // the wheel moves the menu.
+    // With a menu up, the wheel moves it, and a click on the outline behind
+    // it only closes the menu.
     d.key(KeyCode::Esc);
     d.key(KeyCode::Esc);
+    d.key(KeyCode::Down);
     let sel = d.app.sel;
     let t = d.app.rect_tree;
-    d.app.on_click(t.x + 2, t.y + 3);
-    assert!(d.menu_open());
-    assert_eq!(d.app.sel, sel);
     d.app.on_scroll(t.x + 2, t.y + 3, true);
-    assert_eq!(d.app.overlay, Overlay::Menu { sel: 1 });
+    assert!(matches!(d.app.overlay, Overlay::Bar { sel: 1, .. }));
+    d.app.on_click(t.x + 2, t.y + 3);
+    assert!(!d.menu_open());
+    assert_eq!(d.app.sel, sel);
 }
 
 #[test]
@@ -3554,9 +3297,7 @@ fn details_set_status_pov_target_and_leave_a_scene_out_of_exports() {
     let scene = first_scene(&root);
     let mut d = Desk::open(root, 120, 40);
     d.key(KeyCode::Tab);
-    d.key(KeyCode::Esc);
-    d.choose("Writing tools");
-    d.choose("Scene details…");
+    d.menu(&["Book", "Scene details…"]);
     assert!(d.shows("DETAILS · SCENE ONE"), "{}", d.rows().join("\n"));
     d.key(KeyCode::Right); // status: outline -> draft
     d.key(KeyCode::Down);
@@ -3599,17 +3340,17 @@ fn spelling_can_be_british_canadian_or_australian() {
     let mut d = Desk::open(book("lang", true), 120, 40);
     d.app.load_speller_now();
     assert!(!d.app.speller.as_ref().unwrap().is_correct("colour"));
-    d.key(KeyCode::Esc);
-    d.choose("Settings");
-    d.choose("Spelling: American English");
+    d.menu(&[
+        "Settings",
+        "Writing",
+        "Editor",
+        "Spelling: American English",
+    ]);
     // A setting stays open to show its new state.
-    assert!(matches!(
+    assert_eq!(
         d.app.overlay,
-        Overlay::Sub {
-            sub: Sub::Settings,
-            ..
-        }
-    ));
+        Overlay::Deck(crate::app::wros::Page::Settings)
+    );
     assert!(
         d.shows("Spelling: British English"),
         "{}",
@@ -3617,43 +3358,6 @@ fn spelling_can_be_british_canadian_or_australian() {
     );
     assert!(d.app.speller.as_ref().unwrap().is_correct("colour"));
     assert!(d.app.speller.as_ref().unwrap().is_correct("realise"));
-}
-
-#[test]
-fn nothing_in_ctrl_k_is_missing_from_the_menu() {
-    use palette::Action as A;
-    let mut d = Desk::open(book("ctrlk-menu", true), 120, 40);
-    d.key(KeyCode::Tab); // writing, so the writing tools are all offered
-    let mut menu: Vec<A> = d.app.menu().into_iter().map(|(_, a)| a).collect();
-    for sub in [
-        Sub::Book,
-        Sub::Writing,
-        Sub::Productivity,
-        Sub::Settings,
-        Sub::Help,
-    ] {
-        menu.extend(d.app.submenu(sub).into_iter().map(|(_, a)| a));
-    }
-    let missing: Vec<String> = palette::entries(&d.app)
-        .into_iter()
-        .filter(|e| {
-            !matches!(
-                e.action,
-                // Keys every writer knows, shown in the hints and Every key.
-                A::Undo | A::Redo | A::Save | A::Paste | A::SelectAll | A::Menu
-                    | A::SpellingSuggestions
-                    // The music pane's own keys.
-                    | A::PlayPause | A::NextTrack | A::PrevTrack
-                    // Things by name: scenes, notes, themes, books, topics.
-                    | A::Open(_) | A::Theme(_) | A::OpenBookAt(_) | A::Beside(_) | A::HelpTopic(_)
-                    // Offered where you'd look for them: Open another book.
-                    | A::BringInDraft
-            )
-        })
-        .filter(|e| !menu.contains(&e.action))
-        .map(|e| e.label)
-        .collect();
-    assert!(missing.is_empty(), "only in Ctrl-K: {missing:#?}");
 }
 
 // ---- WritingDeck appliance foundation --------------------------------------
@@ -8365,37 +8069,45 @@ fn wros_productivity_tutorial_18_20_21_require_real_persisted_actions_and_never_
 }
 #[test]
 fn wros_productivity_discoverable_short_menu_has_every_tool_and_correct_nested_back() {
+    use crate::palette::{Side, Title};
     for (w, h) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
         let mut d = metric_writer(&format!("metrics-menu-{w}"), w, h);
-        d.key(KeyCode::Esc);
-        d.choose("Writing tools");
-        d.choose("Productivity tools");
+        d.menu(&["Tools", "Practice"]);
         assert!(matches!(
             d.app.overlay,
-            Overlay::Sub {
-                sub: Sub::Productivity,
+            Overlay::Bar {
+                side: Some((Side::Practice, _)),
                 ..
             }
         ));
-        for i in 0..6 {
-            let rows = d.app.menu_rows();
-            let label = rows[i].0.clone();
-            if let Overlay::Sub { sel, .. } = &mut d.app.overlay {
-                *sel = i;
+        let rows = d.app.side_rows(Side::Practice);
+        for (i, row) in rows.iter().enumerate() {
+            if let Overlay::Bar {
+                side: Some((_, at)),
+                ..
+            } = &mut d.app.overlay
+            {
+                *at = i;
             }
-            assert!(d.shows(&label), "{label} at {w}x{h}");
+            d.draw();
+            assert!(
+                d.shows(&format!("▸ {}", row.label)),
+                "{} at {w}x{h}",
+                row.label
+            );
         }
         d.key(KeyCode::Esc);
         assert!(matches!(
             d.app.overlay,
-            Overlay::Sub {
-                sub: Sub::Writing,
+            Overlay::Bar {
+                title: Title::Tools,
+                side: None,
+                open: true,
                 ..
             }
         ));
         d.key(KeyCode::Esc);
-        assert!(matches!(d.app.overlay, Overlay::Menu { .. }));
-        assert!(d.app.menu_rows().len() <= 10);
+        assert_eq!(d.app.overlay, Overlay::None);
     }
 }
 #[test]
@@ -8697,6 +8409,8 @@ mod knowledge_ui_tests;
 #[path = "backup_ui_tests.rs"]
 mod backup_ui_tests;
 
+#[path = "bar_ui_tests.rs"]
+mod bar_ui_tests;
 #[path = "lid_ui_tests.rs"]
 mod lid_ui_tests;
 #[path = "menu_map_ui_tests.rs"]

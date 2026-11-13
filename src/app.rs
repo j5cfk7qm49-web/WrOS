@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 use crate::books;
 use crate::music::{self, Music};
-use crate::palette::{self, Action, Sub};
+use crate::palette::{self, Action, Side, Title};
 use crate::scene::{Mode, Pomodoro};
 use crate::theme::{self, Theme};
 use crate::visualizer::Visualizer;
@@ -241,6 +241,14 @@ pub struct App {
     /// Where the view switcher on the scene pane's bottom edge was drawn:
     /// each view's name, and the arrows either side.
     pub view_hits: Vec<(Rect, Mode)>,
+    /// In a graphical session (native or under Cage), where Alt and a menu's
+    /// letter opens that menu; a terminal keeps Alt-b and Alt-f for words.
+    pub alt_menus: bool,
+    /// The menu bar's title last used: Esc lights it again (File at first).
+    pub bar_last: Title,
+    /// Where the menu bar's titles and the open dropdowns' rows were drawn,
+    /// for the mouse.
+    pub bar_hits: std::cell::RefCell<Vec<(Rect, overlays::BarHit)>>,
     pub theme: Theme,
     pub overlay: Overlay,
     /// Autosave bookkeeping: the last keystroke that changed text, when the
@@ -507,15 +515,13 @@ pub enum Overlay {
         id: u64,
         buf: String,
     },
-    /// The main menu — the discoverable way to reach everything.
-    Menu {
+    /// The menu bar across the top: lit on `title`, with its dropdown `open`
+    /// on row `sel`, and a side group of Tools open beside it on its own row.
+    Bar {
+        title: Title,
+        open: bool,
         sel: usize,
-    },
-    /// One of the menu's groups, one level down: this book, the writing
-    /// tools, Settings, or Help & about.
-    Sub {
-        sub: Sub,
-        sel: usize,
+        side: Option<(Side, usize)>,
     },
     /// Naming a whole new book. A plain name goes beside the book that's
     /// open; a path (`~/…`, `/…`) goes exactly there. `shape` is what it
@@ -680,6 +686,9 @@ pub enum Overlay {
         query: String,
         sel: usize,
         entries: Vec<palette::Entry>,
+        /// Opened by a tap of Super: it sits just under the lit menu bar,
+        /// and ←→ go from it into the menus.
+        under_bar: bool,
     },
     /// Find (and replace) in the open scene: a bar under the prose, which
     /// stays visible so the matches light up in place.
@@ -950,6 +959,9 @@ impl App {
             rect_music: Rect::default(),
             create_hits: Vec::new(),
             view_hits: Vec::new(),
+            alt_menus: false,
+            bar_last: Title::default(),
+            bar_hits: std::cell::RefCell::default(),
             theme: setup.theme,
             overlay: Overlay::None,
             last_edit: None,
@@ -2133,6 +2145,7 @@ impl App {
             query: String::new(),
             sel: 0,
             entries,
+            under_bar: false,
         };
     }
 
@@ -2292,14 +2305,23 @@ impl App {
             Action::PrevTrack => self.on_function_key(4),
             Action::Timer => self.on_function_key(2),
             Action::TimerReset => self.on_function_key(3),
-            Action::Menu => self.open_menu(),
+            Action::Menu => self.open_bar(None, false),
             Action::Quit => self.quit = self.deck.quit_offered,
-            Action::FindAnything => self.open_palette(),
             Action::Settings => self.open_settings(),
-            Action::Submenu(sub) => self.overlay = Overlay::Sub { sub, sel: 0 },
+            Action::Side(side) => self.open_side(side),
+            Action::SettingsGroup(group) => {
+                self.open_settings_page(shell::Route::Category(group));
+            }
+            Action::Cut => self.cut(),
+            Action::Copy => self.copy_selection(),
+            Action::Lock => self.choose_in_settings(shell::SettingsRow::Lock),
+            Action::Sleep => self.choose_in_settings(shell::SettingsRow::Sleep),
+            Action::Restart => self.choose_in_settings(shell::SettingsRow::Restart),
+            Action::ShutDown => self.choose_in_settings(shell::SettingsRow::ShutDown),
+            Action::InstallToDisk => self.choose_in_settings(shell::SettingsRow::Install),
+            Action::BackUpNow => self.choose_in_settings(shell::SettingsRow::BackUpNow),
             // The menu's own key handling brings you back to the group you
             // were in; from anywhere else, the top.
-            Action::MenuBack => self.open_menu(),
             Action::NewBook => {
                 self.overlay = Overlay::NewBook {
                     buf: String::new(),
@@ -4966,6 +4988,11 @@ impl App {
 
     /// A left click focuses the pane under the pointer and acts on it.
     pub fn on_click(&mut self, x: u16, y: u16) {
+        // The menu bar first: its titles, an open menu's rows, or a click away
+        // that closes the menu.
+        if self.bar_click(x, y) {
+            return;
+        }
         if self.pin_click(x, y) {
             return;
         }
@@ -5196,6 +5223,9 @@ impl App {
     /// Wheel scrolls whichever pane is under the pointer, without stealing focus.
     pub fn on_scroll(&mut self, x: u16, y: u16, down: bool) {
         const STEP: usize = 3;
+        if self.bar_scroll(down) {
+            return;
+        }
         if self.pin_wheel(x, y, down) {
             return;
         }
@@ -5261,215 +5291,67 @@ impl App {
         v
     }
 
-    /// The menu's first screen: a handful of rows, most of them doors into
-    /// a short group of their own. Everything is still here, one step down.
-    pub fn menu(&self) -> Vec<(String, Action)> {
+    /// What Grimoire's own Settings group held: themes, music, spellcheck and
+    /// how the page and the manuscript look. Settings lists these rows on its
+    /// pages, labelled with their state ("Turn spellcheck off").
+    pub fn setting_rows(&self) -> Vec<(String, Action)> {
         let row = |label: &str, key: &str| format!("{label:<26}{key}");
-        let m = self.mod_label();
-        let mut items = vec![
-            (
-                row("Find anything…", &format!("({m}K)")),
-                Action::FindAnything,
-            ),
-            // Only while there's something to settle: it can't wait.
-            ("Settle conflicts…".into(), Action::Conflicts),
-            (row("This book", "›"), Action::Submenu(Sub::Book)),
-            (row("Writing tools", "›"), Action::Submenu(Sub::Writing)),
-            ("Export…".into(), Action::Export),
-            ("Start a new book…".into(), Action::NewBook),
-            ("Open another book…".into(), Action::OpenBook),
-            (row("Settings", "›"), Action::Submenu(Sub::Settings)),
-            (row("WrOS dashboard", "(F12)"), Action::Dashboard),
-            (row("Help & about", "›"), Action::Submenu(Sub::Help)),
-            (row("Quit Grimoire", &format!("({m}Q)")), Action::Quit),
-        ];
-        items.retain(|(_, a)| *a != Action::Conflicts || !self.conflicts().is_empty());
-        items.retain(|(_, a)| *a != Action::Quit || self.deck.quit_offered);
-        items
-    }
-
-    /// One of the menu's groups, in the book's own words: it offers a new act
-    /// if that is what this book calls its parts. Each ends with Back.
-    pub fn submenu(&self, sub: Sub) -> Vec<(String, Action)> {
-        let row = |label: &str, key: &str| format!("{label:<26}{key}");
-        let m = self.mod_label();
         let on_off =
             |on: bool, what: &str| format!("Turn {what} {}", if on { "off" } else { "on" });
-        let writing = self.open.is_some();
-        let mut items = match sub {
-            Sub::Book => vec![
-                (row("Corkboard…", "(b)"), Action::Corkboard),
-                (row("New scene…", "(n)"), Action::NewScene),
-                (row("New chapter…", "(c)"), Action::NewChapter),
-                (
-                    row(&format!("New {}…", self.project.meta.part_noun()), "(p)"),
-                    Action::NewPart,
-                ),
-                (row("New folder…", "(N)"), Action::NewFolder),
-                (row("Rename…", "(r)"), Action::Rename),
-                (row("Delete…", "(d)"), Action::Delete),
-                (row("Restore from the Trash", "(u)"), Action::Restore),
-                (row("Move up", "(K)"), Action::MoveUp),
-                (row("Move down", "(J)"), Action::MoveDown),
-                (row("Scene history…", "(H)"), Action::History),
-                (row("Search the whole book…", "(/)"), Action::FindInBook),
-                ("Goals…".into(), Action::Goals),
-                ("Writing sessions…".into(), Action::Sessions),
-                ("Save this session now".into(), Action::SaveSession),
-                ("Compile to Markdown".into(), Action::Compile),
-                ("Update the project map".into(), Action::ProjectMap),
-                ("Move writing history out…".into(), Action::MoveHistoryOut),
-            ],
-            Sub::Writing => vec![
-                (
-                    row(
-                        if self.focus_mode {
-                            "Leave focus mode"
-                        } else {
-                            "Focus mode"
-                        },
-                        &format!("({m}D)"),
-                    ),
-                    Action::FocusMode,
-                ),
-                ("Scene details…".into(), Action::Details),
-                (row("Italic", &format!("({m}I)")), Action::Italic),
-                (row("Bold", &format!("({m}B)")), Action::Bold),
-                (
-                    row("Find & replace…", &format!("({m}F)")),
-                    Action::FindInScene,
-                ),
-                (row("Open a scene beside…", "(v)"), Action::BesidePicker),
-                (row("Notes & TKs…", &format!("({m}T)")), Action::NotesList),
-                ("Next TK or note".into(), Action::NextTk),
-                (
-                    row("Look up the name here", &format!("({m}O)")),
-                    Action::OpenCodex,
-                ),
-                (row("Next scene still in draft", ""), Action::NextDraft),
-                (on_off(self.echo_on, "echo words"), Action::EchoWords),
-                ("Footnote navigator…".into(), Action::Footnotes),
-                ("Read footnote at caret…".into(), Action::FootnoteAtCaret),
-                ("Insert footnote here".into(), Action::InsertFootnote),
-                ("Check names…".into(), Action::CheckNames),
-                ("Continuity tracker…".into(), Action::Continuity),
-                ("Draft milestones…".into(), Action::Milestones),
-                ("Revision notes…".into(), Action::ReviewNotes),
-                ("Writing checks…".into(), Action::WritingChecks),
-                ("Dictionary and thesaurus…".into(), Action::Lexicon),
-                (
-                    "Prose and revision dashboard…".into(),
-                    Action::ProseDashboard,
-                ),
-                if self.sprint.is_some() {
-                    ("Stop the sprint".into(), Action::EndSprint)
-                } else {
-                    ("Start a sprint…".into(), Action::StartSprint)
+        vec![
+            ("WrOS settings…".into(), Action::Settings),
+            ("System settings…".into(), Action::SystemSettings),
+            ("Workspaces…".into(), Action::Workspaces),
+            ("Toggle outline".into(), Action::ToggleOutline),
+            (row("Themes…", "(F9)"), Action::Themes),
+            ("Music source…".into(), Action::MusicSource),
+            (on_off(self.music.enabled, "music"), Action::MusicToggle),
+            (on_off(self.spell_on, "spellcheck"), Action::Spellcheck),
+            (
+                format!("Spelling: {}", self.spell_lang.name()),
+                Action::SpellingLanguage,
+            ),
+            (on_off(self.icons_on, "tree icons"), Action::Icons),
+            (
+                match self.line_width {
+                    0 => "Line width: the whole pane".to_string(),
+                    w => format!("Line width: {w} columns"),
                 },
-                ("Progress…".into(), Action::Progress),
-                (
-                    row(
-                        if self.pomo.running() {
-                            "Pause the timer"
-                        } else {
-                            "Start the timer"
-                        },
-                        "(F2)",
-                    ),
-                    Action::Timer,
-                ),
-                (row("Reset the timer", "(F3)"), Action::TimerReset),
-                ("Read aloud".into(), Action::ReadAloud),
-                ("Read chapter aloud".into(), Action::ReadChapterAloud),
-                ("Read manuscript aloud".into(), Action::ReadManuscriptAloud),
-                (row("Music player…", "(F7)"), Action::MusicPlayer),
-                (
-                    row("Editable secondary pane", "(F11)"),
-                    Action::ToggleSecondary,
-                ),
-                ("Choose secondary document…".into(), Action::SecondaryPicker),
-                (
-                    row("Productivity tools", "›"),
-                    Action::Submenu(Sub::Productivity),
-                ),
-                ("Writing journal…".into(), Action::Journal),
-                ("Scratchpad…".into(), Action::Scratchpad),
-                ("Session handoff…".into(), Action::Handoff),
-                ("Pinboard…".into(), Action::Pinboard),
-                ("Pin current document".into(), Action::PinCurrent),
-                ("Toggle pins sidebar".into(), Action::TogglePins),
-            ],
-            Sub::Productivity => vec![
-                ("Story Spark…".into(), Action::StorySpark),
-                ("Recorded edit ledger…".into(), Action::Productivity),
-                ("Advanced goals…".into(), Action::MeasuredGoals),
-                ("Calendar and rest days…".into(), Action::Calendar),
-                ("Advanced sprints…".into(), Action::AdvancedSprints),
-                ("Milestone collection…".into(), Action::Achievements),
-                ("Daily challenges…".into(), Action::DailyChallenges),
-            ],
-            Sub::Settings => vec![
-                ("WrOS settings…".into(), Action::Settings),
-                ("System settings…".into(), Action::SystemSettings),
-                ("Workspaces…".into(), Action::Workspaces),
-                ("Toggle outline".into(), Action::ToggleOutline),
-                (row("Themes…", "(F9)"), Action::Themes),
-                ("Music source…".into(), Action::MusicSource),
-                (on_off(self.music.enabled, "music"), Action::MusicToggle),
-                (on_off(self.spell_on, "spellcheck"), Action::Spellcheck),
-                (
-                    format!("Spelling: {}", self.spell_lang.name()),
-                    Action::SpellingLanguage,
-                ),
-                (on_off(self.icons_on, "tree icons"), Action::Icons),
-                (
-                    match self.line_width {
-                        0 => "Line width: the whole pane".to_string(),
-                        w => format!("Line width: {w} columns"),
-                    },
-                    Action::LineWidth,
-                ),
-                (
-                    on_off(self.typewriter, "typewriter scrolling"),
-                    Action::Typewriter,
-                ),
-                ("Reading voice…".into(), Action::Voices),
-                ("Manuscript look…".into(), Action::ManuscriptLook),
-                ("Author details…".into(), Action::AuthorDetails),
-            ],
-            Sub::Help => vec![
-                (row("Help…", "(?)"), Action::Help),
-                ("Interactive tutorial…".into(), Action::Tutorial),
-                ("About Grimoire…".into(), Action::About),
-                ("License…".into(), Action::License),
-                ("Donate…".into(), Action::Donate),
-            ],
-        };
-        // Rows that couldn't do anything right now aren't offered: nothing to
-        // play with music off (Settings is where it comes back on), and the
-        // writing tools want a scene open.
-        items.retain(|(_, a)| match a {
-            Action::MusicPlayer => self.music.enabled,
-            Action::FocusMode => writing || self.focus_mode,
-            Action::BesidePicker => writing,
-            Action::ReadAloud | Action::ReadChapterAloud | Action::ReadManuscriptAloud => writing,
-            Action::FindInScene => writing,
-            Action::Italic | Action::Bold => writing,
-            Action::Details => writing,
-            Action::OpenCodex | Action::NextTk => writing,
-            Action::Restore => self.selection_in_trash(),
-            Action::History => writing || !self.visible.is_empty(),
-            Action::EchoWords => writing || self.echo_on,
-            // Only while a synced book still keeps its history inside it.
-            Action::MoveHistoryOut => self.history_in_book && self.cloud.is_some(),
-            _ => true,
-        });
-        items.push(("Back".into(), Action::MenuBack));
-        items
+                Action::LineWidth,
+            ),
+            (
+                on_off(self.typewriter, "typewriter scrolling"),
+                Action::Typewriter,
+            ),
+            ("Reading voice…".into(), Action::Voices),
+            ("Manuscript look…".into(), Action::ManuscriptLook),
+            ("Author details…".into(), Action::AuthorDetails),
+        ]
     }
 
+    /// A tap of Super: Find anything, just under the lit menu bar. A second
+    /// tap closes it.
+    pub fn open_find_under_bar(&mut self) {
+        if matches!(
+            self.overlay,
+            Overlay::Palette {
+                under_bar: true,
+                ..
+            }
+        ) {
+            self.overlay = Overlay::None;
+            return;
+        }
+        self.open_palette();
+        if let Overlay::Palette { under_bar, .. } = &mut self.overlay {
+            *under_bar = true;
+        }
+    }
+
+    /// Esc, F10 or the menu-bar shortcut: the bar, lit on the title used last.
+    /// `open` drops that title's menu down at once (Alt and its letter).
     pub fn open_menu(&mut self) {
-        self.overlay = Overlay::Menu { sel: 0 };
+        self.open_bar(None, false);
     }
 
     /// Esc with nothing on top: the menu, from any pane. What's in the way
@@ -5484,7 +5366,7 @@ impl App {
         } else if !self.focus_mode && self.side_room && self.beside.is_some() {
             self.close_beside();
         } else {
-            self.open_menu();
+            self.open_bar(None, false);
         }
     }
 
@@ -5548,6 +5430,7 @@ impl App {
             query: String::new(),
             sel: 0,
             entries,
+            under_bar: false,
         };
     }
 
@@ -5822,81 +5705,6 @@ impl App {
             let from = std::mem::replace(&mut self.theme.name, "Custom".into());
             self.theme.pick_world(from.clone());
             self.theme.pick_look(from);
-        }
-    }
-
-    /// Status-bar hints for whichever pane has focus.
-    pub fn hints(&self) -> String {
-        let hints = self.pane_hints();
-        if self.deck.quit_offered {
-            hints
-        } else {
-            hints.replace(&format!("  {}Q quit", self.mod_label()), "")
-        }
-    }
-
-    fn pane_hints(&self) -> String {
-        let m = self.mod_label();
-        // What Esc does comes first, so a narrow status bar never cuts it.
-        let esc = if self.side_room && self.codex.is_some() {
-            "Esc close note"
-        } else if self.side_room && self.beside.is_some() {
-            "Esc close beside"
-        } else {
-            "Esc menu"
-        };
-        // Focus mode needs a scene to show; where there is one, say how.
-        let focus = if self.open.is_some() {
-            format!("  {m}D focus mode")
-        } else {
-            String::new()
-        };
-        match self.focus {
-            Focus::Tree => {
-                let sel = self.visible.get(self.sel).copied();
-                let keys: Vec<String> = create::offers(&self.project, sel)
-                    .iter()
-                    .map(|(k, w)| format!("{k} {w}"))
-                    .collect();
-                // The corkboard right after the making keys: it's the other
-                // way to see the book, and nothing else says where it is.
-                // In the Trash, putting back matters more than making.
-                if self.selection_in_trash() {
-                    return format!(
-                        "{esc}  u restore  d delete for good  ? help  Tab pane  {m}Z undo  {m}Q quit "
-                    );
-                }
-                format!(
-                    "{esc}{focus}  ? help  Tab pane  ↵ fold  {}  b corkboard  r rename  d delete  {m}Z undo  H history  {m}Q quit ",
-                    keys.join("  ")
-                )
-            }
-            Focus::Editor if self.focus_mode => {
-                format!("{esc}  {m}D leave focus  {m}K find anything  {m}Z undo  {m}Q quit ")
-            }
-            Focus::Editor => {
-                format!(
-                    "{esc}{focus}  Tab pane  {m}K find anything  F8 spelling  {m}F find  {m}T notes  {m}Z undo  F1 help  {m}Q quit "
-                )
-            }
-            Focus::Secondary => format!(
-                "{esc}  Tab pane  F11 hide secondary  {m}S save  {m}F find  {m}Z undo  {m}Q quit "
-            ),
-            Focus::Pins => "↑↓ card  PgUp/PgDn scroll  Enter edit source  h heading  Home anchor  ? help  Tab pane ".into(),
-            Focus::Beside => "Esc close  Tab pane  ↑↓ PgDn scroll  ↵ write in this one ".into(),
-            Focus::Codex => {
-                "Esc close  Tab pane  ↑↓ scenes  ↵ go there  o open the note  PgDn scroll ".into()
-            }
-            Focus::Clearing => {
-                format!(
-                    "{esc}{focus}  Tab pane  ←→ view  ↵ start/pause  r reset  ? help  {m}Q quit "
-                )
-            }
-            Focus::Music => {
-                format!(
-                    "{esc}  ? help  [ ] track  space pause  ←→ seek  r repeat  s shuffle  +/- volume  l like  ↵ player  {m}Q quit "
-                )
-            }
         }
     }
 }

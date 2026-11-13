@@ -67,9 +67,10 @@ pub enum Action {
     Quit,
     /// The menu's own rows: open the palette, and go into one of its groups
     /// and back out.
-    FindAnything,
-    Submenu(Sub),
-    MenuBack,
+    /// One of Tools' side groups, from its row.
+    Side(Side),
+    /// A Settings group, from the Settings menu: opens the Settings box there.
+    SettingsGroup(crate::app::shell::Category),
     FocusMode,
     /// Pick a scene to show beside the one being written.
     BesidePicker,
@@ -135,6 +136,18 @@ pub enum Action {
     Bold,
     Paste,
     SelectAll,
+    Cut,
+    Copy,
+    /// The power rows of the WrOS menu: the same rows, and confirmations, as
+    /// Settings › System › Battery and power.
+    Lock,
+    Sleep,
+    Restart,
+    ShutDown,
+    /// Live media only: the installer, as Settings › System › Storage offers it.
+    InstallToDisk,
+    /// Back the book up now, as Settings › Backups and accounts › Backups does.
+    BackUpNow,
     /// Take what's selected in the Trash back where it was.
     Restore,
     /// Which voice reads aloud.
@@ -142,18 +155,85 @@ pub enum Action {
     OpenBookAt(std::path::PathBuf),
 }
 
-/// The menu's groups, each a short list of its own one level down.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Sub {
-    /// Making, renaming and deleting scenes, chapters and parts.
+/// The menu bar's titles, left to right.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Title {
+    Wros,
+    #[default]
+    File,
+    Edit,
+    View,
     Book,
-    /// Focus mode, sprints, notes and the rest of what helps mid-scene.
-    Writing,
-    /// Recorded metrics and optional productivity tools.
-    Productivity,
+    Tools,
     Settings,
-    /// The help, About, the license and Donate.
     Help,
+}
+
+impl Title {
+    pub const ALL: [Title; 8] = [
+        Title::Wros,
+        Title::File,
+        Title::Edit,
+        Title::View,
+        Title::Book,
+        Title::Tools,
+        Title::Settings,
+        Title::Help,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Title::Wros => "WrOS",
+            Title::File => "File",
+            Title::Edit => "Edit",
+            Title::View => "View",
+            Title::Book => "Book",
+            Title::Tools => "Tools",
+            Title::Settings => "Settings",
+            Title::Help => "Help",
+        }
+    }
+
+    /// The letter that opens it, underlined in its title: its first.
+    pub fn letter(self) -> char {
+        self.label().chars().next().unwrap().to_ascii_lowercase()
+    }
+
+    pub fn index(self) -> usize {
+        Title::ALL.iter().position(|t| *t == self).unwrap()
+    }
+
+    /// The title whose letter is `c`, any case.
+    pub fn for_letter(c: char) -> Option<Title> {
+        let c = c.to_ascii_lowercase();
+        Title::ALL.into_iter().find(|t| t.letter() == c)
+    }
+
+    /// The next title along, going round.
+    pub fn step(self, by: isize) -> Title {
+        let n = Title::ALL.len() as isize;
+        Title::ALL[(self.index() as isize + by).rem_euclid(n) as usize]
+    }
+}
+
+/// Tools' side groups, which open beside its dropdown.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Side {
+    Revision,
+    Notes,
+    Practice,
+}
+
+impl Side {
+    pub const ALL: [Side; 3] = [Side::Revision, Side::Notes, Side::Practice];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Side::Revision => "Revision",
+            Side::Notes => "Notes",
+            Side::Practice => "Practice",
+        }
+    }
 }
 
 impl Action {
@@ -271,6 +351,8 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
         Entry::new("Undo", &format!("{m}Z"), Action::Undo),
         Entry::new("Redo", &format!("{m}Y"), Action::Redo),
         Entry::new("Save now", &format!("{m}S"), Action::Save),
+        Entry::new("Cut", &format!("{m}X"), Action::Cut),
+        Entry::new("Copy", &format!("{m}C"), Action::Copy),
         Entry::new("Paste", &format!("{m}V"), Action::Paste),
         Entry::new(
             "Select the whole scene",
@@ -437,11 +519,23 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
         Entry::new("Reset the timer", "F3", Action::TimerReset),
         Entry::new("Menu", "Esc", Action::Menu),
         Entry::new("Help", "F1", Action::Help),
-        Entry::new("About Grimoire", "", Action::About),
+        Entry::new("About WrOS", "", Action::About),
+        Entry::new("Lock", "", Action::Lock),
+        Entry::new("Sleep", "", Action::Sleep),
+        Entry::new("Restart the computer", "", Action::Restart),
+        Entry::new("Shut down", "", Action::ShutDown),
+        Entry::new("Back up now", "", Action::BackUpNow),
         Entry::new("Donate (Ko-fi)", "", Action::Donate),
         Entry::new("License", "", Action::License),
         Entry::new("Quit", &format!("{m}Q"), Action::Quit),
     ]);
+    if app.deck.live_session {
+        v.push(Entry::new(
+            "Install WrOS to disk",
+            "",
+            Action::InstallToDisk,
+        ));
+    }
     v.extend([
         Entry::new("Productivity ledger", "", Action::Productivity),
         Entry::new("Advanced goals", "", Action::MeasuredGoals),

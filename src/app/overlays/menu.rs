@@ -1,121 +1,82 @@
-//! The Esc menu and its groups: the discoverable way to everything. The
-//! first screen is short; each group is one step down, and whatever row is
-//! highlighted says in a line what it does.
+//! What each menu row does, in a line, and the help topic that says more:
+//! the status line shows it while a menu is open, and `?` opens the topic.
 
 use super::*;
-
-impl App {
-    /// The rows of the menu screen that's up: the first one, or a group.
-    pub fn menu_rows(&self) -> Vec<(String, Action)> {
-        match &self.overlay {
-            Overlay::Sub { sub, .. } => self.submenu(*sub),
-            _ => self.menu(),
-        }
-    }
-
-    /// The highlighted row's action, while the menu is up.
-    pub fn menu_highlight(&self) -> Option<Action> {
-        let (Overlay::Menu { sel } | Overlay::Sub { sel, .. }) = &self.overlay else {
-            return None;
-        };
-        self.menu_rows().into_iter().nth(*sel).map(|(_, a)| a)
-    }
-
-    pub(super) fn on_menu_key(&mut self, key: Key) {
-        let sub = match &self.overlay {
-            Overlay::Sub { sub, .. } => Some(*sub),
-            _ => None,
-        };
-        let items: Vec<Action> = self.menu_rows().into_iter().map(|(_, a)| a).collect();
-        let (Overlay::Menu { sel } | Overlay::Sub { sel, .. }) = &mut self.overlay else {
-            return;
-        };
-        if list_nav(key, sel, items.len(), RING) {
-            return;
-        }
-        match key {
-            Key::Enter | Key::Char(' ') | Key::Right | Key::Char('l') => {
-                let (at, action) = (*sel, items[*sel].clone());
-                if action == Action::MenuBack {
-                    self.menu_back(sub);
-                    return;
-                }
-                // A setting switched on or off stays in its group, so the
-                // change shows on its row.
-                let stay = action.is_setting_toggle();
-                self.run_action(action);
-                if let Some(sub) = sub
-                    && stay
-                    && self.overlay == Overlay::None
-                {
-                    self.overlay = Overlay::Sub { sub, sel: at };
-                }
-            }
-            Key::Esc | Key::Left | Key::Char('h') if sub.is_some() => self.menu_back(sub),
-            Key::Esc => self.overlay = Overlay::None,
-            _ => {}
-        }
-    }
-
-    /// Up out of a group, onto the row that led into it.
-    fn menu_back(&mut self, from: Option<Sub>) {
-        if from == Some(Sub::Productivity) {
-            let sel = self
-                .submenu(Sub::Writing)
-                .iter()
-                .position(|(_, a)| *a == Action::Submenu(Sub::Productivity))
-                .unwrap_or(0);
-            self.overlay = Overlay::Sub {
-                sub: Sub::Writing,
-                sel,
-            };
-            return;
-        }
-        let sel = from
-            .and_then(|sub| {
-                self.menu()
-                    .iter()
-                    .position(|(_, a)| *a == Action::Submenu(sub))
-            })
-            .unwrap_or(0);
-        self.overlay = Overlay::Menu { sel };
-    }
-}
 
 /// What a menu row does, in a line, and the help topic that says more.
 pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
     let (says, topic): (&str, &str) = match action {
+        Action::Undo => ("Takes back the last change to the page.", "writing"),
+        Action::Redo => ("Puts back the change Undo took away.", "writing"),
+        Action::Cut => ("Moves the selected words to the clipboard.", "writing"),
+        Action::Copy => ("Copies the selected words to the clipboard.", "writing"),
+        Action::Paste => ("Puts the clipboard's words in at the caret.", "writing"),
+        Action::SelectAll => ("Selects everything in the page.", "writing"),
+        Action::Lock => (
+            "Locks the writing session; your password opens it again. Everything is saved first.",
+            "wros",
+        ),
+        Action::Sleep => (
+            "Saves, locks and puts the computer to sleep, as Settings › System › Battery and power does.",
+            "wros",
+        ),
+        Action::Restart => (
+            "Saves everything, then restarts the computer after you confirm.",
+            "wros",
+        ),
+        Action::ShutDown => (
+            "Saves everything, then turns the computer off after you confirm.",
+            "wros",
+        ),
+        Action::InstallToDisk => (
+            "Installs WrOS on this computer's disk, encrypted. You confirm each step.",
+            "wros",
+        ),
+        Action::BackUpNow => (
+            "Backs this book up now, to the places Settings › Backups and accounts names.",
+            "sync",
+        ),
+        Action::Side(crate::palette::Side::Revision) => (
+            "Notes and TKs, footnotes, names, continuity, milestones and the revision dashboard.",
+            "writing",
+        ),
+        Action::Side(crate::palette::Side::Notes) => (
+            "The Pinboard, your journal, the scratchpad and the session handoff.",
+            "writing",
+        ),
+        Action::Side(crate::palette::Side::Practice) => (
+            "Story Spark, daily challenges, progress, goals, rest days, sprints and milestones.",
+            "productivity",
+        ),
+        Action::SettingsGroup(group) => match group {
+            crate::app::shell::Category::Writing => (
+                "The editor, the manuscript, goals and revision settings.",
+                "settings",
+            ),
+            crate::app::shell::Category::Interface => (
+                "Themes, the look of the page, the keyboard and music.",
+                "settings",
+            ),
+            crate::app::shell::Category::System => (
+                "Wi-Fi, sound, the display, date and time, battery and power, and storage.",
+                "wros",
+            ),
+            crate::app::shell::Category::Accounts => (
+                "Backups, Google Drive, local accounts and your password.",
+                "sync",
+            ),
+            crate::app::shell::Category::Updates => (
+                "Updates to WrOS, going back a version, and recovery.",
+                "wros",
+            ),
+        },
         Action::Settings => (
             "WrOS writing, interface, system and account settings; return to the same manuscript.",
             "wros",
         ),
-        Action::FindAnything => (
-            "Type a few letters to jump to any scene or note, or to run anything Grimoire can do.",
-            "getting-started",
-        ),
         Action::Conflicts => (
             "A sync left two copies of a scene that disagree. Pick which words to keep.",
             "sync",
-        ),
-        Action::Submenu(Sub::Book) => (
-            "Add scenes, chapters and parts, or rename and delete them.",
-            "outline",
-        ),
-        Action::Submenu(Sub::Writing) => (
-            "Focus mode, sprints, your notes, and other help while you write.",
-            "writing",
-        ),
-        Action::Submenu(Sub::Productivity) => (
-            "Observed edit accounting, goals and rest days, sprints, optional milestones and daily exercises.",
-            "productivity",
-        ),
-        Action::Submenu(Sub::Settings) => (
-            "Themes, music, spellcheck, and how the page and the manuscript look.",
-            "settings",
-        ),
-        Action::Submenu(Sub::Help) => (
-            "The help, which version this is, the license, and a way to chip in.",
-            "getting-started",
         ),
         Action::Export => (
             "Turn the book into a Word file, a PDF, an EPUB or a paperback, ready for readers.",
@@ -344,7 +305,10 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "Grimoire is free. A tip on Ko-fi helps it keep growing, and is never required.",
             "getting-started",
         ),
-        Action::Dashboard => ("Opens the offline writing home screen.", "wros"),
+        Action::Dashboard => (
+            "Your book at a glance: words, goals, sprints and what is due today.",
+            "wros",
+        ),
         Action::SystemSettings => ("Shows local system status and safe OS controls.", "wros"),
         Action::Workspaces => ("Restores a saved writing layout.", "wros"),
         Action::Tutorial => ("Opens replayable, event-verified lessons.", "wros"),
@@ -422,7 +386,6 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "Chooses a scene, note or research document for the independent editor. One buffer owns each file.",
             "wros",
         ),
-        Action::MenuBack => ("Back to the first menu.", "getting-started"),
         _ => ("", "getting-started"),
     };
     let says = if *action == Action::NewPart {
@@ -431,113 +394,4 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
         says.to_string()
     };
     (says, topic)
-}
-
-/// Break `text` into lines no wider than `width`, at spaces.
-fn wrap(text: &str, width: usize) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    let mut line = String::new();
-    for word in text.split(' ') {
-        let len = line.chars().count();
-        if len > 0 && len + 1 + word.chars().count() > width {
-            out.push(std::mem::take(&mut line));
-        }
-        if !line.is_empty() {
-            line.push(' ');
-        }
-        line.push_str(word);
-    }
-    if !line.is_empty() {
-        out.push(line);
-    }
-    out
-}
-
-/// Room for this many lines of the highlighted row's explanation.
-const ABOUT_LINES: usize = 3;
-const MENU_W: u16 = 50;
-
-pub(super) fn draw_menu(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
-    let (Overlay::Menu { sel } | Overlay::Sub { sel, .. }) = &app.overlay else {
-        return;
-    };
-    let sub = match &app.overlay {
-        Overlay::Sub { sub, .. } => Some(*sub),
-        _ => None,
-    };
-    let rows = app.menu_rows();
-    // Rows, a gap, the explanation, the key hints.
-    let box_area = centred(area, MENU_W, rows.len() as u16 + 4 + 1 + ABOUT_LINES as u16);
-    f.render_widget(Clear, box_area);
-    let title = match sub {
-        None => "GRIMOIRE",
-        Some(Sub::Book) => "GRIMOIRE › THIS BOOK",
-        Some(Sub::Writing) => "GRIMOIRE › WRITING TOOLS",
-        Some(Sub::Productivity) => "GRIMOIRE › PRODUCTIVITY",
-        Some(Sub::Settings) => "GRIMOIRE › SETTINGS",
-        Some(Sub::Help) => "GRIMOIRE › HELP & ABOUT",
-    };
-    let block = pane_block(title, true, t);
-    let inner = block.inner(box_area);
-    f.render_widget(block, box_area);
-
-    // Scroll long menus around the selection while retaining its explanation.
-    // Reserve one row, an explanation gap, and the two-line navigation footer
-    // before allocating explanatory text, even when all actions cannot fit.
-    let about_room = (inner.height as usize).saturating_sub(4).min(ABOUT_LINES);
-    let room = (inner.height as usize)
-        .saturating_sub(2 + if about_room > 0 { about_room + 1 } else { 0 })
-        .max(1);
-    let start = (*sel + 1).saturating_sub(room);
-    let mut lines: Vec<Line> = rows
-        .iter()
-        .enumerate()
-        .skip(start)
-        .take(room)
-        .map(|(i, (label, _))| {
-            let on = i == *sel;
-            Line::from(vec![
-                Span::styled(
-                    if on { " ▸ " } else { "   " },
-                    Style::default().fg(if on { t.accent } else { t.dim }),
-                ),
-                Span::styled(
-                    label.clone(),
-                    Style::default().fg(if on { t.accent } else { t.text }),
-                ),
-            ])
-            .style(if on {
-                Style::default().bg(t.sel)
-            } else {
-                Style::default()
-            })
-        })
-        .collect();
-    if about_room > 0
-        && let Some((_, action)) = rows.get(*sel)
-    {
-        let (says, _) = about_row(action, &app.project.meta.part_noun().to_lowercase());
-        lines.push(Line::from(""));
-        let mut said = wrap(&says, inner.width.saturating_sub(2) as usize);
-        said.truncate(about_room);
-        for _ in said.len()..about_room {
-            said.push(String::new());
-        }
-        for l in said {
-            lines.push(Line::from(Span::styled(
-                format!(" {l}"),
-                Style::default().fg(t.dim).add_modifier(Modifier::ITALIC),
-            )));
-        }
-    }
-    lines.push(Line::from(""));
-    lines.push(hint_line(
-        if sub.is_some() {
-            " j/k move   ↵ choose   ? more   esc back"
-        } else {
-            " j/k move   ↵ choose   ? more   esc close"
-        },
-        t,
-    ));
-    f.render_widget(Paragraph::new(lines), inner);
 }

@@ -323,6 +323,7 @@ impl App {
             query: String::new(),
             sel: 0,
             entries,
+            under_bar: false,
         };
     }
     pub fn link_scratchpad(&mut self, id: u64, path: &Path) {

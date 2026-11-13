@@ -46,8 +46,8 @@ use ratatui::crossterm::event;
 use ratatui::crossterm::event::{
     DisableBracketedPaste, DisableFocusChange, DisableMouseCapture, EnableBracketedPaste,
     EnableFocusChange, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers,
-    KeyboardEnhancementFlags, MouseButton, MouseEventKind, PopKeyboardEnhancementFlags,
-    PushKeyboardEnhancementFlags,
+    KeyboardEnhancementFlags, ModifierKeyCode, MouseButton, MouseEventKind,
+    PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
 };
 use ratatui::crossterm::execute;
 use std::path::{Path, PathBuf};
@@ -287,7 +287,10 @@ fn main() -> Result<()> {
         std::io::stdout(),
         PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES),
     );
-    app.super_keys = display::windowed(&terminal) || cmd_is_reachable();
+    app.alt_menus = display::graphical(&terminal) || session::composited();
+    // The ⌘ labels are for a Mac; on WrOS Super has a job of its own.
+    app.super_keys =
+        cfg!(target_os = "macos") && (display::windowed(&terminal) || cmd_is_reachable());
 
     shutdown::install();
     let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -985,6 +988,8 @@ fn dispatch_event(app: &mut App, ev: Event, confirm_quit: &mut bool) -> bool {
             MouseEventKind::Drag(MouseButton::Left) => app.on_drag(m.column, m.row),
             MouseEventKind::ScrollDown => app.on_scroll(m.column, m.row, true),
             MouseEventKind::ScrollUp => app.on_scroll(m.column, m.row, false),
+            // Moving across the bar's titles switches menus; over a row, lights it.
+            MouseEventKind::Moved => app.bar_hover(m.column, m.row),
             _ => {}
         }
         return false;
@@ -1016,6 +1021,30 @@ fn on_key(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
 fn route_key(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
     use app::wros::Page;
     use grimoire_core::tutorial::Event as LessonEvent;
+    // A tap of Super on its own (the native session reports it): Find anything,
+    // under the lit menu bar. A second tap closes it.
+    if let KeyCode::Modifier(ModifierKeyCode::LeftSuper | ModifierKeyCode::RightSuper) = k.code {
+        app.open_find_under_bar();
+        return false;
+    }
+    // On WrOS Super is not a second Ctrl: Super with a key does nothing, and
+    // never types its letter into the page. A Mac keeps Cmd.
+    if !cfg!(target_os = "macos") && k.modifiers.contains(KeyModifiers::SUPER) {
+        return false;
+    }
+    // Alt and a menu's letter opens that menu, in the graphical sessions. On
+    // the console (and a Mac, where Alt-b and Alt-f move by words) the letter
+    // after Esc does it.
+    if k.modifiers == KeyModifiers::ALT
+        && app.alt_menus
+        && !cfg!(target_os = "macos")
+        && matches!(app.overlay, Overlay::None | Overlay::Bar { .. })
+        && let KeyCode::Char(c) = k.code
+        && let Some(title) = palette::Title::for_letter(c)
+    {
+        app.open_bar(Some(title), true);
+        return false;
+    }
     if app.review_notes.has_draft() && k.modifiers.contains(KeyModifiers::CONTROL) {
         if matches!(k.code, KeyCode::Char('q' | 'k' | 'd')) {
             app.review_notes.notice =
@@ -1133,7 +1162,8 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
         let m = k.modifiers;
         let shift = m.contains(KeyModifiers::SHIFT);
         let alt = m.contains(KeyModifiers::ALT);
-        let ctrl = m.contains(KeyModifiers::CONTROL) || m.contains(KeyModifiers::SUPER);
+        let ctrl = m.contains(KeyModifiers::CONTROL)
+            || cfg!(target_os = "macos") && m.contains(KeyModifiers::SUPER);
         let by_word = ctrl || alt;
         let arrow = |code: KeyCode| match code {
             KeyCode::Left => Some(Key::Left),
@@ -1185,7 +1215,7 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
     }
     // Either modifier drives the shortcuts: Ctrl everywhere, Cmd where the
     // terminal can actually report it.
-    let sup = k.modifiers.contains(KeyModifiers::SUPER);
+    let sup = cfg!(target_os = "macos") && k.modifiers.contains(KeyModifiers::SUPER);
     if sup {
         // Hard proof this terminal can send Cmd; trust it over the guess.
         app.super_keys = true;

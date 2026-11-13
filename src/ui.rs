@@ -45,8 +45,16 @@ pub fn draw(
     app.pins.board_hits.borrow_mut().clear();
     app.pins.board_preview.set(Rect::default());
 
-    let [main, status] =
-        Layout::vertical([Constraint::Min(3), Constraint::Length(1)]).areas(f.area());
+    // The menu bar takes the top line, except in focus mode, where it only
+    // shows while a menu is up.
+    app.bar_hits.borrow_mut().clear();
+    let bar_line = !app.focus_mode;
+    let [bar, main, status] = Layout::vertical([
+        Constraint::Length(u16::from(bar_line)),
+        Constraint::Min(3),
+        Constraint::Length(1),
+    ])
+    .areas(f.area());
     app.rect_scene = Rect::default();
     app.view_hits.clear();
     app.rect_music = Rect::default();
@@ -121,6 +129,19 @@ pub fn draw(
         app.activate_editor(Pane::Primary);
     }
     draw_status(f, app, status, &t);
+    if bar_line {
+        crate::app::overlays::draw_bar_line(f, app, bar, &t);
+    } else if matches!(
+        app.overlay,
+        Overlay::Bar { .. }
+            | Overlay::Palette {
+                under_bar: true,
+                ..
+            }
+    ) {
+        let top = f.area();
+        crate::app::overlays::draw_bar_line(f, app, Rect { height: 1, ..top }, &t);
+    }
 
     if !matches!(app.overlay, Overlay::None) {
         crate::app::overlays::draw(f, app, f.area(), &t);
@@ -1287,10 +1308,16 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         _ => {}
     }
     // What the battery is about to make WrOS do comes first, in warning colour.
+    // With a menu open, the highlighted row says what it does.
     if let Some(battery) = app.deck.battery.showing(std::time::Instant::now()) {
         spans.push(Span::styled(
             format!("  {battery}"),
             Style::default().fg(t.warn),
+        ));
+    } else if let Some((says, _)) = app.bar_description() {
+        spans.push(Span::styled(
+            format!("  {says}"),
+            Style::default().fg(t.dim).add_modifier(Modifier::ITALIC),
         ));
     } else if !app.msg.is_empty() {
         spans.push(Span::styled(
@@ -1299,27 +1326,19 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         ));
     }
 
-    // Battery, light and volume sit at the far right; hints fill the room left.
+    // Battery, light and volume sit at the far right. (Key hints left the bar
+    // in rc13: the menus teach the keys.)
     let gauges = app.deck.gauges.text(app.focus_mode);
     let gauge_room = if gauges.is_empty() {
         0
     } else {
         gauges.chars().count() + 2
     };
-    // Keep a gap after the message; drop whole hints rather than run into it.
     let used: usize = spans.iter().map(|s| s.content.chars().count()).sum();
-    let hints = fit_hints(
-        &app.hints(),
-        (area.width as usize).saturating_sub(used + 3 + gauge_room),
-    );
     let pad = (area.width as usize)
         .saturating_sub(used)
-        .saturating_sub(hints.chars().count() + 1 + gauge_room);
+        .saturating_sub(gauge_room);
     spans.push(Span::raw(" ".repeat(pad)));
-    spans.push(Span::styled(
-        format!("{hints} "),
-        Style::default().fg(t.dim),
-    ));
     if !gauges.is_empty() {
         spans.push(Span::styled(
             format!(" {gauges} "),
@@ -1371,23 +1390,6 @@ pub(crate) fn wrap_words(s: &str, width: usize) -> Vec<String> {
     out.into_iter().map(|l| truncate(&l, width)).collect()
 }
 
-/// As many whole hints as fit in `room`, from the left. Hints are separated
-/// by two spaces; cutting one mid-word reads as a glitch.
-fn fit_hints(hints: &str, room: usize) -> String {
-    let mut out = String::new();
-    for hint in hints.trim_end().split("  ") {
-        let sep = if out.is_empty() { 0 } else { 2 };
-        if out.chars().count() + sep + hint.chars().count() > room {
-            break;
-        }
-        if sep > 0 {
-            out.push_str("  ");
-        }
-        out.push_str(hint);
-    }
-    out
-}
-
 pub(crate) fn truncate(s: &str, w: usize) -> String {
     if s.chars().count() <= w {
         return s.to_string();
@@ -1415,17 +1417,6 @@ mod tests {
 
     /// A kept version reads against now, never as a loss: "6 fewer" looked
     /// like six words had gone missing.
-
-    #[test]
-    fn hints_that_do_not_fit_drop_whole_from_the_right() {
-        let hints = "Tab pane  ↵ fold  n scene  c chapter  F1 menu ";
-        assert_eq!(
-            fit_hints(hints, 100),
-            "Tab pane  ↵ fold  n scene  c chapter  F1 menu"
-        );
-        assert_eq!(fit_hints(hints, 30), "Tab pane  ↵ fold  n scene");
-        assert_eq!(fit_hints(hints, 5), "");
-    }
 
     #[test]
     fn the_view_switcher_names_both_views_inside_the_scene_pane() {

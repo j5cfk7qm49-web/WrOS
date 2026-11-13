@@ -47,10 +47,9 @@ impl App {
             Overlay::Scratchpad => "scratchpad",
             Overlay::Handoff => "handoff",
             // In the menu, the topic for the highlighted row.
-            Overlay::Menu { .. } | Overlay::Sub { .. } => self
-                .menu_highlight()
-                .map(|a| super::menu::about_row(&a, &self.project.meta.part_noun()).1)
-                .unwrap_or("getting-started"),
+            Overlay::Bar { .. } => self
+                .bar_description()
+                .map_or("getting-started", |(_, topic)| topic),
             Overlay::NewBook { .. }
             | Overlay::Books { .. }
             | Overlay::DeleteBook { .. }

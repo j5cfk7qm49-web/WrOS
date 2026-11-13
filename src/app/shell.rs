@@ -420,6 +420,17 @@ impl Shell {
     }
 }
 
+/// The Settings rows the menu bar chooses on the writer's behalf.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SettingsRow {
+    Lock,
+    Sleep,
+    Restart,
+    ShutDown,
+    Install,
+    BackUpNow,
+}
+
 enum Choice {
     BackupRequest(crate::backup_service::Request),
     BackupForm(super::backup::FormKind, String),
@@ -808,13 +819,25 @@ fn links(group: Route) -> Vec<Entry> {
 /// Rows for `actions`, in that order, labelled as the Settings submenu labels them
 /// (a label can say the current state, as "Turn spellcheck off").
 fn setting_rows(app: &App, actions: &[Action]) -> Vec<Entry> {
-    let menu = app.submenu(Sub::Settings);
+    let menu = app.setting_rows();
     actions
         .iter()
         .filter_map(|wanted| {
             menu.iter()
                 .find(|(_, action)| action == wanted)
                 .map(|(label, action)| Entry::new(label.clone(), Choice::Action(action.clone())))
+        })
+        .collect()
+}
+
+/// The menu actions a Settings page offers as rows.
+#[cfg(test)]
+pub(crate) fn page_actions(app: &App, route: Route) -> Vec<Action> {
+    page_entries(app, route)
+        .into_iter()
+        .filter_map(|e| match e.choice {
+            Choice::Action(action) => Some(action),
+            _ => None,
         })
         .collect()
 }
@@ -837,7 +860,12 @@ pub(crate) fn driver_page(app: &App) -> (String, Vec<(String, bool)>) {
 }
 
 fn entries(app: &App) -> Vec<Entry> {
-    match app.deck.shell.nav.current() {
+    page_entries(app, app.deck.shell.nav.current())
+}
+
+/// The rows of the Settings page `route`.
+fn page_entries(app: &App, route: Route) -> Vec<Entry> {
+    match route {
         route @ (Route::Settings | Route::Category(_)) => {
             let mut rows = links(route);
             match route {
@@ -2326,9 +2354,42 @@ impl App {
             self.open_route(*last);
         }
     }
+    /// Choose a row of a Settings page as if the writer had: the WrOS menu's
+    /// power rows and File › Back up now run exactly what Settings runs, with
+    /// the same confirmations, and leave the Settings box on that page.
+    pub(crate) fn choose_in_settings(&mut self, row: SettingsRow) {
+        let page = match row {
+            SettingsRow::Lock
+            | SettingsRow::Sleep
+            | SettingsRow::Restart
+            | SettingsRow::ShutDown => Route::Panel(Panel::Power),
+            SettingsRow::Install => Route::Panel(Panel::Storage),
+            SettingsRow::BackUpNow => Route::Backups,
+        };
+        let wanted = |choice: &Choice| match row {
+            SettingsRow::Lock => matches!(choice, Choice::Lock),
+            SettingsRow::Sleep => matches!(choice, Choice::System(8)),
+            SettingsRow::Restart => matches!(choice, Choice::System(10)),
+            SettingsRow::ShutDown => matches!(choice, Choice::System(9)),
+            SettingsRow::Install => matches!(choice, Choice::InstallerOpen),
+            SettingsRow::BackUpNow => matches!(choice, Choice::BackupNow),
+        };
+        self.open_settings_page(page);
+        let rows = entries(self);
+        if let Some(i) = rows.iter().position(|e| wanted(&e.choice)) {
+            self.deck.shell.nav.select(i, rows.len());
+            self.on_settings_key(Key::Enter);
+        } else if row == SettingsRow::Sleep {
+            // Sleep has no row on the page; it asks the same way the System page does.
+            self.deck.shell.external = true;
+            self.overlay = Overlay::Deck(wros::Page::System { sel: 8 });
+            self.on_deck_key(Key::Enter);
+            self.return_to_settings();
+        }
+    }
     pub fn open_settings(&mut self) {
         let origin = match self.overlay {
-            Overlay::Menu { .. } | Overlay::Deck(wros::Page::Home { .. }) => self.overlay.clone(),
+            Overlay::Deck(wros::Page::Home { .. }) => self.overlay.clone(),
             _ => Overlay::None,
         };
         self.deck.shell.origin = Some(origin);
@@ -2806,7 +2867,7 @@ impl App {
             && matches!(
                 self.overlay,
                 Overlay::None
-                    | Overlay::Menu { .. }
+                    | Overlay::Bar { .. }
                     | Overlay::Deck(wros::Page::System { .. } | wros::Page::Home { .. })
             )
         {

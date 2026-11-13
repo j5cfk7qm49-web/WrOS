@@ -106,3 +106,11 @@ Interactive tutorial lists all 50 lessons. Press `d` to open the safe demo book:
 ## Safety and maintenance
 
 The writing application never needs root. Ctrl+Alt+F2 opens an authenticated maintenance console on the appliance. The isolated VM prototype has passwordless tty1 autologin and must not be deployed to hardware. Use a normal Debian account and encrypted installation for physical laptops. Screen locking, a full installer, updates/rollback automation, cloud OAuth and real-hardware verification remain release gates.
+
+## The WrOS menu
+
+The first menu on the bar holds Overview (F12), About WrOS, Lock, Sleep,
+Restart the computer and Shut down. The power rows ask first, as they do in
+Settings › System › Battery and power. On a live USB it also offers Install
+WrOS to disk. File › Back up now backs the open book up straight away, to the
+places Settings › Backups and accounts names.

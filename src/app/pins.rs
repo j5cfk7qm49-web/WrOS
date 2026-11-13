@@ -263,6 +263,7 @@ impl App {
             query: String::new(),
             sel: 0,
             entries,
+            under_bar: false,
         };
         self.msg =
             "Choose an existing project Markdown document; no copied sticky-note body".into();

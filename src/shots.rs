@@ -666,3 +666,47 @@ fn demo() {
 
     fs::write(&out, format!("[{}]", frames.join(","))).unwrap();
 }
+
+/// rc13 previews at the laptop's 170x48, painted by the native session's own
+/// font with `wros-graphics`' `cells_preview` example:
+/// `WROS_PREVIEW=<file.json> cargo test previews -- --ignored`
+#[test]
+#[ignore]
+fn previews() {
+    let Ok(out) = std::env::var("WROS_PREVIEW") else {
+        return;
+    };
+    let (w, h) = (170, 48);
+    let none = KeyModifiers::NONE;
+    let mut frames = Vec::new();
+
+    let mut s = Shot::new("p-desk", "Lost Forest", w, h, false);
+    s.key(KeyCode::Tab, none);
+    frames.push(s.json("desk", None));
+
+    s.key(KeyCode::Esc, none);
+    frames.push(s.json("bar-lit", None));
+    s.key(KeyCode::Char('b'), none);
+    s.key(KeyCode::Down, none);
+    s.key(KeyCode::Down, none);
+    frames.push(s.json("book-menu", None));
+
+    s.app.open_side(crate::palette::Side::Revision);
+    s.key(KeyCode::Down, none);
+    frames.push(s.json("tools-revision", None));
+
+    s.app.close_bar();
+    s.app.open_find_under_bar();
+    s.draw();
+    for c in "pin".chars() {
+        s.key(KeyCode::Char(c), none);
+    }
+    frames.push(s.json("find-anything", None));
+
+    s.key(KeyCode::Esc, none);
+    s.app.open_bar(Some(crate::palette::Title::Settings), true);
+    s.draw();
+    frames.push(s.json("settings-menu", None));
+
+    fs::write(&out, format!("[{}]", frames.join(","))).unwrap();
+}

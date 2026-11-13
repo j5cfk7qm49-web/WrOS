@@ -320,6 +320,7 @@ impl App {
             query: String::new(),
             sel: 0,
             entries,
+            under_bar: false,
         };
         self.msg =
             "Choose a scene, character, note or research document for the independent editor"
