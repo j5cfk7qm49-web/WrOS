@@ -53,7 +53,7 @@ its own size. A glyph wider than its cells is squeezed into them and never
 paints its neighbours; a character Unifont lacks shows a box. Details and
 sources: `assets/fonts/UNIFONT-SOURCE.md`. Previews:
 `docs/evidence/rc13-font/` (1:1 and 2× screens, and each one-cell drawing
-beside Unifont's own). The Foot session keeps DejaVu Sans Mono for now.
+beside Unifont's own and the earlier drawing). The Foot session keeps DejaVu Sans Mono for now.
 
 ## Lock, sleep and screen colour
 
