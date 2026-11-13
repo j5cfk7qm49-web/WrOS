@@ -455,6 +455,8 @@ enum Choice {
     Open(Route),
     /// Show a Google Drive folder ("drive:" is the top) on the Drive files page.
     DriveFolder(String),
+    /// Copy the book in this Drive folder to this laptop, then open it.
+    DriveCopyBook(String),
     Action(Action),
     System(usize),
     Information,
@@ -469,6 +471,8 @@ enum Choice {
     TimezoneChoose(String),
     TimezoneResolve(bool),
     Lock,
+    /// Restart only the writing app; the writer stays signed in.
+    RestartApp,
     LidClose,
     GraphicalSession,
     BootScreen(bool),
@@ -586,6 +590,19 @@ fn drive_rows(app: &App) -> Vec<Entry> {
             ));
         }
         return rows;
+    }
+    let holds_book = backup
+        .status
+        .drive_entries
+        .iter()
+        .any(|e| e.is_dir && e.name == "manuscript");
+    if !inside.is_empty() && holds_book && backup.job.is_some() {
+        rows.push(Entry::info("Copying and checking…"));
+    } else if !inside.is_empty() && holds_book {
+        rows.push(Entry::new(
+            "This folder is a book · copy it to this laptop and open it",
+            Choice::DriveCopyBook(folder.to_string()),
+        ));
     }
     if !inside.is_empty() {
         let up = inside.rsplit_once('/').map_or("", |(up, _)| up);
@@ -1014,6 +1031,12 @@ fn entries(app: &App) -> Vec<Entry> {
                                 "On battery, WrOS warns at 20% and 10%. At 8% it saves, then locks and sleeps after 30 seconds.",
                             ));
                         }
+                    }
+                    if cfg!(unix) {
+                        rows.push(Entry::new(
+                            "Restart the writing app · you stay signed in",
+                            Choice::RestartApp,
+                        ));
                     }
                     rows.extend([
                         Entry::new("Shutdown · confirmation required", Choice::System(9)),
@@ -2456,6 +2479,29 @@ impl App {
                                 .request(crate::backup_service::Request::DriveList { folder });
                         }
                     }
+                    Choice::DriveCopyBook(remote) => {
+                        let name = remote
+                            .trim_end_matches('/')
+                            .rsplit('/')
+                            .next()
+                            .unwrap_or("From Drive")
+                            .trim_start_matches("drive:")
+                            .to_string();
+                        let shelf = if self.background {
+                            crate::books::default_root()
+                        } else {
+                            self.project
+                                .root
+                                .parent()
+                                .map_or_else(crate::books::default_root, |p| p.to_path_buf())
+                        };
+                        let destination = crate::books::beside(&shelf, &name);
+                        let project = self.project.root.clone();
+                        self.deck
+                            .shell
+                            .backup
+                            .copy_book(remote, destination, &project);
+                    }
                     Choice::BackupNow => self.request_project_backup(),
                     Choice::SyncSwitch(on) => self.request_sync_switch(on),
                     Choice::SyncNow => self.request_sync_run(false),
@@ -2567,6 +2613,7 @@ impl App {
                     Choice::RepairOpen => self.repair_open(),
                     Choice::RepairRun => self.repair_run(),
                     Choice::Lock => self.request_console_lock(),
+                    Choice::RestartApp => self.restart_writing_app(),
                     Choice::LidClose => self.cycle_lid_close(),
                     Choice::GraphicalSession => self.toggle_graphical_session(),
                     Choice::BootScreen(retry) => {

@@ -19,6 +19,16 @@ Cancel stops the operation and preserves the active manuscript. Delete clears a
 setup field. Automatic cloud queues, two-way sync and Docs round trips remain
 unavailable. Full guidance: docs/NATIVE_BACKUP.md in the installed documentation.
 
+## Books on Google Drive
+
+Settings › Backups and accounts › Google Drive › Your Drive files lists your
+whole Drive, folders first. Items with a copy on this laptop say so. A file or a
+whole folder copies to a new place here, and the copy is checked against Drive
+before it is kept. When the folder you are in is a book, the first row offers
+to copy it to this laptop and open it: the copy goes beside the book you have
+open, and opens once the check passes. You write on that copy; the book on
+Drive stays as it was.
+
 A book is a folder, so any sync service carries it: Dropbox, Google Drive, pCloud, Box, OneDrive, iCloud Drive. Grimoire makes sure none of them can cost you words.
 
 ## Two devices change one scene

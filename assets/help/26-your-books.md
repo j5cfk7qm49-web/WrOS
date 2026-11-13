@@ -48,6 +48,12 @@ The draft itself is never changed. The new book goes beside the one you had open
 
 Your music keeps playing, the Pomodoro keeps counting, and the theme stays just as it is.
 
+## Deleting a book
+
+In *Open another book…*, move to a book and press `x`. A box names the book and its folder. Choose *Delete it* with the arrow keys and press `Enter`; `Esc` or *Keep it* leaves it alone. For a book of your own you also type its folder's name, so it can't happen by accident. A tutorial demo book needs only *Delete it*.
+
+Deleting removes the book's folder and everything in it from this laptop, and it can't be undone here. Backups of it, and any copy on Google Drive, are kept. The book you have open can't be deleted: open another one first.
+
 ## Which book opens when Grimoire starts
 
 `grimoire` on its own opens the book in the folder you're in, if you're in one. Otherwise it opens the last book you had open, so after a switch that's the one you switched to.

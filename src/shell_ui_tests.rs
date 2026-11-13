@@ -2270,6 +2270,33 @@ fn back_up_stage_and_restart_carries_on_while_the_writer_looks_elsewhere() {
 }
 
 #[test]
+#[cfg(unix)]
+fn power_restarts_only_the_writing_app_once_nothing_is_running() {
+    let mut desk = Desk::open(book("restart-app", true), 80, 24);
+    system_panel(&mut desk, 2);
+    assert!(
+        desk.shows("Restart the writing app · you stay signed in"),
+        "{}",
+        desk.rows().join(
+            "
+"
+        )
+    );
+    desk.app.deck.busy = true;
+    desk.choose("Restart the writing app");
+    assert!(!desk.app.deck.app_restart_requested);
+    assert!(
+        desk.app.deck.note.contains("still running"),
+        "{}",
+        desk.app.deck.note
+    );
+    desk.app.deck.busy = false;
+    desk.key(KeyCode::Enter);
+    assert!(desk.app.deck.app_restart_requested);
+    assert!(desk.app.deck.note.contains("restarting the writing app"));
+}
+
+#[test]
 fn an_app_only_update_installs_now_and_restarts_only_the_writing_app() {
     use wros_sys::PowerAction;
     let mut desk = Desk::open(book("update-live", true), 100, 30);

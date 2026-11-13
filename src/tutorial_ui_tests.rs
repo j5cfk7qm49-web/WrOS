@@ -492,3 +492,141 @@ fn the_remaining_lessons_complete_by_doing_what_they_teach() {
     assert!(done(&desk, 39), "lesson 39");
     assert!(desk.shows("recovery") || desk.shows("Recovery"));
 }
+
+/// A book in its own new folder, so the demo books made beside it are this test's alone.
+fn book_alone(tag: &str) -> PathBuf {
+    let shelf = std::env::temp_dir().join(format!("grimoire-shelf-{tag}-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&shelf);
+    fs::create_dir_all(&shelf).unwrap();
+    let root = shelf.join("Novel");
+    fs::create_dir_all(&root).unwrap();
+    grimoire_core::project::scaffold(&root).unwrap();
+    fs::create_dir_all(root.join(".grimoire")).unwrap();
+    fs::write(root.join(".grimoire/progress.toml"), "").unwrap();
+    fs::canonicalize(&root).unwrap()
+}
+
+#[test]
+fn d_opens_one_demo_book_names_it_and_keeps_lessons_done() {
+    let novel = book_alone("demo-book");
+    let shelf = novel.parent().unwrap().to_path_buf();
+    let mut desk = Desk::open(novel.clone(), 80, 24);
+    // A lesson done in the novel already.
+    desk.app.deck.progress.completed.insert(2);
+    desk.app.overlay = Overlay::Deck(Page::Tutorial { sel: 0 });
+    desk.draw();
+    let screen = |desk: &Desk| desk.rows().join("\n");
+    assert!(
+        desk.shows("d opens the safe demo book"),
+        "{}",
+        screen(&desk)
+    );
+
+    desk.key(KeyCode::Char('d'));
+    let demo = shelf.join("Tutorial-1");
+    assert_eq!(desk.app.project.root, demo);
+    assert!(desk.shows("demo book Tutorial-1"), "{}", screen(&desk));
+    assert!(
+        desk.shows("Made and opened the demo book Tutorial-1"),
+        "{}",
+        screen(&desk)
+    );
+    assert!(
+        desk.shows("1 / 50 completed"),
+        "the lesson done carried over: {}",
+        screen(&desk)
+    );
+    assert!(
+        grimoire_core::tutorial::Store::load(&demo)
+            .unwrap()
+            .progress
+            .completed
+            .contains(&2)
+    );
+
+    // Again, inside the demo: no second book.
+    desk.key(KeyCode::Char('d'));
+    assert!(
+        desk.shows("You're in the demo book Tutorial-1"),
+        "{}",
+        screen(&desk)
+    );
+    assert!(!shelf.join("Tutorial-2").exists());
+
+    // From the novel again: the same demo book opens.
+    assert!(desk.app.open_book(&novel));
+    desk.app.overlay = Overlay::Deck(Page::Tutorial { sel: 0 });
+    desk.draw();
+    desk.key(KeyCode::Char('d'));
+    assert_eq!(desk.app.project.root, demo);
+    assert!(
+        desk.shows("Opened the demo book Tutorial-1"),
+        "{}",
+        screen(&desk)
+    );
+    assert!(!shelf.join("Tutorial-2").exists());
+    let _ = fs::remove_dir_all(&shelf);
+}
+
+#[test]
+fn a_book_on_drive_copies_here_and_opens_once_it_checks_out() {
+    use crate::backup_service::DriveEntry;
+    let novel = book_alone("drive-book");
+    let shelf = novel.parent().unwrap().to_path_buf();
+    let mut desk = Desk::open(novel, 100, 30);
+    desk.app.open_settings();
+    desk.app.deck.shell.nav.open(Route::GoogleDrive);
+    let entry = |name: &str, is_dir: bool| DriveEntry {
+        path: format!("drive:Novels/Salt/{name}"),
+        name: name.into(),
+        size: 0,
+        modified: String::new(),
+        is_dir,
+        cached: false,
+        local: String::new(),
+        google_doc: false,
+    };
+    finished_backup(
+        &mut desk,
+        Finished::DriveList,
+        Ok(Status {
+            google_connected: true,
+            drive_folder: "drive:Novels/Salt".into(),
+            drive_entries: vec![entry("manuscript", true), entry("novel.toml", false)],
+            ..Status::default()
+        }),
+    );
+    assert!(
+        desk.shows("This folder is a book · copy it to this laptop and open it"),
+        "{}",
+        desk.rows().join("\n")
+    );
+    // A folder that is not a book does not offer it.
+    finished_backup(
+        &mut desk,
+        Finished::DriveList,
+        Ok(Status {
+            google_connected: true,
+            drive_folder: "drive:Novels".into(),
+            drive_entries: vec![entry("Salt", true)],
+            ..Status::default()
+        }),
+    );
+    assert!(!desk.shows("This folder is a book"));
+
+    // The helper copied and checked it: the copy opens.
+    let copy = shelf.join("Salt");
+    fs::create_dir_all(&copy).unwrap();
+    grimoire_core::project::scaffold(&copy).unwrap();
+    finished_backup(
+        &mut desk,
+        Finished::DriveBook(copy.clone()),
+        Ok(Status {
+            google_connected: true,
+            ..Status::default()
+        }),
+    );
+    assert_eq!(desk.app.project.root, copy);
+    assert!(desk.app.msg.contains("copied"), "{}", desk.app.msg);
+    let _ = fs::remove_dir_all(&shelf);
+}

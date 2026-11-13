@@ -80,6 +80,17 @@ pub fn remember(state: &Path, root: &Path) {
     let _ = grimoire_core::atomic::write_text(state, &body);
 }
 
+/// Drop `root` from the books remembered here, after it was deleted.
+pub fn forget(state: &Path, root: &Path) {
+    let keep: Vec<PathBuf> = recent(state).into_iter().filter(|p| p != root).collect();
+    let mut body = String::new();
+    for (i, p) in keep.iter().enumerate() {
+        let key = if i == 0 { "last" } else { "recent" };
+        body.push_str(&format!("{key} = \"{}\"\n", p.display()));
+    }
+    let _ = grimoire_core::atomic::write_text(state, &body);
+}
+
 /// A book's title from its `novel.toml`, or its folder's name.
 pub fn title(root: &Path) -> String {
     std::fs::read_to_string(root.join("novel.toml"))
@@ -95,6 +106,13 @@ pub fn title(root: &Path) -> String {
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_else(|| "Untitled".into())
         })
+}
+
+/// A book's folder name, which is how the writer finds it on disk.
+pub fn title_of_folder(root: &Path) -> String {
+    root.file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| title(root))
 }
 
 /// A new folder in `dir` for a book called `title`, numbered if that name

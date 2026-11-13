@@ -86,6 +86,10 @@ An unavailable or denied service leaves writing available and keeps the choice
 for retry. Changing timezone affects future local dates; historical records
 keep their recorded dates. Manual clock and network-time controls remain unavailable.
 
+Battery and power also offers Restart the writing app. It saves, then starts
+the writing app again in place; you stay signed in and nothing else restarts.
+It waits while a system request or backup is still running.
+
 Battery and power offers Lock writing session on an installed local console
 with the locker configured. It saves both documents first; resolve source
 conflicts or unavailable storage before retrying. Linux then opens a separate
@@ -97,7 +101,7 @@ This manual lock does not enable sleep or lid/idle locking.
 
 ## Interactive tutorial
 
-Interactive tutorial lists all 39 required lessons. Planned lessons are explicitly unavailable. Press `d` for a new safe demonstration project: your novel saves first and is not overwritten. Enter opens a lesson, then launches the actual feature. Progress is verified by application events; a Next button cannot fake completion. Writing exercises only complete in the demo project. `s` skips a lesson; any implemented lesson can be replayed. Help is searchable offline with F1.
+Interactive tutorial lists all 50 lessons. Press `d` to open the safe demo book: the first time it is made beside your novel (Tutorial-1), and after that the same one opens again. Its name shows at the top of the tutorial page, and lessons you have already done carry into it. Your novel saves first and is not overwritten. To remove a demo book you no longer want, use Open another book… and press `x` on it. Enter opens a lesson, then launches the actual feature. Progress is verified by application events; a Next button cannot fake completion. Writing exercises only complete in the demo project. `s` skips a lesson; any implemented lesson can be replayed. Help is searchable offline with F1.
 
 ## Safety and maintenance
 

@@ -598,6 +598,18 @@ impl App {
         self.deck.note = text.clone();
         self.deck.shell.notices.push(&text);
     }
+    /// Save, then start the writing app again in place (the same way an app-only
+    /// update does), without signing out. Waits for system and backup work first.
+    pub(super) fn restart_writing_app(&mut self) {
+        if self.deck.busy || self.deck.shell.backup.job.is_some() {
+            self.update_notice(
+                "Something is still running. Wait for it, then restart the writing app.",
+            );
+            return;
+        }
+        self.update_notice("Saving, then restarting the writing app.");
+        self.deck.app_restart_requested = true;
+    }
     /// The same save and conflict gate the installer and power paths use.
     fn writing_is_safe(&mut self) -> bool {
         self.commit_saves()

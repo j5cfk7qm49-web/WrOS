@@ -113,9 +113,124 @@ impl App {
                     };
                 }
             }
+            Key::Char('x') | Key::Delete => {
+                let at = *sel;
+                if let Some(root) = others.get(at) {
+                    self.overlay = Overlay::DeleteBook {
+                        root: root.clone(),
+                        typed: String::new(),
+                        yes: false,
+                        back: at,
+                    };
+                }
+            }
             Key::Esc => self.overlay = Overlay::None,
             _ => {}
         }
+    }
+
+    pub(super) fn on_delete_book_key(&mut self, key: Key) {
+        let Overlay::DeleteBook {
+            root,
+            typed,
+            yes,
+            back,
+        } = &mut self.overlay
+        else {
+            return;
+        };
+        let demo = grimoire_core::tutorial::is_demo(root);
+        match key {
+            Key::Esc => {
+                self.overlay = Overlay::Books { sel: *back };
+            }
+            Key::Left | Key::Right | Key::Tab | Key::BackTab => *yes = !*yes,
+            Key::Enter if !*yes => self.overlay = Overlay::Books { sel: *back },
+            Key::Enter => {
+                if !demo && typed.trim() != books::title_of_folder(root) {
+                    self.msg =
+                        format!("type {} exactly to delete it", books::title_of_folder(root));
+                    return;
+                }
+                let (root, back) = (root.clone(), *back);
+                match self.delete_book(&root) {
+                    Ok(()) => {
+                        self.msg = format!(
+                            "deleted {} ({}) from this laptop",
+                            books::title_of_folder(&root),
+                            books::pretty(&root)
+                        );
+                        let left = self.other_books().len() + 3;
+                        self.overlay = Overlay::Books {
+                            sel: back.min(left - 1),
+                        };
+                    }
+                    Err(why) => {
+                        self.msg = why;
+                        self.overlay = Overlay::Books { sel: back };
+                    }
+                }
+            }
+            Key::Backspace if !demo => {
+                typed.pop();
+            }
+            Key::Char(c) if !demo && typed.chars().count() < 120 => typed.push(c),
+            _ => {}
+        }
+    }
+
+    /// Remove a book that isn't open, folder and all. It is first renamed to a
+    /// hidden name beside itself, so a half-finished delete never looks like a book.
+    fn delete_book(&mut self, root: &Path) -> Result<(), String> {
+        let shown = books::pretty(root);
+        if self.deck.shell.backup.job.is_some() {
+            return Err("a backup is running · delete the book when it finishes".into());
+        }
+        let meta = fs::symlink_metadata(root).map_err(|_| format!("{shown} is already gone"))?;
+        if meta.file_type().is_symlink() || !meta.is_dir() || !books::is_book(root) {
+            return Err(format!("{shown} isn't a book folder, so it was left alone"));
+        }
+        let real = fs::canonicalize(root).map_err(|e| format!("couldn't delete {shown}: {e}"))?;
+        let here = fs::canonicalize(&self.project.root).unwrap_or(self.project.root.clone());
+        if here.starts_with(&real) {
+            return Err("that's the book you have open · open another book first".into());
+        }
+        let home = fs::canonicalize(grimoire_core::paths::home()).ok();
+        let (Some(parent), Some(name)) = (real.parent(), real.file_name()) else {
+            return Err(format!("{shown} can't be deleted from here"));
+        };
+        if home.as_ref().is_some_and(|h| h.starts_with(&real)) {
+            return Err(format!(
+                "{shown} holds your home folder, so it was left alone"
+            ));
+        }
+        let hidden = parent.join(format!(
+            ".deleting-{}-{}",
+            name.to_string_lossy(),
+            std::process::id()
+        ));
+        fs::rename(&real, &hidden).map_err(|e| format!("couldn't delete {shown}: {e}"))?;
+        if let Some(state) = &self.state_file {
+            books::forget(state, root);
+            books::forget(state, &real);
+        }
+        // A queued backup of a book that no longer exists would stop the whole queue.
+        let project = real.to_string_lossy().into_owned();
+        let backup = &mut self.deck.shell.backup;
+        if backup
+            .status
+            .queued_backups
+            .iter()
+            .any(|q| q.project == project)
+        {
+            backup.request(crate::backup_service::Request::Forget { project });
+        }
+        fs::remove_dir_all(&hidden).map_err(|e| {
+            format!(
+                "{shown} is no longer a book, but part of it is still in {}: {e}",
+                books::pretty(&hidden)
+            )
+        })
     }
 
     pub(super) fn on_book_path_key(&mut self, key: Key) {
@@ -542,7 +657,16 @@ pub(super) fn draw_books(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     let others = app.other_books();
     let mut rows: Vec<(String, String)> = others
         .iter()
-        .map(|p| (books::title(p), books::pretty(p)))
+        .map(|p| {
+            if grimoire_core::tutorial::is_demo(p) {
+                (
+                    format!("{} · tutorial demo", books::title_of_folder(p)),
+                    books::pretty(p),
+                )
+            } else {
+                (books::title(p), books::pretty(p))
+            }
+        })
         .collect();
     rows.push(("A book in another folder…".into(), String::new()));
     rows.push(("Bring in a draft…".into(), "Word, Markdown or text".into()));
@@ -589,6 +713,87 @@ pub(super) fn draw_books(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         );
     }
     lines.push(Line::from(""));
-    lines.push(hint_line(" j/k move   ↵ open   esc close", t));
+    lines.push(hint_line(
+        if *sel < others.len() {
+            " j/k move   ↵ open   x delete   esc close"
+        } else {
+            " j/k move   ↵ open   esc close"
+        },
+        t,
+    ));
+    f.render_widget(Paragraph::new(lines), inner);
+}
+
+pub(super) fn draw_delete_book(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
+    let Overlay::DeleteBook {
+        root, typed, yes, ..
+    } = &app.overlay
+    else {
+        return;
+    };
+    let demo = grimoire_core::tutorial::is_demo(root);
+    let folder = books::title_of_folder(root);
+    let width = 64u16.min(area.width.saturating_sub(2)).max(30);
+    let text_w = width.saturating_sub(4) as usize;
+    let dim = Style::default().fg(t.dim);
+    let mut lines: Vec<Line> = vec![Line::from(Span::styled(
+        format!(
+            " {}{}",
+            books::title(root),
+            if demo { " · tutorial demo" } else { "" }
+        ),
+        Style::default().fg(t.text),
+    ))];
+    lines.push(Line::from(Span::styled(
+        format!(" {}", books::pretty(root)),
+        dim,
+    )));
+    lines.push(Line::from(""));
+    for row in crate::ui::wrap_words(
+        "This removes the book's folder and everything in it from this laptop. \
+         It can't be undone here. Backups and Google Drive copies are kept.",
+        text_w,
+    ) {
+        lines.push(Line::from(Span::styled(format!(" {row}"), dim)));
+    }
+    if !demo {
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            format!(" Type {folder} to delete it:"),
+            Style::default().fg(t.text),
+        )));
+        lines.push(Line::from(Span::styled(
+            format!(" {typed}▏"),
+            Style::default().fg(t.accent),
+        )));
+    }
+    lines.push(Line::from(""));
+    let pick = |on: bool, label: &str| {
+        Span::styled(
+            if on {
+                format!("[{label}]")
+            } else {
+                format!(" {label} ")
+            },
+            if on {
+                Style::default().fg(t.accent).bg(t.sel)
+            } else {
+                Style::default().fg(t.text)
+            },
+        )
+    };
+    lines.push(Line::from(vec![
+        Span::raw(" "),
+        pick(!*yes, "Keep it"),
+        Span::raw("    "),
+        pick(*yes, "Delete it"),
+    ]));
+    lines.push(Line::from(""));
+    lines.push(hint_line(" ←→ choose   ↵ confirm   esc keep it", t));
+    let box_area = centred(area, width, lines.len() as u16 + 2);
+    f.render_widget(Clear, box_area);
+    let block = pane_block("DELETE THIS BOOK?", true, t);
+    let inner = block.inner(box_area);
+    f.render_widget(block, box_area);
     f.render_widget(Paragraph::new(lines), inner);
 }

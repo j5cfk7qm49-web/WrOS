@@ -167,12 +167,14 @@ pub struct Backups {
 }
 
 /// A finished backup operation a tutorial lesson can count.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Finished {
     Restore,
     /// Linking ended with Drive connected.
     LinkPhone,
     DriveList,
+    /// A book on Drive was copied here, checked, and is to be opened.
+    DriveBook(PathBuf),
 }
 
 /// When an automatic backup of the open book is due. Times are passed in, so the rules are
@@ -351,6 +353,24 @@ impl Backups {
             ..Self::default()
         }
     }
+    /// Copy the book in Drive folder `remote` to the new folder `destination`; once the
+    /// copy matches Drive, the app opens it.
+    pub fn copy_book(&mut self, remote: String, destination: PathBuf, project: &Path) {
+        self.tick();
+        if self.job.is_some() {
+            self.notice = "A backup operation is already running.".into();
+            return;
+        }
+        self.request(Request::DriveMaterialize {
+            remote,
+            destination: destination.to_string_lossy().into_owned(),
+            project: Some(project.to_string_lossy().into_owned()),
+        });
+        if self.job.is_some() {
+            self.running = Some(Finished::DriveBook(destination));
+            self.notice = "Copying the book from Google Drive and checking it…".into();
+        }
+    }
     pub fn request(&mut self, request: Request) {
         self.tick();
         if self.job.is_some() {
@@ -473,6 +493,7 @@ impl Backups {
                     Finished::DriveList => {
                         status.google_connected && !status.drive_folder.is_empty()
                     }
+                    Finished::DriveBook(copy) => crate::books::is_book(copy),
                 });
                 self.notice = status.notice.clone();
                 self.status = status;

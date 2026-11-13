@@ -840,6 +840,15 @@ impl App {
                 self.observe_deck(tutorial::Event::DriveFolderListed)
             }
             Some(super::backup::Finished::DriveList) => {}
+            // open_book explains a failure itself, so only success needs words here.
+            Some(super::backup::Finished::DriveBook(copy)) if self.open_book(&copy) => {
+                self.overlay = Overlay::None;
+                self.msg = format!(
+                    "copied {} from Google Drive, checked it, and opened it · it's your copy on this laptop; Drive's stays as it was",
+                    crate::books::title(&copy)
+                );
+            }
+            Some(super::backup::Finished::DriveBook(_)) => {}
             None => {}
         }
         self.tick_update_chain();
@@ -1682,7 +1691,17 @@ impl App {
             Widget::Revision => self.run_action(Action::ProseDashboard),
         }
     }
+    /// `d` on the tutorial page: open the safe demo book, making it only the first time.
+    /// Lessons already done or skipped carry into it, so the count does not start over.
     fn start_tutorial_demo(&mut self) {
+        if tutorial::is_demo(&self.project.root) {
+            self.deck.note = format!(
+                "You're in the demo book {} ({}). Choose a lesson and press Enter.",
+                crate::books::title_of_folder(&self.project.root),
+                crate::books::pretty(&self.project.root)
+            );
+            return;
+        }
         let parent = if self.background {
             grimoire_core::paths::data_dir().join("writingdeck")
         } else {
@@ -1692,22 +1711,44 @@ impl App {
             self.deck.note = e.to_string();
             return;
         }
-        let mut n = 1;
-        let mut root = parent.join("Tutorial-1");
-        while root.exists() {
-            n += 1;
-            root = parent.join(format!("Tutorial-{n}"));
-        }
-        match tutorial::create_demo(&root) {
-            Ok(()) => {
-                if self.open_book(&root) {
-                    self.overlay = Overlay::Deck(Page::Tutorial { sel: 0 });
-                    self.deck.note =
-                        "Safe demo project opened; your novel was saved and left untouched.".into();
+        let carried = self.deck.progress.clone();
+        let (root, made) = match existing_demo(&parent) {
+            Some(root) => (root, false),
+            None => {
+                let mut n = 1;
+                let mut root = parent.join("Tutorial-1");
+                while root.exists() {
+                    n += 1;
+                    root = parent.join(format!("Tutorial-{n}"));
                 }
+                if let Err(e) = tutorial::create_demo(&root) {
+                    self.deck.note = format!("Demo book not created: {e:#}");
+                    return;
+                }
+                (root, true)
             }
-            Err(e) => self.deck.note = format!("Demo not created: {e:#}"),
+        };
+        if !self.open_book(&root) {
+            return;
         }
+        let progress = &mut self.deck.progress;
+        let before = (progress.completed.len(), progress.skipped.len());
+        progress.completed.extend(carried.completed_lessons());
+        for id in carried.skipped {
+            if !progress.completed.contains(&id) {
+                progress.skipped.insert(id);
+            }
+        }
+        if before != (progress.completed.len(), progress.skipped.len()) {
+            self.deck.save_progress();
+        }
+        self.overlay = Overlay::Deck(Page::Tutorial { sel: 0 });
+        self.deck.note = format!(
+            "{} the demo book {} ({}). Your novel was saved and left untouched.",
+            if made { "Made and opened" } else { "Opened" },
+            crate::books::title_of_folder(&root),
+            crate::books::pretty(&root)
+        );
     }
     fn start_deck_lesson(&mut self, id: u8) {
         use super::shell::{Panel, Route};
@@ -1718,7 +1759,7 @@ impl App {
             .is_some_and(|e| !e.safe_outside_demo())
             && !tutorial::is_demo(&self.project.root)
         {
-            self.deck.note = "This exercise needs a safe demo: press d in Interactive tutorial first. Your novel is unchanged.".into();
+            self.deck.note = "This exercise needs the safe demo book: press d in Interactive tutorial first. Your novel is unchanged.".into();
             return;
         }
         if let Err(e) = self.deck.progress.start(id) {
@@ -1876,6 +1917,25 @@ pub fn home_actions(deck: &Deck) -> Vec<HomeAction> {
             HomeAction::Widgets,
         ])
         .collect()
+}
+
+/// The newest safe demo book in `parent` (Tutorial-1, Tutorial-2, …), if one is there.
+fn existing_demo(parent: &std::path::Path) -> Option<std::path::PathBuf> {
+    fs::read_dir(parent)
+        .ok()?
+        .filter_map(|entry| {
+            let path = entry.ok()?.path();
+            let n: u32 = path
+                .file_name()?
+                .to_str()?
+                .strip_prefix("Tutorial-")?
+                .parse()
+                .ok()?;
+            let real = !path.symlink_metadata().ok()?.file_type().is_symlink();
+            (real && tutorial::is_demo(&path)).then_some((n, path))
+        })
+        .max_by_key(|(n, _)| *n)
+        .map(|(_, path)| path)
 }
 
 fn nav(key: Key, sel: &mut usize, len: usize) -> bool {
@@ -2292,9 +2352,12 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                 app.deck.progress.completed_lessons().count(),
                 tutorial::lessons().len(),
                 if tutorial::is_demo(&app.project.root) {
-                    " · SAFE DEMO"
+                    format!(
+                        " · demo book {}",
+                        crate::books::title_of_folder(&app.project.root)
+                    )
                 } else {
-                    " · press d for a safe demo"
+                    " · d opens the safe demo book".into()
                 }
             );
             selected = Some(*sel);
@@ -2316,7 +2379,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                     )
                 })
                 .collect();
-            hint = "↑↓ choose  Enter lesson  d new safe demo  s skip  Esc home";
+            hint = "↑↓ choose  Enter lesson  d demo book  s skip  Esc home";
         }
         Page::Lesson { id } => {
             let l = &tutorial::lessons()[*id as usize - 1];

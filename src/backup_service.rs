@@ -44,6 +44,10 @@ pub enum Request {
     },
     RunQueue,
     ClearQueue,
+    /// Drop a deleted book's queued backups.
+    Forget {
+        project: String,
+    },
     /// Link Google Drive from the phone: a QR code, then whichever way the approval comes back.
     LinkPhone,
     Restore {

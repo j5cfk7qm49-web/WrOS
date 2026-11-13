@@ -732,6 +732,16 @@ class Service:
         if len(self.queue) != before:
             self.save_queue()
 
+    def forget_project(self, project):
+        """A deleted book leaves the queue; its path no longer resolves, so match it as given."""
+        require(isinstance(project, str) and project.startswith('/') and len(project) <= 4096,
+                'Invalid project path.')
+        before = len(self.queue)
+        self.dequeue_project(project)
+        dropped = before - len(self.queue)
+        return self.status(f'Removed {dropped} queued backup(s) of a deleted book.' if dropped
+                           else 'No queued backups of that book.', refresh=False)
+
     def queue_backup(self, project):
         root = self.validate_project_root(project)
         original = inventory(root)
@@ -1386,6 +1396,8 @@ def dispatch(service, request):
         return service.run_queue()
     if operation == 'clear-queue':
         return service.clear_queue()
+    if operation == 'forget':
+        return service.forget_project(request['project'])
     if operation == 'restore':
         if request.get('project'):
             target = safe_new_path(request['destination'])

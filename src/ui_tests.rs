@@ -2854,6 +2854,98 @@ fn a_new_book_from_the_menu_saves_this_one_and_opens_the_new_one() {
 }
 
 #[test]
+fn a_book_is_deleted_from_open_another_book_after_saying_so() {
+    let shelf = std::env::temp_dir().join(format!("grimoire-ui-delete-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&shelf);
+    fs::create_dir_all(&shelf).unwrap();
+    let make = |name: &str| {
+        let p = shelf.join(name);
+        fs::create_dir_all(&p).unwrap();
+        project::scaffold(&p).unwrap();
+        fs::canonicalize(&p).unwrap()
+    };
+    let (novel, other) = (make("Novel"), make("Other Book"));
+    let demo = shelf.join("Tutorial-1");
+    grimoire_core::tutorial::create_demo(&demo).unwrap();
+    let demo = fs::canonicalize(&demo).unwrap();
+    let state = shelf.join("state.toml");
+    for p in [&other, &demo, &novel] {
+        crate::books::remember(&state, p);
+    }
+    let mut d = Desk::open(novel.clone(), 100, 30);
+    d.app.state_file = Some(state.clone());
+    d.app.run_action(palette::Action::OpenBook);
+    d.draw();
+    assert!(
+        d.shows("Tutorial-1 · tutorial demo"),
+        "{}",
+        d.rows().join("\n")
+    );
+    assert!(d.shows("x delete"));
+
+    // The demo book: Enter keeps it; Delete it, then Enter, deletes it.
+    let at = d.app.other_books().iter().position(|p| *p == demo).unwrap();
+    d.app.overlay = Overlay::Books { sel: at };
+    d.draw();
+    d.key(KeyCode::Char('x'));
+    assert!(d.shows("DELETE THIS BOOK?"), "{}", d.rows().join("\n"));
+    assert!(d.shows("can't be undone"));
+    d.key(KeyCode::Enter);
+    assert!(demo.exists(), "Enter on Keep it keeps it");
+    assert!(matches!(d.app.overlay, Overlay::Books { .. }));
+    d.key(KeyCode::Char('x'));
+    d.key(KeyCode::Right);
+    d.key(KeyCode::Enter);
+    assert!(!demo.exists(), "{}", d.app.msg);
+    assert!(d.app.msg.contains("deleted Tutorial-1"), "{}", d.app.msg);
+    assert!(!fs::read_to_string(&state).unwrap().contains("Tutorial-1"));
+    assert!(fs::read_dir(&shelf).unwrap().all(|e| {
+        !e.unwrap()
+            .file_name()
+            .to_string_lossy()
+            .starts_with(".deleting")
+    }));
+
+    // A real book also needs its folder's name typed.
+    let at = d
+        .app
+        .other_books()
+        .iter()
+        .position(|p| *p == other)
+        .unwrap();
+    d.app.overlay = Overlay::Books { sel: at };
+    d.draw();
+    d.key(KeyCode::Char('x'));
+    assert!(
+        d.shows("Type Other Book to delete it"),
+        "{}",
+        d.rows().join("\n")
+    );
+    d.key(KeyCode::Right);
+    d.key(KeyCode::Enter);
+    assert!(other.exists(), "not without the name");
+    d.typed("Other Book");
+    d.key(KeyCode::Enter);
+    assert!(!other.exists(), "{}", d.app.msg);
+
+    // The open book is never deleted.
+    d.app.overlay = Overlay::DeleteBook {
+        root: novel.clone(),
+        typed: "Novel".into(),
+        yes: true,
+        back: 0,
+    };
+    d.key(KeyCode::Enter);
+    assert!(novel.join("manuscript").is_dir());
+    assert!(
+        d.app.msg.contains("the book you have open"),
+        "{}",
+        d.app.msg
+    );
+    let _ = fs::remove_dir_all(&shelf);
+}
+
+#[test]
 fn a_new_book_never_lands_in_a_folder_with_other_things_in_it() {
     let first = book("book-taken", true);
     let name = format!("grimoire-ui-taken-folder-{}", std::process::id());

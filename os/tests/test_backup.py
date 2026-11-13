@@ -418,6 +418,18 @@ class EncryptedBackup(unittest.TestCase):
             reloaded.run_queue()
         self.assertEqual(module.Service(self.service.state).queue[0]['attempts'], 2)
 
+    def test_a_deleted_book_leaves_the_queue_and_others_stay(self):
+        self.initialize()
+        self.service.queue_backup(str(self.project))
+        gone = str(self.project.resolve())
+        self.project.rename(self.base/'deleted-book')
+        with self.assertRaisesRegex(ValueError, 'Invalid project'):
+            self.service.forget_project('relative/path')
+        result = self.service.forget_project(gone)
+        self.assertIn('Removed 1 queued backup', result['notice'])
+        self.assertEqual(module.Service(self.service.state).queue, [])
+        self.assertIn('No queued backups', self.service.forget_project(gone)['notice'])
+
     def test_status_is_offline_and_malformed_authorization_never_echoes_a_secret(self):
         with mock.patch.object(module, 'run', side_effect=AssertionError('No process expected')):
             self.assertFalse(self.service.status(refresh=False)['configured'])

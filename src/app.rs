@@ -558,6 +558,15 @@ pub enum Overlay {
     Books {
         sel: usize,
     },
+    /// Deleting the book at `root`, picked from `Books` at row `back`. A demo
+    /// book needs only Delete chosen; any other book also needs its folder's
+    /// name typed in `typed`.
+    DeleteBook {
+        root: PathBuf,
+        typed: String,
+        yes: bool,
+        back: usize,
+    },
     /// A book's folder, typed, to open it; or with `draft`, a Word,
     /// Markdown or text file to bring in as a new book.
     BookPath {
