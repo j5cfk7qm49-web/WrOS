@@ -47,6 +47,7 @@ cage
 foot
 libegl1
 libgl1-mesa-dri
+libwayland-egl1
 libinput10
 libseat1
 libxkbcommon0

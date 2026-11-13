@@ -19,6 +19,8 @@ PACKAGED_CAGE = '/usr/lib/wros/cage'
 DPKG_QUERY = '/usr/bin/dpkg-query'
 FOOT = '/usr/bin/foot'
 FOOT_CONFIG = '/usr/share/wros/foot.ini'
+# The windowed (wgpu) renderer loads this at start; rc12 images lacked it.
+WAYLAND_EGL = '/usr/lib/x86_64-linux-gnu/libwayland-egl.so.1'
 LOGGER = '/usr/bin/logger'
 PKEXEC = '/usr/bin/pkexec'
 HEALTHY = '/usr/libexec/wros-update-healthy'
@@ -42,6 +44,8 @@ FAILED_ONCE = ('The graphical session did not start, so WrOS opened in the conso
                'It will try the graphical session again at the next login.')
 FAILED_TWICE = ('The graphical session did not start twice, so WrOS uses the console. '
                 'Turn it back on in Settings › System › Display when you want to try again.')
+WINDOW_UNAVAILABLE = ('The window renderer cannot start here because a system library is missing, '
+                      'so WrOS opened its own graphical screen instead.')
 RECOVERY_CHOSE = 'WrOS opened in the console, as chosen in the recovery menu.'
 
 KDSETMODE, KD_TEXT = 0x4B3A, 0x00
@@ -168,6 +172,8 @@ class Launcher:
         backend = settings.get('backend')
         if backend not in ('foot', 'wgpu') or self.live():
             return 'drm', None
+        if backend == 'wgpu' and not self.exists(WAYLAND_EGL):
+            return 'drm', WINDOW_UNAVAILABLE
         kind = 'wgpu' if backend == 'wgpu' else 'graphical'
         if not ((self.exists(PACKAGED_CAGE) or self.exists(CAGE))
                 and (backend != 'foot' or self.exists(FOOT)) and self.runtime_dir):
@@ -260,6 +266,8 @@ class Launcher:
         if kind == 'drm':
             env = self.base_environment()
             env.update({'TERM': 'linux', 'WROS_SESSION': 'drm'})
+            if notice:
+                env['WROS_SESSION_NOTICE'] = notice
             self.execve(GRIMOIRE, [GRIMOIRE], env)
             return 1
         if kind in ('graphical', 'wgpu'):

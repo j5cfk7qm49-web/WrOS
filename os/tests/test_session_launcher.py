@@ -40,7 +40,7 @@ class Machine:
         path.write_text(json.dumps(value) if not isinstance(value, str) else value)
 
     def exists(self, path):
-        if path in (session.CAGE, session.FOOT):
+        if path in (session.CAGE, session.FOOT, session.WAYLAND_EGL):
             return self.installed
         return Path(path).exists()
 
@@ -129,12 +129,24 @@ class Launcher(unittest.TestCase):
         m = self.machine()
         m.write(m.home / '.config/wros/session.json', {'session': 'graphical', 'backend': 'wgpu'})
         m.write(m.etc / 'wros/keyboard.json', {'layout': 'colemak', 'generation': 'chosen'})
-        m.exists = lambda path: path == session.CAGE or (path != session.FOOT and Path(path).exists())
+        m.exists = lambda path: path in (session.CAGE, session.WAYLAND_EGL) or (path != session.FOOT and Path(path).exists())
         self.assertEqual(m.start(), 0)
         argv, env = m.runs[-1]
         self.assertEqual(argv, [session.CAGE, '-s', '--', session.GRIMOIRE])
         self.assertEqual(env['WROS_SESSION'], 'wgpu')
         self.assertEqual(env['XKB_DEFAULT_VARIANT'], 'colemak')
+
+    def test_wgpu_without_wayland_egl_opens_the_native_session_and_says_why(self):
+        # rc12 shipped without libwayland-egl1: the window panicked before its first screen.
+        m = self.machine()
+        m.write(m.home / '.config/wros/session.json', {'session': 'graphical', 'backend': 'wgpu'})
+        m.exists = lambda path: path == session.CAGE or (path not in (session.FOOT, session.WAYLAND_EGL) and Path(path).exists())
+        self.assertEqual(m.start(), 'exec')
+        path, _, env = m.execs[-1]
+        self.assertEqual(path, session.GRIMOIRE)
+        self.assertEqual(env['WROS_SESSION'], 'drm')
+        self.assertIn('window', env['WROS_SESSION_NOTICE'])
+        self.assertEqual(m.runs, [])
 
     def test_failure_counts_belong_to_the_selected_compositor_backend(self):
         m = self.machine(draws=False)
