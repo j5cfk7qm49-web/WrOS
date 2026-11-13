@@ -44,6 +44,8 @@ pub enum BarHit {
     Title(Title),
     Row(usize),
     SideRow(usize),
+    /// A side group's box: whatever of the menu it covers is out of reach.
+    Cover,
 }
 
 const WRITE_FIRST: &str = "Open a scene first: this works in the page you're writing.";
@@ -597,6 +599,7 @@ impl App {
             .bar_hits
             .borrow()
             .iter()
+            .rev() // what's drawn last is on top
             .find(|(r, _)| hit(*r, x, y))
             .map(|(_, h)| *h);
         let up = matches!(self.overlay, Overlay::Bar { .. });
@@ -636,6 +639,7 @@ impl App {
                 }
                 true
             }
+            (Some(BarHit::Cover), _) => true,
             _ if up => {
                 self.close_bar();
                 true
@@ -660,6 +664,7 @@ impl App {
             .bar_hits
             .borrow()
             .iter()
+            .rev() // what's drawn last is on top
             .find(|(r, _)| hit(*r, x, y))
             .map(|(_, h)| *h);
         match hit {
@@ -782,6 +787,7 @@ pub(super) fn draw_dropdowns(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             menu.area.x.saturating_sub(w)
         };
         let drawn = draw_list(f, area, x, row_y, &side_rows, *at, true, t);
+        hits.push((drawn.area, BarHit::Cover));
         for (i, r) in drawn.rows {
             hits.push((r, BarHit::SideRow(i)));
         }

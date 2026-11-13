@@ -822,6 +822,80 @@ fn side_groups_take_the_mouse_too() {
 }
 
 #[test]
+fn where_a_side_group_covers_its_menu_the_mouse_reaches_the_group() {
+    use crate::app::overlays::BarHit;
+    // At 80 columns Revision doesn't fit right of Tools and covers part of it.
+    let mut d = Desk::open(book("bar-side-cover", true), 80, 24);
+    d.app.open_side(Side::Revision);
+    d.draw();
+    let hits: Vec<(Rect, BarHit)> = d.app.bar_hits.borrow().clone();
+    let inside = |r: &Rect, x: u16, y: u16| x >= r.x && x < r.right() && y >= r.y && y < r.bottom();
+    // A Tools row other than Revision itself, hidden under the group.
+    let revision = d
+        .app
+        .bar_rows(Title::Tools)
+        .iter()
+        .position(|r| r.action == A::Side(Side::Revision))
+        .unwrap();
+    let other_row = |h: &BarHit| matches!(h, BarHit::Row(j) if *j != revision);
+    let (x, y, i) = hits
+        .iter()
+        .filter_map(|(r, h)| match h {
+            BarHit::SideRow(i) => Some((r, *i)),
+            _ => None,
+        })
+        .find_map(|(r, i)| {
+            (r.x..r.right()).find_map(|x| {
+                hits.iter()
+                    .any(|(m, h)| other_row(h) && inside(m, x, r.y))
+                    .then_some((x, r.y, i))
+            })
+        })
+        .expect("Revision covers a Tools row at 80 columns");
+    d.app.bar_hover(x, y);
+    assert!(
+        matches!(d.app.overlay, Overlay::Bar { side: Some((Side::Revision, at)), .. } if at == i),
+        "the group stays open on the row under the pointer: {:?}",
+        d.app.overlay
+    );
+    let want = d.app.side_rows(Side::Revision)[i].action.clone();
+    let tools_row = hits
+        .iter()
+        .find(|(m, h)| matches!(h, BarHit::Row(_)) && inside(m, x, y))
+        .map(|(_, h)| *h);
+    d.app.on_click(x, y);
+    assert!(
+        !matches!(d.app.overlay, Overlay::Bar { side: None, .. }),
+        "the click ran {want:?}, not the hidden {tools_row:?}: {:?}",
+        d.app.overlay
+    );
+}
+
+#[test]
+fn lock_from_the_wros_menu_comes_back_to_the_page() {
+    let mut d = Desk::open(book("bar-lock-return", true), 120, 35);
+    d.key(KeyCode::Tab);
+    d.app.deck.lock_available = true;
+    d.menu(&["WrOS", "Lock"]);
+    assert!(d.app.deck.lock_requested);
+    assert_eq!(
+        d.app.overlay,
+        Overlay::None,
+        "unlocking finds the page, not Settings"
+    );
+    // Refused, Settings › Power says why.
+    let mut d = Desk::open(book("bar-lock-refused", true), 120, 35);
+    d.app.deck.lock_available = true;
+    d.app.deck.busy = true;
+    d.menu(&["WrOS", "Lock"]);
+    assert!(!d.app.deck.lock_requested);
+    assert_eq!(
+        d.app.overlay,
+        Overlay::Deck(crate::app::wros::Page::Settings)
+    );
+}
+
+#[test]
 fn settings_rows_open_the_settings_box_on_their_group() {
     let mut d = Desk::open(book("bar-settings", true), 120, 35);
     d.menu(&["Settings", "System"]);
@@ -1106,4 +1180,33 @@ fn f8_next_in_the_spelling_box_reaches_the_next_misspelt_word() {
         "next goes on to the second: {:?}",
         d.app.overlay
     );
+}
+
+#[test]
+fn a_super_tap_leaves_a_box_with_typing_in_it_alone() {
+    let mut d = Desk::open(book("bar-super-typing", true), 120, 35);
+    d.app.start_rename();
+    d.key(KeyCode::Char('x'));
+    let before = d.app.overlay.clone();
+    assert!(matches!(before, Overlay::Rename { .. }));
+    d.press(KeyEvent::new(
+        KeyCode::Modifier(ModifierKeyCode::LeftSuper),
+        KeyModifiers::NONE,
+    ));
+    assert_eq!(d.app.overlay, before, "the half-typed name stays");
+    // From the lit bar it still opens, as Ctrl-K does from the page.
+    d.key(KeyCode::Esc);
+    d.key(KeyCode::Esc);
+    d.app.open_bar(None, false);
+    d.press(KeyEvent::new(
+        KeyCode::Modifier(ModifierKeyCode::LeftSuper),
+        KeyModifiers::NONE,
+    ));
+    assert!(matches!(
+        d.app.overlay,
+        Overlay::Palette {
+            under_bar: true,
+            ..
+        }
+    ));
 }

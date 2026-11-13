@@ -164,9 +164,13 @@ struct Keyboard {
     state: xkb::State,
     table: compose::Table,
     compose: compose::State,
-    /// Super went down and nothing else has been pressed since: releasing it
-    /// is a tap, which opens Find anything and the menu bar.
+    /// Super went down with no other key held, and no other key has gone down
+    /// or up since: releasing it is a tap, which opens Find anything and the
+    /// menu bar.
     super_alone: bool,
+    /// The other keys held now (evdev codes), so rolling off a key onto Super
+    /// is never taken for a tap.
+    held: Vec<u32>,
 }
 
 impl Keyboard {
@@ -211,6 +215,7 @@ impl Keyboard {
             table,
             compose,
             super_alone: false,
+            held: Vec::new(),
         })
     }
 
@@ -218,6 +223,7 @@ impl Keyboard {
         self.state = xkb::State::new(&self.map);
         self.compose = compose::State::new(&self.table, compose::STATE_NO_FLAGS);
         self.super_alone = false;
+        self.held.clear();
     }
 
     fn modifiers(&self) -> KeyModifiers {
@@ -260,7 +266,7 @@ impl Keyboard {
                 // Super on its own: a tap reaches the app on release, as the
                 // Super key itself. Held with another key it is nothing.
                 if pressed {
-                    self.super_alone = true;
+                    self.super_alone = self.held.is_empty();
                     return vec![];
                 }
                 return if std::mem::take(&mut self.super_alone) {
@@ -273,8 +279,14 @@ impl Keyboard {
                     vec![]
                 };
             }
+            // Any other key going down or up spoils a tap.
+            self.super_alone = false;
             if pressed {
-                self.super_alone = false;
+                if !self.held.contains(&evdev) {
+                    self.held.push(evdev);
+                }
+            } else {
+                self.held.retain(|&k| k != evdev);
             }
             // On WrOS Super is not a second Ctrl: a chord with it does nothing
             // and never types its letter into the page.
@@ -411,6 +423,32 @@ mod tests {
         keys.key(125, true);
         keys.reset();
         assert!(keys.key(125, false).is_empty());
+    }
+
+    #[test]
+    fn rolling_off_a_key_onto_super_is_not_a_tap() {
+        let mut keys = keyboard();
+        // Space down, Super down, space up, Super up: a thumb's roll.
+        keys.key(57, true);
+        keys.key(125, true);
+        keys.key(57, false);
+        assert!(keys.key(125, false).is_empty(), "a roll is not a tap");
+        // Super down, a key goes up (held from before), Super up.
+        keys.key(30, true);
+        keys.key(125, true);
+        keys.key(30, false);
+        assert!(keys.key(125, false).is_empty());
+        // Super down while a key is still held, released first: not a tap.
+        keys.key(30, true);
+        keys.key(125, true);
+        assert!(keys.key(125, false).is_empty());
+        keys.key(30, false);
+        // With nothing else held it is.
+        keys.key(125, true);
+        assert!(matches!(
+            keys.key(125, false).as_slice(),
+            [Event::Key(k)] if k.code == KeyCode::Modifier(crossterm::event::ModifierKeyCode::LeftSuper)
+        ));
     }
 
     #[test]

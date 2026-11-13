@@ -483,6 +483,43 @@ fn status_top_right_shows_conflicts_then_save_then_backup() {
 }
 
 #[test]
+fn a_narrow_console_keeps_the_unsaved_warning_longest() {
+    let (root, _, _) = conflicted("status-narrow");
+    let mut d = Desk::open(root, 80, 24);
+    d.app.linux_console = true;
+    d.app
+        .project
+        .nodes
+        .iter_mut()
+        .find(|n| n.kind != grimoire_core::project::Kind::Category)
+        .unwrap()
+        .dirty = true;
+    d.app.save_state = app::SaveState::Failed("disk full".into());
+    d.app.deck.backup_mark = Some(crate::app::BackupMark::Failed);
+    d.draw();
+    let top = d.rows()[0].clone();
+    assert!(top.contains("1 not saved"), "{top}");
+}
+
+#[test]
+fn focus_mode_says_when_words_are_waiting_to_be_written() {
+    let mut d = Desk::open(book("status-focus-waiting", true), 120, 35);
+    d.key(KeyCode::Tab);
+    d.ctrl('d');
+    assert!(d.app.focus_mode);
+    d.app
+        .project
+        .nodes
+        .iter_mut()
+        .find(|n| n.kind != grimoire_core::project::Kind::Category)
+        .unwrap()
+        .dirty = true;
+    d.app.save_state = app::SaveState::Waiting("placeholder".into());
+    d.draw();
+    assert!(d.status().contains("◌ 1"), "{}", d.status());
+}
+
+#[test]
 fn focus_mode_still_shows_a_failed_save_and_conflicts() {
     let (root, _, _) = conflicted("status-focus");
     let mut d = Desk::open(root, 120, 35);

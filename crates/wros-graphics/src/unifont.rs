@@ -100,7 +100,9 @@ fn dim(c: [u8; 3]) -> [u8; 3] {
 fn ink(symbol: &str, span: usize) -> impl Fn(usize, usize) -> bool + '_ {
     let mut chars = symbol.chars();
     let base = chars.next().unwrap_or(' ');
-    let marks: Vec<Glyph> = chars.filter_map(glyph).collect();
+    // Only marks drawn over their letter: never a selector, a joiner or the
+    // rest of an emoji sequence, which Unifont would stack on top as boxes.
+    let marks: Vec<Glyph> = chars.filter(|&c| overlays(c)).filter_map(glyph).collect();
     let main = glyph(base);
     move |x, y| {
         let from = |g: &Glyph| {
@@ -122,6 +124,18 @@ fn ink(symbol: &str, span: usize) -> impl Fn(usize, usize) -> bool + '_ {
         };
         base_ink || marks.iter().any(from)
     }
+}
+
+/// A character after the first in a cell that belongs drawn over it: a
+/// zero-width combining mark, but not one of the invisible format characters.
+fn overlays(c: char) -> bool {
+    let invisible = matches!(c,
+        '\u{034F}' | '\u{115F}' | '\u{1160}' | '\u{17B4}' | '\u{17B5}'
+        | '\u{180B}'..='\u{180F}' | '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}'
+        | '\u{2060}'..='\u{206F}' | '\u{3164}' | '\u{FE00}'..='\u{FE0F}' | '\u{FEFF}'
+        | '\u{FFA0}' | '\u{1BCA0}'..='\u{1BCA3}' | '\u{1D173}'..='\u{1D17A}'
+        | '\u{E0000}'..='\u{E0FFF}');
+    !invisible && unicode_width::UnicodeWidthChar::width(c) == Some(0)
 }
 
 impl RasterBackend for Unifont {
@@ -192,6 +206,30 @@ impl RasterBackend for Unifont {
 mod tests {
     use super::*;
     use ratatui::style::Color;
+
+    fn inked(symbol: &str, span: usize) -> Vec<bool> {
+        let at = ink(symbol, span);
+        (0..CELL_HEIGHT)
+            .flat_map(|y| (0..span).map(move |x| (x, y)))
+            .map(|(x, y)| at(x, y))
+            .collect()
+    }
+
+    #[test]
+    fn selectors_and_joiners_add_nothing_but_accents_still_sit_on_their_letter() {
+        // Unifont draws U+FE0F, U+FE0E and U+200D as labelled boxes.
+        assert_eq!(inked("\u{2764}\u{FE0F}", 8), inked("\u{2764}", 8));
+        assert_eq!(inked("\u{2764}\u{FE0E}", 8), inked("\u{2764}", 8));
+        assert_eq!(
+            inked("\u{1F469}\u{200D}\u{1F4BB}", 16),
+            inked("\u{1F469}", 16)
+        );
+        assert_ne!(
+            inked("e\u{301}", 8),
+            inked("e", 8),
+            "a combining accent is drawn"
+        );
+    }
 
     fn render(text: &str, modifier: Modifier) -> soft_ratatui::SoftBackend<Unifont> {
         let mut pixels = crate::TextSize::Writing.raster(4, 1);

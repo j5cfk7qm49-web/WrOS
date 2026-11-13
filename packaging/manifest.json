@@ -36,6 +36,8 @@
     {"dest": "usr/lib/wros/wros-boot", "generated": "binary:wros-boot", "mode": "0755", "class": "binary"},
     {"dest": "usr/lib/wros/wros-console-reset", "generated": "binary:wros-console-reset", "mode": "0755", "class": "binary"},
     {"dest": "usr/share/doc/wros/DEJAVU-LICENSE", "source": "assets/DEJAVU-LICENSE", "mode": "0644", "class": "doc"},
+    {"dest": "usr/share/doc/wros/UNIFONT-OFL-1.1.txt", "source": "assets/fonts/UNIFONT-OFL-1.1.txt", "mode": "0644", "class": "doc"},
+    {"dest": "usr/share/doc/wros/UNIFONT-SOURCE.md", "source": "assets/fonts/UNIFONT-SOURCE.md", "mode": "0644", "class": "doc"},
     {"dest": "usr/lib/sysusers.d/wros-graphics.conf", "source": "os/config/wros-graphics.conf", "mode": "0644", "class": "config"},
     {"dest": "usr/lib/sysusers.d/wros-keys.conf", "source": "os/config/wros-keys-sysusers.conf", "mode": "0644", "class": "config"},
     {"dest": "usr/lib/tmpfiles.d/wros-keys.conf", "source": "os/config/wros-keys-tmpfiles.conf", "mode": "0644", "class": "config"},

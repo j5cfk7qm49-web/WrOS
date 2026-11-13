@@ -358,8 +358,10 @@ impl Store {
 
     /// Write the selection and scroll if they moved, with the same guard
     /// against outside changes as any other write.
+    /// One attempt: if the guard refuses, the move stays in memory (the next
+    /// real change carries it) and nothing retries it on its own.
     pub fn flush(&mut self) -> Result<()> {
-        if self.view_dirty {
+        if std::mem::take(&mut self.view_dirty) {
             self.update(|_| Ok(()))?;
         }
         Ok(())
@@ -915,6 +917,32 @@ mod view_tests {
         let after = fs::read(&path).unwrap();
         store.flush().unwrap();
         assert_eq!(fs::read(&path).unwrap(), after, "nothing more to write");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_refused_flush_is_tried_once_not_on_every_tick() {
+        let root = std::env::temp_dir().join(format!("pins-view-refused-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let mut store = Store::load(&root).unwrap();
+        store
+            .update(|s| {
+                s.sidebar_visible = true;
+                Ok(())
+            })
+            .unwrap();
+        let path = Store::path(&fs::canonicalize(&root).unwrap());
+        // Another device rewrites the file (a synced book).
+        let mut outside: serde_json::Value =
+            serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        outside["sidebar_scroll"] = serde_json::json!(7);
+        fs::write(&path, serde_json::to_vec_pretty(&outside).unwrap()).unwrap();
+        let theirs = fs::read(&path).unwrap();
+        store.view(|s| s.sidebar_scroll = 3);
+        assert!(store.flush().is_err(), "the guard refuses");
+        assert!(store.flush().is_ok(), "and the move isn't tried again");
+        assert_eq!(fs::read(&path).unwrap(), theirs, "their file stands");
         let _ = fs::remove_dir_all(&root);
     }
 }

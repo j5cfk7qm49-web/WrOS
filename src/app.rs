@@ -249,6 +249,8 @@ pub struct App {
     pub settings_hits: std::cell::RefCell<Vec<(Rect, usize)>>,
     /// The menu bar's title last used: Esc lights it again (File at first).
     pub bar_last: Title,
+    /// The pins had focus (or the Pinboard was open) at the last tick.
+    pub pins_were_here: bool,
     /// Where the menu bar's titles and the open dropdowns' rows were drawn,
     /// for the mouse.
     pub bar_hits: std::cell::RefCell<Vec<(Rect, overlays::BarHit)>>,
@@ -978,6 +980,7 @@ impl App {
             settings_area: std::cell::Cell::default(),
             settings_hits: std::cell::RefCell::default(),
             bar_last: Title::default(),
+            pins_were_here: false,
             bar_hits: std::cell::RefCell::default(),
             theme: setup.theme,
             overlay: Overlay::None,
@@ -1472,8 +1475,11 @@ impl App {
 
     /// "Today" starts again at midnight, even with Grimoire left open.
     /// A selection or scroll moved in the pins is written once they're left.
+    /// Leaving the pins writes their place, once. The wheel over them from
+    /// another pane only moves them in memory; quitting writes that.
     pub fn tick_pins(&mut self) {
-        if self.focus != Focus::Pins && self.overlay != Overlay::Pins {
+        let here = self.focus == Focus::Pins || self.overlay == Overlay::Pins;
+        if std::mem::replace(&mut self.pins_were_here, here) && !here {
             self.pins.flush();
         }
     }
@@ -2338,7 +2344,16 @@ impl App {
             }
             Action::Cut => self.cut(),
             Action::Copy => self.copy_selection(),
-            Action::Lock => self.choose_in_settings(shell::SettingsRow::Lock),
+            Action::Lock => {
+                // Locked, the writer comes back to where they were; refused,
+                // Settings › Power stays open and says why.
+                let before = self.overlay.clone();
+                self.choose_in_settings(shell::SettingsRow::Lock);
+                if self.deck.lock_requested {
+                    self.deck.shell.external = false;
+                    self.overlay = before;
+                }
+            }
             Action::Sleep => self.choose_in_settings(shell::SettingsRow::Sleep),
             Action::Restart => self.choose_in_settings(shell::SettingsRow::Restart),
             Action::ShutDown => self.choose_in_settings(shell::SettingsRow::ShutDown),
@@ -5402,9 +5417,14 @@ impl App {
         if !backups.status.configured {
             return None;
         }
-        let here = self.project.root.display().to_string();
-        let ours =
-            |project: &str| !project.is_empty() && (project == here || here.ends_with(project));
+        // This book's folder exactly, as Backups judges it; the tag's folder
+        // name could be any book's ("Novel" for "My Novel", "Book" untagged).
+        let root = self
+            .project
+            .root
+            .canonicalize()
+            .unwrap_or_else(|_| self.project.root.clone());
+        let ours = |path: &str| std::path::Path::new(path) == root;
         if backups
             .status
             .queued_backups
@@ -5417,7 +5437,7 @@ impl App {
             .status
             .snapshots
             .iter()
-            .filter(|s| ours(&s.project))
+            .filter(|s| ours(&s._path))
             .filter_map(|s| chrono::DateTime::parse_from_rfc3339(&s.time).ok())
             .max()?
             .with_timezone(&chrono::Local);
@@ -5426,6 +5446,30 @@ impl App {
         } else {
             last.format("%-d %b").to_string()
         }))
+    }
+
+    /// The screens Ctrl-K (and a Super tap) may leave for Find anything:
+    /// none of them holds typing that leaving would lose.
+    pub fn find_anything_opens_here(&self) -> bool {
+        matches!(
+            self.overlay,
+            Overlay::None
+                | Overlay::Pins
+                | Overlay::Journal
+                | Overlay::Scratchpad
+                | Overlay::Handoff
+                | Overlay::Spark { .. }
+                | Overlay::Checks { .. }
+                | Overlay::Lexicon
+                | Overlay::ProseDashboard
+                | Overlay::Continuity
+                | Overlay::Milestones
+                | Overlay::ReviewNotes
+                | Overlay::Footnotes { .. }
+                | Overlay::FootnoteReader(_)
+                | Overlay::Help { .. }
+                | Overlay::Productivity { .. }
+        )
     }
 
     /// A tap of Super: Find anything, just under the lit menu bar. A second

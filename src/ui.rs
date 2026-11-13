@@ -1289,6 +1289,20 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
 /// settled, whether the words are saved, and the book's backup. With
 /// `warnings_only`, just the ones that need attention (focus mode).
 pub(crate) fn status_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(String, Style)> {
+    ranked_marks(app, t, warnings_only)
+        .into_iter()
+        .map(|(text, style, _)| (text, style))
+        .collect()
+}
+
+/// How much a mark matters when the line is short: words not saved most,
+/// then conflicts and a failed backup, then words waiting, then the rest.
+const UNSAVED: u8 = 3;
+const TROUBLE: u8 = 2;
+const PENDING: u8 = 1;
+const CALM: u8 = 0;
+
+fn ranked_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(String, Style, u8)> {
     let console = app.linux_console;
     let mut out = vec![];
     let conflicts = app.conflicts().len();
@@ -1303,6 +1317,7 @@ pub(crate) fn status_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(St
                 format!("⚠ {conflicts}")
             },
             Style::default().fg(t.warn),
+            TROUBLE,
         ));
     }
     // Saved is a steady dim tick; saving, waiting and not saved say so.
@@ -1315,8 +1330,9 @@ pub(crate) fn status_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(St
                 format!("● {dirty}")
             },
             Style::default().fg(t.warn),
-            true,
+            UNSAVED,
         )),
+        // Not on disk yet: focus mode says so too.
         crate::app::SaveState::Waiting(_) if dirty > 0 => Some((
             if console {
                 format!("{dirty} waiting")
@@ -1324,7 +1340,7 @@ pub(crate) fn status_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(St
                 format!("◌ {dirty}")
             },
             Style::default().fg(t.sun),
-            false,
+            PENDING,
         )),
         _ if dirty > 0 => Some((
             if console {
@@ -1333,7 +1349,7 @@ pub(crate) fn status_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(St
                 "○".into()
             },
             Style::default().fg(t.dim),
-            false,
+            CALM,
         )),
         _ => Some((
             if console {
@@ -1342,17 +1358,17 @@ pub(crate) fn status_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(St
                 "✓".into()
             },
             Style::default().fg(t.dim),
-            false,
+            CALM,
         )),
     };
-    if let Some((text, style, warn)) = save
-        && (warn || !warnings_only)
+    if let Some((text, style, rank)) = save
+        && (rank > CALM || !warnings_only)
     {
-        out.push((text, style));
+        out.push((text, style, rank));
     }
     if let Some(mark) = app.backup_mark() {
         use crate::app::BackupMark;
-        let (text, style, warn) = match mark {
+        let (text, style, rank) = match mark {
             BackupMark::Done(at) => (
                 if console {
                     format!("backed up {at}")
@@ -1360,7 +1376,7 @@ pub(crate) fn status_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(St
                     format!("⇅ {at}")
                 },
                 Style::default().fg(t.dim),
-                false,
+                CALM,
             ),
             BackupMark::Running => (
                 if console {
@@ -1369,7 +1385,7 @@ pub(crate) fn status_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(St
                     "⇅…".into()
                 },
                 Style::default().fg(t.accent),
-                false,
+                CALM,
             ),
             BackupMark::Waiting => (
                 if console {
@@ -1378,7 +1394,7 @@ pub(crate) fn status_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(St
                     "⇅◌".into()
                 },
                 Style::default().fg(t.sun),
-                false,
+                CALM,
             ),
             BackupMark::Failed => (
                 if console {
@@ -1387,11 +1403,11 @@ pub(crate) fn status_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(St
                     "⇅!".into()
                 },
                 Style::default().fg(t.warn),
-                true,
+                TROUBLE,
             ),
         };
-        if warn || !warnings_only {
-            out.push((text, style));
+        if rank > CALM || !warnings_only {
+            out.push((text, style, rank));
         }
     }
     out
@@ -1406,17 +1422,18 @@ pub(crate) fn draw_status_marks(f: &mut Frame, app: &App, line: Rect, t: &Theme)
         .map(|(r, _)| r.right())
         .max()
         .unwrap_or(line.x);
-    let mut marks = status_marks(app, t, false);
-    // The backup's time goes first if there's no room, then the rest from the right.
+    let mut marks = ranked_marks(app, t, false);
+    // Without room, the mark that matters least goes first (the rightmost of
+    // equals), so an unsaved warning is the last to go.
     while !marks.is_empty() {
         let width: u16 = marks
             .iter()
-            .map(|(s, _)| s.chars().count() as u16 + 2)
+            .map(|(s, _, _)| s.chars().count() as u16 + 2)
             .sum::<u16>()
             + 1;
         if titles_end + 2 + width <= line.right() {
             let mut spans = vec![];
-            for (text, style) in marks {
+            for (text, style, _) in marks {
                 spans.push(Span::raw("  "));
                 spans.push(Span::styled(text, style));
             }
@@ -1425,7 +1442,10 @@ pub(crate) fn draw_status_marks(f: &mut Frame, app: &App, line: Rect, t: &Theme)
             f.render_widget(Paragraph::new(Line::from(spans)), area);
             return;
         }
-        marks.pop();
+        let least = marks.iter().map(|(_, _, rank)| *rank).min().unwrap_or(CALM);
+        if let Some(at) = marks.iter().rposition(|(_, _, rank)| *rank == least) {
+            marks.remove(at);
+        }
     }
 }
 

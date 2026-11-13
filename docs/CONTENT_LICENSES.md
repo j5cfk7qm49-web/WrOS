@@ -40,9 +40,12 @@ WrOS sketch from `crates/wros-shell/src/logo.rs`. [Font notice](../assets/DEJAVU
 From rc13 the native graphical session draws in GNU Unifont 18.0.01
 (`assets/fonts/unifont-18.0.01.hex.gz`, unmodified upstream file, signature
 checked against Paul Hardy's key 95D2E9AB8740D8046387FD151A09227B1F435A33).
-WrOS adds one-cell drawings for 18 symbols Unifont draws two cells wide
-(`assets/fonts/wros-narrow.txt`); `crates/wros-graphics/build.rs` combines the
-two at build time. WrOS uses Unifont under the SIL Open Font License 1.1
+WrOS modifies some glyphs: at build time `crates/wros-graphics/build.rs` refits
+Unifont's two-cell symbols in U+2000–2BFF into one cell (scaled evenly and
+re-thinned), then replaces 23 of them with hand drawings
+(`assets/fonts/wros-narrow.txt`). The modified glyphs are compiled into
+`grimoire`, `wros-greeter` and `wros-boot`; the OFL text and the source notice
+ship in `/usr/share/doc/wros/`. WrOS uses Unifont under the SIL Open Font License 1.1
 (Unifont is also offered under GPL 2 or later with the font-embedding
 exception); no Reserved Font Name is declared. `assets/WrOSMono.ttf` stays for
 the optional windowed renderer and is no longer used by the native session.

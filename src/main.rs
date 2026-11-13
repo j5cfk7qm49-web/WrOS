@@ -1029,8 +1029,25 @@ fn route_key(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
     use grimoire_core::tutorial::Event as LessonEvent;
     // A tap of Super on its own (the native session reports it): Find anything,
     // under the lit menu bar. A second tap closes it.
+    // Only where Ctrl-K would open it, so a brushed Super never throws away a
+    // box with typing in it; an unsaved comment draft keeps it shut too.
     if let KeyCode::Modifier(ModifierKeyCode::LeftSuper | ModifierKeyCode::RightSuper) = k.code {
-        app.open_find_under_bar();
+        if app.review_notes.has_draft() {
+            app.review_notes.notice =
+                "Save the comment with Enter or cancel with Esc before leaving.".into();
+            app.msg = app.review_notes.notice.clone();
+        } else if app.find_anything_opens_here()
+            || matches!(
+                app.overlay,
+                Overlay::Bar { .. }
+                    | Overlay::Palette {
+                        under_bar: true,
+                        ..
+                    }
+            )
+        {
+            app.open_find_under_bar();
+        }
         return false;
     }
     // On WrOS Super is not a second Ctrl: Super with a key does nothing, and
@@ -1332,29 +1349,7 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
             // foot); everywhere, the menu's Writing tools have both.
             KeyCode::Char('b') if matches!(app.overlay, Overlay::None) => app.emphasis("**"),
             KeyCode::Char('i') if matches!(app.overlay, Overlay::None) => app.emphasis("*"),
-            KeyCode::Char('k')
-                if matches!(
-                    app.overlay,
-                    Overlay::None
-                        | Overlay::Pins
-                        | Overlay::Journal
-                        | Overlay::Scratchpad
-                        | Overlay::Handoff
-                        | Overlay::Spark { .. }
-                        | Overlay::Checks { .. }
-                        | Overlay::Lexicon
-                        | Overlay::ProseDashboard
-                        | Overlay::Continuity
-                        | Overlay::Milestones
-                        | Overlay::ReviewNotes
-                        | Overlay::Footnotes { .. }
-                        | Overlay::FootnoteReader(_)
-                        | Overlay::Help { .. }
-                        | Overlay::Productivity { .. }
-                ) =>
-            {
-                app.open_palette()
-            }
+            KeyCode::Char('k') if app.find_anything_opens_here() => app.open_palette(),
             KeyCode::Char('f') => match &app.overlay {
                 Overlay::None => app.open_find(),
                 // Ctrl-F again widens the search to the whole book.

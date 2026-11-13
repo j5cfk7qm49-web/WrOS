@@ -78,6 +78,26 @@ fn leaving_the_sidebar_saves_its_place_once() {
 }
 
 #[test]
+fn the_wheel_over_the_pins_with_the_page_focused_writes_nothing() {
+    let (mut d, file) = pinned("pins-wheel");
+    d.key(KeyCode::Tab);
+    d.app.tick_pins();
+    if d.app.focus == Focus::Pins {
+        d.key(KeyCode::Tab);
+        d.app.tick_pins();
+    }
+    assert_ne!(d.app.focus, Focus::Pins);
+    let before = fs::read(&file).unwrap();
+    let rect = d.app.pins.hits[0].1;
+    for _ in 0..5 {
+        d.app.on_scroll(rect.x + 1, rect.y + 1, true);
+        d.draw();
+        d.app.tick_pins();
+    }
+    assert_eq!(fs::read(&file).unwrap(), before, "no write per wheel step");
+}
+
+#[test]
 fn j_and_k_move_pins_and_home_still_returns_to_the_anchor() {
     let (mut d, _) = pinned("pins-jk");
     let ids = d.app.pin_ids(false);

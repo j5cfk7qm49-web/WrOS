@@ -58,7 +58,8 @@ def copy_repo(destination):
     for relative in ('packaging', 'os/config', 'os/systemd', 'os/grub', 'os/initramfs', 'os/scripts', 'os/helpers', 'os/licenses', 'os/vendor',
                      'tools/build-wros-debs.py', 'tools/stage-prose-runtime.py', 'tools/prepare-prose-tools.py',
                      'tools/audit-native-image.py', 'tools/build-cage.py',
-                     'assets/dict/DICTIONARY-LICENSE', 'assets/DEJAVU-LICENSE', 'LICENSE', 'os/VERSION'):
+                     'assets/dict/DICTIONARY-LICENSE', 'assets/DEJAVU-LICENSE', 'assets/fonts/UNIFONT-OFL-1.1.txt',
+                     'assets/fonts/UNIFONT-SOURCE.md', 'LICENSE', 'os/VERSION'):
         source = ROOT / relative
         target = destination / relative
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -714,6 +715,15 @@ class UnitEnablement(unittest.TestCase):
 
 
 class ManifestData(unittest.TestCase):
+    def test_the_unifont_licence_ships_with_the_binaries_that_embed_it(self):
+        # grimoire, wros-greeter and wros-boot compile Unifont's bitmaps in;
+        # the OFL travels with every copy, beside its source and hashes.
+        specs = {spec.dest: spec for spec in packaging.expand(packaging.load_manifest(ROOT), ROOT)}
+        for name in ('UNIFONT-OFL-1.1.txt', 'UNIFONT-SOURCE.md'):
+            spec = specs['usr/share/doc/wros/' + name]
+            self.assertEqual(spec.mode, 0o644)
+        self.assertIn('DEJAVU-LICENSE', ' '.join(specs))
+
     def test_the_package_keyring_carries_only_the_pinned_primary(self):
         specs = {spec.dest: spec for spec in packaging.expand(packaging.load_manifest(ROOT), ROOT)}
         self.assertEqual(specs[packaging.PACKAGE_KEYRING_DEST].mode, 0o644)

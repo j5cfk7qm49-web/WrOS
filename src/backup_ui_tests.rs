@@ -186,6 +186,61 @@ fn the_home_screen_says_when_the_book_was_last_backed_up() {
 }
 
 #[test]
+fn the_backup_mark_names_only_this_books_own_backups() {
+    let mut desk = Desk::open(book("backup-mark", true), 120, 40);
+    let root = desk.app.project.root.canonicalize().unwrap();
+    // Another book elsewhere whose folder ends the same way ("Novel" for
+    // "My Novel"): here, the same name in another folder.
+    let name = root.file_name().unwrap().to_string_lossy().into_owned();
+    let elsewhere = format!("/home/writer/other/{name}");
+    let when = chrono::Local::now() - chrono::Duration::minutes(5);
+    let snapshot = |path: String| crate::backup_service::Snapshot {
+        id: "d".repeat(64),
+        time: when.to_rfc3339(),
+        _path: path,
+        project: name.clone(),
+        restore_checked_at: String::new(),
+        has_profile: false,
+    };
+    let app = &mut desk.app;
+    app.deck.shell.backup.status.configured = true;
+    app.deck
+        .shell
+        .backup
+        .status
+        .snapshots
+        .push(snapshot(elsewhere.clone()));
+    assert_eq!(
+        app.read_backup_mark(chrono::Local::now()),
+        None,
+        "not another book's"
+    );
+    app.deck
+        .shell
+        .backup
+        .status
+        .queued_backups
+        .push(crate::backup_service::QueuedBackup {
+            project: elsewhere,
+            ..Default::default()
+        });
+    assert_eq!(app.read_backup_mark(chrono::Local::now()), None);
+    app.deck
+        .shell
+        .backup
+        .status
+        .snapshots
+        .push(snapshot(root.to_string_lossy().into_owned()));
+    assert!(
+        matches!(
+            app.read_backup_mark(chrono::Local::now()),
+            Some(crate::app::BackupMark::Done(_))
+        ),
+        "its own folder's snapshot counts"
+    );
+}
+
+#[test]
 fn backups_that_carry_settings_offer_restoring_them_too() {
     let mut desk = Desk::open(book("backup-settings", true), 100, 40);
     desk.app.open_settings();

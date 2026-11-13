@@ -343,10 +343,11 @@ fn plain(screen: &str) -> String {
 fn menu_and_dialog_actions_use_labels_without_publishing_the_draft_name() {
     let home = Home::new("menu-dialog");
     let mut app = App::start(&home, 100, 30);
+    // rc13: the menu bar, lit on File with its menu down.
     app.activate("open-menu");
-    app.choose("Help & about");
-    app.until("help menu", |s, _| s.contains("GRIMOIRE › HELP & ABOUT"));
-    app.choose("Back");
+    app.until("file menu", |s, t| {
+        s.contains("File") && s.contains("Help") && node(t, &|n| n["id"] == "menu-file").is_some()
+    });
     app.choose("Start a new book…");
     app.until("new book dialog", |s, t| {
         s.contains("START A NEW BOOK") && node(t, &|n| n["role"] == "dialog").is_some()

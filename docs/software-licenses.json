@@ -1920,25 +1920,6 @@
       "retained_upstream_notice_source": null
     },
     {
-      "name": "cosmic-text",
-      "version": "0.14.2",
-      "declared_license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/pop-os/cosmic-text",
-      "used_in_linux_no_audio_build": true,
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notice_files": [
-        {
-          "file": "LICENSE-APACHE",
-          "sha256": "000b4962e6b27176a0ff89cce4be555b16472cafb5671eb2804a8fdac6854793"
-        },
-        {
-          "file": "LICENSE-MIT",
-          "sha256": "95557bafe728379e206f3b6d4aceeaa054d271c71d722411a6222e2dec01138c"
-        }
-      ],
-      "retained_upstream_notice_source": null
-    },
-    {
       "name": "cpal",
       "version": "0.17.3",
       "declared_license": "Apache-2.0",
@@ -3825,25 +3806,6 @@
       "retained_upstream_notice_source": null
     },
     {
-      "name": "font-types",
-      "version": "0.12.7",
-      "declared_license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/googlefonts/fontations",
-      "used_in_linux_no_audio_build": true,
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notice_files": [
-        {
-          "file": "LICENSE-APACHE",
-          "sha256": "eba684204073ed715c4abb48129acdfd2bff8ae48339e6a7da3b341d3027b7f0"
-        },
-        {
-          "file": "LICENSE-MIT",
-          "sha256": "7b4c9a3946dfcea7967582760e963e27799e225dcf20565c8ef55324bb017427"
-        }
-      ],
-      "retained_upstream_notice_source": null
-    },
-    {
       "name": "font8x8",
       "version": "0.3.1",
       "declared_license": "MIT",
@@ -3854,36 +3816,6 @@
         {
           "file": "LICENSE",
           "sha256": "47d9e9e9a4c54af113e351891bff6cf732793880b83506af6d339976c681a1b5"
-        }
-      ],
-      "retained_upstream_notice_source": null
-    },
-    {
-      "name": "fontconfig-parser",
-      "version": "0.5.8",
-      "declared_license": "MIT",
-      "repository": "https://github.com/Riey/fontconfig-parser",
-      "used_in_linux_no_audio_build": true,
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notice_files": [
-        {
-          "file": "LICENSE",
-          "sha256": "1f90908c18012716ff9965086920050b7d31ad2a9da41e3473a6a5a46e9c908f"
-        }
-      ],
-      "retained_upstream_notice_source": null
-    },
-    {
-      "name": "fontdb",
-      "version": "0.16.2",
-      "declared_license": "MIT",
-      "repository": "https://github.com/RazrFalcon/fontdb",
-      "used_in_linux_no_audio_build": true,
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notice_files": [
-        {
-          "file": "LICENSE",
-          "sha256": "59a1fdac3bd550043599bd159fd70f09a1108c2b09e3751d39b11e1ff8e51f00"
         }
       ],
       "retained_upstream_notice_source": null
@@ -6102,7 +6034,7 @@
       "version": "0.9.12",
       "declared_license": "MIT OR Apache-2.0",
       "repository": "https://github.com/RazrFalcon/memmap2-rs",
-      "used_in_linux_no_audio_build": true,
+      "used_in_linux_no_audio_build": false,
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "notice_files": [
         {
@@ -8094,25 +8026,6 @@
       "retained_upstream_notice_source": null
     },
     {
-      "name": "rangemap",
-      "version": "1.8.0",
-      "declared_license": "MIT/Apache-2.0",
-      "repository": "https://github.com/jeffparsons/rangemap",
-      "used_in_linux_no_audio_build": true,
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notice_files": [
-        {
-          "file": "LICENSE-APACHE",
-          "sha256": "1c7745cc26c7294bc9dbc883bcd50700b99a8c0f4859bfce84ec555098ce1ab5"
-        },
-        {
-          "file": "LICENSE-MIT",
-          "sha256": "29a4c3823ee29ee5a97c145574a1bac20629fd5e6708be1df0d25bab563e093c"
-        }
-      ],
-      "retained_upstream_notice_source": null
-    },
-    {
       "name": "ratatui",
       "version": "0.30.2",
       "declared_license": "MIT",
@@ -8322,25 +8235,6 @@
         {
           "file": "LICENSE-MIT",
           "sha256": "0621878e61f0d0fda054bcbe02df75192c28bde1ecc8289cbd86aeba2dd72720"
-        }
-      ],
-      "retained_upstream_notice_source": null
-    },
-    {
-      "name": "read-fonts",
-      "version": "0.41.0",
-      "declared_license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/googlefonts/fontations",
-      "used_in_linux_no_audio_build": true,
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notice_files": [
-        {
-          "file": "LICENSE-APACHE",
-          "sha256": "eba684204073ed715c4abb48129acdfd2bff8ae48339e6a7da3b341d3027b7f0"
-        },
-        {
-          "file": "LICENSE-MIT",
-          "sha256": "7b4c9a3946dfcea7967582760e963e27799e225dcf20565c8ef55324bb017427"
         }
       ],
       "retained_upstream_notice_source": null
@@ -8559,25 +8453,6 @@
     },
     {
       "name": "roxmltree",
-      "version": "0.20.0",
-      "declared_license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/RazrFalcon/roxmltree",
-      "used_in_linux_no_audio_build": true,
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notice_files": [
-        {
-          "file": "LICENSE-APACHE",
-          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
-        },
-        {
-          "file": "LICENSE-MIT",
-          "sha256": "fffe218c1e349e1d482a05677f2ce850502f88298174d77f6ac7c04821db7899"
-        }
-      ],
-      "retained_upstream_notice_source": null
-    },
-    {
-      "name": "roxmltree",
       "version": "0.21.1",
       "declared_license": "MIT OR Apache-2.0",
       "repository": "https://github.com/RazrFalcon/roxmltree",
@@ -8619,7 +8494,7 @@
       "version": "1.1.0",
       "declared_license": "Apache-2.0/MIT",
       "repository": "https://github.com/rust-lang-nursery/rustc-hash",
-      "used_in_linux_no_audio_build": true,
+      "used_in_linux_no_audio_build": false,
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "notice_files": [
         {
@@ -8802,21 +8677,6 @@
       "retained_upstream_notice_source": null
     },
     {
-      "name": "rustybuzz",
-      "version": "0.14.1",
-      "declared_license": "MIT",
-      "repository": "https://github.com/RazrFalcon/rustybuzz",
-      "used_in_linux_no_audio_build": true,
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notice_files": [
-        {
-          "file": "LICENSE",
-          "sha256": "a5aadaec39bbdbd47faf92e1dbabd017aceda4134c8420426a3e4b7f1ae7f2b5"
-        }
-      ],
-      "retained_upstream_notice_source": null
-    },
-    {
       "name": "ryu",
       "version": "1.0.23",
       "declared_license": "Apache-2.0 OR BSL-1.0",
@@ -8918,25 +8778,6 @@
         {
           "file": "LICENSE-MIT",
           "sha256": "fb77f0a9c53e473abe5103c8632ef9f0f2874d4fb3f17cb2d8c661aab9cee9d7"
-        }
-      ],
-      "retained_upstream_notice_source": null
-    },
-    {
-      "name": "self_cell",
-      "version": "1.3.0",
-      "declared_license": "Apache-2.0 OR GPL-2.0-only",
-      "repository": "https://github.com/Voultapher/self_cell",
-      "used_in_linux_no_audio_build": true,
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notice_files": [
-        {
-          "file": "LICENSE-APACHE",
-          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
-        },
-        {
-          "file": "LICENSE-GPLv2",
-          "sha256": "f9c375a1be4a41f7b70301dd83c91cb89e41567478859b77eef375a52d782505"
         }
       ],
       "retained_upstream_notice_source": null
@@ -9310,25 +9151,6 @@
       "retained_upstream_notice_source": null
     },
     {
-      "name": "skrifa",
-      "version": "0.44.0",
-      "declared_license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/googlefonts/fontations",
-      "used_in_linux_no_audio_build": true,
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notice_files": [
-        {
-          "file": "LICENSE-APACHE",
-          "sha256": "eba684204073ed715c4abb48129acdfd2bff8ae48339e6a7da3b341d3027b7f0"
-        },
-        {
-          "file": "LICENSE-MIT",
-          "sha256": "7b4c9a3946dfcea7967582760e963e27799e225dcf20565c8ef55324bb017427"
-        }
-      ],
-      "retained_upstream_notice_source": null
-    },
-    {
       "name": "slab",
       "version": "0.4.12",
       "declared_license": "MIT",
@@ -9348,7 +9170,7 @@
       "version": "1.1.1",
       "declared_license": "Zlib",
       "repository": "https://github.com/orlp/slotmap",
-      "used_in_linux_no_audio_build": true,
+      "used_in_linux_no_audio_build": false,
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "notice_files": [
         {
@@ -9392,25 +9214,6 @@
         {
           "file": "LICENSE-MIT",
           "sha256": "0b28172679e0009b655da42797c03fd163a3379d5cfa67ba1f1655e974a2a1a9"
-        }
-      ],
-      "retained_upstream_notice_source": null
-    },
-    {
-      "name": "smol_str",
-      "version": "0.2.2",
-      "declared_license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/rust-analyzer/smol_str",
-      "used_in_linux_no_audio_build": true,
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notice_files": [
-        {
-          "file": "LICENSE-APACHE",
-          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
-        },
-        {
-          "file": "LICENSE-MIT",
-          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
         }
       ],
       "retained_upstream_notice_source": null
@@ -9666,25 +9469,6 @@
       "retained_upstream_notice_source": null
     },
     {
-      "name": "swash",
-      "version": "0.2.10",
-      "declared_license": "Apache-2.0 OR MIT",
-      "repository": "https://github.com/dfrg/swash",
-      "used_in_linux_no_audio_build": true,
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notice_files": [
-        {
-          "file": "LICENSE-APACHE",
-          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
-        },
-        {
-          "file": "LICENSE-MIT",
-          "sha256": "122dadfc2eb4de0f4bafcd9eb4e7502cfe338a7965ebd1d18708cc5050f43f76"
-        }
-      ],
-      "retained_upstream_notice_source": null
-    },
-    {
       "name": "symphonia",
       "version": "0.5.5",
       "declared_license": "MPL-2.0",
@@ -9857,25 +9641,6 @@
         {
           "file": "LICENSE",
           "sha256": "219920e865eee70b7dcfc948a86b099e7f4fe2de01bcca2ca9a20c0a033f2b59"
-        }
-      ],
-      "retained_upstream_notice_source": null
-    },
-    {
-      "name": "sys-locale",
-      "version": "0.3.2",
-      "declared_license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/1Password/sys-locale",
-      "used_in_linux_no_audio_build": true,
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notice_files": [
-        {
-          "file": "LICENSE-APACHE",
-          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
-        },
-        {
-          "file": "LICENSE-MIT",
-          "sha256": "5cc390ab5e5e6507f467368cbab1297552d64bfd863f4b496c7928508bcfefd8"
         }
       ],
       "retained_upstream_notice_source": null
@@ -10656,44 +10421,6 @@
       "retained_upstream_notice_source": null
     },
     {
-      "name": "ttf-parser",
-      "version": "0.20.0",
-      "declared_license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/RazrFalcon/ttf-parser",
-      "used_in_linux_no_audio_build": true,
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notice_files": [
-        {
-          "file": "LICENSE-APACHE",
-          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
-        },
-        {
-          "file": "LICENSE-MIT",
-          "sha256": "f3c9fe731c701ed77fd5fbaac573872af04dc5869385eb9bd5e3c73c42713814"
-        }
-      ],
-      "retained_upstream_notice_source": null
-    },
-    {
-      "name": "ttf-parser",
-      "version": "0.21.1",
-      "declared_license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/RazrFalcon/ttf-parser",
-      "used_in_linux_no_audio_build": true,
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notice_files": [
-        {
-          "file": "LICENSE-APACHE",
-          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
-        },
-        {
-          "file": "LICENSE-MIT",
-          "sha256": "f3c9fe731c701ed77fd5fbaac573872af04dc5869385eb9bd5e3c73c42713814"
-        }
-      ],
-      "retained_upstream_notice_source": null
-    },
-    {
       "name": "tui-big-text",
       "version": "0.8.9",
       "declared_license": "MIT OR Apache-2.0",
@@ -10859,48 +10586,6 @@
       "retained_upstream_notice_source": null
     },
     {
-      "name": "unicode-bidi",
-      "version": "0.3.18",
-      "declared_license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/servo/unicode-bidi",
-      "used_in_linux_no_audio_build": true,
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notice_files": [
-        {
-          "file": "COPYRIGHT",
-          "sha256": "edb20b474f6cbd4f4db066b54a9e0f687d0009d309412a63431189b59b8e2a07"
-        },
-        {
-          "file": "LICENSE-APACHE",
-          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
-        },
-        {
-          "file": "LICENSE-MIT",
-          "sha256": "7b63ecd5f1902af1b63729947373683c32745c16a10e8e6292e2e2dcd7e90ae0"
-        }
-      ],
-      "retained_upstream_notice_source": null
-    },
-    {
-      "name": "unicode-bidi-mirroring",
-      "version": "0.2.0",
-      "declared_license": "MIT/Apache-2.0",
-      "repository": "https://github.com/RazrFalcon/unicode-bidi-mirroring",
-      "used_in_linux_no_audio_build": true,
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notice_files": [
-        {
-          "file": "LICENSE-APACHE",
-          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
-        },
-        {
-          "file": "LICENSE-MIT",
-          "sha256": "59a1fdac3bd550043599bd159fd70f09a1108c2b09e3751d39b11e1ff8e51f00"
-        }
-      ],
-      "retained_upstream_notice_source": null
-    },
-    {
       "name": "unicode-blocks",
       "version": "0.1.10",
       "declared_license": "MIT",
@@ -10911,25 +10596,6 @@
         {
           "file": "LICENSE",
           "sha256": "b65c9ac375b3b6c538efe6253131c44a73b50c5ee0c48a34319e766633bfee02"
-        }
-      ],
-      "retained_upstream_notice_source": null
-    },
-    {
-      "name": "unicode-ccc",
-      "version": "0.2.0",
-      "declared_license": "MIT/Apache-2.0",
-      "repository": "https://github.com/RazrFalcon/unicode-ccc",
-      "used_in_linux_no_audio_build": true,
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notice_files": [
-        {
-          "file": "LICENSE-APACHE",
-          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
-        },
-        {
-          "file": "LICENSE-MIT",
-          "sha256": "59a1fdac3bd550043599bd159fd70f09a1108c2b09e3751d39b11e1ff8e51f00"
         }
       ],
       "retained_upstream_notice_source": null
@@ -10958,21 +10624,6 @@
       "retained_upstream_notice_source": null
     },
     {
-      "name": "unicode-linebreak",
-      "version": "0.1.5",
-      "declared_license": "Apache-2.0",
-      "repository": "https://github.com/axelf4/unicode-linebreak",
-      "used_in_linux_no_audio_build": true,
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notice_files": [
-        {
-          "file": "LICENSE",
-          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
-        }
-      ],
-      "retained_upstream_notice_source": null
-    },
-    {
       "name": "unicode-normalization",
       "version": "0.1.25",
       "declared_license": "MIT OR Apache-2.0",
@@ -10991,33 +10642,6 @@
         {
           "file": "LICENSE-MIT",
           "sha256": "7b63ecd5f1902af1b63729947373683c32745c16a10e8e6292e2e2dcd7e90ae0"
-        }
-      ],
-      "retained_upstream_notice_source": null
-    },
-    {
-      "name": "unicode-properties",
-      "version": "0.1.5",
-      "declared_license": "(MIT OR Apache-2.0) AND Unicode-3.0",
-      "repository": "https://github.com/unicode-rs/unicode-properties",
-      "used_in_linux_no_audio_build": true,
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notice_files": [
-        {
-          "file": "COPYRIGHT",
-          "sha256": "23860c2a7b5d96b21569afedf033469bab9fe14a1b24a35068b8641c578ce24d"
-        },
-        {
-          "file": "LICENSE-APACHE",
-          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
-        },
-        {
-          "file": "LICENSE-MIT",
-          "sha256": "7b63ecd5f1902af1b63729947373683c32745c16a10e8e6292e2e2dcd7e90ae0"
-        },
-        {
-          "file": "LICENSE-UNICODE",
-          "sha256": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96"
         }
       ],
       "retained_upstream_notice_source": null
@@ -13338,25 +12962,6 @@
       "retained_upstream_notice_source": null
     },
     {
-      "name": "yazi",
-      "version": "0.2.2",
-      "declared_license": "Apache-2.0 OR MIT",
-      "repository": "https://github.com/dfrg/yazi",
-      "used_in_linux_no_audio_build": true,
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notice_files": [
-        {
-          "file": "LICENSE-APACHE",
-          "sha256": "7cfd738c53d61c79f07e348f622bf7707c9084237054d37fbe07788a75f5881c"
-        },
-        {
-          "file": "LICENSE-MIT",
-          "sha256": "df62e3ef3f207c91073fedd78b4156a278681d0dd3f942379242c62c6a71a3ec"
-        }
-      ],
-      "retained_upstream_notice_source": null
-    },
-    {
       "name": "yoke",
       "version": "0.8.3",
       "declared_license": "Unicode-3.0",
@@ -13382,25 +12987,6 @@
         {
           "file": "LICENSE",
           "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2"
-        }
-      ],
-      "retained_upstream_notice_source": null
-    },
-    {
-      "name": "zeno",
-      "version": "0.3.3",
-      "declared_license": "Apache-2.0 OR MIT",
-      "repository": "https://github.com/dfrg/zeno",
-      "used_in_linux_no_audio_build": true,
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "notice_files": [
-        {
-          "file": "LICENSE-APACHE",
-          "sha256": "7cfd738c53d61c79f07e348f622bf7707c9084237054d37fbe07788a75f5881c"
-        },
-        {
-          "file": "LICENSE-MIT",
-          "sha256": "34dff8202d63e6df022f4f0ce88dab24f254c35ee0d5958b74dcf74d9eae21cc"
         }
       ],
       "retained_upstream_notice_source": null
