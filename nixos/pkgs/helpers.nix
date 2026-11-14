@@ -135,6 +135,15 @@ pkgs.stdenv.mkDerivation {
     substituteInPlace "$out/libexec/wros-lock" \
       --replace-fail "ctypes.CDLL('libsystemd.so.0')" "ctypes.CDLL('${pkgs.systemd}/lib/libsystemd.so.0')"
 
+    # wros-lock refuses to lock unless /etc/pam.d/vlock matches its own copy of the text, so
+    # that copy gets the same upstream-PAM rewrite as nixos/modules/guards.nix (nixPam).
+    # NixOS masks units through a store symlink that itself points to /dev/null, so the mask
+    # check resolves the whole chain instead of reading one link.
+    substituteInPlace "$out/libexec/wros-lock" \
+      --replace-fail "@include common-auth" "auth include common-auth" \
+      --replace-fail "require(os.readlink('/etc/systemd/system/' + name) == '/dev/null')" \
+                     "require(os.path.realpath('/etc/systemd/system/' + name) == '/dev/null')"
+
     substituteInPlace "$out/libexec/wros-lock" \
       --replace-fail "/usr/sbin:/usr/bin:/sbin:/bin" "${safePath}" \
       --replace-fail "/usr/lib/wros/wros-greeter" "/run/current-system/sw/bin/wros-greeter" \

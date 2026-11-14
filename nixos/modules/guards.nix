@@ -9,6 +9,13 @@ let
         in lib.nameValuePair (lib.head parts) (lib.concatStringsSep "=" (lib.tail parts)))
       (lib.filter (line: lib.hasInfix "=" line && !(lib.hasPrefix "#" line))
         (lib.splitString "\n" (builtins.readFile file))));
+
+  # A Debian PAM file in upstream Linux-PAM syntax.
+  nixPam = file:
+    builtins.replaceStrings
+      [ "@include common-auth" "@include common-account" ]
+      [ "auth include common-auth" "account include common-account" ]
+      (builtins.readFile file);
 in
 {
   # No general sudo or passwordless privilege escalation
@@ -22,8 +29,12 @@ in
   security.pam.services.greetd = {};
 
   # Exact PAM text expected by os/scripts/wros-lock (verified in validate_caller / worker)
-  environment.etc."pam.d/vlock".source = lib.mkForce "${wrosRoot}/os/config/vlock.pam";
-  environment.etc."pam.d/wros-recovery".source = lib.mkForce "${wrosRoot}/os/config/wros-recovery.pam";
+  # Debian's Linux-PAM accepts "@include FILE"; upstream Linux-PAM on NixOS rejects it
+  # ("illegal module type: @include"), which made every password fail. The same files are
+  # used with the upstream spelling. nixos/pkgs/helpers.nix applies the same rewrite to the
+  # copy of this text that wros-lock compares /etc/pam.d/vlock against.
+  environment.etc."pam.d/vlock".text = lib.mkForce (nixPam "${wrosRoot}/os/config/vlock.pam");
+  environment.etc."pam.d/wros-recovery".text = lib.mkForce (nixPam "${wrosRoot}/os/config/wros-recovery.pam");
   environment.etc."pam.d/common-auth".text = ''
     auth required ${pkgs.linux-pam}/lib/security/pam_unix.so nullok
   '';
