@@ -5,7 +5,7 @@ pkgs.testers.runNixOSTest {
   nodes.live = { config, pkgs, ... }: {
     imports = [ liveModule ];
     virtualisation = {
-      memorySize = 4096;
+      memorySize = 2560;  # was 4096: a 4 GiB guest starves the 16 GB qualification host
       cores = 2;
       emptyDiskImages = [ 8192 ];
     };
