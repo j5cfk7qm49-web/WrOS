@@ -110,46 +110,35 @@ pkgs.testers.runNixOSTest {
       installed.succeed("cp -r ${bundleSame} /media/wros-update/same")
       installed.succeed("cp -r ${bundleNext} /media/wros-update/rc15")
 
-      # 2. Verify downgrade and equal-version bundles are refused on a fresh install (U3, T5)
-      installed.fail(
-          "PKEXEC_UID=1000 /run/current-system/sw/libexec/wros-update-stage /media/wros-update/downgrade 00000000000000000000000000000000"
-      )
-      downgrade_review = json.loads(
-          installed.succeed("/run/current-system/sw/libexec/wros-update review-bundle /media/wros-update/downgrade")
-      )
-      assert downgrade_review["disposition"] == "downgrade", downgrade_review
-      installed.fail(
-          f"PKEXEC_UID=1000 /run/current-system/sw/libexec/wros-update-stage /media/wros-update/downgrade {downgrade_review['review_id']}"
-      )
+      # 2. Downgrade and equal-version bundles are refused (U3, T5). The engine refuses them at
+      #    review (nixos/scripts/wros-update-engine.py verify_open_nixos_bundle), and staging
+      #    re-verifies, so both steps must fail.
+      UPDATE = "/run/current-system/sw/libexec/wros-update"
+      STAGE = "PKEXEC_UID=1000 /run/current-system/sw/libexec/wros-update-stage"
+      ANY_ID = "0" * 64
 
-      same_review = json.loads(
-          installed.succeed("/run/current-system/sw/libexec/wros-update review-bundle /media/wros-update/same")
-      )
-      assert same_review["disposition"] == "reinstall", same_review
-      installed.fail(
-          f"PKEXEC_UID=1000 /run/current-system/sw/libexec/wros-update-stage /media/wros-update/same {same_review['review_id']}"
-      )
+      out = installed.fail(f"{UPDATE} review /media/wros-update/downgrade 2>&1")
+      assert "downgrade" in out, out
+      installed.fail(f"{STAGE} /media/wros-update/downgrade {ANY_ID}")
 
-      # 3. Verify tampered / corrupt bundle is refused by wros-update-stage (T5)
+      out = installed.fail(f"{UPDATE} review /media/wros-update/same 2>&1")
+      assert "already installed" in out, out
+      installed.fail(f"{STAGE} /media/wros-update/same {ANY_ID}")
+
+      # 3. A bundle reviewed while intact and corrupted afterwards is refused at staging (T5)
       installed.succeed("cp -r /media/wros-update/rc15 /media/wros-update/tampered && chmod -R u+w /media/wros-update/tampered")
-      tamper_review = json.loads(
-          installed.succeed("/run/current-system/sw/libexec/wros-update review-bundle /media/wros-update/tampered")
-      )
+      tamper_review = json.loads(installed.succeed(f"{UPDATE} review /media/wros-update/tampered"))
       installed.succeed(
           "f=$(find /media/wros-update/tampered/cache/nar -name '*.nar.zst' | head -n 1) && printf 'corrupt' >> \"$f\""
       )
-      installed.fail(
-          f"PKEXEC_UID=1000 /run/current-system/sw/libexec/wros-update-stage /media/wros-update/tampered {tamper_review['review_id']}"
-      )
+      installed.fail(f"{STAGE} /media/wros-update/tampered {tamper_review['review_id']}")
 
       # 4. Stage the valid signed 0.1.0~rc15 bundle via wros-update-stage and reboot to apply
-      valid_review = json.loads(
-          installed.succeed("/run/current-system/sw/libexec/wros-update review-bundle /media/wros-update/rc15")
-      )
-      assert valid_review["disposition"] == "upgrade", valid_review
+      valid_review = json.loads(installed.succeed(f"{UPDATE} review /media/wros-update/rc15"))
+      assert valid_review["packages"][0]["action"] == "upgrade", valid_review
       stage_res = json.loads(
           installed.succeed(
-              f"PKEXEC_UID=1000 /run/current-system/sw/libexec/wros-update-stage /media/wros-update/rc15 {valid_review['review_id']}"
+              f"{STAGE} /media/wros-update/rc15 {valid_review['review_id']}"
           )
       )
       assert stage_res["status"] == "staged", stage_res

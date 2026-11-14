@@ -125,6 +125,16 @@ pkgs.stdenv.mkDerivation {
       --replace-fail "/usr/libexec/wros-update-healthy" "$out/libexec/wros-update-healthy" \
       --replace-fail "/usr/libexec/wros-display" "$out/libexec/wros-display"
 
+    # Libraries loaded through ctypes by bare name. NixOS has no system library cache, so
+    # find_library() returns None and dlopen("libX.so.N") fails; the recovery menu crashed on
+    # the first password. Give each its store path.
+    substituteInPlace "$out/libexec/wros-recovery" \
+      --replace-fail "ctypes.CDLL(ctypes.util.find_library('pam') or 'libpam.so.0')" "ctypes.CDLL('${pkgs.linux-pam}/lib/libpam.so.0')"
+    substituteInPlace "$out/libexec/wros-sound" \
+      --replace-fail "ctypes.util.find_library('asound') or 'libasound.so.2'" "'${pkgs.alsa-lib}/lib/libasound.so.2'"
+    substituteInPlace "$out/libexec/wros-lock" \
+      --replace-fail "ctypes.CDLL('libsystemd.so.0')" "ctypes.CDLL('${pkgs.systemd}/lib/libsystemd.so.0')"
+
     substituteInPlace "$out/libexec/wros-lock" \
       --replace-fail "/usr/sbin:/usr/bin:/sbin:/bin" "${safePath}" \
       --replace-fail "/usr/lib/wros/wros-greeter" "/run/current-system/sw/bin/wros-greeter" \
@@ -203,6 +213,7 @@ pkgs.stdenv.mkDerivation {
       --replace-fail "/usr/libexec/wros-install-core" "$out/libexec/wros-install-core"
 
     substituteInPlace "$out/libexec/wros-install-session" \
+      --replace-fail "ctypes.CDLL('libsystemd.so.0')" "ctypes.CDLL('${pkgs.systemd}/lib/libsystemd.so.0')" \
       --replace-fail "/usr/sbin:/usr/bin:/sbin:/bin" "${safePath}" \
       --replace-fail "/usr/libexec/wros-installer-backend" "$out/libexec/wros-installer-backend" \
       --replace-fail "/usr/libexec/wros-install-session" "$out/libexec/wros-install-session"
