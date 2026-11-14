@@ -48,7 +48,7 @@ pkgs.testers.runNixOSTest {
     # 3. Boot the recovery specialisation entry (systemd.unit=wros-recovery.target) (T6)
     installed.succeed("/run/current-system/specialisation/recovery/bin/switch-to-configuration boot")
     installed.succeed("sync")
-    installed.reboot()
+    restart(installed)
 
     installed.wait_for_console_text("Please enter passphrase for disk")
     installed.send_chars("recovery-disk-passphrase\n")

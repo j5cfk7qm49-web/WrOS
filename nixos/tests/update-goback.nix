@@ -158,7 +158,7 @@ pkgs.testers.runNixOSTest {
 
       # Reboot into system-update.target; wros-update-offline.service imports the binary cache,
       # switches /nix/var/nix/profiles/system, and triggers a reboot into the new generation.
-      installed.reboot()
+      restart(installed)
       wait_for_disk_prompt(installed)
       installed.send_chars("update-disk-passphrase")
       installed.send_key("ret")
@@ -187,7 +187,7 @@ pkgs.testers.runNixOSTest {
       installed.succeed("test -L /system-update")
       installed.succeed("sync")
 
-      installed.reboot()
+      restart(installed)
       wait_for_disk_prompt(installed)
       installed.send_chars("update-disk-passphrase")
       installed.send_key("ret")

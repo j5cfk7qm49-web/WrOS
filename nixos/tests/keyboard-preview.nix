@@ -62,7 +62,7 @@ pkgs.testers.runNixOSTest {
 
     # 4. Reboot into the encrypted disk prompt and prove the confirmed Colemak layout
     #    is active at the pre-mount LUKS passphrase prompt (T3).
-    installed.reboot()
+    restart(installed)
     wait_for_disk_prompt(installed)
     installed.send_chars(colemak_keys("colemak-passphrase"))
     installed.send_key("ret")

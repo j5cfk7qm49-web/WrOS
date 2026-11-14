@@ -99,6 +99,12 @@ rec {
         machine.wait_until_succeeds("pgrep -x wros-greeter")
         time.sleep(settle)
 
+    def restart(machine) -> None:
+        # Machine.reboot() sends Ctrl-Alt-Delete, which WrOS ignores on purpose
+        # (os/config/60-wros-reboot-guard.conf). Power off through the shell and start again.
+        machine.shutdown()
+        machine.start(allow_reboot=True)
+
     def log_in(machine, username: str, password: str, *, colemak: bool, console: bool = False) -> None:
         # crates/wros-greeter/src/form.rs: the form opens on an empty username field; Enter
         # moves to the password and Enter there submits. Down in the username field cycles

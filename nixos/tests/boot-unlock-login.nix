@@ -62,7 +62,7 @@ pkgs.testers.runNixOSTest {
     #    and reboot to verify fallback to systemd's plain-text passphrase prompt (B1, B4, T1).
     installed.succeed("/run/current-system/specialisation/text-start/bin/switch-to-configuration boot")
     installed.succeed("sync")
-    installed.reboot()
+    restart(installed)
 
     installed.wait_for_console_text("Please enter passphrase for disk")
     installed.send_chars(colemak_keys("colemak-passphrase") + "\n")
