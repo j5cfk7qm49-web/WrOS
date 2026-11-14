@@ -90,6 +90,6 @@ pkgs.testers.runNixOSTest {
     booted.succeed("test \"$(cat /etc/hostname)\" = 'wros-book'")
     booted.fail("id wros-live")
     booted.succeed("passwd -S root | awk '{exit ($2 == \"L\" ? 0 : 1)}'")
-    booted.wait_until_tty_matches("1", "writer|WrOS")
+    wait_for_greeter(booted)
   '';
 }

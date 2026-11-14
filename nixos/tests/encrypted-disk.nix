@@ -90,6 +90,15 @@ rec {
         machine.wait_for_console_text("wros-initrd-unlock: asking for the disk password")
         time.sleep(settle)  # host-side: let wros-boot take the terminal and draw
 
+    def wait_for_greeter(machine, settle: int = 5) -> None:
+        # The login screen is drawn on DRM, so tty1 holds no text to match. Wait for the
+        # state instead: greetd running its greeter session and wros-greeter alive.
+        import time
+        machine.wait_for_unit("greetd.service")
+        machine.wait_until_succeeds("loginctl list-sessions --no-legend | grep -q _greetd")
+        machine.wait_until_succeeds("pgrep -x wros-greeter")
+        time.sleep(settle)
+
     def build_encrypted_disk(
         installer_vm,
         *,

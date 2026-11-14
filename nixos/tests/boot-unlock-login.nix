@@ -44,7 +44,7 @@ pkgs.testers.runNixOSTest {
     installed.fail("grub-editenv /boot/grub/grubenv list | grep -q '^wros_boot_pending=1$'")
 
     # 4. Log in through wros-greeter on tty1 as writer and verify the session is not root (T1).
-    installed.wait_until_tty_matches("1", "writer|WrOS")
+    wait_for_greeter(installed)
     installed.send_key("down")
     installed.send_chars(colemak_keys("writer-secret-password"))
     installed.send_key("ret")

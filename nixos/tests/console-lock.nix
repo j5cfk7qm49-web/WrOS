@@ -45,7 +45,7 @@ pkgs.testers.runNixOSTest {
     installed.fail("/run/current-system/sw/libexec/wros-lock assert-suspend")
 
     # 3. Log in as writer on tty1 via wros-greeter and open the writing editor
-    installed.wait_until_tty_matches("1", "writer|WrOS")
+    wait_for_greeter(installed)
     installed.send_key("down")
     installed.send_chars("writer-lock-password")
     installed.send_key("ret")
