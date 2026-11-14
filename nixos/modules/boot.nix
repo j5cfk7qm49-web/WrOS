@@ -206,6 +206,8 @@
     wantedBy = [ "multi-user.target" "system-update.target" ];
     serviceConfig = {
       Type = "oneshot";
+      # Stays active after it runs, so "this boot reached login" can be queried later.
+      RemainAfterExit = true;
       ExecStart = "${pkgs.bash}/bin/sh -ec 'mkdir -p /boot/grub; if [ ! -s /boot/grub/grubenv ]; then ${pkgs.grub2}/bin/grub-editenv /boot/grub/grubenv create; fi; ${pkgs.grub2}/bin/grub-editenv /boot/grub/grubenv unset wros_boot_pending'";
       ProtectHome = true;
       ProtectSystem = "strict";
