@@ -38,6 +38,9 @@ rec {
         options = [ "fmask=0077" "dmask=0077" ];
       };
     };
+    # The test driver names every node, which makes NixOS manage /etc/hostname and replace the
+    # name the installer wrote. The real system leaves the host name unmanaged; so must this one.
+    networking.hostName = lib.mkForce "";
     boot.initrd.luks.devices."wros_crypt" = lib.mkVMOverride {
       device = "/dev/disk/by-label/WROS-LUKS";
       keyFile = "/crypt-ramfs/passphrase";
