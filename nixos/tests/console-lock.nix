@@ -45,11 +45,9 @@ pkgs.testers.runNixOSTest {
     installed.fail("/run/current-system/sw/libexec/wros-lock assert-suspend")
 
     # 3. Log in as writer on tty1 via wros-greeter and open the writing editor
-    wait_for_greeter(installed)
-    installed.send_key("down")
-    installed.send_chars("writer-lock-password")
-    installed.send_key("ret")
-    installed.wait_until_succeeds("pgrep -u writer grimoire")
+    # The console session draws the editor as text on tty1, which is what the screen
+    # checks below read (the default session draws on DRM, which tty text cannot see).
+    log_in(installed, "writer", "writer-lock-password", colemak=False, console=True)
     installed.wait_until_tty_matches("1", "Resume writing|WrOS")
 
     # Open a scene and type baseline text in the editor
