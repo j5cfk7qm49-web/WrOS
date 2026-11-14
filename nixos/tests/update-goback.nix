@@ -35,7 +35,7 @@ pkgs.testers.runNixOSTest {
   name = "wros-update-goback";
 
   nodes = {
-    installer = { nodes, ... }: (encryptedDisk.mkInstallerNode nodes.installed.system.build.toplevel) {};
+    installer = { nodes, ... }: { imports = [ (encryptedDisk.mkInstallerNode nodes.installed.system.build.toplevel) ]; };
 
     # Point only the test machine's update trust directory at nixos/tests/keys (U6, T5).
     installed = encryptedDisk.mkInstalledNode ({ ... }: {

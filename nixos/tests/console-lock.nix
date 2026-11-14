@@ -8,7 +8,7 @@ pkgs.testers.runNixOSTest {
   name = "wros-console-lock";
 
   nodes = {
-    installer = { nodes, ... }: (encryptedDisk.mkInstallerNode nodes.installed.system.build.toplevel) {};
+    installer = { nodes, ... }: { imports = [ (encryptedDisk.mkInstallerNode nodes.installed.system.build.toplevel) ]; };
     installed = encryptedDisk.mkInstalledNode {};
   };
 

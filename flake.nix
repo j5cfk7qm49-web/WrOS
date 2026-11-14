@@ -28,7 +28,7 @@
 
       wrosPkgs = import ./nixos/pkgs {
         inherit pkgs lib version;
-        src = self;
+        src = ./.;  # a path, not the flake string: lib.fileset.toSource requires one
       };
 
       wrosSystem = nixpkgs.lib.nixosSystem {
@@ -62,7 +62,7 @@
 
       wrosUpdateBundle = import ./nixos/pkgs/update-bundle.nix {
         inherit pkgs lib version;
-        src = self;
+        src = ./.;  # a path, not the flake string: lib.fileset.toSource requires one
         systemToplevel = wrosSystem.config.system.build.toplevel;
       };
 

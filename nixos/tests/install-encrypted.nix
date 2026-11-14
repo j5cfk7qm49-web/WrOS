@@ -8,7 +8,7 @@ pkgs.testers.runNixOSTest {
   name = "wros-install-encrypted";
 
   nodes = {
-    live = { nodes, ... }: (encryptedDisk.mkInstallerNode nodes.installed.system.build.toplevel) {};
+    live = { nodes, ... }: { imports = [ (encryptedDisk.mkInstallerNode nodes.installed.system.build.toplevel) ]; };
     installed = encryptedDisk.mkInstalledNode {};
   };
 

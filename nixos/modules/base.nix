@@ -34,7 +34,7 @@ in
   system.switch.enable = true;
 
   # Do not let NixOS manage /etc/hostname so wros-install-core's chosen hostname persists (H3).
-  networking.hostName = lib.mkDefault "";
+  networking.hostName = lib.mkOverride 1400 "";  # weaker than mkDefault: the VM test driver names its machines
 
   # Lean closure (S1): no default packages, docs, desktop font packs, or XDG desktop themes/menus.
   environment.defaultPackages = lib.mkForce [];
@@ -47,11 +47,11 @@ in
   fonts.enableDefaultPackages = false;
   fonts.packages = [ pkgs.dejavu_fonts ];
 
-  xdg.sounds.enable = false;
-  xdg.icons.enable = false;
-  xdg.menus.enable = false;
-  xdg.mime.enable = false;
-  xdg.autostart.enable = false;
+  xdg.sounds.enable = lib.mkForce false;
+  xdg.icons.enable = lib.mkForce false;
+  xdg.menus.enable = lib.mkForce false;
+  xdg.mime.enable = lib.mkForce false;
+  xdg.autostart.enable = lib.mkForce false;
 
   # Link /libexec and /share/wros into /run/current-system/sw (H4).
   environment.pathsToLink = [ "/libexec" "/share/wros" ];
