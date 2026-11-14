@@ -182,7 +182,13 @@ fn the_home_screen_says_when_the_book_was_last_backed_up() {
             has_profile: true,
         });
     desk.draw();
-    assert!(desk.shows(&format!("Backed up {} · verified", when.format("%H:%M"))));
+    // Five minutes ago is yesterday just after midnight, which shows a date.
+    let shown = if when.date_naive() == chrono::Local::now().date_naive() {
+        when.format("%H:%M").to_string()
+    } else {
+        when.format("%-d %b %H:%M").to_string()
+    };
+    assert!(desk.shows(&format!("Backed up {shown} · verified")));
 }
 
 #[test]
