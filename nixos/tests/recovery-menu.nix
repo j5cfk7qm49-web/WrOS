@@ -32,10 +32,10 @@ pkgs.testers.runNixOSTest {
     installed.wait_for_unit("multi-user.target")
 
     # 2. Verify emergency and rescue units are masked so no unauthenticated shell exists
-    installed.succeed("systemctl is-enabled emergency.service | grep -q masked")
-    installed.succeed("systemctl is-enabled emergency.target | grep -q masked")
-    installed.succeed("systemctl is-enabled rescue.service | grep -q masked")
-    installed.succeed("systemctl is-enabled rescue.target | grep -q masked")
+    installed.succeed("test \"$(systemctl is-enabled emergency.service || true)\" = masked")
+    installed.succeed("test \"$(systemctl is-enabled emergency.target || true)\" = masked")
+    installed.succeed("test \"$(systemctl is-enabled rescue.service || true)\" = masked")
+    installed.succeed("test \"$(systemctl is-enabled rescue.target || true)\" = masked")
 
     # Configure graphical session preference for writer so the "Continue in the console session"
     # choice is also offered in the recovery menu.

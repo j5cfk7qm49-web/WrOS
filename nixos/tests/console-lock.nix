@@ -37,11 +37,11 @@ pkgs.testers.runNixOSTest {
     installed.succeed(
         "grep -q 'wros-lock assert-suspend' /etc/systemd/system/systemd-suspend.service.d/overrides.conf"
     )
-    installed.succeed("systemctl is-enabled hibernate.target | grep -q masked")
-    installed.succeed("systemctl is-enabled hybrid-sleep.target | grep -q masked")
-    installed.succeed("systemctl is-enabled suspend-then-hibernate.target | grep -q masked")
-    installed.succeed("systemctl is-enabled getty@tty8.service | grep -q masked")
-    installed.succeed("systemctl is-enabled autovt@tty8.service | grep -q masked")
+    installed.succeed("test \"$(systemctl is-enabled hibernate.target || true)\" = masked")
+    installed.succeed("test \"$(systemctl is-enabled hybrid-sleep.target || true)\" = masked")
+    installed.succeed("test \"$(systemctl is-enabled suspend-then-hibernate.target || true)\" = masked")
+    installed.succeed("test \"$(systemctl is-enabled getty@tty8.service || true)\" = masked")
+    installed.succeed("test \"$(systemctl is-enabled autovt@tty8.service || true)\" = masked")
     installed.fail("/run/current-system/sw/libexec/wros-lock assert-suspend")
 
     # 3. Log in as writer on tty1 via wros-greeter and open the writing editor
