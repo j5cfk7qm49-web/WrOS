@@ -99,6 +99,23 @@ rec {
         machine.wait_until_succeeds("pgrep -x wros-greeter")
         time.sleep(settle)
 
+    def log_in(machine, username: str, password: str, *, colemak: bool, console: bool = False) -> None:
+        # crates/wros-greeter/src/form.rs: the form opens on an empty username field; Enter
+        # moves to the password and Enter there submits. Down in the username field cycles
+        # saved accounts, so it is not used. Shift-Tab reaches the session switcher above the
+        # fields, where Right picks "console" for this login (text on tty1, readable by tests).
+        keys = colemak_keys if colemak else (lambda text: text)
+        wait_for_greeter(machine)
+        if console:
+            machine.send_key("shift-tab")
+            machine.send_key("right")
+            machine.send_key("tab")
+        machine.send_chars(keys(username))
+        machine.send_key("ret")
+        machine.send_chars(keys(password))
+        machine.send_key("ret")
+        machine.wait_until_succeeds(f"pgrep -u {username} grimoire", timeout=120)
+
     def build_encrypted_disk(
         installer_vm,
         *,
