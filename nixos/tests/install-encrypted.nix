@@ -91,5 +91,9 @@ pkgs.testers.runNixOSTest {
     booted.fail("id wros-live")
     booted.succeed("passwd -S root | awk '{exit ($2 == \"L\" ? 0 : 1)}'")
     wait_for_greeter(booted)
+
+    # A machine made with create_machine() is not stopped by the driver's cleanup; without
+    # this the test passes and the build then waits on the running VM forever.
+    booted.shutdown()
   '';
 }
