@@ -52,6 +52,9 @@ in
   xdg.menus.enable = lib.mkForce false;
   xdg.mime.enable = lib.mkForce false;
   xdg.autostart.enable = lib.mkForce false;
+  # NixOS turns speech-dispatcher on with any graphical session. It is what pulled in
+  # mbrola-voices (645 MiB) and flite (60 MiB); read-aloud calls espeak-ng directly.
+  services.speechd.enable = lib.mkForce false;
 
   # Link /libexec and /share/wros into /run/current-system/sw (H4).
   environment.pathsToLink = [ "/libexec" "/share/wros" ];
