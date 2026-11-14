@@ -44,6 +44,10 @@ rec {
     # The driver finds a machine by its start script, run-<system.name>-vm, and system.name
     # follows the host name. Keep it equal to the node's name.
     system.name = config.virtualisation.test.nodeName;
+    # The test driver talks to the guest through backdoor.service, which test-instrumentation.nix
+    # starts from multi-user.target. The recovery entry boots wros-recovery.target instead, so
+    # start the driver's service there too (test machines only).
+    systemd.services.backdoor.wantedBy = [ "wros-recovery.target" ];
     # qemu-vm.nix sets the whole attribute set to {} with mkVMOverride (priority 10). An override
     # on one attribute does not beat that; the node ended up with no encrypted device at all.
     boot.initrd.luks.devices = lib.mkOverride 9 {
@@ -108,14 +112,19 @@ rec {
     def log_in(machine, username: str, password: str, *, colemak: bool, console: bool = False) -> None:
         # crates/wros-greeter/src/form.rs: the form opens on an empty username field; Enter
         # moves to the password and Enter there submits. Down in the username field cycles
-        # saved accounts, so it is not used. Shift-Tab reaches the session switcher above the
-        # fields, where Right picks "console" for this login (text on tty1, readable by tests).
+        # saved accounts, so it is not used. For a console login the writer's own session
+        # setting is used (docs/GRAPHICAL_SESSION.md: session "console" keeps text), which
+        # puts the editor on tty1 as text that the tests can read. The greeter's switcher is
+        # not used: under the native input path Shift-Tab did not reach it.
         keys = colemak_keys if colemak else (lambda text: text)
-        wait_for_greeter(machine)
         if console:
-            machine.send_key("shift-tab")
-            machine.send_key("right")
-            machine.send_key("tab")
+            home = f"/home/{username}"
+            machine.succeed(
+                f"install -d -m 0700 -o {username} {home}/.config {home}/.config/wros && "
+                f"printf '%s' '{{\"version\":1,\"session\":\"console\"}}' > {home}/.config/wros/session.json && "
+                f"chown {username} {home}/.config/wros/session.json"
+            )
+        wait_for_greeter(machine)
         machine.send_chars(keys(username))
         machine.send_key("ret")
         machine.send_chars(keys(password))
