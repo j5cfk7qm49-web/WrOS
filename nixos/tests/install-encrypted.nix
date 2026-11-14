@@ -75,7 +75,11 @@ pkgs.testers.runNixOSTest {
     booted.start()
 
     # 5. Unlock the encrypted disk at the graphical prompt using the Colemak passphrase
-    booted.wait_until_tty_matches("1", "Type your disk password|Passphrase|passphrase")
+    # The guest shell does not exist until after boot, so the screen cannot be read through it
+    # here. Wait for the unlock unit's start line on the serial console, give the prompt time
+    # to draw, then type.
+    booted.wait_for_console_text("WrOS graphical disk unlock")
+    booted.sleep(25)
     booted.send_chars(colemak_keys("colemak-passphrase"))
     booted.send_key("ret")
 

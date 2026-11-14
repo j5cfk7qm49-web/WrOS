@@ -44,11 +44,15 @@ rec {
     # The driver finds a machine by its start script, run-<system.name>-vm, and system.name
     # follows the host name. Keep it equal to the node's name.
     system.name = config.virtualisation.test.nodeName;
-    boot.initrd.luks.devices."wros_crypt" = lib.mkVMOverride {
-      device = "/dev/disk/by-label/WROS-LUKS";
-      keyFile = "/crypt-ramfs/passphrase";
-      keyFileTimeout = 1;
-      allowDiscards = true;
+    # qemu-vm.nix sets the whole attribute set to {} with mkVMOverride (priority 10). An override
+    # on one attribute does not beat that; the node ended up with no encrypted device at all.
+    boot.initrd.luks.devices = lib.mkOverride 9 {
+      wros_crypt = {
+        device = "/dev/disk/by-label/WROS-LUKS";
+        keyFile = "/crypt-ramfs/passphrase";
+        keyFileTimeout = 1;
+        allowDiscards = true;
+      };
     };
   };
 
