@@ -29,7 +29,7 @@ pkgs.testers.runNixOSTest {
     # 2. Boot the encrypted disk and unlock at the graphical prompt (wros-boot unlock)
     #    typing the passphrase in the configured Colemak layout (T1, B1, B2, B5).
     installed.start(allow_reboot=True)
-    installed.wait_until_tty_matches("1", "Type your disk password")
+    wait_for_disk_prompt(installed)
     installed.send_chars(colemak_keys("colemak-passphrase"))
     installed.send_key("ret")
 

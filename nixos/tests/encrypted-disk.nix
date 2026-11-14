@@ -82,6 +82,14 @@ rec {
     def colemak_keys(text: str) -> str:
         return text.translate(COLEMAK_TO_QWERTY)
 
+    def wait_for_disk_prompt(machine, settle: int = 8) -> None:
+        # Before stage 2 there is no guest shell, so wait_until_tty_matches() and
+        # Machine.sleep() cannot be used here. The unlock unit logs this line to the
+        # kernel log (serial console) just before it starts the graphical prompt.
+        import time
+        machine.wait_for_console_text("wros-initrd-unlock: asking for the disk password")
+        time.sleep(settle)  # host-side: let wros-boot take the terminal and draw
+
     def build_encrypted_disk(
         installer_vm,
         *,

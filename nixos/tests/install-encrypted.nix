@@ -78,9 +78,7 @@ pkgs.testers.runNixOSTest {
     # The guest shell does not exist until after boot, so the screen cannot be read through it
     # here. Wait for the unlock unit's start line on the serial console, give the prompt time
     # to draw, then type.
-    booted.wait_for_console_text("WrOS graphical disk unlock")
-    import time
-    time.sleep(45)  # host-side: Machine.sleep() runs `sleep` in the guest, which is not up yet
+    wait_for_disk_prompt(booted)
     booted.send_chars(colemak_keys("colemak-passphrase"))
     booted.send_key("ret")
 

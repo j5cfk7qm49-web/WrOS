@@ -26,7 +26,7 @@ pkgs.testers.runNixOSTest {
     prepare_installed_disk(installed, disk_img)
 
     installed.start(allow_reboot=True)
-    installed.wait_until_tty_matches("1", "Type your disk password")
+    wait_for_disk_prompt(installed)
     installed.send_chars("recovery-disk-passphrase")
     installed.send_key("ret")
     installed.wait_for_unit("multi-user.target")

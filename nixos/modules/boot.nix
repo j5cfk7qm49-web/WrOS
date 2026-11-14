@@ -68,9 +68,17 @@
         ExecStop = "-${config.boot.initrd.systemd.package.util-linux}/bin/umount /crypt-ramfs";
       };
       script = ''
+        # Notes go to the kernel log at info level: hidden on the laptop's screen (loglevel=3),
+        # kept in the journal and shown on the serial console in the VM tests.
+        note() { echo "<6>wros-initrd-unlock: $*" > /dev/kmsg 2>/dev/null || true; }
+
         mkdir -p /crypt-ramfs /etc/wros /run/wros-boot-esp
         mount -t ramfs -o mode=0700 none /crypt-ramfs
         umask 077
+
+        # This unit starts before udev has probed the disk, so the ESP's label link may not
+        # exist yet. Wait for it briefly; a missing ESP only costs the saved layout and theme.
+        udevadm wait --timeout=15 /dev/disk/by-label/WROS-ESP 2>/dev/null || note "WROS-ESP did not appear"
 
         # Mount unencrypted WROS-ESP read-only and read untrusted config files with 8 KiB caps.
         if mount -t vfat -o ro,nodev,nosuid,noexec /dev/disk/by-label/WROS-ESP /run/wros-boot-esp 2>/dev/null; then
@@ -81,17 +89,30 @@
             fi
           done
           umount /run/wros-boot-esp 2>/dev/null || true
+        else
+          note "could not mount WROS-ESP; using the default layout"
         fi
 
         # Apply console keymap strictly from the 4 compiled layouts so both graphical and text prompts use it.
+        # The systemd initrd has bash and coreutils but no sed, so the layout is parsed in bash.
+        layout=qwerty
         if [ -f /etc/wros/keyboard.json ]; then
-          layout=$(sed -n 's/.*"layout"[[:space:]]*:[[:space:]]*"\([a-z0-9-]*\)".*/\1/p' /etc/wros/keyboard.json | head -n 1)
-          case "$layout" in
-            qwerty|colemak|colemak-dh-ansi|colemak-dh-iso)
-              /bin/loadkeys --unicode "/etc/wros/keymaps/$layout.map" >/dev/null 2>&1 || true
-              ;;
-          esac
+          json=$(head -c 8192 /etc/wros/keyboard.json)
+          if [[ $json =~ \"layout\"[[:space:]]*:[[:space:]]*\"([a-z0-9-]+)\" ]]; then
+            layout=''${BASH_REMATCH[1]}
+          fi
         fi
+        case "$layout" in
+          qwerty) ;;
+          colemak|colemak-dh-ansi|colemak-dh-iso)
+            if /bin/loadkeys --unicode "/etc/wros/keymaps/$layout.map" >/dev/null 2>&1; then
+              note "keyboard layout $layout"
+            else
+              note "loadkeys failed for $layout; the prompt uses qwerty"
+            fi
+            ;;
+          *) note "unknown layout '$layout' ignored" ;;
+        esac
 
         # Fall back to systemd-cryptsetup's text prompt on wros.unlock=text or when boot-screen != ratatui.
         case " $(cat /proc/cmdline 2>/dev/null) " in
@@ -103,12 +124,15 @@
           exit 0
         fi
 
+        note "asking for the disk password"
         if /bin/wros-boot unlock --tty /dev/console --theme /etc/wros/boot-theme.toml > /crypt-ramfs/passphrase.tmp; then
           if [ -s /crypt-ramfs/passphrase.tmp ]; then
             mv /crypt-ramfs/passphrase.tmp /crypt-ramfs/passphrase
+            note "password handed to systemd-cryptsetup"
             exit 0
           fi
         fi
+        note "graphical prompt ended without a password; falling back to the text prompt"
         rm -f /crypt-ramfs/passphrase.tmp /crypt-ramfs/passphrase
         /bin/wros-console-reset >/dev/null 2>&1 || true
         exit 0
