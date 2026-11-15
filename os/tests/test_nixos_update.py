@@ -225,7 +225,11 @@ class NixosUpdateEngineTests(unittest.TestCase):
             def fake_runner(cmd):
                 commands.append(cmd)
                 if len(cmd) >= 4 and cmd[0] == 'nix' and 'copy' in cmd:
-                    (store_dir / Path(cmd[-1]).name).mkdir(parents=True, exist_ok=True)
+                    # The engine copies the staged paths, not a closure: --no-recursive.
+                    self.assertIn('--no-recursive', cmd)
+                    for arg in cmd:
+                        if arg.startswith('/nix/store/'):
+                            (store_dir / Path(arg).name).mkdir(parents=True, exist_ok=True)
                 return subprocess.CompletedProcess(cmd, 0, b'', b'')
 
             applied1 = self.engine.execute_offline_boot_transaction(

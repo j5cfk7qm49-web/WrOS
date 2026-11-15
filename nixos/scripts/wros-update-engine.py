@@ -793,10 +793,19 @@ def import_verified_closure(staged_dir, closure, *, run=None, store_dir=Path('/n
     # 1. Re-verify every binary-cache file hash right before invoking nix copy.
     verify_closure_archives(staged, closure, store_dir=store_dir, allow_skipped_present=True)
     cache_uri = f'file://{staged.resolve() / "cache"}'
-    # 2. Import through Nix (works against the read-only /nix/store mount).
+    # 2. Import through Nix (works against the read-only /nix/store mount). Only the paths whose
+    #    .narinfo was staged, and --no-recursive: staging (write_nixos_tree) and delta bundles both
+    #    leave out the files of paths this machine already has, and a recursive copy walks the
+    #    closure in the *source* cache, so it stopped at the first such path ("path … is not
+    #    valid"). The paths left out are valid here, which is all an import of the rest needs.
+    wanted = sorted({
+        item['store_path'] for item in closure['cache_files']
+        if item.get('store_path') and item['path'].endswith('.narinfo')
+        and (staged / item['path']).is_file()
+    } | {closure['toplevel']})
     res = run([
         'nix', '--extra-experimental-features', 'nix-command',
-        'copy', '--from', cache_uri, '--no-check-sigs', closure['toplevel'],
+        'copy', '--from', cache_uri, '--no-check-sigs', '--no-recursive', *wanted,
     ])
     forget_valid_store_paths()
     if res.returncode != 0:
