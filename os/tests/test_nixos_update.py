@@ -269,9 +269,64 @@ class NixosUpdateEngineTests(unittest.TestCase):
             rb = self.engine.stage_rollback(
                 keyring=kr, signers=sig, state_dir=state_dir, trigger_path=trigger,
                 now=t2 + timedelta(minutes=10), version_file=ver_file,
-                current_system=cur_sys, store_dir=store_dir, gcroots_dir=gcroots)
+                current_system=cur_sys, store_dir=store_dir, gcroots_dir=gcroots, profile=profile)
             self.assertTrue(rb['rollback'])
             self.assertEqual(rb['toplevel'], top1)
+
+    def test_going_back_uses_previous_system_generation(self):
+        """NixOS keeps the previous generation, so even the first update can go back, by
+        nix-env --switch-generation, with no kept update tree."""
+        with tempfile.TemporaryDirectory(prefix='wros-nixos-gen-') as tmp:
+            root = Path(tmp)
+            store_dir = root / 'nix/store'
+            top1 = '/nix/store/0123456789abcdfghijklmnpqrsvwxyz-nixos-system-wros-0.1.0-rc13'
+            top2 = '/nix/store/1123456789abcdfghijklmnpqrsvwxyz-nixos-system-wros-0.1.0-rc14'
+            for top, ver in ((top1, '0.1.0~rc13'), (top2, '0.1.0~rc14')):
+                etc = store_dir / Path(top).name / 'etc/wros'
+                etc.mkdir(parents=True)
+                (etc / 'version').write_text(ver + '\n', encoding='utf-8')
+            profiles = root / 'profiles'
+            profiles.mkdir()
+            os.symlink(top1, profiles / 'system-1-link')
+            os.symlink(top2, profiles / 'system-2-link')
+            os.symlink('system-2-link', profiles / 'system')
+            profile = profiles / 'system'
+            ver_file = root / 'version'
+            ver_file.write_text('0.1.0~rc14\n', encoding='utf-8')
+            state_dir, trigger = root / 'state', root / 'system-update'
+            gcroots, cur_sys = root / 'gcroots', root / 'current-system'
+            moment = datetime(2026, 11, 14, 12, 0, tzinfo=timezone.utc)
+
+            rb = self.engine.stage_rollback(
+                state_dir=state_dir, trigger_path=trigger, now=moment, version_file=ver_file,
+                current_system=cur_sys, store_dir=store_dir, gcroots_dir=gcroots, profile=profile)
+            self.assertEqual((rb['status'], rb['rollback'], rb['toplevel']), ('staged', True, top1))
+            self.assertTrue(trigger.is_symlink())
+
+            commands = []
+
+            def fake_runner(cmd):
+                commands.append(cmd)
+                return subprocess.CompletedProcess(cmd, 0, '', '')
+
+            applied = self.engine.execute_offline_boot_transaction(
+                state_dir=state_dir, trigger_path=trigger, store_dir=store_dir, profile=profile,
+                current_system=cur_sys, gcroots_dir=gcroots, runner=fake_runner,
+                now=moment + timedelta(minutes=5))
+            self.assertEqual(applied['status'], 'completed')
+            self.assertIn(['nix-env', '-p', str(profile), '--switch-generation', '1'], commands)
+            self.assertFalse(any('--set' in cmd for cmd in commands))
+            self.assertFalse(any(cmd[0] == 'nix' for cmd in commands))  # nothing to import
+
+            # Back on generation 1 there is nothing older: going back again is refused.
+            os.unlink(profile)
+            os.symlink('system-1-link', profile)
+            ver_file.write_text('0.1.0~rc13\n', encoding='utf-8')
+            with self.assertRaisesRegex(ValueError, 'no previous version'):
+                self.engine.stage_rollback(
+                    state_dir=state_dir, trigger_path=trigger, now=moment + timedelta(minutes=10),
+                    version_file=ver_file, current_system=cur_sys, store_dir=store_dir,
+                    gcroots_dir=gcroots, profile=profile)
 
 
 if __name__ == '__main__':

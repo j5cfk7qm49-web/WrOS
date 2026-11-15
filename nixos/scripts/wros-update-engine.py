@@ -113,7 +113,25 @@ parse_release_time = _base.parse_release_time
 parse_release = _base.parse_release
 parse_iso = _base.parse_iso
 read_boot_id = _base.read_boot_id
-Store = _base.Store
+class Store(_base.Store):
+    """The Debian engine's state store; on NixOS "the version going back installs", as Settings
+    and the recovery menu show it, is the previous system generation's when there is one."""
+
+    def publish(self, trigger_path=None, records=None):
+        super().publish(trigger_path, records)
+        try:
+            target = previous_generation(DEFAULT_PROFILE)
+        except (OSError, ValueError):
+            target = None
+        if target is None:
+            return
+        try:
+            status = json.loads(read_regular_bytes(self.status_path, 262144).decode('utf-8'))
+            if isinstance(status, dict) and status.get('previous_version') != target[2]:
+                status['previous_version'] = target[2]
+                atomic_write(self.status_path, json_bytes(status), mode=0o644, dir_mode=0o755)
+        except (OSError, ValueError):
+            pass  # best effort, as the base publish is
 summarize = _base.summarize
 read_public_status = _base.read_public_status
 clear_partials = _base.clear_partials
@@ -816,16 +834,80 @@ def import_verified_closure(staged_dir, closure, *, run=None, store_dir=Path('/n
         fail(f'nix-store --verify-path failed after importing {closure["toplevel"]}')
 
 
-def switch_system_generation(toplevel, *, profile=DEFAULT_PROFILE, live=False, run=None):
-    """Set the system profile generation and activate its boot entries (or switch live)."""
+def switch_system_generation(toplevel, *, profile=DEFAULT_PROFILE, live=False, run=None,
+                             generation=None):
+    """Set the system profile generation and activate its boot entries (or switch live).
+    With `generation`, go back to that existing generation the way NixOS itself rolls back
+    (nix-env --switch-generation), rather than adding a new generation that repeats it."""
     run = run or _base.default_runner
-    res = run(['nix-env', '-p', str(profile), '--set', str(toplevel)])
+    if generation is None:
+        res = run(['nix-env', '-p', str(profile), '--set', str(toplevel)])
+    else:
+        res = run(['nix-env', '-p', str(profile), '--switch-generation', str(int(generation))])
     if res.returncode != 0:
         fail(f'failed to switch system profile to new generation: {_tail(res)}')
     verb = 'switch' if live else 'boot'
     res2 = run([str(Path(toplevel) / 'bin/switch-to-configuration'), verb])
     if res2.returncode != 0:
         fail(f'switch-to-configuration {verb} failed: {_tail(res2)}')
+
+
+GENERATION_FORMAT = 'wros-nixos-generation-v1'
+GENERATION_VERSION_RE = re.compile(r'[0-9][0-9A-Za-z.+~-]{0,63}')
+
+
+def system_generations(profile=DEFAULT_PROFILE):
+    """{number: toplevel} for the profile's generation links (<profile>-<n>-link), and the
+    number of the current one (None when the profile is not a generation link)."""
+    profile = Path(profile)
+    pattern = re.compile(rf'{re.escape(profile.name)}-([0-9]+)-link')
+    generations = {}
+    try:
+        entries = list(profile.parent.iterdir())
+    except OSError:
+        return {}, None
+    for link in entries:
+        found = pattern.fullmatch(link.name)
+        if found and link.is_symlink():
+            target = os.readlink(link)
+            if STORE_PATH_RE.fullmatch(target):
+                generations[int(found.group(1))] = target
+    try:
+        current = pattern.fullmatch(os.readlink(profile))
+    except OSError:
+        current = None
+    return generations, (int(current.group(1)) if current else None)
+
+
+def generation_version(toplevel, store_dir=REAL_STORE_DIR):
+    """The WrOS version a system generation carries in its own /etc/wros/version."""
+    # etc/wros/version is a symlink into the (immutable, root-owned) store, so it is followed.
+    try:
+        with open(Path(store_dir) / Path(toplevel).name / 'etc/wros/version', 'rb') as handle:
+            version = handle.read(4096).decode('utf-8').strip()
+    except (OSError, ValueError):
+        return None
+    return version if version and GENERATION_VERSION_RE.fullmatch(version) else None
+
+
+def previous_generation(profile=DEFAULT_PROFILE, store_dir=REAL_STORE_DIR):
+    """What going back installs on NixOS: the newest generation older than the current one that
+    is a different system and still in the store, as (number, toplevel, version), else None.
+    NixOS keeps it anyway (and GRUB lists it), so the first update can go back to the version
+    the machine was installed with; no kept update tree is needed."""
+    generations, current = system_generations(profile)
+    if current is None or current not in generations:
+        return None
+    for number in sorted(generations, reverse=True):
+        top = generations[number]
+        if number >= current or top == generations[current]:
+            continue
+        if not store_has_path(top, store_dir=store_dir):
+            continue
+        version = generation_version(top, store_dir=store_dir)
+        if version is not None:
+            return number, top, version
+    return None
 
 
 def _tail(res, limit=400):
@@ -848,9 +930,12 @@ def apply_staged_transaction(*, state_dir=DEFAULT_STATE_DIR, trigger_path=DEFAUL
             fail('no verified staged update owns the update trigger')
         last_applied = store.last_applied()
         try:
-            details = revalidate_staged_nixos(
-                store.staged, keyring=keyring, signers=signers, now=when,
-                last_applied=last_applied, mode='apply', store_dir=store_dir)
+            if staged_format(store.staged) == GENERATION_FORMAT:
+                details = revalidate_generation_rollback(store.staged, profile=profile, store_dir=store_dir)
+            else:
+                details = revalidate_staged_nixos(
+                    store.staged, keyring=keyring, signers=signers, now=when,
+                    last_applied=last_applied, mode='apply', store_dir=store_dir)
         except ValueError as exc:
             unlink_trigger(trigger_path)
             tx_id = secrets.token_hex(16)
@@ -868,7 +953,8 @@ def apply_staged_transaction(*, state_dir=DEFAULT_STATE_DIR, trigger_path=DEFAUL
         try:
             if not details['rollback']:
                 import_verified_closure(store.staged, details['closure'], run=run, store_dir=store_dir)
-            switch_system_generation(manifest['toplevel'], profile=profile, live=live, run=run)
+            switch_system_generation(manifest['toplevel'], profile=profile, live=live, run=run,
+                                     generation=manifest.get('generation'))
         except ValueError as exc:
             store.append('failed', tx_id, when, packages=labels, error=str(exc))
             store.publish(trigger_path)
@@ -894,6 +980,38 @@ def apply_staged_transaction(*, state_dir=DEFAULT_STATE_DIR, trigger_path=DEFAUL
             'toplevel': manifest['toplevel'],
             'version': manifest['wros_version'],
         }
+
+
+def staged_format(staged_dir):
+    try:
+        manifest = json.loads(read_regular_bytes(Path(staged_dir) / 'manifest.json', 262144).decode('utf-8'))
+    except (ValueError, OSError):
+        return None
+    return manifest.get('format') if isinstance(manifest, dict) else None
+
+
+def revalidate_generation_rollback(staged_dir, *, profile=DEFAULT_PROFILE, store_dir=REAL_STORE_DIR):
+    """A staged go-back to an existing system generation. Nothing was downloaded, so there is no
+    signature to re-check: the target must still be that generation of the root-owned system
+    profile, and still in the store."""
+    staged = Path(staged_dir)
+    require_private_entry(staged, 'dir')
+    require_private_entry(staged / 'manifest.json', 'file')
+    manifest = json.loads(read_regular_bytes(staged / 'manifest.json', 262144).decode('utf-8'))
+    if (not isinstance(manifest, dict) or manifest.get('version') != MANIFEST_VERSION
+            or manifest.get('format') != GENERATION_FORMAT or manifest.get('rollback') is not True):
+        fail('invalid staged go-back manifest')
+    tx_id = manifest.get('transaction_id')
+    if not isinstance(tx_id, str) or HEX32_RE.fullmatch(tx_id) is None:
+        fail('invalid staged update transaction id')
+    number = manifest.get('generation')
+    generations, _ = system_generations(profile)
+    if not isinstance(number, int) or generations.get(number) != manifest.get('toplevel'):
+        fail('the generation to go back to is no longer in the system profile')
+    if not store_has_path(manifest['toplevel'], store_dir=store_dir):
+        fail('previous generation closure is not present in /nix/store')
+    return {'manifest': manifest, 'tx_id': tx_id, 'closure': {'toplevel': manifest['toplevel']},
+            'release': None, 'fingerprint': None, 'rollback': True}
 
 
 def execute_offline_boot_transaction(**kwargs):
@@ -931,20 +1049,20 @@ def report_health(what, *, state_dir=DEFAULT_STATE_DIR, trigger_path=DEFAULT_TRI
 def stage_rollback(*, keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNERS, state_dir=DEFAULT_STATE_DIR,
                    trigger_path=DEFAULT_TRIGGER, now=None, version_file=DEFAULT_VERSION_FILE,
                    current_system=DEFAULT_CURRENT_SYSTEM, store_dir=Path('/nix/store'),
-                   gcroots_dir=DEFAULT_GCROOTS_DIR, **_unused):
+                   gcroots_dir=DEFAULT_GCROOTS_DIR, profile=DEFAULT_PROFILE, **_unused):
     store = Store(state_dir)
     with store.exclusive():
         return stage_rollback_locked(
             store, keyring=keyring, signers=signers, trigger_path=Path(trigger_path),
             when=clock(now), version_file=version_file, current_system=current_system,
-            store_dir=store_dir, gcroots_dir=gcroots_dir, automatic=False)
+            store_dir=store_dir, gcroots_dir=gcroots_dir, automatic=False, profile=profile)
 
 
 def stage_rollback_locked(store, *, keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNERS,
                           trigger_path=DEFAULT_TRIGGER, when=None,
                           version_file=DEFAULT_VERSION_FILE, current_system=DEFAULT_CURRENT_SYSTEM,
                           store_dir=Path('/nix/store'), gcroots_dir=DEFAULT_GCROOTS_DIR,
-                          automatic=False):
+                          automatic=False, profile=DEFAULT_PROFILE):
     when = clock(when)
     if os.path.lexists(trigger_path):
         fail('another offline update is already pending; original preserved')
@@ -952,6 +1070,14 @@ def stage_rollback_locked(store, *, keyring=DEFAULT_KEYRING, signers=DEFAULT_SIG
     records = store.records()
     if records and records[-1]['state'] == 'applying':
         fail('an interrupted update transaction must be reconciled before going back')
+    # NixOS keeps the previous system generation (and GRUB lists it): going back is going to it.
+    # The signed tree kept from an earlier update (rc13's mechanism) is only the fallback for a
+    # profile without generations.
+    target = previous_generation(profile, store_dir=store_dir)
+    if target is not None:
+        return stage_generation_rollback(
+            store, target, trigger_path=Path(trigger_path), when=when, version_file=version_file,
+            current_system=current_system, gcroots_dir=gcroots_dir, automatic=automatic)
     if not store.previous.is_dir() or store.previous.is_symlink():
         fail('there is no previous version to go back to')
     try:
@@ -1004,6 +1130,60 @@ def stage_rollback_locked(store, *, keyring=DEFAULT_KEYRING, signers=DEFAULT_SIG
         'status': 'staged',
         'transaction_id': tx_id,
         'review_id': manifest['review_id'],
+        'packages': 1,
+        'toplevel': prev_top,
+        'restart_required': True,
+        'rollback': True,
+    }
+
+
+def stage_generation_rollback(store, target, *, trigger_path, when, version_file, current_system,
+                              gcroots_dir, automatic):
+    """Stage going back to an existing system generation; applied in the same offline boot as an
+    update (so cancel, probation and the recovery menu work unchanged), by
+    nix-env --switch-generation."""
+    number, prev_top, prev_ver = target
+    have_ver = current_installed_version(version_file=version_file, current_system=current_system)
+    if have_ver is not None and not compare_versions(prev_ver, 'lt', have_ver):
+        fail('the previous version is not older than the installed one')
+    tx_id = secrets.token_hex(16)
+    review_id = hashlib.sha256(f'generation {number} {prev_top}'.encode('utf-8')).hexdigest()
+    partial = store.dir / f'staged.{tx_id}.partial'
+    try:
+        partial.mkdir(mode=0o700)
+        json_write(partial / 'manifest.json', {
+            'version': MANIFEST_VERSION,
+            'format': GENERATION_FORMAT,
+            'verified': True,
+            'transaction_id': tx_id,
+            'review_id': review_id,
+            'recorded_at_utc': when.isoformat(),
+            'toplevel': prev_top,
+            'generation': number,
+            'wros_version': prev_ver,
+            'packages': [{'name': 'wros', 'version': prev_ver}],
+            'rollback': True,
+            'automatic': automatic,
+            'rollback_from': [f'wros {have_ver}'] if have_ver else [],
+            'live_apply': False,
+        })
+        if os.path.lexists(store.staged):
+            remove_staged(store)
+        os.rename(partial, store.staged)
+        fsync_dir(store.dir)
+    except BaseException:
+        shutil.rmtree(partial, ignore_errors=True)
+        raise
+    store.append('staged', tx_id, when, packages=[f'wros {prev_ver}'], review_id=review_id,
+                 rollback=True, automatic=automatic, toplevel=prev_top, generation=number)
+    os.symlink(str(store.staged), trigger_path)
+    fsync_dir(Path(trigger_path).parent)
+    update_gc_roots(store, gcroots_dir=gcroots_dir, current_system=current_system)
+    store.publish(trigger_path)
+    return {
+        'status': 'staged',
+        'transaction_id': tx_id,
+        'review_id': review_id,
         'packages': 1,
         'toplevel': prev_top,
         'restart_required': True,
@@ -1073,12 +1253,14 @@ def reconcile(*, state_dir=DEFAULT_STATE_DIR, trigger_path=DEFAULT_TRIGGER,
                 started = probation.get('started_boot')
                 if started is not None and started != read_boot_id():
                     probation = probation | {'failed_logins': probation['failed_logins'] + 1, 'started_boot': None}
-                if probation['failed_logins'] >= PROBATION_FAILED_LOGINS and store.previous.is_dir():
+                can_go_back = (previous_generation(profile, store_dir=store_dir) is not None
+                               or store.previous.is_dir())
+                if probation['failed_logins'] >= PROBATION_FAILED_LOGINS and can_go_back:
                     end_probation(store)
                     stage_rollback_locked(
                         store, keyring=keyring, signers=signers, trigger_path=Path(trigger_path),
                         when=when, version_file=version_file, current_system=current_system,
-                        store_dir=store_dir, gcroots_dir=gcroots_dir, automatic=True)
+                        store_dir=store_dir, gcroots_dir=gcroots_dir, automatic=True, profile=profile)
                     return {'status': 'going-back',
                             'message': 'The new version did not start twice; going back to the previous one.'}
                 json_write(store.probation_path, probation)
