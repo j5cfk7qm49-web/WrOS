@@ -898,6 +898,7 @@ def previous_generation(profile=DEFAULT_PROFILE, store_dir=REAL_STORE_DIR):
     generations, current = system_generations(profile)
     if current is None or current not in generations:
         return None
+    current_version = generation_version(generations[current], store_dir=store_dir)
     for number in sorted(generations, reverse=True):
         top = generations[number]
         if number >= current or top == generations[current]:
@@ -905,7 +906,9 @@ def previous_generation(profile=DEFAULT_PROFILE, store_dir=REAL_STORE_DIR):
         if not store_has_path(top, store_dir=store_dir):
             continue
         version = generation_version(top, store_dir=store_dir)
-        if version is not None:
+        # Going back means an older version; a generation of the same version is not offered.
+        if version is not None and (current_version is None
+                                    or compare_versions(version, 'lt', current_version)):
             return number, top, version
     return None
 
@@ -1215,8 +1218,19 @@ def repair_updates(*, state_dir=DEFAULT_STATE_DIR, trigger_path=DEFAULT_TRIGGER,
             res = run(['nix-store', '--verify', '--check-contents'])
             if res.returncode != 0:
                 fail('Nix store integrity check failed; re-stage a signed update bundle to restore missing paths')
-            target_top = _manifest_toplevel(store.installed / 'manifest.json') or current_toplevel(current_system)
-            if target_top:
+            # Rewrite the boot entries for the profile's current generation. Not /run/current-system:
+            # in the recovery menu that is the recovery specialisation, and setting the profile to
+            # it made every later normal boot start the recovery configuration. And no new
+            # generation: re-activating the current one is NixOS's own repair, and a duplicate
+            # generation looked like something to go back to.
+            generations, current = system_generations(profile)
+            profile_top = generations.get(current) if current is not None else None
+            target_top = _manifest_toplevel(store.installed / 'manifest.json') or profile_top
+            if target_top and target_top == profile_top:
+                res = run([str(Path(target_top) / 'bin/switch-to-configuration'), 'boot'])
+                if res.returncode != 0:
+                    fail(f'switch-to-configuration boot failed: {_tail(res)}')
+            elif target_top:
                 switch_system_generation(target_top, profile=profile, live=False, run=run)
             records = store.records()
             tx_id = records[-1]['transaction_id'] if records else secrets.token_hex(16)

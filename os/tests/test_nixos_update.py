@@ -328,6 +328,42 @@ class NixosUpdateEngineTests(unittest.TestCase):
                     version_file=ver_file, current_system=cur_sys, store_dir=store_dir,
                     gcroots_dir=gcroots, profile=profile)
 
+    def test_same_version_generation_is_not_a_previous_version_and_repair_adds_none(self):
+        with tempfile.TemporaryDirectory(prefix='wros-nixos-gen2-') as tmp:
+            root = Path(tmp)
+            store_dir = root / 'nix/store'
+            tops = {
+                1: ('/nix/store/0123456789abcdfghijklmnpqrsvwxyz-nixos-system-wros-0.1.0-rc13', '0.1.0~rc13'),
+                2: ('/nix/store/1123456789abcdfghijklmnpqrsvwxyz-nixos-system-wros-0.1.0-rc14', '0.1.0~rc14'),
+                3: ('/nix/store/2123456789abcdfghijklmnpqrsvwxyz-nixos-system-wros-0.1.0-rc14', '0.1.0~rc14'),
+            }
+            profiles = root / 'profiles'
+            profiles.mkdir()
+            for number, (top, ver) in tops.items():
+                etc = store_dir / Path(top).name / 'etc/wros'
+                etc.mkdir(parents=True)
+                (etc / 'version').write_text(ver + '\n', encoding='utf-8')
+                os.symlink(top, profiles / f'system-{number}-link')
+            os.symlink('system-3-link', profiles / 'system')
+            profile = profiles / 'system'
+            # Generation 2 carries the running version; going back skips it to generation 1.
+            self.assertEqual(self.engine.previous_generation(profile, store_dir=store_dir),
+                             (1, tops[1][0], '0.1.0~rc13'))
+
+            commands = []
+
+            def fake_runner(cmd):
+                commands.append(cmd)
+                return subprocess.CompletedProcess(cmd, 0, '', '')
+
+            res = self.engine.repair_updates(
+                state_dir=root / 'state', trigger_path=root / 'system-update', profile=profile,
+                current_system=root / 'current-system', gcroots_dir=root / 'gcroots',
+                runner=fake_runner)
+            self.assertEqual(res['status'], 'recovered', res)
+            self.assertIn([tops[3][0] + '/bin/switch-to-configuration', 'boot'], commands)
+            self.assertFalse(any(cmd[:1] == ['nix-env'] for cmd in commands), commands)
+
 
 if __name__ == '__main__':
     unittest.main()
