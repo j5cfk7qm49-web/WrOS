@@ -145,19 +145,21 @@ pkgs.testers.runNixOSTest {
           failure the engine continues into multi-user.target; show its report and fail here
           rather than wait for a disk prompt that never comes."""
           import queue
-          done = re.compile(r"wros-offline-update\.service: (Deactivated successfully|Failed with result)")
+          # On success the engine asks for a reboot and the reboot stops the unit (SIGTERM, so
+          # systemd logs "Failed with result 'signal'"). Failure is the engine's own line, which
+          # it prints before continuing the boot.
+          ended = re.compile(r"Stopped Apply verified WrOS offline generation updates|wros-offline-update\.service: Deactivated successfully")
           buf = ""
-          outcome = ""
+          finished = False
           deadline = time.monotonic() + 2400
-          while not outcome and time.monotonic() < deadline:
+          while not finished and time.monotonic() < deadline:
               try:
                   buf += machine.last_lines.get(timeout=1) + "\n"
               except queue.Empty:
                   continue
-              found = done.search(buf)
-              outcome = found.group(1) if found else ""
-          assert outcome, "wros-offline-update did not finish"
-          if outcome != "Deactivated successfully":
+              finished = ended.search(buf) is not None
+          assert finished, "wros-offline-update did not finish"
+          if "offline update failed" in buf:
               machine.wait_for_unit("multi-user.target")
               print(machine.succeed("journalctl -b -u wros-offline-update --no-pager -o cat"))
               raise Exception("offline update failed; the engine's report is above")
