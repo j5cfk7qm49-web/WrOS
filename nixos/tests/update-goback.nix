@@ -156,7 +156,7 @@ pkgs.testers.runNixOSTest {
       )
       tamper_review = json.loads(installed.succeed(f"{UPDATE} review /media/wros-update/tampered"))
       installed.succeed(
-          "f=$(find /media/wros-update/tampered/cache/nar -name '*.nar.*' | head -n 1) && printf 'corrupt' >> \"$f\""
+          "f=$(find /media/wros-update/tampered/cache/nar -type f | head -n 1) && test -n \"$f\" && printf 'corrupt' >> \"$f\""
       )
       installed.fail(f"{STAGE} /media/wros-update/tampered {tamper_review['review_id']}")
 
