@@ -58,6 +58,9 @@ pkgs.testers.runNixOSTest {
     # Point only the test machine's update trust directory at nixos/tests/keys (U6, T5).
     installed = encryptedDisk.mkInstalledNode ({ ... }: {
       wros.updates.trustDir = testKeysDir;
+      # DIAGNOSTIC (local debugging only): show debug-level messages on the console and allow
+      # SysRq task dumps.
+      boot.kernelParams = [ "loglevel=8" "sysrq_always_enabled=1" ];
     });
 
     updated = encryptedDisk.mkInstalledNode ({ lib, ... }: {
@@ -179,6 +182,12 @@ pkgs.testers.runNixOSTest {
       wait_for_disk_prompt(installed)
       installed.send_chars("update-disk-passphrase")
       installed.send_key("ret")
+      # DIAGNOSTIC (local debugging only): dump blocked and all tasks two minutes in.
+      time.sleep(150)
+      installed.send_key("alt-sysrq-w")
+      time.sleep(10)
+      installed.send_key("alt-sysrq-t")
+      time.sleep(30)
 
       # Wait for the offline update reboot into the new generation
       wait_for_disk_prompt(installed)
