@@ -94,6 +94,21 @@ rec {
         machine.wait_for_console_text("wros-initrd-unlock: asking for the disk password")
         time.sleep(settle)  # host-side: let wros-boot take the terminal and draw
 
+    def unlock_at_prompt(machine, keys: str, attempts: int = 3) -> None:
+        # Type the disk password at the graphical prompt and check it was taken. Once in a
+        # loaded run the keys never reached the prompt, and with nothing typing again the guest
+        # rebooted to the same prompt until the test's hour ran out. The unlock unit logs the
+        # hand-over to the kernel log (serial console).
+        for attempt in range(attempts):
+            machine.send_chars(keys)
+            machine.send_key("ret")
+            try:
+                machine.wait_for_console_text("password handed to systemd-cryptsetup", timeout=60)
+                return
+            except Exception:
+                print(f"disk password not taken (attempt {attempt + 1}); typing it again")
+        raise AssertionError("the disk password was never taken at the graphical prompt")
+
     def wait_for_greeter(machine, settle: int = 5) -> None:
         # The login screen is drawn on DRM, so tty1 holds no text to match. Wait for the
         # state instead: greetd running its greeter session and wros-greeter alive.

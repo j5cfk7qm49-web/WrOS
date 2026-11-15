@@ -49,8 +49,7 @@ pkgs.testers.runNixOSTest {
     #    typing the passphrase in the configured Colemak layout (T1, B1, B2, B5).
     installed.start(allow_reboot=True)
     wait_for_disk_prompt(installed)
-    installed.send_chars(colemak_keys("colemak-passphrase"))
-    installed.send_key("ret")
+    unlock_at_prompt(installed, colemak_keys("colemak-passphrase"))
     # The start screen shows from the unlock until the login screen (in this VM it appears about
     # 13 s after the unlock and lasts a few seconds): pictures for the record.
     # (time is imported by the shared preamble.)
@@ -125,7 +124,8 @@ pkgs.testers.runNixOSTest {
         f"/run/current-system/sw/libexec/wros-boot-settings screen ratatui '{theme_toml}'"
     )
     installed.wait_until_succeeds("test -f /boot/wros-boot/boot-theme.toml")
-    installed.succeed("test -f /boot/wros-boot/boot-screen")
+    # The service writes the theme, then the screen choice: wait for both.
+    installed.wait_until_succeeds("test -f /boot/wros-boot/boot-screen")
 
     # 6. Activate the text-start specialisation ("WrOS (text start)", wros.unlock=text)
     #    and reboot to verify fallback to systemd's plain-text passphrase prompt (B1, B4, T1).
