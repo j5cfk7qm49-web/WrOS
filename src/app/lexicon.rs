@@ -57,7 +57,7 @@ impl Default for Lexicon {
             notice: String::new(),
             data_root: grimoire_core::env_setting("WORDNET_DIR")
                 .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from(wordnet::DEFAULT_ROOT)),
+                .unwrap_or_else(|| PathBuf::from(wros_sys::paths::WORDNET_DIR)),
             launched: 0,
             discarded: 0,
             generation: 0,

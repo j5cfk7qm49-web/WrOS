@@ -178,7 +178,7 @@ impl Keyboard {
         // The worker never loads a writer's XKB or Compose configuration.
         let mut context =
             xkb::Context::new(xkb::CONTEXT_NO_DEFAULT_INCLUDES | xkb::CONTEXT_NO_ENVIRONMENT_NAMES);
-        if !context.include_path_append(std::path::Path::new("/usr/share/X11/xkb")) {
+        if !context.include_path_append(std::path::Path::new(crate::paths::XKB_DIR)) {
             return Err(io::Error::other("System keyboard data is unavailable"));
         }
         let map = xkb::Keymap::new_from_names(
@@ -193,7 +193,7 @@ impl Keyboard {
         .ok_or_else(|| io::Error::other("System keyboard layout is unavailable"))?;
         use std::io::Read;
         let mut bytes = Vec::new();
-        std::fs::File::open("/usr/share/X11/locale/en_US.UTF-8/Compose")?
+        std::fs::File::open(crate::paths::X11_COMPOSE)?
             .take(2 * 1024 * 1024 + 1)
             .read_to_end(&mut bytes)?;
         if bytes.len() > 2 * 1024 * 1024 {

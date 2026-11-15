@@ -1,0 +1,295 @@
+{
+  "U1": {
+    "status": "fixed",
+    "where": [
+      "nixos/pkgs/helpers.nix",
+      "nixos/scripts/wros-update-engine.py"
+    ],
+    "evidence": "--replace-fail \"/usr/bin/gpgv\"",
+    "note": "Substituted all Debian tool and keyring paths in debian_engine.py with --replace-fail in nixos/pkgs/helpers.nix and passed helpers-no-fhs simulation with zero FHS matches."
+  },
+  "U2": {
+    "status": "fixed",
+    "where": [
+      "nixos/scripts/wros-update-engine.py",
+      "nixos/pkgs/update-bundle.nix",
+      "tools/collect-nixos-update-runtime.py"
+    ],
+    "evidence": "'copy', '--from', cache_uri, '--no-check-sigs'",
+    "note": "Replaced nix-store --restore with a zstd Nix binary cache (cache/nix-cache-info, cache/*.narinfo, cache/nar/*.nar.zst) imported via nix copy --from file://<cache> --no-check-sigs after verifying every file hash against the signed closure-manifest.json."
+  },
+  "U3": {
+    "status": "fixed",
+    "where": [
+      "nixos/modules/base.nix",
+      "os/tests/test_nixos_update.py",
+      "nixos/tests/update-goback.nix"
+    ],
+    "evidence": "environment.etc.\"wros/version\".text",
+    "note": "Added environment.etc.\"wros/version\".text = \"${version}\\n\" in nixos/modules/base.nix and tested downgrade and equal-version refusal on a fresh install."
+  },
+  "U4": {
+    "status": "fixed",
+    "where": [
+      "nixos/scripts/wros-update-engine.py"
+    ],
+    "evidence": "nix-collect-garbage",
+    "note": "Added os.statvfs free-space check before staging, removed staged/cache after store import so installed/ and previous/ retain no duplicate NARs, and deleted older generations (--delete-generations +2) and ran nix-collect-garbage once healthy."
+  },
+  "U5": {
+    "status": "fixed",
+    "where": [
+      "nixos/pkgs/update-bundle.nix",
+      "nixos/scripts/wros-update-engine.py",
+      "tools/collect-nixos-update-runtime.py"
+    ],
+    "evidence": "baselineToplevel ? null",
+    "note": "Added delta bundle generation (baselineToplevel / --baseline-toplevel) pruning unchanged baseline paths and made verify_closure_archives and fetch_online skip store paths already present in /nix/store."
+  },
+  "U6": {
+    "status": "fixed",
+    "where": [
+      "nixos/modules/updates.nix",
+      "nixos/scripts/wros-update-engine.py"
+    ],
+    "evidence": "options.wros.updates.trustDir",
+    "note": "Declared options.wros.updates.trustDir in nixos/modules/updates.nix (defaulting to os/config/update-trust), installed mode 0444 files in /etc/wros/update-trust/ via environment.etc, and resolved store-backed symlinks in resolve_trust_anchor()."
+  },
+  "U7": {
+    "status": "fixed",
+    "where": [
+      "nixos/pkgs/rust-packages.nix",
+      "nixos/pkgs/c-helpers.nix",
+      "nixos/pkgs/cage.nix",
+      "nixos/pkgs/keymaps.nix",
+      "nixos/pkgs/prose-runtime.nix",
+      "nixos/pkgs/licenses.nix",
+      "nixos/pkgs/helpers.nix"
+    ],
+    "evidence": "lib.fileset.toSource",
+    "note": "Scoped every derivation in nixos/pkgs/* with lib.fileset.toSource so editing docs, tests, or modules does not invalidate package store paths."
+  },
+  "U8": {
+    "status": "fixed",
+    "where": [
+      "nixos/scripts/wros-update-engine.py",
+      "docs/NIXOS_UPDATES.md"
+    ],
+    "evidence": "def http_stream_to_file(",
+    "note": "Streamed online downloads directly to disk in 64 KiB chunks while hashing, restricted PINNED_SUITES to ('wros-nixos-updates',), and documented the two-restart /system-update apply design decision in docs/NIXOS_UPDATES.md."
+  },
+  "B1": {
+    "status": "fixed",
+    "where": [
+      "nixos/modules/boot.nix"
+    ],
+    "evidence": "keyFile = \"/crypt-ramfs/passphrase\"",
+    "note": "Hooked wros-initrd-unlock.service before systemd-cryptsetup@wros_crypt.service to write /crypt-ramfs/passphrase in a 0700 ramfs and fall back to systemd's text prompt on wros.unlock=text, Esc, or failure."
+  },
+  "B2": {
+    "status": "fixed",
+    "where": [
+      "nixos/modules/boot.nix"
+    ],
+    "evidence": "boot.initrd.systemd = {",
+    "note": "Migrated nixos/modules/boot.nix from the deprecated scripted initrd to boot.initrd.systemd.enable = true using extraBin, storePaths, contents, and services."
+  },
+  "B3": {
+    "status": "fixed",
+    "where": [
+      "nixos/modules/boot.nix",
+      "nixos/scripts/wros-install-core"
+    ],
+    "evidence": "grub-editenv /boot/grub/grubenv unset wros_boot_pending",
+    "note": "Dropped the undefined have_grubenv guard from boot.loader.grub.extraConfig, initialized /boot/grub/grubenv in wros-install-core, and ensured wros-boot-ok.service creates /boot/grub/grubenv if missing before unsetting wros_boot_pending."
+  },
+  "B4": {
+    "status": "fixed",
+    "where": [
+      "nixos/modules/boot.nix"
+    ],
+    "evidence": "boot.loader.grub.configurationName = \"WrOS (text start)\"",
+    "note": "Removed broken extraEntries referencing non-existent default-kernel/default-initrd and set boot.loader.grub.configurationName on specialisation.text-start (\"WrOS (text start)\") and specialisation.recovery (\"WrOS recovery\")."
+  },
+  "B5": {
+    "status": "fixed",
+    "where": [
+      "nixos/modules/boot.nix"
+    ],
+    "evidence": "emergencyAccess = false;",
+    "note": "Set boot.initrd.systemd.emergencyAccess = false and panic=10 so no unauthenticated shell is reachable in stage 1."
+  },
+  "H1": {
+    "status": "fixed",
+    "where": [
+      "nixos/pkgs/helpers.nix"
+    ],
+    "evidence": "--replace-fail \"/usr/bin/loadkeys\"",
+    "note": "Replaced quote-dependent --replace-quiet calls with quote-independent --replace-fail across all installed helpers and debian_engine.py, retired wros-name-migrate on NixOS, and verified 0 FHS matches in helpers-no-fhs."
+  },
+  "H2": {
+    "status": "fixed",
+    "where": [
+      "nixos/scripts/wros-install-session",
+      "nixos/pkgs/helpers.nix"
+    ],
+    "evidence": "def supervise_installer(",
+    "note": "Rewrote nixos/scripts/wros-install-session as a self-contained NixOS supervisor without importing os/scripts/wros-install-session at runtime."
+  },
+  "H3": {
+    "status": "fixed",
+    "where": [
+      "nixos/modules/base.nix"
+    ],
+    "evidence": "networking.hostName = lib.mkDefault \"\";",
+    "note": "Set networking.hostName = lib.mkDefault \"\" and seeded /etc/hostname via systemd.tmpfiles.rules ('f /etc/hostname') so NixOS does not overwrite the hostname written by wros-install-core."
+  },
+  "H4": {
+    "status": "fixed",
+    "where": [
+      "nixos/modules/base.nix"
+    ],
+    "evidence": "environment.pathsToLink = [ \"/libexec\" \"/share/wros\" ];",
+    "note": "Added environment.pathsToLink = [ \"/libexec\" \"/share/wros\" ] in nixos/modules/base.nix so /run/current-system/sw/libexec/wros-* is linked."
+  },
+  "H5": {
+    "status": "fixed",
+    "where": [
+      "nixos/pkgs/rust-packages.nix"
+    ],
+    "evidence": "patchelf --add-rpath",
+    "note": "Patched grimoire with patchelf --add-rpath containing wayland, libxkbcommon, libGL, mesa, and vulkan-loader so dlopen succeeds while /proc/<pid>/exe remains grimoire."
+  },
+  "H6": {
+    "status": "fixed",
+    "where": [
+      "nixos/pkgs/paths.nix",
+      "nixos/pkgs/rust-packages.nix"
+    ],
+    "evidence": "bootPathEnv = {",
+    "note": "Split WROS_PATH_* into per-binary attribute sets (bootPathEnv, installerPathEnv, greeterPathEnv, rustPathEnv) so wros-boot, wros-installer, and wros-greeter do not depend on wros-helpers, wros-cage, or wros-prose-runtime."
+  },
+  "H7": {
+    "status": "fixed",
+    "where": [
+      "nixos/pkgs/paths.nix",
+      "nixos/tests/console-lock.nix"
+    ],
+    "evidence": "overrides.conf",
+    "note": "Updated suspendLockDropin in nixos/pkgs/paths.nix to /etc/systemd/system/systemd-suspend.service.d/overrides.conf (the drop-in NixOS generates for systemd-suspend.service) and verified it in nixos/tests/console-lock.nix."
+  },
+  "S1": {
+    "status": "fixed",
+    "where": [
+      "nixos/modules/base.nix",
+      "nixos/modules/audio.nix",
+      "nixos/modules/network.nix",
+      "nixos/modules/hardware.nix",
+      "docs/NIXOS_BASE.md"
+    ],
+    "evidence": "mbrolaSupport = false",
+    "note": "Disabled mbrolaSupport in espeak-ng (-645 MiB mbrola-voices), disabled networking.modemmanager.enable (-67 MiB libqmi/ModemManager), disabled default desktop font packs (-62 MiB noto-fonts-cjk-sans), trimmed linux-firmware/lib/firmware/intel bloat, disabled XDG sound/icon/menu generators, and documented each change in docs/NIXOS_BASE.md."
+  },
+  "T1": {
+    "status": "fixed",
+    "where": [
+      "nixos/tests/boot-unlock-login.nix",
+      "nixos/tests/encrypted-disk.nix"
+    ],
+    "evidence": "wros.unlock=text",
+    "note": "Rewrote boot-unlock-login.nix to boot a real LUKS2-encrypted disk built with wros-install-core, unlock with a Colemak passphrase via send_chars/send_key, log in as writer and verify non-root session, and boot the WrOS (text start) specialisation."
+  },
+  "T2": {
+    "status": "fixed",
+    "where": [
+      "nixos/tests/install-encrypted.nix",
+      "nixos/tests/encrypted-disk.nix"
+    ],
+    "evidence": "create_machine(",
+    "note": "Rewrote install-encrypted.nix to run wros-install-core onto /dev/vdb, shut down the live VM, start a fresh VM from that encrypted disk via create_machine, unlock LUKS via send_chars/send_key, and reach greetd.service."
+  },
+  "T3": {
+    "status": "fixed",
+    "where": [
+      "nixos/tests/keyboard-preview.nix",
+      "nixos/tests/encrypted-disk.nix"
+    ],
+    "evidence": "wros-keyboard-revert.timer",
+    "note": "Rewrote keyboard-preview.nix on an encrypted disk to test the 15-second wros-keyboard-revert.timer auto-rollback, confirm Colemak with its token, reboot, and unlock the next disk prompt using Colemak keys."
+  },
+  "T4": {
+    "status": "fixed",
+    "where": [
+      "nixos/tests/console-lock.nix",
+      "nixos/tests/encrypted-disk.nix"
+    ],
+    "evidence": "vlock-main",
+    "note": "Rewrote console-lock.nix to log in on tty1, lock the writing session onto tty8 (vlock-main), verify overrides.conf, test wrong then right password with send_chars, and verify keys typed while locked never reached the editor."
+  },
+  "T5": {
+    "status": "fixed",
+    "where": [
+      "nixos/tests/update-goback.nix"
+    ],
+    "evidence": "wros-update-rollback",
+    "note": "Rewrote update-goback.nix to point wros.updates.trustDir at nixos/tests/keys, build real signed binary-cache bundles for 0.1.0~rc15 and 0.1.0~rc12, test downgrade/equal/tampered refusal, stage via wros-update-stage, reboot into the new generation, and roll back via wros-update-rollback."
+  },
+  "T6": {
+    "status": "fixed",
+    "where": [
+      "nixos/tests/recovery-menu.nix"
+    ],
+    "evidence": "wros-recovery.target",
+    "note": "Rewrote recovery-menu.nix to boot into specialisation.recovery (wros-recovery.target), test wrong and right writer passwords on tty1, exercise offline menu choices via send_chars, and verify no shell is reachable."
+  },
+  "T7": {
+    "status": "fixed",
+    "where": [
+      "nixos/tests/live-session.nix"
+    ],
+    "evidence": "Install WrOS",
+    "note": "Rewrote live-session.nix to verify grimoire running as wros-live on tty1, launch Install WrOS onto tty7 (wros-installer as _wros-installer), verify the erase confirmation defaults to No, and cancel cleanly back to the live session."
+  },
+  "D1": {
+    "status": "fixed",
+    "where": [
+      "docs/NIXOS_BASE.md"
+    ],
+    "evidence": "mbrola-voices",
+    "note": "Updated docs/NIXOS_BASE.md so every statement matches the code and replaced the Round 1 size estimates with the measured Round 2 baseline figures and per-removal expected savings."
+  },
+  "D2": {
+    "status": "fixed",
+    "where": [
+      "docs/NIXOS_UPDATES.md",
+      "docs/API_AND_NETWORK_USE.md"
+    ],
+    "evidence": "100 MB per-file limit",
+    "note": "Documented the split between GitHub Pages (signed metadata, manifest, .narinfo, small delta NARs) and GitHub Releases (large .nar.zst assets >= 100 MB) in docs/NIXOS_UPDATES.md and listed every contacted host in docs/API_AND_NETWORK_USE.md."
+  },
+  "D3": {
+    "status": "fixed",
+    "where": [
+      "nixos/OPTIONS_USED.json"
+    ],
+    "evidence": "nixos/modules/config/nix-channel.nix",
+    "note": "Populated nixos/OPTIONS_USED.json with all 108 options set across nixos/modules/*.nix and fixed the declared_in paths for nix.channel.enable, nix.settings, and services.timesyncd.enable."
+  },
+  "D4": {
+    "status": "fixed",
+    "where": [
+      "ARGON_CHANGELOG.md"
+    ],
+    "evidence": "Ran 35 tests",
+    "note": "Replaced the Round 1 test transcript with exact unedited terminal outputs from commands executed in this container."
+  },
+  "R1": {
+    "status": "fixed",
+    "where": [
+      "os/tests/test_backup.py",
+      "os/scripts/wros-backup"
+    ],
+    "evidence": "localtime_file",
+    "note": "Added the missing localtime_file seam to SettingsProfile.test_older_snapshots_without_settings_still_restore in os/tests/test_backup.py and guarded write_profile in os/scripts/wros-backup when no settings/keyboard/timezone files exist."
+  }
+}

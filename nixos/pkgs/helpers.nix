@@ -1,0 +1,224 @@
+{ pkgs
+, lib
+, version
+, src
+, wros-display-hw
+, wros-cage
+, wros-keymaps
+, wros-prose-runtime
+}:
+let
+  wrapperDir = "/run/wrappers/bin";
+  safePath = lib.makeBinPath [
+    pkgs.coreutils
+    pkgs.util-linux
+    pkgs.systemd
+    pkgs.networkmanager
+    pkgs.brightnessctl
+    pkgs.power-profiles-daemon
+    pkgs.kbd
+    pkgs.vlock
+    pkgs.gnupg
+    pkgs.restic
+    pkgs.rclone
+    pkgs.e2fsprogs
+    pkgs.dosfstools
+    pkgs.cryptsetup
+    pkgs.lvm2
+    pkgs.gptfdisk
+    pkgs.parted
+    pkgs.nix
+    pkgs.zstd
+    pkgs.python3
+    pkgs.bash
+  ] + ":${wrapperDir}:/run/current-system/sw/bin";
+
+  helperSrc = lib.fileset.toSource {
+    root = src;
+    fileset = lib.fileset.unions [
+      (src + "/os/config/foot.ini")
+      (src + "/os/config/wros-keys-triggers.conf")
+      (src + "/os/scripts")
+      (src + "/nixos/scripts")
+    ];
+  };
+in
+pkgs.stdenv.mkDerivation {
+  pname = "wros-helpers";
+  inherit version;
+  src = helperSrc;
+
+  buildPhase = ''
+    runHook preBuild
+    mkdir -p "$out/libexec" "$out/bin" "$out/lib/wros-backup" "$out/lib/wros-update" "$out/share/wros"
+
+    install -m 644 os/config/foot.ini "$out/share/wros/foot.ini"
+    install -m 644 os/config/wros-keys-triggers.conf "$out/share/wros/wros-keys.conf"
+    substituteInPlace "$out/share/wros/wros-keys.conf" \
+      --replace-fail "/usr/libexec/wros-media-key" "$out/libexec/wros-media-key"
+
+    for script in \
+      wros-keyboard wros-display wros-boot-settings wros-clock \
+      wros-sound wros-passwd wros-media-key wros-backup wros-sync \
+      wros-session wros-lock wros-recovery \
+      wros-update wros-update-stage wros-update-cancel wros-update-repair \
+      wros-update-media wros-update-fetch wros-update-apply \
+      wros-update-rollback wros-update-healthy; do
+      install -m 755 "os/scripts/$script" "$out/libexec/$script"
+      substituteInPlace "$out/libexec/$script" \
+        --replace-fail "#!/usr/bin/python3 -I" "#!${pkgs.python3}/bin/python3 -I"
+    done
+
+    # Quote-independent --replace-fail substitutions per helper script
+    substituteInPlace "$out/libexec/wros-keyboard" \
+      --replace-fail "/usr/bin/loadkeys" "${pkgs.kbd}/bin/loadkeys" \
+      --replace-fail "/usr/bin/systemctl" "${pkgs.systemd}/bin/systemctl" \
+      --replace-fail "/usr/share/wros/keymaps" "${wros-keymaps}/share/wros/keymaps" \
+      --replace-fail "BOOT_SYNC_DIR = None" "BOOT_SYNC_DIR = Path('/boot/wros-boot')"
+
+    substituteInPlace "$out/libexec/wros-display" \
+      --replace-fail "/usr/sbin:/usr/bin:/sbin:/bin" "${safePath}" \
+      --replace-fail "/usr/bin/systemctl" "${pkgs.systemd}/bin/systemctl" \
+      --replace-fail "/usr/libexec/wros-display-hw" "${wros-display-hw}/libexec/wros-display-hw"
+
+    substituteInPlace "$out/libexec/wros-boot-settings" \
+      --replace-fail "/usr/sbin:/usr/bin:/sbin:/bin" "${safePath}" \
+      --replace-fail "/usr/bin/systemctl" "${pkgs.systemd}/bin/systemctl" \
+      --replace-fail "BOOT_SYNC_DIR = None" "BOOT_SYNC_DIR = Path('/boot/wros-boot')" \
+      --replace-fail "UPDATE_INITRAMFS = '/usr/sbin/update-initramfs'" "UPDATE_INITRAMFS = None"
+
+    substituteInPlace "$out/libexec/wros-clock" \
+      --replace-fail "/usr/sbin:/usr/bin:/sbin:/bin" "${safePath}" \
+      --replace-fail "/usr/bin/timedatectl" "${pkgs.systemd}/bin/timedatectl"
+
+    substituteInPlace "$out/libexec/wros-passwd" \
+      --replace-fail "/usr/bin/passwd" "${wrapperDir}/passwd" \
+      --replace-fail "/usr/bin:/bin" "${safePath}"
+
+    substituteInPlace "$out/libexec/wros-media-key" \
+      --replace-fail "/usr/lib/wros/keys/wros-keys.conf" "$out/share/wros/wros-keys.conf" \
+      --replace-fail "/usr/bin/brightnessctl" "${pkgs.brightnessctl}/bin/brightnessctl" \
+      --replace-fail "/usr/libexec/wros-sound" "$out/libexec/wros-sound" \
+      --replace-fail "/usr/bin:/bin" "${safePath}"
+
+    substituteInPlace "$out/libexec/wros-backup" \
+      --replace-fail "/usr/lib/wros-backup/link.py" "$out/lib/wros-backup/link.py" \
+      --replace-fail "/usr/share/wros/google-client.json" "/etc/wros/google-client.json" \
+      --replace-fail "/usr/bin/rclone" "${pkgs.rclone}/bin/rclone" \
+      --replace-fail "/usr/bin/restic" "${pkgs.restic}/bin/restic" \
+      --replace-fail "/usr/bin:/bin" "${safePath}"
+
+    substituteInPlace "$out/libexec/wros-sync" \
+      --replace-fail "/usr/bin/rclone" "${pkgs.rclone}/bin/rclone" \
+      --replace-fail "/usr/bin:/bin" "${safePath}"
+
+    substituteInPlace "$out/libexec/wros-session" \
+      --replace-fail "/usr/bin/grimoire" "/run/current-system/sw/bin/grimoire" \
+      --replace-fail "/usr/bin/cage" "${wros-cage}/bin/cage" \
+      --replace-fail "/usr/lib/wros/cage" "${wros-cage}/bin/cage" \
+      --replace-fail "/usr/bin/dpkg-query" "${pkgs.coreutils}/bin/false" \
+      --replace-fail "/usr/bin/foot" "${pkgs.foot}/bin/foot" \
+      --replace-fail "/usr/share/wros/foot.ini" "$out/share/wros/foot.ini" \
+      --replace-fail "/usr/lib/x86_64-linux-gnu/libwayland-egl.so.1" "${pkgs.wayland}/lib/libwayland-egl.so.1" \
+      --replace-fail "/usr/bin/logger" "${pkgs.util-linux}/bin/logger" \
+      --replace-fail "/usr/bin/pkexec" "${wrapperDir}/pkexec" \
+      --replace-fail "/usr/libexec/wros-update-healthy" "$out/libexec/wros-update-healthy" \
+      --replace-fail "/usr/libexec/wros-display" "$out/libexec/wros-display"
+
+    substituteInPlace "$out/libexec/wros-lock" \
+      --replace-fail "/usr/sbin:/usr/bin:/sbin:/bin" "${safePath}" \
+      --replace-fail "/usr/lib/wros/wros-greeter" "/run/current-system/sw/bin/wros-greeter" \
+      --replace-fail "/usr/bin/openvt" "${pkgs.kbd}/bin/openvt" \
+      --replace-fail "/usr/sbin/vlock-main" "${pkgs.vlock}/sbin/vlock-main" \
+      --replace-fail "/usr/lib/wros/cage" "${wros-cage}/bin/cage" \
+      --replace-fail "/usr/bin/cage" "${wros-cage}/bin/cage" \
+      --replace-fail "/usr/bin/grimoire" "/run/current-system/sw/bin/grimoire" \
+      --replace-fail "/usr/bin/loginctl" "${pkgs.systemd}/bin/loginctl" \
+      --replace-fail "/usr/bin/passwd" "${wrapperDir}/passwd" \
+      --replace-fail "/usr/bin/systemd-run" "${pkgs.systemd}/bin/systemd-run" \
+      --replace-fail "/usr/bin/chvt" "${pkgs.kbd}/bin/chvt" \
+      --replace-fail "/usr/lib/vlock/modules/all.so" "${pkgs.vlock}/lib/vlock/modules/all.so" \
+      --replace-fail "/usr/lib/vlock/modules/nosysrq.so" "${pkgs.vlock}/lib/vlock/modules/nosysrq.so" \
+      --replace-fail "/usr/lib/x86_64-linux-gnu/security/pam_succeed_if.so" "${pkgs.linux-pam}/lib/security/pam_succeed_if.so" \
+      --replace-fail "/usr/bin/systemctl" "${pkgs.systemd}/bin/systemctl" \
+      --replace-fail "/usr/bin/busctl" "${pkgs.systemd}/bin/busctl" \
+      --replace-fail "/usr/libexec/wros-lock" "$out/libexec/wros-lock"
+
+    substituteInPlace "$out/libexec/wros-recovery" \
+      --replace-fail "/usr/lib/wros-update/engine.py" "$out/lib/wros-update/engine.py" \
+      --replace-fail "/usr/libexec/wros-backup" "$out/libexec/wros-backup" \
+      --replace-fail "/usr/sbin:/usr/bin:/sbin:/bin" "${safePath}" \
+      --replace-fail "/usr/bin/systemctl" "${pkgs.systemd}/bin/systemctl" \
+      --replace-fail "/usr/libexec/wros-session" "$out/libexec/wros-session" \
+      --replace-fail "/usr/sbin/runuser" "${pkgs.util-linux}/bin/runuser" \
+      --replace-fail "/usr/bin/python3" "${pkgs.python3}/bin/python3" \
+      --replace-fail "/usr/bin/journalctl" "${pkgs.systemd}/bin/journalctl"
+
+    substituteInPlace "$out/libexec/wros-update" \
+      --replace-fail "/usr/lib/wros-update/engine.py" "$out/lib/wros-update/engine.py"
+
+    for updLauncher in \
+      wros-update-stage wros-update-cancel wros-update-repair \
+      wros-update-media wros-update-fetch wros-update-apply \
+      wros-update-rollback wros-update-healthy; do
+      substituteInPlace "$out/libexec/$updLauncher" \
+        --replace-fail "/usr/lib/wros-update/engine.py" "$out/lib/wros-update/engine.py" \
+        --replace-fail "/usr/sbin:/usr/bin:/sbin:/bin" "${safePath}"
+    done
+
+    install -m 644 os/scripts/wros-link.py "$out/lib/wros-backup/link.py"
+    substituteInPlace "$out/lib/wros-backup/link.py" \
+      --replace-fail "/usr/libexec/wros-backup" "$out/libexec/wros-backup"
+
+    install -m 644 os/scripts/wros-update-engine.py "$out/lib/wros-update/debian_engine.py"
+    substituteInPlace "$out/lib/wros-update/debian_engine.py" \
+      --replace-fail "thin entry points in /usr/libexec:" "thin entry points in $out/libexec:" \
+      --replace-fail "/usr/share/keyrings/wros-archive-keyring.gpg" "/etc/wros/update-trust/wros-archive-keyring.gpg" \
+      --replace-fail "/usr/share/wros/update-signers" "/etc/wros/update-trust/update-signers" \
+      --replace-fail "/usr/share/wros/update-keyring.gpg" "/etc/wros/update-trust/wros-archive-keyring.gpg" \
+      --replace-fail "/usr/sbin:/usr/bin:/sbin:/bin" "${safePath}" \
+      --replace-fail "/usr/bin/dpkg-deb" "${pkgs.coreutils}/bin/false" \
+      --replace-fail "/usr/bin/dpkg" "${pkgs.coreutils}/bin/false" \
+      --replace-fail "/usr/bin/apt-get" "${pkgs.coreutils}/bin/false" \
+      --replace-fail "/usr/bin/gpgv" "${pkgs.gnupg}/bin/gpgv" \
+      --replace-fail "/usr/bin/lsblk" "${pkgs.util-linux}/bin/lsblk" \
+      --replace-fail "/usr/bin/mount" "${pkgs.util-linux}/bin/mount" \
+      --replace-fail "/usr/bin/systemctl" "${pkgs.systemd}/bin/systemctl"
+
+    install -m 644 nixos/scripts/wros-update-engine.py "$out/lib/wros-update/engine.py"
+    substituteInPlace "$out/lib/wros-update/engine.py" \
+      --replace-fail "/usr/lib/wros-update/debian_engine.py" "$out/lib/wros-update/debian_engine.py" \
+      --replace-fail "/usr/sbin:/usr/bin:/sbin:/bin" "${safePath}"
+
+    for nixScript in wros-install-core wros-installer-backend wros-install-session wros-live-session; do
+      install -m 755 "nixos/scripts/$nixScript" "$out/libexec/$nixScript"
+      substituteInPlace "$out/libexec/$nixScript" \
+        --replace-fail "#!/usr/bin/python3 -I" "#!${pkgs.python3}/bin/python3 -I"
+    done
+
+    substituteInPlace "$out/libexec/wros-install-core" \
+      --replace-fail "/usr/sbin:/usr/bin:/sbin:/bin" "${safePath}"
+
+    substituteInPlace "$out/libexec/wros-installer-backend" \
+      --replace-fail "/usr/libexec/wros-install-core" "$out/libexec/wros-install-core"
+
+    substituteInPlace "$out/libexec/wros-install-session" \
+      --replace-fail "/usr/sbin:/usr/bin:/sbin:/bin" "${safePath}" \
+      --replace-fail "/usr/libexec/wros-installer-backend" "$out/libexec/wros-installer-backend" \
+      --replace-fail "/usr/libexec/wros-install-session" "$out/libexec/wros-install-session"
+
+    substituteInPlace "$out/libexec/wros-live-session" \
+      --replace-fail "/usr/libexec/wros-session" "$out/libexec/wros-session"
+
+    install -m 755 nixos/scripts/wros-rescue "$out/bin/wros-rescue"
+    substituteInPlace "$out/bin/wros-rescue" \
+      --replace-fail "#!/bin/bash" "#!${pkgs.bash}/bin/bash" \
+      --replace-fail "/usr/sbin:/usr/bin:/sbin:/bin" "${safePath}"
+
+    ln -s wros-keyboard "$out/libexec/writingdeck-keyboard"
+    ln -s wros-session "$out/libexec/writingdeck-session"
+    runHook postBuild
+  '';
+
+  dontInstall = true;
+}

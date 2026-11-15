@@ -1,4 +1,5 @@
 //! Input ownership only. No manuscripts, authentication, locking or power actions.
+pub mod paths;
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(all(target_os = "linux", feature = "native"))]

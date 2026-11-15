@@ -48,7 +48,7 @@ pub fn command(mut args: impl Iterator<Item = String>) -> Result<()> {
             let root = match args.next().as_deref() {
                 None => grimoire_core::env_setting("WORDNET_DIR")
                     .map(PathBuf::from)
-                    .unwrap_or_else(|| PathBuf::from(grimoire_core::lexicon::DEFAULT_ROOT)),
+                    .unwrap_or_else(|| PathBuf::from(wros_sys::paths::WORDNET_DIR)),
                 Some("--data") => args
                     .next()
                     .map(PathBuf::from)
@@ -285,7 +285,7 @@ fn prose_command(mut args: impl Iterator<Item = String>) -> Result<()> {
             source.clone(),
             &options,
             which,
-            &prose_tools::Runtime::default(),
+            &prose_tools::Runtime { python: grimoire_core::env_setting("TOOLS_PYTHON").map(PathBuf::from).unwrap_or_else(|| PathBuf::from(wros_sys::paths::TOOLS_PYTHON)), wall_ms: prose_tools::MAX_WALL_MS },
             permission.as_ref(),
             Arc::new(AtomicBool::new(false)),
         )?;

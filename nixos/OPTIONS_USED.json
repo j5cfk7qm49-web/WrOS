@@ -1,0 +1,667 @@
+[
+  {
+    "option": "services.dbus.enable",
+    "declared_in": "nixos/modules/services/system/dbus.nix",
+    "used_in": "nixos/modules/audio.nix"
+  },
+  {
+    "option": "services.pipewire.enable",
+    "declared_in": "nixos/modules/services/desktops/pipewire/pipewire.nix",
+    "used_in": "nixos/modules/audio.nix"
+  },
+  {
+    "option": "services.pipewire.alsa.enable",
+    "declared_in": "nixos/modules/services/desktops/pipewire/pipewire.nix",
+    "used_in": "nixos/modules/audio.nix"
+  },
+  {
+    "option": "services.pipewire.pulse.enable",
+    "declared_in": "nixos/modules/services/desktops/pipewire/pipewire.nix",
+    "used_in": "nixos/modules/audio.nix"
+  },
+  {
+    "option": "services.pipewire.wireplumber.enable",
+    "declared_in": "nixos/modules/services/desktops/pipewire/wireplumber.nix",
+    "used_in": "nixos/modules/audio.nix"
+  },
+  {
+    "option": "environment.systemPackages",
+    "declared_in": "nixos/modules/config/system-path.nix",
+    "used_in": "nixos/modules/audio.nix"
+  },
+  {
+    "option": "system.stateVersion",
+    "declared_in": "nixos/modules/misc/version.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "system.nixos.distroName",
+    "declared_in": "nixos/modules/misc/version.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "system.nixos.distroId",
+    "declared_in": "nixos/modules/misc/version.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "system.nixos.variantName",
+    "declared_in": "nixos/modules/misc/version.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "system.nixos.variant_id",
+    "declared_in": "nixos/modules/misc/version.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "nix.enable",
+    "declared_in": "nixos/modules/config/nix.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "nix.channel.enable",
+    "declared_in": "nixos/modules/config/nix-channel.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "nix.registry",
+    "declared_in": "nixos/modules/config/nix-flakes.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "nix.nixPath",
+    "declared_in": "nixos/modules/config/nix.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "nix.settings",
+    "declared_in": "nixos/modules/config/nix.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "nix.settings.experimental-features",
+    "declared_in": "nixos/modules/config/nix.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "nix.settings.substituters",
+    "declared_in": "nixos/modules/config/nix.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "nix.settings.trusted-public-keys",
+    "declared_in": "nixos/modules/config/nix.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "system.disableInstallerTools",
+    "declared_in": "nixos/modules/installer/tools/tools.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "system.switch.enable",
+    "declared_in": "nixos/modules/system/activation/switchable-system.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "networking.hostName",
+    "declared_in": "nixos/modules/tasks/network-interfaces.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "environment.defaultPackages",
+    "declared_in": "nixos/modules/config/system-path.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "documentation.enable",
+    "declared_in": "nixos/modules/misc/documentation.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "documentation.man.enable",
+    "declared_in": "nixos/modules/misc/documentation.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "documentation.info.enable",
+    "declared_in": "nixos/modules/misc/documentation.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "documentation.doc.enable",
+    "declared_in": "nixos/modules/misc/documentation.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "documentation.nixos.enable",
+    "declared_in": "nixos/modules/misc/documentation.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "fonts.enableDefaultPackages",
+    "declared_in": "nixos/modules/config/fonts/fontconfig.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "fonts.packages",
+    "declared_in": "nixos/modules/config/fonts/packages.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "xdg.sounds.enable",
+    "declared_in": "nixos/modules/config/xdg/sounds.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "xdg.icons.enable",
+    "declared_in": "nixos/modules/config/xdg/icons.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "xdg.menus.enable",
+    "declared_in": "nixos/modules/config/xdg/menus.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "xdg.mime.enable",
+    "declared_in": "nixos/modules/config/xdg/mime.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "xdg.autostart.enable",
+    "declared_in": "nixos/modules/config/xdg/autostart.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "environment.pathsToLink",
+    "declared_in": "nixos/modules/config/system-path.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "i18n.defaultLocale",
+    "declared_in": "nixos/modules/config/i18n.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "time.timeZone",
+    "declared_in": "nixos/modules/config/timezone.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "users.mutableUsers",
+    "declared_in": "nixos/modules/config/users-groups.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "users.users",
+    "declared_in": "nixos/modules/config/users-groups.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "users.groups",
+    "declared_in": "nixos/modules/config/users-groups.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "environment.systemPackages",
+    "declared_in": "nixos/modules/config/system-path.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "environment.variables",
+    "declared_in": "nixos/modules/config/shells-environment.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "environment.etc",
+    "declared_in": "nixos/modules/system/etc/etc.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "systemd.tmpfiles.rules",
+    "declared_in": "nixos/modules/system/boot/systemd/tmpfiles.nix",
+    "used_in": "nixos/modules/base.nix"
+  },
+  {
+    "option": "fileSystems",
+    "declared_in": "nixos/modules/tasks/filesystems.nix",
+    "used_in": "nixos/modules/boot.nix"
+  },
+  {
+    "option": "boot.initrd.enable",
+    "declared_in": "nixos/modules/system/boot/stage-1.nix",
+    "used_in": "nixos/modules/boot.nix"
+  },
+  {
+    "option": "boot.initrd.systemd.enable",
+    "declared_in": "nixos/modules/system/boot/systemd/initrd.nix",
+    "used_in": "nixos/modules/boot.nix"
+  },
+  {
+    "option": "boot.initrd.systemd.emergencyAccess",
+    "declared_in": "nixos/modules/system/boot/systemd/initrd.nix",
+    "used_in": "nixos/modules/boot.nix"
+  },
+  {
+    "option": "boot.initrd.systemd.extraBin",
+    "declared_in": "nixos/modules/system/boot/systemd/initrd.nix",
+    "used_in": "nixos/modules/boot.nix"
+  },
+  {
+    "option": "boot.initrd.systemd.storePaths",
+    "declared_in": "nixos/modules/system/boot/systemd/initrd.nix",
+    "used_in": "nixos/modules/boot.nix"
+  },
+  {
+    "option": "boot.initrd.systemd.contents",
+    "declared_in": "nixos/modules/system/boot/systemd/initrd.nix",
+    "used_in": "nixos/modules/boot.nix"
+  },
+  {
+    "option": "boot.initrd.systemd.services",
+    "declared_in": "nixos/modules/system/boot/systemd/initrd.nix",
+    "used_in": "nixos/modules/boot.nix"
+  },
+  {
+    "option": "boot.initrd.luks.devices",
+    "declared_in": "nixos/modules/system/boot/luksroot.nix",
+    "used_in": "nixos/modules/boot.nix"
+  },
+  {
+    "option": "boot.kernelParams",
+    "declared_in": "nixos/modules/system/boot/kernel.nix",
+    "used_in": "nixos/modules/boot.nix"
+  },
+  {
+    "option": "boot.consoleLogLevel",
+    "declared_in": "nixos/modules/system/boot/stage-1.nix",
+    "used_in": "nixos/modules/boot.nix"
+  },
+  {
+    "option": "boot.loader.efi.canTouchEfiVariables",
+    "declared_in": "nixos/modules/system/boot/loader/efi.nix",
+    "used_in": "nixos/modules/boot.nix"
+  },
+  {
+    "option": "boot.loader.efi.efiSysMountPoint",
+    "declared_in": "nixos/modules/system/boot/loader/efi.nix",
+    "used_in": "nixos/modules/boot.nix"
+  },
+  {
+    "option": "boot.loader.timeout",
+    "declared_in": "nixos/modules/system/boot/loader/loader.nix",
+    "used_in": "nixos/modules/boot.nix"
+  },
+  {
+    "option": "boot.loader.grub.enable",
+    "declared_in": "nixos/modules/system/boot/loader/grub/grub.nix",
+    "used_in": "nixos/modules/boot.nix"
+  },
+  {
+    "option": "boot.loader.grub.device",
+    "declared_in": "nixos/modules/system/boot/loader/grub/grub.nix",
+    "used_in": "nixos/modules/boot.nix"
+  },
+  {
+    "option": "boot.loader.grub.efiSupport",
+    "declared_in": "nixos/modules/system/boot/loader/grub/grub.nix",
+    "used_in": "nixos/modules/boot.nix"
+  },
+  {
+    "option": "boot.loader.grub.efiInstallAsRemovable",
+    "declared_in": "nixos/modules/system/boot/loader/grub/grub.nix",
+    "used_in": "nixos/modules/boot.nix"
+  },
+  {
+    "option": "boot.loader.grub.timeoutStyle",
+    "declared_in": "nixos/modules/system/boot/loader/grub/grub.nix",
+    "used_in": "nixos/modules/boot.nix"
+  },
+  {
+    "option": "boot.loader.grub.configurationLimit",
+    "declared_in": "nixos/modules/system/boot/loader/grub/grub.nix",
+    "used_in": "nixos/modules/boot.nix"
+  },
+  {
+    "option": "boot.loader.grub.extraConfig",
+    "declared_in": "nixos/modules/system/boot/loader/grub/grub.nix",
+    "used_in": "nixos/modules/boot.nix"
+  },
+  {
+    "option": "boot.loader.grub.configurationName",
+    "declared_in": "nixos/modules/system/boot/loader/grub/grub.nix",
+    "used_in": "nixos/modules/boot.nix"
+  },
+  {
+    "option": "specialisation",
+    "declared_in": "nixos/modules/system/activation/specialisation.nix",
+    "used_in": "nixos/modules/boot.nix"
+  },
+  {
+    "option": "systemd.services",
+    "declared_in": "nixos/modules/system/boot/systemd.nix",
+    "used_in": "nixos/modules/boot.nix"
+  },
+  {
+    "option": "systemd.paths",
+    "declared_in": "nixos/modules/system/boot/systemd.nix",
+    "used_in": "nixos/modules/boot.nix"
+  },
+  {
+    "option": "security.sudo.enable",
+    "declared_in": "nixos/modules/security/sudo.nix",
+    "used_in": "nixos/modules/guards.nix"
+  },
+  {
+    "option": "security.sudo.wheelNeedsPassword",
+    "declared_in": "nixos/modules/security/sudo.nix",
+    "used_in": "nixos/modules/guards.nix"
+  },
+  {
+    "option": "security.pam.services",
+    "declared_in": "nixos/modules/security/pam.nix",
+    "used_in": "nixos/modules/guards.nix"
+  },
+  {
+    "option": "environment.etc",
+    "declared_in": "nixos/modules/system/etc/etc.nix",
+    "used_in": "nixos/modules/guards.nix"
+  },
+  {
+    "option": "services.logind.settings.Login",
+    "declared_in": "nixos/modules/system/boot/systemd/logind.nix",
+    "used_in": "nixos/modules/guards.nix"
+  },
+  {
+    "option": "systemd.sleep.settings.Sleep",
+    "declared_in": "nixos/modules/system/boot/systemd.nix",
+    "used_in": "nixos/modules/guards.nix"
+  },
+  {
+    "option": "systemd.settings.Manager",
+    "declared_in": "nixos/modules/system/boot/systemd.nix",
+    "used_in": "nixos/modules/guards.nix"
+  },
+  {
+    "option": "systemd.services",
+    "declared_in": "nixos/modules/system/boot/systemd.nix",
+    "used_in": "nixos/modules/guards.nix"
+  },
+  {
+    "option": "systemd.targets",
+    "declared_in": "nixos/modules/system/boot/systemd.nix",
+    "used_in": "nixos/modules/guards.nix"
+  },
+  {
+    "option": "boot.kernel.sysctl",
+    "declared_in": "nixos/modules/system/boot/kernel.nix",
+    "used_in": "nixos/modules/guards.nix"
+  },
+  {
+    "option": "systemd.coredump.enable",
+    "declared_in": "nixos/modules/system/boot/coredump.nix",
+    "used_in": "nixos/modules/guards.nix"
+  },
+  {
+    "option": "boot.kernelPackages",
+    "declared_in": "nixos/modules/system/boot/kernel.nix",
+    "used_in": "nixos/modules/hardware.nix"
+  },
+  {
+    "option": "hardware.enableRedistributableFirmware",
+    "declared_in": "nixos/modules/hardware/all-firmware.nix",
+    "used_in": "nixos/modules/hardware.nix"
+  },
+  {
+    "option": "hardware.firmware",
+    "declared_in": "nixos/modules/hardware/all-firmware.nix",
+    "used_in": "nixos/modules/hardware.nix"
+  },
+  {
+    "option": "hardware.wirelessRegulatoryDatabase",
+    "declared_in": "nixos/modules/hardware/all-firmware.nix",
+    "used_in": "nixos/modules/hardware.nix"
+  },
+  {
+    "option": "hardware.graphics.enable",
+    "declared_in": "nixos/modules/hardware/graphics.nix",
+    "used_in": "nixos/modules/hardware.nix"
+  },
+  {
+    "option": "boot.initrd.availableKernelModules",
+    "declared_in": "nixos/modules/system/boot/stage-1.nix",
+    "used_in": "nixos/modules/hardware.nix"
+  },
+  {
+    "option": "boot.initrd.kernelModules",
+    "declared_in": "nixos/modules/system/boot/stage-1.nix",
+    "used_in": "nixos/modules/hardware.nix"
+  },
+  {
+    "option": "boot.extraModprobeConfig",
+    "declared_in": "nixos/modules/system/boot/modprobe.nix",
+    "used_in": "nixos/modules/hardware.nix"
+  },
+  {
+    "option": "services.udev.extraRules",
+    "declared_in": "nixos/modules/services/hardware/udev.nix",
+    "used_in": "nixos/modules/hardware.nix"
+  },
+  {
+    "option": "services.upower.enable",
+    "declared_in": "nixos/modules/services/hardware/upower.nix",
+    "used_in": "nixos/modules/hardware.nix"
+  },
+  {
+    "option": "services.power-profiles-daemon.enable",
+    "declared_in": "nixos/modules/services/hardware/power-profiles-daemon.nix",
+    "used_in": "nixos/modules/hardware.nix"
+  },
+  {
+    "option": "services.triggerhappy.enable",
+    "declared_in": "nixos/modules/services/hardware/triggerhappy.nix",
+    "used_in": "nixos/modules/hardware.nix"
+  },
+  {
+    "option": "services.triggerhappy.user",
+    "declared_in": "nixos/modules/services/hardware/triggerhappy.nix",
+    "used_in": "nixos/modules/hardware.nix"
+  },
+  {
+    "option": "services.triggerhappy.bindings",
+    "declared_in": "nixos/modules/services/hardware/triggerhappy.nix",
+    "used_in": "nixos/modules/hardware.nix"
+  },
+  {
+    "option": "isoImage.volumeID",
+    "declared_in": "nixos/modules/installer/cd-dvd/iso-image.nix",
+    "used_in": "nixos/modules/live.nix"
+  },
+  {
+    "option": "isoImage.makeEfiBootable",
+    "declared_in": "nixos/modules/installer/cd-dvd/iso-image.nix",
+    "used_in": "nixos/modules/live.nix"
+  },
+  {
+    "option": "isoImage.makeUsbBootable",
+    "declared_in": "nixos/modules/installer/cd-dvd/iso-image.nix",
+    "used_in": "nixos/modules/live.nix"
+  },
+  {
+    "option": "isoImage.storeContents",
+    "declared_in": "nixos/modules/installer/cd-dvd/iso-image.nix",
+    "used_in": "nixos/modules/live.nix"
+  },
+  {
+    "option": "environment.etc",
+    "declared_in": "nixos/modules/system/etc/etc.nix",
+    "used_in": "nixos/modules/live.nix"
+  },
+  {
+    "option": "boot.kernelParams",
+    "declared_in": "nixos/modules/system/boot/kernel.nix",
+    "used_in": "nixos/modules/live.nix"
+  },
+  {
+    "option": "users.users",
+    "declared_in": "nixos/modules/config/users-groups.nix",
+    "used_in": "nixos/modules/live.nix"
+  },
+  {
+    "option": "users.groups",
+    "declared_in": "nixos/modules/config/users-groups.nix",
+    "used_in": "nixos/modules/live.nix"
+  },
+  {
+    "option": "systemd.services",
+    "declared_in": "nixos/modules/system/boot/systemd.nix",
+    "used_in": "nixos/modules/live.nix"
+  },
+  {
+    "option": "environment.systemPackages",
+    "declared_in": "nixos/modules/config/system-path.nix",
+    "used_in": "nixos/modules/live.nix"
+  },
+  {
+    "option": "security.polkit.extraConfig",
+    "declared_in": "nixos/modules/security/polkit.nix",
+    "used_in": "nixos/modules/live.nix"
+  },
+  {
+    "option": "networking.useDHCP",
+    "declared_in": "nixos/modules/tasks/network-interfaces.nix",
+    "used_in": "nixos/modules/network.nix"
+  },
+  {
+    "option": "networking.modemmanager.enable",
+    "declared_in": "nixos/modules/services/networking/modemmanager.nix",
+    "used_in": "nixos/modules/network.nix"
+  },
+  {
+    "option": "networking.networkmanager.enable",
+    "declared_in": "nixos/modules/services/networking/networkmanager.nix",
+    "used_in": "nixos/modules/network.nix"
+  },
+  {
+    "option": "networking.networkmanager.wifi.powersave",
+    "declared_in": "nixos/modules/services/networking/networkmanager.nix",
+    "used_in": "nixos/modules/network.nix"
+  },
+  {
+    "option": "networking.networkmanager.plugins",
+    "declared_in": "nixos/modules/services/networking/networkmanager.nix",
+    "used_in": "nixos/modules/network.nix"
+  },
+  {
+    "option": "environment.etc",
+    "declared_in": "nixos/modules/system/etc/etc.nix",
+    "used_in": "nixos/modules/network.nix"
+  },
+  {
+    "option": "services.timesyncd.enable",
+    "declared_in": "nixos/modules/system/boot/timesyncd.nix",
+    "used_in": "nixos/modules/network.nix"
+  },
+  {
+    "option": "services.timesyncd.servers",
+    "declared_in": "nixos/modules/system/boot/timesyncd.nix",
+    "used_in": "nixos/modules/network.nix"
+  },
+  {
+    "option": "environment.systemPackages",
+    "declared_in": "nixos/modules/config/system-path.nix",
+    "used_in": "nixos/modules/network.nix"
+  },
+  {
+    "option": "security.polkit.enable",
+    "declared_in": "nixos/modules/security/polkit.nix",
+    "used_in": "nixos/modules/polkit.nix"
+  },
+  {
+    "option": "environment.systemPackages",
+    "declared_in": "nixos/modules/config/system-path.nix",
+    "used_in": "nixos/modules/polkit.nix"
+  },
+  {
+    "option": "security.polkit.extraConfig",
+    "declared_in": "nixos/modules/security/polkit.nix",
+    "used_in": "nixos/modules/polkit.nix"
+  },
+  {
+    "option": "systemd.targets",
+    "declared_in": "nixos/modules/system/boot/systemd.nix",
+    "used_in": "nixos/modules/recovery.nix"
+  },
+  {
+    "option": "systemd.services",
+    "declared_in": "nixos/modules/system/boot/systemd.nix",
+    "used_in": "nixos/modules/recovery.nix"
+  },
+  {
+    "option": "services.dbus.enable",
+    "declared_in": "nixos/modules/services/system/dbus.nix",
+    "used_in": "nixos/modules/session.nix"
+  },
+  {
+    "option": "services.dbus.implementation",
+    "declared_in": "nixos/modules/services/system/dbus.nix",
+    "used_in": "nixos/modules/session.nix"
+  },
+  {
+    "option": "console.enable",
+    "declared_in": "nixos/modules/config/console.nix",
+    "used_in": "nixos/modules/session.nix"
+  },
+  {
+    "option": "console.earlySetup",
+    "declared_in": "nixos/modules/config/console.nix",
+    "used_in": "nixos/modules/session.nix"
+  },
+  {
+    "option": "console.keyMap",
+    "declared_in": "nixos/modules/config/console.nix",
+    "used_in": "nixos/modules/session.nix"
+  },
+  {
+    "option": "environment.etc",
+    "declared_in": "nixos/modules/system/etc/etc.nix",
+    "used_in": "nixos/modules/session.nix"
+  },
+  {
+    "option": "services.greetd.enable",
+    "declared_in": "nixos/modules/services/display-managers/greetd.nix",
+    "used_in": "nixos/modules/session.nix"
+  },
+  {
+    "option": "services.greetd.settings",
+    "declared_in": "nixos/modules/services/display-managers/greetd.nix",
+    "used_in": "nixos/modules/session.nix"
+  },
+  {
+    "option": "systemd.services",
+    "declared_in": "nixos/modules/system/boot/systemd.nix",
+    "used_in": "nixos/modules/session.nix"
+  },
+  {
+    "option": "environment.extraInit",
+    "declared_in": "nixos/modules/config/shells-environment.nix",
+    "used_in": "nixos/modules/session.nix"
+  },
+  {
+    "option": "systemd.timers",
+    "declared_in": "nixos/modules/system/boot/systemd.nix",
+    "used_in": "nixos/modules/session.nix"
+  },
+  {
+    "option": "environment.etc",
+    "declared_in": "nixos/modules/system/etc/etc.nix",
+    "used_in": "nixos/modules/updates.nix"
+  },
+  {
+    "option": "systemd.services",
+    "declared_in": "nixos/modules/system/boot/systemd.nix",
+    "used_in": "nixos/modules/updates.nix"
+  }
+]

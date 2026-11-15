@@ -1,0 +1,39 @@
+name: nix-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  nix-evaluate-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Run static rebase checker and unit tests
+        run: |
+          python3 rebase-kit/test_check_rebase.py
+          python3 os/tests/test_nixos_update.py
+          python3 os/tests/test_backup.py
+          python3 os/tests/test_keyboard.py
+          python3 os/tests/test_boot_settings.py
+      - uses: cachix/install-nix-action@v30
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - name: Evaluate flake outputs without building
+        run: |
+          nix flake lock
+          nix flake check --no-build
+      - name: Build WrOS packages and NixOS system toplevel
+        run: |
+          nix build .#grimoire .#wros-greeter .#wros-boot .#wros-installer
+          nix build .#nixosConfigurations.wros.config.system.build.toplevel
+          nix path-info -Sh ./result

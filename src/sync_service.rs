@@ -54,7 +54,7 @@ const UNAVAILABLE: &str = "Sync unavailable; install the WrOS Google Drive integ
 
 /// The installed helper, or the repository's in a debug build.
 pub fn script() -> Option<PathBuf> {
-    let installed = Path::new("/usr/libexec/wros-sync");
+    let installed = Path::new(wros_sys::paths::WROS_SYNC);
     if installed.is_file() {
         Some(installed.to_path_buf())
     } else if cfg!(debug_assertions) {

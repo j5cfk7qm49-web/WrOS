@@ -137,9 +137,9 @@ pub fn execute(action: Action) -> Result<(), &'static str> {
     use std::time::Instant;
     // No shell, terminal, password agent or inherited environment. systemctl
     // returns once logind has accepted the request; services stop afterwards.
-    let mut child = Command::new("/usr/bin/systemctl")
+    let mut child = Command::new(wros_shell::paths::SYSTEMCTL)
         .env_clear()
-        .env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
+        .env("PATH", wros_shell::paths::SAFE_PATH)
         .env("LANG", "C.UTF-8")
         .args(["--no-ask-password", action.verb()])
         .stdin(Stdio::null())

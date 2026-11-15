@@ -1,0 +1,239 @@
+#!/usr/bin/python3 -I
+"""cdebconf passthrough protocol backend driving wros-install-core on NixOS.
+
+Speaks the exact line-oriented cdebconf passthrough wire protocol expected by
+the unchanged crates/wros-installer Rust TUI over DEBCONF_READFD / DEBCONF_WRITEFD:
+  CAPB backup
+  TITLE ...
+  DATA <tag> type|description|extended_description|choices|choices-c ...
+  SET <tag> ...
+  INPUT critical <tag>
+  GO
+  GET <tag>
+  PROGRESS START|STEP|SET|INFO|STOP ...
+
+Collects keyboard layout, hostname, writer full name, username, writer password,
+LUKS disk passphrase, and explicit disk-erase confirmation, then streams them via
+stdin pipe (never argv or env) to /usr/libexec/wros-install-core.
+"""
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+INSTALL_CORE = '/usr/libexec/wros-install-core'
+BASELINE_JSON = Path('/run/wros-installer/baseline.json')
+PROOF_OUT = Path('/run/wros-installer/wros-target-proof')
+FINISHED_OUT = Path('/run/wros-installer/wros-target-finished')
+FAILED_OUT = Path('/run/wros-installer/wros-target-failed')
+
+
+def escape(text):
+    return str(text).replace('\\', '\\\\').replace('\n', '\\n')
+
+
+class PassthroughChannel:
+    def __init__(self, read_fd, write_fd):
+        self.reader = os.fdopen(read_fd, 'r', encoding='utf-8', buffering=1, closefd=False)
+        self.writer = os.fdopen(write_fd, 'w', encoding='utf-8', buffering=1, closefd=False)
+
+    def send(self, command):
+        self.writer.write(command + '\n')
+        self.writer.flush()
+        line = self.reader.readline()
+        if not line:
+            raise RuntimeError('frontend closed passthrough channel')
+        line = line.rstrip('\n')
+        code, _, value = line.partition(' ')
+        return int(code), value
+
+    def define(self, tag, kind, description, detail, choices=None, values=None, default=None):
+        self.send(f'DATA {tag} type {kind}')
+        self.send(f'DATA {tag} description {escape(description)}')
+        self.send(f'DATA {tag} extended_description {escape(detail)}')
+        if choices is not None and values is not None:
+            self.send(f'DATA {tag} choices {", ".join(escape(c) for c in choices)}')
+            self.send(f'DATA {tag} choices-c {", ".join(escape(v) for v in values)}')
+        if default is not None:
+            self.send(f'SET {tag} {escape(default)}')
+
+    def ask(self, tag, kind, description, detail, choices=None, values=None, default=None):
+        self.define(tag, kind, description, detail, choices=choices, values=values, default=default)
+        self.send(f'INPUT critical {tag}')
+        code, _ = self.send('GO')
+        if code == 30:
+            return None
+        if code != 0:
+            raise RuntimeError(f'GO returned unexpected status {code}')
+        code, answer = self.send(f'GET {tag}')
+        if code != 0:
+            raise RuntimeError(f'GET {tag} returned status {code}')
+        return answer
+
+
+def run_dialog(channel, target_disk, session_nonce, core_runner=None):
+    channel.send('CAPB backup')
+    channel.send('TITLE Install WrOS')
+
+    steps = [
+        'layout',
+        'hostname',
+        'full_name',
+        'username',
+        'user_password',
+        'luks_passphrase',
+        'confirm',
+    ]
+    answers = {
+        'keyboard_layout': 'qwerty',
+        'hostname': 'wros',
+        'full_name': 'Writer',
+        'username': 'writer',
+        'user_password': '',
+        'luks_passphrase': '',
+        'timezone': 'UTC',
+    }
+    idx = 0
+    while idx < len(steps):
+        step = steps[idx]
+        if step == 'layout':
+            ans = channel.ask(
+                'wros/keyboard_layout', 'select',
+                'Keyboard layout',
+                'Choose the keyboard layout for the encrypted disk unlock prompt and writing session.',
+                choices=['English (QWERTY)', 'Colemak', 'Colemak-DH (ANSI)', 'Colemak-DH (ISO)'],
+                values=['qwerty', 'colemak', 'colemak-dh-ansi', 'colemak-dh-iso'],
+                default=answers['keyboard_layout'],
+            )
+            if ans is None:
+                continue
+            answers['keyboard_layout'] = ans
+            idx += 1
+        elif step == 'hostname':
+            ans = channel.ask(
+                'wros/hostname', 'string',
+                'Appliance hostname',
+                'Choose a short network name for this WrOS writing appliance.',
+                default=answers['hostname'],
+            )
+            if ans is None:
+                idx = max(0, idx - 1)
+                continue
+            answers['hostname'] = ans.strip() or 'wros'
+            idx += 1
+        elif step == 'full_name':
+            ans = channel.ask(
+                'wros/full_name', 'string',
+                'Writer display name',
+                'Enter your full name for the local writer account.',
+                default=answers['full_name'],
+            )
+            if ans is None:
+                idx = max(0, idx - 1)
+                continue
+            answers['full_name'] = ans.strip() or 'Writer'
+            idx += 1
+        elif step == 'username':
+            ans = channel.ask(
+                'wros/username', 'string',
+                'Writer account username',
+                'Enter a lowercase login name (for example: writer).',
+                default=answers['username'],
+            )
+            if ans is None:
+                idx = max(0, idx - 1)
+                continue
+            answers['username'] = ans.strip() or 'writer'
+            idx += 1
+        elif step == 'user_password':
+            ans = channel.ask(
+                'wros/user_password', 'password',
+                'Writer account password',
+                'Choose a password (at least 8 characters) for signing in and approving system settings.',
+            )
+            if ans is None:
+                idx = max(0, idx - 1)
+                continue
+            answers['user_password'] = ans
+            idx += 1
+        elif step == 'luks_passphrase':
+            ans = channel.ask(
+                'wros/luks_passphrase', 'password',
+                'Disk encryption passphrase',
+                f'Choose the LUKS2 encryption passphrase for /dev/{target_disk}. Required at every boot.',
+            )
+            if ans is None:
+                idx = max(0, idx - 1)
+                continue
+            answers['luks_passphrase'] = ans
+            idx += 1
+        elif step == 'confirm':
+            ans = channel.ask(
+                'wros/confirm_erase', 'boolean',
+                f'Erase /dev/{target_disk} and install encrypted WrOS?',
+                f'All existing data on /dev/{target_disk} will be permanently replaced with an encrypted WrOS installation.',
+                default='false',
+            )
+            if ans is None:
+                idx = max(0, idx - 1)
+                continue
+            if ans != 'true':
+                raise SystemExit(2)
+            idx += 1
+
+    channel.define('wros/progress', 'text', 'Installing encrypted WrOS system', 'Partitioning and installing NixOS closure...')
+    channel.send('PROGRESS START 0 100 wros/progress')
+    channel.send('PROGRESS STEP 20')
+
+    payload = {
+        'target_disk': target_disk,
+        'session_nonce': session_nonce,
+        **answers,
+    }
+    runner = core_runner or _default_core_runner
+    proof = runner(payload)
+    channel.send('PROGRESS SET 100')
+    channel.send('PROGRESS STOP')
+    channel.ask(
+        'wros/complete', 'note',
+        'Encrypted WrOS installation complete',
+        'Remove the installation media after the appliance returns to the live session and reboot.',
+    )
+    return proof
+
+
+def _default_core_runner(payload):
+    res = subprocess.run(
+        [INSTALL_CORE],
+        input=json.dumps(payload).encode('utf-8'),
+        capture_output=True,
+        check=False,
+    )
+    if res.returncode != 0:
+        FAILED_OUT.write_text('wros-install-core\n', encoding='utf-8')
+        raise RuntimeError(res.stderr.decode('utf-8', 'replace').strip() or 'install-core failed')
+    proof = json.loads(res.stdout.decode('utf-8'))
+    PROOF_OUT.write_text(json.dumps(proof, sort_keys=True) + '\n', encoding='utf-8')
+    os.chmod(PROOF_OUT, 0o600)
+    FINISHED_OUT.write_text('completed\n', encoding='utf-8')
+    return proof
+
+
+def main():
+    read_fd = int(os.environ['DEBCONF_READFD'])
+    write_fd = int(os.environ['DEBCONF_WRITEFD'])
+    baseline = json.loads(BASELINE_JSON.read_bytes())
+    channel = PassthroughChannel(read_fd, write_fd)
+    run_dialog(channel, baseline['target_disk'], baseline['session_nonce'])
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main())
+    except SystemExit:
+        raise
+    except Exception as exc:
+        print(f'wros-installer-backend: {exc}', file=sys.stderr)
+        raise SystemExit(1) from None

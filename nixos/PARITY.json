@@ -1,0 +1,3550 @@
+{
+  "binary_additions": [],
+  "core_changes": {},
+  "deleted": {},
+  "paths_modules": [
+    "crates/wros-sys/src/paths.rs",
+    "crates/wros-shell/src/paths.rs",
+    "crates/wros-input/src/paths.rs"
+  ],
+  "rows": {
+    "feature:00-markdown-novels-yaml-frontmatter-parts-chapters-scenes": {
+      "disposition": "unaffected"
+    },
+    "feature:01-atomic-autosave-dated-history-recovery": {
+      "disposition": "unaffected"
+    },
+    "feature:02-external-file-conflicts-and-guarded-mobile-saves": {
+      "disposition": "unaffected"
+    },
+    "feature:03-corkboard-find-replace-notes-tk-notebook-names": {
+      "disposition": "unaffected"
+    },
+    "feature:04-locale-spelling-and-personal-notebook-vocabulary": {
+      "disposition": "unaffected"
+    },
+    "feature:05-detailed-audit-architecture-base-decision-and-docs": {
+      "disposition": "ported",
+      "evidence": "WrOS NixOS base decision record",
+      "where": [
+        "docs/NIXOS_BASE.md"
+      ]
+    },
+    "feature:06-staged-rootfs-regular-file-gpt-uefi-image-workflow": {
+      "disposition": "ported",
+      "evidence": "nixosConfigurations = {",
+      "where": [
+        "flake.nix",
+        "nixos/modules/installed.nix"
+      ]
+    },
+    "feature:07-boot-to-writing-splash-non-root-tty1-startup": {
+      "disposition": "ported",
+      "evidence": "wros-boot unlock",
+      "where": [
+        "nixos/modules/boot.nix",
+        "nixos/modules/session.nix"
+      ]
+    },
+    "feature:08-conventional-linux-development-mode": {
+      "disposition": "unaffected",
+      "note": "Implemented in the Rust application and helper layer (OS) using the centralized paths seam in crates/wros-sys/src/paths.rs without OS-specific semantics changes."
+    },
+    "feature:09-read-only-compatibility-disk-account-timezone-layout-install": {
+      "disposition": "unaffected",
+      "note": "Implemented in the Rust application and helper layer (OS) using the centralized paths seam in crates/wros-sys/src/paths.rs without OS-specific semantics changes."
+    },
+    "feature:10-production-disk-luks-account-wi-fi-first-run-installer": {
+      "disposition": "ported",
+      "evidence": "read_credentials_from_stream",
+      "where": [
+        "nixos/scripts/wros-install-core",
+        "nixos/tests/install-encrypted.nix"
+      ]
+    },
+    "feature:11-authenticated-boot-console-screen-lock-lock-before-suspend": {
+      "disposition": "ported",
+      "evidence": "assert-suspend",
+      "where": [
+        "nixos/modules/guards.nix",
+        "nixos/tests/console-lock.nix"
+      ]
+    },
+    "feature:12-authenticated-tty2-maintenance-and-usable-recovery-boot": {
+      "disposition": "ported",
+      "evidence": "systemd.targets.wros-recovery",
+      "where": [
+        "nixos/modules/recovery.nix",
+        "nixos/tests/recovery-menu.nix"
+      ]
+    },
+    "feature:13-signed-os-app-updates-snapshots-rollback-and-offline-bundles": {
+      "disposition": "ported",
+      "evidence": "verify_closure_archives",
+      "where": [
+        "nixos/scripts/wros-update-engine.py",
+        "nixos/tests/update-goback.nix"
+      ]
+    },
+    "feature:14-secure-boot-legacy-bios-physical-firmware-compatibility": {
+      "disposition": "unaffected",
+      "note": "Implemented in the Rust application and helper layer (OS) using the centralized paths seam in crates/wros-sys/src/paths.rs without OS-specific semantics changes."
+    },
+    "feature:15-typed-linux-explicitly-simulated-backend": {
+      "disposition": "ported",
+      "evidence": "WROS_PATH_NMCLI",
+      "where": [
+        "crates/wros-sys/src/paths.rs",
+        "crates/wros-sys/src/linux.rs"
+      ]
+    },
+    "feature:16-cached-off-thread-network-battery-brightness-storage-timezon": {
+      "disposition": "unaffected",
+      "note": "Implemented in the Rust application and helper layer (System) using the centralized paths seam in crates/wros-sys/src/paths.rs without OS-specific semantics changes."
+    },
+    "feature:17-wi-fi-radio-and-scan-command-interfaces": {
+      "disposition": "unaffected",
+      "note": "Implemented in the Rust application and helper layer (System) using the centralized paths seam in crates/wros-sys/src/paths.rs without OS-specific semantics changes."
+    },
+    "feature:18-in-app-new-network-credentials-secret-agent": {
+      "disposition": "unaffected",
+      "note": "Implemented in the Rust application and helper layer (System) using the centralized paths seam in crates/wros-sys/src/paths.rs without OS-specific semantics changes."
+    },
+    "feature:19-brightness-request-ui-os-power-saving-distinction": {
+      "disposition": "unaffected",
+      "note": "Implemented in the Rust application and helper layer (System) using the centralized paths seam in crates/wros-sys/src/paths.rs without OS-specific semantics changes."
+    },
+    "feature:20-confirmed-shutdown-restart-after-durable-saves-and-conflict-": {
+      "disposition": "unaffected",
+      "note": "Implemented in the Rust application and helper layer (System) using the centralized paths seam in crates/wros-sys/src/paths.rs without OS-specific semantics changes."
+    },
+    "feature:21-manual-clock-ntp-changes-sound-volume-updater-restore-panels": {
+      "disposition": "unaffected",
+      "note": "Implemented in the Rust application and helper layer (System) using the centralized paths seam in crates/wros-sys/src/paths.rs without OS-specific semantics changes."
+    },
+    "feature:22-native-searchable-timezone-selection": {
+      "disposition": "unaffected",
+      "note": "Implemented in the Rust application and helper layer (System) using the centralized paths seam in crates/wros-sys/src/paths.rs without OS-specific semantics changes."
+    },
+    "feature:23-qwerty-colemak-dh-ansi-iso-console-maps": {
+      "disposition": "ported",
+      "evidence": "os/scripts/generate-keymaps.sh",
+      "where": [
+        "nixos/pkgs/keymaps.nix"
+      ]
+    },
+    "feature:24-15-second-preview-token-commit-and-independent-rollback": {
+      "disposition": "ported",
+      "evidence": "wros-keyboard-revert",
+      "where": [
+        "nixos/modules/session.nix",
+        "nixos/tests/keyboard-preview.nix"
+      ]
+    },
+    "feature:25-layout-persistence-pre-login-reapplication": {
+      "disposition": "ported",
+      "evidence": "BOOT_SYNC_DIR",
+      "where": [
+        "os/scripts/wros-keyboard",
+        "nixos/modules/boot.nix"
+      ]
+    },
+    "feature:26-installer-first-run-layout-wizard-and-custom-map-registratio": {
+      "disposition": "unaffected",
+      "note": "Implemented in the Rust application and helper layer (Keyboard) using the centralized paths seam in crates/wros-sys/src/paths.rs without OS-specific semantics changes."
+    },
+    "feature:27-safe-custom-shortcut-aliases-with-legacy-compatibility": {
+      "disposition": "unaffected",
+      "note": "Implemented in the Rust application and helper layer (Keyboard) using the centralized paths seam in crates/wros-sys/src/paths.rs without OS-specific semantics changes."
+    },
+    "feature:28-raw-physical-position-shortcuts-through-generic-tty": {
+      "disposition": "unaffected",
+      "note": "Implemented in the Rust application and helper layer (Keyboard) using the centralized paths seam in crates/wros-sys/src/paths.rs without OS-specific semantics changes."
+    },
+    "feature:29-real-existing-data-dashboard-widgets-hide-reorder-navigation": {
+      "disposition": "unaffected"
+    },
+    "feature:30-optional-startup-home-direct-primary-restore": {
+      "disposition": "unaffected"
+    },
+    "feature:31-journal-pins-scratchpad-handoff-challenge-achievement-revisi": {
+      "disposition": "unaffected"
+    },
+    "feature:32-five-named-dual-editor-workspace-slots-custom-clones-width-c": {
+      "disposition": "unaffected"
+    },
+    "feature:33-f10-outline-toggle-and-strict-ctrl-d-focus": {
+      "disposition": "unaffected"
+    },
+    "feature:34-full-editable-secondary-document-independent-undo-autosave-s": {
+      "disposition": "unaffected"
+    },
+    "feature:35-sticky-sidebar-multi-pane-ratios-and-explicit-workspace-cont": {
+      "disposition": "unaffected"
+    },
+    "feature:36-single-source-pins-scopes-cards-categories-trash-anchors-scr": {
+      "disposition": "unaffected"
+    },
+    "feature:37-sampled-auto-manual-journal-multi-note-scratchpad-and-next-o": {
+      "disposition": "unaffected"
+    },
+    "feature:38-basic-daily-book-scene-goals-weekly-net-pace-forecast": {
+      "disposition": "unaffected"
+    },
+    "feature:39-baseline-pomodoro-and-word-time-sprint": {
+      "disposition": "unaffected"
+    },
+    "feature:40-gross-net-deleted-idle-aware-time-revision-footnote-accounti": {
+      "disposition": "unaffected"
+    },
+    "feature:41-advanced-goals-deadlines-offline-50k-november-calendar-rest-": {
+      "disposition": "unaffected"
+    },
+    "feature:42-optional-non-punitive-achievements-and-advanced-sprints": {
+      "disposition": "unaffected"
+    },
+    "feature:43-persisted-daily-challenges-across-ten-categories": {
+      "disposition": "unaffected"
+    },
+    "feature:44-specific-source-license-research-and-exclusion-manifest": {
+      "disposition": "unaffected"
+    },
+    "feature:45-1-000-substantive-curated-plot-options-exercise-corpus": {
+      "disposition": "unaffected"
+    },
+    "feature:46-four-modes-compatible-combinations-roulette-static-history-f": {
+      "disposition": "unaffected"
+    },
+    "feature:47-harper-grammar-dialogue-novel-global-policy": {
+      "disposition": "unaffected"
+    },
+    "feature:48-nabokov-fiction-aware-profiles-native-lightweight-analysis": {
+      "disposition": "unaffected"
+    },
+    "feature:49-standalone-proselint-versioned-structured-output-integration": {
+      "disposition": "unaffected"
+    },
+    "feature:50-unified-deduped-stale-safe-diagnostics-revision-dashboard": {
+      "disposition": "unaffected"
+    },
+    "feature:51-offline-wordnet-definitions-senses-synonyms-antonyms-ui": {
+      "disposition": "unaffected"
+    },
+    "feature:52-author-voice-profiles-with-sufficient-material-safeguards": {
+      "disposition": "unaffected"
+    },
+    "feature:53-structured-explicit-continuity-timeline-knowledge-thread-tra": {
+      "disposition": "unaffected"
+    },
+    "feature:54-text-anchored-annotations-and-revision-queue": {
+      "disposition": "unaffected"
+    },
+    "feature:55-named-milestones-experimental-variants-diff-selective-restor": {
+      "disposition": "unaffected"
+    },
+    "feature:56-local-sentence-level-read-aloud-highlighting-controls": {
+      "disposition": "unaffected"
+    },
+    "feature:57-multi-scene-chapter-read-through-and-mark-for-revision": {
+      "disposition": "unaffected"
+    },
+    "feature:58-native-docx-epub-markdown-print-formatting": {
+      "disposition": "unaffected"
+    },
+    "feature:59-pdf-through-optional-headless-libreoffice": {
+      "disposition": "unaffected"
+    },
+    "feature:60-contextual-markdown-footnotes-genuine-docx-pdf-bottom-page-o": {
+      "disposition": "unaffected"
+    },
+    "feature:61-export-selection-source-review": {
+      "disposition": "unaffected"
+    },
+    "feature:62-unified-pre-export-link-asset-footnote-privacy-validation": {
+      "disposition": "unaffected"
+    },
+    "feature:63-native-encrypted-local-drive-backup-private-keys-and-restore": {
+      "disposition": "ported",
+      "evidence": "test_debian_era_system_settings_restore_on_nixos_and_skip_obsolete_fields",
+      "where": [
+        "os/scripts/wros-backup",
+        "os/tests/test_backup.py"
+      ]
+    },
+    "feature:64-conflict-aware-bidirectional-sync-safe-mobile-docs-evaluatio": {
+      "disposition": "unaffected",
+      "note": "Implemented in the Rust application and helper layer (Cloud) using the centralized paths seam in crates/wros-sys/src/paths.rs without OS-specific semantics changes."
+    },
+    "feature:65-live-google-authorization-restore-docs-round-trip-acceptance": {
+      "disposition": "unaffected",
+      "note": "Implemented in the Rust application and helper layer (Cloud) using the centralized paths seam in crates/wros-sys/src/paths.rs without OS-specific semantics changes."
+    },
+    "feature:66-39-lesson-catalog-safe-demo-replay-skip-progress-help-links": {
+      "disposition": "unaffected"
+    },
+    "feature:67-all-39-complete-interactive-exercises-across-final-features": {
+      "disposition": "unaffected"
+    },
+    "feature:68-offline-whole-vm-operation-and-low-memory-initial-measuremen": {
+      "disposition": "ported",
+      "evidence": "wros-boot-unlock-login",
+      "where": [
+        "nixos/tests/boot-unlock-login.nix"
+      ]
+    },
+    "feature:69-physical-laptop-keyboard-wi-fi-lock-suspend-battery-update-q": {
+      "disposition": "unaffected",
+      "note": "Implemented in the Rust application and helper layer (Qualification) using the centralized paths seam in crates/wros-sys/src/paths.rs without OS-specific semantics changes."
+    },
+    "feature:70-common-byte-source-diagnostics-bounded-worker-and-supplement": {
+      "disposition": "unaffected"
+    },
+    "feature:71-offline-common-laptop-wi-fi-drivers-and-firmware": {
+      "disposition": "ported",
+      "evidence": "wrosFirmware",
+      "where": [
+        "nixos/modules/hardware.nix"
+      ]
+    },
+    "feature:72-shared-wros-navigation-presentation-notifications-and-ui-pre": {
+      "disposition": "unaffected",
+      "note": "Implemented in the Rust application and helper layer (Shell) using the centralized paths seam in crates/wros-sys/src/paths.rs without OS-specific semantics changes."
+    },
+    "feature:73-unified-writing-interface-system-and-accounts-settings": {
+      "disposition": "unaffected",
+      "note": "Implemented in the Rust application and helper layer (Shell) using the centralized paths seam in crates/wros-sys/src/paths.rs without OS-specific semantics changes."
+    },
+    "feature:74-native-wros-greeter-account-switching-and-coherent-locked-se": {
+      "disposition": "ported",
+      "evidence": "services.greetd",
+      "where": [
+        "nixos/modules/session.nix"
+      ]
+    },
+    "feature:75-native-optional-google-account-linking-and-protected-refresh": {
+      "disposition": "unaffected",
+      "note": "Implemented in the Rust application and helper layer (Accounts) using the centralized paths seam in crates/wros-sys/src/paths.rs without OS-specific semantics changes."
+    },
+    "feature:76-native-google-drive-browsing-cache-status-and-explicit-local": {
+      "disposition": "unaffected",
+      "note": "Implemented in the Rust application and helper layer (Storage) using the centralized paths seam in crates/wros-sys/src/paths.rs without OS-specific semantics changes."
+    },
+    "feature:77-warm-screen-and-blue-light-filter-with-very-warm-temperature": {
+      "disposition": "unaffected",
+      "note": "Implemented in the Rust application and helper layer (System) using the centralized paths seam in crates/wros-sys/src/paths.rs without OS-specific semantics changes."
+    },
+    "feature:78-manual-protected-local-console-lock": {
+      "disposition": "ported",
+      "evidence": "wros-console-lock",
+      "where": [
+        "nixos/modules/guards.nix",
+        "nixos/tests/console-lock.nix"
+      ]
+    },
+    "feature:79-live-wros-installer-tui-over-debian-installation-components": {
+      "disposition": "ported",
+      "evidence": "PassthroughChannel",
+      "where": [
+        "nixos/scripts/wros-installer-backend",
+        "nixos/scripts/wros-install-session"
+      ]
+    },
+    "feature:80-terminal-multi-read-input-and-preserved-reader-ownership": {
+      "disposition": "unaffected",
+      "note": "Implemented in the Rust application and helper layer (System) using the centralized paths seam in crates/wros-sys/src/paths.rs without OS-specific semantics changes."
+    },
+    "feature:81-grimoire-live-session-startup-and-immutable-installed-authen": {
+      "disposition": "ported",
+      "evidence": "wros-live-session",
+      "where": [
+        "nixos/modules/live.nix",
+        "nixos/tests/live-session.nix"
+      ]
+    },
+    "feature:82-in-editor-markdown-footnote-reference-definition-creation": {
+      "disposition": "unaffected"
+    },
+    "feature:83-source-bound-footnote-reference-definition-navigation": {
+      "disposition": "unaffected"
+    },
+    "feature:84-contextual-original-source-footnote-reader": {
+      "disposition": "unaffected"
+    },
+    "feature:85-author-entered-continuity-facts-timeline-and-threads": {
+      "disposition": "unaffected"
+    },
+    "feature:86-durable-draft-snapshots-and-whole-scene-variant-restore": {
+      "disposition": "unaffected"
+    },
+    "feature:87-current-chapter-speech-queue-and-anchored-revision-mark": {
+      "disposition": "unaffected"
+    },
+    "feature:88-native-epub-linked-footnotes-and-return-navigation": {
+      "disposition": "unaffected"
+    },
+    "file:/etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf": {
+      "disposition": "ported",
+      "evidence": "60-wros-no-connectivity-check.conf",
+      "where": [
+        "nixos/modules/network.nix"
+      ]
+    },
+    "file:/etc/apt/sources.list.d/wros.sources": {
+      "disposition": "retired",
+      "note": "Replaced by the NixOS online update URL (https://j5cfk7qm49-web.github.io/WrOS/nixos-updates/) in nixos/scripts/wros-update-engine.py; APT is not used on NixOS."
+    },
+    "file:/etc/default/grub.d/60-wros.cfg": {
+      "disposition": "ported",
+      "evidence": "boot.kernelParams",
+      "where": [
+        "nixos/modules/boot.nix"
+      ]
+    },
+    "file:/etc/grub.d/06_wros_boot_check": {
+      "disposition": "ported",
+      "evidence": "set wros_boot_pending=1",
+      "where": [
+        "nixos/modules/boot.nix"
+      ]
+    },
+    "file:/etc/grub.d/42_wros_recovery": {
+      "disposition": "ported",
+      "evidence": "boot.loader.grub.configurationName = \"WrOS recovery\"",
+      "where": [
+        "nixos/modules/boot.nix"
+      ]
+    },
+    "file:/etc/modprobe.d/60-wros-brightness-keys.conf": {
+      "disposition": "ported",
+      "evidence": "os/config/60-wros-brightness-keys.conf",
+      "where": [
+        "nixos/modules/hardware.nix"
+      ]
+    },
+    "file:/etc/modprobe.d/60-wros-wifi-power.conf": {
+      "disposition": "ported",
+      "evidence": "os/config/60-wros-wifi-power.conf",
+      "where": [
+        "nixos/modules/hardware.nix"
+      ]
+    },
+    "file:/etc/pam.d/wros-recovery": {
+      "disposition": "ported",
+      "evidence": "os/config/wros-recovery.pam",
+      "where": [
+        "nixos/modules/guards.nix"
+      ]
+    },
+    "file:/etc/polkit-1/rules.d/50-wros-boot-settings.rules": {
+      "disposition": "ported",
+      "evidence": "50-wros-boot-settings.rules",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "file:/etc/polkit-1/rules.d/50-wros-clock.rules": {
+      "disposition": "ported",
+      "evidence": "50-wros-clock.rules",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "file:/etc/polkit-1/rules.d/50-wros-display.rules": {
+      "disposition": "ported",
+      "evidence": "50-wros-display.rules",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "file:/etc/polkit-1/rules.d/50-wros-keyboard.rules": {
+      "disposition": "ported",
+      "evidence": "50-wros-keyboard.rules",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "file:/etc/polkit-1/rules.d/50-wros-lock.rules": {
+      "disposition": "ported",
+      "evidence": "50-wros-lock.rules",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "file:/etc/polkit-1/rules.d/50-wros-timezone.rules": {
+      "disposition": "ported",
+      "evidence": "50-wros-timezone.rules",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "file:/etc/polkit-1/rules.d/50-wros-update.rules": {
+      "disposition": "ported",
+      "evidence": "50-wros-update.rules",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "file:/etc/profile.d/wros.sh": {
+      "disposition": "ported",
+      "evidence": "environment.extraInit",
+      "where": [
+        "nixos/modules/session.nix"
+      ]
+    },
+    "file:/etc/sysctl.d/60-wros-quiet-console.conf": {
+      "disposition": "ported",
+      "evidence": "\"kernel.printk\" = \"3 4 1 3\"",
+      "where": [
+        "nixos/modules/guards.nix"
+      ]
+    },
+    "file:/etc/sysctl.d/60-wros-sysrq.conf": {
+      "disposition": "ported",
+      "evidence": "\"kernel.sysrq\" = 0",
+      "where": [
+        "nixos/modules/guards.nix"
+      ]
+    },
+    "file:/etc/systemd/logind.conf.d/60-wros-power-guard.conf": {
+      "disposition": "ported",
+      "evidence": "os/config/60-wros-power-guard.conf",
+      "where": [
+        "nixos/modules/guards.nix"
+      ]
+    },
+    "file:/etc/systemd/sleep.conf.d/60-wros-sleep-guard.conf": {
+      "disposition": "ported",
+      "evidence": "os/config/60-wros-sleep-guard.conf",
+      "where": [
+        "nixos/modules/guards.nix"
+      ]
+    },
+    "file:/etc/systemd/system.conf.d/60-wros-reboot-guard.conf": {
+      "disposition": "ported",
+      "evidence": "os/config/60-wros-reboot-guard.conf",
+      "where": [
+        "nixos/modules/guards.nix"
+      ]
+    },
+    "file:/etc/systemd/system/systemd-suspend.service.d/60-wros-lock.conf": {
+      "disposition": "ported",
+      "evidence": "assert-suspend",
+      "where": [
+        "nixos/modules/guards.nix"
+      ]
+    },
+    "file:/etc/systemd/system/wros-boot-ok.service": {
+      "disposition": "ported",
+      "evidence": "systemd.services.wros-boot-ok",
+      "where": [
+        "nixos/modules/boot.nix"
+      ]
+    },
+    "file:/etc/systemd/system/wros-boot-rebuild.path": {
+      "disposition": "ported",
+      "evidence": "systemd.paths.wros-boot-rebuild = {",
+      "where": [
+        "nixos/modules/boot.nix"
+      ]
+    },
+    "file:/etc/systemd/system/wros-boot-rebuild.service": {
+      "disposition": "ported",
+      "evidence": "systemd.services.wros-boot-rebuild = {",
+      "where": [
+        "nixos/modules/boot.nix"
+      ]
+    },
+    "file:/etc/systemd/system/wros-boot-splash.service": {
+      "disposition": "ported",
+      "evidence": "systemd.services.wros-boot-splash",
+      "where": [
+        "nixos/modules/boot.nix"
+      ]
+    },
+    "file:/etc/systemd/system/wros-display-revert.service": {
+      "disposition": "ported",
+      "evidence": "systemd.services.wros-display-revert",
+      "where": [
+        "nixos/modules/session.nix"
+      ]
+    },
+    "file:/etc/systemd/system/wros-display-revert.timer": {
+      "disposition": "ported",
+      "evidence": "systemd.timers.wros-display-revert",
+      "where": [
+        "nixos/modules/session.nix"
+      ]
+    },
+    "file:/etc/systemd/system/wros-display.service": {
+      "disposition": "ported",
+      "evidence": "systemd.services.wros-display",
+      "where": [
+        "nixos/modules/session.nix"
+      ]
+    },
+    "file:/etc/systemd/system/wros-keyboard-revert.service": {
+      "disposition": "ported",
+      "evidence": "systemd.services.wros-keyboard-revert",
+      "where": [
+        "nixos/modules/session.nix"
+      ]
+    },
+    "file:/etc/systemd/system/wros-keyboard-revert.timer": {
+      "disposition": "ported",
+      "evidence": "systemd.timers.wros-keyboard-revert",
+      "where": [
+        "nixos/modules/session.nix"
+      ]
+    },
+    "file:/etc/systemd/system/wros-keyboard.service": {
+      "disposition": "ported",
+      "evidence": "systemd.services.wros-keyboard",
+      "where": [
+        "nixos/modules/session.nix"
+      ]
+    },
+    "file:/etc/systemd/system/wros-offline-update.service": {
+      "disposition": "ported",
+      "evidence": "systemd.services.wros-offline-update",
+      "where": [
+        "nixos/modules/updates.nix"
+      ]
+    },
+    "file:/etc/systemd/system/wros-recovery.service": {
+      "disposition": "ported",
+      "evidence": "systemd.services.wros-recovery",
+      "where": [
+        "nixos/modules/recovery.nix"
+      ]
+    },
+    "file:/etc/systemd/system/wros-recovery.target": {
+      "disposition": "ported",
+      "evidence": "systemd.targets.wros-recovery",
+      "where": [
+        "nixos/modules/recovery.nix"
+      ]
+    },
+    "file:/etc/systemd/system/wros-update-reconcile.service": {
+      "disposition": "ported",
+      "evidence": "systemd.services.wros-update-reconcile",
+      "where": [
+        "nixos/modules/updates.nix"
+      ]
+    },
+    "file:/etc/wros/keyboard.json": {
+      "disposition": "ported",
+      "evidence": "C /etc/wros/keyboard.json 0644 root root - /etc/wros/defaults/keyboard.json",
+      "where": [
+        "nixos/modules/base.nix"
+      ]
+    },
+    "file:/etc/wros/release": {
+      "disposition": "ported",
+      "evidence": "\"wros/release\".text",
+      "where": [
+        "nixos/modules/base.nix"
+      ]
+    },
+    "file:/usr/bin/grimoire": {
+      "disposition": "ported",
+      "evidence": "pname = \"grimoire\"",
+      "where": [
+        "nixos/pkgs/rust-packages.nix"
+      ]
+    },
+    "file:/usr/lib/systemd/system/greetd.service.d/60-wros-start-screen.conf": {
+      "disposition": "ported",
+      "evidence": "systemd.services.greetd",
+      "where": [
+        "nixos/modules/session.nix"
+      ]
+    },
+    "file:/usr/lib/systemd/system/triggerhappy.service.d/60-wros.conf": {
+      "disposition": "ported",
+      "evidence": "services.triggerhappy",
+      "where": [
+        "nixos/modules/hardware.nix"
+      ]
+    },
+    "file:/usr/lib/sysusers.d/wros-graphics.conf": {
+      "disposition": "ported",
+      "evidence": "_greetd = {",
+      "where": [
+        "nixos/modules/base.nix"
+      ]
+    },
+    "file:/usr/lib/sysusers.d/wros-keys.conf": {
+      "disposition": "ported",
+      "evidence": "users.users.wros-keys",
+      "where": [
+        "nixos/modules/base.nix"
+      ]
+    },
+    "file:/usr/lib/tmpfiles.d/wros-keys.conf": {
+      "disposition": "ported",
+      "evidence": "d /run/wros-keys 0755 wros-keys wros-keys -",
+      "where": [
+        "nixos/modules/base.nix"
+      ]
+    },
+    "file:/usr/lib/udev/rules.d/90-wros-backlight.rules": {
+      "disposition": "ported",
+      "evidence": "90-wros-backlight.rules",
+      "where": [
+        "nixos/modules/hardware.nix"
+      ]
+    },
+    "file:/usr/lib/wros-backup/link.py": {
+      "disposition": "ported",
+      "evidence": "os/scripts/wros-link.py",
+      "where": [
+        "nixos/pkgs/helpers.nix"
+      ]
+    },
+    "file:/usr/lib/wros-update/engine.py": {
+      "disposition": "ported",
+      "evidence": "nixos/scripts/wros-update-engine.py",
+      "where": [
+        "nixos/pkgs/helpers.nix",
+        "nixos/scripts/wros-update-engine.py"
+      ]
+    },
+    "file:/usr/lib/wros/cage": {
+      "disposition": "ported",
+      "evidence": "pname = \"wros-cage\"",
+      "where": [
+        "nixos/pkgs/cage.nix"
+      ]
+    },
+    "file:/usr/lib/wros/keys/wros-keys.conf": {
+      "disposition": "ported",
+      "evidence": "os/config/wros-keys-triggers.conf",
+      "where": [
+        "nixos/pkgs/helpers.nix"
+      ]
+    },
+    "file:/usr/lib/wros/wros-boot": {
+      "disposition": "ported",
+      "evidence": "pname = \"wros-boot\"",
+      "where": [
+        "nixos/pkgs/rust-packages.nix"
+      ]
+    },
+    "file:/usr/lib/wros/wros-console-reset": {
+      "disposition": "ported",
+      "evidence": "pname = \"wros-console-reset\"",
+      "where": [
+        "nixos/pkgs/c-helpers.nix"
+      ]
+    },
+    "file:/usr/lib/wros/wros-greeter": {
+      "disposition": "ported",
+      "evidence": "pname = \"wros-greeter\"",
+      "where": [
+        "nixos/pkgs/rust-packages.nix"
+      ]
+    },
+    "file:/usr/libexec/wros-backup": {
+      "disposition": "ported",
+      "evidence": "backup = \"${wros-helpers}/libexec/wros-backup\"",
+      "where": [
+        "nixos/pkgs/paths.nix",
+        "os/scripts/wros-backup"
+      ]
+    },
+    "file:/usr/libexec/wros-boot-settings": {
+      "disposition": "ported",
+      "evidence": "bootSettings = \"${wros-helpers}/libexec/wros-boot-settings\"",
+      "where": [
+        "nixos/pkgs/paths.nix",
+        "os/scripts/wros-boot-settings"
+      ]
+    },
+    "file:/usr/libexec/wros-clock": {
+      "disposition": "ported",
+      "evidence": "clock = \"${wros-helpers}/libexec/wros-clock\"",
+      "where": [
+        "nixos/pkgs/paths.nix"
+      ]
+    },
+    "file:/usr/libexec/wros-display": {
+      "disposition": "ported",
+      "evidence": "display = \"${wros-helpers}/libexec/wros-display\"",
+      "where": [
+        "nixos/pkgs/paths.nix"
+      ]
+    },
+    "file:/usr/libexec/wros-display-hw": {
+      "disposition": "ported",
+      "evidence": "pname = \"wros-display-hw\"",
+      "where": [
+        "nixos/pkgs/c-helpers.nix"
+      ]
+    },
+    "file:/usr/libexec/wros-keyboard": {
+      "disposition": "ported",
+      "evidence": "keyboard = \"${wros-helpers}/libexec/wros-keyboard\"",
+      "where": [
+        "nixos/pkgs/paths.nix",
+        "os/scripts/wros-keyboard"
+      ]
+    },
+    "file:/usr/libexec/wros-lock": {
+      "disposition": "ported",
+      "evidence": "lock = \"${wros-helpers}/libexec/wros-lock\"",
+      "where": [
+        "nixos/pkgs/paths.nix",
+        "os/scripts/wros-lock"
+      ]
+    },
+    "file:/usr/libexec/wros-media-key": {
+      "disposition": "ported",
+      "evidence": "mediaKey = \"${wros-helpers}/libexec/wros-media-key\"",
+      "where": [
+        "nixos/pkgs/paths.nix"
+      ]
+    },
+    "file:/usr/libexec/wros-name-migrate": {
+      "disposition": "retired",
+      "note": "Retired on NixOS because fresh rc14 NixOS installations create the wros and writingdeck groups directly in nixos/modules/base.nix and never migrate an in-place Debian 0.1.0~rc3 writingdeck installation (H1)."
+    },
+    "file:/usr/libexec/wros-passwd": {
+      "disposition": "ported",
+      "evidence": "passwd = \"${wros-helpers}/libexec/wros-passwd\"",
+      "where": [
+        "nixos/pkgs/paths.nix"
+      ]
+    },
+    "file:/usr/libexec/wros-recovery": {
+      "disposition": "ported",
+      "evidence": "recovery = \"${wros-helpers}/libexec/wros-recovery\"",
+      "where": [
+        "nixos/pkgs/paths.nix"
+      ]
+    },
+    "file:/usr/libexec/wros-session": {
+      "disposition": "ported",
+      "evidence": "session = \"${wros-helpers}/libexec/wros-session\"",
+      "where": [
+        "nixos/pkgs/paths.nix",
+        "os/scripts/wros-session"
+      ]
+    },
+    "file:/usr/libexec/wros-sound": {
+      "disposition": "ported",
+      "evidence": "sound = \"${wros-helpers}/libexec/wros-sound\"",
+      "where": [
+        "nixos/pkgs/paths.nix"
+      ]
+    },
+    "file:/usr/libexec/wros-sync": {
+      "disposition": "ported",
+      "evidence": "sync = \"${wros-helpers}/libexec/wros-sync\"",
+      "where": [
+        "nixos/pkgs/paths.nix"
+      ]
+    },
+    "file:/usr/libexec/wros-update": {
+      "disposition": "ported",
+      "evidence": "update = \"${wros-helpers}/libexec/wros-update\"",
+      "where": [
+        "nixos/pkgs/paths.nix"
+      ]
+    },
+    "file:/usr/libexec/wros-update-apply": {
+      "disposition": "ported",
+      "evidence": "updateApply = \"${wros-helpers}/libexec/wros-update-apply\"",
+      "where": [
+        "nixos/pkgs/paths.nix"
+      ]
+    },
+    "file:/usr/libexec/wros-update-cancel": {
+      "disposition": "ported",
+      "evidence": "updateCancel = \"${wros-helpers}/libexec/wros-update-cancel\"",
+      "where": [
+        "nixos/pkgs/paths.nix"
+      ]
+    },
+    "file:/usr/libexec/wros-update-fetch": {
+      "disposition": "ported",
+      "evidence": "updateFetch = \"${wros-helpers}/libexec/wros-update-fetch\"",
+      "where": [
+        "nixos/pkgs/paths.nix"
+      ]
+    },
+    "file:/usr/libexec/wros-update-healthy": {
+      "disposition": "ported",
+      "evidence": "updateHealthy = \"${wros-helpers}/libexec/wros-update-healthy\"",
+      "where": [
+        "nixos/pkgs/paths.nix"
+      ]
+    },
+    "file:/usr/libexec/wros-update-media": {
+      "disposition": "ported",
+      "evidence": "updateMedia = \"${wros-helpers}/libexec/wros-update-media\"",
+      "where": [
+        "nixos/pkgs/paths.nix"
+      ]
+    },
+    "file:/usr/libexec/wros-update-repair": {
+      "disposition": "ported",
+      "evidence": "updateRepair = \"${wros-helpers}/libexec/wros-update-repair\"",
+      "where": [
+        "nixos/pkgs/paths.nix"
+      ]
+    },
+    "file:/usr/libexec/wros-update-rollback": {
+      "disposition": "ported",
+      "evidence": "updateRollback = \"${wros-helpers}/libexec/wros-update-rollback\"",
+      "where": [
+        "nixos/pkgs/paths.nix"
+      ]
+    },
+    "file:/usr/libexec/wros-update-stage": {
+      "disposition": "ported",
+      "evidence": "updateStage = \"${wros-helpers}/libexec/wros-update-stage\"",
+      "where": [
+        "nixos/pkgs/paths.nix"
+      ]
+    },
+    "file:/usr/share/doc/wros/DEJAVU-LICENSE": {
+      "disposition": "ported",
+      "evidence": "DEJAVU-LICENSE",
+      "where": [
+        "nixos/pkgs/licenses.nix"
+      ]
+    },
+    "file:/usr/share/doc/wros/DICTIONARY-LICENSE": {
+      "disposition": "ported",
+      "evidence": "DICTIONARY-LICENSE",
+      "where": [
+        "nixos/pkgs/licenses.nix"
+      ]
+    },
+    "file:/usr/share/doc/wros/LICENSE-grimoire": {
+      "disposition": "ported",
+      "evidence": "LICENSE-grimoire",
+      "where": [
+        "nixos/pkgs/licenses.nix"
+      ]
+    },
+    "file:/usr/share/doc/wros/UNIFONT-OFL-1.1.txt": {
+      "disposition": "ported",
+      "evidence": "UNIFONT-OFL-1.1.txt",
+      "where": [
+        "nixos/pkgs/licenses.nix"
+      ]
+    },
+    "file:/usr/share/doc/wros/UNIFONT-SOURCE.md": {
+      "disposition": "ported",
+      "evidence": "UNIFONT-SOURCE.md",
+      "where": [
+        "nixos/pkgs/licenses.nix"
+      ]
+    },
+    "file:/usr/share/doc/wros/copyright": {
+      "disposition": "ported",
+      "evidence": "packaging/copyright",
+      "where": [
+        "nixos/pkgs/licenses.nix"
+      ]
+    },
+    "file:/usr/share/doc/wros/docs/*.md": {
+      "disposition": "ported",
+      "evidence": "docs/*.md",
+      "where": [
+        "nixos/pkgs/licenses.nix"
+      ]
+    },
+    "file:/usr/share/doc/wros/docs/*licenses.json": {
+      "disposition": "ported",
+      "evidence": "docs/*licenses.json",
+      "where": [
+        "nixos/pkgs/licenses.nix"
+      ]
+    },
+    "file:/usr/share/doc/wros/feature-status.json": {
+      "disposition": "ported",
+      "evidence": "docs/feature-status.json",
+      "where": [
+        "nixos/pkgs/licenses.nix"
+      ]
+    },
+    "file:/usr/share/doc/wros/keyboard-reference.html": {
+      "disposition": "ported",
+      "evidence": "docs/keyboard-reference.html",
+      "where": [
+        "nixos/pkgs/licenses.nix"
+      ]
+    },
+    "file:/usr/share/doc/wros/os/licenses/*.txt": {
+      "disposition": "ported",
+      "evidence": "os/licenses/*.txt",
+      "where": [
+        "nixos/pkgs/licenses.nix"
+      ]
+    },
+    "file:/usr/share/doc/wros/python-tool-notices.json": {
+      "disposition": "ported",
+      "evidence": "docs/python-tool-notices.json",
+      "where": [
+        "nixos/pkgs/licenses.nix"
+      ]
+    },
+    "file:/usr/share/doc/wros/python-tools-lock.json": {
+      "disposition": "ported",
+      "evidence": "python-tools-lock.json",
+      "where": [
+        "nixos/pkgs/licenses.nix"
+      ]
+    },
+    "file:/usr/share/doc/wros/python/os/licenses/python": {
+      "disposition": "ported",
+      "evidence": "os/licenses/python",
+      "where": [
+        "nixos/pkgs/licenses.nix"
+      ]
+    },
+    "file:/usr/share/doc/wros/upstream-notice-sources.json": {
+      "disposition": "ported",
+      "evidence": "docs/upstream-notice-sources.json",
+      "where": [
+        "nixos/pkgs/licenses.nix"
+      ]
+    },
+    "file:/usr/share/doc/wros/upstream/os/licenses/upstream/*.txt": {
+      "disposition": "ported",
+      "evidence": "os/licenses/upstream/*.txt",
+      "where": [
+        "nixos/pkgs/licenses.nix"
+      ]
+    },
+    "file:/usr/share/initramfs-tools/hooks/wros-boot": {
+      "disposition": "retired",
+      "note": "Replaced by boot.initrd.systemd.extraBin, storePaths, and contents in nixos/modules/boot.nix which include wros-boot, wros-console-reset, and keymaps in the systemd stage-1 initrd."
+    },
+    "file:/usr/share/polkit-1/actions/org.wros.boot-settings.policy": {
+      "disposition": "ported",
+      "evidence": "org.wros.boot-settings.policy",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "file:/usr/share/polkit-1/actions/org.wros.clock.policy": {
+      "disposition": "ported",
+      "evidence": "org.wros.clock.policy",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "file:/usr/share/polkit-1/actions/org.wros.display.policy": {
+      "disposition": "ported",
+      "evidence": "org.wros.display.policy",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "file:/usr/share/polkit-1/actions/org.wros.keyboard.policy": {
+      "disposition": "ported",
+      "evidence": "org.wros.keyboard.policy",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "file:/usr/share/polkit-1/actions/org.wros.lock.policy": {
+      "disposition": "ported",
+      "evidence": "org.wros.lock.policy",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "file:/usr/share/polkit-1/actions/org.wros.update.policy": {
+      "disposition": "ported",
+      "evidence": "org.wros.update.policy",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "file:/usr/share/wros/foot.ini": {
+      "disposition": "ported",
+      "evidence": "os/config/foot.ini",
+      "where": [
+        "nixos/pkgs/helpers.nix"
+      ]
+    },
+    "file:/usr/share/wros/initramfs/askpass": {
+      "disposition": "retired",
+      "note": "Replaced by boot.initrd.systemd.services.wros-initrd-unlock in nixos/modules/boot.nix which runs wros-boot unlock before systemd-cryptsetup@wros_crypt.service and falls back to the standard text prompt."
+    },
+    "file:/usr/share/wros/keymaps/qwerty.map,colemak.map,colemak-dh-ansi.map,colemak-dh-iso.map": {
+      "disposition": "ported",
+      "evidence": "share/wros/keymaps",
+      "where": [
+        "nixos/pkgs/keymaps.nix"
+      ]
+    },
+    "file:/usr/share/wros/update-keyring.gpg": {
+      "disposition": "ported",
+      "evidence": "wros-archive-keyring.gpg",
+      "where": [
+        "nixos/modules/updates.nix"
+      ]
+    },
+    "package:apt": {
+      "disposition": "retired",
+      "note": "Replaced by generation-based Nix closure updates in nixos/scripts/wros-update-engine.py and nixos/modules/updates.nix."
+    },
+    "package:brightnessctl": {
+      "disposition": "native",
+      "evidence": "pkgs.brightnessctl",
+      "where": [
+        "nixos/modules/base.nix"
+      ]
+    },
+    "package:ca-certificates": {
+      "disposition": "native",
+      "evidence": "pkgs.cacert",
+      "where": [
+        "nixos/modules/base.nix"
+      ]
+    },
+    "package:cage": {
+      "disposition": "ported",
+      "evidence": "pname = \"wros-cage\"",
+      "where": [
+        "nixos/pkgs/cage.nix"
+      ]
+    },
+    "package:console-setup": {
+      "disposition": "ported",
+      "evidence": "pname = \"wros-keymaps\"",
+      "where": [
+        "nixos/pkgs/keymaps.nix"
+      ]
+    },
+    "package:dbus": {
+      "disposition": "native",
+      "evidence": "services.dbus.enable = true",
+      "where": [
+        "nixos/modules/session.nix"
+      ]
+    },
+    "package:dbus-user-session": {
+      "disposition": "native",
+      "evidence": "services.dbus.implementation = \"broker\"",
+      "where": [
+        "nixos/modules/session.nix"
+      ]
+    },
+    "package:debian-archive-keyring": {
+      "disposition": "retired",
+      "note": "Replaced by the WrOS archive keyring (os/config/update-trust/wros-archive-keyring.gpg) and pinned signer fingerprint in nixos/modules/updates.nix; Debian archive keys are never consulted on NixOS."
+    },
+    "package:dpkg": {
+      "disposition": "retired",
+      "note": "Replaced by the read-only Nix store (/nix/store) and system profile generations (/nix/var/nix/profiles/system) in nixos/scripts/wros-update-engine.py."
+    },
+    "package:espeak-ng": {
+      "disposition": "native",
+      "evidence": "pkgs.espeak-ng",
+      "where": [
+        "nixos/modules/base.nix"
+      ]
+    },
+    "package:firmware-ath9k-htc": {
+      "disposition": "native",
+      "evidence": "ath11k",
+      "where": [
+        "nixos/modules/hardware.nix"
+      ]
+    },
+    "package:firmware-atheros": {
+      "disposition": "native",
+      "evidence": "ath10k",
+      "where": [
+        "nixos/modules/hardware.nix"
+      ]
+    },
+    "package:firmware-brcm80211": {
+      "disposition": "native",
+      "evidence": "brcm",
+      "where": [
+        "nixos/modules/hardware.nix"
+      ]
+    },
+    "package:firmware-iwlwifi": {
+      "disposition": "native",
+      "evidence": "iwlwifi",
+      "where": [
+        "nixos/modules/hardware.nix"
+      ]
+    },
+    "package:firmware-mediatek": {
+      "disposition": "native",
+      "evidence": "mediatek",
+      "where": [
+        "nixos/modules/hardware.nix"
+      ]
+    },
+    "package:firmware-realtek": {
+      "disposition": "native",
+      "evidence": "rtw88",
+      "where": [
+        "nixos/modules/hardware.nix"
+      ]
+    },
+    "package:foot": {
+      "disposition": "native",
+      "evidence": "pkgs.foot",
+      "where": [
+        "nixos/modules/base.nix"
+      ]
+    },
+    "package:git": {
+      "disposition": "native",
+      "evidence": "pkgs.git",
+      "where": [
+        "nixos/modules/base.nix"
+      ]
+    },
+    "package:gpgv": {
+      "disposition": "native",
+      "evidence": "pkgs.gnupg",
+      "where": [
+        "nixos/modules/base.nix"
+      ]
+    },
+    "package:initramfs-tools": {
+      "disposition": "retired",
+      "note": "Replaced by declarative NixOS systemd stage-1 initrd configuration (boot.initrd.systemd and boot.initrd.luks.devices) in nixos/modules/boot.nix."
+    },
+    "package:iw": {
+      "disposition": "native",
+      "evidence": "pkgs.iw",
+      "where": [
+        "nixos/modules/network.nix"
+      ]
+    },
+    "package:kbd": {
+      "disposition": "native",
+      "evidence": "pkgs.kbd",
+      "where": [
+        "nixos/modules/base.nix"
+      ]
+    },
+    "package:less": {
+      "disposition": "native",
+      "evidence": "pkgs.less",
+      "where": [
+        "nixos/modules/base.nix"
+      ]
+    },
+    "package:libasound2t64": {
+      "disposition": "native",
+      "evidence": "pkgs.alsa-lib",
+      "where": [
+        "nixos/pkgs/rust-packages.nix"
+      ]
+    },
+    "package:libdrm2": {
+      "disposition": "native",
+      "evidence": "pkgs.libdrm",
+      "where": [
+        "nixos/pkgs/rust-packages.nix"
+      ]
+    },
+    "package:libegl1": {
+      "disposition": "native",
+      "evidence": "pkgs.libGL",
+      "where": [
+        "nixos/pkgs/rust-packages.nix"
+      ]
+    },
+    "package:libgcc-s1": {
+      "disposition": "native",
+      "evidence": "pkgs.stdenv.mkDerivation",
+      "where": [
+        "nixos/pkgs/c-helpers.nix"
+      ]
+    },
+    "package:libgl1-mesa-dri": {
+      "disposition": "native",
+      "evidence": "pkgs.mesa",
+      "where": [
+        "nixos/pkgs/rust-packages.nix"
+      ]
+    },
+    "package:libinput10": {
+      "disposition": "native",
+      "evidence": "pkgs.libinput",
+      "where": [
+        "nixos/pkgs/rust-packages.nix"
+      ]
+    },
+    "package:libpam-systemd": {
+      "disposition": "native",
+      "evidence": "security.pam.services.greetd",
+      "where": [
+        "nixos/modules/guards.nix"
+      ]
+    },
+    "package:libseat1": {
+      "disposition": "native",
+      "evidence": "pkgs.seatd",
+      "where": [
+        "nixos/pkgs/rust-packages.nix"
+      ]
+    },
+    "package:libwayland-egl1": {
+      "disposition": "native",
+      "evidence": "pkgs.wayland",
+      "where": [
+        "nixos/pkgs/rust-packages.nix"
+      ]
+    },
+    "package:libx11-data": {
+      "disposition": "ported",
+      "evidence": "x11Compose = \"${pkgs.libx11}/share/X11/locale/en_US.UTF-8/Compose\"",
+      "where": [
+        "nixos/pkgs/paths.nix"
+      ]
+    },
+    "package:libxkbcommon0": {
+      "disposition": "native",
+      "evidence": "pkgs.libxkbcommon",
+      "where": [
+        "nixos/pkgs/rust-packages.nix"
+      ]
+    },
+    "package:linux-image-amd64": {
+      "disposition": "native",
+      "evidence": "boot.kernelPackages = pkgs.linuxPackages",
+      "where": [
+        "nixos/modules/hardware.nix"
+      ]
+    },
+    "package:login": {
+      "disposition": "native",
+      "evidence": "pkgs.shadow",
+      "where": [
+        "nixos/modules/base.nix"
+      ]
+    },
+    "package:nano": {
+      "disposition": "native",
+      "evidence": "pkgs.nano",
+      "where": [
+        "nixos/modules/base.nix"
+      ]
+    },
+    "package:network-manager": {
+      "disposition": "native",
+      "evidence": "networking.networkmanager = {",
+      "where": [
+        "nixos/modules/network.nix"
+      ]
+    },
+    "package:passwd": {
+      "disposition": "ported",
+      "evidence": "passwd = \"${wrapperDir}/passwd\"",
+      "where": [
+        "nixos/pkgs/paths.nix"
+      ]
+    },
+    "package:pciutils": {
+      "disposition": "native",
+      "evidence": "pkgs.pciutils",
+      "where": [
+        "nixos/modules/base.nix"
+      ]
+    },
+    "package:pipewire": {
+      "disposition": "native",
+      "evidence": "services.pipewire = {",
+      "where": [
+        "nixos/modules/audio.nix"
+      ]
+    },
+    "package:pipewire-alsa": {
+      "disposition": "native",
+      "evidence": "alsa.enable = true",
+      "where": [
+        "nixos/modules/audio.nix"
+      ]
+    },
+    "package:pipewire-bin": {
+      "disposition": "native",
+      "evidence": "services.pipewire",
+      "where": [
+        "nixos/modules/audio.nix"
+      ]
+    },
+    "package:pipewire-pulse": {
+      "disposition": "native",
+      "evidence": "pulse.enable = true",
+      "where": [
+        "nixos/modules/audio.nix"
+      ]
+    },
+    "package:pkexec": {
+      "disposition": "ported",
+      "evidence": "pkexec = \"${wrapperDir}/pkexec\"",
+      "where": [
+        "nixos/pkgs/paths.nix"
+      ]
+    },
+    "package:playerctl": {
+      "disposition": "native",
+      "evidence": "pkgs.playerctl",
+      "where": [
+        "nixos/modules/base.nix"
+      ]
+    },
+    "package:polkitd": {
+      "disposition": "native",
+      "evidence": "security.polkit.enable = true",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "package:power-profiles-daemon": {
+      "disposition": "native",
+      "evidence": "services.power-profiles-daemon.enable = true",
+      "where": [
+        "nixos/modules/hardware.nix"
+      ]
+    },
+    "package:python3": {
+      "disposition": "native",
+      "evidence": "pkgs.python3",
+      "where": [
+        "nixos/modules/base.nix"
+      ]
+    },
+    "package:rclone": {
+      "disposition": "native",
+      "evidence": "pkgs.rclone",
+      "where": [
+        "nixos/modules/base.nix"
+      ]
+    },
+    "package:restic": {
+      "disposition": "native",
+      "evidence": "pkgs.restic",
+      "where": [
+        "nixos/modules/base.nix"
+      ]
+    },
+    "package:rfkill": {
+      "disposition": "native",
+      "evidence": "pkgs.util-linux",
+      "where": [
+        "nixos/modules/base.nix"
+      ]
+    },
+    "package:systemd": {
+      "disposition": "native",
+      "evidence": "pkgs.systemd",
+      "where": [
+        "nixos/pkgs/rust-packages.nix"
+      ]
+    },
+    "package:systemd-sysv": {
+      "disposition": "native",
+      "evidence": "system.stateVersion = \"26.05\"",
+      "where": [
+        "nixos/modules/base.nix"
+      ]
+    },
+    "package:systemd-timesyncd": {
+      "disposition": "native",
+      "evidence": "services.timesyncd = {",
+      "where": [
+        "nixos/modules/network.nix"
+      ]
+    },
+    "package:triggerhappy": {
+      "disposition": "native",
+      "evidence": "services.triggerhappy = {",
+      "where": [
+        "nixos/modules/hardware.nix"
+      ]
+    },
+    "package:udev": {
+      "disposition": "native",
+      "evidence": "services.udev.extraRules",
+      "where": [
+        "nixos/modules/hardware.nix"
+      ]
+    },
+    "package:upower": {
+      "disposition": "native",
+      "evidence": "services.upower.enable = true",
+      "where": [
+        "nixos/modules/hardware.nix"
+      ]
+    },
+    "package:usbutils": {
+      "disposition": "native",
+      "evidence": "pkgs.usbutils",
+      "where": [
+        "nixos/modules/base.nix"
+      ]
+    },
+    "package:util-linux": {
+      "disposition": "native",
+      "evidence": "pkgs.util-linux",
+      "where": [
+        "nixos/pkgs/helpers.nix"
+      ]
+    },
+    "package:vlock": {
+      "disposition": "native",
+      "evidence": "pkgs.vlock",
+      "where": [
+        "nixos/modules/base.nix"
+      ]
+    },
+    "package:wireless-regdb": {
+      "disposition": "native",
+      "evidence": "pkgs.wireless-regdb",
+      "where": [
+        "nixos/modules/hardware.nix"
+      ]
+    },
+    "package:wireplumber": {
+      "disposition": "native",
+      "evidence": "wireplumber.enable = true",
+      "where": [
+        "nixos/modules/audio.nix"
+      ]
+    },
+    "package:wordnet-base": {
+      "disposition": "native",
+      "evidence": "pkgs.wordnet",
+      "where": [
+        "nixos/modules/base.nix"
+      ]
+    },
+    "package:wpasupplicant": {
+      "disposition": "native",
+      "evidence": "wifi.powersave = false",
+      "where": [
+        "nixos/modules/network.nix"
+      ]
+    },
+    "package:xkb-data": {
+      "disposition": "native",
+      "evidence": "pkgs.xkeyboard_config",
+      "where": [
+        "nixos/modules/base.nix"
+      ]
+    },
+    "path:/bin/false": {
+      "disposition": "ported",
+      "evidence": "\"/bin/false\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/bin/sh": {
+      "disposition": "ported",
+      "evidence": "\"/bin/sh\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/etc/default": {
+      "disposition": "kept",
+      "where": [
+        "crates/wros-input/src/native/reader.rs"
+      ]
+    },
+    "path:/etc/default/keyboard": {
+      "disposition": "kept",
+      "where": [
+        "crates/wros-input/src/native/reader.rs"
+      ]
+    },
+    "path:/etc/hostname": {
+      "disposition": "kept",
+      "where": [
+        "crates/grimoire-core/src/resume.rs"
+      ]
+    },
+    "path:/etc/localtime": {
+      "disposition": "kept",
+      "where": [
+        "crates/grimoire-core/src/accounting.rs"
+      ]
+    },
+    "path:/etc/passwd": {
+      "disposition": "kept",
+      "where": [
+        "crates/grimoire-core/src/documents.rs",
+        "crates/wros-greeter/src/main.rs",
+        "crates/wros-sys/src/timezone.rs"
+      ]
+    },
+    "path:/etc/shadow": {
+      "disposition": "kept",
+      "where": [
+        "crates/grimoire-core/src/workspaces.rs"
+      ]
+    },
+    "path:/etc/systemd/system/systemd-suspend.service.d/60-wros-lock.conf": {
+      "disposition": "ported",
+      "evidence": "\"/etc/systemd/system/systemd-suspend.service.d/60-wros-lock.conf\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/etc/timezone": {
+      "disposition": "kept",
+      "where": [
+        "crates/grimoire-core/src/accounting.rs"
+      ]
+    },
+    "path:/etc/wros/VM-DEMO-ONLY": {
+      "disposition": "kept",
+      "where": [
+        "src/console_lock.rs",
+        "src/live_installer.rs"
+      ]
+    },
+    "path:/etc/wros/boot-theme.toml": {
+      "disposition": "kept",
+      "where": [
+        "crates/wros-boot/src/lib.rs",
+        "crates/wros-greeter/src/main.rs",
+        "src/app.rs"
+      ]
+    },
+    "path:/etc/wros/display.json": {
+      "disposition": "kept",
+      "where": [
+        "src/compositor_warmth/runtime.rs"
+      ]
+    },
+    "path:/opt/writingdeck/python/bin/python3": {
+      "disposition": "ported",
+      "evidence": "\"/opt/writingdeck/python/bin/python3\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/run/live/medium/live/filesystem.squashfs": {
+      "disposition": "ported",
+      "evidence": "\"/run/live/medium/live/filesystem.squashfs\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/run/media/": {
+      "disposition": "kept",
+      "where": [
+        "crates/wros-sys/src/system_views.rs"
+      ]
+    },
+    "path:/run/media/writer/WROS-UPDATE": {
+      "disposition": "kept",
+      "where": [
+        "crates/wros-sys/src/linux.rs"
+      ]
+    },
+    "path:/run/wros-keys/changed": {
+      "disposition": "kept",
+      "where": [
+        "src/gauges.rs"
+      ]
+    },
+    "path:/run/wros-live/session.json": {
+      "disposition": "ported",
+      "evidence": "\"/run/wros-live/session.json\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/run/wros-update": {
+      "disposition": "kept",
+      "where": [
+        "crates/wros-sys/src/linux.rs",
+        "src/shell_ui_tests.rs"
+      ]
+    },
+    "path:/run/wros-update/media/": {
+      "disposition": "kept",
+      "where": [
+        "crates/wros-sys/src/system_views.rs"
+      ]
+    },
+    "path:/run/wros-update/media/../../x": {
+      "disposition": "kept",
+      "where": [
+        "crates/wros-sys/src/update_tests.rs"
+      ]
+    },
+    "path:/run/wros-update/media/0": {
+      "disposition": "kept",
+      "where": [
+        "crates/wros-sys/src/lib.rs",
+        "crates/wros-sys/src/linux.rs",
+        "crates/wros-sys/src/update_tests.rs",
+        "src/shell_ui_tests.rs"
+      ]
+    },
+    "path:/run/wros-update/staging": {
+      "disposition": "kept",
+      "where": [
+        "crates/wros-sys/src/linux.rs"
+      ]
+    },
+    "path:/run/wros-update/staging/x": {
+      "disposition": "kept",
+      "where": [
+        "crates/wros-sys/src/system_views.rs"
+      ]
+    },
+    "path:/usr/bin/apt-get": {
+      "disposition": "ported",
+      "evidence": "\"/usr/bin/apt-get\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/bin/brightnessctl": {
+      "disposition": "ported",
+      "evidence": "\"/usr/bin/brightnessctl\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/bin/busctl": {
+      "disposition": "ported",
+      "evidence": "\"/usr/bin/busctl\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/bin/cage": {
+      "disposition": "ported",
+      "evidence": "\"/usr/bin/cage\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/bin/chvt": {
+      "disposition": "ported",
+      "evidence": "\"/usr/bin/chvt\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/bin/false": {
+      "disposition": "ported",
+      "evidence": "\"/usr/bin/false\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/bin/findmnt": {
+      "disposition": "ported",
+      "evidence": "\"/usr/bin/findmnt\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/bin/foot": {
+      "disposition": "ported",
+      "evidence": "\"/usr/bin/foot\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/bin/grimoire": {
+      "disposition": "ported",
+      "evidence": "\"/usr/bin/grimoire\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/bin/nmcli": {
+      "disposition": "ported",
+      "evidence": "\"/usr/bin/nmcli\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/bin/openvt": {
+      "disposition": "ported",
+      "evidence": "\"/usr/bin/openvt\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/bin/pkexec": {
+      "disposition": "ported",
+      "evidence": "\"/usr/bin/pkexec\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/bin/powerprofilesctl": {
+      "disposition": "ported",
+      "evidence": "\"/usr/bin/powerprofilesctl\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/bin/python3": {
+      "disposition": "ported",
+      "evidence": "\"/usr/bin/python3\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/bin/systemctl": {
+      "disposition": "ported",
+      "evidence": "\"/usr/bin/systemctl\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/bin/systemd-inhibit": {
+      "disposition": "ported",
+      "evidence": "\"/usr/bin/systemd-inhibit\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/bin/systemd-run": {
+      "disposition": "ported",
+      "evidence": "\"/usr/bin/systemd-run\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/bin/timedatectl": {
+      "disposition": "ported",
+      "evidence": "\"/usr/bin/timedatectl\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/bin/unshare": {
+      "disposition": "ported",
+      "evidence": "\"/usr/bin/unshare\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/bin/wros-installer": {
+      "disposition": "ported",
+      "evidence": "\"/usr/bin/wros-installer\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/libexec": {
+      "disposition": "ported",
+      "evidence": "\"/usr/libexec\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/libexec/wros-backup": {
+      "disposition": "ported",
+      "evidence": "\"/usr/libexec/wros-backup\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/libexec/wros-boot-settings": {
+      "disposition": "ported",
+      "evidence": "\"/usr/libexec/wros-boot-settings\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/libexec/wros-clock": {
+      "disposition": "ported",
+      "evidence": "\"/usr/libexec/wros-clock\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/libexec/wros-display": {
+      "disposition": "ported",
+      "evidence": "\"/usr/libexec/wros-display\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/libexec/wros-install-session": {
+      "disposition": "ported",
+      "evidence": "\"/usr/libexec/wros-install-session\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/libexec/wros-keyboard": {
+      "disposition": "ported",
+      "evidence": "\"/usr/libexec/wros-keyboard\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/libexec/wros-lock": {
+      "disposition": "ported",
+      "evidence": "\"/usr/libexec/wros-lock\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/libexec/wros-passwd": {
+      "disposition": "ported",
+      "evidence": "\"/usr/libexec/wros-passwd\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/libexec/wros-session": {
+      "disposition": "ported",
+      "evidence": "\"/usr/libexec/wros-session\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/libexec/wros-sound": {
+      "disposition": "ported",
+      "evidence": "\"/usr/libexec/wros-sound\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/libexec/wros-sync": {
+      "disposition": "ported",
+      "evidence": "\"/usr/libexec/wros-sync\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/libexec/wros-update": {
+      "disposition": "ported",
+      "evidence": "\"/usr/libexec/wros-update\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/libexec/wros-update-apply": {
+      "disposition": "ported",
+      "evidence": "\"/usr/libexec/wros-update-apply\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/libexec/wros-update-cancel": {
+      "disposition": "ported",
+      "evidence": "\"/usr/libexec/wros-update-cancel\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/libexec/wros-update-fetch": {
+      "disposition": "ported",
+      "evidence": "\"/usr/libexec/wros-update-fetch\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/libexec/wros-update-healthy": {
+      "disposition": "ported",
+      "evidence": "\"/usr/libexec/wros-update-healthy\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/libexec/wros-update-media": {
+      "disposition": "ported",
+      "evidence": "\"/usr/libexec/wros-update-media\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/libexec/wros-update-repair": {
+      "disposition": "ported",
+      "evidence": "\"/usr/libexec/wros-update-repair\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/libexec/wros-update-rollback": {
+      "disposition": "ported",
+      "evidence": "\"/usr/libexec/wros-update-rollback\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/libexec/wros-update-stage": {
+      "disposition": "ported",
+      "evidence": "\"/usr/libexec/wros-update-stage\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/sbin/vlock-main": {
+      "disposition": "ported",
+      "evidence": "\"/usr/sbin/vlock-main\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/share/X11/locale/en_US.UTF-8/Compose": {
+      "disposition": "ported",
+      "evidence": "\"/usr/share/X11/locale/en_US.UTF-8/Compose\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/share/X11/xkb": {
+      "disposition": "ported",
+      "evidence": "\"/usr/share/X11/xkb\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/share/wordnet": {
+      "disposition": "ported",
+      "evidence": "\"/usr/share/wordnet\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/usr/share/wros/keymaps/qwerty.map": {
+      "disposition": "ported",
+      "evidence": "\"/usr/share/wros/keymaps/qwerty.map\"",
+      "where": [
+        "crates/wros-sys/src/paths.rs"
+      ]
+    },
+    "path:/var/cache/wros-update/online/": {
+      "disposition": "kept",
+      "where": [
+        "crates/wros-sys/src/system_views.rs"
+      ]
+    },
+    "path:/var/cache/wros-update/online/0123456789abcdef": {
+      "disposition": "kept",
+      "where": [
+        "crates/wros-sys/src/system_views.rs",
+        "src/shell_ui_tests.rs"
+      ]
+    },
+    "path:/var/cache/wros-update/x": {
+      "disposition": "kept",
+      "where": [
+        "crates/wros-sys/src/system_views.rs"
+      ]
+    },
+    "path:/var/lib/wros-update": {
+      "disposition": "kept",
+      "where": [
+        "crates/wros-sys/src/linux.rs"
+      ]
+    },
+    "path:/var/lib/wros-update/public": {
+      "disposition": "kept",
+      "where": [
+        "crates/wros-sys/src/linux.rs",
+        "src/shell_ui_tests.rs"
+      ]
+    },
+    "path:/var/lib/wros-update/x": {
+      "disposition": "kept",
+      "where": [
+        "crates/wros-sys/src/system_views.rs"
+      ]
+    },
+    "polkit:org.writingdeck.keyboard": {
+      "disposition": "ported",
+      "evidence": "<action id=\"org.writingdeck.keyboard\">",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "polkit:org.wros.boot-settings": {
+      "disposition": "ported",
+      "evidence": "<action id=\"org.wros.boot-settings\">",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "polkit:org.wros.clock": {
+      "disposition": "ported",
+      "evidence": "<action id=\"org.wros.clock\">",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "polkit:org.wros.display": {
+      "disposition": "ported",
+      "evidence": "<action id=\"org.wros.display\">",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "polkit:org.wros.installer": {
+      "disposition": "ported",
+      "evidence": "<action id=\"org.wros.installer\">",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "polkit:org.wros.keyboard": {
+      "disposition": "ported",
+      "evidence": "<action id=\"org.wros.keyboard\">",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "polkit:org.wros.lock": {
+      "disposition": "ported",
+      "evidence": "<action id=\"org.wros.lock\">",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "polkit:org.wros.update.apply": {
+      "disposition": "ported",
+      "evidence": "<action id=\"org.wros.update.apply\">",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "polkit:org.wros.update.cancel": {
+      "disposition": "ported",
+      "evidence": "<action id=\"org.wros.update.cancel\">",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "polkit:org.wros.update.fetch": {
+      "disposition": "ported",
+      "evidence": "<action id=\"org.wros.update.fetch\">",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "polkit:org.wros.update.healthy": {
+      "disposition": "ported",
+      "evidence": "<action id=\"org.wros.update.healthy\">",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "polkit:org.wros.update.media": {
+      "disposition": "ported",
+      "evidence": "<action id=\"org.wros.update.media\">",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "polkit:org.wros.update.repair": {
+      "disposition": "ported",
+      "evidence": "<action id=\"org.wros.update.repair\">",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "polkit:org.wros.update.rollback": {
+      "disposition": "ported",
+      "evidence": "<action id=\"org.wros.update.rollback\">",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "polkit:org.wros.update.stage": {
+      "disposition": "ported",
+      "evidence": "<action id=\"org.wros.update.stage\">",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "source:.github/workflows/ci.yml": {
+      "disposition": "ported",
+      "evidence": "name: nix-ci",
+      "where": [
+        "nixos/pkgs/rust-packages.nix",
+        ".github/workflows/nix-ci.yml"
+      ]
+    },
+    "source:.github/workflows/release-updates.yml": {
+      "disposition": "ported",
+      "evidence": "name: release-nixos-updates",
+      "where": [
+        ".github/workflows/release-nixos-updates.yml"
+      ]
+    },
+    "source:os/VERSION": {
+      "disposition": "ported",
+      "evidence": "0.1.0~rc14",
+      "where": [
+        "os/VERSION",
+        "flake.nix"
+      ]
+    },
+    "source:os/config/50-wros-installer.rules": {
+      "disposition": "ported",
+      "evidence": "50-wros-installer.rules",
+      "where": [
+        "nixos/modules/live.nix"
+      ]
+    },
+    "source:os/config/51-wros-greeter-keyboard.rules": {
+      "disposition": "ported",
+      "evidence": "51-wros-greeter-keyboard.rules",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "source:os/config/apt/debian.sources": {
+      "disposition": "retired",
+      "note": "Replaced by NixOS closure updates in nixos/scripts/wros-update-engine.py; APT sources are not used on NixOS."
+    },
+    "source:os/config/encrypted-target-packages.txt": {
+      "disposition": "retired",
+      "note": "Replaced by the unified NixOS installed system closure (nixosConfigurations.wros in flake.nix) copied onto the encrypted target by nixos/scripts/wros-install-core."
+    },
+    "source:os/config/greetd.service": {
+      "disposition": "ported",
+      "evidence": "services.greetd = {",
+      "where": [
+        "nixos/modules/session.nix"
+      ]
+    },
+    "source:os/config/greetd.toml": {
+      "disposition": "ported",
+      "evidence": "default_session = {",
+      "where": [
+        "nixos/modules/session.nix"
+      ]
+    },
+    "source:os/config/installer.preseed": {
+      "disposition": "retired",
+      "note": "Replaced by nixos/scripts/wros-installer-backend and nixos/scripts/wros-install-core; Debian Installer preseeding is not used on NixOS."
+    },
+    "source:os/config/installer/README.md": {
+      "disposition": "retired",
+      "note": "Replaced by docs/NIXOS_BASE.md and nixos/scripts/wros-installer-backend which document and implement the NixOS installer backend."
+    },
+    "source:os/config/installer/cdebconf-passthrough-framing.patch": {
+      "disposition": "retired",
+      "note": "Replaced by nixos/scripts/wros-installer-backend which speaks the framed cdebconf passthrough wire protocol directly in Python."
+    },
+    "source:os/config/installer/debian-installer-initrd-profile.patch": {
+      "disposition": "retired",
+      "note": "Replaced by nixosConfigurations.wros-live in nixos/modules/live.nix; Debian Installer initrd unpacking is not used on NixOS."
+    },
+    "source:os/config/installer/keymaps/": {
+      "disposition": "kept",
+      "where": [
+        "os/config/installer/keymaps/13wros-initramfs-keymap"
+      ]
+    },
+    "source:os/config/installer/native-crypto-passphrase": {
+      "disposition": "retired",
+      "note": "Replaced by stdin JSON credential streaming to nixos/scripts/wros-install-core (read_credentials_from_stream)."
+    },
+    "source:os/config/live/9998-wros-session": {
+      "disposition": "ported",
+      "evidence": "systemd.services.wros-live-session",
+      "where": [
+        "nixos/modules/live.nix",
+        "nixos/scripts/wros-live-session"
+      ]
+    },
+    "source:os/config/live/greetd-live.conf": {
+      "disposition": "ported",
+      "evidence": "/run/wros-live/greetd.env",
+      "where": [
+        "nixos/modules/live.nix"
+      ]
+    },
+    "source:os/config/live/live.conf": {
+      "disposition": "ported",
+      "evidence": "wros.live=1",
+      "where": [
+        "nixos/modules/live.nix"
+      ]
+    },
+    "source:os/config/org.wros.installer.policy": {
+      "disposition": "ported",
+      "evidence": "org.wros.installer.policy",
+      "where": [
+        "nixos/modules/polkit.nix"
+      ]
+    },
+    "source:os/config/packages.txt": {
+      "disposition": "ported",
+      "evidence": "environment.systemPackages",
+      "where": [
+        "nixos/modules/base.nix"
+      ]
+    },
+    "source:os/config/terminal/README.md": {
+      "disposition": "kept",
+      "where": [
+        "os/config/terminal/README.md"
+      ]
+    },
+    "source:os/config/terminal/crossterm-mio-readiness.patch": {
+      "disposition": "kept",
+      "where": [
+        "os/config/terminal/crossterm-mio-readiness.patch"
+      ]
+    },
+    "source:os/config/terminal/crossterm-upstream.json": {
+      "disposition": "kept",
+      "where": [
+        "os/config/terminal/crossterm-upstream.json"
+      ]
+    },
+    "source:os/config/update-trust/update-signers": {
+      "disposition": "kept",
+      "where": [
+        "os/config/update-trust/update-signers"
+      ]
+    },
+    "source:os/config/vlock.pam": {
+      "disposition": "ported",
+      "evidence": "os/config/vlock.pam",
+      "where": [
+        "nixos/modules/guards.nix"
+      ]
+    },
+    "source:os/config/wifi-firmware.json": {
+      "disposition": "ported",
+      "evidence": "os/config/wifi-firmware.json",
+      "where": [
+        "nixos/modules/hardware.nix"
+      ]
+    },
+    "source:os/helpers/wros-console-reset.c": {
+      "disposition": "ported",
+      "evidence": "wros-console-reset.c",
+      "where": [
+        "nixos/pkgs/c-helpers.nix"
+      ]
+    },
+    "source:os/helpers/wros-display-hw.c": {
+      "disposition": "ported",
+      "evidence": "wros-display-hw.c",
+      "where": [
+        "nixos/pkgs/c-helpers.nix"
+      ]
+    },
+    "source:os/python-tools/en_core_web_sm-3.8.0-meta.json": {
+      "disposition": "ported",
+      "evidence": "docs/python-tools-lock.json",
+      "where": [
+        "nixos/pkgs/prose-runtime.nix"
+      ]
+    },
+    "source:os/python-tools/requirements.lock": {
+      "disposition": "ported",
+      "evidence": "pname = \"wros-prose-runtime\"",
+      "where": [
+        "nixos/pkgs/prose-runtime.nix"
+      ]
+    },
+    "source:os/python-tools/wheel-metadata/": {
+      "disposition": "kept",
+      "where": [
+        "os/python-tools/wheel-metadata/nabokov/nabokov-26.7.10.dist-info/METADATA"
+      ]
+    },
+    "source:os/scripts/assemble-image.sh": {
+      "disposition": "retired",
+      "note": "Replaced by nixosConfigurations.wros and pkgs.testers.runNixOSTest VM image builders in flake.nix."
+    },
+    "source:os/scripts/bootstrap-rootfs.sh": {
+      "disposition": "retired",
+      "note": "Replaced by declarative NixOS module evaluation in flake.nix and nixos/modules/installed.nix."
+    },
+    "source:os/scripts/build-installer-frontend.sh": {
+      "disposition": "retired",
+      "note": "Replaced by the wros-installer derivation in nixos/pkgs/rust-packages.nix."
+    },
+    "source:os/scripts/build-installer.sh": {
+      "disposition": "retired",
+      "note": "Replaced by the wros-iso flake output defined in nixos/modules/live.nix and flake.nix."
+    },
+    "source:os/scripts/build-live-backend.sh": {
+      "disposition": "retired",
+      "note": "Replaced by nixos/scripts/wros-installer-backend and nixos/scripts/wros-install-core packaged in nixos/pkgs/helpers.nix."
+    },
+    "source:os/scripts/build-release-iso.sh": {
+      "disposition": "retired",
+      "note": "Replaced by the wros-iso derivation in flake.nix and nixos/modules/live.nix which embeds the full installed system closure."
+    },
+    "source:os/scripts/generate-keymaps.sh": {
+      "disposition": "ported",
+      "evidence": "os/scripts/generate-keymaps.sh",
+      "where": [
+        "nixos/pkgs/keymaps.nix"
+      ]
+    },
+    "source:os/scripts/install-files.sh": {
+      "disposition": "ported",
+      "evidence": "pname = \"wros-helpers\"",
+      "where": [
+        "nixos/pkgs/helpers.nix"
+      ]
+    },
+    "source:os/scripts/install-plan.py": {
+      "disposition": "retired",
+      "note": "Replaced by nixos/scripts/wros-install-core and nixos/scripts/wros-installer-backend."
+    },
+    "source:os/scripts/stage-greeter.sh": {
+      "disposition": "retired",
+      "note": "Replaced by nixos/modules/session.nix and nixos/pkgs/rust-packages.nix (wros-greeter)."
+    },
+    "source:os/scripts/stage-live-session.sh": {
+      "disposition": "retired",
+      "note": "Replaced by nixos/modules/live.nix and nixos/scripts/wros-live-session."
+    },
+    "source:os/scripts/wros-install-session": {
+      "disposition": "ported",
+      "evidence": "verify_nixos_completion_proof",
+      "where": [
+        "nixos/scripts/wros-install-session"
+      ]
+    },
+    "source:os/scripts/wros-live-session": {
+      "disposition": "ported",
+      "evidence": "LIVE_SQUASHFS = Path('/iso/nix-store.squashfs')",
+      "where": [
+        "nixos/scripts/wros-live-session"
+      ]
+    },
+    "source:os/scripts/wros-rescue": {
+      "disposition": "ported",
+      "evidence": "mapping=wros_crypt",
+      "where": [
+        "nixos/scripts/wros-rescue"
+      ]
+    },
+    "source:os/vendor/cage/": {
+      "disposition": "kept",
+      "where": [
+        "os/vendor/cage/LICENSE"
+      ]
+    },
+    "source:packaging/fixture-fingerprints.txt": {
+      "disposition": "retired",
+      "note": "Replaced by Nix store hash verification and nixos/PARITY.json."
+    },
+    "source:packaging/manifest.json": {
+      "disposition": "ported",
+      "evidence": "wros-helpers = import ./helpers.nix",
+      "where": [
+        "nixos/pkgs/default.nix"
+      ]
+    },
+    "source:packaging/wros_packaging.py": {
+      "disposition": "retired",
+      "note": "Replaced by Nix package derivations in nixos/pkgs/default.nix."
+    },
+    "source:tools/audit-installer-media.py": {
+      "disposition": "kept",
+      "where": [
+        "tools/audit-installer-media.py"
+      ]
+    },
+    "source:tools/audit-live-session.py": {
+      "disposition": "kept",
+      "where": [
+        "tools/audit-live-session.py"
+      ]
+    },
+    "source:tools/audit-native-image.py": {
+      "disposition": "kept",
+      "where": [
+        "tools/audit-native-image.py"
+      ]
+    },
+    "source:tools/audit-prose-tools.py": {
+      "disposition": "kept",
+      "where": [
+        "tools/audit-prose-tools.py"
+      ]
+    },
+    "source:tools/audit-terminal-library.py": {
+      "disposition": "kept",
+      "where": [
+        "tools/audit-terminal-library.py"
+      ]
+    },
+    "source:tools/audit-wifi-image.py": {
+      "disposition": "kept",
+      "where": [
+        "tools/audit-wifi-image.py"
+      ]
+    },
+    "source:tools/audit-writing-checks-assets.py": {
+      "disposition": "kept",
+      "where": [
+        "tools/audit-writing-checks-assets.py"
+      ]
+    },
+    "source:tools/build-cage.py": {
+      "disposition": "ported",
+      "evidence": "os/vendor/cage",
+      "where": [
+        "nixos/pkgs/cage.nix"
+      ]
+    },
+    "source:tools/build-live-installer-pool.py": {
+      "disposition": "retired",
+      "note": "Replaced by closureInfo and system.build.toplevel embedding in nixos/modules/live.nix."
+    },
+    "source:tools/build-spark-corpus.py": {
+      "disposition": "kept",
+      "where": [
+        "tools/build-spark-corpus.py"
+      ]
+    },
+    "source:tools/build-update-bundle.py": {
+      "disposition": "ported",
+      "evidence": "closure-manifest.json",
+      "where": [
+        "tools/build-nixos-update-bundle.py"
+      ]
+    },
+    "source:tools/build-wros-debs.py": {
+      "disposition": "retired",
+      "note": "Replaced by nixos/pkgs/default.nix derivations and nixos/pkgs/update-bundle.nix."
+    },
+    "source:tools/capture-prose-tool-lock.py": {
+      "disposition": "kept",
+      "where": [
+        "tools/capture-prose-tool-lock.py"
+      ]
+    },
+    "source:tools/capture-wros-screens.py": {
+      "disposition": "kept",
+      "where": [
+        "tools/capture-wros-screens.py"
+      ]
+    },
+    "source:tools/check-wros.py": {
+      "disposition": "kept",
+      "where": [
+        "tools/check-wros.py"
+      ]
+    },
+    "source:tools/collect-update-runtime.py": {
+      "disposition": "ported",
+      "evidence": "closure-manifest.json",
+      "where": [
+        "tools/collect-nixos-update-runtime.py"
+      ]
+    },
+    "source:tools/demo.py": {
+      "disposition": "kept",
+      "where": [
+        "tools/demo.py"
+      ]
+    },
+    "source:tools/generate-installer-keymaps.py": {
+      "disposition": "kept",
+      "where": [
+        "tools/generate-installer-keymaps.py"
+      ]
+    },
+    "source:tools/generate-keyboard-reference.py": {
+      "disposition": "kept",
+      "where": [
+        "tools/generate-keyboard-reference.py"
+      ]
+    },
+    "source:tools/generate-wros-manifests.py": {
+      "disposition": "retired",
+      "note": "Replaced by flake.nix and nixos/pkgs/update-bundle.nix closure-manifest.json generation."
+    },
+    "source:tools/graphical-trial.sh": {
+      "disposition": "kept",
+      "where": [
+        "tools/graphical-trial.sh"
+      ]
+    },
+    "source:tools/graphical_trial.py": {
+      "disposition": "kept",
+      "where": [
+        "tools/graphical_trial.py"
+      ]
+    },
+    "source:tools/live-boot-menu.py": {
+      "disposition": "kept",
+      "where": [
+        "tools/live-boot-menu.py"
+      ]
+    },
+    "source:tools/measure-prose-tools.py": {
+      "disposition": "kept",
+      "where": [
+        "tools/measure-prose-tools.py"
+      ]
+    },
+    "source:tools/measure-writing-checks.py": {
+      "disposition": "kept",
+      "where": [
+        "tools/measure-writing-checks.py"
+      ]
+    },
+    "source:tools/media_constants.py": {
+      "disposition": "kept",
+      "where": [
+        "tools/media_constants.py"
+      ]
+    },
+    "source:tools/prepare-prose-tools.py": {
+      "disposition": "kept",
+      "where": [
+        "tools/prepare-prose-tools.py"
+      ]
+    },
+    "source:tools/publish-updates.py": {
+      "disposition": "ported",
+      "evidence": "NIXOS_UPDATE_URL",
+      "where": [
+        "tools/publish-nixos-updates.py"
+      ]
+    },
+    "source:tools/push-writingdeck-to-wros.sh": {
+      "disposition": "kept",
+      "where": [
+        "tools/push-writingdeck-to-wros.sh"
+      ]
+    },
+    "source:tools/push-wros-source.sh": {
+      "disposition": "kept",
+      "where": [
+        "tools/push-wros-source.sh"
+      ]
+    },
+    "source:tools/rc-check.sh": {
+      "disposition": "kept",
+      "where": [
+        "tools/rc-check.sh"
+      ]
+    },
+    "source:tools/screenshots.py": {
+      "disposition": "kept",
+      "where": [
+        "tools/screenshots.py"
+      ]
+    },
+    "source:tools/site_themes.py": {
+      "disposition": "kept",
+      "where": [
+        "tools/site_themes.py"
+      ]
+    },
+    "source:tools/stage-native-installer.py": {
+      "disposition": "retired",
+      "note": "Replaced by nixos/modules/live.nix and nixos/pkgs/helpers.nix."
+    },
+    "source:tools/stage-prose-runtime.py": {
+      "disposition": "ported",
+      "evidence": "tools/prepare-prose-tools.py",
+      "where": [
+        "nixos/pkgs/prose-runtime.nix"
+      ]
+    },
+    "source:tools/test-installer-backend.py": {
+      "disposition": "kept",
+      "where": [
+        "tools/test-installer-backend.py"
+      ]
+    },
+    "source:tools/test-installer-components.py": {
+      "disposition": "kept",
+      "where": [
+        "tools/test-installer-components.py"
+      ]
+    },
+    "source:tools/test-m7b.sh": {
+      "disposition": "kept",
+      "where": [
+        "tools/test-m7b.sh"
+      ]
+    },
+    "source:tools/verify-debian-installer.py": {
+      "disposition": "retired",
+      "note": "Replaced by nixos/tests/install-encrypted.nix and nixos/tests/live-session.nix."
+    },
+    "source:tools/verify-wros.py": {
+      "disposition": "kept",
+      "where": [
+        "tools/verify-wros.py"
+      ]
+    },
+    "source:tools/winget.py": {
+      "disposition": "kept",
+      "where": [
+        "tools/winget.py"
+      ]
+    },
+    "source:tools/wros_source.py": {
+      "disposition": "kept",
+      "where": [
+        "tools/wros_source.py"
+      ]
+    },
+    "test:os/tests/boot_vm.py": {
+      "disposition": "ported",
+      "evidence": "wros-boot-unlock-login",
+      "where": [
+        "nixos/tests/boot-unlock-login.nix"
+      ]
+    },
+    "test:os/tests/cage-gamma-client.c": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/cage-gamma-client.c"
+      ]
+    },
+    "test:os/tests/cage-gamma-driver.c": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/cage-gamma-driver.c"
+      ]
+    },
+    "test:os/tests/cdebconf_protocol.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/cdebconf_protocol.py"
+      ]
+    },
+    "test:os/tests/console_lock_vm.py": {
+      "disposition": "ported",
+      "evidence": "wros-console-lock",
+      "where": [
+        "nixos/tests/console-lock.nix"
+      ]
+    },
+    "test:os/tests/display_vm.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/display_vm.py"
+      ]
+    },
+    "test:os/tests/fake-display-drm.c": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/fake-display-drm.c"
+      ]
+    },
+    "test:os/tests/fixture_storage.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/fixture_storage.py"
+      ]
+    },
+    "test:os/tests/gamma-frozen-parent.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/gamma-frozen-parent.py"
+      ]
+    },
+    "test:os/tests/graphical_driver.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/graphical_driver.py"
+      ]
+    },
+    "test:os/tests/graphical_session_vm.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/graphical_session_vm.py"
+      ]
+    },
+    "test:os/tests/greeter_power_vm.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/greeter_power_vm.py"
+      ]
+    },
+    "test:os/tests/greeter_vm.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/greeter_vm.py"
+      ]
+    },
+    "test:os/tests/guest-boot-probe.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/guest-boot-probe.py"
+      ]
+    },
+    "test:os/tests/guest-checks-probe.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/guest-checks-probe.py"
+      ]
+    },
+    "test:os/tests/guest-console-lock.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/guest-console-lock.py"
+      ]
+    },
+    "test:os/tests/guest-display-probe.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/guest-display-probe.py"
+      ]
+    },
+    "test:os/tests/guest-greeter-probe.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/guest-greeter-probe.py"
+      ]
+    },
+    "test:os/tests/guest-keyboard-probe.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/guest-keyboard-probe.py"
+      ]
+    },
+    "test:os/tests/guest-prose-probe.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/guest-prose-probe.py"
+      ]
+    },
+    "test:os/tests/hold-drm-master.c": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/hold-drm-master.c"
+      ]
+    },
+    "test:os/tests/install_vm.py": {
+      "disposition": "ported",
+      "evidence": "wros-install-encrypted",
+      "where": [
+        "nixos/tests/install-encrypted.nix"
+      ]
+    },
+    "test:os/tests/installed_boot.py": {
+      "disposition": "ported",
+      "evidence": "wros-boot-ok.service",
+      "where": [
+        "nixos/tests/boot-unlock-login.nix"
+      ]
+    },
+    "test:os/tests/installer_safety_vm.py": {
+      "disposition": "ported",
+      "evidence": "Erase /dev/vdb and install encrypted WrOS",
+      "where": [
+        "nixos/tests/live-session.nix"
+      ]
+    },
+    "test:os/tests/keyboard_vm.py": {
+      "disposition": "ported",
+      "evidence": "wros-keyboard-preview",
+      "where": [
+        "nixos/tests/keyboard-preview.nix"
+      ]
+    },
+    "test:os/tests/live_session_vm.py": {
+      "disposition": "ported",
+      "evidence": "wros-live-session",
+      "where": [
+        "nixos/tests/live-session.nix"
+      ]
+    },
+    "test:os/tests/media_keys_vm.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/media_keys_vm.py"
+      ]
+    },
+    "test:os/tests/native_installer_guest.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/native_installer_guest.py"
+      ]
+    },
+    "test:os/tests/native_installer_vm.py": {
+      "disposition": "ported",
+      "evidence": "wros-install-core",
+      "where": [
+        "nixos/tests/install-encrypted.nix"
+      ]
+    },
+    "test:os/tests/native_target_audit.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/native_target_audit.py"
+      ]
+    },
+    "test:os/tests/protocols/": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/protocols/README.md"
+      ]
+    },
+    "test:os/tests/rc_vm.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/rc_vm.py"
+      ]
+    },
+    "test:os/tests/rc_vm_attach.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/rc_vm_attach.py"
+      ]
+    },
+    "test:os/tests/rc_vm_chain.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/rc_vm_chain.py"
+      ]
+    },
+    "test:os/tests/rc_vm_explore.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/rc_vm_explore.py"
+      ]
+    },
+    "test:os/tests/rc_vm_forms.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/rc_vm_forms.py"
+      ]
+    },
+    "test:os/tests/rc_vm_guest.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/rc_vm_guest.py"
+      ]
+    },
+    "test:os/tests/rc_vm_phases.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/rc_vm_phases.py"
+      ]
+    },
+    "test:os/tests/restart_app_vm.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/restart_app_vm.py"
+      ]
+    },
+    "test:os/tests/sound_vm.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/sound_vm.py"
+      ]
+    },
+    "test:os/tests/terminal_screen.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/terminal_screen.py"
+      ]
+    },
+    "test:os/tests/test_argon_writing_pty.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_argon_writing_pty.py"
+      ]
+    },
+    "test:os/tests/test_backup.py": {
+      "disposition": "ported",
+      "evidence": "test_debian_era_system_settings_restore_on_nixos_and_skip_obsolete_fields",
+      "where": [
+        "os/tests/test_backup.py"
+      ]
+    },
+    "test:os/tests/test_backup_pty.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_backup_pty.py"
+      ]
+    },
+    "test:os/tests/test_boot_settings.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_boot_settings.py"
+      ]
+    },
+    "test:os/tests/test_boot_unlock.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_boot_unlock.py"
+      ]
+    },
+    "test:os/tests/test_cage_gamma.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_cage_gamma.py"
+      ]
+    },
+    "test:os/tests/test_check_wros.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_check_wros.py"
+      ]
+    },
+    "test:os/tests/test_checks_pty.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_checks_pty.py"
+      ]
+    },
+    "test:os/tests/test_cli.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_cli.py"
+      ]
+    },
+    "test:os/tests/test_clock.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_clock.py"
+      ]
+    },
+    "test:os/tests/test_collect_update_runtime.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_collect_update_runtime.py"
+      ]
+    },
+    "test:os/tests/test_compositor_preferences.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_compositor_preferences.py"
+      ]
+    },
+    "test:os/tests/test_console_lock.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_console_lock.py"
+      ]
+    },
+    "test:os/tests/test_console_reset.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_console_reset.py"
+      ]
+    },
+    "test:os/tests/test_display_bridge.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_display_bridge.py"
+      ]
+    },
+    "test:os/tests/test_display_manager.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_display_manager.py"
+      ]
+    },
+    "test:os/tests/test_docx_footnotes_render.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_docx_footnotes_render.py"
+      ]
+    },
+    "test:os/tests/test_epub_footnotes.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_epub_footnotes.py"
+      ]
+    },
+    "test:os/tests/test_export_preflight_pty.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_export_preflight_pty.py"
+      ]
+    },
+    "test:os/tests/test_fixture_storage.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_fixture_storage.py"
+      ]
+    },
+    "test:os/tests/test_footnote_context_pty.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_footnote_context_pty.py"
+      ]
+    },
+    "test:os/tests/test_footnote_insert_pty.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_footnote_insert_pty.py"
+      ]
+    },
+    "test:os/tests/test_footnote_navigator_pty.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_footnote_navigator_pty.py"
+      ]
+    },
+    "test:os/tests/test_graphical_driver.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_graphical_driver.py"
+      ]
+    },
+    "test:os/tests/test_graphical_trial.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_graphical_trial.py"
+      ]
+    },
+    "test:os/tests/test_grub_recovery.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_grub_recovery.py"
+      ]
+    },
+    "test:os/tests/test_input_pty.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_input_pty.py"
+      ]
+    },
+    "test:os/tests/test_install_plan.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_install_plan.py"
+      ]
+    },
+    "test:os/tests/test_install_session.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_install_session.py"
+      ]
+    },
+    "test:os/tests/test_installed_boot.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_installed_boot.py"
+      ]
+    },
+    "test:os/tests/test_installer_keymaps.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_installer_keymaps.py"
+      ]
+    },
+    "test:os/tests/test_installer_media.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_installer_media.py"
+      ]
+    },
+    "test:os/tests/test_installer_pty.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_installer_pty.py"
+      ]
+    },
+    "test:os/tests/test_journal_pty.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_journal_pty.py"
+      ]
+    },
+    "test:os/tests/test_keyboard.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_keyboard.py"
+      ]
+    },
+    "test:os/tests/test_knowledge_pty.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_knowledge_pty.py"
+      ]
+    },
+    "test:os/tests/test_lexicon_pty.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_lexicon_pty.py"
+      ]
+    },
+    "test:os/tests/test_line_endings.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_line_endings.py"
+      ]
+    },
+    "test:os/tests/test_link.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_link.py"
+      ]
+    },
+    "test:os/tests/test_live_boot_menu.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_live_boot_menu.py"
+      ]
+    },
+    "test:os/tests/test_live_installer_pool.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_live_installer_pool.py"
+      ]
+    },
+    "test:os/tests/test_live_session.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_live_session.py"
+      ]
+    },
+    "test:os/tests/test_local_session_privacy_pty.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_local_session_privacy_pty.py"
+      ]
+    },
+    "test:os/tests/test_manuscript_footnote_pty.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_manuscript_footnote_pty.py"
+      ]
+    },
+    "test:os/tests/test_media_key.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_media_key.py"
+      ]
+    },
+    "test:os/tests/test_name_leftovers.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_name_leftovers.py"
+      ]
+    },
+    "test:os/tests/test_name_migration.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_name_migration.py"
+      ]
+    },
+    "test:os/tests/test_native_image.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_native_image.py"
+      ]
+    },
+    "test:os/tests/test_native_installer_capsule.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_native_installer_capsule.py"
+      ]
+    },
+    "test:os/tests/test_native_installer_guest.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_native_installer_guest.py"
+      ]
+    },
+    "test:os/tests/test_native_target_audit.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_native_target_audit.py"
+      ]
+    },
+    "test:os/tests/test_packaging.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_packaging.py"
+      ]
+    },
+    "test:os/tests/test_passage_restore_pty.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_passage_restore_pty.py"
+      ]
+    },
+    "test:os/tests/test_passwd_helper.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_passwd_helper.py"
+      ]
+    },
+    "test:os/tests/test_pins_pty.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_pins_pty.py"
+      ]
+    },
+    "test:os/tests/test_productivity_pty.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_productivity_pty.py"
+      ]
+    },
+    "test:os/tests/test_prose_pty.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_prose_pty.py"
+      ]
+    },
+    "test:os/tests/test_prose_runtime.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_prose_runtime.py"
+      ]
+    },
+    "test:os/tests/test_prose_staging.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_prose_staging.py"
+      ]
+    },
+    "test:os/tests/test_rc7_pty.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_rc7_pty.py"
+      ]
+    },
+    "test:os/tests/test_rc_vm.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_rc_vm.py"
+      ]
+    },
+    "test:os/tests/test_rc_vm_chain.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_rc_vm_chain.py"
+      ]
+    },
+    "test:os/tests/test_rc_vm_fakes.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_rc_vm_fakes.py"
+      ]
+    },
+    "test:os/tests/test_recovery_menu.py": {
+      "disposition": "ported",
+      "evidence": "wros-recovery-menu",
+      "where": [
+        "nixos/tests/recovery-menu.nix"
+      ]
+    },
+    "test:os/tests/test_rescue.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_rescue.py"
+      ]
+    },
+    "test:os/tests/test_review_notes_pty.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_review_notes_pty.py"
+      ]
+    },
+    "test:os/tests/test_secondary_pty.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_secondary_pty.py"
+      ]
+    },
+    "test:os/tests/test_session_headless.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_session_headless.py"
+      ]
+    },
+    "test:os/tests/test_session_launcher.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_session_launcher.py"
+      ]
+    },
+    "test:os/tests/test_shell_pty.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_shell_pty.py"
+      ]
+    },
+    "test:os/tests/test_sound.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_sound.py"
+      ]
+    },
+    "test:os/tests/test_spark_corpus.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_spark_corpus.py"
+      ]
+    },
+    "test:os/tests/test_spark_pty.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_spark_pty.py"
+      ]
+    },
+    "test:os/tests/test_story_identity_pty.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_story_identity_pty.py"
+      ]
+    },
+    "test:os/tests/test_sync.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_sync.py"
+      ]
+    },
+    "test:os/tests/test_terminal_screen.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_terminal_screen.py"
+      ]
+    },
+    "test:os/tests/test_update.py": {
+      "disposition": "ported",
+      "evidence": "NixosUpdateEngineTests",
+      "where": [
+        "os/tests/test_nixos_update.py"
+      ]
+    },
+    "test:os/tests/test_update_live.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_update_live.py"
+      ]
+    },
+    "test:os/tests/test_update_rollback.py": {
+      "disposition": "ported",
+      "evidence": "wros-update-goback",
+      "where": [
+        "os/tests/test_nixos_update.py",
+        "nixos/tests/update-goback.nix"
+      ]
+    },
+    "test:os/tests/test_update_support.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_update_support.py"
+      ]
+    },
+    "test:os/tests/test_update_transactions.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_update_transactions.py"
+      ]
+    },
+    "test:os/tests/test_update_workflow.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_update_workflow.py"
+      ]
+    },
+    "test:os/tests/test_wifi_policy.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_wifi_policy.py"
+      ]
+    },
+    "test:os/tests/test_workflow_pty.py": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/test_workflow_pty.py"
+      ]
+    },
+    "test:os/tests/wayland-gamma-server.c": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/wayland-gamma-server.c"
+      ]
+    },
+    "test:os/tests/wayland-keys.c": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/wayland-keys.c"
+      ]
+    },
+    "test:os/tests/wlr-gamma-control-unstable-v1.xml": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/wlr-gamma-control-unstable-v1.xml"
+      ]
+    },
+    "test:os/tests/wros-boot-probe.service": {
+      "disposition": "kept",
+      "where": [
+        "os/tests/wros-boot-probe.service"
+      ]
+    },
+    "unit-enable:wros-boot-ok.service@multi-user.target": {
+      "disposition": "ported",
+      "evidence": "systemd.services.wros-boot-ok = {",
+      "where": [
+        "nixos/modules/boot.nix"
+      ]
+    },
+    "unit-enable:wros-boot-ok.service@system-update.target": {
+      "disposition": "ported",
+      "evidence": "grub-editenv /boot/grub/grubenv unset wros_boot_pending",
+      "where": [
+        "nixos/modules/boot.nix"
+      ]
+    },
+    "unit-enable:wros-boot-rebuild.path@multi-user.target": {
+      "disposition": "ported",
+      "evidence": "systemd.paths.wros-boot-rebuild = {",
+      "where": [
+        "nixos/modules/boot.nix"
+      ]
+    },
+    "unit-enable:wros-boot-splash.service@sysinit.target": {
+      "disposition": "ported",
+      "evidence": "systemd.services.wros-boot-splash = {",
+      "where": [
+        "nixos/modules/boot.nix"
+      ]
+    },
+    "unit-enable:wros-display.service@multi-user.target": {
+      "disposition": "ported",
+      "evidence": "systemd.services.wros-display = {",
+      "where": [
+        "nixos/modules/session.nix"
+      ]
+    },
+    "unit-enable:wros-keyboard.service@multi-user.target": {
+      "disposition": "ported",
+      "evidence": "systemd.services.wros-keyboard = {",
+      "where": [
+        "nixos/modules/session.nix"
+      ]
+    },
+    "unit-enable:wros-offline-update.service@system-update.target": {
+      "disposition": "ported",
+      "evidence": "systemd.services.wros-offline-update = {",
+      "where": [
+        "nixos/modules/updates.nix"
+      ]
+    },
+    "unit-enable:wros-update-reconcile.service@multi-user.target": {
+      "disposition": "ported",
+      "evidence": "systemd.services.wros-update-reconcile = {",
+      "where": [
+        "nixos/modules/updates.nix"
+      ]
+    }
+  },
+  "schema": 1
+}

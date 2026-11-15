@@ -1,6 +1,6 @@
 # APIs and network use
 
-This is an audit of the current Debian application source, separate from build
+This is an audit of the current Debian and NixOS application source, separate from build
 downloads and optional services installed or configured outside WrOS. It is not
 a claim that the entire operating system is finished.
 
@@ -14,7 +14,7 @@ missing or unsupported linked metadata before assigning replacement identities.
 
 Writing checks use local Spellbook/optional Harper, Proselint and Nabokov/spaCy.
 Dictionary and thesaurus lookups use local WordNet. Word/EPUB generation is local;
-PDF conversion uses the existing headless LibreOffice adapter. Export preserves
+PDF conversion uses the existing headless LibreOffice adapter when installed. Export preserves
 URL text without fetching the linked resource. These features do not call a
 hosted AI, online grammar or cloud document service.
 
@@ -47,7 +47,7 @@ music requests; it does not send manuscript text.
 | YouTube Music companion | Configured HTTP host, default `127.0.0.1:26538`; `/auth/grimoiretui` pairing and `/api/v1/` player state, search, queue and playback controls. Pairing uses a local bearer token. |
 | YouTube playlist browsing | POST `https://music.youtube.com/youtubei/v1/browse?prettyPrint=false` with playlist/browse identifiers and web-client context. This is an inherited website endpoint, not the official YouTube Data API. |
 | YouTube Music setup | GitHub releases API at `https://api.github.com/repos/th-ch/youtube-music/releases/latest`, then the selected release asset. This is companion setup, not WrOS signed system updates. |
-| Spotify | Installed player's local MPRIS interface via `playerctl` on Debian; WrOS does not use Spotify's OAuth/Web API. The Spotify player handles its own service connection. |
+| Spotify | Installed player's local MPRIS interface via `playerctl` on Debian/NixOS; WrOS does not use Spotify's OAuth/Web API. The Spotify player handles its own service connection. |
 | Jellyfin | Configured server HTTP API: `/Users/AuthenticateByName`, `/Items` and `/Audio/{id}/stream`. Login credentials/token go to that selected server. |
 | Plex | Configured server HTTP API: `/library/sections`, `/library/sections/{id}/all` and returned media stream paths, using the configured Plex token. |
 
@@ -63,7 +63,8 @@ and rclone for the optional Drive backend. Opening Settings reads local state
 only. Local repository backup/restore uses local filesystem IO. Google connection
 explicitly validates authorization via `rclone about`; Drive repository creation,
 snapshot refresh, backup, restore and stale-lock recovery explicitly invoke
-Restic's rclone backend and can contact Google Drive/Google token endpoints.
+Restic's rclone backend and can contact Google Drive/Google token endpoints
+(`oauth2.googleapis.com`, `www.googleapis.com`).
 No background startup, autosave, history or ordinary writing path starts these
 provider calls. Failed/offline backup jobs record the project in the local private queue (`queue.json`) and require an explicit retry (`run-queue` or `Create encrypted backup`). `check-google` and `disconnect-google` manage local Google Drive credentials explicitly.
 
@@ -119,6 +120,20 @@ The separate backup and sync adapters provide explicit authorization/backup/rest
 the old general-purpose system request variants remain unavailable. No successful OAuth enrollment,
 Drive API call or manuscript upload is fabricated. No telemetry or mandatory
 cloud service is introduced by these writing integrations.
+
+## NixOS (`0.1.0~rc14+`) network hosts and online update channel (`D2`)
+
+Every network host an installed NixOS WrOS laptop (`0.1.0~rc14+`) can contact is listed below:
+
+| Service / Feature | Host(s) contacted | Protocol | When contacted |
+|---|---|---|---|
+| Network time (`systemd-timesyncd`) | `0.nixos.pool.ntp.org`, `1.nixos.pool.ntp.org`, `2.nixos.pool.ntp.org`, `3.nixos.pool.ntp.org` | UDP/123 (NTP) | Automatically while online when network time is enabled (`services.timesyncd.enable = lib.mkDefault true` in `nixos/modules/network.nix`) |
+| Online update check & binary-cache metadata (`wros-update check-online`, `wros-update-fetch`) | `j5cfk7qm49-web.github.io` (`https://j5cfk7qm49-web.github.io/WrOS/nixos-updates/`) | HTTPS (TCP/443) | Once after login and at most daily for `InRelease` + `closure-manifest.json`; fetches `cache/nix-cache-info`, `cache/<hash>.narinfo`, and small delta `.nar.zst` files (`< 100 MB`) only when the writer explicitly runs **Update WrOS** |
+| Online update large `.nar.zst` archives (`wros-update-fetch`) | `github.com` (`https://github.com/j5cfk7qm49-web/WrOS/releases/download/v<version>/...`) redirecting to `objects.githubusercontent.com` / `release-assets.githubusercontent.com` | HTTPS (TCP/443) | Only when the writer explicitly runs **Update WrOS** and `closure-manifest.json` references release-asset `.nar.zst` files that exceed GitHub Pages' 100 MB per-file / 1 GB site limit (see [`docs/NIXOS_UPDATES.md`](NIXOS_UPDATES.md)) |
+| Optional Google Drive backup / sync (`wros-backup`, `wros-sync` via `rclone`) | `oauth2.googleapis.com`, `www.googleapis.com` | HTTPS (TCP/443) | Only after the writer explicitly connects a Google Drive account and runs a backup/restore or enables per-book sync |
+| Optional music integrations (disabled by default) | `music.youtube.com`, `api.github.com` (`repos/th-ch/youtube-music`), or user-configured Jellyfin/Plex host | HTTP/HTTPS | Only if the writer explicitly enables a music source in Settings |
+
+NetworkManager connectivity checking is disabled (`[connectivity] enabled=false` in `/etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf`), and Nix substituters and channels are disabled (`nix.channel.enable = false`, `nix.settings.substituters = lib.mkForce []`), so `cache.nixos.org` is never contacted by the laptop. The Debian channel `https://j5cfk7qm49-web.github.io/WrOS/updates/` remains untouched for `v0.1.0-rc13` systems.
 
 ## Verification
 

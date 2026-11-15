@@ -1,0 +1,104 @@
+[
+  {
+    "command": "python3 rebase-kit/test_check_rebase.py",
+    "ran": true,
+    "result": "pass",
+    "note": "Ran 35 tests in rebase-kit/test_check_rebase.py (OK)."
+  },
+  {
+    "command": "python3 rebase-kit/check_rebase.py --tree work_r2/WrOS --patch WrOS-Argon.patch",
+    "ran": true,
+    "result": "pass",
+    "note": "All 24 static acceptance checks (C01-C24) passed with 0 failed checks."
+  },
+  {
+    "command": "python3 tools/check-wros.py",
+    "ran": true,
+    "result": "pass",
+    "note": "PASS: 17 required docs, local links, 89 capability rows, 50 lessons, content/dictionary hashes, notices, offline printable reference."
+  },
+  {
+    "command": "python3 os/tests/test_nixos_update.py -v",
+    "ran": true,
+    "result": "pass",
+    "note": "Ran 4 tests (constants parity, downgrade/equal version refusal on fresh install, binary-cache pre-import hash check + stage/apply/rollback + GC roots, tilde version comparison): OK."
+  },
+  {
+    "command": "python3 os/tests/test_keyboard.py -v && python3 os/tests/test_boot_settings.py -v && python3 os/tests/test_name_leftovers.py -v && python3 os/tests/test_line_endings.py -v",
+    "ran": true,
+    "result": "pass",
+    "note": "Ran 25 tests in test_keyboard (OK, skipped=1), 8 tests in test_boot_settings (OK), 2 tests in test_name_leftovers (OK, skipped=1), and 8 tests in test_line_endings (OK), plus 20 non-restic/rclone unit tests in test_backup (including SettingsProfile.test_older_snapshots_without_settings_still_restore)."
+  },
+  {
+    "command": "nix flake check --no-build",
+    "ran": false,
+    "result": "unrun",
+    "note": "Nix is not installed in the sandbox VM container (outbound network and package installation disabled)."
+  },
+  {
+    "command": "nix flake check",
+    "ran": false,
+    "result": "unrun",
+    "note": "Nix and KVM are not available in the sandbox VM container; run on NixOS-WSL per docs/NIXOS_QUALIFICATION.md."
+  },
+  {
+    "command": "cargo test --workspace --locked",
+    "ran": false,
+    "result": "unrun",
+    "note": "Rust toolchain (cargo/rustc) is not installed in the sandbox VM container."
+  },
+  {
+    "command": "cargo clippy --workspace --all-targets --locked -- -D warnings",
+    "ran": false,
+    "result": "unrun",
+    "note": "Rust toolchain (cargo/clippy) is not installed in the sandbox VM container."
+  },
+  {
+    "command": "nix build .#checks.x86_64-linux.helpers-no-fhs",
+    "ran": false,
+    "result": "unrun",
+    "note": "Nix is not installed in the sandbox VM container; the exact grep from nixos/tests/helpers-no-fhs.nix was simulated against the substituted wros-helpers output with 0 matches."
+  },
+  {
+    "command": "nix build .#checks.x86_64-linux.boot-unlock-login",
+    "ran": false,
+    "result": "unrun",
+    "note": "Requires Nix + KVM on NixOS-WSL; test authored in nixos/tests/boot-unlock-login.nix."
+  },
+  {
+    "command": "nix build .#checks.x86_64-linux.keyboard-preview",
+    "ran": false,
+    "result": "unrun",
+    "note": "Requires Nix + KVM on NixOS-WSL; test authored in nixos/tests/keyboard-preview.nix."
+  },
+  {
+    "command": "nix build .#checks.x86_64-linux.console-lock",
+    "ran": false,
+    "result": "unrun",
+    "note": "Requires Nix + KVM on NixOS-WSL; test authored in nixos/tests/console-lock.nix."
+  },
+  {
+    "command": "nix build .#checks.x86_64-linux.update-goback",
+    "ran": false,
+    "result": "unrun",
+    "note": "Requires Nix + KVM on NixOS-WSL; test authored in nixos/tests/update-goback.nix."
+  },
+  {
+    "command": "nix build .#checks.x86_64-linux.recovery-menu",
+    "ran": false,
+    "result": "unrun",
+    "note": "Requires Nix + KVM on NixOS-WSL; test authored in nixos/tests/recovery-menu.nix."
+  },
+  {
+    "command": "nix build .#checks.x86_64-linux.install-encrypted",
+    "ran": false,
+    "result": "unrun",
+    "note": "Requires Nix + KVM on NixOS-WSL; test authored in nixos/tests/install-encrypted.nix."
+  },
+  {
+    "command": "nix build .#checks.x86_64-linux.live-session",
+    "ran": false,
+    "result": "unrun",
+    "note": "Requires Nix + KVM on NixOS-WSL; test authored in nixos/tests/live-session.nix."
+  }
+]

@@ -1,5 +1,17 @@
 # Changelog
 
+- Add `0.1.0~rc14` NixOS operating-system rebase (`flake.nix`, `nixos/pkgs/`,
+  `nixos/modules/`, `nixos/scripts/`, `nixos/tests/`) alongside the existing
+  Debian 13 packaging: centralize system tool and helper paths into
+  `crates/wros-sys/src/paths.rs`, `crates/wros-shell/src/paths.rs`, and
+  `crates/wros-input/src/paths.rs`; sync mutable keyboard and boot-theme settings
+  to `/boot/wros-boot/` without on-device Nix evaluation; add generation-based
+  NixOS update staging, pre-import NAR verification, probation and GC roots; and
+  add the NixOS encrypted installer core (`wros-install-core`) and cdebconf
+  passthrough backend (`wros-installer-backend`). The NixOS build, VM tests, and
+  hardware gates have not yet been executed and remain to be qualified per
+  `docs/NIXOS_QUALIFICATION.md`.
+
 - Integrate the reviewed Argon contribution (2026-11-03): read the whole manuscript
   aloud across chapters with n/p scene navigation; one pre-export check for links,
   images, covers, never-closed %% notes, review notes and continuity; a Revision

@@ -158,7 +158,8 @@ def validate_caller():
     uid, parent = int(value), os.getppid()
     require(parent > 1 and not Path('/etc/wros/VM-DEMO-ONLY').exists()
             and not Path('/run/wros-live/session.json').exists()
-            and not Path('/run/live/medium/live/filesystem.squashfs').is_file())
+            and not Path('/run/live/medium/live/filesystem.squashfs').is_file()
+            and not Path('/iso/nix-store.squashfs').is_file())
     for fd in (0, 1, 2):
         require(os.isatty(fd) and os.fstat(fd).st_rdev == os.makedev(4, 1))
     trusted_file('/usr/bin/grimoire', True)

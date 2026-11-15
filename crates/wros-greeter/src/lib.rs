@@ -9,7 +9,7 @@ pub mod power;
 
 pub const MAX_FRAME: usize = 16 * 1024;
 pub const MAX_INPUT: usize = 1024;
-pub const SESSION: &str = "/usr/libexec/wros-session";
+pub const SESSION: &str = wros_shell::paths::WROS_SESSION;
 
 /// The session the login starts, from the form's switcher.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

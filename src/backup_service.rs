@@ -348,7 +348,7 @@ fn execute_in(
 ) -> Result<Status, String> {
     let unavailable =
         || "Backup service unavailable; install the WrOS Restic/rclone integration.".to_owned();
-    let installed = std::path::Path::new("/usr/libexec/wros-backup");
+    let installed = std::path::Path::new(wros_sys::paths::WROS_BACKUP);
     let script = if installed.is_file() {
         installed.to_path_buf()
     } else if cfg!(debug_assertions) {
@@ -391,7 +391,7 @@ pub(crate) fn run_helper(
 ) -> Result<Vec<u8>, String> {
     let unavailable = || unavailable.to_owned();
     let installed_session =
-        crate::installed_session() && script.parent() == Some(std::path::Path::new("/usr/libexec"));
+        crate::installed_session() && script.parent() == Some(std::path::Path::new(wros_sys::paths::LIBEXEC_DIR));
     let mut command = helper_command(installed_session);
     for (key, value) in env {
         command.env(key, value);
@@ -495,18 +495,18 @@ pub(crate) fn run_helper(
 
 fn helper_command(installed_session: bool) -> Command {
     if installed_session && cfg!(target_os = "linux") {
-        let mut command = Command::new("/usr/bin/systemd-inhibit");
+        let mut command = Command::new(wros_sys::paths::SYSTEMD_INHIBIT);
         command.args([
             "--what=shutdown",
             "--mode=block",
             "--who=WrOS",
             "--why=A backup or sync is running",
             "--",
-            "/usr/bin/python3",
+            wros_sys::paths::PYTHON3,
         ]);
         command
     } else {
-        Command::new("/usr/bin/python3")
+        Command::new(wros_sys::paths::PYTHON3)
     }
 }
 

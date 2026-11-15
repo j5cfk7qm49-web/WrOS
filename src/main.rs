@@ -338,7 +338,7 @@ static RESTART_APP: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBoo
 #[cfg(unix)]
 fn restart_app() -> Result<()> {
     use std::os::unix::process::CommandExt;
-    let installed = Path::new("/usr/bin/grimoire");
+    let installed = Path::new(wros_sys::paths::GRIMOIRE);
     let program = if installed_session() && installed.is_file() {
         installed.to_path_buf()
     } else {

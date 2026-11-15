@@ -7,6 +7,7 @@ pub mod boot;
 pub mod display;
 pub mod keyboard;
 pub mod linux;
+pub mod paths;
 pub mod shortcuts;
 pub mod system_views;
 pub mod timezone;

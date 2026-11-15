@@ -58,7 +58,7 @@ impl Drop for Fakes {
 impl Runner for Fakes {
     fn run(&mut self, cmd: &Invocation) -> Result<String> {
         self.seen.push(cmd.clone());
-        let (helper, args) = if cmd.program == "/usr/bin/pkexec" {
+        let (helper, args) = if cmd.program == crate::paths::PKEXEC {
             assert_eq!(cmd.args[0], "--disable-internal-agent");
             (cmd.args[1].as_str(), &cmd.args[2..])
         } else {
@@ -68,7 +68,7 @@ impl Runner for Fakes {
         let mut argv = vec![self.dir.join(name).to_string_lossy().into_owned()];
         argv.extend(args.iter().cloned());
         let real = Invocation {
-            program: "/bin/sh",
+            program: crate::paths::SH,
             args: argv,
             timeout: self.limit.unwrap_or(cmd.timeout),
         };
@@ -129,7 +129,7 @@ fn review_success_is_parsed_strictly_and_runs_unprivileged() {
     assert_eq!(review.removals, ["old-wros-tool"]);
     assert!(review.backup_recommended);
     let seen = &backend.runner.seen[0];
-    assert_eq!(seen.program, "/usr/libexec/wros-update");
+    assert_eq!(seen.program, crate::paths::WROS_UPDATE);
     assert_eq!(seen.args, ["review", DIR]);
 }
 
@@ -174,12 +174,12 @@ fn stage_success_requires_the_reviewed_identity_to_be_echoed() {
     assert_eq!(staged.packages, 2);
     assert!(staged.restart_required);
     let seen = &backend.runner.seen[0];
-    assert_eq!(seen.program, "/usr/bin/pkexec");
+    assert_eq!(seen.program, crate::paths::PKEXEC);
     assert_eq!(
         seen.args,
         [
             "--disable-internal-agent",
-            "/usr/libexec/wros-update-stage",
+            crate::paths::WROS_UPDATE_STAGE,
             DIR,
             id().as_str()
         ]
@@ -395,7 +395,7 @@ fn cancel_and_repair_map_every_documented_status() {
             Reply::Message(message.into())
         );
         let seen = &backend.runner.seen[0];
-        assert_eq!(seen.program, "/usr/bin/pkexec");
+        assert_eq!(seen.program, crate::paths::PKEXEC);
         assert_eq!(seen.args[0], "--disable-internal-agent");
     }
     // Statuses that belong to a different verb are not accepted.
@@ -441,7 +441,7 @@ fn media_mount_reports_only_managed_mount_points() {
         backend.runner.seen[0].args,
         [
             "--disable-internal-agent",
-            "/usr/libexec/wros-update-media",
+            crate::paths::WROS_UPDATE_MEDIA,
             "mount"
         ]
     );
@@ -602,10 +602,10 @@ fn installing_a_staged_update_now_runs_the_apply_helper_and_reports_what_it_inst
     assert_eq!(applied.transaction_id, "tx-live.1");
     assert_eq!(applied.packages, ["wros 0.1.0~rc4"]);
     let seen = &backend.runner.seen[0];
-    assert_eq!(seen.program, "/usr/bin/pkexec");
+    assert_eq!(seen.program, crate::paths::PKEXEC);
     assert_eq!(
         seen.args,
-        ["--disable-internal-agent", "/usr/libexec/wros-update-apply"]
+        ["--disable-internal-agent", crate::paths::WROS_UPDATE_APPLY]
     );
     assert_eq!(seen.timeout, Duration::from_secs(900));
 
@@ -658,12 +658,12 @@ fn going_back_runs_the_rollback_helper_and_reports_what_it_staged() {
     );
     assert!(staged.restart_required);
     let seen = &backend.runner.seen[0];
-    assert_eq!(seen.program, "/usr/bin/pkexec");
+    assert_eq!(seen.program, crate::paths::PKEXEC);
     assert_eq!(
         seen.args,
         [
             "--disable-internal-agent",
-            "/usr/libexec/wros-update-rollback"
+            crate::paths::WROS_UPDATE_ROLLBACK
         ]
     );
     // Only a staged go-back counts: an ordinary staging reply or anything extra is refused.
@@ -706,7 +706,7 @@ fn reporting_ready_runs_the_healthy_helper_with_exactly_ready() {
         backend.runner.seen[0].args,
         [
             "--disable-internal-agent",
-            "/usr/libexec/wros-update-healthy",
+            crate::paths::WROS_UPDATE_HEALTHY,
             "ready"
         ]
     );

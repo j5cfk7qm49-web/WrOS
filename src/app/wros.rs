@@ -179,7 +179,7 @@ impl Deck {
         let mut warnings = Vec::new();
         let live_session = background
             && (std::env::var_os("WROS_LIVE_SESSION").is_some()
-                || Path::new("/run/live/medium/live/filesystem.squashfs").is_file());
+                || Path::new(wros_sys::paths::LIVE_MEDIUM_SQUASHFS).is_file());
         if live_session {
             warnings
                 .push("Live session · save work somewhere persistent before restarting.".into());
@@ -315,7 +315,7 @@ impl Deck {
             boot_settings_available: background
                 && !live_session
                 && crate::installed_session()
-                && Path::new("/usr/libexec/wros-boot-settings").is_file(),
+                && Path::new(wros_sys::paths::WROS_BOOT_SETTINGS).is_file(),
             boot_status: None,
             pending_boot_theme: None,
             installer_available: {

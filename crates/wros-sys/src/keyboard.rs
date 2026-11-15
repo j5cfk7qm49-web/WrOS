@@ -154,7 +154,7 @@ mod tests {
         assert_eq!(reg.base, Layout::ColemakDhAnsi);
         for bad in [
             "",
-            "/usr/share/wros/keymaps/qwerty.map",
+            crate::paths::QWERTY_KEYMAP,
             "../custom.map",
             "custom.map",
             "qwerty",

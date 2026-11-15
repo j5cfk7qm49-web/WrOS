@@ -174,3 +174,8 @@ If `wros-rescue` cannot run automatically (e.g. if `/usr/lib/wros-update/engine.
    sudo vgchange -an  # if LVM used
    sudo cryptsetup close <crypttab-name>
    ```
+
+
+## NixOS generation repair and rescue (`0.1.0~rc14`)
+
+On NixOS installations, `wros-update-repair` verifies `/nix/store` integrity (`nix-store --verify --check-contents`) and restores `/nix/var/nix/profiles/system` and GRUB boot entries to the last verified closure, while `wros-update-rollback` and the GRUB boot menu switch directly to the retained previous NixOS system generation. From the NixOS live ISO, `sudo wros-rescue` (`nixos/scripts/wros-rescue`) unlocks `WROS-LUKS` (`wros_crypt`), mounts `WROS-ROOT` and `WROS-ESP`, and runs `wros-update rescue-repair` (or `wros-rescue --rollback`) inside the installed chroot. See [`NIXOS_UPDATES.md`](NIXOS_UPDATES.md).

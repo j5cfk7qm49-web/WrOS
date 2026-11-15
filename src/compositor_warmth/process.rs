@@ -69,7 +69,7 @@ impl Process {
         command
             .arg(ARGUMENT)
             .env_clear()
-            .env("PATH", "/usr/bin:/bin")
+            .env("PATH", wros_sys::paths::MINIMAL_PATH)
             .env("LANG", "C.UTF-8");
         for name in [
             "XDG_RUNTIME_DIR",

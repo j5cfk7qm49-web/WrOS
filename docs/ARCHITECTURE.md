@@ -121,3 +121,8 @@ Pin scroll/presentation currently commits synchronous guarded metadata transacti
 ## Verification
 
 Unit tests exercise persistence, invalid versions, conflicts, safe alias validation and monotonic preview state. Rootless Python tests inject the helper's runner/clock. Real QEMU UEFI tests check the actual tty1 screen, non-root process, polkit eligibility, real console mapping and systemd-timed revert. [TESTING](TESTING.md) separates those from all remaining hardware/credential tests.
+
+
+## NixOS operating-system layer and paths seam (`0.1.0~rc14`)
+
+System binary and helper paths in `src/` and `crates/wros-*` are centralized in `crates/wros-sys/src/paths.rs`, `crates/wros-shell/src/paths.rs`, and `crates/wros-input/src/paths.rs`, keeping Debian defaults when compiled with stock Cargo and accepting `option_env!("WROS_PATH_*")` overrides from [`nixos/pkgs/paths.nix`](../nixos/pkgs/paths.nix) when built under Nix. See [`NIXOS_BASE.md`](NIXOS_BASE.md).

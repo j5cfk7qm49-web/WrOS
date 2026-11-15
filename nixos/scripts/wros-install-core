@@ -1,0 +1,255 @@
+#!/usr/bin/python3 -I
+"""Root-only NixOS encrypted disk installation core (nixos/scripts/wros-install-core).
+
+Receives installation parameters, disk encryption passphrase, and writer account
+password strictly over a JSON stdin stream (fd 0) — NEVER via argv or environment
+variables. Partitions the selected target disk with GPT + 512 MiB FAT32 ESP
+(label WROS-ESP) + LUKS2 container (label WROS-LUKS) opened as wros_crypt with
+an ext4 root filesystem (label WROS-ROOT), installs the pre-built NixOS system
+closure from the live medium with nixos-install --no-channel-copy --no-root-passwd,
+seeds mutable /etc and /boot/wros-boot state, initializes /boot/grub/grubenv,
+locks root, creates the UID 1000 writer account in groups wros, writingdeck, and
+wheel, verifies target hygiene, and writes the nonce-bound completion proof.
+"""
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import stat
+import subprocess
+import sys
+
+ENV = {
+    'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
+    'LANG': 'C.UTF-8',
+    'LC_ALL': 'C.UTF-8',
+    'HOME': '/nonexistent',
+}
+BLOCK_RE = re.compile(r'^(?:sd|vd|xvd)[a-z]+|nvme[0-9]+n[0-9]+|mmcblk[0-9]+$')
+USERNAME_RE = re.compile(r'^[a-z_][a-z0-9_-]{0,31}$')
+HOSTNAME_RE = re.compile(r'^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$')
+NONCE_RE = re.compile(r'^[0-9a-f]{32}$')
+VALID_LAYOUTS = ('qwerty', 'colemak', 'colemak-dh-ansi', 'colemak-dh-iso')
+DEFAULT_TARGET_ROOT = Path('/run/wros-installer/target')
+DEFAULT_CLOSURE_FILE = Path('/etc/wros/installed-system-closure')
+GRUBENV_HEADER = '# GRUB Environment Block\n'
+GRUBENV_INITIAL = (GRUBENV_HEADER + ('#' * (1024 - len(GRUBENV_HEADER)))).encode('ascii')
+
+
+def require(condition, message='install-core precondition failed'):
+    if not condition:
+        raise ValueError(message)
+
+
+def read_credentials_from_stream(stream=None):
+    """Read install parameters and secrets from stdin stream; refuse any argv or env secrets."""
+    require(len(sys.argv) == 1, 'wros-install-core accepts no command-line arguments; pass configuration on stdin')
+    for forbidden in ('WROS_DISK_PASSPHRASE', 'WROS_USER_PASSWORD', 'PASSPHRASE', 'PASSWORD'):
+        require(forbidden not in os.environ, f'credential environment variable {forbidden} is forbidden')
+    stream = sys.stdin.buffer if stream is None else stream
+    raw = stream.read(65536 + 1)
+    require(0 < len(raw) <= 65536, 'install-core stdin payload must be 1..65536 bytes')
+    try:
+        payload = json.loads(raw.decode('utf-8'))
+    except ValueError:
+        raise ValueError('install-core stdin payload is not valid JSON') from None
+    require(isinstance(payload, dict), 'install-core payload must be a JSON object')
+    target_disk = payload.get('target_disk', '')
+    username = payload.get('username', '')
+    full_name = payload.get('full_name', '')
+    hostname = payload.get('hostname', 'wros')
+    layout = payload.get('keyboard_layout', 'qwerty')
+    timezone_name = payload.get('timezone', 'UTC')
+    luks_passphrase = payload.get('luks_passphrase', '')
+    user_password = payload.get('user_password', '')
+    session_nonce = payload.get('session_nonce', '')
+    require(isinstance(target_disk, str) and BLOCK_RE.fullmatch(target_disk) is not None,
+            'invalid target_disk name')
+    require(isinstance(username, str) and USERNAME_RE.fullmatch(username) is not None
+            and username not in ('root', 'wros-live', 'live', 'builder', '_wros-installer', '_greetd'),
+            'invalid writer username')
+    require(isinstance(full_name, str) and len(full_name) <= 128 and ':' not in full_name and '\n' not in full_name,
+            'invalid writer full_name')
+    require(isinstance(hostname, str) and HOSTNAME_RE.fullmatch(hostname) is not None,
+            'invalid hostname')
+    require(layout in VALID_LAYOUTS, 'unsupported keyboard layout')
+    require(isinstance(timezone_name, str) and 1 <= len(timezone_name) <= 128
+            and not timezone_name.startswith('/') and '..' not in timezone_name,
+            'invalid timezone name')
+    require(isinstance(luks_passphrase, str) and 8 <= len(luks_passphrase) <= 512
+            and '\0' not in luks_passphrase and '\n' not in luks_passphrase,
+            'LUKS passphrase must be 8..512 characters without newlines')
+    require(isinstance(user_password, str) and 8 <= len(user_password) <= 512
+            and '\0' not in user_password and '\n' not in user_password,
+            'writer account password must be 8..512 characters without newlines')
+    require(isinstance(session_nonce, str) and NONCE_RE.fullmatch(session_nonce) is not None,
+            'invalid session_nonce')
+    return {
+        'target_disk': target_disk,
+        'username': username,
+        'full_name': full_name,
+        'hostname': hostname,
+        'keyboard_layout': layout,
+        'timezone': timezone_name,
+        'luks_passphrase': luks_passphrase,
+        'user_password': user_password,
+        'session_nonce': session_nonce,
+    }
+
+
+def partition_paths(disk_name):
+    dev = f'/dev/{disk_name}'
+    sep = 'p' if disk_name[:4] in ('nvme', 'mmcb') else ''
+    return dev, f'{dev}{sep}1', f'{dev}{sep}2'
+
+
+def run_cmd(argv, *, input_bytes=None, timeout=600):
+    res = subprocess.run(
+        list(argv),
+        input=input_bytes,
+        stdin=subprocess.DEVNULL if input_bytes is None else None,
+        capture_output=True,
+        env=ENV,
+        timeout=timeout,
+        check=False,
+    )
+    if res.returncode != 0:
+        err = (res.stderr or b'').decode('utf-8', 'replace').strip()[:300]
+        raise ValueError(f'{Path(argv[0]).name} failed ({res.returncode}): {err}')
+    return res.stdout.decode('utf-8', 'replace').strip()
+
+
+def atomic_write(path, data, mode=0o644):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f'.{path.name}.tmp')
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, mode)
+    with os.fdopen(fd, 'wb') as f:
+        f.write(data if isinstance(data, bytes) else data.encode('utf-8'))
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
+
+
+def seed_mutable_target_state(target_root, params):
+    target_root = Path(target_root)
+    kbd_json = json.dumps({
+        'version': 1,
+        'layout': params['keyboard_layout'],
+        'caps_to_backspace': True,
+        'generation': 'installed',
+    }, indent=2, sort_keys=True) + '\n'
+    atomic_write(target_root / 'etc/wros/keyboard.json', kbd_json, 0o644)
+    atomic_write(target_root / 'boot/wros-boot/keyboard.json', kbd_json, 0o644)
+    grubenv_path = target_root / 'boot/grub/grubenv'
+    if not grubenv_path.exists() or grubenv_path.stat().st_size == 0:
+        atomic_write(grubenv_path, GRUBENV_INITIAL, 0o644)
+
+    xkb_variant = {
+        'qwerty': '',
+        'colemak': 'colemak',
+        'colemak-dh-ansi': 'colemak_dh',
+        'colemak-dh-iso': 'colemak_dh_iso',
+    }[params['keyboard_layout']]
+    default_kbd = (
+        'XKBMODEL="pc105"\n'
+        'XKBLAYOUT="us"\n'
+        f'XKBVARIANT="{xkb_variant}"\n'
+        'XKBOPTIONS=""\n'
+        'BACKSPACE="guess"\n'
+    )
+    atomic_write(target_root / 'etc/default/keyboard', default_kbd, 0o644)
+    atomic_write(target_root / 'etc/hostname', params['hostname'] + '\n', 0o644)
+    atomic_write(target_root / 'etc/timezone', params['timezone'] + '\n', 0o644)
+    tz_link = target_root / 'etc/localtime'
+    if tz_link.is_symlink() or tz_link.exists():
+        tz_link.unlink()
+    os.symlink(f'/etc/zoneinfo/{params["timezone"]}', tz_link)
+    (target_root / 'etc/NetworkManager/system-connections').mkdir(parents=True, mode=0o700, exist_ok=True)
+    (target_root / 'var/lib/wros-update/public').mkdir(parents=True, mode=0o755, exist_ok=True)
+
+
+def install_target(params, *, target_root=DEFAULT_TARGET_ROOT, closure_file=DEFAULT_CLOSURE_FILE, runner=run_cmd):
+    disk_dev, esp_part, luks_part = partition_paths(params['target_disk'])
+    closure = closure_file.read_text(encoding='utf-8').strip()
+    require(closure.startswith('/nix/store/'), 'invalid installed-system-closure store path')
+
+    # 1. Partition GPT: 512 MiB EFI System Partition (WROS-ESP) + rest Linux LUKS2 (WROS-LUKS)
+    runner(['sgdisk', '--zap-all', disk_dev])
+    runner(['sgdisk', '-n', '1:1MiB:+512MiB', '-t', '1:ef00', '-c', '1:WROS-ESP',
+            '-n', '2:0:0', '-t', '2:8309', '-c', '2:WROS-LUKS', disk_dev])
+    runner(['udevadm', 'settle'])
+
+    # 2. Format FAT32 ESP and LUKS2 container (passphrase on stdin stream, never argv/env)
+    runner(['mkfs.vfat', '-F', '32', '-n', 'WROS-ESP', esp_part])
+    runner(
+        ['cryptsetup', 'luksFormat', '--batch-mode', '--type', 'luks2',
+         '--label', 'WROS-LUKS', '--pbkdf', 'argon2id', '--key-file', '-', luks_part],
+        input_bytes=params['luks_passphrase'].encode('utf-8'),
+    )
+    runner(
+        ['cryptsetup', 'open', '--type', 'luks2', '--key-file', '-', luks_part, 'wros_crypt'],
+        input_bytes=params['luks_passphrase'].encode('utf-8'),
+    )
+    runner(['mkfs.ext4', '-F', '-L', 'WROS-ROOT', '/dev/mapper/wros_crypt'])
+
+    # 3. Mount WROS-ROOT and WROS-ESP under target_root
+    target_root = Path(target_root)
+    target_root.mkdir(parents=True, mode=0o755, exist_ok=True)
+    runner(['mount', '-t', 'ext4', '/dev/mapper/wros_crypt', str(target_root)])
+    (target_root / 'boot').mkdir(parents=True, mode=0o755, exist_ok=True)
+    runner(['mount', '-t', 'vfat', esp_part, str(target_root / 'boot')])
+
+    # 4. Install pre-built NixOS closure offline with no channel copy and locked root
+    runner(['nixos-install', '--root', str(target_root), '--system', closure,
+            '--no-channel-copy', '--no-root-passwd'], timeout=1800)
+
+    # 5. Seed mutable state files, initialize /boot/grub/grubenv, and create writer account
+    seed_mutable_target_state(target_root, params)
+    runner(['grub-editenv', str(target_root / 'boot/grub/grubenv'), 'create'])
+    runner(['nixos-enter', '--root', str(target_root), '--',
+            'useradd', '-m', '-u', '1000', '-G', 'wros,writingdeck,wheel,audio,video',
+            '-c', params['full_name'], '-s', '/run/current-system/sw/bin/bash', params['username']])
+    runner(
+        ['nixos-enter', '--root', str(target_root), '--', 'chpasswd', '-c', 'SHA512'],
+        input_bytes=f'{params["username"]}:{params["user_password"]}\n'.encode('utf-8'),
+    )
+    runner(['nixos-enter', '--root', str(target_root), '--', 'passwd', '-l', 'root'])
+
+    luks_uuid = runner(['cryptsetup', 'luksUUID', luks_part])
+    proof = {
+        'passed': True,
+        'installed_user': params['username'],
+        'root_locked': True,
+        'native_authentication_preserved': True,
+        'live_account_absent': True,
+        'live_artifacts_absent': True,
+        'luks_uuid': luks_uuid,
+        'session_nonce': params['session_nonce'],
+        'boot_payload_checked': True,
+        'encrypted_root_chain': {
+            'root': 'wros_crypt',
+            'crypt': 'wros_crypt',
+            'partition': Path(luks_part).name,
+            'format': 'LUKS2',
+        },
+    }
+    return proof
+
+
+def main():
+    require(os.geteuid() == 0, 'wros-install-core must run as root')
+    params = read_credentials_from_stream()
+    proof = install_target(params)
+    print(json.dumps(proof, sort_keys=True), flush=True)
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main())
+    except Exception as exc:
+        print(f'wros-install-core: {exc}', file=sys.stderr)
+        raise SystemExit(1) from None

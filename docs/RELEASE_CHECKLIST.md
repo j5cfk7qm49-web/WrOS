@@ -135,3 +135,8 @@ keyring. Start with a release that will distribute the new public subkey.
    published package before re-signing it for 21 days. GitHub runs the schedule
    from the default branch and may disable it after 60 days of inactivity.
    [GitHub schedule behavior](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)
+
+
+## NixOS release candidate qualification (`0.1.0~rc14`)
+
+Before tagging a NixOS release candidate, run the static rebase check (`python3 rebase-kit/check_rebase.py --tree .`), evaluate and build the flake outputs (`nix flake check`, `nix build .#wros-iso .#wros-update-bundle`), sign the closure bundle with `tools/build-nixos-update-bundle.py`, verify it with `tools/publish-nixos-updates.py check-bundle`, and execute the ordered steps in [`NIXOS_QUALIFICATION.md`](NIXOS_QUALIFICATION.md).

@@ -1,0 +1,158 @@
+#!/bin/bash
+# wros-rescue (NixOS sibling): unlock and repair an installed encrypted WrOS NixOS system from the live ISO.
+#
+# Run as root from a terminal on the WrOS live ISO: sudo wros-rescue [--device /dev/sdXN]
+# Unlocks WROS-LUKS (as wros_crypt), mounts WROS-ROOT at /target and WROS-ESP at /target/boot,
+# bind-mounts /dev, /dev/pts, /proc, /sys, and /run, and runs the installed system's update
+# repair engine (or nix-env --rollback when --rollback is passed) inside the chroot.
+set -euo pipefail
+umask 077
+
+PATH=${WROS_RESCUE_TEST_PATH:-/usr/sbin:/usr/bin:/sbin:/bin}
+export PATH
+export LC_ALL=C
+unset BASH_ENV ENV
+
+mapping=wros_crypt
+readonly TARGET=${WROS_RESCUE_TARGET:-/target}
+readonly CMDLINE=${WROS_RESCUE_CMDLINE:-/proc/cmdline}
+
+device=
+do_rollback=0
+luks_open=0
+mounted=()
+
+usage() {
+    printf 'Usage: wros-rescue [--device /dev/PARTITION] [--rollback]\n'
+    printf 'Unlock and repair an installed encrypted WrOS NixOS system from the live ISO.\n'
+}
+
+note() {
+    printf '%s\n' "$*"
+}
+
+die() {
+    printf 'wros-rescue: %s\n' "$*" >&2
+    exit 1
+}
+
+release() {
+    local index
+    set +e
+    for ((index = ${#mounted[@]} - 1; index >= 0; index--)); do
+        umount "${mounted[index]}" 2>/dev/null || umount -l "${mounted[index]}" 2>/dev/null
+    done
+    mounted=()
+    if [[ $luks_open -eq 1 ]]; then
+        cryptsetup close "$mapping" >/dev/null 2>&1
+        luks_open=0
+    fi
+    set -e
+}
+
+on_exit() {
+    local status=$?
+    trap - EXIT
+    release
+    exit "$status"
+}
+trap on_exit EXIT
+trap 'exit 130' INT TERM HUP
+
+list_luks_partitions() {
+    lsblk -rn -o PATH,FSTYPE,TYPE | awk '$2 == "crypto_LUKS" && $3 == "part" { print $1 }'
+}
+
+push_mount() {
+    mounted+=("$1")
+}
+
+while (($# > 0)); do
+    case $1 in
+        --device)
+            (($# >= 2)) || die '--device needs a partition path'
+            device=$2
+            shift 2
+            ;;
+        --rollback)
+            do_rollback=1
+            shift
+            ;;
+        -h | --help)
+            usage
+            exit 0
+            ;;
+        *)
+            die "unknown argument: $1"
+            ;;
+    esac
+done
+
+[[ $(id -u) -eq 0 ]] || die 'must run as root (sudo wros-rescue) on the WrOS live ISO'
+grep -Eq '(^| )(boot=live|wros\.live=1)( |$)' "$CMDLINE" 2>/dev/null \
+    || die 'refusing to run: this is not the WrOS live ISO (wros.live=1 missing).'
+[[ -t 0 && -t 1 ]] || die 'needs an interactive terminal; the disk passphrase is read from it'
+{ : </dev/tty; } 2>/dev/null || die 'no controlling terminal for the passphrase prompt'
+
+if [[ -z $device && -b /dev/disk/by-label/WROS-LUKS ]]; then
+    device=$(readlink -f /dev/disk/by-label/WROS-LUKS)
+fi
+if [[ -z $device ]]; then
+    mapfile -t candidates < <(list_luks_partitions)
+    case ${#candidates[@]} in
+        0) die 'no LUKS partition found; check the disk is attached' ;;
+        1) device=${candidates[0]} ;;
+        *) die "several LUKS partitions found (${candidates[*]}); choose one with --device" ;;
+    esac
+fi
+
+cryptsetup isLuks "$device" || die "$device is not a LUKS container"
+mkdir -p "$TARGET"
+chmod 0700 "$TARGET"
+
+note "Unlocking $device as $mapping. Type the disk passphrase when asked."
+cryptsetup open --type luks --tries 3 "$device" "$mapping" </dev/tty || die 'could not unlock the disk'
+luks_open=1
+
+root_device="/dev/mapper/$mapping"
+if [[ -b /dev/disk/by-label/WROS-ROOT ]]; then
+    root_device=$(readlink -f /dev/disk/by-label/WROS-ROOT)
+fi
+
+mount -t ext4 -o rw,nodev "$root_device" "$TARGET"
+push_mount "$TARGET"
+[[ -f $TARGET/etc/wros/release ]] || die 'mounted root does not contain /etc/wros/release'
+
+if [[ -b /dev/disk/by-label/WROS-ESP ]]; then
+    mkdir -p "$TARGET/boot"
+    mount -t vfat /dev/disk/by-label/WROS-ESP "$TARGET/boot"
+    push_mount "$TARGET/boot"
+fi
+
+for pseudo in dev dev/pts proc sys run; do
+    mkdir -p "$TARGET/$pseudo"
+done
+mount --bind /dev "$TARGET/dev" && push_mount "$TARGET/dev"
+mount --bind /dev/pts "$TARGET/dev/pts" && push_mount "$TARGET/dev/pts"
+mount -t proc proc "$TARGET/proc" && push_mount "$TARGET/proc"
+mount -t sysfs sysfs "$TARGET/sys" && push_mount "$TARGET/sys"
+mount -t tmpfs tmpfs "$TARGET/run" && push_mount "$TARGET/run"
+
+status=0
+if ((do_rollback == 1)); then
+    note 'Rolling back /nix/var/nix/profiles/system to the previous generation...'
+    chroot "$TARGET" /run/current-system/sw/bin/nix-env -p /nix/var/nix/profiles/system --rollback || status=$?
+    if ((status == 0)); then
+        chroot "$TARGET" /nix/var/nix/profiles/system/bin/switch-to-configuration boot || status=$?
+    fi
+else
+    note 'Running the installed system NixOS update repair...'
+    output=$(chroot "$TARGET" /run/current-system/sw/bin/env -i PATH=/run/current-system/sw/bin:/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C WROS_RESCUE=1 \
+        /run/current-system/sw/libexec/wros-update rescue-repair) || status=$?
+    printf '%s\n' "$output"
+fi
+
+release
+sync
+((status == 0)) || die 'rescue repair failed; the disk is unmounted and locked.'
+note 'Rescue finished; the disk is unmounted and locked. Remove the live media and reboot.'

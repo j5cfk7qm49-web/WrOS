@@ -1,0 +1,94 @@
+#!/usr/bin/python3 -I
+"""Prepare only the explicitly selected NixOS live session (/run/wros-live/session.json)."""
+import json
+import os
+from pathlib import Path
+import re
+import stat
+import sys
+import tempfile
+
+USER, UID, HOME = 'wros-live', 1000, '/home/wros-live'
+LIVE_SQUASHFS = Path('/iso/nix-store.squashfs')
+INSTALLED_CLOSURE = Path('/etc/wros/installed-system-closure')
+MANUAL = {'live-config.noautologin', 'noautologin', 'live-config.nottyautologin', 'nottyautologin'}
+
+
+def require(condition, msg='NixOS live session precondition failed'):
+    if not condition:
+        raise ValueError(msg)
+
+
+def render(cmdline, boot_id, session_cmd='/usr/libexec/wros-session', greeter_cmd='/run/current-system/sw/bin/wros-greeter'):
+    words = cmdline.split()
+    if 'wros.live=1' not in words:
+        return None
+    require([s for s in words if s.startswith('wros.live=')] == ['wros.live=1'])
+    require(re.fullmatch(r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', boot_id) is not None)
+    automatic = not MANUAL.intersection(words)
+    config = (
+        '[terminal]\nvt = 1\nswitch = true\n\n'
+        '[general]\nsource_profile = false\n\n'
+        f'[default_session]\ncommand = "{greeter_cmd}"\nuser = "_greetd"\n'
+    ).encode('utf-8')
+    if automatic:
+        config += (
+            b'\n# Temporary live entry; installed configuration remains authenticated.\n'
+            b'[initial_session]\n'
+            + f'command = "{session_cmd}"\nuser = "{USER}"\n'.encode('utf-8')
+        )
+    marker = {
+        'version': 1,
+        'boot_id': boot_id,
+        'user': USER,
+        'uid': UID,
+        'home': HOME,
+        'automatic': automatic,
+    }
+    return {
+        'greetd.toml': (config, 0o600),
+        'session.json': ((json.dumps(marker, sort_keys=True) + '\n').encode('utf-8'), 0o644),
+        'greetd.env': (b'WROS_GREETD_CONFIG=/run/wros-live/greetd.toml\n', 0o644),
+    }
+
+
+def install_runtime(directory, files):
+    directory = Path(directory)
+    directory.mkdir(mode=0o755, exist_ok=True)
+    for name in ('greetd.toml', 'session.json', 'greetd.env'):
+        contents, mode = files[name]
+        path = directory / name
+        with tempfile.NamedTemporaryFile(dir=directory, prefix='.prepare-', delete=False) as stream:
+            tmp = Path(stream.name)
+            stream.write(contents)
+            stream.flush()
+            os.fchmod(stream.fileno(), mode)
+            os.fsync(stream.fileno())
+        os.replace(tmp, path)
+
+
+def main():
+    require(os.geteuid() == 0 and len(sys.argv) == 1)
+    cmdline = Path('/proc/cmdline').read_text(encoding='utf-8')
+    if 'wros.live=1' not in cmdline.split():
+        return 0
+    if not LIVE_SQUASHFS.is_file() and INSTALLED_CLOSURE.is_file():
+        try:
+            LIVE_SQUASHFS.parent.mkdir(parents=True, mode=0o755, exist_ok=True)
+            LIVE_SQUASHFS.write_bytes(b'')
+        except OSError:
+            pass
+    require(LIVE_SQUASHFS.is_file(), '/iso/nix-store.squashfs missing on live boot')
+    boot_id = Path('/proc/sys/kernel/random/boot_id').read_text(encoding='utf-8').strip()
+    files = render(cmdline, boot_id)
+    require(files is not None)
+    install_runtime('/run/wros-live', files)
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main())
+    except Exception:
+        print('WrOS NixOS live session setup failed.', file=sys.stderr)
+        raise SystemExit(1) from None

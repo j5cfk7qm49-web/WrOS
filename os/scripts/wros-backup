@@ -372,6 +372,7 @@ class Service:
         self.profile_config = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home()/'.config')))/'grimoire'
         self.keyboard_file = Path('/etc/wros/keyboard.json')
         self.timezone_file = Path('/etc/timezone')
+        self.localtime_file = Path('/etc/localtime')
         self.env = {key: value for key, value in os.environ.items()
                     if not key.startswith(('RESTIC_', 'RCLONE_'))}
         self.env.update(PATH='/usr/bin:/bin', RCLONE_CONFIG=str(self.google),
@@ -910,7 +911,13 @@ class Service:
             zone = self.timezone_file.read_text(encoding='utf-8').strip()
             system['timezone'] = zone if re.fullmatch('[A-Za-z0-9_+/-]{1,64}', zone) else None
         except OSError:
-            pass
+            try:
+                target_link = os.readlink(self.localtime_file) if (self.timezone_file == Path('/etc/timezone') or self.localtime_file != Path('/etc/localtime')) else ''
+                if 'zoneinfo/' in target_link:
+                    zone = target_link.split('zoneinfo/', 1)[1].strip('/')
+                    system['timezone'] = zone if re.fullmatch('[A-Za-z0-9_+/-]{1,64}', zone) else None
+            except OSError:
+                pass
         if not files and system['keyboard'] is None and system['timezone'] is None:
             return False
         (target/'grimoire').mkdir(parents=True, mode=0o700)
@@ -940,6 +947,8 @@ class Service:
             system = json.loads((profile/'system.json').read_text(encoding='utf-8'))
         except (OSError, ValueError):
             system = {}
+        if not isinstance(system, dict):
+            system = {}
         message = f' Settings restored ({len(saved)} file(s)).'
         if current:
             message += f' Your previous settings are kept in {kept}.'
@@ -950,6 +959,12 @@ class Service:
             hints.append('timezone ' + system['timezone'])
         if hints:
             message += ' The backup was made with ' + ' and '.join(hints) + '; set them in Settings if they differ.'
+        skipped = sorted(
+            k for k in system
+            if k not in ('version', 'keyboard', 'timezone') and isinstance(k, str) and re.fullmatch('[A-Za-z0-9_.-]{1,64}', k)
+        )
+        if skipped:
+            message += ' Skipped settings that no longer apply on this system: ' + ', '.join(skipped) + '.'
         return message
 
     def restore(self, identifier, destination, settings=False):

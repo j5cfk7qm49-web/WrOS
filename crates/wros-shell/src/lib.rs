@@ -13,6 +13,7 @@ pub mod clock;
 pub mod grimoire_theme;
 pub mod logo;
 pub mod look;
+pub mod paths;
 
 const HISTORY_LIMIT: usize = 16;
 const ROUTE_LIMIT: usize = 64;

@@ -1,0 +1,59 @@
+name: release-nixos-updates
+
+# Publish signed NixOS closure update metadata to GitHub Pages under nixos-updates/
+# alongside the existing Debian updates/ path (which stays untouched for rc13 machines).
+
+on:
+  push:
+    tags: ['v*', '!v*-linktest*']
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Serve this release tag's wros-nixos-updates.tar as nixos-updates/
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: wros-nixos-updates-pages
+  cancel-in-progress: false
+
+jobs:
+  publish-nixos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: github-pages
+    env:
+      NIXOS_UPDATE_URL: https://j5cfk7qm49-web.github.io/WrOS/nixos-updates/
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Verify release tag and offline-signed NixOS bundle
+        id: verify
+        shell: bash
+        env:
+          RELEASE: ${{ inputs.release }}
+        run: |
+          set -euo pipefail
+          tag="${RELEASE:-$GITHUB_REF_NAME}"
+          version=$(python3 -I tools/publish-nixos-updates.py version "$tag")
+          mkdir -p out/pages
+          if curl -fsSL --proto '=https' -o out/wros-nixos-updates.tar \
+              "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/wros-nixos-updates.tar"; then
+            python3 -I tools/publish-nixos-updates.py check-bundle out/wros-nixos-updates.tar out/pages/nixos-updates "$version"
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::No wros-nixos-updates.tar asset attached to $tag yet; skipping deploy"
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/upload-pages-artifact@v5
+        if: steps.verify.outputs.deploy == 'true'
+        with:
+          path: out/pages
+      - uses: actions/deploy-pages@v5
+        if: steps.verify.outputs.deploy == 'true'

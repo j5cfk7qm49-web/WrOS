@@ -97,10 +97,10 @@ impl Saved {
 
     fn persist(&mut self, choice: Warmth, token: &str) -> Result<()> {
         let command = Invocation {
-            program: "/usr/bin/pkexec",
+            program: wros_sys::paths::PKEXEC,
             args: vec![
                 "--disable-internal-agent".into(),
-                "/usr/libexec/wros-display".into(),
+                wros_sys::paths::WROS_DISPLAY.into(),
                 "compositor-save".into(),
                 if choice.enabled { "on" } else { "off" }.into(),
                 choice.kelvin.to_string(),

@@ -177,7 +177,7 @@ impl Dashboard {
                 None
             }
         };
-        Self{page:Page::Summary,filter:Filter::Open,selected:0,alternative:0,scroll:None,fit:Cell::new((0,0)),result:None,settings,reviews,voices,warning:warnings.join(" "),notice:"No analysis started. r explicitly runs native patterns, independent spelling and pinned proselint. d offers separate one-run model permission.".into(),runtime:tools::Runtime::default(),launched:0,discarded:0,sources:vec![],chosen:BTreeSet::new(),name:String::new(),prepared:None,active:None,queued:None,generation:0,once:BTreeSet::new(),pending_rule:None,pending_profile:None}
+        Self{page:Page::Summary,filter:Filter::Open,selected:0,alternative:0,scroll:None,fit:Cell::new((0,0)),result:None,settings,reviews,voices,warning:warnings.join(" "),notice:"No analysis started. r explicitly runs native patterns, independent spelling and pinned proselint. d offers separate one-run model permission.".into(),runtime:tools::Runtime{python:grimoire_core::env_setting("TOOLS_PYTHON").map(std::path::PathBuf::from).unwrap_or_else(||std::path::PathBuf::from(wros_sys::paths::TOOLS_PYTHON)),wall_ms:tools::MAX_WALL_MS},launched:0,discarded:0,sources:vec![],chosen:BTreeSet::new(),name:String::new(),prepared:None,active:None,queued:None,generation:0,once:BTreeSet::new(),pending_rule:None,pending_profile:None}
     }
     pub fn preset(&self) -> prose::FictionPreset {
         self.settings

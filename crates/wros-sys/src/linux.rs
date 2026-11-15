@@ -34,10 +34,12 @@ impl Invocation {
         Self {
             program,
             args: args.iter().map(|s| s.to_string()).collect(),
-            timeout: Duration::from_secs(match program {
-                "/usr/libexec/wros-update" => 60,
-                "/usr/bin/nmcli" => 20,
-                _ => 8,
+            timeout: Duration::from_secs(if program == crate::paths::WROS_UPDATE {
+                60
+            } else if program == crate::paths::NMCLI {
+                20
+            } else {
+                8
             }),
         }
     }
@@ -51,7 +53,7 @@ impl Invocation {
     fn update_launcher(helper: &'static str, args: &[&str], timeout_secs: u64) -> Self {
         let mut argv = vec!["--disable-internal-agent", helper];
         argv.extend_from_slice(args);
-        Self::new("/usr/bin/pkexec", &argv).with_timeout(timeout_secs)
+        Self::new(crate::paths::PKEXEC, &argv).with_timeout(timeout_secs)
     }
 }
 
@@ -91,7 +93,7 @@ impl Runner for ProcessRunner {
         let mut child = Command::new(cmd.program)
             .args(&cmd.args)
             .env("LC_ALL", "C")
-            .env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
+            .env("PATH", crate::paths::SAFE_PATH)
             .stdin(if input.is_empty() {
                 Stdio::null()
             } else {
@@ -214,7 +216,7 @@ impl<R: Runner> Linux<R> {
             ..Snapshot::default()
         };
         match self.runner.run(&Invocation::new(
-            "/usr/bin/nmcli",
+            crate::paths::NMCLI,
             &["-t", "-f", "STATE,CONNECTIVITY", "general"],
         )) {
             Ok(v) => s.network = Some(v),
@@ -227,7 +229,7 @@ impl<R: Runner> Linux<R> {
         }
         // A failed read leaves both unknown rather than claiming either state.
         if let Ok(text) = self.runner.run(&Invocation::new(
-            "/usr/bin/timedatectl",
+            crate::paths::TIMEDATECTL,
             &[
                 "--no-ask-password",
                 "--no-pager",
@@ -315,7 +317,7 @@ fn parse_time_sync(text: &str) -> (Option<bool>, Option<bool>) {
 
 fn timezone_status() -> Invocation {
     Invocation::new(
-        "/usr/bin/timedatectl",
+        crate::paths::TIMEDATECTL,
         &[
             "--no-ask-password",
             "--no-pager",
@@ -327,7 +329,7 @@ fn timezone_status() -> Invocation {
 }
 fn active_wifi_connections() -> Invocation {
     Invocation::new(
-        "/usr/bin/nmcli",
+        crate::paths::NMCLI,
         &[
             "--colors",
             "no",
@@ -374,53 +376,53 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
     Ok(match request {
         Request::Refresh => bail!("refresh is a composite read-only operation"),
         Request::ListTimezones => Invocation::new(
-            "/usr/bin/timedatectl",
+            crate::paths::TIMEDATECTL,
             &["--no-ask-password", "--no-pager", "list-timezones"],
         ),
         Request::SetTimezone(zone) => {
             crate::timezone::validate(zone)?;
             Invocation::new(
-                "/usr/bin/timedatectl",
+                crate::paths::TIMEDATECTL,
                 &["--no-ask-password", "--no-pager", "set-timezone", zone],
             )
         }
         Request::SetLocalClock(ts) => {
             let normalized = crate::timezone::validate_local_datetime(ts)?;
             Invocation::new(
-                "/usr/bin/pkexec",
+                crate::paths::PKEXEC,
                 &[
                     "--disable-internal-agent",
-                    "/usr/libexec/wros-clock",
+                    crate::paths::WROS_CLOCK,
                     "set-time",
                     &normalized,
                 ],
             )
         }
         Request::UseNetworkTime => Invocation::new(
-            "/usr/bin/pkexec",
+            crate::paths::PKEXEC,
             &[
                 "--disable-internal-agent",
-                "/usr/libexec/wros-clock",
+                crate::paths::WROS_CLOCK,
                 "network-time",
             ],
         ),
-        Request::AudioStatus => Invocation::new("/usr/libexec/wros-sound", &["status"]),
+        Request::AudioStatus => Invocation::new(crate::paths::WROS_SOUND, &["status"]),
         Request::SetVolume(vol) => {
             if *vol > 100 {
                 bail!("volume must be 0..=100");
             }
-            Invocation::new("/usr/libexec/wros-sound", &["set", &vol.to_string()])
+            Invocation::new(crate::paths::WROS_SOUND, &["set", &vol.to_string()])
         }
         Request::SetMute(muted) => Invocation::new(
-            "/usr/libexec/wros-sound",
+            crate::paths::WROS_SOUND,
             &[if *muted { "mute" } else { "unmute" }],
         ),
         Request::Wifi(on) => Invocation::new(
-            "/usr/bin/nmcli",
+            crate::paths::NMCLI,
             &["radio", "wifi", if *on { "on" } else { "off" }],
         ),
         Request::ScanWifi => Invocation::new(
-            "/usr/bin/nmcli",
+            crate::paths::NMCLI,
             &[
                 "--colors",
                 "no",
@@ -441,7 +443,7 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
             if let Some(secret) = password {
                 crate::system_views::validate_wifi_password(secret.as_str())?;
                 Invocation::new(
-                    "/usr/bin/nmcli",
+                    crate::paths::NMCLI,
                     &[
                         "--colors", "no", "--ask", "--wait", "15", "device", "wifi", "connect",
                         ssid,
@@ -449,7 +451,7 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
                 )
             } else {
                 Invocation::new(
-                    "/usr/bin/nmcli",
+                    crate::paths::NMCLI,
                     &[
                         "--colors", "no", "--wait", "8", "device", "wifi", "connect", ssid,
                     ],
@@ -459,7 +461,7 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
         Request::ActivateSavedWifi(uuid) => {
             crate::system_views::validate_saved_wifi_uuid(uuid)?;
             Invocation::new(
-                "/usr/bin/nmcli",
+                crate::paths::NMCLI,
                 &[
                     "--colors",
                     "no",
@@ -474,7 +476,7 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
         }
         Request::DisconnectWifi => active_wifi_connections(),
         Request::ListSavedWifi => Invocation::new(
-            "/usr/bin/nmcli",
+            crate::paths::NMCLI,
             &[
                 "--colors",
                 "no",
@@ -490,22 +492,22 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
         Request::ForgetWifi(uuid) => {
             crate::system_views::validate_saved_wifi_uuid(uuid)?;
             Invocation::new(
-                "/usr/bin/nmcli",
+                crate::paths::NMCLI,
                 &["--colors", "no", "connection", "delete", "uuid", uuid],
             )
         }
-        Request::CheckUpdates => Invocation::new("/usr/bin/apt-get", &["-s", "dist-upgrade"]),
+        Request::CheckUpdates => Invocation::new(crate::paths::APT_GET, &["-s", "dist-upgrade"]),
         Request::RecoveryStatus => {
-            Invocation::new("/usr/libexec/wros-update", &["recovery-status"])
+            Invocation::new(crate::paths::WROS_UPDATE, &["recovery-status"])
         }
         Request::VerifyUpdateBundle { bundle_dir } => {
             crate::system_views::validate_update_bundle_path(bundle_dir)?;
-            Invocation::new("/usr/libexec/wros-update", &["verify-bundle", bundle_dir])
+            Invocation::new(crate::paths::WROS_UPDATE, &["verify-bundle", bundle_dir])
         }
         // Unprivileged: authenticates the bundle and lists it; changes nothing.
         Request::ReviewUpdateBundle { bundle_dir } => {
             crate::system_views::validate_update_bundle_path(bundle_dir)?;
-            Invocation::new("/usr/libexec/wros-update", &["review", bundle_dir])
+            Invocation::new(crate::paths::WROS_UPDATE, &["review", bundle_dir])
                 .with_timeout(REVIEW_TIMEOUT_SECS)
         }
         Request::StageUpdates {
@@ -515,47 +517,47 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
             crate::system_views::validate_update_bundle_path(bundle_dir)?;
             crate::system_views::validate_review_id(review_id)?;
             Invocation::update_launcher(
-                "/usr/libexec/wros-update-stage",
+                crate::paths::WROS_UPDATE_STAGE,
                 &[bundle_dir, review_id],
                 STAGE_TIMEOUT_SECS,
             )
         }
         Request::FindUpdateMedia => Invocation::update_launcher(
-            "/usr/libexec/wros-update-media",
+            crate::paths::WROS_UPDATE_MEDIA,
             &["mount"],
             MEDIA_TIMEOUT_SECS,
         ),
         // Unprivileged: signed metadata only, from the fixed URL in the engine.
         Request::CheckOnlineUpdates => {
-            Invocation::new("/usr/libexec/wros-update", &["check-online"])
+            Invocation::new(crate::paths::WROS_UPDATE, &["check-online"])
                 .with_timeout(ONLINE_CHECK_TIMEOUT_SECS)
         }
         Request::FetchOnlineUpdate => Invocation::update_launcher(
-            "/usr/libexec/wros-update-fetch",
+            crate::paths::WROS_UPDATE_FETCH,
             &[],
             ONLINE_FETCH_TIMEOUT_SECS,
         ),
         Request::CancelStagedUpdates => {
-            Invocation::update_launcher("/usr/libexec/wros-update-cancel", &[], CANCEL_TIMEOUT_SECS)
+            Invocation::update_launcher(crate::paths::WROS_UPDATE_CANCEL, &[], CANCEL_TIMEOUT_SECS)
         }
         Request::ApplyStagedUpdate => {
-            Invocation::update_launcher("/usr/libexec/wros-update-apply", &[], APPLY_TIMEOUT_SECS)
+            Invocation::update_launcher(crate::paths::WROS_UPDATE_APPLY, &[], APPLY_TIMEOUT_SECS)
         }
         Request::GoBackToPreviousVersion => Invocation::update_launcher(
-            "/usr/libexec/wros-update-rollback",
+            crate::paths::WROS_UPDATE_ROLLBACK,
             &[],
             STAGE_TIMEOUT_SECS,
         ),
         Request::ReportUpdateReady => Invocation::update_launcher(
-            "/usr/libexec/wros-update-healthy",
+            crate::paths::WROS_UPDATE_HEALTHY,
             &["ready"],
             CANCEL_TIMEOUT_SECS,
         ),
         Request::RecoverUpdates => {
-            Invocation::update_launcher("/usr/libexec/wros-update-repair", &[], REPAIR_TIMEOUT_SECS)
+            Invocation::update_launcher(crate::paths::WROS_UPDATE_REPAIR, &[], REPAIR_TIMEOUT_SECS)
         }
         Request::ListStorageDevices => Invocation::new(
-            "/usr/bin/findmnt",
+            crate::paths::FINDMNT,
             &[
                 "--json",
                 "--list",
@@ -580,18 +582,18 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
         Request::ListLocalAccounts | Request::GetGoogleStatus => {
             bail!("read-only local request handled directly by Linux backend")
         }
-        Request::ChangePassword { .. } => Invocation::new("/usr/libexec/wros-passwd", &[]),
+        Request::ChangePassword { .. } => Invocation::new(crate::paths::WROS_PASSWD, &[]),
         Request::Brightness(p) => {
             if !(1..=100).contains(p) {
                 bail!("brightness must be 1..100");
             }
             Invocation::new(
-                "/usr/bin/brightnessctl",
+                crate::paths::BRIGHTNESSCTL,
                 &["--class=backlight", "set", &format!("{p}%")],
             )
         }
         Request::Power(action) => Invocation::new(
-            "/usr/bin/systemctl",
+            crate::paths::SYSTEMCTL,
             &[
                 "--no-ask-password",
                 match action {
@@ -602,14 +604,14 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
             ],
         ),
         Request::PowerSave(on) => Invocation::new(
-            "/usr/bin/powerprofilesctl",
+            crate::paths::POWERPROFILESCTL,
             &["set", if *on { "power-saver" } else { "balanced" }],
         ),
         Request::KeyboardPreview(l) => Invocation::new(
-            "/usr/bin/pkexec",
+            crate::paths::PKEXEC,
             &[
                 "--disable-internal-agent",
-                "/usr/libexec/wros-keyboard",
+                crate::paths::WROS_KEYBOARD,
                 "preview",
                 l.id(),
             ],
@@ -619,10 +621,10 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
                 bail!("invalid keyboard preview token");
             }
             Invocation::new(
-                "/usr/bin/pkexec",
+                crate::paths::PKEXEC,
                 &[
                     "--disable-internal-agent",
-                    "/usr/libexec/wros-keyboard",
+                    crate::paths::WROS_KEYBOARD,
                     if matches!(request, Request::KeyboardConfirm(_)) {
                         "confirm"
                     } else {
@@ -635,7 +637,7 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
         Request::BootStatus | Request::BootTheme(_) | Request::BootScreen { .. } => {
             let mut args = vec![
                 "--disable-internal-agent",
-                "/usr/libexec/wros-boot-settings",
+                crate::paths::WROS_BOOT_SETTINGS,
             ];
             match request {
                 Request::BootStatus => args.push("status"),
@@ -652,23 +654,23 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
                 }
                 _ => unreachable!(),
             }
-            Invocation::new("/usr/bin/pkexec", &args)
+            Invocation::new(crate::paths::PKEXEC, &args)
         }
         Request::DisplayStatus => Invocation::new(
-            "/usr/bin/pkexec",
+            crate::paths::PKEXEC,
             &[
                 "--disable-internal-agent",
-                "/usr/libexec/wros-display",
+                crate::paths::WROS_DISPLAY,
                 "status",
             ],
         ),
         Request::DisplayPreview(choice) => {
             choice.validate()?;
             Invocation::new(
-                "/usr/bin/pkexec",
+                crate::paths::PKEXEC,
                 &[
                     "--disable-internal-agent",
-                    "/usr/libexec/wros-display",
+                    crate::paths::WROS_DISPLAY,
                     "preview",
                     if choice.enabled { "on" } else { "off" },
                     &choice.kelvin.to_string(),
@@ -679,10 +681,10 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
         Request::DisplayConfirm(token) | Request::DisplayCancel(token) => {
             crate::display::validate_token(token)?;
             Invocation::new(
-                "/usr/bin/pkexec",
+                crate::paths::PKEXEC,
                 &[
                     "--disable-internal-agent",
-                    "/usr/libexec/wros-display",
+                    crate::paths::WROS_DISPLAY,
                     if matches!(request, Request::DisplayConfirm(_)) {
                         "confirm"
                     } else {
@@ -766,7 +768,7 @@ impl<R: Runner> Backend for Linux<R> {
                 bail!("Wi-Fi connection failed; check network credentials and signal");
             }
             let active_output = self.runner.run(&Invocation::new(
-                "/usr/bin/nmcli",
+                crate::paths::NMCLI,
                 &[
                     "--colors",
                     "no",
@@ -818,7 +820,7 @@ impl<R: Runner> Backend for Linux<R> {
             }
             for profile in &active {
                 self.runner.run(&Invocation::new(
-                    "/usr/bin/nmcli",
+                    crate::paths::NMCLI,
                     &[
                         "--colors",
                         "no",
@@ -1147,7 +1149,7 @@ mod tests {
             bundle_dir: dir.into(),
         })
         .unwrap();
-        assert_eq!(verify.program, "/usr/libexec/wros-update");
+        assert_eq!(verify.program, crate::paths::WROS_UPDATE);
         assert_eq!(verify.args, ["verify-bundle", dir]);
 
         // Review is unprivileged and never goes through pkexec.
@@ -1155,7 +1157,7 @@ mod tests {
             bundle_dir: dir.into(),
         })
         .unwrap();
-        assert_eq!(review.program, "/usr/libexec/wros-update");
+        assert_eq!(review.program, crate::paths::WROS_UPDATE);
         assert_eq!(review.args, ["review", dir]);
         assert_eq!(review.timeout, Duration::from_secs(180));
 
@@ -1165,35 +1167,35 @@ mod tests {
             review_id: id.clone(),
         })
         .unwrap();
-        assert_eq!(stage.program, "/usr/bin/pkexec");
+        assert_eq!(stage.program, crate::paths::PKEXEC);
         assert_eq!(
             stage.args,
-            [pk, "/usr/libexec/wros-update-stage", dir, id.as_str()]
+            [pk, crate::paths::WROS_UPDATE_STAGE, dir, id.as_str()]
         );
         assert_eq!(stage.timeout, Duration::from_secs(900));
 
         for (request, helper, args, seconds) in [
             (
                 Request::CancelStagedUpdates,
-                "/usr/libexec/wros-update-cancel",
+                crate::paths::WROS_UPDATE_CANCEL,
                 vec![],
                 60,
             ),
             (
                 Request::RecoverUpdates,
-                "/usr/libexec/wros-update-repair",
+                crate::paths::WROS_UPDATE_REPAIR,
                 vec![],
                 900,
             ),
             (
                 Request::FindUpdateMedia,
-                "/usr/libexec/wros-update-media",
+                crate::paths::WROS_UPDATE_MEDIA,
                 vec!["mount"],
                 60,
             ),
         ] {
             let command = invocation(&request).unwrap();
-            assert_eq!(command.program, "/usr/bin/pkexec");
+            assert_eq!(command.program, crate::paths::PKEXEC);
             let mut expected = vec![pk, helper];
             expected.extend(args);
             assert_eq!(command.args, expected);
@@ -1348,7 +1350,7 @@ mod tests {
             Reply::Message("Password changed. Use it to sign in and to unlock.".into())
         );
         let (cmd, input) = &ok.runner.calls[0];
-        assert_eq!(cmd.program, "/usr/libexec/wros-passwd");
+        assert_eq!(cmd.program, crate::paths::WROS_PASSWD);
         assert!(cmd.args.is_empty());
         assert_eq!(input, "OLD_SECRET_VALUE\nNEW_SECRET_VALUE\n");
         assert!(!format!("{:?}", change("OLD_SECRET_VALUE", "x")).contains("OLD_SECRET_VALUE"));
@@ -1437,7 +1439,7 @@ mod tests {
             reply,
             Reply::Message("Connected to Wi-Fi network WriterDeck-Cafe.".into())
         );
-        assert_eq!(backend.runner.calls[0].0.program, "/usr/bin/nmcli");
+        assert_eq!(backend.runner.calls[0].0.program, crate::paths::NMCLI);
         assert!(
             backend.runner.calls[0]
                 .0
@@ -1514,12 +1516,12 @@ mod tests {
     #[test]
     fn read_only_views_use_structured_fixed_commands_without_secrets_or_assumed_interfaces() {
         let scan = invocation(&Request::ScanWifi).unwrap();
-        assert_eq!(scan.program, "/usr/bin/nmcli");
+        assert_eq!(scan.program, crate::paths::NMCLI);
         assert!(scan.args.windows(2).any(|p| p == ["--escape", "yes"]));
         let profiles = invocation(&Request::ListSavedWifi).unwrap();
         assert!(profiles.args.contains(&"UUID,NAME,TYPE".into()));
         let disks = invocation(&Request::ListStorageDevices).unwrap();
-        assert_eq!(disks.program, "/usr/bin/findmnt");
+        assert_eq!(disks.program, crate::paths::FINDMNT);
         assert!(disks.args.contains(&"--json".into()));
         assert_eq!(
             invocation(&Request::CheckUpdates).unwrap().args,
@@ -1528,7 +1530,7 @@ mod tests {
     }
     #[test]
     fn process_timeout_also_bounds_pipes_inherited_by_a_child() {
-        let mut command = Invocation::new("/bin/sh", &["-c", "sleep 2 & exit 0"]);
+        let mut command = Invocation::new(crate::paths::SH, &["-c", "sleep 2 & exit 0"]);
         command.timeout = Duration::from_millis(100);
         let started = Instant::now();
         let result = ProcessRunner.run(&command);
@@ -1542,7 +1544,7 @@ mod tests {
         assert!(
             runner
                 .run(&Invocation::new(
-                    "/usr/bin/python3",
+                    crate::paths::PYTHON3,
                     &["-c", "import sys; sys.stdout.write('x'*65537)"]
                 ))
                 .is_err()
@@ -1550,7 +1552,7 @@ mod tests {
         assert!(
             runner
                 .run(&Invocation::new(
-                    "/usr/bin/python3",
+                    crate::paths::PYTHON3,
                     &["-c", "import sys; sys.stdout.buffer.write(bytes([255]))"]
                 ))
                 .is_err()
@@ -1558,7 +1560,7 @@ mod tests {
         assert_eq!(
             runner
                 .run(&Invocation::new(
-                    "/usr/bin/python3",
+                    crate::paths::PYTHON3,
                     &["-c", "print('  name  ')"]
                 ))
                 .unwrap(),
@@ -1568,7 +1570,7 @@ mod tests {
             runner
                 .run_with_input(
                     &Invocation::new(
-                        "/usr/bin/python3",
+                        crate::paths::PYTHON3,
                         &["-c", "import sys; print(sys.stdin.readline().strip())"]
                     ),
                     b"stdin-secret-line\n"
@@ -1582,7 +1584,7 @@ mod tests {
         let mut runner = ProcessRunner;
         let output = runner
             .run(&Invocation::new(
-                "/usr/bin/findmnt",
+                crate::paths::FINDMNT,
                 &[
                     "--json",
                     "--list",
@@ -1618,7 +1620,7 @@ mod tests {
         assert!(invocation(&Request::KeyboardConfirm(";reboot".into())).is_err());
         assert!(invocation(&Request::Brightness(0)).is_err());
         let c = invocation(&Request::Power(PowerAction::Shutdown)).unwrap();
-        assert_eq!(c.program, "/usr/bin/systemctl");
+        assert_eq!(c.program, crate::paths::SYSTEMCTL);
         assert_eq!(c.args, ["--no-ask-password", "poweroff"]);
         assert!(
             invocation(&Request::Wifi(false))
@@ -1643,7 +1645,7 @@ mod tests {
     }
     #[test]
     fn real_command_errors_are_not_reported_as_success() {
-        let r = ProcessRunner.run(&Invocation::new("/usr/bin/false", &[]));
+        let r = ProcessRunner.run(&Invocation::new(crate::paths::USR_BIN_FALSE, &[]));
         assert!(r.is_err());
     }
     #[test]
@@ -1715,7 +1717,7 @@ mod tests {
             assert_eq!(
                 backend.runner.1[0],
                 Invocation::new(
-                    "/usr/bin/timedatectl",
+                    crate::paths::TIMEDATECTL,
                     &[
                         "--no-ask-password",
                         "--no-pager",
@@ -1750,12 +1752,12 @@ mod tests {
             theme: theme.into(),
         };
         let command = invocation(&request).unwrap();
-        assert_eq!(command.program, "/usr/bin/pkexec");
+        assert_eq!(command.program, crate::paths::PKEXEC);
         assert_eq!(
             command.args,
             [
                 "--disable-internal-agent",
-                "/usr/libexec/wros-boot-settings",
+                crate::paths::WROS_BOOT_SETTINGS,
                 "screen",
                 "ratatui",
                 theme
@@ -1799,12 +1801,12 @@ mod tests {
     fn display_calls_are_fixed_bounded_and_never_start_a_tty_auth_reader() {
         use crate::display::Warmth;
         let command = invocation(&Request::DisplayPreview(Warmth::default())).unwrap();
-        assert_eq!(command.program, "/usr/bin/pkexec");
+        assert_eq!(command.program, crate::paths::PKEXEC);
         assert_eq!(
             command.args,
             [
                 "--disable-internal-agent",
-                "/usr/libexec/wros-display",
+                crate::paths::WROS_DISPLAY,
                 "preview",
                 "on",
                 "2200",

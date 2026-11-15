@@ -39,14 +39,14 @@ pub fn available() -> bool {
         && console()
         && unsafe { libc::geteuid() } != 0
         && !Path::new("/etc/wros/VM-DEMO-ONLY").exists()
-        && Path::new("/run/wros-live/session.json").is_file()
-        && Path::new("/run/live/medium/live/filesystem.squashfs").is_file()
+        && Path::new(wros_sys::paths::LIVE_SESSION_JSON).is_file()
+        && (Path::new(wros_sys::paths::LIVE_MEDIUM_SQUASHFS).is_file() || Path::new(wros_sys::paths::LIVE_NIXOS_SQUASHFS).is_file())
         && [
-            "/usr/libexec/wros-install-session",
-            "/usr/bin/wros-installer",
-            "/usr/bin/systemd-run",
-            "/usr/bin/chvt",
-            "/usr/bin/unshare",
+            wros_sys::paths::WROS_INSTALL_SESSION,
+            wros_sys::paths::WROS_INSTALLER,
+            wros_sys::paths::SYSTEMD_RUN,
+            wros_sys::paths::CHVT,
+            wros_sys::paths::UNSHARE,
         ]
         .iter()
         .all(|path| Path::new(path).is_file())
@@ -91,13 +91,13 @@ pub fn handoff(
             MoveTo(0, 0),
             Hide,
         )?;
-        let status = Command::new("/usr/bin/pkexec")
+        let status = Command::new(wros_sys::paths::PKEXEC)
             .args([
                 "--disable-internal-agent",
-                "/usr/libexec/wros-install-session",
+                wros_sys::paths::WROS_INSTALL_SESSION,
             ])
             .env_clear()
-            .env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
+            .env("PATH", wros_sys::paths::SAFE_PATH)
             .env("LANG", "C.UTF-8")
             .env("TERM", "linux")
             .status()

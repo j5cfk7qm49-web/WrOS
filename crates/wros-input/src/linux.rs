@@ -336,7 +336,7 @@ impl Input {
         }
         let mut child = command
             .env_clear()
-            .env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
+            .env("PATH", crate::paths::SAFE_PATH)
             .env("LANG", "C.UTF-8")
             .env("TERM", "xterm-256color")
             .env("LIBSEAT_BACKEND", "logind")
@@ -525,9 +525,9 @@ mod tests {
 
     #[test]
     fn a_crashed_native_reader_cannot_acknowledge_device_retirement() {
-        let child = Command::new("/bin/false").spawn().unwrap();
+        let child = Command::new(crate::paths::BIN_FALSE).spawn().unwrap();
         let mut input = Input {
-            executable: PathBuf::from("/bin/false"),
+            executable: PathBuf::from(crate::paths::BIN_FALSE),
             owner: 1,
             epoch: 0,
             state: State::Active(Running {

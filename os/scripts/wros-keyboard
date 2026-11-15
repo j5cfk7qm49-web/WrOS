@@ -16,6 +16,10 @@ import time
 
 LAYOUTS = ("qwerty", "colemak", "colemak-dh-ansi", "colemak-dh-iso")
 INITIAL = {"version": 1, "layout": "qwerty", "generation": "initial"}
+LOADKEYS = "/usr/bin/loadkeys"
+SYSTEMCTL = "/usr/bin/systemctl"
+KEYMAPS_DIR = Path("/usr/share/wros/keymaps")
+BOOT_SYNC_DIR = None
 
 
 class PreservedSystemLayout(ValueError):
@@ -69,11 +73,13 @@ def atomic_json(path, data):
 class KeyboardManager:
     def __init__(self, config=Path("/etc/wros/keyboard.json"),
                  pending=Path("/run/wros/keyboard-preview.json"),
-                 maps=Path("/usr/share/wros/keymaps"), runner=None, clock=None,
+                 maps=KEYMAPS_DIR, runner=None, clock=None,
                  installer_pending=Path("/etc/wros/installer-keyboard-pending"),
-                 system_keyboard=Path("/etc/default/keyboard")):
+                 system_keyboard=Path("/etc/default/keyboard"),
+                 boot_sync=BOOT_SYNC_DIR):
         self.config, self.pending, self.maps = config, pending, maps
         self.installer_pending, self.system_keyboard = installer_pending, system_keyboard
+        self.boot_sync = Path(boot_sync) if boot_sync is not None else None
         self.run = runner or (lambda args: subprocess.run(args, check=True, timeout=8,
                                                         stdin=subprocess.DEVNULL,
                                                         stdout=subprocess.DEVNULL))
@@ -98,9 +104,20 @@ class KeyboardManager:
             # console-setup already applied the installer's actual layout.
             # Keep the marker so preview cannot offer a false QWERTY rollback.
             return False
-        atomic_json(self.config, {"version": 1, "layout": layout, "generation": "installer"})
+        record = {"version": 1, "layout": layout, "generation": "installer"}
+        atomic_json(self.config, record)
+        self.sync_boot(record)
         self.installer_pending.unlink()
         return True
+
+    def sync_boot(self, record):
+        if self.boot_sync is None:
+            return
+        try:
+            if not self.boot_sync.is_symlink():
+                atomic_json(self.boot_sync / "keyboard.json", record)
+        except OSError:
+            pass
 
     def saved(self):
         if not self.config.exists():
@@ -116,10 +133,10 @@ class KeyboardManager:
         path = self.maps / (layout + ".map")
         if not path.is_file() or path.is_symlink():
             raise ValueError("missing or unsafe root-owned keymap")
-        self.run(["/usr/bin/loadkeys", "--unicode", "--console=/dev/tty1", str(path)])
+        self.run([LOADKEYS, "--unicode", "--console=/dev/tty1", str(path)])
 
     def timer(self, verb):
-        self.run(["/usr/bin/systemctl", verb, "wros-keyboard-revert.timer"])
+        self.run([SYSTEMCTL, verb, "wros-keyboard-revert.timer"])
 
     def rollback(self, force=False):
         if not self.pending.exists():
@@ -145,7 +162,9 @@ class KeyboardManager:
         if verb == "boot":
             if not self.adopt_installer():
                 return {"status": "preserved-system-layout", "preview_available": False}
-            self.load(self.saved()["layout"])
+            saved = self.saved()
+            self.load(saved["layout"])
+            self.sync_boot(saved)
             return {"status": "applied"}
         if verb == "rollback":
             return self.rollback()
@@ -187,7 +206,9 @@ class KeyboardManager:
             if verb == "confirm":
                 raise ValueError("preview expired and was reverted")
             return {"status": "cancelled"}
-        atomic_json(self.config, {"layout": p["layout"], "generation": p["token"], "version": 1})
+        committed = {"layout": p["layout"], "generation": p["token"], "version": 1}
+        atomic_json(self.config, committed)
+        self.sync_boot(committed)
         self.pending.unlink()
         # A failed cancellation cannot change the committed state.
         try:

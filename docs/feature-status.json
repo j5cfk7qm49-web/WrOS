@@ -54,18 +54,18 @@
     {
       "area": "OS",
       "capability": "Staged rootfs + regular-file GPT/UEFI image workflow",
-      "status": "Tested",
+      "status": "In progress",
       "verification": "Actual QEMU/OVMF whole-disk boot",
       "hardware_verified": false,
-      "detail": "Reproducible recipe, not bit-identical signed release"
+      "detail": "Reproducible recipe, not bit-identical signed release (NixOS rc14 port is unqualified until local NixOS-WSL build and VM checks run.)"
     },
     {
       "area": "OS",
       "capability": "Boot-to-writing splash + non-root tty1 startup",
-      "status": "Tested",
+      "status": "In progress",
       "verification": "Actual VM screen and UID assertion",
       "hardware_verified": false,
-      "detail": "Explicit VM demo autologin is not production authentication"
+      "detail": "Explicit VM demo autologin is not production authentication (NixOS rc14 port is unqualified until local NixOS-WSL build and VM checks run.)"
     },
     {
       "area": "OS",
@@ -89,7 +89,7 @@
       "status": "In progress",
       "verification": "Current native ISO normal installation passed 1263.38 seconds; separate UEFI/native PAM/process/hash/sleep-denial/logout retry passed 97.76 seconds; original failed probes retained",
       "hardware_verified": false,
-      "detail": "Current native image has no autologin; exact runtime hashes match; LUKS/recovery, broader layout/wrong-disk/interruption, secure lock and physical gates remain open"
+      "detail": "Current native image has no autologin; exact runtime hashes match; LUKS/recovery, broader layout/wrong-disk/interruption, secure lock and physical gates remain open (NixOS rc14 port is unqualified until local NixOS-WSL build and VM checks run.)"
     },
     {
       "area": "OS",
@@ -97,7 +97,7 @@
       "status": "In progress",
       "verification": "Real UEFI/PAM wrong-password rejection, UID-1000 login, sudo and tty1 writing UI",
       "hardware_verified": false,
-      "detail": "Native authenticated boot and manual protected tty8/PAM lock have separate software/guest qualification; a software pre-sleep readiness check (input reader retired, tty8 lock ready, buffers saved) exists while hardware suspend stays disabled (#32); lock-before-suspend and physical resume remain unqualified"
+      "detail": "Native authenticated boot and manual protected tty8/PAM lock have separate software/guest qualification; a software pre-sleep readiness check (input reader retired, tty8 lock ready, buffers saved) exists while hardware suspend stays disabled (#32); lock-before-suspend and physical resume remain unqualified (NixOS rc14 port is unqualified until local NixOS-WSL build and VM checks run.)"
     },
     {
       "area": "OS",
@@ -105,7 +105,7 @@
       "status": "In progress",
       "verification": "Fixture serial PAM login as UID 1000; tty2/encrypted recovery still pending",
       "hardware_verified": false,
-      "detail": "Normal installer account uses authenticated sudo; demo accounts remain locked; usable production recovery not certified"
+      "detail": "Normal installer account uses authenticated sudo; demo accounts remain locked; usable production recovery not certified (NixOS rc14 port is unqualified until local NixOS-WSL build and VM checks run.)"
     },
     {
       "area": "OS",
@@ -113,7 +113,7 @@
       "status": "In progress",
       "verification": "Local and independent CI: 1101 Rust/configuration, 240 Python/zero skips, both Clippys; real APT solver, GPG metadata, POSIX locks and durable-journal tests",
       "hardware_verified": false,
-      "detail": "Foreign triggers preserved, authenticated archives retained on failure, APT refuses removals/unreviewed packages; native mutations and automatic boot activation disabled pending trust/recovery VM qualification"
+      "detail": "Foreign triggers preserved, authenticated archives retained on failure, APT refuses removals/unreviewed packages; native mutations and automatic boot activation disabled pending trust/recovery VM qualification (NixOS rc14 port is unqualified until local NixOS-WSL build and VM checks run.)"
     },
     {
       "area": "OS",
@@ -206,10 +206,10 @@
     {
       "area": "Keyboard",
       "capability": "Layout persistence / pre-login reapplication",
-      "status": "Tested",
+      "status": "In progress",
       "verification": "Guest config commit and boot-command reapplication",
       "hardware_verified": false,
-      "detail": "Separate cold reboot/suspend hardware verification outstanding"
+      "detail": "Separate cold reboot/suspend hardware verification outstanding (NixOS rc14 port is unqualified until local NixOS-WSL build and VM checks run.)"
     },
     {
       "area": "Keyboard",
@@ -550,10 +550,10 @@
     {
       "area": "Qualification",
       "capability": "Offline whole-VM operation and low-memory initial measurement",
-      "status": "Tested",
+      "status": "In progress",
       "verification": "No network devices; guest process RSS in evidence",
       "hardware_verified": false,
-      "detail": "Does not include Python/spaCy or physical battery benchmark"
+      "detail": "Does not include Python/spaCy or physical battery benchmark (NixOS rc14 port is unqualified until local NixOS-WSL build and VM checks run.)"
     },
     {
       "area": "Qualification",
@@ -574,10 +574,10 @@
     {
       "area": "System",
       "capability": "Offline common-laptop Wi-Fi drivers and firmware",
-      "status": "Tested",
+      "status": "In progress",
       "verification": "Actual staged-image package/firmware/notice/module/nmtui audit plus missing-payload policy tests",
       "hardware_verified": false,
-      "detail": "Intel, Realtek, Qualcomm/Atheros, Broadcom/Cypress brcm80211 and MediaTek packaged for supported kernel drivers; production installer media must retain this set; physical radio acceptance pending"
+      "detail": "Intel, Realtek, Qualcomm/Atheros, Broadcom/Cypress brcm80211 and MediaTek packaged for supported kernel drivers; production installer media must retain this set; physical radio acceptance pending (NixOS rc14 port is unqualified until local NixOS-WSL build and VM checks run.)"
     },
     {
       "area": "Shell",
@@ -641,7 +641,7 @@
       "status": "In progress",
       "verification": "Local and independent CI: 1101 Rust/configuration, 240 Python/zero skips, both Clippys; four-size save/conflict UI, selected-disk/proof fixtures and actual systemd namespace probe",
       "hardware_verified": false,
-      "detail": "Live-only supervised installer with distinct locked frontend UID, owned single-disk cleanup and nonce/application/boot-bound proof; actual production handoff/full encrypted install and first-boot VM remain open"
+      "detail": "Live-only supervised installer with distinct locked frontend UID, owned single-disk cleanup and nonce/application/boot-bound proof; actual production handoff/full encrypted install and first-boot VM remain open (NixOS rc14 port is unqualified until local NixOS-WSL build and VM checks run.)"
     },
     {
       "area": "System",
@@ -653,10 +653,10 @@
     {
       "area": "OS",
       "capability": "Grimoire live-session startup and immutable installed authentication",
-      "status": "Tested",
+      "status": "In progress",
       "verification": "Debian CI: 973 Rust/configuration, 135 Python/zero skips, both Clippys and 20 gates; full local 21 gates; compressed ISO audit, three diskless live boot/UI/shutdown modes and installed-lock guest (347.59 seconds) passed",
       "hardware_verified": false,
-      "detail": "Maintained live-config/user-setup with temporary runtime greetd entry; all live boot entries and omitted-flag role guard verified; public personal lock unavailable. Native privileged installer, new target install/reboot, UEFI and physical gates remain open"
+      "detail": "Maintained live-config/user-setup with temporary runtime greetd entry; all live boot entries and omitted-flag role guard verified; public personal lock unavailable. Native privileged installer, new target install/reboot, UEFI and physical gates remain open (NixOS rc14 port is unqualified until local NixOS-WSL build and VM checks run.)"
     },
     {
       "area": "Publishing",

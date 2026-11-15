@@ -31,3 +31,8 @@ The development host and built guest are Debian 13.7. The recipe uses signed `tr
 This is a **reproducible workflow**, not yet a bit-for-bit reproducible release. Default security repositories evolve; package resolution, filesystem timestamps/UUID metadata and build toolchain must be pinned/normalized for identical bytes. A reviewed snapshot mirror can be passed using `DEBIAN_MIRROR`; actual package inventory and image checksum are always emitted. Snapshot date/valid-until handling, apt source export and signed image release metadata remain release gates. Do not disable package signature verification to obtain reproducibility.
 
 The current firmware image is unsigned and requires Secure Boot disabled in the VM. A physical installation should retain Debian's supported signed shim/GRUB/kernel chain until a separately tested WrOS signing policy exists.
+
+
+## rc14 NixOS operating-system rebase (`0.1.0~rc14`)
+
+Starting in `0.1.0~rc14`, the operating-system layer is defined declaratively on NixOS (`nixos-26.05`, pinned in [`flake.nix`](../flake.nix)) alongside the retained Debian 13 packaging so that system updates and rollbacks switch atomic NixOS generations in `/nix/var/nix/profiles/system` and GRUB rather than mutating `/usr` in place with `dpkg`. See [`NIXOS_BASE.md`](NIXOS_BASE.md), [`NIXOS_UPDATES.md`](NIXOS_UPDATES.md), and [`NIXOS_QUALIFICATION.md`](NIXOS_QUALIFICATION.md).

@@ -33,12 +33,12 @@ pub fn available() -> bool {
         && display_available()
         && unsafe { libc::geteuid() } != 0
         && !Path::new("/etc/wros/VM-DEMO-ONLY").exists()
-        && !Path::new("/run/wros-live/session.json").exists()
-        && !Path::new("/run/live/medium/live/filesystem.squashfs").is_file()
+        && !Path::new(wros_sys::paths::LIVE_SESSION_JSON).exists()
+        && !Path::new(wros_sys::paths::LIVE_MEDIUM_SQUASHFS).is_file()
         && [
-            "/usr/libexec/wros-lock",
-            "/usr/bin/openvt",
-            "/usr/sbin/vlock-main",
+            wros_sys::paths::WROS_LOCK,
+            wros_sys::paths::OPENVT,
+            wros_sys::paths::VLOCK_MAIN,
         ]
         .iter()
         .all(|path| Path::new(path).is_file())
@@ -47,7 +47,7 @@ pub fn available() -> bool {
 pub fn suspend_available() -> bool {
     display_available()
         && available()
-        && Path::new("/etc/systemd/system/systemd-suspend.service.d/60-wros-lock.conf").is_file()
+        && Path::new(wros_sys::paths::SUSPEND_LOCK_DROPIN).is_file()
         && fs::read_to_string("/sys/power/state")
             .is_ok_and(|states| states.split_whitespace().any(|state| state == "mem"))
 }
@@ -128,7 +128,7 @@ pub fn watch_power() -> Arc<Power> {
     let output = Arc::downgrade(&power);
     std::thread::spawn(move || {
         while let Some(output) = output.upgrade() {
-            let lid = Command::new("/usr/bin/busctl")
+            let lid = Command::new(wros_sys::paths::BUSCTL)
                 .args([
                     "--timeout=1s",
                     "get-property",
@@ -227,8 +227,8 @@ pub fn handoff(
             MoveTo(0, 0),
             Hide,
         )?;
-        let mut locker = Command::new("/usr/bin/pkexec");
-        locker.args(["--disable-internal-agent", "/usr/libexec/wros-lock"]);
+        let mut locker = Command::new(wros_sys::paths::PKEXEC);
+        locker.args(["--disable-internal-agent", wros_sys::paths::WROS_LOCK]);
         if let Some(console) = console_file.as_mut() {
             console.write_all(b"\x1b[0m\x1b[2J\x1b[3J\x1b[H\x1b[?25l")?;
             locker
@@ -245,7 +245,7 @@ pub fn handoff(
         }
         let mut child = locker
             .env_clear()
-            .env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
+            .env("PATH", wros_sys::paths::SAFE_PATH)
             .env("LANG", "C.UTF-8")
             .env("TERM", "linux")
             .spawn()

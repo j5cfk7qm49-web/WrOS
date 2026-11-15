@@ -217,14 +217,14 @@ pub fn execute(command: &Command) -> Result<Vec<u8>, &'static str> {
     let arguments = command.arguments()?;
     // No shell, terminal input, password agent, client paths or arbitrary argv.
     // Only the existing narrow helper is eligible for the greeter policy.
-    let mut child = Process::new("/usr/bin/pkexec")
+    let mut child = Process::new(wros_shell::paths::PKEXEC)
         // greetd's locked service account can have SHELL=/usr/sbin/nologin;
         // pkexec rejects inherited shells outside /etc/shells. Supply only
         // fixed helper environment, keeping that account locked and unchanged.
         .env_clear()
-        .env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
+        .env("PATH", wros_shell::paths::SAFE_PATH)
         .env("LANG", "C.UTF-8")
-        .args(["--disable-internal-agent", "/usr/libexec/wros-keyboard"])
+        .args(["--disable-internal-agent", wros_shell::paths::WROS_KEYBOARD])
         .args(arguments)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())

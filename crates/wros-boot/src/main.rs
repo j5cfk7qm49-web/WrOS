@@ -264,7 +264,7 @@ mod linux {
         let text = match &args.progress_file {
             Some(path) => std::fs::read_to_string(path).ok()?,
             None => {
-                let out = std::process::Command::new("/usr/bin/busctl")
+                let out = std::process::Command::new(wros_shell::paths::BUSCTL)
                     .args([
                         "get-property",
                         "org.freedesktop.systemd1",

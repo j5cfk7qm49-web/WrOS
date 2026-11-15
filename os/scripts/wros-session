@@ -30,7 +30,7 @@ KEYBOARD = Path('/etc/wros/keyboard.json')
 DEBIAN_KEYBOARD = Path('/etc/default/keyboard')
 CONSOLE_THIS_BOOT = Path('/run/wros-session/console')
 CMDLINE = Path('/proc/cmdline')
-LIVE_MARKERS = (Path('/run/wros-live/session.json'), Path('/run/live/medium/live/filesystem.squashfs'))
+LIVE_MARKERS = (Path('/run/wros-live/session.json'), Path('/run/live/medium/live/filesystem.squashfs'), Path('/iso/nix-store.squashfs'))
 MAX_FAILURES = 2
 LIMIT = 65536
 

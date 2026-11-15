@@ -982,6 +982,7 @@ class SettingsProfile(unittest.TestCase):
         self.service.profile_config = self.base/'no settings here'
         self.service.keyboard_file = self.base/'missing keyboard'
         self.service.timezone_file = self.base/'missing timezone'
+        self.service.localtime_file = self.base/'missing localtime'
         snapshot = self.service.backup(str(self.project))['snapshots'][0]
         result = self.service.restore(snapshot['id'], str(self.base/'restored'), settings=True)
         self.assertIn('no settings', result['notice'])
@@ -1000,6 +1001,26 @@ class SettingsProfile(unittest.TestCase):
         module.dispatch(self.service, {'operation': 'restore', 'snapshot': snapshot['id'],
                                        'destination': str(self.base/'restored'), 'settings': True})
         self.assertEqual((self.settings/'settings.toml').read_bytes(), self.saved['settings.toml'])
+
+    def test_debian_era_system_settings_restore_on_nixos_and_skip_obsolete_fields(self):
+        profile = self.base / 'debian-rc13-profile'
+        (profile / 'grimoire').mkdir(parents=True)
+        for name, data in self.saved.items():
+            (profile / 'grimoire' / name).write_bytes(data)
+        (profile / 'system.json').write_text(json.dumps({
+            'version': 1,
+            'keyboard': 'colemak-dh-ansi',
+            'timezone': 'Europe/London',
+            'apt_sources': 'trixie',
+            'initramfs_hook': 'wros-boot',
+        }))
+        (self.settings / 'settings.toml').write_text('theme = "Local"\n')
+        message = self.service.apply_profile(profile)
+        for name, data in self.saved.items():
+            self.assertEqual((self.settings / name).read_bytes(), data, name)
+        self.assertIn('keyboard colemak-dh-ansi', message)
+        self.assertIn('timezone Europe/London', message)
+        self.assertIn('Skipped settings that no longer apply on this system: apt_sources, initramfs_hook.', message)
 
 
 if __name__ == '__main__':

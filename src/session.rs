@@ -7,8 +7,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const CAGE: &str = "/usr/bin/cage";
-const FOOT: &str = "/usr/bin/foot";
+const CAGE: &str = wros_sys::paths::CAGE;
+const FOOT: &str = wros_sys::paths::FOOT;
 
 /// True inside a native or compositor-backed graphical session.
 pub fn graphical() -> bool {

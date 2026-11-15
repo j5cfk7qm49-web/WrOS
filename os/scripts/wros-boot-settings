@@ -15,6 +15,9 @@ import tomllib
 ROLES = {'accent', 'text', 'dim', 'border', 'selection', 'warning', 'sun', 'moon',
          'foliage', 'bark', 'bloom', 'turf'}
 ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'}
+SYSTEMCTL = '/usr/bin/systemctl'
+UPDATE_INITRAMFS = '/usr/sbin/update-initramfs'
+BOOT_SYNC_DIR = None
 
 
 def theme_data(text):
@@ -60,8 +63,9 @@ def atomic(path, data):
 
 
 class Settings:
-    def __init__(self, config, state, run=subprocess.run):
+    def __init__(self, config, state, run=subprocess.run, boot_sync=BOOT_SYNC_DIR):
         self.config, self.state, self.run = config, state, run
+        self.boot_sync = Path(boot_sync) if boot_sync is not None else None
 
     def lock(self):
         for directory in (self.config, self.state):
@@ -99,7 +103,7 @@ class Settings:
                 atomic(self.config / 'boot-screen', b'text\n')
             atomic(self.state / 'pending', b'pending\n')
         # The path unit starts the service and notices changes made during a build too.
-        done = self.run(['/usr/bin/systemctl', 'start', '--no-block', 'wros-boot-rebuild.path'],
+        done = self.run([SYSTEMCTL, 'start', '--no-block', 'wros-boot-rebuild.path'],
                         env=ENV, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL, timeout=5)
         if done.returncode:
@@ -114,10 +118,26 @@ class Settings:
             (self.state / 'pending').unlink(missing_ok=True)
         succeeded = False
         try:
-            done = self.run(['/usr/sbin/update-initramfs', '-u', '-k', 'all'], env=ENV,
-                            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL, timeout=900)
-            succeeded = done.returncode == 0
+            if self.boot_sync is not None:
+                if self.boot_sync.is_symlink():
+                    raise RuntimeError('The start screen could not be prepared. Try the choice again.')
+                self.boot_sync.mkdir(parents=True, exist_ok=True)
+                for name in ('boot-theme.toml', 'boot-screen', 'keyboard.json'):
+                    src = self.config / name
+                    dst = self.boot_sync / name
+                    regular(src)
+                    regular(dst)
+                    if src.is_file():
+                        atomic(dst, src.read_bytes())
+                    elif dst.exists():
+                        dst.unlink()
+            if UPDATE_INITRAMFS is not None:
+                done = self.run([UPDATE_INITRAMFS, '-u', '-k', 'all'], env=ENV,
+                                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL, timeout=900)
+                succeeded = done.returncode == 0
+            else:
+                succeeded = self.boot_sync is not None
         finally:
             with self.lock():
                 (self.state / 'building').unlink(missing_ok=True)

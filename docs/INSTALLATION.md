@@ -59,3 +59,8 @@ build a disposable UEFI test disk with an automatic demo login. Use the release
 chain for an authenticated encrypted installation and package update. Test
 results refer to the exact artifacts and the checks that ran.
 [VM profile](../os/scripts/bootstrap-rootfs.sh) · [Qualification steps](TESTING.md)
+
+
+## NixOS appliance build and installation (`0.1.0~rc14`)
+
+For the NixOS operating-system layer (`nixosConfigurations.wros` and `nixosConfigurations.wros-live`), the live ISO (`nix build .#wros-iso`) embeds the complete pre-built system closure in `/iso/nix-store.squashfs` and installs offline to `WROS-ESP` + `WROS-LUKS` (`wros_crypt` -> `WROS-ROOT`) via `wros-install-session`, `wros-installer-backend`, and `wros-install-core`. No Nix evaluation or compilation runs on the target laptop. See [`NIXOS_BASE.md`](NIXOS_BASE.md) and [`NIXOS_QUALIFICATION.md`](NIXOS_QUALIFICATION.md).

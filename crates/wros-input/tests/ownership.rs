@@ -222,7 +222,7 @@ mod linux {
         assert!(input.resume(proof).is_err());
         assert!(input.recv_timeout(Duration::ZERO).is_err());
         assert_eq!(unsafe { libc::dup2(pty._slave.as_raw_fd(), 0) }, 0);
-        assert!(Input::start(std::path::Path::new("/bin/false")).is_err());
+        assert!(Input::start(std::path::Path::new(wros_input::paths::BIN_FALSE)).is_err());
         println!("PASS terminal flush and startup failures cannot resume input");
     }
 }
