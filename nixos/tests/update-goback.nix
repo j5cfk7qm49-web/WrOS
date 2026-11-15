@@ -93,7 +93,7 @@ pkgs.testers.runNixOSTest {
       bundleTampered = pkgs.runCommand "wros-signed-bundle-tampered" { } ''
         cp -r ${bundleNext}/. "$out/"
         chmod -R u+w "$out"
-        f=$(find "$out/cache/nar" -type f | sort | head -n 1)
+        f=$(find "$out/cache/nar" -type f -print -quit)  # a pipe into head fails under pipefail (SIGPIPE)
         test -n "$f"
         printf corrupt >> "$f"
       '';
