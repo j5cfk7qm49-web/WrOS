@@ -51,11 +51,12 @@ pkgs.testers.runNixOSTest {
     wait_for_disk_prompt(installed)
     installed.send_chars(colemak_keys("colemak-passphrase"))
     installed.send_key("ret")
-    # The start screen shows from the unlock until the login screen: pictures for the record.
+    # The start screen shows from the unlock until the login screen (in this VM it appears about
+    # 13 s after the unlock and lasts a few seconds): pictures for the record.
     # (time is imported by the shared preamble.)
-    for n in range(1, 5):
-        time.sleep(1)
-        installed.screenshot(f"start-screen-{n}")
+    for n in range(50):
+        time.sleep(0.6)
+        installed.screenshot(f"start-screen-{n:02d}")
 
     installed.wait_for_unit("multi-user.target")
     installed.wait_for_unit("greetd.service")
