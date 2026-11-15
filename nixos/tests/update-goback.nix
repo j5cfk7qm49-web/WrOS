@@ -51,6 +51,7 @@ EOF
 in
 pkgs.testers.runNixOSTest {
   name = "wros-update-goback";
+  enableOCR = true;  # DIAGNOSTIC (local debugging only)
 
   nodes = {
     installer = { nodes, ... }: { imports = [ (encryptedDisk.mkInstallerNode nodes.installed.system.build.toplevel) ]; };
@@ -183,11 +184,10 @@ pkgs.testers.runNixOSTest {
       installed.send_chars("update-disk-passphrase")
       installed.send_key("ret")
       # DIAGNOSTIC (local debugging only): dump blocked and all tasks two minutes in.
-      time.sleep(150)
-      installed.send_key("alt-sysrq-w")
-      time.sleep(10)
-      installed.send_key("alt-sysrq-t")
-      time.sleep(30)
+      time.sleep(120)
+      print("SCREEN-OCR-BEGIN")
+      print(installed.get_screen_text())
+      print("SCREEN-OCR-END")
 
       # Wait for the offline update reboot into the new generation
       wait_for_disk_prompt(installed)
