@@ -51,6 +51,10 @@ let
       "${pkgs.xkeyboard_config}/share/X11/xkb" > "$TMPDIR/wros-ckbcomp/ckbcomp"
     chmod +x "$TMPDIR/wros-ckbcomp/ckbcomp"
     export PATH="$TMPDIR/wros-ckbcomp:$PATH"
+    # The NixOS engine imports the Debian engine's verification; installed, helpers.nix gives it
+    # the store's gpgv. Give the source copy under test the same one.
+    substituteInPlace os/scripts/wros-update-engine.py \
+      --replace-fail "/usr/bin/gpgv" "${pkgs.gnupg}/bin/gpgv"
     # The rebase kit ships only in Argon handover zips, not in the product tree.
     if [ -f rebase-kit/test_check_rebase.py ]; then python3 rebase-kit/test_check_rebase.py; fi
     python3 -m unittest test_keyboard test_clock test_sound test_media_key test_passwd_helper \

@@ -87,7 +87,22 @@ let
   rust-suite = rustPlatform.buildRustPackage ({
     pname = "wros-rust-suite";
     inherit version;
-    src = rustSrc;
+    # The packages' sources, plus the gamma-control protocol and test server the
+    # compositor-warmth tests build (kept out of rustSrc so the shipped packages don't rebuild).
+    src = lib.fileset.toSource {
+      root = src;
+      fileset = lib.fileset.unions [
+        (src + "/Cargo.toml")
+        (src + "/Cargo.lock")
+        (src + "/src")
+        (src + "/crates")
+        (src + "/assets")
+        (src + "/tests")
+        (src + "/os/tests/wlr-gamma-control-unstable-v1.xml")
+        (src + "/os/tests/wayland-gamma-server.c")
+        (src + "/os/tests/gamma-frozen-parent.py")
+      ];
+    };
     cargoLock = {
       lockFile = src + "/Cargo.lock";
     };

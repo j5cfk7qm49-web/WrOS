@@ -1,16 +1,35 @@
 # Changelog
 
-- Add `0.1.0~rc14` NixOS operating-system rebase (`flake.nix`, `nixos/pkgs/`,
-  `nixos/modules/`, `nixos/scripts/`, `nixos/tests/`) alongside the existing
-  Debian 13 packaging: centralize system tool and helper paths into
-  `crates/wros-sys/src/paths.rs`, `crates/wros-shell/src/paths.rs`, and
-  `crates/wros-input/src/paths.rs`; sync mutable keyboard and boot-theme settings
-  to `/boot/wros-boot/` without on-device Nix evaluation; add generation-based
-  NixOS update staging, pre-import NAR verification, probation and GC roots; and
-  add the NixOS encrypted installer core (`wros-install-core`) and cdebconf
-  passthrough backend (`wros-installer-backend`). The NixOS build, VM tests, and
-  hardware gates have not yet been executed and remain to be qualified per
-  `docs/NIXOS_QUALIFICATION.md`.
+## 0.1.0~rc14 · WrOS on NixOS
+
+WrOS now runs on NixOS 26.05 (`flake.nix`, `nixos/`) instead of Debian 13. Every rc13 feature
+is kept. Install it fresh from the USB stick: an rc13 machine can't update to rc14 in place, so
+back up, install, then restore your books from the backup.
+
+- **The system.** The installed system is declared in `nixos/modules/`, and each update installs
+  a whole new generation beside the current one. Going back is going to the previous
+  generation. Updates are signed offline bundles, staged and applied at a restart, and refused
+  if older, the same, or tampered with. Repair re-activates the current generation.
+- **The installer.** It encrypts the disk (LUKS2) and installs offline from the stick. Before
+  it erases a disk it re-checks that the disk is the one chosen and that nothing on it is in
+  use. It makes the disk bootable only as its last step, after the writer account exists, so an
+  install interrupted part-way leaves a disk that won't start rather than a broken WrOS (#3).
+- **The look.** The boot menus (installed system, and the stick's UEFI and BIOS menus) show
+  the WrOS logo in the theme's colours. The system names itself WrOS and its version
+  throughout. The menu bar and status line sit on a band of the theme's border colour. The
+  word-goal meter is a line, as the music player's is.
+- **The start screen.** The bar follows the boot as it happens: it reads systemd's progress
+  directly, without waiting for D-Bus. It is exactly the logo's width and shares its centre.
+- **Settings.** A long grey notice wraps inside the box instead of stretching it across the
+  screen.
+- **The live session.** The graphical session no longer quits a few seconds after starting
+  from the stick (#129).
+- **Fixes.** The phone-link QR page's clicks (#124); no menu loses a row silently (#125);
+  spelling "next" wraps to an earlier word in the same paragraph (#126); Find anything shows
+  the outline's key (#127); the Wi-Fi mark without `/proc/net/wireless` (#128).
+- **Qualification.** Eight NixOS VM tests (install, unlock and login, keyboard preview,
+  console lock, recovery menu, live session, live graphical session, update and go back) and
+  the Python and Rust suites under Nix. See `docs/NIXOS_QUALIFICATION.md`.
 
 - Integrate the reviewed Argon contribution (2026-11-03): read the whole manuscript
   aloud across chapters with n/p scene navigation; one pre-export check for links,

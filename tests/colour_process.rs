@@ -23,7 +23,9 @@ fn preview_expires_while_its_parent_is_stopped_and_pipe_loss_ends_the_colour_own
     let server = fixture::Server::start("positive");
     let helper =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("os/tests/gamma-frozen-parent.py");
-    let child = Command::new("python3")
+    // The app's own python3 (a Nix store path on NixOS): with the PATH below, a bare "python3"
+    // is only found where /usr/bin has one.
+    let child = Command::new(wros_sys::paths::PYTHON3)
         .arg(helper)
         .arg(BINARY)
         .env_clear()

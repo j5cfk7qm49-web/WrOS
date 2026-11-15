@@ -103,6 +103,22 @@ pkgs.testers.runNixOSTest {
     assert installed.succeed("su - writer -c 'id -u'").strip() == "1000"
     installed.succeed("loginctl list-sessions --no-legend | grep -q 'writer'")
 
+    # 4b. Backups work on NixOS: an encrypted backup of a book to a local folder restores whole
+    #     into a new folder. Moving from rc13 to rc14 is backup, install, restore.
+    as_writer = lambda cmd: installed.succeed(f"su - writer -c '{cmd}'")
+    as_writer("grimoire wros tutorial-demo /home/writer/demo-book")
+    as_writer("grimoire wros backup create /home/writer/backup-repo")
+    as_writer("grimoire wros backup snapshot /home/writer/demo-book")
+    listed = json.loads(as_writer("grimoire wros backup list"))
+    assert listed["configured"] and listed["snapshots"], listed
+    snapshot = listed["snapshots"][0]["id"]
+    as_writer(f"grimoire wros backup restore {snapshot} /home/writer/restored-book")
+    original = as_writer("cd /home/writer/demo-book && find . -type f -not -path \"./.git/*\" -print0 | sort -z | xargs -0 sha256sum")
+    restored_root = as_writer("find /home/writer/restored-book -name novel.toml -printf %h").strip()
+    restored = as_writer(f"cd {restored_root} && find . -type f -not -path \"./.git/*\" -print0 | sort -z | xargs -0 sha256sum")
+    manuscript = lambda listing: [l for l in listing.splitlines() if "manuscript/" in l]
+    assert manuscript(original) and manuscript(original) == manuscript(restored), (original, restored)
+
     # 5. Sync start-screen settings to /boot/wros-boot via wros-boot-settings
     theme_toml = 'name = "Candlelight"\naccent = "#d4a373"\ntext = "#f4efe6"\n'
     installed.succeed(
