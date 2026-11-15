@@ -2978,14 +2978,31 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
     } else {
         app.deck.shell.notices.latest().unwrap_or(&app.deck.note)
     };
-    // A box over the page, sized to it, the page still showing around it.
+    let hint = if matches!(
+        app.deck.shell.nav.current(),
+        Route::BackupForm
+            | Route::WifiConnect
+            | Route::ChangePassword
+            | Route::UpdateBundleForm
+            | Route::ManualClock
+            | Route::KeyboardWizard
+    ) {
+        "Type/paste field  Tab/↑↓ choose  Enter next/confirm  Esc cancel"
+    } else {
+        "↑↓ choose  Enter open  Esc back  F1 help"
+    };
+    // A box over the page, sized to it, the page still showing around it. Its width comes from
+    // what stays put while it is open (title, rows, keys); the grey notice wraps inside it, so a
+    // long one arriving later doesn't stretch the box across the screen.
     let widest = rows
         .iter()
         .map(|r| r.chars().count() + 4)
-        .chain([title.chars().count() + 4, note.chars().count() + 2])
+        .chain([title.chars().count() + 4, hint.chars().count() + 2])
         .max()
         .unwrap_or(0);
-    let area = settings_box(area, rows.len(), widest);
+    let width = settings_box(area, rows.len(), widest).width;
+    let notice_rows = wros_shell::notice_lines(note, width.saturating_sub(2)).len();
+    let area = settings_box(area, rows.len() + notice_rows - 1, widest);
     app.settings_area.set(area);
     frame.render_widget(ratatui::widgets::Clear, area);
     let (body, offset) = wros_shell::render_menu_at(
@@ -3036,19 +3053,7 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
                 wros_shell::settle(app.deck.shell.nav.selected(), &kinds, rows.len())
             },
             notice: note,
-            hint: if matches!(
-                app.deck.shell.nav.current(),
-                Route::BackupForm
-                    | Route::WifiConnect
-                    | Route::ChangePassword
-                    | Route::UpdateBundleForm
-                    | Route::ManualClock
-                    | Route::KeyboardWizard
-            ) {
-                "Type/paste field  Tab/↑↓ choose  Enter next/confirm  Esc cancel"
-            } else {
-                "↑↓ choose  Enter open  Esc back  F1 help"
-            },
+            hint,
         },
         theme.into(),
     );

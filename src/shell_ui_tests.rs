@@ -2982,7 +2982,7 @@ fn manual_clock_form_default_cancel_and_verified_apply_preserve_both_editors_at_
             desk.app.deck.shell.nav.current(),
             Route::Panel(crate::app::shell::Panel::DateTime)
         );
-        assert!(desk.shows("Clock set to 2026-11-01 09:30:00; network time is off"));
+        assert!(desk.shows_wrapped("Clock set to 2026-11-01 09:30:00; network time is off"));
         // Network time can be switched back on from the same panel.
         wait_system(&mut desk);
         assert!(desk.shows("Network time: off"));

@@ -121,6 +121,19 @@ impl Desk {
         self.rows().iter().any(|r| r.contains(s))
     }
 
+    /// Like [`shows`](Self::shows), for text a box may wrap over several lines (from rc14 a
+    /// Settings notice wraps inside the box rather than widening it).
+    fn shows_wrapped(&self, s: &str) -> bool {
+        let words = |text: &str| text.split_whitespace().collect::<Vec<_>>().join(" ");
+        let text = self
+            .box_rows()
+            .iter()
+            .map(|r| r.trim_matches(|c: char| c.is_whitespace() || "│┃║".contains(c)))
+            .collect::<Vec<_>>()
+            .join(" ");
+        self.shows(s) || words(&text).contains(&words(s))
+    }
+
     fn status(&self) -> String {
         self.rows().last().cloned().unwrap_or_default()
     }
@@ -431,6 +444,65 @@ fn wifi_volume_battery_and_clock_sit_at_the_right_of_the_status_bar() {
     d.app.deck.gauges.battery = Some(9);
     d.draw();
     assert!(d.status().trim_end().ends_with("▮9%"), "{}", d.status());
+}
+
+#[test]
+fn the_menu_bar_and_status_line_sit_on_a_band_of_the_themes_border_colour() {
+    // rc14: the bars were bare black under the bordered panes. They frame the screen now, in the
+    // theme's own line colour, and the word-count meter is a line like the music player's
+    // instead of full-height shaded blocks that read as a second row.
+    let mut d = Desk::open(book("bar-band", true), 120, 30);
+    let border = d.app.theme.border;
+    let buf = d.term.backend().buffer().clone();
+    let last = buf.area.height - 1;
+    for x in [0, 60, 119] {
+        assert_eq!(buf[(x, 0)].bg, border, "menu bar at column {x}");
+        assert_eq!(buf[(x, last)].bg, border, "status line at column {x}");
+    }
+    assert_eq!(buf[(60, 10)].bg, ratatui::style::Color::Reset, "the page keeps its own ground");
+    let status = d.status();
+    assert!(!status.contains('▓') && !status.contains('░'), "{status}");
+    assert!(status.contains("──────────"), "an empty goal is a dim line: {status}");
+    // A lit title keeps its highlight on the band.
+    d.key(KeyCode::Esc);
+    let sel = d.app.theme.sel;
+    assert!(
+        (0..120).any(|x| d.term.backend().buffer()[(x, 0)].bg == sel),
+        "the lit title keeps its own shade"
+    );
+    d.key(KeyCode::Esc);
+    // The console has sixteen colours: no band there.
+    d.app.linux_console = true;
+    d.draw();
+    let buf = d.term.backend().buffer();
+    assert_eq!(buf[(60, 0)].bg, ratatui::style::Color::Reset);
+    assert_eq!(buf[(60, last)].bg, ratatui::style::Color::Reset);
+}
+
+#[test]
+fn a_long_grey_notice_wraps_inside_the_settings_box_instead_of_widening_it() {
+    // rc14: a box opened at its rows' width, then a long notice arrived (a status refresh, an
+    // update or backup line) and stretched it nearly across the screen. The width comes from what
+    // stays put (title, rows, keys); the notice wraps inside it.
+    let mut d = Desk::open(book("box-notice", true), 170, 48);
+    d.app.open_settings_page(crate::app::shell::Route::Category(
+        crate::app::shell::Category::System,
+    ));
+    d.draw();
+    let before = d.app.settings_area.get();
+    assert!(before.width < 100, "a short page makes a modest box: {before:?}");
+    let words = "Not staged: no backup of this project in the last 24 hours. Create one in \
+                 Settings, Backups and accounts, Backups, then come back to this page to stage it.";
+    d.app.deck.note = words.into();
+    d.draw();
+    let after = d.app.settings_area.get();
+    assert_eq!(after.width, before.width, "the notice doesn't widen the box");
+    let inside = d.box_rows().join("\n");
+    assert!(d.shows_wrapped(words), "the notice wraps, whole:\n{inside}");
+    assert!(
+        !d.box_rows().iter().any(|r| r.contains(words)),
+        "on more than one line:\n{inside}"
+    );
 }
 
 #[test]

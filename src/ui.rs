@@ -129,9 +129,16 @@ pub fn draw(
         app.activate_editor(Pane::Primary);
     }
     draw_status(f, app, status, &t);
+    let band = bar_band(&t, app.linux_console);
+    if let Some(band) = band {
+        paint_band(f.buffer_mut(), status, band);
+    }
     if bar_line {
         crate::app::overlays::draw_bar_line(f, app, bar, &t);
         draw_status_marks(f, app, bar, &t);
+        if let Some(band) = band {
+            paint_band(f.buffer_mut(), bar, band);
+        }
     } else if matches!(
         app.overlay,
         Overlay::Bar { .. }
@@ -140,8 +147,14 @@ pub fn draw(
                 ..
             }
     ) {
-        let top = f.area();
-        crate::app::overlays::draw_bar_line(f, app, Rect { height: 1, ..top }, &t);
+        let top = Rect {
+            height: 1,
+            ..f.area()
+        };
+        crate::app::overlays::draw_bar_line(f, app, top, &t);
+        if let Some(band) = band {
+            paint_band(f.buffer_mut(), top, band);
+        }
     }
 
     if !matches!(app.overlay, Overlay::None) {
@@ -162,6 +175,27 @@ pub fn draw(
         paint_rainbow(f.buffer_mut(), t.accent, rainbow_phase());
     }
     animating
+}
+
+/// The ground of the menu bar and status line: the theme's own line colour, so the two bars frame
+/// the screen as the pane borders frame the panes. None on the console, whose sixteen colours
+/// would turn it into a bright block.
+pub(crate) fn bar_band(t: &Theme, linux_console: bool) -> Option<ratatui::style::Color> {
+    (!linux_console && matches!(t.border, ratatui::style::Color::Rgb(..))).then_some(t.border)
+}
+
+/// Lays `band` under every cell of `area` that has no ground of its own, so a lit title or a
+/// highlighted mark keeps its shade.
+fn paint_band(buf: &mut ratatui::buffer::Buffer, area: Rect, band: ratatui::style::Color) {
+    let area = area.intersection(buf.area);
+    for y in area.top()..area.bottom() {
+        for x in area.left()..area.right() {
+            let cell = &mut buf[(x, y)];
+            if cell.bg == ratatui::style::Color::Reset {
+                cell.set_bg(band);
+            }
+        }
+    }
 }
 
 /// Seconds for the Rainbow theme's colours to flow once round the wheel:
@@ -1160,7 +1194,10 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     let total = app.project.total_words();
     let target = app.project.meta.target_words.max(1);
     let filled = (total * 10 / target).min(10);
-    let bar: String = "▓".repeat(filled) + &"░".repeat(10 - filled);
+    // A line like the music player's progress, heavy for the words written, light for the rest:
+    // full-height shaded blocks read as a second row on the native screen.
+    let written = "━".repeat(filled);
+    let to_go = "─".repeat(10 - filled);
     let today = app.today_words();
     let today_text = if today < 0 {
         format!("−{}", thousands(today.unsigned_abs() as usize))
@@ -1203,7 +1240,8 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                 format!(" / {} ", thousands(target)),
                 Style::default().fg(t.dim),
             ),
-            Span::styled(bar, Style::default().fg(t.accent)),
+            Span::styled(written, Style::default().fg(t.accent)),
+            Span::styled(to_go, Style::default().fg(t.dim)),
             Span::styled(format!("  today {today_text}"), today_style),
         ]
     };

@@ -267,7 +267,18 @@ pub fn render_menu_at(
     menu: Menu<'_>,
     theme: Theme,
 ) -> (Rect, usize) {
-    let body = render_panel(frame, area, menu.title, menu.notice, menu.hint, theme);
+    // The notice wraps into rows the list leaves empty, never into the list's own.
+    let inner_height = area.height.saturating_sub(2);
+    let spare = usize::from(inner_height.saturating_sub(2)).saturating_sub(menu.rows.len());
+    let body = render_panel_lines(
+        frame,
+        area,
+        menu.title,
+        menu.notice,
+        menu.hint,
+        theme,
+        1 + spare,
+    );
     let rows = menu
         .rows
         .iter()
@@ -306,17 +317,44 @@ pub fn render_panel(
     hint: &str,
     theme: Theme,
 ) -> Rect {
+    render_panel_lines(frame, area, title, notice, hint, theme, 1)
+}
+
+/// [`render_panel`] with up to `max_notice` lines for a wrapped notice. Callers whose content has
+/// a fixed height pass 1 (the notice is cut at the box's edge, as before).
+fn render_panel_lines(
+    frame: &mut Frame,
+    area: Rect,
+    title: &str,
+    notice: &str,
+    hint: &str,
+    theme: Theme,
+    max_notice: usize,
+) -> Rect {
     let border = look::pane_block(title, true, theme);
     let inner = border.inner(area);
     frame.render_widget(border, area);
+    // The notice wraps inside the box rather than setting its width (a long one used to stretch
+    // the box nearly across the screen after it opened).
+    let mut notice_lines = notice_lines(notice, inner.width);
+    if notice_lines.len() > max_notice.max(1) {
+        // No room to wrap: one line, cut at the edge as it always was.
+        notice_lines = vec![notice.to_string()];
+    }
     let [body, status, help] = Layout::vertical([
         Constraint::Min(0),
-        Constraint::Length(1),
+        Constraint::Length(notice_lines.len() as u16),
         Constraint::Length(1),
     ])
     .areas(inner);
     frame.render_widget(
-        Paragraph::new(notice).style(Style::default().fg(theme.dim)),
+        Paragraph::new(
+            notice_lines
+                .into_iter()
+                .map(ratatui::text::Line::from)
+                .collect::<Vec<_>>(),
+        )
+        .style(Style::default().fg(theme.dim)),
         status,
     );
     frame.render_widget(
@@ -326,9 +364,62 @@ pub fn render_panel(
     body
 }
 
+/// Most lines a panel's notice takes before the rest is cut with an ellipsis.
+pub const NOTICE_LINES: usize = 3;
+
+/// `notice` word-wrapped to `width` columns, one line at least (an empty notice keeps its line, so
+/// the box doesn't jump when one arrives) and [`NOTICE_LINES`] at most.
+pub fn notice_lines(notice: &str, width: u16) -> Vec<String> {
+    let width = usize::from(width.max(1));
+    let mut lines: Vec<String> = Vec::new();
+    let mut line = String::new();
+    for word in notice.split_whitespace() {
+        let mut word = word.to_string();
+        // A word longer than the line is broken across lines.
+        while word.chars().count() > width {
+            if !line.is_empty() {
+                lines.push(std::mem::take(&mut line));
+            }
+            let head: String = word.chars().take(width).collect();
+            word = word.chars().skip(width).collect();
+            lines.push(head);
+        }
+        let need = line.chars().count() + usize::from(!line.is_empty()) + word.chars().count();
+        if need > width && !line.is_empty() {
+            lines.push(std::mem::take(&mut line));
+        }
+        if !line.is_empty() {
+            line.push(' ');
+        }
+        line.push_str(&word);
+    }
+    if !line.is_empty() || lines.is_empty() {
+        lines.push(line);
+    }
+    if lines.len() > NOTICE_LINES {
+        lines.truncate(NOTICE_LINES);
+        let last = &mut lines[NOTICE_LINES - 1];
+        let keep = width.saturating_sub(1).min(last.chars().count());
+        *last = last.chars().take(keep).collect::<String>() + "…";
+    }
+    lines
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn a_notice_wraps_at_words_and_keeps_at_least_one_line() {
+        assert_eq!(notice_lines("", 20), vec![String::new()]);
+        assert_eq!(notice_lines("short", 20), vec!["short"]);
+        // Four lines' worth: the third is cut with an ellipsis.
+        assert_eq!(
+            notice_lines("one two three four five six", 9),
+            vec!["one two", "three", "four fiv…"]
+        );
+        assert_eq!(notice_lines("abcdefghij", 4), vec!["abcd", "efgh", "ij"]);
+    }
+
     #[test]
     fn back_restores_parent_selection_and_reopening_remembers_child() {
         let mut nav = Navigation::new(0u8);

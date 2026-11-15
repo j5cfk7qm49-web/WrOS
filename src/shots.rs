@@ -728,5 +728,12 @@ fn previews() {
     s.key(KeyCode::Down, none);
     frames.push(s.json("settings-box", None));
 
+    // rc14: a long grey notice wraps inside the box instead of widening it.
+    s.app.deck.note = "Not staged: no backup of this project in the last 24 hours. Create one in \
+                       Settings › Backups and accounts › Backups, then come back."
+        .into();
+    s.draw();
+    frames.push(s.json("settings-notice", None));
+
     fs::write(&out, format!("[{}]", frames.join(","))).unwrap();
 }
