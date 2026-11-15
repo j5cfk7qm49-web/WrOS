@@ -145,8 +145,7 @@ rec {
         # where Ctrl-K is not Find anything. Esc closes the dashboard; in the editor Esc would
         # open the menu bar instead, so it is pressed only when the dashboard is showing.
         lines = screen(machine).splitlines()
-        if lines and "Resume writing" in "
-".join(lines) and "GRIMOIRE" not in lines[0]:
+        if lines and "Resume writing" in chr(10).join(lines) and "GRIMOIRE" not in lines[0]:
             machine.send_key("esc")
         machine.wait_until_tty_matches("1", "GRIMOIRE")
 

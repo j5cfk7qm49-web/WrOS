@@ -19,11 +19,29 @@ let
       };
     in
     pkgs.runCommand "wros-signed-bundle-${bundleName}" {
-      nativeBuildInputs = [ pkgs.gnupg ];
+      nativeBuildInputs = [ pkgs.gnupg pkgs.python3 ];
     } ''
       mkdir -p "$out"
       cp -r "${unsigned}/." "$out/"
       chmod -R u+w "$out"
+      # nixos/pkgs/update-bundle.nix writes no Release file; the release tool
+      # (tools/build-nixos-update-bundle.py) does. Write it the same way. It is dated at build
+      # time and valid for 14 days, so a cached bundle older than that must be rebuilt.
+      python3 - "$out" <<'EOF'
+import hashlib, sys
+from datetime import datetime, timedelta, timezone
+from email.utils import format_datetime
+from pathlib import Path
+out = Path(sys.argv[1])
+manifest = (out / "closure-manifest.json").read_bytes()
+now = datetime.now(timezone.utc).replace(microsecond=0)
+stamp = lambda moment: format_datetime(moment, usegmt=True).replace("GMT", "UTC")
+(out / "Release").write_text(
+    "Origin: WrOS\nLabel: WrOS NixOS updates\nSuite: wros-nixos-updates\nCodename: nixos-26.05\n"
+    f"Date: {stamp(now)}\nValid-Until: {stamp(now + timedelta(days=14))}\nArchitectures: amd64\n"
+    f"SHA256:\n {hashlib.sha256(manifest).hexdigest()} {len(manifest)} closure-manifest.json\n",
+    encoding="utf-8")
+EOF
       export GNUPGHOME="$TMPDIR/gnupg"
       mkdir -p -m 0700 "$GNUPGHOME"
       gpg --batch --import "${secretKeyFile}"
