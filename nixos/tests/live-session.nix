@@ -74,7 +74,7 @@ pkgs.testers.runNixOSTest {
     live.send_key("ret")
     live.wait_until_succeeds("pgrep -u _wros-installer wros-installer")
     live.wait_until_succeeds("[ $(fgconsole) = 7 ]")
-    live.wait_until_tty_matches("7", "WrOS · Install")
+    live.wait_until_tty_matches("7", "WrOS . Install")  # /dev/vcs holds a glyph code for the middle dot
     live.wait_until_tty_matches("7", "Keyboard layout")
 
     # 3. Step through installer questions to the final disk-erase confirmation
