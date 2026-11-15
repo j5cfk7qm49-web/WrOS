@@ -15,8 +15,6 @@ pkgs.testers.runNixOSTest {
   testScript = { nodes, ... }: ''
     ${encryptedDisk.pythonPreamble}
 
-    import re
-
     def assert_key18(machine, code: str) -> None:
         # Key 18 is E on QWERTY and F on Colemak. dumpkeys writes letters as +0x0b66 or
         # U+0066 depending on the console mode, so match the code point, not one spelling.
