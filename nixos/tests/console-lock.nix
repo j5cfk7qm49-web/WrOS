@@ -48,27 +48,27 @@ pkgs.testers.runNixOSTest {
     # The console session draws the editor as text on tty1, which is what the screen
     # checks below read (the default session draws on DRM, which tty text cannot see).
     log_in(installed, "writer", "writer-lock-password", colemak=False, console=True)
-    installed.wait_until_tty_matches("1", "Resume writing|WrOS")
+    installed.wait_until_tty_matches("1", "WrOS")
 
-    # Open a scene and type baseline text in the editor
-    installed.send_key("esc")
-    installed.send_key("ctrl-k")
-    installed.send_chars("scene one\n")
-    installed.send_chars("locking fixture original")
+    # 4. Settings -> System -> Battery and power -> Lock writing session, the way rc13's own VM
+    #    chain does it (os/tests/rc_vm_phases.py grim_open_settings, grim_to_panel, choose).
+    #    In rc13 Esc opens the menu bar, so it is not pressed first.
+    import time
 
-    # 4. Navigate to Settings -> System -> Battery and power -> Lock writing session
+    time.sleep(2)
     installed.send_key("ctrl-k")
-    installed.send_chars("wros settings\n")
-    installed.wait_until_tty_matches("1", "Settings|Accounts")
-    installed.send_key("down")
-    installed.send_key("down")
+    time.sleep(1)
+    installed.send_chars("wros settings")
+    installed.wait_until_tty_matches("1", "WrOS settings")
     installed.send_key("ret")
-    installed.wait_until_tty_matches("1", "Battery and power|Recovery")
-    installed.send_key("down")
-    installed.send_key("down")
+    installed.wait_until_tty_matches("1", "Look and keyboard|Interface")
+    choose(installed, r"^System")
     installed.send_key("ret")
-    installed.wait_until_tty_matches("1", "Lock writing session")
-    installed.send_key("end")
+    installed.wait_until_tty_matches("1", "Wi-Fi and networking")
+    choose(installed, r"^Battery and power")
+    installed.send_key("ret")
+    time.sleep(1)
+    choose(installed, r"^Lock writing session$")
     installed.send_key("ret")
 
     # 5. Verify wros-lock switches to tty8, runs vlock-main, blanks tty1, and blocks VT switching (T4)

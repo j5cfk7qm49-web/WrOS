@@ -103,6 +103,43 @@ rec {
         machine.wait_until_succeeds("pgrep -x wros-greeter")
         time.sleep(settle)
 
+    import re
+    import shlex
+
+    # /dev/vcs holds font glyph codes; /dev/vcsu holds the characters, including the
+    # highlight marker of the selected row.
+    SCREEN_PY = (
+        "import os;f=os.open('/dev/tty%s',os.O_RDONLY|os.O_NOCTTY);"
+        "c=os.get_terminal_size(f).columns;"
+        "d=open('/dev/vcsu%s','rb').read().decode('utf-32-le');"
+        "print(chr(10).join(d[i:i+c] for i in range(0,len(d),c)))"
+    )
+
+    def screen(machine, tty="1"):
+        return machine.succeed("python3 -c " + shlex.quote(SCREEN_PY % (tty, tty)))
+
+    def highlighted(machine):
+        rows = []
+        for line in screen(machine).splitlines():
+            at = line.find("▸ ")
+            while at >= 0:
+                rows.append(line[at + 2:].split("│", 1)[0].strip())
+                at = line.find("▸ ", at + 2)
+        return rows
+
+    def choose(machine, pattern, limit=45):
+        regex = re.compile(pattern, re.I)
+        if any(regex.search(row) for row in highlighted(machine)):
+            return
+        machine.send_key("home")
+        time.sleep(0.5)
+        for _ in range(limit):
+            if any(regex.search(row) for row in highlighted(machine)):
+                return
+            machine.send_key("down")
+            time.sleep(0.4)
+        raise Exception(f"could not select {pattern!r}; highlighted {highlighted(machine)!r}")
+
     def restart(machine) -> None:
         # Machine.reboot() sends Ctrl-Alt-Delete, which WrOS ignores on purpose
         # (os/config/60-wros-reboot-guard.conf). Power off through the shell and start again.
