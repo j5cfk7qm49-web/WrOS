@@ -104,7 +104,7 @@ pkgs.testers.runNixOSTest {
     live.send_key("ret")
 
     live.wait_until_succeeds("[ $(fgconsole) = 1 ]")
-    live.wait_until_fails("pgrep -f wros-installer")
+    live.wait_until_fails("pgrep -x wros-installer")
     live.succeed("pgrep -u wros-live grimoire")
     live.fail("blkid -L WROS-LUKS")
   '';

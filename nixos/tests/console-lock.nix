@@ -73,7 +73,7 @@ pkgs.testers.runNixOSTest {
 
     # 5. Verify wros-lock switches to tty8, runs vlock-main, blanks tty1, and blocks VT switching (T4)
     installed.wait_until_succeeds("[ $(fgconsole) = 8 ]")
-    installed.wait_until_succeeds("pgrep -f vlock-main")
+    installed.wait_until_succeeds("pgrep -x vlock-main")
     installed.wait_until_tty_matches("8", "WrOS - writing session locked|Press Enter to unlock")
     installed.send_key("ctrl-alt-f1")
     installed.send_key("ctrl-alt-f2")
@@ -88,14 +88,14 @@ pkgs.testers.runNixOSTest {
     # during PAM's failure delay are lost (rc13: os/tests/rc_vm_phases.py lock-password-rejected).
     installed.wait_until_tty_matches("8", r"(?s)\A(?!.*Password:).*Press Enter to unlock")
     installed.succeed("[ $(fgconsole) = 8 ]")
-    installed.succeed("pgrep -f vlock-main")
+    installed.succeed("pgrep -x vlock-main")
 
     # 7. Type the right password to unlock and return to tty1
     installed.send_key("ret")
     installed.wait_until_tty_matches("8", "Password:")
     installed.send_chars("writer-lock-password\n")
     installed.wait_until_succeeds("[ $(fgconsole) = 1 ]")
-    installed.wait_until_fails("pgrep -f vlock-main")
+    installed.wait_until_fails("pgrep -x vlock-main")
     installed.succeed("pgrep -u writer grimoire")
 
     # 8. Confirm keys typed while locked never reached tty1 or any manuscript file
