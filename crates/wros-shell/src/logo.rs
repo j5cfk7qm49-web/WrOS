@@ -93,6 +93,16 @@ impl Logo<'_> {
             1
         }
     }
+
+    /// The columns the logo will take in an area this size, so things drawn under it (the start
+    /// screen's progress bar) can be exactly as wide and share its centre.
+    pub fn width_for(area: Rect) -> u16 {
+        match Self::height_for(area) {
+            h if h == FULL.1 => FULL.0,
+            1 => "WrOS".len() as u16,
+            _ => compact()[0].chars().count() as u16,
+        }
+    }
 }
 
 impl Widget for Logo<'_> {

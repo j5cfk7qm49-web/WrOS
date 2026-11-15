@@ -169,6 +169,10 @@
     efiInstallAsRemovable = true;
     timeoutStyle = "hidden";
     configurationLimit = 3;
+    # The menu (after a boot that never reached login, or on Esc) shows the WrOS logo and colours
+    # instead of NixOS's grey artwork.
+    theme = "${wrosPkgs.wros-branding}/grub-theme";
+    splashImage = null;
     extraConfig = ''
       # WrOS: a boot that never reached the login screen shows this menu for 30 seconds.
       if [ "''${wros_boot_pending}" = "1" ]; then

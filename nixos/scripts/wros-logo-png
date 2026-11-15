@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+"""Draw the WrOS logo (crates/wros-shell/src/logo.rs, SKETCH) as a PNG for the boot menus.
+
+usage: wros-logo-png LOGO_RS OUT.png CELL_W CELL_H [CANVAS_W CANVAS_H TOP]
+
+Every character of the owner's sketch becomes one CELL_W x CELL_H cell, as on the console:
+`#` fills its cell in the accent colour, and `- | +` are drawn as lines in the border colour,
+joined only towards neighbouring box characters, so corners stay corners. Without a canvas the
+image is exactly the logo on a transparent background (for a GRUB theme's image component);
+with one, the logo is centred horizontally TOP pixels from the top of an opaque canvas (the
+legacy BIOS menu's background). Standard library only: the build has no image tools.
+"""
+import re
+import struct
+import sys
+import zlib
+
+ACCENT = (0xd6, 0xad, 0x60, 0xff)    # Grimoire theme: accent
+BORDER = (0x46, 0x46, 0x54, 0xff)    # Grimoire theme: border
+CANVAS = (0x00, 0x00, 0x00, 0xff)    # the console's black, as under the start screen
+CLEAR = (0, 0, 0, 0)
+
+
+def sketch(logo_rs):
+    text = open(logo_rs, encoding='utf-8').read()
+    block = re.search(r'pub const SKETCH: \[&str; (\d+)\] = \[(.*?)\];', text, re.S)
+    if block is None:
+        raise SystemExit('SKETCH not found in ' + logo_rs)
+    rows = re.findall(r'"([^"]*)"', block.group(2))
+    if len(rows) != int(block.group(1)) or len({len(r) for r in rows}) != 1:
+        raise SystemExit('SKETCH rows are not a rectangle')
+    return rows
+
+
+def draw(rows, cw, ch, width, height, left, top, background):
+    pixels = [[background] * width for _ in range(height)]
+    line = max(1, min(cw, ch) // 4)
+
+    def fill(x0, y0, x1, y1, colour):
+        for y in range(max(0, y0), min(height, y1)):
+            row = pixels[y]
+            for x in range(max(0, x0), min(width, x1)):
+                row[x] = colour
+
+    def at(r, c):
+        return rows[r][c] if 0 <= r < len(rows) and 0 <= c < len(rows[r]) else ' '
+
+    for r, text in enumerate(rows):
+        for c, char in enumerate(text):
+            x0, y0 = left + c * cw, top + r * ch
+            mx, my = x0 + (cw - line) // 2, y0 + (ch - line) // 2
+            if char == '#':
+                fill(x0, y0, x0 + cw, y0 + ch, ACCENT)
+            elif char == '-':
+                fill(x0, my, x0 + cw, my + line, BORDER)
+            elif char == '|':
+                fill(mx, y0, mx + line, y0 + ch, BORDER)
+            elif char == '+':
+                fill(mx, my, mx + line, my + line, BORDER)
+                if at(r, c - 1) in '-+':
+                    fill(x0, my, mx, my + line, BORDER)
+                if at(r, c + 1) in '-+':
+                    fill(mx, my, x0 + cw, my + line, BORDER)
+                if at(r - 1, c) in '|+':
+                    fill(mx, y0, mx + line, my, BORDER)
+                if at(r + 1, c) in '|+':
+                    fill(mx, my, mx + line, y0 + ch, BORDER)
+    return pixels
+
+
+def png(pixels):
+    height, width = len(pixels), len(pixels[0])
+    raw = b''.join(b'\0' + b''.join(bytes(p) for p in row) for row in pixels)
+
+    def chunk(kind, data):
+        body = kind + data
+        return struct.pack('>I', len(data)) + body + struct.pack('>I', zlib.crc32(body))
+
+    return (b'\x89PNG\r\n\x1a\n'
+            + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 6, 0, 0, 0))
+            + chunk(b'IDAT', zlib.compress(raw, 9))
+            + chunk(b'IEND', b''))
+
+
+def main(argv):
+    if len(argv) not in (5, 8):
+        raise SystemExit(__doc__)
+    rows = sketch(argv[1])
+    cw, ch = int(argv[3]), int(argv[4])
+    logo_w, logo_h = len(rows[0]) * cw, len(rows) * ch
+    if len(argv) == 5:
+        pixels = draw(rows, cw, ch, logo_w, logo_h, 0, 0, CLEAR)
+    else:
+        width, height, top = int(argv[5]), int(argv[6]), int(argv[7])
+        if logo_w > width or top + logo_h > height:
+            raise SystemExit('the logo does not fit the canvas')
+        pixels = draw(rows, cw, ch, width, height, (width - logo_w) // 2, top, CANVAS)
+    with open(argv[2], 'wb') as out:
+        out.write(png(pixels))
+
+
+if __name__ == '__main__':
+    main(sys.argv)

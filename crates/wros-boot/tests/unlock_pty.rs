@@ -285,7 +285,7 @@ fn the_progress_screen_follows_systemd_and_stops_when_asked_without_a_flash() {
         "Starting WrOS",
     );
     console.until("a quarter", |s| {
-        s.contains(&format!("|{}{}|", "#".repeat(8), " ".repeat(24)))
+        s.contains(&format!("|{}{}|", "#".repeat(8), " ".repeat(25)))
     });
     assert!(
         console
@@ -294,7 +294,7 @@ fn the_progress_screen_follows_systemd_and_stops_when_asked_without_a_flash() {
     );
     std::fs::write(&file, "d 0.75\n").unwrap();
     console.until("three quarters", |s| {
-        s.contains(&format!("|{}{}|", "#".repeat(24), " ".repeat(8)))
+        s.contains(&format!("|{}{}|", "#".repeat(25), " ".repeat(8)))
     });
     // Keys typed while starting are never echoed.
     console.type_bytes(b"typed during boot");

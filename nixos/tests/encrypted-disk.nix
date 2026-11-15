@@ -178,6 +178,11 @@ rec {
         machine.send_key("ret")
         machine.wait_until_succeeds(f"pgrep -u {username} grimoire", timeout=120)
 
+    def disk_identity(vm, name="vdb"):
+        """What the installer session records about the disk the writer chose."""
+        return {key: vm.succeed(f"cat /sys/class/block/{name}/{key}").strip()
+                for key in ("dev", "size", "diskseq")}
+
     def build_encrypted_disk(
         installer_vm,
         *,
@@ -193,6 +198,7 @@ rec {
         installer_vm.wait_for_unit("wros-live-session.service")
         payload = {
             "target_disk": "vdb",
+            "target_identity": disk_identity(installer_vm),
             "username": username,
             "full_name": full_name,
             "hostname": hostname,
@@ -214,6 +220,7 @@ rec {
         assert proof["encrypted_root_chain"]["format"] == "LUKS2", proof
         installer_vm.succeed("test -s /run/wros-installer/target/boot/grub/grubenv")
         installer_vm.succeed("test -f /run/wros-installer/target/boot/wros-boot/keyboard.json")
+        installer_vm.succeed("test -f /run/wros-installer/target/boot/EFI/BOOT/BOOTX64.EFI")
         installer_vm.succeed("umount /run/wros-installer/target/boot")
         installer_vm.succeed("umount /run/wros-installer/target")
         installer_vm.succeed("cryptsetup close wros_crypt")

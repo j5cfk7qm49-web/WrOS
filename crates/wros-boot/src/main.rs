@@ -259,27 +259,48 @@ mod linux {
         }
     }
 
+    fn output(program: &str, args: &[&str]) -> Option<String> {
+        let out = std::process::Command::new(program)
+            .args(args)
+            .stdin(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .output()
+            .ok()?;
+        out.status
+            .success()
+            .then(|| String::from_utf8(out.stdout).ok())
+            .flatten()
+    }
+
     /// systemd's boot progress, or the test's file.
+    ///
+    /// `systemctl` run as root talks to systemd over its private socket, which exists from the
+    /// first moment. `busctl` needs the D-Bus daemon, which starts well into the boot: asked
+    /// first, the bar stayed empty until the login screen replaced it. It stays as a fallback.
     fn progress(args: &Args) -> Option<f64> {
-        let text = match &args.progress_file {
-            Some(path) => std::fs::read_to_string(path).ok()?,
-            None => {
-                let out = std::process::Command::new(wros_shell::paths::BUSCTL)
-                    .args([
-                        "get-property",
-                        "org.freedesktop.systemd1",
-                        "/org/freedesktop/systemd1",
-                        "org.freedesktop.systemd1.Manager",
-                        "Progress",
-                    ])
-                    .stdin(std::process::Stdio::null())
-                    .stderr(std::process::Stdio::null())
-                    .output()
-                    .ok()?;
-                String::from_utf8(out.stdout).ok()?
-            }
-        };
-        splash::parse_progress(&text)
+        if let Some(path) = &args.progress_file {
+            return splash::parse_progress(&std::fs::read_to_string(path).ok()?);
+        }
+        output(
+            wros_shell::paths::SYSTEMCTL,
+            &["show", "--property=Progress", "--value"],
+        )
+        .as_deref()
+        .and_then(splash::parse_progress)
+        .or_else(|| {
+            output(
+                wros_shell::paths::BUSCTL,
+                &[
+                    "get-property",
+                    "org.freedesktop.systemd1",
+                    "/org/freedesktop/systemd1",
+                    "org.freedesktop.systemd1.Manager",
+                    "Progress",
+                ],
+            )
+            .as_deref()
+            .and_then(splash::parse_progress)
+        })
     }
 
     fn show_progress(args: &Args, raw: &mut Raw, theme: &wros_shell::grimoire_theme::Theme) -> i32 {
@@ -318,7 +339,8 @@ mod linux {
         let mut shown: f64 = -1.0;
         let mut buf = [0u8; 64];
         while !STOP.load(Ordering::SeqCst) && started.elapsed() < Duration::from_secs(180) {
-            let now = progress(args).unwrap_or(shown.max(0.0));
+            // systemd's figure dips whenever new jobs are queued; the bar only ever moves forward.
+            let now = progress(args).map_or(shown, |p| p.max(shown)).max(0.0);
             {
                 if terminal.draw(|f| splash::draw(f, &theme, now)).is_err() {
                     return exit::FAILED;

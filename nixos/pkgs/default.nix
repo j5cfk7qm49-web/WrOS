@@ -30,6 +30,8 @@ let
     inherit pkgs lib version src;
   };
 
+  wros-branding = import ./branding.nix { inherit pkgs lib src; };
+
   python-suite = pkgs.runCommand "wros-python-suite" {
     nativeBuildInputs = [ pkgs.python3 pkgs.gnupg pkgs.kbd pkgs.console-setup ];
   } ''
@@ -38,11 +40,12 @@ let
     cd source
     export TMPDIR="$TMP"
     export PYTHONPATH="os/tests"
-    python3 rebase-kit/test_check_rebase.py
+    # The rebase kit ships only in Argon handover zips, not in the product tree.
+    if [ -f rebase-kit/test_check_rebase.py ]; then python3 rebase-kit/test_check_rebase.py; fi
     python3 -m unittest test_keyboard test_clock test_sound test_media_key test_passwd_helper \
       test_recovery_menu test_boot_settings test_boot_unlock test_session_launcher \
       test_display_manager test_update test_update_live test_update_rollback \
-      test_update_support test_update_transactions test_nixos_update
+      test_update_support test_update_transactions test_nixos_update test_nixos_install_core
     mkdir -p "$out"
     echo "pass" > "$out/result"
   '';
@@ -58,6 +61,7 @@ in
     wros-prose-runtime
     wros-helpers
     wros-licenses
+    wros-branding
     paths
     python-suite;
   inherit (rustPackages)

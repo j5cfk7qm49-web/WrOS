@@ -1302,9 +1302,8 @@ def inspect_recovery(mountinfo_text=None, state_dir=DEFAULT_STATE_DIR,
         update_state = 'idle'
     prev = public.get('previous_version') if isinstance(public.get('previous_version'), str) else None
     strategy = (
-        'System updates switch atomic NixOS generations in /nix/var/nix/profiles/system and keep '
-        'the previous generation bootable in GRUB. Create an encrypted Restic project backup before '
-        'major changes.'
+        'Each update installs a complete new WrOS beside the one you have and keeps that one in the '
+        'start menu, so you can go back. Make an encrypted project backup before major changes.'
     )
     return {
         'root_filesystem': root_fs,
@@ -1321,7 +1320,7 @@ def inspect_recovery(mountinfo_text=None, state_dir=DEFAULT_STATE_DIR,
         'probation': public.get('probation') is True,
         'went_back': public.get('went_back') is True,
         'went_back_automatically': public.get('went_back_automatically') is True,
-        'status': f'Root filesystem: {root_fs} (NixOS atomic generation rollback available).',
+        'status': f'Root filesystem: {root_fs} (each update keeps the version before it).',
     }
 
 

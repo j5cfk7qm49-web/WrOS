@@ -24,7 +24,7 @@ mounted=()
 
 usage() {
     printf 'Usage: wros-rescue [--device /dev/PARTITION] [--rollback]\n'
-    printf 'Unlock and repair an installed encrypted WrOS NixOS system from the live ISO.\n'
+    printf 'Unlock and repair an installed encrypted WrOS system from the WrOS USB stick.\n'
 }
 
 note() {
@@ -146,7 +146,7 @@ if ((do_rollback == 1)); then
         chroot "$TARGET" /nix/var/nix/profiles/system/bin/switch-to-configuration boot || status=$?
     fi
 else
-    note 'Running the installed system NixOS update repair...'
+    note 'Repairing the installed WrOS system...'
     output=$(chroot "$TARGET" /run/current-system/sw/bin/env -i PATH=/run/current-system/sw/bin:/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C WROS_RESCUE=1 \
         /run/current-system/sw/libexec/wros-update rescue-repair) || status=$?
     printf '%s\n' "$output"

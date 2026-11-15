@@ -19,6 +19,17 @@ in
   system.nixos.distroId = "wros";
   system.nixos.variantName = "Writer's OS";
   system.nixos.variant_id = "appliance";
+  # WrOS's own version wherever NixOS would show its release: boot menu entries, generation names,
+  # systemd's "Welcome to ..." line and the dashboard's system line (os-release PRETTY_NAME).
+  system.nixos.label = lib.replaceStrings [ "~" ] [ "-" ] version;
+  system.nixos.vendorName = "WrOS";
+  system.nixos.vendorId = "wros";
+  system.nixos.extraOSReleaseArgs = {
+    PRETTY_NAME = "WrOS ${version}";
+    VERSION = "${version} (NixOS ${config.system.nixos.release})";
+    LOGO = "wros";
+    ANSI_COLOR = "0;38;2;214;173;96";
+  };
 
   # Appliance model: no channels, no nixos-rebuild, no nixpkgs source, no flake registry, no compiler.
   nix.enable = true;

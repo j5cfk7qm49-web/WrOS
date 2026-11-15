@@ -14,7 +14,7 @@ INSTALLED_CLOSURE = Path('/etc/wros/installed-system-closure')
 MANUAL = {'live-config.noautologin', 'noautologin', 'live-config.nottyautologin', 'nottyautologin'}
 
 
-def require(condition, msg='NixOS live session precondition failed'):
+def require(condition, msg='WrOS live session precondition failed'):
     if not condition:
         raise ValueError(msg)
 
@@ -90,5 +90,5 @@ if __name__ == '__main__':
     try:
         raise SystemExit(main())
     except Exception:
-        print('WrOS NixOS live session setup failed.', file=sys.stderr)
+        print('WrOS live session setup failed.', file=sys.stderr)
         raise SystemExit(1) from None

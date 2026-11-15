@@ -120,6 +120,8 @@ let
     WROS_PATH_SAFE_PATH = minimalPath;
     WROS_PATH_MINIMAL_PATH = minimalPath;
     WROS_PATH_BIN_FALSE = toolPaths.binFalse;
+    # The start screen reads systemd's boot progress (same systemd package as busctl).
+    WROS_PATH_SYSTEMCTL = toolPaths.systemctl;
     WROS_PATH_BUSCTL = toolPaths.busctl;
     WROS_PATH_XKB_DIR = toolPaths.xkbDir;
     WROS_PATH_X11_COMPOSE = toolPaths.x11Compose;

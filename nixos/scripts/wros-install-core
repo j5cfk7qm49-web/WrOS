@@ -9,13 +9,17 @@ an ext4 root filesystem (label WROS-ROOT), installs the pre-built NixOS system
 closure from the live medium with nixos-install --no-channel-copy --no-root-passwd,
 seeds mutable /etc and /boot/wros-boot state, initializes /boot/grub/grubenv,
 locks root, creates the UID 1000 writer account in groups wros, writingdeck, and
-wheel, verifies target hygiene, and writes the nonce-bound completion proof.
+wheel, installs the boot loader last, and writes the nonce-bound completion proof.
+
+Before the first write it re-checks that the target is still the disk the session chose
+(dev, size, diskseq) and that nothing on it is mounted, swapped on or held open.
 """
 import hashlib
 import json
 import os
 from pathlib import Path
 import re
+import shlex
 import shutil
 import stat
 import subprocess
@@ -65,8 +69,15 @@ def read_credentials_from_stream(stream=None):
     luks_passphrase = payload.get('luks_passphrase', '')
     user_password = payload.get('user_password', '')
     session_nonce = payload.get('session_nonce', '')
+    target_identity = payload.get('target_identity')
     require(isinstance(target_disk, str) and BLOCK_RE.fullmatch(target_disk) is not None,
             'invalid target_disk name')
+    require(isinstance(target_identity, dict) and set(target_identity) == {'dev', 'size', 'diskseq'}
+            and all(isinstance(v, str) for v in target_identity.values())
+            and re.fullmatch(r'[0-9]+:[0-9]+', target_identity['dev']) is not None
+            and target_identity['size'].isdigit() and int(target_identity['size']) > 0
+            and target_identity['diskseq'].isdigit(),
+            'target_identity (dev, size, diskseq of the chosen disk) is required')
     require(isinstance(username, str) and USERNAME_RE.fullmatch(username) is not None
             and username not in ('root', 'wros-live', 'live', 'builder', '_wros-installer', '_greetd'),
             'invalid writer username')
@@ -88,6 +99,7 @@ def read_credentials_from_stream(stream=None):
             'invalid session_nonce')
     return {
         'target_disk': target_disk,
+        'target_identity': dict(target_identity),
         'username': username,
         'full_name': full_name,
         'hostname': hostname,
@@ -97,6 +109,47 @@ def read_credentials_from_stream(stream=None):
         'user_password': user_password,
         'session_nonce': session_nonce,
     }
+
+
+def _field(path):
+    try:
+        return Path(path).read_text(encoding='ascii').strip()
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
+def check_target_disk(disk_name, identity, *, sysroot=Path('/sys/class/block'),
+                      mountinfo_path=Path('/proc/self/mountinfo'), swaps_path=Path('/proc/swaps')):
+    """Refuse to erase anything but the disk the installer chose, and only while nothing uses it.
+
+    Run immediately before the first write. The session recorded the disk's dev number, size and
+    diskseq when the writer chose it; a disk unplugged and another plugged in (even under the same
+    name) has a new diskseq. A disk, or any partition of it, that is mounted, used as swap or held
+    by another device (an open LUKS container, LVM, RAID) is in use and is not touched.
+    """
+    disk = sysroot / disk_name
+    require(disk.is_dir() and not (disk / 'partition').exists(), f'/dev/{disk_name} is not a whole disk')
+    for key, value in identity.items():
+        require(_field(disk / key) == value,
+                f'/dev/{disk_name} is not the disk chosen for installation ({key} changed); nothing was written')
+    require(_field(disk / 'ro') == '0', f'/dev/{disk_name} is read-only')
+    blocks = {disk_name: disk}
+    blocks.update({child.name: child for child in disk.iterdir() if (child / 'partition').is_file()})
+    names = {name: _field(path / 'dev') for name, path in blocks.items()}
+    for name, path in blocks.items():
+        holders = path / 'holders'
+        require(not (holders.is_dir() and any(holders.iterdir())),
+                f'/dev/{name} is in use by another device; nothing was written')
+    numbers = {number for number in names.values() if number}
+    mountinfo = mountinfo_path.read_text(encoding='utf-8') if mountinfo_path.exists() else ''
+    for line in mountinfo.splitlines():
+        fields = line.split()
+        if len(fields) > 4 and fields[2] in numbers:
+            raise ValueError(f'a filesystem on /dev/{disk_name} is mounted at {fields[4]}; nothing was written')
+    swaps = swaps_path.read_text(encoding='utf-8') if swaps_path.exists() else ''
+    for line in swaps.splitlines()[1:]:
+        if line.split() and Path(line.split()[0]).name in names:
+            raise ValueError(f'/dev/{disk_name} holds active swap; nothing was written')
 
 
 def partition_paths(disk_name):
@@ -171,10 +224,18 @@ def seed_mutable_target_state(target_root, params):
     (target_root / 'var/lib/wros-update/public').mkdir(parents=True, mode=0o755, exist_ok=True)
 
 
-def install_target(params, *, target_root=DEFAULT_TARGET_ROOT, closure_file=DEFAULT_CLOSURE_FILE, runner=run_cmd):
+def install_target(params, *, target_root=DEFAULT_TARGET_ROOT, closure_file=DEFAULT_CLOSURE_FILE,
+                   runner=run_cmd, check_disk=check_target_disk):
     disk_dev, esp_part, luks_part = partition_paths(params['target_disk'])
     closure = closure_file.read_text(encoding='utf-8').strip()
     require(closure.startswith('/nix/store/'), 'invalid installed-system-closure store path')
+
+    # 0. The last check before the first write: still the chosen disk, and nothing on it in use.
+    check_disk(params['target_disk'], params['target_identity'])
+
+    # An install can stop part-way (power cut, crash). The disk only becomes bootable in the last
+    # step, after the writer account exists, so a half-installed disk never starts a WrOS nobody
+    # can sign in to: the firmware passes over it, and the installer erases it again next time.
 
     # 1. Partition GPT: 512 MiB EFI System Partition (WROS-ESP) + rest Linux LUKS2 (WROS-LUKS)
     runner(['sgdisk', '--zap-all', disk_dev])
@@ -202,9 +263,10 @@ def install_target(params, *, target_root=DEFAULT_TARGET_ROOT, closure_file=DEFA
     (target_root / 'boot').mkdir(parents=True, mode=0o755, exist_ok=True)
     runner(['mount', '-t', 'vfat', esp_part, str(target_root / 'boot')])
 
-    # 4. Install pre-built NixOS closure offline with no channel copy and locked root
+    # 4. Install pre-built NixOS closure offline with no channel copy and locked root. The boot
+    #    loader waits for step 6.
     runner(['nixos-install', '--root', str(target_root), '--system', closure,
-            '--no-channel-copy', '--no-root-passwd'], timeout=1800)
+            '--no-channel-copy', '--no-root-passwd', '--no-bootloader'], timeout=1800)
 
     # 5. Seed mutable state files, initialize /boot/grub/grubenv, and create writer account
     seed_mutable_target_state(target_root, params)
@@ -217,6 +279,27 @@ def install_target(params, *, target_root=DEFAULT_TARGET_ROOT, closure_file=DEFA
         input_bytes=f'{params["username"]}:{params["user_password"]}\n'.encode('utf-8'),
     )
     runner(['nixos-enter', '--root', str(target_root), '--', 'passwd', '-l', 'root'])
+    runner(['sync'])
+
+    # 6. Last: make the disk bootable (GRUB on the ESP's removable path). This is nixos-install's
+    #    own boot-loader step (pkgs/by-name/ni/nixos-install/nixos-install.sh), run here instead
+    #    of inside nixos-install so that it comes after the account: GRUB needs an mtab, and the
+    #    target is bind-mounted at its own path inside the chroot so paths used while building
+    #    the menu stay valid.
+    mtab = target_root / 'etc/mtab'
+    if mtab.is_symlink() or mtab.exists():
+        mtab.unlink()
+    os.symlink('/proc/mounts', mtab)
+    inside = shlex.quote(str(target_root))
+    runner(['nixos-enter', '--root', str(target_root), '-c',
+            # The live system's PATH names its own store paths; inside the chroot use the target's.
+            'set -e; export PATH=/nix/var/nix/profiles/system/sw/bin; hash -r; '
+            f'mount --rbind --mkdir / {inside}; mount --make-rslave {inside}; '
+            'NIXOS_INSTALL_BOOTLOADER=1 /nix/var/nix/profiles/system/bin/switch-to-configuration boot; '
+            f'umount -R {inside} && (rmdir {inside} 2>/dev/null || true)'],
+           timeout=600)
+    require((target_root / 'boot/EFI/BOOT/BOOTX64.EFI').is_file(), 'the boot loader was not installed')
+    runner(['sync'])
 
     luks_uuid = runner(['cryptsetup', 'luksUUID', luks_part])
     proof = {

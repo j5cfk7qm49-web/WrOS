@@ -72,7 +72,7 @@ class PassthroughChannel:
         return answer
 
 
-def run_dialog(channel, target_disk, session_nonce, core_runner=None):
+def run_dialog(channel, target_disk, session_nonce, core_runner=None, target_identity=None):
     channel.send('CAPB backup')
     channel.send('TITLE Install WrOS')
 
@@ -182,12 +182,14 @@ def run_dialog(channel, target_disk, session_nonce, core_runner=None):
                 raise SystemExit(2)
             idx += 1
 
-    channel.define('wros/progress', 'text', 'Installing encrypted WrOS system', 'Partitioning and installing NixOS closure...')
+    channel.define('wros/progress', 'text', 'Installing WrOS',
+                   'Encrypting the disk and copying WrOS onto it. This takes a few minutes.')
     channel.send('PROGRESS START 0 100 wros/progress')
     channel.send('PROGRESS STEP 20')
 
     payload = {
         'target_disk': target_disk,
+        'target_identity': target_identity,
         'session_nonce': session_nonce,
         **answers,
     }
@@ -225,7 +227,8 @@ def main():
     write_fd = int(os.environ['DEBCONF_WRITEFD'])
     baseline = json.loads(BASELINE_JSON.read_bytes())
     channel = PassthroughChannel(read_fd, write_fd)
-    run_dialog(channel, baseline['target_disk'], baseline['session_nonce'])
+    run_dialog(channel, baseline['target_disk'], baseline['session_nonce'],
+               target_identity=baseline['target_identity'])
     return 0
 
 

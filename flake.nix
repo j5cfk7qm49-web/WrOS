@@ -101,7 +101,8 @@
           wros-keymaps
           wros-prose-runtime
           wros-helpers
-          wros-licenses;
+          wros-licenses
+          wros-branding;
         wros-iso = wrosIso;
         wros-update-bundle = wrosUpdateBundle;
         default = wrosPkgs.grimoire;
