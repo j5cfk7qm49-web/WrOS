@@ -126,7 +126,10 @@ fn the_qr_page_takes_the_whole_screen_for_clicks_and_has_no_rows_to_click() {
     let mut desk = Desk::open(book("link-clicks", true), 136, 42);
     desk.app.open_settings();
     desk.draw();
-    assert!(!desk.app.settings_hits.borrow().is_empty(), "the Settings page has rows");
+    assert!(
+        !desk.app.settings_hits.borrow().is_empty(),
+        "the Settings page has rows"
+    );
     desk.app.deck.shell.backup.job = Some(Job::running_for_test(Some(Progress {
         phase: "Waiting for your phone".into(),
         percent: None,
@@ -140,8 +143,15 @@ fn the_qr_page_takes_the_whole_screen_for_clicks_and_has_no_rows_to_click() {
     desk.draw();
     assert!(desk.shows("WROS-QR-CLICK"));
     let screen = desk.term.backend().buffer().area;
-    assert_eq!(desk.app.settings_area.get(), screen, "the QR page is the whole click area");
-    assert!(desk.app.settings_hits.borrow().is_empty(), "no stale rows to click");
+    assert_eq!(
+        desk.app.settings_area.get(),
+        screen,
+        "the QR page is the whole click area"
+    );
+    assert!(
+        desk.app.settings_hits.borrow().is_empty(),
+        "no stale rows to click"
+    );
 }
 
 #[test]

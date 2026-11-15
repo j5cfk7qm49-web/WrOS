@@ -1192,10 +1192,14 @@ fn find_anything_shows_the_outlines_key_as_the_view_menu_does() {
         .find(|e| e.label == "Toggle outline")
         .unwrap();
     assert_eq!(unbound.key, "", "no key, none shown");
-    d.app.deck.shortcuts.bindings.push(wros_sys::shortcuts::Binding {
-        chord: "F9".into(),
-        action: wros_sys::shortcuts::Action::Outline,
-    });
+    d.app
+        .deck
+        .shortcuts
+        .bindings
+        .push(wros_sys::shortcuts::Binding {
+            chord: "F9".into(),
+            action: wros_sys::shortcuts::Action::Outline,
+        });
     let palette = crate::palette::entries(&d.app)
         .into_iter()
         .find(|e| e.label == "Toggle outline")
@@ -1207,7 +1211,10 @@ fn find_anything_shows_the_outlines_key_as_the_view_menu_does() {
         .find(|r| r.action == A::ToggleOutline)
         .unwrap();
     assert_eq!(bar.key, "F9");
-    assert_eq!(palette.key, bar.key, "Find anything shows the View menu's key");
+    assert_eq!(
+        palette.key, bar.key,
+        "Find anything shows the View menu's key"
+    );
 }
 
 #[test]
@@ -1221,13 +1228,27 @@ fn f8_next_wraps_round_to_an_earlier_misspelling_in_the_same_paragraph() {
     d.app.editor.place(0, 15);
     d.key(KeyCode::F(8));
     assert!(
-        matches!(d.app.overlay, Overlay::Spelling { line: 0, start: 15, .. }),
+        matches!(
+            d.app.overlay,
+            Overlay::Spelling {
+                line: 0,
+                start: 15,
+                ..
+            }
+        ),
         "{:?}",
         d.app.overlay
     );
     d.key(KeyCode::F(8));
     assert!(
-        matches!(d.app.overlay, Overlay::Spelling { line: 0, start: 0, .. }),
+        matches!(
+            d.app.overlay,
+            Overlay::Spelling {
+                line: 0,
+                start: 0,
+                ..
+            }
+        ),
         "next wraps round to the first, earlier in the same paragraph: {:?} ({})",
         d.app.overlay,
         d.app.msg

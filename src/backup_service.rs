@@ -390,8 +390,8 @@ pub(crate) fn run_helper(
     cancelled_message: &str,
 ) -> Result<Vec<u8>, String> {
     let unavailable = || unavailable.to_owned();
-    let installed_session =
-        crate::installed_session() && script.parent() == Some(std::path::Path::new(wros_sys::paths::LIBEXEC_DIR));
+    let installed_session = crate::installed_session()
+        && script.parent() == Some(std::path::Path::new(wros_sys::paths::LIBEXEC_DIR));
     let mut command = helper_command(installed_session);
     for (key, value) in env {
         command.env(key, value);

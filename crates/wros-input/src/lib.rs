@@ -1,9 +1,9 @@
 //! Input ownership only. No manuscripts, authentication, locking or power actions.
-pub mod paths;
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(all(target_os = "linux", feature = "native"))]
 mod native;
+pub mod paths;
 #[cfg(target_os = "linux")]
 pub use linux::{Input, Paused, WORKER_ARGUMENT, worker_main};
 #[cfg(all(target_os = "linux", feature = "native"))]

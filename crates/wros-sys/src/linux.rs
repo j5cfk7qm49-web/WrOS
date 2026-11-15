@@ -497,9 +497,7 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
             )
         }
         Request::CheckUpdates => Invocation::new(crate::paths::APT_GET, &["-s", "dist-upgrade"]),
-        Request::RecoveryStatus => {
-            Invocation::new(crate::paths::WROS_UPDATE, &["recovery-status"])
-        }
+        Request::RecoveryStatus => Invocation::new(crate::paths::WROS_UPDATE, &["recovery-status"]),
         Request::VerifyUpdateBundle { bundle_dir } => {
             crate::system_views::validate_update_bundle_path(bundle_dir)?;
             Invocation::new(crate::paths::WROS_UPDATE, &["verify-bundle", bundle_dir])
@@ -543,11 +541,9 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
         Request::ApplyStagedUpdate => {
             Invocation::update_launcher(crate::paths::WROS_UPDATE_APPLY, &[], APPLY_TIMEOUT_SECS)
         }
-        Request::GoBackToPreviousVersion => Invocation::update_launcher(
-            crate::paths::WROS_UPDATE_ROLLBACK,
-            &[],
-            STAGE_TIMEOUT_SECS,
-        ),
+        Request::GoBackToPreviousVersion => {
+            Invocation::update_launcher(crate::paths::WROS_UPDATE_ROLLBACK, &[], STAGE_TIMEOUT_SECS)
+        }
         Request::ReportUpdateReady => Invocation::update_launcher(
             crate::paths::WROS_UPDATE_HEALTHY,
             &["ready"],
@@ -635,10 +631,7 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
             )
         }
         Request::BootStatus | Request::BootTheme(_) | Request::BootScreen { .. } => {
-            let mut args = vec![
-                "--disable-internal-agent",
-                crate::paths::WROS_BOOT_SETTINGS,
-            ];
+            let mut args = vec!["--disable-internal-agent", crate::paths::WROS_BOOT_SETTINGS];
             match request {
                 Request::BootStatus => args.push("status"),
                 Request::BootTheme(theme) | Request::BootScreen { theme, .. } => {

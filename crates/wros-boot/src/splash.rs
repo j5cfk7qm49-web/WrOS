@@ -180,7 +180,11 @@ mod tests {
                 Some(logo),
                 "{width}x{height}: bar and logo share both edges\n{text}"
             );
-            assert_eq!(ends(rows[bar_bottom - 1]), Some(logo), "{width}x{height}\n{text}");
+            assert_eq!(
+                ends(rows[bar_bottom - 1]),
+                Some(logo),
+                "{width}x{height}\n{text}"
+            );
             // The caption (odd width, like the logo) shares the same centre column.
             let caption = ends(rows.iter().find(|r| r.contains("Starting WrOS")).unwrap()).unwrap();
             assert_eq!(

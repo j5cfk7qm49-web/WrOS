@@ -459,10 +459,17 @@ fn the_menu_bar_and_status_line_sit_on_a_band_of_the_themes_border_colour() {
         assert_eq!(buf[(x, 0)].bg, border, "menu bar at column {x}");
         assert_eq!(buf[(x, last)].bg, border, "status line at column {x}");
     }
-    assert_eq!(buf[(60, 10)].bg, ratatui::style::Color::Reset, "the page keeps its own ground");
+    assert_eq!(
+        buf[(60, 10)].bg,
+        ratatui::style::Color::Reset,
+        "the page keeps its own ground"
+    );
     let status = d.status();
     assert!(!status.contains('▓') && !status.contains('░'), "{status}");
-    assert!(status.contains("──────────"), "an empty goal is a dim line: {status}");
+    assert!(
+        status.contains("──────────"),
+        "an empty goal is a dim line: {status}"
+    );
     // A lit title keeps its highlight on the band.
     d.key(KeyCode::Esc);
     let sel = d.app.theme.sel;
@@ -490,13 +497,19 @@ fn a_long_grey_notice_wraps_inside_the_settings_box_instead_of_widening_it() {
     ));
     d.draw();
     let before = d.app.settings_area.get();
-    assert!(before.width < 100, "a short page makes a modest box: {before:?}");
+    assert!(
+        before.width < 100,
+        "a short page makes a modest box: {before:?}"
+    );
     let words = "Not staged: no backup of this project in the last 24 hours. Create one in \
                  Settings, Backups and accounts, Backups, then come back to this page to stage it.";
     d.app.deck.note = words.into();
     d.draw();
     let after = d.app.settings_area.get();
-    assert_eq!(after.width, before.width, "the notice doesn't widen the box");
+    assert_eq!(
+        after.width, before.width,
+        "the notice doesn't widen the box"
+    );
     let inside = d.box_rows().join("\n");
     assert!(d.shows_wrapped(words), "the notice wraps, whole:\n{inside}");
     assert!(

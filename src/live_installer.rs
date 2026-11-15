@@ -40,7 +40,8 @@ pub fn available() -> bool {
         && unsafe { libc::geteuid() } != 0
         && !Path::new("/etc/wros/VM-DEMO-ONLY").exists()
         && Path::new(wros_sys::paths::LIVE_SESSION_JSON).is_file()
-        && (Path::new(wros_sys::paths::LIVE_MEDIUM_SQUASHFS).is_file() || Path::new(wros_sys::paths::LIVE_NIXOS_SQUASHFS).is_file())
+        && (Path::new(wros_sys::paths::LIVE_MEDIUM_SQUASHFS).is_file()
+            || Path::new(wros_sys::paths::LIVE_NIXOS_SQUASHFS).is_file())
         && [
             wros_sys::paths::WROS_INSTALL_SESSION,
             wros_sys::paths::WROS_INSTALLER,
