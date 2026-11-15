@@ -105,6 +105,7 @@ rec {
 
     import re
     import shlex
+    import time
 
     # /dev/vcs holds font glyph codes; /dev/vcsu holds the characters, including the
     # highlight marker of the selected row.

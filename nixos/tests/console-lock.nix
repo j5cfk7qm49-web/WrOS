@@ -53,7 +53,6 @@ pkgs.testers.runNixOSTest {
     # 4. Settings -> System -> Battery and power -> Lock writing session, the way rc13's own VM
     #    chain does it (os/tests/rc_vm_phases.py grim_open_settings, grim_to_panel, choose).
     #    In rc13 Esc opens the menu bar, so it is not pressed first.
-    import time
 
     time.sleep(2)
     to_editor(installed)

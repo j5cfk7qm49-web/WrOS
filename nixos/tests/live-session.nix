@@ -41,7 +41,6 @@ pkgs.testers.runNixOSTest {
     #    rc13's own VM chain does it (os/tests/rc_vm_phases.py: Settings > System > Storage >
     #    Install WrOS to disk). The confirmation's default is to stay in the live session, and
     #    Enter on that default changes nothing (T7).
-    import time
     live.wait_until_tty_matches("1", "Install WrOS to disk")
     time.sleep(2)
     to_editor(live)
