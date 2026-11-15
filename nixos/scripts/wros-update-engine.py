@@ -254,10 +254,45 @@ def current_toplevel(current_system=DEFAULT_CURRENT_SYSTEM):
     return None
 
 
-def store_has_path(store_path, store_dir=Path('/nix/store')):
+REAL_STORE_DIR = Path('/nix/store')
+_valid_store_paths_cache = None
+
+
+def _valid_store_paths():
+    """Every path registered in the Nix database, read once per process (one `nix path-info --all`
+    call instead of one call per closure entry). None when Nix cannot be asked."""
+    global _valid_store_paths_cache
+    if _valid_store_paths_cache is None:
+        try:
+            res = subprocess.run(
+                ['nix', '--extra-experimental-features', 'nix-command', 'path-info', '--all'],
+                stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=300, env=safe_env())
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if res.returncode != 0:
+            return None
+        _valid_store_paths_cache = frozenset(res.stdout.split())
+    return _valid_store_paths_cache
+
+
+def forget_valid_store_paths():
+    global _valid_store_paths_cache
+    _valid_store_paths_cache = None
+
+
+def store_has_path(store_path, store_dir=REAL_STORE_DIR):
+    """A path counts as present only when Nix has it registered, not merely when its directory
+    exists: an unregistered directory (an interrupted import, or a store overlaid from elsewhere)
+    is neither usable by nix-env nor a reason to skip importing it. Scratch store directories
+    (the engine's unit tests) have no database, so there existence is all there is."""
     if not isinstance(store_path, str) or STORE_PATH_RE.fullmatch(store_path) is None:
         return False
-    return (Path(store_dir) / Path(store_path).name).exists()
+    if not (Path(store_dir) / Path(store_path).name).exists():
+        return False
+    if Path(store_dir) != REAL_STORE_DIR:
+        return True
+    valid = _valid_store_paths()
+    return valid is None or store_path in valid
 
 
 def parse_closure_manifest(raw_bytes):
@@ -763,8 +798,10 @@ def import_verified_closure(staged_dir, closure, *, run=None, store_dir=Path('/n
         'nix', '--extra-experimental-features', 'nix-command',
         'copy', '--from', cache_uri, '--no-check-sigs', closure['toplevel'],
     ])
+    forget_valid_store_paths()
     if res.returncode != 0:
-        fail(f'failed to import verified closure {closure["toplevel"]} from staged binary cache')
+        fail(f'failed to import verified closure {closure["toplevel"]} from staged binary cache: '
+             f'{_tail(res)}')
     res2 = run(['nix-store', '--verify-path', closure['toplevel']])
     if res2.returncode != 0:
         fail(f'nix-store --verify-path failed after importing {closure["toplevel"]}')
@@ -775,11 +812,17 @@ def switch_system_generation(toplevel, *, profile=DEFAULT_PROFILE, live=False, r
     run = run or _base.default_runner
     res = run(['nix-env', '-p', str(profile), '--set', str(toplevel)])
     if res.returncode != 0:
-        fail('failed to switch system profile to new generation')
+        fail(f'failed to switch system profile to new generation: {_tail(res)}')
     verb = 'switch' if live else 'boot'
     res2 = run([str(Path(toplevel) / 'bin/switch-to-configuration'), verb])
     if res2.returncode != 0:
-        fail(f'switch-to-configuration {verb} failed')
+        fail(f'switch-to-configuration {verb} failed: {_tail(res2)}')
+
+
+def _tail(res, limit=400):
+    """The end of a failed command's error output, for the failure record (it was discarded)."""
+    text = (getattr(res, 'stderr', '') or getattr(res, 'stdout', '') or '').strip()
+    return text[-limit:] if text else f'exit status {res.returncode}'
 
 
 def apply_staged_transaction(*, state_dir=DEFAULT_STATE_DIR, trigger_path=DEFAULT_TRIGGER,
