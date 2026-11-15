@@ -116,6 +116,7 @@
         recovery-menu = vmTest ./nixos/tests/recovery-menu.nix;
         install-encrypted = vmTest ./nixos/tests/install-encrypted.nix;
         live-session = vmTest ./nixos/tests/live-session.nix;
+        live-graphical = vmTest ./nixos/tests/live-graphical.nix;
         helpers-no-fhs = vmTest ./nixos/tests/helpers-no-fhs.nix;
         rust-suite = wrosPkgs.rust-suite;
         python-suite = wrosPkgs.python-suite;

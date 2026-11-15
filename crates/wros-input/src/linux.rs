@@ -19,6 +19,14 @@ pub const WORKER_ARGUMENT: &str = "--wros-input-reader";
 const MAX_FRAME: usize = 2 * 1024 * 1024;
 const QUEUE: usize = 32;
 const DEADLINE: Duration = Duration::from_secs(2);
+/// How long the native reader may take to say it is ready. Before that it compiles the XKB
+/// keymap, reads the Compose table, opens the seat and lists devices through libinput. Off a
+/// compressed live image on a USB stick (or a test VM's shared store) that takes well over
+/// [`DEADLINE`], and missing it ended the whole graphical session: the live medium's default
+/// came up black (#129). A reader that fails still says so at once and falls back to terminal
+/// input; this only bounds a slow start.
+#[cfg(feature = "native")]
+pub const NATIVE_STARTUP: Duration = Duration::from_secs(20);
 static NEXT_OWNER: AtomicU64 = AtomicU64::new(1);
 
 fn failure(message: &'static str) -> io::Error {
@@ -367,11 +375,19 @@ impl Input {
             reader: Some(reader),
             graceful: cfg!(feature = "native"),
         };
+        #[cfg(feature = "native")]
+        let startup = if self.config.is_some() {
+            NATIVE_STARTUP
+        } else {
+            DEADLINE
+        };
+        #[cfg(not(feature = "native"))]
+        let startup = DEADLINE;
         let ready = running
             .messages
             .as_ref()
             .unwrap()
-            .recv_timeout(DEADLINE)
+            .recv_timeout(startup)
             .map_err(|_| failure("Input reader startup unacknowledged"))??;
         let Some(Wire::Ready {
             version: 1,
