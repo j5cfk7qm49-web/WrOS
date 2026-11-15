@@ -27,6 +27,30 @@ in
       mode = "0444";
     };
 
+    # systemd.offline-updates(7) on NixOS. Neither half works as shipped:
+    # - NixOS installs only the upstream units it lists, and system-update.target,
+    #   system-update-pre.target and system-update-cleanup.service are not among them;
+    # - systemd's own system-update generator links default.target to
+    #   <systemd>/lib/systemd/system/system-update.target, but NixOS keeps upstream units under
+    #   <systemd>/example/, so that link dangles.
+    # With /system-update present the default target then fails to load, systemd falls back to
+    # rescue.target, which WrOS masks, and PID 1 freezes on every boot until the marker goes.
+    # Install the units, and replace the generator (same name; /etc/systemd/system-generators
+    # takes precedence over systemd's own directory) with one that links the installed unit.
+    systemd.additionalUpstreamSystemUnits = [
+      "system-update.target"
+      "system-update-pre.target"
+      "system-update-cleanup.service"
+    ];
+    systemd.generators.systemd-system-update-generator = pkgs.writeShellScript "wros-system-update-generator" ''
+      # $2 is the early generator directory, as systemd-system-update-generator uses it.
+      for marker in /system-update /etc/system-update; do
+        if [ -e "$marker" ] || [ -L "$marker" ]; then
+          exec ${pkgs.coreutils}/bin/ln -sf /etc/systemd/system/system-update.target "$2/default.target"
+        fi
+      done
+    '';
+
     systemd.services.wros-offline-update = {
       description = "Apply verified WrOS offline generation updates";
       unitConfig = {

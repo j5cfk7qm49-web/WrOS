@@ -51,7 +51,6 @@ EOF
 in
 pkgs.testers.runNixOSTest {
   name = "wros-update-goback";
-  enableOCR = true;  # DIAGNOSTIC (local debugging only)
 
   nodes = {
     installer = { nodes, ... }: { imports = [ (encryptedDisk.mkInstallerNode nodes.installed.system.build.toplevel) ]; };
@@ -59,9 +58,6 @@ pkgs.testers.runNixOSTest {
     # Point only the test machine's update trust directory at nixos/tests/keys (U6, T5).
     installed = encryptedDisk.mkInstalledNode ({ ... }: {
       wros.updates.trustDir = testKeysDir;
-      # DIAGNOSTIC (local debugging only): show debug-level messages on the console and allow
-      # SysRq task dumps.
-      boot.kernelParams = [ "loglevel=8" "sysrq_always_enabled=1" ];
     });
 
     updated = encryptedDisk.mkInstalledNode ({ lib, ... }: {
@@ -174,8 +170,6 @@ pkgs.testers.runNixOSTest {
       assert stage_res["status"] == "staged", stage_res
       installed.succeed("test -L /system-update")
       installed.succeed("sync")
-      # DIAGNOSTIC (local debugging only): PID 1 debug logging to the console for the next boots.
-      installed.succeed("mkdir -p /etc/systemd/system.conf.d && printf '[Manager]\\nLogLevel=debug\\nLogTarget=kmsg\\n' > /etc/systemd/system.conf.d/90-wros-debug.conf && sync")
 
       # Reboot into system-update.target; wros-update-offline.service imports the binary cache,
       # switches /nix/var/nix/profiles/system, and triggers a reboot into the new generation.
@@ -183,11 +177,6 @@ pkgs.testers.runNixOSTest {
       wait_for_disk_prompt(installed)
       installed.send_chars("update-disk-passphrase")
       installed.send_key("ret")
-      # DIAGNOSTIC (local debugging only): dump blocked and all tasks two minutes in.
-      time.sleep(120)
-      print("SCREEN-OCR-BEGIN")
-      print(installed.get_screen_text())
-      print("SCREEN-OCR-END")
 
       # Wait for the offline update reboot into the new generation
       wait_for_disk_prompt(installed)
