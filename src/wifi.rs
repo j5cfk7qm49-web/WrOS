@@ -9,6 +9,8 @@ pub enum Wifi {
     Off,
     /// Connected, with one to three bars of signal.
     Bars(u8),
+    /// Connected, but the kernel doesn't report the signal (no `/proc/net/wireless`).
+    Connected,
 }
 
 /// The link quality most drivers report at full signal.
@@ -36,12 +38,33 @@ pub fn parse(text: &str) -> Wifi {
     }
 }
 
-/// The signal now, or `None` where the kernel doesn't report Wi-Fi at all.
+/// The signal now, or `None` where there is no Wi-Fi at all. Without `/proc/net/wireless`
+/// (a kernel built without the wireless-extensions file), the interfaces in `/sys/class/net`
+/// still say whether one is connected (#128).
 #[cfg(target_os = "linux")]
 pub fn read() -> Option<Wifi> {
-    std::fs::read_to_string("/proc/net/wireless")
-        .ok()
-        .map(|text| parse(&text))
+    match std::fs::read_to_string("/proc/net/wireless") {
+        Ok(text) => Some(parse(&text)),
+        Err(_) => from_sysfs(std::path::Path::new("/sys/class/net")),
+    }
+}
+
+/// From a `/sys/class/net`-like directory: [`Wifi::Connected`] when a wireless interface is up,
+/// [`Wifi::Off`] when there are wireless interfaces but none is up, `None` without any.
+pub fn from_sysfs(net: &std::path::Path) -> Option<Wifi> {
+    let mut wireless = false;
+    for entry in std::fs::read_dir(net).ok()?.flatten() {
+        let dir = entry.path();
+        if !(dir.join("wireless").is_dir() || dir.join("phy80211").exists()) {
+            continue;
+        }
+        wireless = true;
+        let up = std::fs::read_to_string(dir.join("operstate")).is_ok_and(|s| s.trim() == "up");
+        if up {
+            return Some(Wifi::Connected);
+        }
+    }
+    wireless.then_some(Wifi::Off)
 }
 
 #[cfg(test)]
@@ -62,6 +85,37 @@ mod tests {
         assert_eq!(at("40."), Wifi::Bars(2));
         assert_eq!(at("12."), Wifi::Bars(1));
         assert_eq!(at("0."), Wifi::Off, "an interface that isn't connected");
+    }
+
+    /// A `/sys/class/net` with the given interfaces: (name, wireless, operstate).
+    fn net(tag: &str, ifaces: &[(&str, bool, &str)]) -> std::path::PathBuf {
+        let root = std::env::temp_dir().join(format!("wros-wifi-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        for (name, wireless, state) in ifaces {
+            let dir = root.join(name);
+            std::fs::create_dir_all(&dir).unwrap();
+            if *wireless {
+                std::fs::create_dir_all(dir.join("wireless")).unwrap();
+            }
+            std::fs::write(dir.join("operstate"), format!("{state}\n")).unwrap();
+        }
+        root
+    }
+
+    #[test]
+    fn without_proc_net_wireless_the_mark_says_connected_or_off() {
+        // #128: when the kernel has no /proc/net/wireless, the mark disappeared. The interface's
+        // own state says connected (strength unknown) or not.
+        let up = net("up", &[("lo", false, "unknown"), ("wlan0", true, "up")]);
+        assert_eq!(from_sysfs(&up), Some(Wifi::Connected));
+        let down = net("down", &[("wlp1s0", true, "down")]);
+        assert_eq!(from_sysfs(&down), Some(Wifi::Off));
+        let wired = net("wired", &[("lo", false, "unknown"), ("eth0", false, "up")]);
+        assert_eq!(from_sysfs(&wired), None, "no Wi-Fi hardware: no mark");
+        assert_eq!(from_sysfs(std::path::Path::new("/nonexistent/net")), None);
+        for root in [up, down, wired] {
+            let _ = std::fs::remove_dir_all(root);
+        }
     }
 
     #[test]

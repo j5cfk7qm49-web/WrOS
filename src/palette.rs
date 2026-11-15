@@ -290,7 +290,15 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
         Entry::new("System settings", "", Action::SystemSettings),
         Entry::new("Workspaces", "", Action::Workspaces),
         Entry::new("Interactive tutorial", "", Action::Tutorial),
-        Entry::new("Toggle outline", "", Action::ToggleOutline),
+        // The outline's key when the writer has one, as the View menu shows it (#127).
+        Entry::new(
+            "Toggle outline",
+            &app.deck
+                .shortcuts
+                .chord_for(wros_sys::shortcuts::Action::Outline)
+                .unwrap_or_default(),
+            Action::ToggleOutline,
+        ),
         Entry::new(
             "Toggle editable secondary pane",
             "F11",

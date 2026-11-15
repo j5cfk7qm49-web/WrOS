@@ -63,7 +63,7 @@ impl App {
                 .unwrap_or_else(|| default.to_string())
         };
         use wros_sys::shortcuts::Action as Shortcut;
-        let mut rows = match title {
+        let rows = match title {
             Title::Wros => {
                 let mut rows = vec![
                     BarRow::new("Overview", key(Shortcut::Dashboard, ""), Action::Dashboard),
@@ -309,7 +309,14 @@ impl App {
                 BarRow::new("Donate…", "", Action::Donate),
             ],
         };
-        rows.truncate(MAX_ROWS);
+        // #125: no silent cut. A menu that outgrows the cap fails the twelve-row test (and any
+        // debug build) instead of losing its last row; a short screen still scrolls.
+        debug_assert!(
+            rows.len() <= MAX_ROWS,
+            "{} menu has {} rows (most {MAX_ROWS})",
+            title.label(),
+            rows.len()
+        );
         rows
     }
 

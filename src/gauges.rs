@@ -71,8 +71,10 @@ impl Gauges {
                 match (wifi, console) {
                     (Wifi::Off, true) => "Wi-Fi off".into(),
                     (Wifi::Bars(n), true) => format!("Wi-Fi {n}/3"),
+                    (Wifi::Connected, true) => "Wi-Fi on".into(),
                     (Wifi::Off, false) => "⊘".into(),
-                    (Wifi::Bars(_), false) => "▂▄▆".into(),
+                    // Connected with no signal reported: the bars, none lit (#128).
+                    (Wifi::Bars(_) | Wifi::Connected, false) => "▂▄▆".into(),
                 },
             ));
         }

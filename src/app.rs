@@ -3698,11 +3698,21 @@ impl App {
             .find(|&(a, b)| !next_only && cx >= a && cx <= b)
             .map(|(a, b)| (cy, a, b));
         let target = here.or_else(|| {
-            let lines = &self.editor.lines;
-            (0..lines.len())
-                .map(|k| (cy + k) % lines.len())
-                .flat_map(|l| bad(l).into_iter().map(move |(a, b)| (l, a, b)))
-                .find(|&(l, a, _)| (l, a) >= (cy, cx) || l < cy)
+            let len = self.editor.lines.len();
+            // From the cursor to the end of the scene, round to the top, and back to the
+            // starting line, whose words before the cursor come last (#126: a paragraph is one
+            // line, so they used to be missed).
+            (0..=len)
+                .flat_map(|k| {
+                    let l = (cy + k) % len;
+                    bad(l).into_iter().map(move |(a, b)| (k, l, a, b))
+                })
+                .find(|&(k, _, a, _)| match k {
+                    0 => a >= cx,
+                    k if k == len => a < cx,
+                    _ => true,
+                })
+                .map(|(_, l, a, b)| (l, a, b))
         });
         let Some((line, start, end)) = target else {
             self.msg = "no misspellings in this scene".into();

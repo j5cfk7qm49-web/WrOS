@@ -1183,6 +1183,58 @@ fn f8_next_in_the_spelling_box_reaches_the_next_misspelt_word() {
 }
 
 #[test]
+fn find_anything_shows_the_outlines_key_as_the_view_menu_does() {
+    // #127: the palette's "Toggle outline" had an empty key, so a writer who kept a key on the
+    // outline (rc12 files keep F10 there) saw it in the View menu but not in Find anything.
+    let mut d = Desk::open(book("palette-outline", true), 120, 35);
+    let unbound = crate::palette::entries(&d.app)
+        .into_iter()
+        .find(|e| e.label == "Toggle outline")
+        .unwrap();
+    assert_eq!(unbound.key, "", "no key, none shown");
+    d.app.deck.shortcuts.bindings.push(wros_sys::shortcuts::Binding {
+        chord: "F9".into(),
+        action: wros_sys::shortcuts::Action::Outline,
+    });
+    let palette = crate::palette::entries(&d.app)
+        .into_iter()
+        .find(|e| e.label == "Toggle outline")
+        .unwrap();
+    let bar = d
+        .app
+        .bar_rows(Title::View)
+        .into_iter()
+        .find(|r| r.action == A::ToggleOutline)
+        .unwrap();
+    assert_eq!(bar.key, "F9");
+    assert_eq!(palette.key, bar.key, "Find anything shows the View menu's key");
+}
+
+#[test]
+fn f8_next_wraps_round_to_an_earlier_misspelling_in_the_same_paragraph() {
+    // #126: a paragraph is one line, and the wrap-around search never came back to the start of
+    // the line it began on, so "next" from the second word said the scene had none.
+    let mut d = Desk::open(book("spell-wrap", true), 120, 35);
+    d.app.load_speller_now();
+    d.key(KeyCode::Tab);
+    d.app.editor.set_text("Teh cat sat on teh mat.");
+    d.app.editor.place(0, 15);
+    d.key(KeyCode::F(8));
+    assert!(
+        matches!(d.app.overlay, Overlay::Spelling { line: 0, start: 15, .. }),
+        "{:?}",
+        d.app.overlay
+    );
+    d.key(KeyCode::F(8));
+    assert!(
+        matches!(d.app.overlay, Overlay::Spelling { line: 0, start: 0, .. }),
+        "next wraps round to the first, earlier in the same paragraph: {:?} ({})",
+        d.app.overlay,
+        d.app.msg
+    );
+}
+
+#[test]
 fn a_super_tap_leaves_a_box_with_typing_in_it_alone() {
     let mut d = Desk::open(book("bar-super-typing", true), 120, 35);
     d.app.start_rename();

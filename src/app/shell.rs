@@ -2895,6 +2895,10 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
             .and_then(|job| job.offer())
         && draw_link_offer(frame, area, &offer, app.linux_console)
     {
+        // The QR page fills the screen and has no rows: clicks are judged against it, not
+        // against the box and rows of the page before it (#124).
+        app.settings_area.set(area);
+        app.settings_hits.borrow_mut().clear();
         return;
     }
     let entries = entries(app);
