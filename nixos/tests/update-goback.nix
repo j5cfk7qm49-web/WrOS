@@ -170,6 +170,8 @@ pkgs.testers.runNixOSTest {
       assert stage_res["status"] == "staged", stage_res
       installed.succeed("test -L /system-update")
       installed.succeed("sync")
+      # DIAGNOSTIC (local debugging only): PID 1 debug logging to the console for the next boots.
+      installed.succeed("mkdir -p /etc/systemd/system.conf.d && printf '[Manager]\\nLogLevel=debug\\nLogTarget=kmsg\\n' > /etc/systemd/system.conf.d/90-wros-debug.conf && sync")
 
       # Reboot into system-update.target; wros-update-offline.service imports the binary cache,
       # switches /nix/var/nix/profiles/system, and triggers a reboot into the new generation.
