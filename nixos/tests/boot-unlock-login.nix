@@ -50,12 +50,8 @@ pkgs.testers.runNixOSTest {
     installed.start(allow_reboot=True)
     wait_for_disk_prompt(installed)
     unlock_at_prompt(installed, colemak_keys("colemak-passphrase"))
-    # The start screen shows from the unlock until the login screen (in this VM it appears about
-    # 13 s after the unlock and lasts a few seconds): pictures for the record.
-    # (time is imported by the shared preamble.)
-    for n in range(50):
-        time.sleep(0.6)
-        installed.screenshot(f"start-screen-{n:02d}")
+    # No screenshots of the start screen here: QEMU shows WrOS's native drawing as black, and a
+    # burst of screendump commands right after the typed password went with Enter being lost.
 
     installed.wait_for_unit("multi-user.target")
     installed.wait_for_unit("greetd.service")

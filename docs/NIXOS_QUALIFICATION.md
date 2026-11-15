@@ -75,8 +75,8 @@ nix build .#wros-update-bundle
 python3 -I tools/build-nixos-update-bundle.py ./result \
   --out ./out/nixos-updates \
   --gnupg-home "$EXTERNAL_GNUPGHOME" \
-  --key-id 67978962A538C3B92B459792EC6B30574351C793 \
-  --expect-fingerprint 67978962A538C3B92B459792EC6B30574351C793
+  --key-id B9F5B97C9370239CC07B425F2CB426FC6D27CA65 \
+  --expect-fingerprint B9F5B97C9370239CC07B425F2CB426FC6D27CA65
 ```
 
 ## Step 7: Physical hardware verification on the HP Stream 11

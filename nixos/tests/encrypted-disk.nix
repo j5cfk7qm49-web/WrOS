@@ -100,6 +100,9 @@ rec {
         # rebooted to the same prompt until the test's hour ran out. The unlock unit logs the
         # hand-over to the kernel log (serial console).
         for attempt in range(attempts):
+            if attempt:
+                # Ctrl-U clears the field: what the last try left there isn't added to.
+                machine.send_key("ctrl-u")
             machine.send_chars(keys)
             machine.send_key("ret")
             try:
