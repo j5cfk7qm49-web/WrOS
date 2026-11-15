@@ -33,8 +33,10 @@ let
     }
 
     + boot_menu {
-      left = 50%-300
-      width = 600
+      # Wide enough for the live medium's entry, "Start WrOS <version> (try it, or install it
+      # from the dashboard)": 66 characters of about 10 pixels.
+      left = 50%-360
+      width = 720
       top = 6%+300
       height = 88%-300
       item_font = "${font}"
