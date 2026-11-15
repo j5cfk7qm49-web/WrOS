@@ -84,7 +84,10 @@ pkgs.testers.runNixOSTest {
     installed.send_key("ret")
     installed.wait_until_tty_matches("8", "Password:")
     installed.send_chars("LEAKED_WHILE_LOCKED_wrongpass\n")
-    installed.wait_until_tty_matches("8", "Press Enter to unlock")
+    # The lock screen clears itself after a refusal (wros-lock LOCK_MESSAGE), so wait for a screen
+    # with no "Password:" left on it: the old prompt text would match at once, and keys typed
+    # during PAM's failure delay are lost (rc13: os/tests/rc_vm_phases.py lock-password-rejected).
+    installed.wait_until_tty_matches("8", r"(?s)\A(?!.*Password:).*Press Enter to unlock")
     installed.succeed("[ $(fgconsole) = 8 ]")
     installed.succeed("pgrep -f vlock-main")
 
