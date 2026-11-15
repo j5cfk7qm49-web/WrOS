@@ -88,14 +88,10 @@ pkgs.testers.runNixOSTest {
         bundleVersion = version;
         systemToplevel = initialToplevel;
       };
-      # The signed rc15 bundle with one NAR corrupted. Only the metadata, every .narinfo and the
-      # small NARs are kept: the engine skips a missing file whose path is already in the store,
-      # and hash-checks every file that is present (verify_closure_archives).
+      # The signed rc15 bundle with one NAR corrupted. A full copy in the host store, bind-mounted
+      # into the guest, so the only thing wrong with it is that file's hash.
       bundleTampered = pkgs.runCommand "wros-signed-bundle-tampered" { } ''
-        mkdir -p "$out/cache/nar"
-        cp ${bundleNext}/InRelease ${bundleNext}/Release ${bundleNext}/closure-manifest.json "$out/"
-        cd ${bundleNext}
-        find cache -type f \( -name '*.narinfo' -o -name nix-cache-info -o -size -2M \) -exec cp --parents {} "$out/" \;
+        cp -r ${bundleNext}/. "$out/"
         chmod -R u+w "$out"
         f=$(find "$out/cache/nar" -type f | sort | head -n 1)
         test -n "$f"
