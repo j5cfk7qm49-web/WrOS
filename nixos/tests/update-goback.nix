@@ -88,6 +88,19 @@ pkgs.testers.runNixOSTest {
         bundleVersion = version;
         systemToplevel = initialToplevel;
       };
+      # The signed rc15 bundle with one NAR corrupted. Only the metadata, every .narinfo and the
+      # small NARs are kept: the engine skips a missing file whose path is already in the store,
+      # and hash-checks every file that is present (verify_closure_archives).
+      bundleTampered = pkgs.runCommand "wros-signed-bundle-tampered" { } ''
+        mkdir -p "$out/cache/nar"
+        cp ${bundleNext}/InRelease ${bundleNext}/Release ${bundleNext}/closure-manifest.json "$out/"
+        cd ${bundleNext}
+        find cache -type f \( -name '*.narinfo' -o -name nix-cache-info -o -size -2M \) -exec cp --parents {} "$out/" \;
+        chmod -R u+w "$out"
+        f=$(find "$out/cache/nar" -type f | sort | head -n 1)
+        test -n "$f"
+        printf corrupt >> "$f"
+      '';
       bundleDowngrade = mkSignedBundle {
         bundleName = "downgrade";
         bundleVersion = "0.1.0~rc12";
@@ -125,7 +138,7 @@ pkgs.testers.runNixOSTest {
       # launchers are invoked as root with PKEXEC_UID=1000 set to the writer's UID (T5).
       # Bind-mounted from the store rather than copied: three full bundles do not fit on the
       # 8 GB test disk next to the system (the fourth copy failed with the disk full).
-      for name, path in (("downgrade", "${bundleDowngrade}"), ("same", "${bundleSame}"), ("rc15", "${bundleNext}")):
+      for name, path in (("downgrade", "${bundleDowngrade}"), ("same", "${bundleSame}"), ("rc15", "${bundleNext}"), ("tampered", "${bundleTampered}")):
           installed.succeed(f"mkdir -p /media/wros-update/{name} && mount --bind {path} /media/wros-update/{name}")
 
       # 2. Downgrade and equal-version bundles are refused (U3, T5). The engine refuses them at
@@ -144,21 +157,11 @@ pkgs.testers.runNixOSTest {
       installed.fail(f"{STAGE} /media/wros-update/same {ANY_ID}")
 
       # 3. A bundle reviewed while intact and corrupted afterwards is refused at staging (T5)
-      # The tampered bundle holds the signed metadata, every .narinfo and only the small NARs
-      # (the system's own is among them). The engine skips a missing file only when its path is
-      # already in the store, and hash-checks every file that is present, so a corrupted NAR
-      # must still be refused (nixos/scripts/wros-update-engine.py verify_closure_archives).
-      installed.succeed(
-          "set -e; src=/media/wros-update/rc15; dst=/media/wros-update/tampered; "
-          "mkdir -p $dst/cache/nar; cp $src/InRelease $src/Release $src/closure-manifest.json $dst/; "
-          r"cd $src && find cache -type f \( -name '*.narinfo' -o -name nix-cache-info -o -size -2M \) "
-          r"-exec cp --parents {} $dst/ \;; chmod -R u+w $dst"
-      )
-      tamper_review = json.loads(installed.succeed(f"{UPDATE} review /media/wros-update/tampered"))
-      installed.succeed(
-          "f=$(find /media/wros-update/tampered/cache/nar -type f | head -n 1) && test -n \"$f\" && printf 'corrupt' >> \"$f\""
-      )
-      installed.fail(f"{STAGE} /media/wros-update/tampered {tamper_review['review_id']}")
+      # The tampered bundle's signed metadata is the intact one's, so the intact review id is
+      # accepted and the refusal has to come from the hash check of the corrupted NAR.
+      tamper_review = json.loads(installed.succeed(f"{UPDATE} review /media/wros-update/rc15"))
+      out = installed.fail(f"{STAGE} /media/wros-update/tampered {tamper_review['review_id']} 2>&1")
+      assert "SHA-256" in out, out
 
       # 4. Stage the valid signed 0.1.0~rc15 bundle via wros-update-stage and reboot to apply
       valid_review = json.loads(installed.succeed(f"{UPDATE} review /media/wros-update/rc15"))
