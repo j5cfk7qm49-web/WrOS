@@ -140,6 +140,28 @@ pkgs.testers.runNixOSTest {
       # 2. Downgrade and equal-version bundles are refused (U3, T5). The engine refuses them at
       #    review (nixos/scripts/wros-update-engine.py verify_open_nixos_bundle), and staging
       #    re-verifies, so both steps must fail.
+      def wait_offline_update(machine):
+          """Wait for wros-offline-update in the update boot. On success it reboots by itself. On
+          failure the engine continues into multi-user.target; show its report and fail here
+          rather than wait for a disk prompt that never comes."""
+          import queue
+          done = re.compile(r"wros-offline-update\.service: (Deactivated successfully|Failed with result)")
+          buf = ""
+          outcome = ""
+          deadline = time.monotonic() + 2400
+          while not outcome and time.monotonic() < deadline:
+              try:
+                  buf += machine.last_lines.get(timeout=1) + "\n"
+              except queue.Empty:
+                  continue
+              found = done.search(buf)
+              outcome = found.group(1) if found else ""
+          assert outcome, "wros-offline-update did not finish"
+          if outcome != "Deactivated successfully":
+              machine.wait_for_unit("multi-user.target")
+              print(machine.succeed("journalctl -b -u wros-offline-update --no-pager -o cat"))
+              raise Exception("offline update failed; the engine's report is above")
+
       UPDATE = "/run/current-system/sw/libexec/wros-update"
       STAGE = "PKEXEC_UID=1000 /run/current-system/sw/libexec/wros-update-stage"
       ANY_ID = "0" * 64
@@ -177,6 +199,7 @@ pkgs.testers.runNixOSTest {
       wait_for_disk_prompt(installed)
       installed.send_chars("update-disk-passphrase")
       installed.send_key("ret")
+      wait_offline_update(installed)
 
       # Wait for the offline update reboot into the new generation
       wait_for_disk_prompt(installed)
@@ -206,6 +229,7 @@ pkgs.testers.runNixOSTest {
       wait_for_disk_prompt(installed)
       installed.send_chars("update-disk-passphrase")
       installed.send_key("ret")
+      wait_offline_update(installed)
 
       wait_for_disk_prompt(installed)
       installed.send_chars("update-disk-passphrase")

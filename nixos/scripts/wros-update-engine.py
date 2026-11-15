@@ -1266,8 +1266,11 @@ def main(argv=None, environ=None):
         ours = owned_trigger(DEFAULT_TRIGGER, DEFAULT_STATE_DIR / 'staged')
         try:
             result = execute_offline_boot_transaction()
-        except ValueError:
+        except ValueError as exc:
             if ours:
+                # Say why first: continuing the boot isolates multi-user.target, which stops this
+                # unit, so the caller's error report would never be written.
+                print(f'wros-update: offline update failed: {exc}', file=sys.stderr, flush=True)
                 continue_boot_after_failure()
             raise
         if ours and result.get('status') == 'completed':
