@@ -26,7 +26,6 @@ pkgs.testers.runNixOSTest {
 
   testScript = ''
     ${encryptedDisk.pythonPreamble}
-    import json
 
     live.start()
     live.wait_for_unit("multi-user.target")

@@ -56,6 +56,7 @@ pkgs.testers.runNixOSTest {
     import time
 
     time.sleep(2)
+    to_editor(installed)
     installed.send_key("ctrl-k")
     time.sleep(1)
     installed.send_chars("wros settings")

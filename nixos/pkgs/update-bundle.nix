@@ -23,6 +23,11 @@ pkgs.stdenv.mkDerivation {
     export NIX_STATE_DIR="$TMPDIR/nix-state"
     mkdir -p "$HOME" "$NIX_STATE_DIR"
 
+    # The closure's paths are present in the sandbox's /nix/store, but this private Nix
+    # database does not know them, so `nix copy` refused ("no substituter that can build it").
+    # Register them first, as nixos/lib/make-disk-image.nix does.
+    nix-store --load-db < "${targetClosure}/registration"
+
     # Populate a local zstd-compressed Nix binary cache for the target closure (U2, U5)
     nix --extra-experimental-features nix-command copy \
       --to "file://$out/cache?compression=zstd" \

@@ -140,6 +140,16 @@ rec {
             time.sleep(0.4)
         raise Exception(f"could not select {pattern!r}; highlighted {highlighted(machine)!r}")
 
+    def to_editor(machine) -> None:
+        # rc13 (os/tests/rc_vm_phases.py grim_editor): the session may open on the dashboard,
+        # where Ctrl-K is not Find anything. Esc closes the dashboard; in the editor Esc would
+        # open the menu bar instead, so it is pressed only when the dashboard is showing.
+        lines = screen(machine).splitlines()
+        if lines and "Resume writing" in "
+".join(lines) and "GRIMOIRE" not in lines[0]:
+            machine.send_key("esc")
+        machine.wait_until_tty_matches("1", "GRIMOIRE")
+
     def restart(machine) -> None:
         # Machine.reboot() sends Ctrl-Alt-Delete, which WrOS ignores on purpose
         # (os/config/60-wros-reboot-guard.conf). Power off through the shell and start again.
