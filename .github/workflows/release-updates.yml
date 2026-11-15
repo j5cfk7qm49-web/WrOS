@@ -74,6 +74,13 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = push ]; then
             version=$(python3 tools/publish-updates.py version "$GITHUB_REF_NAME")
             release=$GITHUB_REF_NAME
+            # From 0.1.0~rc14 WrOS is NixOS and carries no Debian bundle. Debian machines (rc13)
+            # stay on this channel as it is; it is only re-signed, below, when signing is set up.
+            if dpkg --compare-versions "$version" ge '0.1.0~rc14'; then
+              echo "::notice::$GITHUB_REF_NAME is a NixOS release; the Debian updates/ channel is not replaced"
+              version=''
+              release=''
+            fi
           elif [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ -n "$RELEASE" ]; then
             version=$(python3 tools/publish-updates.py version "$RELEASE")
             release=$RELEASE

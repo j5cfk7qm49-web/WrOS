@@ -2,10 +2,15 @@ name: release-nixos-updates
 
 # Publish signed NixOS closure update metadata to GitHub Pages under nixos-updates/
 # alongside the existing Debian updates/ path (which stays untouched for rc13 machines).
+#
+# NOT YET IN USE (rc14). A Pages deployment replaces the whole site, and this job deploys only
+# nixos-updates/: run as it is, it would remove the Debian updates/ channel rc13 machines use and
+# the phone-link pages. A full NixOS bundle is also about the size of Pages' 1 GB limit. rc14 is
+# installed fresh, so there is nothing to update to yet and the app reports the channel as
+# unpublished. Before rc15 this folds into release-updates.yml (one site, both channels), with
+# the large archives on the release itself. Until then it runs only by hand, and refuses.
 
 on:
-  push:
-    tags: ['v*', '!v*-linktest*']
   workflow_dispatch:
     inputs:
       release:
@@ -30,6 +35,10 @@ jobs:
     env:
       NIXOS_UPDATE_URL: https://j5cfk7qm49-web.github.io/WrOS/nixos-updates/
     steps:
+      - name: Refuse until both channels publish as one site
+        run: |
+          echo "::error::Deploying nixos-updates/ alone would replace the whole Pages site (Debian updates/, phone-link pages). See the note at the top of this workflow."
+          exit 1
       - uses: actions/checkout@v7
         with:
           persist-credentials: false

@@ -1,8 +1,12 @@
 name: nix-ci
 
+# The NixOS build of WrOS (rc14 on): every flake output evaluates, the Python suite passes under
+# Nix, and the WrOS packages and the installed system build from the committed flake.lock. The
+# KVM VM tests and the ISO run in local qualification (docs/NIXOS_QUALIFICATION.md).
+
 on:
   push:
-    branches: [main]
+    branches: [main, development]
   pull_request:
   workflow_dispatch:
 
@@ -12,28 +16,31 @@ permissions:
 jobs:
   nix-evaluate-and-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - name: Run static rebase checker and unit tests
-        run: |
-          python3 rebase-kit/test_check_rebase.py
-          python3 os/tests/test_nixos_update.py
-          python3 os/tests/test_backup.py
-          python3 os/tests/test_keyboard.py
-          python3 os/tests/test_boot_settings.py
-      - uses: cachix/install-nix-action@v30
+      - uses: cachix/install-nix-action@v31
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
-      - name: Evaluate flake outputs without building
+      - name: Evaluate every package and check, one at a time
+        # A whole-flake `nix flake check` needs more memory than a 16 GB runner has.
         run: |
-          nix flake lock
-          nix flake check --no-build
-      - name: Build WrOS packages and NixOS system toplevel
+          set -eu
+          for kind in packages checks; do
+            for attr in $(nix eval --json ".#$kind.x86_64-linux" --apply builtins.attrNames | tr -d '[]"' | tr ',' ' '); do
+              echo "== $kind.$attr"
+              nix eval --raw ".#$kind.x86_64-linux.$attr.drvPath" > /dev/null
+            done
+          done
+          nix eval --raw .#nixosConfigurations.wros.config.system.build.toplevel.drvPath > /dev/null
+          nix eval --raw .#nixosConfigurations.wros-live.config.system.build.isoImage.drvPath > /dev/null
+      - name: Python suite under Nix
+        run: nix build -L .#checks.x86_64-linux.python-suite
+      - name: Build the WrOS packages and the installed system
         run: |
-          nix build .#grimoire .#wros-greeter .#wros-boot .#wros-installer
-          nix build .#nixosConfigurations.wros.config.system.build.toplevel
+          nix build -L .#grimoire .#wros-greeter .#wros-boot .#wros-installer .#wros-branding
+          nix build -L .#nixosConfigurations.wros.config.system.build.toplevel
           nix path-info -Sh ./result
