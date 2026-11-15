@@ -7,7 +7,9 @@ const LEXICAL_TEXT: &str = "Café 🦊 e\u{301}. hot bank.\n";
 fn lexicon_desk(tag: &str, w: u16, h: u16) -> Desk {
     // The full verifier must provision its documented data prerequisite. Never
     // silently skip a real dependency and call a fake definition integration.
-    grimoire_core::lexicon::Dictionary::open(Path::new(grimoire_core::lexicon::DEFAULT_ROOT))
+    // Where the app itself looks (wros_sys::paths, set to the Nix store on NixOS), not Debian's
+    // /usr/share/wordnet.
+    grimoire_core::lexicon::Dictionary::open(Path::new(wros_sys::paths::WORDNET_DIR))
         .expect("install wordnet-base for real-data integration tests");
     let mut d = metric_writer(tag, w, h);
     metric_clock(&mut d);

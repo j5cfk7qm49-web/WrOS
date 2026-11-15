@@ -33,8 +33,8 @@ pkgs.testers.runNixOSTest {
     time.sleep(30)
     still = live.succeed("pgrep -u wros-live -x grimoire -o").strip()
     assert still == first, f"the writing app restarted or exited ({first} then {still})"
-    log = live.succeed("journalctl -b --no-pager -o cat")
-    assert "Input reader startup unacknowledged" not in log, "the input reader timed out"
+    journal = live.succeed("journalctl -b --no-pager -o cat")
+    assert "Input reader startup unacknowledged" not in journal, "the input reader timed out"
     # The greeter never took over tty1 from the live session.
     live.fail("pgrep -x wros-greeter")
     live.screenshot("live-graphical")

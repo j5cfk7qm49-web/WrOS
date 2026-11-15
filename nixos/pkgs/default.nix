@@ -32,20 +32,30 @@ let
 
   wros-branding = import ./branding.nix { inherit pkgs lib src; };
 
+  # The tests for what NixOS WrOS runs. The Debian update engine's own suites (test_update,
+  # test_update_live, test_update_rollback, test_update_support, test_update_transactions) drive
+  # dpkg and apt-get against a Debian archive; they stay in the Debian builder's suite (#131).
   python-suite = pkgs.runCommand "wros-python-suite" {
-    nativeBuildInputs = [ pkgs.python3 pkgs.gnupg pkgs.kbd pkgs.console-setup ];
+    nativeBuildInputs = [ pkgs.python3 pkgs.gnupg pkgs.kbd pkgs.console-setup pkgs.xkeyboard_config ];
   } ''
     cp -r ${src} source
     chmod -R u+w source
     cd source
     export TMPDIR="$TMP"
     export PYTHONPATH="os/tests"
+    # ckbcomp finds XKB under /usr/share/X11/xkb on Debian; here it is told (as keymaps.nix does).
+    mkdir -p "$TMPDIR/wros-ckbcomp"
+    printf '#!%s\nexec %s -I%s "$@"\n' \
+      "${pkgs.runtimeShell}" \
+      "${pkgs.console-setup}/bin/ckbcomp" \
+      "${pkgs.xkeyboard_config}/share/X11/xkb" > "$TMPDIR/wros-ckbcomp/ckbcomp"
+    chmod +x "$TMPDIR/wros-ckbcomp/ckbcomp"
+    export PATH="$TMPDIR/wros-ckbcomp:$PATH"
     # The rebase kit ships only in Argon handover zips, not in the product tree.
     if [ -f rebase-kit/test_check_rebase.py ]; then python3 rebase-kit/test_check_rebase.py; fi
     python3 -m unittest test_keyboard test_clock test_sound test_media_key test_passwd_helper \
       test_recovery_menu test_boot_settings test_boot_unlock test_session_launcher \
-      test_display_manager test_update test_update_live test_update_rollback \
-      test_update_support test_update_transactions test_nixos_update test_nixos_install_core
+      test_display_manager test_nixos_update test_nixos_install_core
     mkdir -p "$out"
     echo "pass" > "$out/result"
   '';

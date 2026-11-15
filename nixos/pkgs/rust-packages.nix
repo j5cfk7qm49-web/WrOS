@@ -82,7 +82,9 @@ let
     pathEnv = paths.installerPathEnv;
   };
 
-  rust-suite = rustPlatform.buildRustPackage {
+  # The tests see the same tool paths as the shipped app (rustPathEnv), so they run the Nix
+  # python3, WordNet data and so on rather than looking under /usr (#131).
+  rust-suite = rustPlatform.buildRustPackage ({
     pname = "wros-rust-suite";
     inherit version;
     src = rustSrc;
@@ -90,12 +92,15 @@ let
       lockFile = src + "/Cargo.lock";
     };
     # git: grimoire-core's writing-session history is a Git repository, and its tests make real ones.
-    nativeBuildInputs = commonNativeBuildInputs ++ [ rustToolchain pkgs.git ];
+    # wayland-scanner: the compositor-warmth tests build a small gamma-control server.
+    nativeBuildInputs = commonNativeBuildInputs ++ [ rustToolchain pkgs.git pkgs.wayland-scanner ];
     buildInputs = commonBuildInputs;
     doCheck = true;
     checkPhase = ''
       runHook preCheck
       export HOME="$TMPDIR"
+      # The pinned prose engine runtime the app itself uses.
+      export WROS_TOOLS_PYTHON="${paths.toolPaths.toolsPython}"
       git config --global user.name "WrOS test"
       git config --global user.email "test@wros.invalid"
       cargo clippy --workspace --all-targets --locked -- -D warnings
@@ -107,7 +112,7 @@ let
       mkdir -p "$out"
       echo "pass" > "$out/result"
     '';
-  };
+  } // paths.rustPathEnv);
 in
 {
   inherit grimoire wros-greeter wros-boot wros-installer rust-suite;

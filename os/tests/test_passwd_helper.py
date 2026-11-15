@@ -6,6 +6,7 @@ import contextlib
 import os
 from pathlib import Path
 import stat
+import sys
 import tempfile
 import textwrap
 import unittest
@@ -14,8 +15,10 @@ SCRIPT = Path(__file__).resolve().parents[1] / 'scripts/wros-passwd'
 helper = importlib.machinery.SourceFileLoader('wros_passwd', str(SCRIPT)).load_module()
 
 # A stand-in for Debian's passwd: the same prompts and messages, checking against fixed values.
+# It runs on the interpreter running these tests, not /usr/bin/python3, which the Nix check
+# sandbox doesn't have.
 FAKE = textwrap.dedent('''\
-    #!/usr/bin/python3 -I
+    #!{python} -I
     import sys
     MODE = {mode!r}
     def ask(prompt):
@@ -46,7 +49,7 @@ class PasswdHelperTests(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         path = Path(tmp.name, 'passwd')
-        path.write_text(FAKE.format(mode=mode))
+        path.write_text(FAKE.format(mode=mode, python=sys.executable))
         path.chmod(path.stat().st_mode | stat.S_IXUSR)
         return (str(path),)
 

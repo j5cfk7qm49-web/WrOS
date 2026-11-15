@@ -71,7 +71,9 @@ class NixosUpdateEngineTests(unittest.TestCase):
             'Expire-Date: 0\n'
             '%commit\n'
         )
-        env = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C', 'GNUPGHOME': str(gnupg)}
+        # The caller's PATH first: the Nix check sandbox has gpg, but no /usr/bin.
+        env = {'PATH': os.environ.get('PATH', '') + ':/usr/sbin:/usr/bin:/sbin:/bin',
+               'LC_ALL': 'C', 'GNUPGHOME': str(gnupg)}
         subprocess.run(['gpg', '--batch', '--generate-key'], input=batch.encode(), env=env,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
         colons = subprocess.check_output(
