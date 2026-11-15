@@ -37,12 +37,27 @@ pkgs.testers.runNixOSTest {
     marker = json.loads(live.succeed("cat /run/wros-live/session.json"))
     assert marker["user"] == "wros-live" and marker["uid"] == 1000 and marker["automatic"] is True
     live.wait_until_succeeds("pgrep -u wros-live grimoire")
-    # 2. The live dashboard offers "Install WrOS to disk" selected. Enter opens the installer
-    #    confirmation, whose default is to stay in the live session (rc13: src/shell_ui_tests.rs,
-    #    os/tests/rc_vm_phases.py). Enter on that default changes nothing (T7).
+    # 2. The live dashboard offers "Install WrOS to disk". The installer is then reached the way
+    #    rc13's own VM chain does it (os/tests/rc_vm_phases.py: Settings > System > Storage >
+    #    Install WrOS to disk). The confirmation's default is to stay in the live session, and
+    #    Enter on that default changes nothing (T7).
     import time
     live.wait_until_tty_matches("1", "Install WrOS to disk")
-    choose(live, r"^Install WrOS to disk")
+    time.sleep(2)
+    to_editor(live)
+    live.send_key("ctrl-k")
+    time.sleep(1)
+    live.send_chars("wros settings")
+    live.wait_until_tty_matches("1", "WrOS settings")
+    live.send_key("ret")
+    live.wait_until_tty_matches("1", "Look and keyboard|Interface")
+    choose(live, r"^System")
+    live.send_key("ret")
+    live.wait_until_tty_matches("1", "Wi-Fi and networking")
+    choose(live, r"^Storage")
+    live.send_key("ret")
+    time.sleep(1)
+    choose(live, r"Install WrOS to disk")
     live.send_key("ret")
     live.wait_until_tty_matches("1", "Cancel and remain in the live writing session")
     assert any(re.search(r"Cancel and remain", row) for row in highlighted(live)), screen(live)
@@ -52,7 +67,8 @@ pkgs.testers.runNixOSTest {
     live.succeed("[ $(fgconsole) = 1 ]")
     live.succeed("pgrep -u wros-live grimoire")
 
-    # 3. Choose to start the installer: it runs as _wros-installer on tty7
+    # 3. Open the confirmation again and choose to start the installer: it runs as
+    #    _wros-installer on tty7.
     live.send_key("ret")
     live.wait_until_tty_matches("1", "Start encrypted WrOS installer")
     choose(live, r"Start encrypted WrOS installer")
