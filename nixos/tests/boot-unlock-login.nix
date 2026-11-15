@@ -52,7 +52,7 @@ pkgs.testers.runNixOSTest {
     installed.send_chars(colemak_keys("colemak-passphrase"))
     installed.send_key("ret")
     # The start screen shows from the unlock until the login screen: pictures for the record.
-    import time
+    # (time is imported by the shared preamble.)
     for n in range(1, 5):
         time.sleep(1)
         installed.screenshot(f"start-screen-{n}")

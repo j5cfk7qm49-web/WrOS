@@ -89,13 +89,18 @@ let
     cargoLock = {
       lockFile = src + "/Cargo.lock";
     };
-    nativeBuildInputs = commonNativeBuildInputs ++ [ rustToolchain ];
+    # git: grimoire-core's writing-session history is a Git repository, and its tests make real ones.
+    nativeBuildInputs = commonNativeBuildInputs ++ [ rustToolchain pkgs.git ];
     buildInputs = commonBuildInputs;
     doCheck = true;
     checkPhase = ''
       runHook preCheck
+      export HOME="$TMPDIR"
+      git config --global user.name "WrOS test"
+      git config --global user.email "test@wros.invalid"
       cargo clippy --workspace --all-targets --locked -- -D warnings
-      cargo test --workspace --locked
+      # Every crate's tests run even after one fails, so one failure doesn't hide the rest.
+      cargo test --workspace --locked --no-fail-fast
       runHook postCheck
     '';
     installPhase = ''
