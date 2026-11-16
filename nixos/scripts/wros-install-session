@@ -52,6 +52,14 @@ FRONTEND_EXIT_GRACE_SECONDS = 10.0
 SUPERVISE_POLL_SECONDS = 0.05
 COMPLETED_BACKEND_EXIT_CODES = (0, 11)
 PROCESS_GROUP_GRACE_SECONDS = 5.0
+#: Files a run leaves behind. A new run starts without them: a leftover failure marker made
+#: every later attempt stop at once (#138).
+RUN_MARKERS = ('outcome.json', 'wros-target-failed', 'wros-target-finished', 'wros-target-proof')
+FAILURE_REASON_LIMIT = 400
+#: The worker's own mount, UTS and IPC-free namespace. No private IPC namespace: cryptsetup waits
+#: for udev through a System V semaphore, and udev (in the host namespace) could never release
+#: one made in a private namespace, so opening the new disk hung until its timeout (#136).
+UNSHARE = ('unshare', '--mount', '--uts', '--propagation=private')
 
 ENV = {
     'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
@@ -523,6 +531,41 @@ def verify_nixos_completion_proof(di_root, baseline):
     return proof
 
 
+def failure_reason(marker):
+    """The reason the backend wrote into its failure marker, or a generic one."""
+    try:
+        text = marker.read_text(encoding='utf-8', errors='replace').strip()
+    except OSError:
+        text = ''
+    text = ' '.join(text.split())[:FAILURE_REASON_LIMIT]
+    return f'installation failed: {text}' if text else 'installer finish step failed'
+
+
+def prepare_run_dir(run_dir=RUN_DIR):
+    """The run folder. World-readable (0755) because nixos-install refuses a target under a
+    folder others cannot enter (#137); the files inside stay 0600."""
+    run_dir = Path(run_dir)
+    run_dir.mkdir(mode=0o755, exist_ok=True)
+    os.chmod(run_dir, 0o755)
+    return run_dir
+
+
+def clear_run_markers(run_dir=RUN_DIR):
+    """Forget the last attempt's result. Call it holding the owner lock."""
+    for name in RUN_MARKERS:
+        (Path(run_dir) / name).unlink(missing_ok=True)
+
+
+def worker_command(unit, self_path, uid, parent, started):
+    return [
+        'systemd-run', '--quiet', '--wait', '--collect', '--service-type=exec',
+        f'--unit={unit}', '--property=KillMode=control-group',
+        f'--property=ExecStopPost={self_path} cleanup',
+        *UNSHARE,
+        str(self_path), 'worker', str(uid), str(parent), started,
+    ]
+
+
 def supervise_installer(
     frontend,
     backend,
@@ -545,7 +588,7 @@ def supervise_installer(
             return 'interrupted', 'live writing session exited during installation', None
         failed_marker = Path(di_root) / 'wros-target-failed'
         if failed_marker.is_file():
-            return 'failed', 'installer finish step failed', None
+            return 'failed', failure_reason(failed_marker), None
         frontend_code, backend_code = frontend.poll(), backend.poll()
         if frontend_code is not None and backend_code is not None:
             break
@@ -656,7 +699,7 @@ def worker(uid, parent, started):
             [str(BACKEND)],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stderr=None,  # the worker's stderr: the journal of the systemd-run unit (#135)
             env={**ENV, 'DEBCONF_READFD': str(fd), 'DEBCONF_WRITEFD': str(fd)},
             pass_fds=(fd,),
             cwd='/',
@@ -741,26 +784,20 @@ def cleanup():
 def client(owner=0):
     parent = validate_caller()
     secure_process()
-    RUN_DIR.mkdir(mode=0o700, exist_ok=True)
+    prepare_run_dir(RUN_DIR)
     lock = os.open(RUN_DIR / 'owner', os.O_CREAT | os.O_NOFOLLOW | os.O_RDWR | os.O_CLOEXEC, 0o600)
     with os.fdopen(lock, 'w'):
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         active, _, used = console_state(0)
         require(active == 1 and not (used & (1 << 7)), 'tty7 is already in use')
+        clear_run_markers(RUN_DIR)
         baseline = capture_storage_baseline(target_root=TARGET_ROOT)
         baseline['session_nonce'] = secrets.token_hex(16)
         baseline['caller_pid'] = parent
         baseline['caller_started'] = birth(parent)
         atomic_json(RUN_DIR / 'baseline.json', baseline)
-        (RUN_DIR / 'outcome.json').unlink(missing_ok=True)
         subprocess.run(
-            [
-                'systemd-run', '--quiet', '--wait', '--collect', '--service-type=exec',
-                f'--unit={UNIT}', '--property=KillMode=control-group',
-                f'--property=ExecStopPost={SELF_PATH} cleanup',
-                'unshare', '--mount', '--uts', '--ipc', '--propagation=private',
-                str(SELF_PATH), 'worker', str(UID), str(parent), birth(parent),
-            ],
+            worker_command(UNIT, SELF_PATH, UID, parent, birth(parent)),
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             env=ENV, check=False,
         )

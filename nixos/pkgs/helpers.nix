@@ -219,7 +219,9 @@ pkgs.stdenv.mkDerivation {
       --replace-fail "/usr/sbin:/usr/bin:/sbin:/bin" "${safePath}"
 
     substituteInPlace "$out/libexec/wros-installer-backend" \
-      --replace-fail "/usr/libexec/wros-install-core" "$out/libexec/wros-install-core"
+      --replace-fail "/usr/libexec/wros-install-core" "$out/libexec/wros-install-core" \
+      --replace-fail "/usr/bin/loadkeys" "${pkgs.kbd}/bin/loadkeys" \
+      --replace-fail "/usr/share/wros/keymaps" "${wros-keymaps}/share/wros/keymaps"
 
     substituteInPlace "$out/libexec/wros-install-session" \
       --replace-fail "ctypes.CDLL('libsystemd.so.0')" "ctypes.CDLL('${pkgs.systemd}/lib/libsystemd.so.0')" \

@@ -19,6 +19,7 @@ stdin pipe (never argv or env) to /usr/libexec/wros-install-core.
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 
@@ -27,6 +28,16 @@ BASELINE_JSON = Path('/run/wros-installer/baseline.json')
 PROOF_OUT = Path('/run/wros-installer/wros-target-proof')
 FINISHED_OUT = Path('/run/wros-installer/wros-target-finished')
 FAILED_OUT = Path('/run/wros-installer/wros-target-failed')
+LOADKEYS = '/usr/bin/loadkeys'
+KEYMAPS_DIR = Path('/usr/share/wros/keymaps')
+INSTALLER_CONSOLE = '/dev/tty7'
+# The same rules wros-install-core enforces; checked here so a bad answer is asked again
+# instead of failing after the erase confirmation (#139).
+USERNAME_RE = re.compile(r'^[a-z_][a-z0-9_-]{0,31}$')
+HOSTNAME_RE = re.compile(r'^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$')
+RESERVED_USERNAMES = ('root', 'wros-live', 'live', 'builder', '_wros-installer', '_greetd')
+STEP_PREFIX = 'wros-step '
+REASON_LIMIT = 400
 
 
 def escape(text):
@@ -72,7 +83,55 @@ class PassthroughChannel:
         return answer
 
 
-def run_dialog(channel, target_disk, session_nonce, core_runner=None, target_identity=None):
+def hostname_problem(name):
+    if HOSTNAME_RE.fullmatch(name) is None:
+        return ('Use lowercase letters, numbers and hyphens only, starting and ending with a '
+                'letter or number (for example: wros).')
+    return None
+
+
+def username_problem(name):
+    if USERNAME_RE.fullmatch(name) is None:
+        return ('Use lowercase letters, numbers, hyphens and underscores only, starting with a '
+                'letter, at most 32 characters (for example: writer).')
+    if name in RESERVED_USERNAMES:
+        return f'{name} is reserved by WrOS. Choose another name.'
+    return None
+
+
+def password_problem(value):
+    if len(value) < 8:
+        return 'Use at least 8 characters.'
+    if len(value) > 512 or '\n' in value or '\0' in value:
+        return 'Use at most 512 characters, on one line.'
+    return None
+
+
+def apply_live_layout(layout, run=subprocess.run):
+    """Switch the installer's own keyboard to the chosen layout at once, so the passwords typed
+    next are the ones the unlock screen will expect (#133). Best effort: the install goes on
+    with the old layout if the keymap cannot be loaded."""
+    path = KEYMAPS_DIR / f'{layout}.map'
+    if not path.is_file():
+        return False
+    try:
+        res = run([LOADKEYS, '--unicode', f'--console={INSTALLER_CONSOLE}', str(path)],
+                  stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                  check=False, timeout=20)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return res.returncode == 0
+
+
+def redact(text, secrets):
+    for secret in secrets:
+        if secret:
+            text = text.replace(secret, '[hidden]')
+    return text
+
+
+def run_dialog(channel, target_disk, session_nonce, core_runner=None, target_identity=None,
+               layout_runner=None):
     channel.send('CAPB backup')
     channel.send('TITLE Install WrOS')
 
@@ -94,6 +153,7 @@ def run_dialog(channel, target_disk, session_nonce, core_runner=None, target_ide
         'luks_passphrase': '',
         'timezone': 'UTC',
     }
+    problems = {}
     idx = 0
     while idx < len(steps):
         step = steps[idx]
@@ -109,19 +169,24 @@ def run_dialog(channel, target_disk, session_nonce, core_runner=None, target_ide
             if ans is None:
                 continue
             answers['keyboard_layout'] = ans
+            (layout_runner or apply_live_layout)(ans)
             idx += 1
         elif step == 'hostname':
             ans = channel.ask(
                 'wros/hostname', 'string',
                 'Appliance hostname',
-                'Choose a short network name for this WrOS writing appliance.',
+                problems.get('hostname') or
+                'Choose a short network name for this WrOS writing appliance: lowercase letters, '
+                'numbers and hyphens (for example: wros).',
                 default=answers['hostname'],
             )
             if ans is None:
                 idx = max(0, idx - 1)
                 continue
             answers['hostname'] = ans.strip() or 'wros'
-            idx += 1
+            problems['hostname'] = hostname_problem(answers['hostname'])
+            if problems['hostname'] is None:
+                idx += 1
         elif step == 'full_name':
             ans = channel.ask(
                 'wros/full_name', 'string',
@@ -138,6 +203,7 @@ def run_dialog(channel, target_disk, session_nonce, core_runner=None, target_ide
             ans = channel.ask(
                 'wros/username', 'string',
                 'Writer account username',
+                problems.get('username') or
                 'Enter a lowercase login name (for example: writer).',
                 default=answers['username'],
             )
@@ -145,29 +211,38 @@ def run_dialog(channel, target_disk, session_nonce, core_runner=None, target_ide
                 idx = max(0, idx - 1)
                 continue
             answers['username'] = ans.strip() or 'writer'
-            idx += 1
+            problems['username'] = username_problem(answers['username'])
+            if problems['username'] is None:
+                idx += 1
         elif step == 'user_password':
             ans = channel.ask(
                 'wros/user_password', 'password',
                 'Writer account password',
+                problems.get('user_password') or
                 'Choose a password (at least 8 characters) for signing in and approving system settings.',
             )
             if ans is None:
                 idx = max(0, idx - 1)
                 continue
             answers['user_password'] = ans
-            idx += 1
+            problems['user_password'] = password_problem(ans)
+            if problems['user_password'] is None:
+                idx += 1
         elif step == 'luks_passphrase':
             ans = channel.ask(
                 'wros/luks_passphrase', 'password',
                 'Disk encryption passphrase',
-                f'Choose the LUKS2 encryption passphrase for /dev/{target_disk}. Required at every boot.',
+                problems.get('luks_passphrase') or
+                f'Choose the LUKS2 encryption passphrase for /dev/{target_disk} (at least 8 characters). '
+                'Required at every boot.',
             )
             if ans is None:
                 idx = max(0, idx - 1)
                 continue
             answers['luks_passphrase'] = ans
-            idx += 1
+            problems['luks_passphrase'] = password_problem(ans)
+            if problems['luks_passphrase'] is None:
+                idx += 1
         elif step == 'confirm':
             ans = channel.ask(
                 'wros/confirm_erase', 'boolean',
@@ -185,7 +260,7 @@ def run_dialog(channel, target_disk, session_nonce, core_runner=None, target_ide
     channel.define('wros/progress', 'text', 'Installing WrOS',
                    'Encrypting the disk and copying WrOS onto it. This takes a few minutes.')
     channel.send('PROGRESS START 0 100 wros/progress')
-    channel.send('PROGRESS STEP 20')
+    channel.send('PROGRESS SET 20')
 
     payload = {
         'target_disk': target_disk,
@@ -193,8 +268,21 @@ def run_dialog(channel, target_disk, session_nonce, core_runner=None, target_ide
         'session_nonce': session_nonce,
         **answers,
     }
-    runner = core_runner or _default_core_runner
-    proof = runner(payload)
+    if core_runner is None:
+        def core_runner(payload):
+            return _default_core_runner(payload, lambda percent, text: show_step(channel, percent, text))
+    try:
+        proof = core_runner(payload)
+    except Exception as exc:
+        reason = redact(str(exc), (answers['user_password'], answers['luks_passphrase']))
+        reason = reason if len(reason) <= REASON_LIMIT else reason[:REASON_LIMIT] + '…'
+        channel.send('PROGRESS STOP')
+        # Shown before the failure marker is written: the session closes the screens as soon as
+        # it sees the marker (#135).
+        channel.ask('wros/failed', 'note', 'WrOS was not installed',
+                    f'{reason}\n\nThe live session will return, and you can try again.')
+        FAILED_OUT.write_text(reason + '\n', encoding='utf-8')
+        raise RuntimeError(reason) from None
     channel.send('PROGRESS SET 100')
     channel.send('PROGRESS STOP')
     channel.ask(
@@ -205,17 +293,46 @@ def run_dialog(channel, target_disk, session_nonce, core_runner=None, target_ide
     return proof
 
 
-def _default_core_runner(payload):
-    res = subprocess.run(
+def show_step(channel, percent, text):
+    channel.define('wros/step', 'text', text, '')
+    channel.send('PROGRESS INFO wros/step')
+    channel.send(f'PROGRESS SET {max(0, min(100, int(percent)))}')
+
+
+def follow_core(stderr_lines, on_step):
+    """Pass "wros-step N TEXT" lines to the screen; keep the rest for the error and the log."""
+    kept = []
+    for raw in stderr_lines:
+        line = raw.decode('utf-8', 'replace') if isinstance(raw, bytes) else raw
+        line = line.rstrip('\n')
+        if line.startswith(STEP_PREFIX):
+            percent, _, text = line[len(STEP_PREFIX):].partition(' ')
+            if percent.isdigit():
+                on_step(int(percent), text.strip())
+                continue
+        if line:
+            print(line, file=sys.stderr, flush=True)  # the session sends this to the journal
+            kept.append(line)
+            del kept[:-20]
+    return kept
+
+
+def _default_core_runner(payload, on_step=lambda percent, text: None):
+    process = subprocess.Popen(
         [INSTALL_CORE],
-        input=json.dumps(payload).encode('utf-8'),
-        capture_output=True,
-        check=False,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
-    if res.returncode != 0:
-        FAILED_OUT.write_text('wros-install-core\n', encoding='utf-8')
-        raise RuntimeError(res.stderr.decode('utf-8', 'replace').strip() or 'install-core failed')
-    proof = json.loads(res.stdout.decode('utf-8'))
+    process.stdin.write(json.dumps(payload).encode('utf-8'))
+    process.stdin.close()
+    kept = follow_core(process.stderr, on_step)
+    out = process.stdout.read()
+    code = process.wait()
+    if code != 0:
+        message = kept[-1] if kept else f'install-core exited with status {code}'
+        raise RuntimeError(message.removeprefix('wros-install-core: '))
+    proof = json.loads(out.decode('utf-8'))
     PROOF_OUT.write_text(json.dumps(proof, sort_keys=True) + '\n', encoding='utf-8')
     os.chmod(PROOF_OUT, 0o600)
     FINISHED_OUT.write_text('completed\n', encoding='utf-8')

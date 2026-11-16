@@ -23,6 +23,12 @@ in
   isoImage.makeEfiBootable = true;
   isoImage.makeUsbBootable = true;
 
+  # A stick written by copying the ISO's files (Rufus's default "ISO image mode") holds the same
+  # files and label on FAT32, not ISO 9660. Mount whatever filesystem carries the label (#132);
+  # vfat and the code pages it needs are in the initrd (hardware.nix).
+  fileSystems."/iso".fsType = lib.mkForce "auto";
+  fileSystems."/iso".options = lib.mkForce [ "ro" ];
+
   # WrOS branding on the medium: file name, boot menu entry (rc13's wording, now with the version),
   # the logo above the UEFI menu, and the logo and colours behind the legacy-BIOS menu.
   image.baseName = lib.mkForce "wros-${config.system.nixos.label}-x86_64";

@@ -42,9 +42,22 @@ GRUBENV_HEADER = '# GRUB Environment Block\n'
 GRUBENV_INITIAL = (GRUBENV_HEADER + ('#' * (1024 - len(GRUBENV_HEADER)))).encode('ascii')
 
 
+#: nixos-install copies about 3 GiB from the live medium; a slow USB stick and eMMC can take
+#: most of half an hour (#134).
+COPY_TIMEOUT = 3600
+#: Each step is announced on stderr as "wros-step PERCENT TEXT" for the installer screen (#134).
+STEP_PREFIX = 'wros-step'
+
+
 def require(condition, message='install-core precondition failed'):
     if not condition:
         raise ValueError(message)
+
+
+def step(percent, text, stream=None):
+    """Tell the installer screen which step is running (one line on stderr)."""
+    stream = sys.stderr if stream is None else stream
+    print(f'{STEP_PREFIX} {int(percent)} {text}', file=stream, flush=True)
 
 
 def read_credentials_from_stream(stream=None):
@@ -169,9 +182,20 @@ def run_cmd(argv, *, input_bytes=None, timeout=600):
         check=False,
     )
     if res.returncode != 0:
-        err = (res.stderr or b'').decode('utf-8', 'replace').strip()[:300]
-        raise ValueError(f'{Path(argv[0]).name} failed ({res.returncode}): {err}')
+        raise ValueError(f'{Path(argv[0]).name} failed ({res.returncode}): {command_output(res)}')
     return res.stdout.decode('utf-8', 'replace').strip()
+
+
+def command_output(res, limit=600):
+    """The end of a failed command's output. Tools such as nixos-install report on stdout,
+    so both streams are kept (#137); the end is where the reason is."""
+    parts = []
+    for raw in (res.stderr, res.stdout):
+        text = (raw or b'').decode('utf-8', 'replace').strip()
+        if text:
+            parts.append(text)
+    text = ' | '.join(parts)
+    return text if len(text) <= limit else '…' + text[-limit:]
 
 
 def atomic_write(path, data, mode=0o644):
@@ -238,12 +262,14 @@ def install_target(params, *, target_root=DEFAULT_TARGET_ROOT, closure_file=DEFA
     # can sign in to: the firmware passes over it, and the installer erases it again next time.
 
     # 1. Partition GPT: 512 MiB EFI System Partition (WROS-ESP) + rest Linux LUKS2 (WROS-LUKS)
+    step(22, 'Partitioning the disk')
     runner(['sgdisk', '--zap-all', disk_dev])
     runner(['sgdisk', '-n', '1:1MiB:+512MiB', '-t', '1:ef00', '-c', '1:WROS-ESP',
             '-n', '2:0:0', '-t', '2:8309', '-c', '2:WROS-LUKS', disk_dev])
     runner(['udevadm', 'settle'])
 
     # 2. Format FAT32 ESP and LUKS2 container (passphrase on stdin stream, never argv/env)
+    step(26, 'Encrypting the disk')
     runner(['mkfs.vfat', '-F', '32', '-n', 'WROS-ESP', esp_part])
     runner(
         ['cryptsetup', 'luksFormat', '--batch-mode', '--type', 'luks2',
@@ -254,6 +280,7 @@ def install_target(params, *, target_root=DEFAULT_TARGET_ROOT, closure_file=DEFA
         ['cryptsetup', 'open', '--type', 'luks2', '--key-file', '-', luks_part, 'wros_crypt'],
         input_bytes=params['luks_passphrase'].encode('utf-8'),
     )
+    step(32, 'Preparing the encrypted disk')
     runner(['mkfs.ext4', '-F', '-L', 'WROS-ROOT', '/dev/mapper/wros_crypt'])
 
     # 3. Mount WROS-ROOT and WROS-ESP under target_root
@@ -265,10 +292,12 @@ def install_target(params, *, target_root=DEFAULT_TARGET_ROOT, closure_file=DEFA
 
     # 4. Install pre-built NixOS closure offline with no channel copy and locked root. The boot
     #    loader waits for step 6.
+    step(35, 'Copying WrOS onto the disk. This is the longest step: up to half an hour from a slow USB stick')
     runner(['nixos-install', '--root', str(target_root), '--system', closure,
-            '--no-channel-copy', '--no-root-passwd', '--no-bootloader'], timeout=1800)
+            '--no-channel-copy', '--no-root-passwd', '--no-bootloader'], timeout=COPY_TIMEOUT)
 
     # 5. Seed mutable state files, initialize /boot/grub/grubenv, and create writer account
+    step(85, 'Creating your account')
     seed_mutable_target_state(target_root, params)
     runner(['grub-editenv', str(target_root / 'boot/grub/grubenv'), 'create'])
     runner(['nixos-enter', '--root', str(target_root), '--',
@@ -286,6 +315,7 @@ def install_target(params, *, target_root=DEFAULT_TARGET_ROOT, closure_file=DEFA
     #    of inside nixos-install so that it comes after the account: GRUB needs an mtab, and the
     #    target is bind-mounted at its own path inside the chroot so paths used while building
     #    the menu stay valid.
+    step(92, 'Installing the boot loader')
     mtab = target_root / 'etc/mtab'
     if mtab.is_symlink() or mtab.exists():
         mtab.unlink()
