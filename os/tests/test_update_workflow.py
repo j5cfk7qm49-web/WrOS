@@ -32,6 +32,7 @@ PIN = (ROOT / 'os/config/update-trust/update-signers').read_text().split()[0]
 class Workflow(unittest.TestCase):
     def test_triggers_secrets_and_signing_inputs_are_fixed(self):
         for needle in ("tags: ['v*', '!v*-linktest*']", 'schedule:', 'workflow_dispatch:', 'scratch:',
+                       'nixos_release:',
                        'secrets.WROS_UPDATE_SIGNING_SUBKEY', 'actions/deploy-pages',
                        'tools/build-update-bundle.py', '--valid-days 21',
                        '--expect-fingerprint "$PIN"', 'os/config/update-trust/update-signers',
@@ -84,7 +85,14 @@ def workflow_script(name):
     return textwrap.dedent(block.split('run: |\n', 1)[1])
 
 
-def plan(event, *, ref='', signing=False, scratch=False, release=''):
+def job_env(name):
+    return re.search(rf'^      {name}: (\S+)$', WORKFLOW, re.M).group(1)
+
+
+DEBIAN_RELEASE = job_env('DEBIAN_RELEASE')
+
+
+def plan(event, *, ref='', signing=False, scratch=False, release='', nixos=''):
     """Run the workflow's 'Plan this run' step as GitHub would, returning its outputs."""
     script = workflow_script('Plan this run')
     with tempfile.TemporaryDirectory(prefix='wros-plan-') as tmp:
@@ -92,7 +100,8 @@ def plan(event, *, ref='', signing=False, scratch=False, release=''):
         output.touch()
         env = {'PATH': os.environ['PATH'], 'GITHUB_EVENT_NAME': event, 'GITHUB_REF_NAME': ref,
                'GITHUB_OUTPUT': str(output), 'SIGNING': 'true' if signing else 'false',
-               'SCRATCH': 'true' if scratch else 'false', 'RELEASE': release}
+               'SCRATCH': 'true' if scratch else 'false', 'RELEASE': release, 'NIXOS': nixos,
+               'DEBIAN_RELEASE': DEBIAN_RELEASE, 'DEBIAN_VERSION': job_env('DEBIAN_VERSION')}
         result = subprocess.run(['bash', '-c', script], cwd=ROOT, env=env, capture_output=True, text=True)
         if result.returncode != 0:
             raise ValueError(result.stderr)
@@ -100,29 +109,53 @@ def plan(event, *, ref='', signing=False, scratch=False, release=''):
 
 
 class Plan(unittest.TestCase):
-    def test_tags_use_the_offline_asset_even_with_a_subkey_and_refresh_requires_a_subkey(self):
+    def test_every_deploy_serves_a_nixos_release_beside_the_debian_channel(self):
+        self.assertEqual(DEBIAN_RELEASE, 'v0.1.0-rc13')
         cases = [
-            # event, options -> build, release, sign, deploy
-            # From rc14 the tree's own tag is a NixOS release with no Debian bundle: updates/ is
-            # not replaced, only re-signed when signing is set up (as a weekly refresh is).
-            (('push', dict(ref=TAG, signing=True)), ('', '', 'true', 'true')),
-            (('push', dict(ref=TAG)), ('', '', 'false', 'false')),
-            (('schedule', dict(signing=True)), ('', '', 'true', 'true')),
-            (('schedule', {}), ('', '', 'false', 'false')),
-            (('workflow_dispatch', dict(scratch=True, signing=True)), ('updates-scratch', '', 'true', 'true')),
-            (('workflow_dispatch', dict(scratch=True)), ('', '', 'false', 'false')),
-            (('workflow_dispatch', dict(release=TAG, signing=True)), ('', TAG, 'false', 'true')),
-            (('workflow_dispatch', dict(release=TAG)), ('', TAG, 'false', 'true')),
+            # event, options -> build, release, nixos, sign, deploy
+            # From rc14 the tree's own tag is a NixOS release: it is served as nixos-updates/,
+            # and the Debian channel goes out beside it, from rc13's offline-signed asset as it
+            # is, or re-signed when signing is set up.
+            (('push', dict(ref=TAG)), ('', DEBIAN_RELEASE, TAG, 'false', 'true')),
+            (('push', dict(ref=TAG, signing=True)), ('', '', TAG, 'true', 'true')),
+            (('workflow_dispatch', dict(nixos=TAG)), ('', DEBIAN_RELEASE, TAG, 'false', 'true')),
+            (('workflow_dispatch', dict(nixos=TAG, signing=True)), ('', '', TAG, 'true', 'true')),
+            # Naming no NixOS release deploys nothing: Pages would lose nixos-updates/.
+            (('schedule', dict(signing=True)), ('', '', '', 'false', 'false')),
+            (('schedule', {}), ('', '', '', 'false', 'false')),
+            (('workflow_dispatch', dict(scratch=True, signing=True)), ('', '', '', 'false', 'false')),
+            (('workflow_dispatch', dict(scratch=True)), ('', '', '', 'false', 'false')),
+            (('workflow_dispatch', dict(release=TAG)), ('', '', '', 'false', 'false')),
         ]
         for (event, options), expected in cases:
             with self.subTest(event=event, **options):
                 out = plan(event, **options)
-                self.assertEqual((out['build'], out['release'], out['sign'], out['deploy']), expected)
-        self.assertEqual(plan('workflow_dispatch', release=TAG)['version'], TREE)
-        self.assertEqual(plan('push', ref=TAG)['version'], '', 'a NixOS tag serves no Debian version')
+                self.assertEqual(
+                    (out['build'], out['release'], out['nixos'], out['sign'], out['deploy']), expected)
+        pushed = plan('push', ref=TAG)
+        self.assertEqual(pushed['version'], job_env('DEBIAN_VERSION'))
+        self.assertEqual(pushed['nixos_version'], TREE)
+        self.assertEqual(plan('workflow_dispatch', nixos=TAG)['nixos_version'], TREE)
         # A release must name the version in the tree it is published from.
         with self.assertRaisesRegex(ValueError, 'os/VERSION'):
+            plan('workflow_dispatch', nixos='v9.9.9')
+        with self.assertRaisesRegex(ValueError, 'os/VERSION'):
             plan('workflow_dispatch', release='v9.9.9')
+
+    def test_a_deploy_is_all_or_nothing(self):
+        step = WORKFLOW.split('- name: Static pages', 1)[1].split('\n      - ', 1)[0]
+        for part in ('updates/InRelease', 'nixos-updates/InRelease', 'nixos-updates/closure-manifest.json',
+                     'l/index.html'):
+            self.assertIn(part, step)
+        nixos = WORKFLOW.split("- name: Serve the NixOS release's offline-signed channel", 1)[1]
+        nixos = nixos.split('\n      - ', 1)[0]
+        self.assertIn("if: steps.plan.outputs.nixos != ''", nixos)
+        self.assertIn('releases/download/$NIXOS/wros-nixos-updates.tar', nixos)
+        self.assertIn('tools/publish-nixos-updates.py check-bundle', nixos)
+        self.assertIn('-size +99M', nixos)
+        self.assertLess(WORKFLOW.index("Serve the NixOS release"), WORKFLOW.index('- name: Static pages'))
+        self.assertFalse((ROOT / '.github/workflows/release-nixos-updates.yml').exists(),
+                         'a second Pages workflow would replace this one\'s deploys')
 
 
 class CheckBundle(unittest.TestCase):

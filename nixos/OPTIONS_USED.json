@@ -360,6 +360,11 @@
     "used_in": "nixos/modules/guards.nix"
   },
   {
+    "option": "security.sudo.execWheelOnly",
+    "declared_in": "nixos/modules/security/sudo.nix",
+    "used_in": "nixos/modules/guards.nix"
+  },
+  {
     "option": "security.pam.services",
     "declared_in": "nixos/modules/security/pam.nix",
     "used_in": "nixos/modules/guards.nix"

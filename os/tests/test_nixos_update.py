@@ -57,7 +57,7 @@ class NixosUpdateEngineTests(unittest.TestCase):
 
     def _make_signed_bundle(self, root, *, version='0.1.0~rc14',
                             toplevel='/nix/store/0123456789abcdfghijklmnpqrsvwxyz-nixos-system-wros-0.1.0-rc14',
-                            moment=None, tamper_nar=False):
+                            moment=None, tamper_nar=False, baseline=None):
         moment = moment or datetime(2026, 11, 14, 12, 0, tzinfo=timezone.utc)
         until = moment + timedelta(days=14)
         gnupg = root / 'gnupg'
@@ -111,7 +111,7 @@ class NixosUpdateEngineTests(unittest.TestCase):
             'version': version,
             'system': 'x86_64-linux',
             'toplevel': toplevel,
-            'baseline': None,
+            'baseline': baseline,
             'app_only': False,
             'cache_files': [
                 {
@@ -151,6 +151,36 @@ class NixosUpdateEngineTests(unittest.TestCase):
                         '--output', str(bundle / 'InRelease'), str(bundle / 'Release')],
                        env=env, check=True)
         return bundle, keyring, signers, moment
+
+    def test_ci_accepts_a_signed_delta_without_a_nix_store(self):
+        """The Pages workflow checks a release's delta bundle on a runner with no Nix store;
+        the release it updates from only has to exist on the machines being updated."""
+        import tarfile
+        spec = importlib.util.spec_from_file_location(
+            'publish_nixos_updates', ENGINE_PATH.parents[2] / 'tools/publish-nixos-updates.py')
+        publish = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(publish)
+        with tempfile.TemporaryDirectory(prefix='wros-nixos-publish-') as tmp:
+            root = Path(tmp)
+            baseline = '/nix/store/abcdfghijklmnpqrsvwxyz0123456789-nixos-system-unnamed-0.1.0-rc14'
+            now = datetime.now(timezone.utc) - timedelta(minutes=2)
+            for name, tamper in (('good', False), ('bad', True)):
+                work = root / name
+                work.mkdir()
+                bundle, keyring, signers, _ = self._make_signed_bundle(
+                    work, version='0.1.0~rc15', moment=now, baseline=baseline, tamper_nar=tamper)
+                tar = work / 'wros-nixos-updates.tar'
+                with tarfile.open(tar, 'w') as archive:
+                    for item in sorted(bundle.rglob('*')):
+                        archive.add(item, arcname=item.relative_to(bundle).as_posix(), recursive=False)
+                check = lambda: publish.check_bundle(tar, work / 'site/nixos-updates', '0.1.0~rc15',
+                                                     keyring=keyring, pin=signers)
+                if tamper:
+                    with self.assertRaisesRegex(ValueError, 'SHA-256'):
+                        check()
+                else:
+                    self.assertEqual(check()['version'], '0.1.0~rc15')
+                    self.assertTrue((work / 'site/nixos-updates/InRelease').is_file())
 
     def test_downgrade_and_equal_version_refused_on_fresh_install(self):
         with tempfile.TemporaryDirectory(prefix='wros-nixos-ver-') as tmp:

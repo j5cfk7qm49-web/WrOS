@@ -1,11 +1,14 @@
 name: release-updates
 
-# Publish the qualified release package to GitHub Pages as a flat apt repository.
-# Design: docs/archive/superpowers/specs/2026-11-01-online-wros-updates-design.md
+# Publish WrOS's online updates to GitHub Pages: the NixOS channel (nixos-updates/, from rc14),
+# the Debian channel rc13 machines use (updates/, a flat apt repository), and the static pages.
+# Design: docs/archive/superpowers/specs/2026-11-01-online-wros-updates-design.md, docs/NIXOS_UPDATES.md
 #
-# Pages replaces the whole site on every deploy, so each run republishes the live
-# updates/ folder: a tag serves its offline-signed asset, and a refresh re-signs the packages already there
-# (after checking them against the committed keyring and pin).
+# Pages replaces the whole site on every deploy, so every deploy carries all three parts or none:
+# it names the NixOS release it serves (the pushed NixOS tag, or nixos_release when dispatched),
+# serves the Debian channel from DEBIAN_RELEASE's offline-signed asset as it is (or re-signs the
+# live one when signing is set up), and copies the static pages. A run that names no NixOS
+# release deploys nothing, since it would remove the NixOS channel.
 #
 # Until the WROS_UPDATE_SIGNING_SUBKEY secret is set, CI signs nothing: a release tag
 # (or a dispatch naming one) serves the release's wros-updates.tar asset, signed offline
@@ -25,6 +28,10 @@ on:
         default: true
       release:
         description: Serve this release tag's wros-updates.tar as updates/ (signed offline), instead
+        type: string
+        default: ''
+      nixos_release:
+        description: Serve this NixOS release tag's wros-nixos-updates.tar as nixos-updates/ (needed to deploy)
         type: string
         default: ''
 
@@ -48,6 +55,9 @@ jobs:
       RUSTUP_HOME: /opt/rustup
       DEBIAN_FRONTEND: noninteractive
       UPDATE_URL: https://j5cfk7qm49-web.github.io/WrOS/updates/
+      # The last Debian release; its asset is what rc13 machines keep being served.
+      DEBIAN_RELEASE: v0.1.0-rc13
+      DEBIAN_VERSION: 0.1.0~rc13
     steps:
       - name: Debian prerequisites
         run: |
@@ -66,21 +76,28 @@ jobs:
           SIGNING: ${{ secrets.WROS_UPDATE_SIGNING_SUBKEY != '' }}
           SCRATCH: ${{ inputs.scratch }}
           RELEASE: ${{ inputs.release }}
+          NIXOS: ${{ inputs.nixos_release }}
         run: |
           set -euo pipefail
           build=''
           version=''
           release=''
+          nixos=''
+          nixos_version=''
           if [ "$GITHUB_EVENT_NAME" = push ]; then
-            version=$(python3 tools/publish-updates.py version "$GITHUB_REF_NAME")
-            release=$GITHUB_REF_NAME
-            # From 0.1.0~rc14 WrOS is NixOS and carries no Debian bundle. Debian machines (rc13)
-            # stay on this channel as it is; it is only re-signed, below, when signing is set up.
-            if dpkg --compare-versions "$version" ge '0.1.0~rc14'; then
-              echo "::notice::$GITHUB_REF_NAME is a NixOS release; the Debian updates/ channel is not replaced"
-              version=''
-              release=''
+            tagged=$(python3 tools/publish-updates.py version "$GITHUB_REF_NAME")
+            # From 0.1.0~rc14 WrOS is NixOS: its tag publishes the NixOS channel, and Debian
+            # machines (rc13) stay on the Debian channel as it is.
+            if dpkg --compare-versions "$tagged" ge '0.1.0~rc14'; then
+              nixos=$GITHUB_REF_NAME
+              nixos_version=$tagged
+            else
+              version=$tagged
+              release=$GITHUB_REF_NAME
             fi
+          elif [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ -n "$NIXOS" ]; then
+            nixos_version=$(python3 tools/publish-nixos-updates.py version "$NIXOS")
+            nixos=$NIXOS
           elif [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ -n "$RELEASE" ]; then
             version=$(python3 tools/publish-updates.py version "$RELEASE")
             release=$RELEASE
@@ -90,18 +107,27 @@ jobs:
           fi
           sign=false
           deploy=false
-          if [ -n "$release" ]; then
-            deploy=true
-          elif [ "$SIGNING" = true ]; then
-            sign=true
-            deploy=true
+          if [ -z "$nixos" ]; then
+            # Deploying without nixos-updates/ would remove the NixOS channel from Pages.
+            echo "::notice::No NixOS release named: nothing is deployed; Pages keeps the last deploy"
+            build=''
+            version=''
+            release=''
           else
-            echo "::notice::No signing subkey: nothing is signed or deployed; Pages keeps the last deploy"
+            deploy=true
+            if [ "$SIGNING" = true ]; then
+              sign=true
+            else
+              release=$DEBIAN_RELEASE
+              version=$DEBIAN_VERSION
+            fi
           fi
           {
             echo "build=$build"
             echo "version=$version"
             echo "release=$release"
+            echo "nixos=$nixos"
+            echo "nixos_version=$nixos_version"
             echo "sign=$sign"
             echo "deploy=$deploy"
           } >> "$GITHUB_OUTPUT"
@@ -144,6 +170,29 @@ jobs:
           done
           python3 -I tools/publish-updates.py check-bundle out/wros-updates.tar out/pages/updates "$VERSION"
           find out/pages -type f | sort
+      - name: Serve the NixOS release's offline-signed channel
+        if: steps.plan.outputs.nixos != ''
+        shell: bash
+        env:
+          NIXOS: ${{ steps.plan.outputs.nixos }}
+          NIXOS_VERSION: ${{ steps.plan.outputs.nixos_version }}
+        run: |
+          set -euo pipefail
+          mkdir -p out/pages
+          for attempt in $(seq 1 30); do
+            if curl -fsSL --proto '=https' -o out/wros-nixos-updates.tar \
+                "https://github.com/$GITHUB_REPOSITORY/releases/download/$NIXOS/wros-nixos-updates.tar"; then
+              break
+            fi
+            [ "$attempt" -lt 30 ] || { echo "no wros-nixos-updates.tar on release $NIXOS" >&2; exit 1; }
+            sleep 20
+          done
+          python3 -I tools/publish-nixos-updates.py check-bundle out/wros-nixos-updates.tar out/pages/nixos-updates "$NIXOS_VERSION"
+          # rc14's updater downloads only from Pages (it refuses redirects, so no release
+          # assets), and Pages refuses files over 100 MB.
+          big=$(find out/pages/nixos-updates -type f -size +99M)
+          [ -z "$big" ] || { echo "too large for Pages: $big" >&2; exit 1; }
+          du -sh out/pages/nixos-updates
       - name: Import the CI signing subkey
         if: steps.plan.outputs.sign == 'true'
         shell: bash
@@ -209,6 +258,12 @@ jobs:
           set -euo pipefail
           mkdir -p out/pages
           cp -r pages/. out/pages/
+          # All or nothing: this deploy replaces everything that was on Pages.
+          for part in index.html l/index.html updates/InRelease nixos-updates/InRelease nixos-updates/closure-manifest.json; do
+            [ -f "out/pages/$part" ] || { echo "Pages would lack $part" >&2; exit 1; }
+          done
+          total=$(du -sm out/pages | cut -f1)
+          [ "$total" -lt 950 ] || { echo "Pages would hold ${total} MB; it allows 1 GB" >&2; exit 1; }
           find out/pages -type f | sort
       - uses: actions/upload-pages-artifact@v5
         if: steps.plan.outputs.deploy == 'true'

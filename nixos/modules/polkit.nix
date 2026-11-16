@@ -165,5 +165,22 @@ in
     ${builtins.readFile "${wrosRoot}/os/config/50-wros-timezone.rules"}
     ${builtins.readFile "${wrosRoot}/os/config/50-wros-update.rules"}
     ${builtins.readFile "${wrosRoot}/os/config/51-wros-greeter-keyboard.rules"}
+
+    // Joining and forgetting Wi-Fi networks (#141). Debian builds NetworkManager with
+    // modify_system, so the person at the laptop never needed a password for this; NixOS's build
+    // asks for admin authentication, and nmcli's agent then fails (its helper path,
+    // /run/wrappers/bin/polkit-agent-helper-1, is not installed now that polkit's helper is
+    // socket-activated). Grant exactly what the app's nmcli calls need, to the active local
+    // session of a wros member, as Debian did.
+    polkit.addRule(function(action, subject) {
+        var actions = ["org.freedesktop.NetworkManager.settings.modify.system",
+                       "org.freedesktop.NetworkManager.network-control",
+                       "org.freedesktop.NetworkManager.enable-disable-wifi",
+                       "org.freedesktop.NetworkManager.wifi.scan"];
+        if (actions.indexOf(action.id) >= 0 && subject.local && subject.active &&
+            subject.isInGroup("wros")) {
+            return polkit.Result.YES;
+        }
+    });
   '';
 }

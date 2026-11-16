@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.1.0~rc15 · The first online update
+
+rc15 is the first release delivered as an update: an rc14 laptop finds it under Settings →
+Updates and installs it as a new generation, keeping rc14 to go back to. It carries only fixes
+to the installed system; the installer fixes found while installing rc14 on the HP Stream
+(#132–#139) follow in rc16, so install from the rc14 stick and update.
+
+- **sudo.** The writer administers the laptop with `sudo` and their own password, as on Debian;
+  root stays locked and nothing is passwordless (#142).
+- **Wi-Fi.** Joining or forgetting a network no longer fails with a polkit-agent-helper error:
+  the writer's session may change Wi-Fi without an admin prompt, as on Debian (#141).
+- **Google Drive from a phone.** The release build carries WrOS's Google sign-in clients again,
+  so Backups offers linking Drive by scanning a QR code with a phone (#140).
+- **The update channel.** `nixos-updates/` is published on GitHub Pages beside the Debian
+  `updates/` channel and the phone-link pages, in one deploy that carries all three or none.
+  The update is a delta from rc14: only what changed is downloaded.
+
 ## 0.1.0~rc14 · WrOS on NixOS
 
 WrOS now runs on NixOS 26.05 (`flake.nix`, `nixos/`) instead of Debian 13. Every rc13 feature

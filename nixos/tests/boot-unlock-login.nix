@@ -98,6 +98,27 @@ pkgs.testers.runNixOSTest {
     assert installed.succeed("su - writer -c 'id -u'").strip() == "1000"
     installed.succeed("loginctl list-sessions --no-legend | grep -q 'writer'")
 
+    # 4a. rc15: the writer administers the laptop with sudo behind their own password (#142)
+    #     and root stays locked; the writer's session joins Wi-Fi without a password prompt
+    #     (#141). pkcheck asks polkit about the running grimoire, which sits in the writer's
+    #     active session, exactly as nmcli's request from the app is judged.
+    installed.fail("su - writer -c 'sudo -n true'")
+    installed.succeed("su - writer -c 'echo writer-secret-password | sudo -S -p \"\" true'")
+    installed.fail("su - writer -c 'echo wrong-password | sudo -S -p \"\" true'")
+    installed.succeed("grep -q '^root:!' /etc/shadow")
+    grimoire_pid = installed.succeed("pgrep -u writer -x grimoire | head -1").strip()
+    for action in ("settings.modify.system", "network-control", "enable-disable-wifi", "wifi.scan"):
+        installed.succeed(
+            f"${pkgs.polkit.bin}/bin/pkcheck --action-id org.freedesktop.NetworkManager.{action}"
+            f" --process {grimoire_pid}")
+    # A process outside any session (timesyncd's own system user) does not get it.
+    installed.fail(
+        "${pkgs.polkit.bin}/bin/pkcheck --action-id org.freedesktop.NetworkManager.settings.modify.system"
+        " --process $(pgrep -x systemd-timesyn | head -1)")
+    # A test build carries no Google clients: the phone QR option stays hidden (#140; the
+    # release build is checked for the file before it is signed).
+    installed.fail("test -e /etc/wros/google-client.json")
+
     # 4b. Backups work on NixOS: an encrypted backup of a book to a local folder restores whole
     #     into a new folder. Moving from rc13 to rc14 is backup, install, restore.
     as_writer = lambda cmd: installed.succeed(f"su - writer -c '{cmd}'")

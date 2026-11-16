@@ -1,5 +1,18 @@
-{ config, lib, pkgs, wrosPkgs, version, nixpkgsRev, wrosRoot, ... }:
+{ config, lib, pkgs, wrosPkgs, version, nixpkgsRev, wrosRoot, googleClients ? null, ... }:
 let
+  # WrOS's Google clients (#140): JSON text from the release build, or null. Checked here so a
+  # malformed file fails the build instead of silently hiding the phone QR option.
+  googleClientsChecked =
+    let
+      parsed = builtins.fromJSON googleClients;
+      complete = name:
+        builtins.isAttrs (parsed.${name} or null)
+        && (parsed.${name}.client_id or "") != ""
+        && (parsed.${name}.client_secret or "") != "";
+    in
+    assert lib.assertMsg (complete "linking" && complete "mailbox")
+      "WROS_GOOGLE_CLIENTS needs linking and mailbox, each with client_id and client_secret";
+    googleClients;
   releaseText = ''
     WROS_NAME="WrOS"
     WROS_VERSION=${version}
@@ -145,6 +158,12 @@ in
 
   # Read-only release identity, installed version (U3), and seed defaults.
   environment.etc."wros/version".text = "${version}\n";
+  # wros-backup looks here (nixos/pkgs/helpers.nix); readable by all, as on Debian, since every
+  # copy of WrOS carries the same clients and the PKCE verifier is what protects a link.
+  environment.etc."wros/google-client.json" = lib.mkIf (googleClients != null) {
+    text = googleClientsChecked;
+    mode = "0644";
+  };
   environment.etc."wros/release".text = releaseText;
   environment.etc."writingdeck/release".text = legacyReleaseText;
   environment.etc."wros/defaults/keyboard.json".source = wrosRoot + "/os/config/keyboard.json";

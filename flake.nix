@@ -1,5 +1,5 @@
 {
-  description = "WrOS rc14: offline-first writing appliance on NixOS";
+  description = "WrOS rc15: offline-first writing appliance on NixOS";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/f1e5c356f35d07e7b71a6b5e6c9338e0b029e0c0";
@@ -26,6 +26,12 @@
       lib = pkgs.lib;
       version = lib.strings.trim (builtins.readFile ./os/VERSION);
 
+      # WrOS's Google clients for phone linking (#140). Kept out of the repository: a release
+      # build passes the file with WROS_GOOGLE_CLIENTS=/path and --impure. Any other build
+      # (CI, tests) has none, and the app hides the phone QR option.
+      googleClientsPath = builtins.getEnv "WROS_GOOGLE_CLIENTS";
+      googleClients = if googleClientsPath == "" then null else builtins.readFile googleClientsPath;
+
       wrosPkgs = import ./nixos/pkgs {
         inherit pkgs lib version;
         src = ./.;  # a path, not the flake string: lib.fileset.toSource requires one
@@ -34,7 +40,7 @@
       wrosSystem = nixpkgs.lib.nixosSystem {
         inherit system;
         specialArgs = {
-          inherit wrosPkgs version;
+          inherit wrosPkgs version googleClients;
           nixpkgsRev = "f1e5c356f35d07e7b71a6b5e6c9338e0b029e0c0";
           wrosRoot = self;
         };
@@ -47,7 +53,7 @@
       wrosLiveSystem = nixpkgs.lib.nixosSystem {
         inherit system;
         specialArgs = {
-          inherit wrosPkgs version;
+          inherit wrosPkgs version googleClients;
           nixpkgsRev = "f1e5c356f35d07e7b71a6b5e6c9338e0b029e0c0";
           wrosRoot = self;
           installedSystemToplevel = wrosSystem.config.system.build.toplevel;
@@ -69,7 +75,7 @@
       # The modules take their WrOS arguments through specialArgs in the two systems above. A VM
       # test node is evaluated by the test driver instead, so the same values are supplied here.
       moduleArgs = {
-        inherit wrosPkgs version;
+        inherit wrosPkgs version googleClients;
         nixpkgsRev = "f1e5c356f35d07e7b71a6b5e6c9338e0b029e0c0";
         wrosRoot = self;
         installedSystemToplevel = wrosSystem.config.system.build.toplevel;

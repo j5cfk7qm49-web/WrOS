@@ -18,9 +18,11 @@ let
       (builtins.readFile file);
 in
 {
-  # No general sudo or passwordless privilege escalation
-  security.sudo.enable = false;
+  # sudo for the writer (wheel) behind their own password, as on Debian; never passwordless, and
+  # root stays locked (#142). The design rule is "no passwordless general sudo", not "no sudo".
+  security.sudo.enable = true;
   security.sudo.wheelNeedsPassword = true;
+  security.sudo.execWheelOnly = true;
 
   # Setuid wrappers in /run/wrappers/bin: pkexec comes from security.polkit.enable and passwd from
   # NixOS's own shadow module (nixos/modules/programs/shadow.nix). Neither is redefined here.
