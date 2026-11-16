@@ -81,11 +81,35 @@ pkgs.testers.runNixOSTest {
         "user_password": "writer-secret-password",
         "session_nonce": "0123456789abcdef0123456789abcdef",
     }
-    proof = json.loads(
-        live.succeed(
-            f"printf '%s' '{json.dumps(payload)}' | /run/current-system/sw/libexec/wros-install-core"
-        )
-    )
+    # The real install goes through the installer session's own code for the two things rc14 got
+    # wrong on the HP Stream: the run folder (rc14 made it 0700, and nixos-install refused the
+    # target under it, #137; a stale failure marker blocked every later attempt, #138) and the
+    # worker's namespaces (a private IPC namespace hung cryptsetup for ten minutes, #136).
+    # Start from rc14's state: a private folder with a leftover failure marker.
+    SESSION = "/run/current-system/sw/libexec/wros-install-session"
+    live.succeed("mkdir -p /run/wros-installer && chmod 0700 /run/wros-installer"
+                 " && echo stale > /run/wros-installer/wros-target-failed")
+    live.succeed("cat > /tmp/session-path.py << 'EOF'\n"
+                 "import importlib.machinery, importlib.util, os, sys\n"
+                 f"loader = importlib.machinery.SourceFileLoader('session', '{SESSION}')\n"
+                 "session = importlib.util.module_from_spec(importlib.util.spec_from_loader('session', loader))\n"
+                 "loader.exec_module(session)\n"
+                 "session.prepare_run_dir(session.RUN_DIR)\n"
+                 "session.clear_run_markers(session.RUN_DIR)\n"
+                 f"os.execvp(session.UNSHARE[0], [*session.UNSHARE, '{CORE}'])\n"
+                 "EOF")
+    python = live.succeed(f"head -1 {SESSION}").strip().removeprefix("#!").split()[0]
+    live.succeed(f"printf '%s' '{json.dumps(payload)}' > /tmp/payload.json")
+    started = time.monotonic()
+    status, out = live.execute(f"{python} -I /tmp/session-path.py < /tmp/payload.json 2> /tmp/core.err")
+    assert status == 0, (status, out, live.succeed("tail -20 /tmp/core.err"))
+    proof = json.loads(out)
+    assert time.monotonic() - started < 900, "the install took as long as a hang"
+    live.succeed("test \"$(stat -c %a /run/wros-installer)\" = 755")
+    live.fail("test -e /run/wros-installer/wros-target-failed")
+    # The installer screen is told each step (#134).
+    steps = live.succeed("grep '^wros-step ' /tmp/core.err")
+    assert "Copying WrOS onto the disk" in steps and "Installing the boot loader" in steps, steps
     assert proof["passed"] is True
     assert proof["installed_user"] == "writer"
     assert proof["root_locked"] is True
