@@ -2,8 +2,14 @@
 
 ## 0.1.0~rc16 · The installer, fixed on real hardware
 
-The installer fixes found installing rc14 on the HP Stream, with a new USB stick image. rc15
-laptops get the rest as an online update; nothing changes for them but the version.
+The installer fixes found installing rc14 on the HP Stream, with a new USB stick image, and the
+fix that lets an installed laptop take updates from Settings at all.
+
+- **Updates from Settings.** rc14 and rc15's app refused the NixOS updater's replies (extra
+  fields in review, stage, go-back and apply), so an update fetched online could not be
+  reviewed or installed (#143). The app accepts and checks them now, and a contract test
+  compares every updater reply with the app's parser. rc14 and rc15 laptops cannot take this
+  fix from Settings: they reach rc16 with one install from a root shell.
 
 - **The stick.** A stick written by copying the ISO's files (Rufus's default "ISO image mode")
   starts: the live system mounts its medium whatever filesystem carries the label (#132).
