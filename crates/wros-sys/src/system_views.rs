@@ -426,11 +426,23 @@ pub fn update_review(output: &str) -> Result<UpdateReview> {
         packages: Vec<RawPackage>,
         removals: Vec<String>,
         backup_recommended: bool,
+        // From the NixOS updater (rc14 on): the system the update installs, and how many store
+        // paths it carries. rc14 and rc15 refused these, so no update reached a laptop
+        // through the app.
+        #[serde(default)]
+        toplevel: Option<String>,
+        #[serde(default)]
+        closure_paths: Option<u64>,
     }
     let object = helper_object(output, "wros-update review")?;
     let raw: RawReview = serde_json::from_value(serde_json::Value::Object(object))
         .context("invalid wros-update review reply")?;
     ensure!(raw.status == "reviewed", "unexpected review status");
+    nix_toplevel(raw.toplevel.as_deref())?;
+    ensure!(
+        raw.closure_paths.is_none_or(|n| n <= 65_536),
+        "update store path count exceeds limit"
+    );
     validate_review_id(&raw.review_id)?;
     ensure!(
         raw.signer.len() == 40 && raw.signer.bytes().all(|b| b.is_ascii_hexdigit()),
@@ -494,11 +506,15 @@ pub fn update_staged(output: &str, expected_review_id: &str) -> Result<UpdateSta
         review_id: String,
         packages: usize,
         restart_required: bool,
+        // The NixOS updater names the system it staged.
+        #[serde(default)]
+        toplevel: Option<String>,
     }
     let object = helper_object(output, "wros-update-stage")?;
     let raw: RawStaged = serde_json::from_value(serde_json::Value::Object(object))
         .context("invalid wros-update-stage reply")?;
     ensure!(raw.status == "staged", "unexpected staging status");
+    nix_toplevel(raw.toplevel.as_deref())?;
     ensure!(
         !raw.transaction_id.is_empty()
             && raw.transaction_id.len() <= 64
@@ -533,10 +549,14 @@ pub fn update_gone_back(output: &str) -> Result<UpdateStaged> {
         packages: usize,
         restart_required: bool,
         rollback: bool,
+        // The NixOS updater names the generation it goes back to.
+        #[serde(default)]
+        toplevel: Option<String>,
     }
     let object = helper_object(output, "wros-update-rollback")?;
     let raw: RawGoneBack = serde_json::from_value(serde_json::Value::Object(object))
         .context("invalid wros-update-rollback reply")?;
+    nix_toplevel(raw.toplevel.as_deref())?;
     ensure!(
         raw.status == "staged" && raw.rollback,
         "going back was not staged"
@@ -555,6 +575,26 @@ pub fn update_gone_back(output: &str) -> Result<UpdateStaged> {
     })
 }
 
+/// A NixOS system the updater names, when it names one: a plain store path, nothing else.
+fn nix_toplevel(toplevel: Option<&str>) -> Result<()> {
+    if let Some(path) = toplevel {
+        let name = path.strip_prefix("/nix/store/").unwrap_or_default();
+        let (hash, rest) = name.split_at(name.len().min(32));
+        ensure!(
+            hash.len() == 32
+                && hash.bytes().all(|b| b.is_ascii_digit() || b.is_ascii_lowercase())
+                && rest.starts_with('-')
+                && rest.len() > 1
+                && rest.len() <= 200
+                && rest
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b"-._+?=".contains(&b)),
+            "invalid update system path"
+        );
+    }
+    Ok(())
+}
+
 fn valid_transaction_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 64
@@ -570,12 +610,25 @@ pub fn update_applied(output: &str) -> Result<UpdateApplied> {
     struct RawApplied {
         status: String,
         transaction_id: String,
+        // Debian named the packages it installed; NixOS names the system and its version.
+        #[serde(default)]
         packages: Vec<String>,
+        #[serde(default)]
+        toplevel: Option<String>,
+        #[serde(default)]
+        version: Option<String>,
     }
     let object = helper_object(output, "wros-update-apply")?;
-    let raw: RawApplied = serde_json::from_value(serde_json::Value::Object(object))
+    let mut raw: RawApplied = serde_json::from_value(serde_json::Value::Object(object))
         .context("invalid wros-update-apply reply")?;
     ensure!(raw.status == "completed", "the update was not installed");
+    nix_toplevel(raw.toplevel.as_deref())?;
+    if let Some(version) = raw.version.take() {
+        package_version(&version)?;
+        if raw.packages.is_empty() {
+            raw.packages.push(format!("wros {version}"));
+        }
+    }
     ensure!(
         valid_transaction_id(&raw.transaction_id),
         "invalid update transaction identity"
@@ -1097,5 +1150,42 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    /// What the NixOS updater (nixos/scripts/wros-update-engine.py) prints for review, stage and
+    /// going back. rc14 and rc15 refused the extra fields, so no update reached a laptop through
+    /// the app; os/tests/test_update_reply_contract.py keeps the two sides in step.
+    #[test]
+    fn nixos_update_replies_are_accepted() {
+        let id = "0123456789abcdef".repeat(4);
+        let top = "/nix/store/62l926jbq7vm5vmq6476sgg42pism5ls-nixos-system-unnamed-0.1.0-rc15";
+        let review = format!(
+            r#"{{"status": "reviewed", "review_id": "{id}", "signer": "B9F5B97C9370239CC07B425F2CB426FC6D27CA65",
+            "suite": "wros-nixos-updates", "date": "2026-11-16T19:05:35+00:00",
+            "valid_until": "2026-12-16T19:05:35+00:00",
+            "packages": [{{"name": "wros", "from_version": "0.1.0~rc14", "to_version": "0.1.0~rc15", "action": "upgrade"}}],
+            "toplevel": "{top}", "closure_paths": 44, "removals": [], "backup_recommended": true}}"#
+        );
+        let reviewed = update_review(&review).unwrap();
+        assert_eq!(reviewed.packages[0].to_version, "0.1.0~rc15");
+        let staged = format!(
+            r#"{{"status": "staged", "transaction_id": "tx-1", "review_id": "{id}", "packages": 1,
+            "toplevel": "{top}", "restart_required": true}}"#
+        );
+        assert!(update_staged(&staged, &id).unwrap().restart_required);
+        let back = format!(
+            r#"{{"status": "staged", "transaction_id": "tx-2", "review_id": "{id}", "packages": 1,
+            "toplevel": "{top}", "restart_required": true, "rollback": true}}"#
+        );
+        assert!(update_gone_back(&back).is_ok());
+        let applied = format!(
+            r#"{{"status": "completed", "transaction_id": "tx-1", "toplevel": "{top}", "version": "0.1.0~rc15"}}"#
+        );
+        assert_eq!(update_applied(&applied).unwrap().packages, ["wros 0.1.0~rc15"]);
+        // Still strict: a system path that is not a plain store path, or a field nobody sends.
+        for bad in ["/etc/passwd", "/nix/store/short-x", "/nix/store/62l926jbq7vm5vmq6476sgg42pism5ls-a/../b"] {
+            assert!(update_review(&review.replace(top, bad)).is_err(), "{bad}");
+        }
+        assert!(update_review(&review.replace("\"removals\"", "\"surprise\": 1, \"removals\"")).is_err());
     }
 }
