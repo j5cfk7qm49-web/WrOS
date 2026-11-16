@@ -84,6 +84,22 @@ GitHub Pages enforces a **100 MB per-file limit** and a **~1 GB total site limit
 | Delta `cache/nar/<filehash>.nar.zst` (`< 100 MB`) | `1–80 MiB` | GitHub Pages (`https://j5cfk7qm49-web.github.io/WrOS/nixos-updates/cache/nar/`) or GitHub Releases (`archive_base_url`) | Compressed NAR archives for store paths not already in `/nix/store` |
 | Large `.nar.zst` archives (`>= 100 MB`, e.g., `llvm-lib`, `wros-firmware`, `mesa`, `wros-prose-runtime`) and full recovery bundles (`wros-nixos-updates.tar`) | `100 MiB – 1.2 GiB` | GitHub Releases: `https://github.com/j5cfk7qm49-web/WrOS/releases/download/v<version>/<file>` (which redirects over HTTPS to `objects.githubusercontent.com` / `release-assets.githubusercontent.com`, supporting up to 2 GiB per asset) | Hosted as release assets referenced by `archive_base_url` / `entry["url"]` in `closure-manifest.json`, keeping the GitHub Pages site well below 100 MB per file and 1 GB total |
 
+### What rc14 can actually fetch (found publishing rc15)
+
+The engine's opener refuses every redirect (`_NoRedirect`), and a GitHub release download
+(`https://github.com/.../releases/download/...`) always redirects to a storage host. So the
+`url` / `archive_base_url` entries above cannot be fetched by an rc14 (or rc15) laptop: every
+file of an online update must sit on Pages itself, each under 100 MB. Updates are therefore
+published as **deltas** from the release the laptops run (`--baseline-toplevel` and
+`--baseline-store-paths` in `tools/build-nixos-update-bundle.py`): rc14 to rc15 is 44 store
+paths, about 120 MiB before compression, the largest 40 MiB. A full bundle stays an offline
+(USB) or reinstall matter. `.github/workflows/release-updates.yml` refuses a channel with any
+file over 99 MB, and deploys `nixos-updates/`, the Debian `updates/` and the static pages
+together or not at all.
+
+There is no CI signing key for this channel, so its `Valid-Until` (at most 30 days) lapses
+unless a release is signed again offline before then.
+
 ### Streaming downloads with bounded memory (`U8`)
 
 Because the target laptop has 4 GB of RAM, `http_stream_to_file(url, dest_path, limit=..., expected_sha256=..., expected_size=...)` in [`nixos/scripts/wros-update-engine.py`](../nixos/scripts/wros-update-engine.py) streams every `.narinfo` and `.nar.zst` response body directly to disk in **64 KiB chunks** while incrementally updating `hashlib.sha256()`, enforcing the exact byte size and SHA-256 from `closure-manifest.json` before moving the temporary file into `/var/cache/wros-update/online/`. No `.nar.zst` archive is ever buffered in memory.
