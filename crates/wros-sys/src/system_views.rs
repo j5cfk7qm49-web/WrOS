@@ -582,7 +582,9 @@ fn nix_toplevel(toplevel: Option<&str>) -> Result<()> {
         let (hash, rest) = name.split_at(name.len().min(32));
         ensure!(
             hash.len() == 32
-                && hash.bytes().all(|b| b.is_ascii_digit() || b.is_ascii_lowercase())
+                && hash
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || b.is_ascii_lowercase())
                 && rest.starts_with('-')
                 && rest.len() > 1
                 && rest.len() <= 200
@@ -1181,11 +1183,21 @@ mod tests {
         let applied = format!(
             r#"{{"status": "completed", "transaction_id": "tx-1", "toplevel": "{top}", "version": "0.1.0~rc15"}}"#
         );
-        assert_eq!(update_applied(&applied).unwrap().packages, ["wros 0.1.0~rc15"]);
+        assert_eq!(
+            update_applied(&applied).unwrap().packages,
+            ["wros 0.1.0~rc15"]
+        );
         // Still strict: a system path that is not a plain store path, or a field nobody sends.
-        for bad in ["/etc/passwd", "/nix/store/short-x", "/nix/store/62l926jbq7vm5vmq6476sgg42pism5ls-a/../b"] {
+        for bad in [
+            "/etc/passwd",
+            "/nix/store/short-x",
+            "/nix/store/62l926jbq7vm5vmq6476sgg42pism5ls-a/../b",
+        ] {
             assert!(update_review(&review.replace(top, bad)).is_err(), "{bad}");
         }
-        assert!(update_review(&review.replace("\"removals\"", "\"surprise\": 1, \"removals\"")).is_err());
+        assert!(
+            update_review(&review.replace("\"removals\"", "\"surprise\": 1, \"removals\""))
+                .is_err()
+        );
     }
 }
