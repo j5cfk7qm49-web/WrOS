@@ -4,7 +4,10 @@ let
     inherit pkgs lib version wrosPackages installedModule liveModule;
   };
 
-  # Build a real second system closure (0.1.0~rc15) and an older closure (0.1.0~rc12)
+  # The version an update brings: always newer than the tree's own, whatever release this is.
+  nextVersion = "${version}+next";
+
+  # Build a real second system closure (nextVersion) and an older closure (0.1.0~rc12)
   # so the VM test exercises real store paths, real binary caches, and real generation switches.
   testKeysDir = ./keys;
   secretKeyFile = ./keys/test-signer.sec.asc;
@@ -62,7 +65,7 @@ pkgs.testers.runNixOSTest {
 
     updated = encryptedDisk.mkInstalledNode ({ lib, ... }: {
       wros.updates.trustDir = testKeysDir;
-      environment.etc."wros/version".text = lib.mkForce "0.1.0~rc15\n";
+      environment.etc."wros/version".text = lib.mkForce "${nextVersion}\n";
       environment.etc."wros/update-test-generation".text = "rc15-next\n";
     });
 
@@ -80,7 +83,7 @@ pkgs.testers.runNixOSTest {
 
       bundleNext = mkSignedBundle {
         bundleName = "rc15";
-        bundleVersion = "0.1.0~rc15";
+        bundleVersion = nextVersion;
         systemToplevel = updatedToplevel;
       };
       bundleSame = mkSignedBundle {
@@ -183,7 +186,7 @@ pkgs.testers.runNixOSTest {
       out = installed.fail(f"{STAGE} /media/wros-update/tampered {tamper_review['review_id']} 2>&1")
       assert "SHA-256" in out, out
 
-      # 4. Stage the valid signed 0.1.0~rc15 bundle via wros-update-stage and reboot to apply
+      # 4. Stage the valid signed newer bundle via wros-update-stage and reboot to apply
       valid_review = json.loads(installed.succeed(f"{UPDATE} review /media/wros-update/rc15"))
       assert valid_review["packages"][0]["action"] == "upgrade", valid_review
       stage_res = json.loads(
@@ -210,8 +213,8 @@ pkgs.testers.runNixOSTest {
       installed.wait_for_unit("multi-user.target")
       installed.wait_for_unit("greetd.service")
 
-      # Verify the system profile and running system switched to the new generation (0.1.0~rc15)
-      assert installed.succeed("cat /etc/wros/version").strip() == "0.1.0~rc15"
+      # Verify the system profile and running system switched to the new generation (nextVersion)
+      assert installed.succeed("cat /etc/wros/version").strip() == "${nextVersion}"
       installed.succeed("test -f /etc/wros/update-test-generation")
       new_profile = installed.succeed("readlink -f /nix/var/nix/profiles/system").strip()
       new_current = installed.succeed("readlink -f /run/current-system").strip()
