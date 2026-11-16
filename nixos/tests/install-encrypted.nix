@@ -116,6 +116,11 @@ pkgs.testers.runNixOSTest {
     assert proof["live_account_absent"] is True
     assert proof["encrypted_root_chain"]["format"] == "LUKS2"
 
+    # The install's mounts lived in its own mount namespace and ended with it, as in the real
+    # installer; the opened container (a device-mapper device) is shared. Mount it to inspect.
+    live.succeed("mount /dev/mapper/wros_crypt /run/wros-installer/target"
+                 " && mount /dev/vdb1 /run/wros-installer/target/boot")
+
     # 2. Verify GPT + WROS-ESP + WROS-LUKS -> wros_crypt -> WROS-ROOT labels and seeded state
     live.succeed("blkid -L WROS-ESP")
     live.succeed("blkid -L WROS-LUKS")
