@@ -103,8 +103,10 @@ class Plan(unittest.TestCase):
     def test_tags_use_the_offline_asset_even_with_a_subkey_and_refresh_requires_a_subkey(self):
         cases = [
             # event, options -> build, release, sign, deploy
-            (('push', dict(ref=TAG, signing=True)), ('', TAG, 'false', 'true')),
-            (('push', dict(ref=TAG)), ('', TAG, 'false', 'true')),
+            # From rc14 the tree's own tag is a NixOS release with no Debian bundle: updates/ is
+            # not replaced, only re-signed when signing is set up (as a weekly refresh is).
+            (('push', dict(ref=TAG, signing=True)), ('', '', 'true', 'true')),
+            (('push', dict(ref=TAG)), ('', '', 'false', 'false')),
             (('schedule', dict(signing=True)), ('', '', 'true', 'true')),
             (('schedule', {}), ('', '', 'false', 'false')),
             (('workflow_dispatch', dict(scratch=True, signing=True)), ('updates-scratch', '', 'true', 'true')),
@@ -116,7 +118,8 @@ class Plan(unittest.TestCase):
             with self.subTest(event=event, **options):
                 out = plan(event, **options)
                 self.assertEqual((out['build'], out['release'], out['sign'], out['deploy']), expected)
-        self.assertEqual(plan('push', ref=TAG)['version'], TREE)
+        self.assertEqual(plan('workflow_dispatch', release=TAG)['version'], TREE)
+        self.assertEqual(plan('push', ref=TAG)['version'], '', 'a NixOS tag serves no Debian version')
         # A release must name the version in the tree it is published from.
         with self.assertRaisesRegex(ValueError, 'os/VERSION'):
             plan('workflow_dispatch', release='v9.9.9')
