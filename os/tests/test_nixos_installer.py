@@ -282,7 +282,11 @@ class LiveMedium(unittest.TestCase):
     def test_a_stick_written_by_copying_files_still_mounts(self):
         # Rufus's default ISO mode copies the files onto FAT32 under the same label (#132).
         live = (ROOT / 'nixos/modules/live.nix').read_text()
-        self.assertIn('fileSystems."/iso".fsType = lib.mkForce "auto";', live)
+        # The whole entry is replaced: nixpkgs's own entry (priority 60) drops a one-field
+        # override, which is how the first attempt at this fix did nothing.
+        self.assertIn('fileSystems."/iso" = lib.mkForce {', live)
+        self.assertIn('fsType = "auto";', live)
+        self.assertIn('config.fileSystems."/iso".fsType == "auto"', live)
         hardware = (ROOT / 'nixos/modules/hardware.nix').read_text()
         for module in ('"vfat"', '"nls_cp437"'):
             self.assertIn(module, hardware)

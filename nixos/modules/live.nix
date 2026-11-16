@@ -25,9 +25,20 @@ in
 
   # A stick written by copying the ISO's files (Rufus's default "ISO image mode") holds the same
   # files and label on FAT32, not ISO 9660. Mount whatever filesystem carries the label (#132);
-  # vfat and the code pages it needs are in the initrd (hardware.nix).
-  fileSystems."/iso".fsType = lib.mkForce "auto";
-  fileSystems."/iso".options = lib.mkForce [ "ro" ];
+  # vfat and the code pages it needs are in the initrd (hardware.nix). nixpkgs defines the whole
+  # entry with mkImageMediaOverride (priority 60), which drops any ordinary definition of the
+  # entry, so overriding one field is silently lost: replace the entry, and assert it held.
+  fileSystems."/iso" = lib.mkForce {
+    device = "/dev/disk/by-label/${config.isoImage.volumeID}";
+    fsType = "auto";
+    options = [ "ro" ];
+    neededForBoot = true;
+    noCheck = true;
+  };
+  assertions = [{
+    assertion = config.fileSystems."/iso".fsType == "auto";
+    message = "the live medium must mount whatever filesystem carries WROS_LIVE (#132)";
+  }];
 
   # WrOS branding on the medium: file name, boot menu entry (rc13's wording, now with the version),
   # the logo above the UEFI menu, and the logo and colours behind the legacy-BIOS menu.
