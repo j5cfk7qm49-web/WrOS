@@ -35,8 +35,12 @@ in
     neededForBoot = true;
     noCheck = true;
   };
+  # VM tests replace the whole filesystem layout (qemu-vm.nix, priority 10); judge only the
+  # medium's own mount, where it exists.
   assertions = [{
-    assertion = config.fileSystems."/iso".fsType == "auto";
+    assertion =
+      let iso = config.fileSystems."/iso" or null;
+      in iso == null || iso.device != "/dev/disk/by-label/${config.isoImage.volumeID}" || iso.fsType == "auto";
     message = "the live medium must mount whatever filesystem carries WROS_LIVE (#132)";
   }];
 
