@@ -286,7 +286,10 @@ class LiveMedium(unittest.TestCase):
         # override, which is how the first attempt at this fix did nothing.
         self.assertIn('fileSystems."/iso" = lib.mkForce {', live)
         self.assertIn('fsType = "auto";', live)
-        self.assertIn('config.fileSystems."/iso".fsType == "auto"', live)
+        # And the build fails if the override is ever lost again.
+        assertion = live.split('assertions = [{', 1)[1].split('}];', 1)[0]
+        self.assertIn('config.fileSystems."/iso"', assertion)
+        self.assertIn('fsType == "auto"', assertion)
         hardware = (ROOT / 'nixos/modules/hardware.nix').read_text()
         for module in ('"vfat"', '"nls_cp437"'):
             self.assertIn(module, hardware)
