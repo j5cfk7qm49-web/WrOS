@@ -18,6 +18,8 @@ SKIPPED = (
     'os/tests/test_name_leftovers.py', '.gitleaksignore', 'docs/NAMING_MIGRATION.md',
     # The migration itself and its test name every old path on purpose.
     'os/scripts/wros-name-migrate.py', 'os/tests/test_name_migration.py',
+    # The rc13-to-NixOS parity ledger: rc13's own file names, as they were.
+    'nixos/PARITY.json',
 )
 
 KEPT = [
@@ -43,6 +45,10 @@ KEPT = [
      r'|writingdeck:x:|grep -qw writingdeck|`writingdeck` compatibility group',
      'the compatibility group that mirrors the wros group'),
     (r'WRITINGDECK_[A-Z_]*', 'older environment and release-file names, still accepted'),
+    # The same on NixOS, declared in nixos/modules and created by the installer.
+    (r'users\.groups\.writingdeck\b|groups wros, writingdeck\b',
+     'the compatibility group that mirrors the wros group, on NixOS'),
+    (r'environment\.etc\."writingdeck/release"', 'the older release file, on NixOS'),
     (r"grimoire writingdeck\b|BINARY, 'writingdeck'|alias: writingdeck",
      'the older command-line alias'),
     # History.

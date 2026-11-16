@@ -108,5 +108,5 @@ Because Nix cannot be executed inside the authoring container, the new post-trim
 
 ## 7. Retired Debian helpers on NixOS (`H1`)
 
-- **`wros-name-migrate` (retired on NixOS)**: On Debian, `os/scripts/wros-name-migrate.py` migrated `0.1.0~rc3` (`writingdeck`) installations in place to `wros`. Every NixOS installation starts at `0.1.0~rc14+` with both `wros` and `writingdeck` groups created declaratively in `nixos/modules/base.nix`, so `wros-name-migrate` has no purpose on NixOS and is not installed into `wros-helpers`.
+- **`wros-name-migrate` (retired on NixOS)**: On Debian, `os/scripts/wros-name-migrate.py` migrated `0.1.0~rc3` installations from the WritingDeck name to `wros` in place. Every NixOS installation starts at `0.1.0~rc14+` with the `wros` group and its `writingdeck` compatibility group created declaratively in `nixos/modules/base.nix`, so `wros-name-migrate` has no purpose on NixOS and is not installed into `wros-helpers`.
 - **`dpkg-query` in `wros-session` (`H1`)**: `os/scripts/wros-session` calls `dpkg-query` only inside ` debian_session_note()` as a fallback diagnostic string when `wros-cage` fails to start. On NixOS (`nixos/pkgs/helpers.nix`), `/usr/bin/dpkg-query` is replaced with `${pkgs.coreutils}/bin/false`, which `debian_session_note()` handles cleanly.

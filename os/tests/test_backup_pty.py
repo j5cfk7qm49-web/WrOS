@@ -114,7 +114,7 @@ class NativeBackupPTY(unittest.TestCase):
                     identifier = next(iter(config['verified']))
                     self.assertEqual(Path(config['key']).stat().st_mode & 0o777, 0o600)
                     terminal.send(b'\x1b[F\r')
-                    terminal.screen_shows('Restore snapshot into a NEW folder')
+                    terminal.screen_shows('Restore snapshot and your settings into a NEW folder')
                     terminal.send(b'\r\r')
                     terminal.screen_shows('Restore verified')
                     restored = project.parent/(project.name + '-restored-' + identifier[:8])
@@ -126,7 +126,7 @@ class NativeBackupPTY(unittest.TestCase):
                         (captures/f'backup-{width}x{height}.txt').write_text(terminal.screen.text + '\n', encoding='utf-8')
                     # A second restore to its default existing target must refuse.
                     terminal.send(b'\x1b[F\r')
-                    terminal.screen_shows('Restore snapshot into a NEW folder')
+                    terminal.screen_shows('Restore snapshot and your settings into a NEW folder')
                     terminal.send(b'\r\r')
                     terminal.screen_shows('Destination already exists')
                     self.assertEqual(primary.read_bytes(), original)
