@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.1.0~rc16 · The installer, fixed on real hardware
+
+The installer fixes found installing rc14 on the HP Stream, with a new USB stick image. rc15
+laptops get the rest as an online update; nothing changes for them but the version.
+
+- **The stick.** A stick written by copying the ISO's files (Rufus's default "ISO image mode")
+  starts: the live system mounts its medium whatever filesystem carries the label (#132).
+- **Unlocking the new disk.** The install no longer hangs for ten minutes and fails when it
+  opens the encrypted disk: the installer's sandbox no longer has its own IPC namespace, which
+  kept udev from answering cryptsetup (#136).
+- **Copying WrOS.** nixos-install no longer refuses the target because the installer's working
+  folder was private (#137). The copy may take up to an hour, for slow sticks and storage.
+- **Trying again.** A failed install no longer blocks every later attempt until a restart (#138).
+- **Questions.** The hostname, username and passwords are checked as you answer, with what is
+  allowed, instead of failing after you confirm the erase (#139).
+- **Keyboard.** Choosing a layout switches the installer's keyboard at once, so the passwords
+  you type next are the ones the unlock screen expects (#133).
+- **Progress.** The bar moves through each step (partitioning, encrypting, copying, your
+  account, the boot loader) and names it (#134).
+- **Failures.** A failed install says why on the installer screen and in the system log, with
+  passwords removed (#135).
+- **Tests.** The install test goes through the installer session's own code, from the broken
+  state rc14 left; new unit tests cover the session, the screens' backend and the install core.
+
 ## 0.1.0~rc15 · The first online update
 
 rc15 is the first release delivered as an update: an rc14 laptop finds it under Settings →

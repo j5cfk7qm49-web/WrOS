@@ -4,8 +4,9 @@
 
 From 0.1.0~rc14 WrOS is built on NixOS 26.05, for UEFI amd64 with Secure Boot disabled. Check
 the ISO against the SHA-256 published with the release, and write it to a USB stick (it is a
-hybrid image: write the whole file to the whole stick). Have a verified backup of anything on
-the target disk. [Release checklist](RELEASE_CHECKLIST.md)
+hybrid image: write the whole file to the whole stick). Rufus's **DD image mode** or balenaEtcher
+does that; from rc16 Rufus's default "ISO image mode" (a FAT32 copy of the files) also works.
+Have a verified backup of anything on the target disk. [Release checklist](RELEASE_CHECKLIST.md)
 
 1. Start the laptop from the stick and choose **Start WrOS** in its menu. The live dashboard
    offers **Install WrOS to disk**. Save live-session work to persistent storage before
