@@ -268,20 +268,26 @@ def run_dialog(channel, target_disk, session_nonce, core_runner=None, target_ide
         'session_nonce': session_nonce,
         **answers,
     }
+    secrets = (answers['user_password'], answers['luks_passphrase'])
     if core_runner is None:
         def core_runner(payload):
-            return _default_core_runner(payload, lambda percent, text: show_step(channel, percent, text))
+            return _default_core_runner(
+                payload, lambda percent, text: show_step(channel, percent, text), secrets=secrets)
     try:
         proof = core_runner(payload)
     except Exception as exc:
-        reason = redact(str(exc), (answers['user_password'], answers['luks_passphrase']))
+        reason = redact(str(exc), secrets)
         reason = reason if len(reason) <= REASON_LIMIT else reason[:REASON_LIMIT] + '…'
-        channel.send('PROGRESS STOP')
-        # Shown before the failure marker is written: the session closes the screens as soon as
-        # it sees the marker (#135).
-        channel.ask('wros/failed', 'note', 'WrOS was not installed',
-                    f'{reason}\n\nThe live session will return, and you can try again.')
-        FAILED_OUT.write_text(reason + '\n', encoding='utf-8')
+        try:
+            # Shown before the failure marker is written: the session closes the screens as
+            # soon as it sees the marker (#135).
+            channel.send('PROGRESS STOP')
+            channel.ask('wros/failed', 'note', 'WrOS was not installed',
+                        f'{reason}\n\nThe live session will return, and you can try again.')
+        except Exception:
+            pass  # the screens are gone; the marker still carries the reason to the session
+        finally:
+            FAILED_OUT.write_text(reason + '\n', encoding='utf-8')
         raise RuntimeError(reason) from None
     channel.send('PROGRESS SET 100')
     channel.send('PROGRESS STOP')
@@ -299,12 +305,12 @@ def show_step(channel, percent, text):
     channel.send(f'PROGRESS SET {max(0, min(100, int(percent)))}')
 
 
-def follow_core(stderr_lines, on_step):
+def follow_core(stderr_lines, on_step, secrets=()):
     """Pass "wros-step N TEXT" lines to the screen; keep the rest for the error and the log."""
     kept = []
     for raw in stderr_lines:
         line = raw.decode('utf-8', 'replace') if isinstance(raw, bytes) else raw
-        line = line.rstrip('\n')
+        line = redact(line.rstrip('\n'), secrets)
         if line.startswith(STEP_PREFIX):
             percent, _, text = line[len(STEP_PREFIX):].partition(' ')
             if percent.isdigit():
@@ -317,7 +323,7 @@ def follow_core(stderr_lines, on_step):
     return kept
 
 
-def _default_core_runner(payload, on_step=lambda percent, text: None):
+def _default_core_runner(payload, on_step=lambda percent, text: None, secrets=()):
     process = subprocess.Popen(
         [INSTALL_CORE],
         stdin=subprocess.PIPE,
@@ -326,7 +332,7 @@ def _default_core_runner(payload, on_step=lambda percent, text: None):
     )
     process.stdin.write(json.dumps(payload).encode('utf-8'))
     process.stdin.close()
-    kept = follow_core(process.stderr, on_step)
+    kept = follow_core(process.stderr, on_step, secrets)
     out = process.stdout.read()
     code = process.wait()
     if code != 0:

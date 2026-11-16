@@ -59,7 +59,7 @@ let
     if [ -f rebase-kit/test_check_rebase.py ]; then python3 rebase-kit/test_check_rebase.py; fi
     python3 -m unittest test_keyboard test_clock test_sound test_media_key test_passwd_helper \
       test_recovery_menu test_boot_settings test_boot_unlock test_session_launcher \
-      test_display_manager test_nixos_update test_nixos_install_core
+      test_display_manager test_nixos_update test_nixos_install_core test_nixos_installer
     mkdir -p "$out"
     echo "pass" > "$out/result"
   '';
