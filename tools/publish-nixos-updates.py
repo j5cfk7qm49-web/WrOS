@@ -89,6 +89,14 @@ def check_bundle(tar, outdir, version, *, keyring=KEYRING, pin=PIN):
             package_keyring=Path('/nonexistent'), store_dir=store)
     if verified['version'] != version:
         raise ValueError(f'bundle publishes wros {verified["version"]}, not {version}')
+    # The engine checks each file against the signed manifest, not that every package's archive
+    # is there: rc15 first went out with sudo.pam's archive missing, and the update failed when
+    # the laptop restarted to install it.
+    for narinfo in sorted((outdir / 'cache').glob('*.narinfo')):
+        urls = [line[5:].strip() for line in narinfo.read_text(encoding='utf-8').splitlines()
+                if line.startswith('URL: ')]
+        if len(urls) != 1 or not (outdir / 'cache' / urls[0]).is_file():
+            raise ValueError(f'{narinfo.name} points at an archive the bundle lacks')
     return verified
 
 

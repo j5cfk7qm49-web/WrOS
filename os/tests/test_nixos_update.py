@@ -57,7 +57,7 @@ class NixosUpdateEngineTests(unittest.TestCase):
 
     def _make_signed_bundle(self, root, *, version='0.1.0~rc14',
                             toplevel='/nix/store/0123456789abcdfghijklmnpqrsvwxyz-nixos-system-wros-0.1.0-rc14',
-                            moment=None, tamper_nar=False, baseline=None):
+                            moment=None, tamper_nar=False, baseline=None, orphan_narinfo=False):
         moment = moment or datetime(2026, 11, 14, 12, 0, tzinfo=timezone.utc)
         until = moment + timedelta(days=14)
         gnupg = root / 'gnupg'
@@ -134,6 +134,15 @@ class NixosUpdateEngineTests(unittest.TestCase):
                 },
             ],
         }
+        if orphan_narinfo:
+            # A package whose archive the bundle lacks (rc15's first sudo.pam).
+            orphan = '/nix/store/abcdfghijklmnpqrsvwxyz0123456789-sudo.pam'
+            orphan_rel = 'cache/abcdfghijklmnpqrsvwxyz0123456789.narinfo'
+            orphan_bytes = f'StorePath: {orphan}\nURL: nar/missing.nar.zst\n'.encode()
+            (bundle / orphan_rel).write_bytes(orphan_bytes)
+            closure['cache_files'].append({
+                'path': orphan_rel, 'sha256': hashlib.sha256(orphan_bytes).hexdigest(),
+                'size': len(orphan_bytes), 'store_path': orphan})
         closure_raw = (json.dumps(closure, indent=2, sort_keys=True) + '\n').encode()
         (bundle / 'closure-manifest.json').write_bytes(closure_raw)
         if tamper_nar:
@@ -164,11 +173,13 @@ class NixosUpdateEngineTests(unittest.TestCase):
             root = Path(tmp)
             baseline = '/nix/store/abcdfghijklmnpqrsvwxyz0123456789-nixos-system-unnamed-0.1.0-rc14'
             now = datetime.now(timezone.utc) - timedelta(minutes=2)
-            for name, tamper in (('good', False), ('bad', True)):
+            for name, tamper, orphan in (('good', False, False), ('bad', True, False),
+                                         ('orphan', False, True)):
                 work = root / name
                 work.mkdir()
                 bundle, keyring, signers, _ = self._make_signed_bundle(
-                    work, version='0.1.0~rc15', moment=now, baseline=baseline, tamper_nar=tamper)
+                    work, version='0.1.0~rc15', moment=now, baseline=baseline, tamper_nar=tamper,
+                    orphan_narinfo=orphan)
                 tar = work / 'wros-nixos-updates.tar'
                 with tarfile.open(tar, 'w') as archive:
                     for item in sorted(bundle.rglob('*')):
@@ -177,6 +188,9 @@ class NixosUpdateEngineTests(unittest.TestCase):
                                                      keyring=keyring, pin=signers)
                 if tamper:
                     with self.assertRaisesRegex(ValueError, 'SHA-256'):
+                        check()
+                elif orphan:
+                    with self.assertRaisesRegex(ValueError, 'archive the bundle lacks'):
                         check()
                 else:
                     self.assertEqual(check()['version'], '0.1.0~rc15')

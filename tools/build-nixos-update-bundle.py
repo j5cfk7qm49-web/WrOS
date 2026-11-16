@@ -33,6 +33,52 @@ class BuildError(Exception):
     pass
 
 
+def narinfo_url(path):
+    """The cache-relative archive (cache/nar/....nar.zst) a .narinfo points at."""
+    for line in Path(path).read_text(encoding='utf-8').splitlines():
+        if line.startswith('URL: '):
+            return 'cache/' + line[len('URL: '):].strip()
+    raise BuildError(f'{Path(path).name} names no archive')
+
+
+def prune_to_delta(staging, cache_files, baseline, toplevel):
+    """Keep what a machine running `baseline` lacks. Store paths with identical contents share one
+    archive, and the manifest credits it to only one of them: rc15's sudo.pam shared passwd.pam's,
+    passwd.pam was in rc14, and pruning by that credit dropped the archive sudo.pam needed. Keep
+    an archive whenever a kept .narinfo points at it, credited to that kept path."""
+    staging = Path(staging)
+
+    def dropped(item):
+        sp = item.get('store_path')
+        return bool(sp) and sp in baseline and sp != toplevel
+
+    needed = {}
+    for item in cache_files:
+        if item['path'].endswith('.narinfo') and not dropped(item):
+            needed.setdefault(narinfo_url(staging / item['path']), item.get('store_path'))
+    kept = []
+    for item in cache_files:
+        if item['path'].startswith('cache/nar/'):
+            if item['path'] in needed:
+                kept.append({**item, 'store_path': needed[item['path']]})
+                continue
+        elif not dropped(item):
+            kept.append(item)
+            continue
+        (staging / item['path']).unlink(missing_ok=True)
+    return kept
+
+
+def check_archives(root, cache_files):
+    """Every .narinfo in the bundle has its archive in the bundle."""
+    listed = {item['path'] for item in cache_files}
+    for item in cache_files:
+        if item['path'].endswith('.narinfo'):
+            url = narinfo_url(Path(root) / item['path'])
+            if url not in listed or not (Path(root) / url).is_file():
+                raise BuildError(f'{item["path"]} points at {url}, which the bundle lacks')
+
+
 def load_engine():
     path = REPO / 'nixos/scripts/wros-update-engine.py'
     loader = importlib.machinery.SourceFileLoader('wros_nixos_update_engine_for_tool', str(path))
@@ -143,17 +189,12 @@ def build(args):
                 for line in args.baseline_store_paths.read_text(encoding='utf-8').splitlines()
                 if line.strip()
             }
-            kept_files = []
-            for item in manifest_data['cache_files']:
-                sp = item.get('store_path')
-                if sp and sp in baseline_set and sp != manifest_data['toplevel']:
-                    (staging / item['path']).unlink(missing_ok=True)
-                    continue
-                kept_files.append(item)
+            manifest_data['cache_files'] = prune_to_delta(
+                staging, manifest_data['cache_files'], baseline_set, manifest_data['toplevel'])
             manifest_data['baseline'] = args.baseline_toplevel
-            manifest_data['cache_files'] = kept_files
             (staging / 'closure-manifest.json').write_text(
                 json.dumps(manifest_data, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+        check_archives(staging, manifest_data['cache_files'])
         manifest_bytes = (staging / 'closure-manifest.json').read_bytes()
         closure = engine.parse_closure_manifest(manifest_bytes)
         release = (
