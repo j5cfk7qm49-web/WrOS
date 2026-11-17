@@ -1,59 +1,115 @@
 # Linux system integration
 
+WrOS 0.1.0~rc16 runs on NixOS 26.05. The installed system imports its service
+modules from [installed.nix](../nixos/modules/installed.nix); the live system uses
+[live.nix](../nixos/modules/live.nix).
+
 ## Implemented boundary
 
-`wros-sys::Backend` receives typed requests and returns snapshots, messages or keyboard-preview tokens. The TUI's single bounded worker performs commands; rendering/input only uses cached data. The Linux runner uses fixed absolute executable paths, argument vectors (never a shell), bounded private stdin when required (`run_with_input`), command deadlines (8 seconds normally, 20 for nmcli, 60 for signed-bundle inspection) and a 64 KiB retained output cap. Missing packages, D-Bus, devices or authorization are errors/unavailable states, not success.
+`wros-sys::Backend` receives typed requests and returns snapshots, messages or
+preview tokens. The TUI sends requests through a bounded background worker in
+[src/app/wros.rs](../src/app/wros.rs). The Linux runner uses fixed executable
+paths and argument vectors, without a shell. It supports private stdin for
+secrets and rejects output over 64 KiB per stream. Command deadlines are 8 seconds
+normally and 20 for `nmcli`; update operations use explicit budgets, including
+180 seconds for review and 900 for staging. These limits are defined in
+[linux.rs](../crates/wros-sys/src/linux.rs). A failed or timed-out command does
+not establish success.
+
+NixOS compiles tool and helper paths from
+[paths.nix](../nixos/pkgs/paths.nix) into the app.
+[helpers.nix](../nixos/pkgs/helpers.nix) packages the scripts with Nix store paths.
+[polkit.nix](../nixos/modules/polkit.nix) uses the same helper paths for exact
+executable annotations and loads the narrow authorization rules.
 
 | Capability | Current adapter | Verification / limit |
 |---|---|---|
-| Network status | `nmcli -t -f STATE,CONNECTIVITY general` | Linux parsing/interface tests and offline VM; no manuscript transmission |
-| Wi-Fi radio / scan | Explicit `nmcli radio wifi on/off`, `device wifi list --rescan yes` | Typed command tests; physical radio/SSID/connection tests pending |
-| Wi-Fi enrollment & profiles | `nmcli --ask --wait 15 device wifi connect <ssid>` (passphrase on private `stdin`, never argv), `connection up/down/delete uuid <uuid>`, active-connection readback | Redacted `WifiSecret` (`Debug`/`Serialize` skip + volatile drop scrub); Rust adapter and four-size native UI tests passed in the complete Debian run; actual NetworkManager/device acceptance pending |
-| Battery | Read-only sysfs energy-weighted battery aggregation, capacity fallback | Missing-device/fixture tests; no physical discharge/charging test; UPower evaluated/installed but not yet queried by the adapter |
-| Brightness | Read sysfs; explicit `brightnessctl --class=backlight set N%` | 1–100 validation and no-device behavior; actual permissions/backlight pending |
-| Power saver | UI low-power setting plus explicit `powerprofilesctl set` | UI works independently; unsupported OS profile reported separately |
-| Suspend | Refused before any process invocation until a qualified locker exists | Native/legacy controls and adapter fail closed; #4/#27 still open |
-| Restart / shutdown | `systemctl --no-ask-password ...` via maintained system authorization | Explicit confirmation plus no pending writes, stale tree or unresolved conflicts; controlled tests only; no physical power operation |
-| Keyboard | Exact polkit helper; fixed root-owned maps, independent timer | Rootless transaction tests + real VM console/polkit/timer tests |
-| Warm screen | Typed 1000–6500K/strength/Off controls; exact polkit manager, bounded non-setuid libdrm bridge and independent preview timer | [Calibration, failure/rollback tests and driver limits](WARM_SCREEN.md); unsupported outputs refused; physical/hotplug/suspend qualification open |
-| Timezone | Native searchable catalog, Cancel-default confirmation and `timedatectl --no-ask-password` with authoritative readback | [Narrow timezone action](NATIVE_TIMEZONE.md); clock/RTC/NTP controls remain unavailable |
-| Disk free / OS | `statvfs`, Debian release identity | Read-only |
-| Manual console lock | Fixed openvt/vlock-main/PAM handoff, systemd lifecycle, input retirement and reserved root tty8 | [Focused software and five-cycle guest passed](CONSOLE_LOCK.md); Debian CI passed; sleep remains disabled |
-| Signed update inspection and recovery diagnostics | Unprivileged `/usr/libexec/wros-update`: gpgv signed metadata -> Packages SHA-256 -> .deb SHA-256; read-only filesystem/dpkg inspection | No package repair, boot marker, update installation or automatic rollback; follow-up tracked in [integration gap list](archive/ARGON_INTEGRATION_2026-10-31.md) |
+| Network status and Wi-Fi | Fixed `nmcli` requests for status, radio, scan, joining and saved profiles; passphrases use private stdin and connection changes have readback | NixOS enables NetworkManager and grants its listed Wi-Fi actions to active local `wros` members; physical radio behavior needs separate qualification |
+| Battery | Read-only sysfs aggregation with capacity fallback | UPower is enabled, but this adapter reads sysfs |
+| Brightness and power saver | `brightnessctl --class=backlight set N%` and `powerprofilesctl set` | Brightness is restricted to 1-100; an unavailable device or service is reported |
+| Suspend | Main-thread input/display handoff to `wros-lock --suspend` when supported | Direct backend suspend stays refused; the installed suspend service requires the locker proof. Physical sleep/resume qualification is separate. |
+| Restart and shutdown | `systemctl --no-ask-password` requests | The app confirms the action and saves before handing off |
+| Keyboard | Fixed-layout helper with token-bound preview, confirm and cancel | Independent systemd rollback; see the interface below |
+| Warm screen | Typed preview, Keep and Cancel through the display helper; compositor sessions use a separate colour worker | [Warm screen](WARM_SCREEN.md) describes readback, rollback and driver limits |
+| Timezone | Validated local catalog and `timedatectl --no-ask-password`, followed by authoritative readback | [Timezone policy](NATIVE_TIMEZONE.md) grants only the timezone action |
+| Manual clock and network time | Narrow `wros-clock` helper | RTC controls remain unavailable |
+| Sound | `wros-sound` status, volume and mute requests | Volume is restricted to 0-100 |
+| Disk free and OS | `statvfs` and WrOS/NixOS release identity from `/etc/os-release` | Read-only |
+| Login and account creation | greetd/PAM login; the encrypted live installer creates the writer account | Root remains locked; tty2 is available for authenticated maintenance |
+| Manual console lock | Independent Nixpkgs vlock/PAM locker on reserved tty8 after input/display retirement | The [console-lock VM check](../nixos/tests/console-lock.nix) covers tty8 ownership, authentication and input isolation; physical qualification is separate |
+| Signed updates and recovery | Packaged `wros-update` verifies signed NixOS closure manifests and binary-cache hashes, stages a generation for restart, and supports go back and repair | See [NixOS updates](NIXOS_UPDATES.md); the helper has a compiled Nix store path |
 
-Volume, general account/first-run setup and live VM update/rollback qualification remain open gates. Manual locking has separate software/guest qualification; physical security and sleep/resume remain open.
+The adapter requests are defined in [linux.rs](../crates/wros-sys/src/linux.rs).
+The service declarations are in [network.nix](../nixos/modules/network.nix),
+[hardware.nix](../nixos/modules/hardware.nix),
+[session.nix](../nixos/modules/session.nix) and
+[guards.nix](../nixos/modules/guards.nix). The
+[installer core](../nixos/scripts/wros-install-core) partitions and encrypts the
+selected disk, copies the prebuilt system closure and creates the writer.
 
 ## Privileged keyboard interface
 
-Files installed **only into the staged image** by current scripts:
+NixOS installs the helper and four compiled keymaps in the Nix store. The app and
+polkit use the same helper path from [paths.nix](../nixos/pkgs/paths.nix).
+[keymaps.nix](../nixos/pkgs/keymaps.nix) builds QWERTY, Colemak, Colemak-DH ANSI
+and Colemak-DH ISO maps from XKB data.
 
-- `/usr/libexec/writingdeck-keyboard`: isolated Python interpreter, root-owned executable.
-- `/usr/share/polkit-1/actions/org.writingdeck.keyboard.policy`: exact executable annotation.
-- `/etc/polkit-1/rules.d/50-wros-keyboard.rules`: only active local `wros` group members; no general sudo or arbitrary systemctl/localectl permission.
-- `/usr/share/writingdeck/keymaps/{qwerty,colemak,colemak-dh-ansi,colemak-dh-iso}.map`: compiled from maintained XKB.
-- `writingdeck-keyboard.service`: applies committed layout after console setup and before tty1.
-- `writingdeck-keyboard-revert.timer/.service`: independent rollback ownership.
-
-The helper allows preview/layout-ID, confirm/token and cancel/token through polkit. Boot/rollback are reserved for root-owned systemd units. A root-owned flock serializes transactions. Preview writes a private token/deadline, arms the timer **before** loadkeys and refuses another unresolved preview. Confirmation checks token and monotonic expiry, then fsyncs/atomically commits the layout. A generation token prevents a crash after commit but before timer cancellation from undoing the committed layout. Reboot reapplies the committed record; an unconfirmed preview never becomes persistent configuration.
-
-The helper cannot execute arbitrary programs, load arbitrary paths, format storage, read manuscripts or enroll a cloud account. Its service hardening denies home access and makes the filesystem read-only except the small state locations. Do not add a generic privileged JSON command bridge to avoid writing specific policies.
+[session.nix](../nixos/modules/session.nix) declares `wros-keyboard.service`,
+`wros-keyboard-revert.service` and `wros-keyboard-revert.timer`. The committed
+layout is applied after `systemd-vconsole-setup` and before greetd. The
+[helper](../os/scripts/wros-keyboard) arms the independent 15-second timer before
+applying a preview. Confirmation and cancellation require the preview token.
+The shared [writer rule](../os/config/50-wros-keyboard.rules) requires an active
+local session and membership in both `wros` and the `writingdeck` compatibility group. The separate
+[greeter rule](../os/config/51-wros-greeter-keyboard.rules) grants only the keyboard
+actions to the active local `_greetd` account.
 
 ## Authentication and maintenance
 
-The wrapper checks UID and refuses root. Production uses an actual PAM login; the VM demo explicitly bypasses passwords for tty1 and is not deployable. Keep tty2 available for authenticated maintenance, and keep root/admin recovery credentials outside the manuscript.
+[session.nix](../nixos/modules/session.nix) enables the native greeter on tty1.
+The packaged [session wrapper](../os/scripts/wros-session) refuses root. The
+[installer](../nixos/scripts/wros-install-core) creates the writer account, and
+[guards.nix](../nixos/modules/guards.nix) configures Linux-PAM and passworded sudo
+for wheel members. tty2 remains the authenticated maintenance path; tty8 is
+reserved for locking.
 
-`loginctl lock-session` alone is not a console lock: an actual locker must own the display/input. The [manual handoff](CONSOLE_LOCK.md) retires Grimoire's reader and delegates authentication to Debian vlock on a separate protected VT. Maintained systemd owns its cgroup and cleanup. Software and isolated-guest qualification pass. Lock-before-suspend and physical resume remain separate open requirements.
+The [main-thread lock handoff](../src/console_lock.rs) retires writing input and
+display before starting the independent locker. Guarded suspend is offered only
+when the installed session supports it. The systemd suspend service runs
+`wros-lock assert-suspend` first. Direct backend suspend remains refused.
 
-## Future service contracts
+## Service contracts and remaining work
 
-- Wi-Fi enrollment: implemented via private stdin to `nmcli --ask` with active-connection readback; live NetworkManager VM/hardware qualification remains open.
-- UPower/logind subscriptions if polling costs or multiple devices require them; cache status, no 4 Hz subprocess loop.
-- Volume/manual clock/NTP: narrow maintained APIs with validation, explicit capability discovery and recovery.
-- Updates: read-only signed bundle inspection and filesystem/dpkg diagnostics exist. A maintained offline APT transaction, actual boot service and interruption/rescue protocol remain release-critical; see the [gap list](archive/ARGON_INTEGRATION_2026-10-31.md).
-- Backup worker: separate opt-in queue (`queue.json`), private Google credential lifecycle (`google-account.json`), hashes and conflict states; no access through the keyboard helper.
-
-Every new action needs denied/unavailable/timeout tests, a non-root path and a tutorial task before it is called implemented.
+- Updates: signed NixOS bundles, offline generation switching, rollback and
+  current-generation repair are implemented in the
+  [update engine](../nixos/scripts/wros-update-engine.py) and
+  [update units](../nixos/modules/updates.nix). See [NixOS updates](NIXOS_UPDATES.md).
+- Google Drive backup and readable sync use separate background workers in
+  [backup_service.rs](../src/backup_service.rs) and
+  [sync_service.rs](../src/sync_service.rs). Their helpers are packaged by NixOS.
+- Physical security, radio, display and sleep/resume qualification remain
+  separate from software and VM checks.
 
 ## Independent editors do not need privilege
 
-M3b file ownership and both Editor contexts live in portable core/TUI code and use ordinary project files. F11, clipboard routing, workspace state, autosave and recovery do not call the keyboard helper or require a root service. The actual binary/PTY checks refuse root and isolate HOME. The registry is advisory in-process ownership, not a privileged filesystem lock or a promise that another program cannot race a save.
+The system worker receives typed OS requests, not an editor or a manuscript.
+Portable document and workspace services remain in `grimoire-core`; the OS
+adapter and narrow privileged helpers handle system changes. See
+[Architecture](ARCHITECTURE.md) for the boundary.
+
+## Verification
+
+[flake.nix](../flake.nix) defines checks for encrypted installation, boot/unlock
+and login, keyboard preview, console lock, generation updates/go back, recovery,
+live sessions and helper paths. The definitions live in `nixos/tests/`; they are
+not pass records. The [Nix workflow](../.github/workflows/nix-ci.yml) evaluates
+all flake packages and checks, builds the Python suite, selected WrOS packages
+and the installed system. It does not run the VM checks.
+
+## History
+
+Before rc14, the Debian prototype staged FHS helpers and policies and exercised
+login, keyboard, timezone and display behavior in disposable VM fixtures.
+[Archived STATUS](archive/STATUS.md) and the
+[timezone record](evidence/native-timezone-vm.json) retain that work. Those
+results do not qualify the current NixOS release or physical sleep/resume.

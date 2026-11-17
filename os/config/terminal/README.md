@@ -1,10 +1,10 @@
 # Retained terminal library
 
-WrOS uses the locked Crossterm 0.29.0 parser and public API. The original crate
-archive is checksum-verified, retained under `crates/crossterm-upstream`, and
-keeps its MIT notice and upstream attribution. The adjacent manifest records
-all original files and the explicit patch; the required software gate checks
-all bytes and reverses the patch to recover the pinned originals offline.
+WrOS uses Crossterm 0.29.0 with its original parser and public API. The unpacked
+source is retained under `crates/crossterm-upstream` with its MIT notice. The
+adjacent manifest records the original archive checksum, per-file hashes and
+explicit patch. The software gate verifies the retained source bytes and
+reverses the patch to recover the pinned originals offline.
 
 The Linux Mio source must remember readable input after yielding one parsed
 key. Otherwise a multi-chunk burst can leave bytes unread while waiting for an

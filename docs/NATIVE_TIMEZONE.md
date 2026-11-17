@@ -6,7 +6,7 @@ Enter. The confirmation defaults to Cancel. A failed/denied request retains the
 choice for an explicit retry; it never reports success or changes cached status.
 Leaving Settings returns to the same editor, caret, selection and undo history.
 
-The bounded system worker calls Debian's maintained
+The bounded system worker calls systemd's maintained
 [timedatectl interface](https://manpages.debian.org/trixie/systemd/timedatectl.1.en.html)
 with fixed argv, no shell, null stdin and `--no-ask-password --no-pager`.
 Identifiers and the entire catalog are validated before use. Setting a timezone
@@ -14,16 +14,18 @@ must be followed by a matching authoritative `Timezone` readback. Status also
 reads timedated: `/etc/timezone` can remain stale when `/etc/localtime` changes.
 Errors/mismatched readback keep writing available and require refresh/retry.
 
-Only the active local `wros` group receives the existing
-`org.freedesktop.timedate1.set-timezone` polkit action. There is no root editor,
-custom privileged helper, password prompt or grant for setting the clock, RTC,
-NTP, arbitrary commands or general administration. Those date/time controls are
-still unavailable. No network is required to select an installed timezone.
+Timezone selection uses `org.freedesktop.timedate1.set-timezone` for active local
+members of both `wros` and the `writingdeck` compatibility group, without a custom timezone helper or
+password prompt. Manual clock setting and returning to network time are also
+available through the separate `wros-clock` helper and its `org.wros.clock`
+action. RTC controls and arbitrary commands are not exposed.
+Selecting an installed timezone needs no network.
 
 Above the timezone, a row reads `Network time: on · synchronized`, `on · not
 yet synchronized`, `off` or `unknown`, from `timedatectl show --property=NTP
 --property=NTPSynchronized`. New installs ship `systemd-timesyncd`, so the
-clock follows the network once online; an rc1 install gets it with
+clock follows the network once online; a legacy Debian rc1 install can enable
+it with (Debian builds only)
 `sudo apt install systemd-timesyncd && sudo timedatectl set-ntp true`.
 
 Timezone changes affect future local dates; historical writing records retain
@@ -32,6 +34,11 @@ navigation only, not that a timezone was changed. Offline help includes an
 optional cancel-first exercise. Software, actual guest/policy and image evidence
 are separate gates. In particular, the initial integrated native-login ISO built
 at `9e7d99c` predates these controls and is not evidence for this increment.
+
+## Debian-era qualification history
+
+These recorded counts, durations, CI runs and guest results predate the NixOS
+build and do not qualify its current release.
 
 [Focused verification](evidence/native-timezone-focused.json) passed all ten
 offline gates: 20 system-backend tests, the new controller scenario at four

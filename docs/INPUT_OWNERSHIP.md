@@ -12,9 +12,9 @@ complete events cannot discard that private partial state. See crossterm's
 [read/poll contract](https://docs.rs/crossterm/0.29.0/crossterm/event/index.html).
 The terminal child keeps its existing blocking read while idle. Native graphical
 writing uses libinput/XKB in the same private process, polling device, seat and
-keyboard-settings descriptors with no idle timer. Root-owned Debian keyboard and
-Compose data supply Colemak and compose; no owner configuration or prose enters
-the reader. Native input is restricted to the existing authenticated tty1 session
+keyboard-settings descriptors with no idle timer. Root-owned XKB and Compose
+data from the Nix store supply Colemak and compose; no owner configuration or
+prose enters the reader. Native input is restricted to the existing authenticated tty1 session
 and logind's seat0 device grants. A PTY or unavailable native keyboard falls back
 to the terminal reader.
 

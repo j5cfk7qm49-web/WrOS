@@ -1,7 +1,7 @@
-# Experimental native WrOS login
+# Native WrOS login
 
 `wros-greeter` is a separate Rust/Ratatui executable. It shares only presentation
-with `wros-shell`, and has no Grimoire/editor dependency. Debian's greetd and PAM
+with `wros-shell`, and has no Grimoire/editor dependency. greetd and Linux-PAM
 perform authentication and session setup. The editor never receives login input.
 This is a login implementation, **not a session locker or permission to suspend**.
 
@@ -20,8 +20,9 @@ in from the password; Tab and Shift+Tab move between them; Up and Down in the
 account field pick a local account; F1 opens the power menu and F2 the
 keyboard layout picker.
 
-The switcher shows only when cage and foot are installed. **Usual session**
-starts `/usr/libexec/wros-session` and follows the writer's choice in Settings
+The switcher offers the usual session and a console session; it does not depend
+on Cage or Foot. **Usual session** starts the packaged `wros-session` helper at
+its compiled Nix store path and follows the writer's choice in Settings
 (graphical or console). **Console session** starts it with `--console`: the
 console for this login only, without changing the setting.
 
@@ -40,7 +41,7 @@ form is open, not during a PAM question.
 The greeter runs the same fixed requests as Settings, `systemctl
 --no-ask-password poweroff` or `reboot`, with no shell, terminal or inherited
 environment. No WrOS polkit rule is involved. greetd gives the greeter an
-active, local logind session of class `greeter` on seat0, and Debian's logind
+active, local logind session of class `greeter` on seat0, and systemd-logind's
 policy allows active local sessions to power off and reboot, including while
 other sessions exist. Refusals and timeouts show fixed text and return to the
 menu. The power button stays ignored, as before.
@@ -57,7 +58,7 @@ shutting down or restarting here cannot roll an update back.
 The implementation follows the maintained [greetd IPC protocol](https://manpages.debian.org/trixie/greetd/greetd-ipc.7.en.html)
 and [configuration contract](https://manpages.debian.org/trixie/greetd/greetd.5.en.html).
 The small JSON wire codec is independently implemented here; the GPL-3.0-only
-`greetd_ipc` Rust crate is not linked into the MIT workspace. Debian greetd remains
+`greetd_ipc` Rust crate is not linked into the MIT workspace. greetd remains
 a separately distributed GPL component with its package notices/source obligations.
 
 Each connection verifies that the Unix-socket server runs as root. Responses have a
@@ -74,7 +75,7 @@ worker, the rejection remains visible and Enter exits for a fresh greetd service
 uncertain session state is never reused. The form's password answers only PAM's
 first password question; any further question is shown on screen and answered by
 hand. A successful authentication starts the session at once: the fixed
-`/usr/libexec/wros-session` command, with `--console` only when the switcher asks,
+packaged `wros-session` command, with `--console` only when the switcher asks,
 and a fixed locale/terminal environment. No user-supplied command is accepted.
 That wrapper refuses root.
 
@@ -91,13 +92,14 @@ at protocol transitions and before terminal handoff. Escape on the form clears
 it in place. Escape cancels an idle PAM conversation; during an outstanding
 request it disconnects and exits for greetd to restart. SIGTERM/HUP/INT restore the terminal and exit without starting a session.
 
-## Experimental image integration
+## NixOS integration and Debian staging history
 
-The current installer recipe includes Debian `greetd` and stages the native tty1
-login by default. Build both workspace binaries before building the image; set
-`WROS_GREETER_BINARY` when the greeter is outside `target/debug`. Image and fresh
-installation evidence are tracked separately from the earlier overlay fixtures
-below. The VM-demo profile keeps its explicit, insecure demonstration login.
+NixOS enables the native greeter on tty1 through `nixos/modules/session.nix`.
+The flake builds its executable and PAM configuration; no manual staging step is
+required. tty2 remains available for authenticated maintenance and tty8 is
+reserved for locking.
+
+### Historical Debian staging procedure (rc13 and earlier)
 
 For a separate isolated Debian staging root with the maintained `greetd` package
 and WrOS session already installed, explicitly run:
@@ -118,7 +120,11 @@ There is no initial-session/autologin stanza. The image also stages power-key,
 lid/idle and sleep guards until secure locking is qualified. Never enable this
 profile on a live machine as a substitute for image qualification.
 
-## Verification and remaining gates
+## Debian-era qualification history
+
+The counts, durations, CI runs and fixture commands below record Debian-era work.
+They are not current NixOS pass results; current test definitions are in
+`nixos/tests/`.
 
 `cargo test -p wros-greeter --locked --offline` exercises the conversation, fixed
 command, cancellation, rendering at four supported sizes and very small sizes,
@@ -168,15 +174,16 @@ file, excludes system/nonlogin accounts and never reads shadow or network NSS.
 PAM still decides whether an account is permitted. [Native keyboard recovery](GREETER_KEYBOARD.md)
 now opens with F2 before authentication, using the existing console layout
 helper with independent rollback. Its focused, real guest and current CI records
-are tracked separately from the older login evidence above. Issue #27 stays
-open for the remaining failure/transition matrix and integration; the independent
-secure locker, physical keyboards and sleep/resume remain separate gates.
+are tracked separately from the older login evidence above. The keyboard/login
+results above retain their original Debian source identity. The current system
+includes an independent vlock/PAM locker and guarded suspend; physical keyboards
+and sleep/resume qualification remain separate.
 
 For rc10, login shows a large local-time clock beside the shared logo. The full
 form still fits at 80 by 25; narrower layouts omit the clock. The packaged binary
 also has a fixed `--lock-message` presentation mode: it writes a bounded static
 **Locked at** clock without opening a terminal or connecting to greetd. The
-independent lock helper prepares this once before starting Debian vlock/PAM.
+independent lock helper prepares this once before starting vlock/PAM.
 Failure falls back to the previous lock message. No clock redraw or input reader
 runs alongside the password exchange. [Clock evidence](evidence/rc10-clocks.json)
 records the focused software and installed-VM checks separately from the older

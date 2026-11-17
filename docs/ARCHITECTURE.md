@@ -2,13 +2,9 @@
 
 ## Scope and non-negotiable boundaries
 
-WrOS — Writer's OS uses a maintained Debian foundation. Grimoire evolves into
-the unified Rust/Ratatui operating-system shell: writing, native Settings,
-networking, accounts, storage and system interactions share one interface.
-The user's architectural directive supersedes the earlier application-launcher
-assumption. [UNIFIED_SHELL](UNIFIED_SHELL.md) records the source audit, target
-pre-login/authenticated/privileged boundaries, service decisions and execution
-order. The graph below describes the existing baseline, not a completed greeter.
+WrOS — Writer's OS runs on NixOS 26.05. Grimoire is the unified writing and
+Settings shell. greetd and PAM authenticate the writer before the session starts.
+[UNIFIED_SHELL](UNIFIED_SHELL.md) records the earlier design work.
 The editor is extended in place. Ordinary novel writing must remain offline, unprivileged and usable without AI, a GPU, cloud authentication or a desktop. The project is independent and has no implied NaNoWriMo affiliation.
 
 Preserve upstream Markdown/YAML, atomic saves, conflict checks, history, resume and recovery. Add versioned state alongside them; never migrate manuscript text merely to implement a UI widget. [AUDIT](archive/AUDIT.md) is the baseline.
@@ -16,9 +12,9 @@ Preserve upstream Markdown/YAML, atomic saves, conflict checks, history, resume 
 ## Layers
 
 ```text
-UEFI / Debian GRUB -> maintained Debian kernel + initramfs -> systemd
-  -> console-setup -> WrOS committed keymap -> tty1 PAM login
-  -> non-root writingdeck-session -> grimoire
+UEFI / GRUB -> NixOS kernel + systemd initrd -> LUKS unlock -> systemd
+  -> systemd-vconsole-setup -> wros-keyboard -> greetd / wros-greeter / PAM
+  -> non-root wros-session -> grimoire (native DRM by default)
        |
        + Ratatui + App (existing editor/autosave/history/conflicts)
        + Deck (home, dual-editor workspaces, tutorial, cached settings)
@@ -35,27 +31,28 @@ privileged keyboard helper: fixed layouts only, root-owned files only
 ```
 
 `crates/wros-sys` knows OS capabilities but not manuscript contents. It never receives a book path or text. `grimoire-core` and `grimoire-app` remain free of Linux privilege/service dependencies. The TUI uses both layers. Pinned external Python analyzers already run in bounded optional workers.
-Cloud adapters remain future workers, never synchronous input-loop work.
+Google Drive backup and readable sync use separate background workers.
 `crates/wros-shell` now provides reusable bounded navigation/preferences,
 notifications and Ratatui menu presentation without editor, authentication,
 filesystem, process or privilege dependencies. `src/app/shell.rs` adapts native
 categorized Settings to retained editor objects and the existing service worker.
 The shared library also owns the original Grimoire palette/theme-file code and
 panel geometry used by native login/layout and installer presentation. Current
-greeter, timezone, manual-lock and display results are tracked in [STATUS](archive/STATUS.md);
-the graph above retains the earlier baseline. Cloud/native Wi-Fi enrollment and
-complete live installation remain unfinished. Visual integration of unlock and
-future system panels is part of the same Grimoire interface requirement.
+greeter, timezone, lock and display work builds on the Debian-era results in
+[archived STATUS](archive/STATUS.md). NixOS declares these services in
+`nixos/modules/`. Wi-Fi enrollment and encrypted offline installation are
+implemented; current NixOS checks are defined in `flake.nix` and `nixos/tests/`.
 
 ## Implemented vertical slice
 
-- Debian 13 (trixie) rootfs recipe and regular-file UEFI GPT disk assembler; no custom kernel, desktop, block-device formatter or host mount operation.
-- tty1 session wrapper refuses root; PAM remains the authentication boundary. VM-only autologin is conspicuously marked and networkless acceptance tests use a disposable COW layer.
+- Debian VM prototype (rc13 and earlier): Debian 13 (trixie) rootfs recipe and regular-file UEFI GPT disk assembler; no custom kernel, desktop, block-device formatter or host mount operation.
+- Debian VM prototype (rc13 and earlier): tty1 session wrapper refuses root; PAM remains the authentication boundary. VM-only autologin is conspicuously marked and networkless acceptance tests use a disposable COW layer.
+- Current NixOS images come from `flake.nix`; the live installer partitions and encrypts the selected disk.
 - Fixed system request types and backend trait; bounded background command queue, bounded captured command output, subprocess deadline, explicit unsupported/error state.
 - Root-owned console keymap application before tty1 login and an independent systemd preview/revert transaction.
 - Home widgets derived from existing project/session data, hide/reorder configuration, dual-editor workspace slots, cursor/selection/free scroll, outline width and secondary proportion, additive safe shortcut aliases.
 - Strict focus hides retained references and removes them from focus traversal.
-- All 39 tutorial lessons cataloged, 27 currently wired to real application events; unavailable lessons are not fake-completable. Writing exercises require a separately created demo project.
+- The catalog contains 50 tutorial lessons, each with a real completion event. Opening a tool alone does not prove its task was completed.
 
 This slice is not the full requested OS. See [FEATURE_MATRIX](FEATURE_MATRIX.md).
 
@@ -65,7 +62,7 @@ This slice is not the full requested OS. See [FEATURE_MATRIX](FEATURE_MATRIX.md)
 |---|---|---|
 | Novel and notes | Existing Markdown + `novel.toml` | Existing core is the source of truth; YAML frontmatter remains raw |
 | Autosave/history/recovery | Existing `.grimoire/` facilities | Unchanged save guards and recoverable copies |
-| Selected workspace, both document/selection/cursor/scroll states, pane sizes, card-ID sets, 21 widgets, launch/low-power preferences | `.grimoire/writingdeck/layout.json` | Schema v3; v1/v2 migrate in memory; bounded guarded save; unknown/unreadable/future schema preserved |
+| Selected workspace, both document/selection/cursor/scroll states, pane sizes, card-ID sets, 22 widgets, launch/low-power preferences | `.grimoire/writingdeck/layout.json` | Schema v3; v1/v2 migrate in memory; bounded guarded save; unknown/unreadable/future schema preserved |
 | Scratch references, promotion receipts, handoff provenance/settings | `.grimoire/writingdeck/workflow.json` | Schema v1; no prose; bounded clone/validate/guarded-save; Prepared before exclusive scene creation |
 | Scratch and handoff originals | `notes/scratchpad/NNNNNN.md`, `notes/handoff.md` | Ordinary Markdown/YAML; explicit owner-aware Project editing; no preview writer |
 | Pin references/presentation | `.grimoire/writingdeck/pins.json` | Schema v1; no copied bodies, bounded quote anchors; guarded clone/validate/save transactions; containment/alias checks on input/tick, no render I/O |
@@ -81,7 +78,7 @@ This slice is not the full requested OS. See [FEATURE_MATRIX](FEATURE_MATRIX.md)
 | Shortcut aliases | `paths::data_dir()/writingdeck/shortcuts.json` | Per-machine v1; conflicts/unreadable files are not overwritten |
 | Committed console layout | `/etc/writingdeck/keyboard.json` | Root-owned; application changes only through helper/polkit |
 | Preview token + monotonic deadline | `/run/wros/keyboard-preview.json` | Root-only, boot-ephemeral; never a manuscript setting |
-| Package/image identity | `/etc/writingdeck/release`, `build/appliance/packages.lock.tsv` | Recipe/profile/base and actual resolved package inventory |
+| System identity | `/etc/wros/version`, `/etc/wros/release`, `/run/current-system`, `flake.lock` | WrOS version, NixOS base, active system closure and pinned build inputs |
 
 `sync::save_guarded` detects ordinary external state changes. It is not a lock against an unrelated writer racing between check and rename. The M3b registry enforces exclusive ownership of the open views by project-contained canonical path and Unix device/inode, retaining missing-file leases and refreshing identity after atomic replacement. It is not an OS lock or cross-process compare-and-swap. Unknown schema versions must be rejected rather than normalized into older state.
 
@@ -99,9 +96,9 @@ Workspace restoration deliberately gives the existing newer resume record preced
 
 ## Security and services
 
-Use NetworkManager/logind/UPower/brightnessctl and maintained Debian services; do not create a root application server accepting arbitrary commands. The first helper accepts only four registered layout IDs and token-bound preview/confirm/cancel. The policy grants only that exact executable to active local members of `wros`; there is no passwordless general sudo rule.
+Use NetworkManager/logind/UPower/brightnessctl and services declared in the NixOS modules; do not create a root application server accepting arbitrary commands. The first helper accepts only four registered layout IDs and token-bound preview/confirm/cancel. The writer policy grants only that exact executable to active local members of both `wros` and the `writingdeck` compatibility group; there is no passwordless general sudo rule.
 
-Power requests are user-confirmed and require successful manuscript saves. Normal development does not install appliance login/polkit policies. Timezone, sound, updates, first-run account provisioning and screen-lock integration remain planned. An upstream authenticated tty2 is the maintenance path; a passwordless VM demo cannot provide production authentication or recovery guarantees.
+Power requests are user-confirmed and require successful manuscript saves. Normal development does not install appliance login/polkit policies. Timezone, sound, signed generation updates, installer account creation and screen-lock integration are implemented. Physical qualification remains separate. An upstream authenticated tty2 is the maintenance path; a passwordless VM demo cannot provide production authentication or recovery guarantees.
 
 The [manual warm-screen service](WARM_SCREEN.md) adds a separate fixed polkit
 endpoint, root-owned transaction state and a non-setuid bounded libdrm bridge.
@@ -110,7 +107,7 @@ captured calibration, verifies all outputs/readback and arms independent systemd
 rollback before writing colors. Unsupported or externally changed displays are
 refused. The editor never owns credentials, privileged device handles or timers.
 
-Production release gates: encrypted Debian installation, authenticated login and lock/suspend interaction, recovery secrets, firmware/Secure Boot policy, signed update source and tested rollback. The present GRUB fallback image is unsigned. Never deploy its passwordless profile to a physical laptop.
+Encrypted NixOS installation, authenticated login, guarded lock/suspend and signed generation updates with rollback are implemented. Physical acceptance and firmware/Secure Boot qualification remain separate. The retained passwordless Debian VM-demo image is historical test machinery and must not be deployed to a laptop.
 
 ## Performance design
 

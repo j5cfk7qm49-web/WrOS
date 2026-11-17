@@ -2,9 +2,13 @@
 
 **Owner decision, 2026-11-07:** graphical rendering is now the default for disk
 unlock, loading, login and writing. The native software backend is integrated
-throughout those screens, with an explicit text recovery path. This supersedes
-the earlier off-by-default trial policy below; the three-backend comparison and
-the remaining rc10 libraries are still separate work. See [Graphical screens](GRAPHICAL_SESSION.md).
+throughout those screens, with an explicit text recovery path. The trial policy
+below is historical. The chosen presentation libraries are integrated:
+tachyonfx, tui-big-text, ratatui-splash-screen, taria-ratatui and termprofile.
+The test driver is restricted to test builds. See [Graphical screens](GRAPHICAL_SESSION.md).
+
+The library survey and trial decisions through **Decided for rc10** are research
+notes from 2026-11-06. The termprofile row includes its current integration status.
 
 Read through the whole [Awesome Ratatui](https://github.com/ratatui/awesome-ratatui)
 list (about 560 entries) on 2026-11-06, looking for projects that suit a writing
@@ -15,8 +19,7 @@ on GitHub or crates.io the same day.
 
 Two projects on the list are already part of WrOS: **Grimoire**
 ([GrimoireTUI](https://github.com/kelsierbot/GrimoireTUI), MIT), the writing
-app's upstream, and **Lemurs** (MIT or Apache-2.0), whose screen is coming into
-the WrOS login (#86).
+app's upstream, and the **Lemurs form** (MIT), used by the WrOS login (#86).
 
 ## How they can join WrOS
 
@@ -34,7 +37,7 @@ the WrOS login (#86).
 | [tachyonfx](https://github.com/ratatui/tachyonfx) | MIT | Fades and transitions: login to writing, the lock screen, tutorial highlights. Off in low-power mode. Kept by the Ratatui project. |
 | [ratatui-image](https://github.com/ratatui/ratatui-image) | MIT | Pictures in the graphical session (foot shows Sixel images): book covers, picture notes on the pin board, character portraits. The console session falls back to coloured blocks. |
 | [tui-widgets](https://github.com/ratatui/tui-widgets) | Apache-2.0 | A set from Ratatui's maintainers. **tui-big-text** for a large clock on the login and lock screens and chapter title cards; **tui-popup**, **tui-scrollview** and **tui-prompts** to replace hand-made versions. |
-| [termprofile](https://github.com/aschey/termprofile) | MIT or Apache-2.0 | Knows how many colours the screen can show. The console has 16 and foot has millions, so one WrOS theme can look right in both sessions. Needed for rc10. |
+| [termprofile](https://github.com/aschey/termprofile) | MIT or Apache-2.0 | Implemented for console colour adaptation: the shared theme converts RGB colours to the console's 16-colour palette. |
 | [opaline](https://github.com/hyperb1iss/opaline) | MIT | A theme engine with 20 built-in themes and a theme picker widget, for a Themes page in Settings. |
 | [ratatui-splash-screen](https://github.com/orhun/ratatui-splash-screen) | Apache-2.0 | A WrOS picture while the laptop starts. |
 | [taria-ratatui](https://github.com/y0sif/taria) | MIT or Apache-2.0 | Publishes the app's screen and actions so a test program can press the right buttons by name. Laptop tests without screen-scraping or a webcam. |
@@ -136,7 +139,7 @@ Smaller layouts keep the form and omit the clock. The clock uses full-block
 characters supported by both the graphical font and installed Linux console;
 compressed half-block modes failed the installed-font screenshot check (#105).
 The lock shows **Locked at HH:MM**, a static lock-start time prepared once by
-the packaged greeter's write-only message mode. Debian vlock/PAM alone reads
+the packaged greeter's write-only message mode. vlock/PAM alone reads
 unlock credentials; no background clock redraw runs during authentication.
 If the message renderer is unavailable, the original lock message still works.
 The clock has no editor or authentication dependency. Its dependency notices
@@ -146,8 +149,9 @@ records the checks and limits.
 **TachyonFX** fades the first writing frame over 210 ms and tutorial highlights
 over 150 ms. The writing loop continues to handle keys during both effects.
 After retiring writing input, the graphical lock shows a 150 ms fade on a
-simple **Locking…** card, then hands the screen and keyboard to Debian's locker.
-Console and low-power sessions keep static colours. [Transition evidence](evidence/rc10-motion.md)
+simple **Locking…** card, then hands the screen and keyboard to the independent
+vlock/PAM locker. Console and low-power sessions keep static colours.
+[Transition evidence](evidence/rc10-motion.md)
 
 **ratatui-splash-screen** shows the four-box WrOS logo in Braille dots as the
 graphical writing session opens. A key or paste can skip the brief picture and
@@ -162,7 +166,6 @@ checks this alongside the separate credential and physical-input tests.
 
 ## Suggested order for the rest
 
-1. termprofile with the graphical session (same look in both sessions).
-2. ratatui-image with the graphical session.
-3. wtfi2 and dua-cli as Settings pages; doxx for reading Word files.
-4. Speech (readio, ostt) after a speed test on the laptop.
+1. ratatui-image with the graphical session.
+2. wtfi2 and dua-cli as Settings pages; doxx for reading Word files.
+3. Speech (readio, ostt) after a speed test on the laptop.

@@ -2,15 +2,15 @@
 
 Graphical rendering is the default for disk unlock, loading, login and writing,
 as requested by the owner on 2026-11-07. The installed build includes `gui-drm`.
-`soft_ratatui` shapes the shared Ratatui screens with WrOS Mono, which extends
-DejaVu Sans Mono with Braille for the startup picture. It sends
-pixels directly to a DRM/KMS dumb buffer. It needs neither a compositor nor
-Vulkan drivers. Disk unlock, loading and login keep their console input path.
+`soft_ratatui` draws the shared Ratatui screens with GNU Unifont's 8×16 bitmaps
+and sends pixels directly to a DRM/KMS dumb buffer. It needs neither a compositor
+nor Vulkan drivers. Disk unlock, loading and login keep their console input path.
 The native writing session uses libinput devices and xkbcommon in its disposable
-input process. It reads Debian's keyboard layout, watches layout changes, and
-supports compose, key repeat and a cell-based mouse/touchpad with a visible cursor.
-The writer uses 14-pixel WrOS Mono in 10×18-pixel cells. A 1366×768 panel fits
-136 columns and 42 rows at its selected display mode. Startup and login use 16-pixel type.
+input process. It reads the system's `/etc/default/keyboard` configuration,
+watches layout changes, and supports compose, key repeat and a cell-based
+mouse/touchpad with a visible cursor.
+Startup, login and writing share 8×16-pixel cells. A 1366×768 display fits
+170 columns and 48 rows.
 Only root-owned XKB and Compose data are loaded. PTYs and unavailable native
 devices retain terminal input.
 
@@ -24,16 +24,13 @@ native graphics; an explicit `session: "console"` retains text. Settings › Sys
 › Display › Graphical session changes the next login. The login form also offers
 a console choice for one login. Live sessions default to native graphics too.
 
-The existing cage/foot trial remains available with
+The Cage/Foot trial is available by setting
 `{"version":1,"session":"graphical","backend":"foot"}` in
-`~/.config/wros/session.json`, after installing Debian's `cage` and `foot` packages.
-Its first-frame marker and two-failure fallback are retained. Build the optional
-`gui-wgpu` feature and select `"backend":"wgpu"` in the same file to run Grimoire
-directly under cage. This uses ratatui-wgpu with OpenGL and a Wayland-only winit
-window. It does not install or select Vulkan drivers. Each compositor backend has
-its own startup failure count. New sessions still use the native renderer.
-The trial needs `cage`, `libegl1`, `libgles2`, `libgl1-mesa-dri`,
-`libwayland-egl1` and `libxkbcommon0`; foot also needs the `foot` package.
+`~/.config/wros/session.json`. Set `backend` to `wgpu` for the OpenGL window.
+Current NixOS images include patched Cage, Foot and both writing renderers;
+no package installation or optional-feature rebuild is needed. Each compositor
+backend keeps its first-frame marker and two-failure fallback. Native DRM
+remains the default.
 
 The window sends logical keys, compose/IME commits and cell-based pointer events
 through the editor's existing event dispatch. It keeps the compositor's keyboard
@@ -112,48 +109,46 @@ acceptance. Unsupported outputs are shown honestly. See [Warm screen](WARM_SCREE
 
 ## Recovery and packaging
 
-**WrOS (text start)** selects Debian's disk prompt and text rendering for loading,
-login and writing. Recovery's console override also disables graphics. Missing
+**WrOS (text start)** selects systemd's text disk-unlock prompt and text rendering
+for loading, login and writing. Recovery's console override also disables graphics. Missing
 or inaccessible DRM devices fall back to the console automatically.
 
-The package carries all three graphical-capable executables, the font notice,
-the independent console-reset executable, a sysusers rule giving the locked
-`_greetd` account video-device access, and the boot-image hook. Updates apply the
-rule and rebuild the boot image unless the writer explicitly chose plain text.
-The original Debian password prompt is retained in every wrapped image.
+NixOS packages the writing, startup and greeter executables and console-reset
+helper. The base module gives the locked `_greetd` account video access. The
+boot module includes the unlock program in the systemd initrd and retains
+systemd's text password fallback. Start-screen changes synchronize settings to
+`/boot/wros-boot` without rebuilding the initramfs.
 
-Building the ordinary terminal app with `--no-default-features` omits native
-graphics. WrOS release builders explicitly add `--features gui-drm`; desktop
-terminal launches continue to use their terminal unless the session launcher
-asks for native output.
-
-rc11 release builds include both `gui-drm` and `gui-wgpu` for the writing
-executable. Foot, Mesa and the patched private Cage are included in the image and
-package dependencies, so the compositor options are available after installation.
-The native renderer remains the default. Build the private compositor with
-`python3 tools/build-cage.py --output /path/to/cage`; its additional build
-dependencies are `meson`, `ninja-build` and `libwlroots-0.18-dev`.
+Ordinary terminal builds with `--no-default-features` omit native graphics.
+NixOS release Grimoire includes `gui-drm`, `gui-wgpu` and `audio`. Terminal
+launches keep terminal output unless the launcher requests a renderer. Build the
+packaged compositor with `nix build .#wros-cage`; its inputs are declared in
+`nixos/pkgs/cage.nix`.
 
 Native console restoration retries brief DRM-master contention from the colour
 helper. Restoration errors propagate before the maintained locker starts;
 switching to text mode after a failed framebuffer restoration is no longer
 treated as a successful handoff.
 
-Native writing builds need `libinput-dev`, `libudev-dev`, `libseat-dev` and
-`libxkbcommon-dev` in addition to libdrm. The package declares the corresponding
-runtime libraries, `xkb-data` and `libx11-data` for the system Compose table.
+The NixOS Rust package declares libdrm, libinput, systemd, seatd and libxkbcommon
+build inputs. XKB and Compose data use the store paths in `nixos/pkgs/paths.nix`.
 
 `grimoire --wros-renderers` reports the compiled renderer features as JSON without
 opening a book. `gui-wgpu` belongs only to the writing executable, so enabling the
 trial does not pull its window/graphics dependencies into the unlock or login
 executables.
 
-The release VM chain accepts `--bootscreen` to include graphical unlock,
+## Debian qualification history (rc10–rc13)
+
+The retained Debian release VM chain accepts `--bootscreen` to include graphical unlock,
 loading/login handoff, writing, VT switching, lock, renderer SIGKILL and text
 recovery after the saved-system update and feature checks. Its screenshots use
 exact glyph atlases from `cargo run -p wros-graphics --example font_atlas`.
 Set `WROS_NATIVE_FONT` to the startup atlas. Generate the writing atlas by adding
 `-- --writing` to the command and set `WROS_NATIVE_WRITING_FONT` to that PPM file.
+
+These runs do not qualify a NixOS release; current check definitions are in
+`nixos/tests/`.
 
 The [native input qualification record](evidence/rc10-native-input.json) retains
 the isolated installed-VM checks for physical Colemak, compose, live layout

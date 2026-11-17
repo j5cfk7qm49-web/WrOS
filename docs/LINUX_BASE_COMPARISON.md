@@ -1,38 +1,62 @@
 # Linux foundation decision
 
-Decision date: 2026-10-24. **Selected: Debian 13 Stable (trixie), initially amd64.** No custom kernel. Other architectures require their own image and boot tests.
+WrOS 0.1.0~rc16 uses NixOS 26.05 on `x86_64-linux`.
+[flake.nix](../flake.nix) defines the installed system, live image, packages and
+checks. [base.nix](../nixos/modules/base.nix) declares the base and release
+identity. The flake pins Nixpkgs and the Rust overlay; `flake.lock` records the
+resolved inputs.
 
 ## Comparison
 
-The tradeoff assessments below are engineering judgments, not measured battery/boot benchmarks. A minimal configuration matters more than the distribution's default desktop footprint.
+The current decision follows the system model implemented in the repository.
+These are design reasons, not measured boot, memory or battery comparisons.
 
-| Foundation | Strength for this appliance | Cost / risk | Decision |
-|---|---|---|---|
-| Debian Stable, minimal systemd installation | Conservative packages, familiar Debian installer and apt security maintenance; straightforward NetworkManager/logind/polkit and console-setup; glibc compatibility for Rust and optional Python tools | Older application versions; rollback is not atomic by default; very new hardware may need firmware/backports | **Choose**; smallest integration delta for this repository and available build environment |
-| Fedora minimal / custom Atomic appliance | Maintained kernel/drivers and strong systemd integration; Atomic deployments offer bootable previous system state | More frequent major upgrades; custom no-desktop image composition and release maintenance; desktop Atomic images include an unnecessary desktop | Viable alternative if automatic OS deployment rollback dominates requirements |
-| Ubuntu LTS minimal | Similar Debian ecosystem; mature installer/hardware ecosystem | Additional distribution-specific packaging decisions; no demonstrated advantage for this prototype | Reasonable supported development host; not the first appliance target |
-| Alpine minimal | Small package/service footprint | musl/Python binary-wheel compatibility adds integration work for spaCy and optional writing tools; different service assumptions for the chosen Linux interfaces | Do not optimize base size at the cost of the offline toolchain and safety integration |
-| NixOS appliance configuration | Declarative rebuilds and generation rollback are attractive | Different packaging/service model and contributor skill requirements; offline closure management needs deliberate tooling | Reconsider only with a dedicated maintainer and reproducible offline-update proof |
+| Requirement | NixOS implementation | Boundary |
+|---|---|---|
+| Declarative services | [Installed modules](../nixos/modules/installed.nix) compose the base, hardware, networking, audio, session, policy, boot, recovery and updates | Service and package changes belong in the modules |
+| System generations | The [update engine](../nixos/scripts/wros-update-engine.py) switches `/nix/var/nix/profiles/system` and installs boot entries | `/run/current-system` identifies the running closure |
+| Go back and repair | The engine selects the previous generation and can verify the store and restore the current boot configuration | Repair refuses a failed store-integrity check; it does not invent missing store contents |
+| Offline installation | The [live module](../nixos/modules/live.nix) carries the complete installed-system closure | The [installer core](../nixos/scripts/wros-install-core) copies that closure to the selected encrypted disk |
+| Offline updates | The [bundle package](../nixos/pkgs/update-bundle.nix) exports a local binary cache and closure manifest | The engine authenticates signed metadata and checks cache hashes before import |
 
-Debian's official release information identifies 13.7 as the current point release, with regular support through 2028-08-09 and LTS through 2030-06-30; coverage and architectures narrow under LTS. These dates are not a guarantee that every optional package is security-supported. [1](https://www.debian.org/releases/trixie/)
-
-Fedora Silverblue's official page describes a roughly 13-month lifecycle and a GNOME desktop; the official Atomic documentation describes rebase and rollback of deployments. A custom appliance would need its own no-desktop composition, rather than shipping Silverblue unchanged. [3](https://fedoraproject.org/atomic-desktops/silverblue/) [4](https://docs.fedoraproject.org/sq/atomic-desktops/updates-upgrades-rollbacks/)
+Generations and rollback keep the previous system available without an in-place
+package transaction. Declarative modules make the installed system and live
+image use the same package definitions. Carrying the closure on the medium makes
+installation independent of a network package resolver.
 
 ## Concrete package evaluation
 
-The development host and built guest are Debian 13.7. The recipe uses signed `trixie`, `trixie-security` and `trixie-updates` repositories. Actual versions are recorded by the builder, not guessed from the distribution name. Relevant available packages include NetworkManager, polkit, systemd, kbd 2.7.1, console-setup, xkb-data, UPower, brightnessctl, power-profiles-daemon, cryptsetup, rclone, WordNet, proselint, eSpeak and Pandoc. Only the minimal package list in `os/config/packages.txt` is in the current VM; optional analyzers/export/reference/cloud tools are not silently advertised as bundled.
+[base.nix](../nixos/modules/base.nix) includes Grimoire, the native greeter and
+startup program, patched Cage, Foot, keymaps, the prose-tools runtime and helpers.
+It also includes tools used by the writing workflows, such as Git, restic,
+rclone, WordNet and eSpeak NG. The Python runtime is built by
+[prose-runtime.nix](../nixos/pkgs/prose-runtime.nix) from the shared lock.
 
-**Keyboard correction from practical testing:** upstream kbd supports modern Colemak-DH, but Debian's installed `kbd`/`console-data` packages did not supply named Colemak maps at the expected paths. The tested recipe compiles the maintained XKB `us` variants with `ckbcomp` instead. `loadkeys --unicode --bkeymap` validates them without opening a console; `loadkeys --parse` alone was not usable in this container. This avoids vendoring an unverified keymap and includes the Unicode/modifier tables. The resulting DH physical E → logical F mapping and timer rollback were verified in the VM.
+[paths.nix](../nixos/pkgs/paths.nix) supplies Nix store tool, XKB and Compose
+paths to the application and helper policies.
+[keymaps.nix](../nixos/pkgs/keymaps.nix) compiles the four supported layouts from
+Nixpkgs XKB data. Normal on-device package administration is disabled in the
+base module; system changes use the packaged update path.
 
 ## Image and reproducibility strategy
 
-`mmdebstrap` creates a staged Debian rootfs. Regular FAT/ext4 files plus `sgdisk`, mtools and `grub-mkstandalone` create a GPT/UEFI VM disk without host loop mounts or block-device access. The kernel/initramfs are Debian packages. QEMU/OVMF boots the complete disk, rather than only invoking an application in a container.
+The installed system is `nixosConfigurations.wros`; the live image is
+`.#wros-iso`. Both are defined in [flake.nix](../flake.nix). The live image
+contains the installed closure, and `.#wros-update-bundle` exports the system's
+binary cache. A pinned build definition does not by itself establish identical
+image bytes across builds.
 
-This is a **reproducible workflow**, not yet a bit-for-bit reproducible release. Default security repositories evolve; package resolution, filesystem timestamps/UUID metadata and build toolchain must be pinned/normalized for identical bytes. A reviewed snapshot mirror can be passed using `DEBIAN_MIRROR`; actual package inventory and image checksum are always emitted. Snapshot date/valid-until handling, apt source export and signed image release metadata remain release gates. Do not disable package signature verification to obtain reproducibility.
+[flake.nix](../flake.nix) exposes installation, boot/login, lock, keyboard,
+update/go-back and recovery VM checks, plus Rust and Python suites. The
+[Nix workflow](../.github/workflows/nix-ci.yml) evaluates those outputs, builds
+the Python suite, selected packages and the installed system. These definitions
+are not evidence of a passing run or physical hardware qualification. Firmware
+and Secure Boot qualification remain separate.
 
-The current firmware image is unsigned and requires Secure Boot disabled in the VM. A physical installation should retain Debian's supported signed shim/GRUB/kernel chain until a separately tested WrOS signing policy exists.
+## History
 
-
-## rc14 NixOS operating-system rebase (`0.1.0~rc14`)
-
-Starting in `0.1.0~rc14`, the operating-system layer is defined declaratively on NixOS (`nixos-26.05`, pinned in [`flake.nix`](../flake.nix)) alongside the retained Debian 13 packaging so that system updates and rollbacks switch atomic NixOS generations in `/nix/var/nix/profiles/system` and GRUB rather than mutating `/usr` in place with `dpkg`. See [`NIXOS_BASE.md`](NIXOS_BASE.md), [`NIXOS_UPDATES.md`](NIXOS_UPDATES.md), and [`NIXOS_QUALIFICATION.md`](NIXOS_QUALIFICATION.md).
+The Debian 13 choice dated 2026-10-24 served the earlier prototype, with a staged
+rootfs, package inventory and unsigned VM image; [archived STATUS](archive/STATUS.md)
+retains its results. WrOS rebased the operating-system layer on NixOS in rc14.
+The retained [Debian builder](../os/scripts/bootstrap-rootfs.sh) requires an
+explicit VM-demo mode and is historical test machinery.

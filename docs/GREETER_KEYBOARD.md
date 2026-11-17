@@ -1,6 +1,6 @@
 # Native login keyboard recovery
 
-On the experimental native login screen, **F2** opens keyboard recovery before
+On the native login screen, **F2** opens keyboard recovery before
 an account is submitted. Up/Down selects QWERTY, Colemak, Colemak-DH ANSI or
 Colemak-DH ISO. Enter previews it, a second Enter saves it, and Escape reverts
 it. An unconfirmed preview expires. Escape from the idle selector returns to
@@ -13,11 +13,12 @@ authority; the timer is armed before changing the console map and survives a
 greeter crash. The layout change happens in the Linux console, without editing
 manuscript characters or reinterpreting a password in the application.
 
-The [experimental staging script](../os/scripts/stage-greeter.sh) installs a
-separate [polkit rule](../os/config/51-wros-greeter-keyboard.rules) for the active
-local `_greetd` account and the exact existing keyboard action. It grants no
-display, shell or general system-command action and adds no group membership.
-The service account remains locked with its maintained package configuration.
+NixOS declares the keyboard action and includes the shared
+[greeter keyboard rule](../os/config/51-wros-greeter-keyboard.rules) through
+`nixos/modules/polkit.nix`. The rule grants the active local `_greetd` account
+only the existing keyboard actions. The account is declared in
+`nixos/modules/base.nix`. The [staging script](../os/scripts/stage-greeter.sh) is
+retained for Debian builds, rc13 and earlier.
 The helper accepts only four registered IDs and bounded transaction tokens.
 See the upstream [polkit rule contract](https://www.freedesktop.org/software/polkit/docs/latest/polkit.8.html)
 and [pkexec contract](https://www.freedesktop.org/software/polkit/docs/latest/pkexec.1.html).
@@ -32,6 +33,17 @@ A stalled helper also keeps authentication blocked; the authenticated tty2
 maintenance path remains available. Diagnostics are fixed text, never raw
 subprocess output. A successful confirmation clears the account field before
 returning to login.
+
+Keyboard recovery is part of the default NixOS greeter. Installer layout
+selection and early disk unlock use separate paths. Guarded lock-and-suspend is
+available when the installed session supports it; physical keyboard and
+sleep/resume qualification remain separate.
+
+## Debian-era qualification history
+
+These counts, durations, hashes and guest results belong to the retained Debian
+fixtures. They are not NixOS release qualification. The current keyboard-preview
+check is defined in `nixos/tests/keyboard-preview.nix`.
 
 [Focused software checks](evidence/greeter-keyboard-focused.json) cover 22 greeter
 tests in both configurations, both workspace Clippys, the workspace build, the
@@ -61,10 +73,6 @@ screens. The [retained observer harness](evidence/greeter-keyboard-boot-harness.
 only reads the guest screen; the host presses F2 and sends no credentials. Its
 completed fixture disk remains unchanged. Test-probe status output is disabled
 for this visual check; the preceding acceptance run retains ordinary status output.
-
-This remains an explicitly staged experimental image profile. It is separate
-from installer keyboard recovery, early LUKS prompts, secure session locking,
-sleep/resume and physical keyboard qualification. Suspend remains unavailable.
 
 ## Release follow-ups (2026-10-31, issue 69)
 

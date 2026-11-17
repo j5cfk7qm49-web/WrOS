@@ -47,20 +47,17 @@ The [protocol](https://gitlab.freedesktop.org/wlroots/wlr-protocols/-/blob/maste
 defines exclusive controls and restoration on destruction;
 [cage 0.2](https://github.com/cage-kiosk/cage/blob/v0.2.0/cage.c) exports that interface.
 
-The stock Cage 0.2.0-2 package in Debian 13 advertises gamma controls and
-leaves gamma requests unapplied. rc11 carries a small patched Cage at
-`/usr/lib/wros/cage`: gamma changes and control destruction schedule real output
-commits, and driver refusal reaches the colour worker. The launcher prefers this
-copy; an older installation with only stock Cage still reports warmth unavailable.
-Both paths preserve the saved setting. The complete MIT-licensed build source,
-upstream checksums and changes are retained in
+Debian's stock Cage 0.2.0-2 gamma bug is historical. Current NixOS WrOS builds
+patched Cage from `os/vendor/cage` and gives the launcher its Nix store executable
+path. Gamma changes and control destruction schedule output commits, and driver
+refusal reaches the colour worker. Saved settings are retained. Source and changes:
 [the Cage source record](../os/vendor/cage/WROS-SOURCE.md).
 [Debian Cage output code](https://sources.debian.org/src/cage/0.2.0-2/output.c/) · [Debian wlroots gamma control](https://sources.debian.org/src/wlroots/0.18.2-3/types/wlr_gamma_control_v1.c)
 
-The actual patched compositor passes a headless regression with a test gamma
-driver: it commits the requested curves, restores on release, and reports a
-rejected commit. Stock Cage fails that same check. This establishes the compositor
-integration; the HP Stream's physical colour and wake behavior still need testing.
+The Debian-era patched compositor passed a headless regression with a test gamma
+driver: it committed the requested curves, restored on release, and reported a
+rejected commit. Stock Cage failed that same check. These historical results do
+not qualify NixOS or the HP Stream's physical colour and wake behavior.
 
 Keep persists only bounded preferences through the existing polkit helper. The
 root helper never opens a Wayland socket. It checks the reviewed configuration
@@ -77,11 +74,11 @@ The real cage/OpenGL app test checks the headless driver's honest refusal while
 retaining physical Colemak, compose and saved Unicode text. These are protocol
 and software tests, not positive HP Stream gamma or calibration qualification.
 
-[The rc10 colour checkpoint](evidence/rc10-compositor-warmth.json) records the
+The historical Debian [rc10 colour checkpoint](evidence/rc10-compositor-warmth.json) records the
 source identity, every focused software check and all three installed VM runs.
 The [foot VM screen](evidence/rc10-compositor-warmth.png) shows the honest
-unsupported-driver result. Both compositor VMs also pass two locks, suspend/wake,
-password scans and colour-worker crash isolation; the same executable passes the
+unsupported-driver result. Both compositor VMs also passed two locks, suspend/wake,
+password scans and colour-worker crash isolation; the same executable passed the
 native input, lock, suspend and reader-crash regression.
 
 ## Native service and security boundary
@@ -91,16 +88,17 @@ The render/input thread does no device, process or password work. Shared Setting
 retains both editors, selection, caret, scroll, focus and undo history. A late
 preview reply is cancelled without reopening Settings.
 
-The narrow root-owned `/usr/libexec/wros-display` endpoint accepts only status,
-bounded preview choices and token-bound Keep/Cancel. The `org.wros.display`
-polkit rule permits active local members of the existing `wros` group;
-it grants no shell, command, path or device access. Other callers are denied.
+The narrow root-owned `wros-display` helper at its compiled Nix store path
+accepts only status, bounded preview choices and token-bound Keep/Cancel. The
+`org.wros.display` polkit rule requires an active local session and membership
+in both `wros` and the `writingdeck` compatibility group; it grants no shell, command, path or device
+access. Other callers are denied.
 `pkexec --disable-internal-agent` prevents a competing terminal password reader
 ([upstream authentication-agent documentation](https://www.freedesktop.org/software/polkit/docs/latest/pkexec.1.html)).
 The same flag also protects existing keyboard helper calls. Systemd-only boot
 and rollback verbs are refused to polkit clients.
 
-The non-setuid C bridge links Debian's maintained libdrm. It opens only fixed
+The non-setuid C bridge links Nixpkgs libdrm. It opens only fixed
 `/dev/dri/card0..63` devices, requires DRM ownership, and captures **every active
 output or fails**. It bounds counts, sizes and total data, verifies connector,
 EDID, CRTC, mode and ramp identity, then applies and reads back all curves. A
@@ -123,13 +121,16 @@ mismatch before a new preview refuses that preview. While a preview owns the
 output, its original snapshot remains the rollback target; concurrent color
 managers during that transaction are not qualified.
 
-Production staging compiles the hardened bridge on the declared Debian builder,
-installs the helper, exact policy and units, and includes `libdrm2` in the offline
-media payload. Build prerequisites include `libdrm-dev`. The fake DRM test library
-is never staged or used by the installed root manager, which clears its child
-environment. No host display was modified during development.
+NixOS builds the hardened bridge in `nixos/pkgs/c-helpers.nix`, packages the
+shared manager in `nixos/pkgs/helpers.nix`, and declares the display policy and
+units in `nixos/modules/`. The fake DRM library is used only by tests.
 
 ## Qualification and limits
+
+### Debian-era qualification records
+
+Current NixOS packaging and test definitions do not inherit these pass totals,
+durations or VM measurements.
 
 Twenty normal-user Python cases exercise the actual hardened C bridge against a
 test-only fake multi-output DRM implementation and real temporary manager state.
@@ -142,7 +143,7 @@ physical display or kernel power-cut qualification.
 Actual retained-editor UI cases cover four terminal sizes, Keep/Cancel/timeout,
 unavailable services and delayed replies. The compiled PTY navigation also
 enters the real warm-screen page while checking paste/cut/undo and source bytes.
-The [fresh full software run](evidence/warm-screen-software.json) passed **928
+The historical Debian [full software run](evidence/warm-screen-software.json) passed **928
 Rust tests per overlapping configuration**, both Clippys, **96 Python methods /
 zero skips** and **18 gates**. Default/no-audio intentionally ignore 5/4 separate
 external/performance cases. Source and verifier inputs stayed unchanged; binary
@@ -158,12 +159,13 @@ tokens. Each was inspected and confirmed to be a noncredential fixture. The
 repository's `.gitleaksignore` lists only those exact commit/file/rule/line
 fingerprints; no source path or token pattern is broadly excluded.
 
-`os/tests/display_vm.py` runs the current binary, helper, bridge, policy and units
-in a new VM-demo COW layer with no NIC or host disk/display exposure. A real
-emulated driver refusal is recorded separately from positive gamma/timer/Off
+The historical Debian fixture `os/tests/display_vm.py` runs its supplied binary,
+helper, bridge, policy and units in a new VM-demo COW layer with no NIC or host
+disk/display exposure. A real emulated driver refusal is recorded separately
+from positive gamma/timer/Off
 acceptance. This fixture does not qualify a newly built ISO or physical screen.
 
-The [current-source guest run](evidence/warm-screen-vm.json) passed in **88.51 s**
+The historical Debian [guest run](evidence/warm-screen-vm.json) passed in **88.51 s**
 on two emulated CPUs / 512 MiB / no NICs. Source fingerprint
 `30691d88e1a667be4cea780ffdf2b9b46fcf62dba08d3bb7cd3dd42c89edc863`
 (287 files) and the base disk remained unchanged. The real virtio GPU reported

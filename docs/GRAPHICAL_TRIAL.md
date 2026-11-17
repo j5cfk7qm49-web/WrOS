@@ -1,157 +1,82 @@
 # Graphical renderer trial
 
-Native graphics remains the default for unlock, loading, login and writing,
-following the owner's decision. The optional OpenGL writing window now works
-alongside the foot trial. Native device input and compositor warmth are built.
-The HP Stream measurements and positive compositor-colour checks are still
-required before this trial is complete.
+WrOS 0.1.0~rc16 uses native DRM graphics by default. Cage/Foot and the OpenGL
+window remain available as optional writing sessions. The launcher selects the
+backend in [wros-session](../os/scripts/wros-session); NixOS packages its tool
+paths through [helpers.nix](../nixos/pkgs/helpers.nix).
 
-## Measurements, 2026-11-08
+## Available renderers
 
-This checkpoint includes native libinput/XKB and the compositor colour process.
-It precedes the remaining interface libraries, so it is not a final release
-measurement. The [earlier console-reader baseline](evidence/rc10-graphical-trial.json)
-is preserved separately; its latency values are summaries, not individual samples.
+| Renderer | Current path | Limit |
+|---|---|---|
+| Native DRM | Shared Ratatui screens rendered directly to DRM/KMS, with native libinput/XKB writing input | Default on installed and live systems; unavailable DRM falls back to the console |
+| Foot under Cage | Patched Cage runs Foot, which runs the terminal writing app | Explicit installed-session choice |
+| OpenGL window under Cage | Patched Cage runs the `gui-wgpu` writing renderer | Explicit installed-session choice; the launcher checks the Wayland EGL library |
+| Console | Terminal output and input | Available from the login switcher and text-start recovery path |
 
-Release binaries used the same app source and Cargo lock, with audio disabled.
-The foot binary includes `gui-drm`; the window binary adds `gui-wgpu`. Both use
-DejaVu Sans Mono: foot's existing 11 pt setting and the native/window renderers'
-embedded 16 px font. The OpenGL instance explicitly selects GL;
-no Mesa Vulkan driver was installed. Three runs used fresh temporary homes and
-the same tutorial demo book. The measured executables were extracted from the
-unsigned comparison packages after their final ELF strip; their hashes match
-the package payloads. [Current observations and hashes](evidence/rc10-graphical-trial-current.json)
-retain every run and all 36 key/capture observations per compositor.
+[base.nix](../nixos/modules/base.nix) includes patched Cage and Foot.
+[rust-packages.nix](../nixos/pkgs/rust-packages.nix) includes `gui-drm`, `gui-wgpu`
+and `audio` in release Grimoire. No package installation or optional-feature
+rebuild is needed to select a packaged renderer. The native screens use GNU
+Unifont's 8x16 bitmaps in
+[wros-graphics](../crates/wros-graphics/src/lib.rs). See
+[Graphical screens](GRAPHICAL_SESSION.md) for input, fonts and recovery.
 
-| Renderer and environment | Median first draw | Median total RSS | App binary | Update package | Median key to screenshot |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| foot/cage, headless Debian chroot | 52.8 ms | 76.5 MiB | 27.71 MiB | 10.08 MiB | 55.5 ms |
-| wgpu/cage, OpenGL with software Mesa in that chroot | 275.3 ms | 195.8 MiB | 34.25 MiB | 12.28 MiB | 82.2 ms |
-| Native software DRM, separate QEMU/KVM guest | 45.9 ms | 39.0 MiB | 27.71 MiB | 10.08 MiB | Hardware check pending |
+## Selecting a trial session
 
-The marker records the app's first completed draw, polled every 5 ms. Foot may
-still be painting those terminal bytes. The three startup samples were
-160.7/47.0/52.8 ms for foot and 463.8/275.3/275.3 ms for wgpu; filesystem and driver
-startup costs are visible in the variation. These were repeated starts, without
-forcing a cold filesystem cache.
+For Foot, set `~/.config/wros/session.json` to:
 
-The key test sends physical Colemak keys through cage and waits for changed
-editor pixels using Wayland screen capture at 1280×720. Each run has 12 samples;
-the table pools all 36, retained to 0.001 ms. The number
-includes roughly 38–39 ms of capture and PNG decoding overhead; it is an upper
-measurement through that capture path, with no overhead subtracted. Focus mode
-removes animated decorations, and two matching captures establish a stationary
-editor before each key. This does not measure the laptop panel's scanout.
-
-Memory sums the run's complete process tree, including foot's separate PTY
-session, the independent input reader and the separate colour process. RSS can
-count shared pages twice.
-PSS is also recorded where readable; the protected input reader intentionally
-does not expose it. Native DRM needs a display device absent from this chroot,
-so its sample comes from a separate installed 1280×800 guest and is not a timing
-ranking against the other two rows. The guest verified real delegated input
-devices during measurement. Native key-to-screen latency remains unmeasured.
-
-The unsigned measurement packages contain identical boot/login payloads and
-omit Google client configuration. The only differing payload is Grimoire itself.
-Their size difference is about 2.20 MiB; the executable difference is about
-6.53 MiB. Cage, Mesa and foot's Debian package
-costs are separate. These packages are local measurement artifacts.
-
-**Recommendation:** keep the chosen native default while completing its hardware
-checks. Keep foot available as the compositor alternative. The chroot results give
-no reason to make wgpu the default: it takes more memory and starts more slowly
-with software Mesa. The HP Stream's Intel driver, typing delay, power use and a
-day of writing still decide whether that holds on the laptop.
-
-## Running the tool
-
-`tools/graphical-trial.sh` uses a temporary demo book and private home for every
-run. It records sizes, hashes, startup and process memory in a new output folder.
-It never opens the writer's book, changes session settings or handles passwords.
-The native trial verifies graphics mode and refuses to count a text fallback.
-
-Build the two writing executables in the Debian build environment, preserving
-each result before building the next:
-
-```sh
-cargo build --release --locked --no-default-features --features gui-drm -p grimoire-tui
-# Preserve target/release/grimoire as /path/to/native/grimoire.
-cargo build --release --locked --no-default-features --features gui-drm,gui-wgpu -p grimoire-tui
-# Preserve target/release/grimoire as /path/to/wgpu/grimoire.
+```json
+{"version":1,"session":"graphical","backend":"foot"}
 ```
 
-For the headless comparison:
+Set `backend` to `wgpu` for the OpenGL window. The choice takes effect at the
+next login. The usual native default needs no session file. An explicit
+`"session":"console"` chooses text; the login switcher's Console session choice
+applies to one login. Live sessions keep the native default.
 
-```sh
-sh tools/graphical-trial.sh --headless --backend foot --backend wgpu \
-  --binary /path/to/native/grimoire --wgpu-binary /path/to/wgpu/grimoire \
-  --runs 3 --latency 12 --output /path/to/new-results
-```
+The launcher keeps a first-frame marker and failure state for each compositor
+backend. Failure before the first frame opens the console; after two failures
+that backend stays on the console until re-enabled. The implementation is in
+[wros-session](../os/scripts/wros-session).
 
-This needs cage, foot, Mesa, `grim`, Pillow, a C compiler, `libwayland-dev` and
-`libxkbcommon-dev`, plus a writable `/dev/shm`. The test keyboard and its licensed
-protocol live in `os/tests/`; generated bindings stay in the temporary folder.
-`--package /path/to/wros.deb` records an exact package size. Use separate
-invocations when comparing different packages.
+## Measurement tooling
 
-On the laptop, run as the writer from an authenticated tty1 with the current
-writing session stopped. An ordinary desktop terminal or SSH session is refused.
-Setting up that temporary tty1 login is an owner administration step. Omit
-`--headless` and select one backend; for example:
+The retained [graphical_trial.py](../tools/graphical_trial.py) creates private
+demo books and homes, records executable hashes and process memory, and measures
+first draw. Its optional key test includes Wayland screenshot/capture overhead;
+it does not measure native DRM key-to-panel latency.
 
-```sh
-sh tools/graphical-trial.sh --backend drm --binary /path/to/native/grimoire \
-  --runs 3 --output /path/to/new-native-results
-```
-
-This native invocation passed three real DRM samples on a disposable VM's tty1.
-For a compositor, `--latency 12` adds the same virtual-key/capture measurement.
-Measure native display latency separately with a physical keyboard and panel
-recording. Never run the app or tool as root.
+The Cage/Foot measurement tool does not work unchanged on NixOS. It replaces
+PATH with `/usr/local/bin:/usr/bin:/bin` and launches `cage`, `foot` and `grim` by
+name. The packaged Cage and Foot use Nix store paths; Grim is absent from the
+base package list. The script needs NixOS path adaptation and its measurement
+dependencies before a NixOS run can be claimed. Non-headless runs require authenticated tty1
+and refuse root, desktop terminals and SSH. This tool is separate from the
+packaged session launcher.
 
 ## Input, lock and remaining checks
 
-The real cage/OpenGL driven test types physical Colemak keys, composes é and
-saves Unicode prose. Both compositor backends passed installed no-NIC VM tests
-for wrong-password rejection, two locks in one boot, blocked VT switching,
-actual suspend/wake, the same editor process after authentication, and password
-scans of books, recovery files and logs. The canonical driver is
-`os/tests/graphical_session_vm.py`; it uses a debug `test-driver` executable in a
-read-only fixture image and records the exact helper and executable hashes.
+The [main-thread handoff](../src/console_lock.rs) retires input and display before
+the independent vlock/PAM locker starts. Guarded suspend depends on installed
+session support and the [systemd locker guard](../nixos/modules/guards.nix).
+Compositor colour behavior and calibration limits are described in
+[Warm screen](WARM_SCREEN.md).
 
-VM run directories under `/home/builder/rc-vm-runs/`:
+The [NixOS live-graphical check](../nixos/tests/live-graphical.nix) checks the
+native DRM session selection and continued app lifetime. The
+[console-lock check](../nixos/tests/console-lock.nix) checks tty8 ownership,
+authentication and input isolation in a console session. Those definitions do
+not establish compositor trial passes or physical display, keyboard, colour,
+latency, power-use or sleep/resume qualification. The
+[Nix workflow](../.github/workflows/nix-ci.yml) evaluates the checks but does not
+run these VMs.
 
-- `graphical-foot-20261108T072444Z`: compositor locks and suspend/wake, PASS.
-- `graphical-wgpu-20261108T072744Z`: the same checks for OpenGL, PASS.
-- `native-trial-20261108T073033Z`: native measurement tool on tty1, PASS.
-- `graphical-drm-20261108T123102Z`: native device input, VT/lock/suspend and reader-crash recovery, PASS.
-- `graphical-wgpu-20261108T123305Z`: 12 locks and suspend/wake, PASS.
-- `graphical-foot-20261108T185909Z` and `graphical-wgpu-20261108T190209Z`:
-  colour-worker isolation, honest driver refusal, two locks and suspend/wake, PASS.
-- `graphical-drm-20261108T190412Z`: native input/VT/lock/suspend and reader-crash
-  regression on the compositor-capable executable, PASS.
+## History
 
-The second-lock race in [#101](https://github.com/j5cfk7qm49-web/WrOS/issues/101)
-was reproduced by delaying the post-login health query: the screen offered Lock
-while its busy guard refused the action. The row now explains the wait and its
-private action becomes available only when the request finishes. The VM client
-waits for that action and verifies the actual independent locker.
-[The lock regression record](evidence/rc10-lock-action.json) retains the controlled
-failure, its passing OpenGL and foot six-lock/suspend runs, the native regression,
-and the earlier failures. The original intermittent run had no busy-state capture;
-the controlled test establishes this cause without reconstructing that run's timing.
-
-Native evdev/xkbcommon, compose, live layout changes, key repeat and pointer input
-run in the disposable reader. Logind delegates and revokes device descriptors;
-the editor receives no input-group grant. Its VT release, repeated lock and
-suspend/wake contract is described in [Graphical screens](GRAPHICAL_SESSION.md).
-Compositor warmth now uses a separate colour process and cage's gamma controls,
-with an independent preview deadline and Off restoration. Protocol fault tests
-cover two outputs; the real headless driver honestly reports unavailable.
-The [colour checkpoint](evidence/rc10-compositor-warmth.json) retains exact source
-and executable identities, the separate-process expiry proof and the VM results.
-Neither protocol acceptance nor screenshots establish calibrated physical output.
-Native hardware latency, positive compositor-colour checks and the HP Stream's
-day-of-writing comparison remain open. [Warm screen](WARM_SCREEN.md) explains
-the calibration limits and the difference from the native colour helper.
+The 2026-11-08 Debian renderer comparison and its executable identities remain in
+the [measurement record](evidence/rc10-graphical-trial-current.json); Debian
+lock regressions remain in the [lock record](evidence/rc10-lock-action.json).
+The retained [Debian trial driver](../os/tests/graphical_session_vm.py) uses
+cached `.deb` files and APT lists. Those measurements and guest results do not
+qualify the current NixOS release.
