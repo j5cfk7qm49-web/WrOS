@@ -9,15 +9,18 @@ shelf and Import (rc17), which it builds on.
 The owner does not want to lose version data, locally or remotely. Today versions are kept in
 three unconnected places, each with a gap:
 
-- **Scene history** (`.grimoire/history/<scene>/<date>.md`): always on, a copy of a scene at most
-  every 5 minutes plus before drastic changes. Scenes only; inside the book folder but never
-  synced, so a lost laptop loses it.
+- **Scene history** (`.grimoire/history/<scene>/<date>.md`): copies of Markdown scenes and notes
+  before their first change in an app session, at most every five minutes while saving, and
+  before drastic changes. It stays inside the book and is excluded from readable Drive sync.
+  Configured encrypted project backups include it.
 - **Writing sessions** (git, `~/.local/share/grimoire/sessions/<book-id>.git`): opt-in, one commit
-  per sitting, manuscript only (`.grimoire/` ignored except `resume.md`); off for every book on
-  the owner's laptop; never leaves the laptop.
-- **`WrOS-History/` on Drive** (wros-sync): a copy of a file every time sync replaces it, which while
-  writing means a copy every minute or so; never trimmed; Drive's own version history never builds
-  up because each upload is a new file (#148).
+  per sitting, covering ordinary book files allowed by `.gitignore`, including notebook files
+  (`.grimoire/` ignored except `resume.md`, and `exports/` ignored); off for every book on the
+  owner's laptop; never leaves the laptop.
+- **`WrOS-History/` on Drive** (wros-sync): retains files replaced by sync. Saved changes can
+  schedule a sync after ten seconds; periodic sync is due every five minutes. History is not
+  trimmed. Uploading a changed existing file moves the old file into history and creates its
+  replacement, so Drive's own revision chain does not accumulate (#148).
 
 The owner wants one timeline that reads like "minor fix · minor fix · small change · end of
 Tuesday evening's session", covering the whole book, kept both on the laptop and on Drive, so

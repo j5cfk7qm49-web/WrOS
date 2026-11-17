@@ -1,10 +1,10 @@
 # Sticky-note pins
 
-A pin is a project-local reference to an existing Markdown document, not another copy of its body. Open **Pinboard** in Writing tools, the dashboard (`p`), or Ctrl-K. **Pin current document** pins the active editor's original file. In Pinboard, `n` chooses a source. Two cards may reference one file and keep separate presentation and scroll positions.
+A pin is a project-local reference to an existing Markdown document, not another copy of its body. Open **Pinboard…** in Ctrl-K or Tools › Notes. Overview `p` opens it too. Choose **Pin this document** in Tools › Notes, or **Pin current document** in Ctrl-K. This pins the active editor's original file. In Pinboard, `n` chooses a source. Two cards may reference one file and keep separate presentation and scroll positions.
 
 ## Read cards, edit sources
 
-`Up` and `Down` (or `j` and `k`) select cards; `Esc` in the sidebar hides it, and View › Show the pins sidebar brings it back. `PgUp` and `PgDn` scroll inside the selected card, not its source editor. A mouse wheel over a sidebar or dashboard card scrolls that card without stealing editor focus. A wheel over Pinboard's list moves the list; over its preview it scrolls the card. Click a sidebar card to focus it, or a dashboard card to select it in Pinboard.
+`Up` and `Down` (or `j` and `k`) select cards; `Esc` in the sidebar hides it. To bring it back, choose View › Show the pins sidebar. `PgUp` and `PgDn` scroll inside the selected card, not its source editor. A mouse wheel over a sidebar or dashboard card scrolls that card without stealing editor focus. A wheel over Pinboard's list moves the list; over its preview it scrolls the card. Click a sidebar card to focus it, or a dashboard card to select it in Pinboard.
 
 Cards are plain-Markdown previews. They cannot be typed into. `Enter` explicitly opens the original source in the independent editor; `e` requests Primary. An already-owned file or alias focuses its existing editor instead of creating a competing buffer. Existing save, undo, history, conflict and recovery protections apply. A failed save or identity check blocks replacement. Pasted prose in Pinboard is ignored, never treated as card commands.
 

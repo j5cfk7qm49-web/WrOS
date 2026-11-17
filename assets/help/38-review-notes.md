@@ -1,7 +1,8 @@
 # Revision notes
 
 Select a passage in your existing editor. Open **Revision notes** from the
-command palette, Writing tools, or Settings > Writing. Press **n**, type your
+command palette, Tools › Revision › Revision notes…,
+or Settings › Writing › Revision › Revision notes. Press **n**, type your
 comment, then **Enter**. **Esc** cancels a draft. Notes remain local, outside
 the Markdown/YAML manuscript, and do not enter publishing exports.
 

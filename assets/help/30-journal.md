@@ -1,6 +1,6 @@
 # Writing journal
 
-Open Writing journal in Ctrl-K or Writing tools, or press j on the dashboard. The journal separates read-only recorded facts from an ordinary Markdown reflection. It never writes prose on your behalf.
+Open Writing journal in Ctrl-K or Tools › Notes › Writing journal…. You can also press j on Overview. The journal separates read-only recorded facts from an ordinary Markdown reflection. It never writes prose on your behalf.
 
 ## Recorded facts
 
@@ -27,6 +27,6 @@ Tab switches between facts and the source preview. Enter explicitly creates/open
 
 ## Preservation and limits
 
-Schema-v1 facts live in .grimoire/writingdeck/journal/YYYY-MM-DD.json, at most 1024 facts and 1 MiB per day. Guarded append transactions never edit existing facts; unknown, future, corrupt, conflicting and failed-I/O records remain untouched. Pending observations stay in memory until explicit retry. A normal quit refuses an unsaved journal observation; a second Ctrl-Q can explicitly force exit, losing pending facts as warned. No OS lock, cross-process compare-and-swap or hostile-filesystem-race protection is claimed.
+Schema-v1 facts live in .grimoire/writingdeck/journal/YYYY-MM-DD.json, at most 1024 facts and 1 MiB per day. Guarded append transactions never edit existing facts; unknown, future, corrupt, conflicting and failed-I/O records remain untouched. Pending observations stay in memory until explicit retry. A normal quit refuses an unsaved journal observation; forcing exit can lose pending facts as warned. The repeated Ctrl-Q instruction applies to desktop sessions; installed WrOS intercepts Ctrl-Q. No OS lock, cross-process compare-and-swap or hostile-filesystem-race protection is claimed.
 
 Reflections use a date-path convention, not a duplicate text store or automatic prose template. Moving one elsewhere preserves its source, but this date reader will no longer find it until its path is restored. Large-log/document CPU and power-cut durability still need qualification. Scratchpad and next-session handoff are separate original-source workflows, described in their own help topics.

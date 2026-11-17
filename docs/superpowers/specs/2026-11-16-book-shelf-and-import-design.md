@@ -8,15 +8,16 @@ On a fresh rc14 install the owner tried to get their books back from Google Driv
 worked, but nothing on screen said it was running or where it went; the books landed nested
 in `Documents/From Drive - WrOS/`; and opening one meant typing its whole path, where a name
 with spaces copied from a terminal (`'Clip says Hello World.'`) silently matched nothing.
-Bringing writing into WrOS is spread over three places (Books → Open another book, Settings →
-Accounts → Google Drive → Your Drive files, Settings → Backups), each with its own typed path.
+Bringing writing into WrOS is spread over three places (File › Open another book…,
+Settings › Backups and accounts › Google Drive › Your Drive files,
+Settings › Backups and accounts › Backups), each with its own typed path.
 
 The owner wants one obvious way to see their books and one obvious way to bring a book in,
 from anywhere, for fresh starts and for any other import.
 
 ## Goals
 
-1. **Shelf.** Books → Open another book lists every book in `~/Documents` automatically,
+1. **Shelf.** File › Open another book… lists every book in `~/Documents` automatically,
    whether or not this laptop has opened it before. No typed paths.
 2. **Import.** One "Import a book…" entry on the shelf. Sources: Google Drive (readable synced
    books), any USB stick plugged in, and other folders on this laptop. Browsing a source shows
@@ -35,7 +36,7 @@ from anywhere, for fresh starts and for any other import.
 ## Non-goals
 
 - Encrypted backups (restic, recovery key). The owner wants that whole system revisited
-  separately; Settings → Backups stays as it is for now.
+  separately; Settings › Backups and accounts › Backups stays as it is for now.
 - Moving books (import copies; the source stays).
 - Syncing with anything but Google Drive.
 - Changing what a book is on disk.
@@ -85,7 +86,7 @@ A folder is a book when it contains a `manuscript/` directory (`books::is_book`)
 supplies the title when present; otherwise the folder name. Hidden folders (`.grimoire`,
 `.git`, `.wros-drive-materialize-*`) are never shown or descended into.
 
-### The shelf (Books → Open another book)
+### The shelf (File › Open another book…)
 
 ```
  Books
@@ -118,9 +119,9 @@ supplies the title when present; otherwise the folder name. Hidden folders (`.gr
   USB stick by its label, "A folder on this laptop" (starts at the home folder), and drafts.
 - Browsing: folders that are books are pickable and say so; other folders open; files are not
   listed (except in the draft source). "Up one folder" at every level below the source's top.
-- Drive browsing uses `wros-backup drive-list` (it already returns names, dirs, and whether a
-  folder holds `manuscript`); a Drive book is marked "synced" when its folder has a
-  `.wros-sync.json` marker.
+- Drive browsing uses `wros-backup drive-list` for names and entry types. Add bounded inspection
+  to determine whether a folder contains `manuscript/` and a `.wros-sync.json` marker before
+  marking it as a book or synced.
 
 ### Copying in
 
@@ -172,7 +173,7 @@ The existing draft import (`grimoire_core::import`) becomes the "A draft" source
 
 ### What leaves Settings
 
-The Drive files page (Settings → Accounts → Google Drive → Your Drive files) keeps browsing and
+The Drive files page (Settings › Backups and accounts › Google Drive › Your Drive files) keeps browsing and
 copying single files, but its "copy this folder" for books points to Import; book restore from
 encrypted backups stays in Backups (non-goal above).
 

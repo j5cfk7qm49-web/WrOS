@@ -12,7 +12,7 @@
 | `Ctrl-K` | find anything: actions, scenes, notes, themes |
 | `Tab` | the next pane; `Shift-Tab` the one before |
 | `Ctrl-S` | save now (autosave already does) |
-| `Ctrl-Q` | quit, saving everything first |
+| `Ctrl-Q` | quit in a desktop session; installed WrOS keeps the writing app open |
 | `Ctrl-Z` | undo: typing in the page; a delete, rename, move or new item in the outline |
 | `Ctrl-Y` | redo |
 | `Ctrl-F` | find in the scene; again for the whole book |
@@ -127,7 +127,7 @@ Type to search every topic. `Esc` clears the search, then closes the help. In a 
 
 ## Writing journal (WrOS)
 
-Open Writing journal in Ctrl-K or Writing tools, or press j on the dashboard. These are modal reader controls, never ordinary editor letter remappings.
+Open Writing journal in Ctrl-K or Tools › Notes › Writing journal…. You can also press j on Overview. These are modal reader controls, never ordinary editor letter remappings.
 
 | Key | Action |
 | --- | --- |

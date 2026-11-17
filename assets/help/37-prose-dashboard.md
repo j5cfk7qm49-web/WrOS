@@ -1,6 +1,6 @@
 # Prose and revision dashboard
 
-Open **Prose and revision dashboard** from Writing tools or the command palette. Opening this reader does not start analysis, grant model permission or edit the source. It owns no second editor. F1 explains the current reader and returns to it with Escape.
+Open **Tools › Revision › Prose and revision dashboard…**. You can also use the command palette. Opening this reader does not start analysis, grant model permission or edit the source. It owns no second editor. F1 explains the current reader and returns to it with Escape.
 
 ## Explicit current-source analysis
 

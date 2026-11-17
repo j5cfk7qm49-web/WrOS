@@ -24,7 +24,7 @@ On a Mac, where the terminal can send it, `Cmd` works everywhere `Ctrl` does.
 
 You never have to save. A scene is written two seconds after you stop typing, and never waits longer than twenty seconds. `Ctrl-S` saves at once if you like.
 
-To quit: `Ctrl-Q`, `q` in the outline, or *WrOS › Quit*. Everything is saved first. If a save can't happen (a full disk, say), WrOS stays open and says so; `Ctrl-Q` again leaves anyway, and the words wait in recovery for next time.
+Installed WrOS hides Quit and shows a short message when you press `Ctrl-Q`, keeping the writing app open. To stop writing, use *WrOS › Lock*, or *WrOS › Shut down…*. *Settings › System › Battery and power* also offers Restart the writing app, which keeps you signed in. In a desktop session, use `Ctrl-Q`, `q` in the outline, or *WrOS › Quit*. These save and close the app.
 
 ## The mouse
 
@@ -32,8 +32,8 @@ Click a pane to move to it, a chapter to fold it, a scene to open it, and the pr
 
 ## About WrOS
 
-*WrOS › About WrOS* (or `Ctrl-K` › *About WrOS*) shows what WrOS is built on and who made it: WrOS is built on GrimoireTUI, by Josh King and Catfinity Studios. `Enter`, or a click on the link, opens catfinity.com in your browser, and `l` opens the License topic. Catfinity Studios also makes **Catfinity**, an idle cat RPG for iPhone and Android: `c` in *About WrOS…* (or a click on its line) opens its page. From a terminal, `grimoire --version` says the same.
+Open *WrOS › About WrOS*. You can also find About WrOS in `Ctrl-K`. It shows what WrOS is built on and who made it: WrOS is built on GrimoireTUI, by Josh King and Catfinity Studios. If a browser is available, `Enter`, or a click on the link, opens catfinity.com. Otherwise WrOS shows the address to open on another device. `l` opens the License topic. Catfinity Studios also makes **Catfinity**, an idle cat RPG for iPhone and Android: `c` in About WrOS (or a click on its line) attempts to open its page and shows its address if a browser cannot open. From a terminal, `grimoire --version` says the same.
 
 ## Donate
 
-GrimoireTUI, which WrOS is built on, is free, and a donation is never required. It's always appreciated, though, and it all goes toward GrimoireTUI's development. *Help › Donate…* (or `Ctrl-K` › *Donate (Ko-fi)*, or `d` in *About WrOS…*) opens the Ko-fi page in your browser.
+GrimoireTUI, which WrOS is built on, is free, and a donation is never required. It's always appreciated, though, and it all goes toward GrimoireTUI's development. Open *Help › Donate…*. This opens the Donate dialog, as do Donate (Ko-fi) in `Ctrl-K` and `d` in About WrOS. If a browser is available, `Enter` opens Ko-fi. Otherwise WrOS shows the address to open on another device.

@@ -2,11 +2,13 @@
 
 ## Encrypted backups and restore
 
-WrOS settings → Accounts → Backups creates encrypted Restic snapshots on a local
-backup drive or Google Drive. Export the recovery key to a private separate
-device: losing it makes the backup unreadable. Connect Google Drive using the
-masked authorization JSON returned by `rclone authorize drive` on a trusted
-computer. Ordinary editing and opening Settings stay offline.
+Open Settings › Backups and accounts › Backups. It creates encrypted Restic
+snapshots on a local backup drive or Google Drive. Export the recovery key to a
+private separate device: losing it makes the backup unreadable.
+Open Settings › Backups and accounts › Google Drive. Choose Link Google Drive
+with your phone when offered. Manual authorization with `rclone authorize drive`
+on a trusted computer remains available. Local editing works offline. Configured
+backups, Drive sync and update checks can use the network in the background.
 
 Create encrypted backup saves both buffers and refuses source conflicts. It
 stages a consistent saved project, creates an encrypted snapshot, restores it,
@@ -16,20 +18,22 @@ Connect existing repository and recovery key works after losing the original
 machine. A same-disk folder is not protection from losing that disk. Refresh
 snapshots explicitly after reconnecting; use stale-lock recovery after a crash.
 Cancel stops the operation and preserves the active manuscript. Delete clears a
-setup field. Automatic cloud queues, two-way sync and Docs round trips remain
-unavailable. Full guidance: docs/NATIVE_BACKUP.md in the installed documentation.
+setup field. Configured backups run after saved changes and ten minutes without
+editing, at most hourly, with delayed retries after failures. Readable Google
+Drive sync runs on opening, after saves and periodically. Google Docs round trips
+remain unavailable. Full guidance: docs/NATIVE_BACKUP.md in the installed documentation.
 
 ## Books on Google Drive
 
-Settings › Backups and accounts › Google Drive › Your Drive files lists your
-whole Drive, folders first. Items with a copy on this laptop say so. A file or a
+Open Settings › Backups and accounts › Google Drive › Your Drive files.
+It lists your whole Drive, folders first. Items with a copy on this laptop say so. A file or a
 whole folder copies to a new place here, and the copy is checked against Drive
 before it is kept. When the folder you are in is a book, the first row offers
 to copy it to this laptop and open it: the copy goes beside the book you have
 open, and opens once the check passes. You write on that copy; the book on
 Drive stays as it was.
 
-A book is a folder, so any sync service carries it: Dropbox, Google Drive, pCloud, Box, OneDrive, iCloud Drive. WrOS makes sure none of them can cost you words.
+A book is a folder, so any sync service carries it: Dropbox, Google Drive, pCloud, Box, OneDrive, iCloud Drive. WrOS checks for outside changes and keeps conflicting versions for review. Keep a separate verified backup too.
 
 ## Two devices change one scene
 

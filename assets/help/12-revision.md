@@ -15,8 +15,10 @@ Tools for going back over a draft.
 Hearing your prose catches what the eye skips: the missing word, the sentence that runs out of breath, the rhythm that's off. *Tools › Read aloud* (or `Ctrl-K` › *Read aloud from here*) reads the scene out loud from the sentence you're on, and highlights each sentence as it goes.
 
 - `Space` pauses, and `Space` again goes on.
-- `←` and `→` go back or forward a sentence.
-- `Esc`, or any other key, stops. The cursor stays where it stopped, so you can fix what you heard.
+- `←` and `→` go back or forward a sentence; `↑` and `↓` do too.
+- `Esc` stops. The cursor stays where it stopped, so you can fix what you heard.
+- `m` marks the sentence in Revision notes.
+- With Read chapter aloud or Read manuscript aloud, `n` and `p` move between queued scenes.
 
 Notes (`%% … %%`) are never read out, and neither are the `*` and `_` around italics.
 
@@ -26,8 +28,8 @@ WrOS reads with whatever voice your computer has, and nothing leaves your comput
 
 - **On a Mac** and **on Windows**, the computer's own voice, already there.
 - **On WrOS**, eSpeak NG, which WrOS includes.
-- **On Linux**, Speech Dispatcher or eSpeak if either is installed (`sudo apt install espeak-ng`, `sudo dnf install espeak-ng`).
-- **Piper**, anywhere, for a voice that sounds like a person. It's free and works offline. Install it with `pipx install piper-tts`. Then make a folder called `piper-voices` in `~/.local/share`, go into it, and download a voice there: `python3 -m piper.download_voices en_US-lessac-medium`. WrOS finds it by itself.
+- **On other Linux desktops**, Speech Dispatcher or eSpeak if either is installed (`sudo apt install espeak-ng`, `sudo dnf install espeak-ng`).
+- **Piper** is optional and is not included in the WrOS image. A custom build needs a `piper` executable and a voice model with its matching `.onnx.json` file. WrOS searches `~/.local/share/piper-voices` for models. The supplied WrOS voice is eSpeak NG.
 
 When there's more than one, WrOS picks the most natural. *Settings › Writing › Reading voice…* chooses a different one.
 

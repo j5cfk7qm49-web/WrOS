@@ -1,6 +1,6 @@
 # Recorded edits, goals and daily challenges
 
-Open **Productivity ledger**, **Advanced goals**, **Calendar and rest days**, **Advanced sprints**, **Milestone collection** or **Daily challenges** from Ctrl-K or Writing tools. The original daily/book/scene goals and basic sprint controls remain available separately.
+Open **Recorded edit ledger** (**Productivity ledger** in Ctrl-K), **Advanced goals**, **Calendar and rest days**, **Advanced sprints**, **Milestone collection** or **Daily challenges** from Ctrl-K or Tools › Practice. The original daily/book/scene goals and basic sprint controls remain available separately.
 
 ## Recorded, not inferred
 

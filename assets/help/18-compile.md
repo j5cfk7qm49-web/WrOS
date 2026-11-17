@@ -19,14 +19,11 @@ When the book is ready to send, *Export…* in the menu (*Export for readers* in
 - **How much**: `←` `→` choose the whole book, the first chapters, chapters X–Y, or the first N words — the samples agents ask for — and type the number or range. The title page still gives the whole book's word count.
 - **Look…** and **Author details…** (below).
 - `p` reviews the loaded source selected by these formats, parts and sample.
-  It lists missing, duplicate and unused footnotes, public TK/TODO/FIXME
-  markers and empty-source notices. `↑`/`↓`, Page Up/Down and Home/End scroll;
-  `Esc` returns to the same export settings. Reopen the review to refresh it.
-  Word, PDF, EPUB and the paperback all set footnotes as real notes (the
-  paperback at the foot of each page); Markdown keeps the syntax. Rich export
-  validates renderable note structure when exporting; this review does not render pages.
-  It does not write export files or check links, continuity, revision notes,
-  rendered pages or externally changed files. It inspects at most 512 scenes,
+  It checks footnotes, public TK/TODO/FIXME markers, links, local assets, covers,
+  unclosed %% notes, continuity and revision notes. It does not write export
+  files, render pages or fetch external resources. Up/Down, Page Up/Down and
+  Home/End scroll; Esc returns to the export settings. Reopen the review after
+  changing the source. It inspects at most 512 scenes,
   16 MiB total, 2 MiB and 8,192 footnote markers per scene, and 512 findings; an exceeded limit
   refuses the review instead of displaying a partial report.
 - `x` (or `Enter` on the Export button) exports into the book's `exports/` folder. Files are named the way agents ask: `Surname_Title_Manuscript.docx`.

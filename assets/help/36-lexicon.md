@@ -1,6 +1,6 @@
 # Dictionary and thesaurus
 
-Open **Dictionary and thesaurus** from Writing tools or the command palette. It reads local **Princeton WordNet 3.0** index/data files, not a generated definition, internet service or model. Native spelling stays independent. Opening never changes the original editor or its selection.
+Open **Tools › Dictionary and thesaurus…**. You can also use the command palette. It reads local **Princeton WordNet 3.0** index/data files, not a generated definition, internet service or model. Native spelling stays independent. Opening never changes the original editor or its selection.
 
 Type a word or short phrase and press Enter. Selection/current word may prefill the field, but opening does not run a query. Backspace edits; Delete clears. Pasted text is query input only: it cannot run commands. Missing, corrupt or unsupported data is visibly unavailable, not an invented or silently downloaded result. No query/result is saved as project prose or history.
 
@@ -12,4 +12,4 @@ Inside a sense, Tab or Left/Right switches **synset words/synonyms** and **expli
 
 There is one active dictionary lookup and one coalesced newest request. Stale responses are discarded. File I/O/parsing is off the input/render path. Closing cancels publication without blocking on a thread join; a read-only lookup may finish asynchronously. No background startup query or runtime download is required.
 
-The packaged data path is `/usr/share/wordnet` (`wordnet-base`). An explicit `WROS_WORDNET_DIR` can point to another local WordNet 3.0-format data folder; custom data is format-checked, not authenticated as the reviewed package. CLI: `grimoire writingdeck lexicon "hot" --data /usr/share/wordnet` is read-only JSON. The upstream WordNet notice remains with all database copies and in the installed notices. No overall literary-quality score is produced.
+WrOS includes WordNet from the Nix store; the app and CLI use its packaged path automatically. An explicit `WROS_WORDNET_DIR` can point to another local WordNet 3.0-format data folder; custom data is format-checked, not authenticated as the reviewed package. CLI: `grimoire wros lexicon "hot"` is read-only JSON. The upstream WordNet notice remains with all database copies and in the installed notices. No overall literary-quality score is produced.

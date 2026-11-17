@@ -1,7 +1,7 @@
 # Continuity & draft milestones
 
-Open **Continuity tracker**, **Draft milestones**, or **Read chapter aloud**
-from the command palette (`Ctrl-K`) or **Writing tools**. All long-form
+Open Continuity tracker or Draft milestones from Ctrl-K or Tools › Revision.
+Read chapter aloud and Read manuscript aloud are in Ctrl-K and Tools. All long-form
 tracking data lives in `.grimoire/writingdeck/` outside your Markdown scenes
 and never alters manuscript prose unless you explicitly restore a snapshot or
 scene variant.
@@ -117,7 +117,7 @@ lost registry, certify a backup or make cross-process metadata changes atomic.
 ## Read chapter aloud
 
 Choose **Read chapter aloud** or **Read manuscript aloud** in the command
-palette or Writing tools to queue the current scene and following included
+palette or Tools to queue the current scene and following included
 scenes in the chapter or across the manuscript. During read-aloud, press
 `Space` to pause or resume, `Left`/`Right` to step by sentence, `m` to mark the
 highlighted sentence in **Revision notes**, `n` for the next queued scene, or

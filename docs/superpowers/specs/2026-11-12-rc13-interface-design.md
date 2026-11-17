@@ -1,6 +1,6 @@
 # WrOS rc13: one interface
 
-Status: approved by the owner on 2026-11-12.
+Status: historical rc13 design, approved on 2026-11-12. Retained as a decision record; references to "today" describe that baseline. Current WrOS builds are defined in flake.nix and nixos/.
 
 Starting point: rc12 (tag `v0.1.0-rc12`, commit `d438fe4`), on the local branch
 `rc13-build`. Where this document compares against "Grimoire", it means upstream

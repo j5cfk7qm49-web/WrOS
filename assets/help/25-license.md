@@ -5,7 +5,7 @@ Grimoire is free and open source, under the MIT License. Here's what that means 
 - **Use it for anything, commercial work included.** Write with it, sell what you write, use it at your day job, or build it into something you sell. All of that is welcome.
 - **Credit is required.** If you share Grimoire, or ship something built on its code, keep its copyright notice and license with it, so folks can see where it came from.
 - **Your books are yours.** Everything you write in Grimoire belongs to you, and it never has to mention Grimoire.
-- **A donation is appreciated, never required.** If Grimoire has helped you and you'd like to give something back, *Help › Donate…* opens the Ko-fi page. It all goes toward Grimoire's development.
+- **A donation is appreciated, never required.** If Grimoire has helped you and you'd like to give something back, open *Help › Donate…*. This opens the Donate dialog. Enter attempts to open Ko-fi in a browser; the dialog also gives its address. It all goes toward Grimoire's development.
 
 *Help › License…* opens this, *WrOS › About WrOS* gets you here with `l`, and so does `Ctrl-K` › *License*.
 

@@ -1,6 +1,6 @@
 # Writing checks
 
-Open **Writing checks · local grammar** from Writing tools or the command palette. It checks the active original editor, not a copied manuscript in a second editing surface. Existing spellcheck remains independent.
+Open **Tools › Writing checks…**. You can also choose **Writing checks · local grammar** in the command palette. It checks the active original editor, not a copied manuscript in a second editing surface. Existing spellcheck remains independent.
 
 ## Optional local model, not mandatory AI
 
@@ -34,7 +34,7 @@ A replacement is refused if the source/generation/policy changed, the exclusive 
 
 ## Fiction policy and limits
 
-Drafting favors a conservative grammar subset; Revision adds usage/punctuation; Deep review includes more of Harper's editorial rules. These are **Harper profiles**, not a claim that the later Python/readability/voice dashboard is implemented. All findings are fallible suggestions, not objective literary quality.
+Drafting favors a conservative grammar subset; Revision adds usage/punctuation; Deep review includes more of Harper's editorial rules. These are **Harper profiles**, separate from the implemented Prose and revision dashboard, which has its own Python, readability and selected-reference voice controls. All findings are fallible suggestions, not objective literary quality.
 
 Quoted dialogue remains prose. Relaxed dialogue suppresses stylistic/capitalization/readability observations, not grammar. Double-quoted passages and em-dash-led paragraphs are heuristic context hints, not reliable attribution. Apostrophes in names and possessives do not become quotation boundaries. Notes, research and footnote bodies have independent opt-in scopes.
 

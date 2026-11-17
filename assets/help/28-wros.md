@@ -1,6 +1,6 @@
 # WrOS (Writer's OS)
 
-WrOS (formerly codenamed WritingDeck OS) is an offline-first Debian writing appliance built around WrOS. It is an independent project, not endorsed by NaNoWriMo. This is a development foundation, not a complete production OS.
+WrOS (formerly codenamed WritingDeck OS) is an offline-first NixOS 26.05 writing appliance built around Grimoire. It is an independent project, not endorsed by NaNoWriMo. This is a development foundation, not a complete production OS.
 
 ## Overview
 
@@ -18,31 +18,24 @@ Workspaces save both documents, each cursor/selection/scroll position, the activ
 
 ## Toggle editable secondary pane
 
-Press `F11` to show or hide the independent editor. The first press opens Choose secondary document: type a scene, character, note or research title and press Enter. The same action in Writing tools or Ctrl-K replaces its document safely. Both panes are fully editable, each with its own undo/redo, cursor, selection and scroll. Clipboard, find/replace and spelling commands target the focused buffer; the clipboard and dictionary are shared. Tab or a click changes the focused editor; commands act on that buffer. Hiding never discards it. At 80×24 the two editors stack; wider writing areas put them side by side.
+Press `F11` to show or hide the independent editor. The first press opens Choose secondary document: type a scene, character, note or research title and press Enter. To replace its document safely, use Ctrl-K or *View › Choose second document…*. Both panes are fully editable, each with its own undo/redo, cursor, selection and scroll. Clipboard, find/replace and spelling commands target the focused buffer; the clipboard and dictionary are shared. Tab or a click changes the focused editor; commands act on that buffer. Hiding never discards it. At 80×24 the two editors stack; wider writing areas put them side by side.
 
 Only one authoritative editor may own a canonical file. Choosing a document already open focuses its existing pane, including symlink/hard-link aliases on Linux. Both buffers use the existing autosave/history/conflict/recovery path and raw YAML frontmatter. Strict focus hides the secondary; leave with Ctrl-D before using F11. A secondary and an old read-only reference are retained but not drawn simultaneously. No file is copied merely to open another view.
 
 ## Sticky-note pins
 
-Choose Pinboard or Pin current document in Writing tools or Ctrl-K. Dashboard `p` opens Pinboard too. Cards reference existing Markdown sources, keep independent scroll and heading/quote anchors, and never become a competing text store. Enter explicitly edits a source through the existing owner-aware editor. Scopes, category/color/size/order, recoverable card archive/Trash and narrow-screen fallback are explained in the Sticky-note pins help topic. Writing journal now separates sampled saved-Project facts from original Markdown reflections: Ctrl-K or dashboard j opens it. Its help explains source editing, explicit current snapshots and retry. Scratchpad now has multiple original Notes, explicit scene links and original-preserving scene promotion; Session handoff shows an ordinary user-authored next-open intention. Dashboard s/o and their own help topics expose both.
+Choose Pinboard… or Pin this document in Ctrl-K or Tools › Notes. Overview `p` opens Pinboard too. Cards reference existing Markdown sources, keep independent scroll and heading/quote anchors, and never become a competing text store. Enter explicitly edits a source through the existing owner-aware editor. Scopes, category/color/size/order, recoverable card archive/Trash and narrow-screen fallback are explained in the Sticky-note pins help topic. Writing journal now separates sampled saved-Project facts from original Markdown reflections: Ctrl-K or dashboard j opens it. Its help explains source editing, explicit current snapshots and retry. Scratchpad now has multiple original Notes, explicit scene links and original-preserving scene promotion; Session handoff shows an ordinary user-authored next-open intention. Dashboard s/o and their own help topics expose both.
 
 ## Unified WrOS settings
 
-From the dashboard choose Settings, or use the command palette's WrOS settings
-action. Writing, Interface, System and Accounts share arrow/Enter/Escape
-navigation and remember their selections. Existing editor and interface actions
-use the same underlying settings. Closing a child dialog returns to its category;
-Escape follows the route back to the writing workspace. Both editable documents,
-cursor, selection, free scroll and undo remain retained. F1 opens offline help.
-The older Settings menu remains available during this migration.
-
-System has native Network, Display, Power, Storage and Date/time panes using
-cached background services. Accounts, updates and recovery explicitly identify
-unfinished services. Display → Warm screen has an offline filter on supported
-drivers: 1000–6500 K, initial 2200 K, strength/Off and a 15-second Keep/Cancel
-preview. Off restores original color curves. Unsupported drivers are unavailable;
-this is separate from the theme picker. No Google account is required for local
-writing. Battery and power → Lock and suspend saves, locks, then sleeps.
+Open Settings from the menu bar. Its five groups are Writing, Look and keyboard,
+System, Backups and accounts, and Updates and recovery. Settings opens over the
+writing page and uses arrow keys, Enter and Esc. System contains Wi-Fi and
+networking, Display, Battery and power, Sound and volume, Date and time, and
+Storage. Backups, Google Drive, updates and recovery have working controls.
+Unsupported services report unavailable. In Display, Warm screen · blue light
+filter offers a 15-second Keep/Cancel preview on supported drivers. Battery and
+power offers Lock and suspend when available.
 
 ## System settings
 
@@ -54,23 +47,28 @@ while writing and on the lock screen. The screen never goes fully dark, mute
 switches sound off and on, and the bottom bar shows the new value within half a
 second.
 
-Network → Scan Wi-Fi networks shows a native list with signal/security and the
-active network. Saved Wi-Fi profiles shows the profiles visible to this session;
+Open Settings › System › Wi-Fi and networking › Scan Wi-Fi networks.
+It shows a native list with signal/security and the active network.
+Saved Wi-Fi profiles shows the profiles visible to this session;
 UUIDs distinguish identical names. Refresh clears old results before retrying,
 so an unavailable service cannot leave a stale list looking current. These are
-read-only lists; new-network credentials and profile changes are unfinished.
+interactive lists: select a scanned network to connect or enter credentials, or
+select a saved profile to connect, reconnect or forget it.
 
 Accounts → Local accounts lists supported local login accounts and identifies
 this session. Google, Drive, synchronization and backups state their actual
 availability. Opening those screens does not enroll an account, fetch documents
 or create a verified backup. Local manuscript history is not a separate backup.
 
-Storage → Mounted filesystems shows local mount paths and capacity. Updates →
-Preview cached package plan runs a read-only APT simulation, including proposed
-removals. It uses the existing package cache; it does not establish repository
-freshness, download or install updates, or qualify recovery. Nothing is scheduled
-at restart by this preview. The screens use the same WrOS navigation and keep
-the current writing buffers, caret, selection and undo in place.
+Open Settings › System › Storage › Mounted filesystems. It shows mount paths
+and capacity. Open Settings › Updates and recovery › Updates.
+Choose **Check for WrOS updates** for signed WrOS updates, or **Review a signed
+update bundle by path** for an offline NixOS update bundle. A confirmed update
+is staged for a restart. **Go back to** `<version>` returns to the previous
+system generation when available. The repair controls under **Recovery status,
+repair and staged update** lead to **Repair now from retained verified packages**.
+On NixOS, this re-activates the current generation. The cached APT package-plan
+preview is not available on NixOS.
 
 Keyboard layout selects QWERTY, Colemak or Colemak-DH ANSI/ISO on appliance tty1. A root-owned helper previews for 15 seconds with an independent systemd rollback timer. Type in the preview field; Enter keeps it, Escape reverts. The test field never changes a manuscript. Desktop and SSH sessions must use their own OS layout configuration.
 
@@ -78,13 +76,15 @@ Keyboard shortcuts adds aliases to actions using Ctrl+Alt letters or F10-F12. Es
 
 Low-power mode reduces redraws and disables the visualizer; requesting an OS power profile can fail independently. Start-at-dashboard is optional; disable it to restore the selected workspace directly.
 
-In Settings → System → Date and time, Choose timezone loads the installed local
+Open Settings › System › Date and time. Choose timezone loads the installed local
 timezone list. Type a city or region, select a result and press Enter. Try Enter
 on the default Cancel choice first. To change the timezone, reopen the result,
 select Use and confirm. WrOS reads the time service back before reporting success.
 An unavailable or denied service leaves writing available and keeps the choice
 for retry. Changing timezone affects future local dates; historical records
-keep their recorded dates. Manual clock and network-time controls remain unavailable.
+keep their recorded dates. Set the clock by hand (turns network time off) sets
+the clock manually. Use network time again (sets the clock automatically)
+restores automatic time.
 
 Battery and power also offers Restart the writing app. It saves, then starts
 the writing app again in place; you stay signed in and nothing else restarts.
@@ -105,12 +105,12 @@ Interactive tutorial lists all 50 lessons. Press `d` to open the safe demo book:
 
 ## Safety and maintenance
 
-The writing application never needs root. Ctrl+Alt+F2 opens an authenticated maintenance console on the appliance. The isolated VM prototype has passwordless tty1 autologin and must not be deployed to hardware. Use a normal Debian account and encrypted installation for physical laptops. Screen locking, a full installer, updates/rollback automation, cloud OAuth and real-hardware verification remain release gates.
+The writing application runs as the writer. Ctrl+Alt+F2 opens the authenticated maintenance console. The NixOS installer creates an encrypted installation and a writer account; root stays locked. Screen locking, guarded suspend, signed generation updates, rollback and phone linking are implemented. VM tests establish their tested behavior, not physical suspend/resume or general hardware qualification.
 
 ## The WrOS menu
 
 The first menu on the bar holds Overview (F12), About WrOS, Lock, Sleep,
-Restart the computer and Shut down. The power rows ask first, as they do in
+Restart… (Restart the computer in Ctrl-K) and Shut down…. The power rows ask first, as they do in
 Settings › System › Battery and power. On a live USB it also offers Install
-WrOS to disk. File › Back up now backs the open book up straight away, to the
-places Settings › Backups and accounts names.
+WrOS to disk…. Open File › Back up now. It backs the open book up straight away
+to its configured backup destinations.

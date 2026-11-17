@@ -8,7 +8,7 @@ Every scene is saved two seconds after you stop typing, and never waits longer t
 
 ## History
 
-Every scene keeps dated copies of itself as you work: at most one every five minutes, plus how it was before today's first change and before anything drastic (a replace across the book, restoring an old version).
+Every scene keeps dated copies of itself as you work: at most one every five minutes, plus how it was before this session's first change and before anything drastic (a replace across the book, restoring an old version).
 
 - `H` in the outline (or *Scene history* in `Ctrl-K`) shows the scene's history. `↑` `↓` choose a version and the pane shows what's different from now.
 - `PgUp` `PgDn` or `Space` scroll the differences.
@@ -18,7 +18,7 @@ The copies live in `.grimoire/history/`, as plain Markdown.
 
 ## Recovery
 
-If a save fails (a full disk, a file another program has locked) or WrOS stops unexpectedly, the words go to `.grimoire/recovery/`. Next time the book opens, WrOS offers them back:
+If a save fails or WrOS catches an application crash, it tries to keep unsaved words in `.grimoire/recovery/`. A power cut can lose changes that have not reached disk. Next time the book opens, WrOS offers any recovery copies back:
 
 - **Restore them**: the saved versions go into each scene's history first.
 - **Keep the saved versions**: the recovered words go to the Trash, not away.

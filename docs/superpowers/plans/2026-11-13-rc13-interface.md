@@ -1,5 +1,7 @@
 # WrOS rc13 Interface Implementation Plan
 
+Historical rc13 implementation plan, written 13 November 2026 for the Debian build. Retained as a decision record. Unchecked boxes and expected results are not current tasks or recorded passes. Current builds are defined in flake.nix and nixos/.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make WrOS read as one program: a top menu bar with dropdowns replaces the Esc box menu, Settings opens as a box over the page, status splits top-right/bottom, WrOS branding replaces Grimoire's, and the graphical session draws in GNU Unifont.
