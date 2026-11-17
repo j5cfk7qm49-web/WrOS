@@ -27,10 +27,11 @@ rec {
       useBootLoader = true;
       useEFIBoot = true;
       mountHostNixStore = true;
+      # The same root as nixos/modules/boot.nix, options included (the unlock screen's wait).
       fileSystems."/" = lib.mkVMOverride {
         device = "/dev/disk/by-label/WROS-ROOT";
         fsType = "ext4";
-        options = [ "noatime" ];
+        options = [ "noatime" "x-systemd.device-timeout=infinity" ];
       };
       fileSystems."/boot" = lib.mkVMOverride {
         device = "/dev/disk/by-label/WROS-ESP";

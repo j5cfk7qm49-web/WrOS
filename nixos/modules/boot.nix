@@ -4,7 +4,10 @@
   fileSystems."/" = {
     device = "/dev/disk/by-label/WROS-ROOT";
     fsType = "ext4";
-    options = [ "noatime" ];
+    # The root only appears once the writer unlocks the disk, so wait for it however long they
+    # take. systemd's default gave up after 5 minutes at the unlock screen, leaving the prompt
+    # dead and the boot stuck (nixos/tests/unlock-waits.nix).
+    options = [ "noatime" "x-systemd.device-timeout=infinity" ];
   };
 
   fileSystems."/boot" = {

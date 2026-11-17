@@ -123,6 +123,7 @@
         install-encrypted = vmTest ./nixos/tests/install-encrypted.nix;
         live-session = vmTest ./nixos/tests/live-session.nix;
         live-graphical = vmTest ./nixos/tests/live-graphical.nix;
+        unlock-waits = vmTest ./nixos/tests/unlock-waits.nix;
         helpers-no-fhs = vmTest ./nixos/tests/helpers-no-fhs.nix;
         rust-suite = wrosPkgs.rust-suite;
         python-suite = wrosPkgs.python-suite;
