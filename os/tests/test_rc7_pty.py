@@ -3,6 +3,7 @@ import hashlib
 import os
 from pathlib import Path
 import secrets
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -43,7 +44,7 @@ class Rc7PTY(unittest.TestCase):
             credential = secrets.token_hex(12).encode()
             stale = secrets.token_hex(12).encode()
             locker = home / 'locker'
-            locker.write_text('#!/usr/bin/python3 -I\n'
+            locker.write_text(f'#!{sys.executable} -I\n'
                               'import hashlib, os, time\n'
                               'os.write(1, b"\\r\\nQA locker is waiting\\r\\n")\n'
                               'value = bytearray()\n'

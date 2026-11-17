@@ -103,8 +103,8 @@ adapter and narrow privileged helpers handle system changes. See
 and login, keyboard preview, console lock, generation updates/go back, recovery,
 live sessions and helper paths. The definitions live in `nixos/tests/`; they are
 not pass records. The [Nix workflow](../.github/workflows/nix-ci.yml) evaluates
-all flake packages and checks, builds the Python suite, selected WrOS packages
-and the installed system. It does not run the VM checks.
+all flake packages and checks, runs the Rust, driven, Python and app suites, and
+builds selected WrOS packages and the installed system. It does not run the VM checks.
 
 ## History
 

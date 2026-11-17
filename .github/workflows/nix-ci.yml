@@ -1,8 +1,9 @@
 name: nix-ci
 
-# The NixOS build of WrOS (rc14 on): every flake output evaluates, the Python suite passes under
-# Nix, and the WrOS packages and the installed system build from the committed flake.lock. The
-# KVM VM tests and the ISO run in local qualification (docs/NIXOS_QUALIFICATION.md).
+# The NixOS build of WrOS (rc14 on): every flake output evaluates; the Rust workspace (both audio
+# configurations), the driven app tests, the Python and app suites and the repository gates pass;
+# and the WrOS packages and the installed system build from the committed flake.lock. The KVM VM
+# tests and the ISO run in local qualification (docs/NIXOS_QUALIFICATION.md).
 
 on:
   push:
@@ -44,3 +45,37 @@ jobs:
           nix build -L .#grimoire .#wros-greeter .#wros-boot .#wros-installer .#wros-branding
           nix build -L .#nixosConfigurations.wros.config.system.build.toplevel
           nix path-info -Sh ./result
+
+  # Each check is one flake output, so `nix build .#checks.x86_64-linux.<name>` runs the same
+  # thing locally.
+  nix-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        check: [rust-suite, rust-suite-no-audio, rust-driven-suite, app-suite]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - name: nix build .#checks.x86_64-linux.${{ matrix.check }}
+        run: nix build -L .#checks.x86_64-linux.${{ matrix.check }}
+
+  repository-gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - name: Formatting, retained sources, content, docs and syntax (tools/nix-gates.sh)
+        run: nix develop -c bash tools/nix-gates.sh

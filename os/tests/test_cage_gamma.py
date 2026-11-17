@@ -15,13 +15,16 @@ class CageGamma(unittest.TestCase):
             raise RuntimeError('Cage integration tests must run unprivileged')
         cls.temporary = tempfile.TemporaryDirectory(prefix='wros-cage-gamma-')
         cls.directory = Path(cls.temporary.name)
-        cls.cage = cls.directory / 'cage'
-        with (cls.directory / 'build.log').open('w') as log:
-            # Keep compiler output bounded while retaining the failure details.
-            command = ['python3', str(ROOT / 'tools/build-cage.py'), '--output', str(cls.cage)]
-            result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT)
-        if result.returncode:
-            raise AssertionError((cls.directory / 'build.log').read_text()[-6000:])
+        # WROS_CAGE names an already-built patched Cage (the NixOS package); otherwise build it.
+        packaged = os.environ.get('WROS_CAGE')
+        cls.cage = Path(packaged) if packaged else cls.directory / 'cage'
+        if not packaged:
+            with (cls.directory / 'build.log').open('w') as log:
+                # Keep compiler output bounded while retaining the failure details.
+                command = ['python3', str(ROOT / 'tools/build-cage.py'), '--output', str(cls.cage)]
+                result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT)
+            if result.returncode:
+                raise AssertionError((cls.directory / 'build.log').read_text()[-6000:])
         flags = subprocess.check_output(['pkg-config', '--cflags', 'wlroots-0.18'], text=True).split()
         subprocess.run(['cc', '-O2', '-Wall', '-Wextra', '-Werror', '-shared', '-fPIC',
                         *flags, str(ROOT / 'os/tests/cage-gamma-driver.c'), '-ldl',

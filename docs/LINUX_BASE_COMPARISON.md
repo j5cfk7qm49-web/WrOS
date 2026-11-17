@@ -48,8 +48,9 @@ image bytes across builds.
 
 [flake.nix](../flake.nix) exposes installation, boot/login, lock, keyboard,
 update/go-back and recovery VM checks, plus Rust and Python suites. The
-[Nix workflow](../.github/workflows/nix-ci.yml) evaluates those outputs, builds
-the Python suite, selected packages and the installed system. These definitions
+[Nix workflow](../.github/workflows/nix-ci.yml) evaluates those outputs, runs the
+Rust, driven, Python and app suites, and builds selected packages and the
+installed system; the VM checks run in local qualification. These definitions
 are not evidence of a passing run or physical hardware qualification. Firmware
 and Secure Boot qualification remain separate.
 

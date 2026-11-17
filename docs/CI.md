@@ -1,9 +1,13 @@
 # WrOS continuous integration
 
 WrOS has two active software workflows. [Nix CI](../.github/workflows/nix-ci.yml)
-evaluates every package and check, runs the Nix Python suite, and builds the WrOS
-packages and installed system from the pinned flake. VM checks, the ISO and the
-Rust-suite check are executed separately in local qualification. The retained
+evaluates every package and check, runs the Rust workspace tests in both audio configurations, the driven app tests (terminal and an OpenGL window under headless Cage), the full Python app suite and the repository gates
+(`tools/nix-gates.sh`), and builds the WrOS packages and installed system from the
+pinned flake. Each test run is a flake check (`rust-suite`, `rust-suite-no-audio`,
+`rust-driven-suite`, `app-suite`, `python-suite`), so `nix build` runs the same thing
+locally. [tools/nix-python-suite.py](../tools/nix-python-suite.py) lists the
+Debian-only Python tests NixOS does not run, each with its reason. VM checks and the
+ISO run in local qualification. The retained
 [Debian CI](../.github/workflows/ci.yml) runs M7b and driven terminal/OpenGL checks
 in Debian 13; its results qualify that environment.
 

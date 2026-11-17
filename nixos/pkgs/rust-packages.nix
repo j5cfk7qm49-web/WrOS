@@ -84,8 +84,10 @@ let
 
   # The tests see the same tool paths as the shipped app (rustPathEnv), so they run the Nix
   # python3, WordNet data and so on rather than looking under /usr (#131).
-  rust-suite = rustPlatform.buildRustPackage ({
-    pname = "wros-rust-suite";
+  # The Debian CI's Rust runs, as Nix checks: the workspace in both audio configurations, and
+  # the feature-gated tests that need test-only features.
+  mkRustSuite = { pname, commands, extraNativeBuildInputs ? [], pathEnv ? paths.rustPathEnv }: rustPlatform.buildRustPackage ({
+    inherit pname;
     inherit version;
     # The packages' sources, plus the gamma-control protocol and test server the
     # compositor-warmth tests build (kept out of rustSrc so the shipped packages don't rebuild).
@@ -101,6 +103,9 @@ let
         (src + "/os/tests/wlr-gamma-control-unstable-v1.xml")
         (src + "/os/tests/wayland-gamma-server.c")
         (src + "/os/tests/gamma-frozen-parent.py")
+        # The driven OpenGL test's virtual keyboard client.
+        (src + "/os/tests/protocols")
+        (src + "/os/tests/wayland-keys.c")
       ];
     };
     cargoLock = {
@@ -108,7 +113,7 @@ let
     };
     # git: grimoire-core's writing-session history is a Git repository, and its tests make real ones.
     # wayland-scanner: the compositor-warmth tests build a small gamma-control server.
-    nativeBuildInputs = commonNativeBuildInputs ++ [ rustToolchain pkgs.git pkgs.wayland-scanner ];
+    nativeBuildInputs = commonNativeBuildInputs ++ [ rustToolchain pkgs.git pkgs.wayland-scanner ] ++ extraNativeBuildInputs;
     buildInputs = commonBuildInputs;
     doCheck = true;
     checkPhase = ''
@@ -118,17 +123,46 @@ let
       export WROS_TOOLS_PYTHON="${paths.toolPaths.toolsPython}"
       git config --global user.name "WrOS test"
       git config --global user.email "test@wros.invalid"
-      cargo clippy --workspace --all-targets --locked -- -D warnings
-      # Every crate's tests run even after one fails, so one failure doesn't hide the rest.
-      cargo test --workspace --locked --no-fail-fast
+      ${commands}
       runHook postCheck
     '';
     installPhase = ''
       mkdir -p "$out"
       echo "pass" > "$out/result"
     '';
-  } // paths.rustPathEnv);
+  } // pathEnv);
+
+  # Every crate's tests run even after one fails, so one failure doesn't hide the rest.
+  workspaceCommands = flags: ''
+    cargo clippy --workspace --all-targets ${flags} --locked -- -D warnings
+    cargo test --workspace ${flags} --locked --no-fail-fast
+  '';
+  rust-suite = mkRustSuite { pname = "wros-rust-suite"; commands = workspaceCommands ""; };
+  rust-suite-no-audio = mkRustSuite {
+    pname = "wros-rust-suite-no-audio";
+    commands = workspaceCommands "--no-default-features";
+  };
+  # The app in a terminal and in an OpenGL window under headless Cage (tests/driven.rs), and the
+  # lock action's readiness check; both need the test-only test-driver feature.
+  # Its Settings snapshots record an app whose update helper is not installed (as in a
+  # development build), so that one path stays the uninstalled default.
+  rust-driven-suite = let cage = import ./cage.nix { inherit pkgs lib src; }; in mkRustSuite {
+    pname = "wros-rust-driven-suite";
+    extraNativeBuildInputs = [ cage pkgs.mesa ];
+    pathEnv = paths.rustPathEnv // { WROS_PATH_HELPER_UPDATE = "/usr/libexec/wros-update"; };
+    commands = ''
+      export WROS_CAGE="${cage}/bin/cage"
+      # As the shipped grimoire (postFixup above): the colour worker starts with a clean
+      # environment, so the dlopened Wayland/GL libraries come from the binary's own search path.
+      export RUSTFLAGS="-C link-arg=-Wl,-rpath,${wgpuRuntimeLibs}"
+      export LIBGL_DRIVERS_PATH="${pkgs.mesa}/lib/dri" __EGL_VENDOR_LIBRARY_DIRS="${pkgs.mesa}/share/glvnd/egl_vendor.d"
+      export LD_LIBRARY_PATH="${lib.makeLibraryPath [ pkgs.wayland pkgs.libxkbcommon pkgs.libGL pkgs.mesa pkgs.vulkan-loader ]}"
+      export XDG_RUNTIME_DIR="$TMPDIR/xdg"; mkdir -m 700 -p "$XDG_RUNTIME_DIR"
+      cargo test --no-default-features --features test-driver,gui-wgpu,pty-qa --test driven --locked
+      cargo test --no-default-features --features test-driver --bin grimoire locking_is_not_advertised --locked
+    '';
+  };
 in
 {
-  inherit grimoire wros-greeter wros-boot wros-installer rust-suite;
+  inherit grimoire wros-greeter wros-boot wros-installer rust-suite rust-suite-no-audio rust-driven-suite;
 }

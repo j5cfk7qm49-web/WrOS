@@ -573,11 +573,22 @@ fn the_opengl_window_draws_and_saves_unicode_without_a_terminal_reader() {
     let socket = home.dir.join("window.sock");
     let ready = home.dir.join("ready");
     let log = home.dir.join("window.log");
-    let child = Command::new("cage")
+    // WROS_CAGE names a packaged Cage (Nix); the GL loader settings a Nix build sets pass through.
+    let cage = std::env::var_os("WROS_CAGE").unwrap_or_else(|| "cage".into());
+    let passed: Vec<(&str, std::ffi::OsString)> = [
+        "LD_LIBRARY_PATH",
+        "LIBGL_DRIVERS_PATH",
+        "__EGL_VENDOR_LIBRARY_DIRS",
+    ]
+    .into_iter()
+    .filter_map(|name| std::env::var_os(name).map(|value| (name, value)))
+    .collect();
+    let child = Command::new(cage)
         .args(["-s", "--", BINARY])
         .arg(home.dir.join("book"))
         .env_clear()
         .envs(Home::env(&home.dir))
+        .envs(passed)
         .env("PATH", "/usr/bin:/bin")
         .env("LANG", "C.UTF-8")
         .env("XDG_RUNTIME_DIR", &runtime)

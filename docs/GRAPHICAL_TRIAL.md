@@ -69,8 +69,8 @@ native DRM session selection and continued app lifetime. The
 authentication and input isolation in a console session. Those definitions do
 not establish compositor trial passes or physical display, keyboard, colour,
 latency, power-use or sleep/resume qualification. The
-[Nix workflow](../.github/workflows/nix-ci.yml) evaluates the checks but does not
-run these VMs.
+[Nix workflow](../.github/workflows/nix-ci.yml) evaluates the checks and runs the
+driven OpenGL-window test under headless Cage, but not these VMs.
 
 ## History
 

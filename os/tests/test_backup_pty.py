@@ -86,6 +86,10 @@ class NativeBackupPTY(unittest.TestCase):
             with self.subTest(width=width), tempfile.TemporaryDirectory(prefix='wros-native-backup-') as temporary:
                 base = Path(temporary)
                 project, home, primary = fixture(base)
+                # A setting of the writer's own, so the backup carries settings whatever the host
+                # (otherwise only a host /etc/timezone, as Debian has, gives it some).
+                (home/'config/grimoire').mkdir(parents=True, exist_ok=True)
+                (home/'config/grimoire/backup-test-note.txt').write_text('kept with the settings\n')
                 terminal = TerminalProcess(project, home, width, height)
                 prefix = 'Original λ words for encrypted backup. '
                 try:
@@ -238,7 +242,8 @@ class NativeBackupPTY(unittest.TestCase):
                 terminal.shows('The Brass Key')
                 self.open_backups(terminal)
                 choose(terminal, 'Create encrypted backup')
-                rclone = lambda: subprocess.run(['pgrep', '-x', 'rclone'], capture_output=True).returncode == 0
+                # nixpkgs runs rclone as .rclone-wrapped.
+                rclone = lambda: subprocess.run(['pgrep', '-x', r'rclone|\.rclone-wrapped'], capture_output=True).returncode == 0
                 terminal.until(rclone, 'restic started rclone for the Drive repository', timeout=60)
                 terminal.screen_shows('Working: Encrypting and saving the snapshot')
                 terminal.send(b'\x1b[B')

@@ -42,7 +42,7 @@ def ready(terminal, count):
 class LexiconPTY(unittest.TestCase):
     def test_real_senses_specific_antonyms_copy_native_unicode_paste_undo_and_restart_at_four_sizes(self):
         # Missing dependency is a failed prerequisite, not skipped fake coverage.
-        self.assertTrue(Path('/usr/share/wordnet/data.adj').is_file(), 'install wordnet-base')
+        self.assertTrue((Path(os.environ.get('WROS_WORDNET_DIR', '/usr/share/wordnet'))/'data.adj').is_file(), 'install wordnet-base or set WROS_WORDNET_DIR')
         for width,height in [(80,24),(100,30),(120,40),(160,50)]:
             with self.subTest(width=width,height=height), tempfile.TemporaryDirectory(prefix='wd-lexicon-pty-') as tmp:
                 project,home,primary=lexical_fixture(Path(tmp)); before=primary.read_bytes()

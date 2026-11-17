@@ -26,6 +26,10 @@ let
     inherit pkgs lib version src rustPlatform rustToolchain paths;
   };
 
+  appTests = import ./app-tests.nix {
+    inherit pkgs lib version src rustPlatform paths wros-cage wros-prose-runtime;
+  };
+
   wros-licenses = import ./licenses.nix {
     inherit pkgs lib version src;
   };
@@ -79,10 +83,13 @@ in
     wros-branding
     paths
     python-suite;
+  inherit (appTests) app-test-binary app-suite;
   inherit (rustPackages)
     grimoire
     wros-greeter
     wros-boot
     wros-installer
-    rust-suite;
+    rust-suite
+    rust-suite-no-audio
+    rust-driven-suite;
 }

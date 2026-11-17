@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -196,7 +197,7 @@ class EncryptedBackup(unittest.TestCase):
             self.assertNotIn('PRIVATE_', str(caught.exception))
         env = dict(os.environ, XDG_DATA_HOME=str(self.base/'data'))
         request = json.dumps({'operation': 'connect-google-file', 'path': str(stick/'broken.json')}).encode()
-        result = subprocess.run(['/usr/bin/python3', '-I', str(SCRIPT)], input=request, capture_output=True, env=env)
+        result = subprocess.run([sys.executable, '-I', str(SCRIPT)], input=request, capture_output=True, env=env)
         self.assertNotEqual(result.returncode, 0)
         self.assertNotIn(b'PRIVATE_', result.stdout + result.stderr)
         self.assertIn('only the JSON', json.loads(result.stdout)['error'])
@@ -434,7 +435,7 @@ class EncryptedBackup(unittest.TestCase):
         with mock.patch.object(module, 'run', side_effect=AssertionError('No process expected')):
             self.assertFalse(self.service.status(refresh=False)['configured'])
         env = dict(os.environ, XDG_DATA_HOME=str(self.base/'data'))
-        result = subprocess.run(['/usr/bin/python3', '-I', str(SCRIPT)],
+        result = subprocess.run([sys.executable, '-I', str(SCRIPT)],
                                 input=b'{"operation":"connect-google","authorization":"PRIVATE_BROKEN_JSON"}',
                                 capture_output=True, env=env)
         self.assertNotEqual(result.returncode, 0)

@@ -2,9 +2,10 @@
 
 ## One command for a release candidate (#13)
 
-For NixOS, build `.#checks.x86_64-linux.python-suite` and
-`.#checks.x86_64-linux.rust-suite` with `nix build`, then run the eight VM checks
-and `helpers-no-fhs` listed in `flake.nix`. Follow
+For NixOS, build the software checks `rust-suite`, `rust-suite-no-audio`,
+`rust-driven-suite`, `app-suite` and `python-suite` (`nix build
+.#checks.x86_64-linux.<name>`) and run `nix develop -c bash tools/nix-gates.sh`, then
+run the nine VM checks and `helpers-no-fhs` listed in `flake.nix`. Follow
 [NixOS qualification](NIXOS_QUALIFICATION.md) for the candidate procedure.
 The following `tools/rc-check.sh` and RC10 chain instructions describe the
 retained Debian checks.
@@ -59,8 +60,8 @@ OpenGL. A test-only Wayland keyboard sends physical Colemak keys and a compose
 sequence, then saves and checks the disposable book. It needs `cage`, `foot`,
 `libxkbcommon-dev`, `libwayland-dev`, `libegl1-mesa-dev` and Mesa's runtime drivers.
 The retained Debian CI installs these packages and runs this test; a missing
-renderer is a failure. Nix CI evaluates the checks but does not execute this
-driven test.
+renderer is a failure. Nix CI runs it as the `rust-driven-suite` check, with the
+packaged Cage and Mesa's software renderer.
 
 After a deliberate screen change, review new snapshots with `cargo insta review`
 or rerun with `INSTA_UPDATE=always` and read the diff before committing.

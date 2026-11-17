@@ -16,8 +16,12 @@ python3 os/tests/test_name_leftovers.py -v
 python3 os/tests/test_line_endings.py -v
 ```
 
-The maintained Nix Python suite is `nix build .#checks.x86_64-linux.python-suite`;
-its test list is defined in [nixos/pkgs/default.nix](../nixos/pkgs/default.nix).
+The Nix Python checks are `nix build .#checks.x86_64-linux.python-suite` (the
+NixOS-specific tests listed in [nixos/pkgs/default.nix](../nixos/pkgs/default.nix)) and
+`nix build .#checks.x86_64-linux.app-suite` (every test in `os/tests` against debug
+builds of the app and installer, except the Debian-only ones
+[tools/nix-python-suite.py](../tools/nix-python-suite.py) lists). Run the repository
+gates with `nix develop -c bash tools/nix-gates.sh`.
 
 ## Step 2: Verify `flake.lock` and evaluate all flake outputs
 
@@ -49,13 +53,16 @@ nix path-info -rS ./result | sort -nk2 | tail -25
 
 Compare the measured closure total and largest store paths against the Round 2 baseline (`4.1 GiB` across `918` paths) and the individual removals documented in [`docs/NIXOS_BASE.md`](NIXOS_BASE.md).
 
-## Step 5: Run the Rust, Python, and eight KVM NixOS VM suites
+## Step 5: Run the Rust, Python, and nine KVM NixOS VM suites
 
 On NixOS-WSL with `/dev/kvm` accessible:
 
 ```sh
 nix build .#checks.x86_64-linux.rust-suite
+nix build .#checks.x86_64-linux.rust-suite-no-audio
+nix build .#checks.x86_64-linux.rust-driven-suite
 nix build .#checks.x86_64-linux.python-suite
+nix build .#checks.x86_64-linux.app-suite
 nix build .#checks.x86_64-linux.install-encrypted
 nix build .#checks.x86_64-linux.boot-unlock-login
 nix build .#checks.x86_64-linux.keyboard-preview
@@ -64,6 +71,7 @@ nix build .#checks.x86_64-linux.update-goback
 nix build .#checks.x86_64-linux.recovery-menu
 nix build .#checks.x86_64-linux.live-session
 nix build .#checks.x86_64-linux.live-graphical
+nix build .#checks.x86_64-linux.unlock-waits
 nix flake check
 ```
 

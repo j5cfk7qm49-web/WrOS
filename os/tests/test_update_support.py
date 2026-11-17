@@ -14,7 +14,8 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
-GPG_ENV_BASE = {'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'}
+# Debian's tool folders first, then the caller's (where Nix keeps them).
+GPG_ENV_BASE = {'PATH': '/usr/bin:/bin:' + os.environ.get('PATH', ''), 'LC_ALL': 'C'}
 
 
 def load_script(name, relative):

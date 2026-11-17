@@ -1,5 +1,6 @@
 """Real local Git history must not transmit merely because a remote exists."""
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import tempfile
@@ -9,6 +10,8 @@ from unittest.mock import patch
 
 from test_journal_pty import fixture
 from test_secondary_pty import BINARY, ROOT, TerminalProcess
+
+GIT = shutil.which('git') or '/usr/bin/git'
 
 
 @unittest.skipUnless(BINARY.is_file(), 'build the current binary first')
@@ -24,20 +27,20 @@ class LocalSessionPrivacyPTY(unittest.TestCase):
             env = os.environ | {'HOME':str(home), 'GIT_CONFIG_NOSYSTEM':'1', 'GIT_TERMINAL_PROMPT':'0'}
 
             def git(*args):
-                return subprocess.run(['/usr/bin/git', '-C', str(project), *args], env=env, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15).stdout
+                return subprocess.run([GIT, '-C', str(project), *args], env=env, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15).stdout
 
             git('init', '--initial-branch=main')
             git('config', 'user.name', 'Disposable fixture author')
             git('config', 'user.email', 'fixture@example.invalid')
             git('add', '.')
             git('commit', '-m', 'Original fixture snapshot')
-            subprocess.run(['/usr/bin/git', 'init', '--bare', str(sink)], env=env, check=True, capture_output=True, timeout=15)
+            subprocess.run([GIT, 'init', '--bare', str(sink)], env=env, check=True, capture_output=True, timeout=15)
             if remote_before_open:
                 git('remote', 'add', 'origin', str(sink))
             trace = home/'git-fixture-trace.log'
 
             def assert_local():
-                refs = subprocess.run(['/usr/bin/git', '--git-dir', str(sink), 'for-each-ref', '--format=%(refname)'], env=env, check=True, capture_output=True, timeout=15).stdout
+                refs = subprocess.run([GIT, '--git-dir', str(sink), 'for-each-ref', '--format=%(refname)'], env=env, check=True, capture_output=True, timeout=15).stdout
                 self.assertEqual(refs, b'', 'WrOS transmitted manuscript history to the configured fixture remote')
                 if trace.exists():
                     self.assertNotRegex(trace.read_text(encoding='utf-8'), r'\bgit (?:push|fetch|pull|send-pack|receive-pack)\b')

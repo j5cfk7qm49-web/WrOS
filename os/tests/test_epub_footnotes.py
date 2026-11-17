@@ -63,9 +63,16 @@ def check_links(test, package):
 @unittest.skipIf(os.geteuid() == 0, 'publishing must run as an ordinary writer')
 class EpubFootnotes(unittest.TestCase):
     def test_real_epubcheck_validates_public_scene_local_notes_and_original_source(self):
-        self.assertIsNotNone(shutil.which('java'), 'Debian publishing qualification requires Java')
-        jar = Path('/usr/share/java/epubcheck.jar')
-        self.assertTrue(jar.is_file(), 'Debian publishing qualification requires epubcheck')
+        # WROS_EPUBCHECK names a packaged epubcheck command (Nix's wrapper sets the
+        # classpath); otherwise Debian's jar runs under java.
+        packaged = os.environ.get('WROS_EPUBCHECK')
+        if packaged:
+            epubcheck = [packaged]
+        else:
+            self.assertIsNotNone(shutil.which('java'), 'publishing qualification requires Java')
+            jar = Path('/usr/share/java/epubcheck.jar')
+            self.assertTrue(jar.is_file(), 'publishing qualification requires epubcheck')
+            epubcheck = ['java', '-Xmx256m', '-jar', str(jar)]
         with tempfile.TemporaryDirectory(prefix='wros-epub-notes-') as temporary:
             base = Path(temporary); project = base/'book'; home = base/'home'
             project.mkdir(); home.mkdir()
@@ -109,7 +116,7 @@ class EpubFootnotes(unittest.TestCase):
             self.assertIn('`"literal -- code"`', markdown)
             self.assertIn('https://example.invalid/source--two', markdown)
             report = base/'epubcheck.json'
-            checked = subprocess.run(['java', '-Xmx256m', '-jar', str(jar), str(package), '--json', str(report)],
+            checked = subprocess.run([*epubcheck, str(package), '--json', str(report)],
                                      env=env, capture_output=True, text=True, encoding='utf-8', timeout=90)
             self.assertEqual(checked.returncode, 0, checked.stdout+checked.stderr)
             receipt = json.loads(report.read_text(encoding='utf-8'))

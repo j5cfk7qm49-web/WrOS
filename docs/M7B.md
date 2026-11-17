@@ -53,9 +53,9 @@ nix build .#wros-prose-runtime .#checks.x86_64-linux.rust-suite
 [rust-packages.nix](../nixos/pkgs/rust-packages.nix) defines the Rust suite with
 the packaged runtime, WordNet and tool paths, workspace Clippy and workspace
 tests. [flake.nix](../flake.nix) exposes it as a check. The
-[Nix workflow](../.github/workflows/nix-ci.yml) evaluates every check and builds
-the Python suite, selected WrOS packages and installed system; it does not run
-the Rust suite or VM checks. The separate
+[Nix workflow](../.github/workflows/nix-ci.yml) evaluates every check, runs the
+Rust suite in both audio configurations and the app suites, and builds selected WrOS
+packages and the installed system; it does not run the VM checks. The separate
 [Debian workflow](../.github/workflows/ci.yml) runs `tools/test-m7b.sh` in Debian.
 A workflow definition is not a passing-run record.
 

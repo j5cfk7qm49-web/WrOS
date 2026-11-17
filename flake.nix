@@ -126,7 +126,39 @@
         unlock-waits = vmTest ./nixos/tests/unlock-waits.nix;
         helpers-no-fhs = vmTest ./nixos/tests/helpers-no-fhs.nix;
         rust-suite = wrosPkgs.rust-suite;
+        rust-suite-no-audio = wrosPkgs.rust-suite-no-audio;
+        rust-driven-suite = wrosPkgs.rust-driven-suite;
         python-suite = wrosPkgs.python-suite;
+        app-suite = wrosPkgs.app-suite;
       };
+
+      # `nix develop`: the pinned toolchain, the app's build inputs and the same compiled tool
+      # paths as the shipped app, for building and testing from a checkout. CI runs its
+      # repository gates here.
+      devShells.${system}.default = pkgs.mkShell ({
+        packages = [
+          wrosPkgs.rustToolchain
+          pkgs.pkg-config
+          pkgs.git
+          pkgs.python3
+          pkgs.shellcheck
+          pkgs.wayland-scanner
+          pkgs.gnupg
+          pkgs.kbd
+          pkgs.console-setup
+          pkgs.xkeyboard_config
+          pkgs.alsa-lib
+          pkgs.openssl
+          pkgs.libdrm
+          pkgs.libinput
+          pkgs.systemd
+          pkgs.seatd
+          pkgs.libxkbcommon
+          pkgs.wayland
+          pkgs.mesa
+          pkgs.libGL
+        ];
+        WROS_TOOLS_PYTHON = wrosPkgs.paths.toolPaths.toolsPython;
+      } // wrosPkgs.paths.rustPathEnv);
     };
 }

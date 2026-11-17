@@ -2,7 +2,7 @@
 
 As of 2026-11-16 — WrOS 0.1.0~rc16 on NixOS 26.05. **No hardware-verified claims.**
 
-Existing means audited baseline; Tested identifies recorded automated/VM evidence, not production qualification. Retained Debian run totals, durations and audit-environment statements are historical (rc13 and earlier), not NixOS results. Nix CI evaluates outputs, runs the Nix Python suite and builds packages/system; VM checks and ISO qualification run locally. See the [Debian-era STATUS](archive/STATUS.md) and [Debian-era ROADMAP](archive/ROADMAP.md).
+Existing means audited baseline; Tested identifies recorded automated/VM evidence, not production qualification. Retained Debian run totals, durations and audit-environment statements are historical (rc13 and earlier), not NixOS results. Nix CI evaluates outputs, runs the Rust, driven, Python and app suites and builds packages/system; VM checks and ISO qualification run locally. See the [Debian-era STATUS](archive/STATUS.md) and [Debian-era ROADMAP](archive/ROADMAP.md).
 
 | Area | Capability | Status | Verification | Detail |
 |---|---|---|---|---|

@@ -48,8 +48,13 @@ class HeadlessSession(unittest.TestCase):
 
     def start(self, app):
         session.GRIMOIRE = app
-        env = {'HOME': str(self.home), 'PATH': '/usr/bin:/bin', 'XDG_RUNTIME_DIR': str(self.run),
+        # The caller's PATH after Debian's, and its font configuration: on NixOS (the Nix check)
+        # the tools and fonts live in the store.
+        env = {'HOME': str(self.home), 'PATH': '/usr/bin:/bin:' + os.environ.get('PATH', ''),
+               'XDG_RUNTIME_DIR': str(self.run),
                'WLR_BACKENDS': 'headless', 'WLR_RENDERER': 'pixman', 'WLR_LIBINPUT_NO_DEVICES': '1'}
+        if 'FONTCONFIG_FILE' in os.environ:
+            env['FONTCONFIG_FILE'] = os.environ['FONTCONFIG_FILE']
 
         def to_console(path, argv, env):
             raise ToConsole(env.get('WROS_SESSION_NOTICE'))
