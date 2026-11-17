@@ -1,18 +1,18 @@
 # WrOS continuous integration
 
-WrOS has two active software workflows. [Nix CI](../.github/workflows/nix-ci.yml)
+WrOS has one software workflow. [Nix CI](../.github/workflows/nix-ci.yml)
 evaluates every package and check, runs the Rust workspace tests in both audio configurations, the driven app tests (terminal and an OpenGL window under headless Cage), the full Python app suite and the repository gates
 (`tools/nix-gates.sh`), and builds the WrOS packages and installed system from the
 pinned flake. Each test run is a flake check (`rust-suite`, `rust-suite-no-audio`,
 `rust-driven-suite`, `app-suite`, `python-suite`), so `nix build` runs the same thing
 locally. [tools/nix-python-suite.py](../tools/nix-python-suite.py) lists the
 Debian-only Python tests NixOS does not run, each with its reason. VM checks and the
-ISO run in local qualification. The retained
-[Debian CI](../.github/workflows/ci.yml) runs M7b and driven terminal/OpenGL checks
-in Debian 13; its results qualify that environment.
+ISO run in local qualification. The Debian workflow (`ci.yml`, M7b in Debian 13) was
+retired in rc17, once Nix CI ran the same Rust and Python tests with the same counts; its
+runs up to rc17 remain in the repository's Actions history.
 
 The following installer-component, terminal-library verifier and matching
-kernel/initrd paragraphs describe the retained Debian workflow. The current
+kernel/initrd paragraphs describe the retired Debian workflow (`tools/test-m7b.sh`, still runnable in Debian 13). The current
 NixOS installer uses `nixos/scripts/wros-install-session`, `wros-installer-backend`
 and `wros-install-core`; its tests and build coverage are separate.
 

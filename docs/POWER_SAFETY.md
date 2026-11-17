@@ -61,8 +61,7 @@ separate upstream Windows check was still running when recorded.
 No test in this record suspends or powers off the host. Controlled power cases
 use a recorded simulator and the Linux no-process guard.
 
-For current checks, see the [NixOS workflow](../.github/workflows/nix-ci.yml),
-the [Debian workflow](../.github/workflows/ci.yml) and
+For current checks, see the [NixOS workflow](../.github/workflows/nix-ci.yml) and
 [NIXOS_QUALIFICATION.md](NIXOS_QUALIFICATION.md).
 
 The image tells logind to ignore automatic key, lid and idle actions so the

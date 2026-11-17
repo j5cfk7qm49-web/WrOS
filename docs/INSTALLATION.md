@@ -54,8 +54,8 @@ cargo run --locked --no-default-features -- wros status --simulate
 ```
 
 For the native graphical build, use `--no-default-features --features gui-drm`.
-The workflow lists the Debian build dependencies, including the native display
-and input libraries. [Debian build prerequisites](../.github/workflows/ci.yml) · [Graphical design](GRAPHICAL_SESSION.md)
+`nix develop` gives a shell with the pinned toolchain and the native display and input
+libraries. [Development shell](../flake.nix) · [Graphical design](GRAPHICAL_SESSION.md)
 
 ## Build Debian media (rc13 and earlier) and qualify it in a VM
 

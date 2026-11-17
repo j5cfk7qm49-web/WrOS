@@ -55,8 +55,8 @@ the packaged runtime, WordNet and tool paths, workspace Clippy and workspace
 tests. [flake.nix](../flake.nix) exposes it as a check. The
 [Nix workflow](../.github/workflows/nix-ci.yml) evaluates every check, runs the
 Rust suite in both audio configurations and the app suites, and builds selected WrOS
-packages and the installed system; it does not run the VM checks. The separate
-[Debian workflow](../.github/workflows/ci.yml) runs `tools/test-m7b.sh` in Debian.
+packages and the installed system; it does not run the VM checks. The Debian workflow that
+ran `tools/test-m7b.sh` was retired in rc17; the script still runs in Debian 13.
 A workflow definition is not a passing-run record.
 
 Retained notices and model declarations are in
