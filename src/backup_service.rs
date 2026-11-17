@@ -556,7 +556,10 @@ mod tests {
         let script = temp.path().join("reply.py");
         std::fs::write(
             &script,
-            "import subprocess\nsubprocess.Popen(['/bin/sleep', '2'])\n",
+            // A child that keeps the inherited pipes open: Python itself, as a Nix build
+            // sandbox has no /bin/sleep.
+            "import subprocess, sys\n\
+             subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(2)'])\n",
         )
         .unwrap();
         let cancelled = Arc::new(AtomicBool::new(false));
