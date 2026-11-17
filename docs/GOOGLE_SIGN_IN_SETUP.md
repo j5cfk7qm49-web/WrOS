@@ -1,10 +1,10 @@
 # Setting up WrOS's Google sign-in (one time, for the project owner)
 
 WrOS links Google Drive with the writer's phone: the laptop shows a QR code,
-the phone signs in to Google, and the approval comes back to the laptop. For
-that, the WrOS project needs its own Google sign-in. This is done once, by the
-project owner, and every WrOS install then uses it. It works from a phone
-browser; allow about 15 minutes.
+the phone signs in to Google, and the approval comes back to the laptop.
+The project owner supplies WrOS's Google clients to release builds. Builds
+without those clients, including ordinary CI/test builds, omit phone linking
+and retain manual rclone authorization.
 
 Why it is needed at all: rclone's shared Google sign-in is being retired and
 stops working during 2026.
@@ -50,17 +50,19 @@ through ("Advanced" › "Go to WrOS").
 
 Create it, then download its JSON file.
 
-(A second client, "TVs and Limited Input", was made on 2026-11-04 for a
-fallback that Google turned out not to allow: its device flow refuses the
-hidden app folder. It is not needed and can be deleted.)
+Keep a second client of type TVs and Limited Input in the same Google project.
+WrOS uses it as the mailbox client with the drive.file scope to retrieve the
+phone's approval from an ordinary Drive file. It does not use the hidden
+app-data folder. Phone linking requires both clients.
 
 ## 5. Hand it to WrOS
 
-Hand over the downloaded JSON. Google does not treat this client's secret as
-secret, because every installed copy carries it. It is still kept out of the
-public repository: it lives in a local file that the release build puts into
-the package. The client ID is public anyway, since it appears in every
-sign-in address.
+Combine both clients into
+`{"linking":{"client_id":"…","client_secret":"…"},"mailbox":{"client_id":"…","client_secret":"…"}}`.
+Set `WROS_GOOGLE_CLIENTS` to that file and build the ISO or update bundle with
+`--impure`. The NixOS build installs it as `/etc/wros/google-client.json`.
+A raw Google client download is not this format. Keep the combined file out of
+the public repository.
 
 ## Afterwards
 

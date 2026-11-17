@@ -5,8 +5,9 @@ place public Markdown notes in a real Word footnotes part. The existing
 LibreOffice adapter produces the PDF. Original Markdown/YAML is never rewritten.
 No external links, images or manuscript content are fetched or transmitted.
 
-In **Export for readers**, choose Word and/or PDF and turn off Paperback
-for a footnoted manuscript. [EPUB notes](EPUB_FOOTNOTES.md) are also available.
+In **Export for readers**, choose Word and/or PDF for a manuscript. Paperback also
+supports page footnotes; [EPUB notes](EPUB_FOOTNOTES.md) are available too. Turn off
+Paperback when following lesson 34's manuscript-only exercise.
 Press **p** for selected-source review,
 **Esc** to return and **x** to export. A PDF includes its Word source. Wait for
 the actual PDF-ready result before leaving the application. Another export

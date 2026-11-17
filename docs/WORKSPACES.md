@@ -22,7 +22,7 @@ An editing area at least 72 columns wide splits horizontally. Narrower editing a
 
 If a very small viewport cannot show both, the secondary is retained but not drawn or focusable. Focus normalizes to Primary; enlarging the terminal reveals the retained view. This is not a permanently closed document.
 
-F10 hides/shows the outline independently. Ctrl-D strict focus always shows **Primary only**, hiding outline, scenery/music controls, Secondary and legacy reference panes. Leave focus with Ctrl-D before using F11. Tab never enters a hidden pane. Escape clears a real selection first, otherwise opens the existing menu; it does not close an invisible reference.
+F10 opens the menu bar by default. Use View › Show the outline / Hide the outline, Find anything › Toggle outline, or a custom alias to show or hide the outline. Ctrl-D strict focus always shows **Primary only**, hiding outline, scenery/music controls, Secondary and legacy reference panes. Leave focus with Ctrl-D before using F11. Tab never enters a hidden pane. Escape clears a real selection first, otherwise opens the existing menu; it does not close an invisible reference.
 
 The legacy `v` beside and Ctrl-O Codex panes remain **read-only references**, not aliases for the new secondary editor. They are retained but not drawn simultaneously with Secondary. Explicitly opening a legacy reference hides the secondary without discarding it. No third editable pane is implemented.
 
@@ -72,11 +72,9 @@ See [PINS](PINS.md) and compiled Sticky-note pins help for controls, exact layou
 
 The Writing journal widget and dashboard `j` open a separate reader for sampled saved-Project facts and an ordinary date-path reflection. Automatic immutable observations and editable reflection text never share a generated prose body. Enter/e uses the same exclusive editors; note-only/view operations invent no writing events. Known incomplete totals stay unavailable, not zero-filled. Guarded per-date metadata handles conflicts/future data/pending retry; all four required sizes, actual-binary PTY/restart/force-exit and real lesson 14 are covered. See [JOURNAL](JOURNAL.md). The sampled journal is not the M5 operation ledger; measured/source-unit and observed-time features are described in [DAILY_CHALLENGES](DAILY_CHALLENGES.md).
 
-## Remaining M4 services — Planned
+## M4 services — Implemented
 
-Scratchpad, advanced calendar/challenge/achievement/revision widgets and next-session handoff are not implemented widgets. Pins and the initial journal are tested; richer journal/edit-ledger metrics remain separate work. Do not invent metrics to fill them. Full preset content, per-workspace pin sets, category filters, bounded-section excerpts and free-position/dragged cards remain outside M4a.
-
-Journal automatic facts are now separate from editable reflections; they remain sampled cached Project observations, not gross/active-time facts. Scratchpad promotion must preserve the original and use guarded project operations. Handoff is an ordinary user-authored note shown next session. The tested document registry/pins are dependencies, not implementations of those services.
+Scratchpad, session handoff, calendar, daily challenges, milestone collection and Revision widgets are implemented. Explicit starters and per-workspace pin sets are described below. The journal remains sampled saved-Project observations; the separate productivity ledger records operations and observed intervals.
 
 
 ## M4c explicit starter content and pin sets
@@ -105,4 +103,4 @@ Six appended optional widgets expose recorded edits, advanced goals, calendar/re
 
 ## M6 additive Spark reader
 
-Story Spark adds a 21st optional widget and 22nd alias target without a new default chord, schema reset or replacement of saved widget order/visibility. Its cached summary never generates a result during draw. It is reachable through the nested Productivity menu/palette even when the widget is hidden. Read-only Spark overlay paste/cut/undo/mouse paths cannot target a hidden manuscript. Focus and low-power suppress optional roulette. New scratch/scene actions use the real original-source services and owner registry; source-safe pin retries reuse the same active card without changing the generic pinboard's independent duplicate-card behavior. See [STORY_SPARK](STORY_SPARK.md).
+Story Spark adds a 21st optional widget and 22nd alias target without a new default chord, schema reset or replacement of saved widget order/visibility. Its cached summary never generates a result during draw. It is reachable through Tools › Practice › Story Spark or Find anything even when the widget is hidden. Read-only Spark overlay paste/cut/undo/mouse paths cannot target a hidden manuscript. Focus and low-power suppress optional roulette. New scratch/scene actions use the real original-source services and owner registry; source-safe pin retries reuse the same active card without changing the generic pinboard's independent duplicate-card behavior. See [STORY_SPARK](STORY_SPARK.md).

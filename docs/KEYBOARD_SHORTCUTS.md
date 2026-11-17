@@ -14,12 +14,12 @@ The upstream shortcuts remain functional. `assets/help/24-every-key.md` is the c
 | **Ctrl-D** | Strict focus; same established shortcut, tightened hiding/focus behavior |
 | Tab / Shift-Tab | Cycle visible panes; never a hidden outline/secondary/reference |
 | Ctrl-K | Existing command palette, including home/system/workspaces/tutorial/Pinboard actions |
-| Ctrl-S / Ctrl-Q | Save / quit with upstream safety behavior |
+| Ctrl-S / Ctrl-Q | Save / quit in conventional sessions; installed WrOS hides Quit and directs you to lock or shut down |
 | Esc | Existing close/menu behavior; closes dashboard to resume |
 
 ## Custom aliases
 
-System settings → Keyboard shortcuts selects an action, then Enter captures a new alias. Choose Ctrl+Alt+A–Z or F10–F12. Plain letters, legacy Ctrl bindings, Tab, Esc and F1–F9 are protected. Duplicate aliases are replaced explicitly in the capture UI; invalid/reserved keys are rejected. This is an **additive compatibility strategy**, not arbitrary rebinding/removal of all legacy shortcuts.
+Settings › Look and keyboard › Keyboard › Keyboard shortcuts selects an action, then Enter captures a new alias. Choose Ctrl+Alt+A–Z or F10–F12. Plain letters, legacy Ctrl bindings, Tab, Esc and F1–F9 are protected. Duplicate aliases are replaced explicitly in the capture UI; invalid/reserved keys are rejected. This is an **additive compatibility strategy**, not arbitrary rebinding/removal of all legacy shortcuts.
 
 Aliases persist per machine at `paths::data_dir()/writingdeck/shortcuts.json`, using schema v1. Invalid files are preserved and defaults remain usable; an external edit conflicts rather than being overwritten. The file is also human-editable with a validated structure:
 
@@ -32,9 +32,9 @@ Aliases persist per machine at `paths::data_dir()/writingdeck/shortcuts.json`, u
 ]}
 ```
 
-Available alias actions: dashboard, system-settings, tutorial, outline, secondary, focus, save, find, palette, pinboard, pins (sidebar toggle), pin-current, journal, scratchpad, handoff, menu-bar.
+Available alias actions: dashboard, system-settings, tutorial, outline, secondary, focus, save, find, palette, pinboard, pins (sidebar toggle), pin-current, journal, scratchpad, handoff, productivity, measured-goals, calendar, advanced-sprints, achievements, daily-challenges, story-spark, menu-bar.
 
-From rc13, F10 opens the menu bar. That default lives in the code, not the file: rc13 writes `menu-bar` to the file only when you bind the menu bar to a key yourself, so rc12 can still read a file rc13 saved after a go-back. A file that already gives F10 to something (rc12 wrote `F10 → outline` with its defaults) keeps it; Esc still opens the bar there. A file that leaves F10 free gets the menu bar on F10. More complete shortcut customization is planned. F10/F11/F12 remain default fallback actions even if aliases are removed; an explicit alias on one of these keys takes precedence.
+From rc13, F10 opens the menu bar. That default lives in the code, not the file: rc13 writes `menu-bar` to the file only when you bind the menu bar to a key yourself, so rc12 can still read a file rc13 saved after a go-back. A file that already gives F10 to something (rc12 wrote `F10 → outline` with its defaults) keeps it; Esc still opens the bar there. A file that leaves both F10 and the menu-bar action unbound gets the menu bar on F10. More complete shortcut customization is planned. F11/F12 retain their secondary/dashboard fallbacks. Moving the menu bar to another key exposes the legacy F10 outline fallback. Explicit aliases take precedence.
 
 ## Card controls
 
@@ -64,4 +64,4 @@ Tools › Practice and Ctrl-K expose all six M5 pages. The six additive alias ta
 
 ## M6 Story Spark
 
-No default binding was changed. Use the Productivity submenu, Ctrl-K Story Spark, the optional widget, or add a `Story Spark` logical alias. **1/2/3/4** choose plot/exercise/combined/fixed daily; **p/e/r** reroll independent/joint components; **f/x** favorite/dismiss; **s/a** save/result actions; **h/F** history/favorites; **o** draft filters; **v** provenance; **t** optional assignment; **l** optional presentation only; **u** explicit reload; arrows/Enter select; PgUp/PgDn scroll; Esc returns; F1 policy. Filter Escape cancels and Enter explicitly saves. The M5 Daily challenges page has **S** for the separate optional self-reported Spark assignment. Modal feedback and refused normal quits are visible; no pasted text is interpreted as Spark commands. Full details: [STORY_SPARK](STORY_SPARK.md).
+No default binding was changed. Use Tools › Practice, Ctrl-K Story Spark, the optional widget, or add a `Story Spark` logical alias. **1/2/3/4** choose plot/exercise/combined/fixed daily; **p/e/r** reroll independent/joint components; **f/x** favorite/dismiss; **s/a** save/result actions; **h/F** history/favorites; **o** draft filters; **v** provenance; **t** optional assignment; **l** optional presentation only; **u** explicit reload; arrows/Enter select; PgUp/PgDn scroll; Esc returns; F1 policy. Filter Escape cancels and Enter explicitly saves. The M5 Daily challenges page has **S** for the separate optional self-reported Spark assignment. Modal feedback and refused normal quits are visible; no pasted text is interpreted as Spark commands. Full details: [STORY_SPARK](STORY_SPARK.md).

@@ -43,13 +43,13 @@ Drafting is conservative grammar; Revision adds selected usage/punctuation; Deep
 
 Original lesson **26 remains `SpellingOpened`**; its historic completion does not become grammar evidence. Additional lesson **40** is optional and demo-only. Its launcher inserts neither prose nor permission. Opening, consenting, inspecting, navigating or ignoring does not complete it: an actual current grammar alternative must change the original demo manuscript through the normal replacement path. Undo remains available; other historical completions are retained. The original 39 IDs are unchanged.
 
-## Executed evidence and boundaries
+## Historical Debian M7a verification and boundaries
 
 - Core diagnostics source/coordinate/context/alternative/preferences/engine/queue tests include genuine pinned Harper parsing and controlled fault/concurrency analyzers; those two kinds of evidence are explicitly distinguished.
 - `src/checks_ui_tests.rs`: 15 controller/terminal-buffer cases, including genuine worker/highlight/apply/undo at 80×24, 100×30, 120×40 and 160×50, policy/scope/binding/future/external/secondary/idle/accounting and genuine lesson-40 postconditions. Injected contract reports are named as such.
 - `os/tests/test_checks_pty.py`: five actual-binary methods; four-size source/apply/undo/restart, scopes and live permission across processes/projects, future/external refusal, typing while a genuine worker runs, and preserved legacy spelling/new grammar lesson completion. No synthetic backend reports or user manuscript.
 - [Resource record](evidence/writing-checks-resources.json): sandbox **debug** no-audio binary, 86-byte Unicode and 12,740-byte/2,340-word repetitive synthetic fixtures. Record separates cold/hot end-to-end, engine and CPU time, baseline/sampled/kernel-peak RSS. This is not physical low-power, optimized production, arbitrary-prose or battery certification.
-- Full regression and VM/source alignment are recorded in [STATUS](archive/STATUS.md) and [executed evidence](evidence/test-results.json), not inferred from targeted tests. The networkless VM probe additionally runs an isolated **non-root** real grammar/apply/undo fixture under the installed binary; dashboard startup RSS is not loaded-grammar RSS.
+- Historical Debian regression and VM/source evidence is retained in [archived STATUS](archive/STATUS.md) and [executed evidence](evidence/test-results.json). Current platform procedures are in [NixOS qualification](NIXOS_QUALIFICATION.md). The recorded networkless VM probe additionally ran an isolated **non-root** real grammar/apply/undo fixture under that build's installed binary; dashboard startup RSS is not loaded-grammar RSS.
 
 ## Models, notices and open release gates
 

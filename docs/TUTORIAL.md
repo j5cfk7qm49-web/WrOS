@@ -9,9 +9,9 @@ completes when its action or system event occurs. [Issue #11](https://github.com
 
 Progress keeps lesson IDs this catalog does not have (a newer WrOS wrote them), so going back a version and forward again loses nothing. They are never counted, started, completed or awarded here. ID 0 is still refused.
 
-Open F12 → Interactive tutorial, or use the menu/command palette. Arrow keys select a lesson; Enter shows its instructions and then starts the real feature; `h` opens linked searchable offline help; `s` skips; Escape returns. Completed lessons can be replayed. Progress is schema-versioned, atomically guarded and stored with the project. There is no fake Next/Done button.
+Open Help › Interactive tutorial, or find Interactive tutorial with Ctrl-K. Arrow keys select a lesson; Enter shows its instructions and then starts the real feature; `h` opens linked searchable offline help; `s` skips; Escape returns. Completed lessons can be replayed. Progress is schema-versioned, atomically guarded and stored with the project. There is no fake Next/Done button.
 
-Press `d` to create a **new** safe demonstration project and switch to it after saving the current project. Existing directories are never reused. Demo scenes, Markdown formatting, autosave, goals, corkboard and history use actual Grimoire code. Writing exercises cannot even be launched against an ordinary novel; they require the safe demo marker. Opening or switching panes alone cannot count as a text edit. Ordinary novels are not rewritten to satisfy lessons.
+Press `d` to open the safe demonstration project after saving the current project. WrOS reuses an existing marked Tutorial-N demo, or creates a new one if none exists. It never replaces an unrelated directory. Demo scenes, Markdown formatting, autosave, goals, corkboard and history use actual Grimoire code. Writing exercises cannot even be launched against an ordinary novel; they require the safe demo marker. Opening or switching panes alone cannot count as a text edit. Ordinary novels are not rewritten to satisfy lessons.
 
 ```sh
 grimoire wros tutorial-demo /parent/NEW-demo
@@ -81,7 +81,9 @@ Lesson 35 requires a real, nonempty Markdown artifact under the safe demo's expo
 
 Lesson 35 also points to the export dialog's `p` source review. Viewing that
 snapshot does not complete the lesson; the existing real Markdown export event
-remains required. The review does not claim rendered-page or link validation.
+remains required. Unified preflight checks footnotes, editorial markers, links,
+assets, unclosed private notes, continuity and revision notes. It does not
+validate rendered pages or fetch external resources.
 
 Lesson 14 uses real saved manuscript observations, not fabricated session metrics: save a sentence in the demo manuscript, open Writing journal, Tab after reviewing facts, explicitly edit the original reflection and save genuine prose. Gross/active-time accounting is not claimed. A note-only save or reading the page cannot complete it.
 
@@ -89,7 +91,7 @@ The newly created demo ships a Pin Practice note with a unique The Courtyard hea
 
 ## Colemak and accessibility
 
-Instructions use arrows, Enter/Escape and function keys for physical-layout-independent discovery. Aliases use logical letters after OS translation. The layout lesson opens the real safe preview, not an application remapping game. Planned lessons remain searchable so coverage is visible, but are disabled until their feature is real.
+Instructions use arrows, Enter/Escape and function keys for physical-layout-independent discovery. Aliases use logical letters after OS translation. The layout lesson opens the real safe preview, not an application remapping game. All 50 catalog lessons have completion events. Lessons that need unavailable system services explain the limitation; writing exercises remain gated to the safe demo.
 
 ## Tests and continuation rule
 

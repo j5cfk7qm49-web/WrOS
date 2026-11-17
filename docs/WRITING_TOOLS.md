@@ -2,7 +2,7 @@
 
 ## Current functionality versus planned integrations
 
-Current: spellbook/Hunspell locale spelling, personal/notebook vocabulary, suggestions, notes/TK handling, find/replace, echo/revision aids, scene history and sentence-level local TTS are preserved. Opt-in **Harper 2.13 grammar/common source diagnostics are integrated and tested**, alongside independent spelling; read [permission, source, model and evidence boundaries](WRITING_CHECKS.md). M7b adds qualified Nabokov/proselint, the offline WordNet reader, author voice profiles and a unified revision dashboard. Fresh software/VM-contract evidence and the trained-worker CPU-denial boundary are in [M7B](M7B.md) and [STATUS](archive/STATUS.md).
+Current: spellbook/Hunspell locale spelling, personal/notebook vocabulary, suggestions, notes/TK handling, find/replace, echo/revision aids, scene history and sentence-level local TTS are preserved. Opt-in **Harper 2.13 grammar/common source diagnostics are integrated and tested**, alongside independent spelling; read [permission, source, model and evidence boundaries](WRITING_CHECKS.md). M7b adds qualified Nabokov/proselint, the offline WordNet reader, author voice profiles and a unified revision dashboard. Historical Debian M7b software/VM evidence and the trained-worker CPU-denial boundary are in [M7B](M7B.md) and [archived STATUS](archive/STATUS.md). See [NixOS qualification](NIXOS_QUALIFICATION.md) for the current platform procedure.
 
 M4a now also supplies tested source-linked pins with original-source editing, independent card scroll and semantic anchors. See [PINS](PINS.md). The separate initial [M4b journal](JOURNAL.md) is now tested: sampled saved-Project facts plus original Markdown reflections, not a gross/time ledger. [M4c scratchpad/handoff](WORKFLOW.md) now preserve original notes, promote one independent saved scene snapshot, and show a user-authored next-open intention. Explicit starters and per-workspace pin sets are described in [WORKSPACES](WORKSPACES.md).
 
@@ -14,7 +14,7 @@ M4a now also supplies tested source-linked pins with original-source editing, in
 | `viewflow/nabokov` | exact source 26.7.10, MIT | Pinned CPython 3.13 / spaCy 3.8.16 / en_core_web_sm 3.8.0; separate single-run consent, no detector rules or runtime downloads. Complete source/model/notice identities and CPU limits in M7B.md |
 | `amperser/proselint` | exact source 0.16.0, BSD-3-Clause | Standalone non-model adapter, no Vale. Only the pinned source/output contract is accepted; an older system proselint is not substituted silently |
 | Princeton WordNet / Open English WordNet | WordNet permissive notice / OEWN CC BY 4.0 + inherited attribution | Exact Princeton WordNet 3.0 data is bundled and verified for senses/antonyms; OEWN remains unbundled. Neither package replaces independent native spelling |
-| Piper/eSpeak | Engines evaluated in existing TTS code; voices have separate licenses | Keep local engines optional; no unlicensed model or cloud voice dependency |
+| Piper/eSpeak | Engines evaluated in existing TTS code; voices have separate licenses | NixOS WrOS includes eSpeak NG. Piper is optional and requires an installed executable and voice model; no cloud voice dependency |
 
 Source links: <https://crates.io/crates/harper-core/2.13.0>, <https://github.com/Automattic/harper>, <https://github.com/viewflow/nabokov/blob/main/pyproject.toml>, <https://github.com/amperser/proselint/blob/main/pyproject.toml>, <https://wordnet.princeton.edu/>, <https://github.com/globalwordnet/english-wordnet>. License metadata and bundling status are recorded separately in `software-licenses.json`.
 
@@ -32,13 +32,13 @@ Do not call every passive, adverb, fragment, repetition or long sentence an erro
 
 ## Revision and long-form extensions
 
-The current revision dashboard combines implemented grammar/prose findings and review states with original-source navigation. The initial anchored Revision notes workflow now adds local comments, review states and explicit re-anchoring through the retained editor. Durable document IDs follow owned moves; exact quotes, source revisions and guarded sidecars preserve manuscript and metadata originals. See the offline Revision notes help and FEATURE_REVIEW.md for bounds and qualification. Continuity questions, full export preflight and user tasks remain extensions. Continuity should use explicit facts/scene chronology for definite contradictions; inferred concerns remain suggestions. Anchored comments/variants/named checkpoints are additional domain modules, not already supplied by dated local history.
+The current revision dashboard combines implemented grammar/prose findings and review states with original-source navigation. The initial anchored Revision notes workflow now adds local comments, review states and explicit re-anchoring through the retained editor. Durable document IDs follow owned moves; exact quotes, source revisions and guarded sidecars preserve manuscript and metadata originals. See the offline Revision notes help and FEATURE_REVIEW.md for bounds and qualification. Continuity tracker uses explicit facts, scene chronology and character knowledge. Unified export preflight checks continuity and revision notes. Anchored comments, variants and named milestones use separate guarded stores.
 
 ## Footnotes, publishing and read-through
 
-Baseline exports native DOCX, EPUB and Markdown, and PDF through optional LibreOffice. Markdown footnotes are not certified: implement reference/definition validation and genuine OOXML footnote parts, then check actual PDF page placement, numbering and cross-references. Never silently substitute endnotes. Keep annotations/scratchpad/private material out of publication.
+Baseline exports native DOCX, EPUB and Markdown, and PDF through optional LibreOffice. Public Markdown footnotes have bounded validation and native Word, EPUB and paperback rendering. PDF conversion requires LibreOffice. Package and rendered-placement tests exist; their existence does not establish a current passing run or universal pagination. Never silently substitute endnotes. Keep annotations/scratchpad/private material out of publication.
 
-Extend existing sentence-level local TTS with a multi-scene/chapter queue, speed/voice controls, durable optional progress and mark-for-revision. Do not claim these queue features because Piper/eSpeak already exists.
+Read the current scene, chapter or remaining manuscript aloud. Space pauses, n/p move between queued scenes, and m marks the current sentence for revision. Reading voice selects an available local engine. Queue progress remains in memory.
 
 ## Acceptance and performance gates
 
@@ -54,4 +54,4 @@ Advanced goals/calendar/rest days, five sprint variants/retained breaks, optiona
 
 ## M6 original Story Spark
 
-The separate [Story Spark](STORY_SPARK.md) now supplies 1,047 agent-accepted original plots and 84 usable exercises, real offline selection/rerolls/daily/history/favorites and original-source actions. See [corpus provenance/review limits](CHALLENGE_LIBRARY.md). Spark itself does not implement linguistic services. Later [M7a](WRITING_CHECKS.md) now adds optional Harper; M7b Python analyzers, WordNet and voice are implemented under qualification; M8 structured facts and genuine publishing footnotes remain separate work. Task/outline captures remain honest Markdown source notes; qualitative completion is self-reported.
+The separate [Story Spark](STORY_SPARK.md) now supplies 1,047 agent-accepted original plots and 84 usable exercises, real offline selection/rerolls/daily/history/favorites and original-source actions. See [corpus provenance/review limits](CHALLENGE_LIBRARY.md). Spark itself does not implement linguistic services. Later [M7a](WRITING_CHECKS.md) now adds optional Harper; M7b Python analyzers, WordNet and voice are implemented under qualification; structured facts and publishing footnotes are implemented in separate modules. Task/outline captures remain honest Markdown source notes; qualitative completion is self-reported.

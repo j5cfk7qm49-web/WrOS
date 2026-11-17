@@ -1,9 +1,9 @@
 # Native encrypted backup and restore
 
-Open **WrOS settings → Accounts → Backups** (also available under System →
-Storage and from the dashboard backup widget). Choose **New backup on a local
-drive** and enter a new absolute repository folder on your backup device, or
-connect Google Drive and choose **New backup on Google Drive**. A folder on the
+Open **Settings › Backups and accounts › Backups › Where backups go**, or open
+Backups from the dashboard backup widget, then choose **Where backups go**.
+Choose **New backup on a local drive** and enter a new absolute repository folder,
+or link Google Drive and choose **New backup on Google Drive**. A folder on the
 same filesystem does not protect against losing that disk.
 
 Restic creates an encrypted repository and WrOS generates a private random
@@ -23,9 +23,8 @@ before recording **Restore checked**. These dates describe an actual prior resto
 check, not a claim that a disconnected device or remote repository is presently
 healthy. Local backups run without network access.
 
-Automatic backups (after you save and pause) check less, because a complete
-restore from Google Drive took about five minutes. While the book's last complete
-restore check is under a week old, an automatic backup:
+Automatic backups can use a shorter check while the book's last complete restore
+check is under a week old:
 
 - compares the snapshot's list of files, folders and sizes with the book;
 - reads back the snapshot's manifest, which must list every file's SHA-256;
@@ -58,15 +57,20 @@ Cancel stops the operation's process group. After a crash, use **Recover an
 interrupted repository lock** to remove only Restic's stale locks, refresh
 snapshots, and retry. A completed snapshot whose verification was interrupted
 stays visible without a restore-checked receipt; an explicit successful restore
-can qualify it. This release never prunes or deletes snapshots. Offline/missing
+can qualify it. Automatic backups prune older automatic snapshots. They retain
+all from the last seven days, the newest per day through 90 days, then the newest
+per ISO week. Manual snapshots and each book's latest verified snapshot are
+retained. Offline/missing
 destinations report failure and record the saved project in the private offline
-backup queue (`queue.json`) for explicit retry (`Run queued backups and retry
+backup queue (`queue.json`) for retry (`Run queued backups and retry
 interrupted jobs`); you can also queue a saved project while offline (`Queue
 saved project for offline backup`). Queued intent does not freeze the project: explicit retry backs up the latest saved
 files and applies the open editor save/conflict gate. Uploads carry a durable queue
 operation tag; interrupted uploads are restored and compared before avoiding a duplicate.
-No unprompted background network upload
-runs during ordinary writing. Interrupted temporary staging can need manual removal from
+After backup setup, WrOS can upload automatically after saved changes and ten
+minutes without editing. New automatic backups run at most hourly; failures have
+separate delayed retries. Enabled readable Drive sync also runs in the background.
+Interrupted temporary staging can need manual removal from
 the private backup state directory after a hard kill or power loss.
 
 The supported project limit is 5 GiB, 100,000 entries and 64 directory levels;
@@ -79,6 +83,11 @@ files are protected by per-user permissions; a separate encrypted credential vau
 and complete native account lifecycle are still open under issue 28.
 
 ## Google Drive connection
+
+In release builds with WrOS's Google clients, open Settings › Backups and accounts
+› Google Drive and choose Link Google Drive with your phone. Scan the QR code and
+approve. The manual rclone procedure below remains available when phone linking
+is unavailable.
 
 On a trusted computer with rclone installed, run `rclone authorize drive`, approve
 access in the browser, and paste **only the returned authorization JSON** into
@@ -120,7 +129,7 @@ require live acceptance; local and synthetic-provider tests do not establish the
 
 Encrypted backups cannot be read in Drive. To also keep plain Markdown copies there,
 connect Google Drive, open the book and choose **Sync this book with Google Drive
-(readable files)** in Settings › Backups. Anyone with access to the Google account can
+(readable files)** in Settings › Backups and accounts › Backups. Anyone with access to the Google account can
 read those copies. While on, the Backups screen shows the last result ("Synced 14:02 ·
 1 up, 0 down, 0 deleted"), **Sync now**, and **Stop syncing this book**, which leaves
 the Drive copies in place. See [sync](SYNC_AND_BACKUP.md#readable-google-drive-sync) for

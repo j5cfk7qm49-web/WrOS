@@ -48,7 +48,8 @@ A 25-line console fits about 21 rows inside a Settings panel.
 
 ## Built
 
-Five groups at the top, no page over about 10 rows, and one way to each thing.
+Five groups at the top. Setup actions are split into shorter pages; status, sync
+controls and snapshot rows can make Backups longer.
 
 **Writing**
 - Editor: spellcheck, spelling language, line width, typewriter scrolling, focus mode

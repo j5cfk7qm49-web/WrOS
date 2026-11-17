@@ -20,18 +20,18 @@ Native local/Google Drive encrypted snapshots and restore-to-new-folder controls
 are now implemented through maintained Restic/rclone. See the complete
 [native backup and recovery workflow](NATIVE_BACKUP.md) for setup, private recovery
 keys, masked Google authorization, source/manifest checks, limits and failure
-handling. Real Google acceptance, the automatic queue and Docs round trips remain
-separate. The following describes remaining cloud work.
+handling. Automatic backups and the durable offline retry queue are implemented.
+Live Google acceptance and Google Docs round trips remain separate.
 
 Prefer maintained rclone for explicit terminal OAuth enrollment rather than hardcoded client secrets. Verify the provider's supported current authorization flow; a browser on a trusted second device may be needed. Never ask users to paste access tokens into a manuscript or publish credentials. Keep rclone/account configuration private (0600), outside a synced project, with an optional secret store and revocation instructions.
 
-Opt-in backup jobs stage a consistent saved revision, create versioned content, record a cryptographic SHA-256 manifest, upload only after explicit enrollment, verify the remote result and support a restore to a **new directory**. An interrupted job is resumable/idempotent and never relabeled verified until the hash/restore checks pass. Encryption before upload and recovery-secret custody require an explicit threat-model decision. Low-power/offline states keep the queue without blocking input.
+Opt-in backup jobs stage a consistent saved revision, create versioned content, record a cryptographic SHA-256 manifest, upload only after explicit enrollment, verify the remote result and support a restore to a **new directory**. An interrupted job is resumable/idempotent and never relabeled verified until the hash/restore checks pass. Restic encrypts backups before upload. WrOS keeps the recovery key privately and can export a separate copy; losing every copy prevents recovery. Low-power/offline states keep the queue without blocking input.
 
 Use rclone `copy`/versioned immutable destinations for initial backup evaluation, not a blind `sync --delete` of the only good copy. Bidirectional synchronization needs a base-version ledger, tombstone/conflict policy and safe application through existing guarded saves; never overwrite a dirty editor because a cloud watcher noticed a file.
 
 ## Readable Google Drive sync
 
-Per book, opt-in: Settings › Backups › **Sync this book with Google Drive (readable files)**.
+Per book, opt-in: Settings › Backups and accounts › Backups › **Sync this book with Google Drive (readable files)**.
 The book's Markdown files are copied, unencrypted, to `WrOS/<book>/` in the connected
 Drive, and edits made there come back. The app syncs when the book opens, 10 seconds
 after a save and every 5 minutes while it is open, never with unsaved words.
@@ -72,10 +72,10 @@ remains in [issue 10](https://github.com/j5cfk7qm49-web/WrOS/issues/10).
 
 No Google account was enrolled or manuscript transmitted during implementation.
 Live provider acceptance remains **Blocked** on account consent. Native encrypted
-local/Drive backup adapters and per-book readable Drive sync are implemented;
-automatic backup queues and Docs interoperability remain **Planned**.
+backups, automatic backup scheduling, the offline retry queue and readable Drive
+sync are implemented. Google Docs interoperability remains separate.
 
-Current tests: upstream mobile/sync conflict, atomic save, deleted/unavailable file behavior and recovery tests. Future tests: fake transport interruption, hashes, replay-safe queue, restore-new-directory, conflict/tombstone handling and network-disabled writing. Tutorial lessons 36/37 remain unavailable until actual safe enrollment/restore/mobile workflows exist.
+Current tests: upstream mobile/sync conflict, atomic save, deleted/unavailable file behavior and recovery tests. Existing tests cover restore/hash verification, durable queue retry, interrupted-upload deduplication and sync conflict/deletion decisions. These test files do not establish a current passing run or live Google acceptance. Lesson 36 completes after a successful restore into a new folder. Lesson 37 completes after readable Drive sync reports synced; neither event establishes an iPhone or Google Docs round trip.
 
 ## M3b local two-buffer safety
 

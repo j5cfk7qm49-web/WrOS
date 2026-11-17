@@ -81,7 +81,7 @@
     "title": "Scrolling inside sticky notes",
     "help_topic": "pins",
     "event": "PinAnchorRestored",
-    "instructions": "In the safe demo Pinboard, choose the shipped Pin Practice card, whose The Courtyard heading is ready to use. Press h to capture the heading, PgDn to scroll the card, then Home to return to that unique semantic anchor. Only a real persisted anchored scroll-and-return completes this exercise; missing or duplicate headings are not guessed."
+    "instructions": "In the safe demo Pinboard, choose a card for the shipped Pin Practice note. If it has no card yet, press n and choose that note first. Its The Courtyard heading is ready to use. Press h to capture the heading, PgDn to scroll the card, then Home to return to that unique semantic anchor. Only a real persisted anchored scroll-and-return completes this exercise; missing or duplicate headings are not guessed."
   },
   {
     "id": 13,
@@ -109,7 +109,7 @@
     "title": "Session handoff",
     "help_topic": "handoff",
     "event": "HandoffReopened",
-    "instructions": "In the safe demo, open Session handoff, Enter to edit its ordinary original note, and write/save your next-session intention. Reopen Session handoff and s to arm next-open display with an optional saved manuscript context. Quit normally and reopen the same demo: seeing the actual saved original intention completes the exercise, not arming it alone."
+    "instructions": "In the safe demo, open Session handoff, Enter to edit its ordinary original note, and write/save your next-session intention. Reopen Session handoff and s to arm next-open display with an optional saved manuscript context. On installed WrOS, choose Settings › System › Battery and power › Restart the writing app; in a conventional session, quit normally and reopen the same demo: seeing the actual saved original intention completes the exercise, not arming it alone."
   },
   {
     "id": 17,
@@ -130,7 +130,7 @@
     "title": "Sprints",
     "help_topic": "sprints",
     "event": "SprintStarted",
-    "instructions": "Start a real writing sprint in the demo (Tools › Start a sprint…). The lesson observes an active sprint. No-editing and revision variants remain planned."
+    "instructions": "Start a real writing sprint in the demo (Tools › Start a sprint…). The lesson observes an active sprint. Revision-operation and no-editing experiments are under Tools › Practice › Advanced sprints; this lesson observes the basic sprint."
   },
   {
     "id": 20,
@@ -144,7 +144,7 @@
     "title": "Daily challenges",
     "help_topic": "productivity",
     "event": "DailyChallengeCompleted",
-    "instructions": "In the safe demo, open Daily challenges and press a to accept the measured fifty-word drafting exercise before writing. Return to an actual manuscript scene in Drafting mode; add fifty source word units (typing or deliberate paste counts), Ctrl-S, reopen Daily challenges and press c. The lesson requires a persisted measured completion, not opening/rerolling a prompt or self-reporting a subjective task. Assignments survive restart and repeated local dates."
+    "instructions": "In the safe demo, open Daily challenges and select an available measured exercise. Press a before doing the work, then follow its displayed mode, metric and target in an actual manuscript scene. Save, reopen Daily challenges and press c. If no measured exercise is available, adjust filters and explicitly reroll an unfinished assignment. Only persisted measured completion finishes the lesson; opening a prompt or self-reporting does not."
   },
   {
     "id": 22,
@@ -235,7 +235,7 @@
     "title": "Footnotes",
     "help_topic": "notes",
     "event": "ManuscriptFootnotesExported",
-    "instructions": "In the safe demo, write a public Markdown reference such as Key[^key] and a separate definition paragraph [^key]: Your own note. Save normally. Read footnote at caret in Ctrl-K lets you inspect and edit the original definition. Open Export for readers, untick Paperback, and tick PDF. Word is included with PDF. Press p to review the selected source, Esc to return, then x to export. Only a successfully written manuscript Word file containing real notes followed by its completed nonempty PDF earns this exercise. Viewing notes, Word alone, unavailable LibreOffice, or a failed export cannot complete it. EPUB linked notes are available; EPUB alone does not earn the Word/PDF exercise. Paperback page notes remain unavailable; no external resource is fetched."
+    "instructions": "In the safe demo, write a public Markdown reference such as Key[^key] and a separate definition paragraph [^key]: Your own note. Save normally. Read footnote at caret in Ctrl-K lets you inspect and edit the original definition. Open Export for readers, untick Paperback, and tick PDF. Word is included with PDF. Press p to review the selected source, Esc to return, then x to export. Only a successfully written manuscript Word file containing real notes followed by its completed nonempty PDF earns this exercise. Viewing notes, Word alone, unavailable LibreOffice, or a failed export cannot complete it. EPUB linked notes are available; EPUB alone does not earn the Word/PDF exercise. Paperback also supports page notes, but this lesson requires the manuscript Word/PDF export; no external resource is fetched."
   },
   {
     "id": 35,
@@ -263,7 +263,7 @@
     "title": "Wi-Fi and system settings",
     "help_topic": "wros",
     "event": "SystemOpened",
-    "instructions": "Open Settings › System. Wi-Fi, battery, brightness, storage and updates each have a page here. A service this computer lacks says so; it never pretends to work."
+    "instructions": "Open Settings › System. Wi-Fi, battery, display, sound, storage and time have pages here. Updates is under Settings › Updates and recovery. A service this computer lacks says so; it never pretends to work."
   },
   {
     "id": 39,
@@ -284,7 +284,7 @@
     "title": "Linking Google Drive with your phone",
     "help_topic": "sync",
     "event": "PhoneLinked",
-    "instructions": "Open Settings › Backups and accounts › Google Drive and choose Link Google Drive with your phone (or Relink). Scan the code with your phone's camera, sign in to Google and approve. If the phone asks, tap Finish linking. No second computer is needed. Linking finishes this lesson; you can relink at any time, and your book is not touched."
+    "instructions": "Open Settings › Backups and accounts › Google Drive and choose Link Google Drive with your phone (or Relink). Scan the code with your phone's camera, sign in to Google and approve. If the phone asks, tap Finish linking. No second computer is needed when this build includes WrOS's Google clients. If the phone-link row is absent, use manual rclone authorization from another trusted computer. Linking finishes this lesson; you can relink at any time, and your book is not touched."
   },
   {
     "id": 42,

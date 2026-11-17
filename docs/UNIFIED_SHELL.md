@@ -16,8 +16,9 @@ recovery. A conventional desktop and unrelated management TUIs are not the goal.
 
 ## Audit of the current source
 
-The table below records the initial 2026-10-26 audit. Current login, manual
-locking and display results are in [STATUS](archive/STATUS.md). The user's subsequent
+The table below records the initial 2026-10-26 audit. Historical Debian login,
+locking and display results are in [archived STATUS](archive/STATUS.md). Current
+NixOS procedures are in [NixOS qualification](NIXOS_QUALIFICATION.md). The user's subsequent
 interface directive also covers the live installer and every future system
 surface: share Grimoire's theme, widgets, spacing, selection, navigation and
 help/status code. The [native installer increment](NATIVE_INSTALLER.md) extracts
@@ -79,11 +80,10 @@ focus. Network/cloud work must never be added to rendering, typing or autosave.
 
 ## Native settings and maintenance
 
-Writing contains editor/manuscript/focus/goals/challenges/revision/footnotes;
-Interface contains themes/workspaces/shortcuts/layout/accessibility/notifications;
-System contains network/display/power/storage/time/updates/recovery; Accounts
-contains local users/Google/Drive/sync/backup. Existing actions remain reachable
-during incremental migration. Unavailable controls explain what is missing.
+Settings has five groups: Writing; Look and keyboard; System; Backups and accounts;
+Updates and recovery. System contains network, display, power, sound, storage and
+time. Backups and accounts contains backups, Google Drive and local accounts.
+Updates and Recovery have their own group. Unavailable controls explain what is missing.
 Native Wi-Fi controls call NetworkManager through typed adapters. Packaged
 `nmtui` is an emergency maintenance tool, not the ordinary WrOS workflow.
 Disruptive actions retain confirmation and successful-save barriers. No root
@@ -106,8 +106,9 @@ The [experimental separate Rust/Ratatui greeter](NATIVE_GREETER.md) uses greetd'
 [authentication/session protocol](https://docs.rs/greetd_ipc/latest/greetd_ipc/).
 PAM verifies local accounts; the editor never receives authentication keystrokes.
 Use a fixed session command, bounded IPC and secret-free error reporting. A
-greetd login is **not** a session lock. Issue #4 still requires seat/VT protection,
-protected terminal ownership, independent authentication and lock-before-suspend.
+greetd login is **not** a session lock. The guarded console locker is implemented.
+NixOS tests cover protected VT ownership and unlock, and suspend requires lock
+proof. Physical suspend/resume qualification remains separate.
 The [editor reader-retirement primitive](INPUT_OWNERSHIP.md) now supplies a
 single-use pause proof and a fresh parser on explicit resume. This is necessary
 input cleanup, not a secure locker or a lock-ready acknowledgment.
@@ -115,7 +116,7 @@ Fail closed and retain authenticated maintenance/recovery. Early LUKS unlock
 runs before ordinary encrypted user space; consistent branding cannot remove
 that boundary or bypass encryption.
 
-Google enrollment is optional. Tokens belong to the authenticated local user's
+Historical design target (2026-10-26): Google enrollment is optional. Tokens belong to the authenticated local user's
 encrypted credential service, outside manuscripts and logs; no plaintext-token
 fallback when storage is locked/unavailable. Show connect/status/reauthorize/
 disconnect natively. Use PKCE/state and approved provider consent. Google's
@@ -126,6 +127,9 @@ requires an eligible registered client and limits Drive scopes to app data and
 files the app may access. General Drive browsing needs an appropriately approved
 flow/scope; a phone pairing screen must not claim broader access. Live provider
 registration and account tests require explicit authorization when reached.
+
+Current WrOS stores Google credentials in a private per-user rclone.conf; a
+separate encrypted credential service is not implemented.
 
 Evaluate rclone FUSE/VFS under the user service. Its
 [mount/cache limitations](https://rclone.org/commands/rclone_mount/)
@@ -157,7 +161,11 @@ Drive → offline writing → lock/suspend/unlock → exact writing position seq
 This document is a decision and implementation sequence, not evidence that the
 unimplemented parts already work.
 
-## Executed first-increment software qualification
+## Historical Debian first-increment software qualification
+
+These results and the acceptance limits below describe that earlier increment.
+They are not current NixOS qualification results; see
+[NixOS qualification](NIXOS_QUALIFICATION.md).
 
 The shared library and initial native Settings adapter passed
 [fresh software qualification](evidence/unified-shell-software.json): **922 Rust
