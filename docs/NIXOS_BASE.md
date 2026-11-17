@@ -12,7 +12,7 @@ This document records the architecture, disk layout, bootloader and systemd stag
   - `nix.settings.experimental-features = []` and `nix.settings.substituters = lib.mkForce []` (`nixos/modules/base.nix`).
   - `system.disableInstallerTools = true` (`nixos/modules/base.nix`).
   - No C/Rust compiler or build tool (`gcc`, `clang`, `rustc`, `cargo`, `gnumake`, `cmake`, `meson`, `ninja`) is present in `environment.systemPackages` (`nixos/modules/base.nix`).
-- **Per-derivation source filtering (`U7`)**: Every derivation in [`nixos/pkgs/`](../nixos/pkgs) uses `lib.fileset.toSource` restricted to the files that derivation actually reads (`rust-packages.nix`, `c-helpers.nix`, `cage.nix`, `keymaps.nix`, `prose-runtime.nix`, `licenses.nix`, `helpers.nix`), and each Rust binary receives only the `WROS_PATH_*` environment variables it reads (`bootPathEnv`, `installerPathEnv`, `greeterPathEnv`, `rustPathEnv` in `nixos/pkgs/paths.nix`, `H6`). Editing a document, module, or helper script does not invalidate the Rust or C package store paths.
+- **Per-derivation source filtering (`U7`)**: WrOS filters the source inputs of its application and helper packages with `lib.fileset.toSource`. Documentation and module edits are excluded from Rust and C sources. Helper changes can rebuild Rust binaries that embed helper store paths. The Python suite still copies the full repository. See [`nixos/pkgs/`](../nixos/pkgs).
 
 ## 2. Partitioning & filesystem labels
 
@@ -23,7 +23,7 @@ All partitions and encrypted containers are mounted strictly by filesystem or pa
 | EFI System Partition (512 MiB) | `WROS-ESP` (`/dev/disk/by-label/WROS-ESP`) | `vfat` (`fmask=0077,dmask=0077`) | `/boot` | [`nixos/modules/boot.nix`](../nixos/modules/boot.nix) |
 | LUKS2 encrypted partition | `WROS-LUKS` (`/dev/disk/by-label/WROS-LUKS`) | `crypto_LUKS` (Argon2id) | `/dev/mapper/wros_crypt` | [`nixos/modules/boot.nix`](../nixos/modules/boot.nix) |
 | Encrypted root filesystem | `WROS-ROOT` (`/dev/disk/by-label/WROS-ROOT`) | `ext4` (`noatime`) | `/` | [`nixos/modules/boot.nix`](../nixos/modules/boot.nix) |
-| Live installation ISO | `WROS_LIVE` | `iso9660` + `/iso/nix-store.squashfs` | `/` (live) | [`nixos/modules/live.nix`](../nixos/modules/live.nix) |
+| Live installation ISO | `WROS_LIVE` | ISO9660 or copied FAT32 media, containing `/iso/nix-store.squashfs` | `/` (live) | [`nixos/modules/live.nix`](../nixos/modules/live.nix) |
 | Offline update USB media | `WROS-UPDATE` | `ext4`, `vfat`, or `iso9660` | `/run/wros-update/media/<n>` | [`nixos/scripts/wros-update-engine.py`](../nixos/scripts/wros-update-engine.py) |
 
 ## 3. Bootloader, boot-check timeout & recovery entries (`B3`, `B4`)
@@ -43,11 +43,11 @@ All partitions and encrypted containers are mounted strictly by filesystem or pa
   2. Mounts `/dev/disk/by-label/WROS-ESP` read-only (`ro,nodev,nosuid,noexec`) and copies `keyboard.json`, `boot-theme.toml`, and `boot-screen` from `/boot/wros-boot/` to `/etc/wros/` with a strict `head -c 8192` size cap, refusing symlinks.
   3. Extracts the `"layout"` field from `/etc/wros/keyboard.json` and allows only the four compiled layout names (`qwerty`, `colemak`, `colemak-dh-ansi`, `colemak-dh-iso`) before calling `/bin/loadkeys --unicode /etc/wros/keymaps/$layout.map`; no path from `/boot/wros-boot/` is ever executed.
   4. Runs `/bin/wros-boot unlock --tty /dev/console --theme /etc/wros/boot-theme.toml` to write `/crypt-ramfs/passphrase`.
-- **How fallback to the standard text prompt is reached (`B1`)**: Whenever `wros.unlock=text` is present on `/proc/cmdline`, `/etc/wros/boot-screen` is not `ratatui`, the writer presses `Esc` in `wros-boot unlock`, or `wros-boot unlock` exits non-zero (or if the typed passphrase does not unlock LUKS), `/crypt-ramfs/passphrase` is absent (or rejected after `keyFileTimeout = 1`), `wros-console-reset` resets the console, and `systemd-cryptsetup@wros_crypt.service` automatically prompts on the console with systemd's standard text passphrase prompt (using the already-loaded console keymap).
+- **How fallback to the standard text prompt is reached (`B1`)**: Text start and an explicit text setting skip the graphical prompt. Esc or an unsuccessful graphical prompt removes the temporary password and runs `wros-console-reset`. A submitted password is handed to `systemd-cryptsetup`; if it is rejected, systemd's standard text prompt handles further attempts.
 
 ## 5. Mutable state table (`D1`, `H3`)
 
-NixOS regenerates files declared in `environment.etc` on every activation. Only immutable release identity, version (`environment.etc."wros/version"`), update trust anchors (`environment.etc."wros/update-trust/*"`), `/etc/greetd/config.toml`, `/etc/pam.d/*`, `/etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf`, and `/etc/wros/defaults/keyboard.json` are declared in `environment.etc`. All writer-mutable settings live outside `environment.etc` and are seeded by `systemd.tmpfiles.rules` in [`nixos/modules/base.nix`](../nixos/modules/base.nix) or by [`nixos/scripts/wros-install-core`](../nixos/scripts/wros-install-core):
+NixOS manages release-owned files through `environment.etc`, including release identity, version, update trust, PAM, greetd, defaults and, when supplied, Google client configuration. The live system also declares installed-closure metadata there. Writer-mutable settings use tmpfiles or installer-created files instead. See [`nixos/modules/base.nix`](../nixos/modules/base.nix), [`nixos/modules/live.nix`](../nixos/modules/live.nix) and [`nixos/scripts/wros-install-core`](../nixos/scripts/wros-install-core):
 
 | Setting / State | Mutable path(s) | Seeded / written by | In `environment.etc`? |
 |---|---|---|---|
@@ -57,7 +57,7 @@ NixOS regenerates files declared in `environment.etc` on every activation. Only 
 | Boot-screen switch | `/etc/wros/boot-screen` and `/boot/wros-boot/boot-screen` | Written by `wros-boot-settings` (`ratatui` or `text`); defaults to `ratatui` when absent | **No** |
 | XKB layout | `/etc/default/keyboard` | Seeded by `tmpfiles.d` (`f /etc/default/keyboard ...`) and `wros-install-core`; updated by `wros-keyboard` | **No** |
 | Timezone | `/etc/localtime` and `/etc/timezone` | `time.timeZone = null`; seeded by `wros-install-core`; updated by `timedatectl` / `wros-clock` | **No** |
-| Hostname | `/etc/hostname` | `networking.hostName = lib.mkDefault ""` in `nixos/modules/base.nix` so NixOS does not overwrite `/etc/hostname`; seeded by `tmpfiles.d` (`f /etc/hostname ... wros\n`) and `wros-install-core` (`H3`) | **No** |
+| Hostname | `/etc/hostname` | `networking.hostName = lib.mkOverride 1400 ""` in `nixos/modules/base.nix` so NixOS does not overwrite `/etc/hostname`; seeded by `tmpfiles.d` (`f /etc/hostname ... wros\n`) and `wros-install-core` (`H3`) | **No** |
 | Accounts & passwords | `/etc/passwd`, `/etc/shadow`, `/etc/group` | `users.mutableUsers = true`; writer account created by `wros-install-core`, updated by `wros-passwd` | **No** |
 | Wi-Fi profiles | `/etc/NetworkManager/system-connections/` | Created `0700` by `tmpfiles.d` (`d /etc/NetworkManager/system-connections 0700 root root -`) and `wros-install-core`; written by NetworkManager (`nmcli`) | **No** |
 | Update state & journal | `/var/lib/wros-update/` and `/nix/var/nix/gcroots/wros/` | Created by `tmpfiles.d` and managed by `wros-update-engine.py` | **No** |
@@ -104,7 +104,7 @@ Because Nix cannot be executed inside the authoring container, the new post-trim
    - **Feature impact**: Intel Bluetooth and Intel IPU6 webcams lack firmware blobs; Wi-Fi (`iwlwifi`, Realtek, Atheros, Broadcom, MediaTek), Intel `i915` graphics, and SOF audio are unaffected.
 5. **Disable XDG desktop sound/icon/menu/mime/autostart generators (`xdg.{sounds,icons,menus,mime,autostart}.enable = false;` in `nixos/modules/base.nix`) and drop the unused `pythonWithQr` (`qrcode` + `pillow`) wrapper in `nixos/pkgs/helpers.nix`**:
    - **Expected saving**: Removes `freedesktop` sound/icon themes and the duplicate `python3.withPackages (ps: [ ps.qrcode ps.pillow ])` environment (since `os/scripts/wros-link.py` renders QR codes in pure Python stdlib).
-   - **Feature impact**: None; WrOS runs `grimoire` directly in `wros-cage` without a desktop application menu or XDG icon theme.
+   - **Feature impact**: WrOS defaults to Grimoire's native DRM renderer. Cage remains available for explicitly selected compositor trials. Neither requires a desktop application menu or XDG icon theme.
 
 ## 7. Retired Debian helpers on NixOS (`H1`)
 

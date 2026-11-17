@@ -32,6 +32,8 @@ real power operation occurred. Issue #34 tracks the stricter caller contract.
 
 ## Verification and remaining work
 
+**Recorded Debian-era software qualification.**
+
 The focused offline suite exercises the actual Linux adapter with a recording
 runner, both native and legacy controls, a forged old confirmation, retained
 two-pane position/selection/focus/undo at four sizes, default cancellation,
@@ -56,14 +58,19 @@ Its source fingerprint matches the focused record. CI has no staged image, so
 it does not claim the local verifier's additional Wi-Fi image audit. The
 separate upstream Windows check was still running when recorded.
 
-No test suspends or powers off the host. Controlled power cases use a recorded
-simulator and the Linux no-process guard. New full CI is tracked separately from
-the earlier warm-screen source/binary/VM evidence.
+No test in this record suspends or powers off the host. Controlled power cases
+use a recorded simulator and the Linux no-process guard.
+
+For current checks, see the [NixOS workflow](../.github/workflows/nix-ci.yml),
+the [Debian workflow](../.github/workflows/ci.yml) and
+[NIXOS_QUALIFICATION.md](NIXOS_QUALIFICATION.md).
 
 The image tells logind to ignore automatic key, lid and idle actions so the
 editor can handle the lid before sleep. Hibernation targets stay masked. The
-media audit checks the staged logind settings and the suspend service's guard.
-The `ctrl-alt-del.target` mask stops a single Ctrl-Alt-Del reboot, and
-`CtrlAltDelBurstAction=none` and `kernel.sysrq=0` stop the keyboard bypasses.
+Debian media audit (rc13 and earlier) checks the staged drop-ins and
+`ctrl-alt-del.target` mask. NixOS declares the logind policy, suspend proof check,
+`CtrlAltDelBurstAction=none` and `kernel.sysrq=0` in
+[nixos/modules/guards.nix](../nixos/modules/guards.nix). That module does not
+declare a `ctrl-alt-del.target` mask.
 Direct privileged operations, hardware forced power-off and loss of power
 remain outside this guard.

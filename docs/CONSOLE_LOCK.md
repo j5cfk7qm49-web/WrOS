@@ -1,9 +1,14 @@
 # Manual console locking
 
-Focused software, the full isolated-guest sequence and [Debian CI](evidence/console-lock-ci.json)
+**Debian qualification history, rc13 and earlier.** Focused software, the full
+isolated-guest sequence and [Debian CI](evidence/console-lock-ci.json)
 passed: 964 Rust/configuration, 120 Python/zero skips, both Clippys and 17 gates.
 The rc7 VM also exercises suspend and wake with this locker. Physical security,
 lid wake and Wi-Fi reconnection still require the HP Stream.
+
+Current NixOS coverage is defined in [nixos/tests/console-lock.nix](../nixos/tests/console-lock.nix):
+reserved units, wrong/right authentication, and input/password isolation. This
+does not claim a new pass result or NixOS suspend/wake qualification.
 
 ## Maintained authentication and console ownership
 
@@ -29,17 +34,20 @@ The root-owned helper requires the direct installed editor parent, matching
 non-root UIDs, an active local logind user session on seat0/tty1, tty1 descriptors,
 a password-bearing local writer and a locked root account. It checks fixed
 root-owned program/module/PAM files and the reserved tty8 service masks.
-It does not accept command arguments, paths or user configuration.
+Its public caller option is `--suspend`; it accepts no program paths or user configuration.
 
-Debian `openvt` allocates unused tty8, switches to it and waits for Debian
+`openvt` allocates unused tty8, switches to it and waits for
 `vlock-main all nosysrq`. The user-shell vlock wrapper is never executed, so
 user `.vlockrc`, environment-selected plugins and shell expansion are excluded.
 The helper uses a cleared environment and a fixed existing-session PAM stack
-including Debian `common-auth`. Authentication is performed by maintained
+including the WrOS-declared `common-auth` stack. Authentication is performed by maintained
 vlock/libpam; WrOS does not implement password verification or read shadow data.
 An earlier requisite `pam_succeed_if` check requires the authenticated account's
 UID to be positive. It rejects vlock's unusable locked-root fallback without
 asking the writer for a root password; the helper also requires root locked.
+
+NixOS packages these tools and modules at fixed Nix store paths and rewrites the
+shared PAM includes to upstream Linux-PAM syntax.
 
 Readiness requires the actual vlock child, active tty8, `VT_PROCESS` ownership,
 echo disabled and SysRq disabled. Merely launching a process or requesting the
@@ -50,7 +58,8 @@ acknowledged input reader. The same in-memory editor retains its writing context
 Failure leaves the proof unconsumed and closes the writing session through the
 existing save/rescue path.
 
-The rc10 cage sessions use the same independent locker. Foot retires its PTY
+**Debian qualification history, rc13 and earlier.** The rc10 cage sessions use
+the same independent locker. Foot retires its PTY
 reader; the OpenGL window clears its frame, disables composition and discards
 all pending window input. It pumps Wayland without dispatching keys during
 authentication. The helper gets fixed tty1 descriptors. Logind's Wayland type
@@ -60,15 +69,16 @@ checks still apply. Both compositor modes passed repeated lock and actual
 suspend/wake VM checks, including password isolation; see
 [the graphical trial](GRAPHICAL_TRIAL.md).
 
-After validating the caller, the helper uses Debian `systemd-run --wait
+After validating the caller, the helper uses `systemd-run --wait
 --collect` to place the fixed worker and its openvt/vlock children in a system
 service cgroup. A Linux PID handle monitors the original editor; its death
 fails the worker. systemd stops remaining children and runs the fixed cleanup
-command, which uses Debian chvt and restores the prior SysRq setting. It returns
+command, which uses `chvt` and restores the prior SysRq setting. It returns
 the service's completion status to the waiting editor. Worker/cleanup roles
 require a root process started by PID 1 and reject a pkexec environment.
 
-The [guest sequence](evidence/console-lock-vm.json) verifies service ownership,
+**Debian qualification history, rc13 and earlier.** The
+[guest sequence](evidence/console-lock-vm.json) verifies service ownership,
 five lock cycles and editor/locker/client/worker failure recovery. [Focused
 checks](evidence/console-lock-focused.json) cover the interface and policy; all
 [original failed attempts](evidence/console-lock-attempts.json) remain failed.
@@ -120,7 +130,7 @@ resume and battery reserve on the HP Stream. A manual lock remains active if the
 lid is closed during that lock. Root changes and a forced power-off are outside
 the session-lock boundary.
 
-Maintained interfaces: Debian [vlock-main](https://manpages.debian.org/trixie/vlock/vlock-main.8.en.html),
+Debian reference manuals: [vlock-main](https://manpages.debian.org/trixie/vlock/vlock-main.8.en.html),
 [plugins](https://manpages.debian.org/trixie/vlock/vlock-plugins.5.en.html) and
 [openvt](https://manpages.debian.org/trixie/kbd/openvt.1.en.html).
 

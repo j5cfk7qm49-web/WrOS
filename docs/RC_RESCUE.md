@@ -5,32 +5,31 @@ This document describes the rescue and repair procedures for an installed WrOS s
 ## 1. Design & Scope
 
 ### ext4 Filesystem and Rollback
-- WrOS installs onto an ext4 root filesystem on an encrypted LUKS partition (optionally within an LVM volume group).
+- WrOS uses a FAT32 EFI System Partition labelled `WROS-ESP` and a LUKS2 partition labelled `WROS-LUKS`, opened as `wros_crypt`, containing the ext4 root labelled `WROS-ROOT`. The NixOS installer does not create LVM.
 - **ext4 does not provide filesystem-level snapshot rollback** (such as Btrfs or ZFS snapshots).
 - WrOS does not claim snapshot rollback capability.
-- Recovery focuses on **package transaction repair and crash consistency**: fixing interrupted dpkg states, completing pending half-configured packages, and reconciling offline update journals using strictly authenticated retained packages.
-- Repair does not undo a successfully completed update; it repairs broken, interrupted, or inconsistent system states.
-- Undoing an update is **going back**: from rc5 the system keeps the WrOS version it replaced
-  and can reinstall exactly that version (Settings › Updates, or the recovery boot below). It
-  goes back by itself when a new version fails to start the writing app after two logins.
+- Repair checks Nix store integrity and re-activates the recorded installed generation or the current system-profile generation for boot. It does not run dpkg or restore damaged store contents automatically; a failed integrity check is reported.
+- Repair does not undo a successfully completed update.
+- **Going back** stages a switch to the retained previous NixOS system generation for the next restart. It does not reinstall Debian packages. Probation can stage the same rollback automatically after two failed writing-session starts.
 
 ## 2. In-System Recovery vs. Live ISO Rescue
 
 WrOS provides three tiers of repair:
 
-### Tier 1: In-System Repair (Settings > Recovery > Repair)
+### Tier 1: In-System Repair (Settings › Updates and recovery › Recovery)
 When the installed system boots to a login:
 - After a failed or unverified offline update the system does not reboot by itself. It
   continues to a normal login, and `wros-update-reconcile.service` runs before the login
-  screen. It records an interrupted update as interrupted and attempts one bounded repair.
-- In Settings > Recovery, Repair runs the privileged entry point
-  `/usr/libexec/wros-update-repair` through polkit (`pkexec`). The launcher refuses to run
-  without a polkit caller, so a root shell cannot invoke it directly. From a local console
-  session of a `wros` group member, `pkexec /usr/libexec/wros-update-repair` is
-  equivalent.
-- Repair uses only the retained update archives in `/var/lib/wros-update/staged/`, after
-  re-authenticating them against the current keyring and signer pin. It runs
-  `dpkg --configure -a`, then installs the retained archives if dpkg is still inconsistent.
+  screen. It records interrupted transactions, reconciles probation and publishes update
+  status. Repair is a separate action.
+- In Settings › Updates and recovery › Recovery, Repair runs the privileged entry point
+  `wros-update-repair` through polkit (`pkexec`). The launcher refuses to run without a polkit
+  caller, so a root shell cannot invoke it directly. Polkit allows it only by its store path,
+  so from a local console session of a `wros` group member the equivalent is
+  `pkexec "$(readlink -f /run/current-system/sw/libexec/wros-update-repair)"`.
+- Repair checks Nix store integrity and re-activates the recorded installed generation or
+  the current system-profile generation for boot. It does not run dpkg or restore damaged
+  store contents automatically; a failed integrity check is reported.
 - Journal records are appended to `/var/lib/wros-update/journal.jsonl` (root-only). The
   readable summary that Settings shows is `/var/lib/wros-update/public/status.json`.
 
@@ -39,10 +38,10 @@ When the normal session will not start, but the laptop still boots:
 - The boot menu has a **WrOS recovery** entry. The menu is hidden on a normal boot (press Esc
   in the first 2 seconds to show it). After a boot that never reached the login screen it
   shows by itself for 30 seconds. An offline-update boot counts as a good boot.
-  Debian's own "recovery mode" entries are turned off: they only offer a root shell, which the
-  locked root account refuses.
-- The entry boots the newest kernel into `wros-recovery.target`, with no login screen and no
-  network. After the disk passphrase, the menu on tty1 asks for the writer's own password (PAM
+  NixOS emergency and rescue shells are masked.
+- The entry boots the selected generation's recovery specialisation into
+  `wros-recovery.target`, with no login screen and no network. After the disk passphrase,
+  the menu on tty1 asks for the writer's own password (PAM
   service `wros-recovery`; members of the `wros` group only). Three wrong passwords
   pause it for 30 seconds.
 - **Choices:**
@@ -52,130 +51,47 @@ When the normal session will not start, but the laptop still boots:
     Drive backup asks before starting the network.
   - show what happened: the update status and the previous boot's errors;
   - continue to the normal login;
+  - continue in the console session until the next restart, when a graphical session is selected;
   - restart;
   - power off.
 - It never offers a shell; Ctrl+C is ignored, and systemd restarts the menu if it ever exits.
   Restoring onto a fresh installation with the recovery key stays in Settings › Backups.
-- Debian keeps the previous kernel, so the same menu also offers it under "Advanced options".
+- GRUB also retains earlier NixOS generations, each with its own kernel and initrd.
 
 ### Tier 3: Live ISO Rescue (`wros-rescue`)
 When the installed system fails to boot (e.g. boot-loader corruption, interrupted kernel upgrade, or initramfs misconfiguration):
 - Boot the system using the WrOS Live ISO / installation media. The live image carries the
-  tool as `/usr/sbin/wros-rescue`. It refuses to run outside the live system.
-- Open a terminal session on the live environment (for example Ctrl+Alt+F2).
-- Run:
+  tool as `/run/current-system/sw/bin/wros-rescue`, available as `wros-rescue` on PATH.
+  It refuses to run outside the live system.
+- It must run as root, and the live system has no way to become root yet: root is locked
+  and the public live account is not in `wheel`, so it cannot use sudo. Until that is fixed
+  ([#150](https://github.com/j5cfk7qm49-web/WrOS/issues/150)), this tier is not usable; use
+  Tier 2 or a retained generation in GRUB. Once root is available, the command is:
   ```bash
-  sudo wros-rescue [--device /dev/sdXN]
+  wros-rescue [--device /dev/sdXN]
   ```
 
 ## 3. Live ISO Rescue Workflow (`wros-rescue`)
 
-The `wros-rescue` script automates the safe mounting, chroot execution, and cleanup process:
+The helper requires root and an interactive terminal on a live boot (`boot=live`
+or `wros.live=1`). It prefers `WROS-LUKS`, otherwise requires one LUKS candidate
+or `--device`.
 
-1. **Pre-flight Checks**:
-   - Confirms root execution (`EUID == 0`).
-   - Verifies the live environment (`/proc/cmdline` contains `boot=live`).
-   - Ensures an interactive controlling terminal (`/dev/tty`) for secure passphrase input.
+It opens `wros_crypt`, mounts the ext4 root (`WROS-ROOT` when present) read-write
+at `/target`, checks `/etc/wros/release`, mounts `WROS-ESP` at `/target/boot` when
+present, and prepares `/dev`, `/dev/pts`, `/proc`, `/sys` and a temporary `/run`.
 
-2. **LUKS Partition Detection & Unlocking**:
-   - Scans block devices (`lsblk`) for partitions with type `crypto_LUKS`.
-   - If multiple LUKS partitions are detected, prompts the operator to specify `--device /dev/sdXN`.
-   - Prompts for the disk encryption passphrase interactively. The passphrase is typed directly to `cryptsetup` and is never saved or logged.
-   - Unlocks the container as `/dev/mapper/wros-rescue-root` until the installed system's name for it is known.
-
-3. **LVM & Root Identification**:
-   - If LVM is present, activates the volume group (`vgchange -ay <vg>`).
-   - Inspects candidate ext4 volumes and mounts read-only to verify system identity:
-     - Checks `/etc/writingdeck/release` exists.
-     - Confirms `/etc/crypttab` references the matching LUKS UUID.
-   - Requires exactly one matching WrOS root volume.
-   - Renames the unlocked mapping to the name `/etc/crypttab` gives it (for example
-     `vda3_crypt`), deactivating and reactivating the volume group around the rename. Debian's
-     cryptsetup initramfs hook only finds the root's mapping under that name; an initramfs
-     rebuilt under any other name may not be able to unlock the disk at the next boot.
-
-4. **Private Target Mounting & Chroot Preparation**:
-   - Mounts the target filesystem read-write under a private target `/target` (`mount -t ext4 -o rw,nodev`).
-   - Bind-mounts kernel pseudo-filesystems:
-     - `/dev` -> `/target/dev`
-     - `/dev/pts` -> `/target/dev/pts`
-     - `/proc` -> `/target/proc`
-     - `/sys` -> `/target/sys`
-     - `/run` -> `/target/run` (tmpfs)
-   - Mounts `/boot` inside the chroot when `/etc/fstab` lists it (the guided encrypted install
-     always keeps `/boot` on its own partition), and refuses to continue if that fails, so no
-     kernel, initramfs or GRUB file is written to the root filesystem's empty `/boot`.
-   - Then mounts `/boot/efi` inside the chroot if an EFI System Partition is defined in `/etc/fstab`.
-
-5. **Executing Update Repair**:
-   - Verifies presence of the installed system's update engine (`/usr/lib/wros-update/engine.py` and `/usr/libexec/wros-update`).
-   - Executes inside the chroot:
-     ```bash
-     env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C WROS_RESCUE=1 /usr/libexec/wros-update rescue-repair
-     ```
-   - Re-authenticates retained update archives against `/usr/share/keyrings/wros-archive-keyring.gpg` and pinned fingerprints in `/usr/share/wros/update-signers`.
-   - Completes interrupted dpkg configuration and regenerates initramfs / boot configuration if necessary.
-
-6. **Automatic Cleanup & Teardown**:
-   - Regardless of whether the repair succeeds or fails (via `trap ... EXIT`):
-     - Unmounts all bind mounts, `/boot/efi` and `/boot` in reverse order.
-     - Unmounts `/target`.
-     - Deactivates LVM volume groups (`vgchange -an`).
-     - Closes the LUKS mapping under whichever name it has at that point.
-   - Leaves no mounts or decrypted cryptographic devices open.
+It runs the installed NixOS repair engine, or uses `--rollback` to select the
+previous system-profile generation and regenerate its boot entries. Exit cleanup
+unmounts its mounts and closes the mapping. It does not activate LVM, rename
+mappings from crypttab, mount `/boot/efi`, or repair dpkg.
+[Rescue helper](../nixos/scripts/wros-rescue)
 
 ## 4. Manual Fallback Procedure
 
-If `wros-rescue` cannot run automatically (e.g. if `/usr/lib/wros-update/engine.py` is damaged), the operator can perform manual recovery from the Live ISO:
-
-1. Unlock the LUKS partition under the name the installed system uses for it. That name is
-   the first field of the root's line in its `/etc/crypttab` (the guided install uses the
-   partition name plus `_crypt`, for example `vda3_crypt` or `nvme0n1p3_crypt`). Debian's
-   cryptsetup initramfs hook only finds the root under that name, so `update-initramfs`
-   below must run with it:
-   ```bash
-   sudo cryptsetup open /dev/sdXN sdXN_crypt
-   ```
-   If you are unsure, open it under any name, mount the root read-only, read
-   `/etc/crypttab`, unmount, deactivate LVM, then `sudo dmsetup rename <any-name> <crypttab-name>`.
-2. If LVM is used:
-   ```bash
-   sudo vgscan && sudo vgchange -ay
-   ```
-3. Mount root, `/boot`, `/boot/efi` and the pseudo-filesystems. The guided encrypted install
-   keeps `/boot` on its own partition: mount it before `/boot/efi`, or initramfs and GRUB
-   updates are written to the root filesystem's empty `/boot`:
-   ```bash
-   sudo mkdir -p /target
-   sudo mount /dev/mapper/<root-volume> /target
-   sudo mount --bind /dev /target/dev
-   sudo mount --bind /dev/pts /target/dev/pts
-   sudo mount -t proc proc /target/proc
-   sudo mount -t sysfs sysfs /target/sys
-   sudo mount -t tmpfs tmpfs /target/run
-   sudo chroot /target mount /boot       # its own partition on the guided install
-   sudo chroot /target mount /boot/efi   # if an EFI system partition exists
-   ```
-4. Enter chroot:
-   ```bash
-   sudo chroot /target /bin/bash
-   ```
-5. Inside chroot, diagnose and repair dpkg:
-   ```bash
-   dpkg --configure -a
-   apt-get install -f --no-download   # offline: only packages already on the system
-   update-initramfs -u -k all
-   update-grub
-   exit
-   ```
-6. Clean up:
-   ```bash
-   sudo umount -R /target
-   sudo vgchange -an  # if LVM used
-   sudo cryptsetup close <crypttab-name>
-   ```
-
-
-## NixOS generation repair and rescue (`0.1.0~rc14`)
-
-On NixOS installations, `wros-update-repair` verifies `/nix/store` integrity (`nix-store --verify --check-contents`) and restores `/nix/var/nix/profiles/system` and GRUB boot entries to the last verified closure, while `wros-update-rollback` and the GRUB boot menu switch directly to the retained previous NixOS system generation. From the NixOS live ISO, `sudo wros-rescue` (`nixos/scripts/wros-rescue`) unlocks `WROS-LUKS` (`wros_crypt`), mounts `WROS-ROOT` and `WROS-ESP`, and runs `wros-update rescue-repair` (or `wros-rescue --rollback`) inside the installed chroot. See [`NIXOS_UPDATES.md`](NIXOS_UPDATES.md).
+First try a retained generation in GRUB: each earlier NixOS generation boots with its own
+kernel and initrd. Then try the recovery boot (Tier 2). Debian package commands (dpkg, apt,
+update-initramfs, update-grub) do not apply to NixOS and must not be run. If neither works,
+note the error and reinstall from the stick, then restore your books from a verified backup.
+`wros-update-rollback` stages the same switch to a retained generation from a running system.
+See [`NIXOS_UPDATES.md`](NIXOS_UPDATES.md).

@@ -1,14 +1,12 @@
-# WrOS NixOS qualification guide (`0.1.0~rc14`)
+# WrOS NixOS qualification guide
 
-This guide gives the exact ordered commands to qualify the `0.1.0~rc14` NixOS rebase on a local **NixOS-WSL** (`26.05`, Nix `2.34+`) host with KVM enabled, followed by physical verification on the **HP Stream 11** (`Intel Celeron N4000`, `4 GB RAM`, `32 GB eMMC`, `Intel UHD 600`, `Realtek RTL8822BE Wi-Fi`).
+This guide qualifies the NixOS release in [os/VERSION](../os/VERSION) on a NixOS-WSL host with KVM, followed by physical hardware verification.
 
-## Step 1: Run the offline static acceptance checker & Python unit tests
+## Step 1: Run the in-tree checks & Python unit tests
 
-Before invoking Nix, verify the repository structure, `OPTIONS_USED.json`, `FINDINGS_R1.json`, `PARITY.json`, paths seam, and Python unit tests:
+Before invoking Nix, run the in-tree documentation checker and Python unit tests:
 
 ```sh
-python3 rebase-kit/test_check_rebase.py
-python3 rebase-kit/check_rebase.py --tree .
 python3 tools/check-wros.py
 python3 os/tests/test_nixos_update.py -v
 python3 os/tests/test_backup.py -v
@@ -17,6 +15,9 @@ python3 os/tests/test_boot_settings.py -v
 python3 os/tests/test_name_leftovers.py -v
 python3 os/tests/test_line_endings.py -v
 ```
+
+The maintained Nix Python suite is `nix build .#checks.x86_64-linux.python-suite`;
+its test list is defined in [nixos/pkgs/default.nix](../nixos/pkgs/default.nix).
 
 ## Step 2: Verify `flake.lock` and evaluate all flake outputs
 
@@ -48,7 +49,7 @@ nix path-info -rS ./result | sort -nk2 | tail -25
 
 Compare the measured closure total and largest store paths against the Round 2 baseline (`4.1 GiB` across `918` paths) and the individual removals documented in [`docs/NIXOS_BASE.md`](NIXOS_BASE.md).
 
-## Step 5: Run the Rust, Python, and 7 KVM NixOS VM test suites (`T1`–`T7`)
+## Step 5: Run the Rust, Python, and eight KVM NixOS VM suites
 
 On NixOS-WSL with `/dev/kvm` accessible:
 
@@ -62,6 +63,7 @@ nix build .#checks.x86_64-linux.console-lock
 nix build .#checks.x86_64-linux.update-goback
 nix build .#checks.x86_64-linux.recovery-menu
 nix build .#checks.x86_64-linux.live-session
+nix build .#checks.x86_64-linux.live-graphical
 nix flake check
 ```
 
@@ -70,9 +72,9 @@ nix flake check
 Build the self-contained installation ISO (`wros-iso`) and the unsigned binary-cache update bundle (`wros-update-bundle`), then sign the bundle with the external release key:
 
 ```sh
-nix build .#wros-iso
-nix build .#wros-update-bundle
-python3 -I tools/build-nixos-update-bundle.py ./result \
+nix build --out-link result-iso .#wros-iso
+nix build --out-link result-update-bundle .#wros-update-bundle
+python3 -I tools/build-nixos-update-bundle.py ./result-update-bundle \
   --out ./out/nixos-updates \
   --gnupg-home "$EXTERNAL_GNUPGHOME" \
   --key-id B9F5B97C9370239CC07B425F2CB426FC6D27CA65 \
@@ -81,4 +83,4 @@ python3 -I tools/build-nixos-update-bundle.py ./result \
 
 ## Step 7: Physical hardware verification on the HP Stream 11
 
-Flash `result/iso/*.iso` to a USB drive, boot the HP Stream 11 (`Celeron N4000`, `4 GB RAM`, `32 GB eMMC`, `Intel UHD 600`, `RTL8822BE Wi-Fi`) with UEFI and Secure Boot disabled, install to the internal eMMC via **Install WrOS**, and complete every item in [`docs/HARDWARE_CHECKLIST.md`](HARDWARE_CHECKLIST.md). Only after physical verification passes may `docs/feature-status.json` entries be marked `Tested` or `hardware_verified`.
+Flash `result-iso/iso/*.iso` to a USB drive, boot the HP Stream 11 (`Celeron N4000`, `4 GB RAM`, `32 GB eMMC`, `Intel UHD 600`, `RTL8822BE Wi-Fi`) with UEFI and Secure Boot disabled, install to the internal eMMC via **Install WrOS**, and complete every item in [`docs/HARDWARE_CHECKLIST.md`](HARDWARE_CHECKLIST.md). Only after physical verification passes may `docs/feature-status.json` entries be marked `Hardware verified`.

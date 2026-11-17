@@ -21,20 +21,26 @@ Have a verified backup of anything on the target disk. [Release checklist](RELEA
    and recovery before relying on the machine for the only copy of a book.
    [Hardware checks](HARDWARE_CHECKLIST.md)
 
-## Moving from rc13 (Debian) to rc14 (NixOS)
+## Moving from rc13 (Debian) to NixOS
 
-rc13 can't update to rc14 in place: the whole system underneath changes. On rc13, make sure
+rc13 can't update to NixOS in place: the whole system underneath changes. On rc13, make sure
 **Settings › Backups and accounts › Backups** shows a recent backup of every book. Then install
-rc14 from the stick as above, set up the same backup destination (and recovery key) on rc14, and
-restore each book from it. Your Debian update channel stays as it was until you reinstall.
+the current NixOS release from the stick as above, set up the same backup destination (and
+recovery key) on the current NixOS release, and restore each book from it. Your Debian update
+channel stays as it was until you reinstall.
 
 ## Update an installed system
 
-Open **Settings › Updates and recovery › Updates**. Review the version and signer, then stage
-the signed update for the next restart: WrOS restarts once to install it as a new system
+rc14 and rc15 cannot install updates from Settings: their app rejects the NixOS updater's
+replies (#143, fixed in rc16). An rc15 laptop reaches rc16 or later with one update run from
+a root shell through `sudo`; rc14 has no sudo (#142), so reinstall it from the current stick
+and restore your books from backup.
+
+From rc16, open **Settings › Updates and recovery › Updates**. Review the version and signer,
+then stage the signed update for the next restart: WrOS restarts once to install it as a new system
 generation and again into it. **Go back** returns to the previous generation, which NixOS
-keeps. The recovery page can repair an interrupted update. Until an rc14 update is published,
-the page says no WrOS updates have been published yet. [Rescue guide](RC_RESCUE.md)
+keeps. The recovery page checks store integrity and repairs the boot generation.
+[Rescue guide](RC_RESCUE.md)
 
 ## Run the editor in a development terminal
 
@@ -70,6 +76,6 @@ results refer to the exact artifacts and the checks that ran.
 [VM profile](../os/scripts/bootstrap-rootfs.sh) · [Qualification steps](TESTING.md)
 
 
-## NixOS appliance build and installation (`0.1.0~rc14`)
+## NixOS appliance build and installation (rc14 and later)
 
 For the NixOS operating-system layer (`nixosConfigurations.wros` and `nixosConfigurations.wros-live`), the live ISO (`nix build .#wros-iso`) embeds the complete pre-built system closure in `/iso/nix-store.squashfs` and installs offline to `WROS-ESP` + `WROS-LUKS` (`wros_crypt` -> `WROS-ROOT`) via `wros-install-session`, `wros-installer-backend`, and `wros-install-core`. No Nix evaluation or compilation runs on the target laptop. See [`NIXOS_BASE.md`](NIXOS_BASE.md) and [`NIXOS_QUALIFICATION.md`](NIXOS_QUALIFICATION.md).

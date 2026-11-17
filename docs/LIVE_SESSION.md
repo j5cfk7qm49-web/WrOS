@@ -1,54 +1,50 @@
 # Live WrOS session
 
-The experimental `build-installer.sh --live` profile uses Debian live-build,
-live-boot, live-config and user-setup. Grimoire is the actual live writing desk,
+The current live image is built with `nix build .#wros-iso` from
+[nixos/modules/live.nix](../nixos/modules/live.nix). Grimoire is the actual live writing desk,
 with the same theme, panels, keyboard navigation and settings as the installed
 session. Its home and settings identify the live session and explain that work
 must be saved somewhere persistent before restarting.
 
-Debian live-config creates the temporary `wros-live` account at boot. A final
-live-config component checks the explicit `boot=live wros.live=1` selection,
-locked root account, reserved non-root account and read-only live medium. It
-publishes a temporary greetd configuration under `/run/wros-live`. The one-time
-initial session enters the normal WrOS session wrapper; greetd retains its
-authenticated default session. The stock live-config getty generator is masked
-so it cannot also open accounts automatically on other consoles. Documented
-`noautologin` and `nottyautologin` aliases still prevent automatic entry.
-Both normal and failsafe boot entries carry the live-profile flag. The session
-wrapper, application and privileged lock helper also recognize the live medium
-independently, so omitting the automatic-entry flag cannot turn the public
-account into a personal locked session.
+The live NixOS configuration declares `wros-live` with UID 1000. Before greetd
+starts, `wros-live-session` checks `wros.live=1` and creates `session.json`,
+`greetd.toml` and `greetd.env` under `/run/wros-live`. The temporary initial
+session opens the writing desk; the default session remains authenticated.
+The `noautologin` and `nottyautologin` aliases suppress automatic entry. The
+application and locker also recognise the live medium independently.
 
-The immutable SquashFS contains neither the temporary account nor its runtime
-configuration. `/etc/greetd/config.toml` remains the authenticated installed
-configuration. The maintained live-installer copies that immutable filesystem,
-rather than the running live overlay. Actual installation and reboot checks
-remain necessary to qualify the complete profile.
+The live configuration includes the public live account; its greetd override is
+generated at runtime. The ISO also carries a separate installed-system closure
+without the live account. The installer copies that closure, rather than the
+live system's account configuration.
 
-This public live account has Debian's standard temporary live credentials and
-live administration privileges. It is not a personal authenticated session.
-Manual entry uses username `wros-live` and the public password `live`.
-WrOS disables its personal screen-lock action in both the interface and the
-privileged lock helper. Installed sessions retain the existing lock path.
-Sleep remains disabled pending separate qualification.
+This is a public live account, not a personal authenticated session. Manual entry
+uses username `wros-live` and password `wros-live-session-only`. The account is
+not in `wheel`; installation uses the fixed privileged installer helper. Personal
+screen locking and suspend are unavailable in the live session.
 
-WrOS installs from the live session. The boot menu offers only `Start WrOS (try
-it, or install it from the dashboard)`, its fail-safe variant and Utilities:
-`tools/live-boot-menu.py` removes live-build's stock Debian Installer entries,
-which would install plain Debian, and the media audit refuses a live medium that
-still carries them. Debian Installer's files stay on the medium for the native
-installer. The live session opens on the dashboard with `Install WrOS to disk`
-chosen; it and System > Storage both lead to the installer confirmation, whose
-default is to stay in the live session.
+WrOS installs from the live dashboard. NixOS generates the medium's boot menu
+with WrOS branding and the entry `Start WrOS <version> (try it, or install it from
+the dashboard)`. The dashboard selects **Install WrOS to disk**; it and
+**System › Storage** open a confirmation that defaults to staying in the live session.
 
-`tools/audit-live-session.py` checks the immutable staged profile. Unit tests
+Current NixOS checks are [live-session](../nixos/tests/live-session.nix) for
+automatic entry and installer cancellation/handoff,
+[live-graphical](../nixos/tests/live-graphical.nix) for the default graphical
+session remaining alive, and [install-encrypted](../nixos/tests/install-encrypted.nix)
+for installation and reboot.
+
+**Debian media checks, rc13 and earlier.** `tools/audit-live-session.py` checks
+the immutable staged profile. Unit tests
 exercise account/boot selection, manual-entry options, publication ordering,
 file preservation, permissions and staging leaks using private fixture files.
 `live_session_uses_shared_surfaces_and_never_requests_personal_lock` exercises
 the actual Grimoire controller and renderer at four terminal sizes. These
 checks are not evidence of an actual live boot or physical hardware support.
 
-## Executed local qualification
+## Executed local qualification (Debian builds, rc13 and earlier)
+
+For current NixOS checks, see [NIXOS_QUALIFICATION.md](NIXOS_QUALIFICATION.md).
 
 The [full local software run](evidence/live-session-local.json) passed 973 Rust
 checks per overlapping configuration, 135 Python methods with zero skips, both

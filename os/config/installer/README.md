@@ -1,5 +1,10 @@
 # Debian cdebconf passthrough framing
 
+Historical Debian installer adapter, rc13 and earlier. NixOS uses the
+protocol-compatible backend in
+[nixos/scripts/wros-installer-backend](../../../nixos/scripts/wros-installer-backend)
+and does not load this cdebconf module.
+
 The matching backend recipe explicitly includes maintained `apt-cdrom-setup`.
 Its presence in the offline pool alone does not select it: `apt-setup-udeb` can
 load the real mirror provider instead of the CD provider's virtual alternative.
@@ -13,8 +18,9 @@ entropy plugin. The hook accepts only the authenticated script's exact hash and
 removes that unused plugin request. It leaves maintained cryptsetup, kernel
 randomness and `blockdev-keygen` unchanged. No `plugin-entropy` capability is
 advertised; Debian's existing check rejects random-key requests. The stock text
-frontend keeps its entropy plugin. This adapter is staged by the guarded VM
-fixture; production media integration and full installation remain unqualified.
+frontend keeps its entropy plugin. At an earlier adapter-development stage,
+this adapter was staged by the guarded VM fixture; production media integration
+and full installation were still unqualified.
 
 The WrOS native installer frontend uses the cdebconf passthrough module from
 Debian source version 0.280, with the adjacent small field-framing patch. The
@@ -46,10 +52,9 @@ and sibling archive through authenticated APT first. The script checks their
 hashes before extraction; the descriptor's maintainer signature has not been
 independently qualified. This does not replace Debian disk or account engines.
 
-The module is not yet staged into shipping media. A production live launcher
-must require this exact compatible module, supervise backend death/disconnection,
-keep answers in private RAM, and qualify the full install/reboot path in new
-guests before exposing disk-writing actions.
+The later Debian release recipe builds the module into the matching installer
+backend and stages its native-installer capsule into the live medium. This is
+Debian build machinery; the NixOS installer does not use it.
 
 The optional `--test-runtime` build adds a private configured backend and RFC822
 plugin for ordinary non-root CI. `tools/test-installer-components.py` uses it
