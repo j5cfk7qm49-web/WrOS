@@ -9,5 +9,5 @@ Actions does not execute them for WrOS:
 - [Application installer checks](installer-check.yml)
 - [Application packages](packages.yml)
 
-WrOS targets its Debian runtime and needs its own OS image, installation,
+WrOS targets its NixOS runtime and needs its own OS image, installation,
 signing and recovery qualification. See [WrOS CI](../CI.md).

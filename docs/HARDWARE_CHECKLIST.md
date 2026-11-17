@@ -1,7 +1,8 @@
 # HP Stream hardware checklist
 
-The VM chain proves installs, updates and the installed services. These checks
-need the real laptop: an HP Stream 11 (Celeron N4000, 4 GB, Intel UHD 600,
+The NixOS VM checks cover installation, generation updates and installed services.
+Record their results for the candidate separately. These checks need the real
+laptop: an HP Stream 11 (Celeron N4000, 4 GB, Intel UHD 600,
 RTL8822BE Wi-Fi, 32 GB eMMC). Run them on each release candidate before it
 becomes a final release, and after any change to power, Wi-Fi, the console or
 the boot.
@@ -130,7 +131,7 @@ silences the speakers.
    Watch from the boot menu to the login screen.
 2. At the disk password, type it in Colemak and press Enter. Once, type it
    wrong first.
-3. Restart and press Esc at the disk password. Unlock at Debian's text prompt.
+3. Restart and press Esc at the disk password. Unlock at systemd-cryptsetup's text prompt.
 4. Restart, press Esc to show the boot menu, and choose **WrOS (text start)**.
    Unlock in Colemak and sign in as usual. Check the recovery entry too.
 5. Choose a different preset in Settings › Look and keyboard › Look › Themes.
@@ -140,17 +141,18 @@ silences the speakers.
 
 **Pass when:** only the WrOS logo and the loading bar show; the password prompt
 shows under the logo with one dot per key; the Colemak password unlocks and a
-wrong one asks again; Esc and text start reach Debian's prompt; the progress
-screen ends before the login and its logo sits above the complete form. The
-chosen colours reach all three logos. Plain text restores Debian's prompt.
+wrong one asks again; Esc and text start reach systemd-cryptsetup's text prompt;
+the progress screen ends before the login and its logo sits above the complete
+form. The chosen colours reach all three logos. Plain text restores
+systemd-cryptsetup's text prompt.
 Record the restart and unlock times on the Celeron. If the Colemak password is
 refused at the WrOS prompt, press Esc and type it at the text prompt, then report it.
 
-## 11. Native graphical defaults (rc10)
+## 11. Native graphical defaults
 
 On the HP Stream, check that disk unlock, loading, login and writing all use the
-smooth native font and the chosen colours. A clean or updated system should do
-this without enabling a preview. Retest Colemak, accented letters and compose in
+GNU Unifont bitmap cells and the chosen colours. A clean or updated system should
+do this without enabling a preview. Retest Colemak, accented letters and compose in
 writing; wrong and correct disk/login passwords; Esc at disk unlock; and the
 **WrOS (text start)** entry, which should keep every stage in text.
 
@@ -180,8 +182,8 @@ Leave login idle across a minute change: the full form should stay visible
 without blank flashes. Check writing redraws for flashes or tearing too.
 
 For the [RC9 black lock report](https://github.com/j5cfk7qm49-web/WrOS/issues/107),
-boot RC10 with the saved Warm screen choice and take the first lock before
-visiting tty2. Check the lock screen, the password prompt after Enter, and the
+boot the release candidate being checked with the saved Warm screen choice and
+take the first lock before visiting tty2. Check the lock screen, the password prompt after Enter, and the
 writing screen after unlock. Repeat with Warm screen Off, then repeat with
 warmth on using Lock and suspend. Pass when each screen appears on its own,
 warmth remains visible when enabled, and authentication blocks VT switching.
@@ -201,8 +203,8 @@ colours while on; the compositor does not provide physical colour readback.
 
 ## 12. Brightness and volume keys
 
-WrOS handles these keys through Debian's triggerhappy (#80), the same way on any
-laptop.
+WrOS declares triggerhappy bindings for these keys in `nixos/modules/hardware.nix`.
+Check them on each target laptop (#80).
 
 1. In the writing session, press Brightness down until it stops, then
    Brightness up a few times. Hold each key for a second.
@@ -224,7 +226,9 @@ grep -E 'N: Name=|H: Handlers=' /proc/bus/input/devices
 ```
 
 Replace `eventN` with the handler for the device being checked. This prints the
-five media keys and ends after 30 seconds (install `evtest` first if needed).
+five media keys and ends after 30 seconds. This probe needs a separately prepared
+diagnostic image with `pkgs.evtest` included; the standard appliance does not
+provide an on-device package-install workflow.
 
 ```sh
 sudo timeout 30s evtest /dev/input/eventN |
@@ -256,12 +260,15 @@ Record the Google project's publishing status and the phone/browser versions.
 
 ## Collecting the log
 
-Kernel and system messages need administrator rights. From the PC, over SSH,
-enter your password when asked:
+From rc15, open the maintenance console with Ctrl+Alt+F2, sign in as the installed
+writer, and enter your password for sudo:
 
 ```sh
-ssh -t aegeorge@<laptop> 'sudo journalctl -b -k --no-pager | grep -E "rtw|lps|PM: suspend|PM: resume|ACPI: battery" ; sudo journalctl -b --no-pager -u "wros*" | tail -100'
+sudo journalctl -b -k --no-pager | grep -E 'rtw|lps|PM: suspend|PM: resume|ACPI: battery'
+sudo journalctl -b --no-pager -u 'wros*' | tail -100
 ```
+
+Use SSH only if remote access has been configured separately.
 
 Use `-b -1` instead of `-b` for the boot before the last restart. Send the
 output with the results; it contains no book text.

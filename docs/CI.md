@@ -1,12 +1,16 @@
 # WrOS continuous integration
 
-WrOS is the supported platform. The active [CI workflow](../.github/workflows/ci.yml)
-runs in Debian 13 amd64 with the pinned Rust toolchain and CPython 3.13. It
-qualifies the Rust workspace in both audio configurations, Clippy, Python
-integrations, compiled terminal interactions and the OS static/documentation
-checks through `tools/test-m7b.sh`. Results and logs are retained per tested
-commit. GitHub's Ubuntu runner hosts the Debian container; it is not a second
-WrOS target.
+WrOS has two active software workflows. [Nix CI](../.github/workflows/nix-ci.yml)
+evaluates every package and check, runs the Nix Python suite, and builds the WrOS
+packages and installed system from the pinned flake. VM checks, the ISO and the
+Rust-suite check are executed separately in local qualification. The retained
+[Debian CI](../.github/workflows/ci.yml) runs M7b and driven terminal/OpenGL checks
+in Debian 13; its results qualify that environment.
+
+The following installer-component, terminal-library verifier and matching
+kernel/initrd paragraphs describe the retained Debian workflow. The current
+NixOS installer uses `nixos/scripts/wros-install-session`, `wros-installer-backend`
+and `wros-install-core`; its tests and build coverage are separate.
 
 The installer component is also built from pinned Debian source and tested as
 a normal user: real native TUI questions plus malformed/disconnected protocol
@@ -33,6 +37,9 @@ workflow directory. Their application installers are not WrOS installers.
 Past macOS/Windows results remain historical evidence for their tested commits.
 They are not WrOS acceptance requirements. Debian software CI also does not
 replace the separate disposable guest tests for boot, PAM, keyboard recovery and
-installation, or the later authorized physical hardware qualification. WrOS
-image signing, recovery and release qualification remain unfinished under #5
-and #13; no upstream publisher is enabled as a substitute.
+installation, or the later authorized physical hardware qualification. Signed
+NixOS update bundles, channel publication and authenticated recovery are
+implemented. Run the candidate's local qualification and record hardware results
+separately. Do not infer ISO-signing or Secure Boot qualification from
+update-bundle signatures. No upstream application publisher substitutes for WrOS
+release qualification.

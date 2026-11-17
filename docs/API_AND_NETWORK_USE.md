@@ -18,9 +18,10 @@ PDF conversion uses the existing headless LibreOffice adapter when installed. Ex
 URL text without fetching the linked resource. These features do not call a
 hosted AI, online grammar or cloud document service.
 
-Read-aloud reuses `src/voice.rs`: installed Piper and local voice models,
-Speech Dispatcher through `spd-say`, or eSpeak NG. These are local adapters to
-available backends, not two WrOS speech engines or a cloud speech API.
+Read-aloud uses local adapters in `src/voice.rs`. The NixOS image supplies
+eSpeak NG. Piper requires a separately available executable and local voice
+model; Speech Dispatcher is another optional backend, not an enabled service in
+the standard image. These adapters do not use a cloud speech API.
 
 ## Local writing history
 
@@ -65,75 +66,82 @@ explicitly validates authorization via `rclone about`; Drive repository creation
 snapshot refresh, backup, restore and stale-lock recovery explicitly invoke
 Restic's rclone backend and can contact Google Drive/Google token endpoints
 (`oauth2.googleapis.com`, `www.googleapis.com`).
-No background startup, autosave, history or ordinary writing path starts these
-provider calls. Failed/offline backup jobs record the project in the local private queue (`queue.json`) and require an explicit retry (`run-queue` or `Create encrypted backup`). `check-google` and `disconnect-google` manage local Google Drive credentials explicitly.
+Local history does not push Git. After backup is set up for a book, saved changes
+can trigger an automatic encrypted backup after ten minutes without editing,
+normally at most hourly. Failed automatic runs retry after 15 minutes, an hour,
+then every four hours. A Drive repository contacts Google during those runs. Manual
+failed jobs remain in the private queue (`queue.json`) for explicit retry (`run-queue` or
+`Create encrypted backup`).
 
-Authorization JSON travels only through the masked field and private stdin
-protocol, never command arguments, UI notices, manuscript files or diagnostic
-logs. Dedicated rclone configuration/recovery keys are private per-user files
-outside projects. Restic encrypts staged project content and metadata before
-upload. Rclone owns OAuth token refresh. The entire project folder (including
-private notes and project metadata) is included by explicit backup; export's
+Google Drive can be linked by phone, masked authorization input or a private
+authorization file from a USB stick. Helper requests use private stdin;
+authorization secrets are not passed in command arguments or written to
+manuscript files. Dedicated rclone configuration and recovery keys are private
+per-user files outside projects. Restic encrypts staged project content and
+metadata before upload. Rclone owns OAuth token refresh. The entire project folder
+(including private notes and project metadata) is included in each backup; export's
 private-note exclusion policy does not apply to disaster-recovery backups.
 No real account was enrolled or manuscript transmitted during qualification.
 See [scope and recovery](NATIVE_BACKUP.md).
 
 ## Readable Google Drive sync
 
-`src/sync_service.rs` runs the unprivileged `/usr/libexec/wros-sync` helper, which
-uses the backup's rclone configuration (`lsjson --hash`, `copyto`, `moveto`, `cat`,
-`rcat`) against the `WrOS/` and `WrOS-History/` folders of the connected Drive. Nothing
+`src/sync_service.rs` runs the unprivileged `wros-sync` helper at its compiled
+Nix store path, which uses the backup's rclone configuration (`lsjson --hash`,
+`copyto`, `moveto`, `cat`, `rcat`) against the `WrOS/` and `WrOS-History/` folders
+of the connected Drive. Nothing
 is contacted until the writer turns sync on for a book; then the app syncs that book
 when it opens, 10 seconds after a save and every 5 minutes while it is open, sending
 only files that changed since the last agreed version. Those copies are not encrypted.
 Offline runs fail quietly and wait for the next one; nothing queues.
 
-## Debian integration and unavailable services
+## Local system integration
 
-The native backend invokes local `nmcli` (NetworkManager), `timedatectl`
-(systemd time service), `findmnt`, cached `apt-get -s dist-upgrade`,
-`brightnessctl` and explicit supported `systemctl` operations. It reads local
-account/status information. A cached APT simulation is not a repository refresh
-or installed update. Wi-Fi scanning is radio activity, not an internet API. Native Wi-Fi connection and saved-profile management invoke `nmcli` explicitly on user confirmation, passing WPA passphrases only via private `stdin` to `nmcli --ask` and never in command arguments, `Debug` output, or serialized requests.
+The NixOS backend invokes local `nmcli`, `timedatectl`, `findmnt`,
+`brightnessctl`, WrOS helpers and supported `systemctl` operations. The retained
+APT simulation request is unavailable on NixOS. Wi-Fi scanning is radio activity,
+not an internet API. Confirmed Wi-Fi connections pass WPA passphrases through
+private stdin to `nmcli --ask`, never command arguments.
 
-New installs keep the clock from the network and can fetch Debian updates.
-`systemd-timesyncd` contacts Debian's NTP pool (`*.debian.pool.ntp.org`) on its
-own while online, sending only NTP time requests. The installer writes Debian's
-online sources (`deb.debian.org`, `security.debian.org`) only after the offline
-install finishes, and Debian's `apt-daily` timers then refresh package indexes
-from them. Nothing installs automatically; `sudo apt upgrade` applies Debian
-updates. Settings › Date and time only reads `timedatectl show` for its
-network time row.
+New NixOS installs enable `systemd-timesyncd` with `0.nixos.pool.ntp.org` through
+`3.nixos.pool.ntp.org`. While enabled and online, it sends NTP requests. Settings
+can set the clock manually and return to network time. The NixOS installer does
+not configure Debian APT sources or apt-daily timers; system updates use the
+signed WrOS NixOS channel.
 
-An installed WrOS (not the live session) checks for WrOS updates once after
-login and then at most daily: `wros-update check-online` downloads the signed
-`InRelease` and `Packages` index from
-`https://j5cfk7qm49-web.github.io/WrOS/updates/` (GitHub Pages) and sends
-nothing beyond the HTTPS request. A newer signed version shows a notice; nothing
-downloads until the writer chooses Settings › Updates › Update WrOS, which
-fetches that update's `.deb` from the same address. Debian's `apt-daily` timers
-also read that address, through `/etc/apt/sources.list.d/wros.sources`.
+An installed NixOS WrOS checks for updates after login and then daily, with
+earlier retries after failed checks. The writer can also check manually. The
+check reads signed `InRelease` metadata and `closure-manifest.json` from
+`https://j5cfk7qm49-web.github.io/WrOS/nixos-updates/`. Choosing **Update WrOS**
+downloads the required binary-cache files and verifies their signed sizes and
+hashes before staging. The separate `updates/` APT channel remains for Debian
+rc13 systems.
 
-General Drive browsing/materialization, update application and
-recovery/firmware operations remain unavailable and fail before their tools run.
-The separate backup and sync adapters provide explicit authorization/backup/restore and opt-in sync;
-the old general-purpose system request variants remain unavailable. No successful OAuth enrollment,
-Drive API call or manuscript upload is fabricated. No telemetry or mandatory
+Drive browsing and copying use the backup adapter. Signed update application,
+go-back and repair use the WrOS update helpers. The retained general-purpose
+Drive/backup request variants and `RebootRecovery`/`RebootFirmware` requests remain
+unavailable; they do not describe the availability of the separate native
+workflows. No successful OAuth enrollment, Drive API call or manuscript upload
+is fabricated. No telemetry or mandatory
 cloud service is introduced by these writing integrations.
 
 ## NixOS (`0.1.0~rc14+`) network hosts and online update channel (`D2`)
 
-Every network host an installed NixOS WrOS laptop (`0.1.0~rc14+`) can contact is listed below:
+Built-in network services and optional integrations are listed below. DHCP, DNS
+and user-configured server addresses depend on the network and configuration.
 
 | Service / Feature | Host(s) contacted | Protocol | When contacted |
 |---|---|---|---|
 | Network time (`systemd-timesyncd`) | `0.nixos.pool.ntp.org`, `1.nixos.pool.ntp.org`, `2.nixos.pool.ntp.org`, `3.nixos.pool.ntp.org` | UDP/123 (NTP) | Automatically while online when network time is enabled (`services.timesyncd.enable = lib.mkDefault true` in `nixos/modules/network.nix`) |
-| Online update check & binary-cache metadata (`wros-update check-online`, `wros-update-fetch`) | `j5cfk7qm49-web.github.io` (`https://j5cfk7qm49-web.github.io/WrOS/nixos-updates/`) | HTTPS (TCP/443) | Once after login and at most daily for `InRelease` + `closure-manifest.json`; fetches `cache/nix-cache-info`, `cache/<hash>.narinfo`, and small delta `.nar.zst` files (`< 100 MB`) only when the writer explicitly runs **Update WrOS** |
-| Online update large `.nar.zst` archives (`wros-update-fetch`) | `github.com` (`https://github.com/j5cfk7qm49-web/WrOS/releases/download/v<version>/...`) redirecting to `objects.githubusercontent.com` / `release-assets.githubusercontent.com` | HTTPS (TCP/443) | Only when the writer explicitly runs **Update WrOS** and `closure-manifest.json` references release-asset `.nar.zst` files that exceed GitHub Pages' 100 MB per-file / 1 GB site limit (see [`docs/NIXOS_UPDATES.md`](NIXOS_UPDATES.md)) |
-| Optional Google Drive backup / sync (`wros-backup`, `wros-sync` via `rclone`) | `oauth2.googleapis.com`, `www.googleapis.com` | HTTPS (TCP/443) | Only after the writer explicitly connects a Google Drive account and runs a backup/restore or enables per-book sync |
-| Optional music integrations (disabled by default) | `music.youtube.com`, `api.github.com` (`repos/th-ch/youtube-music`), or user-configured Jellyfin/Plex host | HTTP/HTTPS | Only if the writer explicitly enables a music source in Settings |
+| Online update check & binary-cache metadata (`wros-update check-online`, `wros-update-fetch`) | `j5cfk7qm49-web.github.io` (`https://j5cfk7qm49-web.github.io/WrOS/nixos-updates/`) | HTTPS (TCP/443) | After login, daily, on retries after failed checks or on manual checks for `InRelease` + `closure-manifest.json`; fetches required `cache/nix-cache-info`, `cache/<hash>.narinfo` and `cache/nar/*.nar.zst` files only when the writer explicitly runs **Update WrOS** |
+| Optional Google Drive backup / sync (`wros-backup`, `wros-sync` via `rclone`) | `oauth2.googleapis.com`, `www.googleapis.com` | HTTPS (TCP/443) | When linking or validating an account, revoking a supported grant, browsing or copying Drive files, refreshing or operating on a Drive backup repository, running configured automatic backups, or syncing an enabled book |
+| Optional music integrations (disabled by default) | `music.youtube.com`; the configured YouTube companion host, defaulting to loopback; `api.github.com` and the selected companion release-asset URL during setup; user-configured Jellyfin/Plex hosts | HTTP/HTTPS | Explicit companion setup contacts the releases API, selected asset URL and pairing host; an enabled music source makes requests while it runs |
 
-NetworkManager connectivity checking is disabled (`[connectivity] enabled=false` in `/etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf`), and Nix substituters and channels are disabled (`nix.channel.enable = false`, `nix.settings.substituters = lib.mkForce []`), so `cache.nixos.org` is never contacted by the laptop. The Debian channel `https://j5cfk7qm49-web.github.io/WrOS/updates/` remains untouched for `v0.1.0-rc13` systems.
+The current publisher serves cache files through Pages and rejects oversized
+files. The updater refuses redirects; GitHub release-asset redirects are not a
+working update download path.
+
+NetworkManager connectivity checking is disabled (`[connectivity] enabled=false` in `/etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf`), and Nix substituters and channels are disabled (`nix.channel.enable = false`, `nix.settings.substituters = lib.mkForce []`), so built-in Nix operations do not use `cache.nixos.org` as a substituter. The Debian channel `https://j5cfk7qm49-web.github.io/WrOS/updates/` remains untouched for `v0.1.0-rc13` systems.
 
 ## Verification
 

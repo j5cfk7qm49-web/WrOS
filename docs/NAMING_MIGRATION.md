@@ -4,13 +4,17 @@
 
 ## Completed in this handoff
 
-- The standalone Codex prompt, packaged `CODEX_PROMPT.md` and `docs/CODEX_CONTINUATION.md` use WrOS as the product identity.
+- The archived handoff documents `docs/archive/CODEX_PROMPT.md` and `docs/archive/CODEX_CONTINUATION.md` use WrOS as the product identity.
 - The package README, current status/roadmap/architecture headings and the canonical `docs/WROS.md` identify WrOS correctly.
-- The existing `docs/WRITING_DECK_OS.md` remains accessible because prior references may depend on its path.
-- Safe source-import tooling is exposed as `tools/push-wros-source.sh`, with an old-path compatibility wrapper.
+- The archived handoff document `docs/archive/WRITING_DECK_OS.md` remains accessible as history.
+- Safe source-import tooling is exposed as `tools/push-wros-source.sh`.
 - The last historically qualified `writingdeck/foundation` branch and all pre-existing Git commit contents remain unchanged. The original handoff was docs-only; subsequent M7b software qualification is recorded separately in [STATUS](archive/STATUS.md) and does not complete the remaining user-facing brand migration.
 
-## rc7 installed names
+## rc7 installed names (Debian builds)
+
+NixOS does not run this package migration or install all these aliases. Its
+retained groups, release files and keyboard alias are declared in
+`nixos/modules/base.nix`; helper aliases are in `nixos/pkgs/helpers.nix`.
 
 - `/etc/wros` holds the committed keyboard layout, release record and image
   markers. The update carries over the old layout and markers, then links the
@@ -49,9 +53,9 @@ These names stay, each because renaming it would break something:
 | `.writingdeck-demo` | Older editors recognise the tutorial book by it |
 | `writingdeck-native`, `writingdeck-original-*` | Engine and content IDs saved in review findings, voice profiles and Story Spark history |
 | `paths::data_dir()/writingdeck/shortcuts.json` | Each computer's saved shortcuts |
-| `/opt/writingdeck/python` and `.writingdeck-runtime.json` | The installed prose-tools runtime, pinned by hash |
+| `/opt/writingdeck/python` and `.writingdeck-runtime.json` | The Debian runtime path and retained runtime marker; NixOS uses the `wros-prose-runtime` store output and keeps the marker name |
 | `writingdeck-source-repack-1`, `writingdeck-pinned-runtime-1` | Written into the pinned wheels, so changing them changes their hashes |
-| `/etc/writingdeck`, the `writingdeck-*` units, `org.writingdeck.keyboard`, the `writingdeck` group | rc7 compatibility links, so a go-back to rc6 still works |
+| `/etc/writingdeck`, the `writingdeck-*` units, `org.writingdeck.keyboard`, the `writingdeck` group | Debian rc7 migration paths and aliases for go-back to rc6; NixOS separately declares the compatibility group, release files and keyboard alias, plus the helper aliases named above |
 | `grimoire writingdeck …`, `WRITINGDECK_*` | Older command and environment names, still accepted |
 | WritingDeck OS, `writingdeck/foundation` and other old branches | History |
 

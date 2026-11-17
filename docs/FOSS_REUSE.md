@@ -1,10 +1,9 @@
-# Debian-first component reuse
+# Maintained component reuse
 
-The implementation rule is **reuse maintained Debian components first**. Where
-Debian lacks a suitable version, use a pinned, reproducibly built upstream FOSS
-release with its source and notices retained. Write WrOS-specific interface and
-integration code where needed. Check existing components before adding a new
-engine, privileged protocol, storage format or daemon.
+Reuse maintained Nixpkgs components first. Where they do not provide the required
+behavior, use a pinned upstream FOSS release with its source and notices retained.
+Keep WrOS-specific interface and integration code small, and check existing
+components before adding an engine, privileged protocol, storage format or daemon.
 
 The user explicitly authorized this approach for remaining work and existing
 parts that can be strengthened. It does not change Grimoire manuscript formats,
@@ -13,12 +12,11 @@ management remains in the native WrOS interface. Preserve working behavior and
 tests when adopting a component; package availability alone is not integration
 or hardware qualification.
 
-**Interface policy: TUI-first everywhere practical.** Use the text-mode Debian
-Installer, native text login/settings, text update/recovery/backup flows and the
-existing Grimoire writing UI. Backend daemons, libraries and headless converters
-are compatible with this policy. Do not add a graphical desktop or launch GUI
-frontends as the ordinary workflow. Keep optional provider-browser requirements
-explicit when a service cannot authorize entirely through a text interface.
+**Interface policy: one native WrOS interface.** Graphical unlock, loading, login
+and writing are the defaults, with text fallbacks and explicit console recovery.
+Installation, settings, updates and backups share the native interface. Do not
+add a desktop or use upstream GUI frontends as the ordinary workflow. Keep
+provider-browser requirements explicit.
 
 **One Grimoire interface:** the live installer and every native WrOS surface
 must share Grimoire's themes, widgets, layout/spacing, focus and selection,
@@ -28,21 +26,28 @@ updates, recovery, backup and account management are parts of the same product;
 upstream frontends are not the ordinary user-facing workflow. Keep advanced
 emergency maintenance explicit and separate from normal product navigation.
 
-The desired installer is a **live WrOS session with its own installer TUI over
-Debian's installation backend**. Reuse supported preseeding/debconf interfaces
-and the maintained live-installer environment; keep disk/encryption/account and
-bootloader operations in Debian components. The live launcher has a text path
-and requires a matching live/installer kernel. Verify that boundary before
-shipping the frontend. Keep secrets and reviewed disk answers per-run in private
-RAM storage, with no unattended destructive answers in the shared ISO defaults.
+The live WrOS session launches the native installer through a supervised session
+and backend. `nixos/scripts/wros-install-core` uses standard GPT, cryptsetup and
+filesystem tools, installs the prebuilt NixOS closure offline, creates the writer
+account and installs GRUB last. It rechecks disk identity and use before writing.
+Secrets travel over private stdin and remain per-run.
+
+The Debian Installer/preseeding backend and matching live/installer kernel choice
+belong to the earlier Debian builds.
 
 ## Decisions
 
+**Debian-era component evaluation and proposals.** Candidate availability does
+not mean installation. NixOS uses the native `wros-greeter`, PAM, implemented
+clock/NTP and sound controls, and the packages/services declared in
+`nixos/modules/`. The boot/installation, lock/sleep, update, recovery and backup
+rows below describe current mechanisms; the other rows retain earlier proposals.
+
 | Area | Reuse | WrOS work / decision |
 |---|---|---|
-| Boot and installation | Debian live-build, Debian Installer/live-installer and its text launcher path, cryptsetup, initramfs-tools, signed Debian shim/GRUB/kernel | Add the native installer TUI in a live WrOS session over the existing backend. Qualify kernel matching, LUKS, rescue, interruption and Secure Boot in new guests. Retain a standard text recovery/fallback path. |
+| Boot and installation | NixOS live ISO, standard GPT/cryptsetup/filesystem tools and GRUB | The supervised native installer rechecks disk identity and use, installs the prebuilt closure offline, creates the writer account and installs GRUB last. Secrets use private per-run stdin. Qualify physical installation and recovery separately. |
 | Login | greetd, PAM, logind; evaluate packaged tuigreet | Retain qualified native account/layout recovery and the fixed writing-session command. Consolidate UI only if the packaged greeter preserves those requirements. No WrOS password verifier. |
-| Lock and sleep | vlock/PAM and systemd-managed lifecycle | Replace the experimental custom request/response service protocol with standard systemd execution and status handling. Keep reader retirement, display/query pause and real authenticated completion checks. Suspend remains disabled until the complete protocol and resume are qualified. |
+| Lock and sleep | vlock/PAM and systemd-managed lifecycle | Guarded lock-and-suspend is implemented; direct suspend requests remain refused. Physical wake, repeated handoff and display/input behavior require device-specific qualification. |
 | Network enrollment | NetworkManager, libnm / its maintained introspection bindings | Use its connection, authorization and secret-agent APIs. Add the native selection/credential interface; no Wi-Fi protocol implementation or separate password store. |
 | Battery and power | UPower, power-profiles-daemon, logind | Prefer UPower's composite display device to hand-maintained battery aggregation. Retain safe missing-device behavior and explicit power/save guards. |
 | Brightness and warmth | brightnessctl; evaluate gammastep/Redshift DRM backends | Keep brightnessctl. Test packaged gamma backends before expanding the DRM bridge. Preserve original calibration, output selection, independent preview rollback and unsupported-driver refusal. |
@@ -50,9 +55,9 @@ RAM storage, with no unattended destructive answers in the shared ISO defaults.
 | Clock and timezone | timedated, systemd-timesyncd | Keep the qualified timezone integration; extend the same maintained service for clock/NTP controls. Preserve historical writing dates. |
 | Accounts and credentials | AccountsService, PAM, libsecret / a maintained Secret Service provider | Native account and optional credential management on existing services. Preserve normal unprivileged writing and authenticated administration. |
 | Storage | UDisks2, cryptsetup, standard filesystem tools | Native device/status/mount workflows through maintained APIs. Retain explicit target review and wrong-disk protections. |
-| Updates | APT, PackageKit and systemd offline-update support | Use signed Debian metadata and an existing transaction engine. Prefer prepared offline updates with native save/restart confirmation. Select one apply policy; do not build a package manager or run competing unattended apply flows. unattended-upgrades remains an alternative policy component. |
-| Recovery and rollback | Debian Installer rescue; Snapper and Btrfs for a qualified snapshot layout | Keep root snapshots separate from manuscript storage and backups. Snapper rollback requires a properly configured Btrfs root; the existing ext4 image does not gain rollback merely by installing Snapper. No automatic conversion of existing installations. |
-| Versioned backup | Restic; Rclone for optional remote adapters | Native local/Drive destination setup, masked second-device authorization, private recovery keys, encrypted snapshots and actual restore/hash checks now use these engines. No snapshot pruning, mounted active manuscript or automatic upload; live Google qualification remains open. See [native backup](NATIVE_BACKUP.md). |
+| Updates | Nix binary-cache import, signed WrOS closure metadata and systemd offline-update support | Review and stage a signed bundle in Settings, then switch the system generation at restart. Keep the previous generation for go-back. |
+| Recovery and rollback | Authenticated WrOS recovery specialisation and NixOS system generations | Go-back selects the previous system generation without Btrfs or Snapper. Repair checks Nix store integrity and reactivates the current boot generation. Manuscript backups remain separate. |
+| Versioned backup | Restic; Rclone for optional remote adapters | Native local/Drive destination setup, masked second-device authorization, private recovery keys, encrypted snapshots and actual restore/hash checks now use these engines. Configured books can back up automatically after a pause; a Drive repository uploads encrypted data. Automatic snapshots have retention pruning, while manual snapshots are retained. The helper stages saved files rather than mounting the active manuscript; live Google qualification remains open. See [native backup](NATIVE_BACKUP.md). |
 | Publishing | Existing native DOCX writer, pulldown-cmark, optional headless LibreOffice, Poppler and packaged fonts; Pandoc for additional formats when needed | Manuscript page notes reuse the pinned parser, DOCX package and LibreOffice conversion. Real page fixtures use Poppler/Liberation; EPUB notes reuse its maintained HTML renderer and Debian EPUBCheck; paperback notes are real Word footnotes and LibreOffice page notes in the print document. No competing PDF typesetter. Typst remains an optional alternative. |
 | Memory and device health | systemd-zram-generator; smartmontools / fwupd where appropriate | Evaluate a small zram profile and native read-only health/status first. Use one compression policy. Physical firmware operations and battery behavior require identified hardware. |
 | Worker isolation | bubblewrap and ordinary process/resource limits | Evaluate the packaged sandbox for document/converter workers rather than inventing a sandbox. Preserve offline operation, cancellation and explicit file access. |
@@ -89,12 +94,17 @@ not a selected architecture or qualified release component.
 
 ### Recovery
 
-Snapper documents that rollback requires Btrfs and proper boot configuration.
-The current image uses a different layout. A new rollback-enabled profile needs
-real install/update/rollback tests, retained encrypted recovery access, and a
-separate manuscript data boundary. RAUC and OSTree are available alternative
-update architectures; do not bolt multiple incompatible root-update models onto
-the existing APT system.
+Recovery uses the authenticated WrOS recovery specialisation. Go-back selects
+the previous NixOS system generation; it does not require Btrfs or Snapper. Repair
+checks Nix store integrity and reactivates the current boot generation. Manuscript
+backups remain separate.
+
+### Debian-era recovery alternatives
+
+The earlier evaluation compared Snapper, which requires Btrfs and proper boot
+configuration for rollback, with RAUC and OSTree. The Debian image used ext4;
+installing Snapper alone did not add rollback. These were alternative proposals
+for the earlier APT system.
 
 ### Remote backup and conversion
 
@@ -104,7 +114,12 @@ assume an old shared client ID remains usable. Keep live provider qualification
 separate from local fixture tests. Conversion can be lossy, so use explicit
 materialization and verified round trips for external document formats.
 
-## Adoption order
+## Historical Debian adoption order
+
+These steps record the earlier integration plan. Current mechanisms are declared
+in `nixos/modules/` and `nixos/pkgs/`; use
+[NIXOS_QUALIFICATION](NIXOS_QUALIFICATION.md) and the
+[hardware checklist](HARDWARE_CHECKLIST.md) for candidate acceptance.
 
 1. Simplify lock lifecycle around packaged vlock and systemd, then pass actual
    wrong/right PAM, reader/VT ownership, repeated locking and process-death tests.

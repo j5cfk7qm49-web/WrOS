@@ -4,7 +4,7 @@ This is an engineering rights inventory, **not a legal opinion or worldwide publ
 
 ## Actually bundled creative/tutorial content
 
-The 39 tutorial instructions, two short demo scenes, thirty M5 exercises and M6 original Spark bundle are under repository MIT terms to the extent rights subsist. M6 contains 1,047 accepted original plots and 84 exercises with AI-assisted drafting and agent authoring/editorial review; four additional held plot drafts remain in source, not the runtime count. Every accepted record pins edition/section/file/line/file SHA-256/text SHA-256 and adaptation/attribution. No independent human/legal or exclusive-copyright claim is made. No third-party creative exercise, historical book body or modern prompt list is bundled or counted. Existing Hunspell dictionaries have their retained SCOWL/Ispell notices; they are software/reference data, not a creative prompt license shortcut.
+The 50 tutorial instructions, two short demo scenes, thirty M5 exercises and M6 original Spark bundle are under repository MIT terms to the extent rights subsist. M6 contains 1,047 accepted original plots and 84 exercises with AI-assisted drafting and agent authoring/editorial review; four additional held plot drafts remain in source, not the runtime count. Every accepted record pins edition/section/file/line/file SHA-256/text SHA-256 and adaptation/attribution. No independent human/legal or exclusive-copyright claim is made. No third-party creative exercise, historical book body or modern prompt list is bundled or counted. Existing Hunspell dictionaries have their retained SCOWL/Ispell notices; they are software/reference data, not a creative prompt license shortcut.
 
 ## Evaluated candidates (not bundled)
 
@@ -25,11 +25,11 @@ Verified source pages: <https://www.gutenberg.org/ebooks/30294>, <https://www.gu
 
 Every bundled item needs exact edition and file hash, source URL/section, creator, license or territorial PD basis, redistribution/adaptation permissions, attribution and retained notices, modifications and ShareAlike obligations. Unclear-rights/NC/ND/incompatible exceptions stay excluded unless separately cleared. Store third-party notices with the offline corpus, not only as a web link. Do not use cover images or a publisher's modern additions without their own rights.
 
-A full OS also contains GPL and other independently licensed packages. The repository's MIT license is not a license for the entire Debian image. Preserve package copyright notices and satisfy corresponding-source obligations for distributed binaries. The manifests aid review but do not automatically certify a production distribution.
+A full OS also contains GPL and other independently licensed packages. The repository's MIT license is not a license for the entire WrOS image, its NixOS packages or its firmware. Preserve package copyright notices and satisfy corresponding-source obligations for distributed binaries. The manifests aid review but do not automatically certify a production distribution.
 
 ## Software inventory generation
 
-`python3 tools/generate-wros-manifests.py` uses cached `cargo metadata --locked --offline`, retains Rust package notices in `os/licenses/RUST-THIRD-PARTY-NOTICES.txt`, hashes bundled original/dictionary files, and inventories the **staged guest** Debian packages. It marks which resolved crates belong to the Linux no-audio native build. The current inventory contains 773 resolved packages. The 71 packages without root-level retained notices are outside that selected build. The clock widget's repository-root notices come from its packaged source revision. For `drm-fourcc` 2.2.0, WrOS retains the MIT text the maintainer later added for the existing license declaration. The manifest pins the package and notice revisions separately. Full OS corresponding-source review remains open. [Upstream license change](https://github.com/dzfranklin/drm-fourcc-rs/pull/21) · [Retained notice sources](upstream-notice-sources.json)
+`python3 tools/generate-wros-manifests.py` uses cached `cargo metadata --locked --offline`, retains Rust package notices in `os/licenses/RUST-THIRD-PARTY-NOTICES.txt`, hashes bundled original/dictionary files, and inventories the **staged guest** Debian packages. It marks which resolved crates belong to the Linux no-audio native build. These totals describe the recorded generated snapshot. The generator's selected graph is Linux `gui-drm` without audio, and its OS inventory is Debian-only. It does not certify the NixOS release's `gui-drm,gui-wgpu,audio` graph or system closure. Regenerate and review the release graph and separately inventory NixOS packages, firmware and corresponding-source obligations before claiming release coverage. The clock widget's repository-root notices come from its packaged source revision. For `drm-fourcc` 2.2.0, WrOS retains the MIT text the maintainer later added for the existing license declaration. The manifest pins the package and notice revisions separately. Full OS corresponding-source review remains open. [Upstream license change](https://github.com/dzfranklin/drm-fourcc-rs/pull/21) · [Retained notice sources](upstream-notice-sources.json)
 
 `assets/WrOSMono.ttf` extends the existing DejaVu Sans Mono 2.37 font with the
 Braille block from DejaVu Sans 2.37. WrOS fits the added outlines to the mono
@@ -45,7 +45,7 @@ Unifont's two-cell symbols in U+2000–2BFF into one cell (scaled evenly and
 re-thinned), then replaces 23 of them with hand drawings
 (`assets/fonts/wros-narrow.txt`). The modified glyphs are compiled into
 `grimoire`, `wros-greeter` and `wros-boot`; the OFL text and the source notice
-ship in `/usr/share/doc/wros/`. WrOS uses Unifont under the SIL Open Font License 1.1
+ship under `share/doc/wros/` in the `wros-licenses` Nix store output. WrOS uses Unifont under the SIL Open Font License 1.1
 (Unifont is also offered under GPL 2 or later with the font-embedding
 exception); no Reserved Font Name is declared. `assets/WrOSMono.ttf` stays for
 the optional windowed renderer and is no longer used by the native session.

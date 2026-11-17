@@ -2,12 +2,19 @@
 
 ## One command for a release candidate (#13)
 
-`tools/rc-check.sh` runs every check that needs no hardware and prints one
-summary line each: formatting, Clippy, the Rust tests, the app in a terminal, a
-debug build, and the Python tests with `GRIMOIRE_BINARY` set, so the Python
-screen tests (`test_*_pty.py`) run instead of skipping. `--vm CMD…` adds a VM
-chain run (`.audit-tools/rc10-vm-chain.sh …`) to the summary. Logs and
-`summary.txt` go to `target/rc-check`.
+For NixOS, build `.#checks.x86_64-linux.python-suite` and
+`.#checks.x86_64-linux.rust-suite` with `nix build`, then run the eight VM checks
+and `helpers-no-fhs` listed in `flake.nix`. Follow
+[NixOS qualification](NIXOS_QUALIFICATION.md) for the candidate procedure.
+The following `tools/rc-check.sh` and RC10 chain instructions describe the
+retained Debian checks.
+
+`tools/rc-check.sh` prints one summary line each for formatting, Clippy, the Rust
+tests, the app in a terminal, a debug build, and the Python tests with
+`GRIMOIRE_BINARY` set, so the Python screen tests (`test_*_pty.py`) run instead
+of skipping. `--vm CMD…` adds a VM chain run
+(`python3 os/tests/rc_vm_chain.py …`, for Debian builds) to the summary. Logs
+and `summary.txt` go to `target/rc-check`.
 
 For RC10 and later, the chain runs the update, installed feature checks and
 start-screen checks. The two installed phases each get a fresh overlay of the
@@ -51,7 +58,9 @@ Adding `gui-wgpu` runs the real writing window under headless cage with Mesa
 OpenGL. A test-only Wayland keyboard sends physical Colemak keys and a compose
 sequence, then saves and checks the disposable book. It needs `cage`, `foot`,
 `libxkbcommon-dev`, `libwayland-dev`, `libegl1-mesa-dev` and Mesa's runtime drivers.
-CI installs these packages and runs this test; a missing renderer is a failure.
+The retained Debian CI installs these packages and runs this test; a missing
+renderer is a failure. Nix CI evaluates the checks but does not execute this
+driven test.
 
 After a deliberate screen change, review new snapshots with `cargo insta review`
 or rerun with `INSTA_UPDATE=always` and read the diff before committing.
@@ -185,29 +194,31 @@ binary, bridge and base-disk hashes, real polkit/driver status, page barriers an
 an actual screenshot. Unsupported-driver refusal is separate from successful
 gamma/readback/timer/Off application; neither establishes physical qualification.
 
-## Current M7b qualification
+## Debian-era M7b qualification
 
 Use `bash tools/test-m7b.sh` after provisioning the exact runtime described in
 [M7B](M7B.md). The unified verifier records source/tool hashes, the tested binary
 and runtime marker, exact overlapping Rust counts, ignored cases and real Python
 coverage; it refuses skipped Python methods or changed source. Custom output
 paths use `GRIMOIRE_BINARY`, `CARGO_TARGET_DIR` and `WROS_TOOLS_PYTHON`.
-Current software totals and their source identities are recorded in
-[STATUS](archive/STATUS.md); historical milestone counts do not qualify later changes. The independent image audit verifies Wi-Fi payloads.
-The 512-MiB zero-NIC TCG VM records successful native/proselint/WordNet/Harper
-checks and a real Nabokov kernel CPU-budget denial; positive trained analysis
-is required and passes in native offline UI/PTY tests. See [STATUS](archive/STATUS.md)
-for source identity, measured costs and remaining release gates.
+Historical software totals and their source identities are recorded in
+[STATUS](archive/STATUS.md); they do not qualify later changes. The historical
+independent image audit verified Wi-Fi payloads. The 512-MiB zero-NIC TCG VM
+recorded successful native/proselint/WordNet/Harper checks and a real Nabokov
+kernel CPU-budget denial; positive trained analysis passed in native offline
+UI/PTY tests. See [STATUS](archive/STATUS.md) for those source identities and
+measured costs. Use [NixOS qualification](NIXOS_QUALIFICATION.md) for current
+candidate qualification.
 
 ## Evidence levels
 
 - **Unit/integration:** deterministic temporary files, fake clocks/runners and Ratatui TestBackend.
 - **Simulated services:** explicitly labeled state; no hardware or cloud operation.
 - **VM:** complete UEFI disk boot under QEMU/OVMF, actual Linux console/systemd/polkit, no network device.
-- **Hardware verified:** requires an identified physical laptop and recorded firmware/keyboard/power results. **None yet.**
+- **Hardware verified:** requires an identified physical laptop, release and recorded firmware/keyboard/power results. Record each result separately in [HARDWARE_CHECKLIST](HARDWARE_CHECKLIST.md); software and VM results do not qualify hardware.
 - **Credential/provider verified:** requires explicit enrollment and real restore/round-trip tests. **None yet.**
 
-[STATUS](archive/STATUS.md) and `docs/evidence/` record latest completed runs. A source-level test or successful VM poweroff is not a physical battery/suspend/Secure Boot result.
+[STATUS](archive/STATUS.md) and `docs/evidence/` retain historical receipts. Use [NixOS qualification](NIXOS_QUALIFICATION.md) for current candidates. A source-level test or successful VM poweroff is not a physical battery/suspend/Secure Boot result.
 
 ## Commands
 
@@ -219,13 +230,13 @@ cargo test --workspace --locked --offline -j 2
 cargo test --workspace --no-default-features --locked --offline -j 2
 cargo clippy --workspace --all-targets --locked --offline -- -D warnings
 python3 -m unittest discover -s os/tests -p 'test_*.py' -v
-shellcheck os/scripts/*.sh os/scripts/writingdeck-session
+shellcheck os/scripts/*.sh os/config/live/9998-wros-session os/config/installer/native-crypto-passphrase tools/test-m7b.sh
 python3 tools/check-wros.py
 ```
 
 First fetch/build needs installed dependencies/cached crates; `--offline` documents that running the cached tests itself needs no network. The default audio build needs ALSA headers. Build `cargo build --locked --offline --no-default-features -j 2` before Python tests to exercise the actual headless CLI; CLI and PTY tests explicitly skip if no binary exists. Upstream tests requiring particular external engines/export environments remain ignored unless those prerequisites are installed and explicitly exercised; report those, do not count them as passed.
 
-Image/boot commands are in [INSTALLATION](INSTALLATION.md). The VM test is one-shot, isolated, networkless and runs on a disposable overlay. Its boot probe is installed only in the explicit VM-demo profile and powers that VM off. Do not run a real host suspend/shutdown or format a device to exercise an interface.
+Image and boot commands are in [INSTALLATION](INSTALLATION.md). The one-shot VM-demo boot probe described here belongs to the retained Debian tooling. Current NixOS VM checks are separate tests listed in `flake.nix`; run them using [NIXOS_QUALIFICATION](NIXOS_QUALIFICATION.md). Do not run a real host suspend/shutdown or format a device to exercise an interface.
 
 ## Current coverage
 
@@ -240,22 +251,22 @@ Image/boot commands are in [INSTALLATION](INSTALLATION.md). The VM test is one-s
 - M4b journal: 10 core + 23 UI + one alias case, plus actual compiled-app four-size source/save/restart and future-log/explicit-force PTYs. Two small ANSI tracker tests reconstruct differential screen runs; no complete terminal or physical-keyboard emulation claim. Cold-start unknown totals and later repair retain unavailable baselines instead of inventing net metrics. See [JOURNAL](JOURNAL.md).
 - Actual headless CLI: simulated status label, help/version/errors, exclusive demo creation, read-only layout/tutorial/pin/known-date journal metadata validation and unknown/future-schema preservation.
 - Rootless helper tests: timer-before-load, cancellation/expiry, valid/invalid/reused tokens, unresolved-preview refusal, committed-before-crash behavior, bad config/maps and service failure.
-- Read-only installer planner: clean candidate is not apply permission, mounted/read-only/small/unknown targets rejected, invalid account/timezone/layout, no `--apply` mode.
+- Retained Debian installer planner: read-only planning and refusal tests; this is separate from the current NixOS installer. `nixos/tests/install-encrypted.nix` covers the destructive install core, target refusal, interruption and retry on disposable disks.
 - Whole-disk UEFI VM: actual tty1 dashboard, unprivileged Grimoire process, active-local polkit eligibility, physical-key-code mapping via dumpkeys, independent timed revert, durable commit + reapplication. Actual screenshot and serial markers are retained.
 
 ## Missing acceptance tests and release gates
 
-Clean **physical** install/LUKS/authentication/recovery; full modifier/ANSI/ISO/custom-layout matrices; real Wi-Fi/brightness/charging/discharge; lock-before-suspend/resume; update interruption and rollback; full-kernel power-cut testing of both editors beyond fixture rescue; large-note/card/log CPU/input/flash-write budgets; long-load/power-cut accounting and civil-date qualification; independent human editorial/rights qualification of the original corpus; deeper cross-engine Nabokov/proselint Unicode/dialogue source maps (M7a Harper/common mapping now tested); WordNet senses; continuity/annotation/variant safety; genuine DOCX/PDF page-footnotes; verified off-device restore and sync conflicts; Google Docs round trip; all 39 original + supplemental 40 complete tutorial exercises; Python/spaCy/battery resource benchmarks.
+Remaining acceptance work includes release-specific physical install, unlock and recovery; full keyboard and device matrices; sleep/wake, Wi-Fi and battery behavior; broader interruption and power-loss tests; large-book resource budgets; provider restore and document round trips; independent editorial and rights review; and end-to-end acceptance of all 50 tutorial lessons. Existing DOCX/PDF footnote, continuity and NixOS install/update tests are defined in the tree; record candidate results separately.
 
 Safely simulate power-loss/save failures with injected rename/transport/filesystem behavior or disposable VM images. Never corrupt the user's only manuscript. For a crash process test use a new fixture book, verify recovery copies, then explicitly restore into a separate fixture. VM timer/commit reapplication is not yet a full reboot-persistence/cold-resume hardware test.
 
 ## Performance interpretation
 
-The current VM records process RSS from `/proc/<pid>/status` for a stripped debug/no-audio build on 512 MiB virtual RAM. QEMU wall time includes emulation, firmware, deliberate timer waiting and shutdown; it is not a laptop boot benchmark. Record future release builds, input latency, idle CPU and whole-system memory separately. The optional Python analyzers/models are not running in this measurement.
+The historical Debian VM measurement records process RSS from `/proc/<pid>/status` for a stripped debug/no-audio build on 512 MiB virtual RAM. It does not measure the current NixOS release build. QEMU wall time includes emulation, firmware, deliberate timer waiting and shutdown; it is not a laptop boot benchmark. Record future release builds, input latency, idle CPU and whole-system memory separately. The optional Python analyzers/models are not running in this measurement.
 
 ## M3b evidence commands
 
-`cargo test -p grimoire-tui wros_secondary --locked --offline` selects the 28 new behavior cases. `python3 -m unittest discover -s os/tests -p 'test_secondary_pty.py' -v` selects the actual application/PTY test, containing four terminal-size subcases. The complete Python discovery includes it; root or missing-binary skips must be reported, not counted as passed. Current full-suite totals and source identity are in [test-results.json](evidence/test-results.json). Run `python3 tools/check-wros.py --require-current-evidence` after refreshing both software and VM records to reject stale-source evidence.
+`cargo test -p grimoire-tui wros_secondary --locked --offline` selects the 28 new behavior cases. `python3 -m unittest discover -s os/tests -p 'test_secondary_pty.py' -v` selects the actual application/PTY test, containing four terminal-size subcases. The complete Python discovery includes it; root or missing-binary skips must be reported, not counted as passed. Historical full-suite totals and source identity are in [test-results.json](evidence/test-results.json). Use [NixOS qualification](NIXOS_QUALIFICATION.md) for current candidates. Run `python3 tools/check-wros.py --require-current-evidence` after refreshing both software and VM records to reject stale-source evidence.
 
 
 ## M4c workflow/preset acceptance
@@ -280,7 +291,7 @@ The opt-in release-mode synthetic probe is `cargo run -p grimoire-core --no-defa
 
 `python3 tools/build-spark-corpus.py --check` verifies immutable-ID derived artifacts and exact source/text hashes; it does not certify semantics or legal rights. `cargo test -p grimoire-core spark:: --locked --offline -j2` has 28 dedicated cases; three workflow adoption cases retain exact first-fingerprint/ID/foreign-state guards. `cargo test -p grimoire-tui --no-default-features spark_ui_tests --locked --offline -j2` has 28 actual controller/UI cases. `PYTHONPATH=os/tests python3 -m unittest test_spark_corpus test_spark_pty -v` adds six artifact/provenance contracts and four compiled non-root PTY methods, including four-size original editing/undo after actual process restart, fixed daily/favorite recall, ignored pasted commands, corrupt/future state, prepared source retry, initially empty independent scene and genuine active-sprint checkpoint refusal/normal quit/restart. Completed-frame captures wait for the exact newly selected IDs and final frame output, not just a file receipt or stale differential title.
 
-The complete verifier runs both overlapping Rust configurations, both warning-denying all-target Clippys, all Python methods without skipped PTYs, corpus drift, inventories, shell/syntax/docs/reference/diff gates. Fresh VM/source fingerprints and physical/release gates remain separate. Agent review/duplicate checks are not independent human/legal qualification. Future gates still include M7–M10 and the production M2b installer/lock/update/hardware matrix.
+The complete verifier runs both overlapping Rust configurations, both warning-denying all-target Clippys, all Python methods without skipped PTYs, corpus drift, inventories, shell/syntax/docs/reference/diff gates. Fresh VM/source fingerprints and physical/release gates remain separate. Agent review/duplicate checks are not independent human/legal qualification. The installer, lock and generation-update implementations now have NixOS tests. Broader milestone acceptance and release-specific hardware qualification remain separate from this historical M6 verifier run.
 
 ## M7a common diagnostics / real optional Harper
 

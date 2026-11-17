@@ -9,10 +9,11 @@ WrOS is a **dedicated, offline-first Linux writing appliance**: a complete boot-
 
 ## Current release work
 
-RC10 defaults to graphical disk unlock, loading, login and writing. The installed
-session keeps a separate authenticated lock and plain startup recovery. The
-release checklist covers the package update, startup VM and physical HP Stream
-checks. [Graphical screens](GRAPHICAL_SESSION.md) · [Release checklist](RELEASE_CHECKLIST.md)
+The current release is 0.1.0~rc16, built on NixOS 26.05. Graphical disk unlock,
+loading, login and writing are the defaults, with authenticated locking and text
+recovery. The release checklist covers the ISO, signed generation update bundle,
+NixOS VM checks and release-specific hardware checks.
+[Graphical screens](GRAPHICAL_SESSION.md) · [Release checklist](RELEASE_CHECKLIST.md)
 
 ## Read next
 

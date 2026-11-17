@@ -24,8 +24,11 @@ plans are preserved in the archive. Test results live in the evidence folder.
 
 ## The system
 
-- [LINUX_SYSTEM_INTEGRATION](LINUX_SYSTEM_INTEGRATION.md) and
-  [LINUX_BASE_COMPARISON](LINUX_BASE_COMPARISON.md): the Debian base.
+- [INSTALLATION](INSTALLATION.md), [NIXOS_UPDATES](NIXOS_UPDATES.md) and
+  [NIXOS_QUALIFICATION](NIXOS_QUALIFICATION.md): the current NixOS system.
+  [LINUX_SYSTEM_INTEGRATION](LINUX_SYSTEM_INTEGRATION.md): system services,
+  helpers and polkit rules. [LINUX_BASE_COMPARISON](LINUX_BASE_COMPARISON.md):
+  why WrOS runs on NixOS.
 - [GRAPHICAL_SESSION](GRAPHICAL_SESSION.md): native graphical screens, compositor
   alternatives and text recovery.
 - [GRAPHICAL_TRIAL](GRAPHICAL_TRIAL.md): renderer measurements, trial commands
@@ -38,13 +41,13 @@ plans are preserved in the archive. Test results live in the evidence folder.
   sleep and power.
 - [WARM_SCREEN](WARM_SCREEN.md): the warm screen.
 - [RATATUI_BOOT](RATATUI_BOOT.md): the start screens from power-on to the login,
-  drawn with Ratatui, with Debian's prompt behind them.
+  drawn with Ratatui, with systemd-cryptsetup's text prompt as the disk-unlock fallback.
 - [SETTINGS_MENU_PLAN](SETTINGS_MENU_PLAN.md): the Settings layout and how to
   move a page.
 - [UNIFIED_SHELL](UNIFIED_SHELL.md): one app for writing and system settings.
 - [LIVE_SESSION](LIVE_SESSION.md): the live session on the install media.
 - [NATIVE_TIMEZONE](NATIVE_TIMEZONE.md): choosing a time zone.
-- [API_AND_NETWORK_USE](API_AND_NETWORK_USE.md): every network connection.
+- [API_AND_NETWORK_USE](API_AND_NETWORK_USE.md): built-in network services and optional integrations.
 
 ## Keyboard and input
 

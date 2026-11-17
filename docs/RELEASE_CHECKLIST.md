@@ -2,6 +2,36 @@
 
 ## Build and qualify the candidate
 
+1. Record the candidate commit and set `os/VERSION`.
+2. On the Linux Nix builder, run the software and VM checks in
+   [NIXOS_QUALIFICATION](NIXOS_QUALIFICATION.md). Keep the qualification artifacts
+   and name each failure that remains.
+3. Build the ISO and unsigned closure bundle:
+
+   ```sh
+   nix build --out-link result-iso .#wros-iso
+   nix build --out-link result-update-bundle .#wros-update-bundle
+   ```
+
+   Release builds offering phone linking must set `WROS_GOOGLE_CLIENTS` to the
+   approved Google client configuration file and add `--impure` to both builds.
+4. Sign `result-update-bundle` with `tools/build-nixos-update-bundle.py` using the
+   external release key, as in [qualification step 6](NIXOS_QUALIFICATION.md#step-6-build-the-offline-live-iso-and-binary-cache-update-bundle).
+   Archive the signed directory's contents as `wros-nixos-updates.tar`. Verify
+   that tarball with an empty verification directory:
+
+   ```sh
+   python3 -I tools/publish-nixos-updates.py check-bundle "$tarball" "$verified_bundle" "$version"
+   ```
+
+   Keep the tarball SHA-256 and release notes with the qualification artifacts.
+5. Review the candidate's hardware results before approving the tag. The release
+   workflow expects the verified `wros-nixos-updates.tar` asset.
+
+## Debian builds, rc13 and earlier
+
+The following package, RC-chain and PTY instructions belong to Debian builds.
+
 1. Record the candidate commit and set `os/VERSION` (the packaging test checks
    it). Run `tools/rc-check.sh` in the Debian 13 chroot and keep its
    `summary.txt`; name each failure that remains (the prose-runtime tests fail
@@ -46,28 +76,27 @@ to that debug executable and run `WROS_QA_PTY=1 PYTHONPATH=os/tests python3 -m
 unittest test_rc7_pty`. The fixture locker tests input retirement and typeahead
 isolation. The QEMU feature phase tests the installed locker and PAM.
 
-## Check installation without Internet
-
-Use the audited ISO in the Debian builder with QEMU, `iproute2`, and `tcpdump`.
-Run the full install with a wired virtual NIC inside a fresh Linux network
-namespace. The guest gets a DHCP route and DNS address, while the host namespace
-has no active links to the Internet. The installation must finish using the
-media when online sources cannot be reached. Keep the IPv4 capture as a record
-of attempted network access; DNS, network-time and update requests are allowed.
-
-Network time and update checks stay enabled by default. An online installation
-may retrieve missing drivers or packages. The offline image still carries the
-base packages and firmware for its supported hardware; additional hardware can
-use Debian's network-assisted setup when a connection is available.
+The retained Debian installation network audit uses QEMU, `iproute2` and
+`tcpdump`, with a wired virtual NIC in a fresh network namespace without an
+Internet connection:
 
 ```sh
 sudo unshare --net runuser -u builder -- python3 os/tests/rc_vm_phases.py \
   install --iso "$iso" --layout colemak --audit-network
 ```
 
-Keep the result and the private `install.pcap`. The installer VM uses its own
-disposable disk. This check covers IPv4 during a wired installation. Verify
-Wi-Fi provisioning separately on the laptop.
+Keep its result and private `install.pcap` with the exact Debian ISO and harness.
+The VM uses a disposable disk; this audit covers IPv4 during wired installation.
+
+## Check installation without Internet
+
+The NixOS ISO contains the complete installed-system closure and supported
+firmware. Run `nix build -L .#checks.x86_64-linux.install-encrypted` and perform
+the actual ISO checks in [NIXOS_QUALIFICATION](NIXOS_QUALIFICATION.md). Verify
+installation from the medium without relying on network package downloads.
+Network time and update metadata checks are separate services. Keep any IPv4
+capture as an additional network audit, labeled with the exact ISO and harness
+used. Verify Wi-Fi provisioning separately on the laptop.
 
 ## HP Stream hardware checks
 
@@ -78,19 +107,33 @@ carry over. Record the results in its table.
 
 ## Verify a live update after publication
 
-1. Check that the Pages deployment succeeded and that its `updates/` contains
-   `InRelease`, `Release`, `Release.gpg`, `Packages` and the bundle's packages.
-   Run `python3 -I tools/publish-updates.py published <updates-url> <empty-dir>`
-   in a fresh local directory. Compare each downloaded package's SHA-256 with
-   its entry in the offline bundle.
-2. On a disposable older WrOS installation, open **Settings › Updates and recovery › Updates**
+1. Check that Pages serves `nixos-updates/InRelease`,
+   `nixos-updates/closure-manifest.json` and every required cache file from the
+   verified `wros-nixos-updates.tar`. Verify the signed manifest and compare
+   downloaded cache-file sizes and SHA-256 hashes with the bundle.
+2. Use a disposable older WrOS installation whose app accepts the NixOS updater
+   replies. rc14 and rc15 cannot install updates from Settings; follow
+   [Update an installed system](INSTALLATION.md#update-an-installed-system) for
+   their routes to a supported baseline. Open **Settings › Updates and recovery › Updates**
    and choose **Check for WrOS updates**. Review the version, signer and validity
    dates. Confirm staging, restart, unlock and check that Settings reports the
-   completed update and that the original book is intact.
+   completed update and that the original book is intact. Test the Settings path explicitly;
+   a shell-driven `update-goback` VM result does not establish this UI path.
 3. On the HP Stream, confirm the recovery menu is reachable with Esc at boot.
    Try **Show what happened** and **Continue to the normal login**.
 
+## Verify the retained Debian channel
+
+Check that Pages serves `updates/InRelease`, `updates/Release`,
+`updates/Release.gpg`, `updates/Packages` and the Debian bundle's packages. Run
+`python3 -I tools/publish-updates.py published <updates-url> <empty-dir>` in a
+fresh local directory. Compare each downloaded package's SHA-256 with its entry
+in the offline Debian bundle.
+
 ## Set up the weekly signing subkey
+
+This signing path refreshes Debian-channel metadata during an eligible
+deployment; it does not sign the NixOS bundle.
 
 These steps are for the owner. The offline release key stays in the offline
 keyring. Start with a release that will distribute the new public subkey.
@@ -130,13 +173,19 @@ keyring. Start with a release that will distribute the new public subkey.
    public keyring. Add the export as the Actions secret
    `WROS_UPDATE_SIGNING_SUBKEY` for the `github-pages` environment. Remove the
    temporary export and disposable keyring after setup.
-5. After the first weekly run, verify that the `InRelease` date advanced and
-   the package checksum stayed the same. The workflow verifies the old
-   published package before re-signing it for 21 days. GitHub runs the schedule
-   from the default branch and may disable it after 60 days of inactivity.
-   [GitHub schedule behavior](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)
+5. This signing path refreshes Debian-channel metadata during an eligible
+   deployment. The current weekly schedule names no NixOS release and deploys
+   nothing; it does not renew either published channel automatically. A NixOS
+   channel refresh requires a newly signed bundle and a tag or dispatch naming
+   its release.
+
+The NixOS channel's `InRelease` is signed offline with a `Valid-Until` set by
+`tools/build-nixos-update-bundle.py --valid-days`, at most 30 days from the signed
+release date. The channel stops being valid that many days after the last signed
+NixOS release unless a newer release is published.
 
 
-## NixOS release candidate qualification (`0.1.0~rc14`)
+## NixOS release candidate qualification (rc14 and later)
 
-Before tagging a NixOS release candidate, run the static rebase check (`python3 rebase-kit/check_rebase.py --tree .`), evaluate and build the flake outputs (`nix flake check`, `nix build .#wros-iso .#wros-update-bundle`), sign the closure bundle with `tools/build-nixos-update-bundle.py`, verify it with `tools/publish-nixos-updates.py check-bundle`, and execute the ordered steps in [`NIXOS_QUALIFICATION.md`](NIXOS_QUALIFICATION.md).
+Before tagging a NixOS release candidate, evaluate and build the flake outputs
+and execute the ordered steps in [NIXOS_QUALIFICATION](NIXOS_QUALIFICATION.md).
