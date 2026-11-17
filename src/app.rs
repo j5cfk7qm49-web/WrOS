@@ -1864,13 +1864,14 @@ impl App {
         }
         match self.editor.selected_text() {
             Some(text) if !text.is_empty() => {
+                let n = text.chars().count();
                 self.clip = text.clone();
                 if !self.background || copy_to_clipboard(&text) {
                     self.editor.delete_selection();
                     self.flush();
-                    self.msg = "cut — undo puts it back".into();
+                    self.msg = format!("Cut {n} character{}", if n == 1 { "" } else { "s" });
                 } else {
-                    self.msg = "no clipboard tool found, so nothing was cut".into();
+                    self.msg = "could not copy to the clipboard, so nothing was cut".into();
                 }
             }
             _ => self.msg = "nothing selected".into(),
@@ -5263,7 +5264,7 @@ impl App {
         }
     }
 
-    /// Copy the editor selection to the system clipboard.
+    /// Copy the editor selection, sharing it with the system clipboard when available.
     pub fn copy_selection(&mut self) {
         match self.editor.selected_text() {
             Some(text) if !text.is_empty() => {
@@ -5271,9 +5272,11 @@ impl App {
                 self.clip = text.clone();
                 // Tests never touch the computer's clipboard.
                 if !self.background || copy_to_clipboard(&text) {
-                    self.msg = format!("copied {n} char{}", if n == 1 { "" } else { "s" });
+                    self.msg = format!("Copied {n} character{}", if n == 1 { "" } else { "s" });
                 } else {
-                    self.msg = "copied for Ctrl-V here · no clipboard tool found to share it with other apps".into();
+                    self.msg =
+                        "copied for Ctrl-V here · could not share it with the system clipboard"
+                            .into();
                 }
             }
             _ => self.msg = "nothing selected".into(),
@@ -6009,6 +6012,11 @@ fn thousands_plain(n: usize) -> String {
 
 fn read_clipboard() -> Option<String> {
     use std::process::{Command, Stdio};
+
+    if crate::session::native() {
+        return None;
+    }
+
     const TOOLS: &[(&str, &[&str])] = &[
         ("pbpaste", &[]),                              // macOS
         ("wl-paste", &["--no-newline"]),               // Wayland
@@ -6051,6 +6059,10 @@ fn copy_to_clipboard(text: &str) -> bool {
     use std::io::Write;
     use std::process::{Command, Stdio};
 
+    if crate::session::native() {
+        return true;
+    }
+
     const TOOLS: &[(&str, &[&str])] = &[
         ("pbcopy", &[]),                         // macOS
         ("wl-copy", &[]),                        // Wayland
@@ -6085,8 +6097,13 @@ fn copy_to_clipboard(text: &str) -> bool {
         }
         return child.wait().map(|s| s.success()).unwrap_or(false);
     }
-    false
+    // With no desktop clipboard tool, App::clip is the clipboard.
+    true
 }
+
+#[cfg(all(test, unix))]
+#[path = "app/clipboard_tests.rs"]
+mod clipboard_fallback_tests;
 
 #[cfg(all(test, windows))]
 mod clipboard_tests {
