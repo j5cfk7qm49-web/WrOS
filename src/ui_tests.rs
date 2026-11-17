@@ -3276,6 +3276,228 @@ fn wait_import(d: &mut Desk) {
     panic!("import did not finish:\n{}", d.rows().join("\n"));
 }
 
+type UsbRequests = std::sync::Arc<std::sync::Mutex<Vec<wros_sys::Request>>>;
+
+fn wait_usb(d: &mut Desk, ready: impl Fn(&Desk) -> bool) {
+    let end = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while std::time::Instant::now() < end {
+        d.app.tick_import();
+        d.app.tick_deck();
+        d.draw();
+        if ready(d) {
+            return;
+        }
+        std::thread::yield_now();
+    }
+    panic!("USB request did not finish:\n{}", d.rows().join("\n"));
+}
+
+fn usb_sources(
+    d: &mut Desk,
+    mount: &Path,
+    mount_gate: Option<std::sync::mpsc::Receiver<()>>,
+) -> UsbRequests {
+    use std::sync::{Arc, Mutex};
+    use wros_sys::{Backend, ImportStick, Reply, Request, Simulated};
+
+    struct UsbBackend {
+        inner: Simulated,
+        requests: UsbRequests,
+        mount_gate: Option<std::sync::mpsc::Receiver<()>>,
+    }
+    impl Backend for UsbBackend {
+        fn request(&mut self, request: Request) -> anyhow::Result<Reply> {
+            self.requests.lock().unwrap().push(request.clone());
+            if matches!(&request, Request::MountImportMedia(_))
+                && let Some(gate) = self.mount_gate.take()
+            {
+                gate.recv_timeout(std::time::Duration::from_secs(5))
+                    .unwrap();
+            }
+            self.inner.request(request)
+        }
+        fn simulated(&self) -> bool {
+            true
+        }
+    }
+    let requests = Arc::new(Mutex::new(Vec::new()));
+    let mut backend = Simulated::laptop();
+    backend.import_media = vec![
+        ImportStick {
+            device: "/dev/sdb1".into(),
+            label: "BOOKS".into(),
+            mount: Some(mount.to_string_lossy().into_owned()),
+        },
+        ImportStick {
+            device: "/dev/sdc1".into(),
+            label: String::new(),
+            mount: Some(mount.to_string_lossy().into_owned()),
+        },
+    ];
+    d.app.deck.use_test_backend(Box::new(UsbBackend {
+        inner: backend,
+        requests: requests.clone(),
+        mount_gate,
+    }));
+    d.menu(&["File", "Open another book…"]);
+    d.choose("Import a book…");
+    wait_usb(d, |d| d.shows("USB stick \"BOOKS\""));
+    requests
+}
+
+#[test]
+fn a_usb_stick_is_listed_by_label_and_unmounted_when_import_closes() {
+    if !shelf_home("a_usb_stick_is_listed_by_label_and_unmounted_when_import_closes") {
+        return;
+    }
+    use wros_sys::Request;
+
+    let first = import_fixture("Documents/Open", "Local words.\n");
+    let source = import_fixture("Stick/Book", "USB words.\n");
+    let mut d = Desk::open(first, 80, 24);
+    let requests = usb_sources(&mut d, source.parent().unwrap(), None);
+    assert!(d.shows("USB stick \"BOOKS\""));
+    d.choose("USB stick \"BOOKS\"");
+    wait_usb(&mut d, |d| d.shows("Book · book"));
+    assert!(d.shows("Book · book"));
+    assert!(
+        !d.shows("Up one folder"),
+        "the mount point is the browser's top"
+    );
+    d.keys(&[KeyCode::Esc, KeyCode::Esc]);
+    wait_usb(&mut d, |d| {
+        !d.app.deck.busy
+            && requests
+                .lock()
+                .unwrap()
+                .contains(&Request::UnmountImportMedia)
+    });
+    for _ in 0..3 {
+        d.app.tick_import();
+        d.app.tick_deck();
+    }
+    assert_eq!(
+        *requests.lock().unwrap(),
+        vec![
+            Request::ListImportMedia,
+            Request::MountImportMedia("/dev/sdb1".into()),
+            Request::UnmountImportMedia,
+        ]
+    );
+}
+
+#[test]
+fn a_usb_import_unmounts_after_opening_the_copy_or_replacing_the_overlay() {
+    if !shelf_home("a_usb_import_unmounts_after_opening_the_copy_or_replacing_the_overlay") {
+        return;
+    }
+    use wros_sys::Request;
+
+    let source = import_fixture("Stick/Book", "USB words.\n");
+    let before = import_snapshot(&source);
+    for copy in [false, true] {
+        let first = import_fixture("Documents/Open", "Local words.\n");
+        let mut d = Desk::open(first, 80, 24);
+        let requests = usb_sources(&mut d, source.parent().unwrap(), None);
+        d.choose("USB stick \"BOOKS\"");
+        wait_usb(&mut d, |d| d.shows("Book · book"));
+        if copy {
+            d.choose("Book");
+            assert!(d.shows_wrapped("Copying A laptop book from BOOKS…"));
+            assert!(
+                !requests
+                    .lock()
+                    .unwrap()
+                    .contains(&Request::UnmountImportMedia)
+            );
+            wait_import(&mut d);
+            assert_eq!(
+                d.app.project.root,
+                fs::canonicalize(crate::books::documents().join("Book")).unwrap()
+            );
+            assert!(d.shows_wrapped("and checked. Opening it."));
+        } else {
+            d.app.overlay = Overlay::Books { sel: 0 };
+        }
+        wait_usb(&mut d, |d| {
+            !d.app.deck.busy
+                && requests
+                    .lock()
+                    .unwrap()
+                    .contains(&Request::UnmountImportMedia)
+        });
+        assert_eq!(import_snapshot(&source), before);
+    }
+}
+
+#[test]
+fn opening_another_usb_stick_unmounts_the_first() {
+    if !shelf_home("opening_another_usb_stick_unmounts_the_first") {
+        return;
+    }
+    use wros_sys::Request;
+
+    let first = import_fixture("Documents/Open", "Local words.\n");
+    let source = import_fixture("Stick/Book", "USB words.\n");
+    let mut d = Desk::open(first, 80, 24);
+    let requests = usb_sources(&mut d, source.parent().unwrap(), None);
+    d.choose("USB stick \"BOOKS\"");
+    wait_usb(&mut d, |d| d.shows("Book · book"));
+    d.keys(&[KeyCode::Esc, KeyCode::Down, KeyCode::Down, KeyCode::Enter]);
+    wait_usb(&mut d, |d| d.shows("Book · book"));
+    assert_eq!(
+        *requests.lock().unwrap(),
+        vec![
+            Request::ListImportMedia,
+            Request::MountImportMedia("/dev/sdb1".into()),
+            Request::UnmountImportMedia,
+            Request::MountImportMedia("/dev/sdc1".into()),
+        ]
+    );
+    d.keys(&[KeyCode::Esc, KeyCode::Esc]);
+    wait_usb(&mut d, |d| {
+        !d.app.deck.busy
+            && requests
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|request| **request == Request::UnmountImportMedia)
+                .count()
+                == 2
+    });
+}
+
+#[test]
+fn closing_import_while_a_usb_mount_is_pending_unmounts_its_late_reply() {
+    if !shelf_home("closing_import_while_a_usb_mount_is_pending_unmounts_its_late_reply") {
+        return;
+    }
+    use wros_sys::Request;
+
+    let first = import_fixture("Documents/Open", "Local words.\n");
+    let source = import_fixture("Stick/Book", "USB words.\n");
+    let mut d = Desk::open(first, 80, 24);
+    let (send, gate) = std::sync::mpsc::channel();
+    let requests = usb_sources(&mut d, source.parent().unwrap(), Some(gate));
+    d.choose("USB stick \"BOOKS\"");
+    wait_usb(&mut d, |_| {
+        requests
+            .lock()
+            .unwrap()
+            .contains(&Request::MountImportMedia("/dev/sdb1".into()))
+    });
+    d.keys(&[KeyCode::Esc, KeyCode::Esc]);
+    send.send(()).unwrap();
+    wait_usb(&mut d, |d| {
+        !d.app.deck.busy
+            && requests
+                .lock()
+                .unwrap()
+                .contains(&Request::UnmountImportMedia)
+    });
+    assert!(matches!(d.app.overlay, Overlay::Books { .. }));
+}
+
 #[test]
 fn a_laptop_book_is_copied_into_documents_checked_and_opened() {
     if !shelf_home("a_laptop_book_is_copied_into_documents_checked_and_opened") {

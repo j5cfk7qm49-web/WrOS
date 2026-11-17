@@ -60,7 +60,7 @@ pkgs.stdenv.mkDerivation {
     for script in \
       wros-keyboard wros-display wros-boot-settings wros-clock \
       wros-sound wros-passwd wros-media-key wros-backup wros-sync \
-      wros-session wros-lock wros-recovery \
+      wros-session wros-lock wros-recovery wros-import-media \
       wros-update wros-update-stage wros-update-cancel wros-update-repair \
       wros-update-media wros-update-fetch wros-update-apply \
       wros-update-rollback wros-update-healthy; do
@@ -70,6 +70,13 @@ pkgs.stdenv.mkDerivation {
     done
 
     # Quote-independent --replace-fail substitutions per helper script
+    substituteInPlace "$out/libexec/wros-import-media" \
+      --replace-fail "/usr/sbin:/usr/bin:/sbin:/bin" "${safePath}" \
+      --replace-fail "/usr/bin/lsblk" "${pkgs.util-linux}/bin/lsblk" \
+      --replace-fail "/usr/bin/findmnt" "${pkgs.util-linux}/bin/findmnt" \
+      --replace-fail "/usr/bin/mount" "${pkgs.util-linux}/bin/mount" \
+      --replace-fail "/usr/bin/umount" "${pkgs.util-linux}/bin/umount"
+
     substituteInPlace "$out/libexec/wros-keyboard" \
       --replace-fail "/usr/bin/loadkeys" "${pkgs.kbd}/bin/loadkeys" \
       --replace-fail "/usr/bin/systemctl" "${pkgs.systemd}/bin/systemctl" \

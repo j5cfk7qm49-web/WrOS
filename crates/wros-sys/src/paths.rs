@@ -154,6 +154,11 @@ pub const WROS_DISPLAY: &str = match option_env!("WROS_PATH_HELPER_DISPLAY") {
     None => "/usr/libexec/wros-display",
 };
 
+pub const WROS_IMPORT_MEDIA: &str = match option_env!("WROS_PATH_HELPER_IMPORT_MEDIA") {
+    Some(v) => v,
+    None => "/usr/libexec/wros-import-media",
+};
+
 pub const WROS_INSTALL_SESSION: &str = match option_env!("WROS_PATH_HELPER_INSTALL_SESSION") {
     Some(v) => v,
     None => "/usr/libexec/wros-install-session",

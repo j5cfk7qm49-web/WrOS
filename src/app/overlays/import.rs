@@ -5,12 +5,23 @@ use crate::backup_service::{self as service, DriveBooks, Job, Progress, Request,
 use grimoire_core::book_copy::{self, MergeReport};
 use grimoire_core::shelf::{free_destination, project_id_of, same_book, title_of};
 use std::sync::mpsc::TryRecvError;
+use wros_sys::{ImportStick, Request as SystemRequest};
+
+#[derive(Default)]
+pub(crate) struct ImportMedia {
+    sticks: Vec<ImportStick>,
+    pending: Option<SystemRequest>,
+    refresh: bool,
+    open: bool,
+    pub(crate) mounted: bool,
+    pub(crate) waiting: bool,
+    release: bool,
+    error: Option<String>,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum ImportSource {
     Drive,
-    // These sources are filled in by the following Import tasks.
-    #[allow(dead_code)]
     Usb {
         label: String,
         mount: PathBuf,
@@ -66,6 +77,9 @@ pub(crate) struct ImportDone {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum ImportStage {
     Sources,
+    MountingUsb {
+        device: String,
+    },
     ReadingDrive {
         dir: PathBuf,
         job: Job<DriveBooks>,
@@ -193,7 +207,96 @@ fn newest(root: &Path) -> String {
     )
 }
 
+fn import_error(incoming: &Incoming, error: anyhow::Error) -> String {
+    if matches!(&incoming.source, ImportSource::Usb { .. }) && !books::is_book(&incoming.path) {
+        "The USB stick was removed.".into()
+    } else {
+        format!("Book import failed: {error:#}")
+    }
+}
+
 impl App {
+    pub(crate) fn open_import(&mut self) {
+        self.import_media.sticks.clear();
+        self.import_media.error = None;
+        self.import_media.pending = None;
+        self.import_media.refresh = true;
+        self.overlay = Overlay::Import(ImportState::new());
+    }
+
+    pub(crate) fn on_import_media(&mut self, request: &SystemRequest, sticks: Vec<ImportStick>) {
+        self.import_media.waiting = false;
+        match request {
+            SystemRequest::ListImportMedia => {
+                self.import_media.mounted |= sticks.iter().any(|stick| stick.mount.is_some());
+                self.import_media.sticks = sticks;
+            }
+            SystemRequest::MountImportMedia(device) => {
+                self.import_media.mounted = true;
+                if matches!(
+                    &self.overlay,
+                    Overlay::Import(ImportState {
+                        stage: ImportStage::MountingUsb { device: chosen },
+                        ..
+                    }) if chosen == device
+                ) && let Some(stick) = sticks.into_iter().next()
+                    && let Some(mount) = stick.mount
+                {
+                    self.import_media.release = false;
+                    let source = ImportSource::Usb {
+                        label: stick.label,
+                        mount: PathBuf::from(mount),
+                    };
+                    let dir = source.top();
+                    self.browse_import(source, dir);
+                } else {
+                    // Esc or another screen won the race with the mount worker.
+                    self.import_media.release = true;
+                }
+            }
+            SystemRequest::UnmountImportMedia => {
+                self.import_media.mounted = false;
+                self.import_media.release = false;
+                if let Overlay::Import(ImportState {
+                    stage: ImportStage::MountingUsb { device },
+                    ..
+                }) = &self.overlay
+                {
+                    self.import_media.pending =
+                        Some(SystemRequest::MountImportMedia(device.clone()));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub(crate) fn on_import_media_error(&mut self, request: &SystemRequest, error: &str) {
+        match request {
+            SystemRequest::ListImportMedia => {
+                self.import_media.waiting = false;
+                self.import_media.error = Some(format!("Cannot list USB sticks: {error}"));
+            }
+            SystemRequest::MountImportMedia(_) => {
+                self.import_media.waiting = false;
+                self.import_media.mounted = true;
+                self.import_media.release = true;
+                if matches!(self.overlay, Overlay::Import(_)) {
+                    self.import_done(format!("Cannot mount the USB stick: {error}"));
+                }
+            }
+            SystemRequest::UnmountImportMedia => {
+                self.import_media.waiting = false;
+                self.import_media.mounted = true;
+                self.import_media.release = false;
+                self.msg = format!("Cannot unmount the USB stick: {error}");
+                if matches!(self.overlay, Overlay::Import(_)) {
+                    self.import_done(self.msg.clone());
+                }
+            }
+            _ => {}
+        }
+    }
+
     pub(super) fn on_import_key(&mut self, key: Key) {
         let Overlay::Import(state) = &mut self.overlay else {
             return;
@@ -207,6 +310,16 @@ impl App {
                             return;
                         }
                         ImportSource::Drive
+                    } else if let Some(stick) = self.import_media.sticks.get(state.sel - 1) {
+                        let device = stick.device.clone();
+                        self.import_media.pending = Some(if self.import_media.mounted {
+                            SystemRequest::UnmountImportMedia
+                        } else {
+                            SystemRequest::MountImportMedia(device.clone())
+                        });
+                        state.stage = ImportStage::MountingUsb { device };
+                        state.sel = 0;
+                        return;
                     } else {
                         ImportSource::Laptop
                     };
@@ -215,9 +328,21 @@ impl App {
                 }
                 Key::Esc => self.overlay = Overlay::Books { sel: 0 },
                 _ => {
-                    list_nav(key, &mut state.sel, 2, RING);
+                    list_nav(
+                        key,
+                        &mut state.sel,
+                        self.import_media.sticks.len() + 2,
+                        RING,
+                    );
                 }
             },
+            ImportStage::MountingUsb { .. } => {
+                if key == Key::Esc {
+                    *state = ImportState::new();
+                    self.import_media.pending = None;
+                    self.import_media.release = true;
+                }
+            }
             ImportStage::ReadingDrive { .. } => {
                 if key == Key::Esc {
                     *state = ImportState::new();
@@ -610,7 +735,7 @@ impl App {
                 }
                 result
             };
-            run().map_err(|e| format!("Book import failed: {e:#}"))
+            run().map_err(|error| import_error(&incoming, error))
         });
         match work {
             Ok(job) => {
@@ -626,6 +751,37 @@ impl App {
 
     /// Keep the progress screen until the worker has finished checking or cleaning up.
     pub(crate) fn tick_import(&mut self) {
+        let importing = matches!(self.overlay, Overlay::Import(_));
+        if !importing {
+            if self.import_media.open {
+                self.import_media.release = true;
+            }
+            self.import_media.pending = None;
+            self.import_media.refresh = false;
+        }
+        self.import_media.open = importing;
+        // Copying cannot be left by a key. If another screen replaces it, Job's
+        // drop waits for cancellation and cleanup before this tick can unmount.
+        let copying = matches!(
+            self.overlay,
+            Overlay::Import(ImportState {
+                stage: ImportStage::Copying { .. },
+                ..
+            })
+        );
+        if !self.deck.busy && !self.import_media.waiting && !copying {
+            if self.import_media.mounted && self.import_media.release {
+                self.import_media.pending = Some(SystemRequest::UnmountImportMedia);
+            }
+            if self.import_media.pending.is_none() && self.import_media.refresh {
+                self.import_media.pending = Some(SystemRequest::ListImportMedia);
+                self.import_media.refresh = false;
+            }
+            if let Some(request) = self.import_media.pending.take() {
+                self.deck.request(request);
+                self.import_media.waiting = self.deck.busy;
+            }
+        }
         let Overlay::Import(state) = &mut self.overlay else {
             return;
         };
@@ -680,6 +836,7 @@ impl App {
         };
         // The worker has ended; dropping its handle no longer waits for file work.
         self.overlay = Overlay::None;
+        self.import_media.release = true;
         match result {
             Ok(done) => {
                 self.shelf_cache.take();
@@ -750,8 +907,19 @@ pub(super) fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             } else {
                 "Google Drive · link it in Settings first".into()
             });
+            rows.extend(app.import_media.sticks.iter().map(|stick| {
+                if stick.label.is_empty() {
+                    "USB stick".into()
+                } else {
+                    format!("USB stick \"{}\"", stick.label)
+                }
+            }));
             rows.push("A folder on this laptop".into());
+            if let Some(error) = &app.import_media.error {
+                say(error.clone());
+            }
         }
+        ImportStage::MountingUsb { .. } => say("Opening the USB stick…".into()),
         ImportStage::ReadingDrive { job, .. } => {
             say("Reading Google Drive…".into());
             say(job.status_line());
@@ -849,4 +1017,62 @@ pub(super) fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     lines.push(Line::from(""));
     lines.push(hint_line(hint, t));
     f.render_widget(Paragraph::new(lines), inner);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::AtomicBool;
+
+    #[test]
+    fn a_usb_stick_removed_during_copy_names_the_cause_and_leaves_nothing() {
+        let temp = tempfile::tempdir().unwrap();
+        let source = temp.path().join("stick/Book");
+        let documents = temp.path().join("Documents");
+        fs::create_dir_all(source.join("manuscript")).unwrap();
+        fs::create_dir(&documents).unwrap();
+        fs::write(source.join("manuscript/Scene.md"), "Words from USB.").unwrap();
+        let incoming = Incoming {
+            source: ImportSource::Usb {
+                label: "BOOKS".into(),
+                mount: source.parent().unwrap().to_path_buf(),
+            },
+            path: source.clone(),
+            name: "Book".into(),
+            project_id: None,
+        };
+        let mut removed = false;
+        let error = book_copy::copy_book(
+            &source,
+            &documents.join("Book"),
+            &AtomicBool::new(false),
+            &mut |_| {
+                if !removed {
+                    // The open file can finish reading, but the mounted tree is gone
+                    // before verification, just as when a stick is pulled out.
+                    fs::rename(source.parent().unwrap(), temp.path().join("pulled")).unwrap();
+                    removed = true;
+                }
+            },
+        )
+        .unwrap_err();
+        assert!(removed);
+        assert_eq!(import_error(&incoming, error), "The USB stick was removed.");
+        assert_eq!(fs::read_dir(&documents).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn other_copy_errors_keep_their_cause() {
+        let temp = tempfile::tempdir().unwrap();
+        let incoming = Incoming {
+            source: ImportSource::Laptop,
+            path: temp.path().join("missing"),
+            name: "Book".into(),
+            project_id: None,
+        };
+        assert_eq!(
+            import_error(&incoming, anyhow::anyhow!("disk is full")),
+            "Book import failed: disk is full"
+        );
+    }
 }

@@ -426,6 +426,11 @@ impl Deck {
     pub fn use_test_backend(&mut self, backend: Box<dyn Backend>) {
         self.worker = Some(Worker::spawn(backend));
     }
+
+    pub(super) fn carry_import_worker(&mut self, previous: &mut Self) {
+        std::mem::swap(&mut self.worker, &mut previous.worker);
+        std::mem::swap(&mut self.busy, &mut previous.busy);
+    }
 }
 
 impl App {
@@ -1015,6 +1020,9 @@ impl App {
                 Ok(Reply::UpdateApplied(applied)) => {
                     self.on_update_applied(applied);
                 }
+                Ok(Reply::ImportMedia(sticks)) => {
+                    self.on_import_media(&request, sticks);
+                }
                 Ok(Reply::UpdateMedia(media)) => {
                     self.on_update_media(media);
                 }
@@ -1179,6 +1187,7 @@ impl App {
                     }
                 }
                 Err(e) => {
+                    self.on_import_media_error(&request, &e);
                     self.deck.shell.warm_wait = false;
                     if matches!(request, Request::DisplayStatus) {
                         self.deck.shell.display = None;

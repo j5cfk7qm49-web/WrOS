@@ -525,6 +525,21 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
             &["mount"],
             MEDIA_TIMEOUT_SECS,
         ),
+        Request::ListImportMedia => Invocation::update_launcher(
+            crate::paths::WROS_IMPORT_MEDIA,
+            &["list"],
+            MEDIA_TIMEOUT_SECS,
+        ),
+        Request::MountImportMedia(device) => Invocation::update_launcher(
+            crate::paths::WROS_IMPORT_MEDIA,
+            &["mount", device],
+            MEDIA_TIMEOUT_SECS,
+        ),
+        Request::UnmountImportMedia => Invocation::update_launcher(
+            crate::paths::WROS_IMPORT_MEDIA,
+            &["unmount"],
+            MEDIA_TIMEOUT_SECS,
+        ),
         // Unprivileged: signed metadata only, from the fixed URL in the engine.
         Request::CheckOnlineUpdates => {
             Invocation::new(crate::paths::WROS_UPDATE, &["check-online"])
@@ -922,6 +937,23 @@ impl<R: Runner> Backend for Linux<R> {
             return Ok(Reply::Message(message.into()));
         }
         match &request {
+            Request::ListImportMedia
+            | Request::MountImportMedia(_)
+            | Request::UnmountImportMedia => {
+                let sticks: Vec<crate::ImportStick> =
+                    serde_json::from_str(&output).context("invalid import media reply")?;
+                if let Request::MountImportMedia(device) = &request
+                    && (sticks.len() != 1
+                        || sticks[0].device != *device
+                        || sticks[0].mount.as_deref() != Some("/run/wros-import/media/1"))
+                {
+                    bail!("the USB stick was not mounted by the service");
+                }
+                if request == Request::UnmountImportMedia && !sticks.is_empty() {
+                    bail!("the USB stick was not unmounted by the service");
+                }
+                return Ok(Reply::ImportMedia(sticks));
+            }
             Request::ScanWifi => {
                 return Ok(Reply::WifiScan(crate::system_views::wifi_scan(&output)?));
             }
@@ -1134,6 +1166,76 @@ mod tests {
             "missing passwd is an error, never a fabricated writer account"
         );
     }
+    #[test]
+    fn import_media_verbs_use_pkexec_and_the_media_budget() {
+        for (request, args) in [
+            (Request::ListImportMedia, vec!["list"]),
+            (
+                Request::MountImportMedia("/dev/sdb1".into()),
+                vec!["mount", "/dev/sdb1"],
+            ),
+            (Request::UnmountImportMedia, vec!["unmount"]),
+        ] {
+            let command = invocation(&request).unwrap();
+            assert_eq!(command.program, crate::paths::PKEXEC);
+            let mut expected = vec!["--disable-internal-agent", crate::paths::WROS_IMPORT_MEDIA];
+            expected.extend(args);
+            assert_eq!(command.args, expected);
+            assert_eq!(command.timeout, Duration::from_secs(60));
+        }
+    }
+
+    #[test]
+    fn import_media_replies_decode_the_stick_and_require_mount_confirmation() {
+        struct MediaReply(&'static str);
+        impl Runner for MediaReply {
+            fn run(&mut self, _: &Invocation) -> Result<String> {
+                Ok(self.0.into())
+            }
+        }
+        let backend = |output| Linux {
+            runner: MediaReply(output),
+            sys: "/missing".into(),
+            etc: "/missing".into(),
+            storage: "/missing".into(),
+        };
+        let listed = r#"[{"device":"/dev/sdb1","label":"BOOKS","mount":null}]"#;
+        assert_eq!(
+            backend(listed).request(Request::ListImportMedia).unwrap(),
+            Reply::ImportMedia(vec![crate::ImportStick {
+                device: "/dev/sdb1".into(),
+                label: "BOOKS".into(),
+                mount: None,
+            }])
+        );
+        let mounted = concat!(
+            r#"[{"device":"/dev/sdb1","label":"BOOKS","mount":"#,
+            r#""/run/wros-import/media/1"}]"#,
+        );
+        let mount = Request::MountImportMedia("/dev/sdb1".into());
+        assert!(matches!(
+            backend(mounted).request(mount.clone()).unwrap(),
+            Reply::ImportMedia(sticks) if sticks[0].mount.is_some()
+        ));
+        assert_eq!(
+            backend("[]").request(Request::UnmountImportMedia).unwrap(),
+            Reply::ImportMedia(Vec::new())
+        );
+        for output in ["not json", "{}", "[]", listed] {
+            assert!(backend(output).request(mount.clone()).is_err());
+        }
+        assert!(
+            backend(mounted)
+                .request(Request::MountImportMedia("/dev/sdc1".into()))
+                .is_err()
+        );
+        assert!(
+            backend(mounted)
+                .request(Request::UnmountImportMedia)
+                .is_err()
+        );
+    }
+
     #[test]
     fn update_verbs_use_fixed_argv_and_only_privileged_verbs_use_pkexec() {
         let dir = "/media/usb/wros-updates";

@@ -382,6 +382,7 @@ pub struct App {
     /// The shelf's rows, read from disk at most every few seconds (every key and redraw
     /// of the shelf reuses them).
     pub(crate) shelf_cache: std::cell::RefCell<Option<(Instant, Vec<ShelfRow>)>>,
+    pub(crate) import_media: overlays::import::ImportMedia,
 }
 
 /// Set while the help is drawn: how far the article can scroll, how many
@@ -1056,6 +1057,7 @@ impl App {
             last_click: None,
             state_file: None,
             shelf_cache: Default::default(),
+            import_media: Default::default(),
         })
         .map(|mut app: App| {
             if setup.background {

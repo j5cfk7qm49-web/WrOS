@@ -166,7 +166,7 @@ impl App {
                             .backup
                             .request(crate::backup_service::Request::Status);
                     }
-                    self.overlay = Overlay::Import(ImportState::new());
+                    self.open_import();
                 }
                 Some(ShelfRow::NewBook) => {
                     self.overlay = Overlay::NewBook {
@@ -480,6 +480,10 @@ impl App {
             background: self.background,
         };
         let mut next = App::with(project, setup).map_err(cant)?;
+        if self.import_media.mounted || self.import_media.waiting {
+            next.deck.carry_import_worker(&mut self.deck);
+        }
+        next.import_media = std::mem::take(&mut self.import_media);
         next.deck.shell.backup.sync.script = self.deck.shell.backup.sync.script.take();
         next.deck.shell.backup.sync.env = std::mem::take(&mut self.deck.shell.backup.sync.env);
         std::mem::swap(&mut next.music, &mut self.music);

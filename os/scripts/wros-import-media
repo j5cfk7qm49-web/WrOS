@@ -1,0 +1,156 @@
+#!/usr/bin/python3 -I
+"""Narrow pkexec helper (org.wros.import.media): list, mount or unmount import media."""
+import fcntl
+import json
+import os
+import re
+import stat
+import subprocess
+import sys
+from pathlib import Path
+
+SAFE_PATH = '/usr/sbin:/usr/bin:/sbin:/bin'
+LSBLK = '/usr/bin/lsblk'
+FINDMNT = '/usr/bin/findmnt'
+MOUNT = '/usr/bin/mount'
+UMOUNT = '/usr/bin/umount'
+MEDIA_ROOT = Path('/run/wros-import/media')
+FILESYSTEMS = {'vfat', 'exfat', 'ext2', 'ext3', 'ext4', 'ntfs', 'ntfs3', 'iso9660', 'udf'}
+DEVICE = re.compile(r'/dev/[A-Za-z0-9][A-Za-z0-9._-]{0,63}')
+
+
+def fail(message):
+    raise ValueError(message)
+
+
+def default_runner(argv):
+    return subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                          timeout=8, umask=0o022, env={'PATH': SAFE_PATH, 'LC_ALL': 'C'})
+
+
+def secure_directory(path):
+    try:
+        path.mkdir(mode=0o755)
+        path.chmod(0o755)
+    except FileExistsError:
+        pass
+    info = path.lstat()
+    if (not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid()
+            or info.st_mode & 0o022):
+        fail('unsafe import mount directory')
+
+
+def mounted_source(text, target):
+    for line in text.splitlines():
+        fields = line.split()
+        if len(fields) > 6 and fields[4].replace('\\040', ' ') == str(target):
+            after = line.split(' - ', 1)
+            if len(after) == 2 and len(after[1].split()) >= 2:
+                return after[1].split()[1]
+    return None
+
+
+def sticks(run, mounted, target):
+    # Resolve the root's complete ancestry, including dm-crypt/LVM, before accepting a disk.
+    root = run([FINDMNT, '-n', '-o', 'SOURCE', '/'])
+    source = root.stdout.strip().split('[', 1)[0]
+    if root.returncode or not source.startswith('/dev/') or '\n' in source:
+        fail('cannot identify the disk holding the system')
+    ancestry = run([LSBLK, '-s', '-n', '-r', '-o', 'PATH', '--', source])
+    if ancestry.returncode or not ancestry.stdout.strip():
+        fail('cannot identify the disk holding the system')
+    protected = set(ancestry.stdout.splitlines())
+    listing = run([LSBLK, '-J', '-o', 'PATH,TRAN,RM,TYPE,FSTYPE,LABEL'])
+    if listing.returncode:
+        fail('cannot list USB sticks')
+    devices = json.loads(listing.stdout)['blockdevices']
+
+    def contains_root(device):
+        return (device.get('path') in protected
+                or any(contains_root(child) for child in device.get('children', [])))
+
+    result = []
+    filesystems = {}
+    for disk in devices:
+        if (disk.get('type') != 'disk' or disk.get('tran') != 'usb'
+                or disk.get('rm') not in (True, 1, '1') or contains_root(disk)
+                or disk.get('fstype') == 'crypto_LUKS'):
+            continue
+        for child in disk.get('children', []):
+            device = child.get('path', '')
+            if (child.get('type') == 'part' and child.get('fstype') in FILESYSTEMS
+                    and DEVICE.fullmatch(device)):
+                result.append({'device': device, 'label': child.get('label') or '',
+                               'mount': str(target) if device == mounted else None})
+                filesystems[device] = child['fstype']
+    return sorted(result, key=lambda stick: stick['device']), filesystems
+
+
+def main(argv=None, environ=None, euid=None, runner=None, media_root=MEDIA_ROOT,
+         mountinfo_text=None):
+    argv = sys.argv[1:] if argv is None else list(argv)
+    source = os.environ if environ is None else environ
+    uid = source.get('PKEXEC_UID', '')
+    if (os.geteuid() if euid is None else euid) != 0:
+        fail('this import helper must run as root through polkit')
+    if re.fullmatch(r'[0-9]{1,10}', uid) is None:
+        fail('this import helper must be started through polkit')
+    if not (argv in (['list'], ['unmount'])
+            or len(argv) == 2 and argv[0] == 'mount' and DEVICE.fullmatch(argv[1])):
+        fail('usage: wros-import-media list|mount <device>|unmount')
+    if environ is None:
+        os.environ.clear()
+        os.environ.update({'PATH': SAFE_PATH, 'LC_ALL': 'C'})
+    os.umask(0o077)
+    run = runner or default_runner
+    media_root = Path(media_root)
+    secure_directory(media_root.parent)
+    secure_directory(media_root)
+    # Serialize separate pkexec invocations; no caller chooses a lock or mount path.
+    flags = os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW
+    with os.fdopen(os.open(media_root.parent / 'lock', flags, 0o600), 'w') as lock:
+        info = os.fstat(lock.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid():
+            fail('unsafe import media lock')
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        target = media_root / '1'
+        text = (Path('/proc/self/mountinfo').read_text(encoding='utf-8')
+                if mountinfo_text is None else mountinfo_text)
+        mounted = mounted_source(text, target)
+        if argv == ['list']:
+            result, _ = sticks(run, mounted, target)
+        else:
+            chosen = None
+            if argv[0] == 'mount':
+                candidates, filesystems = sticks(run, mounted, target)
+                chosen = next((s for s in candidates
+                               if s['device'] == argv[1]), None)
+                if chosen is None:
+                    fail('that device is not an importable USB stick')
+            if mounted and run([UMOUNT, '--', str(target)]).returncode:
+                fail('could not unmount the import USB stick')
+            result = []
+            if chosen is not None:
+                secure_directory(target)
+                options = 'ro,nodev,nosuid,noexec'
+                # A read-only ext mount can still replay its journal onto the source.
+                if filesystems[chosen['device']] in ('ext3', 'ext4'):
+                    options += ',noload'
+                fstype = filesystems[chosen['device']]
+                command = [MOUNT, '-i', '-t', 'ntfs3' if fstype == 'ntfs' else fstype,
+                           '-o', options, '--',
+                           chosen['device'], str(target)]
+                if run(command).returncode:
+                    fail('could not mount the USB stick read-only')
+                chosen['mount'] = str(target)
+                result = [chosen]
+        print(json.dumps(result, sort_keys=True))
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main())
+    except Exception as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(1) from None

@@ -94,6 +94,20 @@ EOF
 </policyconfig>
 EOF
 
+    cat > "$out/share/polkit-1/actions/org.wros.import.policy" << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN" "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>WrOS</vendor>
+  <action id="org.wros.import.media">
+    <description>Read a USB stick to import a book</description>
+    <message>Authorize reading a USB stick for book import</message>
+    <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>no</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">${hp.importMedia}</annotate>
+  </action>
+</policyconfig>
+EOF
+
     cat > "$out/share/polkit-1/actions/org.wros.update.policy" << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN" "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">

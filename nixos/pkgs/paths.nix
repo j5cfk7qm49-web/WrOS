@@ -43,6 +43,7 @@ let
     clock = "${wros-helpers}/libexec/wros-clock";
     display = "${wros-helpers}/libexec/wros-display";
     displayHw = "${wros-display-hw}/libexec/wros-display-hw";
+    importMedia = "${wros-helpers}/libexec/wros-import-media";
     installSession = "${wros-helpers}/libexec/wros-install-session";
     installCore = "${wros-helpers}/libexec/wros-install-core";
     installerBackend = "${wros-helpers}/libexec/wros-installer-backend";
@@ -179,6 +180,7 @@ let
     WROS_PATH_HELPER_BOOT_SETTINGS = helperPaths.bootSettings;
     WROS_PATH_HELPER_CLOCK = helperPaths.clock;
     WROS_PATH_HELPER_DISPLAY = helperPaths.display;
+    WROS_PATH_HELPER_IMPORT_MEDIA = helperPaths.importMedia;
     WROS_PATH_HELPER_INSTALL_SESSION = helperPaths.installSession;
     WROS_PATH_HELPER_KEYBOARD = helperPaths.keyboard;
     WROS_PATH_HELPER_LOCK = helperPaths.lock;

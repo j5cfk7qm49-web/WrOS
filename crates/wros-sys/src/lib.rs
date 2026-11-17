@@ -359,6 +359,9 @@ pub enum Request {
     },
     /// Ask the narrow privileged helper to mount `WROS-UPDATE` media read-only.
     FindUpdateMedia,
+    ListImportMedia,
+    MountImportMedia(String),
+    UnmountImportMedia,
     /// Unprivileged: is a newer signed WrOS published on the fixed update server?
     CheckOnlineUpdates,
     /// The narrow privileged helper downloads and verifies the newer update.
@@ -378,6 +381,14 @@ pub enum Request {
     RebootRecovery,
     RebootFirmware,
     ListStorageDevices,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ImportStick {
+    pub device: String,
+    pub label: String,
+    pub mount: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -411,6 +422,7 @@ pub enum Reply {
     UpdateApplied(UpdateApplied),
     /// Mounted update media path, or `None` when no `WROS-UPDATE` media exists.
     UpdateMedia(Option<String>),
+    ImportMedia(Vec<ImportStick>),
     OnlineUpdate(OnlineUpdate),
     /// Verified downloaded update folder, ready for the ordinary review.
     OnlineUpdateFetched(String),
@@ -438,6 +450,8 @@ pub struct Simulated {
     pub bundle_revision: u32,
     /// Path returned by the simulated media mount, if any media is "present".
     pub media: Option<String>,
+    pub import_media: Vec<ImportStick>,
+    import_mounted: Option<String>,
     /// What the simulated update server reports, and where a fetch lands.
     pub online: Option<OnlineUpdate>,
     /// Whether the simulated staged update changes only the writing app.
@@ -502,6 +516,8 @@ impl Default for Simulated {
             },
             bundle_revision: 1,
             media: Some("/run/wros-update/media/0".into()),
+            import_media: Vec::new(),
+            import_mounted: None,
             online: None,
             staged_live: false,
             fetched: None,
@@ -827,6 +843,36 @@ impl Backend for Simulated {
                 Ok(Reply::UpdateReview(self.simulated_review()))
             }
             Request::FindUpdateMedia => Ok(Reply::UpdateMedia(self.media.clone())),
+            Request::ListImportMedia => {
+                let mut sticks = self.import_media.clone();
+                for stick in &mut sticks {
+                    if self.import_mounted.as_ref() == Some(&stick.device) {
+                        stick
+                            .mount
+                            .get_or_insert_with(|| "/run/wros-import/media/1".into());
+                    } else {
+                        stick.mount = None;
+                    }
+                }
+                Ok(Reply::ImportMedia(sticks))
+            }
+            Request::MountImportMedia(device) => {
+                let mut stick = self
+                    .import_media
+                    .iter()
+                    .find(|stick| stick.device == device)
+                    .cloned()
+                    .ok_or_else(|| anyhow::anyhow!("that USB stick is not present"))?;
+                stick
+                    .mount
+                    .get_or_insert_with(|| "/run/wros-import/media/1".into());
+                self.import_mounted = Some(device);
+                Ok(Reply::ImportMedia(vec![stick]))
+            }
+            Request::UnmountImportMedia => {
+                self.import_mounted = None;
+                Ok(Reply::ImportMedia(Vec::new()))
+            }
             Request::CheckOnlineUpdates => Ok(Reply::OnlineUpdate(self.online.clone().unwrap_or(
                 OnlineUpdate {
                     status: "unreachable".into(),
