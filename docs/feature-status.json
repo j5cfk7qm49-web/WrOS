@@ -1,7 +1,11 @@
 {
   "schema_version": 1,
-  "as_of": "2026-10-31",
-  "release": "0.1.0-dev foundation + M3b + M4 + M5 + M6 + M7a + M7b software",
+  "as_of": "2026-11-16",
+  "release": "0.1.0~rc16 (NixOS 26.05)",
+  "verification_scope": "Retained Debian run totals, durations and audit-environment statements are historical (rc13 and earlier), not NixOS results. Nix CI evaluates outputs, runs the Nix Python suite and builds packages/system; VM checks and ISO qualification run locally.",
+  "historical_debian_notes": [
+    "Historical Debian installation results (rc13 and earlier): Native ISO normal installation passed 1263.38 seconds; separate UEFI/native PAM/process/hash/sleep-denial/logout retry passed 97.76 seconds; original failed probes retained"
+  ],
   "features": [
     {
       "area": "Baseline",
@@ -49,15 +53,15 @@
       "status": "Tested",
       "verification": "Document/manifest checks",
       "hardware_verified": false,
-      "detail": "Debian 13 Stable chosen; no custom kernel"
+      "detail": "NixOS 26.05 from pinned nixpkgs; standard nixpkgs kernel"
     },
     {
       "area": "OS",
-      "capability": "Staged rootfs + regular-file GPT/UEFI image workflow",
-      "status": "In progress",
-      "verification": "Actual QEMU/OVMF whole-disk boot",
+      "capability": "NixOS ISO and installed-system closure",
+      "status": "Implemented",
+      "verification": "Flake outputs; Nix CI evaluates the ISO output and builds the installed system",
       "hardware_verified": false,
-      "detail": "Reproducible recipe, not bit-identical signed release (NixOS rc14 port is unqualified until local NixOS-WSL build and VM checks run.)"
+      "detail": "One pinned package set for live and installed systems; the ISO embeds the installed closure; local boot qualification is separate"
     },
     {
       "area": "OS",
@@ -65,7 +69,7 @@
       "status": "In progress",
       "verification": "Actual VM screen and UID assertion",
       "hardware_verified": false,
-      "detail": "Explicit VM demo autologin is not production authentication (NixOS rc14 port is unqualified until local NixOS-WSL build and VM checks run.)"
+      "detail": "Explicit VM demo autologin is not production authentication"
     },
     {
       "area": "OS",
@@ -77,7 +81,7 @@
     },
     {
       "area": "OS",
-      "capability": "Read-only compatibility/disk/account/timezone/layout installation plan",
+      "capability": "Read-only compatibility/disk/account/timezone/layout installation plan (Debian builds, rc13 and earlier)",
       "status": "Tested",
       "verification": "Rootless fixture tests",
       "hardware_verified": false,
@@ -85,11 +89,11 @@
     },
     {
       "area": "OS",
-      "capability": "Production disk/LUKS/account/Wi-Fi first-run installer",
-      "status": "In progress",
-      "verification": "Current native ISO normal installation passed 1263.38 seconds; separate UEFI/native PAM/process/hash/sleep-denial/logout retry passed 97.76 seconds; original failed probes retained",
+      "capability": "Offline encrypted installation and writer account setup",
+      "status": "Implemented",
+      "verification": "NixOS install-encrypted VM check; installer/session/core unit tests",
       "hardware_verified": false,
-      "detail": "Current native image has no autologin; exact runtime hashes match; LUKS/recovery, broader layout/wrong-disk/interruption, secure lock and physical gates remain open (NixOS rc14 port is unqualified until local NixOS-WSL build and VM checks run.)"
+      "detail": "Offline GPT/ESP/LUKS2/ext4 installation; disk identity and use rechecked; writer and keyboard setup; GRUB written last. Physical acceptance is tracked separately."
     },
     {
       "area": "OS",
@@ -97,29 +101,29 @@
       "status": "In progress",
       "verification": "Real UEFI/PAM wrong-password rejection, UID-1000 login, sudo and tty1 writing UI",
       "hardware_verified": false,
-      "detail": "Native authenticated boot and manual protected tty8/PAM lock have separate software/guest qualification; a software pre-sleep readiness check (input reader retired, tty8 lock ready, buffers saved) exists while hardware suspend stays disabled (#32); lock-before-suspend and physical resume remain unqualified (NixOS rc14 port is unqualified until local NixOS-WSL build and VM checks run.)"
+      "detail": "Native authenticated boot and manual protected tty8/PAM lock have separate software/guest qualification; a software pre-sleep readiness check (input reader retired, tty8 lock ready, buffers saved) exists; guarded lock-and-suspend is implemented when available; physical suspend/resume qualification remains separate"
     },
     {
       "area": "OS",
       "capability": "Authenticated tty2 maintenance and usable recovery boot",
       "status": "In progress",
-      "verification": "Fixture serial PAM login as UID 1000; tty2/encrypted recovery still pending",
+      "verification": "Authenticated tty2 is retained; recovery-menu checks encrypted recovery, PAM authentication and menu actions",
       "hardware_verified": false,
-      "detail": "Normal installer account uses authenticated sudo; demo accounts remain locked; usable production recovery not certified (NixOS rc14 port is unqualified until local NixOS-WSL build and VM checks run.)"
+      "detail": "Normal installer account uses authenticated sudo; demo accounts remain locked; usable production recovery not certified"
     },
     {
       "area": "OS",
-      "capability": "Signed OS/app updates, snapshots/rollback and offline bundles",
-      "status": "In progress",
-      "verification": "Local and independent CI: 1101 Rust/configuration, 240 Python/zero skips, both Clippys; real APT solver, GPG metadata, POSIX locks and durable-journal tests",
+      "capability": "Signed NixOS updates, system generations, go-back and offline bundles",
+      "status": "Implemented",
+      "verification": "NixOS update-goback VM check; NixOS updater and Settings reply-contract tests",
       "hardware_verified": false,
-      "detail": "Foreign triggers preserved, authenticated archives retained on failure, APT refuses removals/unreviewed packages; native mutations and automatic boot activation disabled pending trust/recovery VM qualification (NixOS rc14 port is unqualified until local NixOS-WSL build and VM checks run.)"
+      "detail": "Signed binary-cache bundles apply offline as system generations; go-back selects the previous generation; repair verifies the store and reactivates the boot generation. rc16 includes Settings reply-contract coverage."
     },
     {
       "area": "OS",
       "capability": "Secure Boot / legacy BIOS / physical firmware compatibility",
       "status": "Blocked",
-      "verification": "UEFI without Secure Boot only",
+      "verification": "Installed system: UEFI; live ISO also configures legacy BIOS boot. Secure Boot and physical firmware acceptance remain separate",
       "hardware_verified": false,
       "detail": "Requires signed boot-chain work and identified physical hardware"
     },
@@ -169,7 +173,7 @@
       "status": "Tested",
       "verification": "17 backend, 11 Settings/controller, retained async System and four-size PTY tests; both Clippys; no real power operation",
       "hardware_verified": false,
-      "detail": "Suspend unavailable until secure locking; dirty buffers, stale trees and conflicts block shutdown/restart; physical power operations not run"
+      "detail": "Suspend uses the separate guarded lock-and-suspend path; dirty buffers, stale trees and conflicts block shutdown/restart; physical power operations not run"
     },
     {
       "area": "System",
@@ -209,7 +213,7 @@
       "status": "In progress",
       "verification": "Guest config commit and boot-command reapplication",
       "hardware_verified": false,
-      "detail": "Separate cold reboot/suspend hardware verification outstanding (NixOS rc14 port is unqualified until local NixOS-WSL build and VM checks run.)"
+      "detail": "Separate cold reboot/suspend hardware verification outstanding"
     },
     {
       "area": "Keyboard",
@@ -457,7 +461,7 @@
       "status": "Existing",
       "verification": "Existing silent-engine tests",
       "hardware_verified": false,
-      "detail": "Installed voice engine/model may be needed"
+      "detail": "NixOS includes eSpeak NG; Piper requires an available executable and voice model"
     },
     {
       "area": "Long-form",
@@ -496,7 +500,7 @@
       "capability": "Export-selection source review",
       "status": "Tested",
       "verification": "Debian scope/model and four-size compiled UI/Undo tests; full software suite",
-      "detail": "Read-only footnote and editorial-marker checks plus paperback-export guard status; no link, asset, continuity, revision or rendered-page validation",
+      "detail": "Read-only unified preflight checks footnotes, editorial markers, links, images/covers, unclosed %% notes, continuity and revision notes; it does not validate rendered pages",
       "hardware_verified": false
     },
     {
@@ -513,7 +517,7 @@
       "status": "Tested",
       "verification": "Debian: 1099 Rust/config, 227 Python/zero skips, both Clippys and 21 gates; real interrupted snapshot reuse, four-size app and 512 MiB cancellation",
       "hardware_verified": false,
-      "detail": "Durable operation-tagged queue and editor save/conflict gate; every successful backup restored and hash checked; live Google/provider restore and two-way sync remain open; see NATIVE_BACKUP.md"
+      "detail": "Durable operation-tagged queue and editor save/conflict gate; manual backups receive full restore/hash checks; automatic backups can read back changed files between full restores; readable per-book two-way Drive sync is implemented; live provider restore acceptance remains separate; see NATIVE_BACKUP.md"
     },
     {
       "area": "Cloud",
@@ -533,19 +537,11 @@
     },
     {
       "area": "Tutorial",
-      "capability": "39-lesson catalog, safe demo, replay/skip/progress, help links",
-      "status": "Tested",
-      "verification": "Core + actual editor/UI tests; lesson 34 actual output and restart verified in full Debian suite",
+      "capability": "50-lesson catalog, safe demo, replay/skip/progress, help links",
+      "status": "Implemented",
+      "verification": "Catalog and progress/event unit tests",
       "hardware_verified": false,
-      "detail": "Original 39 IDs plus supplemental 40 retained; 39 event-capable (including Lesson 3 NovelCreated and Lesson 37 MobileHandoffCompleted) / 1 unavailable (Lesson 36 requires live Google credentials). Historic progress preserved"
-    },
-    {
-      "area": "Tutorial",
-      "capability": "All 39 complete interactive exercises across final features",
-      "status": "In progress",
-      "verification": "Continuous foundation only",
-      "hardware_verified": false,
-      "detail": "All original 39 plus supplemental 40 must land alongside actual features; no retroactive reinterpretation of historic progress"
+      "detail": "All 50 lessons have completion events; feature-specific availability still applies; saved progress is preserved"
     },
     {
       "area": "Qualification",
@@ -553,7 +549,7 @@
       "status": "In progress",
       "verification": "No network devices; guest process RSS in evidence",
       "hardware_verified": false,
-      "detail": "Does not include Python/spaCy or physical battery benchmark (NixOS rc14 port is unqualified until local NixOS-WSL build and VM checks run.)"
+      "detail": "Does not include Python/spaCy or physical battery benchmark"
     },
     {
       "area": "Qualification",
@@ -577,23 +573,23 @@
       "status": "In progress",
       "verification": "Actual staged-image package/firmware/notice/module/nmtui audit plus missing-payload policy tests",
       "hardware_verified": false,
-      "detail": "Intel, Realtek, Qualcomm/Atheros, Broadcom/Cypress brcm80211 and MediaTek packaged for supported kernel drivers; production installer media must retain this set; physical radio acceptance pending (NixOS rc14 port is unqualified until local NixOS-WSL build and VM checks run.)"
+      "detail": "Intel, Realtek, Qualcomm/Atheros, Broadcom/Cypress brcm80211 and MediaTek packaged for supported kernel drivers; production installer media must retain this set; physical radio acceptance pending"
     },
     {
       "area": "Shell",
       "capability": "Shared WrOS navigation, presentation, notifications and UI preferences",
       "status": "Tested",
-      "verification": "Five shared component tests; fresh 922 Rust/configuration, 76 Python and 18 software gates",
+      "verification": "Five shared component tests; historical Debian results: 922 Rust/configuration, 76 Python and 18 software gates",
       "hardware_verified": false,
       "detail": "No editor/authentication/privilege dependencies; bounded history and guarded per-user presentation state"
     },
     {
       "area": "Shell",
-      "capability": "Unified Writing, Interface, System and Accounts settings",
-      "status": "In progress",
+      "capability": "Settings groups: Writing, Look and keyboard, System, Backups and accounts, Updates and recovery",
+      "status": "Implemented",
       "verification": "Five actual retained-editor UI tests plus real four-size PTY cursor/undo/settings restart tests passed",
       "hardware_verified": false,
-      "detail": "Initial categories and warm-screen software qualified; enrollment, cloud, greeter, recovery and physical display qualification unfinished"
+      "detail": "Groups, breadcrumbs and tutorial routes share one menu map; provider and physical display acceptance are tracked separately."
     },
     {
       "area": "OS",
@@ -609,7 +605,7 @@
       "status": "In progress",
       "verification": "Synthetic revocation/offline/reauthorization tests, private-file removal, four-size UI and actual compiled-app queue/disconnect passed; no live provider qualification",
       "hardware_verified": false,
-      "detail": "Second-device rclone authorize flow with private per-user files, connection verification, reauthorization and best-effort local credential removal (not guaranteed secure deletion); no mandatory cloud; real authorization/refresh/revocation acceptance remains issue 28"
+      "detail": "Release builds with WROS_GOOGLE_CLIENTS offer phone QR linking; CI/test builds omit it. The second-device rclone authorize flow remains available with private per-user files, connection verification, reauthorization and best-effort local credential removal (not guaranteed secure deletion); no mandatory cloud; real authorization/refresh/revocation acceptance remains issue 28"
     },
     {
       "area": "Storage",
@@ -617,7 +613,7 @@
       "status": "Tested",
       "verification": "Python test_backup.py drive browsing/materialization + Rust unit and 4-size UI tests pass in the Debian build chroot (2026-11-03); not hardware verified",
       "hardware_verified": false,
-      "detail": "Folder-scoped Google Drive browsing (wros-backup drive-list) and explicit local materialization into a new directory (drive-materialize + Route::GoogleDrive); general Drive browsing remains out of scope"
+      "detail": "Folder-scoped Google Drive browsing (wros-backup drive-list) and explicit local materialization into a new directory (drive-materialize + Route::GoogleDrive); the browser can also start at drive: (the top of the linked Drive)"
     },
     {
       "area": "System",
@@ -637,11 +633,11 @@
     },
     {
       "area": "OS",
-      "capability": "Live WrOS installer TUI over Debian installation components",
-      "status": "In progress",
-      "verification": "Local and independent CI: 1101 Rust/configuration, 240 Python/zero skips, both Clippys; four-size save/conflict UI, selected-disk/proof fixtures and actual systemd namespace probe",
+      "capability": "Live WrOS installer TUI over the prebuilt NixOS closure",
+      "status": "Implemented",
+      "verification": "NixOS live-session and install-encrypted VM checks; installer/session/core unit tests",
       "hardware_verified": false,
-      "detail": "Live-only supervised installer with distinct locked frontend UID, owned single-disk cleanup and nonce/application/boot-bound proof; actual production handoff/full encrypted install and first-boot VM remain open (NixOS rc14 port is unqualified until local NixOS-WSL build and VM checks run.)"
+      "detail": "Supervised live-only frontend on tty7; offline GPT/ESP/LUKS2/ext4 installation, writer creation and GRUB last; physical installation acceptance is tracked separately."
     },
     {
       "area": "System",
@@ -653,10 +649,10 @@
     {
       "area": "OS",
       "capability": "Grimoire live-session startup and immutable installed authentication",
-      "status": "In progress",
-      "verification": "Debian CI: 973 Rust/configuration, 135 Python/zero skips, both Clippys and 20 gates; full local 21 gates; compressed ISO audit, three diskless live boot/UI/shutdown modes and installed-lock guest (347.59 seconds) passed",
+      "status": "Implemented",
+      "verification": "NixOS live-session and live-graphical VM checks",
       "hardware_verified": false,
-      "detail": "Maintained live-config/user-setup with temporary runtime greetd entry; all live boot entries and omitted-flag role guard verified; public personal lock unavailable. Native privileged installer, new target install/reboot, UEFI and physical gates remain open (NixOS rc14 port is unqualified until local NixOS-WSL build and VM checks run.)"
+      "detail": "The NixOS wros-live-session service creates a temporary live greetd entry; installed greetd remains authenticated. Native DRM is the live default; public live sessions have no personal lock. Installation coverage is listed separately."
     },
     {
       "area": "Publishing",
@@ -713,6 +709,22 @@
       "status": "Tested",
       "verification": "Independent full Debian suite; real EPUBCheck and four-size compiled TUI export/help/Undo/restart",
       "detail": "Shared bounded parser and maintained HTML renderer; local labels, multiple paragraphs, literal code/URL and original bytes retained; paperback remains guarded"
+    },
+    {
+      "area": "OS",
+      "capability": "Corrected offline encrypted-media composition checkpoint",
+      "status": "Tested",
+      "verification": "Source 1bdd9a39 / 431 files: seven matching runtime/archive packages, compressed CD provider, verified 401-archive capsule, automatic diskless live boot 94.99 seconds; Debian CI 973 Rust/config, 169 Python/zero skips, 20 gates",
+      "detail": "This checkpoint does not qualify the current NixOS installer; this checkpoint predates the separate new feature review",
+      "hardware_verified": false
+    },
+    {
+      "area": "System",
+      "capability": "Debian-era read-only system-view checkpoint",
+      "status": "Tested",
+      "verification": "Source 815ecb26 / 439 files: Debian CI 1008 Rust/config, 170 Python/zero skips, both Clippys and 20 gates; actual four-size availability PTY",
+      "detail": "Shared Grimoire menu; no credential enrollment, account changes, provider access, backup, update application or recovery grant; see [feature review](archive/FEATURE_REVIEW.md)",
+      "hardware_verified": false
     }
   ]
 }
