@@ -6,8 +6,9 @@ rclone owns Google access through the private `wros-google` remote of the backup
 settings. Each run compares every file's last-synced base, its local state and its
 Drive state:
 
-* a change on one side is copied to the other; the version it replaces goes to
-  WrOS-History/<book>/<date>/ first, so nothing is lost;
+* a change on one side is copied to the other; uploads update Drive's file in
+  place for its revision history. Local replacements and deletions still keep
+  their copies in WrOS-History/<book>/<date>/;
 * a file changed on both sides keeps the writer's version, Drive's is parked beside
   it as "<name> (from Drive, <date time>)", and the file pauses until it is settled;
 * more than five deletions, or a side found empty, stop the run and ask;
@@ -388,8 +389,6 @@ class Service:
                         shutil.copyfileobj(source, destination)
                 if digests(snapshot)[0] != local_md5:
                     return 'skipped'
-                if remote_md5 is not None:
-                    self.rclone('moveto', live, self.history(folder, relative, 'Drive', stamp))
                 self.rclone('copyto', str(snapshot), live)
                 self.remember(home, base, relative, local_md5, snapshot)
                 return 'uploaded'

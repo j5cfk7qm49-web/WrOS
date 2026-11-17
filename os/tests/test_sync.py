@@ -143,7 +143,21 @@ class Sync(unittest.TestCase):
         self.assertEqual(local.read_bytes(), before)
         self.assertEqual(remote.read_bytes(), b'Drive revision')
 
-    def test_edits_flow_both_ways_and_replaced_versions_go_to_history(self):
+    def test_upload_updates_the_live_file_without_a_history_copy(self):
+        self.service.enable(str(self.book))
+        self.sync()
+        scene = 'manuscript/01-Part/01-Scene.md'
+        revised = 'Opening, revised.\n\nMiddle.\n\nEnd.\n'
+        (self.book / scene).write_text(revised)
+        with mock.patch.object(self.service, 'rclone', wraps=self.service.rclone) as rclone:
+            self.assertEqual(self.sync()['uploaded'], 1)
+        self.assertEqual((self.remote / scene).read_text(), revised)
+        self.assertEqual(history_files(self.drive), [])
+        self.assertEqual(list((self.remote / 'manuscript/01-Part').iterdir()), [self.remote / scene])
+        self.assertFalse(any(call.args[0] == 'moveto' for call in rclone.call_args_list))
+        self.assertEqual(self.sync()['uploaded'], 0)
+
+    def test_local_replacements_and_remote_deletions_still_go_to_history(self):
         self.service.enable(str(self.book))
         self.sync()
         (self.remote / 'notes/ideas.md').write_text('Ideas from the phone.\n')
@@ -154,13 +168,12 @@ class Sync(unittest.TestCase):
         self.assertEqual((self.remote / 'manuscript/01-Part/01-Scene.md').read_text(),
                          'Opening, revised.\n\nMiddle.\n\nEnd.\n')
         history = history_files(self.drive)
-        self.assertEqual(len(history), 2, history)
+        self.assertEqual(len(history), 1, history)
         self.assertTrue(any('ideas (' in h and 'from WrOS).md' in h for h in history), history)
-        self.assertTrue(any('01-Scene (' in h and 'from Drive).md' in h for h in history), history)
         (self.book / 'notes/ideas.md').unlink()
         self.assertEqual(self.sync()['deleted'], 1)
         self.assertFalse((self.remote / 'notes/ideas.md').exists())
-        self.assertEqual(len(history_files(self.drive)), 3)
+        self.assertEqual(len(history_files(self.drive)), 2)
 
     def test_edits_on_both_sides_park_drives_version_and_pause_that_file(self):
         self.service.enable(str(self.book))
@@ -169,6 +182,8 @@ class Sync(unittest.TestCase):
         (self.book / scene).write_text('Opening, mine.\n\nMiddle.\n\nEnd.\n')
         (self.remote / scene).write_text('Opening.\n\nMiddle.\n\nEnd, theirs.\n')
         result = self.sync()
+        self.assertEqual(result['uploaded'], 0)
+        self.assertEqual(history_files(self.drive), [])
         self.assertEqual(len(result['pending']), 1)
         pending = result['pending'][0]
         parked = self.book / pending['parked']

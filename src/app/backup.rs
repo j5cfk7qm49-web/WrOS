@@ -261,10 +261,14 @@ pub struct SyncState {
     /// The operation the running job performs, so its reply is handled right.
     pub running: Option<crate::sync_service::Request>,
     pub last: Option<Result<crate::sync_service::Reply, String>>,
-    /// When the next sync is due; `None` until the open book is first seen.
+    /// When the next periodic sync is due; `None` until the book is first seen.
     pub next: Option<std::time::Instant>,
+    /// A save or edit restarts this pause, independently of the periodic run.
+    after_activity: Option<std::time::Instant>,
     /// Whether the book had unsaved words at the last tick (a save ends that).
     pub saw_dirty: bool,
+    /// A final run was requested by the existing close or power save gate.
+    leaving: bool,
     /// Files a sync parked Drive's version beside, until they are settled.
     pub pending: Vec<crate::sync_service::Pending>,
     /// Parked copies already announced as needing a merge.
@@ -273,11 +277,32 @@ pub struct SyncState {
     pub script: Option<PathBuf>,
     pub env: Vec<(&'static str, PathBuf)>,
 }
-/// Every few minutes while sync is on, and shortly after each save.
+/// Every few minutes while sync is on, and once the writer has paused.
 pub const SYNC_EVERY: std::time::Duration = std::time::Duration::from_secs(5 * 60);
-pub const SYNC_AFTER_SAVE: std::time::Duration = std::time::Duration::from_secs(10);
+pub const SYNC_AFTER_SAVE: std::time::Duration = std::time::Duration::from_secs(90);
 
 impl SyncState {
+    pub(super) fn saved(&mut self, now: std::time::Instant) {
+        self.after_activity = Some(now + SYNC_AFTER_SAVE);
+        self.leaving = false;
+    }
+    fn observe(&mut self, now: std::time::Instant, dirty: bool) {
+        if dirty || self.saw_dirty {
+            self.saved(now);
+        }
+        self.saw_dirty = dirty;
+        self.next.get_or_insert(now);
+    }
+    fn due(&self, now: std::time::Instant) -> bool {
+        !self.saw_dirty
+            && self.job.is_none()
+            && (self.next.is_some_and(|next| now >= next)
+                || self.after_activity.is_some_and(|next| now >= next))
+    }
+    fn start(&mut self, now: std::time::Instant) {
+        self.next = Some(now + SYNC_EVERY);
+        self.after_activity = None;
+    }
     /// One line on where sync stands, for the Backups screen.
     pub fn line(&self) -> String {
         if let Some(job) = &self.job {
@@ -647,6 +672,10 @@ impl App {
         }
     }
     pub(crate) fn request_sync_run(&mut self, allow_deletes: bool) {
+        if self.deck.shell.backup.sync.job.is_some() {
+            return;
+        }
+        self.deck.shell.backup.sync.start(std::time::Instant::now());
         let project = self.project.root.to_string_lossy().into_owned();
         self.request_sync(crate::sync_service::Request::Sync {
             project,
@@ -661,10 +690,49 @@ impl App {
             crate::sync_service::Request::Disable { project }
         });
     }
+    /// Start one last sync without waiting for it (before sleep: a lock never waits).
+    pub(crate) fn start_final_sync(&mut self) {
+        if self.sync_enabled() && self.deck.shell.backup.sync.job.is_none() {
+            self.request_sync_run(false);
+        }
+    }
+
+    /// Reuse the close/power save gate: request one final run, then let the
+    /// existing tick collect it before the writer retries the action.
+    pub(crate) fn sync_before_leave(&mut self) -> bool {
+        if !self.sync_enabled() {
+            return true;
+        }
+        let sync = &mut self.deck.shell.backup.sync;
+        sync.observe(std::time::Instant::now(), false);
+        if sync.job.is_none() {
+            if std::mem::take(&mut sync.leaving) {
+                return true;
+            }
+            self.request_sync_run(false);
+            self.deck.shell.backup.sync.leaving = true;
+            if self.deck.shell.backup.sync.job.is_none() {
+                return true;
+            }
+        }
+        self.msg = "Syncing before leaving this book; try again when it finishes.".into();
+        self.deck.note = self.msg.clone();
+        self.deck.shell.notices.push(&self.msg);
+        false
+    }
     /// Collect a finished run, and start one when due: on opening a book that
-    /// syncs, shortly after a save, and every few minutes. Never with unsaved words.
+    /// syncs, after a pause, and every few minutes. Never with unsaved words.
     pub(crate) fn tick_sync(&mut self) {
         use crate::sync_service::Request as Sync;
+        let enabled = self.sync_enabled();
+        if enabled {
+            let dirty = self.project.dirty_count() > 0;
+            self.deck
+                .shell
+                .backup
+                .sync
+                .observe(std::time::Instant::now(), dirty);
+        }
         let sync = &mut self.deck.shell.backup.sync;
         let finished = sync
             .job
@@ -703,19 +771,11 @@ impl App {
             return;
         }
         self.merge_pending();
-        if !self.sync_enabled() {
+        if !enabled {
             return;
         }
-        let dirty = self.project.dirty_count() > 0;
-        let sync = &mut self.deck.shell.backup.sync;
         let now = std::time::Instant::now();
-        if sync.saw_dirty && !dirty {
-            let soon = now + SYNC_AFTER_SAVE;
-            sync.next = Some(sync.next.map_or(soon, |next| next.min(soon)));
-        }
-        sync.saw_dirty = dirty;
-        let next = *sync.next.get_or_insert(now);
-        if !dirty && sync.job.is_none() && now >= next {
+        if self.project.dirty_count() == 0 && self.deck.shell.backup.sync.due(now) {
             self.request_sync_run(false);
         }
     }
@@ -915,6 +975,80 @@ impl App {
             }
             _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod sync_timing_tests {
+    use super::{SYNC_AFTER_SAVE, SYNC_EVERY, SyncState};
+    use std::time::{Duration, Instant};
+
+    const SECOND: Duration = Duration::from_secs(1);
+
+    #[test]
+    fn sync_runs_on_open_and_every_five_minutes_without_changes() {
+        let now = Instant::now();
+        let mut sync = SyncState::default();
+        sync.observe(now, false);
+        assert!(sync.due(now));
+        sync.start(now);
+        assert!(!sync.due(now + SYNC_EVERY - SECOND));
+        assert!(sync.due(now + SYNC_EVERY));
+    }
+
+    #[test]
+    fn sync_runs_once_ninety_seconds_after_a_burst_of_saves() {
+        let now = Instant::now();
+        let mut sync = SyncState::default();
+        sync.start(now);
+        for seconds in [10, 40, 80, 120] {
+            let at = now + SECOND * seconds;
+            sync.observe(at, true);
+            sync.observe(at, false);
+            assert!(!sync.due(at + SECOND * 89));
+        }
+        let due = now + SECOND * 210;
+        assert_eq!(SYNC_AFTER_SAVE, SECOND * 90);
+        assert!(sync.due(due));
+        sync.start(due);
+        assert!(!sync.due(due + SYNC_AFTER_SAVE));
+        assert!(sync.due(due + SYNC_EVERY));
+    }
+
+    #[test]
+    fn sync_waits_for_unsaved_edits_and_restarts_the_pause() {
+        let now = Instant::now();
+        let mut sync = SyncState::default();
+        sync.start(now);
+        sync.saved(now);
+        sync.observe(now + SECOND * 80, true);
+        assert!(!sync.due(now + SECOND * 100));
+        sync.observe(now + SECOND * 100, false);
+        assert!(!sync.due(now + SECOND * 189));
+        assert!(sync.due(now + SECOND * 190));
+        sync.observe(now + SYNC_EVERY, true);
+        assert!(!sync.due(now + SYNC_EVERY));
+    }
+
+    #[test]
+    fn sync_keeps_periodic_runs_and_saves_made_during_a_run() {
+        let now = Instant::now();
+        let mut sync = SyncState::default();
+        sync.start(now);
+        sync.saved(now + SECOND * 280);
+        assert!(
+            sync.due(now + SYNC_EVERY),
+            "periodic runs are not postponed"
+        );
+        sync.start(now + SYNC_EVERY);
+        sync.job = Some(crate::backup_service::Job::running_for_test(None));
+        sync.saved(now + SECOND * 310);
+        assert!(!sync.due(now + SECOND * 400), "one run at a time");
+        sync.job = None;
+        assert!(
+            sync.due(now + SECOND * 400),
+            "later saves still need syncing"
+        );
     }
 }
 

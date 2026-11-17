@@ -1106,7 +1106,7 @@ fn switching_sync_on_enables_the_book_then_syncs_and_shows_the_result() {
 }
 
 #[test]
-fn a_save_brings_the_next_sync_forward_and_the_delete_guard_asks_first() {
+fn saves_preserve_the_periodic_sync_deadline_and_the_delete_guard_asks_first() {
     let mut desk = Desk::open(book("sync-guard", true), 120, 40);
     let dir = sync_stub(
         &mut desk,
@@ -1126,13 +1126,117 @@ fn a_save_brings_the_next_sync_forward_and_the_delete_guard_asks_first() {
     desk.choose("Sync and delete 7 files");
     wait_sync(&mut desk);
     assert_eq!(sync_log(&dir).last().unwrap()["allow_deletes"], true);
-    // A save (unsaved words, then none) brings the next sync to within ten seconds.
+    // A save (unsaved words, then none) waits for a pause, leaving the periodic run intact.
+    let periodic = std::time::Instant::now() + std::time::Duration::from_secs(300);
     let sync = &mut desk.app.deck.shell.backup.sync;
-    sync.next = Some(std::time::Instant::now() + std::time::Duration::from_secs(300));
+    sync.next = Some(periodic);
     sync.saw_dirty = true;
     desk.app.tick_deck();
     let next = desk.app.deck.shell.backup.sync.next.unwrap();
-    assert!(next <= std::time::Instant::now() + std::time::Duration::from_secs(10));
+    assert_eq!(next, periodic);
+}
+
+#[test]
+fn closing_a_book_waits_for_one_final_sync_after_saving() {
+    let mut desk = Desk::open(book("sync-close", true), 120, 40);
+    let dir = sync_stub(&mut desk, r#"{"ok":true,"data":{"status":"synced"}}"#);
+    std::fs::write(desk.root.join(".grimoire/sync.json"), "{}").unwrap();
+    desk.app.focus = Focus::Editor;
+    desk.typed("Words saved when closing. ");
+    let next = book("sync-close-next", true);
+    assert!(!desk.app.open_book(&next));
+    assert_eq!(desk.app.project.root, desk.root);
+    assert!(
+        std::fs::read_to_string(first_scene(&desk.root))
+            .unwrap()
+            .contains("Words saved when closing.")
+    );
+    wait_sync(&mut desk);
+    assert_eq!(sync_log(&dir).len(), 1);
+    assert!(desk.app.open_book(&next), "{}", desk.app.msg);
+    assert_eq!(
+        sync_log(&dir).len(),
+        1,
+        "the retry must not start another run"
+    );
+}
+
+#[test]
+fn quitting_waits_for_a_final_sync_without_arming_force_quit() {
+    let mut desk = Desk::open(book("sync-quit", true), 120, 40);
+    let dir = sync_stub(&mut desk, r#"{"ok":true,"data":{"status":"synced"}}"#);
+    std::fs::write(desk.root.join(".grimoire/sync.json"), "{}").unwrap();
+    desk.ctrl('q');
+    assert!(!desk.left);
+    assert!(!desk.armed);
+    desk.ctrl('q');
+    assert!(!desk.left, "a second press must not cancel the final sync");
+    assert!(!desk.armed);
+    wait_sync(&mut desk);
+    desk.ctrl('q');
+    assert!(desk.left);
+    assert_eq!(sync_log(&dir).len(), 1);
+}
+
+#[test]
+fn edits_during_a_final_sync_need_another_run_before_quitting() {
+    let mut desk = Desk::open(book("sync-quit-edit", true), 120, 40);
+    let dir = sync_stub(&mut desk, r#"{"ok":true,"data":{"status":"synced"}}"#);
+    std::fs::write(desk.root.join(".grimoire/sync.json"), "{}").unwrap();
+    assert!(!desk.app.try_quit());
+    desk.app.focus = Focus::Editor;
+    desk.typed("More words while the final sync runs. ");
+    wait_sync(&mut desk);
+    assert!(!desk.app.try_quit());
+    wait_sync(&mut desk);
+    assert!(desk.app.try_quit());
+    assert_eq!(sync_log(&dir).len(), 2);
+}
+
+#[test]
+fn power_actions_sync_first_and_sleep_never_waits_to_lock() {
+    use wros_sys::PowerAction;
+
+    for action in [
+        PowerAction::Suspend,
+        PowerAction::Shutdown,
+        PowerAction::Restart,
+    ] {
+        let mut desk = Desk::open(book(&format!("sync-power-{action:?}"), true), 120, 40);
+        desk.app.deck.simulate();
+        desk.app.deck.lock_available = true;
+        desk.app.deck.suspend_available = true;
+        let dir = sync_stub(&mut desk, r#"{"ok":true,"data":{"status":"offline"}}"#);
+        std::fs::write(desk.root.join(".grimoire/sync.json"), "{}").unwrap();
+        desk.app.focus = Focus::Editor;
+        desk.typed("Words saved before power. ");
+        desk.app.overlay = Overlay::Deck(Page::Power {
+            action: action.clone(),
+            yes: true,
+        });
+        desk.key(KeyCode::Enter);
+        assert!(
+            std::fs::read_to_string(first_scene(&desk.root))
+                .unwrap()
+                .contains("Words saved before power.")
+        );
+        if action == PowerAction::Suspend {
+            // A lock never waits for the network: it is armed at once, and the final
+            // sync runs alongside.
+            assert!(desk.app.deck.lock_requested && desk.app.deck.suspend_requested);
+            wait_sync(&mut desk);
+            assert_eq!(sync_log(&dir).len(), 1);
+            continue;
+        }
+        assert!(!desk.app.deck.busy);
+        assert!(!desk.app.deck.lock_requested);
+        wait_sync(&mut desk);
+        assert_eq!(sync_log(&dir).len(), 1);
+        desk.key(KeyCode::Enter);
+        assert!(desk.app.deck.busy);
+        wait_system(&mut desk);
+        assert_eq!(sync_log(&dir).len(), 1, "offline must not prevent leaving");
+    }
 }
 
 /// A scene changed in WrOS and in Drive since `base`, with Drive's version parked

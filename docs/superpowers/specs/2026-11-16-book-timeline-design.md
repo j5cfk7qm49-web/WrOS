@@ -17,10 +17,11 @@ three unconnected places, each with a gap:
   per sitting, covering ordinary book files allowed by `.gitignore`, including notebook files
   (`.grimoire/` ignored except `resume.md`, and `exports/` ignored); off for every book on the
   owner's laptop; never leaves the laptop.
-- **`WrOS-History/` on Drive** (wros-sync): retains files replaced by sync. Saved changes can
-  schedule a sync after ten seconds; periodic sync is due every five minutes. History is not
-  trimmed. Uploading a changed existing file moves the old file into history and creates its
-  replacement, so Drive's own revision chain does not accumulate (#148).
+- **`WrOS-History/` on Drive** (wros-sync): retains local replacements and deletions and remote
+  deletions. Since the rc17 fix for #148, saved changes schedule a sync after a 90-second
+  pause; periodic sync is due every five minutes, with a final run on book close and app power
+  actions. Uploads update the existing file so Drive's revision chain accumulates. History is
+  not trimmed.
 
 The owner wants one timeline that reads like "minor fix · minor fix · small change · end of
 Tuesday evening's session", covering the whole book, kept both on the laptop and on Drive, so

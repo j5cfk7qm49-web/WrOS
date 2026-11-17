@@ -91,8 +91,11 @@ Nix store path, which uses the backup's rclone configuration (`lsjson --hash`,
 `copyto`, `moveto`, `cat`, `rcat`) against the `WrOS/` and `WrOS-History/` folders
 of the connected Drive. Nothing
 is contacted until the writer turns sync on for a book; then the app syncs that book
-when it opens, 10 seconds after a save and every 5 minutes while it is open, sending
-only files that changed since the last agreed version. Those copies are not encrypted.
+when it opens, 90 seconds after the last save or edit and every 5 minutes while it
+is open. The app also requests a final sync after saving before closing a book
+or shutting down; retry the action once the run finishes. Sleep starts a final sync
+without delaying the lock. It sends only
+files that changed since the last agreed version. Those copies are not encrypted.
 Offline runs fail quietly and wait for the next one; nothing queues.
 
 ## Local system integration

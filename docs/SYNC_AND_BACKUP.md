@@ -33,13 +33,20 @@ Use rclone `copy`/versioned immutable destinations for initial backup evaluation
 
 Per book, opt-in: Settings › Backups and accounts › Backups › **Sync this book with Google Drive (readable files)**.
 The book's Markdown files are copied, unencrypted, to `WrOS/<book>/` in the connected
-Drive, and edits made there come back. The app syncs when the book opens, 10 seconds
-after a save and every 5 minutes while it is open, never with unsaved words.
+Drive, and edits made there come back. The app syncs when the book opens, 90 seconds
+after the last save or edit and every 5 minutes while it is open, never with unsaved
+words. Closing the book or shutting down through the app requests a final sync
+after saving; retry the action once it finishes. Sleep starts a final sync without
+delaying the lock. Offline attempts do not
+prevent leaving. A phone edit or a lost laptop can miss the last couple of minutes
+of writing. Forced process termination cannot wait for a final sync.
 
 - **Base versions.** A private ledger (`$XDG_DATA_HOME/grimoire/wros/sync/<project>/`)
   records the version both sides last agreed on, by MD5. A file changed on one side is
   copied to the other; the first sync of a book never deletes.
-- **History.** Any version a sync replaces or deletes, on either side, first moves to
+- **History.** Uploads update the existing Drive file so its revisions accumulate
+  in Drive's version history (Manage versions on drive.google.com). Local replacements
+  and deletions, and remote deletions, still keep copies in
   `WrOS-History/<book>/<date>/<path> (<time> from WrOS|from Drive)` in Drive.
 - **Conflicts.** A file changed on both sides keeps the WrOS version in place and
   parks Drive's as `<name> (from Drive, <date> <time>).md` beside it; that file pauses

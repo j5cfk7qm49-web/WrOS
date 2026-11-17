@@ -1399,6 +1399,9 @@ impl App {
             }
         }
         let report = self.project.save_dirty();
+        if !report.saved.is_empty() {
+            self.deck.shell.backup.sync.saved(Instant::now());
+        }
         for (i, copy) in &report.parked {
             self.take_disk_change(*i, DiskChange::Parked(copy.clone()));
         }
@@ -1814,7 +1817,7 @@ impl App {
             // Keep this local snapshot even when a Git remote is configured.
             let _ = sessions::commit_session(&self.project.root, chrono::Local::now());
         }
-        true
+        self.sync_before_leave()
     }
 
     /// Last resort after a crash: keep every unsaved scene in recovery rather

@@ -456,6 +456,9 @@ impl App {
         }
         self.request_console_lock();
         if self.deck.lock_requested {
+            // Locking never waits for the network: start the final sync and lock now. If
+            // sleep interrupts it, it finishes after wake.
+            self.start_final_sync();
             self.deck.suspend_requested = true;
         }
         true
@@ -1615,6 +1618,9 @@ impl App {
                             return;
                         }
                         self.save_deck();
+                        if !self.sync_before_leave() {
+                            return;
+                        }
                         self.deck.request(Request::Power(action));
                     }
                     self.open_system_settings();

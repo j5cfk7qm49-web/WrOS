@@ -20,8 +20,13 @@ snapshots explicitly after reconnecting; use stale-lock recovery after a crash.
 Cancel stops the operation and preserves the active manuscript. Delete clears a
 setup field. Configured backups run after saved changes and ten minutes without
 editing, at most hourly, with delayed retries after failures. Readable Google
-Drive sync runs on opening, after saves and periodically. Google Docs round trips
-remain unavailable. Full guidance: docs/NATIVE_BACKUP.md in the installed documentation.
+Drive sync runs on opening, 90 seconds after the last save or edit, and every five
+minutes while the book is open. Closing the book or shutting down asks for a
+final sync after saving; retry the action once the sync finishes. Sleep starts a
+final sync and locks straight away. Offline attempts do not prevent leaving. A phone or a lost laptop may miss the last couple
+of minutes of writing. Uploads update the same Drive file, keeping its revision
+history. Google Docs round trips remain unavailable.
+Full guidance: docs/NATIVE_BACKUP.md in the installed documentation.
 
 ## Books on Google Drive
 

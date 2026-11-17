@@ -1488,6 +1488,9 @@ fn quit_or_arm(app: &mut App, armed: &mut bool) -> bool {
     if *armed || app.try_quit() {
         return true;
     }
+    if app.deck.shell.backup.sync.job.is_some() {
+        return false;
+    }
     *armed = true;
     let m = app.mod_label();
     // Keep the force-exit warning visible even at 80 columns.
