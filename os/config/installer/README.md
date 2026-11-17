@@ -1,91 +1,69 @@
-# Debian cdebconf passthrough framing
+# Installer configuration
 
-Historical Debian installer adapter, rc13 and earlier. NixOS uses the
-protocol-compatible backend in
-[nixos/scripts/wros-installer-backend](../../../nixos/scripts/wros-installer-backend)
-and does not load this cdebconf module.
+WrOS 0.1.0~rc16 installs from the NixOS live image. The files in this folder
+belong to the earlier Debian installer and are not part of the NixOS build. The
+NixOS installer is described below.
 
-The matching backend recipe explicitly includes maintained `apt-cdrom-setup`.
-Its presence in the offline pool alone does not select it: `apt-setup-udeb` can
-load the real mirror provider instead of the CD provider's virtual alternative.
-The build checks the actual `40cdrom` generator in the compressed initrd, and
-the native fixture refuses to start its frontend when that provider is absent.
+## The NixOS installer
 
-`native-crypto-passphrase` is a fixed-version partman init hook for the native
-passphrase path. Debian partman-crypto 134 unconditionally requests a frontend
-entropy plugin, including for passphrases. Debian does not provide a passthrough
-entropy plugin. The hook accepts only the authenticated script's exact hash and
-removes that unused plugin request. It leaves maintained cryptsetup, kernel
-randomness and `blockdev-keygen` unchanged. No `plugin-entropy` capability is
-advertised; Debian's existing check rejects random-key requests. The stock text
-frontend keeps its entropy plugin. At an earlier adapter-development stage,
-this adapter was staged by the guarded VM fixture; production media integration
-and full installation were still unqualified.
+Three scripts in [nixos/scripts](../../../nixos/scripts) do the work. NixOS
+packages them with Nix store paths in
+[helpers.nix](../../../nixos/pkgs/helpers.nix):
 
-The WrOS native installer frontend uses the cdebconf passthrough module from
-Debian source version 0.280, with the adjacent small field-framing patch. The
-module keeps its original BSD notice. The build retains that notice, upstream
-source and Debian's complete copyright index alongside a hash manifest.
+- [wros-install-session](../../../nixos/scripts/wros-install-session) is started
+  from the live writing session. It checks that its caller is the live Grimoire
+  session on tty1, records the chosen disk's identity, and runs the installer
+  frontend on tty7 as the locked `_wros-installer` account.
+- The frontend is the `wros-installer` Rust program in
+  [crates/wros-installer](../../../crates/wros-installer). It asks for the
+  keyboard layout, the computer's name, the writer's name, user name and
+  password, the disk passphrase, and confirmation before the disk is erased.
+- [wros-installer-backend](../../../nixos/scripts/wros-installer-backend) speaks
+  the same line-based cdebconf passthrough protocol the frontend used on Debian,
+  so the frontend is unchanged. It passes the answers to the install core over
+  stdin, never in command arguments or the environment.
+- [wros-install-core](../../../nixos/scripts/wros-install-core) runs as root. It
+  checks again that the disk is the one chosen and that nothing on it is in use.
+  Then it creates a GPT disk with a 512 MiB EFI partition and a LUKS2 container
+  holding ext4, and installs the prebuilt system closure from the live medium
+  without a network. It locks root, creates the writer account and installs the
+  boot loader last.
 
-The unmodified module failed an actual synthetic multi-paragraph question:
-literal newlines entered the line-oriented protocol. Its description code
-escaped literal `\n` sequences rather than newline characters, and its progress,
-title, substitution and default-value paths also lacked consistent escaping.
-The patch escapes backslashes, then newlines, on those outbound fields. The
-native frontend decodes those fields once. GET responses contain single-line
-answers unchanged, as required by the module's existing answer handling.
-Response reading uses a bounded stdio frame and strips line endings without
-trimming meaningful password whitespace. The actual fixture covers a prefilled
-password spanning several stdio chunks with
-literal backslashes. A separate typed password verifies leading and trailing
-spaces. Debian's confmodule SET command trims boundary whitespace; shipping
-media must not preseed passwords or rely on a prefilled password value.
+The keyboard layout can be QWERTY, Colemak, Colemak-DH ANSI or Colemak-DH ISO.
+The install core saves it to `/boot/wros-boot/keyboard.json`, and the systemd
+initrd loads it before the disk passphrase prompt. The prompt therefore uses
+the layout chosen during installation.
 
-It aborts on broken transport, incomplete/oversized frames, embedded NUL/CR and
-invalid/error statuses. Back is allowed only for GO with
-backup enabled. Module developer logging is compiled out locally, so compiling
-the full maintained backend still works. See the [failure boundary](../../../docs/archive/INSTALLER_BACKEND.md).
+The [install-encrypted VM check](../../../nixos/tests/install-encrypted.nix)
+covers installation, refusal of the wrong or a mounted disk, and retrying after
+an interrupted install, all on disposable disks. Installing on a physical
+laptop is checked separately for each release.
 
-Build non-root with `os/scripts/build-installer-frontend.sh`, passing the pinned
-Debian source descriptor and a new output directory. Fetch the source descriptor
-and sibling archive through authenticated APT first. The script checks their
-hashes before extraction; the descriptor's maintainer signature has not been
-independently qualified. This does not replace Debian disk or account engines.
+## Files kept in this folder
 
-The later Debian release recipe builds the module into the matching installer
-backend and stages its native-installer capsule into the live medium. This is
-Debian build machinery; the NixOS installer does not use it.
+These files are used only by the retained Debian build and its checks
+(`tools/verify-wros.py` runs shellcheck on the hook; the Debian live-image audit
+in `tools/audit-live-session.py` looks for it):
 
-The optional `--test-runtime` build adds a private configured backend and RFC822
-plugin for ordinary non-root CI. `tools/test-installer-components.py` uses it
-without binding or changing system configuration; synthetic credential files
-stay on tmpfs, including when mounted noexec.
+| File | Debian purpose |
+|---|---|
+| `cdebconf-passthrough-framing.patch` | Escapes backslashes and newlines in the passthrough module's outbound fields |
+| `debian-installer-initrd-profile.patch` | Initrd-only dependency profile for building the installer backend |
+| `native-crypto-passphrase` | partman hook that removed an unused entropy-plugin request on the passphrase path |
+| `keymaps/` | Colemak entries for Debian's keymap question and the initramfs keymap hook |
 
-`build-live-backend.sh` can now add this module as a local udeb to a matching
-Debian Security kernel/initrd, using retained upstream build machinery and an
-explicit initrd-only dependency profile. See the [component recipe and actual
-image backend evidence](../../../docs/archive/LIVE_INSTALLER_IMAGE.md). This does not
-expose a privileged launcher or complete a live ISO.
+## History
 
-## Colemak in the keymap question
-
-Debian's keymap question (`keyboard-configuration/xkb-keymap` in
-console-setup-udeb 1.242~deb13u1) offers Dvorak but not Colemak, and the
-installer's precompiled console maps (`pc105.ekmap.gz`) have no Colemak entry.
-The local `wros-installer-keymaps` udeb adds Debian's own `us(colemak)`,
-`us(colemak_dh)` and `us(colemak_dh_iso)`, listed after Chinese as Colemak and
-Colemak Mod-DH (ANSI/ISO); these are the variants `wros-keyboard` adopts.
-
-- `keymaps/` holds the generated overlay: the maintained question with the
-  three choices inserted at the same position in every translated Choices field,
-  the three maps from `ckbcomp -compact`, and the exact `ckbcomp-mini` output
-  each must produce. Regenerate with `tools/generate-installer-keymaps.py
-  CONSOLE_SETUP_UDEB os/config/installer/keymaps`. `build-live-backend.sh`
-  regenerates from the udebs it actually used and fails on any difference.
-- `S21wros-keymaps` (in the merged-usr `/usr/lib/debian-installer-startup.d`) runs after `S20templates`. It appends the maps, checks each
-  one through the installer's own `ckbcomp-mini` byte for byte, and only then
-  loads the extended question. Otherwise the stock list stays, so a passphrase is
-  never typed under a map the installer could not load.
-- `13wros-initramfs-keymap` sets `KEYMAP=y` on the target (Debian ships `n`)
-  just before live-installer's `14remove-live-packages` regenerates the
-  initramfs, so the disk passphrase prompt uses the installation's layout.
+Up to rc13, WrOS used Debian Installer as its disk and account engine. The
+native frontend reached it through Debian's cdebconf passthrough module
+(source version 0.280, original BSD notice retained). The module sent
+multi-line text that broke the line-based protocol, so WrOS patched it to
+escape backslashes and newlines; the frontend decodes those fields once.
+Debian's keymap question had no Colemak, so a local udeb added `us(colemak)`,
+`us(colemak_dh)` and `us(colemak_dh_iso)`, checked byte for byte against the
+installer's own `ckbcomp-mini`. Another hook set `KEYMAP=y` so the disk
+passphrase prompt used the chosen layout. The build scripts were
+`os/scripts/build-installer-frontend.sh` and `build-live-backend.sh`.
+[INSTALLER_BACKEND](../../../docs/archive/INSTALLER_BACKEND.md) and
+[LIVE_INSTALLER_IMAGE](../../../docs/archive/LIVE_INSTALLER_IMAGE.md) keep the
+details and their test results. Those results do not qualify the NixOS installer.
