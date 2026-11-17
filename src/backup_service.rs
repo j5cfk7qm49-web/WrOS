@@ -76,6 +76,9 @@ pub enum Request {
     DriveList {
         folder: String,
     },
+    DriveBooks {
+        folder: String,
+    },
     DriveMaterialize {
         remote: String,
         destination: String,
@@ -130,6 +133,22 @@ pub struct DriveEntry {
     pub google_doc: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DriveBookEntry {
+    pub name: String,
+    pub path: String,
+    pub book: bool,
+    pub synced: bool,
+    pub project_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DriveBooks {
+    pub entries: Vec<DriveBookEntry>,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct QueuedBackup {
@@ -157,9 +176,9 @@ pub struct Snapshot {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Response {
+struct Response<T> {
     ok: bool,
-    data: Option<Status>,
+    data: Option<T>,
     error: Option<String>,
 }
 
@@ -313,7 +332,7 @@ impl<T> Drop for Job<T> {
 }
 pub fn spawn(request: Request, state: std::path::PathBuf) -> Result<Job, String> {
     spawn_work("wros-backup", move |cancelled, progress| {
-        execute_in(&request, cancelled, Some(state), Some(progress))
+        execute_in(&request, cancelled, Some(state), Some(progress), None)
     })
 }
 
@@ -366,18 +385,21 @@ fn terminate(child: &mut std::process::Child) {
 }
 
 pub fn execute(request: &Request, cancelled: &AtomicBool) -> Result<Status, String> {
-    execute_in(request, cancelled, None, None)
+    execute_in(request, cancelled, None, None, None)
 }
-fn execute_in(
+pub(crate) fn execute_in<T: serde::de::DeserializeOwned>(
     request: &Request,
     cancelled: &AtomicBool,
     state: Option<std::path::PathBuf>,
     progress: Option<Shared>,
-) -> Result<Status, String> {
+    script: Option<std::path::PathBuf>,
+) -> Result<T, String> {
     let unavailable =
         || "Backup service unavailable; install the WrOS Restic/rclone integration.".to_owned();
     let installed = std::path::Path::new(wros_sys::paths::WROS_BACKUP);
-    let script = if installed.is_file() {
+    let script = if let Some(script) = script {
+        script
+    } else if installed.is_file() {
         installed.to_path_buf()
     } else if cfg!(debug_assertions) {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("os/scripts/wros-backup")
@@ -398,7 +420,7 @@ fn execute_in(
         &unavailable(),
         "Backup cancelled; no completed restore or verification claimed. Refresh snapshots before retrying.",
     )?;
-    let response: Response = serde_json::from_slice(&bytes).map_err(|_| unavailable())?;
+    let response: Response<T> = serde_json::from_slice(&bytes).map_err(|_| unavailable())?;
     if response.ok {
         response.data.ok_or_else(unavailable)
     } else {
@@ -541,6 +563,31 @@ fn helper_command(installed_session: bool) -> Command {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn drive_books_requests_and_replies_keep_the_marker_identity() {
+        assert_eq!(
+            serde_json::to_string(&Request::DriveBooks {
+                folder: "drive:WrOS".into(),
+            })
+            .unwrap(),
+            r#"{"operation":"drive-books","folder":"drive:WrOS"}"#
+        );
+        let response: Response<DriveBooks> = serde_json::from_value(serde_json::json!({
+            "ok": true, "data": {"entries": [{
+                "name": "Clip says Hello World.", "path": "drive:WrOS/Clip says Hello World.",
+                "book": true, "synced": true,
+                "project_id": "12345678-1234-4234-8234-123456789abc"
+            }]}
+        }))
+        .unwrap();
+        let entry = response.data.unwrap().entries.remove(0);
+        assert!(response.ok && entry.book && entry.synced);
+        assert_eq!(
+            entry.project_id.as_deref(),
+            Some("12345678-1234-4234-8234-123456789abc")
+        );
+    }
 
     #[test]
     fn cloning_a_job_preserves_its_worker_and_explicit_cancellation() {

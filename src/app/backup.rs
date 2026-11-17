@@ -147,7 +147,9 @@ impl Form {
 
 #[derive(Default)]
 pub struct Backups {
-    state: PathBuf,
+    pub(super) state: PathBuf,
+    /// Test seam for Import's Drive requests, like SyncState's stand-in helper.
+    pub script: Option<PathBuf>,
     pub status: Status,
     pub form: Option<Form>,
     pub notice: String,

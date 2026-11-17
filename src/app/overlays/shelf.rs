@@ -160,6 +160,12 @@ impl App {
                     let _ = self.open_book(&root);
                 }
                 Some(ShelfRow::Import) => {
+                    if self.background {
+                        self.deck
+                            .shell
+                            .backup
+                            .request(crate::backup_service::Request::Status);
+                    }
                     self.overlay = Overlay::Import(ImportState::new());
                 }
                 Some(ShelfRow::NewBook) => {
@@ -474,6 +480,8 @@ impl App {
             background: self.background,
         };
         let mut next = App::with(project, setup).map_err(cant)?;
+        next.deck.shell.backup.sync.script = self.deck.shell.backup.sync.script.take();
+        next.deck.shell.backup.sync.env = std::mem::take(&mut self.deck.shell.backup.sync.env);
         std::mem::swap(&mut next.music, &mut self.music);
         std::mem::swap(&mut next.viz, &mut self.viz);
         std::mem::swap(&mut next.pomo, &mut self.pomo);

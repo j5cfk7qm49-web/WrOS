@@ -2936,7 +2936,331 @@ fn laptop_import(d: &mut Desk) {
     d.menu(&["File", "Open another book…"]);
     d.choose("Import a book…");
     assert!(d.shows("A folder on this laptop"));
+    d.choose("A folder on this laptop");
+}
+
+// A private backup/sync helper: log the real JSON requests and materialize a fixture.
+fn drive_import_stub(d: &mut Desk, source: &Path, synced: bool) -> PathBuf {
+    let dir = grimoire_core::paths::home().join("drive-stub");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(
+        dir.join("helper.py"),
+        r#"import json, shutil, sys, time
+from pathlib import Path
+here = Path(__file__).parent
+request = json.load(sys.stdin)
+operation = request['operation']
+if operation == 'enable':
+    request['identity'] = json.loads((Path(request['project']) / '.grimoire/sync.json').read_text())
+with (here / 'log').open('a') as log:
+    log.write(json.dumps(request) + '\n')
+if operation == 'drive-books':
+    while (here / 'pause-listing').exists():
+        time.sleep(0.01)
+    reply = json.loads((here / 'listing.json').read_text())
+elif operation == 'drive-materialize':
+    source = Path(json.loads((here / 'source.json').read_text()))
+    shutil.copytree(source, request['destination'])
+    reply = {'ok': True, 'data': dict(configured=False, repository='', recovery_key='',
+             google_connected=True, snapshots=[], notice='Checked.')}
+elif operation == 'enable':
+    reply = {'ok': True, 'data': {'status': 'enabled'}}
+else:
+    raise RuntimeError(operation)
+print(json.dumps(reply))
+"#,
+    )
+    .unwrap();
+    fs::write(dir.join("source.json"), serde_json::to_vec(source).unwrap()).unwrap();
+    let project_id = synced.then_some("12345678-1234-4234-8234-123456789abc");
+    fs::write(
+        dir.join("listing.json"),
+        serde_json::to_vec(&serde_json::json!({
+            "ok": true, "data": {"entries": [{
+                "name": "Clip says Hello World.", "path": "drive:WrOS/Clip says Hello World.",
+                "book": true, "synced": synced, "project_id": project_id
+            }]}
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let backup = &mut d.app.deck.shell.backup;
+    backup.status.google_connected = true;
+    backup.script = Some(dir.join("helper.py"));
+    backup.sync.script = Some(dir.join("helper.py"));
+    dir
+}
+
+fn drive_import(d: &mut Desk) {
+    d.menu(&["File", "Open another book…"]);
+    d.choose("Import a book…");
+    d.choose("Google Drive");
+    assert!(d.shows("Reading Google Drive…"));
+}
+
+fn wait_drive_listing(d: &mut Desk) {
+    let end = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while d.shows("Reading Google Drive…") && std::time::Instant::now() < end {
+        d.app.tick_import();
+        d.draw();
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert!(!d.shows("Reading Google Drive…"), "{}", d.rows().join("\n"));
+}
+
+fn drive_import_log(dir: &Path) -> Vec<serde_json::Value> {
+    fs::read_to_string(dir.join("log"))
+        .unwrap_or_default()
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect()
+}
+
+#[test]
+fn a_synced_drive_book_imports_with_its_sync_identity() {
+    if !shelf_home("a_synced_drive_book_imports_with_its_sync_identity") {
+        return;
+    }
+    let first = import_fixture("Documents/Open", "Local words.\n");
+    let source = import_fixture("Remote/Clip says Hello World.", "Drive words.\n");
+    fs::write(
+        source.join(".wros-sync.json"),
+        r#"{"version":1,"project_id":"12345678-1234-4234-8234-123456789abc"}"#,
+    )
+    .unwrap();
+    let before = import_snapshot(&source);
+    let mut d = Desk::open(first, 80, 24);
+    let stub = drive_import_stub(&mut d, &source, true);
+    // A synced child beyond the listing's 50 marker reads still keeps its identity.
+    let listing = stub.join("listing.json");
+    let mut reply: serde_json::Value =
+        serde_json::from_slice(&fs::read(&listing).unwrap()).unwrap();
+    reply["data"]["entries"][0]["project_id"] = serde_json::Value::Null;
+    fs::write(listing, serde_json::to_vec(&reply).unwrap()).unwrap();
+    fs::write(stub.join("pause-listing"), "").unwrap();
+    drive_import(&mut d);
+    d.app.tick_import();
+    d.draw();
+    assert!(d.shows("Reading Google Drive…"));
+    fs::remove_file(stub.join("pause-listing")).unwrap();
+    wait_drive_listing(&mut d);
+    assert!(d.shows("book · synced"));
+    assert!(!d.shows("Up one folder"));
+    d.choose("Clip says Hello World.");
+    assert!(d.shows_wrapped("Copying Clip says Hello World. from Google Drive…"));
+    wait_import(&mut d);
+    let dest = crate::books::documents().join("Clip says Hello World.");
+    let identity: serde_json::Value =
+        serde_json::from_slice(&fs::read(dest.join(".grimoire/sync.json")).unwrap()).unwrap();
+    assert_eq!(
+        identity,
+        serde_json::json!({
+            "version": 1, "project_id": "12345678-1234-4234-8234-123456789abc",
+            "drive_folder": "Clip says Hello World."
+        })
+    );
+    assert_eq!(d.app.project.root, fs::canonicalize(&dest).unwrap());
+    assert!(d.shows_wrapped("and checked. Opening it."));
+    let backup = &d.app.deck.shell.backup;
+    assert_eq!(
+        backup.sync.running,
+        Some(crate::sync_service::Request::Enable {
+            project: d.app.project.root.to_string_lossy().into_owned(),
+        })
+    );
+    backup
+        .sync
+        .job
+        .as_ref()
+        .unwrap()
+        .result
+        .recv_timeout(std::time::Duration::from_secs(5))
+        .unwrap()
+        .unwrap();
+    let log = drive_import_log(&stub);
+    assert_eq!(log[0]["operation"], "drive-books");
+    assert_eq!(log[0]["folder"], "drive:WrOS");
+    assert_eq!(log[1]["operation"], "drive-materialize");
+    assert_eq!(log[1]["remote"], "drive:WrOS/Clip says Hello World.");
+    assert_eq!(log[1]["destination"], dest.to_string_lossy().as_ref());
+    assert_eq!(log[2]["operation"], "enable");
+    assert_eq!(log[2]["identity"], identity);
+    assert_eq!(
+        log[2]["project"],
+        d.app.project.root.to_string_lossy().as_ref()
+    );
+    assert_eq!(import_snapshot(&source), before);
+    for (path, bytes) in before {
+        assert_eq!(fs::read(dest.join(path)).unwrap(), bytes);
+    }
+}
+
+#[test]
+fn a_drive_book_already_synced_here_is_not_copied_again() {
+    if !shelf_home("a_drive_book_already_synced_here_is_not_copied_again") {
+        return;
+    }
+    let first = import_fixture("Documents/Open", "Local words.\n");
+    let local = import_fixture("Documents/Renamed", "Already here.\n");
+    fs::create_dir_all(local.join(".grimoire")).unwrap();
+    fs::write(local.join("novel.toml"), "title = 'My local title'\n").unwrap();
+    fs::write(
+        local.join(".grimoire/sync.json"),
+        serde_json::to_vec(&serde_json::json!({
+            "version": 1, "project_id": "87654321-4321-4321-8321-cba987654321",
+            "drive_folder": "Clip says Hello World."
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let before = import_snapshot(&local);
+    let mut d = Desk::open(first.clone(), 80, 24);
+    let stub = drive_import_stub(&mut d, &local, true);
+    drive_import(&mut d);
+    wait_drive_listing(&mut d);
+    d.choose("Clip says Hello World.");
+    assert!(d.shows_wrapped("My local title is already here and syncs with this Drive folder."));
+    assert!(d.shows("open book"));
+    assert_eq!(d.app.project.root, fs::canonicalize(&first).unwrap());
+    assert_eq!(import_snapshot(&local), before);
+    assert!(
+        !crate::books::documents()
+            .join("Clip says Hello World.")
+            .exists()
+    );
+    assert_eq!(drive_import_log(&stub).len(), 1);
+    d.key(KeyCode::Esc);
+    assert_eq!(d.app.project.root, fs::canonicalize(&first).unwrap());
+    drive_import(&mut d);
+    wait_drive_listing(&mut d);
+    d.choose("Clip says Hello World.");
     d.key(KeyCode::Enter);
+    assert_eq!(d.app.project.root, fs::canonicalize(&local).unwrap());
+    assert_eq!(drive_import_log(&stub).len(), 2);
+}
+
+#[test]
+fn drive_import_without_a_marker_and_keep_both_leave_sync_off() {
+    if !shelf_home("drive_import_without_a_marker_and_keep_both_leave_sync_off") {
+        return;
+    }
+    for synced in [false, true] {
+        let first = import_fixture("Documents/Open", "Local words.\n");
+        let source = import_fixture("Remote/Clip says Hello World.", "Drive words.\n");
+        // Even a stale identity copied from Drive cannot link the new copy by accident.
+        fs::create_dir_all(source.join(".grimoire")).unwrap();
+        fs::write(source.join(".grimoire/sync.json"), "{}").unwrap();
+        if synced {
+            fs::write(
+                source.join(".wros-sync.json"),
+                r#"{"version":1,"project_id":"12345678-1234-4234-8234-123456789abc"}"#,
+            )
+            .unwrap();
+        }
+        let local = crate::books::documents().join("Clip says Hello World.");
+        if synced {
+            import_fixture("Documents/Clip says Hello World.", "Keep local.\n");
+        }
+        let mut d = Desk::open(first, 170, 48);
+        let stub = drive_import_stub(&mut d, &source, synced);
+        drive_import(&mut d);
+        wait_drive_listing(&mut d);
+        d.choose("Clip says Hello World.");
+        if synced {
+            d.choose("Keep both");
+        }
+        wait_import(&mut d);
+        let dest = if synced {
+            local.with_file_name("Clip says Hello World. 2")
+        } else {
+            local
+        };
+        assert_eq!(d.app.project.root, fs::canonicalize(&dest).unwrap());
+        assert!(!dest.join(".grimoire/sync.json").exists());
+        assert!(d.app.deck.shell.backup.sync.job.is_none());
+        assert!(
+            !drive_import_log(&stub)
+                .iter()
+                .any(|r| r["operation"] == "enable")
+        );
+        fs::remove_dir_all(&dest).unwrap();
+    }
+}
+
+#[test]
+fn import_links_unlinked_drive_and_keeps_listing_failures_visible() {
+    if !shelf_home("import_links_unlinked_drive_and_keeps_listing_failures_visible") {
+        return;
+    }
+    let first = import_fixture("Documents/Open", "Local words.\n");
+    let mut d = Desk::open(first, 80, 24);
+    d.menu(&["File", "Open another book…"]);
+    d.choose("Import a book…");
+    assert!(d.shows("Google Drive · link it in Settings first"));
+    d.key(KeyCode::Enter);
+    assert_eq!(
+        d.app.deck.shell.nav.current(),
+        crate::app::shell::Route::GoogleAccount
+    );
+    d.app.overlay = Overlay::None;
+    d.app.deck.shell.backup.job = None;
+    let source = import_fixture("Remote/Clip says Hello World.", "Drive words.\n");
+    let stub = drive_import_stub(&mut d, &source, true);
+    fs::write(
+        stub.join("listing.json"),
+        r#"{"ok":false,"error":"Google Drive could not be reached."}"#,
+    )
+    .unwrap();
+    drive_import(&mut d);
+    wait_drive_listing(&mut d);
+    assert!(d.shows("Google Drive could not be reached."));
+    d.draw();
+    assert!(d.shows("Google Drive could not be reached."));
+    assert!(
+        !crate::books::documents()
+            .join("Clip says Hello World.")
+            .exists()
+    );
+    assert_eq!(drive_import_log(&stub).len(), 1);
+}
+
+#[test]
+fn drive_import_browses_remote_folders_and_goes_up_without_local_paths() {
+    if !shelf_home("drive_import_browses_remote_folders_and_goes_up_without_local_paths") {
+        return;
+    }
+    let first = import_fixture("Documents/Open", "Local words.\n");
+    let source = import_fixture("Remote/Clip says Hello World.", "Drive words.\n");
+    let mut d = Desk::open(first, 80, 24);
+    let stub = drive_import_stub(&mut d, &source, false);
+    let listing = serde_json::json!({
+        "ok": true, "data": {"entries": [{
+            "name": "Library", "path": "drive:WrOS/Library", "book": false,
+            "synced": false, "project_id": null
+        }]}
+    });
+    fs::write(
+        stub.join("listing.json"),
+        serde_json::to_vec(&listing).unwrap(),
+    )
+    .unwrap();
+    drive_import(&mut d);
+    wait_drive_listing(&mut d);
+    assert!(d.shows("Library · folder"));
+    assert!(!d.shows("Up one folder"));
+    d.choose("Library");
+    assert!(d.shows("Reading Google Drive…"));
+    wait_drive_listing(&mut d);
+    assert!(d.shows("WrOS/Library"));
+    assert!(d.shows("Up one folder"));
+    d.choose("Up one folder");
+    wait_drive_listing(&mut d);
+    assert!(!d.shows("Up one folder"));
+    let log = drive_import_log(&stub);
+    assert_eq!(log.len(), 3);
+    assert_eq!(log[1]["folder"], "drive:WrOS/Library");
+    assert_eq!(log[2]["folder"], "drive:WrOS");
+    assert!(!crate::books::documents().join("Library").exists());
 }
 
 fn wait_import(d: &mut Desk) {

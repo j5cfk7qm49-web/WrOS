@@ -125,6 +125,35 @@ class Sync(unittest.TestCase):
                                     'research/map.bin'])
         self.assertEqual(self.sync()['uploaded'], 0)
 
+    def test_first_sync_after_drive_import_keeps_identity_and_changes_nothing(self):
+        # Materialize an existing Drive book, then record its marker's identity before enable.
+        self.remote = self.drive / 'WrOS' / 'Clip says Hello World.'
+        shutil.copytree(self.book, self.remote)
+        identity = {'version': 1, 'project_id': '12345678-1234-4234-8234-123456789abc',
+                    'drive_folder': self.remote.name}
+        (self.remote / '.wros-sync.json').write_text(json.dumps({
+            'version': 1, 'project_id': identity['project_id'],
+        }))
+        shutil.rmtree(self.book)
+        self.book = self.book.with_name('Imported book 2')
+        shutil.copytree(self.remote, self.book)
+        (self.book / '.grimoire/sync.json').write_text(json.dumps(identity))
+        before = {p.relative_to(self.remote): p.read_bytes()
+                  for p in self.remote.rglob('*') if p.is_file()}
+        enabled = self.service.enable(str(self.book))
+        self.assertEqual(enabled['drive_folder'], identity['drive_folder'])
+        self.assertEqual(json.loads((self.book / '.grimoire/sync.json').read_text()), identity)
+        with mock.patch.object(self.service, 'rclone', wraps=self.service.rclone) as rclone:
+            result = self.sync()
+        self.assertEqual((result['status'], result['uploaded'], result['downloaded'],
+                          result['deleted'], result['parked'], result['pending']),
+                         ('synced', 0, 0, 0, [], []))
+        self.assertFalse(any(call.args[0] in ('copyto', 'moveto', 'deletefile', 'rcat')
+                             for call in rclone.call_args_list))
+        self.assertEqual({p.relative_to(self.remote): p.read_bytes()
+                          for p in self.remote.rglob('*') if p.is_file()}, before)
+        self.assertEqual(history_files(self.drive), [])
+
     def test_missing_drive_checksum_preserves_both_versions_and_reports_the_skip(self):
         self.service.enable(str(self.book))
         self.sync()

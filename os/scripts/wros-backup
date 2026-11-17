@@ -22,6 +22,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import uuid
 
 MAX_FILES = 100_000
 MAX_BYTES = 5 * 1024**3
@@ -1263,6 +1264,60 @@ class Service:
         where = sub or 'the top of your Drive'
         return self.status(f'{len(entries)} item(s) in {where}.', refresh=False)
 
+    def drive_books(self, folder):
+        sub = self._validate_drive_subpath(folder, require_item=False)
+        require(self.google.exists() or self.google.is_symlink(), 'Connect Google Drive first.')
+        private_file(self.google)
+        ok, payload, failure_kind = classify_rclone_failure(
+            ['lsjson', '--recursive', '--max-depth', '2', '--exclude', '.*/',
+             'wros-google:' + sub], self.env)
+        if not ok:
+            self._record_google_failure(failure_kind)
+        rows = json.loads(payload) if payload.strip() else []
+        require(isinstance(rows, list), 'Invalid Google Drive folder metadata.')
+        children = {}
+        for row in rows:
+            require(isinstance(row, dict), 'Invalid Google Drive entry metadata.')
+            path = row.get('Path')
+            require(isinstance(path, str) and path and '\\' not in path
+                    and not any(ord(c) < 32 for c in path)
+                    and all(p and p not in ('.', '..') for p in path.split('/')),
+                    'Unsupported Google Drive entry name.')
+            if '/' in path or path.startswith('.') or not row.get('IsDir'):
+                continue
+            require(path not in children, 'Google Drive has duplicate folder names; rename one first.')
+            children[path] = {
+                'name': path, 'path': 'drive:' + (f'{sub}/{path}' if sub else path),
+                'book': False, 'synced': False, 'project_id': None,
+            }
+            require(len(children) <= 1000, 'Google Drive folder exceeds 1,000 supported children.')
+        for row in rows:
+            parts = row['Path'].split('/')
+            if len(parts) != 2 or parts[0] not in children:
+                continue
+            entry = children[parts[0]]
+            if parts[1] == 'manuscript' and row.get('IsDir'):
+                entry['book'] = True
+            elif parts[1] == '.wros-sync.json' and not row.get('IsDir'):
+                entry['synced'] = True
+        entries = sorted(children.values(), key=lambda e: (not e['book'], e['name'].lower()))
+        inspected = 0
+        for entry in entries:
+            if not entry['synced'] or inspected == 50:
+                continue
+            inspected += 1
+            remote = entry['path'][6:] + '/.wros-sync.json'
+            ok, payload, failure_kind = classify_rclone_failure(['cat', 'wros-google:' + remote], self.env)
+            if not ok:
+                self._record_google_failure(failure_kind)
+            try:
+                project_id = json.loads(payload).get('project_id')
+                if isinstance(project_id, str) and str(uuid.UUID(project_id)) == project_id:
+                    entry['project_id'] = project_id
+            except (ValueError, AttributeError):
+                pass
+        return {'entries': entries}
+
     def _check_copy(self, sub, payload_path):
         """The staged copy matches Google Drive, or nothing is kept."""
         if payload_path.is_dir():
@@ -1433,6 +1488,8 @@ def dispatch(service, request):
         return service.disconnect_google()
     if operation == 'drive-list':
         return service.drive_list(request['folder'])
+    if operation == 'drive-books':
+        return service.drive_books(request['folder'])
     if operation == 'drive-materialize':
         return service.drive_materialize(request['remote'], request['destination'], request.get('project'))
     raise ValueError('Unsupported backup operation.')

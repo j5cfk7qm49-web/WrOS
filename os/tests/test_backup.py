@@ -16,6 +16,90 @@ SCRIPT = Path(__file__).parents[1]/'scripts/wros-backup'
 module = importlib.machinery.SourceFileLoader('wros_backup', str(SCRIPT)).load_module()
 
 
+class DriveBooks(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix='wros-drive-books-')
+        self.addCleanup(temporary.cleanup)
+        self.base = Path(temporary.name)
+        self.remote = self.base / 'drive'
+        self.remote.mkdir()
+        self.service = module.Service(self.base / 'state')
+        module.write_private(self.service.google,
+                             f'[wros-google]\ntype = alias\nremote = {self.remote}\n'.encode(),
+                             exclusive=True)
+        self.project_id = '12345678-1234-4234-8234-123456789abc'
+
+    def test_lists_only_visible_child_folders_and_inspects_books_and_markers(self):
+        top = self.remote / 'WrOS'
+        synced = top / 'Clip says Hello World.'
+        (synced / 'manuscript').mkdir(parents=True)
+        (synced / '.wros-sync.json').write_text(json.dumps({
+            'version': 1, 'project_id': self.project_id,
+        }))
+        (top / 'Café/manuscript').mkdir(parents=True)
+        (top / 'Plain/nested/manuscript').mkdir(parents=True)
+        (top / '.hidden/manuscript').mkdir(parents=True)
+        (top / 'Link').symlink_to(synced, target_is_directory=True)
+        (top / 'notes.md').write_text('Not a folder.')
+        (top / 'Not a book').mkdir()
+        (top / 'Not a book/manuscript').write_text('Not a directory.')
+        with mock.patch.object(module, 'classify_rclone_failure',
+                               wraps=module.classify_rclone_failure) as rclone:
+            result = module.dispatch(self.service, {'operation': 'drive-books', 'folder': 'drive:WrOS'})
+        self.assertEqual(result, {'entries': [
+            {'name': 'Café', 'path': 'drive:WrOS/Café', 'book': True,
+             'synced': False, 'project_id': None},
+            {'name': 'Clip says Hello World.', 'path': 'drive:WrOS/Clip says Hello World.',
+             'book': True, 'synced': True, 'project_id': self.project_id},
+            {'name': 'Not a book', 'path': 'drive:WrOS/Not a book', 'book': False,
+             'synced': False, 'project_id': None},
+            {'name': 'Plain', 'path': 'drive:WrOS/Plain', 'book': False,
+             'synced': False, 'project_id': None},
+        ]})
+        self.assertEqual([call.args[0] for call in rclone.call_args_list], [
+            ['lsjson', '--recursive', '--max-depth', '2', '--exclude', '.*/', 'wros-google:WrOS'],
+            ['cat', 'wros-google:WrOS/Clip says Hello World./.wros-sync.json'],
+        ])
+
+    def test_remote_failure_uses_the_usual_error_and_rejects_unsafe_paths(self):
+        with self.assertRaisesRegex(ValueError, 'could not be found on Google Drive'):
+            self.service.drive_books('drive:Missing')
+        with mock.patch.object(module, 'classify_rclone_failure',
+                               return_value=(False, b'', 'offline')):
+            with self.assertRaisesRegex(ValueError, 'Google Drive could not be reached'):
+                self.service.drive_books('drive:WrOS')
+        self.assertEqual(self.service.google_meta['state'], 'offline')
+        with mock.patch.object(module, 'classify_rclone_failure') as rclone:
+            with self.assertRaisesRegex(ValueError, 'unsafe'):
+                self.service.drive_books('drive:WrOS/../secret')
+            rclone.assert_not_called()
+
+    def test_listing_caps_children_and_marker_reads(self):
+        rows = []
+        for n in range(51):
+            name = f'Book {n:02}'
+            rows.extend([{'Path': name, 'IsDir': True},
+                         {'Path': name + '/manuscript', 'IsDir': True},
+                         {'Path': name + '/.wros-sync.json', 'IsDir': False}])
+
+        def rclone(args, env):
+            if args[0] == 'lsjson':
+                return True, json.dumps(rows).encode(), ''
+            self.assertEqual(args[0], 'cat')
+            return True, json.dumps({'project_id': self.project_id}).encode(), ''
+
+        with mock.patch.object(module, 'classify_rclone_failure', side_effect=rclone) as calls:
+            entries = self.service.drive_books('drive:WrOS')['entries']
+        self.assertEqual(len(entries), 51)
+        self.assertTrue(all(entry['synced'] for entry in entries))
+        self.assertEqual(sum(entry['project_id'] == self.project_id for entry in entries), 50)
+        self.assertEqual(len(calls.call_args_list), 51)
+        rows[:] = [{'Path': f'Folder {n}', 'IsDir': True} for n in range(1001)]
+        with mock.patch.object(module, 'classify_rclone_failure', side_effect=rclone):
+            with self.assertRaisesRegex(ValueError, '1,000'):
+                self.service.drive_books('drive:WrOS')
+
+
 class EncryptedBackup(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix='wros-backup-test-')

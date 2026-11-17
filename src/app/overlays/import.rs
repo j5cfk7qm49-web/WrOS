@@ -1,16 +1,15 @@
 //! Bring a book in without changing its source or blocking the writer's keys.
 
 use super::*;
-use crate::backup_service::{self as service, Job, Progress};
+use crate::backup_service::{self as service, DriveBooks, Job, Progress, Request, Status};
 use grimoire_core::book_copy::{self, MergeReport};
 use grimoire_core::shelf::{free_destination, project_id_of, same_book, title_of};
 use std::sync::mpsc::TryRecvError;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum ImportSource {
-    // These sources are filled in by the following Import tasks.
-    #[allow(dead_code)]
     Drive,
+    // These sources are filled in by the following Import tasks.
     #[allow(dead_code)]
     Usb {
         label: String,
@@ -33,6 +32,7 @@ impl ImportSource {
 
     fn top(&self) -> PathBuf {
         let top = match self {
+            Self::Drive => return PathBuf::from("drive:WrOS"),
             Self::Usb { mount, .. } => mount.clone(),
             _ => grimoire_core::paths::home(),
         };
@@ -53,17 +53,23 @@ pub(crate) struct Entry {
     path: PathBuf,
     name: String,
     book: bool,
+    drive: Option<service::DriveBookEntry>,
 }
 
 #[derive(Debug)]
 pub(crate) struct ImportDone {
     path: PathBuf,
     merge: Option<MergeReport>,
+    sync: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum ImportStage {
     Sources,
+    ReadingDrive {
+        dir: PathBuf,
+        job: Job<DriveBooks>,
+    },
     Browse {
         source: ImportSource,
         dir: PathBuf,
@@ -88,8 +94,9 @@ pub(crate) enum ImportStage {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ImportState {
     pub(crate) stage: ImportStage,
-    // In Copying: 0 copies, 1/2 confirm keep/stop, 3 waits for cancellation,
-    // and 4 allows the first progress frame before polling the result.
+    open_on_enter: Option<PathBuf>,
+    // In Copying: 0 copies, 1/2 confirm keep/stop, 3 waits for cancellation.
+    // In Copying and ReadingDrive: 4 allows a progress frame before polling.
     pub(crate) sel: usize,
 }
 
@@ -97,6 +104,7 @@ impl ImportState {
     pub(crate) fn new() -> Self {
         Self {
             stage: ImportStage::Sources,
+            open_on_enter: None,
             sel: 0,
         }
     }
@@ -110,7 +118,11 @@ impl ImportState {
             },
             Err(error) => ImportStage::Done(error),
         };
-        Self { stage, sel: 0 }
+        Self {
+            stage,
+            open_on_enter: None,
+            sel: 0,
+        }
     }
 }
 
@@ -139,6 +151,7 @@ fn entries(dir: &Path) -> Result<Vec<Entry>, String> {
                 book: books::is_book(&path),
                 path,
                 name,
+                drive: None,
             });
         }
     }
@@ -188,15 +201,28 @@ impl App {
         match &mut state.stage {
             ImportStage::Sources => match key {
                 Key::Enter | Key::Char(' ') | Key::Right | Key::Char('l') => {
-                    let source = ImportSource::Laptop;
+                    let source = if state.sel == 0 {
+                        if !self.deck.shell.backup.status.google_connected {
+                            self.open_settings_page(crate::app::shell::Route::GoogleAccount);
+                            return;
+                        }
+                        ImportSource::Drive
+                    } else {
+                        ImportSource::Laptop
+                    };
                     let dir = source.top();
-                    *state = ImportState::browse(source, dir);
+                    self.browse_import(source, dir);
                 }
                 Key::Esc => self.overlay = Overlay::Books { sel: 0 },
                 _ => {
-                    list_nav(key, &mut state.sel, 1, RING);
+                    list_nav(key, &mut state.sel, 2, RING);
                 }
             },
+            ImportStage::ReadingDrive { .. } => {
+                if key == Key::Esc {
+                    *state = ImportState::new();
+                }
+            }
             ImportStage::Browse {
                 source,
                 dir,
@@ -215,14 +241,21 @@ impl App {
                                     source: source.clone(),
                                     path: entry.path.clone(),
                                     name: entry.name.clone(),
-                                    project_id: project_id_of(&entry.path),
+                                    project_id: entry.drive.as_ref().map_or_else(
+                                        || project_id_of(&entry.path),
+                                        |drive| drive.project_id.clone(),
+                                    ),
                                 };
                                 self.pick_import(incoming);
                             } else {
-                                *state = ImportState::browse(source.clone(), entry.path.clone());
+                                let source = source.clone();
+                                let dir = entry.path.clone();
+                                self.browse_import(source, dir);
                             }
                         } else if up && let Some(parent) = dir.parent() {
-                            *state = ImportState::browse(source.clone(), parent.to_path_buf());
+                            let source = source.clone();
+                            let dir = parent.to_path_buf();
+                            self.browse_import(source, dir);
                         }
                     }
                     _ => {}
@@ -273,9 +306,44 @@ impl App {
                 }
             }
             ImportStage::Done(_) => match key {
-                Key::Enter | Key::Esc => self.overlay = Overlay::None,
+                Key::Enter => {
+                    let open = state.open_on_enter.take();
+                    self.overlay = Overlay::None;
+                    if let Some(path) = open
+                        && path != self.project.root
+                        && !self.open_book(&path)
+                    {
+                        self.import_done(self.msg.clone());
+                    }
+                }
+                Key::Esc => self.overlay = Overlay::None,
                 _ => {}
             },
+        }
+    }
+
+    fn browse_import(&mut self, source: ImportSource, dir: PathBuf) {
+        if source != ImportSource::Drive {
+            self.overlay = Overlay::Import(ImportState::browse(source, dir));
+            return;
+        }
+        let request = Request::DriveBooks {
+            folder: dir.to_string_lossy().into_owned(),
+        };
+        let backup = &self.deck.shell.backup;
+        let state = backup.state.clone();
+        let script = backup.script.clone();
+        match service::spawn_work("drive-books", move |cancel, progress| {
+            service::execute_in(&request, cancel, Some(state), Some(progress), script)
+        }) {
+            Ok(job) => {
+                self.overlay = Overlay::Import(ImportState {
+                    stage: ImportStage::ReadingDrive { dir, job },
+                    open_on_enter: None,
+                    sel: 4,
+                });
+            }
+            Err(error) => self.import_done(error),
         }
     }
 
@@ -283,23 +351,59 @@ impl App {
         self.msg = text.clone();
         self.overlay = Overlay::Import(ImportState {
             stage: ImportStage::Done(text),
+            open_on_enter: None,
             sel: 0,
         });
     }
 
     fn pick_import(&mut self, incoming: Incoming) {
+        let drive = incoming.source == ImportSource::Drive;
+        let rows = self.shelf_rows();
+        if drive {
+            let folder = incoming.path.to_string_lossy();
+            let folder = folder.strip_prefix("drive:WrOS/");
+            for row in &rows {
+                if let ShelfRow::Book(book, _) = row
+                    && fs::symlink_metadata(book.root.join(".grimoire"))
+                        .is_ok_and(|meta| meta.is_dir())
+                    && fs::symlink_metadata(book.root.join(".grimoire/sync.json"))
+                        .is_ok_and(|meta| meta.is_file())
+                    && let Ok(bytes) = fs::read(book.root.join(".grimoire/sync.json"))
+                    && let Ok(identity) = serde_json::from_slice::<serde_json::Value>(&bytes)
+                    && folder.is_some()
+                    && identity
+                        .get("drive_folder")
+                        .and_then(serde_json::Value::as_str)
+                        == folder
+                {
+                    self.import_done(format!(
+                        "{} is already here and syncs with this Drive folder.",
+                        book.title
+                    ));
+                    if let Overlay::Import(state) = &mut self.overlay {
+                        state.open_on_enter = Some(book.root.clone());
+                    }
+                    return;
+                }
+            }
+        }
         let here = fs::canonicalize(&self.project.root).unwrap_or(self.project.root.clone());
-        let path = fs::canonicalize(&incoming.path).unwrap_or(incoming.path.clone());
-        if path == here || same_book(&here, &incoming.name, incoming.project_id.as_deref()) {
+        if (!drive && fs::canonicalize(&incoming.path).unwrap_or(incoming.path.clone()) == here)
+            || same_book(&here, &incoming.name, incoming.project_id.as_deref())
+        {
             self.import_done("This book is already open here.".into());
             return;
         }
-        for row in self.shelf_rows() {
+        for row in rows {
             if let ShelfRow::Book(book, _) = row
                 && same_book(&book.root, &incoming.name, incoming.project_id.as_deref())
             {
                 let newest_here = newest(&book.root);
-                let newest_incoming = newest(&incoming.path);
+                let newest_incoming = if drive {
+                    "not available from Drive".into()
+                } else {
+                    newest(&incoming.path)
+                };
                 self.overlay = Overlay::Import(ImportState {
                     stage: ImportStage::Same {
                         incoming,
@@ -308,6 +412,7 @@ impl App {
                         newest_here,
                         newest_incoming,
                     },
+                    open_on_enter: None,
                     sel: 0,
                 });
                 return;
@@ -319,13 +424,57 @@ impl App {
     pub(crate) fn start_import(&mut self, incoming: Incoming, how: How) {
         let what = format!(
             "Copying {} from {}…",
-            title_of(&incoming.path),
+            if incoming.source == ImportSource::Drive {
+                incoming.name.clone()
+            } else {
+                title_of(&incoming.path)
+            },
             incoming.source.label()
         );
         let documents = books::documents();
         let now = chrono::Local::now().naive_local();
+        let project = self.project.root.to_string_lossy().into_owned();
+        let backup = &self.deck.shell.backup;
+        let state = backup.state.clone();
+        let script = backup.script.clone();
         let work = service::spawn_work("import", move |cancel, shared| {
             let run = || -> anyhow::Result<ImportDone> {
+                let drive = incoming.source == ImportSource::Drive;
+                fs::create_dir_all(&documents)?;
+                // Replace and Merge need a checked source beside the destination; the
+                // temporary directory removes it on success, failure or cancellation.
+                let stage = if drive && matches!(&how, How::Replace(_) | How::Merge(_)) {
+                    Some(
+                        tempfile::Builder::new()
+                            .prefix(".wros-import-drive-")
+                            .tempdir_in(&documents)?,
+                    )
+                } else {
+                    None
+                };
+                let materialized = if drive {
+                    let path = stage.as_ref().map_or_else(
+                        || free_destination(&documents, &incoming.name),
+                        |stage| stage.path().join(&incoming.name),
+                    );
+                    let request = Request::DriveMaterialize {
+                        remote: incoming.path.to_string_lossy().into_owned(),
+                        destination: path.to_string_lossy().into_owned(),
+                        project: Some(project),
+                    };
+                    let _: Status = service::execute_in(
+                        &request,
+                        cancel,
+                        Some(state),
+                        Some(shared.clone()),
+                        script,
+                    )
+                    .map_err(anyhow::Error::msg)?;
+                    Some(path)
+                } else {
+                    None
+                };
+                let source = materialized.as_deref().unwrap_or(&incoming.path);
                 let mut progress = |p: book_copy::Progress| {
                     if let Ok(mut shared) = shared.lock() {
                         *shared = Some(Progress {
@@ -335,37 +484,131 @@ impl App {
                         });
                     }
                 };
-                match how {
-                    How::New | How::KeepBoth => {
-                        fs::create_dir_all(&documents)?;
-                        let path = free_destination(&documents, &incoming.name);
-                        book_copy::copy_book(&incoming.path, &path, cancel, &mut progress)?;
-                        Ok(ImportDone { path, merge: None })
+                let copy = || -> anyhow::Result<ImportDone> {
+                    // The checked copy's marker is current, including books beyond the
+                    // listing's 50-marker cap. Never enable from an old listing alone.
+                    let marker = source.join(".wros-sync.json");
+                    let project_id = if drive
+                        && !matches!(&how, How::KeepBoth | How::Merge(_))
+                        && marker.exists()
+                    {
+                        anyhow::ensure!(
+                            fs::metadata(&marker)?.len() <= 2 * 1024 * 1024,
+                            "Drive's sync marker is too large."
+                        );
+                        let value: serde_json::Value = serde_json::from_slice(&fs::read(&marker)?)?;
+                        let id = value.get("project_id").and_then(serde_json::Value::as_str);
+                        let id = id.filter(|id| {
+                            id.len() == 36
+                                && id.bytes().enumerate().all(|(i, byte)| {
+                                    if matches!(i, 8 | 13 | 18 | 23) {
+                                        byte == b'-'
+                                    } else {
+                                        byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase()
+                                    }
+                                })
+                        });
+                        Some(
+                            id.ok_or_else(|| anyhow::anyhow!("Drive's sync marker is invalid."))?
+                                .to_string(),
+                        )
+                    } else {
+                        None
+                    };
+                    let sync = project_id.is_some();
+                    if drive {
+                        anyhow::ensure!(
+                            !cancel.load(std::sync::atomic::Ordering::Relaxed),
+                            "Import stopped."
+                        );
+                        anyhow::ensure!(
+                            books::is_book(source),
+                            "Drive folder is no longer a book."
+                        );
+                        let identity = source.join(".grimoire/sync.json");
+                        if sync {
+                            let remote = incoming.path.to_string_lossy();
+                            let folder = remote.strip_prefix("drive:WrOS/").filter(|folder| {
+                                !folder.is_empty()
+                                    && !folder.contains('/')
+                                    && !folder.contains('\\')
+                            });
+                            let folder = folder.ok_or_else(|| {
+                                anyhow::anyhow!(
+                                    "Synced books must be directly inside Drive's WrOS folder."
+                                )
+                            })?;
+                            fs::create_dir_all(source.join(".grimoire"))?;
+                            fs::write(
+                                &identity,
+                                serde_json::to_vec(&serde_json::json!({
+                                    "version": 1,
+                                    "project_id": project_id,
+                                    "drive_folder": folder,
+                                }))?,
+                            )?;
+                        } else if identity.exists() {
+                            // Keep both and ordinary copies must not inherit a stale link.
+                            fs::remove_file(identity)?;
+                        }
                     }
-                    How::Replace(path) => {
-                        book_copy::replace_with_copy(
-                            &incoming.path,
-                            &path,
-                            now.date(),
-                            cancel,
-                            &mut progress,
-                        )?;
-                        Ok(ImportDone { path, merge: None })
+                    match how {
+                        How::New | How::KeepBoth => {
+                            let path = if drive {
+                                source.to_path_buf()
+                            } else {
+                                let path = free_destination(&documents, &incoming.name);
+                                book_copy::copy_book(source, &path, cancel, &mut progress)?;
+                                path
+                            };
+                            Ok(ImportDone {
+                                path,
+                                merge: None,
+                                sync,
+                            })
+                        }
+                        How::Replace(path) => {
+                            book_copy::replace_with_copy(
+                                source,
+                                &path,
+                                now.date(),
+                                cancel,
+                                &mut progress,
+                            )?;
+                            Ok(ImportDone {
+                                path,
+                                merge: None,
+                                sync,
+                            })
+                        }
+                        How::Merge(path) => {
+                            let report = book_copy::merge_into(
+                                source,
+                                &path,
+                                incoming.source.label(),
+                                now,
+                                cancel,
+                            )?;
+                            Ok(ImportDone {
+                                path,
+                                merge: Some(report),
+                                sync: false,
+                            })
+                        }
                     }
-                    How::Merge(path) => {
-                        let report = book_copy::merge_into(
-                            &incoming.path,
-                            &path,
-                            incoming.source.label(),
-                            now,
-                            cancel,
-                        )?;
-                        Ok(ImportDone {
-                            path,
-                            merge: Some(report),
-                        })
-                    }
+                };
+                let result = copy();
+                if result.is_err()
+                    && stage.is_none()
+                    && let Some(path) = materialized
+                {
+                    let _ = if path.is_dir() {
+                        fs::remove_dir_all(path)
+                    } else {
+                        fs::remove_file(path)
+                    };
                 }
+                result
             };
             run().map_err(|e| format!("Book import failed: {e:#}"))
         });
@@ -373,6 +616,7 @@ impl App {
             Ok(job) => {
                 self.overlay = Overlay::Import(ImportState {
                     stage: ImportStage::Copying { job, what },
+                    open_on_enter: None,
                     sel: 4,
                 });
             }
@@ -385,6 +629,38 @@ impl App {
         let Overlay::Import(state) = &mut self.overlay else {
             return;
         };
+        if let ImportStage::ReadingDrive { dir, job } = &state.stage {
+            if state.sel == 4 {
+                state.sel = 0;
+                return;
+            }
+            let result = match job.result.try_recv() {
+                Ok(result) => result,
+                Err(TryRecvError::Empty) => return,
+                Err(TryRecvError::Disconnected) => Err("The Drive listing worker stopped.".into()),
+            };
+            match result {
+                Ok(reply) => {
+                    let entries = reply
+                        .entries
+                        .into_iter()
+                        .map(|entry| Entry {
+                            path: PathBuf::from(&entry.path),
+                            name: entry.name.clone(),
+                            book: entry.book,
+                            drive: Some(entry),
+                        })
+                        .collect();
+                    state.stage = ImportStage::Browse {
+                        source: ImportSource::Drive,
+                        dir: dir.clone(),
+                        entries,
+                    };
+                }
+                Err(error) => self.import_done(error),
+            }
+            return;
+        }
         let ImportStage::Copying { job, .. } = &state.stage else {
             return;
         };
@@ -422,6 +698,9 @@ impl App {
                     text = format!("Kept local: {}. {text}", kept.join(", "));
                 }
                 if self.open_book(&done.path) {
+                    if done.sync {
+                        self.request_sync_switch(true);
+                    }
                     self.import_done(text.clone());
                     if done.merge.is_some() {
                         self.open_conflicts();
@@ -465,7 +744,18 @@ pub(super) fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         }
     };
     match &state.stage {
-        ImportStage::Sources => rows.push("A folder on this laptop".into()),
+        ImportStage::Sources => {
+            rows.push(if app.deck.shell.backup.status.google_connected {
+                "Google Drive".into()
+            } else {
+                "Google Drive · link it in Settings first".into()
+            });
+            rows.push("A folder on this laptop".into());
+        }
+        ImportStage::ReadingDrive { job, .. } => {
+            say("Reading Google Drive…".into());
+            say(job.status_line());
+        }
         ImportStage::Browse {
             source,
             dir,
@@ -474,15 +764,24 @@ pub(super) fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             say(format!(
                 "Import from {} · {}",
                 source.label(),
-                books::pretty(dir)
+                if *source == ImportSource::Drive {
+                    dir.to_string_lossy().trim_start_matches("drive:").into()
+                } else {
+                    books::pretty(dir)
+                }
             ));
             rows = entries
                 .iter()
                 .map(|entry| {
+                    let synced = entry.drive.as_ref().is_some_and(|drive| drive.synced);
                     format!(
-                        "{} · {}",
-                        truncate(&entry.name, width.saturating_sub(12)),
-                        if entry.book { "book" } else { "folder" }
+                        "{} · {}{}",
+                        truncate(
+                            &entry.name,
+                            width.saturating_sub(if synced { 20 } else { 12 })
+                        ),
+                        if entry.book { "book" } else { "folder" },
+                        if synced { " · synced" } else { "" }
                     )
                 })
                 .collect();
@@ -523,7 +822,11 @@ pub(super) fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         }
         ImportStage::Done(text) => {
             say(text.clone());
-            hint = " ↵ or esc close";
+            hint = if state.open_on_enter.is_some() {
+                " ↵ open book   esc close"
+            } else {
+                " ↵ or esc close"
+            };
         }
     }
     lines.push(Line::from(""));
