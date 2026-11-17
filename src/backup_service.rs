@@ -1,5 +1,7 @@
 //! Private, cancellable JSON adapter to the unprivileged Restic integration.
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::{
     io::{Read, Write},
     process::{Command, Stdio},
@@ -242,14 +244,37 @@ fn describe(progress: Option<&Progress>, elapsed: Duration) -> String {
 
 pub(crate) type Shared = Arc<std::sync::Mutex<Option<Progress>>>;
 
+#[derive(Debug)]
 pub struct Job<T = Status> {
-    pub result: Receiver<Result<T, String>>,
+    pub result: Rc<Receiver<Result<T, String>>>,
     cancelled: Arc<AtomicBool>,
-    thread: Option<std::thread::JoinHandle<()>>,
+    thread: Rc<RefCell<Option<std::thread::JoinHandle<()>>>>,
     progress: Shared,
     started: Instant,
 }
+// An overlay snapshot shares the one worker and its result. Only the last
+// handle cancels and joins it, so cloning a screen cannot interrupt a copy.
+impl<T> Clone for Job<T> {
+    fn clone(&self) -> Self {
+        Self {
+            result: self.result.clone(),
+            cancelled: self.cancelled.clone(),
+            thread: self.thread.clone(),
+            progress: self.progress.clone(),
+            started: self.started,
+        }
+    }
+}
+impl<T> PartialEq for Job<T> {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.cancelled, &other.cancelled)
+    }
+}
 impl<T> Job<T> {
+    pub(crate) fn cancel(&self) {
+        self.cancelled.store(true, Ordering::Relaxed);
+    }
+
     /// The phone-linking offer the running operation reported, if any.
     pub fn offer(&self) -> Option<LinkOffer> {
         self.progress
@@ -267,9 +292,9 @@ impl<T> Job<T> {
         let (sender, result) = mpsc::sync_channel(1);
         std::mem::forget(sender);
         Self {
-            result,
+            result: Rc::new(result),
             cancelled: Arc::default(),
-            thread: None,
+            thread: Rc::new(RefCell::new(None)),
             progress: Arc::new(std::sync::Mutex::new(progress)),
             started: Instant::now(),
         }
@@ -277,8 +302,11 @@ impl<T> Job<T> {
 }
 impl<T> Drop for Job<T> {
     fn drop(&mut self) {
+        if Rc::strong_count(&self.thread) != 1 {
+            return;
+        }
         self.cancelled.store(true, Ordering::Relaxed);
-        if let Some(thread) = self.thread.take() {
+        if let Some(thread) = self.thread.borrow_mut().take() {
             let _ = thread.join();
         }
     }
@@ -306,9 +334,9 @@ pub(crate) fn spawn_work<T: Send + 'static>(
         })
         .map_err(|_| format!("{name} worker unavailable"))?;
     Ok(Job {
-        result,
+        result: Rc::new(result),
         cancelled,
-        thread: Some(thread),
+        thread: Rc::new(RefCell::new(Some(thread))),
         progress,
         started: Instant::now(),
     })
@@ -513,6 +541,32 @@ fn helper_command(installed_session: bool) -> Command {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cloning_a_job_preserves_its_worker_and_explicit_cancellation() {
+        for cancel in [false, true] {
+            let (send, receive) = mpsc::sync_channel(1);
+            let job = spawn_work("shared-job", move |cancelled, _| {
+                receive.recv().map_err(|e| e.to_string())?;
+                Ok(cancelled.load(Ordering::Relaxed))
+            })
+            .unwrap();
+            let snapshot = job.clone();
+            assert_eq!(job, snapshot);
+            drop(snapshot);
+            if cancel {
+                job.cancel();
+            }
+            send.send(()).unwrap();
+            assert_eq!(
+                job.result
+                    .recv_timeout(Duration::from_secs(5))
+                    .unwrap()
+                    .unwrap(),
+                cancel
+            );
+        }
+    }
 
     #[cfg(unix)]
     #[test]

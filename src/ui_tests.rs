@@ -2904,6 +2904,320 @@ fn shelf_home(name: &str) -> bool {
     false
 }
 
+fn import_fixture(name: &str, text: &str) -> PathBuf {
+    let root = grimoire_core::paths::home().join(name);
+    fs::create_dir_all(root.join("manuscript")).unwrap();
+    fs::write(root.join("manuscript/01-Scene.md"), text).unwrap();
+    fs::write(root.join("novel.toml"), "title = 'A laptop book'\n").unwrap();
+    root
+}
+
+fn import_snapshot(root: &Path) -> Vec<(PathBuf, Vec<u8>)> {
+    fn visit(root: &Path, dir: &Path, files: &mut Vec<(PathBuf, Vec<u8>)>) {
+        for entry in fs::read_dir(dir).unwrap() {
+            let entry = entry.unwrap();
+            if entry.file_type().unwrap().is_dir() {
+                visit(root, &entry.path(), files);
+            } else if entry.file_type().unwrap().is_file() {
+                files.push((
+                    entry.path().strip_prefix(root).unwrap().to_path_buf(),
+                    fs::read(entry.path()).unwrap(),
+                ));
+            }
+        }
+    }
+    let mut files = Vec::new();
+    visit(root, root, &mut files);
+    files.sort();
+    files
+}
+
+fn laptop_import(d: &mut Desk) {
+    d.menu(&["File", "Open another book…"]);
+    d.choose("Import a book…");
+    assert!(d.shows("A folder on this laptop"));
+    d.key(KeyCode::Enter);
+}
+
+fn wait_import(d: &mut Desk) {
+    let end = std::time::Instant::now() + std::time::Duration::from_secs(15);
+    while std::time::Instant::now() < end {
+        d.app.tick_import();
+        d.draw();
+        if !d.shows("Copying ") {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    panic!("import did not finish:\n{}", d.rows().join("\n"));
+}
+
+#[test]
+fn a_laptop_book_is_copied_into_documents_checked_and_opened() {
+    if !shelf_home("a_laptop_book_is_copied_into_documents_checked_and_opened") {
+        return;
+    }
+    let first = import_fixture("Documents/Open", "Local words.\n");
+    let source = import_fixture("Laptop/Café says Hello World.", "Incoming words.\n");
+    fs::create_dir_all(source.join("notes/nested")).unwrap();
+    fs::write(source.join("notes/nested/é.txt"), "Notes from the laptop.").unwrap();
+    let before = import_snapshot(&source);
+    let dest = crate::books::documents().join("Café says Hello World.");
+    let mut d = Desk::open(first, 80, 24);
+    laptop_import(&mut d);
+    d.choose("Laptop");
+    assert!(d.shows("Café says Hello World."));
+    assert!(d.shows("book"));
+    d.key(KeyCode::Enter);
+    assert!(d.shows_wrapped("Copying A laptop book from this laptop…"));
+    d.key(KeyCode::F(1));
+    d.key(KeyCode::F(1));
+    assert!(d.shows_wrapped("Copying A laptop book from this laptop…"));
+    wait_import(&mut d);
+    assert!(d.shows_wrapped(&format!(
+        "Copied to {} and checked. Opening it.",
+        crate::books::pretty(&dest)
+    )));
+    assert_eq!(d.app.project.root, fs::canonicalize(&dest).unwrap());
+    for (path, bytes) in &before {
+        assert_eq!(&fs::read(dest.join(path)).unwrap(), bytes);
+    }
+    assert_eq!(import_snapshot(&source), before);
+    assert!(d.app.shelf_rows().iter().any(|row| {
+        matches!(row, ShelfRow::Book(book, true) if book.root == d.app.project.root)
+    }));
+}
+
+#[test]
+fn a_folder_that_is_not_a_book_opens_instead_of_importing() {
+    if !shelf_home("a_folder_that_is_not_a_book_opens_instead_of_importing") {
+        return;
+    }
+    let first = import_fixture("Documents/Open", "Local words.\n");
+    import_fixture("Laptop/Book", "Incoming words.\n");
+    fs::create_dir_all(grimoire_core::paths::home().join("Laptop/Empty")).unwrap();
+    import_fixture("Laptop/.hidden", "Hidden words.\n");
+    fs::write(
+        grimoire_core::paths::home().join("Laptop/draft.md"),
+        "Draft",
+    )
+    .unwrap();
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(
+        grimoire_core::paths::home().join("Laptop/Book"),
+        grimoire_core::paths::home().join("Laptop/Link"),
+    )
+    .unwrap();
+    let mut d = Desk::open(first.clone(), 80, 24);
+    laptop_import(&mut d);
+    assert!(!d.shows("Up one folder"));
+    d.choose("Laptop");
+    assert!(d.shows("Up one folder"));
+    assert!(!d.shows(".hidden"));
+    assert!(!d.shows("draft.md"));
+    assert!(!d.shows("Link"));
+    let rows = d.rows();
+    assert!(
+        rows.iter().position(|r| r.contains("Book")).unwrap()
+            < rows.iter().position(|r| r.contains("Empty")).unwrap()
+    );
+    d.choose("Empty");
+    assert!(d.shows("Up one folder"));
+    assert!(!d.shows("Copying "));
+    assert_eq!(d.app.project.root, fs::canonicalize(&first).unwrap());
+    assert!(!crate::books::documents().join("Empty").exists());
+    d.key(KeyCode::Enter);
+    assert!(d.shows("Book"));
+}
+
+#[test]
+fn the_same_book_offers_replace_merge_keep_both_and_cancel() {
+    if !shelf_home("the_same_book_offers_replace_merge_keep_both_and_cancel") {
+        return;
+    }
+    for (choice, label) in ["Replace", "Merge", "Keep both", "Cancel"]
+        .iter()
+        .enumerate()
+    {
+        let first = import_fixture("Documents/Open", "Open words.\n");
+        let local = import_fixture(&format!("Documents/Book {choice}"), "Local words.\n");
+        let source = import_fixture(&format!("Laptop/Book {choice}"), "Incoming words.\n");
+        fs::write(local.join("novel.toml"), "title = 'Local title'\n").unwrap();
+        let before = import_snapshot(&source);
+        let old = import_snapshot(&local);
+        let mut d = Desk::open(first, 80, 24);
+        laptop_import(&mut d);
+        d.choose("Laptop");
+        d.choose(&format!("Book {choice}"));
+        for (width, height) in [(80, 24), (170, 48)] {
+            d.term = Terminal::new(TestBackend::new(width, height)).unwrap();
+            d.draw();
+            for text in [
+                "Replace",
+                "Merge",
+                "Keep both",
+                "Cancel",
+                "Newest here:",
+                "Newest incoming:",
+            ] {
+                assert!(d.shows(text), "missing {text}:\n{}", d.rows().join("\n"));
+            }
+        }
+        d.choose(label);
+        if *label != "Cancel" {
+            assert!(d.shows("Copying "));
+            wait_import(&mut d);
+        }
+        match *label {
+            "Replace" => {
+                let saved = local.with_file_name(format!(
+                    "Book {choice} (replaced {})",
+                    chrono::Local::now().format("%-d %b")
+                ));
+                assert_eq!(import_snapshot(&saved), old);
+                assert_eq!(
+                    fs::read_to_string(local.join("manuscript/01-Scene.md")).unwrap(),
+                    "Incoming words.\n"
+                );
+                assert_eq!(d.app.project.root, fs::canonicalize(&local).unwrap());
+            }
+            "Merge" => {
+                assert!(matches!(d.app.overlay, Overlay::Conflicts { .. }));
+                assert_eq!(d.app.conflicts().len(), 1);
+                assert_eq!(
+                    fs::read_to_string(local.join("manuscript/01-Scene.md")).unwrap(),
+                    "Local words.\n"
+                );
+                let copy = &d.app.project.nodes[d.app.conflicts()[0]].path;
+                assert_eq!(fs::read_to_string(copy).unwrap(), "Incoming words.\n");
+                assert!(d.app.msg.contains("novel.toml"));
+                assert!(d.shows("novel.toml"));
+                assert_eq!(d.app.project.root, fs::canonicalize(&local).unwrap());
+            }
+            "Keep both" => {
+                let dest = local.with_file_name(format!("Book {choice} 2"));
+                assert_eq!(import_snapshot(&local), old);
+                assert_eq!(d.app.project.root, fs::canonicalize(&dest).unwrap());
+                assert_eq!(
+                    fs::read_to_string(dest.join("manuscript/01-Scene.md")).unwrap(),
+                    "Incoming words.\n"
+                );
+            }
+            "Cancel" => {
+                assert_eq!(import_snapshot(&local), old);
+                assert!(!local.with_file_name(format!("Book {choice} 2")).exists());
+            }
+            _ => unreachable!(),
+        }
+        assert_eq!(import_snapshot(&source), before);
+    }
+}
+
+#[test]
+fn importing_the_open_book_says_it_is_already_here() {
+    if !shelf_home("importing_the_open_book_says_it_is_already_here") {
+        return;
+    }
+    let first = import_fixture("Documents/Open", "Open words.\n");
+    let mut d = Desk::open(first.clone(), 80, 24);
+    laptop_import(&mut d);
+    d.choose("Documents");
+    d.choose("Open");
+    assert!(d.shows("This book is already open here."));
+    assert_eq!(d.app.project.root, fs::canonicalize(&first).unwrap());
+    assert!(!crate::books::documents().join("Open 2").exists());
+
+    let source = import_fixture("Laptop/Renamed", "Incoming words.\n");
+    for root in [&first, &source] {
+        fs::create_dir_all(root.join(".grimoire")).unwrap();
+        fs::write(
+            root.join(".grimoire/sync.json"),
+            r#"{"project_id":"12345678-1234-4234-8234-123456789abc"}"#,
+        )
+        .unwrap();
+    }
+    d.key(KeyCode::Esc);
+    laptop_import(&mut d);
+    d.choose("Laptop");
+    d.choose("Renamed");
+    assert!(d.shows("This book is already open here."));
+    assert!(!crate::books::documents().join("Renamed").exists());
+}
+
+#[test]
+fn escape_while_copying_asks_then_leaves_nothing() {
+    if !shelf_home("escape_while_copying_asks_then_leaves_nothing") {
+        return;
+    }
+    let first = import_fixture("Documents/Open", "Open words.\n");
+    let source = import_fixture("Laptop/Large", "Incoming words.\n");
+    fs::File::create(source.join("large.bin"))
+        .unwrap()
+        .set_len(256 * 1024 * 1024)
+        .unwrap();
+    let mut d = Desk::open(first.clone(), 80, 24);
+    laptop_import(&mut d);
+    d.choose("Laptop");
+    d.choose("Large");
+    d.key(KeyCode::Esc);
+    assert!(d.shows_wrapped("Stop copying? Nothing will be kept."));
+    d.key(KeyCode::Enter); // The safe default keeps copying.
+    assert!(d.shows("Copying "));
+    d.key(KeyCode::Esc);
+    d.key(KeyCode::Right);
+    d.key(KeyCode::Enter);
+    wait_import(&mut d);
+    assert!(d.shows("Import stopped. Nothing was kept."));
+    assert!(!crate::books::documents().join("Large").exists());
+    assert!(
+        fs::read_dir(crate::books::documents())
+            .unwrap()
+            .all(|entry| {
+                !entry
+                    .unwrap()
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(".wros-")
+            })
+    );
+    assert_eq!(
+        fs::metadata(source.join("large.bin")).unwrap().len(),
+        256 * 1024 * 1024
+    );
+    assert_eq!(
+        fs::read_to_string(source.join("manuscript/01-Scene.md")).unwrap(),
+        "Incoming words.\n"
+    );
+    assert_eq!(d.app.project.root, fs::canonicalize(&first).unwrap());
+}
+
+#[test]
+fn a_failed_laptop_import_keeps_the_error_on_screen() {
+    if !shelf_home("a_failed_laptop_import_keeps_the_error_on_screen") {
+        return;
+    }
+    let first = import_fixture("Documents/Open", "Open words.\n");
+    let source = import_fixture("Laptop/Missing", "Incoming words.\n");
+    let mut d = Desk::open(first.clone(), 80, 24);
+    laptop_import(&mut d);
+    d.choose("Laptop");
+    // The source disappears after listing it, before starting the copy.
+    let moved = source.with_file_name("Moved");
+    fs::rename(&source, &moved).unwrap();
+    d.key(KeyCode::Enter);
+    wait_import(&mut d);
+    assert!(matches!(d.app.overlay, Overlay::Import(_)));
+    assert!(d.shows_wrapped("Book import failed: not a book:"));
+    d.draw();
+    assert!(d.shows_wrapped("Book import failed: not a book:"));
+    assert!(!crate::books::documents().join("Missing").exists());
+    assert_eq!(d.app.project.root, fs::canonicalize(&first).unwrap());
+    assert_eq!(
+        fs::read_to_string(moved.join("manuscript/01-Scene.md")).unwrap(),
+        "Incoming words.\n"
+    );
+}
+
 #[test]
 fn the_shelf_lists_every_book_in_documents_without_typing() {
     if !shelf_home("the_shelf_lists_every_book_in_documents_without_typing") {

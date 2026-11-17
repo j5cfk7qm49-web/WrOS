@@ -48,6 +48,7 @@ pub(crate) mod spark;
 pub(crate) mod workflow;
 pub(crate) mod wros;
 pub use aids::{MarkRow, Sprint, filter_marks as aids_filter};
+pub(crate) use overlays::import::ImportState;
 
 /// A scene being read aloud: the voice at work on its own thread, the
 /// scene's sentences, and which one it's on.
@@ -594,6 +595,7 @@ pub enum Overlay {
     Books {
         sel: usize,
     },
+    Import(ImportState),
     /// Deleting the book at `root`, picked from `Books` at row `back`. A demo
     /// book needs only Delete chosen; any other book also needs its folder's
     /// name typed in `typed`.

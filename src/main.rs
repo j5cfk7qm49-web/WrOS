@@ -767,6 +767,7 @@ fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
         app.tick_lexicon();
         app.tick_prose_dashboard();
         app.tick_pdf();
+        app.tick_import();
         app.tick_deck();
         app.music.drain();
         // The player shows its own notes; anywhere else, the status bar does.
@@ -964,6 +965,7 @@ fn dispatch_event(app: &mut App, ev: Event, confirm_quit: &mut bool) -> bool {
                 | Overlay::Footnotes { .. }
                 | Overlay::FootnoteReader(_)
                 | Overlay::Help { .. }
+                | Overlay::Import(_)
                 | Overlay::Productivity { .. }
                 | Overlay::Deck(_)
         ) && !matches!(
@@ -1291,6 +1293,7 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
                 | Overlay::Help { .. }
                 | Overlay::Productivity { .. }
                 | Overlay::ProductivityInput { .. }
+                | Overlay::Import(_)
                 | Overlay::Deck(_)
         ) || (app.overlay == Overlay::None && app.focus == Focus::Pins))
         && !matches!(k.code, KeyCode::Char('s' | 'q' | 'k' | 'd'))

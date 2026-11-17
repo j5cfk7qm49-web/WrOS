@@ -160,7 +160,7 @@ impl App {
                     let _ = self.open_book(&root);
                 }
                 Some(ShelfRow::Import) => {
-                    self.msg = "Book import is not available yet".into();
+                    self.overlay = Overlay::Import(ImportState::new());
                 }
                 Some(ShelfRow::NewBook) => {
                     self.overlay = Overlay::NewBook {

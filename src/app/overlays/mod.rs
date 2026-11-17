@@ -23,6 +23,7 @@ mod find;
 mod footnote_reader;
 mod footnotes;
 mod help;
+pub(crate) mod import;
 mod looks;
 mod marks;
 mod menu;
@@ -105,6 +106,7 @@ impl App {
             Overlay::Bar { .. } => self.on_bar_key(key),
             Overlay::NewBook { .. } => self.on_new_book_key(key),
             Overlay::Books { .. } => self.on_books_key(key),
+            Overlay::Import(_) => self.on_import_key(key),
             Overlay::DeleteBook { .. } => self.on_delete_book_key(key),
             Overlay::Reading => self.on_reading_key(key),
             Overlay::Goals { .. } => self.on_goals_key(key),
@@ -259,6 +261,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         Overlay::Bar { .. } => bar::draw_dropdowns(f, app, area, t),
         Overlay::NewBook { .. } => shelf::draw_new_book(f, app, area, t),
         Overlay::Books { .. } => shelf::draw_books(f, app, area, t),
+        Overlay::Import(_) => import::draw(f, app, area, t),
         Overlay::DeleteBook { .. } => shelf::draw_delete_book(f, app, area, t),
         Overlay::Progress => progress::draw_progress(f, app, area, t),
         Overlay::Reading => reading::draw_reading(f, app, area, t),

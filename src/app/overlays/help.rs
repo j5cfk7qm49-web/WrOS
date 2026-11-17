@@ -52,6 +52,7 @@ impl App {
                 .map_or("getting-started", |(_, topic)| topic),
             Overlay::NewBook { .. }
             | Overlay::Books { .. }
+            | Overlay::Import(_)
             | Overlay::DeleteBook { .. }
             | Overlay::BookPath { .. } => "books",
             Overlay::Themes { .. } | Overlay::Custom { .. } => "themes",
