@@ -4,6 +4,7 @@
 //! across.
 
 use grimoire_core::import;
+use grimoire_core::shelf::{find_books, project_id_of, title_of};
 
 use super::*;
 
@@ -47,15 +48,79 @@ fn edit(buf: &mut String, key: Key) {
 }
 
 impl App {
-    /// The rows of *Open another book…*: every other book this machine has
-    /// had open, newest first. Folder and new-book rows follow them.
-    pub fn other_books(&self) -> Vec<PathBuf> {
-        let Some(state) = &self.state_file else {
-            return Vec::new();
-        };
-        books::recent(state)
+    /// Documents books, newest opened first then by title, followed by recent
+    /// books elsewhere. Import and new-book rows finish the shelf.
+    pub fn shelf_rows(&self) -> Vec<ShelfRow> {
+        if let Some((at, rows)) = self.shelf_cache.borrow().as_ref()
+            && at.elapsed() < std::time::Duration::from_secs(2)
+        {
+            return rows.clone();
+        }
+        let rows = self.read_shelf_rows();
+        *self.shelf_cache.borrow_mut() = Some((Instant::now(), rows.clone()));
+        rows
+    }
+
+    fn read_shelf_rows(&self) -> Vec<ShelfRow> {
+        let documents = books::documents();
+        let documents = fs::canonicalize(&documents).unwrap_or(documents);
+        let here = fs::canonicalize(&self.project.root).unwrap_or(self.project.root.clone());
+        let recent: Vec<PathBuf> = self
+            .state_file
+            .as_ref()
+            .map(|state| books::recent(state))
+            .unwrap_or_default()
             .into_iter()
-            .filter(|p| *p != self.project.root)
+            .map(|root| fs::canonicalize(&root).unwrap_or(root))
+            .collect();
+        let book = |root: PathBuf| ShelfBook {
+            title: title_of(&root),
+            project_id: project_id_of(&root),
+            root,
+        };
+        let mut found = find_books(&documents, 3, 500);
+        if here.starts_with(&documents) && !found.iter().any(|book| book.root == here) {
+            found.push(book(here.clone()));
+        }
+        found.sort_by_cached_key(|book| {
+            (
+                recent
+                    .iter()
+                    .position(|root| *root == book.root)
+                    .unwrap_or(usize::MAX),
+                book.title.to_lowercase(),
+                book.root.clone(),
+            )
+        });
+        let mut rows: Vec<ShelfRow> = found
+            .into_iter()
+            .map(|book| {
+                let open = book.root == here;
+                ShelfRow::Book(book, open)
+            })
+            .collect();
+        for root in recent.iter().chain(std::iter::once(&here)) {
+            if !root.starts_with(&documents)
+                && !rows
+                    .iter()
+                    .any(|row| matches!(row, ShelfRow::Book(book, _) if book.root == *root))
+            {
+                rows.push(ShelfRow::Book(book(root.clone()), *root == here));
+            }
+        }
+        rows.push(ShelfRow::Import);
+        rows.push(ShelfRow::NewBook);
+        rows
+    }
+
+    /// Other shelf books are also available by name in the command palette.
+    pub fn other_books(&self) -> Vec<PathBuf> {
+        self.shelf_rows()
+            .into_iter()
+            .filter_map(|row| match row {
+                ShelfRow::Book(book, false) => Some(book.root),
+                _ => None,
+            })
             .collect()
     }
 
@@ -79,49 +144,48 @@ impl App {
     }
 
     pub(super) fn on_books_key(&mut self, key: Key) {
-        let others = self.other_books();
+        let rows = self.shelf_rows();
         let Overlay::Books { sel } = &mut self.overlay else {
             return;
         };
-        // The books, then "a book in another folder", "bring in a draft" and
-        // "a new book".
-        let rows = others.len() + 3;
-        if list_nav(key, sel, rows, RING) {
+        // Keep the draft entry after the shelf rows until drafts move into Import.
+        if list_nav(key, sel, rows.len() + 1, RING) {
             return;
         }
         match key {
-            Key::Enter | Key::Char(' ') | Key::Right | Key::Char('l') => {
-                let at = *sel;
-                if let Some(root) = others.get(at) {
-                    let root = root.clone();
+            Key::Enter | Key::Char(' ') | Key::Right | Key::Char('l') => match rows.get(*sel) {
+                Some(ShelfRow::Book(book, _)) => {
+                    let root = book.root.clone();
                     self.overlay = Overlay::None;
                     let _ = self.open_book(&root);
-                } else if at == others.len() {
-                    self.overlay = Overlay::BookPath {
-                        buf: String::new(),
-                        draft: false,
-                    };
-                } else if at == others.len() + 1 {
-                    self.overlay = Overlay::BookPath {
-                        buf: String::new(),
-                        draft: true,
-                    };
-                } else {
+                }
+                Some(ShelfRow::Import) => {
+                    self.msg = "Book import is not available yet".into();
+                }
+                Some(ShelfRow::NewBook) => {
                     self.overlay = Overlay::NewBook {
                         buf: String::new(),
                         shape: project::Template::Novel,
                     };
                 }
-            }
+                None if *sel == rows.len() => self.run_action(Action::BringInDraft),
+                None => {}
+            },
             Key::Char('x') | Key::Delete => {
                 let at = *sel;
-                if let Some(root) = others.get(at) {
-                    self.overlay = Overlay::DeleteBook {
-                        root: root.clone(),
-                        typed: String::new(),
-                        yes: false,
-                        back: at,
-                    };
+                match rows.get(at) {
+                    Some(ShelfRow::Book(book, false)) => {
+                        self.overlay = Overlay::DeleteBook {
+                            root: book.root.clone(),
+                            typed: String::new(),
+                            yes: false,
+                            back: at,
+                        };
+                    }
+                    Some(ShelfRow::Book(_, true)) => {
+                        self.msg = "that's the book you have open · open another book first".into();
+                    }
+                    _ => {}
                 }
             }
             Key::Esc => self.overlay = Overlay::None,
@@ -155,12 +219,13 @@ impl App {
                 let (root, back) = (root.clone(), *back);
                 match self.delete_book(&root) {
                     Ok(()) => {
+                        self.shelf_cache.take();
                         self.msg = format!(
                             "deleted {} ({}) from this laptop",
                             books::title_of_folder(&root),
                             books::pretty(&root)
                         );
-                        let left = self.other_books().len() + 3;
+                        let left = self.shelf_rows().len() + 1;
                         self.overlay = Overlay::Books {
                             sel: back.min(left - 1),
                         };
@@ -660,45 +725,46 @@ pub(super) fn draw_books(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     let Overlay::Books { sel } = &app.overlay else {
         return;
     };
-    let others = app.other_books();
-    let mut rows: Vec<(String, String)> = others
+    let rows = app.shelf_rows();
+    let can_delete = matches!(rows.get(*sel), Some(ShelfRow::Book(_, false)));
+    let mut rows: Vec<(String, String, bool)> = rows
         .iter()
-        .map(|p| {
-            if grimoire_core::tutorial::is_demo(p) {
-                (
-                    format!("{} · tutorial demo", books::title_of_folder(p)),
-                    books::pretty(p),
-                )
-            } else {
-                (books::title(p), books::pretty(p))
+        .map(|row| match row {
+            ShelfRow::Book(book, open) => {
+                let name = if grimoire_core::tutorial::is_demo(&book.root) {
+                    format!("{} · tutorial demo", books::title_of_folder(&book.root))
+                } else {
+                    book.title.clone()
+                };
+                (name, books::pretty(&book.root), *open)
             }
+            ShelfRow::Import => ("Import a book…".into(), String::new(), false),
+            ShelfRow::NewBook => ("New book…".into(), String::new(), false),
         })
         .collect();
-    rows.push(("A book in another folder…".into(), String::new()));
-    rows.push(("Bring in a draft…".into(), "Word, Markdown or text".into()));
-    rows.push(("Start a new book…".into(), String::new()));
-    let width = 64;
-    let empty = others.is_empty();
-    let box_area = centred(area, width, rows.len() as u16 + 5 + u16::from(empty));
+    rows.push((
+        "Bring in a draft…".into(),
+        "Word, Markdown or text".into(),
+        false,
+    ));
+    let width = 112.min(area.width.saturating_sub(4));
+    let box_area = centred(area, width, rows.len() as u16 + 4);
     f.render_widget(Clear, box_area);
     let block = pane_block("OPEN ANOTHER BOOK", true, t);
     let inner = block.inner(box_area);
     f.render_widget(block, box_area);
     let mut lines: Vec<Line> = Vec::new();
-    if empty {
-        lines.push(Line::from(Span::styled(
-            " No other books yet. Ones you open show up here.",
-            Style::default().fg(t.dim),
-        )));
-    }
-    let room = (inner.height as usize)
-        .saturating_sub(2 + usize::from(empty))
-        .max(1);
+    let room = (inner.height as usize).saturating_sub(2).max(1);
     let start = (*sel + 1).saturating_sub(room);
     let name_w = (inner.width as usize).saturating_sub(4) / 2;
-    for (i, (name, path)) in rows.iter().enumerate().skip(start).take(room) {
+    for (i, (name, path, open)) in rows.iter().enumerate().skip(start).take(room) {
         let on = i == *sel;
-        let name: String = name.chars().take(name_w.max(10)).collect();
+        let suffix = if *open { " · open now" } else { "" };
+        let name: String = name
+            .chars()
+            .take(name_w.saturating_sub(suffix.chars().count()))
+            .chain(suffix.chars())
+            .collect();
         lines.push(
             Line::from(vec![
                 Span::styled(
@@ -720,7 +786,7 @@ pub(super) fn draw_books(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     }
     lines.push(Line::from(""));
     lines.push(hint_line(
-        if *sel < others.len() {
+        if can_delete {
             " j/k move   ↵ open   x delete   esc close"
         } else {
             " j/k move   ↵ open   esc close"

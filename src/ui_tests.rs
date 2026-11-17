@@ -5,7 +5,7 @@
 //! nothing reads or writes ~/.config.
 
 use super::*;
-use crate::app::Setup;
+use crate::app::{Setup, ShelfRow};
 use grimoire_core::recovery;
 use grimoire_core::settings::Settings;
 use grimoire_core::spell;
@@ -2879,8 +2879,155 @@ fn donate_says_it_is_never_required_and_links_to_kofi() {
 
 // ---- more than one book --------------------------------------------------
 
+// Run shelf tests with a private HOME without changing another test's environment.
+fn shelf_home(name: &str) -> bool {
+    if std::env::var_os("GRIMOIRE_SHELF_TEST").is_some() {
+        return true;
+    }
+    let home = tempfile::tempdir().unwrap();
+    let out = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", &format!("ui_tests::{name}"), "--nocapture"])
+        .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
+        .env("APPDATA", home.path().join(".config"))
+        .env("XDG_CONFIG_HOME", home.path().join(".config"))
+        .env("XDG_DATA_HOME", home.path().join(".local/share"))
+        .env("GRIMOIRE_SHELF_TEST", "1")
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    false
+}
+
+#[test]
+fn the_shelf_lists_every_book_in_documents_without_typing() {
+    if !shelf_home("the_shelf_lists_every_book_in_documents_without_typing") {
+        return;
+    }
+    let documents = crate::books::documents();
+    let first = documents.join("Grimoire");
+    fs::create_dir_all(&first).unwrap();
+    project::scaffold(&first).unwrap();
+    let clip = documents.join("WrOS/Clip says Hello World.");
+    fs::create_dir_all(clip.join("manuscript")).unwrap();
+    fs::write(clip.join("manuscript/01-Scene.md"), "Hello, world.\n").unwrap();
+    let mut d = Desk::open(first, 80, 24);
+    let state = grimoire_core::paths::home().join("state.toml");
+    d.app.state_file = Some(state.clone());
+    assert!(crate::books::recent(&state).is_empty());
+    assert!(!clip.join(".grimoire").exists());
+    d.menu(&["File", "Open another book…"]);
+    for (width, height) in [(80, 24), (170, 48)] {
+        d.term = Terminal::new(TestBackend::new(width, height)).unwrap();
+        d.draw();
+        for text in ["Clip says Hello World.", "Import a book…", "New book…"] {
+            assert!(d.shows(text), "missing {text}:\n{}", d.rows().join("\n"));
+        }
+        assert!(
+            d.rows()
+                .iter()
+                .any(|r| r.contains("Grimoire") && r.contains("open now"))
+        );
+        assert!(!d.shows("A book in another folder"));
+    }
+    assert!(d.shows(&crate::books::pretty(&clip)));
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.project.root, fs::canonicalize(&clip).unwrap());
+    assert_eq!(d.app.project.meta.title, "Clip says Hello World.");
+}
+
+#[test]
+fn the_shelf_orders_documents_by_recent_then_title_and_keeps_outside_books() {
+    if !shelf_home("the_shelf_orders_documents_by_recent_then_title_and_keeps_outside_books") {
+        return;
+    }
+    let documents = crate::books::documents();
+    let make = |name: &str| {
+        let root = grimoire_core::paths::home().join(name);
+        fs::create_dir_all(root.join("manuscript")).unwrap();
+        fs::canonicalize(root).unwrap()
+    };
+    let open = make("Documents/Open");
+    fs::write(
+        open.join("novel.toml"),
+        "title = 'This open book has a title longer than the shelf column'\n",
+    )
+    .unwrap();
+    let recent = make("Documents/Zulu");
+    let alpha = make("Documents/Folder");
+    fs::write(alpha.join("novel.toml"), "title = 'alpha'\n").unwrap();
+    let cafe = make("Documents/WrOS/Café says Hello World.");
+    let outside = make("Elsewhere/Outside");
+    let older = make("Elsewhere/Older");
+    make("Documents/.hidden/Secret");
+    make("Documents/a/b/c/Too deep");
+    fs::create_dir_all(documents.join("Notes")).unwrap();
+    let state = grimoire_core::paths::home().join("state.toml");
+    for root in [&recent, &older, &open, &outside] {
+        crate::books::remember(&state, root);
+    }
+    let mut d = Desk::open(open.clone(), 80, 24);
+    d.app.state_file = Some(state);
+    let rows = d.app.shelf_rows();
+    let books: Vec<(&Path, bool)> = rows
+        .iter()
+        .filter_map(|row| match row {
+            ShelfRow::Book(book, open) => Some((book.root.as_path(), *open)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        books,
+        vec![
+            (open.as_path(), true),
+            (recent.as_path(), false),
+            (alpha.as_path(), false),
+            (cafe.as_path(), false),
+            (outside.as_path(), false),
+            (older.as_path(), false),
+        ]
+    );
+    assert!(matches!(rows.get(6), Some(ShelfRow::Import)));
+    assert!(matches!(rows.get(7), Some(ShelfRow::NewBook)));
+    assert_eq!(rows.len(), 8);
+    assert!(matches!(&rows[2], ShelfRow::Book(book, false) if book.title == "alpha"));
+    d.menu(&["File", "Open another book…"]);
+    assert!(d.shows("open now"));
+}
+
+#[test]
+fn the_shelf_scrolls_to_import_and_new_book_with_arrow_keys() {
+    if !shelf_home("the_shelf_scrolls_to_import_and_new_book_with_arrow_keys") {
+        return;
+    }
+    let documents = crate::books::documents();
+    for i in 0..20 {
+        fs::create_dir_all(documents.join(format!("Book {i:02}/manuscript"))).unwrap();
+    }
+    let mut d = Desk::open(documents.join("Book 00"), 80, 24);
+    d.menu(&["File", "Open another book…"]);
+    for _ in 0..19 {
+        d.key(KeyCode::Down);
+    }
+    assert!(d.shows("▸ Book 19"));
+    d.key(KeyCode::Down);
+    assert!(d.shows("▸ Import a book…"));
+    d.key(KeyCode::Down);
+    assert!(d.shows("▸ New book…"));
+    d.key(KeyCode::Enter);
+    assert!(matches!(d.app.overlay, Overlay::NewBook { .. }));
+}
+
 #[test]
 fn a_new_book_from_the_menu_saves_this_one_and_opens_the_new_one() {
+    if !shelf_home("a_new_book_from_the_menu_saves_this_one_and_opens_the_new_one") {
+        return;
+    }
     let first = book("book-first", true);
     let scene = first_scene(&first);
     let state = first.with_extension("state.toml");
@@ -2917,6 +3064,15 @@ fn a_new_book_from_the_menu_saves_this_one_and_opens_the_new_one() {
     // And back again, from Open another book.
     d.menu(&["File", "Open another book…"]);
     assert!(d.shows("OPEN ANOTHER BOOK"));
+    let at = d
+        .app
+        .shelf_rows()
+        .iter()
+        .position(|row| matches!(row, ShelfRow::Book(book, false) if book.root == first))
+        .unwrap();
+    for _ in 0..at {
+        d.key(KeyCode::Down);
+    }
     d.key(KeyCode::Enter);
     assert_eq!(d.app.project.root, fs::canonicalize(&first).unwrap());
     assert!(d.status().contains("opened"), "{}", d.status());
@@ -2926,8 +3082,10 @@ fn a_new_book_from_the_menu_saves_this_one_and_opens_the_new_one() {
 
 #[test]
 fn a_book_is_deleted_from_open_another_book_after_saying_so() {
-    let shelf = std::env::temp_dir().join(format!("grimoire-ui-delete-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&shelf);
+    if !shelf_home("a_book_is_deleted_from_open_another_book_after_saying_so") {
+        return;
+    }
+    let shelf = crate::books::documents();
     fs::create_dir_all(&shelf).unwrap();
     let make = |name: &str| {
         let p = shelf.join(name);
@@ -2952,12 +3110,25 @@ fn a_book_is_deleted_from_open_another_book_after_saying_so() {
         "{}",
         d.rows().join("\n")
     );
-    assert!(d.shows("x delete"));
+    assert!(d.shows("open now"));
+    assert!(!d.shows("x delete"));
+    for key in [KeyCode::Char('x'), KeyCode::Delete] {
+        d.key(key);
+        assert!(matches!(d.app.overlay, Overlay::Books { .. }));
+        assert!(novel.join("manuscript").is_dir());
+        assert!(d.app.msg.contains("the book you have open"));
+    }
 
     // The demo book: Enter keeps it; Delete it, then Enter, deletes it.
-    let at = d.app.other_books().iter().position(|p| *p == demo).unwrap();
+    let at = d
+        .app
+        .shelf_rows()
+        .iter()
+        .position(|row| matches!(row, ShelfRow::Book(book, false) if book.root == demo))
+        .unwrap();
     d.app.overlay = Overlay::Books { sel: at };
     d.draw();
+    assert!(d.shows("x delete"));
     d.key(KeyCode::Char('x'));
     assert!(d.shows("DELETE THIS BOOK?"), "{}", d.rows().join("\n"));
     assert!(d.shows("can't be undone"));
@@ -2980,9 +3151,9 @@ fn a_book_is_deleted_from_open_another_book_after_saying_so() {
     // A real book also needs its folder's name typed.
     let at = d
         .app
-        .other_books()
+        .shelf_rows()
         .iter()
-        .position(|p| *p == other)
+        .position(|row| matches!(row, ShelfRow::Book(book, false) if book.root == other))
         .unwrap();
     d.app.overlay = Overlay::Books { sel: at };
     d.draw();
@@ -3035,6 +3206,9 @@ fn a_new_book_never_lands_in_a_folder_with_other_things_in_it() {
 
 #[test]
 fn a_draft_brought_in_becomes_a_book_split_at_its_chapters() {
+    if !shelf_home("a_draft_brought_in_becomes_a_book_split_at_its_chapters") {
+        return;
+    }
     let first = book("draft-home", true);
     let dir = first.with_extension("drafts");
     fs::create_dir_all(&dir).unwrap();
@@ -3045,8 +3219,8 @@ fn a_draft_brought_in_becomes_a_book_split_at_its_chapters() {
     )
     .unwrap();
     let mut d = Desk::open(first.clone(), 120, 35);
-    d.app.run_action(palette::Action::BringInDraft);
-    d.draw();
+    d.menu(&["File", "Open another book…"]);
+    d.choose("Bring in a draft…");
     assert!(d.shows("BRING IN A DRAFT"));
     // Dropped into the terminal: quoted, spaces and all.
     d.typed(&format!("'{}'", file.display()));

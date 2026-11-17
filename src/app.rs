@@ -27,6 +27,7 @@ use grimoire_core::resume;
 use grimoire_core::search;
 use grimoire_core::sessions;
 use grimoire_core::settings::Settings;
+use grimoire_core::shelf::ShelfBook;
 use grimoire_core::spell;
 
 mod aids;
@@ -377,6 +378,9 @@ pub struct App {
     /// Where the last book and the recent ones are kept; `None` in tests,
     /// which set it to a temp file when they want a list.
     pub state_file: Option<PathBuf>,
+    /// The shelf's rows, read from disk at most every few seconds (every key and redraw
+    /// of the shelf reuses them).
+    pub(crate) shelf_cache: std::cell::RefCell<Option<(Instant, Vec<ShelfRow>)>>,
 }
 
 /// Set while the help is drawn: how far the article can scroll, how many
@@ -496,6 +500,15 @@ pub enum BackupMark {
     Failed,
 }
 
+/// A row on the book shelf.
+#[derive(Debug, Clone)]
+pub enum ShelfRow {
+    /// The book and whether it is open now.
+    Book(ShelfBook, bool),
+    Import,
+    NewBook,
+}
+
 /// Modal state. Only one can be up at a time.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Overlay {
@@ -577,7 +590,7 @@ pub enum Overlay {
         sel: usize,
         list: Vec<crate::voice::Engine>,
     },
-    /// The books this machine has had open, to switch to one.
+    /// The books in Documents and recent books elsewhere, to switch to one.
     Books {
         sel: usize,
     },
@@ -1040,6 +1053,7 @@ impl App {
             clip: String::new(),
             last_click: None,
             state_file: None,
+            shelf_cache: Default::default(),
         })
         .map(|mut app: App| {
             if setup.background {
@@ -2371,7 +2385,11 @@ impl App {
                     shape: project::Template::Novel,
                 }
             }
-            Action::OpenBook => self.overlay = Overlay::Books { sel: 0 },
+            Action::OpenBook => {
+                // Opening the shelf always reads Documents afresh.
+                self.shelf_cache.take();
+                self.overlay = Overlay::Books { sel: 0 };
+            }
             Action::Progress => {
                 self.note_day(true);
                 self.overlay = Overlay::Progress;

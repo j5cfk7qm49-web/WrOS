@@ -8,9 +8,14 @@ use std::path::{Path, PathBuf};
 /// How many books *Open another book…* remembers.
 const KEEP: usize = 8;
 
+/// Where the shelf looks for books on this laptop.
+pub fn documents() -> PathBuf {
+    home().join("Documents")
+}
+
 /// Where a first-time book goes if the writer never names one.
 pub fn default_root() -> PathBuf {
-    home().join("Documents").join("Grimoire")
+    documents().join("Grimoire")
 }
 
 pub fn state_path() -> PathBuf {
