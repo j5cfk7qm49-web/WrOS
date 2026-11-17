@@ -7,6 +7,7 @@
 
 pub mod accounting;
 pub mod atomic;
+pub mod book_copy;
 pub mod challenges;
 pub mod cloud;
 pub mod codex;
@@ -40,6 +41,7 @@ pub mod revision;
 pub mod search;
 pub mod sessions;
 pub mod settings;
+pub mod shelf;
 pub mod spark;
 pub mod spell;
 pub mod statefile;

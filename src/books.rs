@@ -18,7 +18,7 @@ pub fn state_path() -> PathBuf {
 }
 
 pub fn is_book(p: &Path) -> bool {
-    p.join("manuscript").is_dir()
+    grimoire_core::shelf::is_book(p)
 }
 
 /// Shorten the home folder to ~ so printed paths stay readable.
