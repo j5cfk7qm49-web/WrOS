@@ -896,10 +896,19 @@ fn draw_editor(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
     app.edit_height = col.height as usize;
 
     if app.open.is_none() {
+        let empty_manuscript = !app
+            .project
+            .nodes
+            .iter()
+            .any(|n| n.in_manuscript && n.kind == Kind::Scene);
         let hint = vec![
             Line::from(""),
             Line::from(Span::styled(
-                "Select a scene on the left and press Enter.",
+                if empty_manuscript {
+                    "Esc › Book › New scene… starts a scene."
+                } else {
+                    "Select a scene on the left and press Enter."
+                },
                 Style::default().fg(t.dim),
             )),
         ];

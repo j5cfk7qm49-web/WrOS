@@ -251,11 +251,24 @@ pub fn create_demo(root: &Path) -> Result<()> {
         root.join(".writingdeck-demo"),
         "WritingDeck safe tutorial project v1\n",
     )?;
-    project::scaffold_with(
-        root,
-        Some("WrOS Tutorial"),
-        &project::Template::Blank.shape(),
-    )?;
+    // The demo keeps its one-chapter kit; a writer's Blank book has no kit.
+    let shape = project::Shape {
+        parts: vec![project::ShapePart {
+            title: None,
+            chapters: vec![project::ShapeChapter {
+                title: "Chapter One".into(),
+                scenes: vec![project::ShapeScene {
+                    title: "Scene One".into(),
+                    status: "outline",
+                    target: None,
+                    body: String::new(),
+                }],
+            }],
+        }],
+        target_words: 80_000,
+        daily_target: 1_000,
+    };
+    project::scaffold_with(root, Some("WrOS Tutorial"), &shape)?;
     let p = project::Project::load(root)?;
     let scene = p
         .nodes
@@ -383,6 +396,27 @@ mod tests {
         create_demo(&root).unwrap();
         assert!(is_demo(&root));
         let project = project::Project::load(&root).unwrap();
+        assert_eq!(project.meta.title, "WrOS Tutorial");
+        assert_eq!(project.manuscript().len(), 1);
+        assert_eq!(
+            project
+                .nodes
+                .iter()
+                .filter(|n| n.in_manuscript && n.kind == project::Kind::Scene)
+                .count(),
+            2
+        );
+        for area in project::Area::ALL {
+            assert!(area.path(&root).exists(), "missing {area:?}");
+        }
+        assert!(
+            root.join("front-matter/02-Paperback/02-Copyright.md")
+                .is_file()
+        );
+        assert!(
+            root.join("template-sheets/01-Character-Sketch.md")
+                .is_file()
+        );
         let practice = project
             .nodes
             .iter()

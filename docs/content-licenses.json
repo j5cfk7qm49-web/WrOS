@@ -27,7 +27,7 @@
       "license": "MIT",
       "edition": "0.1.0-dev",
       "file": "crates/grimoire-core/src/tutorial.rs",
-      "sha256": "96e151e62cee7465e415b4260e92b49d3a5db0d57ede4caa51ae073793bd51da",
+      "sha256": "19fb11ec0776405919aa85b87e755023a0900db8ebc5117b6d0ad3166c93fc8e",
       "item_count": 2,
       "license_notice": "LICENSE",
       "modifications": "Original demo scene strings embedded in the creation function"

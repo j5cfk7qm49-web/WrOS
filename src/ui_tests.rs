@@ -820,6 +820,32 @@ fn an_empty_scene_says_how_to_start() {
     assert!(d.shows("Tab or click to write"), "cue on an empty scene");
 }
 
+#[test]
+fn a_blank_book_opens_without_metadata_and_shows_how_to_start() {
+    let root = std::env::temp_dir().join(format!("Blank Book {}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join("manuscript")).unwrap();
+    assert!(books::is_book(&root));
+    let (resolved, msg) = resolve_project(Some(root.clone())).unwrap();
+    assert!(msg.is_none());
+    assert_eq!(fs::read_dir(&root).unwrap().count(), 1);
+    let mut d = Desk::open(resolved, 80, 24);
+    assert_eq!(d.app.project.meta.title, books::title_of_folder(&root));
+    assert!(d.app.project.meta_unreadable.is_none());
+    assert!(d.app.open.is_none());
+    assert!(d.shows("Book › New scene…"), "{}", d.rows().join("\n"));
+    assert!(!root.join("novel.toml").exists());
+    d.menu(&["Book", "New scene…"]);
+    d.typed("Opening");
+    d.key(KeyCode::Enter);
+    let scene = &d.app.project.nodes[d.app.open.expect("the first scene opens")];
+    assert_eq!(
+        scene.path,
+        d.app.project.root.join("manuscript/01-Opening.md")
+    );
+    assert!(scene.body.is_empty());
+}
+
 // ---- notes in the prose ----------------------------------------------------
 
 #[test]
@@ -3161,6 +3187,37 @@ fn tab_picks_a_short_story_and_it_starts_with_three_chapters() {
     assert_eq!(scenes, 9);
     assert_eq!(p.meta.target_words, 5_000);
     let _ = fs::remove_dir_all(&story);
+}
+
+#[test]
+fn a_blank_book_from_the_menu_stays_empty_when_reopened() {
+    let first = book("blank-home", true);
+    let name = format!("Blank Menu Book {}", std::process::id());
+    let blank = first.parent().unwrap().join(&name);
+    let _ = fs::remove_dir_all(&blank);
+    let mut d = Desk::open(first.clone(), 120, 35);
+    d.menu(&["File", "Start a new book…"]);
+    d.key(KeyCode::Tab);
+    d.key(KeyCode::Tab);
+    assert!(d.shows("● Blank"));
+    assert!(d.shows("an empty manuscript"));
+    d.typed(&name);
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.project.meta.title, name);
+    assert!(d.status().contains("press n to start a scene"));
+    assert!(d.app.open.is_none());
+    assert_eq!(d.app.project.nodes.len(), 1);
+    assert_eq!(fs::read_dir(blank.join("manuscript")).unwrap().count(), 0);
+    assert!(!blank.join("novel.toml").exists());
+    assert!(!blank.join(".gitignore").exists());
+    assert!(d.app.open_book(&first));
+    assert!(d.app.open_book(&blank));
+    d.draw();
+    assert!(d.app.open.is_none());
+    assert!(d.shows("Book › New scene…"));
+    assert_eq!(d.app.project.nodes.len(), 1);
+    assert!(!blank.join("Novel-Format.md").exists());
+    fs::remove_dir_all(&blank).unwrap();
 }
 
 /// Tick the reading until `done` holds, or give up.

@@ -262,8 +262,7 @@ impl App {
         }
     }
 
-    /// Start a whole new book from what was typed, and switch to it. It opens
-    /// on the page that shows how a book is laid out.
+    /// Start a whole new book from what was typed, and switch to it.
     fn create_book(&mut self, typed: &str, shape: project::Template) {
         let root = match look(&self.project.root, typed) {
             Where::Nothing => return,
@@ -308,11 +307,18 @@ impl App {
                     let _ = store.save();
                 }
             }
-            self.msg = format!(
-                "{} is ready ({}) · this first page shows how a book is laid out · Tab to read it, Esc for the menu",
-                self.project.meta.title,
-                shape.name().to_lowercase()
-            );
+            self.msg = if shape == project::Template::Blank {
+                format!(
+                    "{} is ready (blank) · press n to start a scene",
+                    self.project.meta.title
+                )
+            } else {
+                format!(
+                    "{} is ready ({}) · this first page shows how a book is laid out · Tab to read it, Esc for the menu",
+                    self.project.meta.title,
+                    shape.name().to_lowercase()
+                )
+            };
         }
     }
 

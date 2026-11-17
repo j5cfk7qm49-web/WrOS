@@ -588,7 +588,16 @@ impl Project {
                     )),
                 ),
             },
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => (ProjectMeta::default(), None),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => (
+                ProjectMeta {
+                    title: root
+                        .file_name()
+                        .map(|s| s.to_string_lossy().to_string())
+                        .unwrap_or_else(|| "Untitled".into()),
+                    ..ProjectMeta::default()
+                },
+                None,
+            ),
             Err(e) => (
                 ProjectMeta::default(),
                 Some(format!(
@@ -1535,7 +1544,7 @@ impl Template {
             Template::ShortStory => {
                 "three chapters (a beginning, a middle and an end), three scenes in each, aiming for 5,000 words"
             }
-            Template::Blank => "one chapter with one empty scene: build the rest your way",
+            Template::Blank => "an empty manuscript: build the rest your way",
         }
     }
 
@@ -1589,16 +1598,10 @@ impl Shape {
         }
     }
 
-    /// One chapter with one empty scene.
+    /// Only an empty manuscript folder, with no kit or metadata.
     pub fn blank() -> Shape {
         Shape {
-            parts: vec![ShapePart {
-                title: None,
-                chapters: vec![ShapeChapter {
-                    title: crate::manuscript::numbered("Chapter", 1),
-                    scenes: empty_scenes(1, None),
-                }],
-            }],
+            parts: Vec::new(),
             target_words: 80_000,
             daily_target: 1_000,
         }
@@ -1639,10 +1642,17 @@ pub fn scaffold(root: &Path) -> Result<()> {
 }
 
 /// Create a new book with `shape` in its manuscript, titled `title` (or
-/// after its folder), with the same sections and starter pages as any other.
+/// after its folder). An empty shape gets only a manuscript folder; other
+/// shapes get the sections and starter pages.
 pub fn scaffold_with(root: &Path, title: Option<&str>, shape: &Shape) -> Result<()> {
     if root.join("manuscript").is_dir() {
         anyhow::bail!("{} already contains a manuscript/", root.display());
+    }
+    if shape.parts.is_empty() {
+        let manuscript = root.join("manuscript");
+        fs::create_dir_all(&manuscript)
+            .with_context(|| format!("creating {}", manuscript.display()))?;
+        return Ok(());
     }
 
     let title = title
@@ -1856,9 +1866,13 @@ pub fn upgrade(root: &Path) -> Result<Vec<String>> {
         done.push(noted);
     }
 
-    let added = add_sections(root, false)?;
-    if !added.is_empty() {
-        done.push(format!("added {}", added.join(", ")));
+    // Complete an existing kit or a migrated notebook. A book without either
+    // stays bare, even if the writer later adds novel.toml or a notes folder.
+    if Area::Format.path(root).exists() || !renames.is_empty() {
+        let added = add_sections(root, false)?;
+        if !added.is_empty() {
+            done.push(format!("added {}", added.join(", ")));
+        }
     }
     if !renames.is_empty() {
         rewrite_links(root, &renames);
@@ -3150,6 +3164,95 @@ mod tests {
                 .contains("part_label = \"Part\""),
             "and says so, where it can be changed"
         );
+        fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn a_blank_book_contains_only_an_empty_manuscript() {
+        let d = temp_dir("blank");
+        let root = d.join("Blank-book");
+        scaffold_with(&root, None, &Template::Blank.shape()).unwrap();
+        for _ in 0..2 {
+            assert!(upgrade(&root).unwrap().is_empty());
+            let p = Project::load(&root).unwrap();
+            assert_eq!(p.meta.title, "Blank-book");
+            assert!(p.meta_unreadable.is_none());
+            assert_eq!(p.nodes.len(), 1);
+            assert_eq!(p.nodes[p.roots[0]].area, Area::Manuscript);
+            assert!(p.manuscript().is_empty());
+            assert!(!p.tree_is_stale());
+            assert_eq!(fs::read_dir(&root).unwrap().count(), 1);
+            assert_eq!(fs::read_dir(root.join("manuscript")).unwrap().count(), 0);
+        }
+        assert!(scaffold_with(&root, None, &Shape::blank()).is_err());
+        fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn a_blank_book_stays_without_a_kit_after_writing_and_exporting() {
+        let d = temp_dir("blank-export");
+        // Also cover a book made by hand, without metadata or a template marker.
+        fs::create_dir_all(d.join("manuscript")).unwrap();
+        let opts = crate::export::ExportOptions {
+            markdown: true,
+            paperback: true,
+            paperback_pdf: false,
+            ..Default::default()
+        };
+        let p = Project::load(&d).unwrap();
+        let err = crate::export::export(&p, &opts).unwrap_err();
+        assert!(err.to_string().contains("nothing written to export yet"));
+        assert_eq!(fs::read_dir(&d).unwrap().count(), 1);
+
+        let scene = create(&d.join("manuscript"), "Opening", false).unwrap();
+        fs::write(&scene, "The door stood open.\n").unwrap();
+        assert!(upgrade(&d).unwrap().is_empty());
+        let p = Project::load(&d).unwrap();
+        let out = crate::export::export(&p, &opts).unwrap();
+        assert_eq!(out.files.len(), 4, "Word, EPUB, Markdown and paperback");
+        assert_eq!(out.words, 4);
+        assert!(out.files.iter().all(|path| path.is_file()));
+        assert!(!d.join("novel.toml").exists());
+
+        // Choosing settings or adding a note later must not opt into the kit.
+        fs::write(d.join("novel.toml"), "title = \"My Book\"\n").unwrap();
+        fs::create_dir(d.join("notes")).unwrap();
+        fs::write(d.join("notes/idea.md"), "A thought.\n").unwrap();
+        assert!(upgrade(&d).unwrap().is_empty());
+        let p = Project::load(&d).unwrap();
+        assert_eq!(p.meta.title, "My Book");
+        assert_eq!(p.total_words(), 4);
+        assert_eq!(
+            fs::read_to_string(&scene).unwrap(),
+            "The door stood open.\n"
+        );
+        assert_eq!(fs::read_dir(&d).unwrap().count(), 4);
+        for area in Area::ALL {
+            if !matches!(area, Area::Manuscript | Area::Notes) {
+                assert!(!area.path(&d).exists(), "unexpected {area:?}");
+            }
+        }
+        fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn a_short_story_keeps_the_starter_kit() {
+        let d = temp_dir("short-story-kit");
+        scaffold_with(&d, None, &Template::ShortStory.shape()).unwrap();
+        for area in Area::ALL {
+            assert!(area.path(&d).exists(), "missing {area:?}");
+        }
+        assert!(
+            d.join("front-matter/02-Paperback/02-Copyright.md")
+                .is_file()
+        );
+        assert!(
+            d.join("back-matter/01-Paperback/02-About-the-Author.md")
+                .is_file()
+        );
+        assert!(d.join("template-sheets/01-Character-Sketch.md").is_file());
+        assert!(d.join("research/01-Sample-Output").is_dir());
+        assert!(upgrade(&d).unwrap().is_empty());
         fs::remove_dir_all(&d).unwrap();
     }
 
