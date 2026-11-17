@@ -1,8 +1,8 @@
 # Book timeline: every version, on the laptop and on Drive (design)
 
-Status: direction chosen by the owner 2026-11-16 (git timeline mirrored to Drive as git bundles;
-the whole book is versioned); awaiting the owner's approval of this document. Target: after
-the book shelf and Import (rc17), which it builds on.
+Status: approved by the owner 2026-11-16 (git timeline mirrored to Drive as git bundles; the
+whole book is versioned, journal included; no off switch on WrOS). Target: rc18, after the book
+shelf and Import (rc17), which it builds on.
 
 ## Why
 
