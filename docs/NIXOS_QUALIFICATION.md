@@ -53,7 +53,7 @@ nix path-info -rS ./result | sort -nk2 | tail -25
 
 Compare the measured closure total and largest store paths against the Round 2 baseline (`4.1 GiB` across `918` paths) and the individual removals documented in [`docs/NIXOS_BASE.md`](NIXOS_BASE.md).
 
-## Step 5: Run the Rust, Python, and nine KVM NixOS VM suites
+## Step 5: Run the Rust, Python, and ten KVM NixOS VM suites
 
 On NixOS-WSL with `/dev/kvm` accessible:
 
@@ -72,6 +72,7 @@ nix build .#checks.x86_64-linux.recovery-menu
 nix build .#checks.x86_64-linux.live-session
 nix build .#checks.x86_64-linux.live-graphical
 nix build .#checks.x86_64-linux.unlock-waits
+nix build -L .#checks.x86_64-linux.import-book
 nix flake check
 ```
 
