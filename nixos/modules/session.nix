@@ -81,6 +81,11 @@ in
     after = [ "systemd-vconsole-setup.service" ];
     before = [ "getty@tty1.service" "greetd.service" ];
     wantedBy = [ "multi-user.target" ];
+    # systemd-vconsole-setup runs again later in the boot (NixOS's reload unit, udev when a console
+    # appears) and loads console.keyMap ("us") over the writer's layout, so a Colemak password
+    # typed at the login screen arrived as QWERTY. Restarted with it, this applies the layout
+    # after it every time.
+    partOf = [ "systemd-vconsole-setup.service" ];
     unitConfig.ConditionPathExists = "${wrosPkgs.wros-keymaps}/share/wros/keymaps/qwerty.map";
     serviceConfig = {
       Type = "oneshot";

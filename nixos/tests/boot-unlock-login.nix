@@ -119,6 +119,11 @@ pkgs.testers.runNixOSTest {
     installed.fail("grub-editenv /boot/grub/grubenv list | grep -q '^wros_boot_pending=1$'")
 
     # 4. Log in through wros-greeter on tty1 as writer and verify the session is not root (T1).
+    #    First rerun the console setup the way the boot can (NixOS's reload unit, or udev when a
+    #    console appears): it loads the configured "us" keymap, and the writer's Colemak must
+    #    still be the layout the login screen reads.
+    installed.succeed("systemctl restart systemd-vconsole-setup.service")
+    installed.wait_until_succeeds("systemctl is-active --quiet wros-keyboard.service")
     log_in(installed, "writer", "writer-secret-password", colemak=True)
     session_users = installed.succeed("ps -o user= -C grimoire").strip().splitlines()
     assert session_users and all(u == "writer" for u in session_users), session_users
