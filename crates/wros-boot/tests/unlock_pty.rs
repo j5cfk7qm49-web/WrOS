@@ -275,7 +275,8 @@ fn progress_file(tag: &str, value: &str) -> std::path::PathBuf {
 
 #[test]
 fn the_progress_screen_follows_systemd_and_stops_when_asked_without_a_flash() {
-    let file = progress_file("follow", "d 0.25\n");
+    // The bar counts from systemd's first reading (here 0), so later readings fill it in step.
+    let file = progress_file("follow", "d 0\n");
     let path = file.to_str().unwrap().to_string();
     let console = Console::start_mode(
         &["splash", "--progress-file", &path],
@@ -284,6 +285,7 @@ fn the_progress_screen_follows_systemd_and_stops_when_asked_without_a_flash() {
         &[],
         "Starting WrOS",
     );
+    std::fs::write(&file, "d 0.25\n").unwrap();
     console.until("a quarter", |s| {
         s.contains(&format!("|{}{}|", "#".repeat(8), " ".repeat(25)))
     });

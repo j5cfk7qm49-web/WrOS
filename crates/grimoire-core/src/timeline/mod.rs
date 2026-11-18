@@ -583,7 +583,8 @@ mod tests {
         let lock = sessions::outside_dir(&root).unwrap().join("index.lock");
         // A git call killed mid-commit leaves its lock behind.
         let file = fs::File::create(&lock).unwrap();
-        file.set_modified(std::time::SystemTime::now() - STALE_LOCK * 2).unwrap();
+        file.set_modified(std::time::SystemTime::now() - STALE_LOCK * 2)
+            .unwrap();
         drop(file);
         write(&root, "chapters/01.md", "Second draft.\n");
         assert!(record(&root, &Entry::Save).unwrap().is_some());

@@ -78,6 +78,7 @@ impl Timeline {
         )
     }
 
+    #[cfg(test)]
     fn start_with(
         root: PathBuf,
         uploader: impl FnMut(Value) -> Result<Value, String> + Send + 'static,
