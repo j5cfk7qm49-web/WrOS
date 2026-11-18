@@ -214,6 +214,35 @@ fn newest(root: &Path) -> String {
     )
 }
 
+/// Only one book on this laptop may own a Drive folder (the design's Keep both rule). A copy
+/// from a laptop folder or a USB stick leaves the original's sync link behind.
+fn drop_sync_identity(book: &Path) -> anyhow::Result<()> {
+    let link = book.join(".grimoire/sync.json");
+    if fs::symlink_metadata(&link).is_ok() {
+        fs::remove_file(&link)?;
+    }
+    Ok(())
+}
+
+/// After Replace, the book now in use keeps syncing: it keeps the link it came with (a Drive
+/// marker's), or takes over the replaced book's, and the replaced book is left without one.
+fn settle_replaced_identity(new: &Path, old: &Path) -> anyhow::Result<()> {
+    let (new_link, old_link) = (
+        new.join(".grimoire/sync.json"),
+        old.join(".grimoire/sync.json"),
+    );
+    if fs::symlink_metadata(&old_link).is_err() {
+        return Ok(());
+    }
+    if fs::symlink_metadata(&new_link).is_ok() {
+        fs::remove_file(&old_link)?;
+    } else {
+        fs::create_dir_all(new.join(".grimoire"))?;
+        fs::rename(&old_link, &new_link)?;
+    }
+    Ok(())
+}
+
 fn import_error(incoming: &Incoming, error: anyhow::Error) -> String {
     if matches!(&incoming.source, ImportSource::Usb { .. }) && !books::is_book(&incoming.path) {
         "The USB stick was removed.".into()
@@ -750,6 +779,7 @@ impl App {
                             } else {
                                 let path = free_destination(&documents, &incoming.name);
                                 book_copy::copy_book(source, &path, cancel, &mut progress)?;
+                                drop_sync_identity(&path)?;
                                 path
                             };
                             Ok(ImportDone {
@@ -759,13 +789,17 @@ impl App {
                             })
                         }
                         How::Replace(path) => {
-                            book_copy::replace_with_copy(
+                            let replaced = book_copy::replace_with_copy(
                                 source,
                                 &path,
                                 now.date(),
                                 cancel,
                                 &mut progress,
                             )?;
+                            if !drive {
+                                drop_sync_identity(&path)?;
+                            }
+                            settle_replaced_identity(&path, &replaced)?;
                             Ok(ImportDone {
                                 path,
                                 merge: None,
@@ -1152,5 +1186,46 @@ mod tests {
             import_error(&incoming, anyhow::anyhow!("disk is full")),
             "Book import failed: disk is full"
         );
+    }
+
+    fn identity(book: &Path, id: &str) {
+        fs::create_dir_all(book.join(".grimoire")).unwrap();
+        fs::write(book.join(".grimoire/sync.json"), id).unwrap();
+    }
+
+    #[test]
+    fn a_copied_book_never_brings_another_books_sync_link() {
+        let temp = tempfile::tempdir().unwrap();
+        let book = temp.path().join("Book");
+        identity(&book, "the original's");
+        drop_sync_identity(&book).unwrap();
+        assert!(!book.join(".grimoire/sync.json").exists());
+        // A book without one is left as it is.
+        drop_sync_identity(&book).unwrap();
+        drop_sync_identity(&temp.path().join("No state")).unwrap();
+    }
+
+    #[test]
+    fn after_replace_only_the_book_in_use_owns_the_drive_folder() {
+        let temp = tempfile::tempdir().unwrap();
+        let (new, old) = (
+            temp.path().join("Book"),
+            temp.path().join("Book (replaced)"),
+        );
+        fs::create_dir_all(&new).unwrap();
+        // The replaced book's link moves to the book now in use.
+        identity(&old, "local");
+        settle_replaced_identity(&new, &old).unwrap();
+        assert_eq!(fs::read(new.join(".grimoire/sync.json")).unwrap(), b"local");
+        assert!(!old.join(".grimoire/sync.json").exists());
+        // A link the new copy already has (from Drive's marker) wins; the old one goes.
+        identity(&old, "stale");
+        identity(&new, "from Drive");
+        settle_replaced_identity(&new, &old).unwrap();
+        assert_eq!(
+            fs::read(new.join(".grimoire/sync.json")).unwrap(),
+            b"from Drive"
+        );
+        assert!(!old.join(".grimoire/sync.json").exists());
     }
 }
