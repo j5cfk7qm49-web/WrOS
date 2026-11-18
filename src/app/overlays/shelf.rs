@@ -148,8 +148,7 @@ impl App {
         let Overlay::Books { sel } = &mut self.overlay else {
             return;
         };
-        // Keep the draft entry after the shelf rows until drafts move into Import.
-        if list_nav(key, sel, rows.len() + 1, RING) {
+        if list_nav(key, sel, rows.len(), RING) {
             return;
         }
         match key {
@@ -174,7 +173,6 @@ impl App {
                         shape: project::Template::Novel,
                     };
                 }
-                None if *sel == rows.len() => self.run_action(Action::BringInDraft),
                 None => {}
             },
             Key::Char('x') | Key::Delete => {
@@ -231,7 +229,7 @@ impl App {
                             books::title_of_folder(&root),
                             books::pretty(&root)
                         );
-                        let left = self.shelf_rows().len() + 1;
+                        let left = self.shelf_rows().len();
                         self.overlay = Overlay::Books {
                             sel: back.min(left - 1),
                         };
@@ -304,35 +302,6 @@ impl App {
         })
     }
 
-    pub(super) fn on_book_path_key(&mut self, key: Key) {
-        let Overlay::BookPath { buf, draft } = &mut self.overlay else {
-            return;
-        };
-        let draft = *draft;
-        match key {
-            Key::Enter => match look(&self.project.root, buf) {
-                Where::Book(root) => {
-                    self.overlay = Overlay::None;
-                    let _ = self.open_book(&root);
-                }
-                Where::Draft(file) => self.bring_in(&file),
-                Where::Nothing => {}
-                Where::Free(p) | Where::Taken(p) => {
-                    self.msg = if draft {
-                        format!(
-                            "{} isn't a draft WrOS can read: a Word file (.docx), Markdown (.md) or text (.txt)",
-                            books::pretty(&p)
-                        )
-                    } else {
-                        format!("there's no book in {}", books::pretty(&p))
-                    };
-                }
-            },
-            Key::Esc => self.overlay = Overlay::None,
-            k => edit(buf, k),
-        }
-    }
-
     /// Start a whole new book from what was typed, and switch to it.
     fn create_book(&mut self, typed: &str, shape: project::Template) {
         let root = match look(&self.project.root, typed) {
@@ -355,7 +324,7 @@ impl App {
                 return;
             }
             Where::Draft(file) => {
-                self.bring_in(&file);
+                self.import_draft(&file);
                 return;
             }
             Where::Free(p) => p,
@@ -390,38 +359,6 @@ impl App {
                     shape.name().to_lowercase()
                 )
             };
-        }
-    }
-
-    /// Bring in the draft at `file` as a new book beside the one that's open,
-    /// and switch to it.
-    fn bring_in(&mut self, file: &Path) {
-        let draft = match import::read(file) {
-            Ok(d) => d,
-            Err(e) => {
-                self.msg = format!("{e:#}");
-                return;
-            }
-        };
-        let here = self.project.root.clone();
-        let root = books::beside(here.parent().unwrap_or(&here), &draft.title);
-        if let Err(e) = import::make_book(&root, &draft) {
-            self.msg = format!("couldn't bring it in: {e:#}");
-            return;
-        }
-        self.overlay = Overlay::None;
-        if self.open_book(&root) {
-            self.msg = format!(
-                "brought in {}: {}{} · it lives in {}",
-                draft.title,
-                books::tally(&draft),
-                if draft.before.trim().is_empty() {
-                    ""
-                } else {
-                    " · what came before the first chapter is in Notes"
-                },
-                books::pretty(&root)
-            );
         }
     }
 
@@ -660,61 +597,6 @@ pub(super) fn draw_new_book(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     );
 }
 
-pub(super) fn draw_book_path(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
-    let Overlay::BookPath { buf, draft } = &app.overlay else {
-        return;
-    };
-    let dim = Style::default().fg(t.dim);
-    let under = match look(&app.project.root, buf) {
-        Where::Nothing if *draft => (
-            Line::from(Span::styled(
-                " it comes in split into chapters and scenes",
-                dim,
-            )),
-            " type or drop in a file   esc cancel",
-        ),
-        Where::Nothing => (Line::from(""), " type a folder   esc cancel"),
-        Where::Draft(p) => draft_line(&p, t),
-        Where::Book(p) => (
-            Line::from(vec![
-                Span::styled(" ✓ ", Style::default().fg(t.accent)),
-                Span::styled(books::title(&p), Style::default().fg(t.text)),
-            ]),
-            " ↵ open it   esc cancel",
-        ),
-        Where::Free(_) | Where::Taken(_) if *draft => (
-            Line::from(Span::styled(
-                " not a draft yet: a Word file, Markdown or text",
-                dim,
-            )),
-            " keep typing   esc cancel",
-        ),
-        Where::Free(_) | Where::Taken(_) => (
-            Line::from(Span::styled(" no book there yet", dim)),
-            " keep typing   esc cancel",
-        ),
-    };
-    typed_box(
-        f,
-        area,
-        t,
-        if *draft {
-            (
-                "BRING IN A DRAFT",
-                "A Word file (.docx), Markdown (.md) or text (.txt)",
-            )
-        } else {
-            (
-                "OPEN A BOOK",
-                "The book's folder, like ~/Documents/My Novel",
-            )
-        },
-        buf,
-        under,
-        Vec::new(),
-    );
-}
-
 /// A draft that's there to bring in, by its file name.
 fn draft_line<'a>(p: &Path, t: &Theme) -> (Line<'a>, &'static str) {
     let name = p
@@ -739,7 +621,7 @@ pub(super) fn draw_books(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     };
     let rows = app.shelf_rows();
     let can_delete = matches!(rows.get(*sel), Some(ShelfRow::Book(_, false)));
-    let mut rows: Vec<(String, String, bool)> = rows
+    let rows: Vec<(String, String, bool)> = rows
         .iter()
         .map(|row| match row {
             ShelfRow::Book(book, open) => {
@@ -754,11 +636,6 @@ pub(super) fn draw_books(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             ShelfRow::NewBook => ("New book…".into(), String::new(), false),
         })
         .collect();
-    rows.push((
-        "Bring in a draft…".into(),
-        "Word, Markdown or text".into(),
-        false,
-    ));
     let width = 112.min(area.width.saturating_sub(4));
     let box_area = centred(area, width, rows.len() as u16 + 4);
     f.render_widget(Clear, box_area);

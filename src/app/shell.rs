@@ -466,7 +466,7 @@ enum Choice {
     Open(Route),
     /// Show a Google Drive folder ("drive:" is the top) on the Drive files page.
     DriveFolder(String),
-    /// Copy the book in this Drive folder to this laptop, then open it.
+    /// Open Import with this Drive book selected.
     DriveCopyBook(String),
     Action(Action),
     System(usize),
@@ -520,7 +520,8 @@ impl Entry {
             | Choice::UpdateBundleOpen
             | Choice::UpdateStagedOpen
             | Choice::UpdateGoBackOpen
-            | Choice::RepairOpen => wros_shell::RowKind::Opens,
+            | Choice::RepairOpen
+            | Choice::DriveCopyBook(_) => wros_shell::RowKind::Opens,
             _ => wros_shell::RowKind::Option,
         }
     }
@@ -572,7 +573,7 @@ fn kinds(app: &App, rows: &[Entry]) -> Vec<wros_shell::RowKind> {
 
 /// Browsing and copying from the app's Google Drive folder, at the end of the Google Drive page.
 /// The Drive files page: one Drive folder at a time, folders first. A folder opens;
-/// a file, or the whole folder, copies to a new place on this laptop.
+/// a file, or an ordinary folder, copies to a new place on this laptop. Books use Import.
 fn drive_rows(app: &App) -> Vec<Entry> {
     use super::backup::FormKind;
     let backup = &app.deck.shell.backup;
@@ -607,24 +608,23 @@ fn drive_rows(app: &App) -> Vec<Entry> {
         .drive_entries
         .iter()
         .any(|e| e.is_dir && e.name == "manuscript");
-    if !inside.is_empty() && holds_book && backup.job.is_some() {
-        rows.push(Entry::info("Copying and checking…"));
-    } else if !inside.is_empty() && holds_book {
-        rows.push(Entry::new(
-            "This folder is a book · copy it to this laptop and open it",
-            Choice::DriveCopyBook(folder.to_string()),
-        ));
-    }
     if !inside.is_empty() {
         let up = inside.rsplit_once('/').map_or("", |(up, _)| up);
         rows.push(Entry::new(
             "Up one folder",
             Choice::DriveFolder(format!("drive:{up}")),
         ));
-        rows.push(Entry::new(
-            "Copy this whole folder to this laptop",
-            Choice::BackupForm(FormKind::DriveMaterialize, folder.to_string()),
-        ));
+        if holds_book {
+            rows.push(Entry::new(
+                "Import this book…",
+                Choice::DriveCopyBook(folder.to_string()),
+            ));
+        } else {
+            rows.push(Entry::new(
+                "Copy this whole folder to this laptop",
+                Choice::BackupForm(FormKind::DriveMaterialize, folder.to_string()),
+            ));
+        }
     }
     for entry in &backup.status.drive_entries {
         let mut label = if entry.is_dir {
@@ -2547,29 +2547,7 @@ impl App {
                                 .request(crate::backup_service::Request::DriveList { folder });
                         }
                     }
-                    Choice::DriveCopyBook(remote) => {
-                        let name = remote
-                            .trim_end_matches('/')
-                            .rsplit('/')
-                            .next()
-                            .unwrap_or("From Drive")
-                            .trim_start_matches("drive:")
-                            .to_string();
-                        let shelf = if self.background {
-                            crate::books::default_root()
-                        } else {
-                            self.project
-                                .root
-                                .parent()
-                                .map_or_else(crate::books::default_root, |p| p.to_path_buf())
-                        };
-                        let destination = crate::books::beside(&shelf, &name);
-                        let project = self.project.root.clone();
-                        self.deck
-                            .shell
-                            .backup
-                            .copy_book(remote, destination, &project);
-                    }
+                    Choice::DriveCopyBook(remote) => self.open_drive_import(remote),
                     Choice::BackupNow => self.request_project_backup(),
                     Choice::SyncSwitch(on) => self.request_sync_switch(on),
                     Choice::SyncNow => self.request_sync_run(false),

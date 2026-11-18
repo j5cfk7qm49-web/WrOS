@@ -3017,6 +3017,69 @@ fn drive_import_log(dir: &Path) -> Vec<serde_json::Value> {
 }
 
 #[test]
+fn the_drive_files_page_sends_a_book_folder_to_import() {
+    use crate::app::{overlays::import::ImportStage, shell::Route};
+    use crate::backup_service::DriveEntry;
+
+    if !shelf_home("the_drive_files_page_sends_a_book_folder_to_import") {
+        return;
+    }
+    let first = import_fixture("Documents/Open", "Local words.\n");
+    let source = import_fixture("Remote/Clip says Hello World.", "Drive words.\n");
+    let mut d = Desk::open(first.clone(), 80, 24);
+    let stub = drive_import_stub(&mut d, &source, true);
+    let mut listing: serde_json::Value =
+        serde_json::from_slice(&fs::read(stub.join("listing.json")).unwrap()).unwrap();
+    listing["data"]["entries"] = serde_json::json!([
+        {"name": "Another book", "path": "drive:WrOS/Another book", "book": true,
+         "synced": false, "project_id": null},
+        listing["data"]["entries"][0].clone()
+    ]);
+    fs::write(
+        stub.join("listing.json"),
+        serde_json::to_vec(&listing).unwrap(),
+    )
+    .unwrap();
+    d.app.open_settings();
+    d.app.deck.shell.nav.open(Route::GoogleDrive);
+    d.app.deck.shell.backup.status.drive_folder = "drive:WrOS/Clip says Hello World.".into();
+    d.app.deck.shell.backup.status.drive_entries = vec![DriveEntry {
+        path: "drive:WrOS/Clip says Hello World./manuscript".into(),
+        name: "manuscript".into(),
+        is_dir: true,
+        ..DriveEntry::default()
+    }];
+    for (width, height) in [(80, 24), (170, 48)] {
+        d.term = Terminal::new(TestBackend::new(width, height)).unwrap();
+        d.draw();
+        assert!(d.shows("Import this book…"));
+        assert!(!d.shows("Copy this whole folder"));
+    }
+    d.choose("Import this book…");
+    assert!(d.shows("Reading Google Drive…"));
+    wait_drive_listing(&mut d);
+    assert!(d.shows("▸ Clip says Hello World."));
+    assert!(matches!(
+        &d.app.overlay,
+        Overlay::Import(state) if matches!(
+            &state.stage,
+            ImportStage::Browse { dir, .. } if dir.as_path() == Path::new("drive:WrOS")
+        )
+    ));
+    let log = drive_import_log(&stub);
+    assert_eq!(log.len(), 1);
+    assert_eq!(log[0]["operation"], "drive-books");
+    assert_eq!(log[0]["folder"], "drive:WrOS");
+    assert!(d.app.deck.shell.backup.form.is_none());
+    assert_eq!(d.app.project.root, fs::canonicalize(&first).unwrap());
+    assert!(
+        !crate::books::documents()
+            .join("Clip says Hello World.")
+            .exists()
+    );
+}
+
+#[test]
 fn a_synced_drive_book_imports_with_its_sync_identity() {
     if !shelf_home("a_synced_drive_book_imports_with_its_sync_identity") {
         return;
@@ -3794,6 +3857,7 @@ fn the_shelf_lists_every_book_in_documents_without_typing() {
                 .any(|r| r.contains("Grimoire") && r.contains("open now"))
         );
         assert!(!d.shows("A book in another folder"));
+        assert!(!d.shows("Bring in a draft"));
     }
     assert!(d.shows(&crate::books::pretty(&clip)));
     d.key(KeyCode::Enter);
@@ -4069,30 +4133,45 @@ fn a_draft_brought_in_becomes_a_book_split_at_its_chapters() {
     if !shelf_home("a_draft_brought_in_becomes_a_book_split_at_its_chapters") {
         return;
     }
-    let first = book("draft-home", true);
-    let dir = first.with_extension("drafts");
+    let first = import_fixture("Documents/Open", "Local words.\n");
+    let dir = grimoire_core::paths::home().join("Drafts");
     fs::create_dir_all(&dir).unwrap();
-    let file = dir.join("Wolf Winter.md");
+    let file = dir.join("Winter draft.md");
     fs::write(
         &file,
-        "Wolf Winter\nby Sam\n\n# Chapter One\n\nThe snow came early.\n\n***\n\nNobody left the valley.\n\n# Chapter Two\n\nThaw.\n\nTHE END\n",
+        concat!(
+            "---\ntitle: Wolf Winter\n---\n\nWolf Winter\nby Sam\n\n",
+            "# Chapter One\n\nThe snow came early.\n\n***\n\nNobody left the valley.\n\n",
+            "# Chapter Two\n\nThaw.\n\nTHE END\n",
+        ),
     )
     .unwrap();
-    let mut d = Desk::open(first.clone(), 120, 35);
+    let before = import_snapshot(&dir);
+    let taken = crate::books::documents().join("Winter draft");
+    fs::create_dir_all(&taken).unwrap();
+    fs::write(taken.join("shopping.txt"), "eggs").unwrap();
+    let mut d = Desk::open(first.clone(), 80, 24);
     d.menu(&["File", "Open another book…"]);
-    d.choose("Bring in a draft…");
-    assert!(d.shows("BRING IN A DRAFT"));
-    // Dropped into the terminal: quoted, spaces and all.
-    d.typed(&format!("'{}'", file.display()));
-    assert!(
-        d.shows("bring it in as a new book"),
-        "{}",
-        d.rows().join("\n")
-    );
+    d.choose("Import a book…");
+    assert!(d.shows("A draft (Word, Markdown, text)"));
+    d.choose("A draft (Word, Markdown, text)");
+    assert!(d.shows("Drafts · folder"));
+    d.choose("Drafts");
+    assert!(d.shows("Winter draft.md · draft"));
+    assert!(d.shows("Up one folder"));
     d.key(KeyCode::Enter);
 
     let root = d.app.project.root.clone();
     assert_ne!(root, fs::canonicalize(&first).unwrap(), "{}", d.status());
+    assert_eq!(
+        root,
+        fs::canonicalize(crate::books::documents().join("Winter draft 2")).unwrap()
+    );
+    assert_eq!(import_snapshot(&dir), before);
+    assert_eq!(
+        fs::read_to_string(taken.join("shopping.txt")).unwrap(),
+        "eggs"
+    );
     assert_eq!(d.app.project.meta.title, "Wolf Winter");
     assert!(
         d.status().contains("brought in Wolf Winter"),
@@ -4126,7 +4205,64 @@ fn a_draft_brought_in_becomes_a_book_split_at_its_chapters() {
 }
 
 #[test]
+fn the_draft_source_lists_only_folders_and_supported_files() {
+    if !shelf_home("the_draft_source_lists_only_folders_and_supported_files") {
+        return;
+    }
+    let first = import_fixture("Documents/Open", "Local words.\n");
+    let dir = grimoire_core::paths::home().join("Drafts");
+    fs::create_dir_all(dir.join("Folder/manuscript")).unwrap();
+    fs::create_dir_all(dir.join(".hidden")).unwrap();
+    for name in [
+        "Word.docx",
+        "Markdown.MD",
+        "Plain.txt",
+        "Other.pdf",
+        ".secret.md",
+    ] {
+        fs::write(dir.join(name), "draft").unwrap();
+    }
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(dir.join("Plain.txt"), dir.join("Linked.txt")).unwrap();
+        std::os::unix::fs::symlink(dir.join("Folder"), dir.join("Linked folder")).unwrap();
+    }
+    let mut d = Desk::open(first, 80, 24);
+    d.menu(&["File", "Open another book…"]);
+    d.choose("Import a book…");
+    d.choose("A draft (Word, Markdown, text)");
+    d.choose("Drafts");
+    for (width, height) in [(80, 24), (170, 48)] {
+        d.term = Terminal::new(TestBackend::new(width, height)).unwrap();
+        d.draw();
+        for name in [
+            "Folder · folder",
+            "Word.docx · draft",
+            "Markdown.MD",
+            "Plain.txt",
+        ] {
+            assert!(d.shows(name), "missing {name}:\n{}", d.rows().join("\n"));
+        }
+        for name in ["Other.pdf", ".secret", ".hidden", "Linked"] {
+            assert!(!d.shows(name), "unexpected {name}");
+        }
+    }
+    d.choose("Folder");
+    assert!(
+        d.shows("manuscript · folder"),
+        "books are browsed for drafts too"
+    );
+    d.choose("Up one folder");
+    assert!(d.shows("Plain.txt"));
+    d.key(KeyCode::Esc);
+    assert!(d.shows("A draft (Word, Markdown, text)"));
+}
+
+#[test]
 fn start_a_new_book_also_takes_a_draft() {
+    if !shelf_home("start_a_new_book_also_takes_a_draft") {
+        return;
+    }
     let first = book("draft-new", true);
     let file = first.with_extension("draft.txt");
     fs::write(&file, "CHAPTER ONE\n\nIt began with a letter.\n").unwrap();

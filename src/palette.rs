@@ -117,10 +117,8 @@ pub enum Action {
     Open(std::path::PathBuf),
     /// A whole new book, beside the one that's open, and switch to it.
     NewBook,
-    /// Switch to another book: a recent one, or one in a folder you name.
+    /// Switch to another book on the shelf, or import one.
     OpenBook,
-    /// A draft from elsewhere (Word, Markdown, text) as a new book.
-    BringInDraft,
     /// Words each week, the pace lately, and when the goal comes.
     Progress,
     /// Read the scene aloud from the cursor, a sentence at a time.
@@ -319,11 +317,6 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
         Entry::new("New folder", "N", Action::NewFolder),
         Entry::new("Start a new book", "", Action::NewBook),
         Entry::new("Open another book", "", Action::OpenBook),
-        Entry::new(
-            "Bring in a draft (Word, Markdown or text)",
-            "",
-            Action::BringInDraft,
-        ),
         Entry::new("Rename", "r", Action::Rename),
         Entry::new("Delete (to the trash)", "d", Action::Delete),
         Entry::new("Move up", "Alt ↑", Action::MoveUp),

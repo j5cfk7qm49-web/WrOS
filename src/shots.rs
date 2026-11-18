@@ -426,13 +426,10 @@ fn shots() {
 
     // Bringing in a draft.
     let mut s = Shot::new("draft", "Catppuccin Mocha", w, h, false);
-    let draft = s.root.join("The Long Night.docx");
-    fs::write(&draft, "").unwrap();
     s.key(KeyCode::Tab, none);
-    s.app.run_action(crate::palette::Action::BringInDraft);
-    for c in draft.display().to_string().chars() {
-        s.key(KeyCode::Char(c), none);
-    }
+    s.app.open_import();
+    s.key(KeyCode::Up, none); // The draft source is the last row.
+    s.draw();
     frames.push(s.json("draft", None));
 
     // Reading aloud: the sentence being read, highlighted.

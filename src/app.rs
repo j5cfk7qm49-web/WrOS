@@ -606,12 +606,6 @@ pub enum Overlay {
         yes: bool,
         back: usize,
     },
-    /// A book's folder, typed, to open it; or with `draft`, a Word,
-    /// Markdown or text file to bring in as a new book.
-    BookPath {
-        buf: String,
-        draft: bool,
-    },
     /// Browsing presets. `restore` is put back if you press Esc.
     Themes {
         sel: usize,
@@ -2414,12 +2408,6 @@ impl App {
                 }
             }
             Action::Voices => self.open_voices(),
-            Action::BringInDraft => {
-                self.overlay = Overlay::BookPath {
-                    buf: String::new(),
-                    draft: true,
-                }
-            }
             Action::OpenBookAt(root) => {
                 let _ = self.open_book(&root);
             }

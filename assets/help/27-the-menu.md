@@ -17,7 +17,7 @@ The mouse works everywhere on the bar: click a menu to open it, move across the 
 ## File
 
 - **Settle conflicts…**: only there when a sync service has left two copies of a scene that disagree. See *Sync & conflicts*.
-- **Start a new book…** and **Open another book…**: see *Your books*. *Open another book…* is also where *Bring in a draft…* lives, for a draft from Word, Markdown or a text file.
+- **Start a new book…** and **Open another book…**: see *Your books*. *File › Open another book… › Import a book…* brings in a book from Google Drive, a USB stick or this laptop. Choose *A draft (Word, Markdown, text)* there for a draft file.
 - **Export…**: the book as a Word file, a PDF, an EPUB or a paperback. See *Compile*.
 - **Compile to Markdown** and **Update the project map**: see *On disk*.
 - **Back up now**: the open book, to the places Settings › Backups and accounts names.

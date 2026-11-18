@@ -117,7 +117,6 @@ impl App {
                 Key::Esc | Key::Enter | Key::Char('q' | ' ') => self.overlay = Overlay::None,
                 _ => {}
             },
-            Overlay::BookPath { .. } => self.on_book_path_key(key),
             Overlay::Sources { .. } => self.on_sources_key(key),
             Overlay::Themes { .. } => self.on_themes_key(key),
             Overlay::Custom { .. } => self.on_custom_key(key),
@@ -268,7 +267,6 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         Overlay::Goals { .. } => progress::draw_goals(f, app, area, t),
         Overlay::Details { .. } => details::draw_details(f, app, area, t),
         Overlay::Voices { .. } => reading::draw_voices(f, app, area, t),
-        Overlay::BookPath { .. } => shelf::draw_book_path(f, app, area, t),
         Overlay::Player { .. } => player::draw_player(f, app, area, t),
         Overlay::Create { .. } => naming::draw_create(f, app, area, t),
         Overlay::Rename { .. } => naming::draw_rename(f, app, area, t),

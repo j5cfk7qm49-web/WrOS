@@ -882,15 +882,6 @@ impl App {
                 self.observe_deck(tutorial::Event::DriveFolderListed)
             }
             Some(super::backup::Finished::DriveList) => {}
-            // open_book explains a failure itself, so only success needs words here.
-            Some(super::backup::Finished::DriveBook(copy)) if self.open_book(&copy) => {
-                self.overlay = Overlay::None;
-                self.msg = format!(
-                    "copied {} from Google Drive, checked it, and opened it · it's your copy on this laptop; Drive's stays as it was",
-                    crate::books::title(&copy)
-                );
-            }
-            Some(super::backup::Finished::DriveBook(_)) => {}
             None => {}
         }
         self.tick_update_chain();

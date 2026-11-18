@@ -26,7 +26,7 @@ Got a draft already? See *Bringing in a draft*, just below.
 
 Already have a draft somewhere else? Bring it in and it becomes a WrOS book, split up and ready to work on. WrOS reads a **Word file** (`.docx`), **Markdown** (`.md`) or **plain text** (`.txt`). From Google Docs, *File › Download › Microsoft Word* first.
 
-*File › Open another book… › Bring in a draft…*, or type a draft's path into *Start a new book…*. You can type the path, or drag the file into the terminal window. `Ctrl-K` › *Bring in a draft* works too, and from a terminal it's `grimoire import <file>`.
+Choose *File › Open another book… › Import a book…*, then *A draft (Word, Markdown, text)*. Browse from your home folder with the arrow keys and `Enter`. Folders open; pick a draft file to make it a book. *Up one folder* takes you back. From a terminal, `grimoire import <file>` works too.
 
 Here's how it's split up:
 
@@ -37,13 +37,14 @@ Here's how it's split up:
 - Anything before the first chapter, like a title page, is kept in **Notes**, so it doesn't turn into a chapter.
 - An *END* on its own at the very end is left off, since WrOS's export adds its own.
 
-The draft itself is never changed. The new book goes beside the one you had open, named after the draft, and opens straight away. It tells you how many chapters, scenes and words came across, and every word lands somewhere.
+The draft itself is never changed. The new book goes in *~/Documents*, named after the draft file, and opens straight away. If that folder name is taken, WrOS adds a number. It tells you how many chapters, scenes and words came across, and every word lands somewhere.
 
 ## Switching books
 
-*File › Open another book…* lists the books you've had open on this computer, newest first. Pick one and press `Enter`: the book you're in is saved and closed, and the other opens right where you left off.
+*File › Open another book…* lists books in *~/Documents*, with the ones opened lately first, then by title. It also keeps books you've opened elsewhere. The book you're in says *open now*. Pick another and press `Enter`: this book is saved and closed, and the other opens right where you left off.
 
-- *A book in another folder…* opens one that isn't on the list yet. Type its folder.
+- *Import a book…* brings a copy into *~/Documents* from Google Drive, a USB stick or a folder on this laptop. Pick folders with the arrow keys and `Enter`, then pick a book. The copy is checked before it opens; the source stays as it was. Drafts come in here too.
+- *New book…* starts a book of your own.
 - In `Ctrl-K`, type part of a book's name. Every book on the list is there as *Open the book …*.
 
 Your music keeps playing, the Pomodoro keeps counting, and the theme stays just as it is.

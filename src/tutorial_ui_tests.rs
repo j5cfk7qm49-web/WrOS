@@ -571,7 +571,7 @@ fn d_opens_one_demo_book_names_it_and_keeps_lessons_done() {
 }
 
 #[test]
-fn a_book_on_drive_copies_here_and_opens_once_it_checks_out() {
+fn only_linked_drive_books_offer_import() {
     use crate::backup_service::DriveEntry;
     let novel = book_alone("drive-book");
     let shelf = novel.parent().unwrap().to_path_buf();
@@ -599,7 +599,7 @@ fn a_book_on_drive_copies_here_and_opens_once_it_checks_out() {
         }),
     );
     assert!(
-        desk.shows("This folder is a book · copy it to this laptop and open it"),
+        desk.shows("Import this book…"),
         "{}",
         desk.rows().join("\n")
     );
@@ -614,21 +614,20 @@ fn a_book_on_drive_copies_here_and_opens_once_it_checks_out() {
             ..Status::default()
         }),
     );
-    assert!(!desk.shows("This folder is a book"));
+    assert!(!desk.shows("Import this book…"));
+    assert!(desk.shows("Copy this whole folder to this laptop"));
 
-    // The helper copied and checked it: the copy opens.
-    let copy = shelf.join("Salt");
-    fs::create_dir_all(&copy).unwrap();
-    grimoire_core::project::scaffold(&copy).unwrap();
+    // A stale book listing cannot offer Import after Google is unlinked.
     finished_backup(
         &mut desk,
-        Finished::DriveBook(copy.clone()),
+        Finished::DriveList,
         Ok(Status {
-            google_connected: true,
+            drive_folder: "drive:Novels/Salt".into(),
+            drive_entries: vec![entry("manuscript", true)],
             ..Status::default()
         }),
     );
-    assert_eq!(desk.app.project.root, copy);
-    assert!(desk.app.msg.contains("copied"), "{}", desk.app.msg);
+    assert!(!desk.shows("Import this book…"));
+    assert!(desk.shows("Link Google Drive first"));
     let _ = fs::remove_dir_all(&shelf);
 }

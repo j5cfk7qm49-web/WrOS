@@ -3,6 +3,7 @@
 use super::*;
 use crate::backup_service::{self as service, DriveBooks, Job, Progress, Request, Status};
 use grimoire_core::book_copy::{self, MergeReport};
+use grimoire_core::import;
 use grimoire_core::shelf::{free_destination, project_id_of, same_book, title_of};
 use std::sync::mpsc::TryRecvError;
 use wros_sys::{ImportStick, Request as SystemRequest};
@@ -22,12 +23,8 @@ pub(crate) struct ImportMedia {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum ImportSource {
     Drive,
-    Usb {
-        label: String,
-        mount: PathBuf,
-    },
+    Usb { label: String, mount: PathBuf },
     Laptop,
-    #[allow(dead_code)]
     Draft,
 }
 
@@ -64,6 +61,7 @@ pub(crate) struct Entry {
     path: PathBuf,
     name: String,
     book: bool,
+    draft: bool,
     drive: Option<service::DriveBookEntry>,
 }
 
@@ -83,6 +81,7 @@ pub(crate) enum ImportStage {
     ReadingDrive {
         dir: PathBuf,
         job: Job<DriveBooks>,
+        selected: Option<PathBuf>,
     },
     Browse {
         source: ImportSource,
@@ -124,7 +123,7 @@ impl ImportState {
     }
 
     fn browse(source: ImportSource, dir: PathBuf) -> Self {
-        let stage = match entries(&dir) {
+        let stage = match entries(&dir, source == ImportSource::Draft) {
             Ok(entries) => ImportStage::Browse {
                 source,
                 dir,
@@ -147,7 +146,7 @@ pub(crate) enum How {
     KeepBoth,
 }
 
-fn entries(dir: &Path) -> Result<Vec<Entry>, String> {
+fn entries(dir: &Path, drafts: bool) -> Result<Vec<Entry>, String> {
     let read = fs::read_dir(dir).map_err(|e| format!("Cannot read {}: {e}", books::pretty(dir)))?;
     let mut entries = Vec::new();
     for entry in read {
@@ -159,18 +158,26 @@ fn entries(dir: &Path) -> Result<Vec<Entry>, String> {
         let kind = entry
             .file_type()
             .map_err(|e| format!("Cannot read {name}: {e}"))?;
-        if kind.is_dir() {
-            let path = entry.path();
+        let path = entry.path();
+        let draft = drafts && kind.is_file() && import::is_draft(&path);
+        if kind.is_dir() || draft {
             entries.push(Entry {
-                book: books::is_book(&path),
+                book: !drafts && books::is_book(&path),
+                draft,
                 path,
                 name,
                 drive: None,
             });
         }
     }
-    entries
-        .sort_by_cached_key(|entry| (!entry.book, entry.name.to_lowercase(), entry.path.clone()));
+    entries.sort_by_cached_key(|entry| {
+        (
+            entry.draft,
+            !entry.book,
+            entry.name.to_lowercase(),
+            entry.path.clone(),
+        )
+    });
     Ok(entries)
 }
 
@@ -222,6 +229,56 @@ impl App {
         self.import_media.pending = None;
         self.import_media.refresh = true;
         self.overlay = Overlay::Import(ImportState::new());
+    }
+
+    pub(crate) fn open_drive_import(&mut self, remote: String) {
+        if !self.deck.shell.backup.status.google_connected {
+            return;
+        }
+        let remote = remote.trim_end_matches('/');
+        let parent = remote
+            .rsplit_once('/')
+            .map_or("drive:", |(parent, _)| parent);
+        self.open_import();
+        self.browse_import(ImportSource::Drive, PathBuf::from(parent));
+        if let Overlay::Import(ImportState {
+            stage: ImportStage::ReadingDrive { selected, .. },
+            ..
+        }) = &mut self.overlay
+        {
+            *selected = Some(PathBuf::from(remote));
+        }
+    }
+
+    /// Read and split a draft just as before, then open its new book in Documents.
+    pub(crate) fn import_draft(&mut self, file: &Path) {
+        let draft = match import::read(file) {
+            Ok(d) => d,
+            Err(e) => {
+                self.import_done(format!("{e:#}"));
+                return;
+            }
+        };
+        let name = file.file_stem().unwrap_or_default().to_string_lossy();
+        let root = free_destination(&books::documents(), &name);
+        if let Err(e) = import::make_book(&root, &draft) {
+            self.import_done(format!("couldn't bring it in: {e:#}"));
+            return;
+        }
+        self.overlay = Overlay::None;
+        if self.open_book(&root) {
+            self.msg = format!(
+                "brought in {}: {}{} · it lives in {}",
+                draft.title,
+                books::tally(&draft),
+                if draft.before.trim().is_empty() {
+                    ""
+                } else {
+                    " · what came before the first chapter is in Notes"
+                },
+                books::pretty(&root)
+            );
+        }
     }
 
     pub(crate) fn on_import_media(&mut self, request: &SystemRequest, sticks: Vec<ImportStick>) {
@@ -320,8 +377,10 @@ impl App {
                         state.stage = ImportStage::MountingUsb { device };
                         state.sel = 0;
                         return;
-                    } else {
+                    } else if state.sel == self.import_media.sticks.len() + 1 {
                         ImportSource::Laptop
+                    } else {
+                        ImportSource::Draft
                     };
                     let dir = source.top();
                     self.browse_import(source, dir);
@@ -331,7 +390,7 @@ impl App {
                     list_nav(
                         key,
                         &mut state.sel,
-                        self.import_media.sticks.len() + 2,
+                        self.import_media.sticks.len() + 3,
                         RING,
                     );
                 }
@@ -361,7 +420,10 @@ impl App {
                     Key::Esc => *state = ImportState::new(),
                     Key::Enter | Key::Char(' ') | Key::Right | Key::Char('l') => {
                         if let Some(entry) = entries.get(state.sel) {
-                            if entry.book {
+                            if entry.draft {
+                                let file = entry.path.clone();
+                                self.import_draft(&file);
+                            } else if entry.book {
                                 let incoming = Incoming {
                                     source: source.clone(),
                                     path: entry.path.clone(),
@@ -463,7 +525,11 @@ impl App {
         }) {
             Ok(job) => {
                 self.overlay = Overlay::Import(ImportState {
-                    stage: ImportStage::ReadingDrive { dir, job },
+                    stage: ImportStage::ReadingDrive {
+                        dir,
+                        job,
+                        selected: None,
+                    },
                     open_on_enter: None,
                     sel: 4,
                 });
@@ -785,7 +851,7 @@ impl App {
         let Overlay::Import(state) = &mut self.overlay else {
             return;
         };
-        if let ImportStage::ReadingDrive { dir, job } = &state.stage {
+        if let ImportStage::ReadingDrive { dir, job, selected } = &state.stage {
             if state.sel == 4 {
                 state.sel = 0;
                 return;
@@ -797,16 +863,21 @@ impl App {
             };
             match result {
                 Ok(reply) => {
-                    let entries = reply
+                    let entries: Vec<Entry> = reply
                         .entries
                         .into_iter()
                         .map(|entry| Entry {
                             path: PathBuf::from(&entry.path),
                             name: entry.name.clone(),
                             book: entry.book,
+                            draft: false,
                             drive: Some(entry),
                         })
                         .collect();
+                    state.sel = selected
+                        .as_ref()
+                        .and_then(|path| entries.iter().position(|entry| entry.path == *path))
+                        .unwrap_or(0);
                     state.stage = ImportStage::Browse {
                         source: ImportSource::Drive,
                         dir: dir.clone(),
@@ -915,6 +986,7 @@ pub(super) fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                 }
             }));
             rows.push("A folder on this laptop".into());
+            rows.push("A draft (Word, Markdown, text)".into());
             if let Some(error) = &app.import_media.error {
                 say(error.clone());
             }
@@ -948,7 +1020,13 @@ pub(super) fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                             &entry.name,
                             width.saturating_sub(if synced { 20 } else { 12 })
                         ),
-                        if entry.book { "book" } else { "folder" },
+                        if entry.draft {
+                            "draft"
+                        } else if entry.book {
+                            "book"
+                        } else {
+                            "folder"
+                        },
                         if synced { " · synced" } else { "" }
                     )
                 })

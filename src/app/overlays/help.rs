@@ -53,8 +53,7 @@ impl App {
             Overlay::NewBook { .. }
             | Overlay::Books { .. }
             | Overlay::Import(_)
-            | Overlay::DeleteBook { .. }
-            | Overlay::BookPath { .. } => "books",
+            | Overlay::DeleteBook { .. } => "books",
             Overlay::Themes { .. } | Overlay::Custom { .. } => "themes",
             Overlay::Sources { .. } | Overlay::Player { .. } => "music",
             Overlay::Export { .. } | Overlay::Look { .. } | Overlay::Author { .. } => "compile",
@@ -116,7 +115,6 @@ impl App {
             | Overlay::NewBook { .. }
             | Overlay::Goals { .. }
             | Overlay::Details { .. }
-            | Overlay::BookPath { .. }
             | Overlay::Help { .. } => false,
             Overlay::Spelling { inline, .. } => !*inline,
             Overlay::Look { sel, .. } => *sel != super::readers::KEYWORD_ROW,
