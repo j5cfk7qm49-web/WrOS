@@ -206,6 +206,14 @@ during writing, a year of daily writing is expected in the low tens of MB per bo
 Drive. Uploads are one small file per session. The builder measures this on a real book and
 reports it.
 
+**Measured (2026-11-18, `rc18-work/measure.py`):** a 0.84 MB book of 60 scenes, 4,000 small saves
+(each inserting 5–60 words into one scene, the journal changing too) and 333 session tags, about
+a year of daily writing at one save every five minutes. Recorded the way the timeline records
+(`git add --all --force`, one commit each, fsync on), the repository was 7.3 MB as written and
+5.2 MB after `git gc`. A full bundle of everything was 2.8 MB, so the incremental bundles of a year
+add up to about that on Drive. One record took a median of 39 ms (95th percentile 75 ms) on the
+build PC's WSL; on the HP Stream's eMMC expect several times that, off the typing thread.
+
 ## Left to the builder
 
 - Exact label thresholds and wording; the idle time that ends a session (suggest 30 minutes).
