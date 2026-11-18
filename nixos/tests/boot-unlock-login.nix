@@ -88,11 +88,11 @@ pkgs.testers.runNixOSTest {
     installed.succeed("grep -qw quiet /proc/cmdline")
     show_status = installed.succeed("systemctl show --property=ShowStatus --value").strip()
     assert show_status != "yes", f"systemd still prints a line per unit: ShowStatus={show_status}"
-    for entry in ("WrOS (text start)", "WrOS recovery"):
-        kernel_line = installed.succeed(
-            f"grep -F -A30 'menuentry \"{entry}' /boot/grub/grub.cfg | grep -m1 -E '^[[:space:]]*linux '"
-        )
-        assert "systemd.show_status=true" in kernel_line, f"{entry}: {kernel_line}"
+    # The text start and recovery entries are the ones that pass wros.unlock=text.
+    kernel_lines = installed.succeed("grep -E '^[[:space:]]*linux ' /boot/grub/grub.cfg").splitlines()
+    text_lines = [line for line in kernel_lines if "wros.unlock=text" in line]
+    assert len(text_lines) >= 2, kernel_lines
+    assert all("systemd.show_status=true" in line for line in text_lines), text_lines
     initrd_splash = installed.succeed("journalctl -b -o short-monotonic -u wros-initrd-splash.service")
     print("initrd start screen: " + initrd_splash)
     assert "Started" in initrd_splash, initrd_splash
