@@ -37,6 +37,10 @@ pkgs.testers.runNixOSTest {
     marker = json.loads(live.succeed("cat /run/wros-live/session.json"))
     assert marker["user"] == "wros-live" and marker["uid"] == 1000 and marker["automatic"] is True
     live.wait_until_succeeds("pgrep -u wros-live grimoire")
+    # PipeWire and WirePlumber start with the session, before anything asks them for audio: the
+    # visualizer's recorder used to start them itself and find no output yet (#161).
+    live.wait_until_succeeds("pgrep -u wros-live -x pipewire", timeout=60)
+    live.wait_until_succeeds("pgrep -u wros-live -x wireplumber", timeout=60)
     # 2. The live dashboard offers "Install WrOS to disk". The installer is then reached the way
     #    rc13's own VM chain does it (os/tests/rc_vm_phases.py: Settings > System > Storage >
     #    Install WrOS to disk). The confirmation's default is to stay in the live session, and

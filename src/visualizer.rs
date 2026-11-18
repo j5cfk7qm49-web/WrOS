@@ -544,9 +544,46 @@ mod capture {
     use std::io::Read;
     use std::process::{Child, Command, Stdio};
     use std::sync::{Arc, Mutex};
+    use std::time::{Duration, Instant};
 
     const RATE: u32 = 48_000;
     const CHANNELS: usize = 2;
+    /// How often a recorder that found no output is started again, and how
+    /// long apart: the sound server can take a second or two to set up the
+    /// speakers when it starts, and outputs come and go when headphones do.
+    const RETRIES: u32 = 8;
+    const RETRY_AFTER: Duration = Duration::from_millis(500);
+    /// A recorder that ran this long had found an output: count its tries afresh.
+    const SETTLED: Duration = Duration::from_secs(5);
+    const NO_OUTPUT: &str = "no speakers or headphones found to listen to";
+
+    /// What to do once a recorder has stopped.
+    #[derive(Debug, PartialEq)]
+    enum AfterStop {
+        /// Start the same recorder again shortly.
+        Retry,
+        /// Try the next recorder.
+        NextTool,
+        Fail(String),
+    }
+
+    /// `why` is the last thing the recorder said; `retries` how often it has
+    /// been started again since it last settled.
+    fn after_stop(tool: Tool, why: &str, retries: u32, more_tools: bool) -> AfterStop {
+        let no_output = why.contains("no target node");
+        if no_output && retries < RETRIES {
+            AfterStop::Retry
+        } else if more_tools {
+            AfterStop::NextTool
+        } else if no_output {
+            AfterStop::Fail(NO_OUTPUT.into())
+        } else {
+            AfterStop::Fail(format!(
+                "couldn't listen to system audio: {} said {why}",
+                tool.program()
+            ))
+        }
+    }
 
     /// The recorders that can listen, best first: PipeWire's own, then
     /// PulseAudio's (which PipeWire also answers, through pipewire-pulse).
@@ -625,6 +662,11 @@ mod capture {
         sink: Option<String>,
         ring: Arc<Mutex<Ring>>,
         pub rate: f32,
+        /// When the current recorder was started.
+        started: Instant,
+        retries: u32,
+        /// Waiting to start the recorder again.
+        retry_at: Option<Instant>,
     }
 
     impl Capture {
@@ -652,6 +694,9 @@ mod capture {
                 sink,
                 ring,
                 rate: RATE as f32,
+                started: Instant::now(),
+                retries: 0,
+                retry_at: None,
             })
         }
 
@@ -662,13 +707,25 @@ mod capture {
             }
         }
 
-        /// Still recording? If the recorder has stopped, move on to the next
-        /// one; with none left, say why the last one stopped.
+        /// Still recording? A recorder that found no output is started again
+        /// for a few seconds; one that stopped otherwise gives way to the next;
+        /// with none left, say why the last one stopped.
         pub fn check(&mut self) -> Result<(), String> {
             loop {
+                if let Some(at) = self.retry_at {
+                    if Instant::now() < at {
+                        return Ok(());
+                    }
+                    self.retry_at = None;
+                    self.child = spawn(self.tool, self.sink.as_deref(), &self.ring)?;
+                    self.started = Instant::now();
+                }
                 let Ok(Some(status)) = self.child.try_wait() else {
                     return Ok(());
                 };
+                if self.started.elapsed() >= SETTLED {
+                    self.retries = 0;
+                }
                 let mut err = String::new();
                 if let Some(mut e) = self.child.stderr.take() {
                     let _ = e.read_to_string(&mut err);
@@ -679,14 +736,20 @@ mod capture {
                     .rfind(|l| !l.is_empty())
                     .map(|l| l.chars().take(90).collect::<String>())
                     .unwrap_or_else(|| status.to_string());
-                if self.rest.is_empty() {
-                    return Err(format!(
-                        "couldn't listen to system audio: {} said {why}",
-                        self.tool.program()
-                    ));
+                match after_stop(self.tool, &why, self.retries, !self.rest.is_empty()) {
+                    AfterStop::Retry => {
+                        self.retries += 1;
+                        self.retry_at = Some(Instant::now() + RETRY_AFTER);
+                        return Ok(());
+                    }
+                    AfterStop::NextTool => {
+                        self.tool = self.rest.remove(0);
+                        self.retries = 0;
+                        self.child = spawn(self.tool, self.sink.as_deref(), &self.ring)?;
+                        self.started = Instant::now();
+                    }
+                    AfterStop::Fail(message) => return Err(message),
                 }
-                self.tool = self.rest.remove(0);
-                self.child = spawn(self.tool, self.sink.as_deref(), &self.ring)?;
             }
         }
     }
@@ -768,6 +831,38 @@ mod capture {
             for (got, (l, r)) in out.iter().zip(frames) {
                 assert!((got - (l + r) / 2.0).abs() < 1e-6, "{got} vs {l},{r}");
             }
+        }
+
+        #[test]
+        fn a_recorder_that_finds_no_output_is_tried_again_before_giving_up() {
+            // As PipeWire says it when the speakers aren't set up yet.
+            let why = "remote error: id=2 seq:7 res:-2 (No such file or directory): no target node available";
+            for retries in 0..RETRIES {
+                assert_eq!(
+                    after_stop(Tool::PwRecord, why, retries, false),
+                    AfterStop::Retry
+                );
+            }
+            assert_eq!(
+                after_stop(Tool::PwRecord, why, RETRIES, true),
+                AfterStop::NextTool
+            );
+            assert_eq!(
+                after_stop(Tool::PwRecord, why, RETRIES, false),
+                AfterStop::Fail(NO_OUTPUT.into())
+            );
+            // Any other stop moves on at once, and names the recorder when none are left.
+            assert_eq!(
+                after_stop(Tool::PwRecord, "connection refused", 0, true),
+                AfterStop::NextTool
+            );
+            assert_eq!(
+                after_stop(Tool::Parec, "Connection refused", 0, false),
+                AfterStop::Fail(
+                    "couldn't listen to system audio: parec said Connection refused".into()
+                )
+            );
+            assert!(RETRY_AFTER * RETRIES >= Duration::from_secs(3));
         }
 
         fn args(c: &Command) -> Vec<String> {
