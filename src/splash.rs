@@ -2,18 +2,32 @@
 
 use ratatui::{
     Frame,
+    buffer::Buffer,
     crossterm::event::{Event, KeyEvent, KeyEventKind, MouseEvent, MouseEventKind},
     layout::Rect,
+    widgets::Widget,
 };
 use ratatui_splash_screen::{SplashConfig, SplashScreen};
 use std::time::{Duration, Instant};
 
 const SIZE: (u16, u16) = wros_shell::logo::FULL;
-const SHOW_FOR: Duration = Duration::from_millis(180);
+/// The picture fades in, then holds; a key, paste or click skips it at any point.
+const FADE: Duration = Duration::from_millis(500);
+const SHOW_FOR: Duration = Duration::from_millis(1500);
+/// The picture's own fade: `ratatui-splash-screen` draws it darkened and blurred for the first
+/// half of its steps, less so each time it is drawn, and sharp from the middle step on.
+const STEPS: i32 = 14;
+/// Draws from the first, darkest, to the first sharp one.
+const FRAMES: u32 = STEPS as u32 / 2;
 
 pub struct Splash {
     picture: SplashScreen,
-    until: Option<Instant>,
+    start: Option<Instant>,
+    /// How many of the fade's steps have been drawn: each draw of the widget takes one more, so
+    /// the fade is paced here by the clock, not by how often the screen happens to be drawn.
+    rendered: u32,
+    /// The latest step's cells, copied into every frame until the next step is due.
+    cells: Buffer,
 }
 
 impl Splash {
@@ -24,14 +38,23 @@ impl Splash {
         let picture = SplashScreen::new(SplashConfig {
             image_data: include_bytes!("../assets/wros-startup.png"),
             sha256sum: None,
-            render_steps: 2, // A sharp first frame, then reuse the cached colours.
+            render_steps: STEPS,
             use_colors: true,
         })
         .ok()?;
+        let (width, height) = SIZE;
         Some(Self {
             picture,
-            until: None,
+            start: None,
+            rendered: 0,
+            cells: Buffer::empty(Rect::new(0, 0, width, height)),
         })
+    }
+
+    /// When the fade's `step`th draw (counting from 0) is due, from the start.
+    fn due(step: u32) -> Duration {
+        let nanos = FADE.as_nanos() * u128::from(step) / u128::from(FRAMES - 1);
+        Duration::from_nanos(u64::try_from(nanos).unwrap_or(u64::MAX))
     }
 
     pub fn draw(&mut self, frame: &mut Frame, now: Instant) -> Option<Duration> {
@@ -40,21 +63,30 @@ impl Splash {
         if area.width < width || area.height < height {
             return None;
         }
-        let remaining = self
-            .until
-            .get_or_insert(now + SHOW_FOR)
-            .saturating_duration_since(now);
-        if remaining.is_zero() {
+        let elapsed = now.saturating_duration_since(*self.start.get_or_insert(now));
+        if elapsed >= SHOW_FOR {
             return None;
         }
-        let picture = Rect::new(
-            area.x + (area.width - width) / 2,
-            area.y + (area.height - height) / 2,
-            width,
-            height,
-        );
-        frame.render_widget(&mut self.picture, picture);
-        Some(remaining)
+        // Every step that is due by now, so a late frame catches up instead of running behind.
+        while self.rendered < FRAMES && Self::due(self.rendered) <= elapsed {
+            let mut cells = Buffer::empty(self.cells.area);
+            (&mut self.picture).render(cells.area, &mut cells);
+            self.cells = cells;
+            self.rendered += 1;
+        }
+        let left = area.x + (area.width - width) / 2;
+        let top = area.y + (area.height - height) / 2;
+        let buffer = frame.buffer_mut();
+        for y in 0..height {
+            for x in 0..width {
+                buffer[(left + x, top + y)] = self.cells[(x, y)].clone();
+            }
+        }
+        Some(if self.rendered < FRAMES {
+            Self::due(self.rendered).saturating_sub(elapsed)
+        } else {
+            SHOW_FOR - elapsed
+        })
     }
 }
 
@@ -86,9 +118,13 @@ mod tests {
         let mut splash = Splash::new(true, false).expect("graphical picture");
         let (width, height) = SIZE;
         let mut terminal = Terminal::new(TestBackend::new(width + 4, height + 4)).unwrap();
-        let now = Instant::now();
+        let start = Instant::now();
+        terminal
+            .draw(|frame| assert!(splash.draw(frame, start).is_some()))
+            .unwrap();
+        // The sharp picture, once the fade is over.
         let frame = terminal
-            .draw(|frame| assert_eq!(splash.draw(frame, now), Some(SHOW_FOR)))
+            .draw(|frame| assert_eq!(splash.draw(frame, start + FADE), Some(SHOW_FOR - FADE)))
             .unwrap();
         assert_eq!(frame.buffer[(0, 0)].symbol(), " ");
         let border = &frame.buffer[(2, 2)];
@@ -103,8 +139,71 @@ mod tests {
         assert_ne!(border.fg, paper.fg);
         assert_ne!(letter.fg, paper.fg);
         terminal
-            .draw(|frame| assert_eq!(splash.draw(frame, now + SHOW_FOR), None))
+            .draw(|frame| assert_eq!(splash.draw(frame, start + SHOW_FOR), None))
             .unwrap();
+    }
+
+    /// The picture's total brightness: the sum of every Braille cell's colour channels.
+    fn brightness(buffer: &ratatui::buffer::Buffer) -> u32 {
+        buffer
+            .content
+            .iter()
+            .filter_map(|cell| match cell.fg {
+                ratatui::style::Color::Rgb(r, g, b) => {
+                    Some(u32::from(r) + u32::from(g) + u32::from(b))
+                }
+                _ => None,
+            })
+            .sum()
+    }
+
+    fn frame_at(splash: &mut Splash, at: Instant) -> (ratatui::buffer::Buffer, Option<Duration>) {
+        let (width, height) = SIZE;
+        let mut terminal = Terminal::new(TestBackend::new(width + 4, height + 4)).unwrap();
+        let mut wait = None;
+        let frame = terminal
+            .draw(|frame| wait = splash.draw(frame, at))
+            .unwrap();
+        (frame.buffer.clone(), wait)
+    }
+
+    #[test]
+    fn the_picture_fades_in_over_half_a_second_then_holds() {
+        let mut splash = Splash::new(true, false).unwrap();
+        let start = Instant::now();
+        let (first, wait) = frame_at(&mut splash, start);
+        // While fading, the loop is asked back for the next step, not for the whole showing.
+        assert!(wait.unwrap() <= FADE / 4, "{wait:?}");
+        let (middle, _) = frame_at(&mut splash, start + FADE / 2);
+        let (sharp, wait) = frame_at(&mut splash, start + FADE);
+        assert!(
+            brightness(&first) < brightness(&middle),
+            "the fade starts dark"
+        );
+        assert!(brightness(&middle) < brightness(&sharp), "and brightens");
+        assert_eq!(wait, Some(SHOW_FOR - FADE), "then the sharp picture holds");
+        let (held, _) = frame_at(&mut splash, start + FADE + Duration::from_millis(300));
+        assert_eq!(held, sharp);
+        assert_eq!(frame_at(&mut splash, start + SHOW_FOR).1, None);
+    }
+
+    #[test]
+    fn the_fade_keeps_time_however_often_the_screen_is_drawn() {
+        // Redraws for other reasons (a resize, a key the loop ignores) must not hurry the fade.
+        // (Steps are compared, not cells: the library colours a cell from an unordered map.)
+        let start = Instant::now();
+        let mut redrawn = Splash::new(true, false).unwrap();
+        for _ in 0..20 {
+            frame_at(&mut redrawn, start);
+        }
+        assert_eq!(redrawn.rendered, 1);
+        frame_at(&mut redrawn, start + FADE / 2);
+        assert_eq!(redrawn.rendered, 4);
+        // A late frame catches up instead of running behind.
+        let mut late = Splash::new(true, false).unwrap();
+        frame_at(&mut late, start);
+        frame_at(&mut late, start + FADE);
+        assert_eq!(late.rendered, FRAMES);
     }
 
     #[test]

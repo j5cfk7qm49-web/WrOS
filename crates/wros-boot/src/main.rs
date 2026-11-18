@@ -6,11 +6,15 @@
 //! Any other ending writes nothing and exits non-zero, and the wrapper runs
 //! Debian's prompt (see `wros_boot::exit`).
 //!
-//! `wros-boot splash [--tty PATH] [--theme PATH] [--progress-file PATH]`
+//! `wros-boot splash [--tty PATH] [--theme PATH] [--stage initrd] [--progress-file PATH]`
 //!
-//! The progress screen after the unlock (`wros-boot-splash.service`): the logo and
-//! systemd's boot progress, until systemd stops it as the login screen starts. It
-//! ends by itself 3 seconds after the boot is complete, or after 3 minutes.
+//! The progress screen after the unlock: the logo and systemd's boot progress. With
+//! `--stage initrd` (`wros-initrd-splash.service`) it fills the first part of the bar
+//! from the moment the password is accepted until the switch to the installed system,
+//! and leaves its figure in `/run` for the installed system's screen
+//! (`wros-boot-splash.service`), which carries on from there until systemd stops it
+//! as the login screen starts. That one ends by itself 3 seconds after the boot is
+//! complete; either ends after 3 minutes.
 
 #[cfg(target_os = "linux")]
 fn main() {
@@ -57,6 +61,7 @@ mod linux {
         mode: Mode,
         tty: PathBuf,
         theme: PathBuf,
+        stage: splash::Stage,
         /// Tests only: read the progress from this file instead of systemd.
         progress_file: Option<PathBuf>,
     }
@@ -72,12 +77,19 @@ mod linux {
             mode,
             tty: tty.into(),
             theme: wros_boot::THEME.into(),
+            stage: splash::Stage::System,
             progress_file: None,
         };
         while let Some(arg) = args.next() {
             match arg.as_str() {
                 "--tty" => parsed.tty = args.next()?.into(),
                 "--theme" => parsed.theme = args.next()?.into(),
+                "--stage" => {
+                    parsed.stage = match args.next()?.as_str() {
+                        "initrd" => splash::Stage::Initrd,
+                        _ => splash::Stage::System,
+                    }
+                }
                 "--progress-file" => parsed.progress_file = Some(args.next()?.into()),
                 // Debian's prompt text ("Please unlock disk …"); the screen words its own.
                 _ => {}
@@ -303,6 +315,16 @@ mod linux {
         })
     }
 
+    /// Leaves the initrd's figure for the installed system's screen. Best effort: without it
+    /// that screen starts its bar from empty, as it did before there was an initrd screen.
+    fn hand_over(shown: f64) {
+        let path = std::path::Path::new(splash::HANDOVER);
+        if let Some(dir) = path.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let _ = std::fs::write(path, format!("{shown:.4}\n"));
+    }
+
     fn show_progress(args: &Args, raw: &mut Raw, theme: &wros_shell::grimoire_theme::Theme) -> i32 {
         unsafe {
             libc::signal(
@@ -336,18 +358,32 @@ mod linux {
         }
         let started = Instant::now();
         let mut finished: Option<Instant> = None;
+        // The installed system's bar starts where the initrd's stopped.
+        let start = match args.stage {
+            splash::Stage::Initrd => 0.0,
+            splash::Stage::System => std::fs::read_to_string(splash::HANDOVER)
+                .ok()
+                .and_then(|text| splash::parse_progress(&text))
+                .unwrap_or(0.0),
+        };
         let mut shown: f64 = -1.0;
         let mut buf = [0u8; 64];
         while !STOP.load(Ordering::SeqCst) && started.elapsed() < Duration::from_secs(180) {
             // systemd's figure dips whenever new jobs are queued; the bar only ever moves forward.
-            let now = progress(args).map_or(shown, |p| p.max(shown)).max(0.0);
-            {
-                if terminal.draw(|f| splash::draw(f, &theme, now)).is_err() {
-                    return exit::FAILED;
-                }
-                shown = now;
+            let now = progress(args)
+                .map(|p| splash::overall(args.stage, start, p))
+                .map_or(shown, |p| p.max(shown))
+                .max(start);
+            if terminal.draw(|f| splash::draw(f, &theme, now)).is_err() {
+                return exit::FAILED;
             }
-            if now >= 1.0
+            if args.stage == splash::Stage::Initrd && now != shown {
+                hand_over(now);
+            }
+            shown = now;
+            // The initrd's screen stays until the switch to the installed system stops it.
+            if args.stage == splash::Stage::System
+                && now >= 1.0
                 && finished.get_or_insert_with(Instant::now).elapsed() >= Duration::from_secs(3)
             {
                 break;

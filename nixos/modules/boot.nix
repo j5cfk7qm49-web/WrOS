@@ -143,6 +143,32 @@
     };
   };
 
+  # The start screen from the moment the disk opens until the switch to the installed system,
+  # where wros-boot-splash.service carries the bar on from the figure this one leaves in /run.
+  # Only after systemd-cryptsetup has opened the disk: a wrong password ends in systemd's own text
+  # prompt on the console, which this screen must never cover.
+  boot.initrd.systemd.services.wros-initrd-splash = {
+    description = "WrOS start screen: boot progress after the unlock";
+    wantedBy = [ "initrd.target" ];
+    after = [
+      "wros-initrd-unlock.service"
+      "systemd-cryptsetup@wros_crypt.service"
+    ];
+    before = [ "initrd-switch-root.target" "shutdown.target" ];
+    conflicts = [ "initrd-switch-root.target" "shutdown.target" ];
+    unitConfig = {
+      DefaultDependencies = "no";
+      ConditionKernelCommandLine = "!wros.unlock=text";
+    };
+    serviceConfig = {
+      Type = "simple";
+      # /etc/wros/boot-screen is copied from the ESP by wros-initrd-unlock.service.
+      ExecCondition = "/bin/sh -c 'test ! -e /etc/wros/boot-screen || test \"$(cat /etc/wros/boot-screen)\" = ratatui'";
+      ExecStart = "/bin/wros-boot splash --stage initrd --tty /dev/console --theme /etc/wros/boot-theme.toml";
+      TimeoutStopSec = 3;
+    };
+  };
+
   boot.initrd.luks.devices."wros_crypt" = {
     device = "/dev/disk/by-label/WROS-LUKS";
     keyFile = "/crypt-ramfs/passphrase";
@@ -150,7 +176,11 @@
     allowDiscards = true;
   };
 
+  # quiet: systemd (in the initrd and after it) shows only failures on the screen instead of a
+  # line per unit; the start screen shows the progress, and the journal keeps every line. The
+  # text start and recovery entries bring the lines back with systemd.show_status=true.
   boot.kernelParams = [
+    "quiet"
     "loglevel=3"
     "rd.systemd.unit=initrd.target"
     "panic=10"
@@ -194,7 +224,7 @@
     inheritParentConfig = true;
     configuration = {
       boot.loader.grub.configurationName = "WrOS (text start)";
-      boot.kernelParams = [ "wros.unlock=text" "wros.session=console" ];
+      boot.kernelParams = [ "wros.unlock=text" "wros.session=console" "systemd.show_status=true" ];
     };
   };
 
@@ -202,7 +232,11 @@
     inheritParentConfig = true;
     configuration = {
       boot.loader.grub.configurationName = "WrOS recovery";
-      boot.kernelParams = [ "wros.unlock=text" "systemd.unit=wros-recovery.target" ];
+      boot.kernelParams = [
+        "wros.unlock=text"
+        "systemd.unit=wros-recovery.target"
+        "systemd.show_status=true"
+      ];
     };
   };
 
@@ -243,7 +277,9 @@
       NoNewPrivileges = true;
       ProtectSystem = "strict";
       ProtectHome = true;
-      PrivateTmp = true;
+      # No PrivateTmp: it orders the unit after systemd-tmpfiles-setup.service and so after every
+      # local filesystem and the journal flush, which held the screen back well into the boot.
+      # It reads the initrd screen's last figure from /run/wros-boot/progress.
     };
   };
 

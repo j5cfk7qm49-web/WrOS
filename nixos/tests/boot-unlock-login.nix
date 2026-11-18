@@ -79,6 +79,33 @@ pkgs.testers.runNixOSTest {
     assert len(before_done) >= 3, f"progress barely moved: {before_done}"
     assert readings[-1] == 1.0, samples[-1]
 
+    # 2b'. The start screen covers the boot from the unlock on, and systemd's lines stay off it:
+    #     - systemd shows only failures on the screen (quiet), in the initrd and after it, while the
+    #       text start and recovery entries keep every line;
+    #     - the initrd's screen ran once the disk was open, until the switch, and left its figure;
+    #     - the installed system's screen no longer waits for tmpfiles (and so for every local
+    #       filesystem and the journal flush) before it starts.
+    installed.succeed("grep -qw quiet /proc/cmdline")
+    show_status = installed.succeed("systemctl show --property=ShowStatus --value").strip()
+    assert show_status != "yes", f"systemd still prints a line per unit: ShowStatus={show_status}"
+    for entry in ("WrOS (text start)", "WrOS recovery"):
+        kernel_line = installed.succeed(
+            f"grep -F -A30 'menuentry \"{entry}' /boot/grub/grub.cfg | grep -m1 -E '^[[:space:]]*linux '"
+        )
+        assert "systemd.show_status=true" in kernel_line, f"{entry}: {kernel_line}"
+    initrd_splash = installed.succeed("journalctl -b -o short-monotonic -u wros-initrd-splash.service")
+    print("initrd start screen: " + initrd_splash)
+    assert "Started" in initrd_splash, initrd_splash
+    left = float(installed.succeed("cat /run/wros-boot/progress").strip())
+    assert 0.0 < left <= 0.3, f"the initrd's screen left {left}"
+    after = installed.succeed("systemctl show --property=After --value wros-boot-splash.service")
+    assert "systemd-tmpfiles-setup.service" not in after, after
+    splash_started = int(installed.succeed(
+        "systemctl show --property=ExecMainStartTimestampMonotonic --value wros-boot-splash.service").strip())
+    tmpfiles_done = int(installed.succeed(
+        "systemctl show --property=ActiveEnterTimestampMonotonic --value systemd-tmpfiles-setup.service").strip())
+    print(f"start screen started at {splash_started / 1e6:.2f}s; tmpfiles done at {tmpfiles_done / 1e6:.2f}s")
+
     # 2c. WrOS, not NixOS, wherever the system names itself.
     installed.succeed("grep -qx 'PRETTY_NAME=\"WrOS ${version}\"' /etc/os-release")
     installed.succeed("grep -q 'menuentry \"WrOS' /boot/grub/grub.cfg")

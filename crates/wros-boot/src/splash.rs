@@ -24,6 +24,36 @@ pub fn parse_progress(text: &str) -> Option<f64> {
     value.is_finite().then(|| value.clamp(0.0, 1.0))
 }
 
+/// Where the progress screen sits in the boot. The initrd's part (after the unlock, until the
+/// switch to the installed system) fills the first [`INITRD_SHARE`] of the bar; the installed
+/// system's own start-up fills the rest, from wherever the initrd's bar stopped.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Stage {
+    Initrd,
+    System,
+}
+
+/// The share of the bar the initrd fills after the unlock (opening the disk, mounting it,
+/// preparing the installed system).
+pub const INITRD_SHARE: f64 = 0.3;
+
+/// Where the initrd's screen leaves its last figure for the installed system's screen
+/// (`/run` is carried over the switch).
+pub const HANDOVER: &str = "/run/wros-boot/progress";
+
+/// The bar's figure for systemd's progress `p` in this stage. `start` is where the initrd's
+/// bar stopped (read from [`HANDOVER`]; 0 when the initrd showed none).
+pub fn overall(stage: Stage, start: f64, p: f64) -> f64 {
+    let p = p.clamp(0.0, 1.0);
+    match stage {
+        Stage::Initrd => p * INITRD_SHARE,
+        Stage::System => {
+            let start = start.clamp(0.0, 1.0);
+            start + (1.0 - start) * p
+        }
+    }
+}
+
 /// The bar's three lines, `inner` columns wide: `filled` columns of `#` between `+ - |` lines.
 pub fn bar(progress: f64, inner: usize) -> [String; 3] {
     let filled = ((progress.clamp(0.0, 1.0) * inner as f64).round() as usize).min(inner);
@@ -145,6 +175,22 @@ mod tests {
         assert_eq!(parse_progress("d nan"), None);
         assert_eq!(parse_progress("s \"x\""), None);
         assert_eq!(parse_progress(""), None);
+    }
+
+    #[test]
+    fn the_initrd_fills_the_first_part_and_the_system_carries_on_from_it() {
+        assert_eq!(overall(Stage::Initrd, 0.0, 0.0), 0.0);
+        assert_eq!(overall(Stage::Initrd, 0.0, 1.0), INITRD_SHARE);
+        assert_eq!(overall(Stage::Initrd, 0.9, 0.5), INITRD_SHARE / 2.0);
+        // The installed system's bar starts where the initrd's stopped, never behind it.
+        let left = overall(Stage::Initrd, 0.0, 0.8);
+        assert_eq!(overall(Stage::System, left, 0.0), left);
+        assert!((overall(Stage::System, left, 0.5) - (left + (1.0 - left) / 2.0)).abs() < 1e-9);
+        assert_eq!(overall(Stage::System, left, 1.0), 1.0);
+        // No initrd screen (a text unlock, or an older initrd): the whole bar, as before.
+        assert_eq!(overall(Stage::System, 0.0, 0.25), 0.25);
+        assert_eq!(overall(Stage::System, 7.0, 0.25), 1.0);
+        assert_eq!(overall(Stage::System, 0.0, -1.0), 0.0);
     }
 
     #[test]
