@@ -1215,9 +1215,6 @@ def repair_updates(*, state_dir=DEFAULT_STATE_DIR, trigger_path=DEFAULT_TRIGGER,
         with store.exclusive():
             clear_partials(store)
             unlink_trigger(trigger_path)
-            res = run(['nix-store', '--verify', '--check-contents'])
-            if res.returncode != 0:
-                fail('Nix store integrity check failed; re-stage a signed update bundle to restore missing paths')
             # Rewrite the boot entries for the profile's current generation. Not /run/current-system:
             # in the recovery menu that is the recovery specialisation, and setting the profile to
             # it made every later normal boot start the recovery configuration. And no new
@@ -1226,6 +1223,22 @@ def repair_updates(*, state_dir=DEFAULT_STATE_DIR, trigger_path=DEFAULT_TRIGGER,
             generations, current = system_generations(profile)
             profile_top = generations.get(current) if current is not None else None
             target_top = _manifest_toplevel(store.installed / 'manifest.json') or profile_top
+            # The store's database and paths, then the contents of what will boot. Only that closure
+            # is hashed: the whole store is slow on the laptop's eMMC, and a path an older
+            # generation kept (one an installer's chroot once wrote bytecode into) must not stop
+            # repairing the system that boots.
+            res = run(['nix-store', '--verify'])
+            if res.returncode == 0:
+                closure = []
+                if target_top:
+                    query = run(['nix-store', '--query', '--requisites', target_top])
+                    closure = (query.stdout or '').split() if query.returncode == 0 else []
+                    closure = closure or [target_top]
+                res = (run(['nix-store', '--verify-path', *closure]) if closure
+                       else run(['nix-store', '--verify', '--check-contents']))
+            if res.returncode != 0:
+                fail('Nix store integrity check failed; re-stage a signed update bundle to restore missing paths'
+                     f' ({_tail(res)})')
             if target_top and target_top == profile_top:
                 res = run([str(Path(target_top) / 'bin/switch-to-configuration'), 'boot'])
                 if res.returncode != 0:

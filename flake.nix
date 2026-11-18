@@ -122,6 +122,7 @@
         recovery-menu = vmTest ./nixos/tests/recovery-menu.nix;
         install-encrypted = vmTest ./nixos/tests/install-encrypted.nix;
         live-session = vmTest ./nixos/tests/live-session.nix;
+        live-rescue = vmTest ./nixos/tests/live-rescue.nix;
         live-graphical = vmTest ./nixos/tests/live-graphical.nix;
         unlock-waits = vmTest ./nixos/tests/unlock-waits.nix;
         import-book = vmTest ./nixos/tests/import-book.nix;

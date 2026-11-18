@@ -94,6 +94,62 @@ in
     "loglevel=3"
   ];
 
+  specialisation.rescue = {
+    inheritParentConfig = true;
+    configuration = {
+      # The ISO uses the distro name and system label in both boot menus.
+      system.nixos.label = lib.mkOverride 40 "rescue"; # above mkForce: NixOS tests force "test"
+      isoImage.prependToMenuLabel = lib.mkForce "";
+      isoImage.appendToMenuLabel = lib.mkForce "";
+      boot.kernelParams = [ "systemd.unit=wros-live-rescue.target" ];
+
+      systemd.services.greetd.enable = false;
+      systemd.services.wros-live-session.enable = false;
+
+      systemd.targets.wros-live-rescue = {
+        description = "WrOS live rescue";
+        requires = [ "basic.target" "wros-live-rescue.service" ];
+        after = [ "basic.target" "wros-live-rescue.service" ];
+      };
+
+      systemd.services.wros-live-rescue = {
+        description = "WrOS live rescue menu";
+        after = [ "systemd-udev-trigger.service" "systemd-vconsole-setup.service" ];
+        serviceConfig = {
+          Type = "idle";
+          User = "root";
+          StandardInput = "tty";
+          StandardOutput = "tty";
+          StandardError = "tty";
+          TTYPath = "/dev/tty1";
+          TTYReset = true;
+          TTYVHangup = true;
+          TTYVTDisallocate = true;
+          Restart = "always";
+          RestartSec = 1;
+          LimitCORE = 0;
+        };
+        script = ''
+          trap ':' INT
+          printf '\nWrOS rescue\n'
+          ${pkgs.systemd}/bin/udevadm settle --timeout=30 || true
+          ${wrosPkgs.paths.helperPaths.rescue} || true
+
+          while true; do
+            printf '\n1  Run rescue again\n2  Roll back to the previous generation\n3  Power off\n'
+            printf 'Choose: '
+            IFS= read -r choice || exit 0
+            case "$choice" in
+              1) ${wrosPkgs.paths.helperPaths.rescue} || true ;;
+              2) ${wrosPkgs.paths.helperPaths.rescue} --rollback || true ;;
+              3) exec ${pkgs.systemd}/bin/systemctl poweroff ;;
+            esac
+          done
+        '';
+      };
+    };
+  };
+
   # Live session account (UID 1000) and locked frontend worker account (_wros-installer)
   users.users.wros-live = {
     isNormalUser = true;

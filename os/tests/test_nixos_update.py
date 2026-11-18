@@ -410,6 +410,36 @@ class NixosUpdateEngineTests(unittest.TestCase):
             self.assertIn([tops[3][0] + '/bin/switch-to-configuration', 'boot'], commands)
             self.assertFalse(any(cmd[:1] == ['nix-env'] for cmd in commands), commands)
 
+            # The contents checked are the closure of what will boot, not the whole store: a path
+            # only an older generation keeps must not fail the repair.
+            commands.clear()
+            closure = [tops[3][0], '/nix/store/3123456789abcdfghijklmnpqrsvwxyz-wros-helpers']
+
+            def closure_runner(cmd):
+                commands.append(cmd)
+                out = '\n'.join(closure) + '\n' if cmd[:3] == ['nix-store', '--query', '--requisites'] else ''
+                return subprocess.CompletedProcess(cmd, 0, out, '')
+
+            res = self.engine.repair_updates(
+                state_dir=root / 'state', trigger_path=root / 'system-update', profile=profile,
+                current_system=root / 'current-system', gcroots_dir=root / 'gcroots',
+                runner=closure_runner)
+            self.assertEqual(res['status'], 'recovered', res)
+            self.assertIn(['nix-store', '--verify-path', *closure], commands)
+            self.assertNotIn(['nix-store', '--verify', '--check-contents'], commands)
+
+            def failing_runner(cmd):
+                failed = cmd[:2] == ['nix-store', '--verify-path']
+                return subprocess.CompletedProcess(cmd, 1 if failed else 0, '',
+                                                   "path '/nix/store/x' was modified!" if failed else '')
+
+            res = self.engine.repair_updates(
+                state_dir=root / 'state', trigger_path=root / 'system-update', profile=profile,
+                current_system=root / 'current-system', gcroots_dir=root / 'gcroots',
+                runner=failing_runner)
+            self.assertEqual(res['status'], 'failed', res)
+            self.assertIn('was modified', res['message'])
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -60,16 +60,11 @@ When the normal session will not start, but the laptop still boots:
 
 ### Tier 3: Live ISO Rescue (`wros-rescue`)
 When the installed system fails to boot (e.g. boot-loader corruption, interrupted kernel upgrade, or initramfs misconfiguration):
-- Boot the system using the WrOS Live ISO / installation media. The live image carries the
-  tool as `/run/current-system/sw/bin/wros-rescue`, available as `wros-rescue` on PATH.
-  It refuses to run outside the live system.
-- It must run as root, and the live system has no way to become root yet: root is locked
-  and the public live account is not in `wheel`, so it cannot use sudo. Until that is fixed
-  ([#150](https://github.com/j5cfk7qm49-web/WrOS/issues/150)), this tier is not usable; use
-  Tier 2 or a retained generation in GRUB. Once root is available, the command is:
-  ```bash
-  wros-rescue [--device /dev/sdXN]
-  ```
+- Boot from the WrOS USB stick and choose **WrOS rescue** in its boot menu.
+- Enter the installed disk's passphrase when prompted. The rescue entry runs `wros-rescue`
+  as root on the console and starts with a repair attempt.
+- When the attempt ends, choose whether to run rescue again, roll back to the previous
+  generation, or power off. If you choose rollback, enter the disk passphrase again.
 
 ## 3. Live ISO Rescue Workflow (`wros-rescue`)
 

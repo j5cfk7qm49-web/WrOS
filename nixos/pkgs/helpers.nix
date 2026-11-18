@@ -246,6 +246,13 @@ pkgs.stdenv.mkDerivation {
 
     ln -s wros-keyboard "$out/libexec/writingdeck-keyboard"
     ln -s wros-session "$out/libexec/writingdeck-session"
+
+    # Bytecode for the imported modules, made here: otherwise Python writes __pycache__ into this
+    # store path the first time a module is imported where the store is writable (the installer's
+    # chroot, the rescue stick's), and the installed system then fails its own
+    # `nix-store --verify --check-contents` (Repair in the recovery menu, wros-rescue).
+    # unchecked-hash: Python uses these files as they are and never rewrites them.
+    ${pkgs.python3}/bin/python3 -m compileall -q --invalidation-mode unchecked-hash "$out/lib"
     runHook postBuild
   '';
 

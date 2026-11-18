@@ -72,7 +72,7 @@ pkgs.testers.runNixOSTest {
     # 5. Exercise each offline menu choice (repair, restore check, what happened, continue in console)
     # Choice 1: Repair system packages
     installed.send_chars("1\n")
-    installed.wait_until_tty_matches("1", "Repairing with the update packages|consistent")
+    installed.wait_until_tty_matches("1", "verified and repaired", timeout=900)
 
     # Choice 2: Restore a book from a backup (offline with no snapshots yet)
     installed.send_chars("2\n")
