@@ -336,8 +336,13 @@ fn add_session_labels(root: &Path, head: &str, versions: &mut [SceneVersion]) ->
     Ok(())
 }
 
+/// An index.lock older than this was left by a git call that never finished: every git call here
+/// has a 30-second deadline and the app records one book from one worker at a time.
+const STALE_LOCK: std::time::Duration = std::time::Duration::from_secs(120);
+
 fn stage(root: &Path, repo: &Path) -> Result<()> {
     let index = repo.join("index");
+    clear_stale_lock(&repo.join("index.lock"));
     // Older sessions may already track some excluded paths. Drop only their index entries.
     let remove = ["rm", "--cached", "-r", "-f", "--ignore-unmatch", "-q", "--"]
         .into_iter()
@@ -355,6 +360,17 @@ fn stage(root: &Path, repo: &Path) -> Result<()> {
         );
     git(root, add).index(Some(&index)).stdout()?;
     Ok(())
+}
+
+/// Removes a lock git left behind (killed at its deadline, or a power cut), which would otherwise
+/// make every later record fail. A fresh lock is left alone.
+fn clear_stale_lock(lock: &Path) {
+    let stale = fs::metadata(lock)
+        .and_then(|meta| meta.modified())
+        .is_ok_and(|when| when.elapsed().is_ok_and(|age| age > STALE_LOCK));
+    if stale {
+        let _ = fs::remove_file(lock);
+    }
 }
 
 fn words_changed(diff: &str) -> usize {
@@ -554,6 +570,29 @@ mod tests {
             .text()
             .unwrap();
         assert!(!tree.contains(".git-moved-out-"), "{tree}");
+        clean_book(&root);
+    }
+
+    #[test]
+    fn a_stale_index_lock_does_not_stop_recording() {
+        let Some(root) = book("timeline-stale-lock") else {
+            return;
+        };
+        write(&root, "chapters/01.md", "First draft.\n");
+        enable(&root).unwrap();
+        let lock = sessions::outside_dir(&root).unwrap().join("index.lock");
+        // A git call killed mid-commit leaves its lock behind.
+        let file = fs::File::create(&lock).unwrap();
+        file.set_modified(std::time::SystemTime::now() - STALE_LOCK * 2).unwrap();
+        drop(file);
+        write(&root, "chapters/01.md", "Second draft.\n");
+        assert!(record(&root, &Entry::Save).unwrap().is_some());
+        // A lock that may belong to a git call still running is left alone.
+        fs::File::create(&lock).unwrap();
+        write(&root, "chapters/01.md", "Third draft.\n");
+        assert!(record(&root, &Entry::Save).is_err());
+        assert!(lock.exists());
+        fs::remove_file(&lock).unwrap();
         clean_book(&root);
     }
 

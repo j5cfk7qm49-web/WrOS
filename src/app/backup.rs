@@ -639,7 +639,7 @@ impl App {
     pub(crate) fn sync_enabled(&self) -> bool {
         sync_enabled(&self.project.root)
     }
-    fn request_sync(&mut self, request: crate::sync_service::Request, leaving: bool) {
+    fn request_sync(&mut self, request: crate::sync_service::Request) {
         use crate::sync_service::Request as Sync;
         let sync = &mut self.deck.shell.backup.sync;
         if sync.job.is_some() {
@@ -659,26 +659,13 @@ impl App {
                     allow_deletes,
                 },
                 Some(timeline),
-            ) if leaving => {
-                // A final sync can wait on its worker while the app handles leaving or locking.
+            ) => {
+                // The sync's own thread waits for the timeline's checkpoint: the input thread never
+                // waits on git, for a final sync or a routine one.
                 let checkpoint = timeline.queue_checkpoint(Entry::Save, timeline::CHECKPOINT_WAIT);
                 let (project, allow_deletes) = (project.clone(), *allow_deletes);
                 crate::sync_service::spawn_after(
                     move || Sync::sync(project, allow_deletes, checkpoint.wait()),
-                    script,
-                    env,
-                )
-            }
-            (
-                Sync::Sync {
-                    project,
-                    allow_deletes,
-                },
-                Some(timeline),
-            ) => {
-                let recorded = timeline.record_now(Entry::Save, timeline::CHECKPOINT_WAIT);
-                crate::sync_service::spawn(
-                    Sync::sync(project.clone(), *allow_deletes, recorded),
                     script,
                     env,
                 )
@@ -694,21 +681,15 @@ impl App {
         }
     }
     pub(crate) fn request_sync_run(&mut self, allow_deletes: bool) {
-        self.request_sync_run_inner(allow_deletes, false);
-    }
-    fn request_sync_run_inner(&mut self, allow_deletes: bool, leaving: bool) {
         if self.deck.shell.backup.sync.job.is_some() {
             return;
         }
         self.deck.shell.backup.sync.start(std::time::Instant::now());
         let project = self.project.root.to_string_lossy().into_owned();
-        self.request_sync(
-            crate::sync_service::Request::Sync {
-                project,
-                allow_deletes,
-            },
-            leaving,
-        );
+        self.request_sync(crate::sync_service::Request::Sync {
+            project,
+            allow_deletes,
+        });
     }
     pub(crate) fn request_sync_switch(&mut self, on: bool) {
         let project = self.project.root.to_string_lossy().into_owned();
@@ -717,12 +698,12 @@ impl App {
         } else {
             crate::sync_service::Request::Disable { project }
         };
-        self.request_sync(request, false);
+        self.request_sync(request);
     }
     /// Start one last sync without waiting for it (before sleep: a lock never waits).
     pub(crate) fn start_final_sync(&mut self) {
         if self.sync_enabled() && self.deck.shell.backup.sync.job.is_none() {
-            self.request_sync_run_inner(false, true);
+            self.request_sync_run(false);
         }
     }
 
@@ -738,7 +719,7 @@ impl App {
             if std::mem::take(&mut sync.leaving) {
                 return true;
             }
-            self.request_sync_run_inner(false, true);
+            self.request_sync_run(false);
             self.deck.shell.backup.sync.leaving = true;
             if self.deck.shell.backup.sync.job.is_none() {
                 return true;

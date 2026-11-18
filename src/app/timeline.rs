@@ -67,19 +67,34 @@ pub struct Timeline {
 
 impl Timeline {
     pub fn start(root: PathBuf) -> Self {
-        Self::start_with(root, crate::sync_service::run_timeline)
+        // Closing the app also stops an upload already running (the helper is killed); what it
+        // didn't finish stays pending for the next session.
+        let closing = Arc::new(AtomicBool::new(false));
+        let stop = Arc::clone(&closing);
+        Self::start_closing(
+            root,
+            move |request| crate::sync_service::run_timeline_until(request, &stop),
+            closing,
+        )
     }
 
     fn start_with(
         root: PathBuf,
         uploader: impl FnMut(Value) -> Result<Value, String> + Send + 'static,
     ) -> Self {
+        Self::start_closing(root, uploader, Arc::new(AtomicBool::new(false)))
+    }
+
+    fn start_closing(
+        root: PathBuf,
+        uploader: impl FnMut(Value) -> Result<Value, String> + Send + 'static,
+        closing: Arc<AtomicBool>,
+    ) -> Self {
         let (jobs, work) = mpsc::channel();
         let (urgent, checkpoints) = mpsc::channel();
         let (failed, failures) = mpsc::sync_channel(1);
         let last_record_ok = Arc::new(AtomicBool::new(false));
         let status = Arc::clone(&last_record_ok);
-        let closing = Arc::new(AtomicBool::new(false));
         let stop_uploads = Arc::clone(&closing);
         let worker = thread::spawn(move || {
             let lock = book_lock(&root);

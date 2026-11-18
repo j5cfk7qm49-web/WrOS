@@ -113,6 +113,14 @@ pub fn run_timeline(request: serde_json::Value) -> Result<serde_json::Value, Str
     run_blocking(&request, None, &[], &AtomicBool::new(false))
 }
 
+/// [`run_timeline`], stopped (the helper killed) once `cancelled` is set.
+pub fn run_timeline_until(
+    request: serde_json::Value,
+    cancelled: &AtomicBool,
+) -> Result<serde_json::Value, String> {
+    run_blocking(&request, None, &[], cancelled)
+}
+
 /// Run the sync helper on an existing worker, keeping that worker's progress text.
 pub(crate) fn run_blocking<T: DeserializeOwned>(
     request: &impl Serialize,
