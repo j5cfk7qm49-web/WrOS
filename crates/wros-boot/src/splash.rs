@@ -42,9 +42,17 @@ pub const INITRD_SHARE: f64 = 0.3;
 pub const HANDOVER: &str = "/run/wros-boot/progress";
 
 /// The bar's figure for systemd's progress `p` in this stage. `start` is where the initrd's
-/// bar stopped (read from [`HANDOVER`]; 0 when the initrd showed none).
-pub fn overall(stage: Stage, start: f64, p: f64) -> f64 {
-    let p = p.clamp(0.0, 1.0);
+/// bar stopped (read from [`HANDOVER`]; 0 when the initrd showed none). `first` is systemd's first
+/// reading in this stage: by the time a screen starts, systemd has done much of its work (the
+/// installed system's first reading was about 0.67 in the VM), so the stage's part of the bar is
+/// counted from there and the bar moves on smoothly instead of leaping.
+pub fn overall(stage: Stage, start: f64, first: f64, p: f64) -> f64 {
+    let first = first.clamp(0.0, 1.0);
+    let p = if first >= 1.0 {
+        1.0
+    } else {
+        ((p.clamp(0.0, 1.0) - first) / (1.0 - first)).clamp(0.0, 1.0)
+    };
     match stage {
         Stage::Initrd => p * INITRD_SHARE,
         Stage::System => {
@@ -179,18 +187,36 @@ mod tests {
 
     #[test]
     fn the_initrd_fills_the_first_part_and_the_system_carries_on_from_it() {
-        assert_eq!(overall(Stage::Initrd, 0.0, 0.0), 0.0);
-        assert_eq!(overall(Stage::Initrd, 0.0, 1.0), INITRD_SHARE);
-        assert_eq!(overall(Stage::Initrd, 0.9, 0.5), INITRD_SHARE / 2.0);
+        assert_eq!(overall(Stage::Initrd, 0.0, 0.0, 0.0), 0.0);
+        assert_eq!(overall(Stage::Initrd, 0.0, 0.0, 1.0), INITRD_SHARE);
+        assert_eq!(overall(Stage::Initrd, 0.9, 0.0, 0.5), INITRD_SHARE / 2.0);
         // The installed system's bar starts where the initrd's stopped, never behind it.
-        let left = overall(Stage::Initrd, 0.0, 0.8);
-        assert_eq!(overall(Stage::System, left, 0.0), left);
-        assert!((overall(Stage::System, left, 0.5) - (left + (1.0 - left) / 2.0)).abs() < 1e-9);
-        assert_eq!(overall(Stage::System, left, 1.0), 1.0);
+        let left = overall(Stage::Initrd, 0.0, 0.0, 0.8);
+        assert_eq!(overall(Stage::System, left, 0.0, 0.0), left);
+        let half = overall(Stage::System, left, 0.0, 0.5);
+        assert!((half - (left + (1.0 - left) / 2.0)).abs() < 1e-9);
+        assert_eq!(overall(Stage::System, left, 0.0, 1.0), 1.0);
         // No initrd screen (a text unlock, or an older initrd): the whole bar, as before.
-        assert_eq!(overall(Stage::System, 0.0, 0.25), 0.25);
-        assert_eq!(overall(Stage::System, 7.0, 0.25), 1.0);
-        assert_eq!(overall(Stage::System, 0.0, -1.0), 0.0);
+        assert_eq!(overall(Stage::System, 0.0, 0.0, 0.25), 0.25);
+        assert_eq!(overall(Stage::System, 7.0, 0.0, 0.25), 1.0);
+        assert_eq!(overall(Stage::System, 0.0, 0.0, -1.0), 0.0);
+    }
+
+    #[test]
+    fn each_stage_counts_from_systemds_first_reading_so_the_bar_never_leaps() {
+        // The VM's installed system: 0.67 at the screen's first reading, 1.0 at the end.
+        let left = 0.3;
+        assert_eq!(overall(Stage::System, left, 0.67, 0.67), left);
+        let mid = overall(Stage::System, left, 0.67, 0.835);
+        assert!((mid - (left + (1.0 - left) / 2.0)).abs() < 1e-9, "{mid}");
+        assert_eq!(overall(Stage::System, left, 0.67, 1.0), 1.0);
+        // The initrd's part is counted the same way.
+        assert_eq!(overall(Stage::Initrd, 0.0, 0.4, 0.4), 0.0);
+        assert!((overall(Stage::Initrd, 0.0, 0.4, 0.7) - INITRD_SHARE / 2.0).abs() < 1e-9);
+        // A screen that starts when systemd is already done shows a full bar.
+        assert_eq!(overall(Stage::System, left, 1.0, 1.0), 1.0);
+        // systemd's figure dipping below the first reading never takes the bar behind its start.
+        assert_eq!(overall(Stage::System, left, 0.67, 0.5), left);
     }
 
     #[test]

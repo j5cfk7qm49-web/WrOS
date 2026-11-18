@@ -367,11 +367,13 @@ mod linux {
                 .unwrap_or(0.0),
         };
         let mut shown: f64 = -1.0;
+        // systemd's first reading in this stage: the stage's part of the bar counts from it.
+        let mut first: Option<f64> = None;
         let mut buf = [0u8; 64];
         while !STOP.load(Ordering::SeqCst) && started.elapsed() < Duration::from_secs(180) {
             // systemd's figure dips whenever new jobs are queued; the bar only ever moves forward.
             let now = progress(args)
-                .map(|p| splash::overall(args.stage, start, p))
+                .map(|p| splash::overall(args.stage, start, *first.get_or_insert(p), p))
                 .map_or(shown, |p| p.max(shown))
                 .max(start);
             if terminal.draw(|f| splash::draw(f, &theme, now)).is_err() {
