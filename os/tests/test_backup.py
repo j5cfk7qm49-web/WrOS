@@ -124,6 +124,81 @@ class EncryptedBackup(unittest.TestCase):
         with mock.patch.object(module, 'classify_rclone_failure', return_value=(True, b'{"total":1000}', '')):
             self.service.connect_google(json.dumps(token))
 
+    def test_new_backup_refuses_an_existing_repository_before_generating_a_key(self):
+        self.repo = self.base/'WrOS-Backups'
+        self.initialize()
+        another = module.Service(self.base/'another-device')
+        module.write_private(another.google,
+                             f'[wros-google]\ntype = alias\nremote = {self.base}\n'.encode(),
+                             exclusive=True)
+        with mock.patch.object(another, 'restic', wraps=another.restic) as restic, \
+                mock.patch.object(module.secrets, 'token_hex', wraps=module.secrets.token_hex) as key:
+            for destination in (str(self.repo), 'drive:WrOS-Backups'):
+                with self.subTest(destination=destination):
+                    with self.assertRaisesRegex(
+                            ValueError, 'already holds an encrypted WrOS backup') as caught:
+                        module.dispatch(another, {'operation': 'init', 'repository': destination})
+                    self.assertIn('Connect existing repository and recovery key', str(caught.exception))
+                    self.assertIn('choose another folder', str(caught.exception))
+            restic.assert_not_called()
+            key.assert_not_called()
+        self.assertFalse(list(another.state.glob('recovery-*.key')))
+        self.assertFalse(another.config.exists())
+
+    def test_init_failure_reports_redacted_restic_error_and_keeps_only_a_written_key(self):
+        for writes_key in (False, True):
+            def restic(command, **kwargs):
+                self.assertEqual(command[-1], 'init')
+                key = Path(command[command.index('--password-file') + 1])
+                if writes_key:
+                    (self.repo/'keys').mkdir(parents=True)
+                    (self.repo/'keys/master').write_bytes(b'encrypted key fixture')
+                message = (f'Fatal: cannot save config: open {self.service.state}/cache/private file: '
+                           f'permission denied using {key} ({key.read_text().strip()})')
+                if kwargs['stderr'] != subprocess.DEVNULL:
+                    kwargs['stderr'].write(json.dumps({
+                        'message_type': 'exit_error', 'code': 1, 'message': message,
+                    }).encode() + b'\n')
+                return subprocess.CompletedProcess(command, 1)
+
+            with self.subTest(writes_key=writes_key), \
+                    mock.patch.object(module.subprocess, 'run', side_effect=restic):
+                with self.assertRaisesRegex(ValueError, 'open …: permission denied') as caught:
+                    self.initialize()
+                self.assertNotIn(str(self.service.state), str(caught.exception))
+                self.assertNotIn('private file', str(caught.exception))
+                self.assertNotIn('recovery-', str(caught.exception))
+                self.assertNotRegex(str(caught.exception), '[0-9a-f]{64}')
+                self.assertEqual('key was kept' in str(caught.exception), writes_key)
+                self.assertEqual(len(list(self.service.state.glob('recovery-*.key'))), int(writes_key))
+                self.assertFalse(self.service.config.exists())
+                self.assertIsNone(self.service.current)
+
+    def test_snapshot_failure_reports_restic_error_and_discards_the_imported_copy(self):
+        supplied = self.base/'supplied.key'
+        supplied.write_text('private-recovery-fixture\n')
+        self.repo.mkdir()
+
+        def restic(command, **kwargs):
+            self.assertIn('snapshots', command)
+            key = Path(command[command.index('--password-file') + 1])
+            if kwargs['stderr'] != subprocess.DEVNULL:
+                kwargs['stderr'].write(
+                    (f'Fatal: wrong password for {key}: {key.read_text().strip()} '
+                     f'(imported from {supplied})\n').encode())
+            return subprocess.CompletedProcess(command, 12)
+
+        with mock.patch.object(module.subprocess, 'run', side_effect=restic):
+            with self.assertRaisesRegex(ValueError, 'wrong password for …') as caught:
+                self.service.configure(str(self.repo), str(supplied))
+        self.assertNotIn(str(self.service.state), str(caught.exception))
+        self.assertNotIn(str(supplied), str(caught.exception))
+        self.assertNotIn('private-recovery-fixture', str(caught.exception))
+        self.assertEqual(supplied.read_text(), 'private-recovery-fixture\n')
+        self.assertFalse(list(self.service.state.glob('recovery-*.key')))
+        self.assertFalse(self.service.config.exists())
+        self.assertIsNone(self.service.current)
+
     def test_encrypted_snapshot_restores_after_original_is_deleted_and_key_is_imported(self):
         result = self.initialize()
         key = Path(result['recovery_key'])

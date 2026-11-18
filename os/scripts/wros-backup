@@ -6,6 +6,7 @@ network, mounted manuscripts, or restore over an existing book. The only deletio
 retention of automatic snapshots (retention_forget); manual ones are never pruned.
 """
 import configparser
+from contextlib import nullcontext
 import ctypes
 from datetime import datetime, timedelta, timezone
 import fcntl
@@ -38,6 +39,11 @@ PROFILE = '.wros-profile'
 PROFILE_FILE_LIMIT = 1024 * 1024
 PROFILE_TOTAL_LIMIT = 4 * 1024 * 1024
 TAG = 'wros-project-v1'
+EXISTING_REPOSITORY = (
+    'This folder already holds an encrypted WrOS backup. To use it, choose '
+    '“Connect existing repository and recovery key” and provide its recovery key. '
+    'To start fresh, choose another folder.'
+)
 
 
 def now():
@@ -128,18 +134,57 @@ def atomic_private(path, contents):
         temp.unlink(missing_ok=True)
 
 
-def run(program, arguments, env, cwd=None):
-    # Raw upstream output can contain filenames or OAuth responses. It never
-    # enters native notices, logs, argv diagnostics, or the response protocol.
-    with tempfile.TemporaryFile() as output:
+def run(program, arguments, env, cwd=None, setup=False):
+    # Only repository setup opts in to a diagnostic from restic.
+    stderr = tempfile.TemporaryFile() if setup else nullcontext(subprocess.DEVNULL)
+    with tempfile.TemporaryFile() as output, stderr as errors:
         result = subprocess.run([program, *arguments], env=env, cwd=cwd,
                                 stdin=subprocess.DEVNULL, stdout=output,
-                                stderr=subprocess.DEVNULL, timeout=1800)
+                                stderr=errors, timeout=1800)
+        if result.returncode and setup:
+            size = errors.seek(0, os.SEEK_END)
+            errors.seek(max(0, size - 65536))
+            if size > 65536:
+                errors.readline(65536)  # Discard the possibly truncated line.
+            detail = restic_setup_error(errors.read(65536).decode('utf-8', errors='replace'))
+            if detail:
+                raise ValueError(detail)
         require(result.returncode == 0,
                 f'{Path(program).name} did not complete. Check connectivity, recovery key, free space and repository locks; retry explicitly.')
         require(output.tell() <= MAX_JSON, 'Tool response exceeded the supported size; no verification claimed.')
         output.seek(0)
         return output.read()
+
+
+def restic_setup_error(stderr):
+    for line in reversed(stderr.split('\n')):
+        line = line.strip()
+        if not line or line.startswith('rclone:'):
+            continue
+        if not line.startswith('{'):
+            return line
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if row.get('message_type') == 'exit_error' and isinstance(row.get('message'), str):
+            return row['message'].strip()
+    return ''
+
+
+def redact_setup_error(detail, state, key_path, source, secret):
+    password = secret.decode('utf-8', errors='replace').strip()
+    for value in (str(key_path), str(source) if source else '', password):
+        if value:
+            detail = detail.replace(value, '…').replace(json.dumps(value, ensure_ascii=False)[1:-1], '…')
+    for folder in {state, state.resolve()}:
+        root = str(folder)
+        for value in {root, json.dumps(root, ensure_ascii=False)[1:-1]}:
+            # An unquoted path in an OS error can contain spaces.
+            detail = re.sub(re.escape(value) + r'/[^\r\n]*?(?=:\s|$)', '…',
+                            detail, flags=re.MULTILINE).replace(value, '…')
+    detail = ''.join(c for c in detail if c.isprintable() or c.isspace())
+    return ' '.join(detail.split())[:1024]
 
 
 def progress(phase, percent=None, offer=None):
@@ -475,7 +520,7 @@ class Service:
             return str(path.resolve(strict=True))
         return str(safe_new_path(str(path)))
 
-    def restic(self, arguments, cwd=None, config=None, phase=None):
+    def restic(self, arguments, cwd=None, config=None, phase=None, setup=False):
         config = config or self.current
         require(config is not None, 'Set up or connect a backup repository first.')
         private_file(Path(config['key']))
@@ -483,38 +528,96 @@ class Service:
         common = ['--repo', repository, '--password-file', config['key'], '--json']
         if phase:
             return run_reporting('/usr/bin/restic', [*common, *arguments], self.env, cwd, phase)
-        return run('/usr/bin/restic', [*common, '--quiet', *arguments], self.env, cwd)
+        return run('/usr/bin/restic', [*common, '--quiet', *arguments], self.env, cwd, setup=setup)
+
+    def _check_new_repository(self, repository, destination):
+        if destination.startswith('rclone:'):
+            remote = destination.removeprefix('rclone:')
+            ok, payload, kind = classify_rclone_failure(
+                ['lsjson', '--stat', '--files-only', remote + '/config'], self.env)
+            require(ok or kind == 'not-found',
+                    'Could not check the backup folder on Google Drive. Check the connection and try again.')
+            require(not ok or json.loads(payload) is None, EXISTING_REPOSITORY)
+        else:
+            require(not (Path(destination)/'config').is_file(), EXISTING_REPOSITORY)
+            safe_new_path(repository)
+
+    def _init_may_have_written(self, destination, error, detail):
+        if (detail.startswith('Fatal: create repository at ')
+                or detail.endswith(('repository already contains keys',
+                                    'repository already contains snapshots'))):
+            return False
+        # Restic can save a repository key before it saves config. Keep the
+        # recovery key if that write happened or the destination can't confirm.
+        try:
+            if destination.startswith('rclone:'):
+                if isinstance(error, (InterruptedError, subprocess.TimeoutExpired)):
+                    return True
+                remote = destination.removeprefix('rclone:')
+                ok, payload, kind = classify_rclone_failure(
+                    ['lsjson', '--files-only', remote + '/keys'], self.env)
+                if not ok:
+                    return kind != 'not-found'
+                rows = json.loads(payload)
+                return not isinstance(rows, list) or bool(rows)
+            keys = Path(destination)/'keys'
+            try:
+                return any(keys.iterdir())
+            except FileNotFoundError:
+                return False
+        except (OSError, subprocess.TimeoutExpired, ValueError):
+            return True
 
     def configure(self, repository, key=None):
-        self.repository(repository)  # Refuse unsupported endpoints before IO.
-        key_path = self.state/('recovery-' + secrets.token_hex(16) + '.key')
-        if key:
+        destination = self.repository(repository)
+        connecting = bool(key)
+        source = None
+        if connecting:
             source = Path(key).expanduser()
             require(not source.is_symlink() and source.is_file() and source.stat().st_size <= 4096,
                     'Select a regular recovery key file (at most 4096 bytes).')
             secret = source.read_bytes()
             require(16 <= len(secret.strip()) <= 4096 and b'\0' not in secret, 'Recovery key file is invalid.')
         else:
-            if not repository.startswith('drive:'):
-                safe_new_path(repository)
+            self._check_new_repository(repository, destination)
             secret = (secrets.token_hex(32) + '\n').encode()
+        key_path = self.state/('recovery-' + secrets.token_hex(16) + '.key')
         write_private(key_path, secret, exclusive=True)
         config = {'version': 1, 'repository': repository, 'key': str(key_path), 'verified': {}}
-        # On failure keep the generated key: a remote init might have succeeded
-        # before a connection failed. Never silently abandon its recovery key.
+        previous, self.current = self.current, config
+        initialized = False
         try:
-            self.restic(['snapshots'] if key else ['init'], config=config)
-        except Exception:
-            raise ValueError('Repository setup incomplete. Recovery key retained at ' + str(key_path) + '; reconnect using that file after correcting the destination or connection.') from None
-        self.current = config
+            if not connecting:
+                self.restic(['init'], setup=True)
+                initialized = True
+            result = self.status(
+                'Repository connected. Export your recovery key to a separate safe device before relying on this backup.',
+                setup=True)
+        except Exception as error:
+            self.current = previous
+            detail = str(error) if isinstance(error, ValueError) else 'restic did not complete.'
+            if not connecting and not initialized and detail.endswith((
+                    'config file already exists', 'repository master key and config already initialized')):
+                key_path.unlink(missing_ok=True)
+                raise ValueError(EXISTING_REPOSITORY) from None
+            keep_key = not connecting and (
+                initialized or self._init_may_have_written(destination, error, detail))
+            if not keep_key:
+                key_path.unlink(missing_ok=True)
+            message = 'Repository setup incomplete. ' + redact_setup_error(
+                detail, self.state, key_path, source, secret)
+            if keep_key:
+                message += (' The recovery key was kept in the backup state folder. After correcting '
+                            'the problem, use it with “Connect existing repository and recovery key”.')
+            raise ValueError(message) from None
         self.save()
-        return self.status('Repository connected. Export your recovery key to a separate safe device before relying on this backup.')
+        return result
 
-    def snapshots(self, queue_id=None):
+    def snapshots(self, queue_id=None, setup=False):
         if not self.current:
             return []
         tags = TAG + (',queue:' + queue_id if queue_id else '')
-        rows = json.loads(self.restic(['snapshots', '--tag', tags])) or []
+        rows = json.loads(self.restic(['snapshots', '--tag', tags], setup=setup)) or []
         require(isinstance(rows, list) and len(rows) <= 1000, 'Repository exceeds 1,000 supported snapshots; use Restic maintenance tools.')
         result = []
         for row in rows:
@@ -528,7 +631,7 @@ class Service:
                            'restore_checked_at': self.current['verified'].get(identifier, '')})
         return sorted(result, key=lambda item: item['time'], reverse=True)
 
-    def status(self, notice='', refresh=True):
+    def status(self, notice='', refresh=True, setup=False):
         google_connected = (self.google.is_file() and not self.google.is_symlink()
                             and not (self.google.lstat().st_mode & 0o077))
         if not google_connected:
@@ -555,13 +658,15 @@ class Service:
                 'queued_backups': list(self.queue),
                 'drive_folder': self.drive_folder,
                 'drive_entries': list(self.drive_entries),
-                'snapshots': self.named_snapshots() if refresh else self.latest_snapshots(), 'notice': notice}
+                'snapshots': self.named_snapshots(setup=setup) if refresh else self.latest_snapshots(),
+                'notice': notice}
 
-    def named_snapshots(self):
+    def named_snapshots(self, setup=False):
         """The refreshed list as shown: a snapshot this computer recorded names its book's folder
         (restic itself only knows the staging copy; restore keeps using that)."""
         folders = {entry['id']: root for root, entry in self.latest().items()}
-        return [row | {'path': folders.get(row['id'], row['path'])} for row in self.snapshots()]
+        rows = self.snapshots(setup=True) if setup else self.snapshots()
+        return [row | {'path': folders.get(row['id'], row['path'])} for row in rows]
 
     def latest(self):
         """{book folder: {'id', 'time', 'project'}}; an unreadable record is treated as empty."""
@@ -1520,8 +1625,7 @@ if __name__ == '__main__':
     try:
         main()
     except Exception as error:
-        # Never echo parse errors, upstream output, or arbitrary request text:
-        # authorization JSON and secrets are only allowed on the input side.
+        # ValueError messages prepared for the reply can be shown. Never echo parse errors.
         message = str(error) if isinstance(error, ValueError) and not isinstance(error, json.JSONDecodeError) else 'Backup operation unavailable. Check settings, permissions, connection and free space, then retry.'
         print(json.dumps({'ok': False, 'error': message}), flush=True)
         sys.exit(1)
