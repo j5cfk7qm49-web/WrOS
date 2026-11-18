@@ -30,6 +30,17 @@ def disk(path, children, **extra):
     return dict(path=path, type='disk', tran='usb', rm=True, children=children, **extra)
 
 
+def flatten(devices, parent=None):
+    rows = []
+    for device in devices:
+        row = {key: value for key, value in device.items() if key != 'children'}
+        row['name'] = Path(device['path']).name
+        row['pkname'] = parent
+        rows.append(row)
+        rows += flatten(device.get('children', []), row['name'])
+    return rows
+
+
 class ImportMedia(unittest.TestCase):
     def setUp(self):
         original_umask = os.umask(0o077)
@@ -51,7 +62,9 @@ class ImportMedia(unittest.TestCase):
         if tool == 'findmnt':
             output = '/dev/mapper/root\n'
         elif tool == 'lsblk' and '-J' in argv:
-            output = json.dumps({'blockdevices': self.devices})
+            # lsblk -J --list prints every device as its own row, naming its parent.
+            self.assertIn('--list', argv)
+            output = json.dumps({'blockdevices': flatten(self.devices)})
         elif tool == 'lsblk':
             output = '/dev/mapper/root\n/dev/sda2\n/dev/sda\n'
         elif tool == 'mount':

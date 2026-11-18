@@ -60,29 +60,31 @@ def sticks(run, mounted, target):
     if ancestry.returncode or not ancestry.stdout.strip():
         fail('cannot identify the disk holding the system')
     protected = set(ancestry.stdout.splitlines())
-    listing = run([LSBLK, '-J', '-o', 'PATH,TRAN,RM,TYPE,FSTYPE,LABEL'])
+    # A flat list, each row naming its parent (PKNAME): with these columns lsblk printed flat
+    # rows, not a tree, so partitions are matched to their disk here (nixos/tests/import-book.nix).
+    listing = run([LSBLK, '-J', '--list', '-o', 'NAME,PKNAME,PATH,TRAN,RM,TYPE,FSTYPE,LABEL'])
     if listing.returncode:
         fail('cannot list USB sticks')
     devices = json.loads(listing.stdout)['blockdevices']
-
-    def contains_root(device):
-        return (device.get('path') in protected
-                or any(contains_root(child) for child in device.get('children', [])))
+    by_name = {device.get('name'): device for device in devices if device.get('name')}
 
     result = []
     filesystems = {}
-    for disk in devices:
-        if (disk.get('type') != 'disk' or disk.get('tran') != 'usb'
-                or disk.get('rm') not in (True, 1, '1') or contains_root(disk)
-                or disk.get('fstype') == 'crypto_LUKS'):
+    for child in devices:
+        device = child.get('path') or ''
+        disk = by_name.get(child.get('pkname'))
+        if (child.get('type') != 'part' or child.get('fstype') not in FILESYSTEMS
+                or not DEVICE.fullmatch(device) or disk is None
+                or disk.get('type') != 'disk' or disk.get('tran') != 'usb'
+                or disk.get('rm') not in (True, 1, '1')
+                or disk.get('fstype') == 'crypto_LUKS'
+                or device in protected or disk.get('path') in protected
+                or any(other.get('pkname') == disk.get('name')
+                       and other.get('path') in protected for other in devices)):
             continue
-        for child in disk.get('children', []):
-            device = child.get('path', '')
-            if (child.get('type') == 'part' and child.get('fstype') in FILESYSTEMS
-                    and DEVICE.fullmatch(device)):
-                result.append({'device': device, 'label': child.get('label') or '',
-                               'mount': str(target) if device == mounted else None})
-                filesystems[device] = child['fstype']
+        result.append({'device': device, 'label': child.get('label') or '',
+                       'mount': str(target) if device == mounted else None})
+        filesystems[device] = child['fstype']
     return sorted(result, key=lambda stick: stick['device']), filesystems
 
 
