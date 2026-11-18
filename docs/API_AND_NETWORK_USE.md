@@ -23,14 +23,13 @@ eSpeak NG. Piper requires a separately available executable and local voice
 model; Speech Dispatcher is another optional backend, not an enabled service in
 the standard image. These adapters do not use a cloud speech API.
 
-## Local writing history
+## Writing history
 
-Session history uses the maintained Git CLI. The inherited app automatically
-pushed when a configured remote existed; an actual generated-book/local-remote
-probe reproduced that transfer at startup. The application now removes that
-background worker and its startup/save calls. Opening, saving, quitting and
-reopening a book preserve local session snapshots without starting a Git push.
-Adding a remote is not treated as consent to send manuscript history.
+On WrOS, the Git CLI records a local timeline for every book, including small
+saves, marked writing sessions and changes brought in from Drive. Scene history
+reads the local repository. A book with readable Drive sync enabled also sends
+and fetches Git bundles through `wros-sync`. Outside WrOS, Writing sessions
+remains opt-in and local. A configured Git remote never starts a Git push.
 
 The upstream core library's explicit `sessions::push` helper is retained for
 compatibility/tests; WrOS has no application call site for it. The sessions
@@ -66,7 +65,7 @@ explicitly validates authorization via `rclone about`; Drive repository creation
 snapshot refresh, backup, restore and stale-lock recovery explicitly invoke
 Restic's rclone backend and can contact Google Drive/Google token endpoints
 (`oauth2.googleapis.com`, `www.googleapis.com`).
-Local history does not push Git. After backup is set up for a book, saved changes
+After backup is set up for a book, saved changes
 can trigger an automatic encrypted backup after ten minutes without editing,
 normally at most hourly. Failed automatic runs retry after 15 minutes, an hour,
 then every four hours. A Drive repository contacts Google during those runs. Manual
@@ -88,15 +87,24 @@ See [scope and recovery](NATIVE_BACKUP.md).
 
 `src/sync_service.rs` runs the unprivileged `wros-sync` helper at its compiled
 Nix store path, which uses the backup's rclone configuration (`lsjson --hash`,
-`copyto`, `moveto`, `cat`, `rcat`) against the `WrOS/` and `WrOS-History/` folders
+`copyto`, `moveto`, `cat`, `rcat`) against the `WrOS/` folder
 of the connected Drive. Nothing
 is contacted until the writer turns sync on for a book; then the app syncs that book
 when it opens, 90 seconds after the last save or edit and every 5 minutes while it
 is open. The app also requests a final sync after saving before closing a book
 or shutting down; retry the action once the run finishes. Sleep starts a final sync
 without delaying the lock. It sends only
-files that changed since the last agreed version. Those copies are not encrypted.
-Offline runs fail quietly and wait for the next one; nothing queues.
+files that changed since the last agreed version. Those copies are plaintext.
+Offline runs fail quietly and wait for the next one.
+
+For a synced book, the helper also lists, verifies, uploads and fetches Git
+bundles under `WrOS-History/<book>/timeline/` using the same rclone credentials.
+Uploads run at session end, hourly during a long session and after reconnect.
+They carry the journal, productivity figures and review notes in plaintext, like
+the book. A full bundle can be read by any Git client using
+`git clone "<file>.bundle"`. Normal sync no longer makes dated
+`WrOS-History/<book>/<date>/` copies. It still makes a dated copy before replacing
+or removing a local file if the timeline checkpoint fails.
 
 ## Local system integration
 

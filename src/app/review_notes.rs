@@ -166,6 +166,8 @@ impl App {
         self.active_story_document_id()?;
         let n = &self.project.nodes[i];
         grimoire_core::history::snapshot(&self.project.root, &n.path, &n.file_text(), None)?;
+        let entry = grimoire_core::timeline::Entry::BeforeRestoring(n.title.clone());
+        self.checkpoint_before_change(entry);
         Ok(())
     }
     pub(super) fn mark_current_reading_sentence(

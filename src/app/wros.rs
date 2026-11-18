@@ -615,6 +615,7 @@ impl App {
             return;
         }
         self.save_deck();
+        self.end_timeline_session(chrono::Local::now());
         self.deck.lock_requested = true;
     }
     pub fn request_live_installer(&mut self) {
@@ -867,6 +868,7 @@ impl App {
         self.deck.shell.backup.tick();
         let now = chrono::Local::now();
         self.deck.clock = now.format("%H:%M").to_string();
+        self.tick_timeline(Instant::now(), now);
         self.deck.backup_mark = self.read_backup_mark(now);
         match self.deck.shell.backup.finished.take() {
             Some(super::backup::Finished::Restore) => {
@@ -1618,6 +1620,7 @@ impl App {
                             return;
                         }
                         self.save_deck();
+                        self.end_timeline_session(chrono::Local::now());
                         if !self.sync_before_leave() {
                             return;
                         }

@@ -47,6 +47,7 @@ pub mod spell;
 pub mod statefile;
 pub mod submission;
 pub mod sync;
+pub mod timeline;
 pub mod typeset;
 
 pub mod tutorial;

@@ -306,6 +306,12 @@ impl<T> Job<T> {
         let progress = self.progress.lock().ok().and_then(|p| p.clone());
         describe(progress.as_ref(), self.started.elapsed())
     }
+
+    pub(crate) fn phase_is(&self, phase: &str) -> bool {
+        self.progress
+            .lock()
+            .is_ok_and(|progress| progress.as_ref().is_some_and(|p| p.phase == phase))
+    }
     #[cfg(test)]
     pub fn running_for_test(progress: Option<Progress>) -> Self {
         let (sender, result) = mpsc::sync_channel(1);

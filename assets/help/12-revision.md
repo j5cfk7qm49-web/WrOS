@@ -37,5 +37,5 @@ When there's more than one, WrOS picks the most natural. *Settings â€º Writing â
 
 - *Check names for near-miss spellings* finds names that have drifted (see *The notebook and names*).
 - `Ctrl-T` lists every note and TK you left for yourself.
-- `H` shows how a scene has changed.
-- *Writing sessions* show what changed in each sitting.
+- `H` in the outline shows how a scene has changed. On WrOS the versions come from the book's timeline, with older saved copies below them.
+- *Writing sessions* show what changed in each sitting. On WrOS the sittings are marked in the timeline.

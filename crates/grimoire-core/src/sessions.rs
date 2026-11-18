@@ -109,7 +109,7 @@ pub fn is_enabled(root: &Path) -> bool {
 
 /// Where a book's writing history is kept.
 #[derive(Debug, Clone, PartialEq)]
-enum Store {
+pub(crate) enum Store {
     /// This machine's repository for the book, outside it.
     Outside(PathBuf),
     /// `.git` inside the book, as older versions made it.
@@ -117,7 +117,7 @@ enum Store {
     None,
 }
 
-fn store(root: &Path) -> Store {
+pub(crate) fn store(root: &Path) -> Store {
     if root.join(".git").exists() {
         return Store::InBook;
     }
@@ -145,7 +145,7 @@ fn id_file(root: &Path) -> PathBuf {
 /// Give the book an id if it has none, or a new one if `fresh`. Kept in
 /// `.grimoire/book-id`; where that syncs, each machine still keeps its own
 /// repository under the same id in its own data folder.
-fn assign_id(root: &Path, fresh: bool) -> Result<()> {
+pub(crate) fn assign_id(root: &Path, fresh: bool) -> Result<()> {
     if !fresh && outside_dir(root).is_some() {
         return Ok(());
     }
@@ -170,7 +170,7 @@ fn assign_id(root: &Path, fresh: bool) -> Result<()> {
 /// to another folder carries the same id: that copy doesn't get to commit
 /// into the original's history (it gets its own when turned on). A book
 /// that was moved, leaving no original behind, takes its history with it.
-fn claims(dir: &Path, root: &Path) -> bool {
+pub(crate) fn claims(dir: &Path, root: &Path) -> bool {
     let marker = dir.join("grimoire-book");
     let here = fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
     let Ok(there) = fs::read_to_string(&marker) else {
@@ -621,13 +621,13 @@ fn require_repo(root: &Path) -> Result<()> {
 }
 
 /// A config value, or `None` when it isn't set (or is empty).
-fn config(root: &Path, key: &str) -> Result<Option<String>> {
+pub(crate) fn config(root: &Path, key: &str) -> Result<Option<String>> {
     Ok(git(root, ["config", "--get", key])
         .lookup()?
         .filter(|v| !v.is_empty()))
 }
 
-fn head_commit(root: &Path) -> Result<Option<String>> {
+pub(crate) fn head_commit(root: &Path) -> Result<Option<String>> {
     git(root, ["rev-parse", "--verify", "-q", "HEAD^{commit}"]).lookup()
 }
 
@@ -660,7 +660,13 @@ fn stage_all(root: &Path, index: Option<&Path>) -> Result<()> {
 
 /// Commit what's staged. A name and email are supplied only for whichever of
 /// the two git has no setting for, so a writer's own identity always wins.
-fn commit(root: &Path, message: &str) -> Result<()> {
+pub(crate) fn commit(root: &Path, message: &str) -> Result<()> {
+    git_with_identity(root, &["commit", "-q", "-m", message])?
+        .stdout()
+        .map(drop)
+}
+
+pub(crate) fn git_with_identity(root: &Path, command: &[&str]) -> Result<Git> {
     let mut args: Vec<String> = Vec::new();
     if config(root, "user.name")?.is_none() {
         args.extend(["-c".into(), format!("user.name={FALLBACK_NAME}")]);
@@ -668,8 +674,8 @@ fn commit(root: &Path, message: &str) -> Result<()> {
     if config(root, "user.email")?.is_none() {
         args.extend(["-c".into(), format!("user.email={FALLBACK_EMAIL}")]);
     }
-    args.extend(["commit".into(), "-q".into(), "-m".into(), message.into()]);
-    git(root, args).stdout().map(drop)
+    args.extend(command.iter().copied().map(String::from));
+    Ok(git(root, args))
 }
 
 /// A private copy of the index, so a label can be worked out by staging
@@ -753,7 +759,36 @@ fn staged_tally(root: &Path, index: Option<&Path>) -> Result<Option<Tally>> {
     if entries.is_empty() {
         return Ok(None);
     }
+    Ok(Some(tally_changes(root, entries, &base, ":0", index)?))
+}
 
+/// The diary label for the net changes between two recorded book trees.
+pub(crate) fn range_label(
+    root: &Path,
+    base: Option<&str>,
+    tip: &str,
+    now: DateTime<Local>,
+) -> Result<String> {
+    let base = match base {
+        Some(hash) => hash.to_string(),
+        None => empty_tree(root)?,
+    };
+    let raw = git(
+        root,
+        ["diff-tree", "-r", "-M", "-z", "--name-status", &base, tip],
+    )
+    .stdout()?;
+    let tally = tally_changes(root, parse_name_status(&raw), &base, tip, None)?;
+    Ok(label(now.naive_local(), &tally, &part_noun(root)))
+}
+
+fn tally_changes(
+    root: &Path,
+    entries: Vec<Entry>,
+    base: &str,
+    tip: &str,
+    index: Option<&Path>,
+) -> Result<Tally> {
     let mut tally = Tally::default();
     // Which blobs to count, and whether each is the before or after side.
     let mut specs = Vec::new();
@@ -767,8 +802,7 @@ fn staged_tally(root: &Path, index: Option<&Path>) -> Result<Option<Tally>> {
             after.push(false);
         }
         if e.status != Status::Deleted && is_scene(&e.path) {
-            // Stage 0 of the index: what is about to be committed.
-            specs.push(format!(":0:{}", e.path));
+            specs.push(format!("{tip}:{}", e.path));
             after.push(true);
         }
     }
@@ -780,7 +814,7 @@ fn staged_tally(root: &Path, index: Option<&Path>) -> Result<Option<Tally>> {
             tally.words_before += words;
         }
     }
-    Ok(Some(tally))
+    Ok(tally)
 }
 
 /// Fetch many blobs in one git process. `None` for anything that doesn't exist
@@ -906,7 +940,7 @@ fn gitignore_keeping_resume(existing: &str) -> String {
 
 /// What a session touched, as far as its label cares.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
-struct Tally {
+pub(crate) struct Tally {
     /// Top-level names under `manuscript/` whose scenes changed, as on disk.
     acts: BTreeSet<String>,
     /// Anything under `notes/` changed.
@@ -930,7 +964,7 @@ impl Tally {
 }
 
 /// "Tuesday evening · Act Two · 1,240 words".
-fn label(when: NaiveDateTime, tally: &Tally, part_noun: &str) -> String {
+pub(crate) fn label(when: NaiveDateTime, tally: &Tally, part_noun: &str) -> String {
     let mut parts = vec![when_phrase(when)];
     if !tally.acts.is_empty() {
         let titles: Vec<String> = tally.acts.iter().map(|a| display_title(a)).collect();
@@ -987,7 +1021,7 @@ fn thousands(n: usize) -> String {
 /// Words in a scene, not counting its frontmatter: whitespace-separated
 /// tokens, as the rest of the app counts them. Accepts CRLF fences too, so a
 /// Windows checkout and the stored copy of the same scene count the same.
-fn body_words(raw: &str) -> usize {
+pub(crate) fn body_words(raw: &str) -> usize {
     let s = raw.strip_prefix('\u{feff}').unwrap_or(raw);
     let body = match s
         .strip_prefix("---\n")
@@ -1087,7 +1121,7 @@ fn native_path(git: &str) -> PathBuf {
 }
 
 /// A book-relative path as git names it: forward slashes on every platform.
-fn git_path(rel: &Path) -> Result<String> {
+pub(crate) fn git_path(rel: &Path) -> Result<String> {
     let mut parts = Vec::new();
     for c in rel.components() {
         match c {
@@ -1265,7 +1299,7 @@ fn probe_git() -> bool {
 }
 
 /// One git invocation, run in the book folder.
-struct Git {
+pub(crate) struct Git {
     dir: PathBuf,
     args: Vec<OsString>,
     env: Vec<(&'static str, OsString)>,
@@ -1295,7 +1329,7 @@ impl Failure {
     }
 }
 
-fn git<I, S>(dir: &Path, args: I) -> Git
+pub(crate) fn git<I, S>(dir: &Path, args: I) -> Git
 where
     I: IntoIterator<Item = S>,
     S: Into<OsString>,
@@ -1316,13 +1350,13 @@ where
 }
 
 impl Git {
-    fn env(mut self, key: &'static str, value: impl Into<OsString>) -> Self {
+    pub(crate) fn env(mut self, key: &'static str, value: impl Into<OsString>) -> Self {
         self.env.push((key, value.into()));
         self
     }
 
     /// Use this index file instead of the repository's own.
-    fn index(self, index: Option<&Path>) -> Self {
+    pub(crate) fn index(self, index: Option<&Path>) -> Self {
         match index {
             Some(path) => self.env("GIT_INDEX_FILE", path),
             None => self,
@@ -1353,7 +1387,7 @@ impl Git {
     }
 
     /// Stdout of a command that has to succeed.
-    fn stdout(self) -> Result<Vec<u8>> {
+    pub(crate) fn stdout(self) -> Result<Vec<u8>> {
         let what = self.subcommand();
         let out = self.run().map_err(|f| anyhow!(f.describe(&what)))?;
         if !out.success {
@@ -1363,7 +1397,7 @@ impl Git {
     }
 
     /// Trimmed stdout of a command that has to succeed.
-    fn text(self) -> Result<String> {
+    pub(crate) fn text(self) -> Result<String> {
         let out = self.stdout()?;
         Ok(String::from_utf8_lossy(&out).trim().to_string())
     }
@@ -1491,7 +1525,7 @@ fn kill_tree(pid: u32) {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use chrono::{Datelike, NaiveDate, TimeZone, Weekday};
     use std::io::Read;
@@ -1523,7 +1557,7 @@ mod tests {
         }
     }
 
-    fn temp_dir(tag: &str) -> PathBuf {
+    pub(crate) fn temp_dir(tag: &str) -> PathBuf {
         // Histories kept outside books land in a test folder, never the
         // machine's own data folder.
         crate::paths::set_data_dir(
@@ -1536,13 +1570,13 @@ mod tests {
         d
     }
 
-    fn cleanup(dirs: &[&Path]) {
+    pub(crate) fn cleanup(dirs: &[&Path]) {
         for d in dirs {
             let _ = fs::remove_dir_all(d);
         }
     }
 
-    fn write(root: &Path, rel: &str, body: &str) {
+    pub(crate) fn write(root: &Path, rel: &str, body: &str) {
         let p = root.join(native_path(rel));
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(p, body).unwrap();

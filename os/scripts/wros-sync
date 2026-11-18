@@ -8,7 +8,7 @@ Drive state:
 
 * a change on one side is copied to the other; uploads update Drive's file in
   place for its revision history. Local replacements and deletions still keep
-  their copies in WrOS-History/<book>/<date>/;
+  their copies in WrOS-History/<book>/<date>/ when there is no timeline entry;
 * a file changed on both sides keeps the writer's version, Drive's is parked beside
   it as "<name> (from Drive, <date time>)", and the file pauses until it is settled;
 * more than five deletions, or a side found empty, stop the run and ask;
@@ -24,6 +24,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import shutil
 import signal
@@ -43,6 +44,9 @@ MAX_JSON = 2 * 1024**2
 DELETE_LIMIT = 5
 TEXT_SUFFIXES = ('.md', '.markdown', '.txt', '.toml', '.yaml', '.yml')
 TEXT_LIMIT = 8 * 1024**2
+MACHINE_NAME = re.compile(r'[a-z0-9-]{1,64}')
+BUNDLE_NAME = re.compile(r'([0-9]{6}) [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{4}\.bundle')
+BUNDLE_EXISTS = 'A timeline file with this name is already on Drive; nothing was replaced.'
 
 
 def require(condition, message):
@@ -271,9 +275,91 @@ class Service:
         (root / '.grimoire/sync.json').unlink(missing_ok=True)
         return {'status': 'disabled', 'message': 'This book no longer syncs. Files in Google Drive are kept.'}
 
+    # ------------------------------------------------------------- timeline
+
+    def timeline_remote(self, project):
+        identity = self.identity(self.book(project))
+        require(identity is not None, 'Sync is not switched on for this book.')
+        folder = identity['drive_folder']
+        require(self.marker(folder) in (None, identity['project_id']),
+                f'Drive folder {LIVE}/{folder} belongs to another WrOS book or computer.')
+        return REMOTE + f'{HISTORY}/{folder}/timeline'
+
+    def timeline_bundles(self, project):
+        location = self.timeline_remote(project)
+        result = self.rclone('lsjson', '-R', '--files-only', '--no-mimetype', location, check=False)
+        if result.returncode == 3:  # rclone: directory not found
+            return location, []
+        require(result.returncode == 0, 'The timeline could not be listed on Google Drive.')
+        bundles = []
+        for row in json.loads(result.stdout):
+            machine, _, name = row.get('Path', '').partition('/')
+            match = BUNDLE_NAME.fullmatch(name)
+            if match and MACHINE_NAME.fullmatch(machine):
+                bundles.append((machine, int(match[1]), name))
+        require(len(bundles) == len(set(bundles)), 'Google Drive has duplicate timeline file names.')
+        return location, sorted(bundles)
+
+    def timeline_list(self, project):
+        _, bundles = self.timeline_bundles(project)
+        machines = {}
+        for machine, number, _ in bundles:
+            machines.setdefault(machine, []).append(number)
+        return {'machines': machines}
+
+    def timeline_stat(self, path, *options):
+        result = self.rclone('lsjson', '--stat', '--no-mimetype', *options, path, check=False)
+        if result.returncode in (3, 4):  # missing directory or file
+            return None
+        require(result.returncode == 0, 'A timeline file could not be checked on Google Drive.')
+        return json.loads(result.stdout)
+
+    def timeline_upload(self, project, machine, bundle, name):
+        require(isinstance(machine, str) and MACHINE_NAME.fullmatch(machine), 'Invalid timeline machine name.')
+        require(isinstance(name, str) and BUNDLE_NAME.fullmatch(name), 'Invalid timeline bundle name.')
+        require(isinstance(bundle, str) and bundle, 'Choose a timeline bundle file.')
+        source = Path(bundle).resolve()
+        require(source.is_file(), 'Choose a timeline bundle file.')
+        location = f'{self.timeline_remote(project)}/{machine}'
+        part = f'{location}/.part-{secrets.token_hex(16)}'
+        final = f'{location}/{name}'
+        md5 = digests(source)[0]
+        self.rclone('copyto', str(source), part)
+        row = self.timeline_stat(part, '--hash') or {}
+        hashes = row.get('Hashes') or {}
+        require((hashes.get('MD5') or hashes.get('md5')) == md5,
+                'The timeline bundle checksum on Drive did not match.')
+        require(self.timeline_stat(final) is None, BUNDLE_EXISTS)
+        # A destination appearing between the check and move leaves the part in place.
+        self.rclone('moveto', part, final, '--ignore-existing')
+        require(self.timeline_stat(part) is None, BUNDLE_EXISTS)
+        return {'uploaded': name}
+
+    def timeline_fetch(self, project, into):
+        require(isinstance(into, str) and into, 'Choose a timeline destination.')
+        location, bundles = self.timeline_bundles(project)
+        directory = Path(into).resolve()
+        require(directory == Path(os.path.abspath(into)), 'The timeline destination must not use symbolic links.')
+        if not bundles:
+            return {'bundles': []}
+        directory.mkdir(parents=True, exist_ok=True)
+        # Start with a private directory so existing links inside the destination are never used.
+        staging = Path(tempfile.mkdtemp(prefix='.timeline-', dir=directory))
+        fetched = []
+        try:
+            for machine, number, name in bundles:
+                path = staging / machine / name
+                path.parent.mkdir(exist_ok=True)
+                self.rclone('copyto', f'{location}/{machine}/{name}', str(path))
+                fetched.append({'machine': machine, 'number': number, 'path': str(path)})
+        except Exception:
+            shutil.rmtree(staging, ignore_errors=True)
+            raise
+        return {'bundles': fetched}
+
     # ------------------------------------------------------------- one run
 
-    def sync(self, project, allow_deletes=False):
+    def sync(self, project, allow_deletes=False, timeline=False):
         root = self.book(project)
         identity = self.identity(root)
         require(identity is not None, 'Sync is not switched on for this book.')
@@ -283,7 +369,7 @@ class Service:
         base = read_json(home / 'base.json', {})
         pending = [p for p in read_json(home / 'pending.json', []) if (root / p['parked']).exists()]
         summary = {'status': 'synced', 'uploaded': 0, 'downloaded': 0, 'deleted': 0, 'parked': [], 'skipped': [],
-                   'deletes': 0, 'pending': pending, 'message': ''}
+                   'deletes': 0, 'pending': pending, 'changed': [], 'message': ''}
         try:
             progress('Comparing with Google Drive')
             owner = self.marker(folder)
@@ -308,7 +394,8 @@ class Service:
             stamp = datetime.now().astimezone()
             for index, (path, action) in enumerate(work):
                 progress('Syncing with Google Drive', index / max(len(work), 1))
-                done = self.apply(root, folder, home, base, path, action, local.get(path), remote.get(path), stamp)
+                done = self.apply(root, folder, home, base, path, action, local.get(path), remote.get(path),
+                                  stamp, timeline)
                 if done == 'skipped':
                     summary['skipped'].append(path)
                 elif isinstance(done, dict):
@@ -316,6 +403,8 @@ class Service:
                     summary['parked'].append(done['parked'])
                 elif done:
                     summary[done] += 1
+                    if action in ('download', 'delete_local'):
+                        summary['changed'].append(path)
                 write_private(home / 'base.json', json.dumps(base, sort_keys=True).encode())
                 write_private(home / 'pending.json', json.dumps(pending).encode())
         except Offline as exc:
@@ -366,7 +455,7 @@ class Service:
             return not os.path.lexists(path)
         return path.is_file() and not path.is_symlink() and digests(path)[0] == expected
 
-    def apply(self, root, folder, home, base, relative, action, local_md5, remote_md5, stamp):
+    def apply(self, root, folder, home, base, relative, action, local_md5, remote_md5, stamp, timeline):
         local = root / relative
         live = REMOTE + f'{LIVE}/{folder}/{relative}'
         if action == 'adopt':
@@ -393,11 +482,15 @@ class Service:
                 self.remember(home, base, relative, local_md5, snapshot)
                 return 'uploaded'
         if action == 'delete_remote':
-            self.rclone('moveto', live, self.history(folder, relative, 'Drive', stamp))
+            if timeline:
+                self.rclone('deletefile', live, '--drive-use-trash=true')
+            else:
+                self.rclone('moveto', live, self.history(folder, relative, 'Drive', stamp))
             base.pop(relative, None)
             return 'deleted'
         if action == 'delete_local':
-            self.rclone('copyto', str(local), self.history(folder, relative, 'WrOS', stamp))
+            if not timeline:
+                self.rclone('copyto', str(local), self.history(folder, relative, 'WrOS', stamp))
             if self.before_replace:
                 self.before_replace(local)
             if not self.unchanged(local, local_md5):
@@ -410,7 +503,7 @@ class Service:
             try:
                 if digests(temp)[0] != remote_md5 and remote_md5:
                     return 'skipped'
-                if local_md5 is not None:
+                if local_md5 is not None and not timeline:
                     self.rclone('copyto', str(local), self.history(folder, relative, 'WrOS', stamp))
                 if self.before_replace:
                     self.before_replace(local)
@@ -460,14 +553,22 @@ def main():
     lock = os.open(state / 'operation.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        operation, project = request.get('operation'), request.get('project')
+        operation, op, project = request.get('operation'), request.get('op'), request.get('project')
         require(isinstance(project, str) and project.startswith('/'), 'Choose a book folder.')
         if operation == 'enable':
             result = service.enable(project)
         elif operation == 'disable':
             result = service.disable(project)
         elif operation == 'sync':
-            result = service.sync(project, allow_deletes=request.get('allow_deletes') is True)
+            result = service.sync(project, allow_deletes=request.get('allow_deletes') is True,
+                                  timeline=request.get('timeline') is True)
+        elif op == 'timeline-list':
+            result = service.timeline_list(project)
+        elif op == 'timeline-upload':
+            result = service.timeline_upload(project, request.get('machine'), request.get('bundle'),
+                                             request.get('name'))
+        elif op == 'timeline-fetch':
+            result = service.timeline_fetch(project, request.get('into'))
         else:
             raise ValueError('Unknown sync operation.')
         print(json.dumps({'ok': True, 'data': result}), flush=True)

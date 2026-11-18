@@ -525,7 +525,15 @@
       "status": "Tested",
       "verification": "Python test_sync.py (rclone alias remote) + Rust paragraph-merge and sync UI tests; in daily use on one laptop since 0.1.0~rc3",
       "hardware_verified": false,
-      "detail": "Per-book readable Google Drive sync (wros-sync): base-version ledger, versions kept in WrOS-History, paragraph three-way merge with writer choice on clashes, delete guard and compare-and-swap local writes; edit from a phone through Drive; a Google Docs round trip is not claimed"
+      "detail": "Per-book readable Google Drive sync (wros-sync): base-version ledger, paragraph three-way merge with writer choice on clashes, delete guard and compare-and-swap local writes. Dated WrOS-History copies are a fallback when the timeline checkpoint fails. Edit from a phone through Drive; a Google Docs round trip is not claimed"
+    },
+    {
+      "area": "Cloud",
+      "capability": "Book timeline and scene history",
+      "status": "Implemented",
+      "verification": "Core timeline, sync helper and scene history tests; NixOS VM check book-timeline",
+      "hardware_verified": false,
+      "detail": "On WrOS, every book keeps small saves, sessions and changes from Drive in local Git history. Synced books also send Git bundles to WrOS-History/<book>/timeline/ and recover them on Drive Import. The journal, productivity figures and review notes go to Drive in plaintext. Outside WrOS, Writing sessions stays opt-in and local."
     },
     {
       "area": "Cloud",

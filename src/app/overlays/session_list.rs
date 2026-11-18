@@ -4,6 +4,10 @@ use super::*;
 
 impl App {
     pub(super) fn on_sessions_off_key(&mut self, key: Key) {
+        if crate::installed_session() {
+            self.overlay = Overlay::None;
+            return;
+        }
         match key {
             Key::Char('y') | Key::Char('Y') => {
                 self.overlay = Overlay::None;
@@ -174,13 +178,15 @@ pub(super) fn draw_sessions(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     f.render_widget(block, box_area);
     let dim = Style::default().fg(t.dim);
     let iw = inner.width as usize;
+    let item = match (app.timeline.is_some(), list.len() == 1) {
+        (true, true) => "entry",
+        (true, false) => "entries",
+        (false, true) => "session",
+        (false, false) => "sessions",
+    };
     let mut lines = vec![Line::from(vec![
         Span::styled(
-            format!(
-                " {} session{}",
-                list.len(),
-                if list.len() == 1 { "" } else { "s" }
-            ),
+            format!(" {} {item}", list.len()),
             Style::default().fg(t.text),
         ),
         Span::styled(
@@ -232,10 +238,12 @@ pub(super) fn draw_sessions(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             while lines.len() < (inner.height as usize).saturating_sub(1) {
                 lines.push(Line::from(""));
             }
-            lines.push(hint_line(
-                " ↑↓ choose   ↵ what changed that session   s save this session now   esc close",
-                t,
-            ));
+            let hint = if app.timeline.is_some() {
+                " ↑↓ choose   ↵ what changed   s save this session now   esc close"
+            } else {
+                " ↑↓ choose   ↵ what changed that session   s save this session now   esc close"
+            };
+            lines.push(hint_line(hint, t));
         }
         Some((which, items, csel)) => {
             let s = &list[*which];

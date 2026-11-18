@@ -1,6 +1,7 @@
 """Two-way readable Google Drive sync (os/scripts/wros-sync) against a real rclone
 alias remote standing in for Drive. Google is never contacted."""
 import importlib.machinery
+import io
 import json
 from pathlib import Path
 import shutil
@@ -81,9 +82,192 @@ class Sync(unittest.TestCase):
         config.chmod(0o600)
         self.service = module.Service(base / 'sync-state', backup_state)
         self.remote = self.drive / 'WrOS' / 'My Book'
+        self.timeline = self.drive / 'WrOS-History' / 'My Book' / 'timeline'
 
     def sync(self, **kwargs):
         return self.service.sync(str(self.book), **kwargs)
+
+    def upload_bundle(self, name, machine='laptop-a123'):
+        bundle = self.book.parent / 'local.bundle'
+        bundle.write_bytes(b'Local bundle bytes')
+        return self.service.timeline_upload(str(self.book), machine, str(bundle), name)
+
+    def test_upload_uses_a_part_file_then_the_final_name(self):
+        self.service.enable(str(self.book))
+        name = '000001 2026-11-16 2140.bundle'
+        machine = self.timeline / 'laptop-a123'
+        rclone = self.service.rclone
+
+        def check_part(*arguments, **kwargs):
+            if arguments[0] == 'moveto':
+                parts = list(machine.glob('.part-*'))
+                self.assertEqual(len(parts), 1)
+                self.assertEqual(parts[0].read_bytes(), b'Local bundle bytes')
+                self.assertFalse((machine / name).exists())
+            return rclone(*arguments, **kwargs)
+
+        with mock.patch.object(self.service, 'rclone', side_effect=check_part) as remote:
+            self.assertEqual(self.upload_bundle(name), {'uploaded': name})
+        self.assertTrue(any(call.args[0] == 'moveto' for call in remote.call_args_list))
+        self.assertEqual(list(machine.iterdir()), [machine / name])
+        self.assertEqual((machine / name).read_bytes(), b'Local bundle bytes')
+
+    def test_upload_never_replaces_an_existing_name(self):
+        self.service.enable(str(self.book))
+        name = '000001 2026-11-16 2140.bundle'
+        final = self.timeline / 'laptop-a123' / name
+        final.parent.mkdir(parents=True)
+        rclone = self.service.rclone
+
+        def create_at_move(*arguments, **kwargs):
+            if arguments[0] == 'moveto':
+                final.write_bytes(b'Existing history')
+            return rclone(*arguments, **kwargs)
+
+        for created_late in (False, True):
+            with self.subTest(created_late=created_late):
+                if not created_late:
+                    final.write_bytes(b'Existing history')
+                with mock.patch.object(self.service, 'rclone', side_effect=create_at_move):
+                    with self.assertRaises(ValueError) as refused:
+                        self.upload_bundle(name)
+                self.assertEqual(str(refused.exception),
+                                 'A timeline file with this name is already on Drive; nothing was replaced.')
+                self.assertEqual(final.read_bytes(), b'Existing history')
+                final.unlink()
+
+    def test_interrupted_upload_retries_same_number(self):
+        self.service.enable(str(self.book))
+        name = '000001 2026-11-16 2140.bundle'
+        machine = self.timeline / 'laptop-a123'
+        rclone = self.service.rclone
+
+        def interrupted(*arguments, **kwargs):
+            if arguments[0] == 'moveto':
+                raise module.Offline('Connection dropped')
+            return rclone(*arguments, **kwargs)
+
+        with mock.patch.object(self.service, 'rclone', side_effect=interrupted):
+            with self.assertRaises(module.Offline):
+                self.upload_bundle(name)
+        self.assertFalse((machine / name).exists())
+        parts = list(machine.glob('.part-*'))
+        self.assertEqual(len(parts), 1)
+        self.assertEqual(self.service.timeline_list(str(self.book)), {'machines': {}})
+        self.assertEqual(self.upload_bundle(name), {'uploaded': name})
+        self.assertEqual((machine / name).read_bytes(), b'Local bundle bytes')
+        self.assertEqual(list(machine.glob('.part-*')), parts)
+        self.assertEqual(parts[0].read_bytes(), b'Local bundle bytes')
+
+    def test_upload_requires_matching_drive_checksum(self):
+        self.service.enable(str(self.book))
+        name = '000001 2026-11-16 2140.bundle'
+        machine = self.timeline / 'laptop-a123'
+        rclone = self.service.rclone
+
+        def corrupt_part(*arguments, **kwargs):
+            result = rclone(*arguments, **kwargs)
+            if arguments[0] == 'copyto':
+                next(machine.glob('.part-*')).write_bytes(b'Different bytes')
+            return result
+
+        with mock.patch.object(self.service, 'rclone', side_effect=corrupt_part):
+            with self.assertRaisesRegex(ValueError, 'checksum'):
+                self.upload_bundle(name)
+        self.assertFalse((machine / name).exists())
+
+    def test_upload_refuses_unsafe_names(self):
+        self.service.enable(str(self.book))
+        name = '000001 2026-11-16 2140.bundle'
+        for machine, bundle in (('../outside', name), ('Uppercase', name), ('a' * 65, name),
+                                ('laptop-a123', '../' + name), ('laptop-a123', '1.bundle')):
+            with self.subTest(machine=machine, bundle=bundle):
+                with self.assertRaisesRegex(ValueError, 'name'):
+                    self.upload_bundle(bundle, machine)
+        self.assertEqual(history_files(self.drive), [])
+
+    def test_list_ignores_part_files(self):
+        self.service.enable(str(self.book))
+        self.assertEqual(self.service.timeline_list(str(self.book)), {'machines': {}})
+        machine = self.timeline / 'laptop-a123'
+        machine.mkdir(parents=True)
+        for name in ('000002 2026-11-15 2300.bundle', '000001 2026-11-16 2140.bundle',
+                     '.part-000003 2026-11-17 0200.bundle', '123.bundle'):
+            (machine / name).write_bytes(b'Bundle bytes')
+        parts_only = self.timeline / 'desktop-b234'
+        parts_only.mkdir()
+        (parts_only / '.part-retry').write_bytes(b'Still staging')
+        invalid = self.timeline / 'Invalid'
+        invalid.mkdir()
+        (invalid / '000001 2026-11-16 2140.bundle').write_bytes(b'Bundle bytes')
+        self.assertEqual(self.service.timeline_list(str(self.book)), {'machines': {'laptop-a123': [1, 2]}})
+
+    def test_fetch_copies_every_machine(self):
+        self.service.enable(str(self.book))
+        sources = [
+            ('desktop-b234', 1, '000001 2026-11-18 0200.bundle'),
+            ('laptop-a123', 1, '000001 2026-11-16 2140.bundle'),
+            ('laptop-a123', 2, '000002 2026-11-15 2300.bundle'),
+        ]
+        for machine, _, name in sources:
+            source = self.timeline / machine / name
+            source.parent.mkdir(parents=True, exist_ok=True)
+            source.write_text(f'{machine}/{name}')
+        (self.timeline / 'laptop-a123' / '.part-unused').write_bytes(b'Unfinished')
+        into = self.book.parent / 'bundles'
+        into.mkdir()
+        (into / 'laptop-a123').symlink_to(self.book, target_is_directory=True)
+        result = self.service.timeline_fetch(str(self.book), str(into))
+        self.assertEqual([(b['machine'], b['number']) for b in result['bundles']],
+                         [(machine, number) for machine, number, _ in sources])
+        for entry, (machine, _, name) in zip(result['bundles'], sources):
+            path = Path(entry['path'])
+            self.assertTrue(path.resolve().is_relative_to(into.resolve()))
+            self.assertEqual(path.name, name)
+            self.assertEqual(path.read_text(), f'{machine}/{name}')
+        self.assertEqual(list(self.book.glob('*.bundle')), [])
+
+    def test_fetch_refuses_a_linked_destination(self):
+        self.service.enable(str(self.book))
+        self.upload_bundle('000001 2026-11-16 2140.bundle')
+        into = self.book.parent / 'bundles'
+        into.symlink_to(self.book, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, 'destination'):
+            self.service.timeline_fetch(str(self.book), str(into))
+        self.assertEqual(list(self.book.rglob('*.bundle')), [])
+
+    def test_timeline_requests_use_op_and_the_operation_lock(self):
+        self.service.enable(str(self.book))
+        state = self.service.state
+
+        def call(op, **fields):
+            request = {'op': op, 'project': str(self.book), **fields}
+            stdin = mock.Mock(buffer=io.BytesIO(json.dumps(request).encode()))
+            with mock.patch.object(module.sys, 'stdin', stdin), \
+                    mock.patch('sys.stdout', new_callable=io.StringIO) as stdout:
+                module.main()
+            return json.loads(stdout.getvalue())
+
+        with mock.patch.dict(module.os.environ, {'WROS_SYNC_STATE_DIR': str(state),
+                                               'WROS_BACKUP_STATE_DIR': str(self.service.config.parent)}), \
+                mock.patch.object(module.os, 'geteuid', return_value=1000), \
+                mock.patch.object(module.signal, 'signal'):
+            with (state / 'operation.lock').open('wb') as lock:
+                module.fcntl.flock(lock, module.fcntl.LOCK_EX | module.fcntl.LOCK_NB)
+                with self.assertRaises(BlockingIOError):
+                    call('timeline-list')
+            self.assertEqual(call('timeline-list'), {'ok': True, 'data': {'machines': {}}})
+            bundle = self.book.parent / 'local.bundle'
+            bundle.write_bytes(b'Local bundle bytes')
+            name = '000001 2026-11-16 2140.bundle'
+            self.assertEqual(call('timeline-upload', machine='laptop-a123', bundle=str(bundle), name=name),
+                             {'ok': True, 'data': {'uploaded': name}})
+            reply = call('timeline-fetch', into=str(self.book.parent / 'bundles'))
+            self.assertTrue(reply['ok'])
+            self.assertEqual(len(reply['data']['bundles']), 1)
+            entry = reply['data']['bundles'][0]
+            self.assertEqual((entry['machine'], entry['number']), ('laptop-a123', 1))
+            self.assertEqual(Path(entry['path']).read_bytes(), bundle.read_bytes())
 
     def test_remote_paths_must_stay_inside_the_book(self):
         for path in ('/outside.md', '../outside.md', 'notes/../../outside.md',
@@ -154,6 +338,20 @@ class Sync(unittest.TestCase):
                           for p in self.remote.rglob('*') if p.is_file()}, before)
         self.assertEqual(history_files(self.drive), [])
 
+        home = self.service.state / identity['project_id']
+        scene = 'manuscript/01-Part/01-Scene.md'
+        self.assertEqual(json.loads((home / 'base.json').read_text()), {
+            path: module.digests(self.book / path)[0]
+            for path in (scene, 'notes/ideas.md', 'research/map.bin')
+        })
+
+        revised = 'Opening, revised right after import.\n'
+        (self.book / scene).write_text(revised)
+        result = self.sync()
+        self.assertEqual((result['status'], result['uploaded'], result['parked'], result['pending']),
+                         ('synced', 1, [], []))
+        self.assertEqual((self.remote / scene).read_text(), revised)
+
     def test_missing_drive_checksum_preserves_both_versions_and_reports_the_skip(self):
         self.service.enable(str(self.book))
         self.sync()
@@ -204,6 +402,44 @@ class Sync(unittest.TestCase):
         self.assertFalse((self.remote / 'notes/ideas.md').exists())
         self.assertEqual(len(history_files(self.drive)), 2)
 
+    def test_history_copies_only_without_timeline_entry(self):
+        self.service.enable(str(self.book))
+        self.sync()
+        path = 'notes/ideas.md'
+        local, remote = self.book / path, self.remote / path
+
+        remote.write_text('First phone edit.\n')
+        self.assertEqual(self.sync(timeline=True)['downloaded'], 1)
+        self.assertEqual(local.read_text(), 'First phone edit.\n')
+        self.assertEqual(history_files(self.drive), [])
+
+        remote.write_text('Second phone edit.\n')
+        self.assertEqual(self.sync(timeline=False)['downloaded'], 1)
+        self.assertEqual(local.read_text(), 'Second phone edit.\n')
+        history = history_files(self.drive)
+        self.assertEqual(len(history), 1, history)
+        self.assertEqual((self.drive / 'WrOS-History' / history[0]).read_text(), 'First phone edit.\n')
+
+    def test_reply_lists_changed_files(self):
+        self.service.enable(str(self.book))
+        self.assertEqual(self.sync()['changed'], [])
+        downloaded, added = 'manuscript/01-Part/01-Scene.md', 'notes/new.md'
+        deleted_here, deleted_on_drive = 'notes/ideas.md', 'research/map.bin'
+        (self.remote / downloaded).write_text('Edited on Drive.\n')
+        (self.remote / added).write_text('Added on Drive.\n')
+        (self.book / deleted_here).unlink()
+        (self.remote / deleted_on_drive).unlink()
+        with mock.patch.object(self.service, 'rclone', wraps=self.service.rclone) as rclone:
+            reply = self.sync(timeline=True)
+        self.assertEqual((reply['status'], reply['downloaded'], reply['deleted']), ('synced', 2, 2))
+        self.assertEqual(reply['changed'], [downloaded, added, deleted_on_drive])
+        self.assertFalse((self.book / deleted_on_drive).exists())
+        self.assertFalse((self.remote / deleted_here).exists())
+        self.assertEqual([call.args for call in rclone.call_args_list if call.args[0] == 'deletefile'],
+                         [('deletefile', module.REMOTE + f'WrOS/My Book/{deleted_here}', '--drive-use-trash=true')])
+        self.assertEqual(history_files(self.drive), [])
+        self.assertEqual(self.sync(timeline=True)['changed'], [])
+
     def test_edits_on_both_sides_park_drives_version_and_pause_that_file(self):
         self.service.enable(str(self.book))
         self.sync()
@@ -212,6 +448,7 @@ class Sync(unittest.TestCase):
         (self.remote / scene).write_text('Opening.\n\nMiddle.\n\nEnd, theirs.\n')
         result = self.sync()
         self.assertEqual(result['uploaded'], 0)
+        self.assertEqual(result['changed'], [])
         self.assertEqual(history_files(self.drive), [])
         self.assertEqual(len(result['pending']), 1)
         pending = result['pending'][0]
@@ -390,6 +627,7 @@ class Sync(unittest.TestCase):
         result = self.sync()
         self.assertEqual((self.book / 'notes/ideas.md').read_text(), 'Typed meanwhile.\n')
         self.assertEqual(result['downloaded'], 0)
+        self.assertEqual(result['changed'], [])
         self.assertEqual(result['skipped'], ['notes/ideas.md'])
 
 

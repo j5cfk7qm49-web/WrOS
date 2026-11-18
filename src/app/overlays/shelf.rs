@@ -417,6 +417,9 @@ impl App {
             background: self.background,
         };
         let mut next = App::with(project, setup).map_err(cant)?;
+        if let (Some(next), Some(previous)) = (&mut next.timeline, &self.timeline) {
+            next.carry_notice(previous);
+        }
         if self.import_media.mounted || self.import_media.waiting {
             next.deck.carry_import_worker(&mut self.deck);
         }

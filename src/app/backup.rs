@@ -3,6 +3,10 @@ use super::*;
 use crate::backup_service::{self as service, QueuedBackup, Request, Secret, Status};
 use zeroize::Zeroizing;
 
+pub(super) fn sync_enabled(root: &Path) -> bool {
+    root.join(".grimoire/sync.json").is_file()
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum FormKind {
     NewLocal,
@@ -269,6 +273,8 @@ pub struct SyncState {
     pub saw_dirty: bool,
     /// A final run was requested by the existing close or power save gate.
     leaving: bool,
+    /// Keep an offline reply in mind until the next successful sync.
+    offline: bool,
     /// Files a sync parked Drive's version beside, until they are settled.
     pub pending: Vec<crate::sync_service::Pending>,
     /// Parked copies already announced as needing a merge.
@@ -631,9 +637,10 @@ impl App {
     }
     /// Sync is on for the open book once `wros-sync enable` recorded its identity.
     pub(crate) fn sync_enabled(&self) -> bool {
-        self.project.root.join(".grimoire/sync.json").is_file()
+        sync_enabled(&self.project.root)
     }
-    pub(crate) fn request_sync(&mut self, request: crate::sync_service::Request) {
+    fn request_sync(&mut self, request: crate::sync_service::Request, leaving: bool) {
+        use crate::sync_service::Request as Sync;
         let sync = &mut self.deck.shell.backup.sync;
         if sync.job.is_some() {
             return;
@@ -644,7 +651,41 @@ impl App {
             ));
             return;
         };
-        match crate::sync_service::spawn(request.clone(), script, sync.env.clone()) {
+        let env = sync.env.clone();
+        let job = match (&request, &self.timeline) {
+            (
+                Sync::Sync {
+                    project,
+                    allow_deletes,
+                },
+                Some(timeline),
+            ) if leaving => {
+                // A final sync can wait on its worker while the app handles leaving or locking.
+                let checkpoint = timeline.queue_checkpoint(Entry::Save, timeline::CHECKPOINT_WAIT);
+                let (project, allow_deletes) = (project.clone(), *allow_deletes);
+                crate::sync_service::spawn_after(
+                    move || Sync::sync(project, allow_deletes, checkpoint.wait()),
+                    script,
+                    env,
+                )
+            }
+            (
+                Sync::Sync {
+                    project,
+                    allow_deletes,
+                },
+                Some(timeline),
+            ) => {
+                let recorded = timeline.record_now(Entry::Save, timeline::CHECKPOINT_WAIT);
+                crate::sync_service::spawn(
+                    Sync::sync(project.clone(), *allow_deletes, recorded),
+                    script,
+                    env,
+                )
+            }
+            _ => crate::sync_service::spawn(request.clone(), script, env),
+        };
+        match job {
             Ok(job) => {
                 sync.job = Some(job);
                 sync.running = Some(request);
@@ -653,28 +694,35 @@ impl App {
         }
     }
     pub(crate) fn request_sync_run(&mut self, allow_deletes: bool) {
+        self.request_sync_run_inner(allow_deletes, false);
+    }
+    fn request_sync_run_inner(&mut self, allow_deletes: bool, leaving: bool) {
         if self.deck.shell.backup.sync.job.is_some() {
             return;
         }
         self.deck.shell.backup.sync.start(std::time::Instant::now());
         let project = self.project.root.to_string_lossy().into_owned();
-        self.request_sync(crate::sync_service::Request::Sync {
-            project,
-            allow_deletes,
-        });
+        self.request_sync(
+            crate::sync_service::Request::Sync {
+                project,
+                allow_deletes,
+            },
+            leaving,
+        );
     }
     pub(crate) fn request_sync_switch(&mut self, on: bool) {
         let project = self.project.root.to_string_lossy().into_owned();
-        self.request_sync(if on {
+        let request = if on {
             crate::sync_service::Request::Enable { project }
         } else {
             crate::sync_service::Request::Disable { project }
-        });
+        };
+        self.request_sync(request, false);
     }
     /// Start one last sync without waiting for it (before sleep: a lock never waits).
     pub(crate) fn start_final_sync(&mut self) {
         if self.sync_enabled() && self.deck.shell.backup.sync.job.is_none() {
-            self.request_sync_run(false);
+            self.request_sync_run_inner(false, true);
         }
     }
 
@@ -690,7 +738,7 @@ impl App {
             if std::mem::take(&mut sync.leaving) {
                 return true;
             }
-            self.request_sync_run(false);
+            self.request_sync_run_inner(false, true);
             self.deck.shell.backup.sync.leaving = true;
             if self.deck.shell.backup.sync.job.is_none() {
                 return true;
@@ -731,6 +779,7 @@ impl App {
                 (Some(Sync::Enable { .. }), Ok(_)) => self.request_sync_run(false),
                 (Some(Sync::Disable { .. }), result) => {
                     sync.next = None;
+                    sync.offline = false;
                     sync.last = Some(result);
                 }
                 (_, result) => {
@@ -739,6 +788,17 @@ impl App {
                         sync.pending = reply.pending.clone();
                         if reply.downloaded + reply.deleted > 0 || !reply.pending.is_empty() {
                             self.tree_stale = true;
+                        }
+                        if let Some(timeline) = &self.timeline {
+                            sync.offline |= reply.status == "offline";
+                            if !reply.changed.is_empty() {
+                                timeline.record(Entry::ChangedOnDrive(reply.changed.clone()));
+                            }
+                            let reconnected =
+                                reply.status == "synced" && std::mem::take(&mut sync.offline);
+                            if reconnected && enabled {
+                                timeline.upload();
+                            }
                         }
                     }
                     let synced = matches!(&result, Ok(reply) if reply.status == "synced");

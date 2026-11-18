@@ -49,7 +49,7 @@ The mouse works everywhere on the bar: click a menu to open it, move across the 
 - **Restore from the Trash** (`u`): with something in the Trash selected.
 - **Move up** (`K`) and **Move down** (`J`): you can also drag rows with the mouse.
 - **Scene details…**: status, POV, synopsis, word target, and whether it goes in exports. See *The outline*.
-- **Scene history…** (`H`): every saved version of the scene. See *History & recovery*.
+- **Scene history…** (`H`): the scene's versions from the timeline and saved copies. See *History & recovery*.
 - **Goals…**: how many words the book is aiming for, and each day.
 
 ## Tools

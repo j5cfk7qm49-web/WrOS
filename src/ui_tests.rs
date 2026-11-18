@@ -2965,6 +2965,12 @@ elif operation == 'drive-materialize':
              google_connected=True, snapshots=[], notice='Checked.')}
 elif operation == 'enable':
     reply = {'ok': True, 'data': {'status': 'enabled'}}
+elif operation == 'sync':
+    (here / 'sync-started').touch()
+    while (here / 'pause-sync').exists():
+        time.sleep(0.01)
+    status = 'offline' if (here / 'fail-sync').exists() else 'synced'
+    reply = {'ok': True, 'data': {'status': status}}
 else:
     raise RuntimeError(operation)
 print(json.dumps(reply))
@@ -3092,7 +3098,7 @@ fn a_synced_drive_book_imports_with_its_sync_identity() {
     )
     .unwrap();
     let before = import_snapshot(&source);
-    let mut d = Desk::open(first, 80, 24);
+    let mut d = Desk::open(first.clone(), 80, 24);
     let stub = drive_import_stub(&mut d, &source, true);
     // A synced child beyond the listing's 50 marker reads still keeps its identity.
     let listing = stub.join("listing.json");
@@ -3109,8 +3115,22 @@ fn a_synced_drive_book_imports_with_its_sync_identity() {
     wait_drive_listing(&mut d);
     assert!(d.shows("book · synced"));
     assert!(!d.shows("Up one folder"));
+    fs::write(stub.join("pause-sync"), "").unwrap();
     d.choose("Clip says Hello World.");
     assert!(d.shows_wrapped("Copying Clip says Hello World. from Google Drive…"));
+    let started = stub.join("sync-started");
+    let end = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while !started.exists() && std::time::Instant::now() < end {
+        d.app.tick_import();
+        d.draw();
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert!(started.exists(), "{}", d.rows().join("\n"));
+    d.app.tick_import();
+    d.draw();
+    assert!(d.shows_wrapped("Linking the book with Google Drive…"));
+    assert_eq!(d.app.project.root, fs::canonicalize(&first).unwrap());
+    fs::remove_file(stub.join("pause-sync")).unwrap();
     wait_import(&mut d);
     let dest = crate::books::documents().join("Clip says Hello World.");
     let identity: serde_json::Value =
@@ -3141,21 +3161,59 @@ fn a_synced_drive_book_imports_with_its_sync_identity() {
         .unwrap()
         .unwrap();
     let log = drive_import_log(&stub);
+    assert_eq!(log.len(), 4);
     assert_eq!(log[0]["operation"], "drive-books");
     assert_eq!(log[0]["folder"], "drive:WrOS");
     assert_eq!(log[1]["operation"], "drive-materialize");
     assert_eq!(log[1]["remote"], "drive:WrOS/Clip says Hello World.");
     assert_eq!(log[1]["destination"], dest.to_string_lossy().as_ref());
-    assert_eq!(log[2]["operation"], "enable");
-    assert_eq!(log[2]["identity"], identity);
     assert_eq!(
-        log[2]["project"],
+        log[2],
+        serde_json::json!({
+            "operation": "sync", "project": dest.to_string_lossy(),
+            "allow_deletes": false, "timeline": false
+        })
+    );
+    assert_eq!(log[3]["operation"], "enable");
+    assert_eq!(log[3]["identity"], identity);
+    assert_eq!(
+        log[3]["project"],
         d.app.project.root.to_string_lossy().as_ref()
     );
     assert_eq!(import_snapshot(&source), before);
     for (path, bytes) in before {
         assert_eq!(fs::read(dest.join(path)).unwrap(), bytes);
     }
+}
+
+#[test]
+fn a_failed_first_sync_opens_the_imported_book_with_a_notice() {
+    if !shelf_home("a_failed_first_sync_opens_the_imported_book_with_a_notice") {
+        return;
+    }
+    let first = import_fixture("Documents/Open", "Local words.\n");
+    let source = import_fixture("Remote/Clip says Hello World.", "Drive words.\n");
+    fs::write(
+        source.join(".wros-sync.json"),
+        r#"{"version":1,"project_id":"12345678-1234-4234-8234-123456789abc"}"#,
+    )
+    .unwrap();
+    let mut d = Desk::open(first, 80, 24);
+    let stub = drive_import_stub(&mut d, &source, true);
+    fs::write(stub.join("fail-sync"), "").unwrap();
+    drive_import(&mut d);
+    wait_drive_listing(&mut d);
+    d.choose("Clip says Hello World.");
+    wait_import(&mut d);
+    let dest = crate::books::documents().join("Clip says Hello World.");
+    assert_eq!(d.app.project.root, fs::canonicalize(&dest).unwrap());
+    assert!(d.app.sync_enabled());
+    let notice = "The first sync didn't finish; it runs again when the book is open.";
+    assert_eq!(d.app.msg.matches(notice).count(), 1);
+    assert!(matches!(
+        d.app.deck.shell.backup.sync.running,
+        Some(crate::sync_service::Request::Enable { .. })
+    ));
 }
 
 #[test]
@@ -3244,10 +3302,37 @@ fn drive_import_without_a_marker_and_keep_both_leave_sync_off() {
         assert!(
             !drive_import_log(&stub)
                 .iter()
-                .any(|r| r["operation"] == "enable")
+                .any(|r| matches!(r["operation"].as_str(), Some("enable" | "sync")))
         );
         fs::remove_dir_all(&dest).unwrap();
     }
+}
+
+#[test]
+fn merging_a_drive_book_skips_the_first_sync() {
+    if !shelf_home("merging_a_drive_book_skips_the_first_sync") {
+        return;
+    }
+    let first = import_fixture("Documents/Open", "Open words.\n");
+    let local = import_fixture("Documents/Clip says Hello World.", "Local words.\n");
+    let source = import_fixture("Remote/Clip says Hello World.", "Drive words.\n");
+    fs::write(
+        source.join(".wros-sync.json"),
+        r#"{"version":1,"project_id":"12345678-1234-4234-8234-123456789abc"}"#,
+    )
+    .unwrap();
+    let mut d = Desk::open(first, 80, 24);
+    let stub = drive_import_stub(&mut d, &source, true);
+    drive_import(&mut d);
+    wait_drive_listing(&mut d);
+    d.choose("Clip says Hello World.");
+    d.choose("Merge");
+    wait_import(&mut d);
+    assert_eq!(d.app.project.root, fs::canonicalize(&local).unwrap());
+    assert!(matches!(d.app.overlay, Overlay::Conflicts { .. }));
+    let log = drive_import_log(&stub);
+    assert_eq!(log.len(), 2);
+    assert_eq!(log[1]["operation"], "drive-materialize");
 }
 
 #[test]

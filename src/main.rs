@@ -323,6 +323,10 @@ fn main() -> Result<()> {
     let _ = execute!(std::io::stdout(), PopKeyboardEnhancementFlags);
     let _ = display::suspend(&mut terminal);
     ratatui::restore();
+    // Queued work needs to drain before the process exits, after the UI closes.
+    if let Some(timeline) = app.timeline.take() {
+        timeline.finish();
+    }
     if res.is_ok() && RESTART_APP.load(std::sync::atomic::Ordering::SeqCst) {
         return restart_app();
     }

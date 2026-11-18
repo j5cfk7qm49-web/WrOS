@@ -2,11 +2,15 @@
 
 use super::*;
 use crate::backup_service::{self as service, DriveBooks, Job, Progress, Request, Status};
+use crate::sync_service;
 use grimoire_core::book_copy::{self, MergeReport};
 use grimoire_core::import;
 use grimoire_core::shelf::{free_destination, project_id_of, same_book, title_of};
 use std::sync::mpsc::TryRecvError;
 use wros_sys::{ImportStick, Request as SystemRequest};
+
+const HISTORY_PROGRESS: &str = "Bringing in the book's history…";
+const SYNC_PROGRESS: &str = "Linking the book with Google Drive…";
 
 #[derive(Default)]
 pub(crate) struct ImportMedia {
@@ -70,6 +74,8 @@ pub(crate) struct ImportDone {
     path: PathBuf,
     merge: Option<MergeReport>,
     sync: bool,
+    sync_failed: bool,
+    history_notice: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -249,6 +255,10 @@ fn import_error(incoming: &Incoming, error: anyhow::Error) -> String {
     } else {
         format!("Book import failed: {error:#}")
     }
+}
+
+fn finishing_drive_import(job: &Job<ImportDone>) -> bool {
+    job.phase_is(SYNC_PROGRESS) || job.phase_is(HISTORY_PROGRESS)
 }
 
 impl App {
@@ -505,6 +515,9 @@ impl App {
                 }
             }
             ImportStage::Copying { job, .. } => {
+                if finishing_drive_import(job) {
+                    return;
+                }
                 if state.sel == 4 {
                     state.sel = 0;
                 }
@@ -657,6 +670,8 @@ impl App {
         let backup = &self.deck.shell.backup;
         let state = backup.state.clone();
         let script = backup.script.clone();
+        let sync_script = backup.sync.script.clone();
+        let sync_env = backup.sync.env.clone();
         let work = service::spawn_work("import", move |cancel, shared| {
             let run = || -> anyhow::Result<ImportDone> {
                 let drive = incoming.source == ImportSource::Drive;
@@ -772,7 +787,10 @@ impl App {
                             fs::remove_file(identity)?;
                         }
                     }
-                    match how {
+                    // Drive's history is brought in only for a book that is new on this laptop:
+                    // merging into a book already here keeps that book's own timeline.
+                    let fresh = !matches!(how, How::Merge(_));
+                    let (path, merge) = match how {
                         How::New | How::KeepBoth => {
                             let path = if drive {
                                 source.to_path_buf()
@@ -782,11 +800,7 @@ impl App {
                                 drop_sync_identity(&path)?;
                                 path
                             };
-                            Ok(ImportDone {
-                                path,
-                                merge: None,
-                                sync,
-                            })
+                            (path, None)
                         }
                         How::Replace(path) => {
                             let replaced = book_copy::replace_with_copy(
@@ -800,11 +814,7 @@ impl App {
                                 drop_sync_identity(&path)?;
                             }
                             settle_replaced_identity(&path, &replaced)?;
-                            Ok(ImportDone {
-                                path,
-                                merge: None,
-                                sync,
-                            })
+                            (path, None)
                         }
                         How::Merge(path) => {
                             let report = book_copy::merge_into(
@@ -814,13 +824,47 @@ impl App {
                                 now,
                                 cancel,
                             )?;
-                            Ok(ImportDone {
-                                path,
-                                merge: Some(report),
-                                sync: false,
-                            })
+                            (path, Some(report))
                         }
-                    }
+                    };
+                    let show_phase = |phase: &str| {
+                        if let Ok(mut shared) = shared.lock() {
+                            *shared = Some(Progress {
+                                phase: phase.into(),
+                                percent: None,
+                                offer: None,
+                            });
+                        }
+                    };
+                    let sync_failed = if sync && fresh {
+                        show_phase(SYNC_PROGRESS);
+                        // Adopt the checked files as a sync base before the writer can edit them.
+                        let project = path.to_string_lossy().into_owned();
+                        let request = sync_service::Request::sync(project, false, false);
+                        !sync_service::run_blocking::<sync_service::Reply>(
+                            &request,
+                            sync_script,
+                            &sync_env,
+                            cancel,
+                        )
+                        .is_ok_and(|reply| reply.status == "synced")
+                    } else {
+                        false
+                    };
+                    // Only this source's marker can identify the right Drive history.
+                    let history_notice = if sync && fresh && crate::installed_session() {
+                        show_phase(HISTORY_PROGRESS);
+                        timeline::import_history(&path, sync_service::run_timeline)
+                    } else {
+                        None
+                    };
+                    Ok(ImportDone {
+                        path,
+                        merge,
+                        sync,
+                        sync_failed,
+                        history_notice,
+                    })
                 };
                 let result = copy();
                 if result.is_err()
@@ -929,6 +973,9 @@ impl App {
             state.sel = 0;
             return;
         }
+        if finishing_drive_import(job) {
+            state.sel = 0;
+        }
         // A result must not dismiss the writer's cancellation question.
         if matches!(state.sel, 1 | 2) {
             return;
@@ -945,35 +992,40 @@ impl App {
         match result {
             Ok(done) => {
                 self.shelf_cache.take();
-                let mut text = format!(
-                    "Copied to {} and checked. Opening it.",
-                    books::pretty(&done.path)
-                );
-                if let Some(report) = &done.merge
-                    && !report.kept_local.is_empty()
-                {
-                    let kept: Vec<String> = report
-                        .kept_local
-                        .iter()
-                        .map(|path| path.to_string_lossy().into_owned())
-                        .collect();
-                    text = format!("Kept local: {}. {text}", kept.join(", "));
-                }
-                if self.open_book(&done.path) {
+                let mut text = format!("Copied to {} and checked.", books::pretty(&done.path));
+                let opened = self.open_book(&done.path);
+                if opened {
+                    if let Some(report) = &done.merge
+                        && !report.kept_local.is_empty()
+                    {
+                        let kept: Vec<String> = report
+                            .kept_local
+                            .iter()
+                            .map(|path| path.to_string_lossy().into_owned())
+                            .collect();
+                        text = format!("Kept local: {}. {text}", kept.join(", "));
+                    }
+                    text.push_str(" Opening it.");
                     if done.sync {
                         self.request_sync_switch(true);
                     }
-                    self.import_done(text.clone());
-                    if done.merge.is_some() {
-                        self.open_conflicts();
-                        self.msg = text;
-                    }
                 } else {
-                    self.import_done(format!(
-                        "Copied to {} and checked. {}",
-                        books::pretty(&done.path),
-                        self.msg
-                    ));
+                    text.push(' ');
+                    text.push_str(&self.msg);
+                }
+                if done.sync_failed {
+                    text.push_str(
+                        " The first sync didn't finish; it runs again when the book is open.",
+                    );
+                }
+                if let Some(notice) = done.history_notice {
+                    text.push(' ');
+                    text.push_str(&notice);
+                }
+                self.import_done(text.clone());
+                if opened && done.merge.is_some() {
+                    self.open_conflicts();
+                    self.msg = text;
                 }
             }
             // The writer chose Stop copying: the copy's own error is no news to them.
@@ -1090,7 +1142,9 @@ pub(super) fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             say(what.clone());
             say(job.status_line());
             hint = " esc stop copying";
-            if matches!(state.sel, 1 | 2) {
+            if finishing_drive_import(job) {
+                hint = " please wait";
+            } else if matches!(state.sel, 1 | 2) {
                 say("Stop copying? Nothing will be kept.".into());
                 rows = vec!["Keep copying".into(), "Stop copying".into()];
                 sel = state.sel - 1;

@@ -3,7 +3,7 @@
 ## Five distinct guarantees
 
 1. **Local saving:** existing atomic guarded manuscript saves; works offline.
-2. **Local history/recovery:** existing dated copies, Git writing sessions and crash/failed-save rescue. Valuable, but vulnerable to loss of the same device.
+2. **History and recovery.** WrOS keeps a local Git timeline for every book and sends it to Drive for books that sync. Dated scene copies and crash/failed-save rescue remain available locally.
 3. **Off-device backup:** versioned, verified copies with a tested restore. Existing optional Git remote push is not a new Google Drive backup service.
 4. **Bidirectional sync:** compare versions, detect conflicts and preserve both sides. A simple upload/copy command is not this protocol.
 5. **Google Docs interoperability:** a separate import/export/round-trip question, not implied by storing Markdown files in Drive.
@@ -45,9 +45,10 @@ of writing. Forced process termination cannot wait for a final sync.
   records the version both sides last agreed on, by MD5. A file changed on one side is
   copied to the other; the first sync of a book never deletes.
 - **History.** Uploads update the existing Drive file so its revisions accumulate
-  in Drive's version history (Manage versions on drive.google.com). Local replacements
-  and deletions, and remote deletions, still keep copies in
-  `WrOS-History/<book>/<date>/<path> (<time> from WrOS|from Drive)` in Drive.
+  in Drive's version history (Manage versions on drive.google.com). WrOS normally
+  stops making dated copies in `WrOS-History/<book>/<date>/`. If it cannot record
+  the timeline before sync, it still makes a dated copy before replacing or deleting
+  a local file. Drive's trash handles remote deletions.
 - **Conflicts.** A file changed on both sides keeps the WrOS version in place and
   parks Drive's as `<name> (from Drive, <date> <time>).md` beside it; that file pauses
   until merged. Edits to different paragraphs merge by themselves; where both sides
@@ -60,6 +61,24 @@ of writing. Forced process termination cannot wait for a final sync.
 The book's identity is `.grimoire/sync.json` plus a `.wros-sync.json` marker in the Drive
 folder, so a second computer can join the same folder later. Encrypted backups are
 unchanged and remain the recovery path.
+
+## Book timeline
+
+On WrOS, every book keeps a Git timeline of small saves, marked writing sessions
+and changes brought in from Drive. The local repository lives in
+`~/.local/share/grimoire/sessions/<book-id>.git`. Scene history (`H` in the outline)
+lists the scene's timeline versions and saved copies.
+
+When sync is enabled, WrOS uploads append-only Git bundles to
+`WrOS-History/<book>/timeline/<machine>/` at the end of a session, hourly during
+long sessions and on reconnect. The bundles include the journal, productivity
+figures and review notes in plaintext, like the book. Importing a synced book
+from Drive rebuilds its local timeline. If Drive loses bundles, the laptop can
+upload a full one. Any Git client can read the timeline. Use
+`git clone "<file>.bundle"` for a full bundle and fetch incremental bundles in
+order into a repository with the earlier history.
+
+Outside WrOS, Writing sessions remains opt-in and local.
 
 ## Mobile and Google Docs evaluation
 

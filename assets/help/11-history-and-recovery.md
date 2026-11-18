@@ -8,13 +8,13 @@ Every scene is saved two seconds after you stop typing, and never waits longer t
 
 ## History
 
-Every scene keeps dated copies of itself as you work: at most one every five minutes, plus how it was before this session's first change and before anything drastic (a replace across the book, restoring an old version).
+On WrOS, every book keeps a timeline of small saves, writing sessions and changes from Drive. Scene history shows the scene's timeline versions newest first, with labels and dividers for marked sessions. For a book that syncs, importing it from Drive brings its timeline back. See *Writing sessions* for where the timeline is kept and what goes to Drive.
 
 - `H` in the outline (or *Scene history* in `Ctrl-K`) shows the scene's history. `↑` `↓` choose a version and the pane shows what's different from now.
 - `PgUp` `PgDn` or `Space` scroll the differences.
 - `Enter` restores that version. Restoring is itself undoable, and today's words go into the history first.
 
-The copies live in `.grimoire/history/`, as plain Markdown.
+Older plain Markdown copies in `.grimoire/history/` appear below the timeline. A copy from before the first change in a sitting is still kept there, and if the timeline is unavailable you can use the saved copies. Outside WrOS, scene history still keeps dated copies as you work, before the first change of a session and before a restore or a replace across the book.
 
 ## Recovery
 

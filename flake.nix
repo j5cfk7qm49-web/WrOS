@@ -126,6 +126,7 @@
         live-graphical = vmTest ./nixos/tests/live-graphical.nix;
         unlock-waits = vmTest ./nixos/tests/unlock-waits.nix;
         import-book = vmTest ./nixos/tests/import-book.nix;
+        book-timeline = vmTest ./nixos/tests/book-timeline.nix;
         helpers-no-fhs = vmTest ./nixos/tests/helpers-no-fhs.nix;
         rust-suite = wrosPkgs.rust-suite;
         rust-suite-no-audio = wrosPkgs.rust-suite-no-audio;

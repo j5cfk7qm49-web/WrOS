@@ -1,10 +1,10 @@
 # Writing sessions
 
-Writing sessions keep a snapshot of the book each time you sit down to write, labelled like a diary — *Tuesday evening · Act Two · 1,240 words* — so you can see what changed in any sitting. It needs Git installed.
+Writing sessions mark your sittings like a diary — *Tuesday evening · Act Two · 1,240 words* — so you can see what changed each time you sat down.
 
-## Turning it on
+## On WrOS
 
-*Writing sessions* in `Ctrl-K` offers to turn it on for this book (`y`). From then on, each session is kept when you quit, or straight away with *Save this session now*.
+Every book keeps a timeline of small saves, writing sessions and changes that come in from Drive. It's on from the first time you open the book. `H` in the outline shows the selected scene's versions. *Save this session now* marks a sitting whenever you like.
 
 ## Looking back
 
@@ -15,10 +15,14 @@ Writing sessions keep a snapshot of the book each time you sit down to write, la
 
 ## Where it's kept
 
-The history is kept on **this computer**, outside the book's folder, where no sync service can damage it: in WrOS's data folder (`~/.local/share/grimoire` on Linux, `~/Library/Application Support/grimoire` on a Mac, `%APPDATA%\grimoire` on Windows). Each computer keeps its own.
+WrOS keeps the timeline on **this laptop**, in `~/.local/share/grimoire/sessions/`. When a book syncs with Google Drive, WrOS also sends Git bundles to `WrOS-History/<book>/timeline/`. Importing the book from Drive brings those versions back. Any Git client can read the timeline. To open a full bundle, use `git clone "<file>.bundle"`. Later bundles may need the earlier ones.
 
-Writing sessions stay local. A configured Git remote does not cause WrOS to push them on startup, save, quit or restart. Adding a remote is not consent to upload your manuscript. Local history is not an independent backup; verified encrypted backups and restore are available in Settings › Backups and accounts › Backups.
+Your journal, productivity figures and review notes go to Drive with the timeline, in plaintext like your book. Normal sync no longer makes dated copies in `WrOS-History/<book>/<date>/`. If a timeline save fails before sync, WrOS still keeps a dated copy of a local file it replaces or removes. Encrypted backups and restore are available in Settings › Backups and accounts › Backups.
+
+## Outside WrOS
+
+Writing sessions work as before and need Git installed. *Writing sessions* in `Ctrl-K` offers to turn them on for this book (`y`). Each session is kept when you quit or use *Save this session now*. History stays on this computer, outside the book's folder, in Grimoire's data folder (`~/.local/share/grimoire` on Linux, `~/Library/Application Support/grimoire` on a Mac, `%APPDATA%\grimoire` on Windows). Grimoire never pushes it automatically.
 
 ## Older books
 
-A book from an earlier version may keep its history in a `.git` folder inside the book. That keeps working — but if the book is in a sync service, *File* offers **Move writing history out…** (in `Ctrl-K`, *Move writing history out of the synced folder*), which copies it to the data folder, checks the copy, and moves the old one to the Trash. Your scenes are never touched.
+On WrOS, existing writing history becomes the start of the timeline. Outside WrOS, a book from an earlier version may still keep its history in a `.git` folder inside the book. *File* offers **Move writing history out…** (in `Ctrl-K`, *Move writing history out of the synced folder*), which copies it to the data folder, checks the copy, and moves the old one to the Trash. Your scenes are never touched.

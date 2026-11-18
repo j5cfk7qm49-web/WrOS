@@ -3,7 +3,138 @@ use app::{continuity::Page as CPage, milestones::Page as MPage};
 use grimoire_core::{
     milestones::{MilestoneStore, VariantStore},
     review_notes::ReviewNotes,
+    timeline::SceneVersion,
 };
+use std::sync::mpsc;
+
+fn history_desk(tag: &str, w: u16, h: u16) -> Desk {
+    let root = book(tag, true);
+    fs::write(first_scene(&root), "The current scene has several words.\n").unwrap();
+    let mut d = Desk::open(root, w, h);
+    d.app.focus = d.app.editor_focus();
+    d
+}
+
+fn pending_scene_history(d: &mut Desk) -> mpsc::Sender<Option<Vec<SceneVersion>>> {
+    let scene = d.app.project.nodes[d.app.open.unwrap()].path.clone();
+    grimoire_core::history::snapshot(&d.root, &scene, "A saved copy.\n", None).unwrap();
+    d.app.open_history();
+    let (done, result) = mpsc::channel();
+    let Overlay::History { timeline, .. } = &mut d.app.overlay else {
+        panic!("expected scene history");
+    };
+    *timeline = app::HistoryTimeline::Reading(result.into());
+    d.draw();
+    done
+}
+
+fn timeline_version(
+    label: &str,
+    session: &str,
+    text: &str,
+    when: chrono::DateTime<chrono::Local>,
+) -> SceneVersion {
+    SceneVersion {
+        hash: String::new(),
+        when,
+        label: label.into(),
+        session: Some(session.into()),
+        text: text.into(),
+    }
+}
+
+#[test]
+fn history_lists_timeline_then_plain_copies_with_dividers() {
+    let mut d = history_desk("timeline-history-list", 100, 30);
+    let done = pending_scene_history(&mut d);
+    assert!(d.shows("Reading the timeline…"));
+    // The diff pane interleaves old and new words, so the saved copy shows as its row.
+    assert!(d.shows("words shorter"), "{}", d.rows().join("\n"));
+    assert_eq!(selected_text(&d), "A saved copy.\n");
+
+    let now = chrono::Local::now();
+    done.send(Some(vec![
+        timeline_version("minor fix", "Evening session", "Newest words.\n", now),
+        timeline_version(
+            "Changed on Drive: a.md",
+            "Morning session",
+            "Older words.\n",
+            now - chrono::Duration::hours(8),
+        ),
+    ]))
+    .unwrap();
+    d.app.tick_deck();
+    d.draw();
+
+    let rows = d.rows();
+    let row = |text: &str| {
+        rows.iter()
+            .position(|row| row.chars().take(55).collect::<String>().contains(text))
+            .unwrap()
+    };
+    let morning = row("Morning session");
+    let evening = row("Evening session");
+    assert!(evening < row("minor fix") && row("minor fix") < morning);
+    assert!(morning < row("Changed on Drive: a.md"));
+    assert!(row("Changed on Drive: a.md") < row("words shorter"));
+    assert!(rows[row("minor fix")].contains(&now.format("%H:%M").to_string()));
+    assert!(d.shows("3 versions"));
+    assert_eq!(selected_text(&d), "Newest words.\n");
+    d.key(KeyCode::Down);
+    assert_eq!(selected_text(&d), "Older words.\n");
+    d.key(KeyCode::Down);
+    assert_eq!(selected_text(&d), "A saved copy.\n");
+    d.key(KeyCode::Up);
+    assert_eq!(selected_text(&d), "Older words.\n");
+}
+
+/// The text of the version picked in scene history.
+fn selected_text(d: &Desk) -> String {
+    let Overlay::History { versions, sel, .. } = &d.app.overlay else {
+        panic!("expected scene history");
+    };
+    match &versions[*sel] {
+        app::HistoryItem::Version { text, .. } => text.clone(),
+        other => panic!("a divider is selected: {other:?}"),
+    }
+}
+
+#[test]
+fn history_says_when_the_timeline_is_unavailable() {
+    let mut d = history_desk("timeline-history-unavailable", 80, 24);
+    let done = pending_scene_history(&mut d);
+    done.send(None).unwrap();
+    d.app.tick_deck();
+    d.draw();
+    assert!(d.shows("Timeline unavailable; showing saved copies."));
+    assert!(d.shows("1 version"));
+    assert!(!d.shows("Reading the timeline…"));
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.editor.text(), "A saved copy.\n");
+}
+
+#[test]
+fn restore_from_a_timeline_version() {
+    let mut d = history_desk("timeline-history-restore", 100, 30);
+    let current = d.app.editor.text();
+    let done = pending_scene_history(&mut d);
+    let restored = "Recover these timeline words.\n";
+    done.send(Some(vec![timeline_version(
+        "small change",
+        "Saturday morning",
+        restored,
+        chrono::Local::now(),
+    )]))
+    .unwrap();
+    d.app.tick_deck();
+    d.draw();
+    assert_eq!(selected_text(&d), restored);
+    d.key(KeyCode::Enter);
+    assert_eq!(d.app.overlay, Overlay::None);
+    assert_eq!(d.app.editor.text(), restored);
+    d.ctrl('z');
+    assert_eq!(d.app.editor.text(), current);
+}
 
 #[test]
 fn argon_variant_restore_and_chapter_queue_use_original_source_and_existing_voice() {

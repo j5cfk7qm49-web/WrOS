@@ -5,6 +5,8 @@ use ratatui::layout::Rect;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
+use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use crate::books;
@@ -29,6 +31,7 @@ use grimoire_core::sessions;
 use grimoire_core::settings::Settings;
 use grimoire_core::shelf::ShelfBook;
 use grimoire_core::spell;
+use grimoire_core::timeline::Entry;
 
 mod aids;
 pub(crate) mod backup;
@@ -45,6 +48,7 @@ pub(crate) mod prose_dashboard;
 pub(crate) mod review_notes;
 pub(crate) mod shell;
 pub(crate) mod spark;
+mod timeline;
 pub(crate) mod workflow;
 pub(crate) mod wros;
 pub use aids::{MarkRow, Sprint, filter_marks as aids_filter};
@@ -327,6 +331,7 @@ pub struct App {
     last_resume: Option<(PathBuf, usize)>,
     /// Session history is on for this book (checked once at launch).
     pub sessions_on: bool,
+    pub(crate) timeline: Option<timeline::Timeline>,
     /// A PDF being made from the manuscript, off the main thread.
     /// PDFs being made off the main thread by LibreOffice: which one ("PDF",
     /// "paperback PDF") and how it went, one message each.
@@ -509,6 +514,37 @@ pub enum ShelfRow {
     Book(ShelfBook, bool),
     Import,
     NewBook,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum HistoryItem {
+    Version {
+        when: chrono::DateTime<chrono::Local>,
+        label: Option<String>,
+        text: String,
+        from_timeline: bool,
+    },
+    Session(String),
+}
+
+#[derive(Debug, Clone)]
+pub enum HistoryTimeline {
+    Off,
+    Reading(Rc<mpsc::Receiver<timeline::SceneVersions>>),
+    Ready,
+    Unavailable,
+}
+
+impl PartialEq for HistoryTimeline {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Reading(a), Self::Reading(b)) => Rc::ptr_eq(a, b),
+            (Self::Off, Self::Off)
+            | (Self::Ready, Self::Ready)
+            | (Self::Unavailable, Self::Unavailable) => true,
+            _ => false,
+        }
+    }
 }
 
 /// Modal state. Only one can be up at a time.
@@ -818,7 +854,8 @@ pub enum Overlay {
     History {
         scene: PathBuf,
         title: String,
-        versions: Vec<history::Version>,
+        versions: Vec<HistoryItem>,
+        timeline: HistoryTimeline,
         sel: usize,
         scroll: usize,
     },
@@ -1028,6 +1065,7 @@ impl App {
             manual_scroll: false,
             last_resume: None,
             sessions_on: false,
+            timeline: None,
             pdf_job: None,
             footnote_export_pending: None,
             office: None,
@@ -1058,9 +1096,13 @@ impl App {
                 app.load_speller();
             }
             app.rebuild_codex();
-            app.sessions_on = setup.background
-                && sessions::git_available()
-                && sessions::is_enabled(&app.project.root);
+            if setup.background && sessions::git_available() {
+                if crate::installed_session() {
+                    app.timeline = Some(timeline::Timeline::start(app.project.root.clone()));
+                } else {
+                    app.sessions_on = sessions::is_enabled(&app.project.root);
+                }
+            }
             let items = recovery::pending(&app.project);
             if !items.is_empty() {
                 app.overlay = Overlay::Recover { items, sel: 0 };
@@ -1113,7 +1155,7 @@ impl App {
     pub(crate) fn note_where_it_syncs(&mut self, announce: bool) {
         let root = self.project.root.clone();
         self.cloud = grimoire_core::cloud::detect(&root);
-        self.history_in_book = sessions::history_in_book(&root);
+        self.history_in_book = self.timeline.is_none() && sessions::history_in_book(&root);
         let Some(client) = self.cloud.filter(|_| announce) else {
             return;
         };
@@ -1134,6 +1176,9 @@ impl App {
     }
 
     fn move_history_out(&mut self) {
+        if self.timeline.is_some() {
+            return;
+        }
         let root = self.project.root.clone();
         match sessions::move_history_out(&root) {
             Ok(dir) => {
@@ -1383,6 +1428,10 @@ impl App {
     /// the words go to recovery and the status bar says so. True when
     /// everything that needed saving was saved.
     pub fn commit_saves(&mut self) -> bool {
+        self.commit_saves_inner(true)
+    }
+
+    fn commit_saves_inner(&mut self, record_timeline: bool) -> bool {
         self.flush();
         self.last_attempt = Some(Instant::now());
         if let Err(e) = self.ensure_document_claims() {
@@ -1431,10 +1480,23 @@ impl App {
             .saved
             .iter()
             .any(|&i| !self.project.nodes[i].in_manuscript);
+        let plain_history = self.timeline.as_ref().is_none_or(|t| !t.last_record_ok());
+        let mut fallback_snapshot = false;
         for &i in &report.saved {
             let n = &self.project.nodes[i];
-            let _ = history::snapshot(&root, &n.path, &n.file_text(), Some(history::GAP));
+            if plain_history {
+                fallback_snapshot |= matches!(
+                    history::snapshot(&root, &n.path, &n.file_text(), Some(history::GAP)),
+                    Ok(true)
+                );
+            }
             recovery::clear(&root, &n.path);
+        }
+        if record_timeline
+            && !report.saved.is_empty()
+            && let Some(timeline) = &mut self.timeline
+        {
+            timeline.saved(Instant::now(), fallback_snapshot);
         }
         if notes_changed || (self.codex.is_some() && !report.saved.is_empty()) {
             self.rebuild_codex();
@@ -1825,7 +1887,9 @@ impl App {
         if !self.journal_exit_checkpoint() {
             return false;
         }
-        if self.sessions_on && sessions::has_writing(&self.project.root) {
+        if crate::installed_session() {
+            self.end_timeline_session(chrono::Local::now());
+        } else if self.sessions_on && sessions::has_writing(&self.project.root) {
             // Keep this local snapshot even when a Git remote is configured.
             let _ = sessions::commit_session(&self.project.root, chrono::Local::now());
         }
@@ -2502,7 +2566,7 @@ impl App {
             Action::Sessions => self.open_sessions(),
             Action::MoveHistoryOut => self.move_history_out(),
             Action::SaveSession => {
-                if !self.sessions_on {
+                if !self.sessions_on && self.timeline.is_none() {
                     self.open_sessions();
                 } else if let Some(label) = self.save_session() {
                     self.msg = format!("session saved: {label}");
@@ -2750,6 +2814,9 @@ impl App {
         replace: impl Fn(&mut Editor) -> usize,
     ) -> (usize, usize) {
         self.flush();
+        if self.timeline.is_some() && self.project.dirty_count() != 0 {
+            self.commit_saves_inner(false);
+        }
         let root = self.project.root.clone();
         let mut changed = Vec::new();
         let mut metrics = HashMap::new();
@@ -2768,6 +2835,11 @@ impl App {
             let n = replace(&mut meter);
             if n == 0 {
                 continue;
+            }
+            if changed.is_empty()
+                && let Some(timeline) = &self.timeline
+            {
+                timeline.record_now(Entry::BeforeReplacing, timeline::CHECKPOINT_WAIT);
             }
             let text = meter.text();
             let counts = if self.productivity.tracking() {
@@ -3463,6 +3535,13 @@ impl App {
             return None;
         }
         self.save_resume(true);
+        if crate::installed_session() {
+            if self.timeline.is_some() {
+                self.end_timeline_session(chrono::Local::now());
+                self.msg = "saving the session to the book's timeline".into();
+            }
+            return None;
+        }
         let root = self.project.root.clone();
         // Moving the cursor isn't a session; it rides along with the next one.
         if !sessions::has_writing(&root) {
@@ -3497,7 +3576,11 @@ impl App {
                 "writing sessions need Git — install it from git-scm.com, then try again".into();
             return;
         }
-        if !self.sessions_on {
+        if !self.sessions_on && self.timeline.is_none() {
+            if crate::installed_session() {
+                self.msg = "the book's timeline is unavailable".into();
+                return;
+            }
             self.overlay = Overlay::SessionsOff;
             return;
         }
@@ -3505,16 +3588,28 @@ impl App {
         let root = self.project.root.clone();
         match sessions::sessions(&root, 200) {
             Ok(list) => {
-                let pending = sessions::pending_label(&root, chrono::Local::now())
-                    .ok()
-                    .flatten()
-                    .filter(|l| l.contains(" · "));
-                let backup = "local writing history · no automatic remote transmission".to_string();
+                let (pending, backup) = if self.timeline.is_some() {
+                    let backup = if self.sync_enabled() {
+                        "book timeline · Google Drive sync enabled"
+                    } else {
+                        "local book timeline"
+                    };
+                    (None, backup)
+                } else {
+                    let pending = sessions::pending_label(&root, chrono::Local::now())
+                        .ok()
+                        .flatten()
+                        .filter(|l| l.contains(" · "));
+                    (
+                        pending,
+                        "local writing history · no automatic remote transmission",
+                    )
+                };
                 self.overlay = Overlay::Sessions {
                     list,
                     sel: 0,
                     pending,
-                    backup,
+                    backup: backup.into(),
                     changes: None,
                 };
             }
@@ -3866,18 +3961,79 @@ impl App {
         // Keep what's there now, so the list always starts from here.
         self.commit_saves();
         let n = &self.project.nodes[idx];
-        let versions = history::versions(&self.project.root, &n.path);
-        if versions.is_empty() {
+        let versions: Vec<_> = history::versions(&self.project.root, &n.path)
+            .into_iter()
+            .map(|v| HistoryItem::Version {
+                when: v.when,
+                label: None,
+                text: v.text,
+                from_timeline: false,
+            })
+            .collect();
+        if self.timeline.is_none() && versions.is_empty() {
             self.msg = format!("no history for {} yet — it's kept as you write", n.title);
             return;
         }
+        let timeline = self
+            .timeline
+            .as_ref()
+            .map_or(HistoryTimeline::Off, |worker| {
+                HistoryTimeline::Reading(worker.scene_versions(n.path.clone()).into())
+            });
         self.overlay = Overlay::History {
             scene: n.path.clone(),
             title: n.title.clone(),
             versions,
+            timeline,
             sel: 0,
             scroll: 0,
         };
+    }
+
+    fn tick_history(&mut self) {
+        let Overlay::History {
+            versions,
+            timeline,
+            sel,
+            scroll,
+            ..
+        } = &mut self.overlay
+        else {
+            return;
+        };
+        let HistoryTimeline::Reading(read) = timeline else {
+            return;
+        };
+        let fetched = match read.try_recv() {
+            Ok(fetched) => fetched,
+            Err(mpsc::TryRecvError::Empty) => return,
+            Err(mpsc::TryRecvError::Disconnected) => None,
+        };
+        let Some(fetched) = fetched else {
+            *timeline = HistoryTimeline::Unavailable;
+            return;
+        };
+        let mut items = Vec::new();
+        for v in fetched {
+            if let Some(label) = v.session {
+                items.push(HistoryItem::Session(label));
+            }
+            items.push(HistoryItem::Version {
+                when: v.when,
+                label: Some(v.label),
+                text: v.text,
+                from_timeline: true,
+            });
+        }
+        if *sel != 0 || *scroll != 0 {
+            // The writer has already moved in the list of saved copies.
+            *sel += items.len();
+        } else if matches!(items.first(), Some(HistoryItem::Session(_))) {
+            *sel = 1;
+        }
+        items.append(versions);
+        *versions = items;
+        *timeline = HistoryTimeline::Ready;
     }
 
     fn restore_version(&mut self, scene: &Path, text: &str) {
@@ -3905,6 +4061,8 @@ impl App {
         }
         // Snapshot only the document that was actually opened and checked.
         let _ = history::snapshot(&root, scene, &self.project.nodes[idx].file_text(), None);
+        let entry = Entry::BeforeRestoring(self.project.nodes[idx].title.clone());
+        self.checkpoint_before_change(entry);
         let (front, body) = grimoire_core::project::split_frontmatter(text);
         self.project.nodes[idx].front = front;
         self.editor
@@ -3913,6 +4071,19 @@ impl App {
         self.mark_changed(idx);
         self.focus = self.editor_focus();
         self.msg = "restored — Ctrl-Z undoes it".into();
+    }
+
+    fn checkpoint_before_change(&mut self, entry: Entry) {
+        if self.timeline.is_some() {
+            // Flush any earlier restore or edit before asking the worker to read the book.
+            // Keep the named checkpoint ahead of a routine record of those same files.
+            if self.project.dirty_count() != 0 {
+                self.commit_saves_inner(false);
+            }
+            if let Some(timeline) = &self.timeline {
+                timeline.record_now(entry, timeline::CHECKPOINT_WAIT);
+            }
+        }
     }
 
     // ---- creating scenes, chapters and parts -------------------------------
