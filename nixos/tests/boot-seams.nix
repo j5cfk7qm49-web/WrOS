@@ -205,10 +205,29 @@ pkgs.testers.runNixOSTest {
         assert "loglevel=7" not in cmdline, f"the filmed boot was not at the laptop's log level: {cmdline}"
         menu_gaps = black_runs(before)
         print(f"black before the unlock screen: {[(round(b - a, 2)) for a, b in menu_gaps]}")
+        # The console never took the display before the unlock screen: nothing printed to it, so
+        # fbcon's take-over stayed deferred and the boot menu's picture stayed up.
+        kernel = installed.succeed(
+            "journalctl -k -b --no-pager -o short-monotonic"
+            " | grep -E 'fbcon|Console: switching|bochs|simple-framebuffer|wros-initrd-unlock|wros-boot'"
+        )
+        print(kernel)
+        asked = kernel.find("wros-initrd-unlock: asking for the disk password")
+        assert asked >= 0, "the unlock unit's note is not in the kernel log"
+        assert "fbcon: Taking over console" not in kernel[:asked], (
+            "the console took the display before the unlock screen")
         # From the boot menu's picture on (the firmware's own screens before it are not WrOS's),
-        # the logo stays up until the unlock screen: no black and no console text in between.
+        # the logo stays up until the unlock screen: no console text in between, and no black
+        # but one frame-long blank right at the unlock screen's first frame. That one is QEMU's:
+        # the unlock screen's first frame is the bochs driver's first modeset (simpledrm had the
+        # display until then), and switching the emulated VBE display on clears its memory until
+        # the driver copies the frame in. Every later screen keeps the mode and shows no blank.
         wros = next(moment for moment, _, digest in before if boxes.get(digest))
-        menu_black = black_runs(before, after=wros)
+        first_unlock = next(moment for moment, _, digest in before if digest == unlock_screen)
+        menu_black = [
+            (a, b) for a, b in black_runs(before, after=wros)
+            if not (b - a < 0.1 and min((m for m, _, _ in before if m > b), default=None) == first_unlock)
+        ]
         assert not menu_black, "black between the boot menu and the unlock screen: " + ", ".join(
             f"{a - before[0][0]:.2f}s-{b - before[0][0]:.2f}s" for a, b in menu_black)
         menu_text = [moment - before[0][0] for moment, lit, _ in before if moment >= wros and lit >= 0.045]
