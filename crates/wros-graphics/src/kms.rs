@@ -3,7 +3,7 @@ use crate::Pixels;
 use drm::{
     Device as _,
     buffer::{Buffer, DrmFourcc},
-    control::{Device as _, connector, crtc, dumbbuffer::DumbBuffer, framebuffer},
+    control::{ClipRect, Device as _, connector, crtc, dumbbuffer::DumbBuffer, framebuffer},
 };
 use std::{
     fs::{File, OpenOptions},
@@ -51,6 +51,9 @@ pub(super) struct Display {
     buffer: DumbBuffer,
     framebuffer: framebuffer::Handle,
     pub pixels: Pixels,
+    /// Scanned out yet. The buffer goes on screen only once it holds a frame, so a screen's
+    /// start never shows a blank buffer between the previous picture and its own (#165).
+    shown: bool,
     released: bool,
     release: Arc<AtomicBool>,
     acquire: Arc<AtomicBool>,
@@ -212,6 +215,7 @@ impl Display {
             buffer,
             framebuffer,
             pixels,
+            shown: false,
             released: false,
             release: Arc::new(AtomicBool::new(false)),
             acquire: Arc::new(AtomicBool::new(false)),
@@ -226,11 +230,21 @@ impl Display {
             libc::SIGUSR2,
             display.acquire.clone(),
         )?);
-        display.reclaim()?;
+        display.take_vt()?;
         Ok(display)
     }
 
+    /// Takes the VT's switch signals again (logind's input controller changes the VT mode when
+    /// it starts) and puts this screen's buffer back, if it is already showing.
     pub fn reclaim(&mut self) -> io::Result<()> {
+        self.take_vt()?;
+        if self.shown {
+            self.scanout()?;
+        }
+        Ok(())
+    }
+
+    fn take_vt(&mut self) -> io::Result<()> {
         let vt = VtMode {
             mode: 1,
             release: libc::SIGUSR1 as i16,
@@ -241,7 +255,7 @@ impl Display {
             return Err(io::Error::last_os_error());
         }
         self.owns_vt = true;
-        self.scanout()
+        Ok(())
     }
 
     fn with_master<T>(&self, operation: impl FnOnce() -> io::Result<T>) -> io::Result<T> {
@@ -297,7 +311,9 @@ impl Display {
         }
         if self.acquire.swap(false, Ordering::Relaxed) {
             ioctl(&self.tty, VT_RELDISP, 2)?;
-            self.scanout()?;
+            if self.shown {
+                self.scanout()?;
+            }
             self.released = false;
         }
         if self.released {
@@ -323,7 +339,53 @@ impl Display {
                 position,
             );
         }
-        Ok(())
+        drop(mapping);
+        if self.shown {
+            self.flush_frame();
+            Ok(())
+        } else {
+            // The first frame is in the buffer: only now does it replace what is on screen.
+            self.scanout()?;
+            self.shown = true;
+            Ok(())
+        }
+    }
+
+    /// Tells the driver the buffer changed. Drivers that copy a buffer to the screen (QEMU's
+    /// bochs and virtio, simpledrm before the real driver loads) otherwise show only what a
+    /// modeset copied; i915 uses it for its frame compression. The ioctl needs DRM master,
+    /// which is released between modesets for the colour helper, so it is taken around the call.
+    /// A driver without the call, or a moment when another program holds master, costs only
+    /// this frame's upload: the next frame marks the whole screen again.
+    fn flush_frame(&self) {
+        let (width, height) = self.mode.size();
+        let clip = [ClipRect::new(0, 0, width, height)];
+        if let Err(error) = self.card.dirty_framebuffer(self.framebuffer, &clip)
+            && matches!(error.raw_os_error(), Some(libc::EACCES | libc::EPERM))
+            && self.card.acquire_master_lock().is_ok()
+        {
+            let _ = self.card.dirty_framebuffer(self.framebuffer, &clip);
+            let _ = self.card.release_master_lock();
+        }
+    }
+
+    /// Another screen has scanned out its own frame over this one: the next screen in the
+    /// start-up took over in place (#165).
+    pub fn superseded(&self) -> bool {
+        self.shown
+            && !self.released
+            && self
+                .card
+                .get_crtc(self.crtc.handle())
+                .is_ok_and(|crtc| crtc.framebuffer() != Some(self.framebuffer))
+    }
+
+    /// Ends without touching what is on screen: no console restore, no text mode, no VT reset.
+    /// Only for a screen that has been [superseded](Self::superseded): the screen, the VT's
+    /// mode and its switch signals now belong to the one that replaced it.
+    pub fn abandon(&mut self) {
+        self.released = true;
+        self.owns_vt = false;
     }
 
     pub fn pointer(&mut self, position: Option<ratatui::layout::Position>) {
@@ -344,7 +406,7 @@ impl Display {
 
 impl Drop for Display {
     fn drop(&mut self) {
-        if !self.released {
+        if self.shown && !self.released {
             let _ = self.restore();
         }
         if self.owns_vt {

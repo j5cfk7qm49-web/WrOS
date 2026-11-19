@@ -112,6 +112,10 @@ mod linux {
         /// Clear the screen on the way out (the password screen); the progress screen
         /// leaves its last frame for the login screen to draw over, without a blank flash.
         clear: bool,
+        /// The screen draws through DRM: nothing is written to the console, on the way in or
+        /// out. Any write ends fbcon's deferred takeover, which blanks the picture the boot
+        /// menu left on screen (#165).
+        graphical: bool,
     }
 
     impl Raw {
@@ -127,6 +131,7 @@ mod linux {
                 tty,
                 saved,
                 clear,
+                graphical: false,
             })
         }
 
@@ -166,8 +171,11 @@ mod linux {
 
     impl Drop for Raw {
         fn drop(&mut self) {
-            // Leave the cursor back (and a clear screen) for whatever comes next.
-            let tail: &[u8] = if self.clear {
+            // Leave the cursor back (and a clear screen) for whatever comes next. A graphical
+            // screen never hid the console's cursor or wrote to it.
+            let tail: &[u8] = if self.graphical {
+                b""
+            } else if self.clear {
                 b"\x1b[0m\x1b[2J\x1b[H\x1b[?25h"
             } else {
                 b"\x1b[0m\x1b[?25h"
@@ -202,6 +210,7 @@ mod linux {
                 return exit::FAILED;
             };
             let backend = Screen::new(out, !wros_graphics::text_start(), &raw.tty);
+            raw.graphical = backend.graphical();
             let theme = if backend.graphical() {
                 theme
             } else {
@@ -218,7 +227,7 @@ mod linux {
             };
             // A plain clear: Ratatui's asks the terminal where the cursor is, and in the boot
             // image nothing need answer.
-            if raw.tty.write_all(b"\x1b[0m\x1b[2J\x1b[H").is_err()
+            if !raw.graphical && raw.tty.write_all(b"\x1b[0m\x1b[2J\x1b[H").is_err()
                 || terminal.hide_cursor().is_err()
             {
                 return exit::FAILED;
@@ -340,6 +349,7 @@ mod linux {
             return exit::FAILED;
         };
         let backend = Screen::new(out, !wros_graphics::text_start(), &raw.tty);
+        raw.graphical = backend.graphical();
         let theme = if backend.graphical() {
             theme.clone()
         } else {
@@ -353,7 +363,9 @@ mod linux {
         let Ok(mut terminal) = Terminal::with_options(backend, TerminalOptions { viewport }) else {
             return exit::FAILED;
         };
-        if raw.tty.write_all(b"\x1b[0m\x1b[2J\x1b[H").is_err() || terminal.hide_cursor().is_err() {
+        if !raw.graphical && raw.tty.write_all(b"\x1b[0m\x1b[2J\x1b[H").is_err()
+            || terminal.hide_cursor().is_err()
+        {
             return exit::FAILED;
         }
         let started = Instant::now();

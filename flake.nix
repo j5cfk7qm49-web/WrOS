@@ -128,6 +128,7 @@
         import-book = vmTest ./nixos/tests/import-book.nix;
         book-timeline = vmTest ./nixos/tests/book-timeline.nix;
         helpers-no-fhs = vmTest ./nixos/tests/helpers-no-fhs.nix;
+        start-frames = vmTest ./nixos/tests/start-frames.nix;
         rust-suite = wrosPkgs.rust-suite;
         rust-suite-no-audio = wrosPkgs.rust-suite-no-audio;
         rust-driven-suite = wrosPkgs.rust-driven-suite;

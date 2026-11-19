@@ -18,8 +18,13 @@ pub fn init(graphical: bool) -> io::Result<ratatui::Terminal<Screen<io::Stdout>>
         .write(true)
         .open("/dev/tty")?;
     enable_raw_mode()?;
-    execute!(io::stdout(), EnterAlternateScreen)?;
-    match ratatui::Terminal::new(Screen::new(io::stdout(), graphical && !text_start(), &tty)) {
+    let screen = Screen::new(io::stdout(), graphical && !text_start(), &tty);
+    // Drawing through DRM, the console is left untouched: a write to it ends fbcon's deferred
+    // takeover and blanks the picture still on screen until this one's first frame (#165).
+    if !screen.graphical() {
+        execute!(io::stdout(), EnterAlternateScreen)?;
+    }
+    match ratatui::Terminal::new(screen) {
         Ok(terminal) => Ok(terminal),
         Err(error) => {
             ratatui::restore();
@@ -259,6 +264,24 @@ impl<W: io::Write> Screen<W> {
         }
         #[cfg(not(target_os = "linux"))]
         let _ = position;
+    }
+
+    /// Another screen has put its own frame on the display in place of this one's.
+    pub fn superseded(&self) -> bool {
+        #[cfg(target_os = "linux")]
+        if let Some(display) = &self.graphics {
+            return display.superseded();
+        }
+        false
+    }
+
+    /// Leaves the display, the VT and the console as the screen that superseded this one set
+    /// them. The DRM buffer is still freed when the screen is dropped.
+    pub fn abandon(&mut self) {
+        #[cfg(target_os = "linux")]
+        if let Some(display) = &mut self.graphics {
+            display.abandon();
+        }
     }
 
     /// Drop DRM master and restore the console before the independent locker starts.
