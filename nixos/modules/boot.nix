@@ -229,6 +229,15 @@
       else
         set timeout_style=hidden
         set timeout=2
+        # #165: the start picture instead of a black screen during the hidden wait. With
+        # gfxpayload=keep it stays on screen into Linux until the unlock screen draws over it.
+        if [ -n "''${theme}" ]; then
+          insmod regexp
+          insmod png
+          if regexp --set=1:wros_theme_dir '^(.*)/theme\.txt$' "''${theme}"; then
+            background_image --mode normal "''${wros_theme_dir}/boot-logo.png"
+          fi
+        fi
       fi
       set wros_boot_pending=1
       save_env wros_boot_pending

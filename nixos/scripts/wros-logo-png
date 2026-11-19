@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """Draw the WrOS logo (crates/wros-shell/src/logo.rs, SKETCH) as a PNG for the boot menus.
 
-usage: wros-logo-png LOGO_RS OUT.png CELL_W CELL_H [CANVAS_W CANVAS_H TOP]
+usage: wros-logo-png LOGO_RS OUT.png CELL_W CELL_H [CANVAS_W CANVAS_H TOP [LEFT]]
 
 Every character of the owner's sketch becomes one CELL_W x CELL_H cell, as on the console:
 `#` fills its cell in the accent colour, and `- | +` are drawn as lines in the border colour,
 joined only towards neighbouring box characters, so corners stay corners. Without a canvas the
 image is exactly the logo on a transparent background (for a GRUB theme's image component);
-with one, the logo is centred horizontally TOP pixels from the top of an opaque canvas (the
-legacy BIOS menu's background). Standard library only: the build has no image tools.
+with one, the logo is centred horizontally (or LEFT pixels from the left) TOP pixels from the top
+of an opaque canvas (the legacy BIOS menu's background; the boot menu's picture during its hidden
+wait, placed where the unlock screen draws the logo). Standard library only: the build has no image tools.
 """
 import re
 import struct
@@ -83,7 +84,7 @@ def png(pixels):
 
 
 def main(argv):
-    if len(argv) not in (5, 8):
+    if len(argv) not in (5, 8, 9):
         raise SystemExit(__doc__)
     rows = sketch(argv[1])
     cw, ch = int(argv[3]), int(argv[4])
@@ -92,9 +93,10 @@ def main(argv):
         pixels = draw(rows, cw, ch, logo_w, logo_h, 0, 0, CLEAR)
     else:
         width, height, top = int(argv[5]), int(argv[6]), int(argv[7])
-        if logo_w > width or top + logo_h > height:
+        left = int(argv[8]) if len(argv) == 9 else (width - logo_w) // 2
+        if left + logo_w > width or top + logo_h > height:
             raise SystemExit('the logo does not fit the canvas')
-        pixels = draw(rows, cw, ch, width, height, (width - logo_w) // 2, top, CANVAS)
+        pixels = draw(rows, cw, ch, width, height, left, top, CANVAS)
     with open(argv[2], 'wb') as out:
         out.write(png(pixels))
 

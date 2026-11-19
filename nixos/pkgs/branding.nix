@@ -5,6 +5,14 @@
 #                      with DejaVu Sans Mono (already the system font). Used by the installed
 #                      system's GRUB and by the live medium's UEFI menu.
 #   $out/bios-menu.png the live medium's legacy-BIOS menu background (640x480, logo at the top).
+#   $out/grub-theme/boot-logo.png  the picture GRUB shows during its hidden 2-second wait, kept into
+#                      Linux (gfxpayload=keep) until the unlock screen draws over it (#165). It is
+#                      the HP Stream's 1366x768 screen with the logo where the unlock screen puts it:
+#                      Unifont's 8x16 cells give a 170x48 grid; the 35x17 logo plus its gap and
+#                      five prompt lines (23 rows) are centred, so the logo starts at column 67
+#                      and row 12. GRUB pins the picture to the top-left corner, so on other
+#                      screen sizes the logo sits a little off where the unlock screen draws
+#                      it (40 px in the VM's 1280x800), or is cut off on a smaller screen.
 # Only the logo and the drawing script are inputs, so other edits to the tree don't rebuild it.
 let
   inputs = lib.fileset.toSource {
@@ -84,6 +92,8 @@ pkgs.runCommand "wros-branding" {
     "$out/grub-theme/logo.png" 8 16
   python3 -I ${inputs}/nixos/scripts/wros-logo-png ${inputs}/crates/wros-shell/src/logo.rs \
     "$out/bios-menu.png" 8 14 640 480 24
+  python3 -I ${inputs}/nixos/scripts/wros-logo-png ${inputs}/crates/wros-shell/src/logo.rs \
+    "$out/grub-theme/boot-logo.png" 8 16 1366 768 $((12 * 16)) $((67 * 8))
   grub-mkfont -s 16 -o "$out/grub-theme/dejavu-sans-mono-16.pf2" \
     ${pkgs.dejavu_fonts}/share/fonts/truetype/DejaVuSansMono.ttf
   cp ${themeTxt} "$out/grub-theme/theme.txt"
