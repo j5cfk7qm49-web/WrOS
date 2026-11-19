@@ -154,6 +154,8 @@ pkgs.stdenv.mkDerivation {
     substituteInPlace "$out/libexec/wros-lock" \
       --replace-fail "/usr/sbin:/usr/bin:/sbin:/bin" "${safePath}" \
       --replace-fail "/usr/lib/wros/wros-greeter" "/run/current-system/sw/bin/wros-greeter" \
+      --replace-fail "/usr/lib/wros/wros-lock-screen" \
+                     "/run/current-system/sw/bin/wros-lock-screen" \
       --replace-fail "/usr/bin/openvt" "${pkgs.kbd}/bin/openvt" \
       --replace-fail "/usr/sbin/vlock-main" "${pkgs.vlock}/sbin/vlock-main" \
       --replace-fail "/usr/lib/wros/cage" "${wros-cage}/bin/cage" \

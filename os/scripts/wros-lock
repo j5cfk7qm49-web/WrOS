@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -I
-"""Fixed local-console handoff to Debian openvt/vlock; no password handling."""
+"""Fixed local-console handoff through openvt; no password handling."""
 import ctypes
 import fcntl
 import os
@@ -20,6 +20,7 @@ RUN = Path('/run/wros-lock')
 UNIT = 'wros-console-lock.service'
 ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8', 'LC_ALL': 'C.UTF-8',
        'HOME': '/nonexistent', 'TERM': 'linux'}
+LOCKERS = {'wros': '/usr/lib/wros/wros-lock-screen', 'vlock': '/usr/sbin/vlock-main'}
 PAM = ('# WrOS existing-session unlock; authentication is performed only by Debian vlock.\n'
        'auth requisite pam_succeed_if.so quiet uid > 0\n@include common-auth\n')
 LOCK_MESSAGE = '\033[2J\033[3J\033[HWrOS - writing session locked\nPress Enter to unlock.'
@@ -52,6 +53,31 @@ def trusted_file(path, executable=False):
     info = Path(path).stat()
     require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022)
     require(not executable or info.st_mode & 0o111)
+
+
+def locker_choice(path=Path('/etc/wros/locker')):
+    try:
+        trusted_file(path)
+    except FileNotFoundError:
+        require(not path.is_symlink(), 'could not read /etc/wros/locker')
+        return 'wros'
+    except (OSError, LockRefused):
+        raise LockRefused('/etc/wros/locker must be a trusted root-owned file') from None
+    try:
+        choice = path.read_bytes().removesuffix(b'\n')
+    except OSError:
+        raise LockRefused('could not read /etc/wros/locker') from None
+    require(choice in (b'wros', b'vlock'), '/etc/wros/locker must contain wros or vlock')
+    return choice.decode('ascii')
+
+
+def trusted_locker_files(choice):
+    paths = ('/usr/bin/openvt', LOCKERS[choice], '/usr/bin/systemd-run', '/usr/bin/chvt')
+    if choice == 'vlock':
+        paths += ('/usr/lib/vlock/modules/all.so', '/usr/lib/vlock/modules/nosysrq.so')
+    for path in paths:
+        trusted_file(path, executable=True)
+    trusted_file('/etc/pam.d/vlock', executable=False)
 
 
 def session_allowed(values, uid, composited=False):
@@ -94,11 +120,15 @@ def lock_message():
         return LOCK_MESSAGE
 
 
-def fixed_command(username, message=LOCK_MESSAGE):
-    environment = ENV | {'USER': username,
-        'VLOCK_ALL_MESSAGE': message}
-    return ['/usr/bin/openvt', '-c', '8', '-s', '-w', '--',
-            '/usr/sbin/vlock-main', 'all', 'nosysrq'], environment
+def fixed_command(username, message=LOCK_MESSAGE, *, choice='wros'):
+    arguments = ['/usr/bin/openvt', '-c', '8', '-s', '-w', '--', LOCKERS[choice]]
+    environment = ENV | {'USER': username}
+    if choice == 'vlock':
+        arguments += ['all', 'nosysrq']
+        environment['VLOCK_ALL_MESSAGE'] = message
+    else:
+        arguments += ['--user', username]
+    return arguments, environment
 
 
 def query(arguments):
@@ -180,11 +210,7 @@ def validate_caller():
     require(query(['/usr/bin/passwd', '-S', 'root']).split()[1] == 'L')
     for name in ('getty@tty8.service', 'autovt@tty8.service'):
         require(os.readlink('/etc/systemd/system/' + name) == '/dev/null')
-    for path in ('/usr/bin/openvt', '/usr/sbin/vlock-main',
-                 '/usr/bin/systemd-run', '/usr/bin/chvt',
-                 '/usr/lib/vlock/modules/all.so', '/usr/lib/vlock/modules/nosysrq.so',
-                 '/etc/pam.d/vlock'):
-        trusted_file(path, executable=path != '/etc/pam.d/vlock')
+    trusted_locker_files(locker_choice())
     trusted_file('/usr/lib/x86_64-linux-gnu/security/pam_succeed_if.so')
     require(Path('/etc/pam.d/vlock').read_text() == PAM)
     require(os.getppid() == parent)
@@ -217,8 +243,8 @@ def input_reader_retired(parent, proc_root=Path("/proc")):
     return True
 
 
-def locker_ready(pid, fd):
-    return (os.path.samefile(f'/proc/{pid}/exe', '/usr/sbin/vlock-main')
+def locker_ready(pid, fd, executable):
+    return (os.path.samefile(f'/proc/{pid}/exe', executable)
             and struct.unpack('BBhhh', fcntl.ioctl(fd, VT_GETMODE, bytes(8)))[0] == 1
             and console_state(fd)[0] == 8
             and not termios.tcgetattr(fd)[3] & termios.ECHO
@@ -233,8 +259,8 @@ def keyboard_mode(fd):
     return struct.unpack('i', fcntl.ioctl(fd, KDGKBMODE, bytes(4)))[0]
 
 
-def can_sleep(parent, locker, fd):
-    return (keyboard_mode(fd) == K_OFF and locker_ready(locker, fd)
+def can_sleep(parent, locker, fd, executable):
+    return (keyboard_mode(fd) == K_OFF and locker_ready(locker, fd, executable)
             and input_reader_retired(parent))
 
 
@@ -250,9 +276,10 @@ def assert_suspend():
     require(parent > 1 and locker > 1)
     require(query(['/usr/bin/systemctl', 'show', '--value', '-p', 'ActiveState', UNIT]) == 'active')
     require(lock_service_owns(locker))
+    executable = LOCKERS[locker_choice()]
     fd = tty8()
     try:
-        require(can_sleep(parent, locker, fd))
+        require(can_sleep(parent, locker, fd, executable))
     finally:
         os.close(fd)
     return 0
@@ -286,11 +313,11 @@ def restore_keyboard():
     saved.unlink()
 
 
-def suspend(parent, locker):
+def suspend(parent, locker, executable):
     fd = tty8()
     proof = RUN / 'suspend'
     try:
-        require(can_sleep(parent, locker, fd))
+        require(can_sleep(parent, locker, fd, executable))
         proof.write_text(f'{parent} {locker}\n')
         # Go through logind so NetworkManager receives PrepareForSleep and can
         # quiesce and reconnect. The sleep unit rechecks the proof at entry.
@@ -314,15 +341,15 @@ def suspend(parent, locker):
         os.close(fd)
 
 
-def ready(child):
+def ready(child, executable):
     # Do not open tty8 before openvt has acquired it: that would make the
     # maintained allocator correctly reject an already-used console.
     children = Path(f'/proc/{child.pid}/task/{child.pid}/children').read_text().split()
     for pid in children:
-        if os.path.samefile(f'/proc/{pid}/exe', '/usr/sbin/vlock-main'):
+        if os.path.samefile(f'/proc/{pid}/exe', executable):
             fd = tty8()
             try:
-                if locker_ready(pid, fd):
+                if locker_ready(pid, fd, executable):
                     return int(pid)
             finally:
                 os.close(fd)
@@ -400,6 +427,10 @@ def worker(uid, parent, started, sleep=False):
         require(query(['/usr/bin/passwd', '-S', username]).split()[1] == 'P')
         require(query(['/usr/bin/passwd', '-S', 'root']).split()[1] == 'L')
         require(Path('/etc/pam.d/vlock').read_text() == PAM)
+        stage = 'checking the locker choice and files'
+        choice = locker_choice()
+        trusted_locker_files(choice)
+        executable = LOCKERS[choice]
         stage = 'checking the lock VT'
         fd = os.open('/dev/tty1', os.O_RDWR | os.O_NOCTTY | os.O_CLOEXEC)
         os.dup2(fd, 0)
@@ -412,8 +443,9 @@ def worker(uid, parent, started, sleep=False):
         if sleep:
             stage = 'disabling tty8 input before suspend'
             set_keyboard_for_sleep()
-        stage = 'acquiring the maintained locker'
-        arguments, environment = fixed_command(username, lock_message())
+        stage = 'acquiring the locker'
+        message = lock_message() if choice == 'vlock' else LOCK_MESSAGE
+        arguments, environment = fixed_command(username, message, choice=choice)
         child = subprocess.Popen(arguments, stdin=None, stdout=subprocess.DEVNULL,
                                  stderr=subprocess.DEVNULL, env=environment)
         acquired = False
@@ -422,25 +454,25 @@ def worker(uid, parent, started, sleep=False):
             if select.select([parent_fd], [], [], 0)[0]:
                 raise LockRefused('writer exited before unlock')
             try:
-                locker = None if acquired else ready(child)
+                locker = None if acquired else ready(child, executable)
             except (OSError, ValueError):
                 locker = None
             if locker:
                 acquired = True
                 if sleep:
                     stage = 'waiting for logind to finish suspend'
-                    error = suspend(parent, locker)
+                    error = suspend(parent, locker, executable)
                     if error is not None:
                         log_failure('suspend command reported an error; writing stays locked', error)
                     stage = 'restoring tty8 input after suspend'
                     restore_keyboard()
                 stage = 'waiting for authenticated unlock'
             if not acquired and time.monotonic() >= deadline:
-                raise LockRefused('vlock did not secure tty8 before the deadline')
+                raise LockRefused('locker did not secure tty8 before the deadline')
             time.sleep(0.05)
         # openvt propagates normal child exits and maps signal death to 127.
-        # vlock returns zero only after PAM success, SIGTERM returns one.
-        require(child.returncode == 0, f'openvt or vlock exited with status {child.returncode}')
+        # Both lockers return zero only after PAM success.
+        require(child.returncode == 0, f'openvt or locker exited with status {child.returncode}')
         require(acquired, 'the lock console never became ready')
         require(not select.select([parent_fd], [], [], 0)[0], 'writer exited before unlock')
         return 0
@@ -488,6 +520,9 @@ def main():
 if __name__ == '__main__':
     try:
         result = main()
+    except LockRefused as error:
+        log_failure('refused', error)
+        result = 1
     except Exception:
         result = 1
     if result:

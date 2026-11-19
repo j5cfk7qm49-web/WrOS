@@ -10,6 +10,24 @@ Current NixOS coverage is defined in [nixos/tests/console-lock.nix](../nixos/tes
 reserved units, wrong/right authentication, and input/password isolation. This
 does not claim a new pass result or NixOS suspend/wake qualification.
 
+## WrOS lock screen (rc19)
+
+`openvt` allocates unused tty8, switches to it and waits for the locker. By
+default it starts `wros-lock-screen` with the writer's account name. The screen
+starts as root, disables SysRq, takes `VT_PROCESS` ownership of tty8 and turns
+echo off. It then drops to the writer, draws its own clock and reads the
+password. It uses `/etc/pam.d/vlock`. The `pam_unix` module verifies the password
+through its setuid `unix_chkpwd` helper.
+
+The worker checks that the child is the selected executable, tty8 is active
+and in `VT_PROCESS` mode, echo is off and SysRq is zero. It requires readiness
+and a successful exit after PAM authentication before reporting unlock.
+
+NixOS writes the choice to root-owned `/etc/wros/locker`. Set
+`wros.lockScreen = "vlock"` to use the vlock fallback. An absent file selects
+`wros`. A present file must contain `wros` or `vlock`, with an optional final
+newline. An invalid choice prevents locking.
+
 ## Maintained authentication and console ownership
 
 Settings → System → Battery and power offers **Lock writing session** only in
@@ -36,12 +54,11 @@ a password-bearing local writer and a locked root account. It checks fixed
 root-owned program/module/PAM files and the reserved tty8 service masks.
 Its public caller option is `--suspend`; it accepts no program paths or user configuration.
 
-`openvt` allocates unused tty8, switches to it and waits for
-`vlock-main all nosysrq`. The user-shell vlock wrapper is never executed, so
-user `.vlockrc`, environment-selected plugins and shell expansion are excluded.
-The helper uses a cleared environment and a fixed existing-session PAM stack
-including the WrOS-declared `common-auth` stack. Authentication is performed by maintained
-vlock/libpam; WrOS does not implement password verification or read shadow data.
+The fallback runs `vlock-main all nosysrq` through `openvt`. The fixed command
+bypasses the user-shell wrapper and excludes user `.vlockrc`, environment-selected
+plugins and shell expansion.
+The helper uses a cleared environment. Both lockers use the fixed
+existing-session PAM stack, including the WrOS-declared `common-auth` stack.
 An earlier requisite `pam_succeed_if` check requires the authenticated account's
 UID to be positive. It rejects vlock's unusable locked-root fallback without
 asking the writer for a root password; the helper also requires root locked.
@@ -49,11 +66,7 @@ asking the writer for a root password; the helper also requires root locked.
 NixOS packages these tools and modules at fixed Nix store paths and rewrites the
 shared PAM includes to upstream Linux-PAM syntax.
 
-Readiness requires the actual vlock child, active tty8, `VT_PROCESS` ownership,
-echo disabled and SysRq disabled. Merely launching a process or requesting the
-`all` plugin is insufficient. The helper returns success only after readiness
-was observed and the maintained child exited successfully after authentication.
-The editor then flushes typeahead, restores its display and starts a fresh
+After unlock, the editor flushes typeahead, restores its display and starts a fresh
 acknowledged input reader. The same in-memory editor retains its writing context.
 Failure leaves the proof unconsumed and closes the writing session through the
 existing save/rescue path.
@@ -69,10 +82,10 @@ checks still apply. Both compositor modes passed repeated lock and actual
 suspend/wake VM checks, including password isolation; see
 [the graphical trial](GRAPHICAL_TRIAL.md).
 
-After validating the caller, the helper uses `systemd-run --wait
---collect` to place the fixed worker and its openvt/vlock children in a system
-service cgroup. A Linux PID handle monitors the original editor; its death
-fails the worker. systemd stops remaining children and runs the fixed cleanup
+After validating the caller, the helper uses `systemd-run --wait --collect` to
+place the fixed worker, `openvt` and the locker in a system service cgroup.
+A Linux PID handle lets the worker detect if the original editor exits and
+fail. systemd stops remaining children and runs the fixed cleanup
 command, which uses `chvt` and restores the prior SysRq setting. It returns
 the service's completion status to the waiting editor. Worker/cleanup roles
 require a root process started by PID 1 and reject a pkexec environment.
@@ -104,8 +117,8 @@ awake, or do nothing. Where sleep is unavailable, lock and sleep only locks. The
 choice is kept in `~/.config/grimoire/lid.json`, so backups carry it. The
 battery reserve always locks and sleeps, whatever the lid choice.
 
-The lock worker disables keyboard delivery to tty8 before starting vlock for
-suspend. Once vlock holds tty8, the worker writes a short-lived proof in its
+The lock worker disables keyboard delivery to tty8 before starting the locker for
+suspend. Once the locker holds tty8, the worker writes a short-lived proof in its
 root-only runtime directory. The systemd suspend service independently checks
 the worker, the active protected VT, the disabled keyboard and the retired
 reader, and that the lock service is running and owns the locker. It has no
@@ -118,7 +131,7 @@ safely and the lock service restores the keyboard during cleanup.
 
 ## Limits and verification
 
-`all` uses Linux VT release/acquire ownership, not a global `VT_LOCKSWITCH` bit.
+The WrOS lock screen and vlock's `all` plugin use Linux VT release/acquire ownership.
 The kernel resets that mode when its owning process dies. A different protected
 VT keeps locker credentials separate from tty1 if the editor exits. Qualification
 must test actual VT switching, wrong/right PAM, reader absence, original console
@@ -137,6 +150,6 @@ Debian reference manuals: [vlock-main](https://manpages.debian.org/trixie/vlock/
 Debian tracks [CVE-2026-72693](https://security-tracker.debian.org/tracker/CVE-2026-72693)
 in openvt's privileged `-u` passwordless-login path. The described path is
 excluded here by the fixed argument vector: WrOS never requests `-u`, `-l` or
-`login`, and executes only vlock-main. Caller checks use actual process UIDs and
-logind session properties rather than inferring process ownership from the owner
-of a TTY device node. This scoped check is not a blanket package-security audit.
+`login`, and executes only the selected locker. Caller checks use actual process
+UIDs and logind session properties rather than inferring process ownership from
+the owner of a TTY device node. This scoped check is not a blanket package-security audit.

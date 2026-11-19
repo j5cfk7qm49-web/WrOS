@@ -10,6 +10,8 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 module = importlib.machinery.SourceFileLoader('wros_lock', str(ROOT / 'os/scripts/wros-lock')).load_module()
+WROS_LOCKER = '/usr/lib/wros/wros-lock-screen'
+VLOCK_LOCKER = '/usr/sbin/vlock-main'
 
 
 class ConsoleLockBoundary(unittest.TestCase):
@@ -51,12 +53,12 @@ class ConsoleLockBoundary(unittest.TestCase):
              mock.patch.object(module, 'keyboard_mode', return_value=module.K_OFF), \
              mock.patch.object(module, 'locker_ready', return_value=True), \
              mock.patch.object(module, 'input_reader_retired', return_value=True):
-            self.assertTrue(module.can_sleep(42, 99, 8))
+            self.assertTrue(module.can_sleep(42, 99, 8, WROS_LOCKER))
             for guard in ('locker_ready', 'input_reader_retired'):
                 with mock.patch.object(module, guard, return_value=False):
-                    self.assertFalse(module.can_sleep(42, 99, 8))
+                    self.assertFalse(module.can_sleep(42, 99, 8, WROS_LOCKER))
             with mock.patch.object(module, 'keyboard_mode', return_value=module.K_UNICODE):
-                self.assertFalse(module.can_sleep(42, 99, 8))
+                self.assertFalse(module.can_sleep(42, 99, 8, WROS_LOCKER))
 
     def test_slow_suspend_keeps_its_proof_until_logind_finishes(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -78,7 +80,7 @@ class ConsoleLockBoundary(unittest.TestCase):
                  mock.patch.object(module.time, 'monotonic', side_effect=(0, 21)), \
                  mock.patch.object(module.time, 'sleep') as wait, \
                  mock.patch.object(module.os, 'close'):
-                self.assertIsNone(module.suspend(42, 99))
+                self.assertIsNone(module.suspend(42, 99, WROS_LOCKER))
             self.assertEqual(wait.call_count, 2)
             self.assertFalse((run / 'suspend').exists())
 
@@ -90,10 +92,10 @@ class ConsoleLockBoundary(unittest.TestCase):
              mock.patch.object(module, 'can_sleep', return_value=True), \
              mock.patch.object(module.os, 'close'):
             with mock.patch.object(module, 'query', side_effect=(refused, 'b false')):
-                self.assertIs(module.suspend(42, 99), refused)
+                self.assertIs(module.suspend(42, 99, WROS_LOCKER), refused)
             with mock.patch.object(module, 'query', side_effect=(refused, 'unknown')):
                 with self.assertRaisesRegex(ValueError, 'suspend completion'):
-                    module.suspend(42, 99)
+                    module.suspend(42, 99, WROS_LOCKER)
             self.assertFalse((Path(temp) / 'suspend').exists())
 
     def test_suspend_unit_requires_the_proof_without_holding_the_lock_unit_loaded(self):
@@ -113,17 +115,21 @@ class ConsoleLockBoundary(unittest.TestCase):
             (proc / '99').mkdir(parents=True)
             cgroup, owns = proc / '99/cgroup', module.lock_service_owns
 
-            def check(state, group):
+            def check(state, group, choice='wros'):
                 cgroup.write_text(group)
                 with mock.patch.object(module, 'RUN', run), mock.patch.object(module, 'trusted_file'), \
                      mock.patch.object(module, 'query', return_value=state) as query, \
                      mock.patch.object(module, 'lock_service_owns', lambda pid: owns(pid, proc)), \
+                     mock.patch.object(module, 'locker_choice', return_value=choice), \
                      mock.patch.object(module, 'tty8', return_value=8), mock.patch.object(module.os, 'close'), \
-                     mock.patch.object(module, 'can_sleep', return_value=True):
+                     mock.patch.object(module, 'can_sleep', return_value=True) as can_sleep:
                     module.assert_suspend()
                     self.assertEqual(query.call_args.args[0][-1], 'wros-console-lock.service')
+                    return can_sleep
 
-            check('active', service)
+            for choice, executable in (('wros', WROS_LOCKER), ('vlock', VLOCK_LOCKER)):
+                with self.subTest(choice=choice):
+                    check('active', service, choice).assert_called_once_with(42, 99, 8, executable)
             for state, group in (('inactive', service),
                                  ('active', '0::/user.slice/user-1000.slice/session-3.scope\n')):
                 with self.subTest(state=state, group=group), self.assertRaises(ValueError):
@@ -157,17 +163,94 @@ class ConsoleLockBoundary(unittest.TestCase):
                 del missing[key]
                 self.assertFalse(module.session_allowed(missing, 1000))
 
-    def test_fixed_command_cannot_source_a_user_vlockrc_or_accept_plugins_from_environment(self):
+    def test_missing_locker_choice_defaults_to_wros(self):
+        with tempfile.TemporaryDirectory() as temp:
+            self.assertEqual(module.locker_choice(Path(temp) / 'locker'), 'wros')
+
+    def test_dangling_locker_choice_is_refused(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'locker'
+            path.symlink_to('missing')
+            with self.assertRaisesRegex(module.LockRefused, 'could not read /etc/wros/locker'):
+                module.locker_choice(path)
+
+    def test_locker_choice_accepts_only_the_two_exact_words(self):
+        with tempfile.TemporaryDirectory() as temp, \
+             mock.patch.object(module, 'trusted_file') as trusted:
+            path = Path(temp) / 'locker'
+            for content, choice in ((b'wros', 'wros'), (b'wros\n', 'wros'),
+                                    (b'vlock', 'vlock'), (b'vlock\n', 'vlock')):
+                with self.subTest(content=content):
+                    path.write_bytes(content)
+                    self.assertEqual(module.locker_choice(path), choice)
+                    trusted.assert_called_with(path)
+            for content in (b'', b'other\n', b'vlock wros', b'wros ', b'vlock\n\n', b'\xff'):
+                with self.subTest(content=content):
+                    path.write_bytes(content)
+                    with self.assertRaisesRegex(module.LockRefused, 'must contain wros or vlock'):
+                        module.locker_choice(path)
+
+    def test_locker_choice_refuses_an_untrusted_file_before_reading_it(self):
+        info = mock.Mock(st_mode=module.stat.S_IFREG | 0o644, st_uid=1000)
+        with mock.patch.object(Path, 'stat', return_value=info), \
+             mock.patch.object(Path, 'read_bytes') as read:
+            with self.assertRaisesRegex(module.LockRefused, 'trusted root-owned file'):
+                module.locker_choice()
+            read.assert_not_called()
+
+    def test_caller_checks_only_the_selected_locker_and_its_dependencies(self):
+        for choice, executable, modules in (
+                ('wros', WROS_LOCKER, []),
+                ('vlock', VLOCK_LOCKER,
+                 ['/usr/lib/vlock/modules/all.so', '/usr/lib/vlock/modules/nosysrq.so'])):
+            with self.subTest(choice=choice), mock.patch.object(module, 'trusted_file') as trusted:
+                module.trusted_locker_files(choice)
+                paths = ['/usr/bin/openvt', executable, '/usr/bin/systemd-run', '/usr/bin/chvt']
+                self.assertEqual(trusted.call_args_list, [
+                    *(mock.call(path, executable=True) for path in paths + modules),
+                    mock.call('/etc/pam.d/vlock', executable=False)])
+
+    def test_wros_command_uses_only_the_fixed_lock_screen_and_environment(self):
         arguments, environment = module.fixed_command('writer')
         self.assertEqual(arguments, ['/usr/bin/openvt', '-c', '8', '-s', '-w', '--',
-                                     '/usr/sbin/vlock-main', 'all', 'nosysrq'])
-        self.assertEqual(environment['USER'], 'writer')
-        self.assertEqual(environment['HOME'], '/nonexistent')
-        self.assertNotIn('VLOCK_PLUGINS', environment)
-        self.assertNotIn('LD_PRELOAD', environment)
-        self.assertNotIn('VLOCK_MESSAGE', environment)
-        self.assertIn('VLOCK_ALL_MESSAGE', environment)
-        self.assertNotIn('-f', arguments)
+                                     WROS_LOCKER, '--user', 'writer'])
+        self.assertEqual(environment, module.ENV | {'USER': 'writer'})
+
+    def test_fixed_command_cannot_source_a_user_vlockrc_or_accept_plugins_from_environment(self):
+        arguments, environment = module.fixed_command('writer', choice='vlock')
+        self.assertEqual(arguments, ['/usr/bin/openvt', '-c', '8', '-s', '-w', '--',
+                                     VLOCK_LOCKER, 'all', 'nosysrq'])
+        self.assertEqual(environment, module.ENV | {
+            'USER': 'writer', 'VLOCK_ALL_MESSAGE': module.LOCK_MESSAGE})
+
+    def test_ready_finds_only_the_selected_openvt_child(self):
+        for executable, other in ((WROS_LOCKER, VLOCK_LOCKER), (VLOCK_LOCKER, WROS_LOCKER)):
+            children = {'/proc/98/exe': other, '/proc/99/exe': executable}
+            with self.subTest(executable=executable), \
+                 mock.patch.object(Path, 'read_text', return_value='98 99'), \
+                 mock.patch.object(module.os.path, 'samefile',
+                                   side_effect=lambda path, expected: children[path] == expected), \
+                 mock.patch.object(module, 'tty8', return_value=8) as tty8, \
+                 mock.patch.object(module, 'locker_ready', return_value=True) as locker_ready, \
+                 mock.patch.object(module.os, 'close') as close:
+                self.assertEqual(module.ready(mock.Mock(pid=42), executable), 99)
+                tty8.assert_called_once_with()
+                locker_ready.assert_called_once_with('99', 8, executable)
+                close.assert_called_once_with(8)
+
+    def test_locker_ready_requires_the_selected_executable(self):
+        mode = module.struct.pack('BBhhh', 1, 0, 0, 0, 0)
+        for executable, other in ((WROS_LOCKER, VLOCK_LOCKER), (VLOCK_LOCKER, WROS_LOCKER)):
+            with self.subTest(executable=executable), \
+                 mock.patch.object(module.os.path, 'samefile') as samefile, \
+                 mock.patch.object(module.fcntl, 'ioctl', return_value=mode), \
+                 mock.patch.object(module, 'console_state', return_value=(8, 0, 0)), \
+                 mock.patch.object(module.termios, 'tcgetattr', return_value=[0, 0, 0, 0]), \
+                 mock.patch.object(Path, 'read_text', return_value='0\n'):
+                samefile.side_effect = lambda _, target: target == executable
+                self.assertTrue(module.locker_ready(99, 8, executable))
+                samefile.assert_called_once_with('/proc/99/exe', executable)
+                self.assertFalse(module.locker_ready(99, 8, other))
 
     def test_lock_clock_is_prepared_once_by_the_fixed_write_only_packaged_program(self):
         message = '\x1b[2J\x1b[3J\x1b[HWrOS - writing session locked\nLocked at 12:34\n███\nPress Enter to unlock.'
@@ -179,7 +262,7 @@ class ConsoleLockBoundary(unittest.TestCase):
             run.assert_called_once_with(['/usr/lib/wros/wros-greeter', '--lock-message'],
                 stdin=module.subprocess.DEVNULL, capture_output=True, env=module.ENV,
                 timeout=1, check=True)
-            _, environment = module.fixed_command('writer', message)
+            _, environment = module.fixed_command('writer', message, choice='vlock')
             self.assertEqual(environment['VLOCK_ALL_MESSAGE'], message)
 
     def test_unavailable_or_invalid_clock_cannot_prevent_the_maintained_locker_starting(self):

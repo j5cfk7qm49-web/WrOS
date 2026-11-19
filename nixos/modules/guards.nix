@@ -18,6 +18,16 @@ let
       (builtins.readFile file);
 in
 {
+  imports = [
+    {
+      options.wros.lockScreen = lib.mkOption {
+        type = lib.types.enum [ "wros" "vlock" ];
+        default = "wros";
+        description = "Console locker to use. Select vlock to use the fallback lock screen.";
+      };
+    }
+  ];
+
   # sudo for the writer (wheel) behind their own password, as on Debian; never passwordless, and
   # root stays locked (#142). The design rule is "no passwordless general sudo", not "no sudo".
   security.sudo.enable = true;
@@ -29,6 +39,8 @@ in
 
   # PAM services: greetd, vlock, wros-recovery
   security.pam.services.greetd = {};
+
+  environment.etc."wros/locker".text = config.wros.lockScreen + "\n";
 
   # Exact PAM text expected by os/scripts/wros-lock (verified in validate_caller / worker)
   # Debian's Linux-PAM accepts "@include FILE"; upstream Linux-PAM on NixOS rejects it
