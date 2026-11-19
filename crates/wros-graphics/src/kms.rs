@@ -289,25 +289,56 @@ impl Display {
     }
 
     pub fn restore(&mut self) -> io::Result<()> {
-        self.with_master(|| {
-            self.card.set_crtc(
-                self.crtc.handle(),
-                self.crtc.framebuffer(),
-                self.crtc.position(),
-                &self.connectors,
-                self.crtc.mode(),
-            )?;
-            ioctl(&self.tty, KDSETMODE, 0)
-        })?;
+        self.put_back(false).map(|_| ())
+    }
+
+    /// Puts back what was on screen when this one opened and returns the VT to text mode.
+    /// With `unless_superseded`, a screen whose frame another has replaced touches nothing
+    /// and gives up the VT's switch signals, which the newer screen now holds; the check and
+    /// the modeset share one master hold, so the newer screen's modeset can't land between
+    /// them. Returns whether it put anything back.
+    fn put_back(&mut self, unless_superseded: bool) -> io::Result<bool> {
+        let mut superseded = false;
+        let put_back = self.with_master(|| {
+            if unless_superseded
+                && self.card.get_crtc(self.crtc.handle())?.framebuffer() != Some(self.framebuffer)
+            {
+                superseded = true;
+                return Ok(());
+            }
+            self.card
+                .set_crtc(
+                    self.crtc.handle(),
+                    self.crtc.framebuffer(),
+                    self.crtc.position(),
+                    &self.connectors,
+                    self.crtc.mode(),
+                )
+                // What was on screen at open was another start screen's frame, since freed:
+                // turn the display off, and the console takes it back in text mode.
+                .or_else(|_| {
+                    self.card
+                        .set_crtc(self.crtc.handle(), None, (0, 0), &[], None)
+                })
+        });
         self.released = true;
-        Ok(())
+        if superseded {
+            self.owns_vt = false;
+            return Ok(false);
+        }
+        // Text mode even when the modeset failed: a console left in graphics mode shows
+        // nothing at all.
+        let text = ioctl(&self.tty, KDSETMODE, 0);
+        put_back.and(text).map(|()| true)
     }
 
     pub fn present(&mut self) -> io::Result<()> {
         if self.release.swap(false, Ordering::Relaxed) {
             self.pointer = None;
-            self.restore()?;
+            let restored = self.restore();
+            // The VT switch waits for this answer whatever happened to the screen.
             ioctl(&self.tty, VT_RELDISP, 1)?;
+            restored?;
         }
         if self.acquire.swap(false, Ordering::Relaxed) {
             ioctl(&self.tty, VT_RELDISP, 2)?;
@@ -380,14 +411,6 @@ impl Display {
                 .is_ok_and(|crtc| crtc.framebuffer() != Some(self.framebuffer))
     }
 
-    /// Ends without touching what is on screen: no console restore, no text mode, no VT reset.
-    /// Only for a screen that has been [superseded](Self::superseded): the screen, the VT's
-    /// mode and its switch signals now belong to the one that replaced it.
-    pub fn abandon(&mut self) {
-        self.released = true;
-        self.owns_vt = false;
-    }
-
     pub fn pointer(&mut self, position: Option<ratatui::layout::Position>) {
         use ratatui::backend::Backend;
         let cells = self.pixels.size().unwrap();
@@ -406,8 +429,10 @@ impl Display {
 
 impl Drop for Display {
     fn drop(&mut self) {
+        // A screen replaced in place by the next one in the start-up leaves the display, the
+        // VT's mode and its switch signals to that one, however this one ends (#165).
         if self.shown && !self.released {
-            let _ = self.restore();
+            let _ = self.put_back(true);
         }
         if self.owns_vt {
             // VT_SETMODE assigns VT_PROCESS to the calling process. Replaying

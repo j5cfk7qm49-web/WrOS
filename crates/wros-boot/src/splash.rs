@@ -41,6 +41,14 @@ pub const INITRD_SHARE: f64 = 0.3;
 /// (`/run` is carried over the switch).
 pub const HANDOVER: &str = "/run/wros-boot/progress";
 
+/// Made by the unlock screen once it has handed the password over: the initrd's progress
+/// screen waits for it, then replaces the unlock screen in place.
+pub const UNLOCKED: &str = "/run/wros-boot/unlocked";
+
+/// Made by the installed system's progress screen once it has given the console back to the
+/// login screen (`RuntimeDirectory=wros-boot-splash`); greetd waits for it.
+pub const HANDED_OVER: &str = "/run/wros-boot-splash/handed-over";
+
 /// The bar's figure for systemd's progress `p` in this stage. `start` is where the initrd's
 /// bar stopped (read from [`HANDOVER`]; 0 when the initrd showed none). `first` is systemd's first
 /// reading in this stage: by the time a screen starts, systemd has done much of its work (the

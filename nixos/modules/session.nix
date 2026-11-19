@@ -50,7 +50,20 @@ in
     unitConfig.StartLimitIntervalSec = 0;
     serviceConfig = {
       EnvironmentFile = [ "-/run/wros-live/greetd.env" ];
-      ExecStartPre = [ "-${pkgs.systemd}/bin/systemctl stop wros-boot-splash.service" ];
+      # The login screen replaces the progress screen in place (#165): the progress screen is told
+      # (SIGHUP), gives the console back and stops reading it, then ends by itself once the login
+      # screen's first frame is up. Stopped as before if it doesn't answer.
+      ExecStartPre = [ "-${pkgs.writeShellScript "wros-splash-handover" ''
+        systemctl=${pkgs.systemd}/bin/systemctl
+        $systemctl -q is-active wros-boot-splash.service || exit 0
+        $systemctl kill --kill-whom=main --signal=SIGHUP wros-boot-splash.service || exit 0
+        for _ in $(${pkgs.coreutils}/bin/seq 30); do
+          [ -e /run/wros-boot-splash/handed-over ] && exit 0
+          $systemctl -q is-active wros-boot-splash.service || exit 0
+          ${pkgs.coreutils}/bin/sleep 0.1
+        done
+        $systemctl stop wros-boot-splash.service
+      ''}" ];
       ExecStart = lib.mkForce "${pkgs.greetd}/bin/greetd --config \${WROS_GREETD_CONFIG}";
       IgnoreSIGPIPE = false;
       SendSIGHUP = true;

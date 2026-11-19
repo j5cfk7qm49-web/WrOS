@@ -143,28 +143,43 @@
     };
   };
 
-  # The start screen from the moment the disk opens until the switch to the installed system,
-  # where wros-boot-splash.service carries the bar on from the figure this one leaves in /run.
-  # Only after systemd-cryptsetup has opened the disk: a wrong password ends in systemd's own text
-  # prompt on the console, which this screen must never cover.
+  # The start screen from the moment the password is accepted until the switch to the installed
+  # system, where wros-boot-splash.service carries the bar on from the figure this one leaves in
+  # /run. It starts alongside the unlock screen but waits, touching neither the console nor the
+  # display, until that screen has handed a password over (/run/wros-boot/unlocked); then it
+  # replaces it in place, so the disk's key derivation runs under the progress screen, not a black
+  # one (#165). With no graphical unlock (Esc, the text start, boot-screen != ratatui) it never
+  # shows. A wrong password ends in systemd's own text prompt on the console: starting that
+  # prompt's agent stops this screen first (Conflicts= with an ordering), so the prompt is never
+  # covered and this screen has given the console back before the agent reads from it.
+  # It is not stopped at the switch to the installed system: it carries on through it (left out of
+  # initrd-switch-root.target's isolate; argv[0] starting with "@" spares it the initrd's last kill,
+  # as Plymouth does) until wros-boot-splash.service's first frame replaces it in place, and ends
+  # by itself 8 seconds after systemd stops answering it if nothing does.
   boot.initrd.systemd.services.wros-initrd-splash = {
     description = "WrOS start screen: boot progress after the unlock";
     wantedBy = [ "initrd.target" ];
     after = [
-      "wros-initrd-unlock.service"
-      "systemd-cryptsetup@wros_crypt.service"
+      "systemd-modules-load.service"
+      "systemd-udev-settle.service"
     ];
-    before = [ "initrd-switch-root.target" "shutdown.target" ];
-    conflicts = [ "initrd-switch-root.target" "shutdown.target" ];
+    before = [
+      "initrd-switch-root.target"
+      "shutdown.target"
+      "systemd-ask-password-console.service"
+    ];
+    conflicts = [
+      "shutdown.target"
+      "systemd-ask-password-console.service"
+    ];
     unitConfig = {
       DefaultDependencies = "no";
       ConditionKernelCommandLine = "!wros.unlock=text";
+      IgnoreOnIsolate = true;
     };
     serviceConfig = {
       Type = "simple";
-      # /etc/wros/boot-screen is copied from the ESP by wros-initrd-unlock.service.
-      ExecCondition = "/bin/sh -c 'test ! -e /etc/wros/boot-screen || test \"$(cat /etc/wros/boot-screen)\" = ratatui'";
-      ExecStart = "/bin/wros-boot splash --stage initrd --tty /dev/console --theme /etc/wros/boot-theme.toml";
+      ExecStart = "@/bin/wros-boot @wros-boot splash --stage initrd --tty /dev/console --theme /etc/wros/boot-theme.toml";
       TimeoutStopSec = 3;
     };
   };
@@ -274,6 +289,8 @@
       ExecCondition = "${pkgs.bash}/bin/sh -c 'test ! -e /etc/wros/boot-screen || test \"$(cat /etc/wros/boot-screen)\" = ratatui'";
       ExecStart = "${wrosPkgs.wros-boot}/bin/wros-boot splash --tty /dev/tty1";
       TimeoutStopSec = 3;
+      # /run/wros-boot-splash/handed-over tells greetd the console is free for the login screen.
+      RuntimeDirectory = "wros-boot-splash";
       NoNewPrivileges = true;
       ProtectSystem = "strict";
       ProtectHome = true;
