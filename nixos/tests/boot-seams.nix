@@ -40,6 +40,21 @@ pkgs.testers.runNixOSTest {
             out.write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
                       + chunk(b"IDAT", zlib.compress(rows, 6)) + chunk(b"IEND", b""))
 
+    ACCENT = (0xd6, 0xad, 0x60)
+    boxes = {}
+
+    def accent_box(w, h, rgb):
+        # Where the logo's accent colour is on screen (the unlock screen types nothing in it yet).
+        xs, ys = [], []
+        for y in range(0, h, 2):
+            row = 3 * y * w
+            for x in range(0, w, 2):
+                i = row + 3 * x
+                if all(abs(rgb[i + k] - ACCENT[k]) < 30 for k in range(3)):
+                    xs.append(x)
+                    ys.append(y)
+        return (min(xs), min(ys), max(xs), max(ys)) if xs else None
+
     def film(label, done, limit=600):
         # Screendumps until `done` is set (or `limit` seconds). Keeps a PNG of each new picture.
         frames, last = [], None
@@ -54,6 +69,8 @@ pkgs.testers.runNixOSTest {
             digest = hashlib.sha256(rgb).hexdigest()[:10]
             if digest != last:
                 png(os.path.join(SHOTS, f"{label}-{len(frames):04d}-{digest}.png"), w, h, rgb)
+                if digest not in boxes:
+                    boxes[digest] = accent_box(w, h, rgb)
                 last = digest
             frames.append((moment, lit, digest))
         print(f"{label}: {len(frames)} frames in {time.time() - start:.1f}s")
@@ -114,7 +131,9 @@ pkgs.testers.runNixOSTest {
         installed.send_chars("not-the-passphrase")
         installed.send_key("ret")
         installed.wait_for_console_text("password handed to systemd-cryptsetup", timeout=60)
-        installed.wait_for_console_text("Please enter passphrase for disk", timeout=120)
+        # The prompt itself ends without a newline on the serial line, so wait for the agent's
+        # own line instead.
+        installed.wait_for_console_text("Starting password query on /dev/tty1", timeout=120)
         time.sleep(3)
         text = installed.get_screen_text()
         print(f"screen at the text prompt: {text!r}")
@@ -149,6 +168,23 @@ pkgs.testers.runNixOSTest {
         # The login screen draws through DRM (a text login screen would mean it never got the card).
         mode = installed.succeed("${pkgs.kbd}/bin/kbdinfo -C /dev/tty1 getmode")
         assert "graphics" in mode, f"the login screen is not graphical: {mode}"
+        # greetd leaves the VT alone during the hand-over (its patch): the progress screen never
+        # has to take the display back, and no frame after Enter is the console's text.
+        notes = installed.succeed("journalctl -k -b --no-pager | grep 'progress screen (system) ended'")
+        assert "taken back from the console 0 times" in notes, notes
+        console = [moment - after[0][0] for moment, lit, _ in after if lit >= 0.045]
+        assert not console, f"the console showed between the unlock and the login screen at {console}"
+        # The boot menu's picture was drawn for this screen on the first boot
+        # (wros-boot-logo.service); this boot's GRUB showed it with the logo where the unlock
+        # screen then drew it.
+        print(installed.succeed("cat /boot/wros-boot/boot-logo.size; journalctl -b -u wros-boot-logo --no-pager | tail -3"))
+        shown = [boxes[digest] for _, _, digest in before if boxes.get(digest)]
+        assert len(shown) >= 2, f"no logo seen before the unlock: {shown}"
+        grub, unlock = shown[0], shown[-1]
+        centre = lambda b: ((b[0] + b[2]) / 2, (b[1] + b[3]) / 2)
+        print(f"logo in the boot menu {grub}, at the unlock screen {unlock}")
+        (gx, gy), (ux, uy) = centre(grub), centre(unlock)
+        assert abs(gx - ux) <= 4 and abs(gy - uy) <= 4, f"the logo moves: {grub} then {unlock}"
         menu_gaps = black_runs(before)
         print(f"black before the unlock screen: {[(round(b - a, 2)) for a, b in menu_gaps]}")
         # A frame or two of black (under 0.1 s) where the console briefly takes the display (greetd

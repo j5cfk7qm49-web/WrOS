@@ -1,0 +1,34 @@
+WrOS (#165): while the start screen hands the display over to the login screen, starting the
+greeter's session leaves the VT's mode and contents alone. Setting text mode and clearing the
+console there gave the display to the console for a frame (the start screen put its frame back,
+but the flash showed). The start screen's systemd unit holds /run/wros-boot-splash/handed-over
+only while it is handing over (RuntimeDirectory=wros-boot-splash), so every other session start
+keeps greetd's reset, which returns the VT to text mode after a graphical screen that died
+without restoring it.
+
+--- a/greetd/src/session/worker.rs
++++ b/greetd/src/session/worker.rs
+@@ -176,13 +176,17 @@
+             // Opening our target terminal.
+             let target_term = terminal::Terminal::open(&path)?;
+ 
+-            // Set the target VT mode to text for compatibility. Other login managers
+-            // set this to graphics, but that disallows start of textual applications,
+-            // which greetd aims to support.
+-            target_term.kd_setmode(terminal::KdMode::Text)?;
++            // WrOS: not while the start screen hands the display over to the login
++            // screen, which replaces the start screen's frame in place (#165).
++            if !std::path::Path::new("/run/wros-boot-splash/handed-over").exists() {
++                // Set the target VT mode to text for compatibility. Other login managers
++                // set this to graphics, but that disallows start of textual applications,
++                // which greetd aims to support.
++                target_term.kd_setmode(terminal::KdMode::Text)?;
+ 
+-            // Clear TTY so that it will be empty when we switch to it.
+-            target_term.term_clear()?;
++                // Clear TTY so that it will be empty when we switch to it.
++                target_term.term_clear()?;
++            }
+ 
+             // A bit more work if a VT switch is required.
+             if switch && vt != target_term.vt_get_current()? {

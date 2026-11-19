@@ -97,4 +97,7 @@ pkgs.runCommand "wros-branding" {
   grub-mkfont -s 16 -o "$out/grub-theme/dejavu-sans-mono-16.pf2" \
     ${pkgs.dejavu_fonts}/share/fonts/truetype/DejaVuSansMono.ttf
   cp ${themeTxt} "$out/grub-theme/theme.txt"
+  # For wros-boot-logo.service, which draws the same picture at this machine's own screen size.
+  mkdir -p "$out/share/wros-branding"
+  cp ${inputs}/crates/wros-shell/src/logo.rs ${inputs}/nixos/scripts/wros-logo-png     "$out/share/wros-branding/"
 ''

@@ -1,0 +1,80 @@
+#!/usr/bin/env python3
+"""Fit the boot menu's start picture to this machine's screen (#165).
+
+usage: wros-boot-logo LOGO_PNG_SCRIPT LOGO_RS
+
+GRUB shows /boot/wros-boot/boot-logo.png during its hidden wait, pinned to the top-left corner
+(it can neither centre a picture nor do arithmetic). So the installed system draws it here at the
+exact size of the framebuffer GRUB draws on, with the logo where the unlock screen will draw it:
+Unifont's 8x16 cells make a grid, and the 35x17 logo, a gap and the unlock screen's five prompt
+lines (23 rows) are centred in it (crates/wros-boot/src/unlock.rs, crates/wros-shell/src/logo.rs).
+
+The size comes from the boot parameters GRUB handed to Linux (screen_info.lfb_width and
+lfb_height in /sys/kernel/boot_params/data). The picture is written only when that size changes,
+to a temporary name first. Without a usable size, or on a screen too small for the full logo,
+any earlier picture is removed and GRUB falls back to the packaged 1366x768 one.
+"""
+import os
+import struct
+import subprocess
+import sys
+from pathlib import Path
+
+BOOT_PARAMS = Path('/sys/kernel/boot_params/data')
+DIRECTORY = Path('/boot/wros-boot')
+PICTURE = DIRECTORY / 'boot-logo.png'
+STAMP = DIRECTORY / 'boot-logo.size'
+CELL_W, CELL_H = 8, 16
+LOGO_COLS, LOGO_ROWS = 35, 17
+BLOCK_ROWS = LOGO_ROWS + 1 + 5
+
+
+def screen(params=BOOT_PARAMS):
+    """GRUB's framebuffer size: screen_info is the start of boot_params."""
+    width, height = struct.unpack_from('<HH', params.read_bytes(), 0x12)
+    return width, height
+
+
+def placement(width, height):
+    """Where the logo's top-left pixel goes, as the unlock screen places it; None if it doesn't fit."""
+    if not (0 < width <= 7680 and 0 < height <= 4320):
+        return None
+    cols, rows = width // CELL_W, height // CELL_H
+    if cols < LOGO_COLS or rows < BLOCK_ROWS:
+        return None
+    return ((rows - BLOCK_ROWS) // 2) * CELL_H, ((cols - LOGO_COLS) // 2) * CELL_W
+
+
+def forget():
+    PICTURE.unlink(missing_ok=True)
+    STAMP.unlink(missing_ok=True)
+
+
+def main(argv):
+    if len(argv) != 3:
+        raise SystemExit(__doc__)
+    script, logo = argv[1], argv[2]
+    try:
+        width, height = screen()
+    except (OSError, struct.error):
+        forget()
+        return 0
+    where = placement(width, height)
+    if where is None:
+        forget()
+        return 0
+    size = f'{width}x{height}\n'
+    if PICTURE.is_file() and STAMP.is_file() and STAMP.read_text() == size:
+        return 0
+    DIRECTORY.mkdir(exist_ok=True)
+    top, left = where
+    temporary = DIRECTORY / 'boot-logo.png.tmp'
+    subprocess.run([sys.executable, '-I', script, logo, str(temporary), str(CELL_W), str(CELL_H),
+                    str(width), str(height), str(top), str(left)], check=True)
+    os.replace(temporary, PICTURE)
+    STAMP.write_text(size)
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))

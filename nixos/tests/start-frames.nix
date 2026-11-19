@@ -10,7 +10,7 @@ pkgs.testers.runNixOSTest {
   name = "wros-start-frames";
 
   nodes.machine = { ... }: {
-    environment.systemPackages = [ wrosPackages.wros-boot ];
+    environment.systemPackages = [ wrosPackages.wros-boot pkgs.python3 ];
     systemd.services."getty@tty1".enable = false;
     systemd.services."autovt@tty1".enable = false;
     virtualisation.memorySize = 1024;
@@ -121,6 +121,22 @@ pkgs.testers.runNixOSTest {
         machine.wait_until_succeeds("test -e /run/wros-boot-splash/handed-over", timeout=5)
         gone("f", timeout=10)
         assert settled("14-f-gone")[0] > 0.02, "no console after the hand-over timed out"
+
+    with subtest("what gives the display to the console under a start screen (greetd did both)"):
+        splash("g", "0.2", start="0.4")
+        g = settled("15-g")
+        machine.succeed(
+            "python3 -c 'import fcntl, os; "
+            "fcntl.ioctl(os.open(\"/dev/tty1\", os.O_RDWR | os.O_NOCTTY), 0x4B3A, 0)'"
+        )
+        text_mode = [frame(f"16-text-mode-{i}") for i in range(3)]
+        machine.succeed("printf '\\033[H\\033[2J' > /dev/tty1")
+        cleared = [frame(f"17-cleared-{i}") for i in range(3)]
+        machine.succeed("systemctl stop g")
+        note = machine.succeed("dmesg | grep 'wros-boot: progress screen' | tail -1")
+        print(f"RESULT text mode: {[f[0] > 0.02 for f in text_mode]}; "
+              f"clear: {[f[0] > 0.02 for f in cleared]}; {note.strip()}")
+        assert text_mode[-1][1] == g[1] and cleared[-1][1] == g[1], "the start screen did not come back"
 
     print(machine.succeed("journalctl -b --no-pager -o short-monotonic -u a -u c -u d -u e -u f | tail -30"))
   '';

@@ -1,5 +1,9 @@
 { config, lib, pkgs, wrosPkgs, ... }:
 let
+  # greetd leaves the VT alone while the start screen hands over to the login screen (#165).
+  greetd = pkgs.greetd.overrideAttrs (old: {
+    patches = (old.patches or [ ]) ++ [ ../pkgs/greetd-handover.patch ];
+  });
   defaultGreetdConfig = ''
     [terminal]
     vt = 1
@@ -27,6 +31,7 @@ in
 
   services.greetd = {
     enable = true;
+    package = greetd;
     settings = {
       terminal = {
         vt = 1;
@@ -64,7 +69,7 @@ in
         done
         $systemctl stop wros-boot-splash.service
       ''}" ];
-      ExecStart = lib.mkForce "${pkgs.greetd}/bin/greetd --config \${WROS_GREETD_CONFIG}";
+      ExecStart = lib.mkForce "${greetd}/bin/greetd --config \${WROS_GREETD_CONFIG}";
       IgnoreSIGPIPE = false;
       SendSIGHUP = true;
       TimeoutStopSec = "30s";

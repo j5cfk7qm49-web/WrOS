@@ -231,9 +231,13 @@
         set timeout=2
         # #165: the start picture instead of a black screen during the hidden wait. With
         # gfxpayload=keep it stays on screen into Linux until the unlock screen draws over it.
-        if [ -n "''${theme}" ]; then
+        # The picture drawn for this machine's screen size (wros-boot-logo.service) when there is
+        # one, else the packaged 1366x768 one: GRUB pins it to the top-left corner.
+        insmod png
+        if [ -f /wros-boot/boot-logo.png ]; then
+          background_image --mode normal /wros-boot/boot-logo.png
+        elif [ -n "''${theme}" ]; then
           insmod regexp
-          insmod png
           if regexp --set=1:wros_theme_dir '^(.*)/theme\.txt$' "''${theme}"; then
             background_image --mode normal "''${wros_theme_dir}/boot-logo.png"
           fi
@@ -306,6 +310,30 @@
       # No PrivateTmp: it orders the unit after systemd-tmpfiles-setup.service and so after every
       # local filesystem and the journal flush, which held the screen back well into the boot.
       # It reads the initrd screen's last figure from /run/wros-boot/progress.
+    };
+  };
+
+  # The boot menu's start picture at this machine's screen size (#165): GRUB can't centre a
+  # picture, so it is drawn here to the size of the framebuffer GRUB hands to Linux, with the logo
+  # where the unlock screen draws it. Only redrawn when that size changes.
+  systemd.services.wros-boot-logo = {
+    description = "Fit the boot menu's start picture to this screen";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "local-fs.target" ];
+    unitConfig = {
+      RequiresMountsFor = "/boot";
+      ConditionPathIsMountPoint = "/boot";
+      ConditionPathExists = "/sys/kernel/boot_params/data";
+    };
+    serviceConfig = {
+      Type = "oneshot";
+      Nice = 19;
+      ExecStart = "${pkgs.python3}/bin/python3 -I ${wrosRoot}/nixos/scripts/wros-boot-logo ${wrosPkgs.wros-branding}/share/wros-branding/wros-logo-png ${wrosPkgs.wros-branding}/share/wros-branding/logo.rs";
+      ProtectSystem = "strict";
+      ReadWritePaths = [ "/boot" ];
+      ProtectHome = true;
+      PrivateNetwork = true;
+      NoNewPrivileges = true;
     };
   };
 
