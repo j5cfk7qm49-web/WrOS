@@ -55,9 +55,12 @@ pkgs.testers.runNixOSTest {
                     ys.append(y)
         return (min(xs), min(ys), max(xs), max(ys)) if xs else None
 
-    def film(label, done, limit=600):
-        # Screendumps until `done` is set (or `limit` seconds). Keeps a PNG of each new picture.
-        frames, last = [], None
+    def film(label, done, limit=600, until=None):
+        # Screendumps until `done` is set, `limit` seconds pass, or the picture `until` has been
+        # on screen for 3 s. Keeps a PNG of each new picture, and a timeline (when each
+        # screendump was taken, and its picture) to play the film back.
+        frames, last, shown, since = [], None, None, 0.0
+        timeline = open(os.path.join(SHOTS, f"{label}.timeline"), "w")
         start = time.time()
         while not done.is_set() and time.time() - start < limit:
             installed.send_monitor_command(f"screendump {scratch}")
@@ -68,11 +71,16 @@ pkgs.testers.runNixOSTest {
             lit = sum(1 for i in range(0, len(rgb), 3 * 7) if max(rgb[i:i + 3]) > 24) / (w * h / 7)
             digest = hashlib.sha256(rgb).hexdigest()[:10]
             if digest != last:
-                png(os.path.join(SHOTS, f"{label}-{len(frames):04d}-{digest}.png"), w, h, rgb)
+                shown = f"{label}-{len(frames):04d}-{digest}.png"
+                png(os.path.join(SHOTS, shown), w, h, rgb)
                 if digest not in boxes:
                     boxes[digest] = accent_box(w, h, rgb)
-                last = digest
+                last, since = digest, moment
             frames.append((moment, lit, digest))
+            timeline.write(f"{moment:.3f} {shown}\n")
+            if until and digest == until and moment - since >= 3:
+                break
+        timeline.close()
         print(f"{label}: {len(frames)} frames in {time.time() - start:.1f}s")
         return frames
 
@@ -127,7 +135,8 @@ pkgs.testers.runNixOSTest {
     with subtest("a wrong password ends in the text prompt, readable and not echoing"):
         installed.start(allow_reboot=True)
         prompt = in_background(lambda: wait_for_disk_prompt(installed, settle=3))
-        report("menu-to-unlock", film("menu-to-unlock", prompt))
+        menu = film("menu-to-unlock", prompt)
+        report("menu-to-unlock", menu)
         installed.send_chars("not-the-passphrase")
         installed.send_key("ret")
         installed.wait_for_console_text("password handed to systemd-cryptsetup", timeout=60)
@@ -146,17 +155,24 @@ pkgs.testers.runNixOSTest {
         wait_for_greeter(installed)
 
     with subtest("unlock → progress → login with no black screen"):
+        # This boot runs at the laptop's log level. The test framework adds loglevel=7, which
+        # puts the kernel's messages on screen (and so hands the display to the console, whose
+        # take-over is otherwise deferred until something prints); WrOS boots quiet with
+        # loglevel=3. The unlock unit's notes on the serial line go too, so the film follows the
+        # boot on screen instead: it ends once the unlock screen (the picture the first boot
+        # ended on) has been up for 3 s.
+        installed.succeed("sed -i 's/ loglevel=7 / /' /boot/grub/grub.cfg")
+        unlock_screen = menu[-1][2]
         restart(installed)
-        prompt = in_background(lambda: wait_for_disk_prompt(installed, settle=3))
-        before = film("boot", prompt)
+        before = film("boot", threading.Event(), limit=180, until=unlock_screen)
         report("boot", before)
+        assert before[-1][2] == unlock_screen, "the unlock screen never came"
         # Filmed from just after Enter: the unlock → progress hand-over and the switch to the
         # installed system come within seconds of it.
         installed.send_chars("seams-passphrase")
         installed.send_key("ret")
         time.sleep(0.5)
         def to_login():
-            installed.wait_for_console_text("password handed to systemd-cryptsetup", timeout=60)
             wait_for_greeter(installed, settle=4)
         greeter = in_background(to_login)
         after = film("unlock-to-login", greeter)
@@ -185,8 +201,18 @@ pkgs.testers.runNixOSTest {
         print(f"logo in the boot menu {grub}, at the unlock screen {unlock}")
         (gx, gy), (ux, uy) = centre(grub), centre(unlock)
         assert abs(gx - ux) <= 4 and abs(gy - uy) <= 4, f"the logo moves: {grub} then {unlock}"
+        cmdline = installed.succeed("cat /proc/cmdline")
+        assert "loglevel=7" not in cmdline, f"the filmed boot was not at the laptop's log level: {cmdline}"
         menu_gaps = black_runs(before)
         print(f"black before the unlock screen: {[(round(b - a, 2)) for a, b in menu_gaps]}")
+        # From the boot menu's picture on (the firmware's own screens before it are not WrOS's),
+        # the logo stays up until the unlock screen: no black and no console text in between.
+        wros = next(moment for moment, _, digest in before if boxes.get(digest))
+        menu_black = black_runs(before, after=wros)
+        assert not menu_black, "black between the boot menu and the unlock screen: " + ", ".join(
+            f"{a - before[0][0]:.2f}s-{b - before[0][0]:.2f}s" for a, b in menu_black)
+        menu_text = [moment - before[0][0] for moment, lit, _ in before if moment >= wros and lit >= 0.045]
+        assert not menu_text, f"console text between the boot menu and the unlock screen at {menu_text}"
         # A frame or two of black (under 0.1 s) where the console briefly takes the display (greetd
         # resets it before it starts the login screen) is put right at once and only reported.
         flickers = [(a, b) for a, b in black_runs(after) if b - a < 0.1]
