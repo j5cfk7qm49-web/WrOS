@@ -1,6 +1,7 @@
 """Pure privilege/argv/session validation; never opens or changes a host VT."""
 from contextlib import redirect_stderr
 import importlib.machinery
+import os
 from io import StringIO
 import re
 from pathlib import Path
@@ -209,6 +210,30 @@ class ConsoleLockBoundary(unittest.TestCase):
                 self.assertEqual(trusted.call_args_list, [
                     *(mock.call(path, executable=True) for path in paths + modules),
                     mock.call('/etc/pam.d/vlock', executable=False)])
+
+    def test_only_a_root_owned_proof_holding_exactly_unlocked_proves_an_unlock(self):
+        with tempfile.TemporaryDirectory() as directory:
+            proof = Path(directory) / 'run' / 'unlocked'
+            module.fresh_proof(proof)
+            self.assertEqual(proof.read_bytes(), b'')
+            self.assertEqual(proof.stat().st_mode & 0o777, 0o600)
+            # A killed lock screen leaves the proof empty: no unlock.
+            owner = os.getuid() == 0
+            self.assertFalse(module.unlock_proven(proof))
+            self.assertFalse(proof.exists(), 'the proof is removed once read')
+            for written in (b'unlocked', b'unlocked\nmore', b'UNLOCKED\n'):
+                module.fresh_proof(proof)
+                proof.write_bytes(written)
+                self.assertFalse(module.unlock_proven(proof), written)
+            module.fresh_proof(proof)
+            proof.write_bytes(module.UNLOCKED)
+            # Only root's own file counts; the tests usually run unprivileged.
+            self.assertEqual(module.unlock_proven(proof), owner)
+            target = Path(directory) / 'target'
+            target.write_bytes(module.UNLOCKED)
+            proof.symlink_to(target)
+            self.assertFalse(module.unlock_proven(proof), 'a symlink is never followed')
+            self.assertFalse(module.unlock_proven(Path(directory) / 'missing'))
 
     def test_wros_command_uses_only_the_fixed_lock_screen_and_environment(self):
         arguments, environment = module.fixed_command('writer')

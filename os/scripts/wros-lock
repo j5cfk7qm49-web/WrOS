@@ -21,6 +21,13 @@ UNIT = 'wros-console-lock.service'
 ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8', 'LC_ALL': 'C.UTF-8',
        'HOME': '/nonexistent', 'TERM': 'linux'}
 LOCKERS = {'wros': '/usr/lib/wros/wros-lock-screen', 'vlock': '/usr/sbin/vlock-main'}
+# WrOS's lock screen runs as the writer, so any of the writer's programs could kill it, and
+# openvt reports a killed child as a success. Its exit status is therefore not trusted: it opens
+# this root-only file while still root and writes UNLOCKED into it only after PAM accepted the
+# password. A writer's program can neither open the file nor reach the lock screen's handle (the
+# lock screen is not dumpable), so killing the lock screen can only fail the lock.
+PROOF = RUN / 'unlocked'
+UNLOCKED = b'unlocked\n'
 PAM = ('# WrOS existing-session unlock; authentication is performed only by Debian vlock.\n'
        'auth requisite pam_succeed_if.so quiet uid > 0\n@include common-auth\n')
 LOCK_MESSAGE = '\033[2J\033[3J\033[HWrOS - writing session locked\nPress Enter to unlock.'
@@ -129,6 +136,27 @@ def fixed_command(username, message=LOCK_MESSAGE, *, choice='wros'):
     else:
         arguments += ['--user', username]
     return arguments, environment
+
+
+def fresh_proof(path=PROOF):
+    path.parent.mkdir(mode=0o700, exist_ok=True)
+    path.unlink(missing_ok=True)
+    os.close(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                     0o600))
+
+
+def unlock_proven(path=PROOF):
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    except OSError:
+        return False
+    try:
+        info = os.fstat(fd)
+        return (stat.S_ISREG(info.st_mode) and info.st_uid == 0 and info.st_nlink == 1
+                and os.read(fd, 64) == UNLOCKED)
+    finally:
+        os.close(fd)
+        path.unlink(missing_ok=True)
 
 
 def query(arguments):
@@ -446,6 +474,8 @@ def worker(uid, parent, started, sleep=False):
         stage = 'acquiring the locker'
         message = lock_message() if choice == 'vlock' else LOCK_MESSAGE
         arguments, environment = fixed_command(username, message, choice=choice)
+        if choice == 'wros':
+            fresh_proof()
         child = subprocess.Popen(arguments, stdin=None, stdout=subprocess.DEVNULL,
                                  stderr=subprocess.DEVNULL, env=environment)
         acquired = False
@@ -473,6 +503,7 @@ def worker(uid, parent, started, sleep=False):
         # openvt propagates normal child exits and maps signal death to 127.
         # Both lockers return zero only after PAM success.
         require(child.returncode == 0, f'openvt or locker exited with status {child.returncode}')
+        require(choice != 'wros' or unlock_proven(), 'the lock screen ended without an unlock')
         require(acquired, 'the lock console never became ready')
         require(not select.select([parent_fd], [], [], 0)[0], 'writer exited before unlock')
         return 0

@@ -46,6 +46,11 @@ mod linux {
     use zeroize::Zeroizing;
 
     const TTY: &CStr = c"/dev/tty8";
+    /// Where the unlock is proven to wros-lock's worker (its root-only runtime directory). The
+    /// worker creates it empty; it is opened here while still root, and `unlocked` is written
+    /// into it only after PAM accepted the password. Killing this program, which the writer's
+    /// own programs can do, leaves it empty: the lock fails and the session closes.
+    const PROOF: &str = "/run/wros-lock/unlocked";
     const VT_SETMODE: libc::c_ulong = 0x5602;
     const VT_RELDISP: libc::c_ulong = 0x5605;
 
@@ -222,6 +227,7 @@ mod linux {
         // As root: SysRq off (vlock's nosysrq; the worker puts it back after), then the
         // display and the VT.
         std::fs::write("/proc/sys/kernel/sysrq", "0").map_err(|_| c"could not disable SysRq")?;
+        let mut proof = open_proof()?;
         let mut terminal = wros_graphics::init(true).map_err(|_| c"terminal setup failed")?;
         let graphical = terminal.backend_mut().hold_for_lock();
         if !graphical {
@@ -243,11 +249,33 @@ mod linux {
         let (views, shown) = mpsc::channel::<View>();
         let user = account.name.to_string_lossy().into_owned();
         let painter = std::thread::spawn(move || paint(terminal, shown, &user, &palette));
-        let unlocked = keys(&account, views);
+        let unlocked = keys(&account, views).and_then(|()| {
+            use std::io::Write;
+            proof
+                .write_all(b"unlocked\n")
+                .map_err(|_| c"could not prove the unlock")
+        });
         // The drawing thread ends once the sender is gone, putting the console back.
         let _ = painter.join();
         ratatui::restore();
         unlocked
+    }
+
+    /// The worker's empty, root-owned proof file, opened for writing without following links.
+    fn open_proof() -> Result<std::fs::File, &'static CStr> {
+        use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+        let proof = std::fs::OpenOptions::new()
+            .write(true)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(PROOF)
+            .map_err(|_| c"no unlock proof from the lock worker")?;
+        let info = proof
+            .metadata()
+            .map_err(|_| c"no unlock proof from the lock worker")?;
+        if !info.is_file() || info.uid() != 0 || info.nlink() != 1 || info.len() != 0 {
+            return Err(c"the unlock proof is not the worker's");
+        }
+        Ok(proof)
     }
 
     /// Draws the lock screen until the key loop ends. A drawing error is noted once and drawing

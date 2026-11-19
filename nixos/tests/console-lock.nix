@@ -14,6 +14,7 @@ pkgs.testers.runNixOSTest {
 
   testScript = { nodes, ... }: ''
     ${encryptedDisk.pythonPreamble}
+    import os
 
     # 1. Build and boot the encrypted disk with qwerty layout
     disk_img = build_encrypted_disk(
@@ -71,31 +72,49 @@ pkgs.testers.runNixOSTest {
     choose(installed, r"^Lock writing session$")
     installed.send_key("ret")
 
-    # 5. Verify wros-lock switches to tty8, runs vlock-main, blanks tty1, and blocks VT switching (T4)
+    # 5. wros-lock switches to tty8 and starts WrOS's lock screen in vlock-main's place (#158):
+    #    it runs as the writer (root only opened tty8 and the display), SysRq is off, the
+    #    screen is drawn (DRM, so read it with a screendump and OCR), and VT switches are refused.
     installed.wait_until_succeeds("[ $(fgconsole) = 8 ]")
-    installed.wait_until_succeeds("pgrep -x vlock-main")
-    installed.wait_until_tty_matches("8", "WrOS - writing session locked|Press Enter to unlock")
+    installed.wait_until_succeeds("pgrep -f '^[^ ]*wros-lock-screen --user'")
+    installed.fail("pgrep -x vlock-main")
+    pid = installed.succeed("pgrep -f '^[^ ]*wros-lock-screen --user'").strip()
+    writer = installed.succeed("id -u writer").strip()
+    ids = installed.succeed(f"grep -E '^(Uid|Gid):' /proc/{pid}/status")
+    print(ids)
+    for line in ids.splitlines():
+        values = line.split()[1:]
+        expected = writer if line.startswith("Uid") else installed.succeed("id -g writer").strip()
+        assert values == [expected] * 4, f"the lock screen is not running as the writer: {line}"
+    installed.succeed("[ $(cat /proc/sys/kernel/sysrq) = 0 ]")
+    time.sleep(3)
+    # The lock screen draws through DRM in Unifont, which OCR reads poorly: keep a picture for
+    # the record and check the screen is drawn (neither black nor the text console's few lines).
+    installed.screenshot("lock-screen")
+    dump = os.path.join(installed.out_dir, "lock-screen.ppm")
+    installed.send_monitor_command(f"screendump {dump}")
+    parts = open(dump, "rb").read().split(maxsplit=4)
+    w, h, rgb = int(parts[1]), int(parts[2]), parts[4]
+    lit = sum(1 for i in range(0, len(rgb), 21) if max(rgb[i:i + 3]) > 24) / (w * h / 7)
+    print(f"lock screen: {w}x{h}, {lit:.4f} of the screen lit")
+    assert lit > 0.02, f"the lock screen is not drawn ({lit:.4f} lit)"
     installed.send_key("ctrl-alt-f1")
     installed.send_key("ctrl-alt-f2")
+    time.sleep(1)
     installed.succeed("[ $(fgconsole) = 8 ]")
 
-    # 6. Type characters while locked (must not reach the editor), then type a wrong password
-    installed.send_key("ret")
-    installed.wait_until_tty_matches("8", "Password:")
+    # 6. Type characters while locked (must not reach the editor), then a wrong password: still
+    #    locked, by the same lock screen.
     installed.send_chars("LEAKED_WHILE_LOCKED_wrongpass\n")
-    # The lock screen clears itself after a refusal (wros-lock LOCK_MESSAGE), so wait for a screen
-    # with no "Password:" left on it: the old prompt text would match at once, and keys typed
-    # during PAM's failure delay are lost (rc13: os/tests/rc_vm_phases.py lock-password-rejected).
-    installed.wait_until_tty_matches("8", r"(?s)\A(?!.*Password:).*Press Enter to unlock")
+    time.sleep(5)
     installed.succeed("[ $(fgconsole) = 8 ]")
-    installed.succeed("pgrep -x vlock-main")
+    assert installed.succeed("pgrep -f '^[^ ]*wros-lock-screen --user'").strip() == pid
+    installed.screenshot("lock-screen-after-wrong-password")
 
     # 7. Type the right password to unlock and return to tty1
-    installed.send_key("ret")
-    installed.wait_until_tty_matches("8", "Password:")
     installed.send_chars("writer-lock-password\n")
     installed.wait_until_succeeds("[ $(fgconsole) = 1 ]")
-    installed.wait_until_fails("pgrep -x vlock-main")
+    installed.wait_until_fails("pgrep -f '^[^ ]*wros-lock-screen --user'")
     installed.succeed("pgrep -u writer grimoire")
 
     # 8. Confirm keys typed while locked never reached tty1 or any manuscript file
@@ -103,5 +122,17 @@ pkgs.testers.runNixOSTest {
     assert "LEAKED_WHILE_LOCKED" not in tty1_text, tty1_text
     assert "writer-lock-password" not in tty1_text, tty1_text
     installed.fail("grep -rn 'LEAKED_WHILE_LOCKED' /home/writer")
+
+    # 9. Killing the lock screen never unlocks: the lock fails and the writing session closes
+    #    through its save/rescue path, so the writer has to log in again. After the unlock the
+    #    app is back where it was: Settings > System > Battery and power.
+    installed.wait_until_tty_matches("1", "Lock writing session")
+    choose(installed, r"^Lock writing session$")
+    installed.send_key("ret")
+    installed.wait_until_succeeds("pgrep -f '^[^ ]*wros-lock-screen --user'")
+    installed.succeed("pkill -KILL -f '^[^ ]*wros-lock-screen --user'")
+    installed.wait_until_fails("pgrep -u writer -x grimoire", timeout=60)
+    installed.wait_until_succeeds("pgrep -x wros-greeter", timeout=60)
+    installed.fail("pgrep -f '^[^ ]*wros-lock-screen --user'")
   '';
 }
