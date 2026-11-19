@@ -134,5 +134,70 @@ pkgs.testers.runNixOSTest {
     installed.wait_until_fails("pgrep -u writer -x grimoire", timeout=60)
     installed.wait_until_succeeds("pgrep -x wros-greeter", timeout=60)
     installed.fail("pgrep -f '^[^ ]*wros-lock-screen --user'")
+
+    # 10. The writer's usual session draws through DRM (the steps above used the console session
+    #     so the editor's text can be read). There the app gives the card up while locked, the
+    #     lock screen holds DRM master throughout, and the app, unprivileged, must get the card
+    #     back. Locked and unlocked blind: Ctrl-K, "lock", Enter in the command palette.
+    def lit(name):
+        dump = os.path.join(installed.out_dir, f"{name}.ppm")
+        installed.send_monitor_command(f"screendump {dump}")
+        parts = open(dump, "rb").read().split(maxsplit=4)
+        w, h, rgb = int(parts[1]), int(parts[2]), parts[4]
+        share = sum(1 for i in range(0, len(rgb), 21) if max(rgb[i:i + 3]) > 24) / (w * h / 7)
+        print(f"{name}: {share:.4f} lit")
+        return share, rgb
+    installed.succeed("rm -f /home/writer/.config/wros/session.json")
+    log_in(installed, "writer", "writer-lock-password", colemak=False)
+    app = installed.succeed("pgrep -u writer -x grimoire -o").strip()
+    assert "WROS_SESSION=drm" in installed.succeed(f"tr '\\0' '\\n' < /proc/{app}/environ")
+    def sketch(name):
+        # A coarse picture of the screen in the log (DRM drawing has no tty text to read).
+        dump = os.path.join(installed.out_dir, f"{name}.ppm")
+        installed.send_monitor_command(f"screendump {dump}")
+        parts = open(dump, "rb").read().split(maxsplit=4)
+        w, h, rgb = int(parts[1]), int(parts[2]), parts[4]
+        rows = []
+        for y in range(0, h, h // 40):
+            row = ""
+            for x in range(0, w, w // 120):
+                i = 3 * (y * w + x)
+                row += "#" if max(rgb[i:i + 3]) > 60 else ("+" if max(rgb[i:i + 3]) > 24 else " ")
+            rows.append(row.rstrip())
+        print(f"--- {name}")
+        for row in rows:
+            print(row)
+    time.sleep(5)
+    sketch("desk-at-login")
+    # The session may open on the dashboard, where Ctrl-K is not the command palette; Esc
+    # closes it (in the editor Esc opens the menu bar, which Esc closes again).
+    installed.send_key("esc")
+    time.sleep(2)
+    sketch("after-esc")
+    installed.send_key("ctrl-k")
+    time.sleep(1)
+    installed.send_chars("lock")
+    time.sleep(1)
+    sketch("palette-lock")
+    installed.send_key("ret")
+    try:
+        installed.wait_until_succeeds("[ $(fgconsole) = 8 ]", timeout=30)
+    except Exception:
+        sketch("not-locked")
+        print(installed.succeed("journalctl -b --no-pager -t wros-lock -t pkexec | tail -20"))
+        raise
+    installed.wait_until_succeeds("pgrep -f '^[^ ]*wros-lock-screen --user'")
+    time.sleep(3)
+    lock_lit, lock_rgb = lit("drm-lock-screen")
+    assert lock_lit > 0.02, f"the lock screen is not drawn ({lock_lit:.4f})"
+    installed.send_chars("writer-lock-password\n")
+    installed.wait_until_succeeds("[ $(fgconsole) = 1 ]")
+    installed.wait_until_fails("pgrep -f '^[^ ]*wros-lock-screen --user'")
+    time.sleep(5)
+    assert installed.succeed("pgrep -u writer -x grimoire -o").strip() == app, "the app restarted"
+    mode = installed.succeed("${pkgs.kbd}/bin/kbdinfo -C /dev/tty1 getmode")
+    assert "graphics" in mode, f"the app did not get the display back: {mode}"
+    back_lit, back_rgb = lit("desk-after-unlock")
+    assert back_lit > 0.005 and back_rgb != lock_rgb, f"the desk is not back ({back_lit:.4f})"
   '';
 }

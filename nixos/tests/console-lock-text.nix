@@ -90,7 +90,7 @@ pkgs.testers.runNixOSTest {
     installed.succeed("[ $(cat /proc/sys/kernel/sysrq) = 0 ]")
     time.sleep(3)
     # A text lock screen: tty8 holds its text.
-    installed.wait_until_tty_matches("8", "WrOS · Locked")
+    installed.wait_until_tty_matches("8", "press Enter to unlock")
     installed.send_key("ctrl-alt-f1")
     installed.send_key("ctrl-alt-f2")
     time.sleep(1)
