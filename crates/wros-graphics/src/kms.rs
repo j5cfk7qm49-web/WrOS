@@ -17,6 +17,7 @@ use std::{
 };
 
 const KDSETMODE: libc::c_ulong = 0x4b3a;
+const KDGETMODE: libc::c_ulong = 0x4b3b;
 const VT_SETMODE: libc::c_ulong = 0x5602;
 const VT_RELDISP: libc::c_ulong = 0x5605;
 
@@ -55,6 +56,12 @@ pub(super) struct Display {
     /// start never shows a blank buffer between the previous picture and its own (#165).
     shown: bool,
     released: bool,
+    /// Times the console took the display and this screen put its frame back.
+    pub retaken: u32,
+    /// Times something set the VT to text mode under this screen's frame and it set graphics
+    /// mode back (greetd does as it starts the login screen; systemd at the switch to the
+    /// installed system).
+    pub text_resets: u32,
     release: Arc<AtomicBool>,
     acquire: Arc<AtomicBool>,
     signals: Vec<signal_hook::SigId>,
@@ -97,6 +104,13 @@ fn raster_for_mode(size: TextSize, width: u16, height: u16) -> Pixels {
     size.raster(cols as u16, rows as u16)
 }
 
+/// The VT is in text mode: the console, not another program, owns what is on screen.
+fn text_mode(tty: &File) -> bool {
+    let mut mode: libc::c_int = -1;
+    let read = unsafe { libc::ioctl(tty.as_raw_fd(), KDGETMODE, &mut mode) };
+    read == 0 && mode == 0
+}
+
 fn active_console(tty: &File) -> io::Result<()> {
     let mut active = [0u16; 3];
     let mut device = 0u32;
@@ -123,20 +137,37 @@ impl Display {
         Err(last)
     }
 
+    /// Opens the card as DRM master. A program without CAP_SYS_ADMIN (the login screen, the
+    /// writing app) becomes master only by opening the card while nobody else holds master, and
+    /// can't take it later on that file: so while the previous start screen holds it for a
+    /// moment, the card is opened again until it can (#165).
+    fn open_as_master(tty: &File, index: u32) -> io::Result<Card> {
+        let deadline = Instant::now() + Duration::from_secs(2);
+        loop {
+            let card = Card(
+                OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .open(format!("/dev/dri/card{index}"))?,
+            );
+            match active_console(tty).and_then(|()| card.acquire_master_lock()) {
+                Ok(()) => return Ok(card),
+                Err(error)
+                    if matches!(
+                        error.raw_os_error(),
+                        Some(libc::EACCES | libc::EPERM | libc::EBUSY | libc::EINTR)
+                    ) && Instant::now() < deadline =>
+                {
+                    drop(card);
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                Err(error) => return Err(error),
+            }
+        }
+    }
+
     fn on_card(tty: &File, index: u32, size: TextSize) -> io::Result<Self> {
-        let card = Card(
-            OpenOptions::new()
-                .read(true)
-                .write(true)
-                .open(format!("/dev/dri/card{index}"))?,
-        );
-        acquire_master(
-            || {
-                active_console(tty)?;
-                card.acquire_master_lock()
-            },
-            Duration::from_secs(2),
-        )?;
+        let card = Self::open_as_master(tty, index)?;
         let resources = card.resource_handles()?;
         let connector = resources
             .connectors()
@@ -217,6 +248,8 @@ impl Display {
             pixels,
             shown: false,
             released: false,
+            retaken: 0,
+            text_resets: 0,
             release: Arc::new(AtomicBool::new(false)),
             acquire: Arc::new(AtomicBool::new(false)),
             signals: vec![],
@@ -402,13 +435,56 @@ impl Display {
 
     /// Another screen has scanned out its own frame over this one: the next screen in the
     /// start-up took over in place (#165).
-    pub fn superseded(&self) -> bool {
-        self.shown
-            && !self.released
-            && self
-                .card
-                .get_crtc(self.crtc.handle())
-                .is_ok_and(|crtc| crtc.framebuffer() != Some(self.framebuffer))
+    ///
+    /// A screen that takes over sets the VT to graphics mode in the same master hold as its
+    /// modeset. When the display shows something else with the VT in text mode, the console has
+    /// taken it back instead (greetd sets the VT to text mode and clears it before it starts the
+    /// login screen, and with no DRM master the console's buffer returns): this screen's frame
+    /// goes back up and it carries on.
+    pub fn superseded(&mut self) -> bool {
+        let ours = |card: &Card| {
+            card.get_crtc(self.crtc.handle())
+                .is_ok_and(|crtc| crtc.framebuffer() == Some(self.framebuffer))
+        };
+        if !self.shown || self.released {
+            return false;
+        }
+        if ours(&self.card) {
+            // Text mode under this frame: the console would take the display at its next write
+            // or unblank whenever nobody holds master. Graphics mode goes back at once.
+            if text_mode(&self.tty) && ioctl(&self.tty, KDSETMODE, 1).is_ok() {
+                self.text_resets += 1;
+            }
+            return false;
+        }
+        let mut retook = false;
+        let replaced = self.with_master(|| {
+            if ours(&self.card) {
+                return Ok(false);
+            }
+            if !text_mode(&self.tty) {
+                return Ok(true);
+            }
+            self.card.set_crtc(
+                self.crtc.handle(),
+                Some(self.framebuffer),
+                (0, 0),
+                &[self.connector],
+                Some(self.mode),
+            )?;
+            ioctl(&self.tty, KDSETMODE, 1)?;
+            retook = true;
+            Ok(false)
+        });
+        if retook {
+            self.retaken += 1;
+        }
+        replaced.unwrap_or(false)
+    }
+
+    /// A VT switch is waiting for this screen's answer, given by the next [`Self::present`].
+    pub fn vt_switch_pending(&self) -> bool {
+        self.release.load(Ordering::Relaxed) || self.acquire.load(Ordering::Relaxed)
     }
 
     pub fn pointer(&mut self, position: Option<ratatui::layout::Position>) {

@@ -268,12 +268,39 @@ impl<W: io::Write> Screen<W> {
 
     /// Another screen has put its own frame on the display in place of this one's. Dropped,
     /// such a screen leaves the display, the VT and the console as that one set them.
-    pub fn superseded(&self) -> bool {
+    pub fn superseded(&mut self) -> bool {
         #[cfg(target_os = "linux")]
-        if let Some(display) = &self.graphics {
+        if let Some(display) = &mut self.graphics {
             return display.superseded();
         }
         false
+    }
+
+    /// Times the console took the display back and this screen put its frame back up.
+    pub fn retaken(&self) -> u32 {
+        #[cfg(target_os = "linux")]
+        if let Some(display) = &self.graphics {
+            return display.retaken;
+        }
+        0
+    }
+
+    /// A VT switch away or back waits for the next flush.
+    pub fn vt_switch_pending(&self) -> bool {
+        #[cfg(target_os = "linux")]
+        if let Some(display) = &self.graphics {
+            return display.vt_switch_pending();
+        }
+        false
+    }
+
+    /// Times something set the VT to text mode under this screen and it set graphics mode back.
+    pub fn text_resets(&self) -> u32 {
+        #[cfg(target_os = "linux")]
+        if let Some(display) = &self.graphics {
+            return display.text_resets;
+        }
+        0
     }
 
     /// Drop DRM master and restore the console before the independent locker starts.

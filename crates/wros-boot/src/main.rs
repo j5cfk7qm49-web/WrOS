@@ -129,6 +129,13 @@ mod linux {
     /// How long the initrd's progress screen stays once systemd stops answering it (after the
     /// switch to the installed system) without the installed system's screen replacing it.
     const SWITCH_WAIT: Duration = Duration::from_secs(8);
+    /// The progress screen's pace: how soon it notices that the console took the display, and
+    /// puts its frame back.
+    const TICK_MS: i32 = 25;
+    /// After the switch to the installed system, the new systemd stops the initrd's progress
+    /// screen before the installed system's screen is up: it stays this long for that screen
+    /// instead of giving the display back to the console in between.
+    const STOP_GRACE: Duration = Duration::from_secs(3);
 
     /// The console in raw mode, put back as it was however the screen ends.
     struct Raw {
@@ -345,7 +352,7 @@ mod linux {
                         let until = Instant::now() + UNLOCK_HOLD;
                         while raw.graphical
                             && Instant::now() < until
-                            && !terminal.backend().superseded()
+                            && !terminal.backend_mut().superseded()
                         {
                             std::thread::sleep(Duration::from_millis(20));
                         }
@@ -359,6 +366,14 @@ mod linux {
             Outcome::Done => exit::UNLOCK,
             Outcome::Text => exit::TEXT,
             Outcome::Typing => exit::FAILED,
+        }
+    }
+
+    /// A line in the kernel log (the journal keeps it; the screen does not show it at the boot's
+    /// log level). Never anything typed.
+    fn note(text: &str) {
+        if let Ok(mut kmsg) = OpenOptions::new().write(true).open("/dev/kmsg") {
+            let _ = kmsg.write_all(format!("<6>wros-boot: {text}\n").as_bytes());
         }
     }
 
@@ -380,8 +395,8 @@ mod linux {
     /// `systemctl` run as root talks to systemd over its private socket, which exists from the
     /// first moment. `busctl` needs the D-Bus daemon, which starts well into the boot: asked
     /// first, the bar stayed empty until the login screen replaced it. It stays as a fallback.
-    fn progress(args: &Args) -> Option<f64> {
-        if let Some(path) = &args.progress_file {
+    fn progress(progress_file: Option<&std::path::Path>) -> Option<f64> {
+        if let Some(path) = progress_file {
             return splash::parse_progress(&std::fs::read_to_string(path).ok()?);
         }
         output(
@@ -456,19 +471,57 @@ mod linux {
         let mut buf = [0u8; 64];
         // When greetd said the login screen is starting.
         let mut handover: Option<Instant> = None;
-        // The last time systemd answered. The initrd's screen outlives the switch to the
-        // installed system, where its systemctl is gone: if the installed system's screen hasn't
-        // replaced it by then, it ends rather than cover whatever comes next.
-        let mut answered = Instant::now();
-        while !STOP.load(Ordering::SeqCst) && started.elapsed() < Duration::from_secs(180) {
+        // When systemd asked the initrd's screen to stop after the switch.
+        let mut stopping: Option<Instant> = None;
+        // systemd's progress is read on its own thread: asking can block (at the switch to the
+        // installed system), and the screen must keep watching the display meanwhile. It holds
+        // the last reading and when it was taken. The initrd's screen outlives the switch, where
+        // its systemctl is gone: if the installed system's screen hasn't replaced it by then, it
+        // ends rather than cover whatever comes next.
+        let latest = std::sync::Arc::new(std::sync::Mutex::new((None::<f64>, Instant::now())));
+        {
+            let latest = latest.clone();
+            let file = args.progress_file.clone();
+            std::thread::spawn(move || {
+                loop {
+                    if let Some(p) = progress(file.as_deref())
+                        && let Ok(mut slot) = latest.lock()
+                    {
+                        *slot = (Some(p), Instant::now());
+                    }
+                    std::thread::sleep(Duration::from_millis(100));
+                }
+            });
+        }
+        let mut ended = "stopped by systemd";
+        loop {
+            let (reading, answered) = latest.lock().map(|slot| *slot).unwrap_or((None, started));
+            if STOP.load(Ordering::SeqCst) {
+                // Before the switch (a wrong password's prompt, shutdown) a stop is obeyed at once.
+                if args.stage == splash::Stage::System
+                    || answered.elapsed() < Duration::from_secs(1)
+                {
+                    break;
+                }
+                if stopping.get_or_insert_with(Instant::now).elapsed() >= STOP_GRACE {
+                    ended = "stopped after the switch, and nothing replaced it";
+                    break;
+                }
+            }
+            if started.elapsed() >= Duration::from_secs(180) {
+                ended = "after 3 minutes";
+                break;
+            }
             // The next screen in the start-up has its first frame up: end, leaving it on screen.
-            if terminal.backend().superseded() {
+            if terminal.backend_mut().superseded() {
+                ended = "replaced by the next screen";
                 break;
             }
             if handover.is_none() && HANDOVER.load(Ordering::SeqCst) {
                 // The login screen sets the console up as it needs: give it back now, with the
                 // keys typed during the start dropped, and stop reading it. greetd waits for
-                // this file before it starts the login screen.
+                // this file before it goes on. (Its reset of the console, text mode and a clear,
+                // briefly gives the display to the console: superseded() puts this frame back.)
                 raw.release();
                 let _ = std::fs::write(splash::HANDED_OVER, b"");
                 handover = Some(Instant::now());
@@ -476,12 +529,11 @@ mod linux {
             // With no login screen's frame in time (a text login screen), end and give the
             // console its picture back.
             if handover.is_some_and(|since| since.elapsed() >= HANDOVER_WAIT) {
+                ended = "no login screen's frame after the hand-over";
                 break;
             }
-            let reading = progress(args);
-            if reading.is_some() {
-                answered = Instant::now();
-            } else if args.stage == splash::Stage::Initrd && answered.elapsed() >= SWITCH_WAIT {
+            if args.stage == splash::Stage::Initrd && answered.elapsed() >= SWITCH_WAIT {
+                ended = "systemd stopped answering and nothing replaced it";
                 break;
             }
             // systemd's figure dips whenever new jobs are queued; the bar only ever moves forward.
@@ -489,31 +541,43 @@ mod linux {
                 .map(|p| splash::overall(args.stage, start, *first.get_or_insert(p), p))
                 .map_or(shown, |p| p.max(shown))
                 .max(start);
-            if terminal.draw(|f| splash::draw(f, &theme, now)).is_err() {
-                return exit::FAILED;
+            // Drawn only when the figure moves (each frame is a full copy to the screen), or to
+            // answer a VT switch.
+            if now != shown || terminal.backend().vt_switch_pending() {
+                if terminal.draw(|f| splash::draw(f, &theme, now)).is_err() {
+                    note("progress screen: drawing failed");
+                    return exit::FAILED;
+                }
+                if args.stage == splash::Stage::Initrd {
+                    hand_over(now);
+                }
+                shown = now;
             }
-            if args.stage == splash::Stage::Initrd && now != shown {
-                hand_over(now);
-            }
-            shown = now;
             // The initrd's screen stays until the installed system's replaces it.
             if args.stage == splash::Stage::System
                 && handover.is_none()
                 && now >= 1.0
                 && finished.get_or_insert_with(Instant::now).elapsed() >= Duration::from_secs(3)
             {
+                ended = "the start-up finished";
                 break;
             }
             // Keys typed while the laptop starts are read and dropped, never echoed. Once the
             // console is the login screen's, nothing more is read from it.
-            if handover.is_some() || raw.read(150, &mut buf).is_err() {
-                std::thread::sleep(Duration::from_millis(if handover.is_some() {
-                    50
-                } else {
-                    150
-                }));
+            if handover.is_some() || raw.read(TICK_MS, &mut buf).is_err() {
+                std::thread::sleep(Duration::from_millis(TICK_MS as u64));
             }
         }
+        let stage = match args.stage {
+            splash::Stage::Initrd => "initrd",
+            splash::Stage::System => "system",
+        };
+        let backend = terminal.backend();
+        let (retaken, resets) = (backend.retaken(), backend.text_resets());
+        note(&format!(
+            "progress screen ({stage}) ended: {ended}; console text mode undone {resets} times, \
+             screen taken back from the console {retaken} times"
+        ));
         exit::UNLOCK
     }
 }

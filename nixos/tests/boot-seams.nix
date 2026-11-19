@@ -131,21 +131,35 @@ pkgs.testers.runNixOSTest {
         prompt = in_background(lambda: wait_for_disk_prompt(installed, settle=3))
         before = film("boot", prompt)
         report("boot", before)
-        unlock_at_prompt(installed, "seams-passphrase")
-        greeter = in_background(lambda: wait_for_greeter(installed, settle=4))
+        # Filmed from just after Enter: the unlock → progress hand-over and the switch to the
+        # installed system come within seconds of it.
+        installed.send_chars("seams-passphrase")
+        installed.send_key("ret")
+        time.sleep(0.5)
+        def to_login():
+            installed.wait_for_console_text("password handed to systemd-cryptsetup", timeout=60)
+            wait_for_greeter(installed, settle=4)
+        greeter = in_background(to_login)
         after = film("unlock-to-login", greeter)
         report("unlock-to-login", after)
+        print(installed.succeed(
+            "journalctl -b --no-pager -o short-monotonic -g 'wros-boot|splash|greetd|Switching root'"
+            " | tail -60; journalctl -k -b --no-pager -o short-monotonic | grep wros-boot || true"
+        ))
+        # The login screen draws through DRM (a text login screen would mean it never got the card).
+        mode = installed.succeed("${pkgs.kbd}/bin/kbdinfo -C /dev/tty1 getmode")
+        assert "graphics" in mode, f"the login screen is not graphical: {mode}"
         menu_gaps = black_runs(before)
         print(f"black before the unlock screen: {[(round(b - a, 2)) for a, b in menu_gaps]}")
-        gaps = black_runs(after)
+        # A frame or two of black (under 0.1 s) where the console briefly takes the display (greetd
+        # resets it before it starts the login screen) is put right at once and only reported.
+        flickers = [(a, b) for a, b in black_runs(after) if b - a < 0.1]
+        print("flickers: " + ", ".join(f"{a - after[0][0]:.2f}s" for a, _ in flickers))
+        gaps = [(a, b) for a, b in black_runs(after) if b - a >= 0.1]
         assert not gaps, (
             "black screens between the unlock and the login screen: "
             + ", ".join(f"{a - after[0][0]:.2f}s-{b - after[0][0]:.2f}s" for a, b in gaps)
         )
         assert after[-1][1] >= BLACK, "the login screen is not on screen"
-        print(installed.succeed(
-            "journalctl -b --no-pager -o short-monotonic"
-            " -u wros-initrd-unlock -u wros-initrd-splash -u wros-boot-splash -u greetd | tail -40"
-        ))
   '';
 }
