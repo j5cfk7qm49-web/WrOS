@@ -391,6 +391,70 @@ pub fn render_themed_with_clock(
     palette: &wros_shell::grimoire_theme::Theme,
     time: Option<wros_shell::clock::Time>,
 ) {
+    let theme = palette.into();
+    let body = render_header(frame, palette, time);
+    let title = "WrOS · Sign in";
+    if matches!(conversation.phase, Phase::Prompt(_) | Phase::Retry) {
+        let rows = vec![conversation.prompt.clone(), conversation.shown_input()];
+        wros_shell::render_menu(
+            frame,
+            body,
+            wros_shell::Menu {
+                title,
+                rows: &rows,
+                kinds: &[],
+                selected: 0,
+                notice: conversation.notice,
+                hint: "Enter: continue  Esc: cancel for account/keyboard recovery  Ctrl+Alt+F2: maintenance",
+            },
+            theme,
+        );
+        return;
+    }
+    // At most 78 columns: the whole line fits inside the panel on an 80-column console.
+    let hint = match form.focus {
+        form::Focus::Switcher => {
+            "Left/Right: session  F1: power  F2: keyboard  Ctrl+Alt+F2: maintenance"
+        }
+        form::Focus::Username => {
+            "Up/Down: accounts  F1: power  F2: keyboard  Ctrl+Alt+F2: maintenance"
+        }
+        form::Focus::Password => {
+            "Enter: sign in  Up: back  F1: power  F2: keyboard  Ctrl+Alt+F2: maintenance"
+        }
+    };
+    let body = wros_shell::render_panel(frame, body, title, conversation.notice, hint, theme);
+    form.render(frame, body, theme);
+}
+
+/// The lock screen (#158): the login screen's logo, clock and form, with the account fixed to
+/// the writer who locked. `notice` says what happened last (a wrong password, checking).
+pub fn render_lock(
+    frame: &mut ratatui::Frame,
+    form: &form::Form,
+    palette: &wros_shell::grimoire_theme::Theme,
+    time: Option<wros_shell::clock::Time>,
+    notice: &str,
+) {
+    let body = render_header(frame, palette, time);
+    let body = wros_shell::render_panel(
+        frame,
+        body,
+        "WrOS · Locked",
+        notice,
+        "Type your password, then press Enter to unlock",
+        palette.into(),
+    );
+    form.render(frame, body, palette.into());
+}
+
+/// The logo, with the clock beside it when there is room, at the top of the login and lock
+/// screens. Returns the area under it.
+fn render_header(
+    frame: &mut ratatui::Frame,
+    palette: &wros_shell::grimoire_theme::Theme,
+    time: Option<wros_shell::clock::Time>,
+) -> ratatui::layout::Rect {
     use ratatui::layout::{Constraint, Layout, Rect};
     use wros_shell::{clock::Clock, logo::Logo};
     let theme = palette.into();
@@ -430,38 +494,22 @@ pub fn render_themed_with_clock(
     } else {
         frame.render_widget(Logo { theme: palette }, logo);
     }
-    let title = "WrOS · Sign in";
-    if matches!(conversation.phase, Phase::Prompt(_) | Phase::Retry) {
-        let rows = vec![conversation.prompt.clone(), conversation.shown_input()];
-        wros_shell::render_menu(
-            frame,
-            body,
-            wros_shell::Menu {
-                title,
-                rows: &rows,
-                kinds: &[],
-                selected: 0,
-                notice: conversation.notice,
-                hint: "Enter: continue  Esc: cancel for account/keyboard recovery  Ctrl+Alt+F2: maintenance",
-            },
-            theme,
-        );
-        return;
+    body
+}
+
+/// The local time for the clock (the greeter's and the lock screen's).
+#[cfg(target_os = "linux")]
+pub fn local_time() -> Option<wros_shell::clock::Time> {
+    let mut value = std::mem::MaybeUninit::<libc::tm>::uninit();
+    let now = unsafe { libc::time(std::ptr::null_mut()) };
+    if now == -1 || unsafe { libc::localtime_r(&now, value.as_mut_ptr()) }.is_null() {
+        return None;
     }
-    // At most 78 columns: the whole line fits inside the panel on an 80-column console.
-    let hint = match form.focus {
-        form::Focus::Switcher => {
-            "Left/Right: session  F1: power  F2: keyboard  Ctrl+Alt+F2: maintenance"
-        }
-        form::Focus::Username => {
-            "Up/Down: accounts  F1: power  F2: keyboard  Ctrl+Alt+F2: maintenance"
-        }
-        form::Focus::Password => {
-            "Enter: sign in  Up: back  F1: power  F2: keyboard  Ctrl+Alt+F2: maintenance"
-        }
-    };
-    let body = wros_shell::render_panel(frame, body, title, conversation.notice, hint, theme);
-    form.render(frame, body, theme);
+    let value = unsafe { value.assume_init() };
+    wros_shell::clock::Time::new(
+        u8::try_from(value.tm_hour).ok()?,
+        u8::try_from(value.tm_min).ok()?,
+    )
 }
 
 /// A one-shot message, prepared before vlock starts reading authentication input.

@@ -62,6 +62,12 @@ pub(super) struct Display {
     /// mode back (greetd does as it starts the login screen; systemd at the switch to the
     /// installed system).
     pub text_resets: u32,
+    /// The lock screen: every request to switch away from this VT is refused (#158).
+    refuse_switches: bool,
+    /// The lock screen: DRM master is kept from the open until the end. A program that drops
+    /// root after opening the card can take master again only as the same process, and no
+    /// other program may draw over a locked screen meanwhile.
+    keep_master: bool,
     release: Arc<AtomicBool>,
     acquire: Arc<AtomicBool>,
     signals: Vec<signal_hook::SigId>,
@@ -250,6 +256,8 @@ impl Display {
             released: false,
             retaken: 0,
             text_resets: 0,
+            refuse_switches: false,
+            keep_master: false,
             release: Arc::new(AtomicBool::new(false)),
             acquire: Arc::new(AtomicBool::new(false)),
             signals: vec![],
@@ -292,6 +300,9 @@ impl Display {
     }
 
     fn with_master<T>(&self, operation: impl FnOnce() -> io::Result<T>) -> io::Result<T> {
+        if self.keep_master {
+            return operation();
+        }
         // The colour helper briefly owns master between modesets. A VT handoff
         // must wait for it instead of silently leaving fbcon on the old buffer.
         acquire_master(
@@ -367,11 +378,16 @@ impl Display {
 
     pub fn present(&mut self) -> io::Result<()> {
         if self.release.swap(false, Ordering::Relaxed) {
-            self.pointer = None;
-            let restored = self.restore();
-            // The VT switch waits for this answer whatever happened to the screen.
-            ioctl(&self.tty, VT_RELDISP, 1)?;
-            restored?;
+            if self.refuse_switches {
+                // Locked: the switch away is refused and nothing changes on screen.
+                ioctl(&self.tty, VT_RELDISP, 0)?;
+            } else {
+                self.pointer = None;
+                let restored = self.restore();
+                // The VT switch waits for this answer whatever happened to the screen.
+                ioctl(&self.tty, VT_RELDISP, 1)?;
+                restored?;
+            }
         }
         if self.acquire.swap(false, Ordering::Relaxed) {
             ioctl(&self.tty, VT_RELDISP, 2)?;
@@ -480,6 +496,13 @@ impl Display {
             self.retaken += 1;
         }
         replaced.unwrap_or(false)
+    }
+
+    /// Locks this VT for the lock screen: switches away are refused and DRM master, held since
+    /// the open, is never let go. Call it straight after opening, before the first frame.
+    pub fn hold_for_lock(&mut self) {
+        self.refuse_switches = true;
+        self.keep_master = true;
     }
 
     /// A VT switch is waiting for this screen's answer, given by the next [`Self::present`].

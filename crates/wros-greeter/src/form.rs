@@ -230,9 +230,21 @@ pub struct Form {
     pub password: Field,
     accounts: Vec<String>,
     account: Option<usize>,
+    /// The lock screen's form: the account is the writer who locked, and only the password
+    /// field takes keys.
+    fixed: bool,
 }
 
 impl Form {
+    /// The lock screen's form (#158): the login form with the account fixed to `username`.
+    pub fn locked(username: &str) -> Self {
+        let mut form = Self::new(vec![], false);
+        form.username.set(username);
+        form.focus = Focus::Password;
+        form.fixed = true;
+        form
+    }
+
     pub fn new(accounts: Vec<String>, graphical: bool) -> Self {
         Self {
             focus: Focus::Username,
@@ -244,6 +256,7 @@ impl Form {
             password: Field::new(true),
             accounts,
             account: None,
+            fixed: false,
         }
     }
 
@@ -292,6 +305,9 @@ impl Form {
 
     pub fn key(&mut self, key: KeyEvent) -> Action {
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+        if self.fixed && matches!(key.code, KeyCode::Tab | KeyCode::BackTab | KeyCode::Up) {
+            return Action::None;
+        }
         match key.code {
             KeyCode::Tab => self.next(),
             KeyCode::BackTab => self.prev(),

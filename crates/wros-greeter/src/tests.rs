@@ -449,3 +449,59 @@ fn every_login_hint_fits_an_80_column_console_and_offers_power() {
         press(&mut form, key);
     }
 }
+
+#[test]
+fn the_lock_form_keeps_the_writer_and_takes_keys_only_in_the_password_field() {
+    let mut form = Form::locked("writer");
+    assert_eq!(form.username.text(), "writer");
+    assert_eq!(form.focus, Focus::Password);
+    for code in [KeyCode::Tab, KeyCode::BackTab, KeyCode::Up, KeyCode::Down] {
+        assert_eq!(press(&mut form, code), Action::None);
+        assert_eq!(form.focus, Focus::Password);
+    }
+    type_text(&mut form, "secret");
+    assert_eq!(form.username.text(), "writer");
+    assert_eq!(form.password.text(), "secret");
+    assert_eq!(press(&mut form, KeyCode::Enter), Action::Submit);
+    assert!(form.switcher.is_none());
+}
+
+#[test]
+fn the_lock_screen_is_the_login_screen_with_the_writer_fixed_and_no_login_controls() {
+    let mut form = Form::locked("writer");
+    type_text(&mut form, "disposable-test-secret");
+    for (width, height) in [(80, 25), (170, 48)] {
+        let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+        terminal
+            .draw(|frame| {
+                render_lock(
+                    frame,
+                    &form,
+                    &wros_shell::grimoire_theme::default_theme(),
+                    wros_shell::clock::Time::new(7, 5),
+                    "That password didn't work. Try again.",
+                )
+            })
+            .unwrap();
+        let shown = screen(&terminal);
+        assert!(
+            shown.contains("WrOS · Locked"),
+            "title at {width} by {height}"
+        );
+        assert!(shown.contains("writer") && shown.contains("Password"));
+        assert!(shown.contains("didn't work"));
+        assert!(!shown.contains("disposable-test-secret"));
+        // The login screen's ways out are not offered while locked.
+        for login_only in [
+            "F1: power",
+            "F2: keyboard",
+            "maintenance",
+            "Console session",
+        ] {
+            assert!(
+                !shown.contains(login_only),
+                "{login_only} at {width} by {height}"
+            );
+        }
+    }
+}

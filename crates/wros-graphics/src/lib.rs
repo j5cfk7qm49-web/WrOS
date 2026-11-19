@@ -285,6 +285,17 @@ impl<W: io::Write> Screen<W> {
         0
     }
 
+    /// For the lock screen: refuse every switch away from this VT and keep DRM master until the
+    /// end (#158). False for a text screen, which must hold the VT itself.
+    pub fn hold_for_lock(&mut self) -> bool {
+        #[cfg(target_os = "linux")]
+        if let Some(display) = &mut self.graphics {
+            display.hold_for_lock();
+            return true;
+        }
+        false
+    }
+
     /// A VT switch away or back waits for the next flush.
     pub fn vt_switch_pending(&self) -> bool {
         #[cfg(target_os = "linux")]

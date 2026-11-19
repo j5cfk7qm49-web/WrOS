@@ -21,6 +21,7 @@ let
     pkgs.alsa-lib
     pkgs.openssl
     pkgs.libdrm
+    pkgs.linux-pam
     pkgs.libinput
     pkgs.systemd
     pkgs.seatd

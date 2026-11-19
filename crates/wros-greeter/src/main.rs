@@ -58,18 +58,7 @@ mod linux {
         transport::Client,
     };
 
-    pub fn local_time() -> Option<wros_shell::clock::Time> {
-        let mut value = std::mem::MaybeUninit::<libc::tm>::uninit();
-        let now = unsafe { libc::time(std::ptr::null_mut()) };
-        if now == -1 || unsafe { libc::localtime_r(&now, value.as_mut_ptr()) }.is_null() {
-            return None;
-        }
-        let value = unsafe { value.assume_init() };
-        wros_shell::clock::Time::new(
-            u8::try_from(value.tm_hour).ok()?,
-            u8::try_from(value.tm_min).ok()?,
-        )
-    }
+    pub use wros_greeter::local_time;
 
     /// A fixed notice for the journal; never a PAM or wire string.
     fn info(message: &'static std::ffi::CStr) {
