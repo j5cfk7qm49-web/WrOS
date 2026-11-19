@@ -921,6 +921,7 @@ fn online_backend(status: &str, version: Option<&str>) -> wros_sys::Simulated {
         status: status.into(),
         version: version.map(Into::into),
         installed: Some("0.1.0~rc2".into()),
+        needs: None,
         clock: "2001-01-01 00:00".into(),
     });
     sim.fetched = Some("/var/cache/wros-update/online/0123456789abcdef".into());
@@ -1026,6 +1027,25 @@ fn online_update_clock_and_offline_states_never_alert() {
         assert!(desk.shows(text), "{status}: {}", desk.rows().join("\n"));
         assert!(!desk.shows("Update WrOS to"));
     }
+}
+
+#[test]
+fn online_update_names_the_earlier_version_and_offers_no_install() {
+    let mut desk = Desk::open(book("online-earlier-update", true), 140, 30);
+    let mut sim = online_backend("needs-earlier-update", Some("0.1.0~rc18"));
+    let online = sim.online.as_mut().unwrap();
+    online.installed = Some("0.1.0~rc16".into());
+    online.needs = Some("0.1.0~rc17".into());
+    desk.app.deck.use_test_backend(Box::new(sim));
+    system_panel(&mut desk, 5);
+    wait_system(&mut desk);
+    desk.key(KeyCode::Home);
+    desk.choose("Check for WrOS updates");
+    wait_system(&mut desk);
+    assert!(desk.shows("This update needs WrOS 0.1.0~rc17 first."));
+    assert!(desk.app.deck.note.contains("install from a WrOS stick"));
+    assert!(!desk.shows("Update WrOS to"));
+    assert!(!desk.app.msg.contains("is available"));
 }
 
 /// A stand-in wros-sync: records each request, answers from `<dir>/<operation>.json`,
@@ -1453,6 +1473,26 @@ fn update_wros_when_already_current_says_so_without_network_advice() {
     );
     assert!(!desk.shows("Update WrOS to"));
     assert!(!desk.shows("Check the network"));
+}
+
+#[test]
+fn online_download_missing_its_baseline_shows_the_version_without_network_advice() {
+    let mut desk = Desk::open(book("online-fetch-earlier-update", true), 140, 30);
+    let mut sim = online_backend("available", Some("0.1.0~rc18"));
+    sim.fetch_error =
+        Some("/run/wrappers/bin/pkexec: This update needs WrOS 0.1.0~rc17 first".into());
+    desk.app.deck.use_test_backend(Box::new(sim));
+    system_panel(&mut desk, 5);
+    wait_system(&mut desk);
+    desk.key(KeyCode::Home);
+    desk.choose("Check for WrOS updates");
+    wait_system(&mut desk);
+    desk.key(KeyCode::Home);
+    desk.choose("Update WrOS to 0.1.0~rc18");
+    wait_system(&mut desk);
+    assert!(desk.shows("This update needs WrOS 0.1.0~rc17 first."));
+    assert!(!desk.shows("Check the network"));
+    assert!(!desk.shows("Update WrOS to"));
 }
 
 #[test]
@@ -1991,6 +2031,7 @@ fn update_review_lists_signer_expiry_and_exact_changes_and_installs_nothing_at_f
         assert!(desk.shows("Upgrade wros: 0.1.0~rc1 → 0.1.0~rc2"));
         assert!(desk.shows("Install wros-help: not installed → 0.1.0~rc2"));
         assert!(desk.shows("2 package changes"));
+        assert!(desk.shows("A fresh backup is recommended first."));
         // The safe row is the default and nothing has been staged.
         assert!(desk.shows("▸ Back · do not install anything"));
         assert_eq!(world.mutations(), 0);
@@ -2025,6 +2066,7 @@ fn update_path_entry_refuses_reserved_locations_without_sending_anything() {
         wait_system(&mut desk);
         let before = world.calls().len();
         desk.choose("Review a signed update bundle by path");
+        assert!(desk.shows("Create an encrypted backup first to keep your books safe."));
         for (path, why) in [
             ("relative/bundle", "absolute directory path"),
             ("/etc", "update media"),
@@ -2486,7 +2528,7 @@ fn update_backup_not_set_up_does_not_block_but_is_shown_and_no_backup_is_never_c
     wait_system(&mut desk);
     reach_confirm(&mut desk);
     set_backup(&mut desk, false, false);
-    assert!(desk.shows("Backup: none is set up"));
+    assert!(desk.shows("Backup: none is set up. An encrypted backup keeps your books safe."));
     desk.key(KeyCode::Down);
     desk.key(KeyCode::Enter);
     wait_system(&mut desk);
@@ -2728,6 +2770,8 @@ fn recovery_shows_update_state_and_repair_sits_behind_a_default_cancel_confirmat
         let original = desk.app.editor.text();
         system_panel(&mut desk, 6);
         wait_system(&mut desk);
+        assert!(desk.shows("Each update keeps the previous WrOS version in the start menu."));
+        assert!(desk.shows("Create an encrypted backup to keep your books safe."));
         desk.choose("Recovery status, repair and staged update");
         wait_system(&mut desk);
         assert_eq!(route(&desk), Route::RecoveryView);

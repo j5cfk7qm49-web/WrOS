@@ -278,12 +278,6 @@ pub fn recovery_status(output: &str) -> Result<RecoveryInfo> {
     for pkg in &raw.staged_packages {
         label(pkg)?;
     }
-    if raw.root_filesystem == "ext4" {
-        ensure!(
-            !raw.rollback_capable,
-            "ext4 root filesystem cannot claim automatic snapshot rollback"
-        );
-    }
     Ok(RecoveryInfo {
         root_filesystem: raw.root_filesystem,
         root_device: raw.root_device,
@@ -658,6 +652,7 @@ pub fn online_update(output: &str) -> Result<crate::OnlineUpdate> {
     ensure!(
         [
             "available",
+            "needs-earlier-update",
             "current",
             "clock",
             "expired",
@@ -679,9 +674,18 @@ pub fn online_update(output: &str) -> Result<crate::OnlineUpdate> {
         );
     }
     ensure!(
-        raw.status != "available" || raw.version.is_some(),
+        !matches!(raw.status.as_str(), "available" | "needs-earlier-update")
+            || raw.version.is_some(),
         "online update reply names no version"
     );
+    if raw.status == "needs-earlier-update" {
+        let needs = raw
+            .needs
+            .as_deref()
+            .context("online update reply names no baseline")?;
+        ensure!(!needs.is_empty(), "online update reply names no baseline");
+        label(needs)?;
+    }
     label(&raw.clock)?;
     Ok(raw)
 }
@@ -1138,20 +1142,43 @@ mod tests {
         assert!(validate_update_bundle_path("relative/path").is_err());
         assert!(validate_update_bundle_path("/").is_err());
         assert!(validate_update_bundle_path("/media/../etc").is_err());
-        let ext4_json = r#"{"root_filesystem":"ext4","root_device":"/dev/mapper/root","separate_home":false,"rollback_capable":false,"rollback_strategy":"ext4 has no snapshot rollback","interrupted_dpkg":false,"unconfigured_packages":[],"staged_update":false,"staged_packages":[],"update_state":"idle","status":"clean"}"#;
+    }
+
+    #[test]
+    fn recovery_status_accepts_ext4_with_a_previous_version() {
+        let ext4_json = r#"{
+            "root_filesystem":"ext4",
+            "root_device":"/dev/mapper/root",
+            "separate_home":false,
+            "rollback_capable":true,
+            "rollback_strategy":"The previous WrOS version is kept in the start menu.",
+            "interrupted_dpkg":false,
+            "unconfigured_packages":[],
+            "staged_update":false,
+            "staged_packages":[],
+            "update_state":"idle",
+            "previous_version":"0.1.0~rc18",
+            "status":"clean"
+        }"#;
         let rec = recovery_status(ext4_json).unwrap();
         assert_eq!(rec.root_filesystem, "ext4");
         assert_eq!(rec.update_state, UpdateState::Idle);
-        assert!(!rec.rollback_capable);
+        assert!(rec.rollback_capable);
+        assert_eq!(rec.previous_version.as_deref(), Some("0.1.0~rc18"));
         // The journal state is mandatory and limited to the documented set.
         assert!(recovery_status(&ext4_json.replace("\"update_state\":\"idle\",", "")).is_err());
         assert!(recovery_status(&ext4_json.replace("\"idle\"", "\"rolled-back\"")).is_err());
-        assert!(
-            recovery_status(
-                &ext4_json.replace("\"rollback_capable\":false", "\"rollback_capable\":true")
-            )
-            .is_err()
-        );
+    }
+
+    #[test]
+    fn online_update_parses_the_required_baseline() {
+        let reply = r#"{"status":"needs-earlier-update","version":"0.1.0~rc18",
+            "installed":"0.1.0~rc16","clock":"2026-11-18 12:00","needs":"0.1.0~rc17"}"#;
+        let update = online_update(reply).unwrap();
+        assert_eq!(update.status, "needs-earlier-update");
+        assert_eq!(update.version.as_deref(), Some("0.1.0~rc18"));
+        assert_eq!(update.needs.as_deref(), Some("0.1.0~rc17"));
+        assert!(online_update(&reply.replace(r#","needs":"0.1.0~rc17""#, "")).is_err());
     }
 
     /// What the NixOS updater (nixos/scripts/wros-update-engine.py) prints for review, stage and

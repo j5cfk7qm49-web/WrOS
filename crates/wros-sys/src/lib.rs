@@ -86,10 +86,13 @@ pub struct Snapshot {
 /// What `wros-update check-online` found on the update server.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OnlineUpdate {
-    /// available, current, clock, unreachable or invalid.
+    /// available, needs-earlier-update, current, clock, expired, unreachable, unpublished or
+    /// invalid.
     pub status: String,
     pub version: Option<String>,
     pub installed: Option<String>,
+    /// The required baseline version or store name for a delta update.
+    pub needs: Option<String>,
     /// The time this computer read when it checked, `YYYY-MM-DD HH:MM`.
     pub clock: String,
 }
@@ -502,7 +505,9 @@ impl Default for Simulated {
                 root_device: "/dev/nvme0n1p2".into(),
                 separate_home: false,
                 rollback_capable: false,
-                rollback_strategy: "SIMULATED ext4 root: automatic filesystem snapshot rollback is not available (installing Snapper on ext4 does not provide rollback). Create an encrypted Restic backup before applying updates.".into(),
+                rollback_strategy: "SIMULATED: Each update keeps the previous WrOS version \
+                    in the start menu. Create an encrypted backup before updating."
+                    .into(),
                 interrupted_dpkg: false,
                 unconfigured_packages: vec![],
                 staged_update: false,
@@ -512,7 +517,9 @@ impl Default for Simulated {
                 probation: false,
                 went_back: false,
                 went_back_automatically: false,
-                status: "SIMULATED recovery status: Root filesystem: ext4 (no automatic filesystem rollback) · dpkg: clean · no offline update staged.".into(),
+                status: "SIMULATED recovery status: Root filesystem: ext4 · dpkg: clean · \
+                    no offline update staged."
+                    .into(),
             },
             bundle_revision: 1,
             media: Some("/run/wros-update/media/0".into()),
@@ -878,6 +885,7 @@ impl Backend for Simulated {
                     status: "unreachable".into(),
                     version: None,
                     installed: None,
+                    needs: None,
                     clock: String::new(),
                 },
             ))),
@@ -1105,6 +1113,21 @@ mod tests {
         };
         assert_eq!(recovery.root_filesystem, "ext4");
         assert!(!recovery.rollback_capable);
+        assert!(
+            recovery
+                .rollback_strategy
+                .contains("Each update keeps the previous WrOS version in the start menu.")
+        );
+        assert!(
+            recovery
+                .rollback_strategy
+                .contains("Create an encrypted backup")
+        );
+        assert!(
+            recovery
+                .status
+                .contains("Root filesystem: ext4 · dpkg: clean")
+        );
 
         let Reply::StorageDevices(devices) = backend.request(Request::ListStorageDevices).unwrap()
         else {

@@ -79,22 +79,35 @@ const ONLINE_CHECK_EVERY: Duration = Duration::from_secs(24 * 60 * 60);
 /// Offline, a wrong clock or a lapsed server signature: try again sooner.
 const ONLINE_RETRY: Duration = Duration::from_secs(60 * 60);
 
+fn earlier_update_line(needs: &str) -> String {
+    format!(
+        "This update needs WrOS {needs} first. Ask for the earlier update, \
+         or install from a WrOS stick."
+    )
+}
+
 /// The Updates panel's description of the last online check.
 fn online_line(online: Option<&wros_sys::OnlineUpdate>) -> String {
     let Some(online) = online else {
         return "Not checked for WrOS updates yet".into();
     };
-    match (online.status.as_str(), &online.version, &online.installed) {
-        ("available", Some(version), _) => format!("WrOS {version} is available"),
-        ("current", _, Some(installed)) => format!("WrOS is up to date ({installed})"),
-        ("current", _, None) => "WrOS is up to date".into(),
-        ("clock", _, _) => format!(
+    match (
+        online.status.as_str(),
+        &online.version,
+        &online.installed,
+        &online.needs,
+    ) {
+        ("available", Some(version), _, _) => format!("WrOS {version} is available"),
+        ("needs-earlier-update", _, _, Some(needs)) => earlier_update_line(needs),
+        ("current", _, Some(installed), _) => format!("WrOS is up to date ({installed})"),
+        ("current", _, None, _) => "WrOS is up to date".into(),
+        ("clock", _, _, _) => format!(
             "Couldn't check for WrOS updates: this computer's clock may be wrong (it reads {}).",
             online.clock
         ),
-        ("unreachable", _, _) => "Couldn't reach the WrOS update server".into(),
-        ("unpublished", _, _) => "No WrOS updates have been published yet".into(),
-        ("expired", _, _) => {
+        ("unreachable", _, _, _) => "Couldn't reach the WrOS update server".into(),
+        ("unpublished", _, _, _) => "No WrOS updates have been published yet".into(),
+        ("expired", _, _, _) => {
             "The WrOS update server's signature has expired; WrOS will check again later".into()
         }
         _ => "The WrOS update server's files didn't verify; nothing was downloaded".into(),
@@ -229,7 +242,8 @@ pub(super) fn recovery_panel() -> Vec<Entry> {
             "Recovery status, repair and staged update",
             Choice::View(Route::RecoveryView, Request::RecoveryStatus),
         ),
-        info("ext4 has no snapshot rollback. Keep an encrypted backup before updating."),
+        info("Each update keeps the previous WrOS version in the start menu."),
+        info("Create an encrypted backup to keep your books safe."),
     ]
 }
 
@@ -284,9 +298,7 @@ pub(super) fn review_rows(app: &App) -> Vec<Entry> {
             .map(|name| info(format!("Remove {name}"))),
     );
     if review.backup_recommended {
-        rows.push(info(
-            "A fresh backup is recommended first; ext4 has no snapshot rollback.",
-        ));
+        rows.push(info("A fresh backup is recommended first."));
     }
     rows
 }
@@ -318,8 +330,7 @@ fn gate_lines(app: &App, review: &UpdateReview) -> Vec<String> {
     lines.push(match backup_gate(app, review) {
         BackupGate::NotNeeded => "Backup: this update does not ask for one.".to_string(),
         BackupGate::Unconfigured => {
-            "Backup: none is set up. Without one, a failed update cannot be undone; ext4 has no rollback."
-                .to_string()
+            "Backup: none is set up. An encrypted backup keeps your books safe.".to_string()
         }
         BackupGate::Fresh(taken) => format!("Backup: fresh, taken {taken}."),
         BackupGate::Missing => format!(
@@ -555,7 +566,7 @@ pub(super) fn recovery_rows(app: &App) -> Vec<Entry> {
         if recovery.separate_home { "yes" } else { "no" }
     )));
     rows.push(info(format!(
-        "Automatic filesystem snapshot rollback: {}",
+        "System rollback: {}",
         if recovery.rollback_capable {
             "available"
         } else {
@@ -699,7 +710,7 @@ impl App {
         }
         if matches!(
             online.status.as_str(),
-            "unreachable" | "unpublished" | "clock" | "expired"
+            "unreachable" | "unpublished" | "clock" | "expired" | "needs-earlier-update"
         ) {
             self.deck.shell.update_flow.online_next = Some(SystemTime::now() + ONLINE_RETRY);
         }
@@ -1214,6 +1225,7 @@ impl App {
                     status: "unreachable".into(),
                     version: None,
                     installed: None,
+                    needs: None,
                     clock: String::new(),
                 };
                 let flow = &mut self.deck.shell.update_flow;
@@ -1233,10 +1245,28 @@ impl App {
                 self.update_notice(text);
             }
             Request::FetchOnlineUpdate => {
-                let text = format!(
-                    "WrOS update not downloaded: {error}. Nothing was installed. Check the network, then try again."
-                );
-                self.deck.shell.update_flow.last_result = Some(text.clone());
+                let flow = &mut self.deck.shell.update_flow;
+                let text = if let Some(needs) = error
+                    .split_once("This update needs WrOS ")
+                    .and_then(|(_, detail)| detail.strip_suffix(" first"))
+                {
+                    let text = earlier_update_line(needs);
+                    if let Some(online) = &mut flow.online {
+                        online.status = "needs-earlier-update".into();
+                        online.needs = Some(needs.into());
+                        flow.online_next = Some(SystemTime::now() + ONLINE_RETRY);
+                    } else {
+                        flow.last_result = Some(text.clone());
+                    }
+                    text
+                } else {
+                    let text = format!(
+                        "WrOS update not downloaded: {error}. Nothing was installed. \
+                         Check the network, then try again."
+                    );
+                    flow.last_result = Some(text.clone());
+                    text
+                };
                 self.update_notice(text);
             }
             Request::FindUpdateMedia => {

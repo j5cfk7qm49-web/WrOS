@@ -473,7 +473,13 @@ fn media_mount_reports_only_managed_mount_points() {
 fn recovery_status_carries_the_journal_state_and_rejects_unknown_ones() {
     let status = |state: &str| {
         format!(
-            r#"{{"root_filesystem":"ext4","root_device":"/dev/mapper/root","separate_home":false,"rollback_capable":false,"rollback_strategy":"ext4 has no snapshot rollback","interrupted_dpkg":false,"unconfigured_packages":[],"staged_update":true,"staged_packages":["wros"],"update_state":"{state}","status":"ok"}}"#
+            r#"{{
+                "root_filesystem":"ext4","root_device":"/dev/mapper/root","separate_home":false,
+                "rollback_capable":false,
+                "rollback_strategy":"No previous WrOS version is available.",
+                "interrupted_dpkg":false,"unconfigured_packages":[],"staged_update":true,
+                "staged_packages":["wros"],"update_state":"{state}","status":"ok"
+            }}"#
         )
     };
     for (name, state) in [
@@ -724,12 +730,21 @@ fn recovery_status_names_the_previous_version_probation_and_an_automatic_go_back
     fakes.helper(
         "wros-update",
         &echo(
-            r#"{"root_filesystem":"ext4","root_device":"/dev/mapper/root","separate_home":false,"rollback_capable":false,"rollback_strategy":"ext4","interrupted_dpkg":false,"unconfigured_packages":[],"staged_update":false,"staged_packages":[],"update_state":"completed","previous_version":"wros 0.1.0~rc5","probation":true,"went_back":true,"went_back_automatically":true,"status":"ok"}"#,
+            r#"{
+                "root_filesystem":"ext4", "root_device":"/dev/mapper/root", "separate_home":false,
+                "rollback_capable":true,
+                "rollback_strategy":"The previous WrOS version is kept in the start menu.",
+                "interrupted_dpkg":false, "unconfigured_packages":[],
+                "staged_update":false, "staged_packages":[], "update_state":"completed",
+                "previous_version":"wros 0.1.0~rc5", "probation":true,
+                "went_back":true, "went_back_automatically":true, "status":"ok"
+            }"#,
         ),
     );
     let Reply::Recovery(info) = fakes.backend().request(Request::RecoveryStatus).unwrap() else {
         panic!("expected recovery");
     };
+    assert!(info.rollback_capable);
     assert_eq!(info.previous_version.as_deref(), Some("wros 0.1.0~rc5"));
     assert!(info.probation && info.went_back && info.went_back_automatically);
 }

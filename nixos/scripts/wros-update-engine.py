@@ -388,14 +388,28 @@ def parse_closure_manifest(raw_bytes):
     }
 
 
+def missing_baseline(closure, store_dir):
+    baseline = closure.get('baseline')
+    if baseline is None or store_has_path(baseline, store_dir=store_dir):
+        return None
+    name = Path(baseline).name
+    match = re.fullmatch(
+        r'nixos-system-.+-([0-9]+(?:\.[0-9]+)+[A-Za-z0-9.+-]*)', name.partition('-')[2])
+    return match[1].replace('-rc', '~rc', 1) if match else name
+
+
+def require_baseline(closure, store_dir):
+    needs = missing_baseline(closure, store_dir)
+    if needs is not None:
+        fail(f'This update needs WrOS {needs} first')
+
+
 def verify_closure_archives(bundle_root, closure, *, store_dir=Path('/nix/store'), allow_skipped_present=False):
     """Verify every binary-cache file (.narinfo, .nar.zst, nix-cache-info) against the signed manifest BEFORE import."""
     bundle_root = Path(bundle_root)
     if bundle_root.is_symlink() or not bundle_root.is_dir():
         fail('update bundle directory must be a regular directory')
-    baseline = closure.get('baseline')
-    if baseline is not None and not store_has_path(baseline, store_dir=store_dir):
-        fail(f'delta bundle requires baseline closure {baseline}, which is not present in /nix/store')
+    require_baseline(closure, store_dir)
     expected_rels = set()
     for item in closure['cache_files']:
         rel = item['path']
@@ -1339,7 +1353,8 @@ def inspect_recovery(mountinfo_text=None, state_dir=DEFAULT_STATE_DIR,
 
 def check_online(*, base_url=ONLINE_URL, now=None, keyring=DEFAULT_KEYRING,
                  signers=DEFAULT_SIGNERS, version_file=DEFAULT_VERSION_FILE,
-                 current_system=DEFAULT_CURRENT_SYSTEM, package_keyring=None, opener=None, **_unused):
+                 current_system=DEFAULT_CURRENT_SYSTEM, store_dir=REAL_STORE_DIR,
+                 package_keyring=None, opener=None, **_unused):
     moment = clock(now)
     reads = moment.astimezone().strftime('%Y-%m-%d %H:%M')
     installed = current_installed_version(version_file=version_file, current_system=current_system)
@@ -1374,6 +1389,8 @@ def check_online(*, base_url=ONLINE_URL, now=None, keyring=DEFAULT_KEYRING,
             status = 'invalid'
         return result | {'status': status}
     newer = installed is None or compare_versions(closure['version'], 'gt', installed)
+    if newer and (needs := missing_baseline(closure, store_dir)) is not None:
+        return result | {'status': 'needs-earlier-update', 'version': closure['version'], 'needs': needs}
     return result | {'status': 'available' if newer else 'current', 'version': closure['version']}
 
 
@@ -1422,6 +1439,7 @@ def fetch_online(*, base_url=ONLINE_URL, cache=ONLINE_CACHE, now=None,
         installed = current_installed_version(version_file=version_file, current_system=current_system)
         if installed is not None and not compare_versions(closure['version'], 'gt', installed):
             fail(f'WrOS is already up to date ({installed})')
+        require_baseline(closure, store_dir)
         to_download = [
             item for item in closure['cache_files']
             if not (item.get('store_path') and item['store_path'] != closure['toplevel']

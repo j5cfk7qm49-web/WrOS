@@ -10,6 +10,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 
 REPO = Path(__file__).resolve().parents[2]
@@ -160,6 +161,67 @@ class NixosUpdateEngineTests(unittest.TestCase):
                         '--output', str(bundle / 'InRelease'), str(bundle / 'Release')],
                        env=env, check=True)
         return bundle, keyring, signers, moment
+
+    def _online_bundle(self, root, baseline):
+        bundle, keyring, signers, moment = self._make_signed_bundle(
+            root, version='0.1.0~rc18', baseline=baseline,
+            toplevel='/nix/store/0123456789abcdfghijklmnpqrsvwxyz-nixos-system-wros-0.1.0-rc18')
+        version_file = root / 'version'
+        version_file.write_text('0.1.0~rc16\n', encoding='utf-8')
+        store_dir = root / 'store'
+        store_dir.mkdir()
+        paths = dict(keyring=keyring, signers=signers, now=moment + timedelta(minutes=1),
+                     version_file=version_file, current_system=root / 'current-system',
+                     store_dir=store_dir)
+
+        def get_metadata(url, _limit, _opener, **_kwargs):
+            return (bundle / url.removeprefix(self.engine.ONLINE_URL)).read_bytes()
+
+        return bundle, paths, mock.patch.object(self.engine, 'http_get', side_effect=get_metadata)
+
+    def test_check_online_requires_baseline_only_for_a_newer_delta(self):
+        with tempfile.TemporaryDirectory(prefix='wros-nixos-check-') as tmp:
+            root = Path(tmp)
+            delta = '/nix/store/abcdfghijklmnpqrsvwxyz0123456789-nixos-system-writing-room-0.1.0-rc17'
+            for name, baseline in (('delta', delta), ('full', None)):
+                work = root / name
+                work.mkdir()
+                _, paths, serve = self._online_bundle(work, baseline)
+                with self.subTest(bundle=name), serve:
+                    result = self.engine.check_online(**paths)
+                    self.assertEqual(result['version'], '0.1.0~rc18')
+                    if baseline is None:
+                        self.assertEqual(result['status'], 'available')
+                        continue
+                    self.assertEqual(result['status'], 'needs-earlier-update')
+                    self.assertEqual(result['needs'], '0.1.0~rc17')
+
+                    baseline_dir = paths['store_dir'] / Path(baseline).name
+                    baseline_dir.mkdir()
+                    self.assertEqual(self.engine.check_online(**paths)['status'], 'available')
+                    baseline_dir.rmdir()
+                    for installed in ('0.1.0~rc18', '0.1.0~rc19'):
+                        paths['version_file'].write_text(installed + '\n', encoding='utf-8')
+                        result = self.engine.check_online(**paths)
+                        self.assertEqual(result['status'], 'current')
+                        self.assertNotIn('needs', result)
+
+    def test_missing_delta_baseline_names_version_before_downloading_archives(self):
+        with tempfile.TemporaryDirectory(prefix='wros-nixos-fetch-') as tmp:
+            root = Path(tmp)
+            baseline = '/nix/store/abcdfghijklmnpqrsvwxyz0123456789-nixos-system-wros-0.1.0-rc17'
+            bundle, paths, serve = self._online_bundle(root, baseline)
+            message = r'^This update needs WrOS 0\.1\.0~rc17 first$'
+            with self.assertRaisesRegex(ValueError, message):
+                self.engine.verify_bundle(bundle, **paths)
+            with serve, mock.patch.object(self.engine, 'http_stream_to_file') as download:
+                with self.assertRaisesRegex(ValueError, message):
+                    self.engine.fetch_online(cache=root / 'cache', **paths)
+                download.assert_not_called()
+
+            fallback = '/nix/store/abcdfghijklmnpqrsvwxyz0123456789-custom_system'
+            self.assertEqual(self.engine.missing_baseline({'baseline': fallback}, paths['store_dir']),
+                             Path(fallback).name)
 
     def test_ci_accepts_a_signed_delta_without_a_nix_store(self):
         """The Pages workflow checks a release's delta bundle on a runner with no Nix store;

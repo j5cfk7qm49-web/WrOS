@@ -228,7 +228,7 @@ impl UpdateBundleForm {
             "The review verifies the WrOS signature, the package list and every .deb checksum."
                 .into(),
             "Nothing is installed until you confirm on a later screen.".into(),
-            "Create an encrypted backup first; ext4 has no automatic snapshot rollback.".into(),
+            "Create an encrypted backup first to keep your books safe.".into(),
         ]
     }
 }

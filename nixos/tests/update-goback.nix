@@ -222,6 +222,12 @@ pkgs.testers.runNixOSTest {
       assert new_current == "${updatedToplevel}", (new_current, "${updatedToplevel}")
       installed.succeed("test ! -d /var/lib/wros-update/installed/cache")
 
+      # The app must accept this recovery-status reply: ext4 with a previous version available.
+      recovery = json.loads(installed.succeed(f"{UPDATE} recovery-status"))
+      assert recovery["root_filesystem"] == "ext4", recovery
+      assert recovery["rollback_capable"] is True, recovery
+      assert recovery["previous_version"] == "${version}", recovery
+
       # 5. Stage rollback via the real wros-update-rollback launcher and reboot back to the previous generation
       rollback_res = json.loads(
           installed.succeed("PKEXEC_UID=1000 /run/current-system/sw/libexec/wros-update-rollback")
