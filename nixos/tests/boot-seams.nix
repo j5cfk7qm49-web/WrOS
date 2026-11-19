@@ -24,7 +24,7 @@ pkgs.testers.runNixOSTest {
 
   testScript = { nodes, ... }: ''
     ${encryptedDisk.pythonPreamble}
-    import hashlib, os, struct, threading, zlib
+    import base64, hashlib, os, struct, threading, zlib
 
     BLACK = 0.0005  # share of sampled pixels lit: below this a frame is black
     SHOTS = os.path.join(installed.out_dir, "seams")
@@ -42,6 +42,7 @@ pkgs.testers.runNixOSTest {
 
     ACCENT = (0xd6, 0xad, 0x60)
     boxes = {}
+    files = {}  # picture -> its PNG
 
     def accent_box(w, h, rgb):
         # Where the logo's accent colour is on screen (the unlock screen types nothing in it yet).
@@ -72,6 +73,7 @@ pkgs.testers.runNixOSTest {
             digest = hashlib.sha256(rgb).hexdigest()[:10]
             if digest != last:
                 shown = f"{label}-{len(frames):04d}-{digest}.png"
+                files.setdefault(digest, shown)
                 png(os.path.join(SHOTS, shown), w, h, rgb)
                 if digest not in boxes:
                     boxes[digest] = accent_box(w, h, rgb)
@@ -141,8 +143,9 @@ pkgs.testers.runNixOSTest {
         installed.send_key("ret")
         installed.wait_for_console_text("password handed to systemd-cryptsetup", timeout=60)
         # The prompt itself ends without a newline on the serial line, so wait for the agent's
-        # own line instead.
-        installed.wait_for_console_text("Starting password query on /dev/tty1", timeout=120)
+        # own line instead. The prompt can land in the middle of that line ("Starting password
+        # query on /Please enter passphrase ...dev/tty1"), so only its start is matched.
+        installed.wait_for_console_text("Starting password query on /", timeout=120)
         time.sleep(3)
         text = installed.get_screen_text()
         print(f"screen at the text prompt: {text!r}")
@@ -217,21 +220,28 @@ pkgs.testers.runNixOSTest {
         assert "fbcon: Taking over console" not in kernel[:asked], (
             "the console took the display before the unlock screen")
         # From the boot menu's picture on (the firmware's own screens before it are not WrOS's),
-        # the logo stays up until the unlock screen: no console text in between, and no black
-        # but one frame-long blank right at the unlock screen's first frame. That one is QEMU's:
-        # the unlock screen's first frame is the bochs driver's first modeset (simpledrm had the
-        # display until then), and switching the emulated VBE display on clears its memory until
-        # the driver copies the frame in. Every later screen keeps the mode and shows no blank.
+        # the logo stays up until the unlock screen, with no console text and no black, except
+        # while the unlock screen's first frame is put up. That frame is the bochs driver's first
+        # modeset (simpledrm had the display until then): bochs switches the emulated VBE display
+        # off and on again without NOCLEARMEM, so for an instant QEMU shows its legacy VGA
+        # display and then memory it has just cleared, until the driver copies the frame in.
+        # Every later screen keeps the mode and shows nothing of the kind. That switch must be
+        # over within 0.25 s, and what QEMU showed during it is printed (PNG) for review.
         wros = next(moment for moment, _, digest in before if boxes.get(digest))
         first_unlock = next(moment for moment, _, digest in before if digest == unlock_screen)
-        menu_black = [
-            (a, b) for a, b in black_runs(before, after=wros)
-            if not (b - a < 0.1 and min((m for m, _, _ in before if m > b), default=None) == first_unlock)
-        ]
-        assert not menu_black, "black between the boot menu and the unlock screen: " + ", ".join(
-            f"{a - before[0][0]:.2f}s-{b - before[0][0]:.2f}s" for a, b in menu_black)
-        menu_text = [moment - before[0][0] for moment, lit, _ in before if moment >= wros and lit >= 0.045]
-        assert not menu_text, f"console text between the boot menu and the unlock screen at {menu_text}"
+        menu_last = max(moment for moment, lit, digest in before
+                        if moment < first_unlock and lit < 0.045 and boxes.get(digest))
+        switch = [(m, lit, d) for m, lit, d in before if menu_last < m < first_unlock]
+        for d in dict.fromkeys(d for _, _, d in switch):
+            m, lit = next((m, lit) for m, lit, e in switch if e == d)
+            with open(os.path.join(SHOTS, files[d]), "rb") as shot:
+                picture = base64.b64encode(shot.read()).decode()
+            print(f"MODESET-FRAME {m - before[0][0]:.2f}s lit={lit:.4f} {files[d]} {picture}")
+        assert first_unlock - menu_last < 0.25, (
+            f"the boot menu's picture to the unlock screen took {first_unlock - menu_last:.2f}s")
+        odd = [(round(m - before[0][0], 2), round(lit, 4)) for m, lit, _ in before
+               if m >= wros and not (menu_last < m < first_unlock) and (lit < BLACK or lit >= 0.045)]
+        assert not odd, f"black or console text between the boot menu and the unlock screen: {odd}"
         # A frame or two of black (under 0.1 s) where the console briefly takes the display (greetd
         # resets it before it starts the login screen) is put right at once and only reported.
         flickers = [(a, b) for a, b in black_runs(after) if b - a < 0.1]
