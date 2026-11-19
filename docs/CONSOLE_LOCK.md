@@ -20,8 +20,14 @@ password. It uses `/etc/pam.d/vlock`. The `pam_unix` module verifies the passwor
 through its setuid `unix_chkpwd` helper.
 
 The worker checks that the child is the selected executable, tty8 is active
-and in `VT_PROCESS` mode, echo is off and SysRq is zero. It requires readiness
-and a successful exit after PAM authentication before reporting unlock.
+and in `VT_PROCESS` mode, echo is off and SysRq is zero. Before reporting an
+unlock it requires readiness and a successful exit, and for the WrOS screen a
+proof as well. The screen runs as the writer, so the writer's own programs could
+kill it, and openvt on NixOS reports a killed child as a success. So the worker
+creates an empty root-only `/run/wros-lock/unlocked`. The screen opens it while
+still root and writes `unlocked` into it only after PAM accepted the password,
+and the worker unlocks only when it reads exactly that. A killed screen leaves
+it empty: the lock fails and the writing session closes.
 
 NixOS writes the choice to root-owned `/etc/wros/locker`. Set
 `wros.lockScreen = "vlock"` to use the vlock fallback. An absent file selects

@@ -21,13 +21,17 @@ UNIT = 'wros-console-lock.service'
 ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8', 'LC_ALL': 'C.UTF-8',
        'HOME': '/nonexistent', 'TERM': 'linux'}
 LOCKERS = {'wros': '/usr/lib/wros/wros-lock-screen', 'vlock': '/usr/sbin/vlock-main'}
-# WrOS's lock screen runs as the writer, so any of the writer's programs could kill it, and
-# openvt reports a killed child as a success. Its exit status is therefore not trusted: it opens
-# this root-only file while still root and writes UNLOCKED into it only after PAM accepted the
-# password. A writer's program can neither open the file nor reach the lock screen's handle (the
-# lock screen is not dumpable), so killing the lock screen can only fail the lock.
+# openvt -w reports every child's ending as a success (NixOS's kbd: exit 3, SIGKILL and SIGSEGV
+# all give 0), so its status proves nothing. An unlock is proven by this root-only file instead,
+# which the worker creates empty. WrOS's lock screen, which runs as the writer, opens it while
+# still root and writes UNLOCKED into it only after PAM accepted the password; a writer's
+# program can neither open the file nor reach the lock screen's handle (it is not dumpable), so
+# killing the lock screen can only fail the lock. vlock-main runs under a fixed root shell that
+# writes UNLOCKED only when vlock-main exits 0, so a crashed vlock fails the lock too.
 PROOF = RUN / 'unlocked'
 UNLOCKED = b'unlocked\n'
+VLOCK = ("/usr/sbin/vlock-main all nosysrq && printf 'unlocked\\n' > "
+         + str(PROOF))
 PAM = ('# WrOS existing-session unlock; authentication is performed only by Debian vlock.\n'
        'auth requisite pam_succeed_if.so quiet uid > 0\n@include common-auth\n')
 LOCK_MESSAGE = '\033[2J\033[3J\033[HWrOS - writing session locked\nPress Enter to unlock.'
@@ -81,7 +85,7 @@ def locker_choice(path=Path('/etc/wros/locker')):
 def trusted_locker_files(choice):
     paths = ('/usr/bin/openvt', LOCKERS[choice], '/usr/bin/systemd-run', '/usr/bin/chvt')
     if choice == 'vlock':
-        paths += ('/usr/lib/vlock/modules/all.so', '/usr/lib/vlock/modules/nosysrq.so')
+        paths += ('/bin/sh', '/usr/lib/vlock/modules/all.so', '/usr/lib/vlock/modules/nosysrq.so')
     for path in paths:
         trusted_file(path, executable=True)
     trusted_file('/etc/pam.d/vlock', executable=False)
@@ -128,13 +132,13 @@ def lock_message():
 
 
 def fixed_command(username, message=LOCK_MESSAGE, *, choice='wros'):
-    arguments = ['/usr/bin/openvt', '-c', '8', '-s', '-w', '--', LOCKERS[choice]]
+    arguments = ['/usr/bin/openvt', '-c', '8', '-s', '-w', '--']
     environment = ENV | {'USER': username}
     if choice == 'vlock':
-        arguments += ['all', 'nosysrq']
+        arguments += ['/bin/sh', '-c', VLOCK]
         environment['VLOCK_ALL_MESSAGE'] = message
     else:
-        arguments += ['--user', username]
+        arguments += [LOCKERS[choice], '--user', username]
     return arguments, environment
 
 
@@ -372,7 +376,16 @@ def suspend(parent, locker, executable):
 def ready(child, executable):
     # Do not open tty8 before openvt has acquired it: that would make the
     # maintained allocator correctly reject an already-used console.
+    # The locker is openvt's child, or its grandchild under vlock's fixed shell.
     children = Path(f'/proc/{child.pid}/task/{child.pid}/children').read_text().split()
+    for pid in list(children):
+        if not os.path.samefile(f'/proc/{pid}/exe', executable):
+            try:
+                children += [grandchild for grandchild in
+                             Path(f'/proc/{pid}/task/{pid}/children').read_text().split()
+                             if grandchild not in children]
+            except OSError:
+                pass
     for pid in children:
         if os.path.samefile(f'/proc/{pid}/exe', executable):
             fd = tty8()
@@ -474,8 +487,7 @@ def worker(uid, parent, started, sleep=False):
         stage = 'acquiring the locker'
         message = lock_message() if choice == 'vlock' else LOCK_MESSAGE
         arguments, environment = fixed_command(username, message, choice=choice)
-        if choice == 'wros':
-            fresh_proof()
+        fresh_proof()
         child = subprocess.Popen(arguments, stdin=None, stdout=subprocess.DEVNULL,
                                  stderr=subprocess.DEVNULL, env=environment)
         acquired = False
@@ -500,10 +512,9 @@ def worker(uid, parent, started, sleep=False):
             if not acquired and time.monotonic() >= deadline:
                 raise LockRefused('locker did not secure tty8 before the deadline')
             time.sleep(0.05)
-        # openvt propagates normal child exits and maps signal death to 127.
-        # Both lockers return zero only after PAM success.
+        # openvt's status is checked but proves nothing on its own (see PROOF).
         require(child.returncode == 0, f'openvt or locker exited with status {child.returncode}')
-        require(choice != 'wros' or unlock_proven(), 'the lock screen ended without an unlock')
+        require(unlock_proven(), 'the locker ended without an unlock')
         require(acquired, 'the lock console never became ready')
         require(not select.select([parent_fd], [], [], 0)[0], 'writer exited before unlock')
         return 0

@@ -306,10 +306,16 @@ mod linux {
             let time = wros_greeter::local_time();
             if dirty || time != drawn || terminal.backend().vt_switch_pending() {
                 form.password.set(if view.typed { "*" } else { "" });
-                let result = terminal.draw(|frame| {
-                    wros_greeter::render_lock(frame, &form, palette, time, view.notice)
-                });
-                if result.is_err() && !failed {
+                // A panic while drawing is a drawing failure like any other: the terminal, which
+                // holds the VT and DRM master, must outlive it until the lock ends.
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    terminal
+                        .draw(|frame| {
+                            wros_greeter::render_lock(frame, &form, palette, time, view.notice)
+                        })
+                        .is_ok()
+                }));
+                if !matches!(result, Ok(true)) && !failed {
                     log(c"drawing failed; the password still unlocks");
                     failed = true;
                 }

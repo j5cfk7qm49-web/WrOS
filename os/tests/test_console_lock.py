@@ -203,7 +203,8 @@ class ConsoleLockBoundary(unittest.TestCase):
         for choice, executable, modules in (
                 ('wros', WROS_LOCKER, []),
                 ('vlock', VLOCK_LOCKER,
-                 ['/usr/lib/vlock/modules/all.so', '/usr/lib/vlock/modules/nosysrq.so'])):
+                 ['/bin/sh', '/usr/lib/vlock/modules/all.so',
+                  '/usr/lib/vlock/modules/nosysrq.so'])):
             with self.subTest(choice=choice), mock.patch.object(module, 'trusted_file') as trusted:
                 module.trusted_locker_files(choice)
                 paths = ['/usr/bin/openvt', executable, '/usr/bin/systemd-run', '/usr/bin/chvt']
@@ -243,8 +244,9 @@ class ConsoleLockBoundary(unittest.TestCase):
 
     def test_fixed_command_cannot_source_a_user_vlockrc_or_accept_plugins_from_environment(self):
         arguments, environment = module.fixed_command('writer', choice='vlock')
-        self.assertEqual(arguments, ['/usr/bin/openvt', '-c', '8', '-s', '-w', '--',
-                                     VLOCK_LOCKER, 'all', 'nosysrq'])
+        self.assertEqual(arguments, ['/usr/bin/openvt', '-c', '8', '-s', '-w', '--', '/bin/sh',
+                                     '-c', VLOCK_LOCKER + " all nosysrq && printf 'unlocked\\n'"
+                                     " > /run/wros-lock/unlocked"])
         self.assertEqual(environment, module.ENV | {
             'USER': 'writer', 'VLOCK_ALL_MESSAGE': module.LOCK_MESSAGE})
 
@@ -262,6 +264,19 @@ class ConsoleLockBoundary(unittest.TestCase):
                 tty8.assert_called_once_with()
                 locker_ready.assert_called_once_with('99', 8, executable)
                 close.assert_called_once_with(8)
+
+    def test_ready_finds_vlock_under_its_proof_writing_shell(self):
+        children = {'/proc/42/task/42/children': '50', '/proc/50/task/50/children': '99'}
+        exes = {'/proc/50/exe': '/bin/sh', '/proc/99/exe': VLOCK_LOCKER}
+        with mock.patch.object(Path, 'read_text', autospec=True,
+                               side_effect=lambda path: children[str(path)]), \
+             mock.patch.object(module.os.path, 'samefile',
+                               side_effect=lambda path, expected: exes[path] == expected), \
+             mock.patch.object(module, 'tty8', return_value=8), \
+             mock.patch.object(module, 'locker_ready', return_value=True) as locker_ready, \
+             mock.patch.object(module.os, 'close'):
+            self.assertEqual(module.ready(mock.Mock(pid=42), VLOCK_LOCKER), 99)
+            locker_ready.assert_called_once_with('99', 8, VLOCK_LOCKER)
 
     def test_locker_ready_requires_the_selected_executable(self):
         mode = module.struct.pack('BBhhh', 1, 0, 0, 0, 0)
