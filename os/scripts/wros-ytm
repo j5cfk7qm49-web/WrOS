@@ -1,0 +1,81 @@
+#!/usr/bin/python3 -I
+"""Read public YouTube Music search results and playlists as JSON."""
+from contextlib import redirect_stdout
+import json
+import re
+import sys
+
+
+ID = re.compile(r'[A-Za-z0-9_-]{2,80}')
+
+
+def artist(row):
+    names = ', '.join(a['name'] for a in row.get('artists') or [] if a.get('name'))
+    return names or row.get('artist') or row.get('author') or ''
+
+
+def items(rows, key, fallback_artist=''):
+    for row in rows:
+        item_id = row.get(key)
+        if not isinstance(item_id, str) or not ID.fullmatch(item_id):
+            continue
+        yield row, {
+            'id': item_id,
+            'title': row.get('title') or item_id,
+            'artist': artist(row) or fallback_artist,
+            'length': row.get('duration') or '',
+        }
+
+
+def search(client, query):
+    result = {}
+    for kind in ('songs', 'albums', 'playlists'):
+        rows = client.search(query, filter=kind, limit=20)
+        key = 'videoId' if kind == 'songs' else 'browseId'
+        result[kind] = []
+        for row, item in items(rows[:20], key):
+            count = str(row.get('itemCount', '')).replace(',', '')
+            item['count'] = int(count) if kind == 'playlists' and count.isdecimal() else None
+            result[kind].append(item)
+    return result
+
+
+def tracks(client, browse_id):
+    if browse_id.startswith('MPREb'):
+        collection = client.get_album(browse_id)
+    else:
+        collection = client.get_playlist(browse_id.removeprefix('VL'), limit=300)
+    rows = collection.get('tracks') or []
+    return {
+        'title': collection.get('title') or '',
+        'tracks': [item for _, item in items(rows, 'videoId', artist(collection))],
+    }
+
+
+def main(args):
+    try:
+        if len(args) != 2 or args[0] not in ('search', 'tracks'):
+            raise ValueError('use search <query> or tracks <browseId>')
+        command, value = args
+        if command == 'search' and (len(value) > 200 or not value.isprintable()):
+            raise ValueError('use a query of up to 200 printable characters')
+        if command == 'tracks' and not ID.fullmatch(value):
+            raise ValueError('invalid YouTube Music id')
+
+        with redirect_stdout(sys.stderr):
+            from ytmusicapi import YTMusic
+
+            client = YTMusic()
+            result = search(client, value) if command == 'search' else tracks(client, value)
+            response = json.dumps(result)
+    except Exception as exc:
+        reason = next((line.strip() for line in str(exc).splitlines() if line.strip()),
+                      type(exc).__name__)
+        print(json.dumps({'error': reason[:120]}))
+        return 1
+    print(response)
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]))

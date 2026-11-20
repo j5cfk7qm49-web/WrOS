@@ -18,6 +18,8 @@
     pkgs.wireplumber
     pkgs.alsa-lib
     pkgs.playerctl
+    pkgs.mpv
+    pkgs.yt-dlp
     (pkgs.espeak-ng.override { mbrolaSupport = false; })
   ];
 }

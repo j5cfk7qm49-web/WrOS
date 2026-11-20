@@ -79,7 +79,7 @@ in
       os/scripts/wros-update-engine.py tools/build-update-bundle.py os/tests/test_update_support.py
     sed -i -e 's#/usr/bin/rclone#${pkgs.rclone}/bin/rclone#g' -e 's#/usr/bin/restic#${pkgs.restic}/bin/restic#g' \
       -e 's#/usr/bin/python3#${python}/bin/python3#g' \
-      os/scripts/wros-backup os/scripts/wros-sync os/scripts/wros-link.py
+      os/scripts/wros-backup os/scripts/wros-sync os/scripts/wros-ytm os/scripts/wros-link.py
     # After the rewrites: some tests read the tree through git (ls-files, show).
     git init -q && git add -A
     git -c user.name=t -c user.email=t@t.invalid commit -qm source

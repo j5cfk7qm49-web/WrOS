@@ -9,6 +9,7 @@
 }:
 let
   wrapperDir = "/run/wrappers/bin";
+  ytmPython = pkgs.python3.withPackages (p: [ p.ytmusicapi ]);
   safePath = lib.makeBinPath [
     pkgs.coreutils
     pkgs.util-linux
@@ -122,6 +123,11 @@ pkgs.stdenv.mkDerivation {
     substituteInPlace "$out/libexec/wros-sync" \
       --replace-fail "/usr/bin/rclone" "${pkgs.rclone}/bin/rclone" \
       --replace-fail "/usr/bin:/bin" "${safePath}"
+
+    install -m 755 os/scripts/wros-ytm "$out/libexec/wros-ytm"
+    substituteInPlace "$out/libexec/wros-ytm" \
+      --replace-fail "#!/usr/bin/python3 -I" "#!${ytmPython}/bin/python3 -I"
+    ln -s ../libexec/wros-ytm "$out/bin/wros-ytm"
 
     substituteInPlace "$out/libexec/wros-session" \
       --replace-fail "/usr/bin/grimoire" "/run/current-system/sw/bin/grimoire" \

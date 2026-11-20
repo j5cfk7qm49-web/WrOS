@@ -865,6 +865,13 @@ pub(crate) fn music_source_rows(app: &App) -> Vec<Entry> {
                 Entry::new("Open the music player", Choice::Action(Action::MusicPlayer)),
             ]
         }
+        music::Source::YouTubeMusic if music::ytm_helper_path().is_some() => vec![
+            Entry::new("Search YouTube Music…", Choice::Action(Action::MusicPlayer)),
+            Entry::info(
+                "Search songs, albums and playlists. No sign-in needed. \
+                 Songs download to a small cache before they play.",
+            ),
+        ],
         music::Source::Jellyfin | music::Source::Plex => {
             let server = music::Config::load().server;
             vec![
@@ -2937,7 +2944,18 @@ impl App {
                     }
                     Choice::Action(action) => {
                         self.deck.shell.external = true;
+                        let search_music = action == Action::MusicPlayer
+                            && self.deck.shell.nav.current() == Route::MusicPage
+                            && self.music.source == music::Source::YouTubeMusic
+                            && music::ytm_helper_path().is_some();
                         self.run_action(action);
+                        if search_music
+                            && let Overlay::Player { tab, follow, typing, .. } = &mut self.overlay
+                        {
+                            *tab = Tab::Search;
+                            *follow = false;
+                            *typing = true;
+                        }
                         self.return_to_settings();
                     }
                     Choice::System(sel) => {

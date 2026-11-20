@@ -1,27 +1,5 @@
-//! Music files and remote music sources.
-//!
-//! There is no official YouTube Music API, and anything that extracts stream
-//! URLs both violates the terms and side-steps the subscription you already
-//! pay for. For YouTube Music, Grimoire drives a desktop client that is
-//! already signed into your real account — your playlists, your Premium, your
-//! playback. We just press the buttons.
-//!
-//! Playlists are the one place we read from YouTube directly. The client's API
-//! can list your playlists (through search) but not what's in them, so the
-//! songs come from YouTube Music's public web endpoint — the same listing the
-//! website shows anyone with the link — and are queued in the client one by
-//! one. Still metadata only: no audio ever leaves the app.
-//!
-//! The backend is th-ch/youtube-music's API Server plugin, chosen because it
-//! ships a .dmg *and* an .AppImage, so the same setup works on macOS and
-//! Linux. (YTMDesktop was the original target; its Homebrew cask was disabled
-//! on 2026-09-01 for failing Apple's Gatekeeper check.)
-//!
-//! Note the macOS build is *ad-hoc signed, not notarised* — macOS quarantines
-//! it and refuses to launch until the flag is cleared. `grimoire music-setup`
-//! handles that; it is the step users get stuck on.
-//!
-//!   https://github.com/th-ch/youtube-music
+//! Music files, local YouTube Music playback on WrOS, and remote music sources.
+//! On other desktops YouTube Music uses th-ch/youtube-music's API Server plugin.
 
 use crate::library;
 use anyhow::{Context, Result, anyhow};
@@ -38,6 +16,7 @@ mod spotify;
 #[cfg(target_os = "linux")]
 pub mod spotify_signin;
 mod ytm;
+mod ytmusic;
 
 use files::Files;
 pub(crate) use files::file_counts;
@@ -45,6 +24,8 @@ use local::Local;
 pub use setup::{authenticate, setup_for};
 use spotify::Spotify;
 use ytm::Ytm;
+use ytmusic::YtMusic;
+pub(crate) use ytmusic::helper_path as ytm_helper_path;
 
 pub const APP_ID: &str = "grimoiretui";
 pub const DEFAULT_PORT: u16 = 26538;
@@ -291,6 +272,7 @@ enum Update {
     Results(Vec<Item>),
     Playlists(Vec<Item>),
     Note(String),
+    ClearNote(String),
     Modes(Modes),
 }
 
@@ -467,16 +449,24 @@ impl Music {
     /// network or shell out.
     pub fn spawn(cfg: Config) -> Music {
         let source = cfg.source;
+        let helper = (cfg.enabled && source == Source::YouTubeMusic)
+            .then(ytm_helper_path)
+            .flatten();
+        let local_mpv = source == Source::Files || helper.is_some();
+        let (up_tx, up_rx) = mpsc::channel::<Update>();
         // Switched off means inert: nothing is spawned, nothing is polled.
         let backend: Option<Box<dyn Backend>> = if !cfg.enabled {
             None
         } else {
             match source {
                 Source::Files => Some(Box::new(Files::new())),
-                Source::YouTubeMusic => cfg
-                    .token
-                    .clone()
-                    .map(|t| Box::new(Ytm::new(&cfg, t)) as Box<dyn Backend>),
+                Source::YouTubeMusic => match helper {
+                    Some(path) => Some(Box::new(YtMusic::new(path, up_tx.clone()))),
+                    None => cfg
+                        .token
+                        .clone()
+                        .map(|t| Box::new(Ytm::new(&cfg, t)) as Box<dyn Backend>),
+                },
                 Source::Spotify => Some(Box::new(Spotify) as Box<dyn Backend>),
                 Source::Jellyfin => {
                     (!cfg.server.is_empty() && !cfg.api_key.is_empty()).then(|| {
@@ -513,7 +503,6 @@ impl Music {
             };
         };
 
-        let (up_tx, up_rx) = mpsc::channel::<Update>();
         let (cmd_tx, cmd_rx) = mpsc::channel::<Cmd>();
 
         let worker = thread::spawn(move || {
@@ -616,7 +605,7 @@ impl Music {
 
         Music {
             enabled: true,
-            state: if source == Source::Files {
+            state: if local_mpv {
                 State::Idle
             } else {
                 State::Offline
@@ -630,7 +619,7 @@ impl Music {
             modes: Modes::default(),
             rx: Some(up_rx),
             tx: Some(cmd_tx),
-            files_worker: (source == Source::Files).then_some(worker),
+            files_worker: local_mpv.then_some(worker),
         }
     }
 
@@ -663,6 +652,12 @@ impl Music {
                 Update::Note(n) => {
                     self.note = Some(n);
                     self.fresh_note = true;
+                }
+                Update::ClearNote(n) => {
+                    if self.note.as_deref() == Some(n.as_str()) {
+                        self.note = None;
+                        self.fresh_note = false;
+                    }
                 }
                 Update::Modes(m) => self.modes = m,
             }
