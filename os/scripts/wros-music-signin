@@ -1,0 +1,43 @@
+#!/usr/bin/python3 -I
+"""Open or close WrOS's three-minute Spotify sign-in window in the firewall (#122).
+
+Run as root through pkexec (org.wros.music-signin, granted to the person at the laptop). `open`
+puts the Spotify Connect port and mDNS into the `wros-signin` ipset with a 180-second timeout, so
+the phone's Spotify app on the local network can hand its login to librespot; the firewall rule
+that reads the set (nixos/modules/music.nix) accepts them from local addresses only. ipset removes
+the entries by itself when the time is up, so the window closes even if nothing calls `close`.
+Takes no other arguments: no port, address or duration comes from the caller.
+"""
+import os
+import subprocess
+import sys
+
+IPSET = '/usr/sbin/ipset'
+SET = 'wros-signin'
+CONNECT_PORT = '57621'
+MDNS_PORT = '5353'
+SECONDS = '180'
+
+
+def main(argv):
+    if len(argv) != 2 or argv[1] not in ('open', 'close'):
+        print('usage: wros-music-signin open|close', file=sys.stderr)
+        return 2
+    if os.geteuid() != 0:
+        print('wros-music-signin must run as root through polkit', file=sys.stderr)
+        return 1
+    env = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'}
+    for port in (CONNECT_PORT, MDNS_PORT):
+        if argv[1] == 'open':
+            command = [IPSET, '-exist', 'add', SET, port, 'timeout', SECONDS]
+        else:
+            command = [IPSET, '-exist', 'del', SET, port]
+        result = subprocess.run(command, env=env, capture_output=True, text=True, check=False)
+        if result.returncode != 0:
+            print(f'ipset failed: {result.stderr.strip()[:200]}', file=sys.stderr)
+            return 1
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))

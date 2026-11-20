@@ -1651,6 +1651,44 @@ fn a_restart_waits_for_files_the_final_sync_brought_then_goes_ahead() {
 }
 
 #[test]
+fn sleep_waits_for_a_backup_but_never_for_a_sync() {
+    use wros_sys::PowerAction;
+
+    let mut desk = Desk::open(book("sleep-waits", true), 100, 30);
+    desk.app.deck.simulate();
+    desk.app.deck.lock_available = true;
+    desk.app.deck.suspend_available = true;
+    // A running sync: sleep locks at once (the lock never waits for the network).
+    desk.app.deck.shell.backup.sync.job = Some(crate::backup_service::Job::running_for_test(None));
+    assert!(desk.app.request_suspend());
+    assert!(desk.app.deck.lock_requested && desk.app.deck.suspend_requested);
+    desk.app.deck.lock_requested = false;
+    desk.app.deck.suspend_requested = false;
+    desk.app.deck.shell.backup.sync.job = None;
+
+    // A running backup, from the power menu: wait, say so, then sleep by itself.
+    desk.app.deck.shell.backup.job = Some(crate::backup_service::Job::running_for_test(None));
+    desk.app.overlay = Overlay::Deck(Page::Power {
+        action: PowerAction::Suspend,
+        yes: true,
+    });
+    desk.key(KeyCode::Enter);
+    wait_system(&mut desk);
+    assert!(!desk.app.deck.lock_requested, "not while the backup runs");
+    assert!(
+        desk.app
+            .msg
+            .contains("Going to sleep when the backup finishes"),
+        "{}",
+        desk.app.msg
+    );
+    desk.app.deck.shell.backup.job = None;
+    desk.app.tick_deck();
+    assert!(desk.app.deck.lock_requested && desk.app.deck.suspend_requested);
+    assert!(desk.app.deck.power_wait.is_none());
+}
+
+#[test]
 fn going_back_to_writing_cancels_a_waiting_restart() {
     use wros_sys::PowerAction;
 

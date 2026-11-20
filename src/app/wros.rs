@@ -124,25 +124,29 @@ pub enum PowerWait {
     Shutdown,
     /// Restart to install a staged update; checks the system still reports it staged.
     UpdateRestart,
+    /// Lock and sleep from the power menu; waits only for a system request or a backup.
+    Sleep,
 }
 
 impl PowerWait {
     fn action(self) -> PowerAction {
         match self {
             PowerWait::Shutdown => PowerAction::Shutdown,
+            PowerWait::Sleep => PowerAction::Suspend,
             PowerWait::Restart | PowerWait::UpdateRestart => PowerAction::Restart,
         }
     }
     fn noun(self) -> &'static str {
         match self {
             PowerWait::Shutdown => "Shutting down",
+            PowerWait::Sleep => "Going to sleep",
             PowerWait::Restart => "Restarting",
             PowerWait::UpdateRestart => "Restarting to install the update",
         }
     }
     fn refused(self) -> &'static str {
         match self {
-            PowerWait::Restart | PowerWait::Shutdown => "Power unchanged:",
+            PowerWait::Restart | PowerWait::Shutdown | PowerWait::Sleep => "Power unchanged:",
             PowerWait::UpdateRestart => "Not restarting:",
         }
     }
@@ -561,9 +565,13 @@ impl App {
             self.deck.shell.notices.push(&self.deck.note);
             return true;
         }
-        if let Some(reason) = self.power_wait_reason() {
-            self.deck.note = reason.into();
-            self.deck.shell.notices.push(reason);
+        // A sync never holds sleep up: the lock never waits for the network (#168).
+        if let Some(what) = self.sleep_blocker() {
+            self.deck.note = format!(
+                "{} is running. Wait for it to finish, then try again.",
+                capitalise(what)
+            );
+            self.deck.shell.notices.push(&self.deck.note);
             return false;
         }
         self.request_console_lock();
@@ -661,14 +669,16 @@ impl App {
         }
     }
 
-    pub(super) fn power_wait_reason(&mut self) -> Option<&'static str> {
-        Some(match self.power_blocker()? {
-            "the system request" => {
-                "A system request is running. Wait for it to finish, then try again."
-            }
-            "the backup" => "A backup is running. Wait for it to finish, then try again.",
-            _ => "A sync is running. Wait for it to finish, then try again.",
-        })
+    /// What sleep waits for: a system request or a backup, never a sync.
+    fn sleep_blocker(&mut self) -> Option<&'static str> {
+        self.deck.shell.backup.tick();
+        if self.deck.busy {
+            Some("the system request")
+        } else if self.deck.shell.backup.job.is_some() {
+            Some("the backup")
+        } else {
+            None
+        }
     }
 
     /// What has to finish before WrOS can restart or shut down, if anything.
@@ -768,6 +778,13 @@ impl App {
                 pending.what,
                 POWER_WAIT_LIMIT.as_secs() / 60
             ));
+            return;
+        }
+        if pending.kind == PowerWait::Sleep {
+            if self.sleep_blocker().is_none() {
+                self.deck.power_wait = None;
+                self.request_suspend();
+            }
             return;
         }
         if self.project.dirty_count() != 0 {
@@ -1833,6 +1850,12 @@ impl App {
                 Key::Esc => self.open_system_settings(),
                 Key::Enter => {
                     if yes && action == PowerAction::Suspend {
+                        if let Some(what) = self.sleep_blocker() {
+                            // Wait for it, said on screen; Esc cancels (#168).
+                            self.power_hold(PowerWait::Sleep, what);
+                            self.open_system_settings();
+                            return;
+                        }
                         if !self.request_suspend() {
                             return;
                         }
