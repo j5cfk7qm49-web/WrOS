@@ -859,7 +859,9 @@ pub(crate) fn music_source_rows(app: &App) -> Vec<Entry> {
                 }),
             ]
         }
-        _ => vec![Entry::info(format!("{label} is set up here in a later update."))],
+        _ => vec![Entry::info(format!(
+            "{label} is set up here in a later update."
+        ))],
     }
 }
 
@@ -996,7 +998,10 @@ fn page_entries(app: &App, route: Route) -> Vec<Entry> {
             rows
         }
         Route::MusicServerForm => {
-            match (&app.deck.shell.music_server_form, &app.deck.shell.music_setup) {
+            match (
+                &app.deck.shell.music_server_form,
+                &app.deck.shell.music_setup,
+            ) {
                 (Some(form), _) => form.rows().into_iter().map(Entry::info).collect(),
                 (_, Some(job)) => vec![Entry::info(job.status)],
                 _ => Vec::new(),

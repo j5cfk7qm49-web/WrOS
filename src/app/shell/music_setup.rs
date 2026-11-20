@@ -244,7 +244,11 @@ impl App {
             Err(mpsc::TryRecvError::Disconnected) => Err(anyhow::anyhow!("music setup stopped")),
         };
         match result {
-            Ok(SetupResult::SignedIn(Jellyfin { server, token, user_id })) => {
+            Ok(SetupResult::SignedIn(Jellyfin {
+                server,
+                token,
+                user_id,
+            })) => {
                 if let Err(e) =
                     self.save_music_server(music::Source::Jellyfin, server, token, user_id)
                 {

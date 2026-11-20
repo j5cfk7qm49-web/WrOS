@@ -52,6 +52,7 @@ let
     liveSession = "${wros-helpers}/libexec/wros-live-session";
     lock = "${wros-helpers}/libexec/wros-lock";
     mediaKey = "${wros-helpers}/libexec/wros-media-key";
+    musicSignin = "${wros-helpers}/libexec/wros-music-signin";
     passwd = "${wros-helpers}/libexec/wros-passwd";
     recovery = "${wros-helpers}/libexec/wros-recovery";
     rescue = "${wros-helpers}/bin/wros-rescue";
@@ -177,6 +178,7 @@ let
     WROS_PATH_WROS_INSTALLER = toolPaths.wrosInstaller;
     WROS_PATH_LIBEXEC_DIR = helperPaths.libexecDir;
     WROS_PATH_HELPER_BACKUP = helperPaths.backup;
+    WROS_PATH_HELPER_MUSIC_SIGNIN = helperPaths.musicSignin;
     WROS_PATH_HELPER_BOOT_SETTINGS = helperPaths.bootSettings;
     WROS_PATH_HELPER_CLOCK = helperPaths.clock;
     WROS_PATH_HELPER_DISPLAY = helperPaths.display;

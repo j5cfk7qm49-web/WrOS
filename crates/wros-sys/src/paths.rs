@@ -169,6 +169,12 @@ pub const WROS_KEYBOARD: &str = match option_env!("WROS_PATH_HELPER_KEYBOARD") {
     None => "/usr/libexec/wros-keyboard",
 };
 
+/// Opens or closes the three-minute Spotify sign-in window in the firewall (#122).
+pub const WROS_MUSIC_SIGNIN: &str = match option_env!("WROS_PATH_HELPER_MUSIC_SIGNIN") {
+    Some(v) => v,
+    None => "/usr/libexec/wros-music-signin",
+};
+
 pub const WROS_LOCK: &str = match option_env!("WROS_PATH_HELPER_LOCK") {
     Some(v) => v,
     None => "/usr/libexec/wros-lock",

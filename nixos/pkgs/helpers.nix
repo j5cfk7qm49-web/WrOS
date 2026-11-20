@@ -63,13 +63,17 @@ pkgs.stdenv.mkDerivation {
       wros-session wros-lock wros-recovery wros-import-media \
       wros-update wros-update-stage wros-update-cancel wros-update-repair \
       wros-update-media wros-update-fetch wros-update-apply \
-      wros-update-rollback wros-update-healthy; do
+      wros-update-rollback wros-update-healthy wros-music-signin; do
       install -m 755 "os/scripts/$script" "$out/libexec/$script"
       substituteInPlace "$out/libexec/$script" \
         --replace-fail "#!/usr/bin/python3 -I" "#!${pkgs.python3}/bin/python3 -I"
     done
 
     # Quote-independent --replace-fail substitutions per helper script
+    substituteInPlace "$out/libexec/wros-music-signin" \
+      --replace-fail "/usr/sbin:/usr/bin:/sbin:/bin" "${safePath}" \
+      --replace-fail "/usr/sbin/ipset" "${pkgs.ipset}/bin/ipset"
+
     substituteInPlace "$out/libexec/wros-import-media" \
       --replace-fail "/usr/sbin:/usr/bin:/sbin:/bin" "${safePath}" \
       --replace-fail "/usr/bin/lsblk" "${pkgs.util-linux}/bin/lsblk" \

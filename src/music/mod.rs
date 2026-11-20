@@ -33,6 +33,8 @@ use std::time::{Duration, Instant};
 mod local;
 mod setup;
 mod spotify;
+#[cfg(target_os = "linux")]
+pub mod spotify_signin;
 mod ytm;
 
 use local::Local;

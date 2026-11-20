@@ -799,7 +799,7 @@ fn draw_music(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
             lines.extend(
                 wros_shell::notice_lines(SETTINGS_PATH, inner.width)
                     .into_iter()
-                    .map(|line| Line::from(Span::styled(line, Style::default().fg(t.border))),
+                    .map(|line| Line::from(Span::styled(line, Style::default().fg(t.border)))),
             );
             lines
         }

@@ -19,6 +19,20 @@ let
 </policyconfig>
 EOF
 
+    cat > "$out/share/polkit-1/actions/org.wros.music-signin.policy" << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN" "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>WrOS</vendor>
+  <action id="org.wros.music-signin">
+    <description>Let a phone hand its Spotify login to WrOS for three minutes</description>
+    <message>Authorize Spotify sign-in from a phone on this network</message>
+    <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>no</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">${hp.musicSignin}</annotate>
+  </action>
+</policyconfig>
+EOF
+
     cat > "$out/share/polkit-1/actions/org.wros.clock.policy" << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN" "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
@@ -176,6 +190,7 @@ in
     ${builtins.readFile "${wrosRoot}/os/config/50-wros-display.rules"}
     ${builtins.readFile "${wrosRoot}/os/config/50-wros-keyboard.rules"}
     ${builtins.readFile "${wrosRoot}/os/config/50-wros-lock.rules"}
+    ${builtins.readFile "${wrosRoot}/os/config/50-wros-music.rules"}
     ${builtins.readFile "${wrosRoot}/os/config/50-wros-timezone.rules"}
     ${builtins.readFile "${wrosRoot}/os/config/50-wros-update.rules"}
     ${builtins.readFile "${wrosRoot}/os/config/51-wros-greeter-keyboard.rules"}

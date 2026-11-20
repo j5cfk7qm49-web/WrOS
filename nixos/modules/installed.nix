@@ -5,6 +5,7 @@
     ./hardware.nix
     ./network.nix
     ./audio.nix
+    ./music.nix
     ./session.nix
     ./guards.nix
     ./polkit.nix
