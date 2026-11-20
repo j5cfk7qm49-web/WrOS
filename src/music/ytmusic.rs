@@ -42,7 +42,9 @@ pub(crate) fn helper_path() -> Option<PathBuf> {
 
 fn valid_id(id: &str) -> bool {
     (2..=80).contains(&id.len())
-        && id.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-'))
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-'))
 }
 
 fn helper<T: DeserializeOwned>(path: &Path, action: &str, arg: &str) -> Result<T> {
@@ -123,7 +125,10 @@ fn cached_file(cache: &Path, id: &str) -> Option<PathBuf> {
 fn trim_cache(cache: &Path, keep: Option<&Path>, max_files: usize, max_bytes: u64) -> Result<()> {
     let mut files: Vec<_> = cache_files(cache).collect();
     files.sort_unstable_by(|(a, am), (b, bm)| {
-        am.modified().ok().cmp(&bm.modified().ok()).then_with(|| a.cmp(b))
+        am.modified()
+            .ok()
+            .cmp(&bm.modified().ok())
+            .then_with(|| a.cmp(b))
     });
     let mut count = files.len();
     let mut bytes: u64 = files.iter().map(|(_, info)| info.len()).sum();
@@ -172,7 +177,14 @@ fn download(cache: &Path, id: &str, cancel: Receiver<()>) -> Result<Staged> {
     let dir = tempfile::tempdir_in(cache).context("staging downloaded audio")?;
     let stderr = dir.path().join(".stderr");
     let mut child = Command::new("yt-dlp")
-        .args(["--ignore-config", "-q", "--no-warnings", "--no-playlist", "-f", "bestaudio"])
+        .args([
+            "--ignore-config",
+            "-q",
+            "--no-warnings",
+            "--no-playlist",
+            "-f",
+            "bestaudio",
+        ])
         .args(["--no-part", "-o", "%(id)s.%(ext)s"])
         .arg(format!("https://music.youtube.com/watch?v={id}"))
         .current_dir(dir.path())
@@ -372,7 +384,8 @@ impl YtMusic {
     }
 
     fn download_for(&mut self, id: &str) -> &mut Download {
-        self.download.get_or_insert_with(|| Download::start(self.cache.clone(), id))
+        self.download
+            .get_or_insert_with(|| Download::start(self.cache.clone(), id))
     }
 
     fn prefetch(&mut self) {
@@ -434,7 +447,10 @@ impl YtMusic {
         self.mpv.set_loop_playlist(false)?;
         self.set_loop_file(self.repeat)?;
         self.mpv.set_property("pause", json!(self.pause_on_load))?;
-        self.mpv.load(path.to_str().context("the cache path isn't valid UTF-8")?, true)?;
+        self.mpv.load(
+            path.to_str().context("the cache path isn't valid UTF-8")?,
+            true,
+        )?;
         self.loaded = Some(Loaded {
             path,
             started: false,
@@ -443,7 +459,10 @@ impl YtMusic {
     }
 
     fn set_loop_file(&mut self, repeat: Repeat) -> Result<()> {
-        self.mpv.set_property("loop-file", json!(if repeat == Repeat::One { "inf" } else { "no" }))
+        self.mpv.set_property(
+            "loop-file",
+            json!(if repeat == Repeat::One { "inf" } else { "no" }),
+        )
     }
 
     fn enqueue(&mut self, id: String, now: bool) -> Result<()> {
@@ -519,9 +538,15 @@ impl Backend for YtMusic {
             }
             Err(error) => {
                 self.failures += 1;
-                let next = if self.failures >= 3 { None } else { self.next_index() };
+                let next = if self.failures >= 3 {
+                    None
+                } else {
+                    self.next_index()
+                };
                 self.move_to(next)?;
-                let _ = self.tell.send(Update::Note(format!("Couldn't play {title}: {error}")));
+                let _ = self
+                    .tell
+                    .send(Update::Note(format!("Couldn't play {title}: {error}")));
                 Ok(self.track_state(&Value::Null, false))
             }
         }
@@ -603,13 +628,14 @@ impl Backend for YtMusic {
     }
 
     fn playlists(&mut self, query: Option<&str>) -> Result<Vec<Item>> {
-        let query = query.context(
-            "Your YouTube Music library comes in a later update; search instead (/)",
-        )?;
+        let query = query
+            .context("Your YouTube Music library comes in a later update; search instead (/)")?;
         let search = self.search_for(query)?;
         let mut found = items(&search.albums, |_| "album".into());
         let playlists = items(&search.playlists, |row| {
-            row.count.map(|count| format!("{count} songs")).unwrap_or_default()
+            row.count
+                .map(|count| format!("{count} songs"))
+                .unwrap_or_default()
         });
         found.extend(playlists);
         for (pos, item) in found.iter_mut().enumerate() {
@@ -693,7 +719,8 @@ mod tests {
         let path = dir.join(name);
         let file = fs::File::create(&path).unwrap();
         file.set_len(bytes).unwrap();
-        file.set_modified(SystemTime::UNIX_EPOCH + Duration::from_secs(age)).unwrap();
+        file.set_modified(SystemTime::UNIX_EPOCH + Duration::from_secs(age))
+            .unwrap();
         path
     }
 
@@ -723,7 +750,12 @@ mod tests {
         assert!(!bigger.exists());
         assert_eq!(installed, dir.path().join("next.m4a"));
         assert!(installed.is_file());
-        assert!(cache_files(dir.path()).map(|(_, info)| info.len()).sum::<u64>() <= CACHE_BYTES);
+        assert!(
+            cache_files(dir.path())
+                .map(|(_, info)| info.len())
+                .sum::<u64>()
+                <= CACHE_BYTES
+        );
     }
 
     #[cfg(unix)]
@@ -761,13 +793,21 @@ JSON
         let songs = backend.search("one query").unwrap();
         assert_eq!(songs.len(), 1);
         assert_eq!(
-            (&*songs[0].id, &*songs[0].title, &*songs[0].artist, &*songs[0].length),
+            (
+                &*songs[0].id,
+                &*songs[0].title,
+                &*songs[0].artist,
+                &*songs[0].length
+            ),
             ("song_1", "Song", "Artist", "3:12")
         );
         fs::remove_file(script).unwrap();
         let lists = backend.playlists(Some("one query")).unwrap();
         assert_eq!(lists.len(), 2);
-        assert_eq!((&*lists[0].id, &*lists[0].length, lists[0].pos), ("MPREbAlbum", "album", 0));
+        assert_eq!(
+            (&*lists[0].id, &*lists[0].length, lists[0].pos),
+            ("MPREbAlbum", "album", 0)
+        );
         assert_eq!(
             (&*lists[1].id, &*lists[1].length, lists[1].pos),
             ("VLPlaylist", "6 songs", 1)
@@ -798,7 +838,9 @@ JSON
         let (tell, updates) = mpsc::channel();
         let mut backend = YtMusic::new(script, tell.clone());
         for (now, count, current) in [(true, 2, Some(0)), (false, 4, Some(0)), (true, 2, Some(0))] {
-            backend.load_playlist("MPREbAlbum".into(), "Result".into(), now, tell.clone()).unwrap();
+            backend
+                .load_playlist("MPREbAlbum".into(), "Result".into(), now, tell.clone())
+                .unwrap();
             assert!(matches!(updates.try_recv(), Ok(Update::Note(note))
                 if note == "Queued 2 songs from Album"));
             assert!(matches!(updates.try_recv(), Ok(Update::Queue(queue))
@@ -820,7 +862,10 @@ JSON
         let ids: Vec<_> = queue.iter().map(|item| item.id.as_str()).collect();
         assert_eq!(ids, ["first", "play_now", "up_next", "second"]);
         assert_eq!(queue.iter().position(|item| item.current), Some(1));
-        assert_eq!(queue.iter().map(|item| item.pos).collect::<Vec<_>>(), [0, 1, 2, 3]);
+        assert_eq!(
+            queue.iter().map(|item| item.pos).collect::<Vec<_>>(),
+            [0, 1, 2, 3]
+        );
         backend.command(Cmd::JumpTo(3)).unwrap();
         assert!(backend.command(Cmd::JumpTo(4)).is_err());
         assert!(backend.queue().unwrap()[3].current);
@@ -839,7 +884,10 @@ JSON
         );
         let (tell, _updates) = mpsc::channel();
         let mut backend = YtMusic::new(script, tell);
-        assert_eq!(backend.search("a song").unwrap_err().to_string(), "no network");
+        assert_eq!(
+            backend.search("a song").unwrap_err().to_string(),
+            "no network"
+        );
     }
 
     #[test]

@@ -2950,7 +2950,12 @@ impl App {
                             && music::ytm_helper_path().is_some();
                         self.run_action(action);
                         if search_music
-                            && let Overlay::Player { tab, follow, typing, .. } = &mut self.overlay
+                            && let Overlay::Player {
+                                tab,
+                                follow,
+                                typing,
+                                ..
+                            } = &mut self.overlay
                         {
                             *tab = Tab::Search;
                             *follow = false;
