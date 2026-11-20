@@ -11,7 +11,9 @@ pkgs.testers.runNixOSTest {
       users.users.writer = { isNormalUser = true; uid = 1000; };
     };
     phone = { pkgs, ... }: {
-      environment.systemPackages = [ pkgs.curl ];
+      environment.systemPackages = [ pkgs.curl pkgs.avahi ];
+      # A phone finds Spotify Connect speakers by mDNS, as avahi-browse does here.
+      services.avahi = { enable = true; nssmdns4 = true; openFirewall = true; };
     };
   };
 
@@ -53,6 +55,13 @@ pkgs.testers.runNixOSTest {
         assert all(m[1] == "timeout" and 0 < int(m[2]) <= 180 for m in members), listing
         info = json.loads(phone.succeed(GETINFO))
         assert info["deviceType"] == "Speaker" and info["remoteName"] == "WrOS", info
+        # And by mDNS, the way the phone looks: a resolvable _spotify-connect._tcp named WrOS on 57621.
+        phone.wait_for_unit("avahi-daemon.service")
+        found = phone.wait_until_succeeds(
+            "avahi-browse -rpt _spotify-connect._tcp | grep '^=' | grep -F ';WrOS;' | grep -F ';57621;'",
+            timeout=60,
+        )
+        print(found)
 
     with subtest("close: blocked again"):
         laptop.succeed(f"{HELPER} close")
