@@ -1107,6 +1107,8 @@ impl App {
     pub fn tick_deck(&mut self) {
         self.deck.shell.backup.tick();
         self.tick_music_setup();
+        #[cfg(target_os = "linux")]
+        self.tick_spotify_signin();
         let now = chrono::Local::now();
         self.deck.clock = now.format("%H:%M").to_string();
         self.tick_timeline(Instant::now(), now);

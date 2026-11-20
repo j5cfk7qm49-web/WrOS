@@ -36,7 +36,11 @@ fn is_audio(path: &Path) -> bool {
     ];
     path.extension()
         .and_then(|ext| ext.to_str())
-        .is_some_and(|ext| EXTENSIONS.iter().any(|audio| ext.eq_ignore_ascii_case(audio)))
+        .is_some_and(|ext| {
+            EXTENSIONS
+                .iter()
+                .any(|audio| ext.eq_ignore_ascii_case(audio))
+        })
 }
 
 fn entries(dir: &Path) -> impl Iterator<Item = fs::DirEntry> {
@@ -104,7 +108,9 @@ pub(crate) fn file_counts() -> (usize, usize) {
 }
 
 fn file_name(path: &Path) -> &str {
-    path.file_name().and_then(|name| name.to_str()).unwrap_or_default()
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or_default()
 }
 
 fn parent_name(path: &Path) -> String {
@@ -280,7 +286,8 @@ impl Backend for Files {
         let path = props["path"].as_str().map(Path::new);
         let tags = props["metadata"].as_object();
         let tag = |key: &str| {
-            tags?.iter()
+            tags?
+                .iter()
                 .find(|(name, _)| name.eq_ignore_ascii_case(key))
                 .and_then(|(_, value)| value.as_str())
                 .filter(|value| !value.trim().is_empty())
@@ -289,7 +296,12 @@ impl Backend for Files {
         Ok(State::Playing(Track {
             title: tag("title")
                 .or_else(|| path.map(song_title))
-                .unwrap_or_else(|| props["media-title"].as_str().unwrap_or_default().to_string()),
+                .unwrap_or_else(|| {
+                    props["media-title"]
+                        .as_str()
+                        .unwrap_or_default()
+                        .to_string()
+                }),
             artist: tag("artist")
                 .or_else(|| path.map(parent_name))
                 .unwrap_or_default(),
@@ -502,7 +514,9 @@ mod tests {
         }
         let mut budget = 2;
         let mut found = Vec::new();
-        walk(dir.path(), MAX_DEPTH, &mut budget, &mut |path| found.push(path));
+        walk(dir.path(), MAX_DEPTH, &mut budget, &mut |path| {
+            found.push(path)
+        });
         assert_eq!(found.len(), 2);
         assert_eq!(budget, 0);
         let songs = scan(&[dir.path().to_path_buf()]);

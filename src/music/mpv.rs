@@ -104,7 +104,12 @@ impl Mpv {
         self.stop_child();
         self.child = Some(
             Command::new("mpv")
-                .args(["--idle=yes", "--no-video", "--no-terminal", "--really-quiet"])
+                .args([
+                    "--idle=yes",
+                    "--no-video",
+                    "--no-terminal",
+                    "--really-quiet",
+                ])
                 .arg(ipc)
                 .args(["--volume=100", "--volume-max=100"])
                 .stdin(Stdio::null())
@@ -122,7 +127,7 @@ impl Mpv {
 
     #[cfg(unix)]
     fn wait_for_socket(&mut self) -> Result<()> {
-        let deadline = Instant::now() + Duration::from_secs(1);
+        let deadline = Instant::now() + Duration::from_secs(5);
         loop {
             if self.connect_existing()? {
                 return Ok(());
@@ -314,7 +319,9 @@ mod tests {
         let listener = UnixListener::bind(&socket).unwrap();
         let server = thread::spawn(move || {
             let (stream, _) = listener.accept().unwrap();
-            stream.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(2)))
+                .unwrap();
             let mut stream = BufReader::new(stream);
             for (expected, error, data) in [
                 (json!(["get_property", "volume"]), "success", json!(82.5)),
@@ -332,15 +339,24 @@ mod tests {
                 assert_eq!(request["command"], expected);
                 let id = request["request_id"].as_i64().unwrap();
                 let stream = stream.get_mut();
-                writeln!(stream, "{}", json!({ "event": "start-file", "request_id": id })).unwrap();
+                writeln!(
+                    stream,
+                    "{}",
+                    json!({ "event": "start-file", "request_id": id })
+                )
+                .unwrap();
                 writeln!(
                     stream,
                     "{}",
                     json!({ "request_id": id - 1, "error": "success", "data": -1 })
                 )
                 .unwrap();
-                writeln!(stream, "{}", json!({ "request_id": id, "error": error, "data": data }))
-                    .unwrap();
+                writeln!(
+                    stream,
+                    "{}",
+                    json!({ "request_id": id, "error": error, "data": data })
+                )
+                .unwrap();
             }
         });
 
@@ -348,11 +364,14 @@ mod tests {
         mpv.socket = socket;
         assert!(mpv.connect_existing().unwrap());
         assert_eq!(
-            mpv.command(&[json!("get_property"), json!("volume")]).unwrap(),
+            mpv.command(&[json!("get_property"), json!("volume")])
+                .unwrap(),
             json!(82.5)
         );
         assert_eq!(
-            mpv.command(&[json!("bad-command")]).unwrap_err().to_string(),
+            mpv.command(&[json!("bad-command")])
+                .unwrap_err()
+                .to_string(),
             "mpv: error running command"
         );
         assert_eq!(mpv.property("time-pos").unwrap(), None);

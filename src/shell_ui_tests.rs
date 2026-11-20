@@ -97,6 +97,46 @@ fn wait_music_setup(desk: &mut Desk) {
 }
 
 #[test]
+#[cfg(target_os = "linux")]
+fn spotify_is_signed_in_from_the_music_page() {
+    if !music_test_home("spotify_is_signed_in_from_the_music_page") {
+        return;
+    }
+    let cfg = music::Config {
+        source: music::Source::Spotify,
+        ..music::Config::default()
+    };
+    let mut desk = music_server_desk("spotify-signin-rows", cfg);
+    desk.draw();
+    assert!(
+        desk.shows("Sign in to Spotify…"),
+        "{}",
+        desk.rows().join("\n")
+    );
+    assert!(desk.shows_wrapped("Needs Spotify Premium"));
+
+    // A login handed over from the phone, in librespot's format.
+    let login = music::spotify_signin::credentials_path();
+    std::fs::create_dir_all(login.parent().unwrap()).unwrap();
+    std::fs::write(
+        &login,
+        r#"{"username":"reader","auth_type":1,"auth_data":"QUJD"}"#,
+    )
+    .unwrap();
+    desk.draw();
+    assert!(
+        desk.shows("Signed in to Spotify as reader."),
+        "{}",
+        desk.rows().join("\n")
+    );
+    assert!(desk.shows("Sign out of Spotify"));
+    desk.choose("Sign out of Spotify");
+    assert!(!login.exists(), "signing out removes the login");
+    desk.draw();
+    assert!(desk.shows("Sign in to Spotify…"));
+}
+
+#[test]
 fn music_settings_show_state_source_and_setup_rows() {
     if !music_test_home("music_settings_show_state_source_and_setup_rows") {
         return;

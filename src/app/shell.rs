@@ -312,6 +312,9 @@ pub struct Shell {
     pub password_form: Option<PasswordForm>,
     music_server_form: Option<MusicServerForm>,
     music_setup: Option<MusicSetup>,
+    /// A Spotify sign-in from the phone, while it runs (#122).
+    #[cfg(target_os = "linux")]
+    pub(crate) spotify_signin: Option<music::spotify_signin::SignIn>,
     music_file_counts: (usize, usize),
     pub wifi_saved: Option<Vec<wros_sys::SavedWifi>>,
     pub wifi_saved_choice: Option<wros_sys::SavedWifi>,
@@ -359,6 +362,8 @@ impl Shell {
             password_form: None,
             music_server_form: None,
             music_setup: None,
+            #[cfg(target_os = "linux")]
+            spotify_signin: None,
             music_file_counts: (0, 0),
             wifi_saved: None,
             wifi_saved_choice: None,
@@ -503,6 +508,9 @@ enum Choice {
     SoundVolume(i16),
     SoundMuteToggle,
     KeyboardWizardOpen,
+    /// Start (true) or cancel (false) the Spotify sign-in from the phone.
+    SpotifySignIn(bool),
+    SpotifySignOut,
 }
 pub(crate) struct Entry {
     label: String,
@@ -871,6 +879,8 @@ pub(crate) fn music_source_rows(app: &App) -> Vec<Entry> {
                 }),
             ]
         }
+        #[cfg(target_os = "linux")]
+        music::Source::Spotify => spotify_rows(app),
         _ => vec![Entry::info(format!(
             "{label} is set up here in a later update."
         ))],
@@ -2861,6 +2871,12 @@ impl App {
                         self.deck.shell.nav.open(Route::KeyboardWizard);
                     }
                     Choice::KeyboardWizardOpen => {}
+                    #[cfg(target_os = "linux")]
+                    c @ (Choice::SpotifySignIn(_) | Choice::SpotifySignOut) => {
+                        self.spotify_choice(c)
+                    }
+                    #[cfg(not(target_os = "linux"))]
+                    Choice::SpotifySignIn(_) | Choice::SpotifySignOut => {}
                     Choice::Open(route) => self.open_route(route),
                     Choice::View(route, request) if !self.deck.busy => {
                         self.deck.shell.nav.open(route);
@@ -3362,4 +3378,73 @@ fn draw_link_offer(
         Rect::new(left, top, area.x + area.width - left, height),
     );
     true
+}
+
+/// Spotify on the Music page: sign in from the phone, or who is signed in (#122).
+#[cfg(target_os = "linux")]
+fn spotify_rows(app: &App) -> Vec<Entry> {
+    use music::spotify_signin;
+    if let Some(signin) = &app.deck.shell.spotify_signin {
+        return vec![
+            Entry::info(signin.line()),
+            Entry::new("Cancel the sign-in", Choice::SpotifySignIn(false)),
+        ];
+    }
+    match spotify_signin::signed_in() {
+        Some(name) => vec![
+            Entry::info(format!("Signed in to Spotify as {name}.")),
+            Entry::new("Open the music player", Choice::Action(Action::MusicPlayer)),
+            Entry::new("Sign out of Spotify", Choice::SpotifySignOut),
+        ],
+        None => vec![
+            Entry::new("Sign in to Spotify…", Choice::SpotifySignIn(true)),
+            Entry::info(
+                "Needs Spotify Premium. Your phone signs this laptop in: keep it on the same \
+                 Wi-Fi. For three minutes this laptop accepts the phone's connection.",
+            ),
+        ],
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl App {
+    fn spotify_choice(&mut self, choice: Choice) {
+        use music::spotify_signin;
+        match choice {
+            Choice::SpotifySignIn(true) if self.deck.shell.spotify_signin.is_none() => {
+                self.deck.shell.spotify_signin = Some(spotify_signin::SignIn::start());
+            }
+            Choice::SpotifySignIn(false) => {
+                if let Some(signin) = &self.deck.shell.spotify_signin {
+                    signin.cancel();
+                }
+            }
+            Choice::SpotifySignOut => {
+                let note = match spotify_signin::sign_out() {
+                    Ok(()) => "Signed out of Spotify.".to_string(),
+                    Err(e) => format!("Couldn't sign out of Spotify: {e:#}"),
+                };
+                self.deck.shell.notices.push(&note);
+                self.music = music::Music::spawn(music::Config::load());
+            }
+            _ => {}
+        }
+    }
+
+    /// Collect a finished sign-in: say how it went, and let the player pick up the login.
+    pub(crate) fn tick_spotify_signin(&mut self) {
+        let Some(signin) = &mut self.deck.shell.spotify_signin else {
+            return;
+        };
+        if !signin.poll() {
+            return;
+        }
+        let line = signin.line();
+        self.deck.shell.spotify_signin = None;
+        self.deck.shell.notices.push(&line);
+        self.deck.note = line;
+        if self.music.source == music::Source::Spotify {
+            self.music = music::Music::spawn(music::Config::load());
+        }
+    }
 }

@@ -145,7 +145,6 @@ pub enum Update {
 pub struct SignIn {
     rx: Receiver<Update>,
     cancel: Arc<AtomicBool>,
-    pub started: Instant,
     pub last: Option<Update>,
 }
 
@@ -166,7 +165,6 @@ impl SignIn {
         SignIn {
             rx,
             cancel,
-            started: Instant::now(),
             last: Some(Update::Waiting(WINDOW)),
         }
     }
