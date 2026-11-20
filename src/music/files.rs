@@ -545,7 +545,9 @@ mod live {
     fn wav(path: &Path, secs: f32) {
         let rate = 8000u32;
         let samples: Vec<i16> = (0..(rate as f32 * secs) as u32)
-            .map(|i| ((i as f32 * 440.0 * std::f32::consts::TAU / rate as f32).sin() * 8000.0) as i16)
+            .map(|i| {
+                ((i as f32 * 440.0 * std::f32::consts::TAU / rate as f32).sin() * 8000.0) as i16
+            })
             .collect();
         let data: Vec<u8> = samples.iter().flat_map(|s| s.to_le_bytes()).collect();
         let mut out = Vec::new();
