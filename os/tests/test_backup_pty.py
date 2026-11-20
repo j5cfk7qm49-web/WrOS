@@ -302,7 +302,7 @@ class NativeBackupPTY(unittest.TestCase):
                 choose(terminal, 'Google Drive')
                 terminal.screen_shows('reauthorization-required')
                 terminal.until(lambda: terminal.output.endswith(b'\x1b[?25l')
-                               and 'Backup operation running' not in terminal.screen.text,
+                               and 'Reading the backup status' not in terminal.screen.text,
                                'local Google account status refresh finished')
                 choose(terminal, 'Disconnect Google Drive and remove local credentials')
                 terminal.screen_shows('Cancel and keep saved Google Drive credentials')

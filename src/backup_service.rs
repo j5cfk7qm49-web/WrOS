@@ -87,6 +87,37 @@ pub enum Request {
     },
 }
 
+impl Request {
+    /// What the writer is told while this runs (#167). No catch-all arm: a new request
+    /// can't be added without its own line.
+    pub fn activity(&self) -> &'static str {
+        match self {
+            Request::Status => "Reading the backup status",
+            Request::List => "Reading the backup list",
+            Request::Unlock => "Unlocking the backups",
+            Request::Init { .. } => "Setting up backups",
+            Request::Connect { .. } => "Connecting to the backups",
+            Request::Backup { .. } => "Backing up this book",
+            Request::AutoBackup { .. } => "Backing up this book automatically",
+            Request::Queue { .. } => "Queuing a backup for later",
+            Request::RunQueue => "Running the queued backups",
+            Request::ClearQueue => "Clearing the backup queue",
+            Request::Forget { .. } => "Removing old backups",
+            Request::LinkPhone => "Linking your phone",
+            Request::Restore { .. } => "Restoring the backup",
+            Request::ExportKey { .. } => "Saving the recovery key",
+            Request::ConnectGoogle { .. } | Request::ConnectGoogleFile { .. } => {
+                "Connecting the Google account"
+            }
+            Request::CheckGoogle => "Checking the Google account",
+            Request::DisconnectGoogle => "Disconnecting the Google account",
+            Request::DriveList { .. } => "Listing your Google Drive folders",
+            Request::DriveBooks { .. } => "Looking for books in Google Drive",
+            Request::DriveMaterialize { .. } => "Copying the book from Google Drive",
+        }
+    }
+}
+
 #[derive(Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Status {

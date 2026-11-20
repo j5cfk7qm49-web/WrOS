@@ -231,7 +231,14 @@ class NixosUpdateEngineTests(unittest.TestCase):
             bundle, paths, serve = self._online_bundle(root, None)
             cache = root / 'cache'
             cache.mkdir()
+            (cache / 'progress.json').write_text('{"step": "download", "done": 9}', encoding='utf-8')
             seen = []
+            stale = []
+            check_baseline = self.engine.require_baseline
+
+            def baseline(*args, **kwargs):
+                stale.append((cache / 'progress.json').exists())
+                return check_baseline(*args, **kwargs)
 
             def download(url, dest, size, sha, opener=None, timeout=120, on_chunk=None):
                 seen.append(json.loads((cache / 'progress.json').read_text(encoding='utf-8')))
@@ -243,11 +250,13 @@ class NixosUpdateEngineTests(unittest.TestCase):
             clock = itertools.count(0, 1.0)
             with serve, mock.patch.object(self.engine, 'http_stream_to_file', side_effect=download), \
                     mock.patch.object(self.engine.time, 'monotonic', side_effect=lambda: next(clock)), \
+                    mock.patch.object(self.engine, 'require_baseline', side_effect=baseline), \
                     mock.patch.object(self.engine, 'verify_bundle',
                                       side_effect=lambda *a, **k: seen.append(json.loads(
                                           (cache / 'progress.json').read_text(encoding='utf-8')))):
                 result = self.engine.fetch_online(cache=cache, **paths)
             self.assertEqual(result['status'], 'fetched')
+            self.assertEqual(stale, [False], 'a stale file from a killed fetch is cleared first')
             self.assertEqual(seen[0], {'step': 'download', 'version': '0.1.0~rc18',
                                        'done': 0, 'total': seen[0]['total']})
             self.assertGreater(seen[0]['total'], 0)

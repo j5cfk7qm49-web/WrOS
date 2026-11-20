@@ -168,6 +168,8 @@ pub struct Backups {
     pub auto_running: bool,
     /// What the running job is, when a tutorial lesson counts its outcome.
     pub(crate) running: Option<Finished>,
+    /// What the running job is doing, said while it runs (#167).
+    pub activity: Option<&'static str>,
     /// The last such operation that finished well, until the app reads it.
     pub finished: Option<Finished>,
 }
@@ -396,11 +398,13 @@ impl Backups {
             Request::DriveList { .. } => Some(Finished::DriveList),
             _ => None,
         };
+        let activity = request.activity();
         match service::spawn(request, self.state.clone()) {
             Ok(job) => {
                 self.job = Some(job);
                 self.running = kind;
-                self.notice = "Backup operation running; Escape returns to writing.".into();
+                self.activity = Some(activity);
+                self.notice = format!("{activity}… Escape returns to writing.");
             }
             Err(error) => self.notice = error,
         }

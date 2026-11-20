@@ -687,7 +687,8 @@ impl App {
 
     /// Restart or shut down (#168): save, close this writing session, sync once, then go.
     /// Anything still running is waited for, not refused: the action is kept and tried
-    /// again, every check included, once it finishes. Esc in Settings cancels the wait.
+    /// again, every check included, once it finishes. Esc on the dashboard or in Settings, or
+    /// going back to writing, cancels the wait.
     /// False when refused (nothing will happen); true when sent or waiting.
     pub(crate) fn power_off(&mut self, kind: PowerWait) -> bool {
         self.deck.power_wait = None;
@@ -734,9 +735,11 @@ impl App {
         self.power_notice(line);
     }
 
+    /// Said on the dashboard, in Settings and in the writing status line.
     fn power_notice(&mut self, text: impl Into<String>) {
         self.deck.note = text.into();
         self.deck.shell.notices.push(&self.deck.note);
+        self.msg = self.deck.note.clone();
     }
 
     /// Esc while a restart or shutdown waits: keep WrOS running.
@@ -767,7 +770,18 @@ impl App {
             ));
             return;
         }
-        if self.power_blocker().is_none() {
+        if self.project.dirty_count() != 0 {
+            // The writer went back to writing: their words come first.
+            self.deck.power_wait = None;
+            self.power_notice(format!(
+                "{} cancelled: you went back to writing.",
+                pending.kind.noun()
+            ));
+            return;
+        }
+        // A final sync that brought files from Drive leaves the book to be re-read first
+        // (sync_tick does it); going ahead before then would refuse as 'unsaved'.
+        if self.power_blocker().is_none() && !self.tree_stale {
             self.power_off(pending.kind);
             // Still waiting (a final sync started): keep the original start time.
             if let Some(waiting) = &mut self.deck.power_wait {

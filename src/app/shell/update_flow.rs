@@ -612,10 +612,19 @@ impl App {
     /// Save, then start the writing app again in place (the same way an app-only
     /// update does), without signing out. Waits for system and backup work first.
     pub(super) fn restart_writing_app(&mut self) {
-        if self.deck.busy || self.deck.shell.backup.job.is_some() {
-            self.update_notice(
-                "Something is still running. Wait for it, then restart the writing app.",
-            );
+        let running = if self.deck.busy {
+            Some(self.deck.busy_line())
+        } else {
+            let backup = &self.deck.shell.backup;
+            backup
+                .job
+                .as_ref()
+                .map(|_| backup.activity.unwrap_or("A backup").to_string())
+        };
+        if let Some(running) = running {
+            self.update_notice(format!(
+                "Not yet, this is still running: {running}. Restart the writing app when it ends."
+            ));
             return;
         }
         self.update_notice("Saving, then restarting the writing app.");

@@ -1470,6 +1470,7 @@ def fetch_online(*, base_url=ONLINE_URL, cache=ONLINE_CACHE, now=None,
     keyring = resolve_trust_anchor(keyring)
     signers = resolve_trust_anchor(signers)
     try:
+        FetchProgress.clear(cache)  # a killed earlier fetch may have left one
         inrelease = http_get(base_url + 'InRelease', 1024 * 1024, opener)
         _, release_text = verify_signed_metadata({'InRelease': inrelease}, keyring=keyring,
                                                  signers=signers, package_keyring=package_keyring)

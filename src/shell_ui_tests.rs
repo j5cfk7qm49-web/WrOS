@@ -1382,6 +1382,83 @@ fn power_actions_sync_first_and_sleep_never_waits_to_lock() {
     }
 }
 
+#[test]
+fn a_restart_waits_for_files_the_final_sync_brought_then_goes_ahead() {
+    use std::sync::{Arc, Mutex};
+    use wros_sys::{Backend, PowerAction, Reply, Request, Simulated};
+    struct Recorded(Arc<Mutex<Vec<Request>>>, Simulated);
+    impl Backend for Recorded {
+        fn request(&mut self, request: Request) -> anyhow::Result<Reply> {
+            self.0.lock().unwrap().push(request.clone());
+            self.1.request(request)
+        }
+    }
+    let mut desk = Desk::open(book("power-after-download", true), 120, 40);
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    desk.app
+        .deck
+        .use_test_backend(Box::new(Recorded(calls.clone(), Simulated::laptop())));
+    let dir = sync_stub(
+        &mut desk,
+        r#"{"ok":true,"data":{"status":"synced","downloaded":1,"changed":["notes/new.md"]}}"#,
+    );
+    std::fs::write(desk.root.join(".grimoire/sync.json"), "{}").unwrap();
+    desk.app.overlay = Overlay::Deck(Page::Power {
+        action: PowerAction::Restart,
+        yes: true,
+    });
+    desk.key(KeyCode::Enter);
+    wait_sync(&mut desk);
+    assert_eq!(sync_log(&dir).len(), 1);
+    desk.app.tick_deck();
+    assert!(
+        desk.app.deck.power_wait.is_some(),
+        "waits for the book to be re-read, not 'unsaved buffers' (#168): {}",
+        desk.app.deck.note
+    );
+    desk.app.sync_tick(); // re-reads the book
+    desk.app.tick_deck();
+    wait_system(&mut desk);
+    assert!(
+        calls
+            .lock()
+            .unwrap()
+            .contains(&Request::Power(PowerAction::Restart)),
+        "{}",
+        desk.app.deck.note
+    );
+}
+
+#[test]
+fn going_back_to_writing_cancels_a_waiting_restart() {
+    use wros_sys::PowerAction;
+
+    let mut desk = Desk::open(book("power-wait-typing", true), 100, 30);
+    desk.app.deck.simulate();
+    desk.app.deck.shell.backup.sync.job = Some(crate::backup_service::Job::running_for_test(None));
+    desk.app.overlay = Overlay::Deck(Page::Power {
+        action: PowerAction::Restart,
+        yes: true,
+    });
+    desk.key(KeyCode::Enter);
+    wait_system(&mut desk);
+    assert!(desk.app.deck.power_wait.is_some());
+    assert!(desk.app.msg.contains("Restarting when the sync finishes"));
+    desk.app.overlay = Overlay::None;
+    desk.app.focus = Focus::Editor;
+    desk.typed("One more line. ");
+    desk.app.tick_deck();
+    assert!(desk.app.deck.power_wait.is_none());
+    assert!(
+        desk.app
+            .msg
+            .contains("Restarting cancelled: you went back to writing.")
+    );
+    desk.app.deck.shell.backup.sync.job = None;
+    desk.app.tick_deck();
+    assert!(!desk.app.deck.busy, "nothing restarts");
+}
+
 /// A scene changed in WrOS and in Drive since `base`, with Drive's version parked
 /// beside it by a sync, as `wros-sync` leaves it. Returns (scene, parked copy).
 fn parked_drive_edit(

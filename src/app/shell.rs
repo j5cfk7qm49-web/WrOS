@@ -2955,8 +2955,20 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
         .deck
         .power_wait_line()
         .or_else(|| app.deck.busy.then(|| app.deck.busy_line()));
+    // While a backup job runs on its own pages: what it does and how far it got (#167).
+    let backup = &app.deck.shell.backup;
+    let backup_line = match (&backup.job, backup.activity) {
+        (Some(job), Some(activity)) if uses_backup_notice => Some(job.status_line().replacen(
+            "Working:",
+            &format!("{activity}:"),
+            1,
+        )),
+        _ => None,
+    };
     let note = if app.deck.power_wait.is_some() {
         busy_line.as_deref().unwrap_or_default()
+    } else if let Some(line) = &backup_line {
+        line.as_str()
     } else if uses_backup_notice {
         app.deck.shell.backup.notice.as_str()
     } else if let Some(line) = &chain_line {
