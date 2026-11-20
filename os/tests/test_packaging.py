@@ -808,7 +808,7 @@ class ManifestData(unittest.TestCase):
 
     def test_version_is_the_single_source(self):
         self.assertEqual((ROOT / 'os/VERSION').read_text(), '0.1.0~rc16\n')
-        self.assertEqual(packaging.read_version(ROOT), '0.1.0~rc19')
+        self.assertEqual(packaging.read_version(ROOT), '0.1.0~rc20')
         for bad in ('', '1:2', 'v1', '1 2', '1\t2'):
             with self.assertRaises(packaging.PackagingError):
                 packaging.check_version(bad)
