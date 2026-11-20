@@ -749,12 +749,33 @@ fn suspend_from_power_uses_the_console_handoff_after_saving() {
 }
 
 #[test]
-fn confirmed_power_waits_for_backup_and_sync_then_allows_retry() {
-    use wros_sys::PowerAction;
-
+fn confirmed_power_waits_for_backup_and_sync_then_goes_ahead() {
+    use std::sync::{Arc, Mutex};
+    use wros_sys::{Backend, PowerAction, Reply, Request, Simulated};
+    struct Recorded(Arc<Mutex<Vec<Request>>>, Simulated);
+    impl Backend for Recorded {
+        fn request(&mut self, request: Request) -> anyhow::Result<Reply> {
+            self.0.lock().unwrap().push(request.clone());
+            self.1.request(request)
+        }
+    }
     let mut desk = Desk::open(book("power-with-book-jobs", true), 100, 30);
-    desk.app.deck.simulate();
-    for (action, backup) in [(PowerAction::Shutdown, true), (PowerAction::Restart, false)] {
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    desk.app
+        .deck
+        .use_test_backend(Box::new(Recorded(calls.clone(), Simulated::laptop())));
+    for (action, backup, said) in [
+        (
+            PowerAction::Shutdown,
+            true,
+            "Shutting down when the backup finishes",
+        ),
+        (
+            PowerAction::Restart,
+            false,
+            "Restarting when the sync finishes",
+        ),
+    ] {
         if backup {
             desk.app.deck.shell.backup.job =
                 Some(crate::backup_service::Job::running_for_test(None));
@@ -762,20 +783,97 @@ fn confirmed_power_waits_for_backup_and_sync_then_allows_retry() {
             desk.app.deck.shell.backup.sync.job =
                 Some(crate::backup_service::Job::running_for_test(None));
         }
-        desk.app.overlay = Overlay::Deck(Page::Power { action, yes: true });
+        desk.app.overlay = Overlay::Deck(Page::Power {
+            action: action.clone(),
+            yes: true,
+        });
         desk.key(KeyCode::Enter);
-        assert!(!desk.app.deck.busy, "no power request may be sent");
-        assert!(matches!(
-            desk.app.overlay,
-            Overlay::Deck(Page::Power { yes: true, .. })
-        ));
-        assert!(desk.app.deck.note.contains("Wait for it to finish"));
+        wait_system(&mut desk); // The System page reads the status when it opens.
+        assert!(
+            desk.app.deck.power_wait.is_some(),
+            "no power request while it runs"
+        );
+        desk.draw();
+        assert!(
+            desk.shows_wrapped(said) && desk.shows_wrapped("Esc cancels"),
+            "the wait is said on screen (#168): {:#?}",
+            desk.rows()
+        );
+        desk.app.tick_deck();
+        assert!(desk.app.deck.power_wait.is_some(), "still waiting");
         desk.app.deck.shell.backup.job = None;
         desk.app.deck.shell.backup.sync.job = None;
-        desk.key(KeyCode::Enter);
-        assert!(desk.app.deck.busy);
+        assert!(
+            !calls
+                .lock()
+                .unwrap()
+                .contains(&Request::Power(action.clone()))
+        );
+        desk.app.tick_deck();
         wait_system(&mut desk);
+        assert!(
+            calls
+                .lock()
+                .unwrap()
+                .contains(&Request::Power(action.clone())),
+            "goes ahead by itself once it finished"
+        );
+        assert!(desk.app.deck.power_wait.is_none());
+        calls.lock().unwrap().clear();
     }
+}
+
+#[test]
+fn a_waiting_restart_is_cancelled_with_esc() {
+    use wros_sys::PowerAction;
+
+    let mut desk = Desk::open(book("power-wait-cancel", true), 100, 30);
+    desk.app.deck.simulate();
+    desk.app.deck.shell.backup.sync.job = Some(crate::backup_service::Job::running_for_test(None));
+    desk.app.overlay = Overlay::Deck(Page::Power {
+        action: PowerAction::Restart,
+        yes: true,
+    });
+    desk.key(KeyCode::Enter);
+    wait_system(&mut desk);
+    assert!(desk.app.deck.power_wait.is_some());
+    desk.key(KeyCode::Esc);
+    assert!(desk.app.deck.power_wait.is_none());
+    desk.draw();
+    assert!(
+        desk.shows_wrapped("Restarting cancelled. The sync carries on."),
+        "{:#?}",
+        desk.rows()
+    );
+    desk.app.deck.shell.backup.sync.job = None;
+    desk.app.tick_deck();
+    assert!(!desk.app.deck.busy, "nothing restarts after a cancel");
+}
+
+#[test]
+fn settings_says_what_a_running_system_request_does() {
+    let mut desk = Desk::open(book("busy-line", true), 100, 30);
+    desk.app.open_system_settings();
+    desk.app.deck.busy = true;
+    desk.app.deck.running = Some((
+        wros_sys::Request::FetchOnlineUpdate.activity(),
+        std::time::Instant::now() - std::time::Duration::from_secs(42),
+    ));
+    desk.draw();
+    assert!(
+        desk.shows_wrapped("Downloading the WrOS update… · 0:42"),
+        "not a generic 'request pending' (#167): {:#?}",
+        desk.rows()
+    );
+    desk.app.deck.fetch_progress = wros_sys::FetchProgress::parse(
+        r#"{"step":"download","version":"0.1.0~rc20","done":34500000,"total":72000000}"#,
+    );
+    desk.draw();
+    assert!(
+        desk.shows_wrapped("Downloading WrOS 0.1.0~rc20: 34 of 72 MB · 0:42"),
+        "{:#?}",
+        desk.rows()
+    );
 }
 
 #[test]
@@ -1215,7 +1313,15 @@ fn edits_during_a_final_sync_need_another_run_before_quitting() {
 
 #[test]
 fn power_actions_sync_first_and_sleep_never_waits_to_lock() {
-    use wros_sys::PowerAction;
+    use std::sync::{Arc, Mutex};
+    use wros_sys::{Backend, PowerAction, Reply, Request, Simulated};
+    struct Recorded(Arc<Mutex<Vec<Request>>>, Simulated);
+    impl Backend for Recorded {
+        fn request(&mut self, request: Request) -> anyhow::Result<Reply> {
+            self.0.lock().unwrap().push(request.clone());
+            self.1.request(request)
+        }
+    }
 
     for action in [
         PowerAction::Suspend,
@@ -1223,7 +1329,10 @@ fn power_actions_sync_first_and_sleep_never_waits_to_lock() {
         PowerAction::Restart,
     ] {
         let mut desk = Desk::open(book(&format!("sync-power-{action:?}"), true), 120, 40);
-        desk.app.deck.simulate();
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        desk.app
+            .deck
+            .use_test_backend(Box::new(Recorded(calls.clone(), Simulated::laptop())));
         desk.app.deck.lock_available = true;
         desk.app.deck.suspend_available = true;
         let dir = sync_stub(&mut desk, r#"{"ok":true,"data":{"status":"offline"}}"#);
@@ -1248,13 +1357,27 @@ fn power_actions_sync_first_and_sleep_never_waits_to_lock() {
             assert_eq!(sync_log(&dir).len(), 1);
             continue;
         }
-        assert!(!desk.app.deck.busy);
+        assert!(
+            !calls
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|r| matches!(r, Request::Power(_)))
+                || sync_log(&dir).len() == 1,
+            "no power request before the final sync"
+        );
         assert!(!desk.app.deck.lock_requested);
         wait_sync(&mut desk);
         assert_eq!(sync_log(&dir).len(), 1);
-        desk.key(KeyCode::Enter);
-        assert!(desk.app.deck.busy);
+        desk.app.tick_deck();
         wait_system(&mut desk);
+        assert!(
+            calls
+                .lock()
+                .unwrap()
+                .contains(&Request::Power(action.clone())),
+            "goes ahead by itself once the final sync ends, no second Enter (#168)"
+        );
         assert_eq!(sync_log(&dir).len(), 1, "offline must not prevent leaving");
     }
 }

@@ -223,6 +223,39 @@ class NixosUpdateEngineTests(unittest.TestCase):
             self.assertEqual(self.engine.missing_baseline({'baseline': fallback}, paths['store_dir']),
                              Path(fallback).name)
 
+    def test_fetch_online_reports_download_progress_and_clears_it(self):
+        """Settings shows how far the download got from cache/progress.json (#167)."""
+        import itertools
+        with tempfile.TemporaryDirectory(prefix='wros-nixos-progress-') as tmp:
+            root = Path(tmp)
+            bundle, paths, serve = self._online_bundle(root, None)
+            cache = root / 'cache'
+            cache.mkdir()
+            seen = []
+
+            def download(url, dest, size, sha, opener=None, timeout=120, on_chunk=None):
+                seen.append(json.loads((cache / 'progress.json').read_text(encoding='utf-8')))
+                data = (bundle / url.removeprefix(self.engine.ONLINE_URL)).read_bytes()
+                Path(dest).parent.mkdir(parents=True, exist_ok=True)
+                Path(dest).write_bytes(data)
+                on_chunk(len(data))
+
+            clock = itertools.count(0, 1.0)
+            with serve, mock.patch.object(self.engine, 'http_stream_to_file', side_effect=download), \
+                    mock.patch.object(self.engine.time, 'monotonic', side_effect=lambda: next(clock)), \
+                    mock.patch.object(self.engine, 'verify_bundle',
+                                      side_effect=lambda *a, **k: seen.append(json.loads(
+                                          (cache / 'progress.json').read_text(encoding='utf-8')))):
+                result = self.engine.fetch_online(cache=cache, **paths)
+            self.assertEqual(result['status'], 'fetched')
+            self.assertEqual(seen[0], {'step': 'download', 'version': '0.1.0~rc18',
+                                       'done': 0, 'total': seen[0]['total']})
+            self.assertGreater(seen[0]['total'], 0)
+            self.assertEqual(seen[-1]['step'], 'verify')
+            self.assertEqual(seen[-1]['done'], seen[-1]['total'])
+            self.assertFalse((cache / 'progress.json').exists(), 'cleared when done')
+            self.assertEqual([p.name for p in cache.iterdir() if p.name.startswith('.progress')], [])
+
     def test_ci_accepts_a_signed_delta_without_a_nix_store(self):
         """The Pages workflow checks a release's delta bundle on a runner with no Nix store;
         the release it updates from only has to exist on the machines being updated."""

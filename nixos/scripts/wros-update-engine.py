@@ -21,6 +21,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.request
 
@@ -1394,7 +1395,47 @@ def check_online(*, base_url=ONLINE_URL, now=None, keyring=DEFAULT_KEYRING,
     return result | {'status': 'available' if newer else 'current', 'version': closure['version']}
 
 
-def http_stream_to_file(url, dest_path, expected_size, expected_sha256, opener=None, timeout=120):
+FETCH_PROGRESS_NAME = 'progress.json'
+
+
+class FetchProgress:
+    """How far a download got, for Settings to show (#167): cache/progress.json, replaced
+    atomically at most twice a second. The cache directory is root's (0755), so the writer
+    can read it but not plant one. Failing to write it never fails the download."""
+
+    def __init__(self, cache, version, total):
+        self.path = Path(cache) / FETCH_PROGRESS_NAME
+        self.version, self.total, self.done = version, total, 0
+        self.written = 0.0
+
+    def write(self, step, force=False):
+        now = time.monotonic()
+        if not force and now - self.written < 0.5:
+            return
+        self.written = now
+        record = {'step': step, 'version': self.version, 'done': self.done, 'total': self.total}
+        tmp = self.path.with_name('.' + FETCH_PROGRESS_NAME + '.tmp')
+        try:
+            tmp.write_text(json.dumps(record), encoding='utf-8')
+            os.chmod(tmp, 0o644)
+            os.replace(tmp, self.path)
+        except OSError:
+            pass
+
+    def add(self, size):
+        self.done += size
+        self.write('download')
+
+    @staticmethod
+    def clear(cache):
+        try:
+            (Path(cache) / FETCH_PROGRESS_NAME).unlink()
+        except OSError:
+            pass
+
+
+def http_stream_to_file(url, dest_path, expected_size, expected_sha256, opener=None, timeout=120,
+                        on_chunk=None):
     """Stream download to disk in 64 KiB chunks while hashing (U8: never buffer large NARs in RAM)."""
     opener = opener or urllib.request.build_opener(_base._NoRedirect)
     dest_path = Path(dest_path)
@@ -1413,6 +1454,8 @@ def http_stream_to_file(url, dest_path, expected_size, expected_sha256, opener=N
                 fail(f'downloaded file {dest_path.name} exceeds expected size')
             hasher.update(chunk)
             out_f.write(chunk)
+            if on_chunk is not None:
+                on_chunk(len(chunk))
         out_f.flush()
         os.fsync(out_f.fileno())
     if total != expected_size or hasher.hexdigest() != expected_sha256:
@@ -1450,6 +1493,9 @@ def fetch_online(*, base_url=ONLINE_URL, cache=ONLINE_CACHE, now=None,
         target = cache / hashlib.sha256(inrelease).hexdigest()[:16]
         partial = cache / ('.partial-' + secrets.token_hex(8))
         (partial / 'cache/nar').mkdir(parents=True, mode=0o755)
+        progress = FetchProgress(cache, closure['version'],
+                                 sum(item['size'] for item in to_download))
+        progress.write('download', force=True)
         try:
             (partial / 'InRelease').write_bytes(inrelease)
             (partial / CLOSURE_MANIFEST_NAME).write_bytes(manifest_raw)
@@ -1457,7 +1503,8 @@ def fetch_online(*, base_url=ONLINE_URL, cache=ONLINE_CACHE, now=None,
                 file_url = item.get('url') or (base_url + item['path'])
                 http_stream_to_file(
                     file_url, partial / item['path'], item['size'], item['sha256'],
-                    opener=opener, timeout=120)
+                    opener=opener, timeout=120, on_chunk=progress.add)
+            progress.write('verify', force=True)
             verify_bundle(partial, keyring=keyring, signers=signers, now=now,
                           version_file=version_file, current_system=current_system,
                           store_dir=store_dir, package_keyring=package_keyring,
@@ -1470,6 +1517,7 @@ def fetch_online(*, base_url=ONLINE_URL, cache=ONLINE_CACHE, now=None,
             raise
         return {'status': 'fetched', 'path': str(target), 'version': closure['version']}
     finally:
+        FetchProgress.clear(cache)
         os.umask(previous)
 
 

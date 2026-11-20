@@ -117,6 +117,56 @@ const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 23] = [
     (ShortcutAction::MenuBar, "Open the menu bar"),
 ];
 
+/// A restart or shutdown the writer asked for, kept until what runs has finished (#168).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PowerWait {
+    Restart,
+    Shutdown,
+    /// Restart to install a staged update; checks the system still reports it staged.
+    UpdateRestart,
+}
+
+impl PowerWait {
+    fn action(self) -> PowerAction {
+        match self {
+            PowerWait::Shutdown => PowerAction::Shutdown,
+            PowerWait::Restart | PowerWait::UpdateRestart => PowerAction::Restart,
+        }
+    }
+    fn noun(self) -> &'static str {
+        match self {
+            PowerWait::Shutdown => "Shutting down",
+            PowerWait::Restart => "Restarting",
+            PowerWait::UpdateRestart => "Restarting to install the update",
+        }
+    }
+    fn refused(self) -> &'static str {
+        match self {
+            PowerWait::Restart | PowerWait::Shutdown => "Power unchanged:",
+            PowerWait::UpdateRestart => "Not restarting:",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct PendingPower {
+    pub kind: PowerWait,
+    /// What is being waited for: "the sync", "the final sync", "the backup", "the system request".
+    pub what: &'static str,
+    pub since: std::time::Instant,
+}
+
+/// Give up on a waiting restart or shutdown after this long (an offline sync that hangs).
+pub const POWER_WAIT_LIMIT: Duration = Duration::from_secs(10 * 60);
+
+fn capitalise(text: &str) -> String {
+    let mut chars = text.chars();
+    chars
+        .next()
+        .map(|first| first.to_uppercase().chain(chars).collect())
+        .unwrap_or_default()
+}
+
 pub struct Deck {
     pub shell: super::shell::Shell,
     pub state: State,
@@ -130,6 +180,13 @@ pub struct Deck {
     pub snapshot: Option<Snapshot>,
     pub note: String,
     pub busy: bool,
+    /// What the running system request is doing and when it started (#167).
+    pub running: Option<(String, std::time::Instant)>,
+    /// The update engine's download progress while an online update downloads.
+    pub fetch_progress: Option<wros_sys::FetchProgress>,
+    fetch_read: Option<std::time::Instant>,
+    /// A restart or shutdown waiting for a sync, backup or system request (#168).
+    pub power_wait: Option<PendingPower>,
     pub lock_available: bool,
     pub installer_available: bool,
     /// Running with native pixels or the cage/foot trial.
@@ -349,6 +406,10 @@ impl Deck {
             battery: crate::battery::Watch::default(),
             quit_offered: !crate::installed_session(),
             power_pending: false,
+            running: None,
+            fetch_progress: None,
+            fetch_read: None,
+            power_wait: None,
             installer_requested: false,
             app_restart_requested: false,
             // Colour ownership starts at login, including when no Settings page
@@ -393,9 +454,53 @@ impl Deck {
                 .as_ref()
                 .is_some_and(|snapshot| snapshot.simulated)
     }
+    /// While a system request runs: what it is doing, and for how long once it takes a
+    /// while (#167). Shown in place of the last notice until the reply arrives.
+    pub fn busy_line(&self) -> String {
+        let Some((what, since)) = &self.running else {
+            return "Waiting for the system…".into();
+        };
+        let what = match &self.fetch_progress {
+            Some(progress) => progress.line(),
+            None => what.clone(),
+        };
+        match wros_sys::elapsed_label(since.elapsed()) {
+            Some(time) => format!("{what} · {time}"),
+            None => what,
+        }
+    }
+    /// While an online update downloads, read the engine's progress about once a second.
+    pub(crate) fn tick_fetch_progress(&mut self) {
+        let fetching = self.busy
+            && self
+                .running
+                .as_ref()
+                .is_some_and(|(what, _)| *what == Request::FetchOnlineUpdate.activity());
+        if !fetching
+            || self
+                .fetch_read
+                .is_some_and(|at| at.elapsed() < Duration::from_secs(1))
+        {
+            return;
+        }
+        self.fetch_read = Some(std::time::Instant::now());
+        self.fetch_progress = wros_sys::FetchProgress::read();
+    }
+    /// "Restarting when the sync finishes · 0:12 · Esc cancels" while a power action waits.
+    pub fn power_wait_line(&self) -> Option<String> {
+        let pending = self.power_wait?;
+        let time = wros_sys::elapsed_label(pending.since.elapsed())
+            .map(|time| format!(" · {time}"))
+            .unwrap_or_default();
+        Some(format!(
+            "{} when {} finishes{time} · Esc cancels",
+            pending.kind.noun(),
+            pending.what
+        ))
+    }
     pub fn request(&mut self, request: Request) {
         if self.busy {
-            self.note = "A system request is still running; please wait.".into();
+            self.note = format!("Still busy, try again in a moment: {}", self.busy_line());
             return;
         }
         if self.worker.is_none() {
@@ -409,11 +514,13 @@ impl Deck {
             request,
             Request::Power(PowerAction::Shutdown | PowerAction::Restart)
         );
+        let activity = request.activity();
         match self.worker.as_ref().unwrap().tx.try_send(request) {
             Ok(()) => {
                 self.power_pending |= powering_off;
                 self.busy = true;
-                self.note = "Waiting for the system service…".into();
+                self.running = Some((activity, std::time::Instant::now()));
+                self.note = self.busy_line();
             }
             Err(e) => self.note = format!("System worker unavailable: {e}"),
         }
@@ -555,15 +662,117 @@ impl App {
     }
 
     pub(super) fn power_wait_reason(&mut self) -> Option<&'static str> {
+        Some(match self.power_blocker()? {
+            "the system request" => {
+                "A system request is running. Wait for it to finish, then try again."
+            }
+            "the backup" => "A backup is running. Wait for it to finish, then try again.",
+            _ => "A sync is running. Wait for it to finish, then try again.",
+        })
+    }
+
+    /// What has to finish before WrOS can restart or shut down, if anything.
+    fn power_blocker(&mut self) -> Option<&'static str> {
         self.deck.shell.backup.tick();
         if self.deck.busy {
-            Some("A system request is running. Wait for it to finish, then try again.")
+            Some("the system request")
         } else if self.deck.shell.backup.job.is_some() {
-            Some("A backup is running. Wait for it to finish, then try again.")
+            Some("the backup")
         } else if self.deck.shell.backup.sync.job.is_some() {
-            Some("A sync is running. Wait for it to finish, then try again.")
+            Some("the sync")
         } else {
             None
+        }
+    }
+
+    /// Restart or shut down (#168): save, close this writing session, sync once, then go.
+    /// Anything still running is waited for, not refused: the action is kept and tried
+    /// again, every check included, once it finishes. Esc in Settings cancels the wait.
+    /// False when refused (nothing will happen); true when sent or waiting.
+    pub(crate) fn power_off(&mut self, kind: PowerWait) -> bool {
+        self.deck.power_wait = None;
+        if !self.commit_saves()
+            || self.project.dirty_count() != 0
+            || self.tree_stale
+            || !self.conflicts().is_empty()
+        {
+            self.power_notice(format!(
+                "{} unsaved buffers or source conflicts need attention. Return to writing to review them.",
+                kind.refused()
+            ));
+            return false;
+        }
+        if kind == PowerWait::UpdateRestart && !self.update_staged_confirmed() {
+            self.power_notice(
+                "Not restarting: the system has not confirmed a staged update. Refresh Recovery status first.",
+            );
+            return false;
+        }
+        if let Some(what) = self.power_blocker() {
+            self.power_hold(kind, what);
+            return true;
+        }
+        self.save_deck();
+        self.end_timeline_session(chrono::Local::now());
+        if !self.final_sync_done() {
+            // The final sync started; it is what we wait for now.
+            self.power_hold(kind, "the final sync");
+            return true;
+        }
+        self.deck.shell.update_flow.last_result = None;
+        self.deck.request(Request::Power(kind.action()));
+        true
+    }
+
+    fn power_hold(&mut self, kind: PowerWait, what: &'static str) {
+        let since = match self.deck.power_wait {
+            Some(PendingPower { since, .. }) => since,
+            None => std::time::Instant::now(),
+        };
+        self.deck.power_wait = Some(PendingPower { kind, what, since });
+        let line = self.deck.power_wait_line().unwrap_or_default();
+        self.power_notice(line);
+    }
+
+    fn power_notice(&mut self, text: impl Into<String>) {
+        self.deck.note = text.into();
+        self.deck.shell.notices.push(&self.deck.note);
+    }
+
+    /// Esc while a restart or shutdown waits: keep WrOS running.
+    pub(crate) fn cancel_power_wait(&mut self) -> bool {
+        let Some(pending) = self.deck.power_wait.take() else {
+            return false;
+        };
+        self.power_notice(format!(
+            "{} cancelled. {} carries on.",
+            pending.kind.noun(),
+            capitalise(pending.what)
+        ));
+        true
+    }
+
+    /// Go ahead with a waiting restart or shutdown once nothing runs, or give up after a while.
+    pub(crate) fn tick_power_wait(&mut self) {
+        let Some(pending) = self.deck.power_wait else {
+            return;
+        };
+        if pending.since.elapsed() >= POWER_WAIT_LIMIT {
+            self.deck.power_wait = None;
+            self.power_notice(format!(
+                "{} cancelled: {} did not finish in {} minutes. Try again, or check Backups and accounts.",
+                pending.kind.noun(),
+                pending.what,
+                POWER_WAIT_LIMIT.as_secs() / 60
+            ));
+            return;
+        }
+        if self.power_blocker().is_none() {
+            self.power_off(pending.kind);
+            // Still waiting (a final sync started): keep the original start time.
+            if let Some(waiting) = &mut self.deck.power_wait {
+                waiting.since = pending.since;
+            }
         }
     }
 
@@ -887,6 +1096,8 @@ impl App {
             None => {}
         }
         self.tick_update_chain();
+        self.tick_power_wait();
+        self.deck.tick_fetch_progress();
         self.tick_productivity();
         self.tick_online_updates();
         self.tick_update_health();
@@ -897,6 +1108,9 @@ impl App {
         let result = self.deck.worker.as_ref().and_then(|w| w.rx.try_recv().ok());
         if let Some((request, result)) = result {
             self.deck.busy = false;
+            self.deck.running = None;
+            self.deck.fetch_progress = None;
+            self.deck.fetch_read = None;
             if matches!(request, Request::Power(_)) && (result.is_err() || self.deck.simulated()) {
                 self.deck.power_pending = false;
             }
@@ -1250,6 +1464,9 @@ impl App {
         let Overlay::Deck(page) = self.overlay.clone() else {
             return;
         };
+        if key == Key::Esc && self.cancel_power_wait() {
+            return;
+        }
         match page {
             Page::Settings => self.on_settings_key(key),
             Page::Home { mut sel } => {
@@ -1605,26 +1822,15 @@ impl App {
                             return;
                         }
                     } else if yes {
-                        if let Some(reason) = self.power_wait_reason() {
-                            self.deck.note = reason.into();
-                            self.deck.shell.notices.push(reason);
+                        let kind = if action == PowerAction::Restart {
+                            PowerWait::Restart
+                        } else {
+                            PowerWait::Shutdown
+                        };
+                        if !self.power_off(kind) {
+                            // Refused: the confirmation stays for an explicit retry.
                             return;
                         }
-                        if !self.commit_saves()
-                            || self.project.dirty_count() != 0
-                            || self.tree_stale
-                            || !self.conflicts().is_empty()
-                        {
-                            self.deck.note = "Power unchanged: unsaved buffers or source conflicts need attention. Return to writing to review them.".into();
-                            self.deck.shell.notices.push(&self.deck.note);
-                            return;
-                        }
-                        self.save_deck();
-                        self.end_timeline_session(chrono::Local::now());
-                        if !self.sync_before_leave() {
-                            return;
-                        }
-                        self.deck.request(Request::Power(action));
                     }
                     self.open_system_settings();
                 }
@@ -2478,8 +2684,13 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     while lines.len() < inner.height.saturating_sub(2) as usize {
         lines.push(Line::from(""));
     }
-    let note = if app.deck.busy {
-        "System request pending; writing input remains responsive."
+    let busy_line;
+    let note = if let Some(line) = app.deck.power_wait_line() {
+        busy_line = line;
+        &busy_line
+    } else if app.deck.busy {
+        busy_line = app.deck.busy_line();
+        &busy_line
     } else {
         &app.deck.note
     };

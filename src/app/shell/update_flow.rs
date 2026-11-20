@@ -982,26 +982,13 @@ impl App {
         self.deck.shell.nav.open(Route::UpdateStaged);
         self.deck.shell.nav.select(0, 3);
     }
+    /// Restart to install the staged update: the same save, session close and final sync as
+    /// Power › Restart, waiting for a running sync or backup instead of refusing (#168).
     pub(super) fn update_restart(&mut self) {
-        if let Some(reason) = self.power_wait_reason() {
-            self.update_notice(reason);
-            return;
-        }
-        if !confirmed_staged(self) {
-            self.update_notice(
-                "Not restarting: the system has not confirmed a staged update. Refresh Recovery status first.",
-            );
-            return;
-        }
-        if !self.writing_is_safe() {
-            self.update_notice(
-                "Not restarting: unsaved buffers or source conflicts need attention. Return to writing to review them.",
-            );
-            return;
-        }
-        self.save_deck();
-        self.deck.shell.update_flow.last_result = None;
-        self.deck.request(Request::Power(PowerAction::Restart));
+        self.power_off(crate::app::wros::PowerWait::UpdateRestart);
+    }
+    pub(crate) fn update_staged_confirmed(&self) -> bool {
+        confirmed_staged(self)
     }
     /// Install an app-only staged update now; the engine re-checks that it is.
     pub(super) fn update_apply_now(&mut self) {

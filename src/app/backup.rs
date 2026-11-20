@@ -707,9 +707,9 @@ impl App {
         }
     }
 
-    /// Reuse the close/power save gate: request one final run, then let the
-    /// existing tick collect it before the writer retries the action.
-    pub(crate) fn sync_before_leave(&mut self) -> bool {
+    /// True once a final sync has run since the last save (or sync is off). Otherwise starts
+    /// one, if none runs, and returns false; ask again when it finishes.
+    pub(crate) fn final_sync_done(&mut self) -> bool {
         if !self.sync_enabled() {
             return true;
         }
@@ -724,6 +724,14 @@ impl App {
             if self.deck.shell.backup.sync.job.is_none() {
                 return true;
             }
+        }
+        false
+    }
+    /// Reuse the close/power save gate: request one final run, then let the
+    /// existing tick collect it before the writer retries the action.
+    pub(crate) fn sync_before_leave(&mut self) -> bool {
+        if self.final_sync_done() {
+            return true;
         }
         self.msg = "Syncing before leaving this book; try again when it finishes.".into();
         self.deck.note = self.msg.clone();
