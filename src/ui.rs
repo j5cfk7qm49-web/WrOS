@@ -7,7 +7,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Padding, Paragraph};
 
 use crate::app::{App, Focus, Overlay};
-use crate::music::State as MusicState;
+use crate::music::{SETTINGS_PATH, State as MusicState};
 use crate::scene::{self, Ink, Mode, Phase};
 use crate::theme::Theme;
 use grimoire_core::create::{self, New};
@@ -264,7 +264,14 @@ fn draw_left(f: &mut Frame, app: &mut App, main: Rect, t: &Theme) -> Rect {
 
     // Give up the ornaments before the tree gets unusable. With music switched
     // off there is no music pane at all, and the tree has that room.
-    let music_h = if app.music.enabled { MUSIC_H } else { 0 };
+    let music_h = match (&app.music.state, app.music.enabled) {
+        (_, false) => 0,
+        (MusicState::NoToken, true) => {
+            let lines = wros_shell::notice_lines(SETTINGS_PATH, left.width.saturating_sub(2));
+            MUSIC_H.max(lines.len() as u16 + 3)
+        }
+        _ => MUSIC_H,
+    };
     let (tree_area, scene_area, music_area) =
         if !app.music.enabled && left.height >= SCENE_H + MIN_TREE {
             let [a, b] = Layout::vertical([Constraint::Min(MIN_TREE), Constraint::Length(SCENE_H)])
@@ -276,12 +283,12 @@ fn draw_left(f: &mut Frame, app: &mut App, main: Rect, t: &Theme) -> Rect {
             let [a, b, c] = Layout::vertical([
                 Constraint::Min(MIN_TREE),
                 Constraint::Length(SCENE_H),
-                Constraint::Length(MUSIC_H),
+                Constraint::Length(music_h),
             ])
             .areas(left);
             (a, b, c)
-        } else if left.height >= MUSIC_H + MIN_TREE {
-            let [a, c] = Layout::vertical([Constraint::Min(MIN_TREE), Constraint::Length(MUSIC_H)])
+        } else if left.height >= music_h + MIN_TREE {
+            let [a, c] = Layout::vertical([Constraint::Min(MIN_TREE), Constraint::Length(music_h)])
                 .areas(left);
             (a, Rect::default(), c)
         } else {
@@ -784,13 +791,18 @@ fn draw_music(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
     let w = inner.width as usize;
 
     let lines: Vec<Line> = match &app.music.state {
-        MusicState::NoToken => vec![
-            Line::from(Span::styled("not set up", Style::default().fg(t.dim))),
-            Line::from(Span::styled(
-                "grimoire music-setup",
-                Style::default().fg(t.border),
-            )),
-        ],
+        MusicState::NoToken => {
+            let mut lines = vec![Line::from(Span::styled(
+                "not set up",
+                Style::default().fg(t.dim),
+            ))];
+            lines.extend(
+                wros_shell::notice_lines(SETTINGS_PATH, inner.width)
+                    .into_iter()
+                    .map(|line| Line::from(Span::styled(line, Style::default().fg(t.border))),
+            );
+            lines
+        }
         MusicState::Offline => vec![
             Line::from(Span::styled(
                 format!("{} not running", app.music.source.label()),

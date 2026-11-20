@@ -125,14 +125,8 @@ impl App {
         match key {
             Key::Enter | Key::Char(' ') => {
                 let chosen = music::Source::ALL[*sel];
-                let mut cfg = music::Config::load();
-                cfg.source = chosen;
                 // Choosing a source is asking for music.
-                cfg.enabled = true;
-                let _ = cfg.save();
-                // Restart the poller against the new source.
-                self.music = Music::spawn(cfg);
-                self.msg = format!("music: {}", chosen.label());
+                self.select_music_source(chosen, true);
                 self.overlay = Overlay::None;
             }
             Key::Esc => self.overlay = Overlay::None,

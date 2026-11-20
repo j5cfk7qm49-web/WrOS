@@ -916,6 +916,12 @@ fn dispatch_event(app: &mut App, ev: Event, confirm_quit: &mut bool) -> bool {
             return false;
         }
         if app.overlay == Overlay::Deck(app::wros::Page::Settings)
+            && app.deck.shell.nav.current() == app::shell::Route::MusicServerForm
+        {
+            app.paste_music_server_form(text);
+            return false;
+        }
+        if app.overlay == Overlay::Deck(app::wros::Page::Settings)
             && app.deck.shell.nav.current() == app::shell::Route::UpdateBundleForm
         {
             app.paste_update_form(text);
@@ -1322,6 +1328,7 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
                 app.deck.shell.nav.current(),
                 app::shell::Route::BackupForm
                     | app::shell::Route::WifiConnect
+                    | app::shell::Route::MusicServerForm
                     | app::shell::Route::UpdateBundleForm
                     | app::shell::Route::ManualClock
                     | app::shell::Route::KeyboardWizard

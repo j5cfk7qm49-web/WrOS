@@ -2218,6 +2218,12 @@ impl App {
             return;
         }
         if self.overlay == Overlay::Deck(wros::Page::Settings)
+            && self.deck.shell.nav.current() == shell::Route::MusicServerForm
+        {
+            self.paste_music_server_form(text);
+            return;
+        }
+        if self.overlay == Overlay::Deck(wros::Page::Settings)
             && self.deck.shell.nav.current() == shell::Route::UpdateBundleForm
         {
             self.paste_update_form(text);
@@ -6001,6 +6007,18 @@ impl App {
         }
     }
 
+    fn select_music_source(&mut self, source: music::Source, enable: bool) {
+        let mut cfg = music::Config::load();
+        cfg.source = source;
+        cfg.enabled |= enable;
+        if let Err(e) = cfg.save() {
+            self.msg = format!("couldn't save the music source: {e}");
+            return;
+        }
+        self.music = Music::spawn(cfg);
+        self.msg = format!("music: {}", source.label());
+    }
+
     /// Switch music on or off, remember it, and start or stop the poller.
     pub fn set_music(&mut self, on: bool) {
         let mut cfg = music::Config::load();
@@ -6015,9 +6033,7 @@ impl App {
         }
         self.msg = if on {
             match self.music.state {
-                music::State::NoToken => {
-                    "music on — run grimoire music-setup to connect a player".into()
-                }
+                music::State::NoToken => format!("music on · set up in {}", music::SETTINGS_PATH),
                 _ => format!("music on · {}", self.music.source.label()),
             }
         } else {

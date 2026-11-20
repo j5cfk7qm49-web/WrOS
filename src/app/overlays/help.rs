@@ -103,6 +103,11 @@ impl App {
             }
             Overlay::None => !self.focus.is_editor(),
             Overlay::Deck(super::super::wros::Page::KeyboardTest { .. }) => false,
+            Overlay::Deck(super::super::wros::Page::Settings)
+                if self.deck.shell.nav.current() == super::super::shell::Route::MusicServerForm =>
+            {
+                false
+            }
             Overlay::Palette { .. }
             | Overlay::PinCategory { .. }
             | Overlay::Marks { .. }

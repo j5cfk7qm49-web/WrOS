@@ -42,6 +42,7 @@ use ytm::Ytm;
 
 pub const APP_ID: &str = "grimoiretui";
 pub const DEFAULT_PORT: u16 = 26538;
+pub(crate) const SETTINGS_PATH: &str = "Settings › Look and keyboard › Music";
 
 /// Where the music comes from. The first two are remote controls for a player
 /// you already run; the last two are your own server, which Grimoire can

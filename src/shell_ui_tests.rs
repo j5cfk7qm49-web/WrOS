@@ -34,6 +34,226 @@ fn close_settings(desk: &mut Desk) {
     assert_eq!(desk.app.overlay, Overlay::None);
 }
 
+// Run Config::load/save against a private home, as the shelf tests do.
+fn music_test_home(name: &str) -> bool {
+    if std::env::var_os("GRIMOIRE_MUSIC_TEST").is_some() {
+        return true;
+    }
+    let home = tempfile::tempdir().unwrap();
+    let out = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            &format!("ui_tests::shell_ui_tests::{name}"),
+            "--nocapture",
+        ])
+        .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
+        .env("GRIMOIRE_MUSIC_TEST", "1")
+        .env_remove("http_proxy")
+        .env_remove("HTTP_PROXY")
+        .env_remove("https_proxy")
+        .env_remove("HTTPS_PROXY")
+        .env_remove("all_proxy")
+        .env_remove("ALL_PROXY")
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success() && String::from_utf8_lossy(&out.stdout).contains("1 passed"),
+        "{}\n{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    false
+}
+
+fn music_page(desk: &mut Desk) {
+    desk.app.open_settings();
+    desk.draw();
+    desk.choose("Look and keyboard");
+    desk.choose("Music");
+    assert_eq!(desk.app.deck.shell.nav.current(), Route::MusicPage);
+}
+
+fn music_server_desk(tag: &str, cfg: music::Config) -> Desk {
+    cfg.save().unwrap();
+    let mut desk = Desk::open(book(tag, true), 100, 30);
+    desk.app.music = music::Music::spawn(cfg);
+    music_page(&mut desk);
+    desk
+}
+
+fn wait_music_setup(desk: &mut Desk) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(12);
+    while desk.app.deck.shell.nav.current() != Route::MusicPage
+        && std::time::Instant::now() < deadline
+    {
+        desk.app.tick_deck();
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    assert_eq!(desk.app.deck.shell.nav.current(), Route::MusicPage);
+    desk.draw();
+}
+
+#[test]
+fn music_settings_show_state_source_and_setup_rows() {
+    if !music_test_home("music_settings_show_state_source_and_setup_rows") {
+        return;
+    }
+    let mut desk = Desk::open(book("shell-music-page", true), 100, 30);
+    music_page(&mut desk);
+    let source = desk.app.music.source.label();
+    assert_eq!(
+        crate::app::shell::page_labels(&desk.app, Route::MusicPage),
+        [
+            "Music · off".into(),
+            format!("Source · {source}"),
+            format!("{source} is set up here in a later update."),
+        ]
+    );
+    desk.choose("Music · off");
+    assert!(desk.shows("Music · on"));
+    assert!(music::Config::load().enabled);
+    desk.choose("Music · on");
+    assert!(desk.shows("Music · off"));
+    assert!(!music::Config::load().enabled);
+}
+
+#[test]
+fn music_settings_cycle_and_save_every_source() {
+    if !music_test_home("music_settings_cycle_and_save_every_source") {
+        return;
+    }
+    let mut desk = Desk::open(book("shell-music-sources", true), 100, 30);
+    music_page(&mut desk);
+    let sources = music::Source::ALL;
+    let start = sources
+        .iter()
+        .position(|s| *s == desk.app.music.source)
+        .unwrap();
+    for offset in 1..=sources.len() {
+        desk.choose("Source · ");
+        let expected = sources[(start + offset) % sources.len()];
+        let cfg = music::Config::load();
+        assert_eq!(cfg.source, expected);
+        assert_eq!(desk.app.music.source, expected);
+        assert!(desk.shows(&format!("Source · {}", expected.label())));
+        assert!(!cfg.enabled);
+        assert_eq!(desk.app.overlay, Overlay::Deck(Page::Settings));
+    }
+    close_settings(&mut desk);
+    desk.app.run_action(palette::Action::MusicSource);
+    assert_eq!(desk.app.overlay, Overlay::Sources { sel: start });
+    desk.key(KeyCode::Enter);
+    assert!(music::Config::load().enabled);
+    assert_eq!(desk.app.overlay, Overlay::None);
+}
+
+#[test]
+fn jellyfin_setup_masks_password_and_escape_discards_edits() {
+    if !music_test_home("jellyfin_setup_masks_password_and_escape_discards_edits") {
+        return;
+    }
+    let mut desk = music_server_desk(
+        "shell-jellyfin-cancel",
+        music::Config {
+            source: music::Source::Jellyfin,
+            server: "http://127.0.0.1:8096".into(),
+            ..music::Config::default()
+        },
+    );
+    let before = fs::read(music::Config::path()).unwrap();
+    assert!(desk.shows("Server · http://127.0.0.1:8096"));
+    desk.choose("Set up Jellyfin server…");
+    assert!(desk.shows("Server URL · http://127.0.0.1:8096"));
+    desk.keys(&[KeyCode::Delete, KeyCode::Tab]);
+    desk.typed("writer");
+    desk.keys(&[KeyCode::Down, KeyCode::Up, KeyCode::Enter]);
+    desk.typed("páss?");
+    assert!(desk.shows("Password · •••••"));
+    assert!(!desk.shows("páss?"));
+    desk.key(KeyCode::Esc);
+    assert_eq!(desk.app.deck.shell.nav.current(), Route::MusicPage);
+    assert_eq!(fs::read(music::Config::path()).unwrap(), before);
+    desk.choose("Set up Jellyfin server…");
+    assert!(!desk.shows("writer"));
+    assert!(!desk.shows("•••••"));
+}
+
+#[test]
+fn jellyfin_setup_reports_failed_login_without_saving() {
+    if !music_test_home("jellyfin_setup_reports_failed_login_without_saving") {
+        return;
+    }
+    let mut desk = music_server_desk(
+        "shell-jellyfin-failed",
+        music::Config {
+            source: music::Source::Jellyfin,
+            ..music::Config::default()
+        },
+    );
+    let before = fs::read(music::Config::path()).unwrap();
+    assert!(desk.shows("Not set up yet"));
+    desk.choose("Set up Jellyfin server…");
+    assert!(desk.shows("Server URL · http://localhost:8096"));
+    desk.key(KeyCode::Delete);
+    desk.typed("http://127.0.0.1:9");
+    desk.key(KeyCode::Enter);
+    desk.typed("writer");
+    desk.key(KeyCode::Enter);
+    desk.typed("bad-password");
+    desk.keys(&[KeyCode::Enter, KeyCode::Enter]);
+    assert!(desk.shows("Signing in to Jellyfin…"));
+    wait_music_setup(&mut desk);
+    assert!(desk.shows_wrapped("Jellyfin rejected the login"));
+    assert!(desk.shows("Not set up yet"));
+    assert!(!desk.shows("bad-password"));
+    assert_eq!(fs::read(music::Config::path()).unwrap(), before);
+}
+
+#[test]
+fn plex_setup_saves_server_and_token_before_checking_the_library() {
+    if !music_test_home("plex_setup_saves_server_and_token_before_checking_the_library") {
+        return;
+    }
+    let mut desk = music_server_desk(
+        "shell-plex-setup",
+        music::Config {
+            source: music::Source::Plex,
+            user_id: "old-jellyfin-user".into(),
+            ..music::Config::default()
+        },
+    );
+    assert!(desk.shows("Not set up yet"));
+    desk.choose("Set up Plex server…");
+    assert!(desk.shows("Server URL · http://localhost:32400"));
+    assert!(desk.shows("Get Info → View XML"));
+    let server = "http://127.0.0.1:0";
+    let token = "fixture-token";
+    desk.key(KeyCode::Delete);
+    desk.typed(server);
+    desk.key(KeyCode::Tab);
+    assert!(!dispatch_event(
+        &mut desk.app,
+        Event::Paste(token.into()),
+        &mut desk.armed
+    ));
+    desk.draw();
+    assert!(desk.shows("X-Plex-Token · •••••••••••••"));
+    assert!(!desk.shows(token));
+    desk.keys(&[KeyCode::Enter, KeyCode::Enter]);
+    assert!(desk.shows("Checking the music library…"));
+    let cfg = music::Config::load();
+    assert_eq!(cfg.source, music::Source::Plex);
+    assert!(cfg.enabled && desk.app.music.enabled);
+    assert_eq!(cfg.server, server);
+    assert_eq!(cfg.api_key, token);
+    assert!(cfg.user_id.is_empty());
+    wait_music_setup(&mut desk);
+    assert!(desk.shows_wrapped("asking Plex for its libraries"));
+    assert!(desk.shows(&format!("Server · {server}")));
+    assert!(!desk.shows(token));
+}
+
 #[test]
 fn unified_settings_preserve_both_editors_positions_focus_selection_scroll_and_undo() {
     for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {

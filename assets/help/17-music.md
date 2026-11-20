@@ -1,13 +1,13 @@
 # Music
 
-Music is **off until you turn it on**: *Settings › Look and keyboard › Music › Turn music on*. Then *Music source…* (also in Settings) chooses where it comes from.
+Open *Settings › Look and keyboard › Music*. Choose **Music · off** to turn music on, and **Source** to cycle through the available sources.
 
 | Source | How it works |
 |---|---|
-| YouTube Music | drives the th-ch desktop app through its API Server. Set up with `grimoire music-setup youtube-music` |
-| Spotify | drives the Spotify desktop app, on macOS and Linux. Nothing to set up |
-| Jellyfin | WrOS plays your own music from your server. Set up with `grimoire music-setup jellyfin` |
-| Plex | the same, from Plex. Set up with `grimoire music-setup plex` |
+| YouTube Music | Drives the th-ch desktop app through its API Server. Setup on the WrOS Music page is planned. |
+| Spotify | Drives the Spotify desktop app on macOS and Linux. |
+| Jellyfin | Choose **Set up Jellyfin server…** and sign in with your server URL, username and password. |
+| Plex | Choose **Set up Plex server…** and enter your server URL and X-Plex-Token. The form shows where to find the token. |
 
 WrOS never pulls audio out of YouTube Music or Spotify — it presses the buttons of the app you already pay for.
 

@@ -6,7 +6,9 @@ use serde::{Deserialize, Serialize};
 use wros_shell::{Navigation, Notices, Preferences};
 use zeroize::Zeroizing;
 
+mod music_setup;
 mod update_flow;
+use music_setup::{MusicServerForm, MusicSetup};
 pub use update_flow::UpdateFlow;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -99,6 +101,7 @@ pub enum Route {
     LookPage,
     KeyboardPage,
     MusicPage,
+    MusicServerForm,
     BackupDestinations,
     BackupKey,
     BackupQueue,
@@ -307,6 +310,8 @@ pub struct Shell {
     pub wifi_networks: Option<Vec<wros_sys::WifiNetwork>>,
     pub wifi_form: Option<WifiForm>,
     pub password_form: Option<PasswordForm>,
+    music_server_form: Option<MusicServerForm>,
+    music_setup: Option<MusicSetup>,
     pub wifi_saved: Option<Vec<wros_sys::SavedWifi>>,
     pub wifi_saved_choice: Option<wros_sys::SavedWifi>,
     pub local_accounts: Option<Vec<wros_sys::LocalAccount>>,
@@ -351,6 +356,8 @@ impl Shell {
             wifi_networks: None,
             wifi_form: None,
             password_form: None,
+            music_server_form: None,
+            music_setup: None,
             wifi_saved: None,
             wifi_saved_choice: None,
             local_accounts: None,
@@ -495,7 +502,7 @@ enum Choice {
     SoundMuteToggle,
     KeyboardWizardOpen,
 }
-struct Entry {
+pub(crate) struct Entry {
     label: String,
     choice: Choice,
 }
@@ -551,6 +558,10 @@ fn form_options(app: &App) -> Option<usize> {
         Route::BackupForm => shell.backup.form.as_ref().map(|f| f.field_count() + 1),
         Route::WifiConnect => shell.wifi_form.as_ref().map(|f| f.action_count()),
         Route::ChangePassword => shell.password_form.as_ref().map(|_| PasswordForm::ACTIONS),
+        Route::MusicServerForm => shell
+            .music_server_form
+            .as_ref()
+            .map(MusicServerForm::actions),
         Route::UpdateBundleForm => shell.update_form.as_ref().map(|_| 3),
         _ => None,
     }
@@ -830,6 +841,28 @@ fn setting_rows(app: &App, actions: &[Action]) -> Vec<Entry> {
         .collect()
 }
 
+pub(crate) fn music_source_rows(app: &App) -> Vec<Entry> {
+    let source = app.music.source;
+    let label = source.label();
+    match source {
+        music::Source::Jellyfin | music::Source::Plex => {
+            let server = music::Config::load().server;
+            vec![
+                Entry::new(
+                    format!("Set up {label} server…"),
+                    Choice::Open(Route::MusicServerForm),
+                ),
+                Entry::info(if server.is_empty() {
+                    "Not set up yet".into()
+                } else {
+                    format!("Server · {server}")
+                }),
+            ]
+        }
+        _ => vec![Entry::info(format!("{label} is set up here in a later update."))],
+    }
+}
+
 /// The rows a Settings page shows, by label.
 #[cfg(test)]
 pub(crate) fn page_labels(app: &App, route: Route) -> Vec<String> {
@@ -947,7 +980,28 @@ fn page_entries(app: &App, route: Route) -> Vec<Entry> {
             ),
             Entry::new("Keyboard shortcuts", Choice::System(11)),
         ],
-        Route::MusicPage => setting_rows(app, &[Action::MusicSource, Action::MusicToggle]),
+        Route::MusicPage => {
+            let state = if app.music.enabled { "on" } else { "off" };
+            let mut rows = vec![
+                Entry::new(
+                    format!("Music · {state}"),
+                    Choice::Action(Action::MusicToggle),
+                ),
+                Entry::new(
+                    format!("Source · {}", app.music.source.label()),
+                    Choice::Action(Action::MusicSource),
+                ),
+            ];
+            rows.extend(music_source_rows(app));
+            rows
+        }
+        Route::MusicServerForm => {
+            match (&app.deck.shell.music_server_form, &app.deck.shell.music_setup) {
+                (Some(form), _) => form.rows().into_iter().map(Entry::info).collect(),
+                (_, Some(job)) => vec![Entry::info(job.status)],
+                _ => Vec::new(),
+            }
+        }
         Route::Panel(panel) => {
             let status = app.deck.snapshot.as_ref();
             let mut rows = vec![Entry::new("Refresh local system status", Choice::System(0))];
@@ -2309,6 +2363,10 @@ impl App {
     }
     /// Open a Settings page and do what choosing it does: fetch the status it shows.
     pub(crate) fn open_route(&mut self, route: Route) {
+        if route == Route::MusicServerForm {
+            self.open_music_server_form();
+            return;
+        }
         self.deck.shell.nav.open(route);
         if route == Route::GoogleDisconnectConfirm {
             self.deck.shell.nav.select(0, 4);
@@ -2402,6 +2460,8 @@ impl App {
         self.deck.shell.origin = Some(origin);
         self.deck.shell.external = false;
         self.deck.shell.wifi_form = None;
+        self.deck.shell.music_server_form = None;
+        self.deck.shell.music_setup = None;
         self.deck.shell.wifi_saved_choice = None;
         self.deck.shell.update_form = None;
         self.deck.shell.clock_form = None;
@@ -2442,6 +2502,10 @@ impl App {
         }
         if self.deck.shell.nav.current() == Route::ChangePassword {
             self.on_password_form_key(key);
+            return;
+        }
+        if self.deck.shell.nav.current() == Route::MusicServerForm {
+            self.on_music_server_form_key(key);
             return;
         }
         if self.deck.shell.nav.current() == Route::UpdateBundleForm {
@@ -2818,6 +2882,16 @@ impl App {
                     | Choice::WarmStatus
                     | Choice::WarmApply
                     | Choice::WarmResolve(_) => {}
+                    Choice::Action(Action::MusicSource)
+                        if self.deck.shell.nav.current() == Route::MusicPage =>
+                    {
+                        let sources = music::Source::ALL;
+                        let index = sources
+                            .iter()
+                            .position(|&source| source == self.music.source)
+                            .unwrap_or(0);
+                        self.select_music_source(sources[(index + 1) % sources.len()], false);
+                    }
                     Choice::Action(action) => {
                         self.deck.shell.external = true;
                         self.run_action(action);
@@ -2892,6 +2966,7 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
         Route::Timezones => "WrOS · Settings › Date and time › Timezone".into(),
         Route::TimezoneConfirm => "WrOS · Change timezone?".into(),
         Route::WifiNetworks => "WrOS · Settings › Wi-Fi networks".into(),
+        Route::MusicServerForm => format!("WrOS · Set up {} server", app.music.source.label()),
         Route::WifiConnect => app
             .deck
             .shell
@@ -2978,11 +3053,14 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
     } else {
         app.deck.shell.notices.latest().unwrap_or(&app.deck.note)
     };
-    let hint = if matches!(
+    let hint = if route == Route::MusicServerForm && app.deck.shell.music_setup.is_some() {
+        "Esc back"
+    } else if matches!(
         app.deck.shell.nav.current(),
         Route::BackupForm
             | Route::WifiConnect
             | Route::ChangePassword
+            | Route::MusicServerForm
             | Route::UpdateBundleForm
             | Route::ManualClock
             | Route::KeyboardWizard
@@ -3029,6 +3107,12 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
                 app.deck
                     .shell
                     .password_form
+                    .as_ref()
+                    .map_or(0, |form| form.selected)
+            } else if app.deck.shell.nav.current() == Route::MusicServerForm {
+                app.deck
+                    .shell
+                    .music_server_form
                     .as_ref()
                     .map_or(0, |form| form.selected)
             } else if app.deck.shell.nav.current() == Route::UpdateBundleForm {
@@ -3095,6 +3179,7 @@ impl App {
             Route::BackupForm
                 | Route::WifiConnect
                 | Route::ChangePassword
+                | Route::MusicServerForm
                 | Route::UpdateBundleForm
                 | Route::ManualClock
                 | Route::KeyboardWizard

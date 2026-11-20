@@ -214,8 +214,7 @@ pub(super) fn draw_player(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         other => {
             let why = match other {
                 MusicState::NoToken => {
-                    "not set up yet: Esc › Settings › Music source, then run grimoire music-setup"
-                        .to_string()
+                    format!("not set up yet · {}", music::SETTINGS_PATH)
                 }
                 MusicState::Offline => format!(
                     "{} isn't running. Open it and this fills in.",
