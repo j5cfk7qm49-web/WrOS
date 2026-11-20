@@ -41,7 +41,13 @@ class Workflow(unittest.TestCase):
             self.assertIn(needle, WORKFLOW)
         # Only the signing subkey is ever imported; no primary secret or passphrase-free primary.
         self.assertNotIn('PRIMARY', WORKFLOW.upper().replace('PRIMARY FINGERPRINT', ''))
-        self.assertEqual(set(re.findall(r'secrets\.(\w+)', WORKFLOW)), {'WROS_UPDATE_SIGNING_SUBKEY'})
+        self.assertEqual(set(re.findall(r'secrets\.(\w+)', WORKFLOW)),
+                         {'WROS_UPDATE_SIGNING_SUBKEY', 'GITHUB_TOKEN'})
+        # The run's own token is used once: the scheduled channel-expiry check opens an issue with it.
+        self.assertEqual(WORKFLOW.count('secrets.GITHUB_TOKEN'), 1)
+        expiry = WORKFLOW.split('- name: Check the published NixOS channel expiry', 1)[1].split('\n      - ', 1)[0]
+        self.assertIn('GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}', expiry)
+        self.assertIn("if: github.event_name == 'schedule'", expiry)
         # Without the subkey nothing is signed in CI: a release's own bundle is checked, then served as it is.
         for needle in ("if: steps.plan.outputs.sign == 'true'", "if: steps.plan.outputs.release != ''",
                        'tools/publish-updates.py check-bundle', 'releases/download/$RELEASE/wros-updates.tar'):
