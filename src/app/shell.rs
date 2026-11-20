@@ -312,6 +312,7 @@ pub struct Shell {
     pub password_form: Option<PasswordForm>,
     music_server_form: Option<MusicServerForm>,
     music_setup: Option<MusicSetup>,
+    music_file_counts: (usize, usize),
     pub wifi_saved: Option<Vec<wros_sys::SavedWifi>>,
     pub wifi_saved_choice: Option<wros_sys::SavedWifi>,
     pub local_accounts: Option<Vec<wros_sys::LocalAccount>>,
@@ -358,6 +359,7 @@ impl Shell {
             password_form: None,
             music_server_form: None,
             music_setup: None,
+            music_file_counts: (0, 0),
             wifi_saved: None,
             wifi_saved_choice: None,
             local_accounts: None,
@@ -845,6 +847,16 @@ pub(crate) fn music_source_rows(app: &App) -> Vec<Entry> {
     let source = app.music.source;
     let label = source.label();
     match source {
+        music::Source::Files => {
+            let (songs, folders) = app.deck.shell.music_file_counts;
+            vec![
+                Entry::info(format!(
+                    "Plays music in ~/Music and on USB sticks. \
+                     Found {songs} songs in {folders} folders."
+                )),
+                Entry::new("Open the music player", Choice::Action(Action::MusicPlayer)),
+            ]
+        }
         music::Source::Jellyfin | music::Source::Plex => {
             let server = music::Config::load().server;
             vec![
@@ -2373,6 +2385,9 @@ impl App {
             return;
         }
         self.deck.shell.nav.open(route);
+        if route == Route::MusicPage {
+            self.refresh_music_file_counts();
+        }
         if route == Route::GoogleDisconnectConfirm {
             self.deck.shell.nav.select(0, 4);
         }
@@ -2409,6 +2424,13 @@ impl App {
             self.deck.request(wros_sys::Request::Refresh);
         }
     }
+
+    pub(super) fn refresh_music_file_counts(&mut self) {
+        if self.music.source == music::Source::Files {
+            self.deck.shell.music_file_counts = music::file_counts();
+        }
+    }
+
     /// Settings, already on the page at the end of `path` (the pages before it are
     /// what Esc returns through).
     /// Opens a page on the Settings menu map, through its groups, so Back retraces them.

@@ -125,7 +125,12 @@ impl App {
             },
             Key::Char('a') if *tab == Tab::Search => {
                 if let Some(it) = self.music.results.get(*sel) {
-                    self.music.note = Some(format!("up next: {}", it.title));
+                    let note = if self.music.source == music::Source::Files {
+                        "queueing"
+                    } else {
+                        "up next:"
+                    };
+                    self.music.note = Some(format!("{note} {}", it.title));
                     self.music.send(Cmd::Enqueue {
                         id: it.id.clone(),
                         now: false,
@@ -134,7 +139,11 @@ impl App {
             }
             Key::Char('a') if *tab == Tab::Playlists => {
                 if let Some(it) = self.music.playlists.get(*sel) {
-                    self.music.note = Some(format!("queueing {} after this song…", it.title));
+                    self.music.note = Some(if self.music.source == music::Source::Files {
+                        format!("queueing {}…", it.title)
+                    } else {
+                        format!("queueing {} after this song…", it.title)
+                    });
                     self.music.send(Cmd::Playlist {
                         id: it.id.clone(),
                         title: it.title.clone(),
@@ -254,6 +263,7 @@ pub(super) fn draw_player(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             Span::styled("█", accent),
         ])
     };
+    let files = app.music.source == music::Source::Files;
     match tab {
         Tab::Search => lines.push(if *typing {
             prompt("find", query)
@@ -269,7 +279,11 @@ pub(super) fn draw_player(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             prompt("playlists", find)
         } else if find.is_empty() {
             Line::from(Span::styled(
-                " your library · / searches every playlist on YouTube Music",
+                if files {
+                    " album folders · / searches folder paths"
+                } else {
+                    " your library · / searches every playlist on YouTube Music"
+                },
                 dim,
             ))
         } else {
@@ -340,9 +354,11 @@ pub(super) fn draw_player(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     let controls = " space pause  ←→ seek 10s  [ ] prev/next  s shuffle  r repeat  +/- volume  l like  esc close";
     let keys = match tab {
         Tab::Queue => " ↵ play this one   ↑↓ choose   / search   tab playlists",
+        Tab::Playlists if files => " ↵ play folder   a append   / find folders   ↑↓ choose",
         Tab::Playlists => {
             " ↵ play playlist   a play it next   / find playlists   ↑↓ choose   tab search"
         }
+        Tab::Search if files => " / search   ↵ play now   a append   ↑↓ choose   tab queue",
         Tab::Search => " / search   ↵ play now   a play next   ↑↓ choose   tab queue",
     };
     lines.extend([keys, controls].map(|k| hint_line(k, t)));

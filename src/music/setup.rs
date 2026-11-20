@@ -626,6 +626,14 @@ fn pick_asset<'a>(
 /// Set up whichever source you name. `grimoire music-setup jellyfin`, etc.
 pub fn setup_for(source: Source) -> Result<()> {
     match source {
+        Source::Files => {
+            let mut cfg = Config::load();
+            cfg.source = Source::Files;
+            cfg.enabled = true;
+            cfg.save()?;
+            println!("Music files is on. Plays music in ~/Music and on USB sticks.");
+            Ok(())
+        }
         Source::YouTubeMusic => setup(),
         Source::Spotify if cfg!(windows) => {
             println!("Spotify isn't supported on Windows yet — WrOS drives it through");

@@ -1,8 +1,8 @@
-//! Music, by remote control.
+//! Music files and remote music sources.
 //!
 //! There is no official YouTube Music API, and anything that extracts stream
 //! URLs both violates the terms and side-steps the subscription you already
-//! pay for. So Grimoire never plays audio. It drives a desktop client that is
+//! pay for. For YouTube Music, Grimoire drives a desktop client that is
 //! already signed into your real account — your playlists, your Premium, your
 //! playback. We just press the buttons.
 //!
@@ -30,13 +30,17 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::thread;
 use std::time::{Duration, Instant};
 
+mod files;
 mod local;
+mod mpv;
 mod setup;
 mod spotify;
 #[cfg(target_os = "linux")]
 pub mod spotify_signin;
 mod ytm;
 
+use files::Files;
+pub(crate) use files::file_counts;
 use local::Local;
 pub use setup::{authenticate, setup_for};
 use spotify::Spotify;
@@ -46,11 +50,10 @@ pub const APP_ID: &str = "grimoiretui";
 pub const DEFAULT_PORT: u16 = 26538;
 pub(crate) const SETTINGS_PATH: &str = "Settings › Look and keyboard › Music";
 
-/// Where the music comes from. The first two are remote controls for a player
-/// you already run; the last two are your own server, which Grimoire can
-/// actually play from.
+/// Where the music comes from: local files, a desktop player, or your server.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Source {
+    Files,
     YouTubeMusic,
     Spotify,
     Jellyfin,
@@ -58,7 +61,8 @@ pub enum Source {
 }
 
 impl Source {
-    pub const ALL: [Source; 4] = [
+    pub const ALL: [Source; 5] = [
+        Source::Files,
         Source::YouTubeMusic,
         Source::Spotify,
         Source::Jellyfin,
@@ -67,6 +71,7 @@ impl Source {
 
     pub fn slug(self) -> &'static str {
         match self {
+            Source::Files => "files",
             Source::YouTubeMusic => "youtube-music",
             Source::Spotify => "spotify",
             Source::Jellyfin => "jellyfin",
@@ -76,6 +81,7 @@ impl Source {
 
     pub fn label(self) -> &'static str {
         match self {
+            Source::Files => "Music files",
             Source::YouTubeMusic => "YouTube Music",
             Source::Spotify => "Spotify",
             Source::Jellyfin => "Jellyfin",
@@ -91,7 +97,7 @@ impl Source {
 
     /// True when Grimoire plays the audio itself rather than driving another app.
     pub fn plays_audio(self) -> bool {
-        matches!(self, Source::Jellyfin | Source::Plex)
+        matches!(self, Source::Files | Source::Jellyfin | Source::Plex)
     }
 }
 
@@ -118,7 +124,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             enabled: false,
-            source: Source::YouTubeMusic,
+            source: Source::Files,
             host: "127.0.0.1".into(),
             port: DEFAULT_PORT,
             token: None,
@@ -146,7 +152,11 @@ impl Config {
     }
 
     fn parse(s: &str) -> Config {
-        let mut cfg = Config::default();
+        // Older configs without a source implicitly used YouTube Music.
+        let mut cfg = Config {
+            source: Source::YouTubeMusic,
+            ..Config::default()
+        };
         for line in s.lines() {
             let Some((k, v)) = line.split_once('=') else {
                 continue;
@@ -236,7 +246,7 @@ pub enum Cmd {
     Like,
     /// Play the track at this position in the queue.
     JumpTo(usize),
-    /// Queue a track by id straight after this one, and play it if `now`.
+    /// Queue a track by id, and play it if `now`.
     Enqueue {
         id: String,
         now: bool,
@@ -249,7 +259,7 @@ pub enum Cmd {
     /// `Music::playlists`.
     Playlists(Option<String>),
     /// Replace the queue with a playlist and play it (`now`), or queue the
-    /// whole thing straight after this track. Progress arrives as notes.
+    /// whole playlist. Progress arrives as notes.
     Playlist {
         id: String,
         title: String,
@@ -264,7 +274,7 @@ pub struct Item {
     pub artist: String,
     /// "4:18", or empty when the source doesn't say.
     pub length: String,
-    /// What to hand back to play or queue it (a YouTube video id).
+    /// What to hand back to play or queue it (such as a video id or file path).
     pub id: String,
     /// Position in the source's own queue, for jumping to it.
     pub pos: usize,
@@ -416,6 +426,7 @@ pub struct Music {
     pub modes: Modes,
     rx: Option<Receiver<Update>>,
     tx: Option<Sender<Cmd>>,
+    files_worker: Option<thread::JoinHandle<()>>,
 }
 
 /// One music source. Whether it is a remote control or a real player is an
@@ -461,6 +472,7 @@ impl Music {
             None
         } else {
             match source {
+                Source::Files => Some(Box::new(Files::new())),
                 Source::YouTubeMusic => cfg
                     .token
                     .clone()
@@ -497,13 +509,14 @@ impl Music {
                 modes: Modes::default(),
                 rx: None,
                 tx: None,
+                files_worker: None,
             };
         };
 
         let (up_tx, up_rx) = mpsc::channel::<Update>();
         let (cmd_tx, cmd_rx) = mpsc::channel::<Cmd>();
 
-        thread::spawn(move || {
+        let worker = thread::spawn(move || {
             let mut polls = 0u32;
             loop {
                 let next = backend.state().unwrap_or(State::Offline);
@@ -603,7 +616,11 @@ impl Music {
 
         Music {
             enabled: true,
-            state: State::Offline,
+            state: if source == Source::Files {
+                State::Idle
+            } else {
+                State::Offline
+            },
             source,
             queue: Vec::new(),
             results: Vec::new(),
@@ -613,6 +630,7 @@ impl Music {
             modes: Modes::default(),
             rx: Some(up_rx),
             tx: Some(cmd_tx),
+            files_worker: (source == Source::Files).then_some(worker),
         }
     }
 
@@ -663,6 +681,17 @@ impl Music {
         let (tx, rx) = mpsc::channel();
         self.tx = Some(tx);
         rx
+    }
+}
+
+impl Drop for Music {
+    fn drop(&mut self) {
+        if let Some(worker) = self.files_worker.take() {
+            // Let the poller drop its owned mpv before Grimoire exits.
+            drop(self.rx.take());
+            drop(self.tx.take());
+            let _ = worker.join();
+        }
     }
 }
 
@@ -741,5 +770,19 @@ mod config_tests {
         assert_eq!(old.token.as_deref(), Some("abc"));
         assert!(Config::parse("enabled = true\n").enabled);
         assert!(!Config::parse("enabled = false\n").enabled);
+    }
+
+    #[test]
+    fn new_music_configs_default_to_files_and_saved_sources_keep_their_value() {
+        assert_eq!(Config::default().source, Source::Files);
+        assert_eq!(Source::ALL[0], Source::Files);
+        for source in Source::ALL {
+            let saved = format!("source = \"{}\"\n", source.slug());
+            assert_eq!(Config::parse(&saved).source, source);
+        }
+        assert_eq!(
+            Config::parse("token = \"abc\"\n").source,
+            Source::YouTubeMusic
+        );
     }
 }

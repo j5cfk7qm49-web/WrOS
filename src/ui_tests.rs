@@ -1039,6 +1039,7 @@ fn the_music_pane_says_its_keys_when_focused() {
         // On but unconfigured: the pane shows, nothing is polled.
         music: music::Config {
             enabled: true,
+            source: music::Source::YouTubeMusic,
             ..music::Config::default()
         },
         theme: theme::default_theme(),
@@ -2176,6 +2177,7 @@ fn music_desk_at(root: PathBuf) -> (Desk, std::sync::mpsc::Receiver<music::Cmd>)
     let setup = Setup {
         music: music::Config {
             enabled: true,
+            source: music::Source::YouTubeMusic,
             ..music::Config::default()
         },
         theme: theme::default_theme(),

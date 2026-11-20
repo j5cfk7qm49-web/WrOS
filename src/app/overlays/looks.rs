@@ -296,7 +296,9 @@ pub(super) fn draw_sources(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         .enumerate()
         .map(|(i, src)| {
             let on = i == *sel;
-            let note = if src.plays_audio() {
+            let note = if *src == music::Source::Files {
+                "~/Music and USB sticks"
+            } else if src.plays_audio() {
                 "your server · plays here"
             } else {
                 "remote control"

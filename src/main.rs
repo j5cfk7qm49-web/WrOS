@@ -146,7 +146,7 @@ fn main() -> Result<()> {
             Some(name) => match music::Source::parse(name) {
                 Some(s) => music::setup_for(s),
                 None => anyhow::bail!(
-                    "unknown source '{name}'\n\n  youtube-music · spotify · jellyfin · plex"
+                    "unknown source '{name}'\n\n  files · youtube-music · spotify · jellyfin · plex"
                 ),
             },
         };
@@ -186,7 +186,7 @@ fn main() -> Result<()> {
         println!(
             "  grimoire wros help          WrOS appliance status, safe demo and local comparison (alias: writingdeck)"
         );
-        println!("  grimoire music-setup <src>  connect music: youtube-music |");
+        println!("  grimoire music-setup <src>  connect music: files | youtube-music |");
         println!("                              spotify | jellyfin | plex");
         println!("  grimoire music-auth         re-pair only");
         println!();

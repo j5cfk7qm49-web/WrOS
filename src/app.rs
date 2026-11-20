@@ -6016,6 +6016,7 @@ impl App {
             return;
         }
         self.music = Music::spawn(cfg);
+        self.refresh_music_file_counts();
         self.msg = format!("music: {}", source.label());
     }
 

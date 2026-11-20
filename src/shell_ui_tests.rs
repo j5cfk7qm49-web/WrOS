@@ -48,7 +48,9 @@ fn music_test_home(name: &str) -> bool {
         ])
         .env("HOME", home.path())
         .env("USERPROFILE", home.path())
+        .env("XDG_RUNTIME_DIR", home.path())
         .env("GRIMOIRE_MUSIC_TEST", "1")
+        .env_remove("USER")
         .env_remove("http_proxy")
         .env_remove("HTTP_PROXY")
         .env_remove("https_proxy")
@@ -100,22 +102,34 @@ fn music_settings_show_state_source_and_setup_rows() {
         return;
     }
     let mut desk = Desk::open(book("shell-music-page", true), 100, 30);
+    let folder = grimoire_core::paths::home().join("Music/Test Album");
+    fs::create_dir_all(&folder).unwrap();
+    fs::write(folder.join("First.flac"), b"").unwrap();
     music_page(&mut desk);
-    let source = desk.app.music.source.label();
     assert_eq!(
         crate::app::shell::page_labels(&desk.app, Route::MusicPage),
         [
-            "Music · off".into(),
-            format!("Source · {source}"),
-            format!("{source} is set up here in a later update."),
+            "Music · off",
+            "Source · Music files",
+            "Plays music in ~/Music and on USB sticks. Found 1 songs in 1 folders.",
+            "Open the music player",
         ]
     );
+    fs::write(folder.join("Second.flac"), b"").unwrap();
+    desk.draw();
+    assert!(desk.shows("Found 1 songs in 1 folders."));
+    close_settings(&mut desk);
+    music_page(&mut desk);
+    assert!(desk.shows("Found 2 songs in 1 folders."));
     desk.choose("Music · off");
     assert!(desk.shows("Music · on"));
     assert!(music::Config::load().enabled);
     desk.choose("Music · on");
     assert!(desk.shows("Music · off"));
     assert!(!music::Config::load().enabled);
+    desk.choose("Music · off");
+    desk.choose("Open the music player");
+    assert!(matches!(desk.app.overlay, Overlay::Player { .. }));
 }
 
 #[test]
@@ -130,6 +144,9 @@ fn music_settings_cycle_and_save_every_source() {
         .iter()
         .position(|s| *s == desk.app.music.source)
         .unwrap();
+    let folder = grimoire_core::paths::home().join("Music");
+    fs::create_dir_all(&folder).unwrap();
+    fs::write(folder.join("New track.flac"), b"").unwrap();
     for offset in 1..=sources.len() {
         desk.choose("Source · ");
         let expected = sources[(start + offset) % sources.len()];
@@ -140,6 +157,7 @@ fn music_settings_cycle_and_save_every_source() {
         assert!(!cfg.enabled);
         assert_eq!(desk.app.overlay, Overlay::Deck(Page::Settings));
     }
+    assert!(desk.shows("Found 1 songs in 1 folders."));
     close_settings(&mut desk);
     desk.app.run_action(palette::Action::MusicSource);
     assert_eq!(desk.app.overlay, Overlay::Sources { sel: start });
