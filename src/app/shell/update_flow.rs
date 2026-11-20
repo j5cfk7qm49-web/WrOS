@@ -108,7 +108,9 @@ fn online_line(online: Option<&wros_sys::OnlineUpdate>) -> String {
         ("unreachable", _, _, _) => "Couldn't reach the WrOS update server".into(),
         ("unpublished", _, _, _) => "No WrOS updates have been published yet".into(),
         ("expired", _, _, _) => {
-            "The WrOS update server's signature has expired; WrOS will check again later".into()
+            "No new WrOS updates known. The server's list is out of date. \
+             WrOS will check again later."
+                .into()
         }
         _ => "The WrOS update server's files didn't verify; nothing was downloaded".into(),
     }

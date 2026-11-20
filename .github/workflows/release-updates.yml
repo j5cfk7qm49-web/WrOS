@@ -19,7 +19,7 @@ on:
   push:
     tags: ['v*', '!v*-linktest*']  # a -linktest tag only carries the link test page; dispatch it by hand
   schedule:
-    - cron: '17 6 * * 1'  # weekly re-sign: Valid-Until (21 days) never lapses
+    - cron: '17 6 * * 1'  # weekly expiry check for the published NixOS channel
   workflow_dispatch:
     inputs:
       scratch:
@@ -35,11 +35,6 @@ on:
         type: string
         default: ''
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
 concurrency:
   group: wros-updates-pages
   cancel-in-progress: false
@@ -50,6 +45,11 @@ jobs:
     container: debian:13-slim
     timeout-minutes: 60
     environment: github-pages
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+      issues: write
     env:
       CARGO_HOME: /opt/cargo
       RUSTUP_HOME: /opt/rustup
@@ -65,10 +65,37 @@ jobs:
           apt-get install -y --no-install-recommends build-essential pkg-config libasound2-dev libssl-dev libdrm-dev \
             libinput-dev libudev-dev libseat-dev libxkbcommon-dev \
             libwayland-dev libegl1-mesa-dev meson ninja-build libwlroots-0.18-dev \
-            python3 python3-debian ca-certificates curl git gnupg gpgv dpkg-dev console-setup keyboard-configuration
+            python3 python3-debian ca-certificates curl gh git gnupg gpgv dpkg-dev console-setup keyboard-configuration
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - name: Check the published NixOS channel expiry
+        if: github.event_name == 'schedule'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          url="${UPDATE_URL%updates/}nixos-updates/InRelease"
+          mkdir -p out
+          curl -fsSL --proto '=https' -o out/InRelease "$url"
+          expiry=$(python3 -I tools/publish-nixos-updates.py days-left out/InRelease --with-date)
+          read -r days_left expires_on <<< "$expiry"
+          title="NixOS update channel expires on $expires_on"
+          if [ "$days_left" -ge 10 ]; then
+            echo "$title (UTC, $days_left whole days left)."
+            exit 0
+          fi
+          renew='Publish a new WrOS release or re-sign offline and publish the refreshed NixOS bundle.'
+          echo "::error::$title (UTC, $days_left whole days left). $renew"
+          open=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
+            --search "\"$title\" in:title" --json title \
+            --jq ".[] | select(.title == \"$title\") | .title")
+          if [ -z "$open" ]; then
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" \
+              --body "The live channel at $url expires on $expires_on (UTC). $renew"
+          fi
+          exit 1
       - name: Plan this run
         id: plan
         shell: bash

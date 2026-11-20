@@ -25,6 +25,14 @@ def load_nixos_engine():
     return module
 
 
+def load_nixos_publisher():
+    spec = importlib.util.spec_from_file_location(
+        'publish_nixos_updates', REPO / 'tools/publish-nixos-updates.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 class NixosUpdateEngineTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -269,10 +277,7 @@ class NixosUpdateEngineTests(unittest.TestCase):
         """The Pages workflow checks a release's delta bundle on a runner with no Nix store;
         the release it updates from only has to exist on the machines being updated."""
         import tarfile
-        spec = importlib.util.spec_from_file_location(
-            'publish_nixos_updates', ENGINE_PATH.parents[2] / 'tools/publish-nixos-updates.py')
-        publish = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(publish)
+        publish = load_nixos_publisher()
         with tempfile.TemporaryDirectory(prefix='wros-nixos-publish-') as tmp:
             root = Path(tmp)
             baseline = '/nix/store/abcdfghijklmnpqrsvwxyz0123456789-nixos-system-unnamed-0.1.0-rc14'
@@ -299,6 +304,34 @@ class NixosUpdateEngineTests(unittest.TestCase):
                 else:
                     self.assertEqual(check()['version'], '0.1.0~rc15')
                     self.assertTrue((work / 'site/nixos-updates/InRelease').is_file())
+
+    def test_ci_counts_whole_days_until_channel_expiry(self):
+        publish = load_nixos_publisher()
+        now = datetime(2026, 11, 19, 12, tzinfo=timezone.utc)
+        with tempfile.TemporaryDirectory() as tmp:
+            inrelease = Path(tmp) / 'InRelease'
+            for remaining, expected in ((timedelta(days=10), 10),
+                                        (timedelta(days=10, seconds=-1), 9),
+                                        (timedelta(seconds=-1), -1)):
+                with self.subTest(remaining=remaining):
+                    until = now + remaining
+                    header = format_datetime(until, usegmt=True).replace('GMT', 'UTC')
+                    inrelease.write_text(
+                        '-----BEGIN PGP SIGNED MESSAGE-----\nHash: SHA256\n\nOrigin: WrOS\n'
+                        f'Valid-Until: {header}\n-----BEGIN PGP SIGNATURE-----\n',
+                        encoding='utf-8')
+                    self.assertEqual(publish.channel_expiry(inrelease, now=now),
+                                     (expected, until.date().isoformat()))
+
+    def test_ci_rejects_missing_or_malformed_channel_expiry(self):
+        publish = load_nixos_publisher()
+        with tempfile.TemporaryDirectory() as tmp:
+            inrelease = Path(tmp) / 'InRelease'
+            for header, error in (('', 'missing'), ('Valid-Until: not a date\n', 'malformed')):
+                with self.subTest(error=error):
+                    inrelease.write_text(f'Origin: WrOS\n{header}', encoding='utf-8')
+                    with self.assertRaisesRegex(ValueError, f'{error} Valid-Until'):
+                        publish.channel_expiry(inrelease)
 
     def test_downgrade_and_equal_version_refused_on_fresh_install(self):
         with tempfile.TemporaryDirectory(prefix='wros-nixos-ver-') as tmp:

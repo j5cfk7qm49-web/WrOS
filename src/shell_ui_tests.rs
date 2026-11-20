@@ -1092,7 +1092,8 @@ fn online_update_clock_and_offline_states_never_alert() {
         ("unpublished", "No WrOS updates have been published yet"),
         (
             "expired",
-            "The WrOS update server's signature has expired; WrOS will check again later",
+            "No new WrOS updates known. The server's list is out of date. \
+             WrOS will check again later.",
         ),
         ("current", "WrOS is up to date (0.1.0~rc2)"),
     ] {

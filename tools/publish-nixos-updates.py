@@ -7,8 +7,12 @@
                            unpack a NixOS update bundle signed offline into OUTDIR and
                            verify it with nixos/scripts/wros-update-engine.py against the
                            committed keyring and signer pin
+  days-left INRELEASE      print whole days left until Valid-Until (negative after expiry),
+                           followed by the UTC expiry date if --with-date is given
 """
 import argparse
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 import importlib.machinery
 import importlib.util
 import json
@@ -35,6 +39,24 @@ def tag_version(tag, tree_version):
     if version != tree_version:
         raise ValueError(f'tag {tag} publishes {version}, but os/VERSION says {tree_version}')
     return version
+
+
+def channel_expiry(inrelease, *, now=None):
+    """Return whole days left and the UTC expiry date from the published InRelease."""
+    for line in inrelease.read_text(encoding='utf-8').splitlines():
+        if line == '-----BEGIN PGP SIGNATURE-----':
+            break
+        if line.startswith('Valid-Until:'):
+            try:
+                until = parsedate_to_datetime(line.removeprefix('Valid-Until:').strip())
+                if until.tzinfo is None:
+                    raise ValueError('missing time zone')
+                until = until.astimezone(timezone.utc)
+            except (ValueError, OverflowError):
+                raise ValueError('malformed Valid-Until in InRelease') from None
+            now = datetime.now(timezone.utc) if now is None else now
+            return (until - now).days, until.date().isoformat()
+    raise ValueError('missing Valid-Until in InRelease')
 
 
 def load_engine():
@@ -109,9 +131,15 @@ def main(argv=None):
     c_cmd.add_argument('tar', type=Path)
     c_cmd.add_argument('outdir', type=Path)
     c_cmd.add_argument('version')
+    d_cmd = commands.add_parser('days-left')
+    d_cmd.add_argument('inrelease', type=Path)
+    d_cmd.add_argument('--with-date', action='store_true')
     args = parser.parse_args(sys.argv[1:] if argv is None else argv)
     if args.command == 'version':
         print(tag_version(args.tag, (REPO / 'os/VERSION').read_text().splitlines()[0].strip()))
+    elif args.command == 'days-left':
+        days, expires_on = channel_expiry(args.inrelease)
+        print(f'{days} {expires_on}' if args.with_date else days)
     else:
         verified = check_bundle(args.tar, args.outdir, args.version)
         print(f"verified wros {args.version} ({verified['toplevel']}), signed by {verified['signer_fingerprint']}")

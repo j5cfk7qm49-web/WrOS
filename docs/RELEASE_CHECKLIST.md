@@ -180,9 +180,10 @@ keyring. Start with a release that will distribute the new public subkey.
    its release.
 
 The NixOS channel's `InRelease` is signed offline with a `Valid-Until` set by
-`tools/build-nixos-update-bundle.py --valid-days`, at most 30 days from the signed
-release date. The channel stops being valid that many days after the last signed
-NixOS release unless a newer release is published.
+`tools/build-nixos-update-bundle.py --valid-days`. Publish a new release or an
+offline re-sign before that deadline, at most 30 days after the last signing.
+The weekly run checks the live channel and fails when fewer than 10 days remain,
+opening an issue for that expiry date if needed.
 
 
 ## NixOS release candidate qualification (rc14 and later)
