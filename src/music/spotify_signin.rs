@@ -94,6 +94,18 @@ pub fn ensure_player() -> Result<()> {
     if signed_in().is_none() || player_running() {
         return Ok(());
     }
+    // A player that won't stay up (a revoked login, no sound device) isn't started again on
+    // every poll: at most once every 30 s.
+    static LAST_START: std::sync::Mutex<Option<Instant>> = std::sync::Mutex::new(None);
+    {
+        let mut last = LAST_START.lock().unwrap_or_else(|e| e.into_inner());
+        if last.is_some_and(|at| at.elapsed() < Duration::from_secs(30)) {
+            return Err(anyhow!(
+                "Spotify's player isn't running; trying again shortly"
+            ));
+        }
+        *last = Some(Instant::now());
+    }
     write_player_config()?;
     let status = Command::new("spotify_player")
         .arg("--daemon")
@@ -222,7 +234,8 @@ fn run(cancel: &AtomicBool, waiting: &dyn Fn(Duration)) -> Result<String> {
     let name = result?;
     install_login(&work.join("credentials.json"))?;
     let _ = std::fs::remove_dir_all(&work);
-    ensure_player()?;
+    // The poll starts it later if it can't start now; the login is in place either way.
+    let _ = ensure_player();
     Ok(name)
 }
 

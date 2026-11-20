@@ -938,3 +938,78 @@ JSON
         }
     }
 }
+
+/// Real YouTube Music, yt-dlp and mpv: run with `--ignored`, network on, `WROS_YTM` naming the
+/// built wros-ytm helper, in a private HOME whose mpv.conf says `ao=null` (rc20-work/live-music.sh).
+#[cfg(all(test, unix))]
+mod live {
+    use super::*;
+    use crate::music::{Backend, Cmd, State};
+    use std::time::Instant;
+
+    fn state(ytm: &mut YtMusic, within: Duration, ok: impl Fn(&State) -> bool) -> State {
+        let end = Instant::now() + within;
+        loop {
+            let s = ytm.state().unwrap_or(State::Offline);
+            if ok(&s) {
+                return s;
+            }
+            assert!(Instant::now() < end, "gave up waiting: {s:?}");
+            std::thread::sleep(Duration::from_millis(500));
+        }
+    }
+
+    #[test]
+    #[ignore = "needs the network, yt-dlp, mpv and wros-ytm; rc20-work/live-music.sh"]
+    fn an_album_downloads_plays_and_moves_on() {
+        let helper = PathBuf::from(env::var("WROS_YTM").expect("WROS_YTM"));
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut ytm = YtMusic::new(helper, tx.clone());
+        let songs = ytm.search("clair de lune debussy").unwrap();
+        assert!(!songs.is_empty());
+        let sets = ytm.playlists(Some("kind of blue miles davis")).unwrap();
+        let album = sets.iter().find(|s| s.length == "album").expect("an album");
+        ytm.load_playlist(album.id.clone(), album.title.clone(), true, tx)
+            .unwrap();
+        let started = Instant::now();
+        let first = state(
+            &mut ytm,
+            Duration::from_secs(120),
+            |s| matches!(s, State::Playing(t) if t.playing && t.progress > 0.5),
+        );
+        let State::Playing(first) = first else {
+            unreachable!()
+        };
+        eprintln!(
+            "first song playing after {:?}: {}",
+            started.elapsed(),
+            first.title
+        );
+        // The next song is fetched while this one plays.
+        std::thread::sleep(Duration::from_secs(30));
+        let cached = fs::read_dir(&ytm.cache).map(|d| d.count()).unwrap_or(0);
+        eprintln!("cache holds {cached} entries");
+        // Near the end: the next song follows by itself.
+        ytm.command(Cmd::Seek(
+            (first.duration - first.progress - 3.0).max(0.0) as i32
+        ))
+        .unwrap();
+        let next = state(
+            &mut ytm,
+            Duration::from_secs(90),
+            |s| matches!(s, State::Playing(t) if t.playing && t.title != first.title && t.progress > 0.2),
+        );
+        let State::Playing(next) = next else {
+            unreachable!()
+        };
+        eprintln!("then: {}", next.title);
+        let notes: Vec<_> = rx
+            .try_iter()
+            .filter_map(|u| match u {
+                Update::Note(n) => Some(n),
+                _ => None,
+            })
+            .collect();
+        eprintln!("notes: {notes:?}");
+    }
+}
