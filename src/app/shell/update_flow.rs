@@ -54,6 +54,9 @@ pub struct UpdateFlow {
     pub ready_reported: bool,
     /// This run of the app said that WrOS went back by itself.
     pub went_back_noticed: bool,
+    /// Going back to the previous version first renames these projects' files to the names
+    /// it reads (counted when the confirm page opens).
+    pub rename_back: Vec<std::path::PathBuf>,
 }
 
 /// Where a one-press back-up-then-stage stands. Each step starts only after the
@@ -472,6 +475,14 @@ pub(super) fn go_back_rows(app: &App) -> Vec<Entry> {
             rows.push(info(format!(
                 "{previous} is the version this computer installed before this one."
             )));
+            let rename = app.deck.shell.update_flow.rename_back.len();
+            if rename > 0 {
+                rows.push(info(format!(
+                    "Renames {} files back to the names {previous} reads \
+                     (novel.toml and the rest).",
+                    crate::app::project_names::projects_possessive(rename)
+                )));
+            }
         }
         None => rows.push(info("There is no previous version kept on this computer.")),
     }
@@ -935,6 +946,18 @@ impl App {
         }
     }
     pub(super) fn update_go_back_open(&mut self) {
+        let previous = self
+            .deck
+            .shell
+            .recovery
+            .as_ref()
+            .and_then(|r| r.previous_version.clone());
+        self.deck.shell.update_flow.rename_back =
+            if crate::app::project_names::needs_old_names(previous.as_deref()) {
+                self.projects_with_new_names()
+            } else {
+                Vec::new()
+            };
         self.deck.shell.nav.open(Route::GoBackConfirm);
         if self
             .deck
@@ -950,6 +973,19 @@ impl App {
         if self.deck.busy {
             self.update_notice("A system request is still running. Wait for it, then try again.");
             return;
+        }
+        let projects = std::mem::take(&mut self.deck.shell.update_flow.rename_back);
+        if !projects.is_empty() {
+            // The version before rc22 reads only novel.toml and the other old names.
+            let (renamed, failed) = self.rename_projects_back(&projects);
+            let mut note = format!(
+                "Renamed {} files back to the names the previous version reads.",
+                crate::app::project_names::projects_possessive(renamed)
+            );
+            if let Some(why) = failed.first() {
+                note.push_str(&format!(" Not all of them: {why}"));
+            }
+            self.update_notice(note);
         }
         self.deck.request(Request::GoBackToPreviousVersion);
     }

@@ -40,6 +40,30 @@ fn renamed(root: &Path) -> bool {
 }
 
 #[test]
+fn needs_old_names_for_rc21_and_unknown_but_not_rc22() {
+    use crate::app::project_names::needs_old_names;
+    for older in [
+        Some("wros 0.1.0~rc21"),
+        Some("0.1.0~rc4"),
+        Some("wros 0.0.9"),
+        Some("wros something"),
+        Some("0.1.0~beta2"),
+        None,
+    ] {
+        assert!(needs_old_names(older), "{older:?}");
+    }
+    for newer in [
+        Some("wros 0.1.0~rc22"),
+        Some("0.1.0~rc30"),
+        Some("wros 0.1.0"),
+        Some("0.1.1~rc1"),
+        Some("1.0.0"),
+    ] {
+        assert!(!needs_old_names(newer), "{newer:?}");
+    }
+}
+
+#[test]
 fn opening_an_old_project_off_wros_renames_its_files() {
     let root = old_project("names-off-wros");
     let mut d = Desk::open(root.clone(), 120, 40);

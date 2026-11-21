@@ -3842,8 +3842,86 @@ fn suspend_saves_and_arms_the_console_handoff_at_four_sizes() {
     }
 }
 
+/// A project in the private home's Documents, as the shelf finds it.
+fn documents_project(name: &str, old_names: bool) -> PathBuf {
+    let root = grimoire_core::paths::home().join("Documents").join(name);
+    fs::create_dir_all(&root).unwrap();
+    project::scaffold(&root).unwrap();
+    if old_names {
+        grimoire_core::project_files::restore_legacy(&root).unwrap();
+    }
+    fs::canonicalize(root).unwrap()
+}
+
+#[test]
+fn going_back_to_rc21_renames_projects_back_first() {
+    // Going back renames projects in ~/Documents: only ever in a private home.
+    if !music_test_home("going_back_to_rc21_renames_projects_back_first") {
+        return;
+    }
+    let renamed = documents_project("Alpha", false);
+    let already_old = documents_project("Beta", true);
+    let open = fs::canonicalize(book("go-back-names", true)).unwrap();
+    let mut desk = Desk::open(open.clone(), 120, 30);
+    let world = UpdateWorld::install(&mut desk);
+    world.sim.lock().unwrap().recovery.previous_version = Some("wros 0.1.0~rc21".into());
+    system_panel(&mut desk, 5);
+    wait_system(&mut desk);
+    desk.app.refresh_recovery();
+    wait_system(&mut desk);
+    desk.key(KeyCode::Home);
+    desk.choose("Go back to wros 0.1.0~rc21");
+    assert!(
+        desk.shows("Renames 2 projects' files back to the names wros 0.1.0~rc21 reads"),
+        "{}",
+        desk.rows().join("\n")
+    );
+    assert!(
+        renamed.join("project.toml").is_file(),
+        "nothing moves before confirming"
+    );
+
+    desk.choose("Go back to wros 0.1.0~rc21 · installs at the next restart");
+    wait_system(&mut desk);
+    assert_eq!(world.count(|r| *r == Request::GoBackToPreviousVersion), 1);
+    for root in [&renamed, &open] {
+        assert!(root.join("novel.toml").is_file(), "{}", root.display());
+        assert!(!root.join("project.toml").exists(), "{}", root.display());
+    }
+    assert!(already_old.join("novel.toml").is_file());
+    // Nothing renames them forward again before the restart.
+    desk.app.names_checked = None;
+    desk.app.tick_project_names();
+    assert!(open.join("novel.toml").is_file());
+}
+
+#[test]
+fn going_back_to_rc22_or_later_renames_nothing() {
+    if !music_test_home("going_back_to_rc22_or_later_renames_nothing") {
+        return;
+    }
+    let project = documents_project("Gamma", false);
+    let mut desk = Desk::open(book("go-back-rc22", true), 120, 30);
+    let world = UpdateWorld::install(&mut desk);
+    world.sim.lock().unwrap().recovery.previous_version = Some("wros 0.1.0~rc22".into());
+    system_panel(&mut desk, 5);
+    wait_system(&mut desk);
+    desk.app.refresh_recovery();
+    wait_system(&mut desk);
+    desk.key(KeyCode::Home);
+    desk.choose("Go back to wros 0.1.0~rc22");
+    assert!(!desk.shows("Renames"), "{}", desk.rows().join("\n"));
+    desk.choose("Go back to wros 0.1.0~rc22 · installs at the next restart");
+    wait_system(&mut desk);
+    assert!(project.join("project.toml").is_file());
+}
+
 #[test]
 fn going_back_is_offered_only_with_a_kept_version_and_asks_before_staging() {
+    // Going back can rename projects in ~/Documents: only ever in a private home.
+    if !music_test_home("going_back_is_offered_only_with_a_kept_version_and_asks_before_staging") {
+        return;
+    }
     let mut desk = Desk::open(book("update-go-back", true), 120, 30);
     let world = UpdateWorld::install(&mut desk);
     system_panel(&mut desk, 5);
