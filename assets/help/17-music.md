@@ -13,7 +13,7 @@ The same choices are in *Settings › Music*, and *Music source* in the menu pic
 | Source | How it works |
 |---|---|
 | Music files | Plays the music in `~/Music` and on a plugged-in USB stick. Nothing to set up. In the player, **Playlists** lists your album folders and **Search** finds songs by name. |
-| YouTube Music | Search songs, albums and playlists in the player, with no sign-in. Each song downloads to a small cache before it plays: the first takes 10–20 seconds, and the next one downloads while one plays. Your own library and liked songs come in a later update. |
+| YouTube Music | Search songs, albums and playlists in the player, with no sign-in. While you type a search, `Tab` switches between YouTube Music and all of YouTube (videos, sound only); WrOS remembers which. A song starts playing in about 10 seconds, while it arrives. *Settings › Music* can make songs download to a small cache first instead. Your own library and liked songs come in a later update. |
 | Jellyfin | Choose **Sign in to Jellyfin…** and sign in with your server address, username and password. |
 | Plex | Choose **Sign in to Plex…** and enter your server address and X-Plex-Token. The form shows where to find the token. |
 | Spotify | Not available on WrOS yet. Spotify no longer lets players like WrOS's unlock its music for newer accounts. Spotify's own player is planned for a later update. Elsewhere, Grimoire controls the Spotify desktop app while it runs. |

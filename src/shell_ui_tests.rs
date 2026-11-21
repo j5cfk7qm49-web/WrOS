@@ -208,6 +208,38 @@ fn music_settings_cycle_and_save_every_source() {
 }
 
 #[test]
+fn tab_while_typing_a_search_switches_to_all_of_youtube() {
+    if !music_test_home("tab_while_typing_a_search_switches_to_all_of_youtube") {
+        return;
+    }
+    let (mut d, rx) = music_desk("youtube-scope");
+    d.app.open_player();
+    d.key(KeyCode::Char('/'));
+    d.typed("lofi");
+    d.draw();
+    assert!(d.shows("find on YouTube Music"), "{}", d.rows().join("\n"));
+    d.key(KeyCode::Tab);
+    d.draw();
+    assert!(d.shows("find on all of YouTube"), "{}", d.rows().join("\n"));
+    assert!(d.shows("tab: YouTube Music"));
+    assert_eq!(
+        music::Config::load().youtube_search,
+        music::SearchScope::AllOfYoutube,
+        "the choice is kept for next time"
+    );
+    d.key(KeyCode::Enter);
+    let sent: Vec<_> = rx.try_iter().collect();
+    assert!(
+        sent.contains(&music::Cmd::Search {
+            query: "lofi".into(),
+            scope: music::SearchScope::AllOfYoutube,
+        }),
+        "{sent:?}"
+    );
+    assert!(d.shows("searching all of YouTube for “lofi”"));
+}
+
+#[test]
 fn youtube_plays_as_it_arrives_until_switched_to_after_downloading() {
     if !music_test_home("youtube_plays_as_it_arrives_until_switched_to_after_downloading") {
         return;

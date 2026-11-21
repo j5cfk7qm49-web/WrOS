@@ -50,9 +50,27 @@ impl App {
                         self.music
                             .send(Cmd::Playlists((!q.is_empty()).then_some(q)));
                     } else if !q.is_empty() {
+                        let scope = self.music.search_scope();
                         self.music.results.clear();
-                        self.music.note = Some(format!("searching for “{q}”…"));
-                        self.music.send(Cmd::Search(q));
+                        self.music.note = Some(match scope {
+                            music::SearchScope::YoutubeMusic => format!("searching for “{q}”…"),
+                            music::SearchScope::AllOfYoutube => {
+                                format!("searching all of YouTube for “{q}”…")
+                            }
+                        });
+                        self.music.send(Cmd::Search { query: q, scope });
+                    }
+                }
+                // Typing a YouTube Music search, Tab chooses what it looks through.
+                Key::Tab | Key::BackTab
+                    if !on_playlists && self.music.source == music::Source::YouTubeMusic =>
+                {
+                    let scope = self.music.youtube_search.other();
+                    self.music.youtube_search = scope;
+                    let mut cfg = music::Config::load();
+                    cfg.youtube_search = scope;
+                    if let Err(e) = cfg.save() {
+                        self.msg = format!("couldn't keep the search choice: {e}");
                     }
                 }
                 Key::Esc => *typing = false,
@@ -266,7 +284,16 @@ pub(super) fn draw_player(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     let files = app.music.source == music::Source::Files;
     match tab {
         Tab::Search => lines.push(if *typing {
-            prompt("find", query)
+            if app.music.source == music::Source::YouTubeMusic {
+                let scope = app.music.youtube_search;
+                let mut line = prompt(&format!("find on {}", scope.label()), query);
+                line.spans.push(Span::styled("  tab", key_style(t)));
+                line.spans
+                    .push(Span::styled(format!(": {}", scope.other().label()), dim));
+                line
+            } else {
+                prompt("find", query)
+            }
         } else if query.is_empty() {
             Line::from(Span::styled(" press / and type a song or an artist", dim))
         } else {

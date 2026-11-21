@@ -148,6 +148,39 @@ pub struct Config {
     pub user_id: String,
     /// YouTube: play while yt-dlp fetches, or once the whole file is here.
     pub youtube_play: YoutubePlay,
+    /// What the player's search looks through, as last chosen with Tab.
+    pub youtube_search: SearchScope,
+}
+
+/// The YouTube Music source searches YouTube Music (songs), or all of YouTube (videos).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SearchScope {
+    #[default]
+    YoutubeMusic,
+    AllOfYoutube,
+}
+
+impl SearchScope {
+    fn slug(self) -> &'static str {
+        match self {
+            SearchScope::YoutubeMusic => "music",
+            SearchScope::AllOfYoutube => "all",
+        }
+    }
+
+    pub fn other(self) -> SearchScope {
+        match self {
+            SearchScope::YoutubeMusic => SearchScope::AllOfYoutube,
+            SearchScope::AllOfYoutube => SearchScope::YoutubeMusic,
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            SearchScope::YoutubeMusic => "YouTube Music",
+            SearchScope::AllOfYoutube => "all of YouTube",
+        }
+    }
 }
 
 /// How YouTube audio reaches the player. Streaming starts in seconds whatever the length;
@@ -179,6 +212,7 @@ impl Default for Config {
             api_key: String::new(),
             user_id: String::new(),
             youtube_play: YoutubePlay::Stream,
+            youtube_search: SearchScope::YoutubeMusic,
         }
     }
 }
@@ -228,6 +262,7 @@ impl Config {
                 "api_key" => cfg.api_key = v,
                 "user_id" => cfg.user_id = v,
                 "youtube_play" if v == "download" => cfg.youtube_play = YoutubePlay::Download,
+                "youtube_search" if v == "all" => cfg.youtube_search = SearchScope::AllOfYoutube,
                 _ => {}
             }
         }
@@ -245,7 +280,8 @@ impl Config {
         let body = format!(
             "# Where music comes from: Esc › Settings › Music.\n\
              source = \"{}\"\nhost = \"{}\"\nport = {}\ntoken = \"{}\"\n\
-             server = \"{}\"\napi_key = \"{}\"\nuser_id = \"{}\"\nyoutube_play = \"{}\"\n",
+             server = \"{}\"\napi_key = \"{}\"\nuser_id = \"{}\"\nyoutube_play = \"{}\"\n\
+             youtube_search = \"{}\"\n",
             self.source.slug(),
             self.host,
             self.port,
@@ -254,6 +290,7 @@ impl Config {
             self.api_key,
             self.user_id,
             self.youtube_play.slug(),
+            self.youtube_search.slug(),
         );
         grimoire_core::atomic::write_text(path, &body)?;
         Ok(())
@@ -311,7 +348,10 @@ pub enum Cmd {
     /// Ask for the queue; answered by a fresh `Music::queue`.
     FetchQueue,
     /// Search; answered by `Music::results`.
-    Search(String),
+    Search {
+        query: String,
+        scope: SearchScope,
+    },
     /// Your library's playlists, or YouTube Music's for a query; answered by
     /// `Music::playlists`.
     Playlists(Option<String>),
@@ -479,6 +519,8 @@ pub struct Music {
     /// Your playlists, or the last playlist search's. `length` holds the
     /// song count and `id` the playlist id.
     pub playlists: Vec<Item>,
+    /// What the YouTube Music source's search looks through: YouTube Music, or all of YouTube.
+    pub youtube_search: SearchScope,
     /// A short line for the player: "searching…", or why something failed.
     pub note: Option<String>,
     /// A note arrived since the app last looked (see `take_fresh_note`).
@@ -501,6 +543,10 @@ trait Backend: Send {
     }
     fn search(&mut self, _query: &str) -> Result<Vec<Item>> {
         Err(anyhow!("search works with YouTube Music"))
+    }
+    /// Videos from all of YouTube, as YouTube's own search finds them.
+    fn search_videos(&mut self, _query: &str) -> Result<Vec<Item>> {
+        Err(anyhow!("searching all of YouTube works with YouTube Music"))
     }
     /// Your own playlists (`None`), or everyone's that match a query.
     fn playlists(&mut self, _query: Option<&str>) -> Result<Vec<Item>> {
@@ -530,8 +576,19 @@ impl Music {
     pub fn dormant(cfg: Config) -> Music {
         let mut music = Music::inert(cfg.source);
         music.server_ready = cfg.server_ready();
+        music.youtube_search = cfg.youtube_search;
         music.asleep = Some(cfg);
         music
+    }
+
+    /// What a search looks through: the writer's choice on the YouTube Music source, which is
+    /// the only one that can search all of YouTube.
+    pub fn search_scope(&self) -> SearchScope {
+        if self.source == Source::YouTubeMusic {
+            self.youtube_search
+        } else {
+            SearchScope::YoutubeMusic
+        }
     }
 
     /// Start the player and poller, once. Later calls do nothing.
@@ -555,6 +612,7 @@ impl Music {
             queue: Vec::new(),
             results: Vec::new(),
             playlists: Vec::new(),
+            youtube_search: SearchScope::default(),
             note: None,
             fresh_note: false,
             modes: Modes::default(),
@@ -603,9 +661,11 @@ impl Music {
             }
         };
 
+        let youtube_search = cfg.youtube_search;
         let Some(mut backend) = backend else {
             let mut music = Music::inert(source);
             music.server_ready = server_ready;
+            music.youtube_search = youtube_search;
             return music;
         };
 
@@ -638,10 +698,17 @@ impl Music {
                         Err(RecvTimeoutError::Timeout) => break,
                         Err(RecvTimeoutError::Disconnected) => return,
                     };
-                    let repoll = !matches!(c, Cmd::FetchQueue | Cmd::Search(_) | Cmd::Playlists(_));
+                    let repoll =
+                        !matches!(c, Cmd::FetchQueue | Cmd::Search { .. } | Cmd::Playlists(_));
                     let reply = match c {
                         Cmd::FetchQueue => Some(backend.queue().map(Update::Queue)),
-                        Cmd::Search(q) => Some(backend.search(&q).map(Update::Results)),
+                        Cmd::Search { query, scope } => Some(
+                            match scope {
+                                SearchScope::YoutubeMusic => backend.search(&query),
+                                SearchScope::AllOfYoutube => backend.search_videos(&query),
+                            }
+                            .map(Update::Results),
+                        ),
                         Cmd::Playlists(q) => {
                             Some(backend.playlists(q.as_deref()).map(Update::Playlists))
                         }
@@ -721,6 +788,7 @@ impl Music {
             queue: Vec::new(),
             results: Vec::new(),
             playlists: Vec::new(),
+            youtube_search,
             note: None,
             fresh_note: false,
             modes: Modes::default(),
@@ -899,6 +967,30 @@ mod config_tests {
         let text = std::fs::read_to_string(&path).unwrap();
         assert!(text.contains("youtube_play = \"download\"\n"), "{text}");
         assert_eq!(Config::parse(&text).youtube_play, YoutubePlay::Download);
+    }
+
+    #[test]
+    fn config_remembers_where_youtube_search_looks() {
+        assert_eq!(Config::parse("").youtube_search, SearchScope::YoutubeMusic);
+        assert_eq!(
+            Config::parse("youtube_search = \"all\"\n").youtube_search,
+            SearchScope::AllOfYoutube
+        );
+        let cfg = Config {
+            youtube_search: SearchScope::AllOfYoutube,
+            ..Config::default()
+        };
+        let home = tempfile::tempdir().unwrap();
+        let path = Config::path_in(home.path());
+        cfg.save_to(&path).unwrap();
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(
+            Config::parse(&text).youtube_search,
+            SearchScope::AllOfYoutube
+        );
+        // Only the YouTube Music source searches all of YouTube.
+        let music = Music::dormant(cfg);
+        assert_eq!(music.search_scope(), SearchScope::YoutubeMusic);
     }
 
     #[test]

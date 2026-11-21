@@ -387,7 +387,9 @@ impl Backend for Ytm {
                 }
                 Ok(())
             }
-            Cmd::FetchQueue | Cmd::Search(_) | Cmd::Playlists(_) | Cmd::Playlist { .. } => Ok(()),
+            Cmd::FetchQueue | Cmd::Search { .. } | Cmd::Playlists(_) | Cmd::Playlist { .. } => {
+                Ok(())
+            }
         }
     }
 
