@@ -6075,6 +6075,30 @@ impl App {
         self.msg = format!("music: {}", source.label());
     }
 
+    /// Settings › Music: YouTube plays as it arrives, or after downloading. A player that is
+    /// running starts again with the new way, so its queue starts over.
+    pub(crate) fn toggle_youtube_play(&mut self) {
+        let mut cfg = music::Config::load();
+        cfg.youtube_play = match cfg.youtube_play {
+            music::YoutubePlay::Stream => music::YoutubePlay::Download,
+            music::YoutubePlay::Download => music::YoutubePlay::Stream,
+        };
+        if let Err(e) = cfg.save() {
+            self.msg = format!("couldn't save how YouTube plays: {e}");
+            return;
+        }
+        let play = cfg.youtube_play;
+        self.music = if self.music.is_awake() {
+            Music::spawn(cfg)
+        } else {
+            Music::dormant(cfg)
+        };
+        self.msg = match play {
+            music::YoutubePlay::Stream => "YouTube plays as it arrives".into(),
+            music::YoutubePlay::Download => "YouTube plays after downloading".into(),
+        };
+    }
+
     pub fn open_theme_picker(&mut self) {
         let names = self.theme_names();
         let sel = names

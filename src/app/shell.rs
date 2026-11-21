@@ -444,6 +444,7 @@ pub(crate) enum SettingsRow {
 }
 
 enum Choice {
+    YoutubePlayToggle,
     BackupRequest(crate::backup_service::Request),
     BackupForm(super::backup::FormKind, String),
     BackupNow,
@@ -864,9 +865,17 @@ pub(crate) fn music_source_rows(app: &App) -> Vec<Entry> {
         }
         music::Source::YouTubeMusic if music::ytm_helper_path().is_some() => vec![
             Entry::new("Search YouTube Music…", Choice::Action(Action::MusicPlayer)),
+            Entry::new(
+                match music::Config::load().youtube_play {
+                    music::YoutubePlay::Stream => "Play · as it arrives",
+                    music::YoutubePlay::Download => "Play · after downloading",
+                },
+                Choice::YoutubePlayToggle,
+            ),
             Entry::info(
                 "Search songs, albums and playlists. No sign-in needed. \
-                 Songs download to a small cache before they play.",
+                 Songs start playing while they arrive; after downloading waits \
+                 for the whole song, kept in a small cache.",
             ),
         ],
         music::Source::Jellyfin | music::Source::Plex => {
@@ -2651,6 +2660,7 @@ impl App {
                         }
                     }
                     Choice::DriveCopyBook(remote) => self.open_drive_import(remote),
+                    Choice::YoutubePlayToggle => self.toggle_youtube_play(),
                     Choice::BackupNow => self.request_project_backup(),
                     Choice::SyncSwitch(on) => self.request_sync_switch(on),
                     Choice::SyncNow => self.request_sync_run(false),

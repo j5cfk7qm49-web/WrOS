@@ -208,6 +208,31 @@ fn music_settings_cycle_and_save_every_source() {
 }
 
 #[test]
+fn youtube_plays_as_it_arrives_until_switched_to_after_downloading() {
+    if !music_test_home("youtube_plays_as_it_arrives_until_switched_to_after_downloading") {
+        return;
+    }
+    let mut desk = Desk::open(book("youtube-play", true), 100, 30);
+    assert_eq!(
+        music::Config::load().youtube_play,
+        music::YoutubePlay::Stream
+    );
+    desk.app.toggle_youtube_play();
+    assert_eq!(desk.app.msg, "YouTube plays after downloading");
+    assert_eq!(
+        music::Config::load().youtube_play,
+        music::YoutubePlay::Download
+    );
+    assert!(!desk.app.music.is_awake(), "switching starts no player");
+    desk.app.toggle_youtube_play();
+    assert_eq!(desk.app.msg, "YouTube plays as it arrives");
+    assert_eq!(
+        music::Config::load().youtube_play,
+        music::YoutubePlay::Stream
+    );
+}
+
+#[test]
 fn jellyfin_setup_masks_password_and_escape_discards_edits() {
     if !music_test_home("jellyfin_setup_masks_password_and_escape_discards_edits") {
         return;

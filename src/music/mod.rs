@@ -146,6 +146,26 @@ pub struct Config {
     pub server: String,
     pub api_key: String,
     pub user_id: String,
+    /// YouTube: play while yt-dlp fetches, or once the whole file is here.
+    pub youtube_play: YoutubePlay,
+}
+
+/// How YouTube audio reaches the player. Streaming starts in seconds whatever the length;
+/// downloading first is how rc20 and rc21 played, kept as a choice in Settings › Music.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum YoutubePlay {
+    #[default]
+    Stream,
+    Download,
+}
+
+impl YoutubePlay {
+    fn slug(self) -> &'static str {
+        match self {
+            YoutubePlay::Stream => "stream",
+            YoutubePlay::Download => "download",
+        }
+    }
 }
 
 impl Default for Config {
@@ -158,6 +178,7 @@ impl Default for Config {
             server: String::new(),
             api_key: String::new(),
             user_id: String::new(),
+            youtube_play: YoutubePlay::Stream,
         }
     }
 }
@@ -206,6 +227,7 @@ impl Config {
                 "server" => cfg.server = v,
                 "api_key" => cfg.api_key = v,
                 "user_id" => cfg.user_id = v,
+                "youtube_play" if v == "download" => cfg.youtube_play = YoutubePlay::Download,
                 _ => {}
             }
         }
@@ -223,7 +245,7 @@ impl Config {
         let body = format!(
             "# Where music comes from: Esc › Settings › Music.\n\
              source = \"{}\"\nhost = \"{}\"\nport = {}\ntoken = \"{}\"\n\
-             server = \"{}\"\napi_key = \"{}\"\nuser_id = \"{}\"\n",
+             server = \"{}\"\napi_key = \"{}\"\nuser_id = \"{}\"\nyoutube_play = \"{}\"\n",
             self.source.slug(),
             self.host,
             self.port,
@@ -231,6 +253,7 @@ impl Config {
             self.server,
             self.api_key,
             self.user_id,
+            self.youtube_play.slug(),
         );
         grimoire_core::atomic::write_text(path, &body)?;
         Ok(())
@@ -553,7 +576,9 @@ impl Music {
             match source {
                 Source::Files => Some(Box::new(Files::new())),
                 Source::YouTubeMusic => match helper {
-                    Some(path) => Some(Box::new(YtMusic::new(path, up_tx.clone()))),
+                    Some(path) => Some(Box::new(
+                        YtMusic::new(path, up_tx.clone()).playing(cfg.youtube_play),
+                    )),
                     None => cfg
                         .token
                         .clone()
@@ -851,6 +876,29 @@ mod config_tests {
         old.save_to(&path).unwrap();
         let text = std::fs::read_to_string(&path).unwrap();
         assert!(!text.contains("enabled"), "{text}");
+    }
+
+    #[test]
+    fn config_reads_youtube_play_and_defaults_to_stream() {
+        assert_eq!(Config::parse("").youtube_play, YoutubePlay::Stream);
+        assert_eq!(
+            Config::parse("youtube_play = \"download\"\n").youtube_play,
+            YoutubePlay::Download
+        );
+        assert_eq!(
+            Config::parse("youtube_play = \"x\"\n").youtube_play,
+            YoutubePlay::Stream
+        );
+        let home = tempfile::tempdir().unwrap();
+        let path = Config::path_in(home.path());
+        let cfg = Config {
+            youtube_play: YoutubePlay::Download,
+            ..Config::default()
+        };
+        cfg.save_to(&path).unwrap();
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(text.contains("youtube_play = \"download\"\n"), "{text}");
+        assert_eq!(Config::parse(&text).youtube_play, YoutubePlay::Download);
     }
 
     #[test]
