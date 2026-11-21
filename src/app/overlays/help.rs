@@ -84,9 +84,11 @@ impl App {
                 Focus::Pins => "pins",
                 Focus::Codex => "notebook",
                 Focus::Beside => "beside",
-                Focus::Clearing if self.pane_mode == crate::scene::Mode::Visualizer => "visualizer",
-                Focus::Clearing => "pomodoro",
-                Focus::Music => "music",
+                Focus::Clearing => match self.pane_mode {
+                    crate::scene::Mode::Pomodoro => "pomodoro",
+                    crate::scene::Mode::Visualizer => "visualizer",
+                    crate::scene::Mode::Music => "music",
+                },
             },
         }
     }

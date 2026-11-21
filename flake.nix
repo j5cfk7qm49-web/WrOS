@@ -132,7 +132,6 @@
         boot-seams = vmTest ./nixos/tests/boot-seams.nix;
         console-lock-vlock = vmTest ./nixos/tests/console-lock-vlock.nix;
         console-lock-text = vmTest ./nixos/tests/console-lock-text.nix;
-        music-signin = vmTest ./nixos/tests/music-signin.nix;
         rust-suite = wrosPkgs.rust-suite;
         rust-suite-no-audio = wrosPkgs.rust-suite-no-audio;
         rust-driven-suite = wrosPkgs.rust-driven-suite;

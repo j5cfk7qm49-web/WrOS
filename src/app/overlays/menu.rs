@@ -53,10 +53,9 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
                 "The editor, the manuscript, goals and revision settings.",
                 "settings",
             ),
-            crate::app::shell::Category::Interface => (
-                "Themes, the look of the page, the keyboard and music.",
-                "settings",
-            ),
+            crate::app::shell::Category::Interface => {
+                ("Themes, the look of the page and the keyboard.", "settings")
+            }
             crate::app::shell::Category::System => (
                 "Wi-Fi, sound, the display, date and time, battery and power, and storage.",
                 "wros",
@@ -68,6 +67,10 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             crate::app::shell::Category::Updates => (
                 "Updates to WrOS, going back a version, and recovery.",
                 "wros",
+            ),
+            crate::app::shell::Category::Music => (
+                "Where music comes from, and signing in to your music server.",
+                "music",
             ),
         },
         Action::Settings => (
@@ -254,11 +257,7 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "themes",
         ),
         Action::MusicSource => (
-            "Where music comes from: YouTube Music, Spotify, Jellyfin or Plex.",
-            "music",
-        ),
-        Action::MusicToggle => (
-            "Music is off until you want it. On, it gets a pane of its own.",
+            "Where music comes from: music files, YouTube Music, Jellyfin or Plex.",
             "music",
         ),
         Action::Spellcheck => (

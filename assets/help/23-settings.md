@@ -7,10 +7,10 @@ filter on supported displays. Start at 2200 K for very warm light, or choose
 restores unconfirmed changes if WrOS exits. Off restores the original color
 curves. Unsupported drivers report unavailable and leave the screen unchanged.
 
-The *Settings* menu opens Settings on one of its five groups, in a box over the page: Writing, Look and keyboard, System, Backups and accounts, and Updates and recovery. `Esc` steps back a page, and closes it from the first. Switches stay on screen to show their new state, and each row says what it does while it's highlighted. The mouse works here too: click a row, or click outside the box to close it. These rows from older versions now live in Settings' pages:
+The *Settings* menu opens Settings on one of its six groups, in a box over the page: Writing, Look and keyboard, System, Backups and accounts, Updates and recovery, and Music. `Esc` steps back a page, and closes it from the first. Switches stay on screen to show their new state, and each row says what it does while it's highlighted. The mouse works here too: click a row, or click outside the box to close it. These rows from older versions now live in Settings' pages:
 
 - **Themes…**: the nineteen themes and your own (see *Themes*). Also `F9`.
-- **Music** in *Settings › Look and keyboard › Music* lets you switch music on or off, cycle sources and set up your Jellyfin or Plex server.
+- **Music** in *Settings › Music* cycles sources and signs in to your Jellyfin or Plex server. The Music view in the clearing does the same (see *Music*).
 - **Turn spellcheck on / off**.
 - **Spelling**: American, British, Canadian or Australian English (see *Spelling*).
 - **Turn tree icons on / off**: a small symbol beside each row of the outline.

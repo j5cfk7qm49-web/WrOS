@@ -39,15 +39,16 @@ clients and external Git tools operate outside this application workflow.
 
 ## Optional music
 
-Music is disabled by default in `music::Config`. Enabling a source permits its
-music requests; it does not send manuscript text.
+Music makes no requests until it is first used: the Music view shown, a music key,
+or a source chosen. A source then makes its own music requests; none sends
+manuscript text.
 
 | Integration | Actual interface and data |
 |---|---|
 | YouTube Music companion | Configured HTTP host, default `127.0.0.1:26538`; `/auth/grimoiretui` pairing and `/api/v1/` player state, search, queue and playback controls. Pairing uses a local bearer token. |
 | YouTube playlist browsing | POST `https://music.youtube.com/youtubei/v1/browse?prettyPrint=false` with playlist/browse identifiers and web-client context. This is an inherited website endpoint, not the official YouTube Data API. |
 | YouTube Music setup | GitHub releases API at `https://api.github.com/repos/th-ch/youtube-music/releases/latest`, then the selected release asset. This is companion setup, not WrOS signed system updates. |
-| Spotify | Installed player's local MPRIS interface via `playerctl` on Debian/NixOS; WrOS does not use Spotify's OAuth/Web API. The Spotify player handles its own service connection. |
+| Spotify | Off WrOS only: the Spotify desktop app's local MPRIS interface via `playerctl` (AppleScript on macOS). WrOS ships no Spotify player and makes no Spotify requests; Spotify can't be chosen there yet. |
 | Jellyfin | Configured server HTTP API: `/Users/AuthenticateByName`, `/Items` and `/Audio/{id}/stream`. Login credentials/token go to that selected server. |
 | Plex | Configured server HTTP API: `/library/sections`, `/library/sections/{id}/all` and returned media stream paths, using the configured Plex token. |
 
@@ -146,7 +147,7 @@ and user-configured server addresses depend on the network and configuration.
 | Network time (`systemd-timesyncd`) | `0.nixos.pool.ntp.org`, `1.nixos.pool.ntp.org`, `2.nixos.pool.ntp.org`, `3.nixos.pool.ntp.org` | UDP/123 (NTP) | Automatically while online when network time is enabled (`services.timesyncd.enable = lib.mkDefault true` in `nixos/modules/network.nix`) |
 | Online update check & binary-cache metadata (`wros-update check-online`, `wros-update-fetch`) | `j5cfk7qm49-web.github.io` (`https://j5cfk7qm49-web.github.io/WrOS/nixos-updates/`) | HTTPS (TCP/443) | After login, daily, on retries after failed checks or on manual checks for `InRelease` + `closure-manifest.json`; fetches required `cache/nix-cache-info`, `cache/<hash>.narinfo` and `cache/nar/*.nar.zst` files only when the writer explicitly runs **Update WrOS** |
 | Optional Google Drive backup / sync (`wros-backup`, `wros-sync` via `rclone`) | `oauth2.googleapis.com`, `www.googleapis.com` | HTTPS (TCP/443) | When linking or validating an account, revoking a supported grant, browsing or copying Drive files, refreshing or operating on a Drive backup repository, running configured automatic backups, or syncing an enabled book |
-| Optional music integrations (disabled by default) | `music.youtube.com`; the configured YouTube companion host, defaulting to loopback; `api.github.com` and the selected companion release-asset URL during setup; user-configured Jellyfin/Plex hosts | HTTP/HTTPS | Explicit companion setup contacts the releases API, selected asset URL and pairing host; an enabled music source makes requests while it runs |
+| Optional music integrations (idle until first used) | `music.youtube.com`; the configured YouTube companion host, defaulting to loopback; `api.github.com` and the selected companion release-asset URL during setup; user-configured Jellyfin/Plex hosts | HTTP/HTTPS | Explicit companion setup contacts the releases API, selected asset URL and pairing host; an enabled music source makes requests while it runs |
 
 The current publisher serves cache files through Pages and rejects oversized
 files. The updater refuses redirects; GitHub release-asset redirects are not a

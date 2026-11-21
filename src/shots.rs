@@ -181,10 +181,7 @@ impl Shot {
             .find(|t| t.name == theme)
             .unwrap_or_else(|| panic!("no theme {theme}"));
         let setup = Setup {
-            music: music::Config {
-                enabled: true,
-                ..music::Config::default()
-            },
+            music: music::Config::default(),
             theme,
             settings: Settings::default(),
             background: false,

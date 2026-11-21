@@ -147,7 +147,7 @@ const DEFAULT_THEME = 'Rainbow';
             </p>
             <figure class="shot">
               <img id="hero" src="/shots/themes/rainbow.webp" width="1620" height="1114" loading="eager"
-                alt="Grimoire in the Rainbow theme: a book's outline under a spellbook, a scene being written, the Pomodoro and the music pane" />
+                alt="Grimoire in the Rainbow theme: a book's outline under a spellbook, a scene being written and the Pomodoro" />
               <figcaption>01 — the desk, in <span id="hero-theme">Rainbow</span>: the outline, the prose, the Pomodoro, the music</figcaption>
             </figure>
             <p class="try">
@@ -803,7 +803,7 @@ const DEFAULT_THEME = 'Rainbow';
           heroTheme.textContent = t.name;
           const src = `/shots/themes/${t.slug}.webp`;
           if (!hero.src.endsWith(src)) hero.src = src;
-          hero.alt = `Grimoire in the ${t.name} theme: a book's outline under a spellbook, a scene being written, the Pomodoro and the music pane`;
+          hero.alt = `Grimoire in the ${t.name} theme: a book's outline under a spellbook, a scene being written and the Pomodoro`;
           pomo.hidden = !rainbow;
           pomoImg.hidden = rainbow;
           if (!rainbow) pomoImg.src = `/shots/themes/pomodoro-${t.slug}.webp`;

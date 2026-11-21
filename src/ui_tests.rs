@@ -1033,36 +1033,69 @@ fn focus_mode_is_named_where_it_can_be_used() {
 }
 
 #[test]
-fn the_music_pane_says_its_keys_when_focused() {
-    let root = book("music-keys", true);
-    let setup = Setup {
-        // On but unconfigured: the pane shows, nothing is polled.
-        music: music::Config {
-            enabled: true,
-            source: music::Source::YouTubeMusic,
-            ..music::Config::default()
-        },
-        theme: theme::default_theme(),
-        settings: Settings::default(),
-        background: false,
-    };
-    let app = App::with(Project::load(&root).unwrap(), setup).unwrap();
-    let mut d = Desk {
-        app,
-        term: Terminal::new(TestBackend::new(140, 42)).unwrap(),
-        armed: false,
-        left: false,
-        root,
-    };
+fn the_music_view_lists_player_and_source_and_there_is_no_music_pane() {
+    let (mut d, _rx) = music_desk("music-view");
+    assert!(!d.shows("♪ "), "no music pane under the clearing");
+    focus_on(&mut d, Focus::Clearing);
+    d.key(KeyCode::Left);
+    assert_eq!(d.app.pane_mode, scene::Mode::Music);
+    assert!(d.shows("♪ YouTube Music · F7"), "{}", d.rows().join("\n"));
+    assert!(d.shows("› Open player · F7"));
+    assert!(d.shows("Source · YouTube Music…"));
+    assert!(!d.shows("Sign in to"), "YouTube Music needs no sign-in");
+    d.key(KeyCode::Enter);
+    assert!(matches!(d.app.overlay, Overlay::Player { .. }));
+    d.key(KeyCode::Esc);
+    d.key(KeyCode::Down);
+    d.key(KeyCode::Enter);
+    assert!(matches!(d.app.overlay, Overlay::Sources { .. }));
+}
+
+#[test]
+fn showing_the_music_view_wakes_the_music() {
+    let mut d = Desk::open(book("music-wakes", true), 140, 42);
+    assert!(!d.app.music.is_awake(), "a new desk starts no player");
+    d.app.music = music::Music::dormant(music::Config {
+        source: music::Source::Jellyfin,
+        ..music::Config::default()
+    });
+    d.app.pane_mode = scene::Mode::Music;
     d.draw();
-    assert!(!d.shows("[ prev · space ⏯ · ] next"), "only while focused");
-    for _ in 0..5 {
-        if d.app.focus == Focus::Music {
-            break;
-        }
-        d.key(KeyCode::Tab);
-    }
-    assert_eq!(d.app.focus, Focus::Music);
+    assert!(d.app.music.is_awake());
+}
+
+#[test]
+fn jellyfin_is_signed_in_and_out_from_the_music_view() {
+    let mut d = Desk::open(book("music-signin", true), 140, 42);
+    d.app.music = music::Music::dormant(music::Config {
+        source: music::Source::Jellyfin,
+        ..music::Config::default()
+    });
+    focus_on(&mut d, Focus::Clearing);
+    d.app.pane_mode = scene::Mode::Music;
+    d.draw();
+    assert!(d.shows("Sign in to Jellyfin…"), "{}", d.rows().join("\n"));
+    d.keys(&[KeyCode::Down, KeyCode::Down, KeyCode::Enter]);
+    assert_eq!(
+        d.app.deck.shell.nav.current(),
+        crate::app::shell::Route::MusicServerForm
+    );
+    // Signed in, the row offers the way out (the sign-out itself is in shell_ui_tests,
+    // where the music settings file is the test's own).
+    d.key(KeyCode::Esc);
+    d.key(KeyCode::Esc);
+    d.app.music.server_ready = true;
+    d.draw();
+    assert!(d.shows("Sign out of Jellyfin"));
+}
+
+#[test]
+fn a_narrow_column_still_names_the_music_view() {
+    let mut d = Desk::open(book("music-narrow", true), 80, 24);
+    d.app.pane_mode = scene::Mode::Music;
+    d.draw();
+    assert!(d.shows("◂ music · · ● ▸"), "{}", d.rows().join("\n"));
+    assert!(d.shows("Open player · F7"));
 }
 
 // ---- spelling: click a misspelt word ----------------------------------------
@@ -1404,11 +1437,12 @@ fn every_theme_draws_its_own_pomodoro_through_the_real_desk() {
 }
 
 #[test]
-fn the_pane_switches_between_pomodoro_and_visualizer_and_there_is_no_garden() {
-    let mut d = Desk::open(book("two-views", true), 140, 42);
+fn the_pane_goes_round_pomodoro_visualizer_and_music() {
+    let mut d = Desk::open(book("three-views", true), 140, 42);
     assert!(
-        d.shows("pomodoro visualizer"),
-        "the switcher names both views"
+        d.shows("◂ pomodoro ● · · ▸"),
+        "the switcher: {}",
+        d.rows().join("\n")
     );
     assert_eq!(d.app.pane_mode, scene::Mode::Pomodoro);
     for _ in 0..6 {
@@ -1421,13 +1455,15 @@ fn the_pane_switches_between_pomodoro_and_visualizer_and_there_is_no_garden() {
     d.key(KeyCode::Right);
     assert_eq!(d.app.pane_mode, scene::Mode::Visualizer);
     d.key(KeyCode::Right);
+    assert_eq!(d.app.pane_mode, scene::Mode::Music);
+    d.key(KeyCode::Right);
     assert_eq!(
         d.app.pane_mode,
         scene::Mode::Pomodoro,
-        "two views, round and back"
+        "three views, round and back"
     );
     d.key(KeyCode::Left);
-    assert_eq!(d.app.pane_mode, scene::Mode::Visualizer);
+    assert_eq!(d.app.pane_mode, scene::Mode::Music);
     for word in ["garden", "clearing", "spectrum"] {
         assert!(!d.shows(word), "{word} is still on screen");
     }
@@ -2176,7 +2212,6 @@ fn music_desk(tag: &str) -> (Desk, std::sync::mpsc::Receiver<music::Cmd>) {
 fn music_desk_at(root: PathBuf) -> (Desk, std::sync::mpsc::Receiver<music::Cmd>) {
     let setup = Setup {
         music: music::Config {
-            enabled: true,
             source: music::Source::YouTubeMusic,
             ..music::Config::default()
         },
@@ -2249,7 +2284,8 @@ fn each_place_opens_the_help_on_its_own_topic() {
     assert_eq!(help_topic(&d), Some("notebook"));
 
     let (mut d, _rx) = music_desk("help-music");
-    focus_on(&mut d, Focus::Music);
+    focus_on(&mut d, Focus::Clearing);
+    d.app.pane_mode = scene::Mode::Music;
     d.key(KeyCode::Char('?'));
     assert_eq!(help_topic(&d), Some("music"));
 }
@@ -2486,7 +2522,6 @@ fn every_palette_action_is_explained_in_the_help() {
         d.app.icons_on = on;
         d.app.typewriter = on;
         d.app.history_in_book = on;
-        d.app.music.enabled = on;
         for e in palette::entries(&d.app) {
             use palette::Action as A;
             if matches!(
@@ -2660,17 +2695,22 @@ const EVERY_KEY: &[(&str, &str, &[&str])] = &[
     ("The Pomodoro pane", "→", &[]),
     ("The Pomodoro pane", "h", &[]),
     ("The Pomodoro pane", "l", &[]),
-    ("The music pane", "[", &[]),
-    ("The music pane", "]", &[]),
-    ("The music pane", "←", &[]),
-    ("The music pane", "→", &[]),
-    ("The music pane", "Space", &[]),
-    ("The music pane", "r", &[]),
-    ("The music pane", "s", &[]),
-    ("The music pane", "+", &[]),
-    ("The music pane", "-", &[]),
-    ("The music pane", "l", &[]),
-    ("The music pane", "Enter", &[]),
+    ("The Music view", "↑", &["↓"]),
+    ("The Music view", "↓", &[]),
+    ("The Music view", "j", &[]),
+    ("The Music view", "k", &["j"]),
+    ("The Music view", "Enter", &[]),
+    ("The Music view", "[", &[]),
+    ("The Music view", "]", &[]),
+    ("The Music view", "Space", &[]),
+    ("The Music view", "r", &[]),
+    ("The Music view", "s", &[]),
+    ("The Music view", "+", &[]),
+    ("The Music view", "-", &[]),
+    ("The Music view", "←", &[]),
+    ("The Music view", "→", &[]),
+    ("The Music view", "h", &[]),
+    ("The Music view", "l", &[]),
     ("A note or scene beside", "↑", &["↓"]),
     ("A note or scene beside", "↓", &[]),
     ("A note or scene beside", "Enter", &[]),
@@ -2732,7 +2772,10 @@ fn desk_for(section: &str) -> (Desk, std::sync::mpsc::Receiver<music::Cmd>) {
             d.typed("the");
         }
         "The Pomodoro pane" => focus_on(&mut d, Focus::Clearing),
-        "The music pane" => focus_on(&mut d, Focus::Music),
+        "The Music view" => {
+            focus_on(&mut d, Focus::Clearing);
+            d.app.pane_mode = scene::Mode::Music;
+        }
         "A note or scene beside" => {
             d.key(KeyCode::Tab);
             d.key(KeyCode::Right);

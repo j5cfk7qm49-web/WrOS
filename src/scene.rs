@@ -508,32 +508,40 @@ mod tests {
 
 // ── other things the pane can show ───────────────────────────────────
 
-/// What the small pane under the tree is displaying: the Pomodoro timer or
-/// the music Visualizer. Left/Right switches between them.
+/// What the small pane under the tree is displaying: the Pomodoro timer, the music
+/// Visualizer, or the music itself. Left/Right goes round them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
     Pomodoro,
     Visualizer,
+    /// What is playing, and the music's source and sign-in.
+    Music,
 }
 
 impl Mode {
     pub fn next(self) -> Mode {
         match self {
             Mode::Pomodoro => Mode::Visualizer,
-            Mode::Visualizer => Mode::Pomodoro,
+            Mode::Visualizer => Mode::Music,
+            Mode::Music => Mode::Pomodoro,
         }
     }
     pub fn prev(self) -> Mode {
-        self.next()
+        match self {
+            Mode::Pomodoro => Mode::Music,
+            Mode::Visualizer => Mode::Pomodoro,
+            Mode::Music => Mode::Visualizer,
+        }
     }
 
-    pub const ALL: [Mode; 2] = [Mode::Pomodoro, Mode::Visualizer];
+    pub const ALL: [Mode; 3] = [Mode::Pomodoro, Mode::Visualizer, Mode::Music];
 
     /// The name the switcher on the pane's bottom edge gives this view.
     pub fn name(self) -> &'static str {
         match self {
             Mode::Pomodoro => "pomodoro",
             Mode::Visualizer => "visualizer",
+            Mode::Music => "music",
         }
     }
 }
@@ -543,11 +551,15 @@ mod mode_tests {
     use super::*;
 
     #[test]
-    fn the_two_views_toggle_both_ways() {
+    fn the_three_views_go_round_both_ways() {
         let m = Mode::Pomodoro;
         assert_eq!(m.next(), Mode::Visualizer);
-        assert_eq!(m.next().next(), m);
-        assert_eq!(m.prev(), Mode::Visualizer);
-        assert_eq!(Mode::Visualizer.prev(), Mode::Pomodoro);
+        assert_eq!(m.next().next(), Mode::Music);
+        assert_eq!(m.next().next().next(), m);
+        assert_eq!(m.prev(), Mode::Music);
+        assert_eq!(Mode::Music.prev(), Mode::Visualizer);
+        for mode in Mode::ALL {
+            assert_eq!(mode.next().prev(), mode);
+        }
     }
 }

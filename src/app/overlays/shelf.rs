@@ -401,10 +401,7 @@ impl App {
         let project = Project::load(&root).map_err(cant)?;
         let setup = Setup {
             // Inert: the music already playing comes across instead.
-            music: music::Config {
-                enabled: false,
-                ..music::Config::default()
-            },
+            music: music::Config::default(),
             theme: self.theme.clone(),
             settings: Settings {
                 spellcheck: self.spell_on,
@@ -431,7 +428,7 @@ impl App {
         std::mem::swap(&mut next.pomo, &mut self.pomo);
         next.pane_mode = self.pane_mode;
         next.scene_visible = self.scene_visible;
-        next.music_visible = self.music_visible;
+        next.wros_music = self.wros_music;
         next.super_keys = self.super_keys;
         next.screen = self.screen;
         next.frame = self.frame;

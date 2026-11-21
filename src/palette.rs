@@ -44,7 +44,6 @@ pub enum Action {
     Compile,
     Themes,
     Theme(String),
-    MusicToggle,
     MusicPlayer,
     MusicSource,
     PlayPause,
@@ -240,8 +239,7 @@ impl Action {
     pub fn is_setting_toggle(&self) -> bool {
         matches!(
             self,
-            Action::MusicToggle
-                | Action::SpellingLanguage
+            Action::SpellingLanguage
                 | Action::Spellcheck
                 | Action::Icons
                 | Action::LineWidth
@@ -458,15 +456,6 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
         Entry::new("Update project map", "", Action::ProjectMap),
         Entry::new("Compile manuscript (Markdown)", "", Action::Compile),
         Entry::new("Themes", "F9", Action::Themes),
-        Entry::new(
-            if app.music.enabled {
-                "Turn music off"
-            } else {
-                "Turn music on"
-            },
-            "",
-            Action::MusicToggle,
-        ),
     ];
     if app.selection_in_trash() {
         v.insert(
@@ -506,15 +495,13 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
         e.detail = crate::books::pretty(&root);
         v.push(e);
     }
-    if app.music.enabled {
-        v.extend([
-            Entry::new("Music player", "F7", Action::MusicPlayer),
-            Entry::new("Music source", "", Action::MusicSource),
-            Entry::new("Play / pause", "F5", Action::PlayPause),
-            Entry::new("Next track", "F6", Action::NextTrack),
-            Entry::new("Previous track", "F4", Action::PrevTrack),
-        ]);
-    }
+    v.extend([
+        Entry::new("Music player", "F7", Action::MusicPlayer),
+        Entry::new("Music source", "", Action::MusicSource),
+        Entry::new("Play / pause", "F5", Action::PlayPause),
+        Entry::new("Next track", "F6", Action::NextTrack),
+        Entry::new("Previous track", "F4", Action::PrevTrack),
+    ]);
     v.extend([
         Entry::new("Start or pause the timer", "F2", Action::Timer),
         Entry::new("Reset the timer", "F3", Action::TimerReset),
@@ -725,7 +712,7 @@ mod tests {
     #[test]
     fn word_starts_beat_letters_buried_in_the_middle() {
         let all = vec![
-            e("Turn music on", Action::MusicToggle),
+            e("Music source", Action::MusicSource),
             e("New chapter", Action::NewChapter),
             e("Scene history", Action::History),
         ];

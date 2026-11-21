@@ -89,20 +89,22 @@ Click to place the cursor, drag to select, and click or right-click an underline
 |---|---|
 | `Enter` | start or pause; `Space` too |
 | `r` | reset |
-| `←` `→` | Pomodoro or Visualizer; `h` `l` too |
+| `←` `→` | Pomodoro, Visualizer or Music; `h` `l` too |
 
-## The music pane
+## The Music view
 
 | Key | Does |
 |---|---|
+| `↑` `↓` | choose a row; `j` `k` too |
+| `Enter` | open the player, change the source, or sign in or out |
 | `[` `]` | previous and next track |
-| `←` `→` | ten seconds back and forward |
 | `Space` | play or pause |
 | `r` | repeat |
 | `s` | shuffle |
 | `+` `-` | volume |
-| `l` | like |
-| `Enter` | the player |
+| `←` `→` | Pomodoro or Visualizer; `h` `l` too |
+
+The laptop's own play/pause, next and previous keys work anywhere, the Music view on screen or not.
 
 ## A note or scene beside
 

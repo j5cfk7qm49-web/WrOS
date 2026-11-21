@@ -71,7 +71,11 @@ fn music_test_home(name: &str) -> bool {
 fn music_page(desk: &mut Desk) {
     desk.app.open_settings();
     desk.draw();
-    desk.choose("Look and keyboard");
+    desk.choose("Music");
+    assert_eq!(
+        desk.app.deck.shell.nav.current(),
+        Route::Category(Category::Music)
+    );
     desk.choose("Music");
     assert_eq!(desk.app.deck.shell.nav.current(), Route::MusicPage);
 }
@@ -97,43 +101,41 @@ fn wait_music_setup(desk: &mut Desk) {
 }
 
 #[test]
-#[cfg(target_os = "linux")]
-fn spotify_is_signed_in_from_the_music_page() {
-    if !music_test_home("spotify_is_signed_in_from_the_music_page") {
+fn spotify_is_not_available_on_wros_yet() {
+    if !music_test_home("spotify_is_not_available_on_wros_yet") {
         return;
     }
-    let cfg = music::Config {
-        source: music::Source::Spotify,
-        ..music::Config::default()
-    };
-    let mut desk = music_server_desk("spotify-signin-rows", cfg);
+    let mut desk = Desk::open(book("shell-spotify-wros", true), 100, 30);
+    desk.app.wros_music = true;
+    let before = desk.app.music.source;
+    desk.app.run_action(palette::Action::MusicSource);
+    let spotify = music::Source::ALL
+        .iter()
+        .position(|s| *s == music::Source::Spotify)
+        .unwrap();
+    desk.app.overlay = Overlay::Sources { sel: spotify };
     desk.draw();
     assert!(
-        desk.shows("Sign in to Spotify…"),
+        desk.shows("not available yet"),
         "{}",
         desk.rows().join("\n")
     );
-    assert!(desk.shows_wrapped("Needs Spotify Premium"));
+    desk.key(KeyCode::Enter);
+    assert_eq!(
+        desk.app.overlay,
+        Overlay::Sources { sel: spotify },
+        "the picker stays open"
+    );
+    assert_eq!(desk.app.music.source, before, "the source is unchanged");
+    assert!(desk.app.msg.contains("isn't available on WrOS yet"));
 
-    // A login handed over from the phone, in librespot's format.
-    let login = music::spotify_signin::credentials_path();
-    std::fs::create_dir_all(login.parent().unwrap()).unwrap();
-    std::fs::write(
-        &login,
-        r#"{"username":"reader","auth_type":1,"auth_data":"QUJD"}"#,
-    )
-    .unwrap();
-    desk.draw();
-    assert!(
-        desk.shows("Signed in to Spotify as reader."),
-        "{}",
-        desk.rows().join("\n")
-    );
-    assert!(desk.shows("Sign out of Spotify"));
-    desk.choose("Sign out of Spotify");
-    assert!(!login.exists(), "signing out removes the login");
-    desk.draw();
-    assert!(desk.shows("Sign in to Spotify…"));
+    // Settings' Source row steps over it too.
+    desk.key(KeyCode::Esc);
+    music_page(&mut desk);
+    for _ in 0..music::Source::ALL.len() {
+        desk.choose("Source · ");
+        assert_ne!(desk.app.music.source, music::Source::Spotify);
+    }
 }
 
 #[test]
@@ -149,7 +151,6 @@ fn music_settings_show_state_source_and_setup_rows() {
     assert_eq!(
         crate::app::shell::page_labels(&desk.app, Route::MusicPage),
         [
-            "Music · off",
             "Source · Music files",
             "Plays music in ~/Music and on USB sticks. Found 1 songs in 1 folders.",
             "Open the music player",
@@ -161,13 +162,7 @@ fn music_settings_show_state_source_and_setup_rows() {
     close_settings(&mut desk);
     music_page(&mut desk);
     assert!(desk.shows("Found 2 songs in 1 folders."));
-    desk.choose("Music · off");
-    assert!(desk.shows("Music · on"));
-    assert!(music::Config::load().enabled);
-    desk.choose("Music · on");
-    assert!(desk.shows("Music · off"));
-    assert!(!music::Config::load().enabled);
-    desk.choose("Music · off");
+    assert!(!desk.shows("Music · "), "music has no on/off switch");
     desk.choose("Open the music player");
     assert!(matches!(desk.app.overlay, Overlay::Player { .. }));
 }
@@ -194,7 +189,10 @@ fn music_settings_cycle_and_save_every_source() {
         assert_eq!(cfg.source, expected);
         assert_eq!(desk.app.music.source, expected);
         assert!(desk.shows(&format!("Source · {}", expected.label())));
-        assert!(!cfg.enabled);
+        assert!(
+            !desk.app.music.is_awake(),
+            "stepping through sources starts none"
+        );
         assert_eq!(desk.app.overlay, Overlay::Deck(Page::Settings));
     }
     assert!(desk.shows("Found 1 songs in 1 folders."));
@@ -202,7 +200,10 @@ fn music_settings_cycle_and_save_every_source() {
     desk.app.run_action(palette::Action::MusicSource);
     assert_eq!(desk.app.overlay, Overlay::Sources { sel: start });
     desk.key(KeyCode::Enter);
-    assert!(music::Config::load().enabled);
+    assert!(
+        desk.app.music.is_awake(),
+        "choosing a source is asking for music"
+    );
     assert_eq!(desk.app.overlay, Overlay::None);
 }
 
@@ -302,7 +303,7 @@ fn plex_setup_saves_server_and_token_before_checking_the_library() {
     assert!(desk.shows("Checking the music library…"));
     let cfg = music::Config::load();
     assert_eq!(cfg.source, music::Source::Plex);
-    assert!(cfg.enabled && desk.app.music.enabled);
+    assert!(desk.app.music.is_awake());
     assert_eq!(cfg.server, server);
     assert_eq!(cfg.api_key, token);
     assert!(cfg.user_id.is_empty());
@@ -4026,4 +4027,64 @@ fn settings_rows_take_the_mouse() {
     d.app.on_click(1, 20);
     assert_eq!(d.app.overlay, Overlay::None);
     assert_eq!(d.app.sel, sel);
+}
+
+#[test]
+fn music_is_the_last_settings_group() {
+    let menu = crate::app::shell::menu();
+    let children = |route: Route| {
+        menu.iter()
+            .find(|(r, _)| *r == route)
+            .map(|(_, c)| c.to_vec())
+            .unwrap()
+    };
+    let groups = children(Route::Settings);
+    assert_eq!(groups.last(), Some(&Route::Category(Category::Music)));
+    assert_eq!(groups.len(), 6);
+    assert_eq!(
+        children(Route::Category(Category::Interface)),
+        [Route::LookPage, Route::KeyboardPage]
+    );
+    assert_eq!(
+        children(Route::Category(Category::Music)),
+        [Route::MusicPage]
+    );
+    // Power stays third under System: the lock VM test reaches it by position.
+    assert_eq!(
+        children(Route::Category(Category::System))[2],
+        Route::Panel(crate::app::shell::Panel::Power)
+    );
+}
+
+#[test]
+fn signing_out_from_the_music_view_forgets_the_server() {
+    if !music_test_home("signing_out_from_the_music_view_forgets_the_server") {
+        return;
+    }
+    let cfg = music::Config {
+        source: music::Source::Jellyfin,
+        server: "http://jellyfin.local:8096".into(),
+        api_key: "token".into(),
+        user_id: "reader".into(),
+        ..music::Config::default()
+    };
+    cfg.save().unwrap();
+    let mut desk = Desk::open(book("music-view-signout", true), 140, 42);
+    desk.app.music = music::Music::dormant(cfg);
+    desk.app.pane_mode = crate::scene::Mode::Music;
+    while desk.app.focus != Focus::Clearing {
+        desk.key(KeyCode::Tab);
+    }
+    desk.draw();
+    assert!(
+        desk.shows("Sign out of Jellyfin"),
+        "{}",
+        desk.rows().join("\n")
+    );
+    desk.keys(&[KeyCode::Down, KeyCode::Down, KeyCode::Enter]);
+    let cfg = music::Config::load();
+    assert_eq!(cfg.source, music::Source::Jellyfin);
+    assert!(cfg.server.is_empty() && cfg.api_key.is_empty() && cfg.user_id.is_empty());
+    desk.draw();
+    assert!(desk.shows("Sign in to Jellyfin…"));
 }

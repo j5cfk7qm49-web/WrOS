@@ -125,6 +125,11 @@ impl App {
         match key {
             Key::Enter | Key::Char(' ') => {
                 let chosen = music::Source::ALL[*sel];
+                if !chosen.available(self.wros_music) {
+                    // The picker stays open, so another source is one key away.
+                    self.msg = "Spotify isn't available on WrOS yet".into();
+                    return;
+                }
                 // Choosing a source is asking for music.
                 self.select_music_source(chosen, true);
                 self.overlay = Overlay::None;
@@ -296,7 +301,10 @@ pub(super) fn draw_sources(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         .enumerate()
         .map(|(i, src)| {
             let on = i == *sel;
-            let note = if *src == music::Source::Files {
+            let open = src.available(app.wros_music);
+            let note = if !open {
+                "not available yet"
+            } else if *src == music::Source::Files {
                 "~/Music and USB sticks"
             } else if src.plays_audio() {
                 "your server · plays here"
@@ -310,7 +318,11 @@ pub(super) fn draw_sources(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                 ),
                 Span::styled(
                     format!("{:<15}", src.label()),
-                    Style::default().fg(if on { t.accent } else { t.text }),
+                    Style::default().fg(match (on, open) {
+                        (_, false) => t.dim,
+                        (true, true) => t.accent,
+                        (false, true) => t.text,
+                    }),
                 ),
                 Span::styled(note, Style::default().fg(t.dim)),
             ])

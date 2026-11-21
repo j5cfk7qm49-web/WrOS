@@ -13,6 +13,6 @@ The pane under the outline is a timer, drawn as a small world that changes with 
 
 ## The other view
 
-`←` and `→` (or `h` and `l`) in the pane switch between the **Pomodoro** and the **Visualizer**; the pane's bottom edge shows which one you're on.
+`←` and `→` (or `h` and `l`) in the pane go round the **Pomodoro**, the **Visualizer** and **Music** (see *Music*); the pane's bottom edge shows which one you're on.
 
 A sprint (see *Sprints and targets*) runs on the same timer.

@@ -37,9 +37,8 @@ pub fn authenticate(host: &str, port: u16) -> Result<()> {
         .as_str()
         .ok_or_else(|| anyhow!("no accessToken in response: {v}"))?;
 
-    // Pairing is asking for music, so it switches music on.
+    // Pairing is asking for music.
     Config {
-        enabled: true,
         source: Source::YouTubeMusic,
         host: host.to_string(),
         port,
@@ -629,7 +628,6 @@ pub fn setup_for(source: Source) -> Result<()> {
         Source::Files => {
             let mut cfg = Config::load();
             cfg.source = Source::Files;
-            cfg.enabled = true;
             cfg.save()?;
             println!("Music files is on. Plays music in ~/Music and on USB sticks.");
             Ok(())
@@ -646,7 +644,6 @@ pub fn setup_for(source: Source) -> Result<()> {
         Source::Spotify => {
             let mut cfg = Config::load();
             cfg.source = Source::Spotify;
-            cfg.enabled = true;
             cfg.save()?;
             println!("Spotify needs no setup — WrOS drives the desktop app directly.");
             println!();
@@ -686,7 +683,6 @@ fn setup_jellyfin() -> Result<()> {
     let (token, uid) = crate::library::Jellyfin::login(&server, &user, &pass)?;
 
     cfg.source = Source::Jellyfin;
-    cfg.enabled = true;
     cfg.server = server;
     cfg.api_key = token;
     cfg.user_id = uid;
@@ -727,7 +723,6 @@ fn setup_plex() -> Result<()> {
     let token = prompt("X-Plex-Token", "");
 
     cfg.source = Source::Plex;
-    cfg.enabled = true;
     cfg.server = server;
     cfg.api_key = token;
     cfg.user_id = String::new();

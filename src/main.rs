@@ -17,6 +17,7 @@ mod lid;
 mod live_installer;
 mod motion;
 mod music;
+mod music_view;
 mod palette;
 mod scene;
 mod scenery;
@@ -141,9 +142,12 @@ fn main() -> Result<()> {
     }
 
     if first.as_deref() == Some("music-setup") {
+        let wros = music::on_wros();
+        music::migrate_off_spotify(&grimoire_core::paths::home(), wros);
         return match args.next().as_deref() {
             None => music::setup_for(music::Config::load().source),
             Some(name) => match music::Source::parse(name) {
+                Some(s) if !s.available(wros) => anyhow::bail!("{}", music::SPOTIFY_UNAVAILABLE),
                 Some(s) => music::setup_for(s),
                 None => anyhow::bail!(
                     "unknown source '{name}'\n\n  files · youtube-music · spotify · jellyfin · plex"
@@ -1483,7 +1487,6 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
         Focus::Codex => app.on_codex_key(key),
         Focus::Beside => app.on_beside_key(key),
         Focus::Clearing => app.on_clearing_key(key),
-        Focus::Music => app.on_music_key(key),
     }
 
     if std::mem::take(&mut app.quit) && quit_or_arm(app, confirm_quit) {

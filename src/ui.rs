@@ -7,7 +7,6 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Padding, Paragraph};
 
 use crate::app::{App, Focus, Overlay};
-use crate::music::{SETTINGS_PATH, State as MusicState};
 use crate::scene::{self, Ink, Mode, Phase};
 use crate::theme::Theme;
 use grimoire_core::create::{self, New};
@@ -18,7 +17,6 @@ use grimoire_core::project::{Area, Kind};
 pub const LEFT_W: u16 = (scene::W + 2) as u16;
 
 const SCENE_H: u16 = (scene::H + 2) as u16;
-const MUSIC_H: u16 = 4;
 const MIN_TREE: u16 = 6;
 
 pub fn draw(
@@ -57,7 +55,7 @@ pub fn draw(
     .areas(f.area());
     app.rect_scene = Rect::default();
     app.view_hits.clear();
-    app.rect_music = Rect::default();
+    app.music_row_hits.clear();
 
     let edit_area = if app.focus_mode {
         // Focus mode: the prose alone. No tree, clearing or music, and
@@ -65,7 +63,6 @@ pub fn draw(
         app.rect_tree = Rect::default();
         app.create_hits.clear();
         app.scene_visible = false;
-        app.music_visible = false;
         main
     } else if app.deck.state.current().outline {
         draw_left(f, app, main, &t)
@@ -73,7 +70,6 @@ pub fn draw(
         app.rect_tree = Rect::default();
         app.create_hits.clear();
         app.scene_visible = false;
-        app.music_visible = false;
         if app.focus == Focus::Tree {
             app.focus = app.editor_focus();
         }
@@ -245,7 +241,7 @@ pub(crate) fn paint_rainbow(
     }
 }
 
-/// The left column — tree, clearing, music — and what's left for writing.
+/// The left column — tree and clearing — and what's left for writing.
 fn draw_left(f: &mut Frame, app: &mut App, main: Rect, t: &Theme) -> Rect {
     let [left, edit_area] = Layout::horizontal([
         Constraint::Length(if app.deck.state.current().outline_width == LEFT_W {
@@ -262,48 +258,24 @@ fn draw_left(f: &mut Frame, app: &mut App, main: Rect, t: &Theme) -> Rect {
     ])
     .areas(main);
 
-    // Give up the ornaments before the tree gets unusable. With music switched
-    // off there is no music pane at all, and the tree has that room.
-    let music_h = match (&app.music.state, app.music.enabled) {
-        (_, false) => 0,
-        (MusicState::NoToken, true) => {
-            let lines = wros_shell::notice_lines(SETTINGS_PATH, left.width.saturating_sub(2));
-            MUSIC_H.max(lines.len() as u16 + 3)
-        }
-        _ => MUSIC_H,
+    // Give up the clearing before the tree gets unusable.
+    let (tree_area, scene_area) = if left.height >= SCENE_H + MIN_TREE {
+        let [a, b] =
+            Layout::vertical([Constraint::Min(MIN_TREE), Constraint::Length(SCENE_H)]).areas(left);
+        (a, b)
+    } else {
+        (left, Rect::default())
     };
-    let (tree_area, scene_area, music_area) =
-        if !app.music.enabled && left.height >= SCENE_H + MIN_TREE {
-            let [a, b] = Layout::vertical([Constraint::Min(MIN_TREE), Constraint::Length(SCENE_H)])
-                .areas(left);
-            (a, b, Rect::default())
-        } else if !app.music.enabled {
-            (left, Rect::default(), Rect::default())
-        } else if left.height >= SCENE_H + music_h + MIN_TREE {
-            let [a, b, c] = Layout::vertical([
-                Constraint::Min(MIN_TREE),
-                Constraint::Length(SCENE_H),
-                Constraint::Length(music_h),
-            ])
-            .areas(left);
-            (a, b, c)
-        } else if left.height >= music_h + MIN_TREE {
-            let [a, c] = Layout::vertical([Constraint::Min(MIN_TREE), Constraint::Length(music_h)])
-                .areas(left);
-            (a, Rect::default(), c)
-        } else {
-            (left, Rect::default(), Rect::default())
-        };
 
     app.scene_visible = scene_area.height > 0;
-    app.music_visible = music_area.height > 0;
 
     draw_tree(f, app, tree_area, t);
     if app.scene_visible {
+        // A Music view on screen is music asked for.
+        if app.pane_mode == Mode::Music {
+            app.music.wake();
+        }
         draw_scene(f, app, scene_area, t);
-    }
-    if app.music_visible {
-        draw_music(f, app, music_area, t);
     }
     edit_area
 }
@@ -514,8 +486,12 @@ fn draw_create_keys(f: &mut Frame, app: &mut App, area: Rect, focused: bool, t: 
 }
 
 fn draw_scene(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
-    // The pane's title says which of the two views you're on, so ←/→ is
-    // discoverable without a legend.
+    if app.pane_mode == Mode::Music {
+        draw_music_view(f, app, area, t);
+        return;
+    }
+    // The pane's title says which view you're on, so ←/→ is discoverable without a
+    // legend.
     let (label, grid) = match app.pane_mode {
         Mode::Pomodoro => (
             // Idle, the title has room to say where focus mode is.
@@ -534,6 +510,7 @@ fn draw_scene(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
             ),
         ),
         Mode::Visualizer => crate::viz_view::view(app, t, area.width),
+        Mode::Music => unreachable!("drawn by draw_music_view"),
     };
 
     let focused = app.focus == Focus::Clearing;
@@ -685,21 +662,48 @@ fn view_switch(current: Mode, width: u16) -> Switcher {
     let mut hits = vec![(0, 1, current.prev())];
     let mut spans = vec![("◂".to_string(), Piece::Arrow)];
     let mut x = 1u16;
-    for mode in Mode::ALL {
-        let w = mode.name().chars().count() as u16;
-        // A space before the name, and room left for " ▸".
-        if x + 1 + w + 2 > width {
-            break;
+    // Every name, a space before each, and " ▸".
+    let all: u16 = Mode::ALL
+        .iter()
+        .map(|m| 1 + m.name().chars().count() as u16)
+        .sum::<u16>()
+        + 3;
+    if all > width {
+        // Too narrow for every name: the current one, and a dot for each view
+        // ("◂ music · · ● ▸"), so the others still read as somewhere to go.
+        let name = current.name();
+        let w = name.chars().count() as u16;
+        let dots = 2 * Mode::ALL.len() as u16;
+        if x + 1 + w + dots + 2 <= width {
+            spans.push((" ".into(), Piece::Gap));
+            spans.push((name.into(), Piece::Current));
+            hits.push((x + 1, w, current));
+            x += 1 + w;
+            for mode in Mode::ALL {
+                spans.push((" ".into(), Piece::Gap));
+                let (dot, kind) = if mode == current {
+                    ("●", Piece::Current)
+                } else {
+                    ("·", Piece::Other)
+                };
+                spans.push((dot.into(), kind));
+                hits.push((x + 1, 1, mode));
+                x += 2;
+            }
         }
-        spans.push((" ".into(), Piece::Gap));
-        let kind = if mode == current {
-            Piece::Current
-        } else {
-            Piece::Other
-        };
-        spans.push((mode.name().into(), kind));
-        hits.push((x + 1, w, mode));
-        x += 1 + w;
+    } else {
+        for mode in Mode::ALL {
+            let w = mode.name().chars().count() as u16;
+            spans.push((" ".into(), Piece::Gap));
+            let kind = if mode == current {
+                Piece::Current
+            } else {
+                Piece::Other
+            };
+            spans.push((mode.name().into(), kind));
+            hits.push((x + 1, w, mode));
+            x += 1 + w;
+        }
     }
     if x + 2 <= width {
         spans.push((" ".into(), Piece::Gap));
@@ -707,8 +711,8 @@ fn view_switch(current: Mode, width: u16) -> Switcher {
         hits.push((x + 1, 1, current.next()));
         x += 2;
     }
-    // Two names leave room to spare: centre the switcher on the edge, so it
-    // reads as a control rather than a caption.
+    // Room to spare: centre the switcher on the edge, so it reads as a control
+    // rather than a caption.
     let pad = width.saturating_sub(x) / 2;
     if pad > 0 {
         spans.insert(0, ("─".repeat(pad as usize), Piece::Rule));
@@ -774,101 +778,27 @@ pub(crate) fn bar_colour(t: &Theme, h: u8) -> ratatui::style::Color {
     t.bloom
 }
 
-fn draw_music(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
-    let title = format!("♪ {} · F7", app.music.source.label());
-    let focused = app.focus == Focus::Music;
-    let mut block = pane_block(&title, focused, t);
-    if focused {
-        // Focused, the pane's own edge says what the keys do.
-        block = block.title_bottom(Line::from(Span::styled(
-            " [ prev · space ⏯ · ] next ",
-            Style::default().fg(t.accent),
-        )));
-    }
-    let inner = block.inner(area);
-    app.rect_music = inner;
+/// The clearing's Music view (crate::music_view), with the switcher on its edge.
+fn draw_music_view(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
+    let focused = app.focus == Focus::Clearing;
+    let inner = pane_block("", focused, t).inner(area);
+    let (title, lines, hits) = crate::music_view::view(app, t, inner.width, inner.height, focused);
+    let block = pane_block(&title, focused, t);
+    app.rect_scene = inner;
     f.render_widget(block, area);
-    let w = inner.width as usize;
-
-    let lines: Vec<Line> = match &app.music.state {
-        MusicState::NoToken => {
-            let mut lines = vec![Line::from(Span::styled(
-                "not set up",
-                Style::default().fg(t.dim),
-            ))];
-            lines.extend(
-                wros_shell::notice_lines(SETTINGS_PATH, inner.width)
-                    .into_iter()
-                    .map(|line| Line::from(Span::styled(line, Style::default().fg(t.border)))),
-            );
-            lines
-        }
-        MusicState::Offline => vec![
-            Line::from(Span::styled(
-                format!("{} not running", app.music.source.label()),
-                Style::default().fg(t.dim),
-            )),
-            Line::from(Span::styled(
-                "Esc › Settings to switch source",
-                Style::default().fg(t.border),
-            )),
-        ],
-        MusicState::Idle => vec![
-            Line::from(Span::styled("connected", Style::default().fg(t.dim))),
-            Line::from(Span::styled(
-                "nothing playing",
-                Style::default().fg(t.border),
-            )),
-        ],
-        MusicState::Playing(tr) => {
-            let glyph = if tr.playing { "▶" } else { "❚❚" };
-            let head = format!("{glyph} {}", tr.title);
-            let frac = if tr.duration > 0.0 {
-                (tr.progress / tr.duration).clamp(0.0, 1.0)
-            } else {
-                0.0
-            };
-            let badges = app.music.modes.badges();
-            let extra = if badges.is_empty() {
-                0
-            } else {
-                badges.chars().count() + 1
-            };
-            let barw = w.saturating_sub(7 + extra).max(4);
-            let filled = (frac * barw as f64).round() as usize;
-            let mins = |s: f64| format!("{:.0}:{:02.0}", (s / 60.0).floor(), s % 60.0);
-
-            vec![
-                Line::from(Span::styled(
-                    truncate(&head, w),
-                    Style::default().fg(if tr.playing { t.accent } else { t.dim }),
-                )),
-                // Different weights, not just different colours, so the bar
-                // still reads on a monochrome terminal.
-                Line::from(vec![
-                    Span::styled("━".repeat(filled.min(barw)), Style::default().fg(t.accent)),
-                    Span::styled(
-                        "─".repeat(barw.saturating_sub(filled)),
-                        Style::default().fg(t.border),
-                    ),
-                    Span::styled(
-                        format!(" {}", mins(tr.progress)),
-                        Style::default().fg(t.dim),
-                    ),
-                    Span::styled(
-                        if badges.is_empty() {
-                            String::new()
-                        } else {
-                            format!(" {badges}")
-                        },
-                        Style::default().fg(t.accent),
-                    ),
-                ]),
-            ]
-        }
-    };
-
+    for (line, row) in hits {
+        app.music_row_hits.push((
+            Rect {
+                x: inner.x,
+                y: inner.y + line,
+                width: inner.width,
+                height: 1,
+            },
+            row,
+        ));
+    }
     f.render_widget(Paragraph::new(lines), inner);
+    draw_view_switch(f, app, area, focused, t);
 }
 
 /// A word a check marked: underlined in `colour`. Where the terminal has no
@@ -1574,14 +1504,15 @@ mod tests {
     /// like six words had gone missing.
 
     #[test]
-    fn the_view_switcher_names_both_views_inside_the_scene_pane() {
-        let inner = LEFT_W - 2;
-        let (hits, spans) = view_switch(Mode::Visualizer, inner);
+    fn a_wide_switcher_names_all_three_views() {
+        let (hits, spans) = view_switch(Mode::Visualizer, 40);
         let text: String = spans.iter().map(|(s, _)| s.as_str()).collect();
-        assert_eq!(text.trim_start_matches('─'), "◂ pomodoro visualizer ▸");
-        assert!(text.chars().count() as u16 <= inner);
+        assert_eq!(
+            text.trim_start_matches('─'),
+            "◂ pomodoro visualizer music ▸"
+        );
+        assert!(text.chars().count() as u16 <= 40);
         let pad = text.chars().take_while(|c| *c == '─').count() as u16;
-        assert!(pad >= 2, "centred on the edge: {text:?}");
         let lit: Vec<&str> = spans
             .iter()
             .filter(|(_, k)| *k == Piece::Current)
@@ -1597,14 +1528,34 @@ mod tests {
         assert_eq!(at(pad), Some(Mode::Pomodoro), "◂");
         assert_eq!(at(pad + 2), Some(Mode::Pomodoro), "pomodoro");
         assert_eq!(at(pad + 11), Some(Mode::Visualizer), "visualizer");
-        assert_eq!(at(pad + 22), Some(Mode::Pomodoro), "▸");
+        assert_eq!(at(pad + 22), Some(Mode::Music), "music");
+        assert_eq!(at(pad + 28), Some(Mode::Music), "▸");
         assert_eq!(at(pad + 1), None);
     }
 
     #[test]
-    fn a_narrow_switcher_drops_names_but_keeps_its_arrows() {
-        let (_, spans) = view_switch(Mode::Pomodoro, 14);
+    fn inside_the_clearing_the_switcher_shows_the_view_and_a_dot_for_each() {
+        let inner = LEFT_W - 2;
+        let (hits, spans) = view_switch(Mode::Music, inner);
         let text: String = spans.iter().map(|(s, _)| s.as_str()).collect();
-        assert_eq!(text.trim_start_matches('─'), "◂ pomodoro ▸");
+        assert_eq!(text.trim_start_matches('─'), "◂ music · · ● ▸");
+        assert!(text.chars().count() as u16 <= inner);
+        let pad = text.chars().take_while(|c| *c == '─').count() as u16;
+        let at = |x: u16| {
+            hits.iter()
+                .find(|(o, w, _)| x >= *o && x < o + w)
+                .map(|h| h.2)
+        };
+        assert_eq!(at(pad), Some(Mode::Visualizer), "◂");
+        assert_eq!(at(pad + 8), Some(Mode::Pomodoro), "first dot");
+        assert_eq!(at(pad + 12), Some(Mode::Music), "lit dot");
+        assert_eq!(at(pad + 14), Some(Mode::Pomodoro), "▸");
+    }
+
+    #[test]
+    fn a_very_narrow_switcher_keeps_its_arrows() {
+        let (_, spans) = view_switch(Mode::Pomodoro, 8);
+        let text: String = spans.iter().map(|(s, _)| s.as_str()).collect();
+        assert_eq!(text.trim_start_matches('─'), "◂ ▸");
     }
 }

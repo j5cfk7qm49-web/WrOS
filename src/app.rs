@@ -101,7 +101,6 @@ pub enum Focus {
     /// Another scene, read-only, beside the one being written.
     Beside,
     Clearing,
-    Music,
 }
 
 /// Something done to the book's files from the tree, kept so it can be taken
@@ -173,6 +172,9 @@ pub struct Setup {
 impl Setup {
     /// What a real launch uses: this user's own config, background work on.
     pub fn from_config() -> Setup {
+        // rc20's Spotify player leaves a reusable login behind; WrOS forgets it before the
+        // music settings are read.
+        music::migrate_off_spotify(&grimoire_core::paths::home(), music::on_wros());
         Setup {
             music: music::Config::load(),
             theme: theme::load(),
@@ -235,12 +237,16 @@ pub struct App {
     /// Set during draw: short terminals drop these panes, and Tab must not
     /// focus something that isn't on screen.
     pub scene_visible: bool,
-    pub music_visible: bool,
+    /// On WrOS, where Spotify can't be chosen as a source yet.
+    pub wros_music: bool,
     /// Inner rects recorded during draw, so clicks can be routed to a pane.
     pub rect_tree: Rect,
     pub rect_editor: Rect,
     pub rect_scene: Rect,
-    pub rect_music: Rect,
+    /// The Music view's rows as drawn (row index), so a click can choose one.
+    pub music_row_hits: Vec<(Rect, usize)>,
+    /// The Music view's selected row (crate::music_view::rows).
+    pub music_row: usize,
     /// Where the create keys on the tree's bottom edge were drawn, so a
     /// click on one does what pressing it would.
     pub create_hits: Vec<(Rect, New)>,
@@ -1010,17 +1016,20 @@ impl App {
             edit_height: 20,
             pomo: Pomodoro::default(),
             pane_mode: Mode::Pomodoro,
-            music: Music::spawn(setup.music),
+            music: Music::dormant(setup.music),
+            // A real launch asks whether this is WrOS; a test (background off) says no
+            // unless it sets the field itself.
+            wros_music: setup.background && music::on_wros(),
             viz: Visualizer::new(),
             player_fetched: None,
             frame: 0,
             super_keys: false,
             scene_visible: true,
-            music_visible: true,
             rect_tree: Rect::default(),
             rect_editor: Rect::default(),
             rect_scene: Rect::default(),
-            rect_music: Rect::default(),
+            music_row_hits: Vec::new(),
+            music_row: 0,
             create_hits: Vec::new(),
             view_hits: Vec::new(),
             alt_menus: false,
@@ -1196,10 +1205,6 @@ impl App {
     /// Function keys drive the timer and the music, from either pane, so they
     /// never collide with typing.
     pub fn on_function_key(&mut self, n: u8) {
-        if matches!(n, 4..=7) && !self.music.enabled {
-            self.msg = "music is off — turn it on from the menu (Esc › Settings)".into();
-            return;
-        }
         match n {
             2 => self.pomo.toggle(),
             3 => {
@@ -2406,7 +2411,6 @@ impl App {
                     self.msg = format!("theme: {name}");
                 }
             }
-            Action::MusicToggle => self.set_music(!self.music.enabled),
             Action::MusicPlayer => self.on_function_key(7),
             Action::MusicSource => {
                 let cur = self.music.source;
@@ -5152,13 +5156,12 @@ impl App {
             Focus::Codex => !self.focus_mode && self.codex.is_some() && self.side_room,
             Focus::Beside => !self.focus_mode && self.beside.is_some() && self.side_room,
             Focus::Clearing => self.scene_visible,
-            Focus::Music => self.music_visible,
         }
     }
 
     /// Tab through every pane that is actually on screen.
     pub fn cycle_focus(&mut self, forward: bool) {
-        const ORDER: [Focus; 8] = [
+        const ORDER: [Focus; 7] = [
             Focus::Tree,
             Focus::Editor,
             Focus::Secondary,
@@ -5166,7 +5169,6 @@ impl App {
             Focus::Codex,
             Focus::Beside,
             Focus::Clearing,
-            Focus::Music,
         ];
         let cur = ORDER.iter().position(|&f| f == self.focus).unwrap_or(0);
         for step in 1..=ORDER.len() {
@@ -5193,6 +5195,10 @@ impl App {
     }
 
     pub fn on_clearing_key(&mut self, key: Key) {
+        if self.pane_mode == Mode::Music {
+            self.on_music_view_key(key);
+            return;
+        }
         match key {
             Key::Right | Key::Char('l') => self.pane_mode = self.pane_mode.next(),
             Key::Left | Key::Char('h') => self.pane_mode = self.pane_mode.prev(),
@@ -5205,13 +5211,55 @@ impl App {
         }
     }
 
-    /// The music pane answers every one of the player's (F7) keys.
-    pub fn on_music_key(&mut self, key: Key) {
-        if key == Key::Enter {
-            self.open_player();
-        } else {
-            self.transport_key(key);
+    /// The Music view: ←/→ go round the views as everywhere in the clearing; ↑/↓ and Enter
+    /// choose a row; the player's own keys (space, `[` `]`, `+` `-`, …) work as in F7.
+    pub fn on_music_view_key(&mut self, key: Key) {
+        let count = crate::music_view::rows(self).len();
+        match key {
+            Key::Right | Key::Char('l') => self.pane_mode = self.pane_mode.next(),
+            Key::Left | Key::Char('h') => self.pane_mode = self.pane_mode.prev(),
+            Key::Down | Key::Char('j') => self.music_row = (self.music_row + 1).min(count - 1),
+            Key::Up | Key::Char('k') => self.music_row = self.music_row.saturating_sub(1),
+            Key::Enter => self.choose_music_row(),
+            _ => {
+                self.transport_key(key);
+            }
         }
+    }
+
+    /// Do what the Music view's selected row says.
+    pub fn choose_music_row(&mut self) {
+        use crate::music_view::MusicRow;
+        let rows = crate::music_view::rows(self);
+        let Some(&(row, _)) = rows.get(self.music_row.min(rows.len() - 1)) else {
+            return;
+        };
+        match row {
+            MusicRow::Player => self.open_player(),
+            MusicRow::Source => self.run_action(Action::MusicSource),
+            MusicRow::SignIn => {
+                // The server form lives under Settings › Music, so Esc goes back there.
+                self.open_settings_page(shell::Route::MusicPage);
+                self.open_route(shell::Route::MusicServerForm);
+            }
+            MusicRow::SignOut => self.music_sign_out(),
+        }
+    }
+
+    /// Forget the Jellyfin or Plex server and its token.
+    pub fn music_sign_out(&mut self) {
+        let mut cfg = music::Config::load();
+        cfg.server.clear();
+        cfg.api_key.clear();
+        cfg.user_id.clear();
+        if let Err(e) = cfg.save() {
+            self.msg = format!("couldn't sign out: {e}");
+            return;
+        }
+        let label = cfg.source.label();
+        self.music = Music::spawn(cfg);
+        self.music_row = 0;
+        self.msg = format!("signed out of {label}");
     }
 
     /// The player's own keys, the same on the music pane and in the F7
@@ -5379,13 +5427,15 @@ impl App {
                 self.flush();
             }
             self.focus = Focus::Clearing;
-            self.pomo.toggle();
-        } else if hit(self.rect_music, x, y) {
-            if self.focus.is_editor() {
-                self.flush();
+            if self.pane_mode != Mode::Music {
+                self.pomo.toggle();
+            } else if let Some(&(_, row)) = self.music_row_hits.iter().find(|(r, _)| hit(*r, x, y))
+            {
+                self.music_row = row;
+                self.choose_music_row();
+            } else {
+                self.music.send(music::Cmd::PlayPause);
             }
-            self.focus = Focus::Music;
-            self.music.send(music::Cmd::PlayPause);
         }
     }
 
@@ -5577,7 +5627,6 @@ impl App {
             ("Toggle outline".into(), Action::ToggleOutline),
             (row("Themes…", "(F9)"), Action::Themes),
             ("Music source…".into(), Action::MusicSource),
-            (on_off(self.music.enabled, "music"), Action::MusicToggle),
             (on_off(self.spell_on, "spellcheck"), Action::Spellcheck),
             (
                 format!("Spelling: {}", self.spell_lang.name()),
@@ -6007,39 +6056,23 @@ impl App {
         }
     }
 
-    fn select_music_source(&mut self, source: music::Source, enable: bool) {
+    /// Save `source` and switch to it. Choosing from the picker is asking for music, so it
+    /// starts (`wake`); stepping through sources in Settings starts one only if music was
+    /// already going.
+    fn select_music_source(&mut self, source: music::Source, wake: bool) {
         let mut cfg = music::Config::load();
         cfg.source = source;
-        cfg.enabled |= enable;
         if let Err(e) = cfg.save() {
             self.msg = format!("couldn't save the music source: {e}");
             return;
         }
-        self.music = Music::spawn(cfg);
+        self.music = if wake || self.music.is_awake() {
+            Music::spawn(cfg)
+        } else {
+            Music::dormant(cfg)
+        };
         self.refresh_music_file_counts();
         self.msg = format!("music: {}", source.label());
-    }
-
-    /// Switch music on or off, remember it, and start or stop the poller.
-    pub fn set_music(&mut self, on: bool) {
-        let mut cfg = music::Config::load();
-        cfg.enabled = on;
-        if let Err(e) = cfg.save() {
-            self.msg = format!("couldn't save the music setting: {e}");
-            return;
-        }
-        self.music = Music::spawn(cfg);
-        if !on && self.focus == Focus::Music {
-            self.focus = Focus::Tree;
-        }
-        self.msg = if on {
-            match self.music.state {
-                music::State::NoToken => format!("music on · set up in {}", music::SETTINGS_PATH),
-                _ => format!("music on · {}", self.music.source.label()),
-            }
-        } else {
-            "music off".into()
-        };
     }
 
     pub fn open_theme_picker(&mut self) {

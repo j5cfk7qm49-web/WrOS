@@ -278,9 +278,7 @@ impl App {
                         Action::ReadManuscriptAloud,
                     ));
                 }
-                if self.music.enabled {
-                    rows.push(BarRow::new("Music player…", "F7", Action::MusicPlayer));
-                }
+                rows.push(BarRow::new("Music player…", "F7", Action::MusicPlayer));
                 rows.push(BarRow::new(
                     "Dictionary and thesaurus…",
                     "",
@@ -298,6 +296,7 @@ impl App {
                 (Category::System, "System"),
                 (Category::Accounts, "Backups and accounts"),
                 (Category::Updates, "Updates and recovery"),
+                (Category::Music, "Music"),
             ]
             .into_iter()
             .map(|(group, label)| BarRow::new(label, "›", Action::SettingsGroup(group)))

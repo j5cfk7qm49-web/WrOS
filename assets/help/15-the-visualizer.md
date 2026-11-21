@@ -1,6 +1,6 @@
 # The Visualizer
 
-The Pomodoro's other view (`→` in its pane) is a spectrum analyser for whatever your computer is playing, drawn in your theme's own style: meters, beads, frost, a neon skyline, a rolling wave, a synthwave grid…
+The clearing's second view (`→` from the Pomodoro) is a spectrum analyser for whatever your computer is playing, drawn in your theme's own style: meters, beads, frost, a neon skyline, a rolling wave, a synthwave grid…
 
 It always **names the song** that's playing, in its title or written along the bottom, cut to fit.
 

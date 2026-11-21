@@ -195,7 +195,6 @@ impl App {
     ) -> Result<()> {
         let mut cfg = music::Config::load();
         cfg.source = source;
-        cfg.enabled = true;
         cfg.server = server;
         cfg.api_key = token;
         cfg.user_id = user_id;

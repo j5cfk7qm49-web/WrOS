@@ -35,7 +35,6 @@ fn everything_offered_at(tag: &str, width: u16, height: u16) -> Desk {
     let (root, _, _) = conflicted(tag);
     let mut d = Desk::open(root, width, height);
     d.key(KeyCode::Tab);
-    d.app.music.enabled = true;
     d.app.echo_on = true;
     d.app.deck.quit_offered = true;
     d.app.deck.live_session = true;
@@ -93,7 +92,8 @@ fn the_bar_titles_are_short_and_tools_has_three_side_groups() {
             "Look and keyboard",
             "System",
             "Backups and accounts",
-            "Updates and recovery"
+            "Updates and recovery",
+            "Music"
         ]
     );
 }
@@ -282,7 +282,7 @@ fn nothing_in_ctrl_k_is_missing_from_the_bar() {
                     // Things by name: scenes, notes, themes, books, topics.
                     | A::Open(_) | A::Theme(_) | A::OpenBookAt(_) | A::Beside(_) | A::HelpTopic(_)
                     // Settings rows, reached through the Settings menu.
-                    | A::Settings | A::SystemSettings | A::MusicToggle | A::MusicSource
+                    | A::Settings | A::SystemSettings | A::MusicSource
                     | A::Spellcheck | A::SpellingLanguage | A::Icons | A::LineWidth
                     | A::Typewriter | A::Voices | A::ManuscriptLook | A::AuthorDetails
             )
@@ -1013,6 +1013,7 @@ fn resolves(app: &App, title: Title, segments: &[&str]) -> Result<(), String> {
             Category::System,
             Category::Accounts,
             Category::Updates,
+            Category::Music,
         ]
         .into_iter()
         .find(|c| like(c.label(), first))

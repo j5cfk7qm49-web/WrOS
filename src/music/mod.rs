@@ -13,8 +13,6 @@ mod local;
 mod mpv;
 mod setup;
 mod spotify;
-#[cfg(target_os = "linux")]
-pub mod spotify_signin;
 mod ytm;
 mod ytmusic;
 
@@ -29,7 +27,7 @@ pub(crate) use ytmusic::helper_path as ytm_helper_path;
 
 pub const APP_ID: &str = "grimoiretui";
 pub const DEFAULT_PORT: u16 = 26538;
-pub(crate) const SETTINGS_PATH: &str = "Settings › Look and keyboard › Music";
+pub(crate) const SETTINGS_PATH: &str = "Settings › Music";
 
 /// Where the music comes from: local files, a desktop player, or your server.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -80,6 +78,51 @@ impl Source {
     pub fn plays_audio(self) -> bool {
         matches!(self, Source::Files | Source::Jellyfin | Source::Plex)
     }
+
+    /// Whether this source can be chosen. On WrOS Spotify can't play: Spotify refuses
+    /// unofficial players the keys to its music for newer accounts (librespot #1649), so it
+    /// waits for Spotify's own player in a later update.
+    pub fn available(self, wros: bool) -> bool {
+        !(wros && self == Source::Spotify)
+    }
+}
+
+/// What WrOS says about Spotify until it can play it.
+pub(crate) const SPOTIFY_UNAVAILABLE: &str = "Spotify isn't available on WrOS yet: Spotify no longer lets players like WrOS's \
+     unlock its music. Spotify's own player is planned for a later update.";
+
+/// True on WrOS, where the sound helper is installed. Tests never ask this: they set
+/// `App::wros_music` themselves, because a Nix test build can see the helper's path.
+pub fn on_wros() -> bool {
+    std::path::Path::new(wros_sys::paths::WROS_SOUND).exists()
+}
+
+/// Removes everything rc20's Spotify player kept: its login, web token, settings and logs
+/// (which held tokens). Nothing outside those two folders is touched.
+pub fn forget_spotify(home: &std::path::Path) {
+    for dir in [".cache/spotify-player", ".config/spotify-player"] {
+        let path = home.join(dir);
+        if path.exists() {
+            let _ = std::fs::remove_dir_all(&path);
+        }
+    }
+}
+
+/// Once at start-up on WrOS: forget rc20's Spotify login whatever the source, and move a
+/// writer whose source was Spotify to music files. Off WrOS this does nothing.
+pub fn migrate_off_spotify(home: &std::path::Path, wros: bool) {
+    if !wros {
+        return;
+    }
+    forget_spotify(home);
+    let path = Config::path_in(home);
+    if let Ok(text) = std::fs::read_to_string(&path) {
+        let mut cfg = Config::parse(&text);
+        if cfg.source == Source::Spotify {
+            cfg.source = Source::Files;
+            let _ = cfg.save_to(&path);
+        }
+    }
 }
 
 const POLL: Duration = Duration::from_millis(1500);
@@ -87,9 +130,6 @@ const HTTP_TIMEOUT: Duration = Duration::from_millis(1200);
 
 #[derive(Debug, Clone)]
 pub struct Config {
-    /// Off unless you turn it on. Music is an extra, not part of the desk, so
-    /// a new install never polls a player or shows a music pane until asked.
-    pub enabled: bool,
     pub source: Source,
     /// YouTube Music: where its API Server listens.
     pub host: String,
@@ -104,7 +144,6 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            enabled: false,
             source: Source::Files,
             host: "127.0.0.1".into(),
             port: DEFAULT_PORT,
@@ -118,10 +157,11 @@ impl Default for Config {
 
 impl Config {
     pub fn path() -> PathBuf {
-        grimoire_core::paths::home()
-            .join(".config")
-            .join("grimoire")
-            .join("music.toml")
+        Config::path_in(&grimoire_core::paths::home())
+    }
+
+    fn path_in(home: &std::path::Path) -> PathBuf {
+        home.join(".config").join("grimoire").join("music.toml")
     }
 
     /// Missing or unreadable config just means "music off".
@@ -144,7 +184,6 @@ impl Config {
             };
             let v = v.trim().trim_matches('"').to_string();
             match k.trim() {
-                "enabled" => cfg.enabled = v == "true",
                 "source" => {
                     if let Some(x) = Source::parse(&v) {
                         cfg.source = x;
@@ -167,15 +206,17 @@ impl Config {
     }
 
     pub fn save(&self) -> Result<()> {
-        let path = Config::path();
+        self.save_to(&Config::path())
+    }
+
+    fn save_to(&self, path: &std::path::Path) -> Result<()> {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
         }
         let body = format!(
-            "# Music is off until this says true. Turn it on or off from the menu (Esc › Settings).\n\
-             enabled = {}\nsource = \"{}\"\nhost = \"{}\"\nport = {}\ntoken = \"{}\"\n\
+            "# Where music comes from: Esc › Settings › Music.\n\
+             source = \"{}\"\nhost = \"{}\"\nport = {}\ntoken = \"{}\"\n\
              server = \"{}\"\napi_key = \"{}\"\nuser_id = \"{}\"\n",
-            self.enabled,
             self.source.slug(),
             self.host,
             self.port,
@@ -184,8 +225,13 @@ impl Config {
             self.api_key,
             self.user_id,
         );
-        grimoire_core::atomic::write_text(&path, &body)?;
+        grimoire_core::atomic::write_text(path, &body)?;
         Ok(())
+    }
+
+    /// A Jellyfin or Plex server and its token are saved.
+    pub fn server_ready(&self) -> bool {
+        !self.server.is_empty() && !self.api_key.is_empty()
     }
 
     fn base(&self) -> String {
@@ -390,8 +436,11 @@ impl Modes {
 }
 
 pub struct Music {
-    /// False when music is switched off: no pane, no poller, no network.
-    pub enabled: bool,
+    /// Asleep until music is first asked for (the Music view shown, a music key, a source
+    /// chosen): no poller, no player, no network until then. Holds the settings to wake with.
+    asleep: Option<Config>,
+    /// Jellyfin / Plex: a server and its token are saved, so the source is signed in.
+    pub server_ready: bool,
     pub state: State,
     pub source: Source,
     /// The last queue fetched, and the last search's results.
@@ -447,17 +496,53 @@ trait Backend: Send {
 impl Music {
     /// Spawns the poller. Unconfigured sources stay inert and never touch the
     /// network or shell out.
+    /// Music that starts nothing until [`Music::wake`]: how a desk opens.
+    pub fn dormant(cfg: Config) -> Music {
+        let mut music = Music::inert(cfg.source);
+        music.server_ready = cfg.server_ready();
+        music.asleep = Some(cfg);
+        music
+    }
+
+    /// Start the player and poller, once. Later calls do nothing.
+    pub fn wake(&mut self) {
+        if let Some(cfg) = self.asleep.take() {
+            *self = Music::spawn(cfg);
+        }
+    }
+
+    pub fn is_awake(&self) -> bool {
+        self.asleep.is_none()
+    }
+
+    /// No backend: nothing set up, or asleep.
+    fn inert(source: Source) -> Music {
+        Music {
+            asleep: None,
+            server_ready: false,
+            state: State::NoToken,
+            source,
+            queue: Vec::new(),
+            results: Vec::new(),
+            playlists: Vec::new(),
+            note: None,
+            fresh_note: false,
+            modes: Modes::default(),
+            rx: None,
+            tx: None,
+            files_worker: None,
+        }
+    }
+
     pub fn spawn(cfg: Config) -> Music {
         let source = cfg.source;
-        let helper = (cfg.enabled && source == Source::YouTubeMusic)
+        let server_ready = cfg.server_ready();
+        let helper = (source == Source::YouTubeMusic)
             .then(ytm_helper_path)
             .flatten();
         let local_mpv = source == Source::Files || helper.is_some();
         let (up_tx, up_rx) = mpsc::channel::<Update>();
-        // Switched off means inert: nothing is spawned, nothing is polled.
-        let backend: Option<Box<dyn Backend>> = if !cfg.enabled {
-            None
-        } else {
+        let backend: Option<Box<dyn Backend>> = {
             match source {
                 Source::Files => Some(Box::new(Files::new())),
                 Source::YouTubeMusic => match helper {
@@ -487,20 +572,9 @@ impl Music {
         };
 
         let Some(mut backend) = backend else {
-            return Music {
-                enabled: cfg.enabled,
-                state: State::NoToken,
-                source,
-                queue: Vec::new(),
-                results: Vec::new(),
-                playlists: Vec::new(),
-                note: None,
-                fresh_note: false,
-                modes: Modes::default(),
-                rx: None,
-                tx: None,
-                files_worker: None,
-            };
+            let mut music = Music::inert(source);
+            music.server_ready = server_ready;
+            return music;
         };
 
         let (cmd_tx, cmd_rx) = mpsc::channel::<Cmd>();
@@ -604,7 +678,8 @@ impl Music {
         });
 
         Music {
-            enabled: true,
+            asleep: None,
+            server_ready,
             state: if local_mpv {
                 State::Idle
             } else {
@@ -664,7 +739,9 @@ impl Music {
         }
     }
 
-    pub fn send(&self, c: Cmd) {
+    /// Send a command to the player, waking it first: a music key is asking for music.
+    pub fn send(&mut self, c: Cmd) {
+        self.wake();
         if let Some(tx) = &self.tx {
             let _ = tx.send(c);
         }
@@ -674,6 +751,7 @@ impl Music {
     #[cfg(test)]
     pub fn catch_commands(&mut self) -> Receiver<Cmd> {
         let (tx, rx) = mpsc::channel();
+        self.asleep = None;
         self.tx = Some(tx);
         rx
     }
@@ -756,15 +834,35 @@ mod config_tests {
     use super::*;
 
     #[test]
-    fn music_is_off_unless_the_file_turns_it_on() {
-        assert!(!Config::default().enabled, "a new install has no music");
-        // A music.toml written before the switch existed has no `enabled`
-        // line, and stays off.
-        let old = Config::parse("source = \"youtube-music\"\ntoken = \"abc\"\n");
-        assert!(!old.enabled);
+    fn an_old_on_off_line_is_ignored_and_never_written_again() {
+        // rc20 and before saved `enabled`; music needs no switch now.
+        let old = Config::parse("enabled = false\nsource = \"youtube-music\"\ntoken = \"abc\"\n");
+        assert_eq!(old.source, Source::YouTubeMusic);
         assert_eq!(old.token.as_deref(), Some("abc"));
-        assert!(Config::parse("enabled = true\n").enabled);
-        assert!(!Config::parse("enabled = false\n").enabled);
+        let home = tempfile::tempdir().unwrap();
+        let path = Config::path_in(home.path());
+        old.save_to(&path).unwrap();
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(!text.contains("enabled"), "{text}");
+    }
+
+    #[test]
+    fn a_desk_opens_with_music_asleep_and_a_music_key_wakes_it() {
+        let mut music = Music::dormant(Config::default());
+        assert!(!music.is_awake(), "nothing starts until music is asked for");
+        assert_eq!(music.state, State::NoToken);
+        music.wake();
+        assert!(music.is_awake());
+
+        // A key (F5, or the laptop's play key) wakes it too, then sends. A Jellyfin source
+        // with no server has no player, so nothing is started here.
+        let mut music = Music::dormant(Config {
+            source: Source::Jellyfin,
+            ..Config::default()
+        });
+        music.send(Cmd::PlayPause);
+        assert!(music.is_awake());
+        assert_eq!(music.source, Source::Jellyfin);
     }
 
     #[test]
@@ -779,5 +877,104 @@ mod config_tests {
             Config::parse("token = \"abc\"\n").source,
             Source::YouTubeMusic
         );
+    }
+}
+
+#[cfg(test)]
+mod spotify_leaves_wros_tests {
+    use super::*;
+    use std::fs;
+    use std::path::Path;
+
+    /// A home with rc20's Spotify leftovers, an unrelated cache file and a music.toml.
+    fn home_with_spotify(source: &str) -> tempfile::TempDir {
+        let home = tempfile::tempdir().unwrap();
+        let h = home.path();
+        fs::create_dir_all(h.join(".config/grimoire")).unwrap();
+        fs::write(
+            h.join(".config/grimoire/music.toml"),
+            format!("source = \"{source}\"\nenabled = true\n"),
+        )
+        .unwrap();
+        for file in [
+            ".cache/spotify-player/credentials.json",
+            ".cache/spotify-player/spotify-player.log",
+            ".config/spotify-player/app.toml",
+            ".cache/other/keep",
+        ] {
+            fs::create_dir_all(h.join(file).parent().unwrap()).unwrap();
+            fs::write(h.join(file), "x").unwrap();
+        }
+        home
+    }
+
+    fn source_in(home: &Path) -> Source {
+        Config::parse(&fs::read_to_string(Config::path_in(home)).unwrap()).source
+    }
+
+    #[test]
+    fn a_spotify_source_on_wros_becomes_music_files_and_its_login_is_removed() {
+        let home = home_with_spotify("spotify");
+        migrate_off_spotify(home.path(), true);
+        assert_eq!(source_in(home.path()), Source::Files);
+        assert!(!home.path().join(".cache/spotify-player").exists());
+        assert!(!home.path().join(".config/spotify-player").exists());
+        assert!(
+            home.path().join(".cache/other/keep").exists(),
+            "nothing else goes"
+        );
+    }
+
+    #[test]
+    fn a_writer_who_switched_away_from_spotify_loses_the_login_too() {
+        let home = home_with_spotify("files");
+        migrate_off_spotify(home.path(), true);
+        assert_eq!(source_in(home.path()), Source::Files);
+        assert!(!home.path().join(".cache/spotify-player").exists());
+        assert!(!home.path().join(".config/spotify-player").exists());
+    }
+
+    #[test]
+    fn off_wros_spotify_stays() {
+        let home = home_with_spotify("spotify");
+        migrate_off_spotify(home.path(), false);
+        assert_eq!(source_in(home.path()), Source::Spotify);
+        assert!(
+            home.path()
+                .join(".cache/spotify-player/credentials.json")
+                .exists()
+        );
+        assert!(home.path().join(".config/spotify-player/app.toml").exists());
+    }
+
+    #[test]
+    fn a_home_with_no_music_settings_is_left_without_them() {
+        let home = tempfile::tempdir().unwrap();
+        migrate_off_spotify(home.path(), true);
+        assert!(!Config::path_in(home.path()).exists());
+    }
+
+    #[test]
+    fn reading_the_settings_never_deletes_anything() {
+        let home = home_with_spotify("spotify");
+        let text = fs::read_to_string(Config::path_in(home.path())).unwrap();
+        assert_eq!(Config::parse(&text).source, Source::Spotify);
+        assert!(
+            home.path()
+                .join(".cache/spotify-player/credentials.json")
+                .exists()
+        );
+    }
+
+    #[test]
+    fn spotify_is_unavailable_only_on_wros() {
+        for source in Source::ALL {
+            assert!(source.available(false), "{source:?} off WrOS");
+            assert_eq!(
+                source.available(true),
+                source != Source::Spotify,
+                "{source:?}"
+            );
+        }
     }
 }
