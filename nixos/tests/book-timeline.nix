@@ -60,23 +60,23 @@ pkgs.testers.runNixOSTest {
             wait_screen(r"(?s)\A(?!.*WrOS · Overview)")
         installed.send_key("ctrl-k")
         wait_screen("FIND ANYTHING")
-        installed.send_chars("Open another book")
-        enter_row(r"^Open another book")
-        wait_screen("OPEN ANOTHER BOOK")
+        installed.send_chars("Open another project")
+        enter_row(r"^Open another project")
+        wait_screen("YOUR PROJECTS")
 
     def book_header(title):
         return "┌ " + title.upper() + " "
 
     def import_book():
         open_shelf()
-        enter_row(r"^Import a book")
+        enter_row(r"^Import a project")
         wait_screen(r"Google Drive\s+│")
         enter_row(r"^Google Drive$")
-        wait_screen(r"Timeline Book.*book.*synced")
-        enter_row(r"^Timeline Book.*book.*synced")
+        wait_screen(r"Timeline Book.*project.*synced")
+        enter_row(r"^Timeline Book.*project.*synced")
         wait_screen(r"Copied to ~/Documents/Timeline Book and checked\.")
         installed.send_key("ret")
-        wait_screen(r"(?s)\A(?!.*IMPORT A BOOK).*" + book_header("Timeline Book"))
+        wait_screen(r"(?s)\A(?!.*IMPORT A PROJECT).*" + book_header("Timeline Book"))
 
     def switch_book(title):
         header = book_header(title)
@@ -87,7 +87,7 @@ pkgs.testers.runNixOSTest {
             # The book opens in its editor, or on its Overview ("Grimoire · Drafting").
             overview = "│" + title + " · "
             text = wait_screen(
-                r"(?s)\A(?!.*OPEN ANOTHER BOOK).*(?:" + re.escape(header) + "|"
+                r"(?s)\A(?!.*YOUR PROJECTS).*(?:" + re.escape(header) + "|"
                 + re.escape(overview) + "|Syncing before leaving)"
             )
             if header in text or overview in text:

@@ -646,7 +646,7 @@ pub(super) fn draw_books(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     let width = 112.min(area.width.saturating_sub(4));
     let box_area = centred(area, width, rows.len() as u16 + 4);
     f.render_widget(Clear, box_area);
-    let block = pane_block("Your projects", true, t);
+    let block = pane_block("YOUR PROJECTS", true, t);
     let inner = block.inner(box_area);
     f.render_widget(block, box_area);
     let mut lines: Vec<Line> = Vec::new();

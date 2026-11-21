@@ -3979,7 +3979,7 @@ fn the_shelf_lists_every_book_in_documents_without_typing() {
     for (width, height) in [(80, 24), (170, 48)] {
         d.term = Terminal::new(TestBackend::new(width, height)).unwrap();
         d.draw();
-        assert!(d.shows("Your projects"));
+        assert!(d.shows("YOUR PROJECTS"));
         for text in [
             "Clip says Hello World.",
             "Import a project…",
@@ -4123,7 +4123,7 @@ fn a_new_book_from_the_menu_saves_this_one_and_opens_the_new_one() {
 
     // And back again, from Open another book.
     d.menu(&["File", "Open another project…"]);
-    assert!(d.shows("Your projects"));
+    assert!(d.shows("YOUR PROJECTS"));
     let at = d
         .app
         .shelf_rows()

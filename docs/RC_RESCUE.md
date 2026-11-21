@@ -47,7 +47,7 @@ When the normal session will not start, but the laptop still boots:
 - **Choices:**
   - go back to the kept version (installs when you restart);
   - repair system packages (the same bounded repair as Tier 1);
-  - restore a project from the account's backup into a new folder under `~/Restored books`. A
+  - restore a project from the account's backup into a new folder under `~/Restored projects`. A
     Drive backup asks before starting the network.
   - show what happened: the update status and the previous boot's errors;
   - continue to the normal login;
