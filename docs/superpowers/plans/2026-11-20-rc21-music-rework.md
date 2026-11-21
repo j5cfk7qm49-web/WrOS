@@ -50,25 +50,28 @@
   - `src/app/wros.rs:1111`: delete `tick_spotify_signin` and its fn.
   - `src/app/overlays/looks.rs`: `on_sources_key` and `draw_sources`.
   - `src/main.rs:149,190`: the CLI source list still names spotify (that's fine off WrOS).
-  - `crates/wros-sys/src/paths.rs:173`: keep `WROS_MUSIC_SIGNIN` until Task 2.
+  - `crates/wros-sys/src/paths.rs:173`: keep `WROS_MUSIC_SIGNIN` until Task 5.
 - Test: `src/shell_ui_tests.rs` (replace `spotify_is_signed_in_from_the_music_page`), `src/music/mod.rs` tests.
 
 **Interfaces:**
 - Produces:
   - `music::Source::available(self) -> bool`: false only for `Spotify` when `music::on_wros()` is true.
   - `music::on_wros() -> bool`: `Path::new(wros_sys::paths::WROS_SOUND).exists()`.
-  - `music::forget_spotify_login(home: &Path)`: removes `home/.cache/spotify-player/credentials.json`, `user_client_token.json` and `app.toml`, then the directory if it's empty.
-  - `Config::load_for(home: &Path, wros: bool) -> Config`: the testable core of `Config::load()`. When `wros` is true and the source is Spotify, it sets the source to Files, saves, and calls `forget_spotify_login`.
+  - `music::forget_spotify(home: &Path)`: removes the whole folders `home/.cache/spotify-player` and `home/.config/spotify-player`. They hold the login, the web token, `app.toml` and the player's `.log` files, which contained tokens. Nothing else is touched.
+  - `music::migrate_off_spotify(home: &Path, wros: bool)`: when `wros` is true it calls `forget_spotify(home)` whatever the source. If the saved source is Spotify, it also saves `source = "files"`.
+  - It runs **once, from `App::new`** (and from the `grimoire music` CLI entry), with `wros` taken from the app's injected flag. `Config::load()` stays a pure reader and never deletes or saves.
+  - Every WrOS check in this plan (`Source::available`, the picker, the migration) reads the injected `App::wros_music` flag, or takes `wros: bool`. No test reads `on_wros()`, whose answer can differ between the Nix suites and `check.sh`.
 
 - [ ] **Step 1: Write the failing tests** in `src/music/mod.rs`:
   - `a_spotify_source_on_wros_becomes_music_files_and_its_login_is_removed`:
     - temp home with `.config/grimoire/music.toml` = `source = "spotify"\nenabled = true\n`
-    - `.cache/spotify-player/credentials.json` present, plus an unrelated `.cache/other/keep` file
-    - call `Config::load_for(home, true)`
-    - assert `source == Source::Files`
-    - assert the reloaded file says `source = "files"`
-    - assert `credentials.json` is gone and `.cache/other/keep` still exists
-  - `off_wros_spotify_stays`: the same setup with `wros = false` keeps `Source::Spotify` and the credentials file.
+    - present: `.cache/spotify-player/credentials.json`, `.cache/spotify-player/spotify-player.log` and `.config/spotify-player/app.toml`, plus an unrelated `.cache/other/keep`
+    - call `migrate_off_spotify(home, true)`
+    - assert the reloaded config's source is `Source::Files`
+    - assert both spotify-player folders are gone and `.cache/other/keep` still exists
+  - `a_writer_who_switched_away_from_spotify_loses_the_login_too`: the source is `files` and `.cache/spotify-player/credentials.json` exists. After `migrate_off_spotify(home, true)` the folder is gone and the source is still `files`.
+  - `off_wros_spotify_stays`: the same setup with `wros = false` keeps `Source::Spotify` and every file.
+  - `loading_the_config_never_deletes_anything`: after `Config::load()` on the first setup, every file still exists.
   - `spotify_is_unavailable_only_on_wros`.
 
   In `src/shell_ui_tests.rs`, replace the Spotify sign-in test with `spotify_is_not_available_on_wros_yet`:
@@ -80,7 +83,7 @@
 - [ ] **Step 2: Run them:** `bash ../rc21-work/one.sh spotify` → FAIL (missing fns).
 - [ ] **Step 3: Implement.**
   - Delete the sign-in code.
-  - `Config::load()` calls `load_for(grimoire_core::paths::home(), on_wros())`.
+  - `App::new` sets `wros_music = music::on_wros()`, then calls `migrate_off_spotify(home, self.wros_music)` before it loads the music config.
   - `draw_sources` notes Spotify as `not available yet` when `!available()` and dims it.
   - `on_sources_key` refuses an unavailable source with the message above.
 - [ ] **Step 4: Run** `bash ../rc21-work/check.sh` → fmt-ok, clippy clean, all tests pass.
@@ -242,7 +245,10 @@
     - does not touch `changed`
   - Rust `media_keys::MediaKey { PlayPause, Next, Previous }`.
   - `media_keys::parse(text: &str) -> Vec<(u64, MediaKey)>`, which skips bad lines.
-  - `media_keys::Watcher::start(path: PathBuf) -> Watcher`: a thread that polls the file's mtime and length every 100 ms, sending `MediaKey`s with seq greater than the highest seq seen when it started.
+  - `media_keys::Watcher::start(path: PathBuf) -> Watcher`: a thread that reads the whole file (≤ 8 short lines) every 100 ms and compares seqs; it doesn't use mtime or length.
+    - At start, the high-water mark is the highest seq in the file, or 0.
+    - Each poll sends every entry with seq above the mark, in order, then raises the mark.
+    - If the file's highest seq is **below** the mark, the log was restarted (garbled, or `/run` was cleared). The mark becomes 0 and that poll's entries are sent, so the watcher never goes deaf.
   - `Watcher::try_iter(&self) -> impl Iterator<Item = MediaKey>`.
   - The app maps PlayPause → `on_function_key(5)`, Next → 6, Previous → 4.
   - The path is `/run/wros-keys/music` on Linux. Elsewhere there is no watcher.
@@ -260,6 +266,7 @@
   - `parse_reads_seq_and_action_and_skips_junk`.
   - `presses_from_before_start_are_ignored` (Review Focus 3): write `5 next` to a temp file, start the watcher, sleep 300 ms, assert nothing; append `6 play-pause`, assert `PlayPause` arrives within 1 s.
   - `two_quick_presses_both_arrive` (Review Focus 2): write `7 next\n8 next` in one write, assert two `Next` arrive.
+  - `a_restarted_log_is_heard`: start with `40 next` in the file, then replace the file with `1 play-pause`; assert `PlayPause` arrives within 1 s.
 - [ ] **Step 3: Run** `nix build .#checks.x86_64-linux.python-suite` and `one.sh media_keys` → FAIL.
 - [ ] **Step 4: Implement** per Interfaces.
 - [ ] **Step 5: Write the VM test** `nixos/tests/media-keys.nix`:

@@ -1,6 +1,6 @@
 # rc21: music rework (design)
 
-Approved by the owner on 2026-11-20. Laptop: HP Stream 11 on rc20.
+Pending the owner's review (2026-11-20). The owner approved the chat summary plus media keys; the calls marked "(my call)" below are new. Laptop: HP Stream 11 on rc20.
 
 ## Why
 
@@ -18,15 +18,15 @@ The owner also wants music out of the way of the writing desk:
 
 1. The clearing pane becomes a three-view carousel: Pomodoro → Visualizer → Music. ←/→ cycles the views, and clicking the switcher works as it does today.
 2. The Music view shows what is playing and has the usual controls. It also offers rows to open the player (F7), change the source and sign in or out of the current source, so you never need Settings for these.
-3. The separate music pane, its layout code and the Music on/off switch are removed. Music needs no switch: no player starts and nothing is polled until music is first used (the Music view shown, F4–F7, a media key, or a source chosen).
+3. The separate music pane, its layout code and the Music on/off switch are removed. (my call) Music needs no switch: no player starts and nothing is polled until music is first used (the Music view shown, F4–F7, a media key, or a source chosen).
 4. Settings gets a sixth group, **Music**, last in the list. The Music page moves into it from Look and keyboard.
 5. Spotify is removed from WrOS:
    - spotify_player, librespot, the sign-in helper, its polkit action, the firewall set and the music-signin VM test all go.
    - On WrOS, Spotify stays in the source list as "not available yet" and can't be chosen.
    - A writer whose source was Spotify is moved to Music files.
-   - The stored Spotify login (`~/.cache/spotify-player/credentials.json`) is deleted, so no reusable credential stays on disk.
-   - Off WrOS, Grimoire keeps its existing MPRIS/AppleScript remote control for the desktop Spotify app.
-6. The laptop's hardware play/pause, next and previous keys work while writing, in any pane, and whether or not the Music view is showing. They go through triggerhappy and `wros-media-key`, like the brightness and volume keys (#80). The owner's HP Stream keyboard reports KEY_PLAYPAUSE, KEY_NEXTSONG and KEY_PREVIOUSSONG (checked on the laptop on 2026-11-20).
+   - (my call) spotify_player's folders `~/.cache/spotify-player` and `~/.config/spotify-player` (login, web token, logs) are deleted once at app start on WrOS, whatever the source, so no reusable credential stays on disk.
+   - (my call) Off WrOS, Grimoire keeps its existing MPRIS/AppleScript remote control for the desktop Spotify app.
+6. The laptop's hardware play/pause, next and previous keys work while writing, in any pane, and whether or not the Music view is showing. They go through triggerhappy and `wros-media-key`, like the brightness and volume keys (#80). The owner's HP Stream keyboard advertises KEY_PLAYPAUSE, KEY_NEXTSONG and KEY_PREVIOUSSONG (capability scan, 2026-11-20). Real presses are confirmed with `thd --dump` before Task 6 is built.
 
 ## Non-goals
 
@@ -59,7 +59,7 @@ The owner also wants music out of the way of the writing desk:
   - "Open player · F7"
   - "Source · <label>…" (opens the existing source picker)
   - For Jellyfin and Plex only: "Sign in to <label>…", which opens Settings › Music › Set up server, or "Sign out of <label>", which forgets the server login.
-- **Media keys:** wros-media-key gains the actions `play-pause`, `next` and `previous`. It records each press in `/run/wros-keys/music`. The app watches that file and acts on each new press once, and ignores presses recorded before it started.
+- **Media keys:** (my call: they also work while the screen is locked, as volume does, because triggerhappy runs there) wros-media-key gains the actions `play-pause`, `next` and `previous`. It records each press in `/run/wros-keys/music`. The app watches that file and acts on each new press once, and ignores presses recorded before it started.
 
 ## Left to the builder
 
