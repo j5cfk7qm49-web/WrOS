@@ -130,6 +130,7 @@
         helpers-no-fhs = vmTest ./nixos/tests/helpers-no-fhs.nix;
         start-frames = vmTest ./nixos/tests/start-frames.nix;
         boot-seams = vmTest ./nixos/tests/boot-seams.nix;
+        media-keys = vmTest ./nixos/tests/media-keys.nix;
         console-lock-vlock = vmTest ./nixos/tests/console-lock-vlock.nix;
         console-lock-text = vmTest ./nixos/tests/console-lock-text.nix;
         rust-suite = wrosPkgs.rust-suite;

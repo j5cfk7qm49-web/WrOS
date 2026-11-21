@@ -201,7 +201,7 @@ Pass when the saved choice returns or support is honestly unavailable, with no
 black screen, stranded preview or words lost. Warm colours can change calibrated
 colours while on; the compositor does not provide physical colour readback.
 
-## 12. Brightness and volume keys
+## 12. Brightness, volume and music keys
 
 WrOS declares triggerhappy bindings for these keys in `nixos/modules/hardware.nix`.
 Check them on each target laptop (#80).
@@ -210,8 +210,11 @@ Check them on each target laptop (#80).
    Brightness up a few times. Hold each key for a second.
 2. Press Volume up, Volume down and Mute, then Mute again. Hold Volume up.
 3. Repeat a few presses at the login screen and on the lock screen.
+4. With music playing and the cursor in the book, press Play/Pause twice, then
+   Next and Previous. Play/Pause pauses and resumes, Next skips a track and
+   Previous goes back. Nothing appears in the book.
 
-**Pass when:** each press moves brightness or volume one step and a held key
+**Brightness and volume pass when** each press moves the value one step and a held key
 keeps going; the screen never goes fully dark; Mute silences the speakers and
 the second press brings the sound back; the bottom bar shows the new value
 within about a second; nothing typed appears in the book or the password field.
@@ -226,13 +229,13 @@ grep -E 'N: Name=|H: Handlers=' /proc/bus/input/devices
 ```
 
 Replace `eventN` with the handler for the device being checked. This prints the
-five media keys and ends after 30 seconds. This probe needs a separately prepared
+eight media keys and ends after 30 seconds. This probe needs a separately prepared
 diagnostic image with `pkgs.evtest` included; the standard appliance does not
 provide an on-device package-install workflow.
 
 ```sh
 sudo timeout 30s evtest /dev/input/eventN |
-  grep --line-buffered -E 'KEY_(BRIGHTNESSUP|BRIGHTNESSDOWN|VOLUMEUP|VOLUMEDOWN|MUTE)'
+  grep --line-buffered -E 'KEY_(BRIGHTNESSUP|BRIGHTNESSDOWN|VOLUMEUP|VOLUMEDOWN|MUTE|PLAYPAUSE|NEXTSONG|PREVIOUSSONG)'
 ```
 
 ## 13. Phone linking and document exchange

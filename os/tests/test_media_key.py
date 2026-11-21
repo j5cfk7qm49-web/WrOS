@@ -1,17 +1,21 @@
-"""Unit tests for the brightness and volume key handler (os/scripts/wros-media-key, #80)."""
+"""Unit tests for the WrOS media key handler (os/scripts/wros-media-key)."""
 import contextlib
 import fcntl
 import importlib.machinery
 import io
 import os
 from pathlib import Path
+import re
+import stat
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / 'os/scripts/wros-media-key'
 keys = importlib.machinery.SourceFileLoader('wros_media_key', str(SCRIPT)).load_module()
+MUSIC_KEYS = (('PLAYPAUSE', 'play-pause'), ('NEXTSONG', 'next'), ('PREVIOUSSONG', 'previous'))
 
 
 class Recorder:
@@ -93,6 +97,36 @@ class MediaKeyTests(unittest.TestCase):
                 self.assertEqual(code, 0)
                 self.assertEqual(run.calls[0][0], ['/usr/libexec/wros-sound', word])
 
+    def test_music_keys_are_logged_for_the_app(self):
+        for action in ('play-pause', 'next', 'next'):
+            code, run = self.press(action)
+            self.assertEqual((code, run.calls), (0, []))
+        log = self.state / 'music'
+        self.assertEqual(log.read_text(), '1 play-pause\n2 next\n3 next\n')
+        self.assertEqual(stat.S_IMODE(log.stat().st_mode), 0o644)
+        self.assertFalse((self.state / 'changed').exists())
+
+    def test_the_music_log_keeps_the_last_eight(self):
+        for _ in range(10):
+            code, _ = self.press('previous')
+            self.assertEqual(code, 0)
+        self.assertEqual((self.state / 'music').read_text().splitlines(),
+                         [f'{seq} previous' for seq in range(3, 11)])
+
+    def test_a_garbled_log_starts_again_at_one(self):
+        log = self.state / 'music'
+        log.write_text('40 previous\n41 junk\n')
+        code, _ = self.press('play-pause')
+        self.assertEqual(code, 0)
+        self.assertEqual(log.read_text(), '1 play-pause\n')
+
+    def test_music_keys_take_a_blocking_lock(self):
+        with patch.object(keys.fcntl, 'flock', wraps=fcntl.flock) as flock:
+            code, _ = self.press('next')
+        self.assertEqual(code, 0)
+        flock.assert_called_once()
+        self.assertEqual(flock.call_args.args[1], fcntl.LOCK_EX)
+
     def test_a_press_while_the_last_still_runs_is_dropped(self):
         fd = os.open(self.state / 'lock', os.O_RDWR | os.O_CREAT, 0o600)
         self.addCleanup(os.close, fd)
@@ -139,6 +173,17 @@ class KeyConfigurationTests(unittest.TestCase):
             self.assertIn((event, '2'), seen)
         self.assertIn(('KEY_MUTE', '1'), seen)
         self.assertNotIn(('KEY_MUTE', '2'), seen)
+        for key, action in MUSIC_KEYS:
+            self.assertEqual([(value, cmd) for name, value, cmd in lines if name == 'KEY_' + key],
+                             [('1', '/usr/libexec/wros-media-key ' + action)])
+
+    def test_hardware_nix_binds_the_music_keys_on_press_only(self):
+        text = (ROOT / 'nixos/modules/hardware.nix').read_text()
+        bindings = re.findall(
+            r'keys = \[ "([A-Z]+)" \]; event = "([^"]+)"; cmd = "([^"]+)";', text)
+        for key, action in MUSIC_KEYS:
+            self.assertEqual([(event, cmd) for name, event, cmd in bindings if name == key],
+                             [('press', '${wrosPkgs.paths.helperPaths.mediaKey} ' + action)])
 
     def test_triggerhappy_runs_only_wros_triggers_as_the_keys_account(self):
         text = (ROOT / 'os/config/triggerhappy-wros.conf').read_text()

@@ -15,6 +15,7 @@ mod library;
 mod lid;
 #[cfg(target_os = "linux")]
 mod live_installer;
+mod media_keys;
 mod motion;
 mod music;
 mod music_view;
@@ -654,6 +655,10 @@ fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
     let mut handled_sleep = false;
     #[cfg(target_os = "linux")]
     let gauge_watch = installed_session().then(gauges::watch);
+    // The laptop's play/pause, next and previous keys, as wros-media-key logs them.
+    #[cfg(target_os = "linux")]
+    let media_keys =
+        installed_session().then(|| media_keys::Watcher::start("/run/wros-keys/music".into()));
     #[cfg(feature = "test-driver")]
     let mut driver = test_driver::Driver::from_env();
     #[cfg(feature = "test-driver")]
@@ -720,6 +725,15 @@ fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
         #[cfg(target_os = "linux")]
         if let Some(gauges) = gauge_watch.as_ref().and_then(|rx| rx.try_iter().last()) {
             app.set_gauges(gauges, std::time::Instant::now());
+        }
+        #[cfg(target_os = "linux")]
+        for key in media_keys.iter().flat_map(|keys| keys.try_iter()) {
+            // The same as F5, F6 and F4.
+            app.on_function_key(match key {
+                media_keys::MediaKey::PlayPause => 5,
+                media_keys::MediaKey::Next => 6,
+                media_keys::MediaKey::Previous => 4,
+            });
         }
         #[cfg(target_os = "linux")]
         if std::mem::take(&mut app.deck.lock_requested) {

@@ -99,6 +99,9 @@ in
       { keys = [ "VOLUMEDOWN" ]; event = "press"; cmd = "${wrosPkgs.paths.helperPaths.mediaKey} volume-down"; }
       { keys = [ "VOLUMEDOWN" ]; event = "hold"; cmd = "${wrosPkgs.paths.helperPaths.mediaKey} volume-down"; }
       { keys = [ "MUTE" ]; event = "press"; cmd = "${wrosPkgs.paths.helperPaths.mediaKey} mute"; }
+      { keys = [ "PLAYPAUSE" ]; event = "press"; cmd = "${wrosPkgs.paths.helperPaths.mediaKey} play-pause"; }
+      { keys = [ "NEXTSONG" ]; event = "press"; cmd = "${wrosPkgs.paths.helperPaths.mediaKey} next"; }
+      { keys = [ "PREVIOUSSONG" ]; event = "press"; cmd = "${wrosPkgs.paths.helperPaths.mediaKey} previous"; }
     ];
   };
 }
