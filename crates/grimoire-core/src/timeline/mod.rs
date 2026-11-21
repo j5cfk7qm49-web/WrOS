@@ -426,7 +426,7 @@ mod tests {
             return;
         };
         let recorded = [
-            ".grimoire/book-id",
+            ".grimoire/project-id",
             ".grimoire/resume.md",
             ".grimoire/trash/cut.md",
             ".grimoire/writingdeck/journal.json",
@@ -472,7 +472,7 @@ mod tests {
             committed_files(&root),
             [
                 ".gitignore",
-                ".grimoire/book-id",
+                ".grimoire/project-id",
                 ".grimoire/resume.md",
                 "chapters/01.md"
             ]
@@ -487,7 +487,7 @@ mod tests {
             committed_files(&root),
             [
                 ".gitignore",
-                ".grimoire/book-id",
+                ".grimoire/project-id",
                 ".grimoire/resume.md",
                 ".grimoire/writingdeck/journal.json",
                 "chapters/01.md",
@@ -537,7 +537,7 @@ mod tests {
         assert_eq!(git(&root, ["rev-parse", "HEAD^"]).text().unwrap(), old_head);
         assert_eq!(
             committed_files(&root),
-            [".grimoire/book-id", "chapters/01.md"]
+            [".grimoire/project-id", "chapters/01.md"]
         );
         assert_eq!(
             fs::read_to_string(root.join(conflict)).unwrap(),
@@ -681,7 +681,7 @@ mod tests {
         assert_eq!(subject(&root), "minor fix");
         assert_eq!(
             committed_files(&root),
-            [".grimoire/book-id", "chapters/02.md"]
+            [".grimoire/project-id", "chapters/02.md"]
         );
         clean_book(&root);
     }

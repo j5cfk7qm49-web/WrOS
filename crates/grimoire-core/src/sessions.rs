@@ -139,7 +139,7 @@ pub fn outside_dir(root: &Path) -> Option<PathBuf> {
 }
 
 fn id_file(root: &Path) -> PathBuf {
-    root.join(".grimoire").join("book-id")
+    crate::project_files::path(root, crate::project_files::FileKind::Id)
 }
 
 /// Give the book an id if it has none, or a new one if `fresh`. Kept in
@@ -850,16 +850,19 @@ fn cat_blobs(root: &Path, specs: &[String], index: Option<&Path>) -> Result<Vec<
 }
 
 fn part_noun(root: &Path) -> String {
-    fs::read_to_string(root.join("novel.toml"))
-        .ok()
-        .and_then(|s| toml::from_str::<toml::Table>(&s).ok())
-        .and_then(|t| {
-            t.get("part_label")?
-                .as_str()
-                .map(|s| s.trim().to_lowercase())
-        })
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| "part".into())
+    fs::read_to_string(crate::project_files::path(
+        root,
+        crate::project_files::FileKind::Settings,
+    ))
+    .ok()
+    .and_then(|s| toml::from_str::<toml::Table>(&s).ok())
+    .and_then(|t| {
+        t.get("part_label")?
+            .as_str()
+            .map(|s| s.trim().to_lowercase())
+    })
+    .filter(|s| !s.is_empty())
+    .unwrap_or_else(|| "part".into())
 }
 
 // ---------------------------------------------------------------------------

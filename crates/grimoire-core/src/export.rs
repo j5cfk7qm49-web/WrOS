@@ -281,7 +281,13 @@ pub fn preflight(p: &Project, opts: &ExportOptions) -> Result<ExportPreflight> {
             severity: crate::preflight::PreflightSeverity::Error,
             category: "Assets".into(),
             scene_id: None,
-            scene_title: Some("novel.toml".into()),
+            scene_title: Some(
+                crate::project_files::path(&p.root, crate::project_files::FileKind::Settings)
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .into(),
+            ),
             line: None,
             message: format!(
                 "Configured ebook cover '{}' is missing or is not a valid JPEG/PNG inside the project.",

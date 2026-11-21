@@ -1976,7 +1976,7 @@ fn export_preflight_reviews_selected_source_without_writing_at_four_sizes() {
 }
 
 #[test]
-fn the_look_dialog_saves_to_novel_toml_and_goes_back_to_export() {
+fn the_look_dialog_saves_to_project_toml_and_goes_back_to_export() {
     let mut d = export_desk("look", "Words.");
     let (_, look, _, _) = export_rows(&d);
     go_to(&mut d, look);
@@ -1991,7 +1991,7 @@ fn the_look_dialog_saves_to_novel_toml_and_goes_back_to_export() {
         matches!(d.app.overlay, Overlay::Export { .. }),
         "back to the export dialog"
     );
-    let toml = fs::read_to_string(d.root.join("novel.toml")).unwrap();
+    let toml = fs::read_to_string(d.root.join("project.toml")).unwrap();
     assert!(
         toml.contains("format = \"classic\"") && toml.contains("paper = \"a4\""),
         "{toml}"
@@ -2017,7 +2017,7 @@ fn author_details_are_typed_in_and_kept() {
     d.key(KeyCode::Esc);
     assert!(matches!(d.app.overlay, Overlay::Export { .. }));
     assert!(d.shows("Jane Q Smith · jane@example.com"));
-    let toml = fs::read_to_string(d.root.join("novel.toml")).unwrap();
+    let toml = fs::read_to_string(d.root.join("project.toml")).unwrap();
     assert!(toml.contains("legal_name = \"Jane Q Smith\""), "{toml}");
     assert!(toml.contains("email = \"jane@example.com\""));
     // A fresh desk reads them back.
@@ -4592,7 +4592,7 @@ fn the_reading_voice_is_picked_in_settings() {
 }
 
 #[test]
-fn goals_take_a_month_of_drafting_preset_and_save_to_novel_toml() {
+fn goals_take_a_month_of_drafting_preset_and_save_to_project_toml() {
     let root = book("goals", true);
     let mut d = Desk::open(root.clone(), 120, 35);
     d.menu(&["Book", "Goals…"]);
@@ -4606,7 +4606,7 @@ fn goals_take_a_month_of_drafting_preset_and_save_to_novel_toml() {
     assert!(d.status().contains("goals saved"), "{}", d.status());
     assert_eq!(d.app.project.meta.target_words, 50_000);
     assert_eq!(d.app.project.meta.daily_target, 1_667);
-    let toml = fs::read_to_string(root.join("novel.toml")).unwrap();
+    let toml = fs::read_to_string(root.join("project.toml")).unwrap();
     assert!(toml.contains("target_words = 50000"), "{toml}");
     assert!(toml.contains("daily_target = 1667"), "{toml}");
     assert!(

@@ -15,6 +15,7 @@
 //! Scene metadata lives in YAML frontmatter, which we preserve verbatim so
 //! Obsidian and anything else can read and write it without us mangling it.
 
+use crate::project_files::{self, FileKind};
 use crate::sync::{self, Fingerprint, SaveOutcome, Stat};
 use anyhow::{Context, Result};
 use serde::Deserialize;
@@ -267,7 +268,7 @@ impl Area {
     /// Where it lives on disk.
     pub fn path(self, root: &Path) -> PathBuf {
         match self {
-            Area::Format => root.join("Novel-Format.md"),
+            Area::Format => project_files::path(root, FileKind::Format),
             Area::Manuscript => root.join("manuscript"),
             Area::Characters => root.join("characters"),
             Area::Places => root.join("places"),
@@ -572,18 +573,19 @@ pub struct Project {
 
 impl Project {
     pub fn load(root: &Path) -> Result<Project> {
-        // A novel.toml that can't be read (not downloaded yet) or parsed (a
+        // A project.toml (or novel.toml) that can't be read (not downloaded yet) or parsed (a
         // sync caught halfway) opens the book on the defaults rather than not
-        // at all. Nothing rewrites novel.toml from them: everything that
+        // at all. Nothing rewrites it from them: everything that
         // writes it reads it first.
-        let meta_path = root.join("novel.toml");
+        let meta_path = project_files::path(root, FileKind::Settings);
+        let meta_name = meta_path.file_name().unwrap_or_default().to_string_lossy();
         let (meta, meta_unreadable) = match fs::read_to_string(&meta_path) {
             Ok(s) => match toml::from_str::<ProjectMeta>(&s) {
                 Ok(m) => (m, None),
                 Err(e) => (
                     ProjectMeta::default(),
                     Some(format!(
-                        "novel.toml didn't read as settings ({})",
+                        "{meta_name} didn't read as settings ({})",
                         e.message()
                     )),
                 ),
@@ -601,7 +603,7 @@ impl Project {
             Err(e) => (
                 ProjectMeta::default(),
                 Some(format!(
-                    "novel.toml {}",
+                    "{meta_name} {}",
                     Unavailable::from_io(&e).why.trim_start_matches("it ")
                 )),
             ),
@@ -1662,7 +1664,7 @@ pub fn scaffold_with(root: &Path, title: Option<&str>, shape: &Shape) -> Result<
     let quoted = |t: &str| t.replace('"', "'");
 
     write_new(
-        &root.join("novel.toml"),
+        &project_files::new_path(root, FileKind::Settings),
         &format!(
             "title = \"{}\"\nauthor = \"\"\ndraft = \"1\"\ntarget_words = {}\ndaily_target = {}\n\n# What this book calls its largest division: Part, Act, Book…\npart_label = \"Part\"\n",
             quoted(&title),
@@ -1884,7 +1886,7 @@ pub fn upgrade(root: &Path) -> Result<Vec<String>> {
 /// (`01-Page-One`, as 0.3.0–0.3.6 renamed them), write `part_label = "Page"`
 /// so new ones match. `Some(what it did)`, for the status line.
 fn keep_page_label(root: &Path) -> Result<Option<String>> {
-    let toml_path = root.join("novel.toml");
+    let toml_path = project_files::path(root, FileKind::Settings);
     // A novel.toml that can't be read (an online-only file not downloaded
     // yet) is not an empty one: writing "part_label" into it would replace
     // the book's title and targets with a single line.
@@ -1942,7 +1944,7 @@ opens and closes one. Esc opens the menu, from anywhere.\n\n\
 MANUSCRIPT is the book itself: parts hold chapters, chapters hold scenes. In \
 the tree, p makes a part, c a chapter and n a scene. Only what's in here counts \
 toward your word count and goes into an export. If your book says Act or Book \
-rather than Part, change part_label in novel.toml.\n\n\
+rather than Part, change part_label in project.toml.\n\n\
 CHARACTERS and PLACES are your notebook. Their names teach the spellchecker, \
 and Ctrl-O on a name in a scene opens its note beside the scene.\n\n\
 FRONT MATTER holds the pages before chapter one, one folder per edition: \
@@ -1966,7 +1968,7 @@ Name:\nWhere it is:\nWhen:\n\n## First impression\nWhat someone notices walking 
 
     pub const SUBMISSION_TITLE: &str = "---\ntitle: \"Title Page\"\ncompile: false\n---\n\n\
 While this says compile: false, the Word export makes a standard title page \
-from novel.toml: your name, the title and a rounded word count. Change it to \
+from project.toml: your name, the title and a rounded word count. Change it to \
 compile: true and write your own here to use it instead.\n";
 
     pub const TITLE_PAGE: &str =
@@ -2546,7 +2548,7 @@ fn cousin_folder(root: &Path, folder: &Path, up: bool) -> Option<PathBuf> {
 /// Save the order of the tree's sections in novel.toml, as one
 /// `sections = [...]` line; every other line of the file stays as it was.
 pub fn save_section_order(root: &Path, order: &[Area]) -> Result<()> {
-    let path = root.join("novel.toml");
+    let path = project_files::path(root, FileKind::Settings);
     // Only a file that isn't there at all starts empty. One that can't be read
     // (online-only and offline, say) is refused: rewriting it from nothing
     // would leave the book with one line where its title and targets were.
@@ -2554,8 +2556,10 @@ pub fn save_section_order(root: &Path, order: &[Area]) -> Result<()> {
         Ok(s) => s,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
         Err(e) => {
-            return Err(anyhow::Error::new(e)
-                .context("novel.toml can't be read right now, so the section order wasn't saved"));
+            return Err(anyhow::Error::new(e).context(format!(
+                "{} can't be read right now, so the section order wasn't saved",
+                path.file_name().unwrap_or_default().to_string_lossy()
+            )));
         }
     };
     let keys: Vec<String> = order
@@ -3159,7 +3163,7 @@ mod tests {
         assert_eq!(titles(2)[26], "Chapter Twenty-Seven");
         assert_eq!(p.meta.part_word(), "Part", "a new book counts in parts");
         assert!(
-            fs::read_to_string(d.join("novel.toml"))
+            fs::read_to_string(d.join("project.toml"))
                 .unwrap()
                 .contains("part_label = \"Part\""),
             "and says so, where it can be changed"
@@ -3254,6 +3258,27 @@ mod tests {
         assert!(d.join("research/01-Sample-Output").is_dir());
         assert!(upgrade(&d).unwrap().is_empty());
         fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn a_new_project_has_only_the_new_names() {
+        let d = temp_dir("new-names");
+        scaffold(&d).unwrap();
+        crate::sessions::assign_id(&d, false).unwrap();
+        for kind in project_files::FileKind::ALL {
+            assert!(d.join(kind.name()).exists(), "{}", kind.name());
+            assert!(!d.join(kind.legacy()).exists(), "{}", kind.legacy());
+        }
+        // A folder with the old names opens just the same, kit and all.
+        let old = temp_dir("old-names");
+        scaffold(&old).unwrap();
+        project_files::restore_legacy(&old).unwrap();
+        let p = Project::load(&old).unwrap();
+        assert!(p.meta_unreadable.is_none());
+        assert!(Area::Format.path(&old).ends_with("Novel-Format.md"));
+        assert!(Area::Format.path(&old).is_file(), "the kit is still found");
+        fs::remove_dir_all(&d).unwrap();
+        fs::remove_dir_all(&old).unwrap();
     }
 
     /// Every section, in this order, each one a row that folds.
@@ -3404,7 +3429,7 @@ mod tests {
                 .exists()
         );
         assert!(
-            d.join("Novel-Format.md").exists()
+            d.join("Project-Format.md").exists()
                 && d.join("template-sheets/01-Character-Sketch.md").exists()
         );
         assert!(d.join("front-matter/01-Manuscript-Format").is_dir());
@@ -3916,7 +3941,7 @@ mod tests {
         scaffold(&d).unwrap();
         let order = [Area::Characters, Area::Trash, Area::Manuscript];
         save_section_order(&d, &order).unwrap();
-        let toml = fs::read_to_string(d.join("novel.toml")).unwrap();
+        let toml = fs::read_to_string(d.join("project.toml")).unwrap();
         assert!(
             toml.contains("part_label = \"Part\""),
             "the rest of novel.toml stays"
@@ -3928,7 +3953,7 @@ mod tests {
         assert_eq!(areas.len(), Area::ALL.len());
         save_section_order(&d, &Area::ALL).unwrap();
         assert_eq!(
-            fs::read_to_string(d.join("novel.toml"))
+            fs::read_to_string(d.join("project.toml"))
                 .unwrap()
                 .matches("sections =")
                 .count(),

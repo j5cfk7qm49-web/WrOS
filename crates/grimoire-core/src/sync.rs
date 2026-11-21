@@ -493,7 +493,7 @@ pub fn drop_conflict_copy(path: &Path) -> Result<Option<PathBuf>> {
     let root = path
         .ancestors()
         .skip(1)
-        .find(|a| a.join("novel.toml").is_file())
+        .find(|a| crate::project_files::path(a, crate::project_files::FileKind::Settings).is_file())
         .with_context(|| format!("{} isn't inside a book", path.display()))?;
     crate::project::trash(root, path).map(Some)
 }

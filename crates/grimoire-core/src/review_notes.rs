@@ -400,11 +400,9 @@ impl MoveGuard {
         let Some((first, _)) = renames.first() else {
             return Ok(None);
         };
-        let Some(root) = first
-            .ancestors()
-            .skip(1)
-            .find(|p| p.join("novel.toml").is_file())
-        else {
+        let Some(root) = first.ancestors().skip(1).find(|p| {
+            crate::project_files::path(p, crate::project_files::FileKind::Settings).is_file()
+        }) else {
             return Ok(None);
         };
         let mut store = ReviewNotes::load(root)?;
