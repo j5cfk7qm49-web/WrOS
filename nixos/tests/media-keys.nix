@@ -17,13 +17,13 @@ pkgs.testers.runNixOSTest {
     machine.start()
     machine.wait_for_unit("triggerhappy.service")
 
-    log = "/run/wros-keys/music"
+    press_log = "/run/wros-keys/music"
     for key, line in [("audioplay", "1 play-pause"), ("audionext", "2 next"), ("audioprev", "3 previous")]:
         machine.send_key(key)
-        machine.wait_until_succeeds(f"tail -n 1 {log} | grep -Fx '{line}'", timeout=10)
+        machine.wait_until_succeeds(f"tail -n 1 {press_log} | grep -Fx '{line}'", timeout=10)
 
-    assert machine.succeed(f"cat {log}").splitlines() == ["1 play-pause", "2 next", "3 previous"]
-    assert machine.succeed(f"stat -c '%U %a' {log}").strip() == "wros-keys 644"
+    assert machine.succeed(f"cat {press_log}").splitlines() == ["1 play-pause", "2 next", "3 previous"]
+    assert machine.succeed(f"stat -c '%U %a' {press_log}").strip() == "wros-keys 644"
     machine.succeed("test ! -e /run/wros-keys/changed")
   '';
 }
