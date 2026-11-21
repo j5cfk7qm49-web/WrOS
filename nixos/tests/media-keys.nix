@@ -14,8 +14,15 @@ pkgs.testers.runNixOSTest {
   };
 
   testScript = ''
+    import time
     machine.start()
     machine.wait_for_unit("triggerhappy.service")
+    # At boot udev hands thd devices its own glob already opened (#171). Do it again on
+    # purpose: each device must still be open once, and each press must count once.
+    machine.succeed("udevadm trigger --action=add --subsystem-match=input && udevadm settle")
+    time.sleep(2)
+    open_twice = "pid=$(systemctl show -p MainPID --value triggerhappy); ls -l /proc/$pid/fd | grep -o '/dev/input/event[0-9]*' | sort | uniq -d"
+    assert machine.succeed(open_twice).strip() == "", "a device is open twice in thd"
 
     press_log = "/run/wros-keys/music"
     for key, line in [("audioplay", "1 play-pause"), ("audionext", "2 next"), ("audioprev", "3 previous")]:
