@@ -757,6 +757,8 @@ fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
             {
                 driver = driver.and_then(test_driver::Driver::reopen_after_lock);
             }
+            // Music keys pressed while locked waited in the log; they don't all fire now.
+            for _ in media_keys.iter().flat_map(|keys| keys.try_iter()) {}
             app.on_unlocked();
         }
         #[cfg(target_os = "linux")]

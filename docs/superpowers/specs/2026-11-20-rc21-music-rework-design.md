@@ -59,7 +59,7 @@ The owner also wants music out of the way of the writing desk:
   - "Open player · F7"
   - "Source · <label>…" (opens the existing source picker)
   - For Jellyfin and Plex only: "Sign in to <label>…", which opens Settings › Music › Set up server, or "Sign out of <label>", which forgets the server login.
-- **Media keys:** (my call: they also work while the screen is locked, as volume does, because triggerhappy runs there) wros-media-key gains the actions `play-pause`, `next` and `previous`. It records each press in `/run/wros-keys/music`. The app watches that file and acts on each new press once, and ignores presses recorded before it started.
+- **Media keys:** (my call: they do nothing on the lock screen; presses made there are dropped at unlock) wros-media-key gains the actions `play-pause`, `next` and `previous`. It records each press in `/run/wros-keys/music`. The app watches that file and acts on each new press once, and ignores presses recorded before it started.
 
 ## Left to the builder
 

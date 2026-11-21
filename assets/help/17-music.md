@@ -24,7 +24,7 @@ The YouTube Music player isn't an official app. A change on YouTube's side can s
 
 - `F5` play / pause, `F4` previous, `F6` next.
 - `F7` opens the player.
-- The laptop's own play/pause, next and previous keys do the same, even while the screen is locked.
+- The laptop's own play/pause, next and previous keys do the same while you write. On the lock screen they do nothing (volume still works there).
 
 ## The Music view
 

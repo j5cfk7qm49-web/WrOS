@@ -115,6 +115,13 @@ pub fn migrate_off_spotify(home: &std::path::Path, wros: bool) {
         return;
     }
     forget_spotify(home);
+    // rc20's sign-in worked in the session's runtime folder; a restart clears it, but an
+    // interrupted sign-in in this session could have left a login there.
+    if let Some(run) = std::env::var_os("XDG_RUNTIME_DIR").map(std::path::PathBuf::from)
+        && run.is_absolute()
+    {
+        let _ = std::fs::remove_dir_all(run.join("wros-spotify-signin"));
+    }
     let path = Config::path_in(home);
     if let Ok(text) = std::fs::read_to_string(&path) {
         let mut cfg = Config::parse(&text);
