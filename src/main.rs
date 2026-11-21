@@ -793,6 +793,7 @@ fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
         app.tick_pdf();
         app.tick_import();
         app.tick_deck();
+        app.tick_project_names();
         app.music.drain();
         // The player shows its own notes; anywhere else, the status bar does.
         if let Some(n) = app.music.take_fresh_note()

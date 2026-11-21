@@ -44,6 +44,7 @@ pub(crate) mod milestones;
 pub(crate) mod overlays;
 pub(crate) mod pins;
 pub(crate) mod productivity;
+pub(crate) mod project_names;
 pub(crate) mod prose_dashboard;
 pub(crate) mod review_notes;
 pub(crate) mod shell;
@@ -357,6 +358,12 @@ pub struct App {
     tree_stale: bool,
     /// The sync service the book's folder is in, if any (said at launch).
     pub cloud: Option<grimoire_core::cloud::Client>,
+    /// The project whose file names were last checked (rc22 renamed them), and whether
+    /// renaming is held off for this session (Go back put the old names back).
+    pub(crate) names_checked: Option<PathBuf>,
+    pub(crate) names_held: bool,
+    /// A project found with old names, waiting until they may be renamed.
+    pub(crate) names_waiting: Option<PathBuf>,
     /// The book still keeps its writing history in `.git` inside it.
     pub history_in_book: bool,
     /// When re-reading the tree last failed; it isn't tried again until
@@ -1083,6 +1090,9 @@ impl App {
             last_disk_check: None,
             tree_stale: false,
             cloud: None,
+            names_checked: None,
+            names_held: false,
+            names_waiting: None,
             history_in_book: false,
             reload_failed: None,
             help_fit: std::cell::Cell::default(),

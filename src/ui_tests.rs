@@ -10061,3 +10061,6 @@ mod pins_ui_tests;
 mod session_ui_tests;
 #[path = "tutorial_ui_tests.rs"]
 mod tutorial_ui_tests;
+
+#[path = "project_names_ui_tests.rs"]
+mod project_names_ui_tests;
