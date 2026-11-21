@@ -744,7 +744,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
                             plain(&fact.value),
                             scope,
                             fact.certainty.label(),
-                            fact.scene_name.as_deref().unwrap_or("Book-wide")
+                            fact.scene_name.as_deref().unwrap_or("Project-wide")
                         )
                     })
                     .collect(),

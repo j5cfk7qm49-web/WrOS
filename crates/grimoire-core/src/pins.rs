@@ -24,6 +24,20 @@ pub enum Scope {
     Dashboard,
     Hidden,
 }
+impl Scope {
+    /// How the writer reads it. `Novel` (its name in pins.json) is the whole project.
+    pub fn label(self) -> &'static str {
+        match self {
+            Scope::Always => "Always",
+            Scope::Novel => "Project",
+            Scope::Chapter => "Chapter",
+            Scope::Scene => "Scene",
+            Scope::Dashboard => "Dashboard",
+            Scope::Hidden => "Hidden",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Life {

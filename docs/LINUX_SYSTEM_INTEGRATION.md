@@ -37,7 +37,7 @@ executable annotations and loads the narrow authorization rules.
 | Disk free and OS | `statvfs` and WrOS/NixOS release identity from `/etc/os-release` | Read-only |
 | Login and account creation | greetd/PAM login; the encrypted live installer creates the writer account | Root remains locked; tty2 is available for authenticated maintenance |
 | Manual console lock | Independent Nixpkgs vlock/PAM locker on reserved tty8 after input/display retirement | The [console-lock VM check](../nixos/tests/console-lock.nix) covers tty8 ownership, authentication and input isolation; physical qualification is separate |
-| Book import from a USB stick | Narrow `wros-import-media` helper through pkexec (`org.wros.import.media`): lists removable USB partitions, mounts the chosen one read-only, `nodev,nosuid,noexec` at `/run/wros-import/media/1`, unmounts | Accepts only a device from its own listing and never the disk holding the system; the [import-book VM check](../nixos/tests/import-book.nix) covers it |
+| Project import from a USB stick | Narrow `wros-import-media` helper through pkexec (`org.wros.import.media`): lists removable USB partitions, mounts the chosen one read-only, `nodev,nosuid,noexec` at `/run/wros-import/media/1`, unmounts | Accepts only a device from its own listing and never the disk holding the system; the [import-book VM check](../nixos/tests/import-book.nix) covers it |
 | Signed updates and recovery | Packaged `wros-update` verifies signed NixOS closure manifests and binary-cache hashes, stages a generation for restart, and supports go back and repair | See [NixOS updates](NIXOS_UPDATES.md); the helper has a compiled Nix store path |
 
 The adapter requests are defined in [linux.rs](../crates/wros-sys/src/linux.rs).

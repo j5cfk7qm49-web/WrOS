@@ -348,9 +348,13 @@ fn menu_and_dialog_actions_use_labels_without_publishing_the_draft_name() {
     app.until("file menu", |s, t| {
         s.contains("File") && s.contains("Help") && node(t, &|n| n["id"] == "menu-file").is_some()
     });
-    app.choose("Start a new book…");
-    app.until("new book dialog", |s, t| {
-        s.contains("START A NEW BOOK") && node(t, &|n| n["role"] == "dialog").is_some()
+    app.choose("New project…");
+    app.until("new project dialog", |s, t| {
+        s.contains("NEW PROJECT")
+            && node(t, &|n| {
+                n["role"] == "dialog" && n["label"] == "New project…"
+            })
+            .is_some()
     });
     app.send(b"Private draft title");
     app.until("typed title", |s, _| s.contains("Private draft title"));
@@ -362,7 +366,7 @@ fn menu_and_dialog_actions_use_labels_without_publishing_the_draft_name() {
     );
     app.activate("dialog-new-book-cancel");
     app.until("cancelled dialog", |s, t| {
-        !s.contains("START A NEW BOOK") && node(t, &|n| n["role"] == "dialog").is_none()
+        !s.contains("NEW PROJECT") && node(t, &|n| n["role"] == "dialog").is_none()
     });
     assert!(!home.dir.join("Private draft title").exists());
 }

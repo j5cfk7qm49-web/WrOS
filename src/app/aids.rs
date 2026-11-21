@@ -99,7 +99,7 @@ impl App {
     pub fn next_tk(&mut self) {
         let rows = self.mark_rows();
         if rows.is_empty() {
-            self.msg = "no notes or TKs in the book".into();
+            self.msg = "no notes or TKs in the project".into();
             return;
         }
         let here = self.open.map(|i| self.project.nodes[i].path.clone());

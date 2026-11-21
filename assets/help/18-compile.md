@@ -1,6 +1,6 @@
 # Compile: the manuscript
 
-When the book is ready to send, *Export…* in the menu (*Export for readers* in `Ctrl-K`) compiles it into a manuscript in **William Shunn's modern standard manuscript format** — the one agents and editors expect.
+When the project is ready to send, *Export…* in the menu (*Export for readers* in `Ctrl-K`) compiles it into a manuscript in **William Shunn's modern standard manuscript format** — the one agents and editors expect.
 
 ## What you get
 
@@ -16,7 +16,7 @@ When the book is ready to send, *Export…* in the menu (*Export for readers* in
 - `↑` `↓` move between rows. `Space` or `Enter` ticks a format or a part.
 - **Formats**: Word manuscript, PDF, Paperback, EPUB and Markdown.
 - **Include**: which parts go in.
-- **How much**: `←` `→` choose the whole book, the first chapters, chapters X–Y, or the first N words — the samples agents ask for — and type the number or range. The title page still gives the whole book's word count.
+- **How much**: `←` `→` choose the whole project, the first chapters, chapters X–Y, or the first N words — the samples agents ask for — and type the number or range. The title page still gives the whole project's word count.
 - **Look…** and **Author details…** (below).
 - `p` reviews the loaded source selected by these formats, parts and sample.
   It checks footnotes, public TK/TODO/FIXME markers, links, local assets, covers,
@@ -26,7 +26,7 @@ When the book is ready to send, *Export…* in the menu (*Export for readers* in
   changing the source. It inspects at most 512 scenes,
   16 MiB total, 2 MiB and 8,192 footnote markers per scene, and 512 findings; an exceeded limit
   refuses the review instead of displaying a partial report.
-- `x` (or `Enter` on the Export button) exports into the book's `exports/` folder. Files are named the way agents ask: `Surname_Title_Manuscript.docx`.
+- `x` (or `Enter` on the Export button) exports into the project's `exports/` folder. Files are named the way agents ask: `Surname_Title_Manuscript.docx`.
 
 ## Look…
 
@@ -34,7 +34,7 @@ The manuscript's format, also in *Settings › Writing › Manuscript › Manusc
 
 ## Author details…
 
-Your byline (pen name), legal name, address, phone, email and an agent's details if you have one — for the title page. Saved in the book's `novel.toml`. Until they're filled in, the export dialog says so.
+Your byline (pen name), legal name, address, phone, email and an agent's details if you have one — for the title page. Saved in the project's `project.toml`. Until they're filled in, the export dialog says so.
 
 ## PDF
 

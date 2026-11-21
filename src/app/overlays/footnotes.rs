@@ -120,7 +120,9 @@ impl App {
                 || bytes > 16 * 1024 * 1024
                 || n.body.matches("[^").count() > 8192
             {
-                self.msg = "footnote browser limit reached (2 MiB/scene, 16 MiB/book, 8192 markers/scene); source retained".into();
+                self.msg = "footnote browser limit reached \
+                            (2 MiB/scene, 16 MiB/project, 8192 markers/scene); source retained"
+                    .into();
                 return;
             }
             let place = grimoire_core::search::place_of(&self.project, &self.parents, i);
@@ -131,7 +133,9 @@ impl App {
             }
         }
         if rows.is_empty() {
-            self.msg = "no public Markdown footnotes in this book yet · use [^name] and [^name]: definition".into();
+            self.msg = "no public Markdown footnotes in this project yet \
+                        · use [^name] and [^name]: definition"
+                .into();
             return;
         }
         self.msg =

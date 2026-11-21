@@ -35,7 +35,7 @@ pub enum Entry {
 /// Set up the local timeline, keeping any history the book already has.
 pub fn enable(root: &Path) -> Result<()> {
     if !sessions::git_available() {
-        bail!("git isn't installed, so the book's timeline isn't available");
+        bail!("git isn't installed, so the project's timeline isn't available");
     }
     if !root.is_dir() {
         bail!("{} isn't a folder", root.display());
@@ -49,7 +49,7 @@ pub fn enable(root: &Path) -> Result<()> {
         _ => {
             let taken = sessions::outside_dir(root).is_some_and(|dir| dir.exists());
             sessions::assign_id(root, taken)?;
-            let repo = sessions::outside_dir(root).context("giving the book an id")?;
+            let repo = sessions::outside_dir(root).context("giving the project an id")?;
             init_repository(root, &repo)?;
             repo
         }
@@ -142,7 +142,7 @@ pub fn label(entry: &Entry, words_changed: usize) -> String {
             _ => format!("Changed on Drive: {}", files.join(", ")),
         },
         Entry::BeforeRestoring(title) => format!("Before restoring {title}"),
-        Entry::BeforeReplacing => "Before replacing across the book".into(),
+        Entry::BeforeReplacing => "Before replacing across the project".into(),
         Entry::BroughtIn => "Brought in from Drive".into(),
     }
 }
@@ -656,7 +656,7 @@ mod tests {
         );
         assert_eq!(
             label(&Entry::BeforeReplacing, 0),
-            "Before replacing across the book"
+            "Before replacing across the project"
         );
         assert_eq!(label(&Entry::BroughtIn, 0), "Brought in from Drive");
     }

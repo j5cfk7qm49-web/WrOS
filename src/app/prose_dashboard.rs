@@ -651,7 +651,10 @@ impl App {
         self.prose_dashboard.chosen.clear();
         self.prose_dashboard.selected = 0;
         self.prose_dashboard.page = Page::Sources;
-        self.prose_dashboard.notice="Explicitly choose your own saved manuscript material. No automatic whole-book sampling or inference of authorship. Space toggles; Enter names the frozen baseline.".into();
+        self.prose_dashboard.notice = "Explicitly choose your own saved manuscript material. \
+                                       No automatic whole-project sampling or inference of \
+                                       authorship. Space toggles; Enter names the frozen baseline."
+            .into();
     }
     fn prepare_voice_sources(&mut self) -> Result<()> {
         ensure!(
@@ -1285,7 +1288,12 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
                         }
                     ));
                 }
-                rows.push("i ignores this occurrence for this run; m mutes the primary rule in this novel; M asks to mute personally. w reviewed / x dismissed save references, never prose.".into());
+                rows.push(
+                    "i ignores this occurrence for this run; m mutes the primary rule in this \
+                     project; M asks to mute personally. w reviewed / x dismissed save \
+                     references, never prose."
+                        .into(),
+                );
             } else {
                 rows.push("No current selected finding. r refreshes this revision.".into());
             }
@@ -1385,7 +1393,12 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
             rows.push(format!("Remove frozen voice metadata {:?}? Originals and all manuscript files remain untouched. y confirms; Esc retains it.",d.pending_profile));
         }
         Page::GlobalMute => {
-            rows.push(format!("Personally mute {:?}? y saves ONLY a version-bound rule identifier, not model permission. It applies to future matching findings across novels using this personal profile. Esc declines.",d.pending_rule));
+            rows.push(format!(
+                "Personally mute {:?}? y saves ONLY a version-bound rule identifier, \
+                 not model permission. It applies to future matching findings across projects \
+                 using this personal profile. Esc declines.",
+                d.pending_rule
+            ));
         }
     }
     // Static wrapped text. No parser, disk read, worker dispatch or network here.

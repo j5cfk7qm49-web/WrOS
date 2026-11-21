@@ -44,7 +44,7 @@ Unknown/corrupt/future/conflicting metadata is preserved and displayed. Selectio
 
 Static, scrollable output is the default at 80×24, 100×30, 120×40 and 160×50. **l** enables a short presentation-only roulette indicator on selection. Result/seed/history are already fixed; frames never draw random values or change content. Focus and low-power suppress it; it does not require a faster wake rate. This is not a physical battery/latency qualification.
 
-Safe-demo lesson **22** requires plot-only result publication to a real saved note. **23** requires a successfully persisted exercise-only favorite. **24** checks the stored ancestor chain for independent plot/exercise and joint rerolls, a retained favorite, and newly ready independent scene creation/opening. Generation, navigation, an existing ready-source retry, or a fake completion button cannot substitute for the required save/scene transition. These events do not complete writing exercises in an ordinary novel.
+Safe-demo lesson **22** requires plot-only result publication to a real saved note. **23** requires a successfully persisted exercise-only favorite. **24** checks the stored ancestor chain for independent plot/exercise and joint rerolls, a retained favorite, and newly ready independent scene creation/opening. Generation, navigation, an existing ready-source retry, or a fake completion button cannot substitute for the required save/scene transition. These events do not complete writing exercises in an ordinary project.
 
 ## Verification and remaining gates
 

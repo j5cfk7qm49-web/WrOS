@@ -1079,7 +1079,7 @@ fn draw_card(f: &mut Frame, app: &App, pin: &Pin, area: Rect, t: &Theme, focused
         },
         safe(&title),
         if pin.category.is_empty() {
-            format!("{:?}", pin.scope)
+            pin.scope.label().to_string()
         } else {
             pin.category.clone()
         },

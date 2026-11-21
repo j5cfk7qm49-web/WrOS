@@ -3,12 +3,12 @@
 ## Five distinct guarantees
 
 1. **Local saving:** existing atomic guarded manuscript saves; works offline.
-2. **History and recovery.** WrOS keeps a local Git timeline for every book and sends it to Drive for books that sync. Dated scene copies and crash/failed-save rescue remain available locally.
+2. **History and recovery.** WrOS keeps a local Git timeline for every project and sends it to Drive for projects that sync. Dated scene copies and crash/failed-save rescue remain available locally.
 3. **Off-device backup:** versioned, verified copies with a tested restore. Existing optional Git remote push is not a new Google Drive backup service.
 4. **Bidirectional sync:** compare versions, detect conflicts and preserve both sides. A simple upload/copy command is not this protocol.
 5. **Google Docs interoperability:** a separate import/export/round-trip question, not implied by storing Markdown files in Drive.
 
-Current cloud-related code detects known synced folders and preserves external edits/conflict copies. `grimoire-app` has stamp-checked mobile save APIs and the Android Tauri prototype uses them. WrOS also keeps readable Markdown copies of a book in Google Drive in step with the computer (below). There is no iPhone client or safe Docs round trip in WrOS.
+Current cloud-related code detects known synced folders and preserves external edits/conflict copies. `grimoire-app` has stamp-checked mobile save APIs and the Android Tauri prototype uses them. WrOS also keeps readable Markdown copies of a project in Google Drive in step with the computer (below). There is no iPhone client or safe Docs round trip in WrOS.
 
 Pin metadata is now project-local alongside layout state. Include it in a consistent project backup, but it never substitutes for the source Markdown files. Guarded pin-state conflicts are reported and require explicit metadata reload/relink; cards do not create a second source text to synchronize. See [PINS](PINS.md).
 
@@ -31,11 +31,11 @@ Use rclone `copy`/versioned immutable destinations for initial backup evaluation
 
 ## Readable Google Drive sync
 
-Per book, opt-in: Settings › Backups and accounts › Backups › **Sync this book with Google Drive (readable files)**.
-The book's Markdown files are copied, unencrypted, to `WrOS/<book>/` in the connected
-Drive, and edits made there come back. The app syncs when the book opens, 90 seconds
+Per project, opt-in: Settings › Backups and accounts › Backups › **Sync this project with Google Drive (readable files)**.
+The project's Markdown files are copied, unencrypted, to `WrOS/<project>/` in the connected
+Drive, and edits made there come back. The app syncs when the project opens, 90 seconds
 after the last save or edit and every 5 minutes while it is open, never with unsaved
-words. Closing the book or shutting down through the app requests a final sync
+words. Closing the project or shutting down through the app requests a final sync
 after saving; retry the action once it finishes. Sleep starts a final sync without
 delaying the lock. Offline attempts do not
 prevent leaving. A phone edit or a lost laptop can miss the last couple of minutes
@@ -43,10 +43,10 @@ of writing. Forced process termination cannot wait for a final sync.
 
 - **Base versions.** A private ledger (`$XDG_DATA_HOME/grimoire/wros/sync/<project>/`)
   records the version both sides last agreed on, by MD5. A file changed on one side is
-  copied to the other; the first sync of a book never deletes.
+  copied to the other; the first sync of a project never deletes.
 - **History.** Uploads update the existing Drive file so its revisions accumulate
   in Drive's version history (Manage versions on drive.google.com). WrOS normally
-  stops making dated copies in `WrOS-History/<book>/<date>/`. If it cannot record
+  stops making dated copies in `WrOS-History/<project>/<date>/`. If it cannot record
   the timeline before sync, it still makes a dated copy before replacing or deleting
   a local file. Drive's trash handles remote deletions.
 - **Conflicts.** A file changed on both sides keeps the WrOS version in place and
@@ -58,21 +58,21 @@ of writing. Forced process termination cannot wait for a final sync.
 - **Safe writes.** A local file is replaced only if it still matches what the sync read;
   an edit made meanwhile is left for the next run. Offline runs simply wait.
 
-The book's identity is `.grimoire/sync.json` plus a `.wros-sync.json` marker in the Drive
+The project's identity is `.grimoire/sync.json` plus a `.wros-sync.json` marker in the Drive
 folder, so a second computer can join the same folder later. Encrypted backups are
 unchanged and remain the recovery path.
 
-## Book timeline
+## Project timeline
 
-On WrOS, every book keeps a Git timeline of small saves, marked writing sessions
+On WrOS, every project keeps a Git timeline of small saves, marked writing sessions
 and changes brought in from Drive. The local repository lives in
-`~/.local/share/grimoire/sessions/<book-id>.git`. Scene history (`H` in the outline)
+`~/.local/share/grimoire/sessions/<project-id>.git`. Scene history (`H` in the outline)
 lists the scene's timeline versions and saved copies.
 
 When sync is enabled, WrOS uploads append-only Git bundles to
-`WrOS-History/<book>/timeline/<machine>/` at the end of a session, hourly during
+`WrOS-History/<project>/timeline/<machine>/` at the end of a session, hourly during
 long sessions and on reconnect. The bundles include the journal, productivity
-figures and review notes in plaintext, like the book. Importing a synced book
+figures and review notes in plaintext, like the project. Importing a synced project
 from Drive rebuilds its local timeline. If Drive loses bundles, the laptop can
 upload a full one. Any Git client can read the timeline. Use
 `git clone "<file>.bundle"` for a full bundle and fetch incremental bundles in
@@ -91,7 +91,7 @@ them. Repeated references share one definition per scene, and multiple note
 paragraphs retain their formatting. Imported labels use Word's numeric IDs under
 the `docx-` prefix. A synthetic WrOS export saved again by LibreOffice retained
 Unicode text and both paragraphs of its footnote through the app's import command.
-The import creates a new book for review. The live iPhone and Google Docs check
+The import creates a new project for review. The live iPhone and Google Docs check
 remains in [issue 10](https://github.com/j5cfk7qm49-web/WrOS/issues/10).
 
 ## Status and credential gates

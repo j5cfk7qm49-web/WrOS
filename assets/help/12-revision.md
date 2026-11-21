@@ -4,7 +4,7 @@ Tools for going back over a draft.
 
 ## Next scene still in draft
 
-*Next scene still in draft*, in *Tools › Revision* or `Ctrl-K`, opens the next scene in book order whose status isn't *revised* or *done* — empty scenes are skipped, and it goes round to the start when it reaches the end. Work through a revision pass by setting each scene's status as you finish it (`s` on the corkboard steps it, or edit `status:` in the frontmatter).
+*Next scene still in draft*, in *Tools › Revision* or `Ctrl-K`, opens the next scene in project order whose status isn't *revised* or *done* — empty scenes are skipped, and it goes round to the start when it reaches the end. Work through a revision pass by setting each scene's status as you finish it (`s` on the corkboard steps it, or edit `status:` in the frontmatter).
 
 ## Echo words
 
@@ -37,5 +37,5 @@ When there's more than one, WrOS picks the most natural. *Settings › Writing �
 
 - *Check names for near-miss spellings* finds names that have drifted (see *The notebook and names*).
 - `Ctrl-T` lists every note and TK you left for yourself.
-- `H` in the outline shows how a scene has changed. On WrOS the versions come from the book's timeline, with older saved copies below them.
+- `H` in the outline shows how a scene has changed. On WrOS the versions come from the project's timeline, with older saved copies below them.
 - *Writing sessions* show what changed in each sitting. On WrOS the sittings are marked in the timeline.

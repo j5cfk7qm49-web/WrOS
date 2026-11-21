@@ -232,10 +232,13 @@ pub fn is_damaged(root: &Path) -> bool {
 pub fn rebuild(root: &Path, bundles: &[(String, PathBuf)]) -> Result<Option<String>> {
     let root = &std::path::absolute(root)?;
     if !root.is_dir() || root.join(".git").exists() {
-        bail!("{} isn't a book with an outside timeline", root.display());
+        bail!(
+            "{} isn't a project with an outside timeline",
+            root.display()
+        );
     }
     if !sessions::git_available() {
-        bail!("git isn't installed, so the book's timeline isn't available");
+        bail!("git isn't installed, so the project's timeline isn't available");
     }
     let bundles = bundles
         .iter()
@@ -254,7 +257,7 @@ pub fn rebuild(root: &Path, bundles: &[(String, PathBuf)]) -> Result<Option<Stri
     let taken = sessions::outside_dir(root)
         .is_some_and(|repo| repo.exists() && !sessions::claims(&repo, root));
     sessions::assign_id(root, taken)?;
-    let repo = sessions::outside_dir(root).context("giving the book an id")?;
+    let repo = sessions::outside_dir(root).context("giving the project an id")?;
     let old = if repo.try_exists()? {
         Some(move_aside(&repo)?)
     } else {

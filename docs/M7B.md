@@ -14,7 +14,7 @@ paths come from the NixOS build.
   [Python adapter](../crates/grimoire-core/assets/wros/prose_tools.py) provide
   exact-version proselint and optional Nabokov/spaCy analysis. Nabokov requires
   an explicit, single-use permit bound to the source and configuration. Opening
-  a book or dashboard does not grant that permit. Results must match the source
+  a project or dashboard does not grant that permit. Results must match the source
   and configuration before use.
 - [lexicon.rs](../crates/grimoire-core/src/lexicon.rs) reads local WordNet 3.0
   senses and explicit antonym pointers without model or network access.

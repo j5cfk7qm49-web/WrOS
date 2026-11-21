@@ -98,7 +98,7 @@ the active local tty1, seat0, VT1, user class, trusted writer and independent
 vlock/PAM authentication.
 
 Foot and OpenGL use a separate, unprivileged colour process for cage's gamma
-controls. It has no book path, input devices or password terminal. Its preview
+controls. It has no project path, input devices or password terminal. Its preview
 deadline runs even while the writing process is stopped; losing the process
 releases the compositor's original curves. The native colour service restores
 its baseline before cage starts and resumes after cage exits. Keep saves bounded
@@ -134,7 +134,7 @@ The NixOS Rust package declares libdrm, libinput, systemd, seatd and libxkbcommo
 build inputs. XKB and Compose data use the store paths in `nixos/pkgs/paths.nix`.
 
 `grimoire --wros-renderers` reports the compiled renderer features as JSON without
-opening a book. `gui-wgpu` belongs only to the writing executable, so enabling the
+opening a project. `gui-wgpu` belongs only to the writing executable, so enabling the
 trial does not pull its window/graphics dependencies into the unlock or login
 executables.
 

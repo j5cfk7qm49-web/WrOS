@@ -8,12 +8,12 @@
 - `Tab` moves to the **replace** box. `Enter` there replaces the current match; `Ctrl-R` replaces every match in the scene.
 - `Esc` closes the bar.
 
-## In the whole book
+## In the whole project
 
-`Ctrl-F` a second time (or `/` in the outline, or *Edit › Search the whole book…*) searches every scene and note, grouped by part and chapter.
+`Ctrl-F` a second time (or `/` in the outline, or *Edit › Search the whole project…*) searches every scene and note, grouped by part and chapter. In `Ctrl-K`, choose *Find in the whole project*.
 
 - `↑` `↓` choose a match and `Enter` goes to it.
-- `Tab` moves to the replace box. `Enter` there (or `Ctrl-R`) asks before replacing across the book: `y` to go ahead, anything else to cancel.
+- `Tab` moves to the replace box. `Enter` there (or `Ctrl-R`) asks before replacing across the project: `y` to go ahead, anything else to cancel.
 
 ## Whole words and capitals
 
@@ -26,4 +26,4 @@ The bar shows which is on.
 
 ## Undoing a replace
 
-A replace across the whole book is **one step**: `Ctrl-Z` puts every scene back (from the outline, or from the page if you haven't typed since). Each scene's previous version also goes to its history first.
+A replace across the whole project is **one step**: `Ctrl-Z` puts every scene back (from the outline, or from the page if you haven't typed since). Each scene's previous version also goes to its history first.

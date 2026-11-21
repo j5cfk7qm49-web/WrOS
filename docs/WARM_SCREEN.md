@@ -21,7 +21,7 @@ Both compositor sessions offer the same Warm screen page. The writing executable
 includes a small private colour worker. Its entry point runs before project or
 input setup. It binds only display outputs and the gamma-control protocol; it never
 binds a keyboard, pointer or surface. A bounded pipe carries only status, preview,
-Keep and Cancel. The worker has no book path or password terminal.
+Keep and Cancel. The worker has no project path or password terminal.
 
 Before cage starts, the authorized display helper stops the native boot colour
 service and restores any verified native baseline. A failed handoff disables

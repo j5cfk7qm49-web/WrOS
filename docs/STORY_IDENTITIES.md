@@ -13,7 +13,7 @@ stores. A guarded metadata update checks the existing context before invoking
 its callback and the candidate context before publishing. This stops a cached
 empty registry from allocating an ID that newly arrived saved story data already
 uses. Unknown/future/corrupt, oversized or aliased dependency data is refused and
-preserved. Book-wide facts without document references remain valid with a fresh
+preserved. Project-wide facts without document references remain valid with a fresh
 registry. Owned tree moves perform the same check before moving source.
 An interrupted move must be explicitly reconnected before any new document
 identity is allocated; the moved source cannot silently gain a competing ID.
@@ -32,7 +32,7 @@ plain dated scene history remain separate. Original Markdown/YAML, saved story
 data and the unavailable registry are never rewritten as a guessed repair.
 
 Focused core checks cover milestones, variants, fact/event links, empty/missing
-registries, cached allocation, book-wide facts and malformed/future/oversized
+registries, cached allocation, project-wide facts and malformed/future/oversized
 dependencies. Actual app checks at 80x24, 100x30, 120x40 and 160x50 prove refusal
 before comparison/restore, unchanged scenes/sidecars, available ordinary writing,
 save/Undo/help, then correct-target restoration and Undo after an explicit

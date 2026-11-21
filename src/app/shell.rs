@@ -234,7 +234,7 @@ impl UpdateBundleForm {
             "The review verifies the WrOS signature, the package list and every .deb checksum."
                 .into(),
             "Nothing is installed until you confirm on a later screen.".into(),
-            "Create an encrypted backup first to keep your books safe.".into(),
+            "Create an encrypted backup first to keep your projects safe.".into(),
         ]
     }
 }
@@ -633,7 +633,7 @@ fn drive_rows(app: &App) -> Vec<Entry> {
         ));
         if holds_book {
             rows.push(Entry::new(
-                "Import this book…",
+                "Import this project…",
                 Choice::DriveCopyBook(folder.to_string()),
             ));
         } else {
@@ -680,7 +680,7 @@ fn drive_rows(app: &App) -> Vec<Entry> {
         Choice::BackupForm(FormKind::DriveBrowse, String::new()),
     ));
     rows.push(Entry::info(
-        "Copies are checked against Google Drive. Your books stay on this laptop.",
+        "Copies are checked against Google Drive. Your projects stay on this laptop.",
     ));
     rows
 }
@@ -1572,11 +1572,12 @@ fn page_entries(app: &App, route: Route) -> Vec<Entry> {
         ],
         Route::GoogleDrive => drive_rows(app),
         Route::SyncPanel => vec![
-            Entry::info("Readable Google Drive sync is set per book, in Settings › Backups."),
+            Entry::info("Readable Google Drive sync is set per project, in Settings › Backups."),
             Entry::info(if app.sync_enabled() {
-                "This book syncs with Google Drive; Backups shows its latest result."
+                "This project syncs with Google Drive; Backups shows its latest result."
             } else {
-                "This book is not synced; its words stay on this computer and in encrypted backups."
+                "This project is not synced; its words stay on this computer and in encrypted \
+                 backups."
             }),
         ],
         Route::Backups => {
@@ -1639,12 +1640,12 @@ fn page_entries(app: &App, route: Route) -> Vec<Entry> {
                     }
                     rows.push(Entry::info(backup.sync.line()));
                     rows.push(Entry::new(
-                        "Stop syncing this book",
+                        "Stop syncing this project",
                         Choice::SyncSwitch(false),
                     ));
                 } else {
                     rows.push(Entry::new(
-                        "Sync this book with Google Drive (readable files)",
+                        "Sync this project with Google Drive (readable files)",
                         Choice::SyncSwitch(true),
                     ));
                     rows.push(Entry::info(

@@ -43,7 +43,7 @@ impl Validate for NovelPreferences {
         }
         ensure!(
             self.options.disabled_rules.len() <= 256,
-            "too many novel muted rules"
+            "too many project muted rules"
         );
         self.options.validate()
     }

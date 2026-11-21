@@ -236,7 +236,7 @@ impl Area {
 
     pub fn title(self) -> &'static str {
         match self {
-            Area::Format => "Novel Format",
+            Area::Format => "Project Format",
             Area::Manuscript => "Manuscript",
             Area::Characters => "Characters",
             Area::Places => "Places",
@@ -1666,7 +1666,9 @@ pub fn scaffold_with(root: &Path, title: Option<&str>, shape: &Shape) -> Result<
     write_new(
         &project_files::new_path(root, FileKind::Settings),
         &format!(
-            "title = \"{}\"\nauthor = \"\"\ndraft = \"1\"\ntarget_words = {}\ndaily_target = {}\n\n# What this book calls its largest division: Part, Act, Book…\npart_label = \"Part\"\n",
+            "title = \"{}\"\nauthor = \"\"\ndraft = \"1\"\ntarget_words = {}\ndaily_target = {}\n\n\
+             # What this project calls its largest division: Part, Act, Book…\n\
+             part_label = \"Part\"\n",
             quoted(&title),
             shape.target_words,
             shape.daily_target
@@ -1915,10 +1917,13 @@ fn keep_page_label(root: &Path) -> Result<Option<String>> {
         text.push('\n');
     }
     text.push_str(
-        "\n# What this book calls its largest division: Part, Act, Book…\npart_label = \"Page\"\n",
+        "\n# What this project calls its largest division: Part, Act, Book…\n\
+         part_label = \"Page\"\n",
     );
     write_atomic(&toml_path, &text)?;
-    Ok(Some("this book counts in pages, as its folders do".into()))
+    Ok(Some(
+        "this project counts in pages, as its folders do".into(),
+    ))
 }
 
 /// `02-Page-Two`, `01-page-one`, `PAGE III` — a folder named as a page.
@@ -1938,18 +1943,18 @@ fn is_page_folder(dir: &Path) -> bool {
 mod starter {
     // Written to be read in Grimoire's editor, which shows Markdown as typed:
     // plain prose, no emphasis marks or code quotes.
-    pub const NOVEL_FORMAT: &str = "---\ntitle: \"Novel Format\"\n---\n\n\
-How this book is laid out. Every section of the tree folds: Enter or Space \
+    pub const NOVEL_FORMAT: &str = "---\ntitle: \"Project Format\"\n---\n\n\
+How this project is laid out. Every section of the tree folds: Enter or Space \
 opens and closes one. Esc opens the menu, from anywhere.\n\n\
-MANUSCRIPT is the book itself: parts hold chapters, chapters hold scenes. In \
+MANUSCRIPT is the writing itself: parts hold chapters, chapters hold scenes. In \
 the tree, p makes a part, c a chapter and n a scene. Only what's in here counts \
-toward your word count and goes into an export. If your book says Act or Book \
-rather than Part, change part_label in project.toml.\n\n\
+toward your word count and goes into an export. If you call parts Act or Book \
+instead, change part_label in project.toml.\n\n\
 CHARACTERS and PLACES are your notebook. Their names teach the spellchecker, \
 and Ctrl-O on a name in a scene opens its note beside the scene.\n\n\
 FRONT MATTER holds the pages before chapter one, one folder per edition: \
 Manuscript Format for a Word submission, Ebook for the EPUB, Paperback for print. \
-The starter pages stay out of the book until you want them: each begins with \
+The starter pages stay out of exports until you want them: each begins with \
 the line compile: false, and changing it to compile: true puts it in.\n\n\
 NOTES and RESEARCH are for everything else you gather. Sample Output, in \
 Research, is a place to keep exports you want to compare.\n\n\
@@ -3511,7 +3516,15 @@ mod tests {
     /// has no emphasis marks or code quotes in it.
     #[test]
     fn the_novel_format_guide_reads_as_plain_prose() {
+        assert!(starter::NOVEL_FORMAT.starts_with("---\ntitle: \"Project Format\"\n---\n"));
         let body = starter::NOVEL_FORMAT.split("---\n").nth(2).unwrap();
+        assert_eq!(
+            body.trim_start().lines().next(),
+            Some(
+                "How this project is laid out. Every section of the tree folds: Enter or Space \
+                 opens and closes one. Esc opens the menu, from anywhere."
+            )
+        );
         assert!(!body.contains("**") && !body.contains('`'), "{body}");
         assert!(body.contains("parts hold chapters"), "{body}");
     }

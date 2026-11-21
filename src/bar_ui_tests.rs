@@ -48,7 +48,7 @@ fn the_bar_has_eight_titles_in_order() {
     assert_eq!(
         labels,
         [
-            "WrOS", "File", "Edit", "View", "Book", "Tools", "Settings", "Help"
+            "WrOS", "File", "Edit", "View", "Project", "Tools", "Settings", "Help"
         ]
     );
     let mut letters: Vec<char> = Title::ALL.iter().map(|t| t.letter()).collect();
@@ -57,7 +57,7 @@ fn the_bar_has_eight_titles_in_order() {
     assert_eq!(letters.len(), 8, "each title its own letter");
     let d = Desk::open(book("bar-line", true), 80, 24);
     assert!(
-        d.rows()[0].starts_with("  WrOS  File  Edit  View  Book  Tools  Settings  Help"),
+        d.rows()[0].starts_with("  WrOS  File  Edit  View  Project  Tools  Settings  Help"),
         "{:?}",
         d.rows()[0]
     );
@@ -319,7 +319,7 @@ fn bar_path_names_the_menu() {
         d.app.bar_path(&A::Pinboard).as_deref(),
         Some("Tools › Notes")
     );
-    assert_eq!(d.app.bar_path(&A::NewScene).as_deref(), Some("Book"));
+    assert_eq!(d.app.bar_path(&A::NewScene).as_deref(), Some("Project"));
     assert_eq!(d.app.bar_path(&A::Dashboard).as_deref(), Some("WrOS"));
 }
 
@@ -336,7 +336,7 @@ fn esc_lights_the_bar_on_file_without_opening_it_and_esc_closes_it() {
             side: None
         }
     );
-    assert!(!d.shows("Start a new book…"), "lit, not dropped down");
+    assert!(!d.shows("New project…"), "lit, not dropped down");
     d.key(KeyCode::Esc);
     assert_eq!(d.app.overlay, Overlay::None);
 }
@@ -358,7 +358,7 @@ fn esc_clears_a_selection_before_opening_the_bar() {
 fn esc_then_a_letter_opens_that_menu_on_the_console_too() {
     let mut d = Desk::open(book("bar-letters", true), 100, 30);
     d.app.linux_console = true;
-    for (letter, title) in [('b', Title::Book), ('h', Title::Help), ('W', Title::Wros)] {
+    for (letter, title) in [('p', Title::Book), ('h', Title::Help), ('W', Title::Wros)] {
         d.key(KeyCode::Esc);
         d.key(KeyCode::Char(letter));
         assert!(
@@ -453,7 +453,7 @@ fn alt_and_a_letter_opens_that_menu_in_the_graphical_session_only() {
 fn a_letter_in_a_dropdown_jumps_to_its_row_and_enter_runs_it() {
     let mut d = Desk::open(book("bar-jump", true), 120, 35);
     d.key(KeyCode::Esc);
-    d.key(KeyCode::Char('b'));
+    d.key(KeyCode::Char('p'));
     d.key(KeyCode::Char('r'));
     assert!(d.shows("▸ Rename…"), "{}", d.rows().join("\n"));
     d.key(KeyCode::Char('n'));
@@ -1179,6 +1179,23 @@ fn f8_next_in_the_spelling_box_reaches_the_next_misspelt_word() {
         "next goes on to the second: {:?}",
         d.app.overlay
     );
+}
+
+#[test]
+fn find_anything_names_project_actions() {
+    let mut d = Desk::open(book("palette-project", true), 80, 24);
+    d.app.project.meta.part_label = "Book".into();
+    let entries = palette::entries(&d.app);
+    for (action, label) in [
+        (A::NewBook, "New project…"),
+        (A::OpenBook, "Open another project…"),
+        (A::FindInBook, "Find in the whole project"),
+        (A::Goals, "Goals: the project's word goal and each day's"),
+        (A::NewPart, "New book"),
+    ] {
+        let entry = entries.iter().find(|entry| entry.action == action).unwrap();
+        assert_eq!(entry.label, label);
+    }
 }
 
 #[test]

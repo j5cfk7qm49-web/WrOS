@@ -1,6 +1,6 @@
 # The notebook & names
 
-The notebook is the book's sections for things that aren't the story: **Characters**, **Places**, **Notes** and **Research**. Each note is a Markdown file, like a scene.
+The notebook is the project's sections for things that aren't the story: **Characters**, **Places**, **Notes** and **Research**. Each note is a Markdown file, like a scene.
 
 ## Names light up
 

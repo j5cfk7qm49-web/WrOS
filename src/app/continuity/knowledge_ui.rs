@@ -484,7 +484,7 @@ fn description(v: &Version) -> String {
     let fact_source = match (v.fact.scene_id, v.fact.scene_name.as_deref()) {
         (Some(id), Some(name)) => format!("document #{id} · {}", plain(name)),
         (Some(id), None) => format!("document #{id}"),
-        (None, _) => "Book-wide".into(),
+        (None, _) => "Project-wide".into(),
     };
     format!(
         "{} · {} · {}\nScene: {} · document #{}\nSource revision SHA-256: {}\nFact #{} · {} · {}\nProperty: {} = {}\nCertainty: {}\nSingle-value scope: {}\nFact source: {}\nFact notes: {}\nKnowledge notes: {}\nRecorded: {} · {}",

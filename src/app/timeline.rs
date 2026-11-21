@@ -209,7 +209,7 @@ impl Timeline {
             return None;
         }
         Some(format!(
-            "The book's timeline isn't recording ({error}); scene history keeps plain copies."
+            "The project's timeline isn't recording ({error}); scene history keeps plain copies."
         ))
     }
 
@@ -798,7 +798,7 @@ mod tests {
             assert!(!timeline.record_now(Entry::Save, TEST_WAIT));
             assert!(!timeline.last_record_ok());
             let notice = timeline.poll().unwrap();
-            assert!(notice.starts_with("The book's timeline isn't recording ("));
+            assert!(notice.starts_with("The project's timeline isn't recording ("));
             assert!(notice.ends_with("scene history keeps plain copies."));
             assert!(!timeline.record_now(Entry::Save, TEST_WAIT));
             assert!(timeline.poll().is_none());

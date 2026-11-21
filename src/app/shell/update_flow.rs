@@ -246,7 +246,7 @@ pub(super) fn recovery_panel() -> Vec<Entry> {
             Choice::View(Route::RecoveryView, Request::RecoveryStatus),
         ),
         info("Each update keeps the previous WrOS version in the start menu."),
-        info("Create an encrypted backup to keep your books safe."),
+        info("Create an encrypted backup to keep your projects safe."),
     ]
 }
 
@@ -333,7 +333,7 @@ fn gate_lines(app: &App, review: &UpdateReview) -> Vec<String> {
     lines.push(match backup_gate(app, review) {
         BackupGate::NotNeeded => "Backup: this update does not ask for one.".to_string(),
         BackupGate::Unconfigured => {
-            "Backup: none is set up. An encrypted backup keeps your books safe.".to_string()
+            "Backup: none is set up. An encrypted backup keeps your projects safe.".to_string()
         }
         BackupGate::Fresh(taken) => format!("Backup: fresh, taken {taken}."),
         BackupGate::Missing => format!(
@@ -853,9 +853,9 @@ impl App {
         self.deck.shell.update_flow.chain = Some(Chain::BackingUp { restart });
         self.deck.shell.update_flow.chained = Some((review, dir));
         self.update_notice(if restart {
-            "Backing up this book; then the update is staged and WrOS restarts to install it."
+            "Backing up this project; then the update is staged and WrOS restarts to install it."
         } else {
-            "Backing up this book; then the update is staged."
+            "Backing up this project; then the update is staged."
         });
     }
     /// While a back-up-then-stage waits for its backup: how far the backup got, and what follows.
@@ -867,7 +867,7 @@ impl App {
         Some(format!(
             "{} Then {}.",
             job.status_line()
-                .replacen("Working:", "Backing up this book:", 1),
+                .replacen("Working:", "Backing up this project:", 1),
             if restart {
                 "the update is staged and WrOS restarts to install it"
             } else {

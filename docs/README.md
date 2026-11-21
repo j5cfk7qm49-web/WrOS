@@ -68,6 +68,7 @@ plans are preserved in the archive. Test results live in the evidence folder.
 
 ## Writing features
 
+- [Your projects](../assets/help/26-your-projects.md) covers creating, opening and importing projects.
 - [WORKSPACES](WORKSPACES.md), [WORKFLOW](WORKFLOW.md), [PINS](PINS.md),
   [JOURNAL](JOURNAL.md)
 - [WRITING_TOOLS](WRITING_TOOLS.md), [WRITING_CHECKS](WRITING_CHECKS.md),

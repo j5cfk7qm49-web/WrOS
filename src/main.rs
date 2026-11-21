@@ -173,14 +173,14 @@ fn main() -> Result<()> {
     }
 
     if matches!(first.as_deref(), Some("-h") | Some("--help")) {
-        println!("grimoire — a terminal writing desk for novels\n");
+        println!("grimoire — a terminal writing desk for projects\n");
         println!("usage:");
         println!("  grimoire                    open your current manuscript");
         println!("  grimoire <dir>              open a specific one");
         println!("  grimoire new <dir>          start a new one: a novel, or add");
         println!("                              --short-story or --blank");
         println!("  grimoire import <draft>     bring in a draft (Word, Markdown or");
-        println!("                              text) as a new book beside it");
+        println!("                              text) as a new project beside it");
         println!("  grimoire index              refresh project.md, the project map");
         println!("  grimoire compile            assemble the manuscript");
         println!("  grimoire export [dir]       DOCX + EPUB into exports/; pick formats");
@@ -203,7 +203,9 @@ fn main() -> Result<()> {
 
     if first.as_deref() == Some("import") {
         let Some(draft) = args.next().map(PathBuf::from) else {
-            anyhow::bail!("which draft?\n\n  grimoire import <draft.docx|.md|.txt> [book folder]");
+            anyhow::bail!(
+                "which draft?\n\n  grimoire import <draft.docx|.md|.txt> [project folder]"
+            );
         };
         let book = grimoire_core::import::read(&draft)?;
         let dir = match args.next() {
@@ -317,7 +319,7 @@ fn main() -> Result<()> {
             let _ = display::suspend(&mut terminal);
             ratatui::restore();
             eprintln!("\nWrOS hit a bug and closed. Anything unsaved was kept, and will be");
-            eprintln!("offered back the next time you open this book.");
+            eprintln!("offered back the next time you open this project.");
             std::process::exit(101);
         }
     };
@@ -426,7 +428,9 @@ fn export_command(mut args: impl Iterator<Item = String>) -> Result<()> {
             s if s.starts_with("--parts=") => numbers = Some(part_numbers(&s["--parts=".len()..])?),
             s if s.starts_with('-') => anyhow::bail!("unknown option '{s}'\n\n  {EXPORT_USAGE}"),
             _ if dir.is_none() => dir = Some(PathBuf::from(a)),
-            _ => anyhow::bail!("one book at a time — '{a}' is a second folder\n\n  {EXPORT_USAGE}"),
+            _ => anyhow::bail!(
+                "one project at a time — '{a}' is a second folder\n\n  {EXPORT_USAGE}"
+            ),
         }
     }
     // A trim size is only for the paperback, so asking for one asks for it.
@@ -445,14 +449,14 @@ fn export_command(mut args: impl Iterator<Item = String>) -> Result<()> {
             let all = export::parts(&project);
             let noun = project.meta.part_noun();
             if all.is_empty() {
-                anyhow::bail!("this book has no {noun}s to choose from — leave out --parts");
+                anyhow::bail!("this project has no {noun}s to choose from — leave out --parts");
             }
             let mut chosen = Vec::new();
             for n in numbers {
                 match all.get(n.wrapping_sub(1)) {
                     Some((idx, _)) => chosen.push(*idx),
                     None => anyhow::bail!(
-                        "there is no {noun} {n} — this book has {}:\n{}",
+                        "there is no {noun} {n} — this project has {}:\n{}",
                         all.len(),
                         all.iter()
                             .enumerate()
@@ -575,7 +579,7 @@ fn resolve_project(arg: Option<PathBuf>) -> Result<(PathBuf, Option<String>)> {
     let msg = match (msg, done.is_empty()) {
         (msg, true) => msg,
         (Some(m), false) => Some(format!("{m} · {}", done.join(" · "))),
-        (None, false) => Some(format!("book updated: {}", done.join(" · "))),
+        (None, false) => Some(format!("project updated: {}", done.join(" · "))),
     };
     Ok((root, msg))
 }

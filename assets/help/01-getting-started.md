@@ -1,15 +1,15 @@
 # Getting started
 
-WrOS is a writing desk for one book at a time. The book is a folder of plain Markdown files, so everything you write can be read, copied and backed up without WrOS. You can have as many books as you like: *File › Start a new book…* starts another, and *File › Open another book…* switches (see *Your books*).
+WrOS is a writing desk for one project at a time. The project is a folder of plain Markdown files, so everything you write can be read, copied and backed up without WrOS. You can have as many projects as you like: *File › New project…* starts another, and *File › Open another project…* switches (see *Your projects*).
 
 ## The desk
 
-- **The outline**, on the left, headed by the book's title: parts, chapters and scenes, then the notebook (Characters, Places, Notes, Research) and the rest of the book's sections.
+- **The outline**, on the left, headed by the project's title: parts, chapters and scenes, then the notebook (Characters, Places, Notes, Research) and the rest of the project's sections.
 - **The page**, on the right: the scene you're writing.
 - **The Pomodoro**, under the outline: a timer drawn as a little world. `←` `→` turns it into the Visualizer.
 - **Music**, below that, when you've turned it on.
-- **The menu bar**, along the top, with whether your words are saved and when the book was last backed up at its right.
-- **The status bar**, along the bottom: the book's words against its target, what you've written today and messages, then Wi-Fi, volume, battery and the time.
+- **The menu bar**, along the top, with whether your words are saved and when the project was last backed up at its right.
+- **The status bar**, along the bottom: the project's words against its target, what you've written today and messages, then Wi-Fi, volume, battery and the time.
 
 ## Getting around
 

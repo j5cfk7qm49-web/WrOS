@@ -694,7 +694,7 @@ fn previews() {
 
     s.key(KeyCode::Esc, none);
     frames.push(s.json("bar-lit", None));
-    s.key(KeyCode::Char('b'), none);
+    s.key(KeyCode::Char(crate::palette::Title::Book.letter()), none);
     s.key(KeyCode::Down, none);
     s.key(KeyCode::Down, none);
     frames.push(s.json("book-menu", None));

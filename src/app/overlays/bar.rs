@@ -106,8 +106,8 @@ impl App {
                     rows.push(BarRow::new("Settle conflicts…", "", Action::Conflicts));
                 }
                 rows.extend([
-                    BarRow::new("Start a new book…", "", Action::NewBook),
-                    BarRow::new("Open another book…", "", Action::OpenBook),
+                    BarRow::new("New project…", "", Action::NewBook),
+                    BarRow::new("Open another project…", "", Action::OpenBook),
                     BarRow::new("Export…", "", Action::Export),
                     BarRow::new("Compile to Markdown", "", Action::Compile),
                     BarRow::new("Update the project map", "", Action::ProjectMap),
@@ -148,7 +148,7 @@ impl App {
                     ));
                 }
                 rows.push(BarRow::new(
-                    "Search the whole book…",
+                    "Search the whole project…",
                     "/",
                     Action::FindInBook,
                 ));

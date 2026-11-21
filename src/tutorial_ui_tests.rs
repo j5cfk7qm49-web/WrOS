@@ -519,7 +519,7 @@ fn d_opens_one_demo_book_names_it_and_keeps_lessons_done() {
     desk.draw();
     let screen = |desk: &Desk| desk.rows().join("\n");
     assert!(
-        desk.shows("d opens the safe demo book"),
+        desk.shows("d opens the safe demo project"),
         "{}",
         screen(&desk)
     );
@@ -527,9 +527,9 @@ fn d_opens_one_demo_book_names_it_and_keeps_lessons_done() {
     desk.key(KeyCode::Char('d'));
     let demo = shelf.join("Tutorial-1");
     assert_eq!(desk.app.project.root, demo);
-    assert!(desk.shows("demo book Tutorial-1"), "{}", screen(&desk));
+    assert!(desk.shows("demo project Tutorial-1"), "{}", screen(&desk));
     assert!(
-        desk.shows("Made and opened the demo book Tutorial-1"),
+        desk.shows("Made and opened the demo project Tutorial-1"),
         "{}",
         screen(&desk)
     );
@@ -549,7 +549,7 @@ fn d_opens_one_demo_book_names_it_and_keeps_lessons_done() {
     // Again, inside the demo: no second book.
     desk.key(KeyCode::Char('d'));
     assert!(
-        desk.shows("You're in the demo book Tutorial-1"),
+        desk.shows("You're in the demo project Tutorial-1"),
         "{}",
         screen(&desk)
     );
@@ -562,7 +562,7 @@ fn d_opens_one_demo_book_names_it_and_keeps_lessons_done() {
     desk.key(KeyCode::Char('d'));
     assert_eq!(desk.app.project.root, demo);
     assert!(
-        desk.shows("Opened the demo book Tutorial-1"),
+        desk.shows("Opened the demo project Tutorial-1"),
         "{}",
         screen(&desk)
     );
@@ -599,7 +599,7 @@ fn only_linked_drive_books_offer_import() {
         }),
     );
     assert!(
-        desk.shows("Import this book…"),
+        desk.shows("Import this project…"),
         "{}",
         desk.rows().join("\n")
     );
@@ -614,7 +614,7 @@ fn only_linked_drive_books_offer_import() {
             ..Status::default()
         }),
     );
-    assert!(!desk.shows("Import this book…"));
+    assert!(!desk.shows("Import this project…"));
     assert!(desk.shows("Copy this whole folder to this laptop"));
 
     // A stale book listing cannot offer Import after Google is unlinked.
@@ -627,7 +627,7 @@ fn only_linked_drive_books_offer_import() {
             ..Status::default()
         }),
     );
-    assert!(!desk.shows("Import this book…"));
+    assert!(!desk.shows("Import this project…"));
     assert!(desk.shows("Link Google Drive first"));
     let _ = fs::remove_dir_all(&shelf);
 }

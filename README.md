@@ -2,7 +2,7 @@
 
 WrOS is a NixOS 26.05 system for writing offline. It starts in Grimoire, a
 full-screen writing desk with a scene outline, a second editor for notes,
-history, and tools for checking and exporting a manuscript. Books are folders
+history, and tools for checking and exporting a manuscript. Projects are folders
 of Markdown files. Wi-Fi, updates, and optional backups and sync live in
 Settings. [Writing features](docs/FEATURE_MATRIX.md) · [Backups and sync](docs/SYNC_AND_BACKUP.md)
 
@@ -10,7 +10,7 @@ Settings. [Writing features](docs/FEATURE_MATRIX.md) · [Backups and sync](docs/
 
 Press `Esc` for the menu, `F12` for the WrOS dashboard, `F1` for help, and `F9`
 for themes. The dashboard opens the interactive tutorial. Press `d` in the
-tutorial to create a separate practice book. The 50 lessons cover writing and
+tutorial to create a separate practice project. The 50 lessons cover writing and
 system tasks, including the lid choice, battery warnings, and merge practice.
 [Keyboard shortcuts](docs/KEYBOARD_SHORTCUTS.md) · [Tutorial](docs/TUTORIAL.md)
 
@@ -38,7 +38,7 @@ The release checklist records the build, VM qualification and HP Stream checks.
 
 Use an x86_64 Linux builder with Nix and flakes enabled for the OS. Build the
 image with `nix build .#wros-iso`. For a local terminal build of the editor,
-run the following with a disposable book or demo directory.
+run the following with a disposable project or demo directory.
 
 ```sh
 cargo run --locked --no-default-features -- wros tutorial-demo /path/to/new-demo

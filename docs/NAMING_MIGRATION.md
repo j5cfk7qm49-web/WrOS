@@ -26,9 +26,9 @@ retained groups, release files and keyboard alias are declared in
   separate compatibility group with the old name gives pre-rc7 polkit and PAM
   a distinct name to resolve after a go-back. The package synchronizes its
   members at configuration, and the installer puts new writers in both groups.
-- New tutorial books have a `.wros-demo` marker and carry the old marker for
+- New tutorial projects have a `.wros-demo` marker and carry the old marker for
   older editors. Existing demo markers still work. The update leaves the
-  `.grimoire/writingdeck` book format and installed shortcut store as persisted
+  `.grimoire/writingdeck` project format and installed shortcut store as persisted
   compatibility paths. An older editor can still read those files after a
   go-back. Help IDs and corpus IDs keep their existing identifiers.
 - `WROS_OS` is the session marker. External wrappers can still set the old
@@ -49,8 +49,8 @@ These names stay, each because renaming it would break something:
 
 | Name | Why it stays |
 | --- | --- |
-| `.grimoire/writingdeck/` in each book | Every book's saved state; older versions read it after a go-back, and backups restore it |
-| `.writingdeck-demo` | Older editors recognise the tutorial book by it |
+| `.grimoire/writingdeck/` in each project | Every project's saved state; older versions read it after a go-back, and backups restore it |
+| `.writingdeck-demo` | Older editors recognise the tutorial project by it |
 | `writingdeck-native`, `writingdeck-original-*` | Engine and content IDs saved in review findings, voice profiles and Story Spark history |
 | `paths::data_dir()/writingdeck/shortcuts.json` | Each computer's saved shortcuts |
 | `/opt/writingdeck/python` and `.writingdeck-runtime.json` | The Debian runtime path and retained runtime marker; NixOS uses the `wros-prose-runtime` store output and keeps the marker name |

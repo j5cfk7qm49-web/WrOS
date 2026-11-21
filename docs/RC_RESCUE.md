@@ -47,7 +47,7 @@ When the normal session will not start, but the laptop still boots:
 - **Choices:**
   - go back to the kept version (installs when you restart);
   - repair system packages (the same bounded repair as Tier 1);
-  - restore a book from the account's backup into a new folder under `~/Restored books`. A
+  - restore a project from the account's backup into a new folder under `~/Restored books`. A
     Drive backup asks before starting the network.
   - show what happened: the update status and the previous boot's errors;
   - continue to the normal login;
@@ -87,6 +87,6 @@ mappings from crypttab, mount `/boot/efi`, or repair dpkg.
 First try a retained generation in GRUB: each earlier NixOS generation boots with its own
 kernel and initrd. Then try the recovery boot (Tier 2). Debian package commands (dpkg, apt,
 update-initramfs, update-grub) do not apply to NixOS and must not be run. If neither works,
-note the error and reinstall from the stick, then restore your books from a verified backup.
+note the error and reinstall from the stick, then restore your projects from a verified backup.
 `wros-update-rollback` stages the same switch to a retained generation from a running system.
 See [`NIXOS_UPDATES.md`](NIXOS_UPDATES.md).

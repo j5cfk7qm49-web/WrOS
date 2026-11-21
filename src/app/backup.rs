@@ -497,7 +497,7 @@ impl Backups {
             None if self.set_up_for(project) => {
                 "Backs up automatically after you save and pause for 10 minutes".into()
             }
-            None => "Automatic backups start once this book has a verified backup".into(),
+            None => "Automatic backups start once this project has a verified backup".into(),
         }
     }
     pub fn tick(&mut self) {
@@ -737,7 +737,7 @@ impl App {
         if self.final_sync_done() {
             return true;
         }
-        self.msg = "Syncing before leaving this book; try again when it finishes.".into();
+        self.msg = "Syncing before leaving this project; try again when it finishes.".into();
         self.deck.note = self.msg.clone();
         self.deck.shell.notices.push(&self.msg);
         false

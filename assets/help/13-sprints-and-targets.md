@@ -2,30 +2,30 @@
 
 ## Word targets
 
-*Book › Goals…* sets how many words the book is aiming for and how many a day. Type the numbers, or start from a preset:
+*Project › Goals…* sets how many words the project is aiming for and how many a day. Type the numbers, or start from a preset:
 
 - **A month of drafting**: 50,000 words, about 1,667 a day for thirty days.
 - **A short story**: 5,000 words, 500 a day.
 - **A novel**: 80,000 words, 1,000 a day.
 
-They're kept in the book's `novel.toml`, so you can change them there too:
+They're kept in the project's `project.toml`, so you can change them there too:
 
-- **The book**: `target_words` in `novel.toml` (80,000 to begin with). The status bar shows the book's words against it, with a progress bar.
-- **Each day**: `daily_target` in `novel.toml`. *today* in the status bar is what the book has grown by since midnight — it goes below zero after a day of cutting, and turns to the accent colour once you reach the day's target.
+- **The project**: `target_words` in `project.toml` (80,000 to begin with). The status bar shows the project's words against it, with a progress bar.
+- **Each day**: `daily_target` in `project.toml`. *today* in the status bar is what the project has grown by since midnight — it goes below zero after a day of cutting, and turns to the accent colour once you reach the day's target.
 - **A scene**: `target:` in its frontmatter. The page's title then shows the scene's progress, like `Scene One · 812 / 1,500`, and the corkboard shows it on the card.
 
 Notes and TKs never count.
 
 ## Progress
 
-*Tools › Practice › Progress…* (or a click on the word count at the bottom left, or `Ctrl-K` › *Progress*) shows how the book is coming along:
+*Tools › Practice › Progress…* (or a click on the word count at the bottom left, or `Ctrl-K` › *Progress*) shows how the project is coming along:
 
-- The book's words against its goal, as a bar.
+- The project's words against its goal, as a bar.
 - **Each week**: what you wrote in each of the last eight weeks, as bars.
 - **Your pace**: about how many words a week you've written lately, and roughly when you'll reach your goal at that pace.
 - **Today**: what you've written so far, against what you aim for in a day.
 
-It's there to encourage, never to nag. There are no streaks and no days in a row, and a quiet week is just a short bar. WrOS starts keeping the record the first time you write with this version, one line a day in the book's hidden `.grimoire` folder, so the weeks fill in as you go.
+It's there to encourage, never to nag. There are no streaks and no days in a row, and a quiet week is just a short bar. WrOS starts keeping the record the first time you write with this version, one line a day in the project's hidden `.grimoire` folder, so the weeks fill in as you go.
 
 ## Sprints
 

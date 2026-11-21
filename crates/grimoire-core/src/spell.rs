@@ -98,8 +98,10 @@ const EXTRA_WORDS: &str = include_str!("../../../assets/dict/extra_words.dic");
 
 /// The book's own word list, at the project root.
 const BOOK_DICTIONARY: &str = "dictionary.txt";
-const BOOK_DICTIONARY_HEADER: &str = "# Words the spellchecker accepts in this book (names, places, invented terms), one per line; lines starting with # are ignored.\n";
-const USER_DICTIONARY_HEADER: &str = "# Words the spellchecker accepts in every book, one per line; lines starting with # are ignored.\n";
+const BOOK_DICTIONARY_HEADER: &str = "# Words the spellchecker accepts in this project (names, places, invented terms), \
+     one per line; lines starting with # are ignored.\n";
+const USER_DICTIONARY_HEADER: &str = "# Words the spellchecker accepts in every project, one per line; \
+     lines starting with # are ignored.\n";
 
 /// Checked words remembered before the cache starts over.
 const CACHE_LIMIT: usize = 50_000;
@@ -417,7 +419,7 @@ pub fn match_case(original: &str, suggestion: &str) -> String {
 fn add_word_to(path: &Path, header: &str, word: &str) -> Result<()> {
     let word = drop_possessive(word.trim());
     if word.is_empty() || word.contains(['\n', '\r', '#']) {
-        bail!("{word:?} can't go in the book's word list");
+        bail!("{word:?} can't go in the project's word list");
     }
     let existing = match fs::read_to_string(path) {
         Ok(text) => text,
@@ -825,7 +827,7 @@ mod tests {
         assert!(
             fs::read_to_string(&path)
                 .unwrap()
-                .starts_with("# Words the spellchecker accepts in every book")
+                .starts_with("# Words the spellchecker accepts in every project")
         );
         let _ = fs::remove_dir_all(&dir);
     }

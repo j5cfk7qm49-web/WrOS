@@ -18,15 +18,15 @@ Have a verified backup of anything on the target disk. [Release checklist](RELEA
    doesn't start rather than a broken one; run the installer again.
 3. When installation finishes, restart from the installed disk. Check that it unlocks, that you
    can sign in, and that your keyboard layout works at both prompts. Check backup restoration
-   and recovery before relying on the machine for the only copy of a book.
+   and recovery before relying on the machine for the only copy of a project.
    [Hardware checks](HARDWARE_CHECKLIST.md)
 
 ## Moving from rc13 (Debian) to NixOS
 
 rc13 can't update to NixOS in place: the whole system underneath changes. On rc13, make sure
-**Settings › Backups and accounts › Backups** shows a recent backup of every book. Then install
+**Settings › Backups and accounts › Backups** shows a recent backup of every project. Then install
 the current NixOS release from the stick as above, set up the same backup destination (and
-recovery key) on the current NixOS release, and restore each book from it. Your Debian update
+recovery key) on the current NixOS release, and restore each project from it. Your Debian update
 channel stays as it was until you reinstall.
 
 ## Update an installed system
@@ -34,7 +34,7 @@ channel stays as it was until you reinstall.
 rc14 and rc15 cannot install updates from Settings: their app rejects the NixOS updater's
 replies (#143, fixed in rc16). An rc15 laptop reaches rc16 or later with one update run from
 a root shell through `sudo`; rc14 has no sudo (#142), so reinstall it from the current stick
-and restore your books from backup.
+and restore your projects from backup.
 
 From rc16, open **Settings › Updates and recovery › Updates**. Review the version and signer,
 then stage the signed update for the next restart: WrOS restarts once to install it as a new system

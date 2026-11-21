@@ -35,7 +35,7 @@ A scene is saved two seconds after you stop typing. The status bar shows `○ sa
 ## Useful while writing
 
 - `Ctrl-D` focus mode: just the prose.
-- `Ctrl-T` every note and TK in the book.
+- `Ctrl-T` every note and TK in the project.
 - `F8` spelling suggestions, or click an underlined word.
 - `Ctrl-O` on a name opens its note from the notebook.
 - `Ctrl-F` finds in the scene.

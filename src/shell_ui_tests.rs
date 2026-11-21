@@ -1545,7 +1545,7 @@ fn switching_sync_on_enables_the_book_then_syncs_and_shows_the_result() {
     desk.draw();
     assert!(desk.shows("Readable copies in Drive are not encrypted"));
     desk.key(KeyCode::Home);
-    desk.choose("Sync this book with Google Drive (readable files)");
+    desk.choose("Sync this project with Google Drive (readable files)");
     wait_sync(&mut desk);
     wait_sync(&mut desk);
     let ops: Vec<_> = sync_log(&dir)
@@ -1555,7 +1555,7 @@ fn switching_sync_on_enables_the_book_then_syncs_and_shows_the_result() {
     assert_eq!(ops, ["enable", "sync"]);
     assert!(desk.shows("    Synced "), "{}", desk.rows().join("\n"));
     assert!(desk.shows("1 up, 2 down, 0 deleted"));
-    assert!(desk.shows("Stop syncing this book"));
+    assert!(desk.shows("Stop syncing this project"));
     let next = desk.app.deck.shell.backup.sync.next.unwrap();
     assert!(next > std::time::Instant::now() + std::time::Duration::from_secs(4 * 60));
 }
@@ -2641,7 +2641,7 @@ fn update_path_entry_refuses_reserved_locations_without_sending_anything() {
         wait_system(&mut desk);
         let before = world.calls().len();
         desk.choose("Review a signed update bundle by path");
-        assert!(desk.shows("Create an encrypted backup first to keep your books safe."));
+        assert!(desk.shows("Create an encrypted backup first to keep your projects safe."));
         for (path, why) in [
             ("relative/bundle", "absolute directory path"),
             ("/etc", "update media"),
@@ -3103,7 +3103,7 @@ fn update_backup_not_set_up_does_not_block_but_is_shown_and_no_backup_is_never_c
     wait_system(&mut desk);
     reach_confirm(&mut desk);
     set_backup(&mut desk, false, false);
-    assert!(desk.shows("Backup: none is set up. An encrypted backup keeps your books safe."));
+    assert!(desk.shows("Backup: none is set up. An encrypted backup keeps your projects safe."));
     desk.key(KeyCode::Down);
     desk.key(KeyCode::Enter);
     wait_system(&mut desk);
@@ -3346,7 +3346,7 @@ fn recovery_shows_update_state_and_repair_sits_behind_a_default_cancel_confirmat
         system_panel(&mut desk, 6);
         wait_system(&mut desk);
         assert!(desk.shows("Each update keeps the previous WrOS version in the start menu."));
-        assert!(desk.shows("Create an encrypted backup to keep your books safe."));
+        assert!(desk.shows("Create an encrypted backup to keep your projects safe."));
         desk.choose("Recovery status, repair and staged update");
         wait_system(&mut desk);
         assert_eq!(route(&desk), Route::RecoveryView);
@@ -4094,7 +4094,7 @@ fn settings_opens_as_a_box_with_the_page_visible_around_it() {
         rows[0]
     );
     assert!(
-        rows.iter().any(|r| r.contains("Novel Format")),
+        rows.iter().any(|r| r.contains("Project Format")),
         "the outline shows beside it"
     );
     assert!(

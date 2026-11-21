@@ -9,8 +9,8 @@ use grimoire_core::shelf::{free_destination, project_id_of, same_book, title_of}
 use std::sync::mpsc::TryRecvError;
 use wros_sys::{ImportStick, Request as SystemRequest};
 
-const HISTORY_PROGRESS: &str = "Bringing in the book's history…";
-const SYNC_PROGRESS: &str = "Linking the book with Google Drive…";
+const HISTORY_PROGRESS: &str = "Bringing in the project's history…";
+const SYNC_PROGRESS: &str = "Linking the project with Google Drive…";
 
 #[derive(Default)]
 pub(crate) struct ImportMedia {
@@ -253,7 +253,7 @@ fn import_error(incoming: &Incoming, error: anyhow::Error) -> String {
     if matches!(&incoming.source, ImportSource::Usb { .. }) && !books::is_book(&incoming.path) {
         "The USB stick was removed.".into()
     } else {
-        format!("Book import failed: {error:#}")
+        format!("Project import failed: {error:#}")
     }
 }
 
@@ -624,7 +624,7 @@ impl App {
         if (!drive && fs::canonicalize(&incoming.path).unwrap_or(incoming.path.clone()) == here)
             || same_book(&here, &incoming.name, incoming.project_id.as_deref())
         {
-            self.import_done("This book is already open here.".into());
+            self.import_done("This project is already open here.".into());
             return;
         }
         for row in rows {
@@ -758,7 +758,7 @@ impl App {
                         );
                         anyhow::ensure!(
                             books::is_book(source),
-                            "Drive folder is no longer a book."
+                            "Drive folder is no longer a project."
                         );
                         let identity = source.join(".grimoire/sync.json");
                         if sync {
@@ -770,7 +770,7 @@ impl App {
                             });
                             let folder = folder.ok_or_else(|| {
                                 anyhow::anyhow!(
-                                    "Synced books must be directly inside Drive's WrOS folder."
+                                    "Synced projects must be directly inside Drive's WrOS folder."
                                 )
                             })?;
                             fs::create_dir_all(source.join(".grimoire"))?;
@@ -1015,7 +1015,7 @@ impl App {
                 }
                 if done.sync_failed {
                     text.push_str(
-                        " The first sync didn't finish; it runs again when the book is open.",
+                        " The first sync didn't finish; it runs again when the project is open.",
                     );
                 }
                 if let Some(notice) = done.history_notice {
@@ -1041,7 +1041,7 @@ pub(super) fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     };
     let box_area = centred(area, 92.min(area.width.saturating_sub(4)), 20);
     f.render_widget(Clear, box_area);
-    let block = pane_block("IMPORT A BOOK", true, t);
+    let block = pane_block("IMPORT A PROJECT", true, t);
     let inner = block.inner(box_area);
     f.render_widget(block, box_area);
     let width = inner.width.saturating_sub(2) as usize;
@@ -1109,7 +1109,7 @@ pub(super) fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                         if entry.draft {
                             "draft"
                         } else if entry.book {
-                            "book"
+                            "project"
                         } else {
                             "folder"
                         },
@@ -1128,7 +1128,7 @@ pub(super) fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             newest_here,
             newest_incoming,
         } => {
-            say("This book is already on the shelf. Choose what to keep.".into());
+            say("This project is already on the shelf. Choose what to keep.".into());
             say(format!("Here: {}", books::pretty(local)));
             say(format!("Newest here: {newest_here}"));
             say(format!("Incoming: {}", books::pretty(&incoming.path)));
@@ -1157,7 +1157,7 @@ pub(super) fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         ImportStage::Done(text) => {
             say(text.clone());
             hint = if state.open_on_enter.is_some() {
-                " ↵ open book   esc close"
+                " ↵ open project   esc close"
             } else {
                 " ↵ or esc close"
             };
@@ -1238,7 +1238,7 @@ mod tests {
         };
         assert_eq!(
             import_error(&incoming, anyhow::anyhow!("disk is full")),
-            "Book import failed: disk is full"
+            "Project import failed: disk is full"
         );
     }
 

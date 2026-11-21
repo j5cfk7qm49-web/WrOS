@@ -75,10 +75,10 @@ controls and snapshot rows can make Backups longer.
 - Backups: back up now, restore, and the state of the last backup
   - Where backups go: new local drive, new Google Drive, connect an existing one
   - Recovery key: export it, recover an interrupted lock
-  - Offline queue: queue this book, run queued backups
+  - Offline queue: queue this project, run queued backups
 - Google Drive: link or unlink, browse, copy a Drive item into a new folder (one page instead of Google account and Google Drive)
 - Local accounts
-- Synchronization folds into Backups, where a book's sync was already turned on
+- Synchronization folds into Backups, where a project's sync was already turned on
 
 **Updates and recovery** (moved out of System)
 - Updates

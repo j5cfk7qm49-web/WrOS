@@ -29,12 +29,12 @@ Select a finding and Enter to inspect its engine, exact version, rule, source UT
 - **g** in a detail selects the existing original source. **s** there opens the existing spelling suggestions at that word; dictionary alternatives are not generated for every queue row.
 - Left/Right selects a literal alternative. **a** explicitly performs one source-checked native Replace; it never applies a rewrite direction or automatically advances through fixes. Escape returns to native Undo. Replacement is not typing credit.
 - No replacement may cross source markup/escapes, unresolved disk conflicts, editor owners, revisions or settings. Even Undo restoring identical bytes changes the editor version. Stale results are hidden/discarded; refresh with r.
-- **i** ignores this occurrence for this run. **m** mutes the primary version-bound rule for this novel; **M**, then y, explicitly mutes personally. A dictionary-rule mute is broad; prefer native spelling's add-word action for one intentional name.
+- **i** ignores this occurrence for this run. **m** mutes the primary version-bound rule for this project; **M**, then y, explicitly mutes personally. A dictionary-rule mute is broad; prefer native spelling's add-word action for one intentional name.
 - **w** saves a Reviewed receipt; **x** saves Dismissed. These guarded records contain document/hash/rule/range references, never manuscript paragraphs. A new source, policy or engine version is not automatically reviewed. Corrupt, future or externally changed metadata is preserved and reported.
 
 ## Selected-reference voice
 
-**v** opens frozen voice references; **n** lets you explicitly select your own saved original manuscript sources. Space toggles a source; Enter names the reference and prepares statistics off-thread. No automatic whole-book or research sampling occurs.
+**v** opens frozen voice references; **n** lets you explicitly select your own saved original manuscript sources. Space toggles a source; Enter names the reference and prepares statistics off-thread. No automatic whole-project or research sampling occurs.
 
 A baseline needs at least **5,000 analysis words, 40 sentence segments and one source with 150 distinct normalized words**, with one to 64 nonduplicated sources. These are minimum material gates, not proof of representativeness, quality, ownership or human authorship. A short demo and repeated copies intentionally fail. Save/reconcile unsaved, missing or conflicting originals first.
 

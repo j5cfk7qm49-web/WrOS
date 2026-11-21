@@ -116,7 +116,7 @@ impl Scope {
     /// "the whole book", "chapters 1–3", "the first 10,000 words".
     pub fn describe(&self) -> String {
         match *self {
-            Scope::Whole => "the whole book".into(),
+            Scope::Whole => "the whole project".into(),
             Scope::Chapters { from: 1, to: 1 } => "the first chapter".into(),
             Scope::Chapters { from: 1, to } => format!("the first {to} chapters"),
             Scope::Chapters { from, to } if from == to => format!("chapter {from}"),
@@ -711,7 +711,7 @@ pub(crate) fn book<'a>(p: &'a Project, parts: Option<&[usize]>, scope: Scope) ->
         let known = self::parts(p);
         for &i in chosen {
             if !known.iter().any(|&(k, _)| k == i) {
-                bail!("that is not one of the book's {noun}s");
+                bail!("that is not one of the project's {noun}s");
             }
         }
     }

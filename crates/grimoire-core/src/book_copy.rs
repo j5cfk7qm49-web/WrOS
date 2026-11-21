@@ -33,7 +33,7 @@ pub fn copy_book(
     progress: &mut dyn FnMut(Progress),
 ) -> Result<()> {
     check_cancel(cancel, source)?;
-    ensure!(is_book(source), "not a book: {}", source.display());
+    ensure!(is_book(source), "not a project: {}", source.display());
     ensure_absent(dest)?;
     let parent = parent_of(dest)?;
     let source_root = source
@@ -44,7 +44,7 @@ pub fn copy_book(
         .with_context(|| parent.display().to_string())?;
     ensure!(
         !parent_root.starts_with(&source_root),
-        "cannot copy a book into itself: {}",
+        "cannot copy a project into itself: {}",
         dest.display()
     );
     let entries = collect(source, false, cancel)?;
@@ -80,7 +80,7 @@ pub fn replace_with_copy(
     cancel: &AtomicBool,
     progress: &mut dyn FnMut(Progress),
 ) -> Result<PathBuf> {
-    ensure!(is_book(local), "not a book: {}", local.display());
+    ensure!(is_book(local), "not a project: {}", local.display());
     separate_books(source, local)?;
     let parent = parent_of(local)?;
     let incoming = loop {
@@ -94,7 +94,7 @@ pub fn replace_with_copy(
     check_cancel(cancel, local)?;
     let name = local
         .file_name()
-        .context("the local book needs a folder name")?;
+        .context("the local project needs a folder name")?;
     let saved = free_destination(
         parent,
         &format!(
@@ -126,8 +126,8 @@ pub fn merge_into(
     cancel: &AtomicBool,
 ) -> Result<MergeReport> {
     check_cancel(cancel, source)?;
-    ensure!(is_book(source), "not a book: {}", source.display());
-    ensure!(is_book(local), "not a book: {}", local.display());
+    ensure!(is_book(source), "not a project: {}", source.display());
+    ensure!(is_book(local), "not a project: {}", local.display());
     separate_books(source, local)?;
     let entries = collect(source, true, cancel)?;
     let staging = Staging::new(parent_of(local)?)?;
@@ -268,7 +268,7 @@ fn separate_books(source: &Path, local: &Path) -> Result<()> {
         .with_context(|| local.display().to_string())?;
     ensure!(
         !from.starts_with(&to) && !to.starts_with(&from),
-        "book folders overlap: {} and {}",
+        "project folders overlap: {} and {}",
         source.display(),
         local.display()
     );

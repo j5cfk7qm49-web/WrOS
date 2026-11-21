@@ -486,8 +486,8 @@ fn drive_folder_browser_materialization_and_sync_forms_preserve_both_editors_at_
         // Sync itself is the per-book readable Drive sync in Backups.
         desk.app.deck.shell.nav.open(Route::SyncPanel);
         desk.draw();
-        assert!(desk.shows("Readable Google Drive sync is set per book"));
-        assert!(desk.shows("This book is not synced"));
+        assert!(desk.shows("Readable Google Drive sync is set per project"));
+        assert!(desk.shows("This project is not synced"));
 
         desk.key(KeyCode::Esc);
         desk.key(KeyCode::Esc);
