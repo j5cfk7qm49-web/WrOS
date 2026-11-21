@@ -117,7 +117,8 @@ pkgs.testers.runNixOSTest {
         return shlex.join(["runuser", "-u", "writer", "--", "git", "--git-dir", repo, *args])
 
     def repository():
-        book_id = local + "/.grimoire/book-id"
+        # A project brought in has no id yet; WrOS gives it one under the rc22 name.
+        book_id = local + "/.grimoire/project-id"
         installed.wait_until_succeeds("test -s " + shlex.quote(book_id))
         identifier = installed.succeed("cat " + shlex.quote(book_id)).strip()
         return data + f"/sessions/{identifier}.git"
@@ -168,6 +169,15 @@ pkgs.testers.runNixOSTest {
             "test -s " + shlex.quote(data + "/wros/sync/12345678-1234-4234-8234-123456789abc/base.json"),
             timeout=180,
         )
+        # rc22: the project came with novel.toml, and the desk renames it once this version
+        # has said it starts (#164). Its words are unchanged.
+        installed.wait_until_succeeds(
+            "test -f " + shlex.quote(local + "/project.toml")
+            + " && test ! -e " + shlex.quote(local + "/novel.toml"),
+            timeout=120,
+        )
+        assert installed.succeed("cat " + shlex.quote(local + "/project.toml")).strip() \
+            == 'title = "Timeline Book"'
         write_scene("Riverbank", "Water at the gate.")
         write_scene("Watchtower", "Light in the window.")
         switch_book("Grimoire")
@@ -178,7 +188,7 @@ pkgs.testers.runNixOSTest {
         heads = installed.succeed(git(repo, "bundle", "list-heads", first_bundle))
         assert any(f" refs/tags/{tag}\n" in heads for tag in tags), heads
         files = installed.succeed(git(repo, "ls-tree", "-r", "--name-only", "HEAD")).splitlines()
-        assert {*scenes.values(), "novel.toml", "notes/Outline.md", ".grimoire/book-id",
+        assert {*scenes.values(), "project.toml", "notes/Outline.md", ".grimoire/project-id",
                 ".grimoire/resume.md"} <= set(files), files
         for folder in ("journal", "ledger"):
             assert any(p.startswith(f".grimoire/writingdeck/{folder}/") for p in files), files

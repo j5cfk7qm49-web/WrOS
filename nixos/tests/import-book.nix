@@ -121,11 +121,13 @@ pkgs.testers.runNixOSTest {
             # The tree's title is the open book's, so the imported book is open.
             wait_screen(r"(?s)\A(?!.*IMPORT A BOOK).*┌ USB BOOK ")
             installed.wait_until_fails("findmnt /run/wros-import/media/1", timeout=300)
-            for name in ("novel.toml", "manuscript/01-Scene.md"):
-                installed.succeed(
-                    "cmp ${books}/usb/" + name + " "
-                    + shlex.quote("/home/writer/Documents/USB Book/" + name)
-                )
+            usb_local = "/home/writer/Documents/USB Book/"
+            installed.succeed("cmp ${books}/usb/manuscript/01-Scene.md "
+                              + shlex.quote(usb_local + "manuscript/01-Scene.md"))
+            # rc22 (#164): the desk renames the imported novel.toml to project.toml, unchanged.
+            installed.wait_until_succeeds(
+                "test ! -e " + shlex.quote(usb_local + "novel.toml"), timeout=120)
+            installed.succeed("cmp ${books}/usb/novel.toml " + shlex.quote(usb_local + "project.toml"))
 
         with subtest("import a synced book from Google Drive"):
             open_import()
@@ -138,14 +140,18 @@ pkgs.testers.runNixOSTest {
             installed.send_key("ret")
             wait_screen(r"(?s)\A(?!.*IMPORT A BOOK).*┌ CLIP SAYS HELLO WORLD\. ")
             local = "/home/writer/Documents/Clip says Hello World."
-            for name in ("novel.toml", "manuscript/01-Scene.md"):
-                installed.succeed(
-                    "cmp ${books}/drive/" + name + " "
-                    + shlex.quote(local + "/" + name)
-                )
-                installed.succeed(
-                    "cmp ${books}/drive/" + name + " " + shlex.quote(drive_book + "/" + name)
-                )
+            scene = "manuscript/01-Scene.md"
+            installed.succeed("cmp ${books}/drive/" + scene + " " + shlex.quote(local + "/" + scene))
+            installed.succeed(
+                "cmp ${books}/drive/" + scene + " " + shlex.quote(drive_book + "/" + scene))
+            # rc22 (#164): renamed on the laptop, unchanged; Drive has it under whichever name
+            # its last sync left.
+            installed.wait_until_succeeds(
+                "test ! -e " + shlex.quote(local + "/novel.toml"), timeout=120)
+            installed.succeed("cmp ${books}/drive/novel.toml " + shlex.quote(local + "/project.toml"))
+            installed.succeed(
+                "cmp ${books}/drive/novel.toml " + shlex.quote(drive_book + "/novel.toml")
+                + " || cmp ${books}/drive/novel.toml " + shlex.quote(drive_book + "/project.toml"))
             marker = json.loads(installed.succeed(
                 "cat " + shlex.quote(drive_book + "/.wros-sync.json")
             ))

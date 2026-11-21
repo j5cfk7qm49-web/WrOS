@@ -162,7 +162,7 @@ pkgs.testers.runNixOSTest {
     snapshot = listed["snapshots"][0]["id"]
     as_writer(f"grimoire wros backup restore {snapshot} /home/writer/restored-book")
     original = as_writer("cd /home/writer/demo-book && find . -type f -not -path \"./.git/*\" -print0 | sort -z | xargs -0 sha256sum")
-    restored_root = as_writer("find /home/writer/restored-book -name novel.toml -printf %h").strip()
+    restored_root = as_writer("find /home/writer/restored-book -name project.toml -printf %h").strip()
     restored = as_writer(f"cd {restored_root} && find . -type f -not -path \"./.git/*\" -print0 | sort -z | xargs -0 sha256sum")
     manuscript = lambda listing: [l for l in listing.splitlines() if "manuscript/" in l]
     assert manuscript(original) and manuscript(original) == manuscript(restored), (original, restored)
