@@ -8,6 +8,7 @@ expression: settings_box(&app.screen())
 │  System ›                                            │
 │  Backups and accounts ›                              │
 │  Updates and recovery ›                              │
+│  Music ›                                             │
 │                                                      │
 │                                                      │
 │↑↓ choose  Enter open  Esc back  F1 help              │
