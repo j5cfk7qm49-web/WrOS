@@ -37,25 +37,55 @@
         src = ./.;  # a path, not the flake string: lib.fileset.toSource requires one
       };
 
-      wrosSystem = nixpkgs.lib.nixosSystem {
-        inherit system;
-        specialArgs = {
-          inherit wrosPkgs version googleClients;
-          nixpkgsRev = "f1e5c356f35d07e7b71a6b5e6c9338e0b029e0c0";
-          wrosRoot = self;
+      # The installed system at a given version (the release's, or another for the checks below).
+      mkWrosSystem = version:
+        nixpkgs.lib.nixosSystem {
+          inherit system;
+          specialArgs = {
+            inherit version googleClients;
+            wrosPkgs = import ./nixos/pkgs {
+              inherit pkgs lib version;
+              src = ./.;
+            };
+            nixpkgsRev = "f1e5c356f35d07e7b71a6b5e6c9338e0b029e0c0";
+            wrosRoot = ./.;  # a path: wrosRoot + "/x" copies only that file
+          };
+          modules = [
+            { nixpkgs.pkgs = pkgs; }
+            ./nixos/modules/installed.nix
+          ];
         };
-        modules = [
-          { nixpkgs.pkgs = pkgs; }
-          ./nixos/modules/installed.nix
-        ];
-      };
+      wrosSystem = mkWrosSystem version;
+
+      # rc23: the system must not carry the WrOS source tree. `"${wrosRoot}/x"` and
+      # `builtins.readFile "${wrosRoot}/x"` copy and reference the whole repository (44 MB, re-sent
+      # in every update); `wrosRoot + "/x"` copies only that file.
+      noSourceInClosure = pkgs.runCommand "wros-no-source-in-closure" {
+        installed = pkgs.closureInfo { rootPaths = [ wrosSystem.config.system.build.toplevel ]; };
+      } ''
+        if grep -qxF ${self} "$installed/store-paths"; then
+          echo "the installed system carries the WrOS source tree ${self}"
+          exit 1
+        fi
+        touch $out
+      '';
+
+      # rc23: the initrd (35 MB, re-sent whole whenever a byte in it changes) is the same for any
+      # WrOS version, so an update carries it only when boot code changed.
+      initrdOf = v: builtins.unsafeDiscardStringContext
+        (mkWrosSystem v).config.system.build.initialRamdisk.drvPath;
+      initrdStable = let a = initrdOf "0.1.0~rc23"; b = initrdOf "0.1.0~rc99"; in
+        pkgs.runCommand "wros-initrd-stable" { } (if a == b then "touch $out" else ''
+          echo "the initrd changes with the version string: ${a} vs ${b}"
+          exit 1
+        '');
 
       wrosLiveSystem = nixpkgs.lib.nixosSystem {
         inherit system;
         specialArgs = {
           inherit wrosPkgs version googleClients;
           nixpkgsRev = "f1e5c356f35d07e7b71a6b5e6c9338e0b029e0c0";
-          wrosRoot = self;
+          wrosRoot = ./.;  # a path: wrosRoot + "/x" copies only that file
           installedSystemToplevel = wrosSystem.config.system.build.toplevel;
         };
         modules = [
@@ -77,7 +107,7 @@
       moduleArgs = {
         inherit wrosPkgs version googleClients;
         nixpkgsRev = "f1e5c356f35d07e7b71a6b5e6c9338e0b029e0c0";
-        wrosRoot = self;
+        wrosRoot = ./.;  # a path: wrosRoot + "/x" copies only that file
         installedSystemToplevel = wrosSystem.config.system.build.toplevel;
       };
       vmTestArgs = {
@@ -131,6 +161,8 @@
         start-frames = vmTest ./nixos/tests/start-frames.nix;
         boot-seams = vmTest ./nixos/tests/boot-seams.nix;
         media-keys = vmTest ./nixos/tests/media-keys.nix;
+        no-source-in-closure = noSourceInClosure;
+        initrd-stable = initrdStable;
         console-lock-vlock = vmTest ./nixos/tests/console-lock-vlock.nix;
         console-lock-text = vmTest ./nixos/tests/console-lock-text.nix;
         rust-suite = wrosPkgs.rust-suite;

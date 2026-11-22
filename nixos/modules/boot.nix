@@ -1,4 +1,13 @@
 { config, lib, pkgs, wrosPkgs, wrosRoot, ... }:
+let
+  # What the initrd says it is: no release number (see boot.initrd.systemd.contents below).
+  initrdRelease = pkgs.writeText "initrd-release" ''
+    NAME="WrOS"
+    ID=wros
+    PRETTY_NAME="WrOS start-up"
+    VARIANT_ID=initrd
+  '';
+in
 {
   # Fixed disk labels written by the installer; never a baked-in disk UUID.
   fileSystems."/" = {
@@ -42,6 +51,10 @@
     ];
 
     contents."/etc/wros/keymaps".source = "${wrosPkgs.wros-keymaps}/share/wros/keymaps";
+    # The initrd names no release number, so it stays the same from one WrOS update to the next
+    # (it is re-sent whole, 35 MB, whenever a byte in it changes). systemd only needs the files.
+    contents."/etc/initrd-release".source = lib.mkForce initrdRelease;
+    contents."/etc/os-release".source = lib.mkForce initrdRelease;
 
     services.wros-initrd-unlock = {
       description = "WrOS graphical disk unlock before systemd-cryptsetup";
@@ -183,6 +196,7 @@
       TimeoutStopSec = 3;
     };
   };
+
 
   boot.initrd.luks.devices."wros_crypt" = {
     device = "/dev/disk/by-label/WROS-LUKS";
@@ -328,7 +342,7 @@
     serviceConfig = {
       Type = "oneshot";
       Nice = 19;
-      ExecStart = "${pkgs.python3}/bin/python3 -I ${wrosRoot}/nixos/scripts/wros-boot-logo ${wrosPkgs.wros-branding}/share/wros-branding/wros-logo-png ${wrosPkgs.wros-branding}/share/wros-branding/logo.rs";
+      ExecStart = "${pkgs.python3}/bin/python3 -I ${wrosRoot + "/nixos/scripts/wros-boot-logo"} ${wrosPkgs.wros-branding}/share/wros-branding/wros-logo-png ${wrosPkgs.wros-branding}/share/wros-branding/logo.rs";
       ProtectSystem = "strict";
       ReadWritePaths = [ "/boot" ];
       ProtectHome = true;

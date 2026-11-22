@@ -7,8 +7,9 @@ let
 
   wros-console-reset = pkgs.stdenv.mkDerivation {
     pname = "wros-console-reset";
-    inherit version;
-    src = cSrc;
+    # Not the release number: it goes into the initrd, which must not change with every release.
+    version = "1";
+    src = lib.fileset.toSource { root = src; fileset = src + "/os/helpers/wros-console-reset.c"; };
     buildPhase = ''
       runHook preBuild
       $CC -O2 -Wall -Wextra -Werror -D_FORTIFY_SOURCE=3 -fstack-protector-strong \

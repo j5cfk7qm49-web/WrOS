@@ -1,5 +1,6 @@
 { pkgs, lib, version, src, rustPlatform, rustToolchain, paths }:
 let
+  defaultVersion = version;
   rustSrc = lib.fileset.toSource {
     root = src;
     fileset = lib.fileset.unions [
@@ -39,10 +40,38 @@ let
     pkgs.vulkan-loader
   ];
 
-  mkWrosRustPkg = { pname, cargoBuildFlags, buildFeatures ? [], pathEnv, postFixup ? "", doCheck ? false }:
+  # The start screens go into the initrd, which an update re-sends whole (35 MB) whenever a byte
+  # in it changes (rc23). So wros-boot is built from only what it uses: its crate and the two it
+  # depends on, the vendored crossterm, its two font files, and the other workspace members'
+  # manifests (Cargo reads every member's), with empty stand-ins for their sources. Grimoire's
+  # code changing, or the release number, no longer rebuilds it.
+  otherMembers = [ "grimoire-core" "grimoire-app" "wros-sys" "wros-greeter" "wros-input" "wros-installer" ];
+  bootSrc = lib.fileset.toSource {
+    root = src;
+    fileset = lib.fileset.unions ([
+      (src + "/Cargo.toml")
+      (src + "/Cargo.lock")
+      (src + "/crates/wros-boot")
+      (src + "/crates/wros-shell")
+      (src + "/crates/wros-graphics")
+      (src + "/crates/crossterm-upstream")
+      (src + "/assets/fonts/unifont-18.0.01.hex.gz")
+      (src + "/assets/fonts/wros-narrow.txt")
+    ] ++ map (member: src + "/crates/${member}/Cargo.toml") otherMembers);
+  };
+  bootStandIns = ''
+    mkdir -p src tests
+    touch src/main.rs tests/driven.rs tests/colour_process.rs
+    ${lib.concatMapStrings (member: ''
+      mkdir -p crates/${member}/src
+      touch crates/${member}/src/lib.rs
+    '') otherMembers}
+  '';
+
+  mkWrosRustPkg = { pname, cargoBuildFlags, buildFeatures ? [], pathEnv, postFixup ? "", doCheck ? false,
+                    version ? defaultVersion, src ? rustSrc, postPatch ? "" }:
     rustPlatform.buildRustPackage ({
-      inherit pname version doCheck postFixup;
-      src = rustSrc;
+      inherit pname version doCheck postFixup src postPatch;
       cargoLock = {
         lockFile = src + "/Cargo.lock";
       };
@@ -73,6 +102,10 @@ let
 
   wros-boot = mkWrosRustPkg {
     pname = "wros-boot";
+    # Its own crate version, not the release: see bootSrc.
+    version = (lib.importTOML (src + "/crates/wros-boot/Cargo.toml")).package.version;
+    src = bootSrc;
+    postPatch = bootStandIns;
     cargoBuildFlags = [ "-p" "wros-boot" ];
     pathEnv = paths.bootPathEnv;
   };
