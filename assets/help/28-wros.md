@@ -2,11 +2,13 @@
 
 WrOS (formerly codenamed WritingDeck OS) is an offline-first NixOS 26.05 writing appliance built around Grimoire. It is an independent project, not endorsed by NaNoWriMo. This is a development foundation, not a complete production OS.
 
-## Overview
+## The writing desk
 
-Press `F12`, or choose WrOS › Overview. Esc returns to the manuscript. Daily and project goals, weekly progress, sprints, recent scenes and available system status use real WrOS data. Local saving and local history are not off-device backup.
-
-Arrow keys select a row. Enter opens it. On a widget, `h` hides it and `J` or `K` moves it. Configure widgets restores hidden widgets. All choices are saved outside manuscript text.
+WrOS opens your selected workspace. Press `Esc` for the menu bar or `Ctrl-K`
+to find an action or document. Open **Tools › Progress** for goals, calendar,
+sprints, edits, collection and challenges. The bottom bar shows writing
+progress and backup status. Esc returns from a WrOS page to writing or to
+the page you opened it from.
 
 ## Toggle outline
 
@@ -24,7 +26,12 @@ Only one authoritative editor may own a canonical file. Choosing a document alre
 
 ## Sticky-note pins
 
-Choose Pinboard… or Pin this document in Ctrl-K or Tools › Notes. Overview `p` opens Pinboard too. Cards reference existing Markdown sources, keep independent scroll and heading/quote anchors, and never become a competing text store. Enter explicitly edits a source through the existing owner-aware editor. Scopes, category/color/size/order, recoverable card archive/Trash and narrow-screen fallback are explained in the Sticky-note pins help topic. Writing journal now separates sampled saved-Project facts from original Markdown reflections: Ctrl-K or dashboard j opens it. Its help explains source editing, explicit current snapshots and retry. Scratchpad now has multiple original Notes, explicit scene links and original-preserving scene promotion; Session handoff shows an ordinary user-authored next-open intention. Dashboard s/o and their own help topics expose both.
+Choose Pinboard… or Pin this document in Ctrl-K or Tools › Notes. Cards reference existing Markdown sources, keep independent scroll and heading/quote anchors, and never become a competing text store. Enter explicitly edits a source through the existing owner-aware editor. Scopes, category/color/size/order, recoverable card archive/Trash and narrow-screen fallback are explained in the Sticky-note pins help topic.
+
+Writing journal, Scratchpad and Session handoff open from Tools › Notes or Ctrl-K.
+Writing journal keeps saved project facts and original Markdown
+reflections. Scratchpad lets you link original notes to scenes and promote them
+to scenes. Session handoff shows the intention you wrote for the next session.
 
 ## Unified WrOS settings
 
@@ -72,9 +79,7 @@ preview is not available on NixOS.
 
 Keyboard layout selects QWERTY, Colemak or Colemak-DH ANSI/ISO on appliance tty1. A root-owned helper previews for 15 seconds with an independent systemd rollback timer. Type in the preview field; Enter keeps it, Escape reverts. The test field never changes a manuscript. Desktop and SSH sessions must use their own OS layout configuration.
 
-Keyboard shortcuts adds aliases to actions using Ctrl+Alt letters or F10-F12. Established WrOS bindings are protected. Shortcuts use logical letters: Colemak text is not remapped again. Plain letters always remain prose.
-
-Low-power mode reduces redraws and disables the visualizer; requesting an OS power profile can fail independently. Start-at-dashboard is optional; disable it to restore the selected workspace directly.
+Low-power mode reduces redraws and disables the visualizer; requesting an OS power profile can fail independently.
 
 Open Settings › System › Date and time. Choose timezone loads the installed local
 timezone list. Type a city or region, select a result and press Enter. Try Enter
@@ -101,7 +106,7 @@ This manual lock does not enable sleep or lid/idle locking.
 
 ## Interactive tutorial
 
-Interactive tutorial lists all 50 lessons. Press `d` to open the safe demo project: the first time it is made beside your project (Tutorial-1), and after that the same one opens again. Its name shows at the top of the tutorial page, and lessons you have already done carry into it. Your project saves first and is not overwritten. To remove a demo project you no longer want, use Open another project… and press `x` on it. Enter opens a lesson, then launches the actual feature. Progress is verified by application events; a Next button cannot fake completion. Writing exercises only complete in the demo project. `s` skips a lesson; any implemented lesson can be replayed. Help is searchable offline with F1.
+Choose **Help › Interactive tutorial…** to see all 50 lessons. Press `d` to open the safe demo project: the first time it is made beside your project (Tutorial-1), and after that the same one opens again. Its name shows at the top of the tutorial page, and lessons you have already done carry into it. Your project saves first and is not overwritten. To remove a demo project you no longer want, use Open another project… and press `x` on it. Enter opens a lesson, then launches the actual feature. Progress is verified by application events; a Next button cannot fake completion. Writing exercises only complete in the demo project. `s` skips a lesson; any implemented lesson can be replayed. Help is searchable offline with F1.
 
 ## Safety and maintenance
 
@@ -109,7 +114,7 @@ The writing application runs as the writer. Ctrl+Alt+F2 opens the authenticated 
 
 ## The WrOS menu
 
-The first menu on the bar holds Overview (F12), About WrOS, Lock, Sleep,
+The first menu on the bar holds About WrOS, Lock, Sleep,
 Restart… (Restart the computer in Ctrl-K) and Shut down…. The power rows ask first, as they do in
 Settings › System › Battery and power. On a live USB it also offers Install
 WrOS to disk…. Open File › Back up now. It backs the open project up straight away

@@ -39,7 +39,6 @@ pub fn draw(
     app.screen = (f.area().width, f.area().height);
     app.check_focus_mode();
     app.clear_view_rects();
-    app.pins.dashboard_hits.borrow_mut().clear();
     app.pins.board_hits.borrow_mut().clear();
     app.pins.board_preview.set(Rect::default());
 
@@ -1149,17 +1148,23 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     // full-height shaded blocks read as a second row on the native screen.
     let written = "━".repeat(filled);
     let to_go = "─".repeat(10 - filled);
-    let today = app.today_words();
-    let today_text = if today < 0 {
-        format!("−{}", thousands(today.unsigned_abs() as usize))
+    let daily = if app.today_is_rest_day() {
+        Span::styled("  rest day", Style::default().fg(t.dim))
     } else {
-        thousands(today as usize)
+        let today = app.today_words();
+        let today_text = if today < 0 {
+            format!("−{}", thousands(today.unsigned_abs() as usize))
+        } else {
+            thousands(today as usize)
+        };
+        let today_color = if today >= app.project.meta.daily_target as i64 {
+            t.accent
+        } else {
+            t.dim
+        };
+        let style = Style::default().fg(today_color);
+        Span::styled(format!("  today {today_text}"), style)
     };
-    let today_style = Style::default().fg(if today >= app.project.meta.daily_target as i64 {
-        t.accent
-    } else {
-        t.dim
-    });
 
     let mut spans = if app.focus_mode {
         let (title, words) = app.open.map_or((String::new(), 0), |i| {
@@ -1175,7 +1180,7 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                 format!("  {} words", thousands(words)),
                 Style::default().fg(t.dim),
             ),
-            Span::styled(format!("  today {today_text}"), today_style),
+            daily,
         ];
         // The marks the hidden bar would show, when they're warnings.
         for (text, style) in status_marks(app, t, true) {
@@ -1193,7 +1198,7 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             ),
             Span::styled(written, Style::default().fg(t.accent)),
             Span::styled(to_go, Style::default().fg(t.dim)),
-            Span::styled(format!("  today {today_text}"), today_style),
+            daily,
         ]
     };
 

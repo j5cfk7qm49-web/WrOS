@@ -502,8 +502,7 @@ impl App {
             .filter(|h| h.context_id != self.workflow.context_id)
             .cloned();
         if let Some(h) = ready
-            && (self.overlay == Overlay::None
-                || matches!(self.overlay, Overlay::Deck(wros::Page::Home { .. })))
+            && self.overlay == Overlay::None
         {
             self.open_handoff();
             if self

@@ -34,7 +34,6 @@
 | `F9` | themes |
 | `F10` | open the menu bar |
 | `F11` | show or hide an independent editable document |
-| `F12` | WrOS home screen |
 
 ## The outline
 
@@ -129,7 +128,7 @@ Type to search every topic. `Esc` clears the search, then closes the help. In a 
 
 ## Writing journal (WrOS)
 
-Open Writing journal in Ctrl-K or Tools › Notes › Writing journal…. You can also press j on Overview. These are modal reader controls, never ordinary editor letter remappings.
+Open Writing journal in Ctrl-K or Tools › Notes › Writing journal…. These are modal reader controls, never ordinary editor letter remappings.
 
 | Key | Action |
 | --- | --- |
@@ -149,7 +148,6 @@ Ctrl-K remains reachable from read-only Pinboard, Writing journal, Scratchpad an
 
 | Key | Action |
 | --- | --- |
-| Dashboard s / o | Scratchpad / Session handoff |
 | Scratchpad n / N, Enter / e | New original / edit original in Secondary or Primary |
 | Scratchpad l / g | Link a manuscript scene / open its original |
 | Scratchpad p / v / x | Promote independent saved snapshot / view original scene / cancel unwritten preparation |

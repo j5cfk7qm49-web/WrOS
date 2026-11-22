@@ -346,11 +346,13 @@ fn the_remaining_lessons_complete_by_doing_what_they_teach() {
         desk
     };
 
-    // 1 · F12 opens the home screen.
-    let mut desk = fresh("dashboard");
+    // 1 · open the menu bar.
+    let mut desk = fresh("menu-bar");
     start(&mut desk, 1);
     assert!(done(&desk, 1), "lesson 1");
-    assert!(desk.shows("Configure widgets"), "Overview is up");
+    assert!(desk.menu_open(), "the menu bar is open");
+    desk.key(KeyCode::Esc);
+    assert_eq!(desk.app.overlay, Overlay::None);
 
     // 2 · preview a console layout, type in it, keep it.
     let mut desk = fresh("keyboard");

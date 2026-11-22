@@ -41,25 +41,17 @@ pkgs.testers.runNixOSTest {
     # visualizer's recorder used to start them itself and find no output yet (#161).
     live.wait_until_succeeds("pgrep -u wros-live -x pipewire", timeout=60)
     live.wait_until_succeeds("pgrep -u wros-live -x wireplumber", timeout=60)
-    # 2. The live dashboard offers "Install WrOS to disk". The installer is then reached the way
-    #    rc13's own VM chain does it (os/tests/rc_vm_phases.py: Settings > System > Storage >
-    #    Install WrOS to disk). The confirmation's default is to stay in the live session, and
-    #    Enter on that default changes nothing (T7).
+    # 2. The startup prompt defaults to trying the live desk. The WrOS menu keeps the installer
+    #    available, with a confirmation that also defaults to staying in the live session (T7).
     live.wait_until_tty_matches("1", "Install WrOS to disk")
-    time.sleep(2)
-    to_editor(live)
-    live.send_key("ctrl-k")
-    time.sleep(1)
-    live.send_chars("wros settings")
-    live.wait_until_tty_matches("1", "WrOS settings")
+    live.wait_until_tty_matches("1", "Try it first")
+    assert "Try it first" in highlighted(live), screen(live)
     live.send_key("ret")
-    live.wait_until_tty_matches("1", "Look and keyboard|Interface")
-    choose(live, r"^System")
-    live.send_key("ret")
-    live.wait_until_tty_matches("1", "Wi-Fi and networking")
-    choose(live, r"^Storage")
-    live.send_key("ret")
-    time.sleep(1)
+    live.wait_until_fails("grep -aq 'Try it first' /dev/vcs1", timeout=30)
+    live.fail("pgrep -u _wros-installer wros-installer")
+    live.send_key("esc")
+    live.send_key("w")
+    live.wait_until_tty_matches("1", "Install WrOS to disk")
     choose(live, r"Install WrOS to disk")
     live.send_key("ret")
     live.wait_until_tty_matches("1", "Cancel and remain in the live writing session")

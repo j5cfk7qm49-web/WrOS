@@ -8,7 +8,6 @@ use grimoire_core::project::Kind;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Action {
     Settings,
-    Dashboard,
     SystemSettings,
     Workspaces,
     Tutorial,
@@ -218,6 +217,7 @@ impl Title {
 pub enum Side {
     Revision,
     Notes,
+    /// Labelled "Progress" (rc23): the progress tools, Story Spark and the challenges.
     Practice,
 }
 
@@ -228,7 +228,7 @@ impl Side {
         match self {
             Side::Revision => "Revision",
             Side::Notes => "Notes",
-            Side::Practice => "Practice",
+            Side::Practice => "Progress",
         }
     }
 }
@@ -276,12 +276,6 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
     let m = app.mod_label();
     let part = app.project.meta.part_noun();
     let mut v = vec![
-        Entry {
-            label: "Overview".into(),
-            detail: "your project at a glance".into(),
-            key: "F12".into(),
-            action: Action::Dashboard,
-        },
         Entry::new("WrOS settings", "", Action::Settings),
         Entry::new("System settings", "", Action::SystemSettings),
         Entry::new("Workspaces", "", Action::Workspaces),
@@ -525,10 +519,10 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
         ));
     }
     v.extend([
-        Entry::new("Productivity ledger", "", Action::Productivity),
         Entry::new("Advanced goals", "", Action::MeasuredGoals),
         Entry::new("Calendar and rest days", "", Action::Calendar),
         Entry::new("Advanced sprints", "", Action::AdvancedSprints),
+        Entry::new("Productivity ledger", "", Action::Productivity),
         Entry::new("Milestone collection", "", Action::Achievements),
         Entry::new("Daily challenges", "", Action::DailyChallenges),
         Entry::new("Story Spark", "", Action::StorySpark),

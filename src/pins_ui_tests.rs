@@ -100,7 +100,7 @@ fn the_wheel_over_the_pins_with_the_page_focused_writes_nothing() {
 #[test]
 fn j_and_k_move_pins_and_home_still_returns_to_the_anchor() {
     let (mut d, _) = pinned("pins-jk");
-    let ids = d.app.pin_ids(false);
+    let ids = d.app.pin_ids();
     d.key(KeyCode::Home);
     let first = d.app.pins.state().selected;
     d.key(KeyCode::Char('j'));

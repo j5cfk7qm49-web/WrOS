@@ -1,6 +1,6 @@
 # Writing journal
 
-Open Writing journal in Ctrl-K or Tools › Notes › Writing journal…. You can also press j on Overview. The journal separates read-only recorded facts from an ordinary Markdown reflection. It never writes prose on your behalf.
+Open Writing journal in Ctrl-K or Tools › Notes › Writing journal…. The journal separates read-only recorded facts from an ordinary Markdown reflection. It never writes prose on your behalf.
 
 ## Recorded facts
 

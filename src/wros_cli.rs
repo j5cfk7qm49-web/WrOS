@@ -34,7 +34,8 @@ pub fn command(mut args: impl Iterator<Item = String>) -> Result<()> {
             }
             grimoire_core::tutorial::create_demo(&root)?;
             println!(
-                "Safe demo created at {}\nOpen it with: grimoire {}\nThen F12 > Interactive tutorial.",
+                "Safe demo created at {}\nOpen it with: grimoire {}\n\
+                 Press Esc for Help › Interactive tutorial.",
                 root.display(),
                 root.display()
             );
@@ -135,9 +136,21 @@ pub fn command(mut args: impl Iterator<Item = String>) -> Result<()> {
             "WrOS (Writer's OS) 0.1.0-dev · Grimoire {} · upstream base f3ca1e8",
             env!("CARGO_PKG_VERSION")
         ),
-        None | Some("help" | "--help" | "-h") => println!(
-            "WrOS (Writer's OS)\n\n  grimoire wros status [--simulate]         read-only JSON status (alias: writingdeck)\n  grimoire wros tutorial-demo DIR          create a NEW safe demo\n  grimoire wros lexicon WORD [--data DIR]  local WordNet 3.0 senses/antonyms (read-only)\n  grimoire wros check-config DIR           validate without rewriting\n  grimoire wros docs-audit ORIG_MD RET_MD  audit Google Docs round-trip fidelity\n  grimoire wros version                    application/base identification\n\nMain UI: Esc or F10 menu bar, F12 overview, Ctrl-D focus.\nOS build and installation: docs/INSTALLATION.md\nCurrent limitations: docs/FEATURE_MATRIX.md"
-        ),
+        None | Some("help" | "--help" | "-h") => println!(concat!(
+            "WrOS (Writer's OS)\n\n",
+            "  grimoire wros status [--simulate]         ",
+            "read-only JSON status (alias: writingdeck)\n",
+            "  grimoire wros tutorial-demo DIR          create a NEW safe demo\n",
+            "  grimoire wros lexicon WORD [--data DIR]  ",
+            "local WordNet 3.0 senses/antonyms (read-only)\n",
+            "  grimoire wros check-config DIR           validate without rewriting\n",
+            "  grimoire wros docs-audit ORIG_MD RET_MD  ",
+            "audit Google Docs round-trip fidelity\n",
+            "  grimoire wros version                    application/base identification\n\n",
+            "Main UI: Esc or F10 menu bar, Ctrl-D focus.\n",
+            "OS build and installation: docs/INSTALLATION.md\n",
+            "Current limitations: docs/FEATURE_MATRIX.md"
+        )),
         Some(other) => {
             bail!("unknown WrOS command {other}; try grimoire wros help (alias: writingdeck)")
         }

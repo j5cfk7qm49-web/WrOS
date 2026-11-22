@@ -8,7 +8,6 @@ The mouse works everywhere on the bar: click a menu to open it, move across the 
 
 ## WrOS
 
-- **Overview** (`F12`): your project at a glance. See *WrOS*.
 - **About WrOS**: what it's built on and who made it, and the license.
 - **Install WrOS to disk…**: only on a live USB stick.
 - **Lock**, **Sleep**, **Restart…** and **Shut down…**: as in Settings › System › Battery and power, and they ask first in the same way.
@@ -61,7 +60,7 @@ The mouse works everywhere on the bar: click a menu to open it, move across the 
 - **Dictionary and thesaurus…** and **Writing checks…**.
 - **Revision ›**: Notes and TKs (`Ctrl-T`), the next TK or note, the next scene still in draft, echo words, Check names, the footnote navigator, the continuity tracker, draft milestones, revision notes and the prose and revision dashboard.
 - **Notes ›**: the Pinboard, Pin this document, the writing journal, the scratchpad and the session handoff.
-- **Practice ›**: Story Spark, daily challenges, Progress, the recorded edit ledger, advanced goals, the calendar and rest days, advanced sprints and the milestone collection.
+- **Progress ›** holds Progress (the project's word count and pace), Goals, Calendar, Sprints, Edits, Collection, Challenges and Story Spark.
 
 ## Settings
 

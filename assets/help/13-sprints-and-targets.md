@@ -18,7 +18,7 @@ Notes and TKs never count.
 
 ## Progress
 
-*Tools › Practice › Progress…* (or a click on the word count at the bottom left, or `Ctrl-K` › *Progress*) shows how the project is coming along:
+*Tools › Progress › Progress…* (or a click on the word count at the bottom left, or `Ctrl-K` › *Progress*) shows how the project is coming along:
 
 - The project's words against its goal, as a bar.
 - **Each week**: what you wrote in each of the last eight weeks, as bars.

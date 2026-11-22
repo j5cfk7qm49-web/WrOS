@@ -45,7 +45,7 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "writing",
         ),
         Action::Side(crate::palette::Side::Practice) => (
-            "Story Spark, daily challenges, progress, goals, rest days, sprints and milestones.",
+            "The project's progress, goals, writing schedule, sprints, recorded edits, milestones, challenges and Story Spark.",
             "productivity",
         ),
         Action::SettingsGroup(group) => match group {
@@ -309,10 +309,6 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
         Action::Donate => (
             "Grimoire is free. A tip on Ko-fi helps it keep growing, and is never required.",
             "getting-started",
-        ),
-        Action::Dashboard => (
-            "Your project at a glance: words, goals, sprints and what is due today.",
-            "wros",
         ),
         Action::SystemSettings => ("Shows local system status and safe OS controls.", "wros"),
         Action::Workspaces => ("Restores a saved writing layout.", "wros"),

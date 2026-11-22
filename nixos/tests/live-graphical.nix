@@ -29,6 +29,7 @@ pkgs.testers.runNixOSTest {
     first = live.succeed("pgrep -u wros-live -x grimoire -o").strip()
     environ = live.succeed(f"tr '\\0' '\\n' < /proc/{first}/environ")
     assert "WROS_SESSION=drm" in environ, environ
+    live.wait_until_succeeds("test -f /run/user/1000/wros-live-install-prompt", timeout=120)
     # Well past any startup allowance: the same app, still running.
     time.sleep(30)
     still = live.succeed("pgrep -u wros-live -x grimoire -o").strip()
@@ -37,6 +38,6 @@ pkgs.testers.runNixOSTest {
     assert "Input reader startup unacknowledged" not in journal, "the input reader timed out"
     # The greeter never took over tty1 from the live session.
     live.fail("pgrep -x wros-greeter")
-    live.screenshot("live-graphical")
+    live.screenshot("live-graphical-install-prompt")
   '';
 }

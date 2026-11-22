@@ -1,6 +1,6 @@
 # Recorded edits, goals and daily challenges
 
-Open **Recorded edit ledger** (**Productivity ledger** in Ctrl-K), **Advanced goals**, **Calendar and rest days**, **Advanced sprints**, **Milestone collection** or **Daily challenges** from Ctrl-K or Tools › Practice. The original daily/project/scene goals and basic sprint controls remain available separately.
+Open **Tools › Progress** and choose **Goals…**, **Calendar…**, **Sprints…**, **Edits…**, **Collection…** or **Challenges…**. In Ctrl-K, look for **Advanced goals**, **Calendar and rest days**, **Advanced sprints**, **Productivity ledger**, **Milestone collection** or **Daily challenges**. The original daily/project/scene goals and basic sprint controls remain available separately.
 
 ## Recorded, not inferred
 
@@ -18,7 +18,7 @@ The v1 whole-source measurement bound is 262,144 bytes per mutation. Above it, w
 
 | Where | Controls |
 | --- | --- |
-| Every page | 1–6 pages; Tab next; arrows choose; PgUp/PgDn scroll; r explicitly reloads/retries metadata; Esc back; F1 this policy |
+| Every dialog | Arrows choose, PgUp/PgDn scroll, r reloads/retries metadata, Esc goes back, and F1 opens this help |
 | Edits | t tracking; m Drafting/Revision/ReadThrough; f footnotes; i idle seconds; a optional milestones; n quiet notices; d challenges |
 | Goals | n metric/period preset, then edit its numeric target; Space enabled/disabled; Delete removes only selected goal metadata |
 | Calendar | n offline November 50k preset; Space toggles selected rest date; b/e start/end ISO dates; g target |

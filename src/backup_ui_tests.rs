@@ -198,11 +198,10 @@ fn linking_fits_the_hp_stream_writing_grids() {
 }
 
 #[test]
-fn the_home_screen_says_when_the_book_was_last_backed_up() {
-    let mut desk = Desk::open(book("backup-home", true), 120, 40);
-    desk.app.overlay = Overlay::Deck(Page::Home { sel: 0 });
-    desk.draw();
-    assert!(desk.shows("set up encrypted backup and restore"));
+fn backup_settings_says_when_the_project_was_last_backed_up() {
+    let mut desk = Desk::open(book("backup-status", true), 120, 40);
+    desk.menu(&["Settings", "Backups and accounts", "Backups"]);
+    assert!(desk.shows("Automatic backups start once this project has a verified backup"));
     let root = desk.app.project.root.canonicalize().unwrap();
     let when = chrono::Local::now() - chrono::Duration::minutes(5);
     let backup = &mut desk.app.deck.shell.backup;

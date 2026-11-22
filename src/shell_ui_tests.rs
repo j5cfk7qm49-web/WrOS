@@ -966,7 +966,6 @@ fn unavailable_suspend_never_reaches_the_worker_and_retains_editors_at_four_size
                 .any(|r| matches!(r, Request::Power(_)))
         );
         desk.key(KeyCode::Esc);
-        desk.key(KeyCode::Esc);
         assert_eq!(desk.app.overlay, Overlay::None);
         assert_eq!(desk.app.editor.text(), original);
         assert_eq!(desk.app.view_position(Pane::Primary).unwrap(), primary);
@@ -1266,10 +1265,6 @@ fn live_session_uses_shared_surfaces_and_never_requests_personal_lock() {
         let position = desk.app.view_position(Pane::Secondary);
         desk.app.deck.live_session = true;
         desk.app.deck.lock_available = true; // A stale capability must not enable a personal lock.
-        desk.key(KeyCode::F(12));
-        desk.draw();
-        assert!(desk.shows("Overview · Live session"));
-        desk.key(KeyCode::Esc);
         system_panel(&mut desk, 2);
         desk.draw();
         assert!(desk.shows("Live session"));
@@ -1282,39 +1277,74 @@ fn live_session_uses_shared_surfaces_and_never_requests_personal_lock() {
 }
 
 #[test]
-fn live_media_opens_on_the_dashboard_with_install_chosen_and_confirms_before_installing() {
+fn live_media_asks_once_install_or_try() {
+    for (width, height) in [(80, 24), (160, 50)] {
+        let mut desk = Desk::open(
+            book(&format!("live-install-try-{width}"), true),
+            width,
+            height,
+        );
+        desk.app.init_wros(true);
+        assert_eq!(desk.app.overlay, Overlay::None);
+
+        desk.app.deck.live_session = true;
+        desk.app.deck.installer_available = true;
+        desk.app.init_wros(true);
+        desk.draw();
+        assert!(desk.shows("Install WrOS to disk"));
+        assert!(desk.shows("▸ Try it first"));
+        desk.key(KeyCode::Enter);
+        assert!(!desk.app.deck.installer_requested);
+        assert_eq!(desk.app.overlay, Overlay::None);
+        desk.app.init_wros(true);
+        assert_eq!(desk.app.overlay, Overlay::None);
+
+        let mut desk = Desk::open(
+            book(&format!("live-install-start-{width}"), true),
+            width,
+            height,
+        );
+        desk.app.deck.live_session = true;
+        desk.app.deck.installer_available = true;
+        desk.app.init_wros(true);
+        desk.key(KeyCode::Up);
+        assert!(desk.shows("▸ Install WrOS to disk"));
+        desk.key(KeyCode::Enter);
+        assert!(desk.app.deck.installer_requested);
+        assert_eq!(desk.app.overlay, Overlay::None);
+        desk.app.init_wros(true);
+        assert_eq!(desk.app.overlay, Overlay::None);
+    }
+}
+
+#[test]
+fn live_media_keeps_the_installer_in_the_wros_menu_with_confirmation() {
     for (width, height) in [(80, 24), (160, 50)] {
         let mut desk = Desk::open(
             book(&format!("live-install-row-{width}"), true),
             width,
             height,
         );
-        // An installed system's dashboard has no install row and keeps its action order.
-        desk.key(KeyCode::F(12));
-        desk.draw();
+        desk.menu(&["WrOS"]);
         assert!(!desk.shows("Install WrOS to disk"));
         desk.key(KeyCode::Esc);
 
         desk.app.deck.live_session = true;
         desk.app.deck.installer_available = true;
         desk.app.overlay = Overlay::None;
-        desk.app.init_wros(true);
-        desk.draw();
-        assert!(desk.shows("Try WrOS here, or choose Install WrOS to disk"));
-        assert!(desk.shows("▸ Install WrOS to disk"));
 
-        // Enter opens the installer confirmation, whose default is to stay in the live session.
-        desk.key(KeyCode::Enter);
+        desk.menu(&["WrOS", "Install WrOS to disk"]);
         assert_eq!(desk.app.deck.shell.nav.current(), Route::InstallerConfirm);
         desk.key(KeyCode::Enter);
         assert!(!desk.app.deck.installer_requested);
 
-        // Without an installer on this console the row is absent, as in Settings > Storage.
         desk.app.deck.installer_available = false;
         desk.app.overlay = Overlay::None;
-        desk.key(KeyCode::F(12));
-        desk.draw();
-        assert!(!desk.shows("Install WrOS to disk"));
+        desk.menu(&["WrOS", "Install WrOS to disk"]);
+        assert!(
+            desk.menu_open(),
+            "the dimmed installer row stays in the menu"
+        );
     }
 }
 
@@ -1337,8 +1367,7 @@ fn settings_descriptions_are_never_chosen_and_options_show_where_they_lead() {
     desk.app.deck.live_session = true;
     desk.app.deck.installer_available = true;
     desk.app.overlay = Overlay::None;
-    desk.app.open_installer_confirm();
-    desk.draw();
+    desk.menu(&["WrOS", "Install WrOS to disk"]);
     assert!(desk.shows("▸ Cancel and remain in the live writing session"));
     desk.key(KeyCode::End);
     desk.key(KeyCode::Down);

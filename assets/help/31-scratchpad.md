@@ -1,6 +1,6 @@
 # Scratchpad
 
-Scratchpad is a collection of ordinary original Notes, not a parallel manuscript editor or generated idea service. Open Scratchpad in Ctrl-K or Tools › Notes › Scratchpad…. You can also press s on Overview. Each original lives in notes/scratchpad; the separate guarded workflow index stores references, scene links, lifecycle and promotion receipts, never note prose.
+Scratchpad is a collection of ordinary original Notes, not a parallel manuscript editor or generated idea service. Open Scratchpad in Ctrl-K or Tools › Notes › Scratchpad…. Each original lives in notes/scratchpad; the separate guarded workflow index stores references, scene links, lifecycle and promotion receipts, never note prose.
 
 | Key | Action |
 | --- | --- |

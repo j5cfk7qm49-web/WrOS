@@ -1,6 +1,6 @@
 # Session handoff
 
-Leave a next-session intention as ordinary original Markdown at notes/handoff.md. Open Session handoff from Ctrl-K or Tools › Notes › Session handoff…. You can also press o on Overview. This is user-authored prose, not automatically generated advice, a word/time ledger or a backup.
+Leave a next-session intention as ordinary original Markdown at notes/handoff.md. Open Session handoff from Ctrl-K or Tools › Notes › Session handoff…. This is user-authored prose, not automatically generated advice, a word/time ledger or a backup.
 
 | Key | Action |
 | --- | --- |

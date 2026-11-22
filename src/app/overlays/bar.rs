@@ -13,7 +13,7 @@ pub const MAX_ROWS: usize = 12;
 #[derive(Debug, Clone, PartialEq)]
 pub struct BarRow {
     pub label: String,
-    /// The key that does the same, shown at the right ("^Z", "F12", "›").
+    /// The key that does the same, shown at the right ("^Z", "F11", "›").
     pub key: String,
     pub action: Action,
     /// Why the row can't be chosen right now; it shows dim and says so.
@@ -65,10 +65,7 @@ impl App {
         use wros_sys::shortcuts::Action as Shortcut;
         let rows = match title {
             Title::Wros => {
-                let mut rows = vec![
-                    BarRow::new("Overview", key(Shortcut::Dashboard, ""), Action::Dashboard),
-                    BarRow::new("About WrOS", "", Action::About),
-                ];
+                let mut rows = vec![BarRow::new("About WrOS", "", Action::About)];
                 if self.deck.live_session {
                     rows.push(
                         BarRow::new("Install WrOS to disk…", "", Action::InstallToDisk).dim_unless(
@@ -368,14 +365,14 @@ impl App {
                 BarRow::new("Session handoff…", "", Action::Handoff),
             ],
             Side::Practice => vec![
-                BarRow::new("Story Spark…", "", Action::StorySpark),
-                BarRow::new("Daily challenges…", "", Action::DailyChallenges),
                 BarRow::new("Progress…", "", Action::Progress),
-                BarRow::new("Recorded edit ledger…", "", Action::Productivity),
-                BarRow::new("Advanced goals…", "", Action::MeasuredGoals),
-                BarRow::new("Calendar and rest days…", "", Action::Calendar),
-                BarRow::new("Advanced sprints…", "", Action::AdvancedSprints),
-                BarRow::new("Milestone collection…", "", Action::Achievements),
+                BarRow::new("Goals…", "", Action::MeasuredGoals),
+                BarRow::new("Calendar…", "", Action::Calendar),
+                BarRow::new("Sprints…", "", Action::AdvancedSprints),
+                BarRow::new("Edits…", "", Action::Productivity),
+                BarRow::new("Collection…", "", Action::Achievements),
+                BarRow::new("Challenges…", "", Action::DailyChallenges),
+                BarRow::new("Story Spark…", "", Action::StorySpark),
             ],
         }
     }
@@ -409,6 +406,7 @@ impl App {
             sel: 0,
             side: None,
         };
+        self.observe_deck(grimoire_core::tutorial::Event::MenuBarOpened);
     }
 
     /// Tools, with one of its side groups open beside it.

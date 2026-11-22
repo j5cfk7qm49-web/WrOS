@@ -78,6 +78,7 @@ const RETRY: Duration = Duration::from_secs(10);
 /// sync client, Obsidian, the phone. A `stat` per scene; files are only read
 /// when their size or time moved.
 const DISK_CHECK: Duration = Duration::from_secs(2);
+const CHALLENGE_NOTICE_PREFIX: &str = "Today's challenge: ";
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SaveState {
@@ -218,6 +219,7 @@ pub struct App {
     /// has grown by since. See [`App::tick_today`].
     pub baseline: usize,
     baseline_date: String,
+    challenge_days_checked: HashSet<String>,
     pub msg: String,
     pub quit: bool,
     pub edit_width: usize,
@@ -1017,6 +1019,7 @@ impl App {
             focus: Focus::Tree,
             baseline,
             baseline_date,
+            challenge_days_checked: HashSet::new(),
             msg: String::new(),
             quit: false,
             edit_width: 60,
@@ -1230,7 +1233,6 @@ impl App {
             8 => self.spelling(),
             10 => self.toggle_outline(),
             11 => self.toggle_secondary(),
-            12 => self.open_dashboard(),
             _ => {}
         }
     }
@@ -1581,7 +1583,7 @@ impl App {
         self.tick_today_at(today_string());
     }
 
-    fn tick_today_at(&mut self, date: String) {
+    pub(crate) fn tick_today_at(&mut self, date: String) {
         if date != self.baseline_date {
             // The day that's ending goes into the Progress page's record.
             self.note_day(true);
@@ -1589,8 +1591,37 @@ impl App {
             self.baseline_date = date;
             let total = self.project.total_words();
             self.set_baseline(total);
+            if self.msg.starts_with(CHALLENGE_NOTICE_PREFIX) {
+                self.msg.clear();
+            }
         }
         self.note_day(false);
+        self.say_todays_challenge();
+    }
+
+    fn say_todays_challenge(&mut self) {
+        use grimoire_core::challenges;
+        use grimoire_core::statefile::{self, Validate};
+
+        let date = self.baseline_date.as_str();
+        if self.overlay != Overlay::None || self.challenge_days_checked.contains(date) {
+            return;
+        }
+        self.challenge_days_checked.insert(date.to_owned());
+        // Opening the desk only reads an existing assignment. Challenges… assigns exercises.
+        if self.productivity.config.challenges
+            && let Ok(path) = challenges::path(date)
+            && let Ok(Some(bytes)) = statefile::read(&self.project.root, &path)
+            && let Ok(day) = serde_json::from_slice::<challenges::Day>(&bytes)
+            && day.date == date
+            && day.validate().is_ok()
+            && let Some(exercise) = day
+                .assignments
+                .first()
+                .and_then(|a| challenges::exercise(&a.record_id))
+        {
+            self.msg = format!("{CHALLENGE_NOTICE_PREFIX}{}", exercise.title);
+        }
     }
 
     /// Write the day's words down for the Progress page when they've changed:
@@ -1625,6 +1656,14 @@ impl App {
     /// elsewhere in the book comes out even.
     pub fn today_words(&self) -> i64 {
         self.project.total_words() as i64 - self.baseline as i64
+    }
+
+    pub(crate) fn today_is_rest_day(&self) -> bool {
+        self.productivity
+            .config
+            .schedule
+            .as_ref()
+            .is_some_and(|schedule| schedule.rest_days.contains(&self.baseline_date))
     }
 
     /// Deleting a scene, or bringing one back, isn't writing: it moves the
@@ -2505,7 +2544,6 @@ impl App {
                 }
             }
             Action::FocusMode => self.toggle_focus_mode(),
-            Action::Dashboard => self.open_dashboard(),
             Action::SystemSettings => self.open_system_settings(),
             Action::Workspaces => {
                 self.overlay = Overlay::Deck(wros::Page::Workspaces {
@@ -5161,9 +5199,7 @@ impl App {
                     && self.views.secondary_room
                     && self.view_open(Pane::Secondary).is_some()
             }
-            Focus::Pins => {
-                !self.focus_mode && self.pins.rect.width > 0 && self.pin_count(false) > 0
-            }
+            Focus::Pins => !self.focus_mode && self.pins.rect.width > 0 && self.pin_count() > 0,
             Focus::Codex => !self.focus_mode && self.codex.is_some() && self.side_room,
             Focus::Beside => !self.focus_mode && self.beside.is_some() && self.side_room,
             Focus::Clearing => self.scene_visible,
@@ -5560,7 +5596,6 @@ impl App {
                 | Overlay::Productivity { .. }
                 | Overlay::Journal
                 | Overlay::Handoff
-                | Overlay::Deck(wros::Page::Home { .. })
         ) {
             self.on_overlay_key(if down { Key::Down } else { Key::Up });
             return;

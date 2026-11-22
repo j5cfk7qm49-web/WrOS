@@ -1,8 +1,8 @@
 //! Real operation accounting with ordinary Markdown still the only prose.
-//! Draw reads cached rows only. No timer infers writing from an open window.
+//! Draw reads cached state. No timer infers writing from an open window.
 use super::*;
 use anyhow::{Context, bail};
-use chrono::{Datelike, Duration as CivilDuration};
+use chrono::{Datelike, Duration as CivilDuration, Months, NaiveDate};
 use grimoire_core::{
     accounting::{ActiveClock, Clock, Ledger, Mode as WorkMode, Role, Source, SystemClock, Totals},
     challenges::{self, Category, Day, Evidence, Profile, Status},
@@ -14,8 +14,8 @@ use grimoire_core::{
 };
 use ratatui::{
     Frame,
-    style::Style,
-    text::Line,
+    style::{Modifier, Style},
+    text::{Line, Span},
     widgets::{Block, Clear, Paragraph, Wrap},
 };
 use std::collections::{BTreeMap, BTreeSet};
@@ -33,22 +33,14 @@ pub enum Page {
     ChallengeFilters,
 }
 impl Page {
-    pub const TABS: [Self; 6] = [
-        Self::Overview,
-        Self::Goals,
-        Self::Calendar,
-        Self::Sprints,
-        Self::Achievements,
-        Self::Challenges,
-    ];
-    pub fn title(self) -> &'static str {
+    fn title(self) -> &'static str {
         match self {
-            Self::Overview => "Productivity · recorded edits",
-            Self::Goals => "Measured and native-source goals",
-            Self::Calendar => "Calendar · rest days and pace",
-            Self::Sprints => "Advanced sprints · recorded results",
-            Self::Achievements => "Optional milestone collection",
-            Self::Challenges => "Daily challenges · local civil date",
+            Self::Overview => "Edits",
+            Self::Goals => "Goals",
+            Self::Calendar => "Calendar",
+            Self::Sprints => "Sprints",
+            Self::Achievements => "Collection",
+            Self::Challenges => "Challenges",
             Self::GoalTypes => "New goal · choose a metric",
             Self::SprintTypes => "New sprint · choose a variant",
             Self::ChallengeFilters => "Future challenge filters · explicit save",
@@ -62,9 +54,10 @@ impl Page {
             Self::Goals => {
                 "n new goal · Space enable/disable selected · Delete remove goal metadata"
             }
-            Self::Calendar => {
-                "n November 50k preset · Space rest day · b start · e end · g target · ↑↓ date"
-            }
+            Self::Calendar => concat!(
+                "←↑↓→ move · [ ] month · Home today · Enter rest day · * today · R rest\n",
+                "n November 50k preset · b start · e end · g target",
+            ),
             Self::Sprints => {
                 "n new · p pause/resume · x stop · b timed break · k skip break (retained)"
             }
@@ -103,6 +96,7 @@ pub struct Productivity {
     pub snapshot: Snapshot,
     pub day: Option<Store<Day>>,
     pub date: String,
+    calendar_date: NaiveDate,
     pub warning: String,
     pub rows: Vec<String>,
     pub row_selection: Option<usize>,
@@ -154,6 +148,7 @@ impl Productivity {
             snapshot: Snapshot::default(),
             day: None,
             date: now.day(),
+            calendar_date: now.wall.date_naive(),
             warning,
             rows: vec![],
             row_selection: None,
@@ -164,7 +159,7 @@ impl Productivity {
             summary: "Recorded metrics starting; no baseline-derived gross/time".into(),
             stats_date: now.day(),
             goal_summary: "No advanced goals · Enter adds one".into(),
-            calendar_summary: "No calendar schedule · Enter configures".into(),
+            calendar_summary: "No calendar schedule · n creates the November preset".into(),
         }
     }
     pub fn tracking(&self) -> bool {
@@ -384,7 +379,7 @@ impl App {
         );
         let p = &self.productivity;
         self.productivity.calendar_summary = p.config.schedule.as_ref().map_or(
-            "No calendar schedule · Enter configures".into(),
+            "No calendar schedule · n creates the November preset".into(),
             |s| {
                 let net = p.snapshot.value(
                     Metric::NetInput,
@@ -725,6 +720,17 @@ impl App {
                 self.msg = format!("Challenges unavailable: {e:#}");
             }
         }
+        if page == Page::Calendar
+            && !matches!(
+                self.overlay,
+                Overlay::ProductivityInput {
+                    back: Page::Calendar,
+                    ..
+                }
+            )
+        {
+            self.productivity.calendar_date = self.productivity.clock.now().wall.date_naive();
+        }
         if page == Page::ChallengeFilters {
             self.productivity.draft_profile =
                 Some(self.productivity.config.challenge_profile.clone());
@@ -788,13 +794,6 @@ impl App {
         match page {
             Page::Goals => self.productivity.config.goals.len(),
             Page::GoalTypes => GOALS.len(),
-            Page::Calendar => self
-                .productivity
-                .config
-                .schedule
-                .as_ref()
-                .and_then(|s| s.days().ok())
-                .map_or(0, |d| d.len()),
             Page::Sprints => 0,
             Page::SprintTypes => SPRINTS.len(),
             Page::Challenges => self
@@ -934,6 +933,35 @@ impl App {
                         schedule.target,
                         net.map_or("unavailable".into(), |n| n.to_string())
                     ));
+                    let day = p.calendar_date;
+                    let date = day.to_string();
+                    if schedule.start <= date && date <= schedule.end {
+                        let recorded = p
+                            .ledger
+                            .known
+                            .iter()
+                            .any(|e| e.source.role == Role::Manuscript && e.date == date);
+                        let value = if recorded {
+                            p.snapshot
+                                .value(
+                                    Metric::NetInput,
+                                    &date,
+                                    &date,
+                                    None,
+                                    None,
+                                    p.config.include_footnotes,
+                                )
+                                .map_or("unavailable".into(), |n| format!("{n:+}"))
+                        } else {
+                            "not recorded".into()
+                        };
+                        let kind = if schedule.rest_days.contains(&date) {
+                            "rest"
+                        } else {
+                            "work"
+                        };
+                        rows.push(format!("{date} {} {kind} · {value}", day.format("%a")));
+                    }
                     if let Some(net) = net
                         && let Ok(pace) = schedule.pace(&now.day(), net)
                     {
@@ -961,41 +989,6 @@ impl App {
                             })
                             .collect();
                         rows.push(format!("Forecast {} · assumes mean of last 3–7 recorded work dates; missing days are not zero",schedule.forecast(&now.day(),net,&history).ok().flatten().unwrap_or_else(||"unavailable".into())));
-                    }
-                    selected = Some(rows.len() + sel);
-                    if let Ok(days) = schedule.days() {
-                        for day in days {
-                            let d = day.to_string();
-                            let recorded = p
-                                .ledger
-                                .known
-                                .iter()
-                                .any(|e| e.source.role == Role::Manuscript && e.date == d);
-                            let value = if recorded {
-                                p.snapshot
-                                    .value(
-                                        Metric::NetInput,
-                                        &d,
-                                        &d,
-                                        None,
-                                        None,
-                                        p.config.include_footnotes,
-                                    )
-                                    .map_or("unavailable".into(), |n| format!("{n:+}"))
-                            } else {
-                                "not recorded".into()
-                            };
-                            rows.push(format!(
-                                "{} {:3} {} · {value}",
-                                d,
-                                day.format("%a"),
-                                if schedule.rest_days.contains(&d) {
-                                    "rest"
-                                } else {
-                                    "work"
-                                }
-                            ));
-                        }
                     }
                 } else {
                     rows.push("No calendar schedule yet. n explicitly creates this year's offline November 50,000-word preset.".into());
@@ -1178,7 +1171,16 @@ impl App {
                         rows.push("No exercise matches saved filters. Widen future filters; no hidden repeated or invented assignment.".into());
                     }
                 } else {
-                    rows.push(if p.config.challenges{"No readable assignment for this date; originals retained. r reloads; → returns toward today."}else{"Challenges disabled. Enable from 1 Edits; no assignment or notification is generated."}.into());
+                    rows.push(
+                        if p.config.challenges {
+                            "No readable assignment for this date. Originals retained. \
+                             r reloads and → returns toward today."
+                        } else {
+                            "Challenges disabled. Open Tools › Progress › Edits… and press d \
+                             to enable them."
+                        }
+                        .into(),
+                    );
                 }
             }
             Page::ChallengeFilters => {
@@ -1416,20 +1418,6 @@ impl App {
             }
             return;
         }
-        if let Key::Char(c @ '1'..='6') = key {
-            self.open_productivity(Page::TABS[c as usize - '1' as usize]);
-            return;
-        }
-        if key == Key::Tab || key == Key::BackTab {
-            let i = Page::TABS.iter().position(|p| *p == page).unwrap_or(0);
-            let next = if key == Key::Tab {
-                (i + 1) % 6
-            } else {
-                (i + 5) % 6
-            };
-            self.open_productivity(Page::TABS[next]);
-            return;
-        }
         if key == Key::Char('r') {
             self.reload_productivity();
             if page == Page::Challenges
@@ -1439,6 +1427,29 @@ impl App {
             }
             self.build_productivity_rows(page, sel);
             return;
+        }
+        if page == Page::Calendar {
+            let date = self.productivity.calendar_date;
+            let next = match key {
+                Key::Left => date.checked_add_signed(CivilDuration::days(-1)),
+                Key::Right => date.checked_add_signed(CivilDuration::days(1)),
+                Key::Up => date.checked_add_signed(CivilDuration::days(-7)),
+                Key::Down => date.checked_add_signed(CivilDuration::days(7)),
+                Key::Char('[') => date.checked_sub_months(Months::new(1)),
+                Key::Char(']') => date.checked_add_months(Months::new(1)),
+                Key::Home => Some(self.productivity.clock.now().wall.date_naive()),
+                _ => None,
+            };
+            if let Some(next) = next.filter(|day| (1..=9999).contains(&day.year())) {
+                self.productivity.calendar_date = next;
+                self.overlay = Overlay::Productivity {
+                    page,
+                    sel,
+                    scroll: None,
+                };
+                self.build_productivity_rows(page, sel);
+                return;
+            }
         }
         let count = self.productivity_count(page);
         // differs: past either end of its list, ↑↓ go on to scroll the page,
@@ -1456,7 +1467,7 @@ impl App {
             return;
         }
         if matches!(key, Key::PageUp | Key::PageDown)
-            || count == 0 && matches!(key, Key::Up | Key::Down)
+            || page != Page::Calendar && count == 0 && matches!(key, Key::Up | Key::Down)
         {
             let (offset, max) = self.productivity.render_fit.get();
             let step = if matches!(key, Key::Up | Key::Down) {
@@ -1556,30 +1567,26 @@ impl App {
                         Key::Char('n') => {
                             let year = self.productivity.clock.now().wall.year();
                             let schedule = Schedule::november(year)?;
+                            let start = grimoire_core::journal::date(&schedule.start)?;
                             self.productivity.update(|s| {
                                 if let Some(old)=s.schedule.take(){if s.schedule_history.len()>=120{bail!("120 earlier calendars retained; archive explicitly before replacing");}s.schedule_history.push(old);}
                                 s.schedule = Some(schedule);
                                 Ok(())
                             })?;
-                            sel = 0;
+                            self.productivity.calendar_date = start;
+                            scroll = None;
                             self.msg = format!(
                                 "November {year} 50k schedule recorded; choose optional rest days. No past words inferred."
                             );
                         }
-                        Key::Char(' ') => {
-                            let schedule = self
-                                .productivity
-                                .config
-                                .schedule
-                                .as_ref()
-                                .context("create a schedule first")?;
-                            let day = schedule
-                                .days()?
-                                .get(sel)
-                                .context("choose a calendar date")?
-                                .to_string();
-                            self.productivity
-                                .update(|s| s.schedule.as_mut().unwrap().toggle_rest(&day))?;
+                        Key::Enter | Key::Char(' ') => {
+                            let day = self.productivity.calendar_date.to_string();
+                            self.productivity.update(|s| {
+                                s.schedule
+                                    .as_mut()
+                                    .context("create a schedule first")?
+                                    .toggle_rest(&day)
+                            })?;
                             self.observe_deck(grimoire_core::tutorial::Event::CalendarConfigured);
                             self.msg="Explicit rest-day choice recorded; remaining-day pace recalculated".into();
                         }
@@ -1969,9 +1976,52 @@ impl App {
     }
 }
 
+fn calendar_grid(p: &Productivity, t: &Theme) -> Vec<Line<'static>> {
+    let selected = p.calendar_date;
+    let (year, month) = (selected.year(), selected.month());
+    let first = NaiveDate::from_ymd_opt(year, month, 1).unwrap();
+    let normal = Style::default().fg(t.text);
+    let mut lines = vec![
+        Line::styled(format!("  {}", first.format("%B %Y")), normal),
+        Line::styled(" Mon  Tue  Wed  Thu  Fri  Sat  Sun ", normal),
+    ];
+    let mut week = vec![Span::raw("     "); first.weekday().num_days_from_monday() as usize];
+    for day in (1..=31).map_while(|day| NaiveDate::from_ymd_opt(year, month, day)) {
+        let date = day.to_string();
+        let (in_schedule, rest) = p.config.schedule.as_ref().map_or((false, false), |s| {
+            (
+                s.start <= date && date <= s.end,
+                s.rest_days.contains(&date),
+            )
+        });
+        let mut style = normal;
+        if !in_schedule {
+            style = style.add_modifier(Modifier::DIM);
+        }
+        if day == selected {
+            style = style.add_modifier(Modifier::REVERSED);
+        }
+        let today = if date == p.stats_date { '*' } else { ' ' };
+        let rest = if rest { 'R' } else { ' ' };
+        week.push(Span::styled(
+            format!(" {:>2}{today}{rest}", day.day()),
+            style,
+        ));
+        if week.len() == 7 {
+            lines.push(Line::from(std::mem::take(&mut week)));
+        }
+    }
+    if !week.is_empty() {
+        lines.push(Line::from(week));
+    }
+    lines.push(Line::default());
+    lines
+}
+
 pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
-    f.render_widget(Clear, area);
     if let Overlay::ProductivityInput { kind, buf, .. } = &app.overlay {
+        let area = crate::ui::centred(area, 56, 12);
+        f.render_widget(Clear, area);
         let block = Block::bordered()
             .title(" Productivity · explicit target/date ")
             .border_style(Style::default().fg(t.accent));
@@ -2000,6 +2050,8 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     let Overlay::Productivity { page, scroll, .. } = app.overlay else {
         return;
     };
+    let area = crate::ui::centred(area, 76, 22);
+    f.render_widget(Clear, area);
     let block = Block::bordered()
         .title(format!(" {} ", page.title()))
         .border_style(Style::default().fg(t.accent));
@@ -2008,21 +2060,14 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     if inside.height < 5 || inside.width < 8 {
         return;
     }
-    let header = Rect::new(inside.x, inside.y, inside.width, 1);
-    f.render_widget(
-        Paragraph::new("1 edits  2 goals  3 calendar  4 sprints  5 collection  6 challenges")
-            .style(Style::default().fg(t.dim)),
-        header,
-    );
     let footer_h = 5.min(inside.height.saturating_sub(2));
-    let body = Rect::new(
-        inside.x,
-        inside.y + 1,
-        inside.width,
-        inside.height - 1 - footer_h,
-    );
+    let body = Rect::new(inside.x, inside.y, inside.width, inside.height - footer_h);
     let footer = Rect::new(inside.x, body.y + body.height, inside.width, footer_h);
-    let mut lines = Vec::new();
+    let mut lines = if page == Page::Calendar {
+        calendar_grid(&app.productivity, t)
+    } else {
+        Vec::new()
+    };
     let mut selected_at = None;
     for (i, row) in app.productivity.rows.iter().enumerate() {
         let chosen = app.productivity.row_selection == Some(i);
@@ -2057,7 +2102,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     );
     f.render_widget(
         Paragraph::new(format!(
-            "{}\nr reload/retry · Tab page · PgUp/PgDn scroll · Esc back · F1 policy",
+            "{}\nr reload/retry · PgUp/PgDn scroll · Esc back · F1 policy",
             page.hints()
         ))
         .style(Style::default().fg(t.dim))

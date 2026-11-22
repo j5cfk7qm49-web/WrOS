@@ -1,9 +1,9 @@
-//! WritingDeck home, layouts, tutorial and narrow system settings.
+//! WritingDeck layouts, tutorial and narrow system settings.
 //! Render/input paths never run a system command. A single bounded worker does.
 use super::*;
 use grimoire_core::{
     tutorial,
-    workspaces::{self, State, Widget},
+    workspaces::{self, State},
 };
 use ratatui::{
     Frame,
@@ -22,10 +22,7 @@ use wros_sys::{
 #[derive(Debug, Clone, PartialEq)]
 pub enum Page {
     Settings,
-    Home {
-        sel: usize,
-    },
-    Widgets {
+    LiveInstall {
         sel: usize,
     },
     Workspaces {
@@ -91,8 +88,9 @@ impl Worker {
         Self { tx, rx, simulated }
     }
 }
-const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 23] = [
-    (ShortcutAction::Dashboard, "Overview"),
+const LIVE_INSTALL_CHOICES: [&str; 2] = ["Install WrOS to disk", "Try it first"];
+
+const SHORTCUT_ACTIONS: [(ShortcutAction, &str); 22] = [
     (ShortcutAction::SystemSettings, "System settings"),
     (ShortcutAction::Tutorial, "Interactive tutorial"),
     (ShortcutAction::Outline, "Toggle outline"),
@@ -203,6 +201,7 @@ pub struct Deck {
     pub boot_status: Option<wros_sys::boot::Status>,
     pending_boot_theme: Option<String>,
     pub live_session: bool,
+    live_install_prompt_shown: bool,
     /// An installed appliance session checks the WrOS update server after login and daily.
     pub online_updates: bool,
     pub lock_requested: bool,
@@ -231,8 +230,7 @@ pub struct Deck {
     worker: Option<Worker>,
     enable_system: bool,
     pub preview: Option<(String, KeyboardLayout, Instant)>,
-    pub recent: String,
-    pub weekly: i64,
+    system_parent: Option<usize>,
     pub dirty: bool,
 }
 impl Deck {
@@ -260,48 +258,11 @@ impl Deck {
         let layout_store = workspaces::Store::load(root)
             .map_err(|e| warnings.push(e.to_string()))
             .ok();
-        let mut state = layout_store
+        // Keep the legacy dashboard layout and startup setting for older WrOS versions.
+        let state = layout_store
             .as_ref()
             .map(|s| s.state.clone())
             .unwrap_or_default();
-        let pins_widget_added = !state.dashboard.iter().any(|w| w.widget == Widget::Pins);
-        if pins_widget_added {
-            state.dashboard.push(workspaces::WidgetConfig {
-                widget: Widget::Pins,
-                visible: true,
-            });
-        }
-        let journal_widget_added = !state.dashboard.iter().any(|w| w.widget == Widget::Journal);
-        if journal_widget_added {
-            state.dashboard.push(workspaces::WidgetConfig {
-                widget: Widget::Journal,
-                visible: true,
-            });
-        }
-        let mut workflow_widgets_added = false;
-        for widget in [
-            Widget::Scratchpad,
-            Widget::Handoff,
-            Widget::Accounting,
-            Widget::AdvancedGoals,
-            Widget::Calendar,
-            Widget::AdvancedSprints,
-            Widget::Achievements,
-            Widget::DailyChallenges,
-            Widget::StorySpark,
-            Widget::Revision,
-        ] {
-            if !state.dashboard.iter().any(|w| w.widget == widget) {
-                state.dashboard.push(workspaces::WidgetConfig {
-                    widget,
-                    visible: true,
-                });
-                workflow_widgets_added = true;
-            }
-        }
-        if background && !workspaces::Store::path(root).exists() && crate::installed_session() {
-            state.launch_dashboard = true;
-        }
         let tutorial_store = tutorial::Store::load(root)
             .map_err(|e| warnings.push(e.to_string()))
             .ok();
@@ -360,6 +321,7 @@ impl Deck {
             busy: false,
             online_updates: background && !live_session && crate::installed_session(),
             live_session,
+            live_install_prompt_shown: false,
             lock_available: {
                 #[cfg(target_os = "linux")]
                 {
@@ -421,10 +383,28 @@ impl Deck {
             worker: (background && crate::session::composited()).then(Worker::system),
             enable_system: background,
             preview: None,
-            recent: String::new(),
-            weekly: 0,
-            dirty: pins_widget_added || journal_widget_added || workflow_widgets_added,
+            system_parent: None,
+            dirty: false,
         }
+    }
+    fn take_live_install_prompt(&mut self) -> bool {
+        if !self.live_session || self.live_install_prompt_shown {
+            return false;
+        }
+        self.live_install_prompt_shown = true;
+        // Remember the prompt across app restarts while the runtime directory exists.
+        // Without a writable runtime directory, remember it in this app session.
+        let already_shown = self.enable_system
+            && std::env::var_os("XDG_RUNTIME_DIR")
+                .filter(|dir| !dir.is_empty())
+                .is_some_and(|dir| {
+                    fs::OpenOptions::new()
+                        .write(true)
+                        .create_new(true)
+                        .open(PathBuf::from(dir).join("wros-live-install-prompt"))
+                        .is_err_and(|e| e.kind() == std::io::ErrorKind::AlreadyExists)
+                });
+        !already_shown
     }
     pub fn observe(&mut self, event: tutorial::Event, demo: bool) {
         if self.progress.observe(event, demo) {
@@ -697,8 +677,7 @@ impl App {
 
     /// Restart or shut down (#168): save, close this writing session, sync once, then go.
     /// Anything still running is waited for, not refused: the action is kept and tried
-    /// again, every check included, once it finishes. Esc on the dashboard or in Settings, or
-    /// going back to writing, cancels the wait.
+    /// again, every check included, once it finishes. Esc cancels the wait.
     /// False when refused (nothing will happen); true when sent or waiting.
     pub(crate) fn power_off(&mut self, kind: PowerWait) -> bool {
         self.deck.power_wait = None;
@@ -745,7 +724,7 @@ impl App {
         self.power_notice(line);
     }
 
-    /// Said on the dashboard, in Settings and in the writing status line.
+    /// Said in Settings and in the writing status line.
     fn power_notice(&mut self, text: impl Into<String>) {
         self.deck.note = text.into();
         self.deck.shell.notices.push(&self.deck.note);
@@ -898,23 +877,8 @@ impl App {
             } else if !self.deck.state.current().outline {
                 self.focus = self.editor_focus();
             }
-            // Recovered words always take precedence over onboarding/dashboard.
-            // Live media always opens on the dashboard with its install row chosen.
-            let install = home_actions(&self.deck).first() == Some(&HomeAction::InstallWros);
-            if (self.deck.state.launch_dashboard || install)
-                && matches!(self.overlay, Overlay::None)
-            {
-                self.open_dashboard();
-                if install {
-                    let widgets = self
-                        .deck
-                        .state
-                        .dashboard
-                        .iter()
-                        .filter(|w| w.visible)
-                        .count();
-                    self.overlay = Overlay::Deck(Page::Home { sel: widgets });
-                }
+            if self.overlay == Overlay::None && self.deck.take_live_install_prompt() {
+                self.overlay = Overlay::Deck(Page::LiveInstall { sel: 1 });
             }
         }
     }
@@ -965,38 +929,20 @@ impl App {
     fn restore_deck_position(&mut self) {
         self.restore_workspace_views(true);
     }
-    pub fn open_dashboard(&mut self) {
-        self.flush();
-        self.save_deck();
-        let mut recent: Vec<_> = self
-            .project
-            .nodes
-            .iter()
-            .filter(|n| n.kind == Kind::Scene && n.in_manuscript)
-            .collect();
-        recent.sort_by_key(|n| std::cmp::Reverse(n.stat.and_then(|s| s.modified)));
-        self.deck.recent = recent
-            .iter()
-            .take(3)
-            .map(|n| n.title.as_str())
-            .collect::<Vec<_>>()
-            .join(" · ");
-        let days = grimoire_core::days::read(&self.project.root);
-        self.deck.weekly = grimoire_core::days::weeks(&days, chrono::Local::now().date_naive(), 1)
-            .last()
-            .map_or(0, |(_, n)| *n);
-        self.overlay = Overlay::Deck(Page::Home { sel: 0 });
-        self.observe_deck(tutorial::Event::DashboardOpened);
-        if self.background && self.deck.snapshot.is_none() && !self.deck.busy {
-            self.deck.request(Request::Refresh);
-        }
-    }
     pub fn open_system_settings(&mut self) {
+        self.deck.system_parent = None;
         self.overlay = Overlay::Deck(Page::System { sel: 0 });
         self.observe_deck(tutorial::Event::SystemOpened);
         if self.deck.snapshot.is_none() {
             self.deck.request(Request::Refresh);
         }
+    }
+    fn close_system_subpage(&mut self) {
+        self.overlay = self
+            .deck
+            .system_parent
+            .take()
+            .map_or(Overlay::None, |sel| Overlay::Deck(Page::System { sel }));
     }
     pub fn toggle_outline(&mut self) {
         let editor_focus = self.editor_focus();
@@ -1031,7 +977,6 @@ impl App {
     }
     pub fn deck_shortcut(&mut self, action: ShortcutAction) {
         match action {
-            ShortcutAction::Dashboard => self.open_dashboard(),
             ShortcutAction::SystemSettings => self.open_system_settings(),
             ShortcutAction::Tutorial => self.overlay = Overlay::Deck(Page::Tutorial { sel: 0 }),
             ShortcutAction::Outline => self.toggle_outline(),
@@ -1501,82 +1446,14 @@ impl App {
         }
         match page {
             Page::Settings => self.on_settings_key(key),
-            Page::Home { mut sel } => {
-                let widgets: Vec<_> = self
-                    .deck
-                    .state
-                    .dashboard
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, w)| w.visible)
-                    .map(|(i, _)| i)
-                    .collect();
-                let n = widgets.len();
-                let actions = home_actions(&self.deck);
-                if nav(key, &mut sel, n + actions.len()) {
-                    self.overlay = Overlay::Deck(Page::Home { sel });
-                    return;
-                }
-                match key {
-                    Key::Esc | Key::F(12) => {
-                        self.overlay = Overlay::None;
-                        if self.open.is_some() {
-                            self.focus = self.editor_focus();
-                        }
+            Page::LiveInstall { mut sel } => {
+                if nav(key, &mut sel, LIVE_INSTALL_CHOICES.len()) {
+                    self.overlay = Overlay::Deck(Page::LiveInstall { sel });
+                } else if matches!(key, Key::Enter | Key::Esc) {
+                    self.overlay = Overlay::None;
+                    if key == Key::Enter && sel == 0 {
+                        self.request_live_installer();
                     }
-                    Key::Char('p') => self.open_pinboard(),
-                    Key::Char('j') => self.open_journal(),
-                    Key::Char('s') => self.open_scratchpad(),
-                    Key::Char('o') => self.open_handoff(),
-                    Key::Char('w') => self.overlay = Overlay::Deck(Page::Widgets { sel: 0 }),
-                    Key::Char('h') if sel < n => {
-                        self.deck.state.dashboard[widgets[sel]].visible = false;
-                        self.deck.dirty = true;
-                        self.save_deck();
-                        self.overlay = Overlay::Deck(Page::Home {
-                            sel: sel.min(n.saturating_sub(1)),
-                        });
-                    }
-                    Key::Char('J' | 'K') if sel < n => {
-                        let next = if key == Key::Char('J') {
-                            (sel + 1).min(n - 1)
-                        } else {
-                            sel.saturating_sub(1)
-                        };
-                        self.deck.state.dashboard.swap(widgets[sel], widgets[next]);
-                        self.deck.dirty = true;
-                        self.save_deck();
-                        self.overlay = Overlay::Deck(Page::Home { sel: next });
-                    }
-                    Key::Enter => {
-                        if sel < n {
-                            self.open_widget(self.deck.state.dashboard[widgets[sel]].widget);
-                        } else {
-                            match actions[sel - n] {
-                                HomeAction::InstallWros => self.open_installer_confirm(),
-                                HomeAction::Widgets => {
-                                    self.overlay = Overlay::Deck(Page::Widgets { sel: 0 })
-                                }
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            Page::Widgets { mut sel } => {
-                if nav(key, &mut sel, self.deck.state.dashboard.len()) {
-                    self.overlay = Overlay::Deck(Page::Widgets { sel });
-                    return;
-                }
-                match key {
-                    Key::Enter | Key::Char(' ') => {
-                        self.deck.state.dashboard[sel].visible =
-                            !self.deck.state.dashboard[sel].visible;
-                        self.deck.dirty = true;
-                        self.save_deck();
-                    }
-                    Key::Esc => self.open_dashboard(),
-                    _ => {}
                 }
             }
             Page::Workspaces { mut sel } => {
@@ -1656,7 +1533,7 @@ impl App {
                             self.deck.save_layout();
                         }
                     }
-                    Key::Esc => self.open_dashboard(),
+                    Key::Esc => self.overlay = Overlay::None,
                     _ => {}
                 }
             }
@@ -1724,12 +1601,12 @@ impl App {
                 }
             }
             Page::System { mut sel } => {
-                if nav(key, &mut sel, 13) {
+                if nav(key, &mut sel, 12) {
                     self.overlay = Overlay::Deck(Page::System { sel });
                     return;
                 }
                 if key == Key::Esc {
-                    self.open_dashboard();
+                    self.overlay = Overlay::None;
                     return;
                 }
                 if key != Key::Enter {
@@ -1740,7 +1617,10 @@ impl App {
                     1 => self.deck.request(Request::Wifi(true)),
                     2 => self.deck.request(Request::Wifi(false)),
                     3 => self.deck.request(Request::ScanWifi),
-                    4 => self.overlay = Overlay::Deck(Page::Keyboard { sel: 0 }),
+                    4 => {
+                        self.deck.system_parent = Some(sel);
+                        self.overlay = Overlay::Deck(Page::Keyboard { sel: 0 });
+                    }
                     5 | 6 => {
                         let now = self
                             .deck
@@ -1786,15 +1666,11 @@ impl App {
                         })
                     }
                     11 => {
+                        self.deck.system_parent = Some(sel);
                         self.overlay = Overlay::Deck(Page::Shortcuts {
                             sel: 0,
                             capture: false,
                         })
-                    }
-                    12 => {
-                        self.deck.state.launch_dashboard = !self.deck.state.launch_dashboard;
-                        self.deck.dirty = true;
-                        self.save_deck();
                     }
                     _ => {}
                 }
@@ -1812,13 +1688,17 @@ impl App {
                             self.overlay = Overlay::Deck(Page::KeyboardWait);
                         }
                     }
-                    Key::Esc => self.open_system_settings(),
+                    Key::Esc => self.close_system_subpage(),
                     _ => {}
                 }
             }
             Page::KeyboardWait => {
                 if key == Key::Esc {
-                    self.open_system_settings();
+                    self.overlay = if self.deck.shell.external {
+                        Overlay::None
+                    } else {
+                        Overlay::Deck(Page::Keyboard { sel: 0 })
+                    };
                 }
             }
             Page::KeyboardTest { mut text } => match key {
@@ -1830,7 +1710,11 @@ impl App {
                             Request::KeyboardCancel(token)
                         });
                     }
-                    self.overlay = Overlay::Deck(Page::Keyboard { sel: 0 });
+                    self.overlay = if self.deck.shell.external {
+                        Overlay::None
+                    } else {
+                        Overlay::Deck(Page::Keyboard { sel: 0 })
+                    };
                 }
                 Key::Char(c) if !c.is_control() && text.chars().count() < 160 => {
                     text.push(c);
@@ -1886,7 +1770,7 @@ impl App {
                         self.deck.save_progress();
                     }
                     Key::Char('d') => self.start_tutorial_demo(),
-                    Key::Esc => self.open_dashboard(),
+                    Key::Esc => self.overlay = Overlay::None,
                     _ => {}
                 }
             }
@@ -1925,45 +1809,10 @@ impl App {
                     Key::Enter => {
                         self.overlay = Overlay::Deck(Page::Shortcuts { sel, capture: true })
                     }
-                    Key::Esc => self.open_system_settings(),
+                    Key::Esc => self.close_system_subpage(),
                     _ => {}
                 }
             }
-        }
-    }
-    fn open_widget(&mut self, w: Widget) {
-        match w {
-            Widget::Resume | Widget::Manuscript => {
-                self.overlay = Overlay::None;
-                if self.open.is_some() {
-                    self.focus = self.editor_focus();
-                }
-            }
-            Widget::DailyGoal | Widget::NovelGoal => self.run_action(Action::Goals),
-            Widget::WeeklyProgress => self.run_action(Action::Progress),
-            Widget::Sprint => self.run_action(Action::StartSprint),
-            Widget::RecentScenes => self.open_palette(),
-            Widget::Battery | Widget::System => self.open_system_settings(),
-            Widget::Backup => {
-                self.open_settings();
-                self.deck.shell.nav.open(super::shell::Route::Backups);
-                self.deck
-                    .shell
-                    .backup
-                    .request(crate::backup_service::Request::Status);
-            }
-            Widget::Pins => self.open_pinboard(),
-            Widget::Journal => self.open_journal(),
-            Widget::Scratchpad => self.open_scratchpad(),
-            Widget::Handoff => self.open_handoff(),
-            Widget::Accounting => self.run_action(Action::Productivity),
-            Widget::AdvancedGoals => self.run_action(Action::MeasuredGoals),
-            Widget::Calendar => self.run_action(Action::Calendar),
-            Widget::AdvancedSprints => self.run_action(Action::AdvancedSprints),
-            Widget::Achievements => self.run_action(Action::Achievements),
-            Widget::DailyChallenges => self.run_action(Action::DailyChallenges),
-            Widget::StorySpark => self.open_spark(),
-            Widget::Revision => self.run_action(Action::ProseDashboard),
         }
     }
     /// `d` on the tutorial page: open the safe demo book, making it only the first time.
@@ -2045,7 +1894,7 @@ impl App {
         }
         self.deck.save_progress();
         match id {
-            1 => self.open_dashboard(),
+            1 => self.open_menu(),
             2 => self.overlay = Overlay::Deck(Page::Keyboard { sel: 0 }),
             3 => {
                 self.overlay = Overlay::NewBook {
@@ -2150,34 +1999,6 @@ impl App {
         }
     }
 }
-/// The dashboard's action rows, after its widgets. One list feeds both drawing and Enter.
-#[derive(Debug, Clone, Copy, PartialEq)]
-/// Overview's rows, under its tiles. Everything else it once launched is on
-/// the menu bar (rc13).
-pub enum HomeAction {
-    /// Live media only, and listed first: installing is what most people boot the stick for.
-    InstallWros,
-    Widgets,
-}
-
-impl HomeAction {
-    pub fn label(self) -> &'static str {
-        match self {
-            HomeAction::InstallWros => "Install WrOS to disk",
-            HomeAction::Widgets => "Configure widgets",
-        }
-    }
-}
-
-pub fn home_actions(deck: &Deck) -> Vec<HomeAction> {
-    let install = deck.live_session && deck.installer_available;
-    install
-        .then_some(HomeAction::InstallWros)
-        .into_iter()
-        .chain([HomeAction::Widgets])
-        .collect()
-}
-
 /// The newest safe demo book in `parent` (Tutorial-1, Tutorial-2, …), if one is there.
 fn existing_demo(parent: &std::path::Path) -> Option<std::path::PathBuf> {
     fs::read_dir(parent)
@@ -2223,13 +2044,13 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         super::shell::draw(f, app, area, t);
         return;
     }
-    f.render_widget(Clear, area);
-    let heading = if app.deck.live_session {
-        "WrOS · Overview · Live session"
+    let area = if matches!(page, Page::LiveInstall { .. }) {
+        crate::ui::centred(area, 52, 8)
     } else {
-        "WrOS · Overview"
+        area
     };
-    let block = crate::ui::pane_block(heading, true, t);
+    f.render_widget(Clear, area);
+    let block = crate::ui::pane_block("WrOS", true, t);
     let inner = block.inner(area);
     f.render_widget(block, area);
     if inner.height < 4 || inner.width < 10 {
@@ -2241,205 +2062,11 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     let hint: &str;
     match page {
         Page::Settings => unreachable!("shared shell draws Settings"),
-        Page::Home { sel } => {
-            title = if home_actions(&app.deck).first() == Some(&HomeAction::InstallWros) {
-                "Try WrOS here, or choose Install WrOS to disk to keep it".into()
-            } else {
-                format!(
-                    "{} · {}",
-                    app.project.meta.title,
-                    app.deck.state.current().name
-                )
-            };
+        Page::LiveInstall { sel } => {
+            title = "Live session".into();
             selected = Some(*sel);
-            for w in app.deck.state.dashboard.iter().filter(|w| w.visible) {
-                let value = match w.widget {
-                    Widget::Resume => app.open_title(),
-                    Widget::Manuscript => format!("{} words", app.project.total_words()),
-                    Widget::DailyGoal => format!(
-                        "{:+} net / {}",
-                        app.today_words(),
-                        app.project.meta.daily_target
-                    ),
-                    Widget::NovelGoal => format!(
-                        "{} / {}",
-                        app.project.total_words(),
-                        app.project.meta.target_words
-                    ),
-                    Widget::WeeklyProgress => format!("{:+} net words recorded", app.deck.weekly),
-                    Widget::Sprint => {
-                        if app.sprint.is_some() {
-                            "active · F2 pause/resume".into()
-                        } else {
-                            "none · Enter to start".into()
-                        }
-                    }
-                    Widget::Accounting => format!(
-                        "{} · {} pending",
-                        app.productivity.summary,
-                        app.productivity.ledger.pending_count()
-                    ),
-                    Widget::AdvancedGoals => app.productivity.goal_summary.clone(),
-                    Widget::Calendar => app.productivity.calendar_summary.clone(),
-                    Widget::AdvancedSprints => app.productivity.sprint.as_ref().map_or(
-                        "none · Enter to start".into(),
-                        |s| {
-                            format!(
-                                "{:?} {:?} {:.1} min{}",
-                                s.kind,
-                                s.status,
-                                s.elapsed_ms as f64 / 60000.,
-                                if s.effective_paused() {
-                                    " · resume explicitly"
-                                } else {
-                                    ""
-                                }
-                            )
-                        },
-                    ),
-                    Widget::Achievements => format!(
-                        "{} recorded · enabled {} · quiet notices {}",
-                        app.productivity.config.awards.len(),
-                        app.productivity.config.achievements,
-                        !app.productivity.config.notifications
-                    ),
-                    Widget::DailyChallenges => {
-                        if !app.productivity.config.challenges {
-                            "disabled; no task generated".into()
-                        } else {
-                            app.productivity.day.as_ref().map_or(
-                                "not assigned · Enter opens today's selection".into(),
-                                |d| {
-                                    format!(
-                                        "{} · {} completed / {} assigned",
-                                        d.value.date,
-                                        d.value
-                                            .assignments
-                                            .iter()
-                                            .filter(|a| a.status
-                                                == grimoire_core::challenges::Status::Completed)
-                                            .count(),
-                                        d.value.assignments.len()
-                                    )
-                                },
-                            )
-                        }
-                    }
-                    Widget::StorySpark => app.spark.summary.clone(),
-                    Widget::Revision => format!(
-                        "{} continuity · {} notes · Enter opens Revision tools",
-                        app.continuity
-                            .store
-                            .as_ref()
-                            .map_or(0, |s| s.value.facts.len()),
-                        app.review_notes.store.as_ref().map_or(0, |s| {
-                            s.value
-                                .notes
-                                .iter()
-                                .filter(|n| {
-                                    n.current.status
-                                        != grimoire_core::annotations::AnnotationStatus::Resolved
-                                })
-                                .count()
-                        })
-                    ),
-                    Widget::RecentScenes => app.deck.recent.clone(),
-                    Widget::Scratchpad => app
-                        .workflow
-                        .state()
-                        .map(|s| {
-                            format!(
-                                "{} original note references · Enter to open",
-                                s.notes
-                                    .iter()
-                                    .filter(|n| n.life == grimoire_core::pins::Life::Active)
-                                    .count()
-                            )
-                        })
-                        .unwrap_or_else(|| "metadata unavailable; originals preserved".into()),
-                    Widget::Handoff => app
-                        .workflow
-                        .state()
-                        .map(|s| {
-                            if s.handoff.intention.is_some() {
-                                format!(
-                                    "intention left · next-open display {}",
-                                    s.handoff.show_on_open
-                                )
-                            } else {
-                                "not armed · Enter to write an original intention".into()
-                            }
-                        })
-                        .unwrap_or_else(|| "metadata unavailable; original preserved".into()),
-                    Widget::Journal => {
-                        if !app.journal.pending.is_empty() {
-                            format!(
-                                "{} pending · Enter to review/retry",
-                                app.journal.pending.len()
-                            )
-                        } else if !app.journal.warning.is_empty() {
-                            "unavailable; Enter to review".into()
-                        } else {
-                            format!(
-                                "{}: {} saved observations",
-                                app.journal.date,
-                                app.journal.fact_count()
-                            )
-                        }
-                    }
-                    Widget::Pins => {
-                        format!("{} in scope · Enter opens Pinboard", app.pin_count(true))
-                    }
-                    Widget::Battery => app
-                        .deck
-                        .snapshot
-                        .as_ref()
-                        .and_then(|s| s.battery_percent)
-                        .map(|p| format!("{p}%"))
-                        .unwrap_or_else(|| "unavailable; refresh in System settings".into()),
-                    Widget::Backup => {
-                        if app.deck.shell.backup.job.is_some() {
-                            "backup operation running".into()
-                        } else if app.deck.shell.backup.status.configured {
-                            // The same line as Settings › Backups: when, verified, what's next.
-                            app.deck.shell.backup.auto_line(&app.project.root)
-                        } else {
-                            "set up encrypted backup and restore".into()
-                        }
-                    }
-                    Widget::System => app
-                        .deck
-                        .snapshot
-                        .as_ref()
-                        .and_then(|s| s.network.clone())
-                        .unwrap_or_else(|| "status not loaded".into()),
-                };
-                rows.push(format!("{:<21} {}", w.widget.name(), value));
-            }
-            rows.extend(
-                home_actions(&app.deck)
-                    .into_iter()
-                    .map(|a| a.label().to_string()),
-            );
-            hint = "↑↓ choose  Enter open  h hide widget  J/K reorder  w widgets  p Pins  j Journal  s Scratchpad  o Handoff  Esc";
-        }
-        Page::Widgets { sel } => {
-            title = "Dashboard widgets".into();
-            selected = Some(*sel);
-            rows = app
-                .deck
-                .state
-                .dashboard
-                .iter()
-                .map(|w| {
-                    format!(
-                        "[{}] {}",
-                        if w.visible { 'x' } else { ' ' },
-                        w.widget.name()
-                    )
-                })
-                .collect();
-            hint = "↑↓ choose  Enter toggle  Esc home";
+            rows = LIVE_INSTALL_CHOICES.into_iter().map(String::from).collect();
+            hint = "↑↓ choose  Enter select  Esc close";
         }
         Page::Workspaces { sel } => {
             title = "Saved workspaces · two independent editors".into();
@@ -2465,7 +2092,8 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                     )
                 })
                 .collect();
-            hint = "↑↓ choose  Enter restore  +/- outline  < > secondary size  n clone  b starter  p pin set  Esc home";
+            hint = "↑↓ choose  Enter restore  +/- outline  < > secondary size  \
+                    n clone  b starter  p pin set  Esc close";
         }
         Page::WorkspacePins {
             workspace,
@@ -2539,12 +2167,8 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                 "Shutdown (confirmation required)".into(),
                 "Restart (confirmation required)".into(),
                 "Keyboard shortcuts".into(),
-                format!(
-                    "Show dashboard on startup · {}",
-                    app.deck.state.launch_dashboard
-                ),
             ];
-            hint = "↑↓ choose  Enter request  Esc home · unavailable services never imply success";
+            hint = "↑↓ choose  Enter request  Esc close · unavailable services never imply success";
         }
         Page::Keyboard { sel } => {
             title = "Console keyboard · 15-second safe preview".into();
@@ -2557,7 +2181,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                 "Appliance tty1 only; desktop/SSH layouts belong to their OS.".into(),
                 "Custom layouts require administrator-reviewed registration (planned).".into(),
             ]);
-            hint = "↑↓ choose  Enter preview  Esc system · no character remapping in WrOS";
+            hint = "↑↓ choose  Enter preview  Esc back · no character remapping in WrOS";
         }
         Page::KeyboardWait => {
             title = "Applying a temporary keyboard layout…".into();
@@ -2636,7 +2260,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                     )
                 })
                 .collect();
-            hint = "↑↓ choose  Enter lesson  d demo project  s skip  Esc home";
+            hint = "↑↓ choose  Enter lesson  d demo project  s skip  Esc close";
         }
         Page::Lesson { id } => {
             let l = &tutorial::lessons()[*id as usize - 1];
@@ -2677,29 +2301,9 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                     )
                 })
                 .collect();
-            hint = "↑↓ action  Enter add/replace alias  Esc system";
+            hint = "↑↓ action  Enter add/replace alias  Esc back";
         }
     }
-    let inner = if matches!(page, Page::Home { .. })
-        && app.pin_count(true) > 0
-        && app
-            .deck
-            .state
-            .dashboard
-            .iter()
-            .any(|w| w.widget == Widget::Pins && w.visible)
-        && inner.width >= 70
-    {
-        let [main, cards] = ratatui::layout::Layout::horizontal([
-            ratatui::layout::Constraint::Min(36),
-            ratatui::layout::Constraint::Length(34),
-        ])
-        .areas(inner);
-        super::pins::dashboard(f, app, cards, t);
-        main
-    } else {
-        inner
-    };
     let width = inner.width.saturating_sub(2) as usize;
     let content_height = inner.height.saturating_sub(4) as usize;
     let start = selected.map_or(0, |sel| {
@@ -2725,7 +2329,9 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         lines.push(Line::from(""));
     }
     let busy_line;
-    let note = if let Some(line) = app.deck.power_wait_line() {
+    let note = if matches!(page, Page::LiveInstall { .. }) {
+        "Save work somewhere persistent before reboot."
+    } else if let Some(line) = app.deck.power_wait_line() {
         busy_line = line;
         &busy_line
     } else if app.deck.busy {

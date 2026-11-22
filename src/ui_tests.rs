@@ -2647,7 +2647,6 @@ const EVERY_KEY: &[(&str, &str, &[&str])] = &[
     ("Everywhere", "F9", &[]),
     ("Everywhere", "F10", &[]),
     ("Everywhere", "F11", &[]),
-    ("Everywhere", "F12", &[]),
     ("The outline", "↑", &[]),
     ("The outline", "↓", &["↑"]),
     ("The outline", "j", &["↑"]),
@@ -4433,7 +4432,7 @@ fn progress_shows_the_weeks_and_the_pace_and_a_click_on_the_count_opens_it() {
         .unwrap();
     }
     let mut d = Desk::open(root.clone(), 120, 40);
-    d.menu(&["Tools", "Practice", "Progress…"]);
+    d.menu(&["Tools", "Progress", "Progress…"]);
     assert!(d.shows("PROGRESS"), "{}", d.rows().join("\n"));
     assert!(d.shows("Each week"));
     assert!(d.shows("this week"));
@@ -4979,52 +4978,74 @@ fn spelling_can_be_british_canadian_or_australian() {
 // ---- WritingDeck appliance foundation --------------------------------------
 
 #[test]
-fn overview_keeps_tiles_and_configure_widgets_only_at_every_size() {
+fn f12_and_esc_never_open_a_dashboard() {
+    use crate::app::wros::Page;
     for (w, h) in [(80, 24), (100, 30), (120, 40), (160, 50), (170, 48)] {
-        let mut d = Desk::open(book(&format!("deck-home-{w}"), true), w, h);
-        let before = d.app.editor.text();
+        let mut d = Desk::open(book(&format!("desk-without-dashboard-{w}"), true), w, h);
+        let text = d.app.editor.text();
+        let focus = d.app.focus;
         d.key(KeyCode::F(12));
-        assert!(d.shows("Overview"), "titled Overview at {w}x{h}");
-        assert!(!d.shows("WrOS dashboard"));
-        assert!(d.shows("encrypted backup"), "the tiles stay");
-        for gone in ["Goals ›", "Workspaces", "Interactive tutorial"] {
-            assert!(
-                !d.rows()
-                    .iter()
-                    .any(|r| r.trim_start_matches(['│', ' ', '▸']).starts_with(gone)),
-                "{gone} row at {w}x{h}"
-            );
-        }
-        assert_eq!(
-            crate::app::wros::home_actions(&d.app.deck),
-            [crate::app::wros::HomeAction::Widgets]
-        );
-        d.key(KeyCode::End);
-        assert!(d.shows("▸ Configure widgets"));
-        d.key(KeyCode::Enter);
-        assert!(d.shows("Dashboard widgets"));
+        assert_eq!(d.app.overlay, Overlay::None);
         d.key(KeyCode::Esc);
+        assert!(d.menu_open());
+        d.key(KeyCode::F(12));
+        assert!(d.menu_open());
         d.key(KeyCode::Esc);
-        assert_eq!(d.app.editor.text(), before);
-        assert_eq!(d.app.focus, Focus::Editor);
-    }
-}
+        assert_eq!(d.app.overlay, Overlay::None);
 
-#[test]
-fn overview_on_live_media_offers_install_first() {
-    let mut d = Desk::open(book("deck-home-live", true), 120, 40);
-    d.app.deck.live_session = true;
-    d.app.deck.installer_available = true;
-    d.key(KeyCode::F(12));
-    assert_eq!(
-        crate::app::wros::home_actions(&d.app.deck),
-        [
-            crate::app::wros::HomeAction::InstallWros,
-            crate::app::wros::HomeAction::Widgets
-        ]
-    );
-    assert!(d.shows("Install WrOS to disk"), "{}", d.rows().join("\n"));
-    assert!(d.shows("Overview · Live session"));
+        d.menu(&["View", "Workspaces"]);
+        assert!(matches!(
+            d.app.overlay,
+            Overlay::Deck(Page::Workspaces { .. })
+        ));
+        d.key(KeyCode::Esc);
+        assert_eq!(d.app.overlay, Overlay::None);
+
+        d.menu(&["Help", "Interactive tutorial"]);
+        d.key(KeyCode::Enter);
+        assert_eq!(d.app.overlay, Overlay::Deck(Page::Lesson { id: 1 }));
+        d.key(KeyCode::Esc);
+        assert_eq!(d.app.overlay, Overlay::Deck(Page::Tutorial { sel: 0 }));
+        d.key(KeyCode::Esc);
+        assert_eq!(d.app.overlay, Overlay::None);
+
+        d.menu(&[
+            "Settings",
+            "Look and keyboard",
+            "Keyboard",
+            "Keyboard shortcuts",
+        ]);
+        assert!(matches!(
+            d.app.overlay,
+            Overlay::Deck(Page::Shortcuts { .. })
+        ));
+        d.key(KeyCode::Esc);
+        assert_eq!(
+            d.app.deck.shell.nav.current(),
+            crate::app::shell::Route::KeyboardPage
+        );
+        for _ in 0..3 {
+            assert_eq!(d.app.overlay, Overlay::Deck(Page::Settings));
+            d.key(KeyCode::Esc);
+        }
+        assert_eq!(d.app.overlay, Overlay::None);
+
+        d.app.open_system_settings();
+        d.key(KeyCode::End);
+        assert!(d.shows("▸ Keyboard shortcuts"));
+        assert!(!d.shows("Show dashboard on startup"));
+        d.key(KeyCode::Enter);
+        assert!(matches!(
+            d.app.overlay,
+            Overlay::Deck(Page::Shortcuts { .. })
+        ));
+        d.key(KeyCode::Esc);
+        assert_eq!(d.app.overlay, Overlay::Deck(Page::System { sel: 11 }));
+        d.key(KeyCode::Esc);
+        assert_eq!(d.app.overlay, Overlay::None);
+        assert_eq!(d.app.editor.text(), text);
+        assert_eq!(d.app.focus, focus);
+    }
 }
 
 #[test]
@@ -5075,26 +5096,30 @@ fn wros_strict_focus_hides_reference_panes_without_closing_them() {
 }
 
 #[test]
-fn wros_widgets_keep_visibility_and_order_after_reload() {
-    let mut d = Desk::open(book("deck-widgets", true), 80, 24);
-    d.key(KeyCode::F(12));
-    let first = d.app.deck.state.dashboard[0].widget;
-    d.key(KeyCode::Char('J'));
-    assert_eq!(d.app.deck.state.dashboard[1].widget, first);
-    d.key(KeyCode::Char('h'));
-    let s = grimoire_core::workspaces::Store::load(&d.root).unwrap();
-    assert_eq!(s.state.dashboard[1].widget, first);
-    assert!(!s.state.dashboard[1].visible);
-    d.key(KeyCode::Char('w'));
-    d.key(KeyCode::Down);
-    d.key(KeyCode::Enter);
-    assert!(
-        grimoire_core::workspaces::Store::load(&d.root)
-            .unwrap()
-            .state
-            .dashboard[1]
-            .visible
-    );
+fn a_saved_dashboard_layout_still_loads_and_is_kept() {
+    use grimoire_core::workspaces::{Store, Widget};
+    let root = book("saved-dashboard-layout", true);
+    let mut old = Store::load(&root).unwrap();
+    old.state.launch_dashboard = true;
+    old.state.dashboard.retain(|w| w.widget != Widget::Pins);
+    old.state.dashboard.swap(0, 1);
+    old.state.dashboard[0].visible = false;
+    old.save().unwrap();
+    let path = Store::path(&root);
+    let original = fs::read(&path).unwrap();
+
+    let mut d = Desk::open(root, 80, 24);
+    d.app.init_wros(true);
+    assert_eq!(d.app.overlay, Overlay::None);
+    assert_eq!(d.app.deck.state.dashboard, old.state.dashboard);
+    assert!(d.app.deck.state.launch_dashboard);
+    assert_eq!(fs::read(path).unwrap(), original);
+
+    d.app.toggle_outline();
+    let saved = Store::load(&d.root).unwrap();
+    assert_ne!(saved.state.current().outline, old.state.current().outline);
+    assert_eq!(saved.state.dashboard, old.state.dashboard);
+    assert!(saved.state.launch_dashboard);
 }
 
 #[test]
@@ -5123,22 +5148,23 @@ fn wros_custom_shortcuts_are_additive_and_logical() {
     for layout in ["qwerty", "colemak", "colemak-dh"] {
         let mut d = Desk::open(book(&format!("deck-shortcuts-{layout}"), true), 100, 30);
         d.app.overlay = Overlay::Deck(Page::Shortcuts {
-            sel: 0,
+            sel: 1,
             capture: true,
         });
         d.press(KeyEvent::new(
             KeyCode::Char('g'),
             KeyModifiers::CONTROL | KeyModifiers::ALT,
         ));
-        d.key(KeyCode::Esc); // system
-        d.key(KeyCode::Esc); // home
-        d.key(KeyCode::Esc); // prose
+        d.key(KeyCode::Esc);
+        assert_eq!(d.app.overlay, Overlay::None);
         d.press(KeyEvent::new(
             KeyCode::Char('g'),
             KeyModifiers::CONTROL | KeyModifiers::ALT,
         ));
-        assert!(matches!(d.app.overlay, Overlay::Deck(Page::Home { .. })));
+        assert_eq!(d.app.overlay, Overlay::Deck(Page::Tutorial { sel: 0 }));
         d.key(KeyCode::Esc);
+        assert_eq!(d.app.overlay, Overlay::None, "Esc goes back to writing");
+        d.app.focus = Focus::Editor;
         d.ctrl('s');
         assert!(
             d.app.msg.contains("saved"),
@@ -5153,7 +5179,48 @@ fn wros_custom_shortcuts_are_additive_and_logical() {
 }
 
 #[test]
-fn wros_recovery_prompt_precedes_startup_dashboard() {
+fn an_old_shortcuts_file_with_dashboard_still_loads() {
+    use crate::app::wros::Page;
+    let root = book("old-dashboard-shortcuts", true);
+    let path = root.join(".grimoire/writingdeck/shortcuts.json");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    let old = r#"{"version":1,"bindings":[
+        {"chord":"F12","action":"dashboard"},
+        {"chord":"Ctrl+Alt+G","action":"dashboard"},
+        {"chord":"F11","action":"tutorial"}
+    ]}"#;
+    fs::write(&path, old).unwrap();
+    let mut d = Desk::open(root, 100, 30);
+    d.key(KeyCode::F(12));
+    d.press(KeyEvent::new(
+        KeyCode::Char('g'),
+        KeyModifiers::CONTROL | KeyModifiers::ALT,
+    ));
+    assert_eq!(d.app.overlay, Overlay::None);
+    d.key(KeyCode::F(11));
+    assert_eq!(d.app.overlay, Overlay::Deck(Page::Tutorial { sel: 0 }));
+    d.key(KeyCode::Esc);
+    assert_eq!(fs::read_to_string(&path).unwrap(), old);
+
+    d.menu(&[
+        "Settings",
+        "Look and keyboard",
+        "Keyboard",
+        "Keyboard shortcuts",
+        "Interactive tutorial",
+    ]);
+    d.key(KeyCode::F(12));
+    assert!(!fs::read_to_string(&path).unwrap().contains("dashboard"));
+    let mut reopened = Desk::open(d.root.clone(), 100, 30);
+    reopened.key(KeyCode::F(12));
+    assert_eq!(
+        reopened.app.overlay,
+        Overlay::Deck(Page::Tutorial { sel: 0 })
+    );
+}
+
+#[test]
+fn wros_recovery_prompt_still_takes_precedence_at_startup() {
     let root = book("deck-startup-recovery", true);
     recovery::keep(&root, &first_scene(&root), "Recovered WritingDeck words.").unwrap();
     let mut d = Desk::open(root, 80, 24);
@@ -5365,7 +5432,6 @@ fn wros_async_system_status_is_explicitly_simulated_and_does_not_block_writing()
     let mut d = Desk::open(book("deck-system-worker", true), 100, 30);
     d.app.deck.simulate();
     d.app.open_system_settings();
-    d.key(KeyCode::Esc);
     d.key(KeyCode::Esc);
     d.app.focus = Focus::Editor;
     d.typed("Writing while status loads. ");
@@ -7033,33 +7099,28 @@ fn wros_pins_scopes_follow_primary_context_not_the_secondary_note() {
     use grimoire_core::pins::Scope;
     let (mut d, note) = secondary_book("pins-scope", 160, 50, false);
     let id = pin_document(&mut d, &note);
-    assert_eq!(d.app.pin_ids(false), vec![id]);
-    assert!(d.app.pin_ids(true).is_empty());
+    assert_eq!(d.app.pin_ids(), vec![id]);
     d.key(KeyCode::Char('s'));
     assert_eq!(d.app.pins.state().pins[0].scope, Scope::Chapter);
-    assert_eq!(d.app.pin_ids(false), vec![id]);
+    assert_eq!(d.app.pin_ids(), vec![id]);
     d.key(KeyCode::Enter);
     assert_eq!(d.app.focus, Focus::Secondary);
-    assert_eq!(d.app.pin_ids(false), vec![id]);
+    assert_eq!(d.app.pin_ids(), vec![id]);
     d.app.open_pinboard();
     d.key(KeyCode::Char('s'));
     assert_eq!(d.app.pins.state().pins[0].scope, Scope::Scene);
-    assert_eq!(d.app.pin_ids(false), vec![id]);
+    assert_eq!(d.app.pin_ids(), vec![id]);
     d.key(KeyCode::Char('s'));
-    assert!(d.app.pin_ids(false).is_empty());
-    assert_eq!(d.app.pin_ids(true), vec![id]);
+    assert!(d.app.pin_ids().is_empty());
+    assert_eq!(d.app.pins.state().pins[0].scope, Scope::Hidden);
     d.key(KeyCode::Char('s'));
-    assert!(d.app.pin_ids(false).is_empty());
-    assert!(d.app.pin_ids(true).is_empty());
-    d.key(KeyCode::Char('s'));
-    assert_eq!(d.app.pin_ids(false), vec![id]);
-    assert_eq!(d.app.pin_ids(true), vec![id]);
+    assert_eq!(d.app.pin_ids(), vec![id]);
 }
 
 #[test]
-fn wros_pins_dashboard_cards_are_real_scoped_readers_with_independent_mouse_scroll() {
+fn a_pin_with_the_old_dashboard_scope_remains_available_in_pinboard() {
     use grimoire_core::pins::Scope;
-    let (mut d, note) = secondary_book("pins-dashboard", 100, 30, true);
+    let (mut d, note) = secondary_book("old-dashboard-pin", 100, 30, true);
     let id = pin_document(&mut d, &note);
     d.app
         .pins
@@ -7068,20 +7129,14 @@ fn wros_pins_dashboard_cards_are_real_scoped_readers_with_independent_mouse_scro
             Ok(())
         })
         .unwrap();
-    let position = d.app.editor.text();
-    d.app.open_dashboard();
-    d.draw();
-    assert!(d.shows("Secondary paragraph 0."));
-    assert_eq!(d.app.pins.dashboard_hits.borrow().len(), 1);
-    let rect = d.app.pins.dashboard_hits.borrow()[0].1;
-    d.app.on_scroll(rect.x + 1, rect.y + 2, true);
-    d.draw();
-    assert_eq!(d.app.pins.state().pins[0].scroll, 3);
-    assert_eq!(d.app.editor.text(), position);
-    d.app.on_click(rect.x + 1, rect.y + 1);
-    d.draw();
+    d.key(KeyCode::Esc);
+    assert!(d.app.pin_ids().is_empty());
+    d.menu(&["Tools", "Notes", "Pinboard"]);
     assert_eq!(d.app.overlay, Overlay::Pins);
     assert_eq!(d.app.pins.state().selected, Some(id));
+    assert!(d.shows("Secondary paragraph 0."));
+    d.key(KeyCode::Char('s'));
+    assert_eq!(d.app.pins.state().pins[0].scope, Scope::Always);
 }
 
 #[test]
@@ -7272,36 +7327,12 @@ fn wros_pins_tutorial_never_uses_a_real_novel_as_an_exercise() {
 }
 
 #[test]
-fn wros_pins_old_layouts_gain_only_the_additive_dashboard_widget() {
-    use grimoire_core::workspaces::{Store, Widget};
-    let root = book("pins-old-layout", true);
-    let mut store = Store::load(&root).unwrap();
-    store.state.dashboard.retain(|w| w.widget != Widget::Pins);
-    store.state.dashboard[0].visible = false;
-    let old = store.state.workspaces.clone();
-    store.save().unwrap();
-    let d = Desk::open(root, 120, 40);
-    assert_eq!(d.app.deck.state.workspaces, old);
-    assert!(!d.app.deck.state.dashboard[0].visible);
-    assert_eq!(
-        d.app
-            .deck
-            .state
-            .dashboard
-            .iter()
-            .filter(|w| w.widget == Widget::Pins)
-            .count(),
-        1
-    );
-}
-
-#[test]
 fn wros_pins_custom_alias_opens_board_without_typing_into_prose() {
     use crate::app::wros::Page;
     let (mut d, _) = secondary_book("pins-shortcut", 120, 40, false);
     let original = d.app.editor.text();
     d.app.overlay = Overlay::Deck(Page::Shortcuts {
-        sel: 9,
+        sel: 8,
         capture: true,
     });
     d.app.add_deck_shortcut("Ctrl+Alt+P");
@@ -8008,29 +8039,12 @@ fn wros_journal_lesson_never_uses_an_ordinary_novel_for_its_exercise() {
     assert_eq!(fs::read(first_scene(&d.root)).unwrap(), before);
 }
 #[test]
-fn wros_journal_widget_alias_help_and_old_layouts_are_additive_without_default_rebinding() {
+fn wros_journal_alias_help_and_menu_open_the_same_reader() {
     use crate::app::wros::Page;
-    use grimoire_core::workspaces::{Store, Widget};
-    let root = book("journal-layout-alias", true);
-    let mut store = Store::load(&root).unwrap();
-    store
-        .state
-        .dashboard
-        .retain(|w| w.widget != Widget::Journal);
-    store.state.dashboard[0].visible = false;
-    let old = store.state.workspaces.clone();
-    let old_widgets = store.state.dashboard.clone();
-    store.save().unwrap();
-    let mut d = Desk::open(root, 120, 40);
-    assert_eq!(d.app.deck.state.workspaces, old);
-    assert_eq!(d.app.deck.state.dashboard[..old_widgets.len()], old_widgets);
-    assert_eq!(
-        d.app.deck.state.dashboard.last().unwrap().widget,
-        Widget::Journal
-    );
+    let mut d = Desk::open(book("journal-alias", true), 120, 40);
     let before = d.app.editor.text();
     d.app.overlay = Overlay::Deck(Page::Shortcuts {
-        sel: 12,
+        sel: 11,
         capture: true,
     });
     d.app.add_deck_shortcut("Ctrl+Alt+J");
@@ -8045,8 +8059,8 @@ fn wros_journal_widget_alias_help_and_old_layouts_are_additive_without_default_r
     assert!(matches!(d.app.overlay, Overlay::Help { .. }));
     assert!(d.shows("Writing journal"));
     d.key(KeyCode::Esc);
-    d.app.open_dashboard();
-    d.key(KeyCode::Char('j'));
+    d.key(KeyCode::Esc);
+    d.menu(&["Tools", "Notes", "Writing journal"]);
     assert_eq!(d.app.overlay, Overlay::Journal);
 }
 #[test]
@@ -8844,12 +8858,12 @@ fn wros_workflow_workspace_pin_sets_filter_without_changing_global_card_lifecycl
     let first = d.app.pins.state().pins[0].id;
     d.app.pin_document(&research, None);
     let second = d.app.pins.state().pins[1].id;
-    assert_eq!(d.app.pin_count(false), 2);
+    assert_eq!(d.app.pin_count(), 2);
     d.app.save_workspace_pin_set(0, Some(vec![first])).unwrap();
     d.app.save_workspace_pin_set(1, Some(vec![second])).unwrap();
-    assert_eq!(d.app.pin_ids(false), vec![first]);
+    assert_eq!(d.app.pin_ids(), vec![first]);
     d.app.deck.state.selected = 1;
-    assert_eq!(d.app.pin_ids(false), vec![second]);
+    assert_eq!(d.app.pin_ids(), vec![second]);
     assert_eq!(d.app.pins.state().pins.len(), 2);
     assert!(
         d.app
@@ -8860,7 +8874,7 @@ fn wros_workflow_workspace_pin_sets_filter_without_changing_global_card_lifecycl
             .all(|p| p.scope == Scope::Novel && p.life == grimoire_core::pins::Life::Active)
     );
     d.app.save_workspace_pin_set(1, None).unwrap();
-    assert_eq!(d.app.pin_count(false), 2);
+    assert_eq!(d.app.pin_count(), 2);
     let persisted = grimoire_core::workspaces::Store::load(&d.root).unwrap();
     assert_eq!(persisted.state.workspaces[0].pin_ids, Some(vec![first]));
     assert!(persisted.state.workspaces[1].pin_ids.is_none());
@@ -8884,11 +8898,11 @@ fn wros_workflow_workspace_pin_picker_cancel_and_save_are_explicit() {
     d.key(KeyCode::Char('z'));
     d.key(KeyCode::Enter);
     assert_eq!(d.app.deck.state.current().pin_ids, Some(vec![]));
-    assert_eq!(d.app.pin_count(false), 0);
+    assert_eq!(d.app.pin_count(), 0);
     d.key(KeyCode::Char('p'));
     d.key(KeyCode::Char('A'));
     assert!(d.app.deck.state.current().pin_ids.is_none());
-    assert_eq!(d.app.pin_count(false), 1);
+    assert_eq!(d.app.pin_count(), 1);
 }
 
 #[test]
@@ -8953,6 +8967,82 @@ fn metric_writer(tag: &str, w: u16, h: u16) -> Desk {
     d.app.editor.scene_end();
     d
 }
+
+const PROGRESS_DIALOGS: [(&str, palette::Action, crate::app::productivity::Page); 6] = {
+    use crate::app::productivity::Page;
+    use crate::palette::Action;
+    [
+        ("Goals…", Action::MeasuredGoals, Page::Goals),
+        ("Calendar…", Action::Calendar, Page::Calendar),
+        ("Sprints…", Action::AdvancedSprints, Page::Sprints),
+        ("Edits…", Action::Productivity, Page::Overview),
+        ("Collection…", Action::Achievements, Page::Achievements),
+        ("Challenges…", Action::DailyChallenges, Page::Challenges),
+    ]
+};
+
+#[test]
+fn each_progress_dialog_opens_alone_from_tools_progress() {
+    let mut d = metric_writer("progress-menu", 80, 24);
+    metric_clock(&mut d);
+    let entries = palette::entries(&d.app);
+    for (label, action, expected) in PROGRESS_DIALOGS {
+        d.menu(&["Tools", "Progress", label]);
+        assert!(matches!(
+            d.app.overlay,
+            Overlay::Productivity { page, .. } if page == expected
+        ));
+        assert_eq!(entries.iter().filter(|e| e.action == action).count(), 1);
+        d.key(KeyCode::Esc);
+        assert_eq!(d.app.overlay, Overlay::None);
+    }
+}
+
+#[test]
+fn no_progress_dialog_draws_the_tab_row() {
+    let mut d = metric_writer("progress-no-tabs", 80, 24);
+    metric_clock(&mut d);
+    for (label, action, expected) in PROGRESS_DIALOGS {
+        d.app.run_action(action);
+        d.draw();
+        assert!(!d.shows("1 edits"), "{label}");
+        assert!(!d.shows("Tab page"), "{label}");
+        for key in [KeyCode::Tab, KeyCode::BackTab]
+            .into_iter()
+            .chain(('1'..='6').map(KeyCode::Char))
+        {
+            d.key(key);
+            assert!(
+                matches!(d.app.overlay, Overlay::Productivity { page, .. } if page == expected),
+                "{label} after {key:?}"
+            );
+        }
+        d.key(KeyCode::Esc);
+    }
+}
+
+#[test]
+fn progress_dialogs_fit_80x24_and_the_hp_stream_grid() {
+    for (w, h) in [(80, 24), (124, 38), (136, 42)] {
+        let mut d = metric_writer(&format!("progress-fit-{w}"), w, h);
+        metric_clock(&mut d);
+        for (label, action, _) in PROGRESS_DIALOGS {
+            d.app.run_action(action);
+            d.draw();
+            let title = label.trim_end_matches('…');
+            assert!(d.shows(&format!("┌ {title} ")), "{label} at {w}x{h}");
+            assert!(d.shows("PgUp/PgDn scroll"), "{label} at {w}x{h}");
+            let (x, y) = ((w - 76) / 2, (h - 22) / 2);
+            let buf = d.term.backend().buffer();
+            assert_eq!(buf[(x, y)].symbol(), "┌");
+            assert_eq!(buf[(x + 75, y)].symbol(), "┐");
+            assert_eq!(buf[(x, y + 21)].symbol(), "└");
+            assert_eq!(buf[(x + 75, y + 21)].symbol(), "┘");
+            d.key(KeyCode::Esc);
+        }
+    }
+}
+
 fn metric_value(d: &Desk, metric: grimoire_core::productivity::Metric) -> Option<i128> {
     d.app.productivity.snapshot.lifetime(metric, None, false)
 }
@@ -9010,7 +9100,7 @@ fn wros_productivity_keyboard_paste_undo_are_actual_source_operations_not_net_ba
     }
     d.app.run_action(palette::Action::Productivity);
     d.draw();
-    assert!(d.shows("Productivity"));
+    assert!(d.shows("┌ Edits "));
     assert!(
         d.shows("Keyboard-pair")
             || d.app
@@ -9145,6 +9235,196 @@ fn wros_productivity_idle_cutoff_pause_and_revision_mode_use_injected_monotonic_
     assert_eq!(metric_totals(&d, Role::Manuscript).active_ms, 500);
 }
 #[test]
+fn calendar_grid_marks_rest_days_and_today() {
+    use grimoire_core::productivity::Schedule;
+
+    let mut d = metric_writer("calendar-grid-marks", 80, 24);
+    let clock = metric_clock(&mut d);
+    metric_advance(&clock, 8 * 86_400_000); // Monday, November 2
+    d.app
+        .productivity
+        .update(|s| {
+            let mut schedule = Schedule::november(2026)?;
+            schedule.toggle_rest("2026-11-01")?;
+            s.schedule = Some(schedule);
+            Ok(())
+        })
+        .unwrap();
+    d.menu(&["Tools", "Progress", "Calendar…"]);
+
+    let rows = d.rows();
+    let weekdays = rows
+        .iter()
+        .position(|row| row.contains(" Mon  Tue  Wed  Thu  Fri  Sat  Sun"))
+        .unwrap();
+    assert!(rows[weekdays - 1].contains("November 2026"));
+    assert!(rows[weekdays + 1].contains(" 1 R"));
+    assert!(rows[weekdays + 2].contains("│  2*"));
+    assert!(rows[weekdays + 6].contains("│ 30"));
+    assert!(
+        rows[weekdays + 7..]
+            .iter()
+            .any(|row| row.contains("2026-11-01 → 2026-11-30 · target 50000"))
+    );
+}
+
+#[test]
+fn calendar_grid_dims_outside_the_schedule_and_crosses_years() {
+    use grimoire_core::productivity::Schedule;
+
+    let mut d = metric_writer("calendar-grid-year-end", 80, 24);
+    let clock = metric_clock(&mut d);
+    metric_advance(&clock, 67 * 86_400_000); // Thursday, December 31
+    d.app
+        .productivity
+        .update(|s| {
+            s.schedule = Some(Schedule {
+                start: "2026-12-31".into(),
+                end: "2027-01-01".into(),
+                target: 500,
+                rest_days: Default::default(),
+            });
+            Ok(())
+        })
+        .unwrap();
+    d.menu(&["Tools", "Progress", "Calendar…"]);
+    assert!(d.shows("December 2026"));
+    d.key(KeyCode::Left);
+
+    // December's final week starts on Monday the 28th. Check Wednesday and Thursday.
+    let y = d
+        .rows()
+        .iter()
+        .position(|row| row.contains("│ 28   29   30   31*"))
+        .unwrap() as u16;
+    let x = (80 - 76) / 2 + 1;
+    let buf = d.term.backend().buffer();
+    assert!(
+        buf[(x + 11, y)]
+            .modifier
+            .contains(Modifier::DIM | Modifier::REVERSED)
+    );
+    assert!(!buf[(x + 16, y)].modifier.contains(Modifier::DIM));
+
+    let path = d.root.join(".grimoire/writingdeck/productivity.json");
+    let before = fs::read(&path).unwrap();
+    d.key(KeyCode::Enter);
+    assert!(d.shows("rest day outside schedule"));
+    assert_eq!(fs::read(path).unwrap(), before);
+
+    d.key(KeyCode::Char(']'));
+    assert!(d.shows("January 2027"));
+    d.key(KeyCode::Char('['));
+    assert!(d.shows("December 2026"));
+    d.keys(&[KeyCode::Home, KeyCode::Right]);
+    assert!(d.shows("January 2027"));
+    assert!(d.shows("2027-01-01 Fri work"));
+    d.key(KeyCode::Home);
+    assert!(d.shows("December 2026"));
+    assert!(d.shows("2026-12-31 Thu work"));
+}
+
+#[test]
+fn enter_toggles_a_rest_day_and_saves() {
+    use crate::app::productivity::Productivity;
+
+    let mut d = metric_writer("calendar-grid-save", 80, 24);
+    metric_clock(&mut d);
+    d.menu(&["Tools", "Progress", "Calendar…"]);
+    d.keys(&[
+        KeyCode::Char('n'),
+        KeyCode::Down,
+        KeyCode::Down,
+        KeyCode::Up,
+        KeyCode::Right,
+        KeyCode::Enter,
+    ]);
+    let saved = Productivity::load(&d.root).config.schedule.unwrap();
+    assert_eq!(saved.rest_days.len(), 1);
+    assert!(saved.rest_days.contains("2026-11-09"));
+    assert!(d.shows("2026-11-09 Mon rest"));
+
+    d.key(KeyCode::Enter);
+    let saved = Productivity::load(&d.root).config.schedule.unwrap();
+    assert!(saved.rest_days.is_empty());
+    assert!(d.shows("2026-11-09 Mon work"));
+}
+
+#[test]
+fn the_bottom_bar_says_rest_day_on_a_rest_day() {
+    use grimoire_core::productivity::Schedule;
+
+    let mut d = metric_writer("status-rest-day", 80, 24);
+    let clock = metric_clock(&mut d);
+    metric_advance(&clock, 8 * 86_400_000); // November 2
+    d.app.tick_today_at("2026-11-02".into());
+    d.app
+        .productivity
+        .update(|s| {
+            s.schedule = Some(Schedule::november(2026)?);
+            Ok(())
+        })
+        .unwrap();
+    d.draw();
+    assert!(d.status().contains("today 0"));
+
+    d.menu(&["Tools", "Progress", "Calendar…"]);
+    d.keys(&[KeyCode::Enter, KeyCode::Esc]);
+    let status = d.status();
+    assert!(status.contains("rest day"), "{status}");
+    assert!(!status.contains("today 0"), "{status}");
+
+    d.ctrl('d');
+    assert!(d.app.focus_mode);
+    assert!(d.status().contains("rest day"));
+    d.ctrl('d');
+    d.menu(&["Tools", "Progress", "Calendar…"]);
+    d.keys(&[KeyCode::Enter, KeyCode::Esc]);
+    assert!(d.status().contains("today 0"));
+    assert!(!d.status().contains("rest day"));
+}
+
+#[test]
+fn todays_challenge_is_said_once_a_day() {
+    use grimoire_core::challenges;
+
+    let mut d = metric_writer("status-daily-challenge", 80, 24);
+    let clock = metric_clock(&mut d);
+    let assign = |d: &mut Desk| {
+        d.app.run_action(palette::Action::DailyChallenges);
+        let day = d.app.productivity.day.take().unwrap().value;
+        let exercise = challenges::exercise(&day.assignments[0].record_id).unwrap();
+        d.key(KeyCode::Esc);
+        format!("Today's challenge: {}", exercise.title)
+    };
+
+    let message = assign(&mut d);
+    d.app.tick_today_at("2026-10-25".into());
+    d.draw();
+    assert_eq!(d.app.msg, message);
+    assert!(d.status().contains(&message));
+
+    d.app.msg = "saved".into();
+    d.app.tick_today_at("2026-10-25".into());
+    assert_eq!(d.app.msg, "saved");
+
+    metric_advance(&clock, 86_400_000);
+    let message = assign(&mut d);
+    d.app.tick_today_at("2026-10-26".into());
+    d.draw();
+    assert_eq!(d.app.msg, message);
+    assert!(d.status().contains(&message));
+
+    d.app.tick_today_at("2026-10-27".into());
+    assert!(d.app.msg.is_empty());
+    assert!(
+        !d.root
+            .join(challenges::path("2026-10-27").unwrap())
+            .exists()
+    );
+}
+
+#[test]
 fn wros_productivity_calendar_goal_and_all_six_pages_are_real_at_four_sizes() {
     use crate::app::productivity::Page;
     for (w, h) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
@@ -9178,15 +9458,18 @@ fn wros_productivity_calendar_goal_and_all_six_pages_are_real_at_four_sizes() {
                 .contains("2026-11-01")
         );
         assert!(d.shows("Calendar"));
-        d.key(KeyCode::Char('2'));
+        d.key(KeyCode::Esc);
+        d.menu(&["Tools", "Progress", "Goals…"]);
         d.key(KeyCode::Char('n'));
         d.key(KeyCode::Enter);
         metric_field(&mut d, "25");
         assert_eq!(d.app.productivity.config.goals[0].target, 25);
-        for key in ['1', '2', '3', '4', '5', '6'] {
-            d.key(KeyCode::Char(key));
+        d.key(KeyCode::Esc);
+        for (label, _, _) in PROGRESS_DIALOGS {
+            d.menu(&["Tools", "Progress", label]);
             assert!(matches!(d.app.overlay, Overlay::Productivity { .. }));
             assert!(!d.rows().iter().all(|r| r.trim().is_empty()));
+            d.key(KeyCode::Esc);
         }
         assert_eq!(d.app.editor.text(), before);
         assert!(d.app.try_quit());
@@ -9245,7 +9528,8 @@ fn wros_productivity_invalid_target_or_date_keeps_original_settings_and_field() 
         old
     );
     d.key(KeyCode::Esc);
-    d.key(KeyCode::Char('2'));
+    d.key(KeyCode::Esc);
+    d.menu(&["Tools", "Progress", "Goals…"]);
     d.key(KeyCode::Char('n'));
     d.key(KeyCode::Enter);
     metric_field(&mut d, "0");
@@ -9719,7 +10003,7 @@ fn wros_productivity_discoverable_short_menu_has_every_tool_and_correct_nested_b
     use crate::palette::{Side, Title};
     for (w, h) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
         let mut d = metric_writer(&format!("metrics-menu-{w}"), w, h);
-        d.menu(&["Tools", "Practice"]);
+        d.menu(&["Tools", "Progress"]);
         assert!(matches!(
             d.app.overlay,
             Overlay::Bar {

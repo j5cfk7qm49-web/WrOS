@@ -27,7 +27,6 @@ pub struct Pins {
     pub hits: Vec<(u64, Rect)>,
     pub list_page: usize,
     pub board_life: Life,
-    pub dashboard_hits: std::cell::RefCell<Vec<(u64, Rect)>>,
     pub board_hits: std::cell::RefCell<Vec<(u64, Rect)>>,
     pub board_preview: std::cell::Cell<Rect>,
     pub board_page: std::cell::Cell<usize>,
@@ -50,7 +49,6 @@ impl Pins {
             hits: vec![],
             list_page: 2,
             board_life: Life::Active,
-            dashboard_hits: std::cell::RefCell::new(vec![]),
             board_hits: std::cell::RefCell::new(vec![]),
             board_preview: std::cell::Cell::new(Rect::default()),
             board_page: std::cell::Cell::new(1),
@@ -203,13 +201,13 @@ impl App {
         }
         (scene, None)
     }
-    pub fn pin_ids(&self, dashboard: bool) -> Vec<u64> {
+    pub fn pin_ids(&self) -> Vec<u64> {
         let (scene, chapter) = self.pin_context();
         self.pins
             .state()
             .pins
             .iter()
-            .filter(|p| p.visible(scene.as_deref(), chapter.as_deref(), dashboard))
+            .filter(|p| p.visible(scene.as_deref(), chapter.as_deref(), false))
             .filter(|p| {
                 self.deck
                     .state
@@ -230,8 +228,8 @@ impl App {
             .map(|p| p.id)
             .collect()
     }
-    pub fn pin_count(&self, dashboard: bool) -> usize {
-        self.pin_ids(dashboard).len()
+    pub fn pin_count(&self) -> usize {
+        self.pin_ids().len()
     }
     pub fn open_pinboard(&mut self) {
         self.flush();
@@ -447,7 +445,7 @@ impl App {
         let ids = if board {
             self.board_ids()
         } else {
-            self.pin_ids(false)
+            self.pin_ids()
         };
         if self
             .pins
@@ -460,7 +458,7 @@ impl App {
         }
     }
     pub fn prepare_pin_focus(&mut self) {
-        let ids = self.pin_ids(false);
+        let ids = self.pin_ids();
         if ids.is_empty() {
             return;
         }
@@ -491,7 +489,7 @@ impl App {
         let ids = if board {
             self.board_ids()
         } else {
-            self.pin_ids(false)
+            self.pin_ids()
         };
         let at = self
             .pins
@@ -541,14 +539,7 @@ impl App {
                 return;
             }
         };
-        let width = if matches!(self.overlay, Overlay::Deck(super::wros::Page::Home { .. })) {
-            self.pins
-                .dashboard_hits
-                .borrow()
-                .iter()
-                .find(|(i, _)| *i == id)
-                .map_or(24, |(_, r)| r.width.saturating_sub(2))
-        } else if self.overlay == Overlay::Pins {
+        let width = if self.overlay == Overlay::Pins {
             self.pins.board_preview.get().width.saturating_sub(2)
         } else {
             self.pins.rect.width.saturating_sub(4)
@@ -681,9 +672,8 @@ impl App {
             Scope::Always => Scope::Novel,
             Scope::Novel => Scope::Chapter,
             Scope::Chapter => Scope::Scene,
-            Scope::Scene => Scope::Dashboard,
-            Scope::Dashboard => Scope::Hidden,
-            Scope::Hidden => Scope::Always,
+            Scope::Scene => Scope::Hidden,
+            Scope::Dashboard | Scope::Hidden => Scope::Always,
         };
         let context = match next {
             Scope::Scene => scene,
@@ -794,7 +784,7 @@ impl App {
                 let ids = if board {
                     self.board_ids()
                 } else {
-                    self.pin_ids(false)
+                    self.pin_ids()
                 };
                 if !ids.contains(&pin.id) {
                     return;
@@ -945,17 +935,9 @@ impl App {
         }
     }
     pub fn pin_click(&mut self, x: u16, y: u16) -> bool {
-        let dashboard = matches!(self.overlay, Overlay::Deck(super::wros::Page::Home { .. }));
         let chosen = if self.overlay == Overlay::Pins {
             self.pins
                 .board_hits
-                .borrow()
-                .iter()
-                .find(|(_, r)| super::hit(*r, x, y))
-                .copied()
-        } else if dashboard {
-            self.pins
-                .dashboard_hits
                 .borrow()
                 .iter()
                 .find(|(_, r)| super::hit(*r, x, y))
@@ -972,9 +954,7 @@ impl App {
         if let Some((id, _)) = chosen {
             self.flush();
             self.pins.view(|s| s.selected = Some(id));
-            if dashboard {
-                self.open_pinboard();
-            } else if self.overlay == Overlay::None {
+            if self.overlay == Overlay::None {
                 self.focus = Focus::Pins;
             }
             return true;
@@ -996,19 +976,6 @@ impl App {
                 self.pin_move_selection(if down { Key::Down } else { Key::Up }, true);
             }
             return true;
-        }
-        if matches!(self.overlay, Overlay::Deck(super::wros::Page::Home { .. })) {
-            let id = self
-                .pins
-                .dashboard_hits
-                .borrow()
-                .iter()
-                .find(|(_, r)| super::hit(*r, x, y))
-                .map(|(id, _)| *id);
-            if let Some(id) = id {
-                self.pin_scroll(id, down, 3);
-                return true;
-            }
         }
         if self.overlay != Overlay::None {
             return false;
@@ -1189,7 +1156,7 @@ pub fn sidebar(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) -> Rect {
     let [edit, side] =
         Layout::horizontal([Constraint::Min(minimum), Constraint::Length(width)]).areas(area);
     app.pins.rect = side;
-    let ids = app.pin_ids(false);
+    let ids = app.pin_ids();
     let count = ids.len();
     let title = format!("PINS · {count}");
     let block = crate::ui::pane_block(&title, app.focus == Focus::Pins, t);
@@ -1330,25 +1297,4 @@ pub fn draw_board(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         Paragraph::new(crate::ui::hint_line(hint, t)),
         Rect::new(inner.x, y + status_height, inner.width, help_height),
     );
-}
-
-/// Dashboard-only and always-visible cards. Overflow remains accessible through
-/// the widget/Pinboard; mouse wheel inside a card scrolls only that reference.
-pub fn dashboard(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
-    let ids = app.pin_ids(true);
-    let mut y = area.y;
-    let mut hits = vec![];
-    for id in ids {
-        let pin = app.pins.state().pins.iter().find(|p| p.id == id).unwrap();
-        let height =
-            if pin.collapsed { 2 } else { pin.height }.min(area.bottom().saturating_sub(y));
-        if height < 2 {
-            break;
-        }
-        let rect = Rect::new(area.x, y, area.width, height);
-        draw_card(f, app, pin, rect, t, false);
-        hits.push((id, rect));
-        y += height;
-    }
-    *app.pins.dashboard_hits.borrow_mut() = hits;
 }

@@ -1,12 +1,11 @@
 //! Additive shortcut aliases. Established Grimoire bindings remain available.
 use anyhow::{Result, bail};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Action {
-    Dashboard,
     SystemSettings,
     Tutorial,
     Outline,
@@ -44,8 +43,37 @@ pub struct Binding {
 #[serde(deny_unknown_fields)]
 pub struct Shortcuts {
     pub version: u32,
+    #[serde(deserialize_with = "load_bindings")]
     pub bindings: Vec<Binding>,
 }
+
+fn load_bindings<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<Binding>, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(rename_all = "kebab-case")]
+    enum SavedAction {
+        Dashboard,
+        #[serde(untagged)]
+        Current(Action),
+    }
+
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct SavedBinding {
+        chord: String,
+        action: SavedAction,
+    }
+
+    // Old files named the dashboard explicitly, even when F12 was the default.
+    let saved = Vec::<SavedBinding>::deserialize(deserializer)?;
+    Ok(saved
+        .into_iter()
+        .filter_map(|SavedBinding { chord, action }| match action {
+            SavedAction::Dashboard => None,
+            SavedAction::Current(action) => Some(Binding { chord, action }),
+        })
+        .collect())
+}
+
 impl Default for Shortcuts {
     fn default() -> Self {
         Self {
@@ -58,10 +86,6 @@ impl Default for Shortcuts {
                 Binding {
                     chord: "F11".into(),
                     action: Action::Secondary,
-                },
-                Binding {
-                    chord: "F12".into(),
-                    action: Action::Dashboard,
                 },
             ],
         }
@@ -155,11 +179,14 @@ mod tests {
             action: Action::Save,
         });
         assert!(s.validate().is_err());
-        assert_eq!(Shortcuts::default().find("f12"), Some(Action::Dashboard));
+        assert_eq!(Shortcuts::default().find("f12"), None);
     }
     #[test]
     fn original_v1_aliases_without_secondary_still_load() {
-        let s:Shortcuts=serde_json::from_str(r#"{"version":1,"bindings":[{"chord":"F10","action":"outline"},{"chord":"F12","action":"dashboard"}]}"#).unwrap();
+        let s: Shortcuts = serde_json::from_str(
+            r#"{"version":1,"bindings":[{"chord":"F10","action":"outline"}]}"#,
+        )
+        .unwrap();
         s.validate().unwrap();
         assert_eq!(s.find("F10"), Some(Action::Outline));
         assert_eq!(s.find("F11"), None);
@@ -169,6 +196,7 @@ mod tests {
         for text in [
             r#"{"version":1,"bindings":[],"future_setting":true}"#,
             r#"{"version":1,"bindings":[{"chord":"F11","action":"secondary","future_setting":true}]}"#,
+            r#"{"version":1,"bindings":[{"chord":"F12","action":"future-action"}]}"#,
         ] {
             assert!(serde_json::from_str::<Shortcuts>(text).is_err());
         }
@@ -191,7 +219,7 @@ mod tests {
         shortcuts.validate().unwrap();
         let loaded: Shortcuts =
             serde_json::from_str(&serde_json::to_string(&shortcuts).unwrap()).unwrap();
-        assert_eq!(loaded.bindings[..3], defaults);
+        assert_eq!(loaded.bindings[..defaults.len()], defaults);
         assert_eq!(loaded.find("Ctrl+Alt+P"), Some(Action::Pinboard));
     }
 }
@@ -207,7 +235,7 @@ fn journal_alias_is_additive_and_v1_defaults_remain_unchanged() {
     });
     s.validate().unwrap();
     let loaded: Shortcuts = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
-    assert_eq!(loaded.bindings[..3], defaults);
+    assert_eq!(loaded.bindings[..defaults.len()], defaults);
     assert_eq!(loaded.find("Ctrl+Alt+J"), Some(Action::Journal));
 }
 
@@ -279,7 +307,7 @@ mod menu_bar_tests {
         let s = Shortcuts::default();
         assert_eq!(s.find("F10"), Some(Action::MenuBar));
         assert_eq!(s.find("F11"), Some(Action::Secondary));
-        assert_eq!(s.find("F12"), Some(Action::Dashboard));
+        assert_eq!(s.find("F12"), None);
         assert_eq!(s.chord_for(Action::Outline), None);
     }
 

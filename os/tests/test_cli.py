@@ -37,7 +37,9 @@ class HeadlessCLI(unittest.TestCase):
         self.run_cli('status', '--simulate', 'extra', ok=False)
 
     def test_help_version_and_invalid_commands_are_noninteractive(self):
-        self.assertIn('F12', self.run_cli('help').stdout)
+        help_text = self.run_cli('help').stdout
+        self.assertIn('Esc or F10 menu bar', help_text)
+        self.assertNotIn('F12 overview', help_text)
         self.assertIn('f3ca1e8', self.run_cli('version').stdout)
         self.run_cli('apply-install', ok=False)
         self.run_cli('tutorial-demo', ok=False)

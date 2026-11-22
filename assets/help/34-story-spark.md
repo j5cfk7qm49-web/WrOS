@@ -4,7 +4,7 @@ Story Spark selects from 1,047 original plot situations and 84 original creative
 
 ## Modes and controls
 
-Open **Tools › Practice › Story Spark…**, use the palette, or select its dashboard widget. Opening is read-only: nothing is generated until you choose.
+Open **Tools › Progress › Story Spark…** or use the palette. Opening is read-only: nothing is generated until you choose.
 
 - **1** plot only; **2** exercise only; **3** compatible combination; **4** fixed daily combination.
 - **p** rerolls plot while preserving the exact exercise. **e** preserves plot and rerolls exercise. **r** rerolls both. If no compatible different component exists, the old result remains and an explanation is shown.

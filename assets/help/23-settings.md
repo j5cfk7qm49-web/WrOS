@@ -20,4 +20,8 @@ The *Settings* menu opens Settings on one of its six groups, in a box over the p
 - **Manuscript look…**: the submission manuscript's format (see *Compile*).
 - **Author details…**: your name and contact block for the title page.
 
+Open **Settings › Look and keyboard › Keyboard › Keyboard shortcuts** to give an
+action a `Ctrl-Alt` letter or a function key from `F10` through `F12`. `F12` is
+available for an alias. Shortcuts use the letters from your active keyboard layout.
+
 Settings are remembered in `~/.config/grimoire/`, and the manuscript's look and your author details are kept in the project's `project.toml`, so they travel with it.

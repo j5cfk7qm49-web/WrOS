@@ -672,24 +672,14 @@ fn multi_scene_and_chapter_read_through_with_mark_for_revision_and_scene_navigat
 }
 
 #[test]
-fn dashboard_revision_widget_and_lesson_three_novel_creation_work_at_four_sizes() {
+fn revision_menu_and_lesson_three_novel_creation_work_at_four_sizes() {
     for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
         let root = book(&format!("rev-widget-l3-{width}"), true);
         let new_name = format!("created-novel-{width}-{}", std::process::id());
         let created_dir = root.parent().unwrap().join(&new_name);
         let _ = fs::remove_dir_all(&created_dir);
         let mut desk = Desk::open(root.clone(), width, height);
-        desk.app.open_dashboard();
-        desk.draw();
-        assert!(
-            desk.app
-                .deck
-                .state
-                .dashboard
-                .iter()
-                .any(|w| w.widget == grimoire_core::workspaces::Widget::Revision && w.visible)
-        );
-        desk.choose("Revision diagnostics");
+        desk.menu(&["Tools", "Revision", "Prose and revision dashboard"]);
         assert_eq!(desk.app.overlay, Overlay::ProseDashboard);
         desk.key(KeyCode::Esc);
 

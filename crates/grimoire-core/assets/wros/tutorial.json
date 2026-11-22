@@ -1,10 +1,10 @@
 [
   {
     "id": 1,
-    "title": "Starting the OS",
+    "title": "Opening the menu bar",
     "help_topic": "wros",
-    "event": "DashboardOpened",
-    "instructions": "Open Overview with F12 (or WrOS › Overview): your project at a glance. Esc returns to your manuscript. On the appliance, tty1 starts this interface after login."
+    "event": "MenuBarOpened",
+    "instructions": "Press Enter to open the menu bar. While writing, press Esc to open it again. Use the arrow keys to choose a menu and press Enter to open it. Esc closes the menu and returns to writing."
   },
   {
     "id": 2,
@@ -130,7 +130,7 @@
     "title": "Sprints",
     "help_topic": "sprints",
     "event": "SprintStarted",
-    "instructions": "Start a real writing sprint in the demo (Tools › Start a sprint…). The lesson observes an active sprint. Revision-operation and no-editing experiments are under Tools › Practice › Advanced sprints; this lesson observes the basic sprint."
+    "instructions": "Start a real writing sprint in the demo (Tools › Start a sprint…). The lesson observes an active basic sprint. Revision-operation and no-editing experiments have their own dialog (Tools › Progress › Sprints…)."
   },
   {
     "id": 20,
@@ -151,7 +151,7 @@
     "title": "Story Spark plot generation",
     "help_topic": "story-spark",
     "event": "SparkPlotSaved",
-    "instructions": "In the safe demo, open Story Spark from Tools › Practice or Find anything. Press 1 for plot-only, inspect the complete situation and v provenance, then s to create a saved Markdown note. Opening the view or generating alone is not completion; the lesson requires a real saved original source. No active scene is replaced."
+    "instructions": "In the safe demo, open Story Spark from Tools › Progress or Find anything. Press 1 for plot-only, inspect the complete situation and v provenance, then s to create a saved Markdown note. Opening the view or generating alone is not completion; the lesson requires a real saved original source. No active scene is replaced."
   },
   {
     "id": 23,

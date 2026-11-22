@@ -64,7 +64,7 @@ fn the_bar_has_eight_titles_in_order() {
 }
 
 #[test]
-fn the_bar_titles_are_short_and_tools_has_three_side_groups() {
+fn the_bar_titles_are_short_and_tools_has_four_side_groups() {
     let d = everything_offered("bar-short");
     for (menu, row) in all_rows(&d.app) {
         assert!(row.label.chars().count() <= 32, "{menu}: {}", row.label);
@@ -80,10 +80,10 @@ fn the_bar_titles_are_short_and_tools_has_three_side_groups() {
         [
             &A::Side(Side::Revision),
             &A::Side(Side::Notes),
-            &A::Side(Side::Practice)
+            &A::Side(Side::Practice),
         ]
     );
-    assert!(tools.iter().filter(|r| r.key == "›").count() == 3);
+    assert_eq!(tools.iter().filter(|r| r.key == "›").count(), 3);
     let settings = labels(&d.app.bar_rows(Title::Settings));
     assert_eq!(
         settings,
@@ -119,7 +119,7 @@ fn no_dropdown_is_taller_than_twelve_rows_and_no_row_starts_with_j_or_k() {
 
 /// Every row rc12's Esc menu and its groups had (d438fe4), but the ones the
 /// rc13 design retires: Find anything (Super or Ctrl+K), the Settings group
-/// (all in Settings), the WrOS dashboard row (Overview) and the group doors.
+/// (all in Settings), the retired dashboard and the group doors.
 const RC12_ROWS: &[A] = &[
     A::Conflicts,
     A::Export,
@@ -217,9 +217,21 @@ fn every_rc12_menu_row_has_a_place_on_the_bar() {
         missing.is_empty(),
         "rc12 rows with no place on the bar: {missing:?}"
     );
+}
+
+#[test]
+fn overview_is_gone_from_the_wros_menu_and_palette() {
+    let d = everything_offered("bar-no-overview");
     assert!(
-        on_bar.contains(&A::Dashboard),
-        "Overview stands in for the dashboard row"
+        !d.app
+            .bar_rows(Title::Wros)
+            .iter()
+            .any(|r| r.label == "Overview")
+    );
+    assert!(
+        !crate::palette::entries(&d.app)
+            .iter()
+            .any(|e| e.label == "Overview")
     );
 }
 
@@ -320,7 +332,7 @@ fn bar_path_names_the_menu() {
         Some("Tools › Notes")
     );
     assert_eq!(d.app.bar_path(&A::NewScene).as_deref(), Some("Project"));
-    assert_eq!(d.app.bar_path(&A::Dashboard).as_deref(), Some("WrOS"));
+    assert_eq!(d.app.bar_path(&A::InstallToDisk).as_deref(), Some("WrOS"));
 }
 
 #[test]
@@ -414,7 +426,7 @@ fn arrows_walk_the_titles_and_down_drops_the_menu() {
             ..
         }
     ));
-    assert!(d.shows("▸ Overview"));
+    assert!(d.shows("▸ About WrOS"));
 }
 
 #[test]
@@ -1076,6 +1088,10 @@ fn every_path_in_help_and_the_tutorial_is_a_real_menu_path() {
         assert!(
             !text.contains("Esc ›"),
             "{name} still names the old Esc menu"
+        );
+        assert!(
+            !text.contains("Configure widgets"),
+            "{name} still points to the dashboard's widget settings"
         );
         // Paths read "Title › Row › …": cut each at the first character that
         // can't be part of a name.

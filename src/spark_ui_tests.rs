@@ -618,7 +618,7 @@ fn tutorial_actions_on_real_novel_cannot_complete_demo_exercises() {
     assert!(!d.app.deck.progress.completed.contains(&22));
 }
 #[test]
-fn render_is_cached_even_when_metadata_is_removed_and_alias_widget_are_additive() {
+fn render_is_cached_even_when_metadata_is_removed_and_alias_still_opens_story_spark() {
     let (mut d, _) = spark_desk("spark-cached", 100, 30);
     d.key(KeyCode::Char('3'));
     let file = d.root.join(".grimoire/writingdeck/spark/state.json");
@@ -626,17 +626,8 @@ fn render_is_cached_even_when_metadata_is_removed_and_alias_widget_are_additive(
     d.draw();
     d.draw();
     assert!(!file.exists());
-    assert!(
-        d.app
-            .deck
-            .state
-            .dashboard
-            .iter()
-            .any(|w| w.widget == grimoire_core::workspaces::Widget::StorySpark)
-    );
     d.app.deck_shortcut(wros_sys::shortcuts::Action::StorySpark);
     assert!(matches!(d.app.overlay, Overlay::Spark { .. }));
-    assert_eq!(wros_sys::shortcuts::Shortcuts::default().bindings.len(), 3);
 }
 
 #[test]

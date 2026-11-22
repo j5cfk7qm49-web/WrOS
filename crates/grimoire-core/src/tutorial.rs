@@ -16,7 +16,7 @@ use std::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Event {
-    DashboardOpened,
+    MenuBarOpened,
     LayoutConfirmed,
     NovelCreated,
     TextEdited,
@@ -76,7 +76,7 @@ impl Event {
                 | Self::NabokovFindingReviewed
                 | Self::ProselintFindingReviewed
                 | Self::VoiceProfileCompared
-                | Self::DashboardOpened
+                | Self::MenuBarOpened
                 | Self::LayoutConfirmed
                 | Self::NovelCreated
                 | Self::OutlineToggled
@@ -427,7 +427,7 @@ mod tests {
         assert!(create_demo(&root).is_err());
         let mut s = Store::load(&root).unwrap();
         s.progress.start(1).unwrap();
-        s.progress.observe(Event::DashboardOpened, true);
+        assert!(s.progress.observe(Event::MenuBarOpened, true));
         s.save().unwrap();
         assert_eq!(Store::load(&root).unwrap().progress, s.progress);
         fs::remove_dir_all(root).unwrap();

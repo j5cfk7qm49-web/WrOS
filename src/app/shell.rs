@@ -299,7 +299,6 @@ pub struct Shell {
     pub nav: Navigation<Route>,
     pub notices: Notices,
     pub external: bool,
-    origin: Option<Overlay>,
     path: PathBuf,
     seen: Option<grimoire_core::sync::Fingerprint>,
     writable: bool,
@@ -346,7 +345,6 @@ impl Shell {
             nav: Navigation::new(Route::Settings),
             notices: Notices::default(),
             external: false,
-            origin: None,
             path,
             seen: None,
             writable: true,
@@ -2502,11 +2500,6 @@ impl App {
         }
     }
     pub fn open_settings(&mut self) {
-        let origin = match self.overlay {
-            Overlay::Deck(wros::Page::Home { .. }) => self.overlay.clone(),
-            _ => Overlay::None,
-        };
-        self.deck.shell.origin = Some(origin);
         self.deck.shell.external = false;
         self.deck.shell.wifi_form = None;
         self.deck.shell.music_server_form = None;
@@ -2525,20 +2518,6 @@ impl App {
         self.deck.shell.nav.reset(Route::Settings);
         self.overlay = Overlay::Deck(wros::Page::Settings);
         self.observe_deck(tutorial::Event::SystemOpened);
-    }
-    /// The live dashboard's install row: Settings opened straight on the installer
-    /// confirmation, whose default is still to cancel.
-    pub fn open_installer_confirm(&mut self) {
-        if !self.deck.live_session || !self.deck.installer_available || self.deck.busy {
-            self.deck
-                .shell
-                .notices
-                .push("Live installer is unavailable or a system/backup operation is pending.");
-            return;
-        }
-        self.open_settings();
-        self.deck.shell.nav.open(Route::InstallerConfirm);
-        self.deck.shell.nav.select(0, 4);
     }
     pub fn on_settings_key(&mut self, key: Key) {
         if self.deck.shell.nav.current() == Route::BackupForm {
@@ -2634,7 +2613,7 @@ impl App {
                 }
                 if !nav.back() {
                     self.deck.shell.save();
-                    self.overlay = self.deck.shell.origin.take().unwrap_or(Overlay::None);
+                    self.overlay = Overlay::None;
                 }
             }
             Key::Enter | Key::Right => {
@@ -2995,9 +2974,7 @@ impl App {
         if self.deck.shell.external
             && matches!(
                 self.overlay,
-                Overlay::None
-                    | Overlay::Bar { .. }
-                    | Overlay::Deck(wros::Page::System { .. } | wros::Page::Home { .. })
+                Overlay::None | Overlay::Bar { .. } | Overlay::Deck(wros::Page::System { .. })
             )
         {
             self.deck.shell.external = false;
