@@ -1,5 +1,5 @@
 {
-  description = "WrOS rc23: offline-first writing appliance on NixOS";
+  description = "WrOS rc24: offline-first writing appliance on NixOS";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/f1e5c356f35d07e7b71a6b5e6c9338e0b029e0c0";
