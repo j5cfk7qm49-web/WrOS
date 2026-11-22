@@ -1,5 +1,7 @@
 # rc25: Zotero library and PDFs (design)
 
+> **Superseded, 2026-11-22.** The owner dropped Zotero. Replaced by the [Brain, Library and Review design](2026-11-22-brain-library-review-design.md). Kept for its PDF research.
+
 Owner decisions 2026-11-21. Calls marked "(my call)" need review. Build on rc24's OAuth connection, source snapshots and citation picker, after rc23's dashboard removal. [rc24 design](2026-11-21-rc24-essays-mla-zotero-design.md) · [Zotero research and pdf-tui addendum](2026-11-21-zotero-client-research.md)
 
 ## Why

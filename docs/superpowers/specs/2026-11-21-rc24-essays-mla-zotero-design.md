@@ -1,5 +1,7 @@
 # rc24: essays, MLA 9 and Zotero (design)
 
+> **Owner, 2026-11-22: Zotero is out.** Drop the Zotero sign-in, "Search Zotero…" and every other Zotero step from rc24. Essays, MLA 9 export, `sources.json`, manual entry, `.bib`/CSL-JSON import and `[@key, p. 12]` citations stay; the later [Brain, Library and Review design](2026-11-22-brain-library-review-design.md) writes citations into this format.
+
 Owner decisions 2026-11-21, after rc22. Calls marked "(my call)" need review. rc23 retires the WrOS dashboard and moves productivity tools into small dialogs. This design builds on that desk. [Citation research](2026-11-21-citation-management-research.md) · [Zotero research](2026-11-21-zotero-client-research.md) · [rc22 design](2026-11-21-rc22-projects-youtube-keys-design.md)
 
 ## Why
