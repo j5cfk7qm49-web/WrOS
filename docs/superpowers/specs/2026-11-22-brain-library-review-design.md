@@ -91,7 +91,8 @@ to beside the brain.
      FSRS's four ratings (mapping tunable later, never losing the stored grade).
    - **Filtered review:** a session can cover one tag.
 9. **Sync through Google Drive**, offline-first, merging edits from several devices with nothing lost.
-   It uses WrOS's existing Drive sign-in, with no server and no subscription.
+   It uses WrOS's existing Drive sign-in, with no server and no subscription. Book files travel with the
+   notes, so the whole library is portable, not just the notes. Sync should feel simple: one route, nothing to pair.
 10. **Readable copy.** Every page is also written out as Markdown, so notes stay readable even if the app
     broke.
 
@@ -190,8 +191,7 @@ After the review, 2026-11-22:
     short code typed in for laptop to laptop.
   - **Losing the key:** losing every copy loses the synced copy, like WrOS's existing recovery key, and the screens
     say so.
-  - **Library files:** they are the owner's own books, so encrypting them is the builder's call; say which in the
-    stage 5 plan. (my call)
+  - **Library files:** encrypted on Drive like the notes, through the same mailbox. (my call)
 - **Cited sources stay linked to their work.** A project's `sources.json` record carries the work ID it came from.
   - **When a work changes:** if its details change in the Library, opening or exporting the project says "Details
     for this source changed. Update?" A finished paper's Works Cited never changes silently.
@@ -215,8 +215,14 @@ After the review, 2026-11-22:
   - **Others:** `#concept`, `#person`, `#card` (if cards are tagged rather than marked by syntax; builder's
     call).
 - **Format (file).** Belongs to a work:
-  - **What it is:** type (EPUB, PDF or audio), SHA-256, size, label ("2nd ed. scan").
-  - **Where it is:** a path under the library folder, and whether it's kept on this device.
+  - **What it is:** type (EPUB, PDF or audio), SHA-256, size, label ("2nd ed. scan"), original file name.
+  - **Where it is:** stored once by fingerprint in `files/` (see below), never inside the Loro store. Notes point at
+    the fingerprint, so files never break when moved and are never stored twice.
+  - **Per device:** whether this device keeps a copy ("sync this file" or "this device only").
+
+  The owner asked whether books could go *in* the Loro store, wanting the media portable. Not inside: Loro keeps all
+  history in memory-loaded snapshots, so a removed 300 MB audiobook would stay forever and opening notes on a 4 GB
+  laptop could mean loading gigabytes. Owner agreed; what they wanted was simple sync of books with notes.
 - **Anchor.** Where a highlight, note or bookmark points:
   - **EPUB:** a CFI plus the quoted text with some text before and after, so the anchor can be found again.
   - **PDF:** page, character range, quads and quoted text.
@@ -233,14 +239,17 @@ After the review, 2026-11-22:
 
 ### Where things live (my call)
 
+Everything lives together in one folder, `~/Documents/Brain/`, so backups and moving to a new laptop are simple.
+The owner said one folder isn't required; it's my call because it keeps sync and backup simple.
+
 | What | Where |
 |---|---|
-| Loro store (snapshot + updates) | `~/.local/share/grimoire/brain/` |
-| SQLite index (FTS5) | Beside the store. Disposable: rebuilt from Loro whenever missing or stale. |
-| Library files | `~/Documents/Library/<work-id>/`, visible to the owner. Backed up from stage 1 on (see Stages). |
-| Markdown copy | `~/Documents/Brain/`, one file per top-level page (named pages and day pages), plus one per work with its highlights. Written after saves, never read back as truth. Stays on the laptop: it is never uploaded readable. Drive only ever gets the encrypted store. (my call) |
+| Loro store (snapshot + updates) | `Brain/store/` |
+| Book files | `Brain/files/<sha-256>`, named by fingerprint, never changed once added. Backed up from stage 1 on (see Stages). |
+| Markdown copy | `Brain/readable/`, one file per top-level page (named pages and day pages), plus one per work with its highlights. Written after saves, never read back as truth. Never uploaded readable: Drive only ever gets encrypted files. |
+| SQLite index (FTS5) | `~/.cache/grimoire/brain/`, outside the folder. Disposable: rebuilt from Loro whenever missing or stale. |
 
-The shelf must not mistake `~/Documents/Library` or `~/Documents/Brain` for a writing project.
+The shelf must not mistake `~/Documents/Brain` for a writing project.
 
 ### Sync (stage 5)
 
@@ -251,8 +260,14 @@ The shelf must not mistake `~/Documents/Library` or `~/Documents/Brain` for a wr
 - **Merging:** every device imports the others' change files. Loro merges them.
 - **Compaction:** occasionally a device writes a snapshot and the old change files are retired, without deleting
   another device's unread files.
-- **Library files** go to `WrOS/Library/`. Large audio can stay on Drive only, marked
-  "not on this device".
+- **Book files** go to `WrOS/Brain/files/`, encrypted, named by fingerprint (encrypted names), uploaded once.
+  Each device downloads the files set to sync there and fetches others on open. Free Google accounts have 15 GB,
+  so each work can be "sync this file" or "this device only"; the builder picks a sensible default size limit
+  (audiobooks fill the quota fast).
+- **Projects are not part of this.** They keep their existing readable Drive sync, unchanged.
+- **Syncthing was considered and left out:** Drive is already there, works when devices are never on together and
+  is reachable from a phone app; Syncthing would only add speed at home and no Google. Because sync is just moving
+  immutable files, another transport (Syncthing, iroh) can be added later without touching the rest.
 - **Same rules as WrOS's readable Drive sync:** sync never blocks typing, offline queues, and the screen
   says what it is doing.
 
@@ -284,11 +299,11 @@ Each stage ships on its own and is usable when it lands.
 | # | Stage | Done when |
 |---|---|---|
 | 0 | **Loro test** | A deterministic stress test merges thousands of random concurrent edits, moves, deletes and tag/field changes from 2–3 simulated devices, with no lost, duplicated or cyclic nodes. A 50,000-node store loads, searches and saves within budgets the builder sets and measures on the HP Stream (or a 4 GB VM if the laptop isn't available). If it fails, switch to Automerge before stage 1. |
-| 1 | **Brain view** | Outliner editing, links, backlinks, tags, supertags with fields, saved searches, Markdown copy, the view bar and Super+1..4, Brain opening to Today, and the brain as a side pane in Write. Laptop only. The brain store and (from stage 3) `~/Documents/Library` join WrOS's encrypted backups (`os/scripts/wros-backup`, which today covers only projects and a small settings profile), with a tested restore; a restored store takes a new Loro device ID so two devices never share one. (my call: backups only covered projects, so notes would otherwise be unprotected until stage 5) |
+| 1 | **Brain view** | Outliner editing, links, backlinks, tags, supertags with fields, saved searches, Markdown copy, the view bar and Super+1..4, Brain opening to Today, and the brain as a side pane in Write. Laptop only. The `~/Documents/Brain` folder (store and, from stage 3, book files) joins WrOS's encrypted backups (`os/scripts/wros-backup`, which today covers only projects and a small settings profile), with a tested restore; a restored store takes a new Loro device ID so two devices never share one. (my call: backups only covered projects, so notes would otherwise be unprotected until stage 5) |
 | 2 | **Review view** | Card syntax, the review screen, 0–5 grades, FSRS from the replayed log, filtered review. |
 | 3 | **Library and `@`** | Works with formats, the sortable/filterable library, DOI/ISBN lookup, `.bib`/CSL-JSON import, the `@` picker in notes and manuscripts widening rc24's `@` picker from project sources to the whole library, writing rc24 citations and `sources.json` with linked work IDs. rc24 ships first (it's the next release) and builds the source store and `.bib`/CSL-JSON parser; this stage plugs into them. Stages 0–2 don't depend on rc24. |
 | 4 | **Reader** | EPUB with highlights and notes, then PDF text, then PDF page images in the native session. Cards from highlights. |
-| 5 | **Drive sync** | Two laptops editing offline converge after sync with nothing lost; library files sync. |
+| 5 | **Drive sync** | Two laptops editing offline converge after sync with nothing lost; book files sync, encrypted, with per-work "this device only". |
 | 6 | **Audio** | Playback with chapters, bookmarks and notes on a moment. |
 
 ## Left to the builder
