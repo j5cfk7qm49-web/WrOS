@@ -16,12 +16,18 @@ When the project is ready to send, *Export…* in the menu (*Export for readers*
 Essay projects start with the **MLA 9 paper** layout. In Export, open
 **Paper details…** to enter your name, running surname, instructor, course and
 date. The project title appears above the body. A novel or other project can
-also choose this layout in the same form.
+also choose this layout in the same form. **File › MLA 9 paper details…**
+opens it from the desk.
 
 Use **Tools › Notes › Add a source…** or **Import sources…** to add references.
 Import accepts BibTeX and CSL-JSON and shows a preview before saving. **Project
 sources…** opens the list for editing. Source metadata lives in `sources.json`
 beside the manuscript and travels with the project.
+
+**Tools › Notes › Project sources timeline…** previews a saved source list
+and shows any citation keys it would leave without a source.
+**Tools › Notes › Resolve source conflict…** lets you choose which record to
+keep when both this desk and Google Drive changed the same source.
 
 Type `@` at the start of a word to choose a project source. Type `@@` for a
 literal at sign. Use the arrow keys and Enter to select a source, then enter a
