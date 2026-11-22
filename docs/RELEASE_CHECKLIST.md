@@ -117,7 +117,7 @@ carry over. Record the results in its table.
    their routes to a supported baseline. Open **Settings › Updates and recovery › Updates**
    and choose **Check for WrOS updates**. Review the version, signer and validity
    dates. Confirm staging, restart, unlock and check that Settings reports the
-   completed update and that the original book is intact. Test the Settings path explicitly;
+   completed update and that the original project is intact. Test the Settings path explicitly;
    a shell-driven `update-goback` VM result does not establish this UI path.
 3. On the HP Stream, confirm the recovery menu is reachable with Esc at boot.
    Try **Show what happened** and **Continue to the normal login**.

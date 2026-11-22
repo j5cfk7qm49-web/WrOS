@@ -43,7 +43,7 @@ impl Kind {
     pub fn name(self) -> &'static str {
         match self {
             Self::SavedCheckpoint => "Saved checkpoint",
-            Self::ExitRequested => "Exit/book-change requested",
+            Self::ExitRequested => "Exit/project-change requested",
         }
     }
 }

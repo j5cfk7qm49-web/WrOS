@@ -33,6 +33,7 @@ pub mod pdf;
 pub mod pins;
 pub mod productivity;
 pub mod project;
+pub mod project_files;
 pub mod prose;
 pub mod prose_tools;
 pub mod recovery;

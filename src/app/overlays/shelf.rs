@@ -187,7 +187,8 @@ impl App {
                         };
                     }
                     Some(ShelfRow::Book(_, true)) => {
-                        self.msg = "that's the book you have open · open another book first".into();
+                        self.msg =
+                            "that's the project you have open · open another project first".into();
                     }
                     _ => {}
                 }
@@ -253,16 +254,18 @@ impl App {
     fn delete_book(&mut self, root: &Path) -> Result<(), String> {
         let shown = books::pretty(root);
         if self.deck.shell.backup.job.is_some() {
-            return Err("a backup is running · delete the book when it finishes".into());
+            return Err("a backup is running · delete the project when it finishes".into());
         }
         let meta = fs::symlink_metadata(root).map_err(|_| format!("{shown} is already gone"))?;
         if meta.file_type().is_symlink() || !meta.is_dir() || !books::is_book(root) {
-            return Err(format!("{shown} isn't a book folder, so it was left alone"));
+            return Err(format!(
+                "{shown} isn't a project folder, so it was left alone"
+            ));
         }
         let real = fs::canonicalize(root).map_err(|e| format!("couldn't delete {shown}: {e}"))?;
         let here = fs::canonicalize(&self.project.root).unwrap_or(self.project.root.clone());
         if here.starts_with(&real) {
-            return Err("that's the book you have open · open another book first".into());
+            return Err("that's the project you have open · open another project first".into());
         }
         let home = fs::canonicalize(grimoire_core::paths::home()).ok();
         let (Some(parent), Some(name)) = (real.parent(), real.file_name()) else {
@@ -296,7 +299,7 @@ impl App {
         }
         fs::remove_dir_all(&hidden).map_err(|e| {
             format!(
-                "{shown} is no longer a book, but part of it is still in {}: {e}",
+                "{shown} is no longer a project, but part of it is still in {}: {e}",
                 books::pretty(&hidden)
             )
         })
@@ -317,7 +320,7 @@ impl App {
                 self.overlay = Overlay::None;
                 if self.open_book(&p) {
                     self.msg = format!(
-                        "there was already a book at {}, so here it is",
+                        "there was already a project at {}, so here it is",
                         books::pretty(&p)
                     );
                 }
@@ -333,7 +336,10 @@ impl App {
             .map_err(anyhow::Error::from)
             .and_then(|()| project::scaffold_with(&root, None, &shape.shape()))
         {
-            self.msg = format!("couldn't start a book at {}: {e:#}", books::pretty(&root));
+            self.msg = format!(
+                "couldn't start a project at {}: {e:#}",
+                books::pretty(&root)
+            );
             return;
         }
         self.observe_deck(grimoire_core::tutorial::Event::NovelCreated);
@@ -354,7 +360,8 @@ impl App {
                 )
             } else {
                 format!(
-                    "{} is ready ({}) · this first page shows how a book is laid out · Tab to read it, Esc for the menu",
+                    "{} is ready ({}) · this first page shows how a project is laid out \
+                     · Tab to read it, Esc for the menu",
                     self.project.meta.title,
                     shape.name().to_lowercase()
                 )
@@ -379,17 +386,17 @@ impl App {
         let root = fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
         let here = fs::canonicalize(&self.project.root).unwrap_or(self.project.root.clone());
         if root == here {
-            self.msg = "that's the book you have open".into();
+            self.msg = "that's the project you have open".into();
             return Ok(false);
         }
         if !books::is_book(&root) {
             return Err(format!(
-                "{} isn't a book: there's no manuscript folder in it",
+                "{} isn't a project: there's no manuscript folder in it",
                 books::pretty(&root)
             ));
         }
         if !self.try_quit() {
-            return Err(format!("{} · so this book stays open for now", self.msg));
+            return Err(format!("{} · so this project stays open for now", self.msg));
         }
         let stranded = project::restore_stranded(&root);
         let updated = project::upgrade(&root).unwrap_or_else(|e| {
@@ -446,7 +453,7 @@ impl App {
         if !stranded.is_empty() {
             self.msg = App::stranded_note(&stranded);
         } else if !updated.is_empty() {
-            self.msg = format!("book updated: {}", updated.join(" · "));
+            self.msg = format!("project updated: {}", updated.join(" · "));
         } else if self.msg.is_empty() {
             self.msg = format!("opened {}", self.project.meta.title);
         } else {
@@ -569,7 +576,7 @@ pub(super) fn draw_new_book(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         ),
         Where::Book(p) => (
             Line::from(Span::styled(
-                format!(" there's already a book there: {}", books::title(&p)),
+                format!(" there's already a project there: {}", books::title(&p)),
                 dim,
             )),
             " ↵ open that one   esc cancel",
@@ -588,7 +595,7 @@ pub(super) fn draw_new_book(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         area,
         t,
         (
-            "START A NEW BOOK",
+            "NEW PROJECT",
             "What's it called? Or a draft's path, to bring it in.",
         ),
         buf,
@@ -611,7 +618,7 @@ fn draft_line<'a>(p: &Path, t: &Theme) -> (Line<'a>, &'static str) {
                 Style::default().fg(t.text),
             ),
         ]),
-        " ↵ bring it in as a new book   esc cancel",
+        " ↵ bring it in as a new project   esc cancel",
     )
 }
 
@@ -632,14 +639,14 @@ pub(super) fn draw_books(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                 };
                 (name, books::pretty(&book.root), *open)
             }
-            ShelfRow::Import => ("Import a book…".into(), String::new(), false),
-            ShelfRow::NewBook => ("New book…".into(), String::new(), false),
+            ShelfRow::Import => ("Import a project…".into(), String::new(), false),
+            ShelfRow::NewBook => ("New project…".into(), String::new(), false),
         })
         .collect();
     let width = 112.min(area.width.saturating_sub(4));
     let box_area = centred(area, width, rows.len() as u16 + 4);
     f.render_widget(Clear, box_area);
-    let block = pane_block("OPEN ANOTHER BOOK", true, t);
+    let block = pane_block("YOUR PROJECTS", true, t);
     let inner = block.inner(box_area);
     f.render_widget(block, box_area);
     let mut lines: Vec<Line> = Vec::new();
@@ -711,7 +718,7 @@ pub(super) fn draw_delete_book(f: &mut Frame, app: &App, area: Rect, t: &Theme) 
     )));
     lines.push(Line::from(""));
     for row in crate::ui::wrap_words(
-        "This removes the book's folder and everything in it from this laptop. \
+        "This removes the project's folder and everything in it from this laptop. \
          It can't be undone here. Backups and Google Drive copies are kept.",
         text_w,
     ) {
@@ -753,7 +760,7 @@ pub(super) fn draw_delete_book(f: &mut Frame, app: &App, area: Rect, t: &Theme) 
     lines.push(hint_line(" ←→ choose   ↵ confirm   esc keep it", t));
     let box_area = centred(area, width, lines.len() as u16 + 2);
     f.render_widget(Clear, box_area);
-    let block = pane_block("DELETE THIS BOOK?", true, t);
+    let block = pane_block("DELETE THIS PROJECT?", true, t);
     let inner = block.inner(box_area);
     f.render_widget(block, box_area);
     f.render_widget(Paragraph::new(lines), inner);

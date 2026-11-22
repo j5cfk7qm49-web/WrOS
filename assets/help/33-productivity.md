@@ -1,6 +1,6 @@
 # Recorded edits, goals and daily challenges
 
-Open **Recorded edit ledger** (**Productivity ledger** in Ctrl-K), **Advanced goals**, **Calendar and rest days**, **Advanced sprints**, **Milestone collection** or **Daily challenges** from Ctrl-K or Tools › Practice. The original daily/book/scene goals and basic sprint controls remain available separately.
+Open **Recorded edit ledger** (**Productivity ledger** in Ctrl-K), **Advanced goals**, **Calendar and rest days**, **Advanced sprints**, **Milestone collection** or **Daily challenges** from Ctrl-K or Tools › Practice. The original daily/project/scene goals and basic sprint controls remain available separately.
 
 ## Recorded, not inferred
 
@@ -30,7 +30,7 @@ Pasted commands in these read-only pages are ignored; they cannot accept/reroll 
 
 ## Goals and calendar
 
-Advanced goals cover daily, Monday–Sunday weekly, monthly, current native novel/scene totals, observed active minutes, Revision-mode operations, footnote additions and configured deadline windows. Native source totals retain WrOS's own word policy; they are not retroactive gross or active-time evidence.
+Advanced goals cover daily, Monday–Sunday weekly, monthly, native current project and scene words, observed active minutes, Revision-mode operations, footnote additions and configured deadline windows. Native source totals retain WrOS's own word policy; they are not retroactive gross or active-time evidence.
 
 The offline November preset targets 50,000 **recorded editor net words** over November 1–30. It is not affiliation, endorsement or certification of new exclusive typing. Start/end, target and rest days are explicit choices. Pace includes today if it is a working date; ahead/behind compares the end-of-day plan. Forecast requires at least three recorded work dates and assumes the mean of the last at most seven recorded dates repeats, including cuts. Missing days are not silently zero, forecasts are estimates, and no workdays left yields an unavailable pace rather than division by zero. Earlier calendar configurations are retained when a new preset replaces one.
 
@@ -48,7 +48,7 @@ Assignments persist by local civil date with creation timezone, stable record re
 
 Accept a measured task before working, use its stated Drafting/Revision mode, then checkpoint real edits with Ctrl-S and press c. Work before acceptance is excluded. Subjective creative/reading tasks use x and stay **SelfReported**, never automatic prose/reading verification. Disabling challenges generates no new assignments and sends no challenge notice.
 
-Metadata uses bounded, checked, guarded files under `.grimoire/writingdeck/`. Future/unknown/corrupt/conflicting files are preserved, not overwritten as defaults. Pending operation groups remain in memory on write failure. Normal quit/book switch requests a checkpoint; explicit force quit can lose uncheckpointed metrics or timer intervals, never an excuse to claim they were recorded. This is controlled failure handling, not power-loss, locking/CAS or hostile-filesystem certification.
+Metadata uses bounded, checked, guarded files under `.grimoire/writingdeck/`. Future/unknown/corrupt/conflicting files are preserved, not overwritten as defaults. Pending operation groups remain in memory on write failure. Normal quit/project switch requests a checkpoint; explicit force quit can lose uncheckpointed metrics or timer intervals, never an excuse to claim they were recorded. This is controlled failure handling, not power-loss, locking/CAS or hostile-filesystem certification.
 
 
 Capital S on Daily challenges opens the separate optional Story Spark assignment. Its completion is explicitly self-reported, not a measured M5 criterion. Timed sprint targets are minutes; Spark timer completion does not prove creative completion.

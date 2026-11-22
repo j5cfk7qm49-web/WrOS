@@ -63,7 +63,7 @@ pkgs.testers.runNixOSTest {
 
     installed.send_chars("writer-recovery-password\n")
     installed.wait_until_tty_matches("1", "1  Repair system packages")
-    installed.wait_until_tty_matches("1", "2  Restore a book from a backup")
+    installed.wait_until_tty_matches("1", "2  Restore a project from a backup")
     installed.wait_until_tty_matches("1", "3  Show what happened")
     installed.wait_until_tty_matches("1", "4  Continue to the normal login")
     installed.wait_until_tty_matches("1", "5  Continue in the console session")
@@ -74,9 +74,9 @@ pkgs.testers.runNixOSTest {
     installed.send_chars("1\n")
     installed.wait_until_tty_matches("1", "verified and repaired", timeout=900)
 
-    # Choice 2: Restore a book from a backup (offline with no snapshots yet)
+    # Choice 2: Restore a project from a backup (offline with no snapshots yet)
     installed.send_chars("2\n")
-    installed.wait_until_tty_matches("1", "No backups of a book were found")
+    installed.wait_until_tty_matches("1", "No backups of a project were found")
 
     # Choice 3: Show what happened
     installed.send_chars("3\n")

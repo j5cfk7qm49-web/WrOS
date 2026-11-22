@@ -265,7 +265,7 @@ pub(super) fn draw_details(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                     "◂ no, left out ▸"
                 }
                 .to_string(),
-                "a scene left out stays in the book, just not the manuscript",
+                "a scene left out stays in the project, just not the manuscript",
             ),
             Field::Aliases => (
                 "Other names",

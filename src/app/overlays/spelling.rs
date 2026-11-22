@@ -5,8 +5,8 @@ use super::*;
 /// The rows of the spelling popup after its suggestions.
 const IGNORES: [(Ignore, &str); 3] = [
     (Ignore::Now, "Ignore for now"),
-    (Ignore::Book, "Always ignore — this book"),
-    (Ignore::Everywhere, "Always ignore — every book"),
+    (Ignore::Book, "Always ignore — this project"),
+    (Ignore::Everywhere, "Always ignore — every project"),
 ];
 
 /// Where the popup sits: under the word (over it when there's no room

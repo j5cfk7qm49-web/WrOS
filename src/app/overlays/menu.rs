@@ -33,7 +33,7 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "wros",
         ),
         Action::BackUpNow => (
-            "Backs this book up now, to the places Settings › Backups and accounts names.",
+            "Backs this project up now, to the places Settings › Backups and accounts names.",
             "sync",
         ),
         Action::Side(crate::palette::Side::Revision) => (
@@ -82,23 +82,25 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "sync",
         ),
         Action::Export => (
-            "Turn the book into a Word file, a PDF, an EPUB or a paperback, ready for readers.",
+            "Turn the project into a Word file, a PDF, an EPUB or a paperback, ready for readers.",
             "compile",
         ),
         Action::NewBook => (
-            "A new novel, short story or blank book, or bring in a draft you already have. This one is saved first.",
+            "A new novel, short story or blank project, or bring in a draft you already have. \
+             This one is saved first.",
             "books",
         ),
         Action::OpenBook => (
-            "Switch to another book you've written in, or open one from its folder.",
+            "Switch to another project you've written in, or open one from its folder.",
             "books",
         ),
         Action::Quit => (
-            "Everything is saved first. Next time, this book opens right where you left it.",
+            "Everything is saved first. Next time, this project opens right where you left it.",
             "getting-started",
         ),
         Action::Corkboard => (
-            "Every scene as an index card, to see the book at a glance and jot a synopsis, whose eyes, and how far along.",
+            "Every scene as an index card, to see the project at a glance and jot a synopsis, \
+             whose eyes, and how far along.",
             "corkboard",
         ),
         Action::NewScene => (
@@ -123,7 +125,8 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "outline",
         ),
         Action::Goals => (
-            "How many words the book is aiming for, and each day. Try a month of drafting: 50,000 words.",
+            "How many words the project is aiming for, and each day. Try a month of drafting: \
+             50,000 words.",
             "sprints",
         ),
         Action::NextTk => (
@@ -144,11 +147,12 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "sessions",
         ),
         Action::Compile => (
-            "The whole manuscript as one Markdown file, in the book's exports folder.",
+            "The whole manuscript as one Markdown file, in the project's exports folder.",
             "compile",
         ),
         Action::ProjectMap => (
-            "Rewrites project.md, a one-page map of the book: every part, chapter and scene, with word counts.",
+            "Rewrites project.md, a one-page map of the project: every part, chapter and scene, \
+             with word counts.",
             "compile",
         ),
         Action::Details => (
@@ -188,7 +192,8 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "sessions",
         ),
         Action::FindInScene => (
-            "Find a word in this scene, and replace it if you like. Press it again to search the whole book.",
+            "Find a word in this scene, and replace it if you like. \
+             Press it again to search the whole project.",
             "find",
         ),
         Action::CheckNames => (
@@ -196,7 +201,8 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "notebook",
         ),
         Action::MoveHistoryOut => (
-            "Moves this book's writing history out of the synced folder, where sync can't damage it.",
+            "Moves this project's writing history out of the synced folder, \
+             where sync can't damage it.",
             "sessions",
         ),
         Action::FocusMode => (
@@ -208,7 +214,7 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "beside",
         ),
         Action::NotesList => (
-            "Every note and TK (your mark for \"fill this in later\") in the book, in one list.",
+            "Every note and TK (your mark for \"fill this in later\") in the project, in one list.",
             "notes",
         ),
         Action::InsertFootnote => (
@@ -305,7 +311,7 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "getting-started",
         ),
         Action::Dashboard => (
-            "Your book at a glance: words, goals, sprints and what is due today.",
+            "Your project at a glance: words, goals, sprints and what is due today.",
             "wros",
         ),
         Action::SystemSettings => ("Shows local system status and safe OS controls.", "wros"),
@@ -325,7 +331,7 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "continuity",
         ),
         Action::Milestones => (
-            "Save named whole-book draft snapshots and reversible alternative scene versions.",
+            "Save named whole-project draft snapshots and reversible alternative scene versions.",
             "continuity",
         ),
         Action::ReadChapterAloud => (
@@ -388,7 +394,7 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
         _ => ("", "getting-started"),
     };
     let says = if *action == Action::NewPart {
-        format!("A new {part} at the end of the manuscript: the biggest division of the book.")
+        format!("A new {part} at the end of the manuscript: the biggest division of the project.")
     } else {
         says.to_string()
     };

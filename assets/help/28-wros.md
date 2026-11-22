@@ -4,7 +4,7 @@ WrOS (formerly codenamed WritingDeck OS) is an offline-first NixOS 26.05 writing
 
 ## Overview
 
-Press `F12`, or choose WrOS › Overview. Esc returns to the manuscript. Daily and novel goals, weekly progress, sprints, recent scenes and available system status use real WrOS data. Local saving and local history are not off-device backup.
+Press `F12`, or choose WrOS › Overview. Esc returns to the manuscript. Daily and project goals, weekly progress, sprints, recent scenes and available system status use real WrOS data. Local saving and local history are not off-device backup.
 
 Arrow keys select a row. Enter opens it. On a widget, `h` hides it and `J` or `K` moves it. Configure widgets restores hidden widgets. All choices are saved outside manuscript text.
 
@@ -101,7 +101,7 @@ This manual lock does not enable sleep or lid/idle locking.
 
 ## Interactive tutorial
 
-Interactive tutorial lists all 50 lessons. Press `d` to open the safe demo book: the first time it is made beside your novel (Tutorial-1), and after that the same one opens again. Its name shows at the top of the tutorial page, and lessons you have already done carry into it. Your novel saves first and is not overwritten. To remove a demo book you no longer want, use Open another book… and press `x` on it. Enter opens a lesson, then launches the actual feature. Progress is verified by application events; a Next button cannot fake completion. Writing exercises only complete in the demo project. `s` skips a lesson; any implemented lesson can be replayed. Help is searchable offline with F1.
+Interactive tutorial lists all 50 lessons. Press `d` to open the safe demo project: the first time it is made beside your project (Tutorial-1), and after that the same one opens again. Its name shows at the top of the tutorial page, and lessons you have already done carry into it. Your project saves first and is not overwritten. To remove a demo project you no longer want, use Open another project… and press `x` on it. Enter opens a lesson, then launches the actual feature. Progress is verified by application events; a Next button cannot fake completion. Writing exercises only complete in the demo project. `s` skips a lesson; any implemented lesson can be replayed. Help is searchable offline with F1.
 
 ## Safety and maintenance
 
@@ -112,5 +112,5 @@ The writing application runs as the writer. Ctrl+Alt+F2 opens the authenticated 
 The first menu on the bar holds Overview (F12), About WrOS, Lock, Sleep,
 Restart… (Restart the computer in Ctrl-K) and Shut down…. The power rows ask first, as they do in
 Settings › System › Battery and power. On a live USB it also offers Install
-WrOS to disk…. Open File › Back up now. It backs the open book up straight away
+WrOS to disk…. Open File › Back up now. It backs the open project up straight away
 to its configured backup destinations.

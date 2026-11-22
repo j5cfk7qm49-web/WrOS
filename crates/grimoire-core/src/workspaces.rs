@@ -68,7 +68,7 @@ impl Widget {
             Self::Resume => "Resume writing",
             Self::Manuscript => "Current manuscript",
             Self::DailyGoal => "Daily writing goal",
-            Self::NovelGoal => "Novel word goal",
+            Self::NovelGoal => "Project word goal",
             Self::WeeklyProgress => "Weekly progress",
             Self::Sprint => "Writing sprint",
             Self::RecentScenes => "Recent scenes",

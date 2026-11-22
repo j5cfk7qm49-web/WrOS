@@ -656,7 +656,7 @@ impl App {
                         "Closing the lid now saves and locks. The laptop stays awake."
                     }
                     crate::lid::LidClose::Nothing => {
-                        "Closing the lid now does nothing. Your book stays open."
+                        "Closing the lid now does nothing. Your project stays open."
                     }
                 }
                 .to_string()
@@ -1441,7 +1441,7 @@ impl App {
                         Request::BootStatus | Request::BootTheme(_) | Request::BootScreen { .. }
                     ) {
                         self.deck.note =
-                            "Couldn't change the start screen. Your book is safe. Try again."
+                            "Couldn't change the start screen. Your project is safe. Try again."
                                 .into();
                     } else if matches!(request, Request::ScanWifi) {
                         self.deck.note = super::shell::WIFI_SCAN_FAILED.into();
@@ -1971,7 +1971,7 @@ impl App {
     fn start_tutorial_demo(&mut self) {
         if tutorial::is_demo(&self.project.root) {
             self.deck.note = format!(
-                "You're in the demo book {} ({}). Choose a lesson and press Enter.",
+                "You're in the demo project {} ({}). Choose a lesson and press Enter.",
                 crate::books::title_of_folder(&self.project.root),
                 crate::books::pretty(&self.project.root)
             );
@@ -1997,7 +1997,7 @@ impl App {
                     root = parent.join(format!("Tutorial-{n}"));
                 }
                 if let Err(e) = tutorial::create_demo(&root) {
-                    self.deck.note = format!("Demo book not created: {e:#}");
+                    self.deck.note = format!("Demo project not created: {e:#}");
                     return;
                 }
                 (root, true)
@@ -2019,7 +2019,7 @@ impl App {
         }
         self.overlay = Overlay::Deck(Page::Tutorial { sel: 0 });
         self.deck.note = format!(
-            "{} the demo book {} ({}). Your novel was saved and left untouched.",
+            "{} the demo project {} ({}). Your project was saved and left untouched.",
             if made { "Made and opened" } else { "Opened" },
             crate::books::title_of_folder(&root),
             crate::books::pretty(&root)
@@ -2034,7 +2034,9 @@ impl App {
             .is_some_and(|e| !e.safe_outside_demo())
             && !tutorial::is_demo(&self.project.root)
         {
-            self.deck.note = "This exercise needs the safe demo book: press d in Interactive tutorial first. Your novel is unchanged.".into();
+            self.deck.note = "This exercise needs the safe demo project: press d in Interactive \
+                              tutorial first. Your project is unchanged."
+                .into();
             return;
         }
         if let Err(e) = self.deck.progress.start(id) {
@@ -2608,11 +2610,11 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                 tutorial::lessons().len(),
                 if tutorial::is_demo(&app.project.root) {
                     format!(
-                        " · demo book {}",
+                        " · demo project {}",
                         crate::books::title_of_folder(&app.project.root)
                     )
                 } else {
-                    " · d opens the safe demo book".into()
+                    " · d opens the safe demo project".into()
                 }
             );
             selected = Some(*sel);
@@ -2634,7 +2636,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                     )
                 })
                 .collect();
-            hint = "↑↓ choose  Enter lesson  d demo book  s skip  Esc home";
+            hint = "↑↓ choose  Enter lesson  d demo project  s skip  Esc home";
         }
         Page::Lesson { id } => {
             let l = &tutorial::lessons()[*id as usize - 1];

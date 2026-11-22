@@ -25,9 +25,9 @@ the standard image. These adapters do not use a cloud speech API.
 
 ## Writing history
 
-On WrOS, the Git CLI records a local timeline for every book, including small
+On WrOS, the Git CLI records a local timeline for every project, including small
 saves, marked writing sessions and changes brought in from Drive. Scene history
-reads the local repository. A book with readable Drive sync enabled also sends
+reads the local repository. A project with readable Drive sync enabled also sends
 and fetches Git bundles through `wros-sync`. Outside WrOS, Writing sessions
 remains opt-in and local. A configured Git remote never starts a Git push.
 
@@ -66,7 +66,7 @@ explicitly validates authorization via `rclone about`; Drive repository creation
 snapshot refresh, backup, restore and stale-lock recovery explicitly invoke
 Restic's rclone backend and can contact Google Drive/Google token endpoints
 (`oauth2.googleapis.com`, `www.googleapis.com`).
-After backup is set up for a book, saved changes
+After backup is set up for a project, saved changes
 can trigger an automatic encrypted backup after ten minutes without editing,
 normally at most hourly. Failed automatic runs retry after 15 minutes, an hour,
 then every four hours. A Drive repository contacts Google during those runs. Manual
@@ -90,21 +90,21 @@ See [scope and recovery](NATIVE_BACKUP.md).
 Nix store path, which uses the backup's rclone configuration (`lsjson --hash`,
 `copyto`, `moveto`, `cat`, `rcat`) against the `WrOS/` folder
 of the connected Drive. Nothing
-is contacted until the writer turns sync on for a book; then the app syncs that book
+is contacted until the writer turns sync on for a project; then the app syncs that project
 when it opens, 90 seconds after the last save or edit and every 5 minutes while it
-is open. The app also requests a final sync after saving before closing a book
+is open. The app also requests a final sync after saving before closing a project
 or shutting down; retry the action once the run finishes. Sleep starts a final sync
 without delaying the lock. It sends only
 files that changed since the last agreed version. Those copies are plaintext.
 Offline runs fail quietly and wait for the next one.
 
-For a synced book, the helper also lists, verifies, uploads and fetches Git
-bundles under `WrOS-History/<book>/timeline/` using the same rclone credentials.
+For a synced project, the helper also lists, verifies, uploads and fetches Git
+bundles under `WrOS-History/<project>/timeline/` using the same rclone credentials.
 Uploads run at session end, hourly during a long session and after reconnect.
 They carry the journal, productivity figures and review notes in plaintext, like
-the book. A full bundle can be read by any Git client using
+the project. A full bundle can be read by any Git client using
 `git clone "<file>.bundle"`. Normal sync no longer makes dated
-`WrOS-History/<book>/<date>/` copies. It still makes a dated copy before replacing
+`WrOS-History/<project>/<date>/` copies. It still makes a dated copy before replacing
 or removing a local file if the timeline checkpoint fails.
 
 ## Local system integration
@@ -146,7 +146,7 @@ and user-configured server addresses depend on the network and configuration.
 |---|---|---|---|
 | Network time (`systemd-timesyncd`) | `0.nixos.pool.ntp.org`, `1.nixos.pool.ntp.org`, `2.nixos.pool.ntp.org`, `3.nixos.pool.ntp.org` | UDP/123 (NTP) | Automatically while online when network time is enabled (`services.timesyncd.enable = lib.mkDefault true` in `nixos/modules/network.nix`) |
 | Online update check & binary-cache metadata (`wros-update check-online`, `wros-update-fetch`) | `j5cfk7qm49-web.github.io` (`https://j5cfk7qm49-web.github.io/WrOS/nixos-updates/`) | HTTPS (TCP/443) | After login, daily, on retries after failed checks or on manual checks for `InRelease` + `closure-manifest.json`; fetches required `cache/nix-cache-info`, `cache/<hash>.narinfo` and `cache/nar/*.nar.zst` files only when the writer explicitly runs **Update WrOS** |
-| Optional Google Drive backup / sync (`wros-backup`, `wros-sync` via `rclone`) | `oauth2.googleapis.com`, `www.googleapis.com` | HTTPS (TCP/443) | When linking or validating an account, revoking a supported grant, browsing or copying Drive files, refreshing or operating on a Drive backup repository, running configured automatic backups, or syncing an enabled book |
+| Optional Google Drive backup / sync (`wros-backup`, `wros-sync` via `rclone`) | `oauth2.googleapis.com`, `www.googleapis.com` | HTTPS (TCP/443) | When linking or validating an account, revoking a supported grant, browsing or copying Drive files, refreshing or operating on a Drive backup repository, running configured automatic backups, or syncing an enabled project |
 | Optional music integrations (idle until first used) | `music.youtube.com`; the configured YouTube companion host, defaulting to loopback; `api.github.com` and the selected companion release-asset URL during setup; user-configured Jellyfin/Plex hosts | HTTP/HTTPS | Explicit companion setup contacts the releases API, selected asset URL and pairing host; an enabled music source makes requests while it runs |
 
 The current publisher serves cache files through Pages and rejects oversized

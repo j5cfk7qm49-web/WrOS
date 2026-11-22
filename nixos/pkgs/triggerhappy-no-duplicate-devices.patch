@@ -1,0 +1,21 @@
+--- a/devices.c
++++ b/devices.c
+@@ -51,8 +51,17 @@
+ 
+ void add_device(char *dev, int fd, int excl, char *tag) {
+ 	device **p = &device_list;
+-	// find end of list
++	// find end of list, refusing a device that is already open: NixOS opens
++	// every device by glob at start and udev hands the same ones over again
++	// (WrOS #171), which made every key press act twice
+ 	while (*p != NULL) {
++		if ( strcmp( (*p)->devname, dev ) == 0 ) {
++			fprintf(stderr, "Device %s already open.\n", dev);
++			if (fd >= 0) {
++				close(fd);
++			}
++			return;
++		}
+ 		p = &( (*p)->next );
+ 	}
+ 	if (fd < 0) {

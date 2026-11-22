@@ -69,7 +69,7 @@ impl Checks {
             Ok(store) => (Some(store), String::new()),
             Err(e) => (
                 None,
-                format!("Novel check settings unavailable: {e:#}; originals preserved. "),
+                format!("Project check settings unavailable: {e:#}; originals preserved. "),
             ),
         };
         let (personal, personal_warning) = match personal_root
@@ -691,7 +691,9 @@ impl App {
         self.checks
             .novel
             .as_mut()
-            .ok_or_else(|| anyhow::anyhow!("novel check settings unavailable; original preserved"))?
+            .ok_or_else(|| {
+                anyhow::anyhow!("project check settings unavailable; original preserved")
+            })?
             .update(|p| {
                 f(&mut p.options);
                 Ok(())
@@ -704,7 +706,7 @@ impl App {
     fn enable_live_checks(&mut self) -> Result<()> {
         ensure!(
             self.checks.novel.is_some() && self.checks.personal.is_some(),
-            "novel/personal check settings unavailable; no live consent written"
+            "project/personal check settings unavailable; no live consent written"
         );
         let binding = self.checks.project_binding.clone().ok_or_else(|| {
             anyhow::anyhow!("project location cannot be bound; live checks not enabled")
@@ -727,7 +729,9 @@ impl App {
         self.checks.session_consent = true;
         self.checks.session_paused = false;
         self.checks.invalidate();
-        self.checks.notice = "Live local checks enabled for this novel; 0.9 s idle (2 s low power). Spelling remains independent.".into();
+        self.checks.notice = "Live local checks enabled for this project; 0.9 s idle \
+                              (2 s low power). Spelling remains independent."
+            .into();
         Ok(())
     }
     fn disable_live_checks(&mut self) -> Result<()> {
@@ -750,7 +754,7 @@ impl App {
             .checks
             .novel
             .as_mut()
-            .ok_or_else(|| anyhow::anyhow!("novel settings unavailable"))
+            .ok_or_else(|| anyhow::anyhow!("project settings unavailable"))
             .and_then(|store| {
                 store.update(|p| {
                     p.live_consent = None;
@@ -759,7 +763,8 @@ impl App {
             });
         if personal.is_err() || novel.is_err() {
             bail!(
-                "stopped for session; profile binding revoked: {}; novel off persisted: {}. Originals preserved. {} {}",
+                "stopped for session; profile binding revoked: {}; project off persisted: {}. \
+                 Originals preserved. {} {}",
                 personal.is_ok(),
                 novel.is_ok(),
                 personal.err().map_or(String::new(), |e| e.to_string()),
@@ -1027,14 +1032,41 @@ impl App {
                     "Optional local language analysis — explicit permission".into(),
                     "Harper uses a bundled part-of-speech tagger and neural chunker. It is not described as a non-AI engine. No network, account, model download or manuscript transmission is used.".into(),
                     "Spelling, editing, saving and all ordinary writing remain available without this service. Findings are fallible review suggestions, not a literary-quality score.".into(),
-                    if page == Page::ConsentOnce { "y runs once and remembers permission only for this process; no settings/diagnostic prose is written." } else { "y remembers model permission and a location/runtime binding in your personal profile, plus live checks for THIS novel. These are two separately guarded writes, not an atomic cross-file transaction. A changed runtime requires new permission." }.into(),
+                    if page == Page::ConsentOnce {
+                        "y runs once and remembers permission only for this process; \
+                         no settings/diagnostic prose is written."
+                    } else {
+                        "y remembers model permission and a location/runtime binding in your \
+                         personal profile, plus live checks for THIS project. These are two \
+                         separately guarded writes, not an atomic cross-file transaction. \
+                         A changed runtime requires new permission."
+                    }
+                    .into(),
                     "y permit · n/Esc cancel · nothing is accepted by merely opening this page".into(),
                 ]);
             }
-            Page::MuteGlobal => rows.push(format!("Mute rule {:?} in your personal profile, across novels? This is version-bound, not a phrase/source-text store. y confirms; n/Esc cancels.", self.checks.pending_rule)),
-            Page::ClearNovel => rows.push("Clear only this novel's muted-rule identifiers? Personal mutes remain. y confirms; n/Esc cancels.".into()),
-            Page::RevokeModel => rows.push("Revoke saved model permission and ALL personal project/location bindings? This process stops on confirmation; other already-running instances must reload/exit. Novel settings/mutes are preserved but cannot enable live work without renewed personal permission. y confirms; n/Esc cancels.".into()),
-            Page::ClearGlobal => rows.push("Clear personal muted-rule identifiers across novels? Novel mutes and model permission remain. y confirms; n/Esc cancels.".into()),
+            Page::MuteGlobal => rows.push(format!(
+                "Mute rule {:?} in your personal profile, across projects? This is version-bound, \
+                 not a phrase/source-text store. y confirms; n/Esc cancels.",
+                self.checks.pending_rule
+            )),
+            Page::ClearNovel => rows.push(
+                "Clear only this project's muted-rule identifiers? Personal mutes remain. \
+                 y confirms; n/Esc cancels."
+                    .into(),
+            ),
+            Page::RevokeModel => rows.push(
+                "Revoke saved model permission and ALL personal project/location bindings? \
+                 This process stops on confirmation; other already-running instances must \
+                 reload/exit. Project settings/mutes are preserved but cannot enable live work \
+                 without renewed personal permission. y confirms; n/Esc cancels."
+                    .into(),
+            ),
+            Page::ClearGlobal => rows.push(
+                "Clear personal muted-rule identifiers across projects? Project mutes and model \
+                 permission remain. y confirms; n/Esc cancels."
+                    .into(),
+            ),
             Page::Settings => {
                 let o = self.checks.options();
                 rows.extend([
@@ -1043,8 +1075,20 @@ impl App {
                     format!("f Footnote bodies: {} (labels are never prose)", o.include_footnotes),
                     format!("n Notes: {} · r Research: {}", o.include_notes, o.include_research),
                     format!("v Relax quoted dialogue style/capitalization: {}. Grammar is still checked. Attribution is a heuristic.", o.relaxed_dialogue),
-                    format!("Novel rule mutes: {} · personal mutes: {}", self.checks.novel.as_ref().map_or(0, |s| s.value.options.disabled_rules.len()), self.checks.personal.as_ref().map_or(0, |s| s.value.muted_rules.len())),
-                    "x clear novel mutes · X clear personal mutes · k revoke all personal model permissions (confirmation) · u reload".into(),
+                    format!(
+                        "Project rule mutes: {} · personal mutes: {}",
+                        self.checks
+                            .novel
+                            .as_ref()
+                            .map_or(0, |s| s.value.options.disabled_rules.len()),
+                        self.checks
+                            .personal
+                            .as_ref()
+                            .map_or(0, |s| s.value.muted_rules.len())
+                    ),
+                    "x clear project mutes · X clear personal mutes · \
+                     k revoke all personal model permissions (confirmation) · u reload"
+                        .into(),
                     "Input uses the existing editor BODY byte space, not byte offsets in the disk file's YAML header. Whole-file adapters have a separate explicit coordinate space.".into(),
                     "Private %% notes %%, TK markers, code, link targets and metadata are excluded. Text/formatting is never stripped and guessed back into place. Suggestions crossing markup/entities need manual edits.".into(),
                     "At most two visible sources, one local worker; 65,536-byte Harper cap, 256 displayed findings. Larger sources are explicitly NOT checked, never silently truncated. Spelling remains available.".into(),
@@ -1052,11 +1096,17 @@ impl App {
             }
             Page::Findings => {
                 match self.check_document(self.views.active) {
-                    Ok((_, doc)) => rows.push(format!("Source: {doc} · editor-body UTF-8 bytes; logical scalar columns")),
+                    Ok((_, doc)) => rows.push(format!(
+                        "Source: {doc} · editor-body UTF-8 bytes; logical scalar columns"
+                    )),
                     Err(e) => rows.push(e.to_string()),
                 }
                 let current = self.current_check_report();
-                let findings: Vec<_> = current.into_iter().flat_map(|r| &r.findings).filter(|d| !self.checks.once.contains(&d.id)).collect();
+                let findings: Vec<_> = current
+                    .into_iter()
+                    .flat_map(|r| &r.findings)
+                    .filter(|d| !self.checks.once.contains(&d.id))
+                    .collect();
                 if let Some(report) = current {
                     match &report.status {
                         ReportStatus::Complete => rows.push(format!("{} current suggestions · {} ms{} · {} unmappable omitted", findings.len(), report.elapsed_ms, if report.truncated { " · first 256 only" } else { "" }, report.omitted_invalid)),
@@ -1066,18 +1116,59 @@ impl App {
                     }
                 } else {
                     let pending = self.checks.slots.iter().any(|s| s.pending);
-                    rows.push(if pending { "Local check running; old results hidden. You can keep writing." } else { "No current result. r checks once; l enables optional live analysis." }.into());
+                    rows.push(
+                        if pending {
+                            "Local check running; old results hidden. You can keep writing."
+                        } else {
+                            "No current result. r checks once; l enables optional live analysis."
+                        }
+                        .into(),
+                    );
                 }
                 let selection = self.checks.selected.min(findings.len().saturating_sub(1));
                 for (i, finding) in findings.iter().enumerate() {
-                    if i == selection { selected = Some(rows.len()); }
-                    let point = current.and_then(|r| r.snapshot.point(finding.span.start)).unwrap_or((0, 0));
-                    rows.push(format!("{} {}:{} · {} · {:?}/{:?} · {}", if i == selection { "›" } else { " " }, point.0 + 1, point.1 + 1, finding.rule.rule, finding.category, finding.context, clean(&finding.expected, 50)));
+                    if i == selection {
+                        selected = Some(rows.len());
+                    }
+                    let point = current
+                        .and_then(|r| r.snapshot.point(finding.span.start))
+                        .unwrap_or((0, 0));
+                    rows.push(format!(
+                        "{} {}:{} · {} · {:?}/{:?} · {}",
+                        if i == selection { "›" } else { " " },
+                        point.0 + 1,
+                        point.1 + 1,
+                        finding.rule.rule,
+                        finding.category,
+                        finding.context,
+                        clean(&finding.expected, 50)
+                    ));
                     if i == selection {
                         rows.push(format!("Review: {}", clean(&finding.message, 500)));
-                        if let Some(replacement) = finding.replacements.get(self.checks.alternative % finding.replacements.len().max(1)) {
-                            rows.push(format!("Alternative {}/{}: {}{}", self.checks.alternative + 1, finding.replacements.len(), if replacement.text.is_empty() { "(remove)".into() } else { clean(&replacement.text, 80) }, if replacement.source_safe { " · a explicitly applies; Ctrl-Z undoes" } else { " · MANUAL EDIT: source markup/escape" }));
-                        } else { rows.push("No automatic edit offered; Enter locates original source.".into()); }
+                        if let Some(replacement) = finding
+                            .replacements
+                            .get(self.checks.alternative % finding.replacements.len().max(1))
+                        {
+                            rows.push(format!(
+                                "Alternative {}/{}: {}{}",
+                                self.checks.alternative + 1,
+                                finding.replacements.len(),
+                                if replacement.text.is_empty() {
+                                    "(remove)".into()
+                                } else {
+                                    clean(&replacement.text, 80)
+                                },
+                                if replacement.source_safe {
+                                    " · a explicitly applies; Ctrl-Z undoes"
+                                } else {
+                                    " · MANUAL EDIT: source markup/escape"
+                                }
+                            ));
+                        } else {
+                            rows.push(
+                                "No automatic edit offered; Enter locates original source.".into(),
+                            );
+                        }
                     }
                 }
             }
@@ -1158,10 +1249,13 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     );
     let hints = match page {
         Page::Findings => {
-            "↑↓ choose · Tab alternative · Enter source · a apply explicitly\ni ignore this pass · n mute novel rule · G personal rule (confirm)\nr run once · l live on/off · s settings · c pause/clear · u reload · Esc"
+            "↑↓ choose · Tab alternative · Enter source · a apply explicitly\n\
+             i ignore this pass · n mute project rule · G personal rule (confirm)\n\
+             r run once · l live on/off · s settings · c pause/clear · u reload · Esc"
         }
         Page::Settings => {
-            "p profile · d dialect · f footnotes · n notes · r research · v dialogue\nx/X clear novel/personal mutes · k revoke model permissions · u reload · Esc results"
+            "p profile · d dialect · f footnotes · n notes · r research · v dialogue\n\
+             x/X clear project/personal mutes · k revoke model permissions · u reload · Esc results"
         }
         _ => "y explicitly confirms · n/Esc cancels · F1 help",
     };

@@ -179,11 +179,21 @@ class KeyConfigurationTests(unittest.TestCase):
 
     def test_hardware_nix_binds_the_music_keys_on_press_only(self):
         text = (ROOT / 'nixos/modules/hardware.nix').read_text()
+        # The bindings name the helper once, as mediaKey (rc22 writes thd's triggers itself).
+        self.assertIn('mediaKey = wrosPkgs.paths.helperPaths.mediaKey;', text)
         bindings = re.findall(
             r'keys = \[ "([A-Z]+)" \]; event = "([^"]+)"; cmd = "([^"]+)";', text)
         for key, action in MUSIC_KEYS:
             self.assertEqual([(event, cmd) for name, event, cmd in bindings if name == key],
-                             [('press', '${wrosPkgs.paths.helperPaths.mediaKey} ' + action)])
+                             [('press', '${mediaKey} ' + action)])
+
+    def test_thd_is_patched_and_reads_the_same_bindings(self):
+        # #171: a thd that refuses a device it already has open, fed the module's bindings.
+        text = (ROOT / 'nixos/modules/hardware.nix').read_text()
+        self.assertIn('../pkgs/triggerhappy-no-duplicate-devices.patch', text)
+        self.assertIn('bindings = keyBindings;', text)
+        self.assertIn('--triggers ${triggers}', text)
+        self.assertIn('--user wros-keys', text)
 
     def test_triggerhappy_runs_only_wros_triggers_as_the_keys_account(self):
         text = (ROOT / 'os/config/triggerhappy-wros.conf').read_text()

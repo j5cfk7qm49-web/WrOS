@@ -847,7 +847,7 @@ fn draw_editor(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
             Line::from(""),
             Line::from(Span::styled(
                 if empty_manuscript {
-                    "Esc › Book › New scene… starts a scene."
+                    "Esc › Project › New scene… starts a scene."
                 } else {
                     "Select a scene on the left and press Enter."
                 },

@@ -97,8 +97,8 @@ impl Request {
             Request::Unlock => "Unlocking the backups",
             Request::Init { .. } => "Setting up backups",
             Request::Connect { .. } => "Connecting to the backups",
-            Request::Backup { .. } => "Backing up this book",
-            Request::AutoBackup { .. } => "Backing up this book automatically",
+            Request::Backup { .. } => "Backing up this project",
+            Request::AutoBackup { .. } => "Backing up this project automatically",
             Request::Queue { .. } => "Queuing a backup for later",
             Request::RunQueue => "Running the queued backups",
             Request::ClearQueue => "Clearing the backup queue",
@@ -112,8 +112,8 @@ impl Request {
             Request::CheckGoogle => "Checking the Google account",
             Request::DisconnectGoogle => "Disconnecting the Google account",
             Request::DriveList { .. } => "Listing your Google Drive folders",
-            Request::DriveBooks { .. } => "Looking for books in Google Drive",
-            Request::DriveMaterialize { .. } => "Copying the book from Google Drive",
+            Request::DriveBooks { .. } => "Looking for projects in Google Drive",
+            Request::DriveMaterialize { .. } => "Copying the project from Google Drive",
         }
     }
 }

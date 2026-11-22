@@ -215,12 +215,7 @@ fn menu(overlay: &Overlay) -> Option<(String, &'static str, usize)> {
 // Form values and manuscript names are deliberately absent from this view.
 fn dialog(overlay: &Overlay) -> Option<(&'static str, &'static str, &'static str, KeyCode)> {
     Some(match overlay {
-        Overlay::NewBook { .. } => (
-            "dialog-new-book",
-            "Start a new book",
-            "Create",
-            KeyCode::Enter,
-        ),
+        Overlay::NewBook { .. } => ("dialog-new-book", "New project…", "Create", KeyCode::Enter),
         Overlay::Create { .. } => (
             "dialog-create",
             "Name the new item",

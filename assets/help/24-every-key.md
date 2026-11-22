@@ -15,13 +15,13 @@
 | `Ctrl-Q` | quit in a desktop session; installed WrOS keeps the writing app open |
 | `Ctrl-Z` | undo: typing in the page; a delete, rename, move or new item in the outline |
 | `Ctrl-Y` | redo |
-| `Ctrl-F` | find in the scene; again for the whole book |
+| `Ctrl-F` | find in the scene; again for the whole project |
 | `Ctrl-D` | focus mode |
 | `Ctrl-V` | paste, from the computer's clipboard |
 | `Ctrl-A` | select the whole scene |
 | `Ctrl-B` | bold on the selection or the word at the cursor, or off again |
 | `Ctrl-I` | italics, the same way (where the terminal can tell it from `Tab`) |
-| `Ctrl-T` | every note and TK in the book |
+| `Ctrl-T` | every note and TK in the project |
 | `Ctrl-O` | the note for the name at the cursor |
 | `Alt-↑` | move the selected scene up; `Alt-↓` down |
 | `F2` | start or pause the timer |
@@ -56,7 +56,7 @@
 | `H` | the scene's history |
 | `b` | the corkboard |
 | `v` | show the scene beside |
-| `/` | find in the whole book |
+| `/` | find in the whole project |
 | `t` | themes |
 | `q` | quit |
 

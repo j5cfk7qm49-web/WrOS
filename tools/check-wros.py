@@ -78,6 +78,10 @@ def main():
     ERRORS.extend(line_ending_errors(ROOT))
     for name in REQUIRED:
         check((DOCS/(name+'.md')).is_file(), f'missing {name}.md')
+    project_help = ROOT/'assets/help/26-your-projects.md'
+    check(project_help.is_file() and
+          project_help.read_text(encoding='utf-8').startswith('# Your projects\n'),
+          'missing or mistitled help page: assets/help/26-your-projects.md')
     for path in DOCS.glob('*.md'):
         text = path.read_text(encoding='utf-8')
         for target in re.findall(r'!?\[[^\]]*\]\(([^\s)]+)(?:\s+[^)]*)?\)', text):

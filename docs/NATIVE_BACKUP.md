@@ -23,10 +23,10 @@ before recording **Restore checked**. These dates describe an actual prior resto
 check, not a claim that a disconnected device or remote repository is presently
 healthy. Local backups run without network access.
 
-Automatic backups can use a shorter check while the book's last complete restore
+Automatic backups can use a shorter check while the project's last complete restore
 check is under a week old:
 
-- compares the snapshot's list of files, folders and sizes with the book;
+- compares the snapshot's list of files, folders and sizes with the project;
 - reads back the snapshot's manifest, which must list every file's SHA-256;
 - reads back only the files changed since the last checked snapshot, and
   compares their SHA-256 hashes.
@@ -59,7 +59,7 @@ snapshots, and retry. A completed snapshot whose verification was interrupted
 stays visible without a restore-checked receipt; an explicit successful restore
 can qualify it. Automatic backups prune older automatic snapshots. They retain
 all from the last seven days, the newest per day through 90 days, then the newest
-per ISO week. Manual snapshots and each book's latest verified snapshot are
+per ISO week. Manual snapshots and each project's latest verified snapshot are
 retained. Offline/missing
 destinations report failure and record the saved project in the private offline
 backup queue (`queue.json`) for retry (`Run queued backups and retry
@@ -128,10 +128,10 @@ require live acceptance; local and synthetic-provider tests do not establish the
 ## Readable copies in Google Drive
 
 Encrypted backups cannot be read in Drive. To also keep plain Markdown copies there,
-connect Google Drive, open the book and choose **Sync this book with Google Drive
+connect Google Drive, open the project and choose **Sync this project with Google Drive
 (readable files)** in Settings › Backups and accounts › Backups. Anyone with access to the Google account can
 read those copies. While on, the Backups screen shows the last result ("Synced 14:02 ·
-1 up, 0 down, 0 deleted"), **Sync now**, and **Stop syncing this book**, which leaves
+1 up, 0 down, 0 deleted"), **Sync now**, and **Stop syncing this project**, which leaves
 the Drive copies in place. See [sync](SYNC_AND_BACKUP.md#readable-google-drive-sync) for
 history, conflicts and the delete guard.
 

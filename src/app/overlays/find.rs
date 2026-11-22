@@ -175,7 +175,7 @@ pub(super) fn draw_find(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         Style::default().fg(if pos == "no matches" { t.warn } else { t.sun }),
     ));
     first.extend(hint_spans(
-        &format!("   ↵ next  ↑ previous  Tab replace  {m}F whole book  esc close"),
+        &format!("   ↵ next  ↑ previous  Tab replace  {m}F whole project  esc close"),
         t,
     ));
     let mut lines = vec![Line::from(first)];
@@ -219,10 +219,10 @@ pub(super) fn draw_find_book(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         seen.len()
     };
     let head = if query.is_empty() {
-        "FIND IN THE BOOK".to_string()
+        "FIND IN THE PROJECT".to_string()
     } else {
         format!(
-            "FIND IN THE BOOK · {} match{} in {} scene{}",
+            "FIND IN THE PROJECT · {} match{} in {} scene{}",
             hits.len(),
             if hits.len() == 1 { "" } else { "es" },
             scenes,

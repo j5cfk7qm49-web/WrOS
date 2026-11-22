@@ -370,7 +370,7 @@ fn the_menu_acts_on_the_scene_being_written() {
     // The tree's cursor wanders off to Scene Three; then back to writing.
     d.keys(&[KeyCode::Down, KeyCode::Down]);
     d.key(KeyCode::Tab);
-    d.menu(&["Book", "Delete…"]);
+    d.menu(&["Project", "Delete…"]);
     match &d.app.overlay {
         Overlay::Confirm { name, .. } => assert_eq!(name, "Scene One"),
         other => panic!("expected the delete prompt, got {other:?}"),
@@ -804,7 +804,7 @@ fn a_book_never_opened_starts_on_its_guide() {
     let d = Desk::open(book("guide", false), 120, 35);
     let open = d.app.open.expect("something is open");
     assert_eq!(d.app.project.nodes[open].area, project::Area::Format);
-    assert!(d.status().contains("a new book"), "{}", d.status());
+    assert!(d.status().contains("a new project"), "{}", d.status());
 }
 
 #[test]
@@ -833,9 +833,9 @@ fn a_blank_book_opens_without_metadata_and_shows_how_to_start() {
     assert_eq!(d.app.project.meta.title, books::title_of_folder(&root));
     assert!(d.app.project.meta_unreadable.is_none());
     assert!(d.app.open.is_none());
-    assert!(d.shows("Book › New scene…"), "{}", d.rows().join("\n"));
+    assert!(d.shows("Project › New scene…"), "{}", d.rows().join("\n"));
     assert!(!root.join("novel.toml").exists());
-    d.menu(&["Book", "New scene…"]);
+    d.menu(&["Project", "New scene…"]);
     d.typed("Opening");
     d.key(KeyCode::Enter);
     let scene = &d.app.project.nodes[d.app.open.expect("the first scene opens")];
@@ -990,7 +990,7 @@ fn a_tall_tree_starts_at_the_top_and_clicks_still_land() {
     let rows = d.rows();
     let novel = rows
         .iter()
-        .position(|r| r.contains("Novel Format"))
+        .position(|r| r.contains("Project Format"))
         .unwrap();
     assert_eq!(novel, 2, "under the bar and the outline's border");
     // Clicking Scene Two's row opens Scene Two, not whatever is a book's
@@ -1012,7 +1012,7 @@ fn a_short_tree_keeps_its_rows_and_skips_the_book() {
     let d = Desk::open(book("art-short", true), 80, 24);
     assert!(!d.shows("┴───"), "no book on a short terminal");
     assert!(
-        d.rows()[2].contains("Novel Format"),
+        d.rows()[2].contains("Project Format"),
         "the tree starts at the top, under the bar"
     );
 }
@@ -1220,7 +1220,7 @@ fn clicking_a_misspelt_word_offers_its_fixes_and_one_undo_takes_one_back() {
     click(&mut d, "Teh cat");
     assert!(popup_open(&d), "the popup opens on the word");
     assert!(d.shows("“Teh”"));
-    assert!(d.shows("Always ignore — every book"));
+    assert!(d.shows("Always ignore — every project"));
     // "The", in the word's own capitalisation, is on offer; clicking it fixes.
     click(&mut d, "The ");
     assert!(!popup_open(&d));
@@ -1258,7 +1258,7 @@ fn always_ignore_in_this_book_writes_its_list_and_lifts_the_underline() {
         "underlined to begin with"
     );
     click(&mut d, "Qwyrk");
-    click(&mut d, "Always ignore — this book");
+    click(&mut d, "Always ignore — this project");
     let list = fs::read_to_string(d.root.join("dictionary.txt")).unwrap_or_default();
     assert!(list.lines().any(|l| l == "Qwyrk"), "{list}");
     d.key(KeyCode::End); // off the word, so it would be underlined again
@@ -1279,7 +1279,7 @@ fn the_every_book_list_is_kept_and_read_by_the_next_launch() {
     let mut d = spelling_desk("spell-user", "Zorblat waits.");
     d.app.user_dict = Some(list.clone());
     click(&mut d, "Zorblat");
-    click(&mut d, "Always ignore — every book");
+    click(&mut d, "Always ignore — every project");
     assert!(spell::words_in(&list).contains(&"Zorblat".to_string()));
     // A fresh app — another book, even — accepts it once it reads the list.
     let mut other = spelling_desk("spell-user-2", "Zorblat returns.");
@@ -1335,8 +1335,8 @@ fn f8_offers_the_same_ways_to_ignore() {
         Overlay::Spelling { inline: false, .. }
     ));
     assert!(d.shows("Ignore for now"));
-    assert!(d.shows("Always ignore — this book"));
-    assert!(d.shows("Always ignore — every book"));
+    assert!(d.shows("Always ignore — this project"));
+    assert!(d.shows("Always ignore — every project"));
 }
 
 /// Not a test: `GRIMOIRE_SCENE_DUMP=<file> cargo test dump_pomodoro -- --ignored`
@@ -1976,7 +1976,7 @@ fn export_preflight_reviews_selected_source_without_writing_at_four_sizes() {
 }
 
 #[test]
-fn the_look_dialog_saves_to_novel_toml_and_goes_back_to_export() {
+fn the_look_dialog_saves_to_project_toml_and_goes_back_to_export() {
     let mut d = export_desk("look", "Words.");
     let (_, look, _, _) = export_rows(&d);
     go_to(&mut d, look);
@@ -1991,7 +1991,7 @@ fn the_look_dialog_saves_to_novel_toml_and_goes_back_to_export() {
         matches!(d.app.overlay, Overlay::Export { .. }),
         "back to the export dialog"
     );
-    let toml = fs::read_to_string(d.root.join("novel.toml")).unwrap();
+    let toml = fs::read_to_string(d.root.join("project.toml")).unwrap();
     assert!(
         toml.contains("format = \"classic\"") && toml.contains("paper = \"a4\""),
         "{toml}"
@@ -2017,7 +2017,7 @@ fn author_details_are_typed_in_and_kept() {
     d.key(KeyCode::Esc);
     assert!(matches!(d.app.overlay, Overlay::Export { .. }));
     assert!(d.shows("Jane Q Smith · jane@example.com"));
-    let toml = fs::read_to_string(d.root.join("novel.toml")).unwrap();
+    let toml = fs::read_to_string(d.root.join("project.toml")).unwrap();
     assert!(toml.contains("legal_name = \"Jane Q Smith\""), "{toml}");
     assert!(toml.contains("email = \"jane@example.com\""));
     // A fresh desk reads them back.
@@ -2030,7 +2030,8 @@ fn how_much_takes_a_number_and_names_the_sample() {
     let mut d = export_desk("sample", "Words.");
     let (how_much, ..) = export_rows(&d);
     go_to(&mut d, how_much);
-    assert!(d.shows("◂ the whole book ▸"));
+    assert!(d.shows("◂ the whole project ▸"));
+    assert!(d.shows("x export"));
     d.typed("2");
     assert!(
         d.shows("◂ the first 2 chapters ▸"),
@@ -2978,8 +2979,8 @@ fn import_snapshot(root: &Path) -> Vec<(PathBuf, Vec<u8>)> {
 }
 
 fn laptop_import(d: &mut Desk) {
-    d.menu(&["File", "Open another book…"]);
-    d.choose("Import a book…");
+    d.menu(&["File", "Open another project…"]);
+    d.choose("Import a project…");
     assert!(d.shows("A folder on this laptop"));
     d.choose("A folder on this laptop");
 }
@@ -3043,8 +3044,8 @@ print(json.dumps(reply))
 }
 
 fn drive_import(d: &mut Desk) {
-    d.menu(&["File", "Open another book…"]);
-    d.choose("Import a book…");
+    d.menu(&["File", "Open another project…"]);
+    d.choose("Import a project…");
     d.choose("Google Drive");
     assert!(d.shows("Reading Google Drive…"));
 }
@@ -3103,10 +3104,10 @@ fn the_drive_files_page_sends_a_book_folder_to_import() {
     for (width, height) in [(80, 24), (170, 48)] {
         d.term = Terminal::new(TestBackend::new(width, height)).unwrap();
         d.draw();
-        assert!(d.shows("Import this book…"));
+        assert!(d.shows("Import this project…"));
         assert!(!d.shows("Copy this whole folder"));
     }
-    d.choose("Import this book…");
+    d.choose("Import this project…");
     assert!(d.shows("Reading Google Drive…"));
     wait_drive_listing(&mut d);
     assert!(d.shows("▸ Clip says Hello World."));
@@ -3158,7 +3159,7 @@ fn a_synced_drive_book_imports_with_its_sync_identity() {
     assert!(d.shows("Reading Google Drive…"));
     fs::remove_file(stub.join("pause-listing")).unwrap();
     wait_drive_listing(&mut d);
-    assert!(d.shows("book · synced"));
+    assert!(d.shows("project · synced"));
     assert!(!d.shows("Up one folder"));
     fs::write(stub.join("pause-sync"), "").unwrap();
     d.choose("Clip says Hello World.");
@@ -3173,7 +3174,7 @@ fn a_synced_drive_book_imports_with_its_sync_identity() {
     assert!(started.exists(), "{}", d.rows().join("\n"));
     d.app.tick_import();
     d.draw();
-    assert!(d.shows_wrapped("Linking the book with Google Drive…"));
+    assert!(d.shows_wrapped("Linking the project with Google Drive…"));
     assert_eq!(d.app.project.root, fs::canonicalize(&first).unwrap());
     fs::remove_file(stub.join("pause-sync")).unwrap();
     wait_import(&mut d);
@@ -3253,7 +3254,7 @@ fn a_failed_first_sync_opens_the_imported_book_with_a_notice() {
     let dest = crate::books::documents().join("Clip says Hello World.");
     assert_eq!(d.app.project.root, fs::canonicalize(&dest).unwrap());
     assert!(d.app.sync_enabled());
-    let notice = "The first sync didn't finish; it runs again when the book is open.";
+    let notice = "The first sync didn't finish; it runs again when the project is open.";
     assert_eq!(d.app.msg.matches(notice).count(), 1);
     assert!(matches!(
         d.app.deck.shell.backup.sync.running,
@@ -3286,7 +3287,7 @@ fn a_drive_book_already_synced_here_is_not_copied_again() {
     wait_drive_listing(&mut d);
     d.choose("Clip says Hello World.");
     assert!(d.shows_wrapped("My local title is already here and syncs with this Drive folder."));
-    assert!(d.shows("open book"));
+    assert!(d.shows("open project"));
     assert_eq!(d.app.project.root, fs::canonicalize(&first).unwrap());
     assert_eq!(import_snapshot(&local), before);
     assert!(
@@ -3387,8 +3388,8 @@ fn import_links_unlinked_drive_and_keeps_listing_failures_visible() {
     }
     let first = import_fixture("Documents/Open", "Local words.\n");
     let mut d = Desk::open(first, 80, 24);
-    d.menu(&["File", "Open another book…"]);
-    d.choose("Import a book…");
+    d.menu(&["File", "Open another project…"]);
+    d.choose("Import a project…");
     assert!(d.shows("Google Drive · link it in Settings first"));
     d.key(KeyCode::Enter);
     assert_eq!(
@@ -3532,8 +3533,8 @@ fn usb_sources(
         requests: requests.clone(),
         mount_gate,
     }));
-    d.menu(&["File", "Open another book…"]);
-    d.choose("Import a book…");
+    d.menu(&["File", "Open another project…"]);
+    d.choose("Import a project…");
     wait_usb(d, |d| d.shows("USB stick \"BOOKS\""));
     requests
 }
@@ -3551,8 +3552,8 @@ fn a_usb_stick_is_listed_by_label_and_unmounted_when_import_closes() {
     let requests = usb_sources(&mut d, source.parent().unwrap(), None);
     assert!(d.shows("USB stick \"BOOKS\""));
     d.choose("USB stick \"BOOKS\"");
-    wait_usb(&mut d, |d| d.shows("Book · book"));
-    assert!(d.shows("Book · book"));
+    wait_usb(&mut d, |d| d.shows("Book · project"));
+    assert!(d.shows("Book · project"));
     assert!(
         !d.shows("Up one folder"),
         "the mount point is the browser's top"
@@ -3593,7 +3594,7 @@ fn a_usb_import_unmounts_after_opening_the_copy_or_replacing_the_overlay() {
         let mut d = Desk::open(first, 80, 24);
         let requests = usb_sources(&mut d, source.parent().unwrap(), None);
         d.choose("USB stick \"BOOKS\"");
-        wait_usb(&mut d, |d| d.shows("Book · book"));
+        wait_usb(&mut d, |d| d.shows("Book · project"));
         if copy {
             d.choose("Book");
             assert!(d.shows_wrapped("Copying A laptop book from BOOKS…"));
@@ -3635,9 +3636,9 @@ fn opening_another_usb_stick_unmounts_the_first() {
     let mut d = Desk::open(first, 80, 24);
     let requests = usb_sources(&mut d, source.parent().unwrap(), None);
     d.choose("USB stick \"BOOKS\"");
-    wait_usb(&mut d, |d| d.shows("Book · book"));
+    wait_usb(&mut d, |d| d.shows("Book · project"));
     d.keys(&[KeyCode::Esc, KeyCode::Down, KeyCode::Down, KeyCode::Enter]);
-    wait_usb(&mut d, |d| d.shows("Book · book"));
+    wait_usb(&mut d, |d| d.shows("Book · project"));
     assert_eq!(
         *requests.lock().unwrap(),
         vec![
@@ -3706,7 +3707,7 @@ fn a_laptop_book_is_copied_into_documents_checked_and_opened() {
     laptop_import(&mut d);
     d.choose("Laptop");
     assert!(d.shows("Café says Hello World."));
-    assert!(d.shows("book"));
+    assert!(d.shows("· project"));
     d.key(KeyCode::Enter);
     assert!(d.shows_wrapped("Copying A laptop book from this laptop…"));
     d.key(KeyCode::F(1));
@@ -3862,7 +3863,7 @@ fn importing_the_open_book_says_it_is_already_here() {
     laptop_import(&mut d);
     d.choose("Documents");
     d.choose("Open");
-    assert!(d.shows("This book is already open here."));
+    assert!(d.shows("This project is already open here."));
     assert_eq!(d.app.project.root, fs::canonicalize(&first).unwrap());
     assert!(!crate::books::documents().join("Open 2").exists());
 
@@ -3879,7 +3880,7 @@ fn importing_the_open_book_says_it_is_already_here() {
     laptop_import(&mut d);
     d.choose("Laptop");
     d.choose("Renamed");
-    assert!(d.shows("This book is already open here."));
+    assert!(d.shows("This project is already open here."));
     assert!(!crate::books::documents().join("Renamed").exists());
 }
 
@@ -3946,9 +3947,9 @@ fn a_failed_laptop_import_keeps_the_error_on_screen() {
     d.key(KeyCode::Enter);
     wait_import(&mut d);
     assert!(matches!(d.app.overlay, Overlay::Import(_)));
-    assert!(d.shows_wrapped("Book import failed: not a book:"));
+    assert!(d.shows_wrapped("Project import failed: not a project:"));
     d.draw();
-    assert!(d.shows_wrapped("Book import failed: not a book:"));
+    assert!(d.shows_wrapped("Project import failed: not a project:"));
     assert!(!crate::books::documents().join("Missing").exists());
     assert_eq!(d.app.project.root, fs::canonicalize(&first).unwrap());
     assert_eq!(
@@ -3974,11 +3975,16 @@ fn the_shelf_lists_every_book_in_documents_without_typing() {
     d.app.state_file = Some(state.clone());
     assert!(crate::books::recent(&state).is_empty());
     assert!(!clip.join(".grimoire").exists());
-    d.menu(&["File", "Open another book…"]);
+    d.menu(&["File", "Open another project…"]);
     for (width, height) in [(80, 24), (170, 48)] {
         d.term = Terminal::new(TestBackend::new(width, height)).unwrap();
         d.draw();
-        for text in ["Clip says Hello World.", "Import a book…", "New book…"] {
+        assert!(d.shows("YOUR PROJECTS"));
+        for text in [
+            "Clip says Hello World.",
+            "Import a project…",
+            "New project…",
+        ] {
             assert!(d.shows(text), "missing {text}:\n{}", d.rows().join("\n"));
         }
         assert!(
@@ -3986,7 +3992,7 @@ fn the_shelf_lists_every_book_in_documents_without_typing() {
                 .iter()
                 .any(|r| r.contains("Grimoire") && r.contains("open now"))
         );
-        assert!(!d.shows("A book in another folder"));
+        assert!(!d.shows("A project in another folder"));
         assert!(!d.shows("Bring in a draft"));
     }
     assert!(d.shows(&crate::books::pretty(&clip)));
@@ -4050,7 +4056,7 @@ fn the_shelf_orders_documents_by_recent_then_title_and_keeps_outside_books() {
     assert!(matches!(rows.get(7), Some(ShelfRow::NewBook)));
     assert_eq!(rows.len(), 8);
     assert!(matches!(&rows[2], ShelfRow::Book(book, false) if book.title == "alpha"));
-    d.menu(&["File", "Open another book…"]);
+    d.menu(&["File", "Open another project…"]);
     assert!(d.shows("open now"));
 }
 
@@ -4064,15 +4070,15 @@ fn the_shelf_scrolls_to_import_and_new_book_with_arrow_keys() {
         fs::create_dir_all(documents.join(format!("Book {i:02}/manuscript"))).unwrap();
     }
     let mut d = Desk::open(documents.join("Book 00"), 80, 24);
-    d.menu(&["File", "Open another book…"]);
+    d.menu(&["File", "Open another project…"]);
     for _ in 0..19 {
         d.key(KeyCode::Down);
     }
     assert!(d.shows("▸ Book 19"));
     d.key(KeyCode::Down);
-    assert!(d.shows("▸ Import a book…"));
+    assert!(d.shows("▸ Import a project…"));
     d.key(KeyCode::Down);
-    assert!(d.shows("▸ New book…"));
+    assert!(d.shows("▸ New project…"));
     d.key(KeyCode::Enter);
     assert!(matches!(d.app.overlay, Overlay::NewBook { .. }));
 }
@@ -4092,8 +4098,8 @@ fn a_new_book_from_the_menu_saves_this_one_and_opens_the_new_one() {
     d.app.state_file = Some(state.clone());
     d.key(KeyCode::Tab);
     d.typed("Words from the first book");
-    d.menu(&["File", "Start a new book…"]);
-    assert!(d.shows("START A NEW BOOK"));
+    d.menu(&["File", "New project…"]);
+    assert!(d.shows("NEW PROJECT"));
     // Typing is typing here: ? and q are letters.
     d.typed("?q");
     assert!(matches!(d.app.overlay, Overlay::NewBook { .. }));
@@ -4116,8 +4122,8 @@ fn a_new_book_from_the_menu_saves_this_one_and_opens_the_new_one() {
     assert!(remembered.starts_with(&format!("last = \"{}\"", d.app.project.root.display())));
 
     // And back again, from Open another book.
-    d.menu(&["File", "Open another book…"]);
-    assert!(d.shows("OPEN ANOTHER BOOK"));
+    d.menu(&["File", "Open another project…"]);
+    assert!(d.shows("YOUR PROJECTS"));
     let at = d
         .app
         .shelf_rows()
@@ -4170,7 +4176,7 @@ fn a_book_is_deleted_from_open_another_book_after_saying_so() {
         d.key(key);
         assert!(matches!(d.app.overlay, Overlay::Books { .. }));
         assert!(novel.join("manuscript").is_dir());
-        assert!(d.app.msg.contains("the book you have open"));
+        assert!(d.app.msg.contains("the project you have open"));
     }
 
     // The demo book: Enter keeps it; Delete it, then Enter, deletes it.
@@ -4184,7 +4190,7 @@ fn a_book_is_deleted_from_open_another_book_after_saying_so() {
     d.draw();
     assert!(d.shows("x delete"));
     d.key(KeyCode::Char('x'));
-    assert!(d.shows("DELETE THIS BOOK?"), "{}", d.rows().join("\n"));
+    assert!(d.shows("DELETE THIS PROJECT?"), "{}", d.rows().join("\n"));
     assert!(d.shows("can't be undone"));
     d.key(KeyCode::Enter);
     assert!(demo.exists(), "Enter on Keep it keeps it");
@@ -4234,7 +4240,7 @@ fn a_book_is_deleted_from_open_another_book_after_saying_so() {
     d.key(KeyCode::Enter);
     assert!(novel.join("manuscript").is_dir());
     assert!(
-        d.app.msg.contains("the book you have open"),
+        d.app.msg.contains("the project you have open"),
         "{}",
         d.app.msg
     );
@@ -4281,8 +4287,8 @@ fn a_draft_brought_in_becomes_a_book_split_at_its_chapters() {
     fs::create_dir_all(&taken).unwrap();
     fs::write(taken.join("shopping.txt"), "eggs").unwrap();
     let mut d = Desk::open(first.clone(), 80, 24);
-    d.menu(&["File", "Open another book…"]);
-    d.choose("Import a book…");
+    d.menu(&["File", "Open another project…"]);
+    d.choose("Import a project…");
     assert!(d.shows("A draft (Word, Markdown, text)"));
     d.choose("A draft (Word, Markdown, text)");
     assert!(d.shows("Drafts · folder"));
@@ -4358,8 +4364,8 @@ fn the_draft_source_lists_only_folders_and_supported_files() {
         std::os::unix::fs::symlink(dir.join("Folder"), dir.join("Linked folder")).unwrap();
     }
     let mut d = Desk::open(first, 80, 24);
-    d.menu(&["File", "Open another book…"]);
-    d.choose("Import a book…");
+    d.menu(&["File", "Open another project…"]);
+    d.choose("Import a project…");
     d.choose("A draft (Word, Markdown, text)");
     d.choose("Drafts");
     for (width, height) in [(80, 24), (170, 48)] {
@@ -4399,7 +4405,7 @@ fn start_a_new_book_also_takes_a_draft() {
     let mut d = Desk::open(first.clone(), 120, 35);
     d.app.run_action(palette::Action::NewBook);
     d.typed(&file.display().to_string());
-    assert!(d.shows("bring it in as a new book"));
+    assert!(d.shows("bring it in as a new project"));
     d.key(KeyCode::Enter);
     assert!(
         d.status().contains("1 chapter, 1 scene, 5 words"),
@@ -4496,7 +4502,7 @@ fn a_blank_book_from_the_menu_stays_empty_when_reopened() {
     let blank = first.parent().unwrap().join(&name);
     let _ = fs::remove_dir_all(&blank);
     let mut d = Desk::open(first.clone(), 120, 35);
-    d.menu(&["File", "Start a new book…"]);
+    d.menu(&["File", "New project…"]);
     d.key(KeyCode::Tab);
     d.key(KeyCode::Tab);
     assert!(d.shows("● Blank"));
@@ -4514,7 +4520,7 @@ fn a_blank_book_from_the_menu_stays_empty_when_reopened() {
     assert!(d.app.open_book(&blank));
     d.draw();
     assert!(d.app.open.is_none());
-    assert!(d.shows("Book › New scene…"));
+    assert!(d.shows("Project › New scene…"));
     assert_eq!(d.app.project.nodes.len(), 1);
     assert!(!blank.join("Novel-Format.md").exists());
     fs::remove_dir_all(&blank).unwrap();
@@ -4592,11 +4598,12 @@ fn the_reading_voice_is_picked_in_settings() {
 }
 
 #[test]
-fn goals_take_a_month_of_drafting_preset_and_save_to_novel_toml() {
+fn goals_take_a_month_of_drafting_preset_and_save_to_project_toml() {
     let root = book("goals", true);
     let mut d = Desk::open(root.clone(), 120, 35);
-    d.menu(&["Book", "Goals…"]);
+    d.menu(&["Project", "Goals…"]);
     assert!(d.shows("GOALS"));
+    assert!(d.shows("The project"));
     assert!(d.shows("A month of drafting"));
     assert!(!d.shows("NaNo"));
     d.keys(&[KeyCode::Down, KeyCode::Down, KeyCode::Enter]);
@@ -4606,7 +4613,7 @@ fn goals_take_a_month_of_drafting_preset_and_save_to_novel_toml() {
     assert!(d.status().contains("goals saved"), "{}", d.status());
     assert_eq!(d.app.project.meta.target_words, 50_000);
     assert_eq!(d.app.project.meta.daily_target, 1_667);
-    let toml = fs::read_to_string(root.join("novel.toml")).unwrap();
+    let toml = fs::read_to_string(root.join("project.toml")).unwrap();
     assert!(toml.contains("target_words = 50000"), "{toml}");
     assert!(toml.contains("daily_target = 1667"), "{toml}");
     assert!(
@@ -4783,7 +4790,7 @@ fn u_in_the_trash_puts_a_deleted_scene_back_where_it_was() {
     let root = book("restore", true);
     let scene = first_scene(&root);
     let mut d = Desk::open(root.clone(), 150, 40);
-    // Delete Scene One (the tree starts on it after Novel Format).
+    // Delete Scene One (the tree starts on it after Project Format).
     for _ in 0..30 {
         if d.app
             .visible
@@ -4906,7 +4913,7 @@ fn details_set_status_pov_target_and_leave_a_scene_out_of_exports() {
     let scene = first_scene(&root);
     let mut d = Desk::open(root, 120, 40);
     d.key(KeyCode::Tab);
-    d.menu(&["Book", "Scene details…"]);
+    d.menu(&["Project", "Scene details…"]);
     assert!(d.shows("DETAILS · SCENE ONE"), "{}", d.rows().join("\n"));
     d.key(KeyCode::Right); // status: outline -> draft
     d.key(KeyCode::Down);
@@ -8144,7 +8151,7 @@ fn wros_journal_sources_and_book_switch_work_through_a_symlinked_root() {
     let before = d.app.editor.text();
     d.app.run_action(palette::Action::Open(first_scene(&alias)));
     assert_eq!(d.app.editor.text(), before);
-    assert!(d.app.msg.contains("not loaded in this book"));
+    assert!(d.app.msg.contains("not loaded in this project"));
 }
 #[cfg(unix)]
 #[test]
@@ -10061,3 +10068,6 @@ mod pins_ui_tests;
 mod session_ui_tests;
 #[path = "tutorial_ui_tests.rs"]
 mod tutorial_ui_tests;
+
+#[path = "project_names_ui_tests.rs"]
+mod project_names_ui_tests;

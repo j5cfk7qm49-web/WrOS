@@ -43,7 +43,7 @@ that backend stays on the console until re-enabled. The implementation is in
 ## Measurement tooling
 
 The retained [graphical_trial.py](../tools/graphical_trial.py) creates private
-demo books and homes, records executable hashes and process memory, and measures
+demo projects and homes, records executable hashes and process memory, and measures
 first draw. Its optional key test includes Wayland screenshot/capture overhead;
 it does not measure native DRM key-to-panel latency.
 

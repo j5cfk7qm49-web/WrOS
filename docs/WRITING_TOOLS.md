@@ -24,7 +24,7 @@ A diagnostic carries engine/rule/category/severity, document identity and revisi
 
 Run revision-tagged jobs off the input thread; discard stale results and deduplicate overlapping equivalent findings. Give Harper correctness checks precedence, Nabokov grammatical passive analysis precedence and proselint specialized usage/cliché checks precedence. Keep all provenance and rule-specific toggles. Apply a suggestion only after explicit writer action, never silently.
 
-Drafting: spelling/major grammar, low interruption. Revision: selected readability/style patterns. Deep Analysis: explicit broader rhythm/repetition/voice analysis. Quoted fictional dialogue remains prose, not an external quotation to suppress wholesale. Notes and research have their own policies and do not affect novel statistics by default.
+Drafting: spelling/major grammar, low interruption. Revision: selected readability/style patterns. Deep Analysis: explicit broader rhythm/repetition/voice analysis. Quoted fictional dialogue remains prose, not an external quotation to suppress wholesale. Notes and research have their own policies and do not affect project statistics by default.
 
 ## Respecting literary style
 
@@ -34,7 +34,7 @@ Do not call every passive, adverb, fragment, repetition or long sentence an erro
 
 The current revision dashboard combines implemented grammar/prose findings and review states with original-source navigation. The initial anchored Revision notes workflow now adds local comments, review states and explicit re-anchoring through the retained editor. Durable document IDs follow owned moves; exact quotes, source revisions and guarded sidecars preserve manuscript and metadata originals. See the offline Revision notes help and FEATURE_REVIEW.md for bounds and qualification. Continuity tracker uses explicit facts, scene chronology and character knowledge. Unified export preflight checks continuity and revision notes. Anchored comments, variants and named milestones use separate guarded stores.
 
-On WrOS, every book keeps a local Git timeline of small saves, writing sessions and changes from Drive. `H` in the outline shows a scene's versions newest first, with session dividers and older saved copies below. For a book that syncs, the timeline also goes to `WrOS-History/<book>/timeline/` as Git bundles. These contain the journal, productivity figures and review notes in plaintext, like the book. Outside WrOS, Writing sessions remains opt-in and local. See [Saving, history, backup, synchronization and mobile](SYNC_AND_BACKUP.md#book-timeline).
+On WrOS, every project keeps a local Git timeline of small saves, writing sessions and changes from Drive. `H` in the outline shows a scene's versions newest first, with session dividers and older saved copies below. For a project that syncs, the timeline also goes to `WrOS-History/<project>/timeline/` as Git bundles. These contain the journal, productivity figures and review notes in plaintext, like the project. Outside WrOS, Writing sessions remains opt-in and local. See [Saving, history, backup, synchronization and mobile](SYNC_AND_BACKUP.md#project-timeline).
 
 ## Footnotes, publishing and read-through
 
@@ -44,11 +44,11 @@ Read the current scene, chapter or remaining manuscript aloud. Space pauses, n/p
 
 ## Acceptance and performance gates
 
-Before M7/M8/M9 release: deterministic Unicode/Markdown/dialogue offset fixtures; stale-result/cancellation/dedup tests; once/novel/global ignores and dictionary migration; WordNet sense/antonym fixtures; adequate-material voice profiles; explicit continuity truth examples; annotation relocation; reversible diff/restore; DOCX package XML plus multi-page PDF checks. Benchmark RSS/latency/idle CPU on representative low-power hardware and record Python/spaCy/model costs separately. No model download or manuscript network request may occur during normal offline checking.
+Before M7/M8/M9 release: deterministic Unicode/Markdown/dialogue offset fixtures; stale-result/cancellation/dedup tests; once/project/global ignores and dictionary migration; WordNet sense/antonym fixtures; adequate-material voice profiles; explicit continuity truth examples; annotation relocation; reversible diff/restore; DOCX package XML plus multi-page PDF checks. Benchmark RSS/latency/idle CPU on representative low-power hardware and record Python/spaCy/model costs separately. No model download or manuscript network request may occur during normal offline checking.
 
 ## M3b routing boundary
 
-Both editable views now have independent Editor state; spelling, find/replace, clipboard and history commands target the focused document. Bulk book replacement/undo and name fixes update any matching inactive editor before autosave. The document registry is available as a prerequisite, but those diagnostics were not implemented by M3b itself. The later [M7a slice](WRITING_CHECKS.md) now adds the bounded revision-tagged worker, real optional Harper and scoped ignores, without competing source ownership. The shared existing dictionary and clipboard are not duplicated per pane.
+Both editable views now have independent Editor state; spelling, find/replace, clipboard and history commands target the focused document. Bulk project replacement/undo and name fixes update any matching inactive editor before autosave. The document registry is available as a prerequisite, but those diagnostics were not implemented by M3b itself. The later [M7a slice](WRITING_CHECKS.md) now adds the bounded revision-tagged worker, real optional Harper and scoped ignores, without competing source ownership. The shared existing dictionary and clipboard are not duplicated per pane.
 
 ## Recorded M5 productivity
 

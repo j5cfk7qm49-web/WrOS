@@ -7,16 +7,16 @@ RTL8822BE Wi-Fi, 32 GB eMMC). Run them on each release candidate before it
 becomes a final release, and after any change to power, Wi-Fi, the console or
 the boot.
 
-Use a disposable book for anything that types, locks or suspends. Never test
+Use a disposable project for anything that types, locks or suspends. Never test
 against the real manuscript. The tutorial's `d` key (F12 › Interactive
-tutorial) makes a safe demo book; Open another book returns to yours.
+tutorial) makes a safe demo project; Open another project returns to yours.
 
 Write the result of each check in the table at the end, with the release, the
 date, and anything odd. "Pass" means every line under **Pass when** held.
 
 ## 1. Typing and speed
 
-1. Unplug the charger. Open the disposable book and type for ten minutes at
+1. Unplug the charger. Open the disposable project and type for ten minutes at
    your normal speed, including fast bursts and held keys.
 2. Move between scenes, open the corkboard and Settings, and come back.
 
@@ -25,7 +25,7 @@ lags behind your typing; moving around feels no slower than on AC.
 
 ## 2. Lid, lock and sleep
 
-1. On battery, type a sentence in the disposable book and close the lid
+1. On battery, type a sentence in the disposable project and close the lid
    straight away. Wait a minute, then open it.
 2. Unlock with your password. Check the sentence.
 3. Repeat on AC power.
@@ -39,11 +39,11 @@ lags behind your typing; moving around feels no slower than on AC.
    Set it back to *lock and sleep*.
 
 **Pass when:** each close saves first (the sentence is there after unlock),
-the screen after waking is the lock, never the book or the login screen; the
+the screen after waking is the lock, never the project or the login screen; the
 Colemak password works at the lock; a wrong password is refused; after step 5
 the laptop stayed awake and locked; in step 6 every close locks; in step 7 the
-first close locks without sleeping and the second leaves the book open. Nothing
-you typed at the lock shows up in the book.
+first close locks without sleeping and the second leaves the project open. Nothing
+you typed at the lock shows up in the project.
 
 ## 3. Wi-Fi after sleep, and over a day
 
@@ -69,7 +69,7 @@ all shows the laptop kept its registered address.
 
 ## 5. Low battery
 
-1. Unplug the charger with a disposable book open and keep writing now and
+1. Unplug the charger with a disposable project open and keep writing now and
    then (lid open, screen on) until the battery is nearly empty. Note what the
    bottom bar says at 20 %, at 10 % and at 8 %.
 2. At 8 % WrOS saves at once and counts down 30 seconds before it locks and
@@ -78,12 +78,12 @@ all shows the laptop kept its registered address.
 
 **Pass when:** each warning shows once and says what happens at 8 %; plugging in
 says "Charging" and stops the countdown; it suspended before the battery died,
-never went to the login screen, the last words you typed are in the book, and
+never went to the login screen, the last words you typed are in the project, and
 the unlock message says the battery made it sleep.
 
 ## 6. Shutdown and restart during a backup
 
-1. Start a backup of the disposable book (Settings › Backups and accounts › Backups), and
+1. Start a backup of the disposable project (Settings › Backups and accounts › Backups), and
    while it runs pick Settings › System › Battery and power › **Shutdown**.
 2. Do the same with **Restart**, and once more during a Drive sync.
 
@@ -103,14 +103,14 @@ Pressing Esc later, at the login screen, does not reach it.
 4. Choose **Continue to the normal login**.
 
 **Pass when:** the boot menu appears, the recovery menu opens after both
-passwords, both choices work, and the normal login and book open afterwards.
+passwords, both choices work, and the normal login and project open afterwards.
 
 ## 8. After an update
 
 Right after a release candidate installs on the laptop:
 
 - Your settings carried over: warm screen, keyboard layout (Colemak at the
-  login, the lock and in the book), Wi-Fi networks, Drive link.
+  login, the lock and in the project), Wi-Fi networks, Drive link.
 - The warm screen comes on at boot with no black screen.
 - Settings › Updates and recovery › Updates shows the new version, and offers to go back to
   the previous one.
@@ -159,13 +159,13 @@ writing; wrong and correct disk/login passwords; Esc at disk unlock; and the
 While writing a disposable scene, switch to tty2 and back with Ctrl-Alt-F2/F1.
 The other VT should appear promptly and the writing page should redraw on return.
 Lock and unlock twice, then lock and sleep, wake and unlock. Pass when the same
-scene returns, lock keystrokes never enter the book, and the display stays usable.
+scene returns, lock keystrokes never enter the project, and the display stays usable.
 Check the warm-screen control before and after these handoffs. Record cold-start
 time, unlock-to-login time, memory and battery use on the Celeron; VM results do
 not establish those hardware measurements.
 
 For the compositor comparison, use [GRAPHICAL_TRIAL](GRAPHICAL_TRIAL.md) and
-`tools/graphical-trial.sh` with a disposable demo book. Record the HP Stream's
+`tools/graphical-trial.sh` with a disposable demo project. Record the HP Stream's
 startup, memory, typing delay and power use for foot and OpenGL, then repeat
 Colemak, compose, two locks and suspend/wake in each chosen session. Finish with
 a day of writing. Native input now uses libinput/XKB; check touchpad click, drag,
@@ -210,14 +210,14 @@ Check them on each target laptop (#80).
    Brightness up a few times. Hold each key for a second.
 2. Press Volume up, Volume down and Mute, then Mute again. Hold Volume up.
 3. Repeat a few presses at the login screen and on the lock screen.
-4. With music playing and the cursor in the book, press Play/Pause twice, then
+4. With music playing and the cursor in the project, press Play/Pause twice, then
    Next and Previous. Play/Pause pauses and resumes, Next skips a track and
-   Previous goes back. Nothing appears in the book.
+   Previous goes back. Nothing appears in the project.
 
 **Brightness and volume pass when** each press moves the value one step and a held key
 keeps going; the screen never goes fully dark; Mute silences the speakers and
 the second press brings the sound back; the bottom bar shows the new value
-within about a second; nothing typed appears in the book or the password field.
+within about a second; nothing typed appears in the project or the password field.
 If one press moves brightness two steps, or a key does nothing, run the probe
 below and attach it to [issue 80](https://github.com/j5cfk7qm49-web/WrOS/issues/80)
 with `systemctl status triggerhappy` from the maintenance console.
@@ -240,7 +240,7 @@ sudo timeout 30s evtest /dev/input/eventN |
 
 ## 13. Phone linking and document exchange
 
-Use a disposable book for these checks when the Drive integration changes.
+Use a disposable project for these checks when the Drive integration changes.
 Record the Google project's publishing status and the phone/browser versions.
 
 1. On Android Chrome, complete the link from the QR shown by WrOS. Record any
@@ -249,14 +249,14 @@ Record the Google project's publishing status and the phone/browser versions.
 2. Record the successful link date. After eight days, reopen WrOS and browse
    Drive using the saved connection. Record the result in
    [issue 28](https://github.com/j5cfk7qm49-web/WrOS/issues/28).
-3. Create a small book containing Unicode, emphasized text, two scenes, a
+3. Create a small project containing Unicode, emphasized text, two scenes, a
    footnote with two paragraphs and a private annotation. Export a DOCX and
    check its public text before sending the disposable file to Google Docs.
 4. On the iPhone, change one sentence in Google Docs, download a DOCX, and
-   import it into a new review book. Compare the sentence, emphasis, scene
+   import it into a new review project. Compare the sentence, emphasis, scene
    order, note references and both footnote paragraphs. Check the private
-   annotation in the original book.
-5. Back up the disposable book with WrOS's Google client. Record its size,
+   annotation in the original project.
+5. Back up the disposable project with WrOS's Google client. Record its size,
    elapsed backup time and elapsed verification time, then perform a test
    restore into a new folder. Put the document and timing results in
    [issue 10](https://github.com/j5cfk7qm49-web/WrOS/issues/10).
@@ -274,7 +274,7 @@ sudo journalctl -b --no-pager -u 'wros*' | tail -100
 Use SSH only if remote access has been configured separately.
 
 Use `-b -1` instead of `-b` for the boot before the last restart. Send the
-output with the results; it contains no book text.
+output with the results; it contains no project text.
 
 ## Results
 

@@ -122,7 +122,7 @@ class RecoveryMenu(unittest.TestCase):
         labels = [label for _, label, _ in menu.choices()]
         self.assertEqual(labels, ['Go back to 0.1.0~rc4 · installs when you restart',
                                   'Repair system packages',
-                                  'Restore a book from a backup',
+                                  'Restore a project from a backup',
                                   'Show what happened',
                                   'Continue to the normal login',
                                   'Restart',
@@ -167,7 +167,7 @@ class RecoveryMenu(unittest.TestCase):
         self.assertIn('HOME=/home/ada', argv)
         self.assertEqual(request['snapshot'], SNAPSHOT)
         destination = Path(request['destination'])
-        self.assertEqual(destination.parent, Path('/home/ada/Restored books'))
+        self.assertEqual(destination.parent, Path('/home/ada/Restored projects'))
         self.assertTrue(destination.name.startswith('Clip 2026-11-04'))
         self.assertIn('Restore verified', self.console.text())
 

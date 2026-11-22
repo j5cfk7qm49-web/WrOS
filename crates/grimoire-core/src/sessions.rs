@@ -139,7 +139,7 @@ pub fn outside_dir(root: &Path) -> Option<PathBuf> {
 }
 
 fn id_file(root: &Path) -> PathBuf {
-    root.join(".grimoire").join("book-id")
+    crate::project_files::path(root, crate::project_files::FileKind::Id)
 }
 
 /// Give the book an id if it has none, or a new one if `fresh`. Kept in
@@ -206,13 +206,13 @@ pub fn move_history_out(root: &Path) -> Result<PathBuf> {
     require_git()?;
     let inside = root.join(".git");
     if !inside.is_dir() {
-        bail!("this book's writing history isn't inside it");
+        bail!("this project's writing history isn't inside it");
     }
     let check = git(root, ["fsck", "--no-progress", "--connectivity-only"]).run();
     match check {
         Ok(out) if out.success => {}
         Ok(out) => bail!(
-            "the writing history inside the book is damaged ({}); it's left where it is and \
+            "the writing history inside the project is damaged ({}); it's left where it is and \
              your writing is untouched",
             summary(&out.stderr)
         ),
@@ -223,12 +223,12 @@ pub fn move_history_out(root: &Path) -> Result<PathBuf> {
         Some(d) if !d.exists() => d,
         _ => {
             assign_id(root, true)?;
-            outside_dir(root).context("giving the book an id")?
+            outside_dir(root).context("giving the project an id")?
         }
     };
     if dir.exists() {
         assign_id(root, true)?;
-        dir = outside_dir(root).context("giving the book an id")?;
+        dir = outside_dir(root).context("giving the project an id")?;
     }
     copy_tree(&inside, &dir)?;
     let copy = |args: &[&str]| {
@@ -300,7 +300,7 @@ pub fn enable(root: &Path) -> Result<()> {
             // copied book's id belongs to the original: take a fresh one.
             let taken = outside_dir(root).is_some_and(|d| d.exists());
             assign_id(root, taken)?;
-            let dir = outside_dir(root).context("giving the book an id")?;
+            let dir = outside_dir(root).context("giving the project an id")?;
             if let Some(parent) = dir.parent() {
                 fs::create_dir_all(parent)
                     .with_context(|| format!("creating {}", parent.display()))?;
@@ -571,7 +571,7 @@ fn try_push(root: &Path, timeout: Duration) -> Result<PushOutcome> {
                 only.clone()
             } else {
                 bail!(
-                    "this book has several remotes and none is set for {branch}; \
+                    "this project has several remotes and none is set for {branch}; \
                      push once with git push -u <remote> {branch}"
                 );
             };
@@ -648,7 +648,7 @@ fn resolve_commit(root: &Path, hash: &str) -> Result<String> {
         ["rev-parse", "--verify", "-q", &format!("{hash}^{{commit}}")],
     )
     .lookup()?
-    .ok_or_else(|| anyhow!("no session {hash} in this book's history"))
+    .ok_or_else(|| anyhow!("no session {hash} in this project's history"))
 }
 
 fn stage_all(root: &Path, index: Option<&Path>) -> Result<()> {
@@ -850,16 +850,19 @@ fn cat_blobs(root: &Path, specs: &[String], index: Option<&Path>) -> Result<Vec<
 }
 
 fn part_noun(root: &Path) -> String {
-    fs::read_to_string(root.join("novel.toml"))
-        .ok()
-        .and_then(|s| toml::from_str::<toml::Table>(&s).ok())
-        .and_then(|t| {
-            t.get("part_label")?
-                .as_str()
-                .map(|s| s.trim().to_lowercase())
-        })
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| "part".into())
+    fs::read_to_string(crate::project_files::path(
+        root,
+        crate::project_files::FileKind::Settings,
+    ))
+    .ok()
+    .and_then(|s| toml::from_str::<toml::Table>(&s).ok())
+    .and_then(|t| {
+        t.get("part_label")?
+            .as_str()
+            .map(|s| s.trim().to_lowercase())
+    })
+    .filter(|s| !s.is_empty())
+    .unwrap_or_else(|| "part".into())
 }
 
 // ---------------------------------------------------------------------------
@@ -1130,7 +1133,7 @@ pub(crate) fn git_path(rel: &Path) -> Result<String> {
                     .ok_or_else(|| anyhow!("{} isn't a name git can look up", rel.display()))?,
             ),
             Component::CurDir => {}
-            _ => bail!("{} isn't a path inside the book", rel.display()),
+            _ => bail!("{} isn't a path inside the project", rel.display()),
         }
     }
     if parts.is_empty() {

@@ -20,4 +20,4 @@ The *Settings* menu opens Settings on one of its six groups, in a box over the p
 - **Manuscript look…**: the submission manuscript's format (see *Compile*).
 - **Author details…**: your name and contact block for the title page.
 
-Settings are remembered in `~/.config/grimoire/`, and the manuscript's look and your author details are kept in the book's `novel.toml`, so they travel with it.
+Settings are remembered in `~/.config/grimoire/`, and the manuscript's look and your author details are kept in the project's `project.toml`, so they travel with it.

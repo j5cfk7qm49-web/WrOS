@@ -30,7 +30,7 @@ pub const TOPICS: &[Topic] = &[
         "01-getting-started.md"
     ),
     topic!("menu", "The menu bar, menu by menu", "27-the-menu.md"),
-    topic!("books", "Your books", "26-your-books.md"),
+    topic!("books", "Your projects", "26-your-projects.md"),
     topic!("outline", "The outline", "02-the-outline.md"),
     topic!("writing", "Writing", "03-writing.md"),
     topic!("focus", "Focus mode & typewriter", "04-focus-mode.md"),
@@ -289,6 +289,21 @@ mod tests {
             assert!(TOPICS[..i].iter().all(|o| o.id != t.id), "{} twice", t.id);
         }
         assert!(TOPICS.len() >= 20);
+    }
+
+    #[test]
+    fn on_disk_help_names_current_and_legacy_project_files() {
+        use grimoire_core::project_files::FileKind;
+
+        let body = TOPICS[index("on-disk")].body;
+        for kind in FileKind::ALL {
+            for name in [kind.name(), kind.legacy()] {
+                assert!(
+                    body.contains(&format!("`{name}`")),
+                    "missing {name} in help"
+                );
+            }
+        }
     }
 
     #[test]

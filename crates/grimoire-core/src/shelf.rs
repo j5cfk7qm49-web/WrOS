@@ -31,10 +31,13 @@ fn read_text(path: &Path) -> Option<String> {
 /// The title in novel.toml, falling back to the folder's name.
 pub fn title_of(root: &Path) -> String {
     if is_directory(root)
-        && let Some(title) = read_text(&root.join("novel.toml"))
-            .and_then(|s| toml::from_str::<toml::Table>(&s).ok())
-            .and_then(|table| table.get("title")?.as_str().map(str::to_string))
-            .filter(|title| !title.trim().is_empty())
+        && let Some(title) = read_text(&crate::project_files::path(
+            root,
+            crate::project_files::FileKind::Settings,
+        ))
+        .and_then(|s| toml::from_str::<toml::Table>(&s).ok())
+        .and_then(|table| table.get("title")?.as_str().map(str::to_string))
+        .filter(|title| !title.trim().is_empty())
     {
         return title;
     }

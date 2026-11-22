@@ -79,7 +79,10 @@ fn sample_book(tag: &str, typo: bool) -> PathBuf {
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(&root).unwrap();
     project::scaffold(&root).unwrap();
-    let toml = root.join("novel.toml");
+    let toml = grimoire_core::project_files::new_path(
+        &root,
+        grimoire_core::project_files::FileKind::Settings,
+    );
     let meta: String = fs::read_to_string(&toml)
         .unwrap()
         .lines()
@@ -691,7 +694,7 @@ fn previews() {
 
     s.key(KeyCode::Esc, none);
     frames.push(s.json("bar-lit", None));
-    s.key(KeyCode::Char('b'), none);
+    s.key(KeyCode::Char(crate::palette::Title::Book.letter()), none);
     s.key(KeyCode::Down, none);
     s.key(KeyCode::Down, none);
     frames.push(s.json("book-menu", None));

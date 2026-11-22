@@ -1,6 +1,6 @@
 //! Public YouTube Music search and a local queue of downloaded audio.
 
-use super::{Backend, Cmd, Item, Modes, Repeat, State, Track, Update, mpv::Mpv};
+use super::{Backend, Cmd, Item, Modes, Repeat, State, Track, Update, YoutubePlay, mpv::Mpv};
 use anyhow::{Context, Result, anyhow, bail};
 use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::{Value, json};
@@ -168,7 +168,7 @@ impl Staged {
     }
 }
 
-fn download(cache: &Path, id: &str, cancel: Receiver<()>) -> Result<Staged> {
+fn download(cache: &Path, id: &str, url: &str, cancel: Receiver<()>) -> Result<Staged> {
     if !valid_id(id) {
         bail!("invalid YouTube Music id");
     }
@@ -186,7 +186,7 @@ fn download(cache: &Path, id: &str, cancel: Receiver<()>) -> Result<Staged> {
             "bestaudio",
         ])
         .args(["--no-part", "-o", "%(id)s.%(ext)s"])
-        .arg(format!("https://music.youtube.com/watch?v={id}"))
+        .arg(url)
         .current_dir(dir.path())
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -204,19 +204,7 @@ fn download(cache: &Path, id: &str, cancel: Receiver<()>) -> Result<Staged> {
         }
     };
     if !status.success() {
-        let stderr = fs::read(stderr).unwrap_or_default();
-        let reason: String = String::from_utf8_lossy(&stderr)
-            .lines()
-            .last()
-            .unwrap_or_default()
-            .trim()
-            .chars()
-            .take(120)
-            .collect();
-        if reason.is_empty() {
-            bail!("yt-dlp exited with {status}");
-        }
-        bail!("{reason}");
+        bail!("{}", ytdlp_reason(&stderr, status));
     }
     let file = cached_file(dir.path(), id).context("yt-dlp produced no audio file")?;
     let bytes = file.metadata()?.len();
@@ -239,12 +227,12 @@ struct Download {
 }
 
 impl Download {
-    fn start(cache: PathBuf, id: &str) -> Self {
+    fn start(cache: PathBuf, id: &str, url: String) -> Self {
         let (sender, result) = mpsc::channel();
         let (cancel, cancelled) = mpsc::channel();
         let video = id.to_string();
         let worker = thread::spawn(move || {
-            let _ = sender.send(download(&cache, &video, cancelled));
+            let _ = sender.send(download(&cache, &video, &url, cancelled));
         });
         Self {
             id: id.to_string(),
@@ -275,14 +263,229 @@ impl Drop for Download {
     }
 }
 
+/// The last line yt-dlp wrote to stderr, or its exit status.
+fn ytdlp_reason(stderr: &Path, status: std::process::ExitStatus) -> String {
+    let stderr = fs::read(stderr).unwrap_or_default();
+    let reason: String = String::from_utf8_lossy(&stderr)
+        .lines()
+        .last()
+        .unwrap_or_default()
+        .trim()
+        .chars()
+        .take(120)
+        .collect();
+    if reason.is_empty() {
+        format!("yt-dlp exited with {status}")
+    } else {
+        reason
+    }
+}
+
+/// One song's audio from yt-dlp into a FIFO that mpv plays as it arrives (rc22). mpv sees a
+/// stream that breaks off as an ordinary end of file, so how it ended is yt-dlp's exit status.
+#[cfg(unix)]
+struct Stream {
+    id: String,
+    fifo: PathBuf,
+    outcome: Receiver<Result<(), String>>,
+    done: Option<Result<(), String>>,
+    cancel: Option<Sender<()>>,
+    worker: Option<JoinHandle<()>>,
+    // Last: the FIFO's folder goes once the worker has stopped writing into it.
+    _dir: tempfile::TempDir,
+}
+
+#[cfg(unix)]
+impl Stream {
+    fn start(ytdlp: &Path, id: &str, url: String) -> Result<Self> {
+        use std::os::unix::ffi::OsStrExt;
+
+        let dir = tempfile::tempdir().context("making a place for the stream")?;
+        let fifo = dir.path().join("audio");
+        let name = std::ffi::CString::new(fifo.as_os_str().as_bytes())?;
+        // SAFETY: a valid NUL-terminated path; mkfifo touches nothing else.
+        if unsafe { libc::mkfifo(name.as_ptr(), 0o600) } != 0 {
+            return Err(std::io::Error::last_os_error()).context("making the stream's pipe");
+        }
+        let (send, outcome) = mpsc::channel();
+        let (cancel, cancelled) = mpsc::channel();
+        let (ytdlp, path, stderr) = (ytdlp.to_path_buf(), fifo.clone(), dir.path().join(".err"));
+        let worker = thread::spawn(move || {
+            let result = Self::run(&ytdlp, &url, &path, &stderr, &cancelled);
+            let _ = send.send(result);
+        });
+        Ok(Self {
+            id: id.to_string(),
+            fifo,
+            outcome,
+            done: None,
+            cancel: Some(cancel),
+            worker: Some(worker),
+            _dir: dir,
+        })
+    }
+
+    /// Wait for mpv to open the pipe (never blocking past a cancel), then run yt-dlp into it.
+    /// `Err("")` means cancelled, which is not worth a note.
+    fn run(
+        ytdlp: &Path,
+        url: &str,
+        fifo: &Path,
+        stderr: &Path,
+        cancel: &Receiver<()>,
+    ) -> Result<(), String> {
+        use std::os::unix::fs::OpenOptionsExt;
+
+        let cancelled =
+            |wait: Duration| cancel.recv_timeout(wait) != Err(RecvTimeoutError::Timeout);
+        let pipe = loop {
+            // Opening a FIFO to write fails with ENXIO until a reader has it open.
+            match fs::OpenOptions::new()
+                .write(true)
+                .custom_flags(libc::O_NONBLOCK)
+                .open(fifo)
+            {
+                Ok(pipe) => break pipe,
+                Err(e) if e.raw_os_error() == Some(libc::ENXIO) => {
+                    if cancelled(Duration::from_millis(50)) {
+                        return Err(String::new());
+                    }
+                }
+                Err(e) => return Err(format!("the stream's pipe: {e}")),
+            }
+        };
+        {
+            use std::os::fd::AsRawFd;
+            let fd = pipe.as_raw_fd();
+            // SAFETY: fd is open and owned by `pipe`; yt-dlp must block when mpv is behind.
+            unsafe {
+                let flags = libc::fcntl(fd, libc::F_GETFL);
+                libc::fcntl(fd, libc::F_SETFL, flags & !libc::O_NONBLOCK);
+            }
+        }
+        let errors = fs::File::create(stderr).map_err(|e| e.to_string())?;
+        let mut child = Command::new(ytdlp)
+            .args(["--ignore-config", "-q", "--no-warnings", "--no-playlist"])
+            .args(["-f", "bestaudio", "--no-part", "-o", "-"])
+            .arg(url)
+            .stdin(Stdio::null())
+            .stdout(pipe)
+            .stderr(errors)
+            .spawn()
+            .map_err(|e| format!("couldn't start yt-dlp: {e}"))?;
+        loop {
+            match child.try_wait() {
+                Ok(Some(status)) if status.success() => return Ok(()),
+                Ok(Some(status)) => return Err(ytdlp_reason(stderr, status)),
+                Ok(None) => {}
+                Err(e) => return Err(e.to_string()),
+            }
+            if cancelled(Duration::from_millis(100)) {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(String::new());
+            }
+        }
+    }
+
+    /// How yt-dlp ended, waiting up to `wait` for it: mpv's end of file and yt-dlp's exit
+    /// are the same moment seen from two processes.
+    fn outcome(&mut self, wait: Duration) -> Option<&Result<(), String>> {
+        if self.done.is_none() {
+            self.done = self.outcome.recv_timeout(wait).ok();
+        }
+        self.done.as_ref()
+    }
+}
+
+#[cfg(unix)]
+impl Drop for Stream {
+    fn drop(&mut self) {
+        drop(self.cancel.take());
+        if let Some(worker) = self.worker.take() {
+            let _ = worker.join();
+        }
+    }
+}
+
+/// "4:18", or "1:01:14" past an hour.
+fn clock(secs: f64) -> String {
+    let secs = secs.max(0.0).round() as u64;
+    let (hours, minutes, seconds) = (secs / 3600, secs / 60 % 60, secs % 60);
+    if hours > 0 {
+        format!("{hours}:{minutes:02}:{seconds:02}")
+    } else {
+        format!("{minutes}:{seconds:02}")
+    }
+}
+
+/// What a live stream shows for its length.
+const LIVE: &str = "live";
+
+/// Videos from `yt-dlp --flat-playlist -J ytsearchN:…`. A live stream (a radio channel, say)
+/// plays as it arrives and shows "live"; one that hasn't started yet is left out. A video whose
+/// length YouTube doesn't give shows none.
+fn parse_video_search(reply: &Value) -> Vec<Item> {
+    reply["entries"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|entry| entry["live_status"].as_str() != Some("is_upcoming"))
+        .filter_map(|entry| {
+            let id = entry["id"].as_str().filter(|id| valid_id(id))?;
+            let live = entry["live_status"].as_str() == Some("is_live");
+            Some(Item {
+                id: id.to_string(),
+                title: entry["title"].as_str().unwrap_or(id).to_string(),
+                artist: entry["channel"]
+                    .as_str()
+                    .or_else(|| entry["uploader"].as_str())
+                    .unwrap_or_default()
+                    .to_string(),
+                length: if live {
+                    LIVE.to_string()
+                } else {
+                    entry["duration"].as_f64().map(clock).unwrap_or_default()
+                },
+                pos: 0,
+                current: false,
+                video: true,
+            })
+        })
+        .enumerate()
+        .map(|(pos, item)| Item { pos, ..item })
+        .collect()
+}
+
+/// What to tell the writer when a streamed song ends: nothing if yt-dlp finished, or was
+/// stopped on purpose.
+fn stream_note(title: &str, started: bool, outcome: Option<&Result<(), String>>) -> Option<String> {
+    match outcome {
+        Some(Err(reason)) if !reason.is_empty() => Some(if started {
+            format!("Couldn't finish {title}: {reason}")
+        } else {
+            format!("Couldn't play {title}: {reason}")
+        }),
+        _ => None,
+    }
+}
+
 struct Loaded {
     path: PathBuf,
+    /// mpv has taken the file (a stream may still be waiting for its first bytes).
     started: bool,
+    /// Sound has come out of it.
+    played: bool,
 }
 
 pub(super) struct YtMusic {
     helper: PathBuf,
     cache: PathBuf,
+    /// The yt-dlp to run; tests swap in a script.
+    ytdlp: PathBuf,
+    play: YoutubePlay,
+    #[cfg(unix)]
+    stream: Option<Stream>,
     tell: Sender<Update>,
     mpv: Mpv,
     search: Option<(String, Search)>,
@@ -308,6 +511,10 @@ impl YtMusic {
         Self {
             helper,
             cache,
+            ytdlp: PathBuf::from("yt-dlp"),
+            play: YoutubePlay::Stream,
+            #[cfg(unix)]
+            stream: None,
             tell,
             mpv: Mpv::new(),
             search: None,
@@ -322,6 +529,47 @@ impl YtMusic {
             repeat: Repeat::Off,
             shuffle: false,
         }
+    }
+
+    pub(super) fn playing(mut self, play: YoutubePlay) -> Self {
+        self.play = play;
+        self
+    }
+
+    /// Streaming needs a FIFO; elsewhere songs are downloaded first.
+    fn streaming(&self) -> bool {
+        cfg!(unix) && self.play == YoutubePlay::Stream
+    }
+
+    /// Where yt-dlp fetches a queued song or video.
+    fn url(item: &Item) -> String {
+        if item.video {
+            format!("https://www.youtube.com/watch?v={}", item.id)
+        } else {
+            format!("https://music.youtube.com/watch?v={}", item.id)
+        }
+    }
+
+    /// The song to play when this one ends. A stream can't loop the way a file does (a FIFO
+    /// can't be read twice), so Repeat one fetches it again.
+    fn after_end(&self) -> Option<usize> {
+        if self.streaming() && self.repeat == Repeat::One {
+            self.current
+        } else {
+            self.next_index()
+        }
+    }
+
+    #[cfg(unix)]
+    fn stream_audio(&mut self, item: &Item) -> Result<PathBuf> {
+        if !valid_id(&item.id) {
+            bail!("invalid YouTube Music id");
+        }
+        if self.stream.as_ref().is_none_or(|s| s.id != item.id) {
+            self.stream = None;
+            self.stream = Some(Stream::start(&self.ytdlp, &item.id, Self::url(item))?);
+        }
+        Ok(self.stream.as_ref().unwrap().fifo.clone())
     }
 
     fn search_for(&mut self, query: &str) -> Result<&Search> {
@@ -344,6 +592,10 @@ impl YtMusic {
             self.loaded = None;
         }
         self.clear_fetching();
+        #[cfg(unix)]
+        {
+            self.stream = None;
+        }
         self.current = index;
         self.pause_on_load = false;
         self.keep_download(index.map(|i| self.queue[i].id.clone()).as_deref());
@@ -383,21 +635,21 @@ impl YtMusic {
         }
     }
 
-    fn download_for(&mut self, id: &str) -> &mut Download {
+    fn download_for(&mut self, item: &Item) -> &mut Download {
         self.download
-            .get_or_insert_with(|| Download::start(self.cache.clone(), id))
+            .get_or_insert_with(|| Download::start(self.cache.clone(), &item.id, Self::url(item)))
     }
 
     fn prefetch(&mut self) {
-        let id = self.next_index().map(|i| self.queue[i].id.clone());
-        self.keep_download(id.as_deref());
-        let Some(id) = id else {
+        let next = self.next_index().map(|i| self.queue[i].clone());
+        self.keep_download(next.as_ref().map(|item| item.id.as_str()));
+        let Some(next) = next else {
             return;
         };
-        if cached_file(&self.cache, &id).is_some() {
+        if cached_file(&self.cache, &next.id).is_some() {
             return;
         }
-        let job = self.download_for(&id);
+        let job = self.download_for(&next);
         job.poll();
         let Some(Ok(staged)) = &job.ready else {
             return;
@@ -417,13 +669,19 @@ impl YtMusic {
         }
     }
 
-    fn audio(&mut self, id: &str) -> Option<Result<PathBuf>> {
-        if let Some(path) = cached_file(&self.cache, id) {
+    fn audio(&mut self, item: &Item) -> Option<Result<PathBuf>> {
+        if item.video && item.length == LIVE {
+            // Downloading a live stream first would never finish.
+            return Some(Err(anyhow!(
+                "a live stream plays only as it arrives (Settings › Music › Play)"
+            )));
+        }
+        if let Some(path) = cached_file(&self.cache, &item.id) {
             self.download = None;
             let trimmed = trim_cache(&self.cache, Some(&path), CACHE_FILES, CACHE_BYTES);
             return Some(trimmed.map(|()| path));
         }
-        let job = self.download_for(id);
+        let job = self.download_for(item);
         job.poll();
         let result = job.ready.take()?;
         self.download = None;
@@ -438,7 +696,12 @@ impl YtMusic {
             title: item.title.clone(),
             artist: item.artist.clone(),
             progress: props["time-pos"].as_f64().unwrap_or_default(),
-            duration: props["duration"].as_f64().unwrap_or_default(),
+            // A live stream has no length; mpv would report what it has buffered.
+            duration: if item.length == LIVE {
+                0.0
+            } else {
+                props["duration"].as_f64().unwrap_or_default()
+            },
             playing,
         })
     }
@@ -454,15 +717,65 @@ impl YtMusic {
         self.loaded = Some(Loaded {
             path,
             started: false,
+            played: false,
         });
         Ok(())
     }
 
+    /// Hand the audio to mpv, or count a failure and move on (three in a row stop the queue).
+    fn load_or_skip(&mut self, audio: Result<PathBuf>, title: &str) -> Result<State> {
+        self.clear_fetching();
+        match audio.and_then(|path| self.load_audio(path)) {
+            Ok(()) => {
+                if self.streaming() {
+                    // A stream takes a few seconds to start; it counts as played once it sounds.
+                    let note = format!("Fetching {title} from YouTube…");
+                    let _ = self.tell.send(Update::Note(note.clone()));
+                    self.fetching = Some(note);
+                } else {
+                    self.failures = 0;
+                    if !self.pause_on_load {
+                        self.prefetch();
+                    }
+                }
+                Ok(self.track_state(&Value::Null, !self.pause_on_load))
+            }
+            Err(error) => {
+                self.failures += 1;
+                let next = if self.failures >= 3 {
+                    None
+                } else {
+                    self.next_index()
+                };
+                self.move_to(next)?;
+                let _ = self
+                    .tell
+                    .send(Update::Note(format!("Couldn't play {title}: {error}")));
+                Ok(self.track_state(&Value::Null, false))
+            }
+        }
+    }
+
+    /// The note for a streamed song that just ended, if yt-dlp didn't finish it.
+    fn end_stream(&mut self, played: bool) -> Option<String> {
+        #[cfg(unix)]
+        if let Some(mut stream) = self.stream.take() {
+            let title = self
+                .current
+                .and_then(|i| self.queue.get(i))
+                .map(|item| item.title.clone())
+                .unwrap_or_default();
+            return stream_note(&title, played, stream.outcome(Duration::from_millis(500)));
+        }
+        let _ = played;
+        None
+    }
+
     fn set_loop_file(&mut self, repeat: Repeat) -> Result<()> {
-        self.mpv.set_property(
-            "loop-file",
-            json!(if repeat == Repeat::One { "inf" } else { "no" }),
-        )
+        // mpv reopening a FIFO to loop it would wait forever for a writer.
+        let one = repeat == Repeat::One && !self.streaming();
+        self.mpv
+            .set_property("loop-file", json!(if one { "inf" } else { "no" }))
     }
 
     fn enqueue(&mut self, id: String, now: bool) -> Result<()> {
@@ -503,23 +816,48 @@ impl Backend for YtMusic {
             let props = self.mpv.snapshot()?;
             let idle = props["idle-active"].as_bool() == Some(true);
             if props["playlist-pos"].as_i64() == Some(-1) || (idle && loaded.started) {
+                let played = loaded.played;
                 self.loaded = None;
-                self.move_to(self.next_index())?;
+                let note = self.end_stream(played);
+                if note.is_some() && !played {
+                    self.failures += 1;
+                }
+                let next = if self.failures >= 3 {
+                    None
+                } else {
+                    self.after_end()
+                };
+                self.move_to(next)?;
+                if let Some(note) = note {
+                    let _ = self.tell.send(Update::Note(note));
+                }
             } else {
                 loaded.started |= !idle;
+                if !loaded.played && props["time-pos"].as_f64().is_some_and(|t| t > 0.0) {
+                    loaded.played = true;
+                    self.failures = 0;
+                    self.clear_fetching();
+                }
                 if !idle && props["pause"].as_bool() != Some(true) {
-                    self.prefetch();
+                    if !self.streaming() {
+                        self.prefetch();
+                    }
                     return Ok(self.track_state(&props, true));
                 }
                 return Ok(self.track_state(&props, false));
             }
         }
 
-        let Some(item) = self.current.and_then(|i| self.queue.get(i)) else {
+        let Some(item) = self.current.and_then(|i| self.queue.get(i)).cloned() else {
             return Ok(State::Idle);
         };
-        let (id, title) = (item.id.clone(), item.title.clone());
-        let Some(audio) = self.audio(&id) else {
+        let title = item.title.clone();
+        #[cfg(unix)]
+        if self.streaming() {
+            let fifo = self.stream_audio(&item);
+            return self.load_or_skip(fifo, &title);
+        }
+        let Some(audio) = self.audio(&item) else {
             if self.fetching.is_none() {
                 let note = format!("Fetching {title} from YouTube Music…");
                 let _ = self.tell.send(Update::Note(note.clone()));
@@ -527,29 +865,7 @@ impl Backend for YtMusic {
             }
             return Ok(self.track_state(&Value::Null, false));
         };
-        self.clear_fetching();
-        match audio.and_then(|path| self.load_audio(path)) {
-            Ok(()) => {
-                self.failures = 0;
-                if !self.pause_on_load {
-                    self.prefetch();
-                }
-                Ok(self.track_state(&Value::Null, !self.pause_on_load))
-            }
-            Err(error) => {
-                self.failures += 1;
-                let next = if self.failures >= 3 {
-                    None
-                } else {
-                    self.next_index()
-                };
-                self.move_to(next)?;
-                let _ = self
-                    .tell
-                    .send(Update::Note(format!("Couldn't play {title}: {error}")));
-                Ok(self.track_state(&Value::Null, false))
-            }
-        }
+        self.load_or_skip(audio, &title)
     }
 
     fn command(&mut self, c: Cmd) -> Result<()> {
@@ -623,6 +939,32 @@ impl Backend for YtMusic {
     fn search(&mut self, query: &str) -> Result<Vec<Item>> {
         self.search = None;
         let found = items(&self.search_for(query)?.songs, |row| row.length.clone());
+        self.songs.clone_from(&found);
+        Ok(found)
+    }
+
+    fn search_videos(&mut self, query: &str) -> Result<Vec<Item>> {
+        let query = query.trim();
+        if query.is_empty() || query.chars().count() > 200 || query.chars().any(char::is_control) {
+            bail!("search with up to 200 letters, numbers and marks");
+        }
+        let errors = tempfile::NamedTempFile::new().context("searching YouTube")?;
+        // "ytsearch20:" first, so nothing the writer types can be read as an option.
+        let status = Command::new(&self.ytdlp)
+            .args(["--ignore-config", "--flat-playlist", "-J", "--no-warnings"])
+            .arg(format!("ytsearch20:{query}"))
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(errors.reopen()?)
+            .spawn()
+            .context("couldn't start yt-dlp")?
+            .wait_with_output()?;
+        if !status.status.success() {
+            bail!("{}", ytdlp_reason(errors.path(), status.status));
+        }
+        let reply: Value =
+            serde_json::from_slice(&status.stdout).context("invalid yt-dlp search reply")?;
+        let found = parse_video_search(&reply);
         self.songs.clone_from(&found);
         Ok(found)
     }
@@ -890,11 +1232,234 @@ JSON
         );
     }
 
+    /// A stand-in for mpv: open the stream's FIFO and read it, saying when each chunk arrives.
+    #[cfg(unix)]
+    fn reader(fifo: PathBuf) -> Receiver<Vec<u8>> {
+        use std::io::Read;
+        let (send, chunks) = mpsc::channel();
+        thread::spawn(move || {
+            let mut pipe = fs::File::open(fifo).unwrap();
+            let mut buf = [0u8; 64];
+            while let Ok(n) = pipe.read(&mut buf) {
+                if n == 0 || send.send(buf[..n].to_vec()).is_err() {
+                    break;
+                }
+            }
+        });
+        chunks
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn streaming_starts_without_waiting_for_the_whole_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let ytdlp = fake_helper(
+            dir.path(),
+            "for a; do last=$a; done\n\
+             [ \"$last\" = https://music.youtube.com/watch?v=song_1 ] || exit 3\n\
+             printf first; sleep 3; printf second\n",
+        );
+        let item = Item {
+            id: "song_1".into(),
+            title: "Song".into(),
+            artist: String::new(),
+            length: String::new(),
+            pos: 0,
+            current: false,
+            video: false,
+        };
+        let mut stream = Stream::start(&ytdlp, &item.id, YtMusic::url(&item)).unwrap();
+        let chunks = reader(stream.fifo.clone());
+        assert_eq!(
+            chunks.recv_timeout(Duration::from_secs(2)).unwrap(),
+            b"first"
+        );
+        assert!(
+            stream.outcome(Duration::ZERO).is_none(),
+            "the first bytes came while yt-dlp was still fetching"
+        );
+        assert_eq!(stream.outcome(Duration::from_secs(10)), Some(&Ok(())));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_stream_that_breaks_off_notes_it_and_moves_on() {
+        let dir = tempfile::tempdir().unwrap();
+        let ytdlp = fake_helper(
+            dir.path(),
+            "printf abc; echo 'ERROR: connection reset by peer' >&2; exit 1\n",
+        );
+        let mut stream = Stream::start(
+            &ytdlp,
+            "song_1",
+            "https://music.youtube.com/watch?v=song_1".into(),
+        )
+        .unwrap();
+        let chunks = reader(stream.fifo.clone());
+        assert_eq!(chunks.recv_timeout(Duration::from_secs(5)).unwrap(), b"abc");
+        let outcome = stream.outcome(Duration::from_secs(5));
+        assert_eq!(
+            stream_note("Song", true, outcome).as_deref(),
+            Some("Couldn't finish Song: ERROR: connection reset by peer")
+        );
+        assert_eq!(
+            stream_note("Song", false, outcome).as_deref(),
+            Some("Couldn't play Song: ERROR: connection reset by peer")
+        );
+    }
+
+    #[test]
+    fn video_search_reads_title_channel_and_length() {
+        let reply = json!({"entries": [
+            {"id": "dQw4w9WgXcQ", "title": "A video", "channel": "A channel", "duration": 258.0},
+            {"id": "lTRiuFIWV54", "title": "An hour", "uploader": "Uploader", "duration": 3674.0},
+            {"id": "../bad", "title": "Bad id", "channel": "", "duration": 1.0}
+        ]});
+        let found = parse_video_search(&reply);
+        let rows: Vec<_> = found
+            .iter()
+            .map(|i| (&*i.id, &*i.title, &*i.artist, &*i.length, i.pos, i.video))
+            .collect();
+        assert_eq!(
+            rows,
+            [
+                ("dQw4w9WgXcQ", "A video", "A channel", "4:18", 0, true),
+                ("lTRiuFIWV54", "An hour", "Uploader", "1:01:14", 1, true),
+            ]
+        );
+        assert_eq!(
+            YtMusic::url(&found[0]),
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        );
+    }
+
+    #[test]
+    fn video_search_keeps_live_radio_drops_upcoming_and_keeps_unknown_lengths() {
+        let reply = json!({"entries": [
+            {"id": "live_now_1", "title": "Radio", "channel": "C", "live_status": "is_live",
+             "duration": null},
+            {"id": "soon_12345", "title": "Soon", "channel": "C", "live_status": "is_upcoming"},
+            {"id": "short_1234", "title": "No length", "channel": "C", "duration": null}
+        ]});
+        let found = parse_video_search(&reply);
+        let rows: Vec<_> = found.iter().map(|i| (&*i.title, &*i.length)).collect();
+        assert_eq!(rows, [("Radio", "live"), ("No length", "")]);
+    }
+
+    #[test]
+    fn a_live_stream_is_refused_when_songs_download_first() {
+        let dir = tempfile::tempdir().unwrap();
+        let (tell, _updates) = mpsc::channel();
+        let mut backend =
+            YtMusic::new(dir.path().join("wros-ytm"), tell).playing(YoutubePlay::Download);
+        backend.cache = dir.path().join("cache");
+        let radio = Item {
+            id: "live_now_1".into(),
+            title: "Radio".into(),
+            artist: String::new(),
+            length: LIVE.into(),
+            pos: 0,
+            current: false,
+            video: true,
+        };
+        let error = backend.audio(&radio).unwrap().unwrap_err().to_string();
+        assert_eq!(
+            error,
+            "a live stream plays only as it arrives (Settings › Music › Play)"
+        );
+        assert!(backend.download.is_none(), "no download was started");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn all_of_youtube_asks_ytdlp_and_answers_with_videos() {
+        let dir = tempfile::tempdir().unwrap();
+        let ytdlp = fake_helper(
+            dir.path(),
+            r#"for a; do last=$a; done
+[ "$last" = 'ytsearch20:-rf lofi beats' ] || { echo "ERROR: got $last" >&2; exit 2; }
+printf '%s' '{"entries":[{"id":"abc_123","title":"Beats","channel":"Lofi","duration":61}]}'
+"#,
+        );
+        let (tell, _updates) = mpsc::channel();
+        let mut backend = YtMusic::new(dir.path().join("wros-ytm"), tell);
+        backend.ytdlp = ytdlp;
+        let found = backend.search_videos("  -rf lofi beats ").unwrap();
+        assert_eq!((&*found[0].title, &*found[0].length), ("Beats", "1:01"));
+        // Choosing it plays the video from YouTube itself.
+        backend
+            .command(Cmd::Enqueue {
+                id: "abc_123".into(),
+                now: false,
+            })
+            .unwrap();
+        assert!(backend.queue().unwrap()[0].video);
+        assert!(backend.search_videos("\u{7}").is_err());
+        assert!(backend.search_videos(&"x".repeat(201)).is_err());
+        assert_eq!(
+            backend.search_videos("fail").unwrap_err().to_string(),
+            "ERROR: got ytsearch20:fail"
+        );
+    }
+
+    #[test]
+    fn a_finished_or_stopped_stream_says_nothing() {
+        assert_eq!(stream_note("Song", true, Some(&Ok(()))), None);
+        assert_eq!(stream_note("Song", true, Some(&Err(String::new()))), None);
+        assert_eq!(stream_note("Song", true, None), None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_stream_nobody_opened_stops_at_once_without_running_ytdlp() {
+        let dir = tempfile::tempdir().unwrap();
+        let ran = dir.path().join("ran");
+        let ytdlp = fake_helper(dir.path(), &format!("touch '{}'\n", ran.display()));
+        let stream = Stream::start(
+            &ytdlp,
+            "song_1",
+            "https://music.youtube.com/watch?v=song_1".into(),
+        )
+        .unwrap();
+        let fifo = stream.fifo.clone();
+        let started = std::time::Instant::now();
+        drop(stream);
+        assert!(started.elapsed() < Duration::from_secs(1));
+        assert!(!ran.exists(), "yt-dlp waits for the player");
+        assert!(!fifo.exists(), "the pipe and its folder are gone");
+    }
+
+    #[test]
+    fn repeat_one_fetches_a_streamed_song_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let (tell, _updates) = mpsc::channel();
+        let mut backend = YtMusic::new(dir.path().join("wros-ytm"), tell);
+        for id in ["first", "second"] {
+            backend
+                .command(Cmd::Enqueue {
+                    id: id.into(),
+                    now: false,
+                })
+                .unwrap();
+        }
+        backend.current = Some(0);
+        backend.repeat = Repeat::One;
+        assert_eq!(
+            backend.after_end(),
+            if cfg!(unix) { Some(0) } else { Some(1) }
+        );
+        let mut backend = backend.playing(YoutubePlay::Download);
+        assert_eq!(backend.after_end(), Some(1));
+        backend.repeat = Repeat::Off;
+        assert_eq!(backend.after_end(), Some(1));
+    }
+
     #[test]
     fn fetching_is_reported_once_and_three_failures_stop_the_queue() {
         let dir = tempfile::tempdir().unwrap();
         let (tell, updates) = mpsc::channel();
-        let mut backend = YtMusic::new(dir.path().join("wros-ytm"), tell);
+        let mut backend =
+            YtMusic::new(dir.path().join("wros-ytm"), tell).playing(YoutubePlay::Download);
         backend.cache = dir.path().join("cache");
         for id in ["first", "second", "third", "fourth"] {
             backend

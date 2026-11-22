@@ -1,6 +1,6 @@
 # The outline
 
-The outline is the book's folders and files, shown as a tree. Every change you make here is a change on disk: renaming a scene renames its file.
+The outline is the project's folders and files, shown as a tree. Every change you make here is a change on disk: renaming a scene renames its file.
 
 ## Moving around
 
@@ -12,7 +12,7 @@ The outline is the book's folders and files, shown as a tree. Every change you m
 
 - `n` a new **scene**: at the end of the chapter you're in, or in a notebook section, a new note there.
 - `c` a new **chapter**, named for you ("Chapter Four"), at the end of the part you're in.
-- `p` a new **part**, at the end of the manuscript. If your book calls its parts something else, like Acts, `part_label` in `novel.toml` says so and WrOS uses that word everywhere.
+- `p` a new **part**, at the end of the manuscript. If your project calls its parts something else, like Acts, `part_label` in `project.toml` says so and WrOS uses that word everywhere.
 - `N` a new **folder** beside the one selected.
 
 Each asks for a name, with a suggestion already filled in. Type to replace it, or press `Enter` to take it. Nothing is ever renumbered to make room: a new item goes at the end.
@@ -22,17 +22,17 @@ Each asks for a name, with a suggestion already filled in. Type to replace it, o
 - `r` renames what's selected. The file is renamed to match, and keeps its number and place.
 - `d` deletes it. WrOS asks first, by name, and moves it to the **Trash** section at the bottom of the outline.
 - Deleting something that is **already in the Trash** removes it for good. That one asks too.
-- `u` on something in the Trash **restores** it: back to its old folder under its old name (*Restore from the Trash* in *Book* and `Ctrl-K` too). If its folder has gone since, it's made again.
+- `u` on something in the Trash **restores** it: back to its old folder under its old name (*Restore from the Trash* in *Project* and `Ctrl-K` too). If its folder has gone since, it's made again.
 
 ## Details
 
-`i` on a scene shows its **details** (*Book › Scene details…* while you're writing it, or `Ctrl-K` › *Scene details*):
+`i` on a scene shows its **details** (*Project › Scene details…* while you're writing it, or `Ctrl-K` › *Scene details*):
 
 - **Status**: idea, outline, draft, revised or done. `←` `→` change it.
 - **POV**: whose eyes the scene is seen through.
 - **Synopsis**: what happens, in a line. The corkboard shows it on the card.
 - **Word target**: how long you mean it to be. The page's title shows your progress towards it.
-- **In exports**: *no* leaves the scene out of every export and compile, while keeping it in the book.
+- **In exports**: *no* leaves the scene out of every export and compile, while keeping it in the project.
 
 On a note in the notebook, `i` sets its **other names**, with commas between (*Kae, the Wren*). The notebook lights those up in your prose too.
 
@@ -54,5 +54,5 @@ On a note in the notebook, `i` sets its **other names**, with commas between (*K
 - `H` the selected scene's **history**.
 - `b` the **corkboard**.
 - `v` shows the selected scene **beside** the one you're writing.
-- `/` finds in the whole book.
+- `/` finds in the whole project.
 - `t` or `F9` changes the theme.

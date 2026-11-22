@@ -40,10 +40,10 @@ const DEFAULT_THEME = 'Rainbow';
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>grimoire — a terminal writing desk for novels</title>
+    <title>grimoire — a terminal writing desk</title>
     <meta
       name="description"
-      content="A terminal writing desk for novels. Your manuscript is a folder of plain Markdown — it compiles to a standard-format manuscript, a paperback and an EPUB, and stays safe in any sync service. Rust and Ratatui."
+      content="A terminal writing desk. Your manuscript is a folder of plain Markdown — it compiles to a standard-format manuscript, a paperback and an EPUB, and stays safe in any sync service. Rust and Ratatui."
     />
     <link rel="canonical" href="https://grimoiretui.com/" />
     <meta name="theme-color" content="#15121f" />
@@ -53,7 +53,7 @@ const DEFAULT_THEME = 'Rainbow';
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta property="og:title" content="grimoire — a terminal writing desk for novels" />
+    <meta property="og:title" content="grimoire — a terminal writing desk" />
     <meta
       property="og:description"
       content="Your manuscript is a folder of plain Markdown. No database, no lock-in, diffable in git."
@@ -86,7 +86,7 @@ const DEFAULT_THEME = 'Rainbow';
     <div class="screen">
       <header class="titlebar">
         <span class="brand">grimoire</span>
-        <span class="desc">a terminal writing desk for novels</span>
+        <span class="desc">a terminal writing desk</span>
         <span class="right">
           <button class="theme-btn" id="theme-btn" type="button" aria-haspopup="dialog" title="Change the theme (t)">
             <span class="swatch" aria-hidden="true"></span> theme · <span class="rb" id="theme-name">{DEFAULT_THEME}</span>
@@ -140,14 +140,14 @@ const DEFAULT_THEME = 'Rainbow';
           <section id="what" role="tabpanel" aria-labelledby="tab-what">
             <h2>what it is</h2>
             <p>
-              Grimoire is a cozy little writing desk for your novel, and it lives right in your
-              terminal. It understands how a book comes together, from parts and chapters down to
+              Grimoire is a cozy little writing desk for your project, and it lives right in your
+              terminal. It understands how a project comes together, from parts and chapters down to
               scenes and word goals, and it keeps every word you write in plain files you can open
               with anything, even <code>cat</code>.
             </p>
             <figure class="shot">
               <img id="hero" src="/shots/themes/rainbow.webp" width="1620" height="1114" loading="eager"
-                alt="Grimoire in the Rainbow theme: a book's outline under a spellbook, a scene being written and the Pomodoro" />
+                alt="Grimoire in the Rainbow theme: a project's outline under a spellbook, a scene being written and the Pomodoro" />
               <figcaption>01 — the desk, in <span id="hero-theme">Rainbow</span>: the outline, the prose, the Pomodoro, the music</figcaption>
             </figure>
             <p class="try">
@@ -165,9 +165,9 @@ const DEFAULT_THEME = 'Rainbow';
               splits it into chapters and scenes for you, italics and all. Every word comes across.
             </p>
             <p>
-              When the book is done it compiles a submission manuscript in standard format, a
+              When the project is done it compiles a submission manuscript in standard format, a
               print-ready paperback and an EPUB — and while you write it keeps the
-              book safe in whatever syncs it: Dropbox, Google Drive, pCloud, Box.
+              project safe in whatever syncs it: Dropbox, Google Drive, pCloud, Box.
             </p>
             <p class="mute">
               Rust and Ratatui. One binary. macOS, Linux and Windows. Made by
@@ -179,24 +179,24 @@ const DEFAULT_THEME = 'Rainbow';
           <section id="why" role="tabpanel" aria-labelledby="tab-why">
             <h2>why</h2>
             <p>
-              Most novel apps make you pick. Some tuck your manuscript away in a database you can't
+              Most writing apps make you pick. Some tuck your manuscript away in a database you can't
               open without them. Others are lovely text editors that have no idea what a chapter is.
             </p>
             <p>
-              Grimoire wanted both: an app that understands your book, and files that stay yours.
+              Grimoire wanted both: an app that understands your project, and files that stay yours.
               So <strong>your folders are your outline.</strong> There's no hidden index, which
-              means there's nothing for two computers to squabble over when your book syncs. Moving
+              means there's nothing for two computers to squabble over when your project syncs. Moving
               a scene is just renaming a file, and backing up is just copying a folder.
             </p>
             <p>
-              And if Grimoire ever disappears, your book doesn't. That promise came first, and
+              And if Grimoire ever disappears, your project doesn't. That promise came first, and
               everything else was built around it. It's why nothing is ever really deleted, too:
               there's autosave, recovery, history for every scene, and a trash you can undo from.
             </p>
             <p class="mute">
               Each scene file can carry a few details at the top, like its title and status.
               Grimoire only reads what it needs and never rewrites the rest, so any other app you
-              open your book in can keep its own notes there too.
+              open your project in can keep its own notes there too.
             </p>
           </section>
 
@@ -205,7 +205,7 @@ const DEFAULT_THEME = 'Rainbow';
             <p>Folders are containers, at any depth. Files are scenes. Order comes from the name.</p>
             <div class="grid-block">
               <pre><b>the-salt-archive/</b>
-├─ novel.toml                    <i>title, targets, your details</i>
+├─ project.toml                    <i>title, targets, your details</i>
 ├─ manuscript/
 │  └─ 01-Part-One/
 │     ├─ 01-Chapter-One/
@@ -236,12 +236,12 @@ const DEFAULT_THEME = 'Rainbow';
                 <tr><td>Esc</td><td>the menu: a short list, everything else one step down, and every row says what it does</td></tr>
                 <tr><td>F1 · ?</td><td>the help — every feature explained, opened where you are</td></tr>
                 <tr><td>Ctrl-K</td><td>find anything: actions, scenes, notes, themes</td></tr>
-                <tr><td>Esc › New book</td><td>start a whole new book, name it, and you're in</td></tr>
+                <tr><td>File › New project…</td><td>start a whole new project, name it, and you're in</td></tr>
                 <tr><td>Tab</td><td>switch pane</td></tr>
                 <tr><td>n · c · p</td><td>new scene · chapter · part, named and placed for you</td></tr>
                 <tr><td>r · d</td><td>rename · delete (to the trash, and undoable)</td></tr>
                 <tr><td>Ctrl-D</td><td>focus mode — just the prose, centred</td></tr>
-                <tr><td>Ctrl-T</td><td>every %% note %% and TK in the book</td></tr>
+                <tr><td>Ctrl-T</td><td>every %% note %% and TK in the project</td></tr>
                 <tr><td>v</td><td>another scene beside this one, read-only</td></tr>
                 <tr><td>F8</td><td>spelling — or click the underlined word</td></tr>
                 <tr><td>Ctrl-Z · Ctrl-Y</td><td>undo · redo, in the prose and in the tree</td></tr>
@@ -276,7 +276,7 @@ const DEFAULT_THEME = 'Rainbow';
             </figure>
             <p>
               Notes between <code>%%</code> marks and <code>TK</code> placeholders never reach the
-              book or the word count. Vertical movement is <strong>visual, not logical</strong>:
+              project or the word count. Vertical movement is <strong>visual, not logical</strong>:
               Down moves one screen row inside a wrapped paragraph, which is the only behaviour
               that feels right for prose.
             </p>
@@ -320,7 +320,7 @@ const DEFAULT_THEME = 'Rainbow';
           <section id="sync" role="tabpanel" aria-labelledby="tab-sync">
             <h2>sync</h2>
             <p>
-              A book is a folder, so any sync service carries it. Grimoire makes sure none of them
+              A project is a folder, so any sync service carries it. Grimoire makes sure none of them
               can lose your words.
             </p>
             <figure class="shot">
@@ -465,7 +465,7 @@ const DEFAULT_THEME = 'Rainbow';
                 alt="Buy Me a Coffee at ko-fi.com" /></a>
             </p>
             <p class="mute">
-              In the app it's <em>Esc › Help &amp; about › Donate…</em>. Thank you for writing with it.
+              In the app it's <em>Help › Donate…</em>. Thank you for writing with it.
             </p>
             <p>
               Another way to help: Grimoire comes from <a href={STUDIO}>Catfinity Studios</a>, and
@@ -485,7 +485,7 @@ const DEFAULT_THEME = 'Rainbow';
             <ul>
               <li><strong>Use it for anything, commercial work included.</strong> Write with it, sell what you write, use it at your day job, or build it into something you sell. All of that is welcome.</li>
               <li><strong>Credit is required.</strong> If you share Grimoire, or ship something built on its code, keep its copyright notice and license with it, so folks can see where it came from.</li>
-              <li><strong>Your books are yours.</strong> Everything you write in Grimoire belongs to you, and it never has to mention Grimoire.</li>
+              <li><strong>Your projects are yours.</strong> Everything you write in Grimoire belongs to you, and it never has to mention Grimoire.</li>
               <li><strong>A donation is appreciated, never required.</strong> If Grimoire has helped you and you'd like to give something back, there's <a href={KOFI}>Ko-fi</a>. It all goes toward Grimoire's development.</li>
             </ul>
             <p class="mute">
@@ -803,7 +803,7 @@ const DEFAULT_THEME = 'Rainbow';
           heroTheme.textContent = t.name;
           const src = `/shots/themes/${t.slug}.webp`;
           if (!hero.src.endsWith(src)) hero.src = src;
-          hero.alt = `Grimoire in the ${t.name} theme: a book's outline under a spellbook, a scene being written and the Pomodoro`;
+          hero.alt = `Grimoire in the ${t.name} theme: a project's outline under a spellbook, a scene being written and the Pomodoro`;
           pomo.hidden = !rainbow;
           pomoImg.hidden = rainbow;
           if (!rainbow) pomoImg.src = `/shots/themes/pomodoro-${t.slug}.webp`;

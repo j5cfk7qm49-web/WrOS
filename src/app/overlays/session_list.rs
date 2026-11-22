@@ -122,20 +122,20 @@ pub(super) fn draw_sessions_off(f: &mut Frame, _app: &App, area: Rect, t: &Theme
     let text = Style::default().fg(t.text);
     let lines = vec![
         Line::from(Span::styled(
-            " Keep each writing session as a snapshot of the whole book, labelled",
+            " Keep a snapshot of the whole project for each writing session,",
             text,
         )),
         Line::from(Span::styled(
-            " like a diary line — “Tuesday evening · Act Two · 1,240 words” — so you",
+            " with a label like “Tuesday evening · Act Two · 1,240 words”.",
             text,
         )),
         Line::from(Span::styled(
-            " can see what changed on any evening, and get any of it back.",
+            " See what changed on any evening, and get any of it back.",
             text,
         )),
         Line::from(""),
         Line::from(Span::styled(
-            " It keeps local Git history; older books may keep it inside the book.",
+            " Git history is local. Older projects may keep it in their folder.",
             dim,
         )),
         Line::from(Span::styled(
@@ -148,7 +148,7 @@ pub(super) fn draw_sessions_off(f: &mut Frame, _app: &App, area: Rect, t: &Theme
                 " y ",
                 Style::default().fg(t.accent).add_modifier(Modifier::BOLD),
             ),
-            Span::styled("turn it on for this book   ", text),
+            Span::styled("turn it on for this project   ", text),
             Span::styled("any other key", key_style(t)),
             Span::styled(": not now", dim),
         ]),

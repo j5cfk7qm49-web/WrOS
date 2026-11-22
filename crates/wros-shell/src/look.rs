@@ -156,7 +156,7 @@ mod tests {
             ["space", "←→", "[ ]", "+/-"]
         );
         assert_eq!(
-            keys("   ↵ next  ↑ previous  Tab replace  ^F whole book"),
+            keys("   ↵ next  ↑ previous  Tab replace  ^F whole project"),
             ["↵", "↑", "Tab", "^F"]
         );
         let spans = hint_spans(" y delete", theme());

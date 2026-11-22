@@ -745,7 +745,11 @@ const GOALS: [(&str, Metric, u64); 9] = [
     ("Daily input additions", Metric::InputAdded, 500),
     ("Weekly keyboard additions", Metric::TypedAdded, 3500),
     ("Monthly recorded net change", Metric::NetInput, 10000),
-    ("Native current novel words", Metric::ManuscriptWords, 80000),
+    (
+        "Native current project words",
+        Metric::ManuscriptWords,
+        80000,
+    ),
     ("Native current scene words", Metric::SceneWords, 1000),
     ("Daily observed active minutes", Metric::ActiveMinutes, 30),
     ("Daily revision operations", Metric::RevisionOperations, 10),
@@ -898,7 +902,11 @@ impl App {
                     ));
                 }
                 if p.config.goals.is_empty() {
-                    rows.push("No advanced goals yet. n chooses a configurable daily/weekly/monthly/novel/scene/time/revision/deadline target.".into());
+                    rows.push(
+                        "No advanced goals yet. n chooses a configurable \
+                         daily/weekly/monthly/project/scene/time/revision/deadline target."
+                            .into(),
+                    );
                 }
                 rows.push("The footnote setting applies to recorded totals and word goals. Native goals use the manuscript's own word count.".into());
             }

@@ -8,9 +8,9 @@ Harper 2.13 includes a bundled part-of-speech tagger and neural chunker. This is
 
 Opening the reader does not authorize a check. Press **r**, read the permission page and press **y** to run once. Permission for this once-only mode lasts only for this process, unless you previously allowed this runtime in your personal profile. No result or source prose is saved in diagnostic metadata.
 
-Press **l**, review the scope, then **y** to enable live analysis for this novel and remember permission for this exact runtime in your personal profile. Both novel consent and a personal canonical-project-location/runtime binding are needed on a fresh launch. Importing novel metadata at a new location cannot enable live work even in a previously-consented profile. Moving a project requires re-enrollment. The reference is not authentication against profile changes or reuse of an already-authorized directory. These are two separately guarded writes, not a cross-file atomic transaction. If the second fails, personal permission may be recorded but live checks stay off without novel consent.
+Press **l**, review the scope, then **y** to enable live analysis for this project and remember permission for this exact runtime in your personal profile. Both project consent and a personal canonical-project-location/runtime binding are needed on a fresh launch. Importing project metadata at a new location cannot enable live work even in a previously-consented profile. Moving a project requires re-enrollment. The reference is not authentication against profile changes or reuse of an already-authorized directory. These are two separately guarded writes, not a cross-file atomic transaction. If the second fails, personal permission may be recorded but live checks stay off without project consent.
 
-Press **l** while live to stop it. A failed preference write still stops this process and visibly reports whether personal-binding revocation and novel-off persistence each succeeded. **c** clears results and pauses this process without changing the saved live preference. Editing, spelling, saving and ordinary writing do not require analysis.
+Press **l** while live to stop it. A failed preference write still stops this process and visibly reports whether personal-binding revocation and project-off persistence each succeeded. **c** clears results and pauses this process without changing the saved live preference. Editing, spelling, saving and ordinary writing do not require analysis.
 
 ## Review, never automatic rewriting
 
@@ -19,10 +19,10 @@ Press **l** while live to stop it. A failed preference write still stops this pr
 - **Enter** selects the original source, without changing it.
 - **a** explicitly applies the selected, source-safe alternative as one ordinary undoable replacement. **Ctrl-Z** in the editor undoes it. This is replacement activity, not typing credit.
 - **i** ignores this finding for the current pass only, without writing a file.
-- **n** mutes this rule for the novel; **G** asks before muting the rule across novels in this personal profile. Rule mutes contain engine/version/rule identifiers, not phrases or copied prose.
+- **n** mutes this rule for the project; **G** asks before muting the rule across projects in this personal profile. Rule mutes contain engine/version/rule identifiers, not phrases or copied prose.
 - **s** opens policy settings; **u** explicitly reloads settings. Broken/future/conflicting data is preserved, never reset by opening the reader.
 
-After a policy/mute change, press **r** to check once again, or let enabled live checks run after idle. Novel and personal mutes are version-bound. A changed rule version is not silently treated as identical. Clear novel or personal mutes separately in Settings, with confirmation. Settings **k** separately asks to revoke all saved personal model permission/location bindings; this process stops, but other already-running instances need reload or exit.
+After a policy/mute change, press **r** to check once again, or let enabled live checks run after idle. Project and personal mutes are version-bound. A changed rule version is not silently treated as identical. Clear project or personal mutes separately in Settings, with confirmation. Settings **k** separately asks to revoke all saved personal model permission/location bindings; this process stops, but other already-running instances need reload or exit.
 
 ## Source coordinates and safe edits
 
@@ -42,7 +42,7 @@ Live work waits 0.9 seconds after a changed source is observed, or 2 seconds in 
 
 Harper checks at most **65,536 source bytes per document** and displays up to **256 findings**. A larger source is explicitly **not checked**, not silently truncated or declared clear. Empty or excluded material does not initialize a model. One-off worker references go idle after 30 seconds without work. Cancellation discards work/results, but does not interrupt an already-running native parser; it may finish asynchronously. Shared dictionary and allocator memory may remain until exit. These bounds are software behavior, not physical battery or loaded-performance certification.
 
-Settings: novel `.grimoire/writingdeck/checks.json`; personal `$HOME/.grimoire/writingdeck/checks-global.json`. Reads do not create either file. Unknown, corrupt, future, linked or externally changed metadata is preserved and reported. Metadata hashes are not authentication.
+Settings: project `.grimoire/writingdeck/checks.json`; personal `$HOME/.grimoire/writingdeck/checks-global.json`. Reads do not create either file. Unknown, corrupt, future, linked or externally changed metadata is preserved and reported. Metadata hashes are not authentication.
 
 ## Optional additional lesson
 

@@ -194,7 +194,7 @@ pub(super) fn draw_cork(
     let groups = cork::board(&app.project, part);
     let where_ = part
         .map(|i| app.project.nodes[i].title.to_uppercase())
-        .unwrap_or_else(|| "THE BOOK".into());
+        .unwrap_or_else(|| "THE PROJECT".into());
     let head = match pov {
         Some(p) => format!("CORKBOARD · {where_} · POV: {p}"),
         None => format!("CORKBOARD · {where_}"),

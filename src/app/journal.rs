@@ -420,7 +420,9 @@ impl App {
             return;
         }
         if !self.journal.had_manuscript_save {
-            self.msg="No successful manuscript save in this app/book context; viewing or note editing is not a writing fact".into();
+            self.msg = "No successful manuscript save in this app/project context; \
+                        viewing or note editing is not a writing fact"
+                .into();
             return;
         }
         if let Err(e) = self.ensure_document_claims() {
@@ -563,7 +565,7 @@ fn fact_rows(day: &Day, start: usize, height: usize) -> Vec<Line<'static>> {
                 .format("%H:%M:%S %:z")
         )));
         rows.push(Line::from(format!(
-            "Book {} · daily net {} · since-open delta {}",
+            "Project {} · daily net {} · since-open delta {}",
             o.manuscript_words,
             o.daily_net_words
                 .map(|n| format!("{n:+}"))

@@ -2,7 +2,7 @@
 
 ## Home and workspace slots
 
-F12 opens the home dashboard with existing book data: resume/current manuscript, daily net growth and target, novel target, recorded weekly progress, sprint, recent scenes, battery, backup indication and system status. Missing devices/services show unavailable. Local saving/history is not mislabeled off-device backup.
+F12 opens the home dashboard with existing project data: resume/current manuscript, daily net growth and target, the Project word goal, recorded weekly progress, sprint, recent scenes, battery, backup indication and system status. Missing devices/services show unavailable. Local saving/history is not mislabeled off-device backup.
 
 Arrow keys/Enter navigate; `h` hides a widget; `J`/`K` reorder it; Configure widgets restores hidden widgets. Home scrolls to the selection at 80×24 and is tested at 100×30, 120×40 and 160×50. Start-at-dashboard is optional in System settings; conventional development defaults to writing, appliance first launch to home.
 
@@ -44,7 +44,7 @@ Cursor/selection/scroll/layout persist across restart; **the transient undo stac
 
 ## Failure and external-change behavior
 
-An external edit to an open document is adopted only through the existing guarded Project path. A concurrent local version is parked and retained; the matching active or inactive editor is updated so a later flush cannot put stale text back. Bulk book replacement, book undo/redo, notebook-name fixes and recovered-word restoration update the owning editor too.
+An external edit to an open document is adopted only through the existing guarded Project path. A concurrent local version is parked and retained; the matching active or inactive editor is updated so a later flush cannot put stale text back. Bulk project replacement, project undo/redo, notebook-name fixes and recovered-word restoration update the owning editor too.
 
 A clean external rename is followed only when an unambiguous unchanged fingerprint identifies the moved file, excluding trash/parked versions and another view's document. Dirty missing-file text is first parked by the existing disk-check path; a waiting save is not permission to detach it. Ambiguous duplicate contents are not guessed between. Deleting/trashing a file or folder closes every affected editable view and stashes its in-process undo for recoverable tree operations.
 
@@ -54,7 +54,7 @@ If two previously distinct open paths become aliases, saves, reload adoption and
 
 ## Verification
 
-`src/ui_tests.rs` adds **28 `wros_secondary_*` tests**, retaining the original home/layout/help/menu/key regressions. They cover all four terminal sizes, real editing, independent selection/undo/clipboard routing, hidden/tiny/wide layouts, mouse/free scroll, find/spelling, autosave of an inactive hidden buffer, YAML round-trip, alias ownership/revalidation, clean and dirty external changes/renames, ambiguous moves, book-wide replace/undo, save failure, crash rescue and dual recovery, non-UTF-8 refusal, history restore, trash/settled-conflict closure, workspace role swaps/restart and actual lesson 13 completion.
+`src/ui_tests.rs` adds **28 `wros_secondary_*` tests**, retaining the original home/layout/help/menu/key regressions. They cover all four terminal sizes, real editing, independent selection/undo/clipboard routing, hidden/tiny/wide layouts, mouse/free scroll, find/spelling, autosave of an inactive hidden buffer, YAML round-trip, alias ownership/revalidation, clean and dirty external changes/renames, ambiguous moves, project-wide replace/undo, save failure, crash rescue and dual recovery, non-UTF-8 refusal, history restore, trash/settled-conflict closure, workspace role swaps/restart and actual lesson 13 completion.
 
 Core registry tests cover canonical/device-inode ownership, rejected paths, failed claim retention, missing files and atomic replacement. Workspace tests cover v1 migration, both selections/positions and unknown/future/conflicting data preservation. Editor tests verify Unicode/multiline selection replacement as one undo step.
 

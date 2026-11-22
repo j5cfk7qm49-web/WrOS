@@ -57,7 +57,7 @@ cargo test --no-default-features --features test-driver,pty-qa --test driven
 
 Adding `gui-wgpu` runs the real writing window under headless cage with Mesa
 OpenGL. A test-only Wayland keyboard sends physical Colemak keys and a compose
-sequence, then saves and checks the disposable book. It needs `cage`, `foot`,
+sequence, then saves and checks the disposable project. It needs `cage`, `foot`,
 `libxkbcommon-dev`, `libwayland-dev`, `libegl1-mesa-dev` and Mesa's runtime drivers.
 The retained Debian CI installs these packages and runs this test; a missing
 renderer is a failure. Nix CI runs it as the `rust-driven-suite` check, with the
@@ -116,7 +116,7 @@ disposable local bare Git remote. It proves startup, explicit local snapshot,
 quit and restart leave that remote empty and never invoke Git push/fetch/pull
 or transport commands. Local committed prose, history browsing and Undo are
 verified. A second case adds the remote during an open session. The old binary
-fails before the first edit because opening the book pushes its history.
+fails before the first edit because opening the project pushes its history.
 No external server, credentials or real manuscript is involved. Captures under
 `build/verification/local-session-privacy-screens` use
 `WROS_CAPTURE_PTY=1`. Native verified backup/restore remains separate.
@@ -125,7 +125,7 @@ No external server, credentials or real manuscript is involved. Captures under
 ## Shared story registry recovery boundary
 
 `crates/grimoire-core/tests/story_identity.rs` checks lost/empty registries,
-late orphan references before allocation, book-wide records and invalid bounded
+late orphan references before allocation, project-wide records and invalid bounded
 dependencies. `test_story_identity_pty.py` uses the actual app at all four
 sizes, retains the original registry as a fixture backup, proves wrong-target
 restore is refused without changing source/sidecars, exercises normal writing
@@ -257,9 +257,9 @@ Image and boot commands are in [INSTALLATION](INSTALLATION.md). The one-shot VM-
 
 ## Missing acceptance tests and release gates
 
-Remaining acceptance work includes release-specific physical install, unlock and recovery; full keyboard and device matrices; sleep/wake, Wi-Fi and battery behavior; broader interruption and power-loss tests; large-book resource budgets; provider restore and document round trips; independent editorial and rights review; and end-to-end acceptance of all 50 tutorial lessons. Existing DOCX/PDF footnote, continuity and NixOS install/update tests are defined in the tree; record candidate results separately.
+Remaining acceptance work includes release-specific physical install, unlock and recovery; full keyboard and device matrices; sleep/wake, Wi-Fi and battery behavior; broader interruption and power-loss tests; large-project resource budgets; provider restore and document round trips; independent editorial and rights review; and end-to-end acceptance of all 50 tutorial lessons. Existing DOCX/PDF footnote, continuity and NixOS install/update tests are defined in the tree; record candidate results separately.
 
-Safely simulate power-loss/save failures with injected rename/transport/filesystem behavior or disposable VM images. Never corrupt the user's only manuscript. For a crash process test use a new fixture book, verify recovery copies, then explicitly restore into a separate fixture. VM timer/commit reapplication is not yet a full reboot-persistence/cold-resume hardware test.
+Safely simulate power-loss/save failures with injected rename/transport/filesystem behavior or disposable VM images. Never corrupt the user's only manuscript. For a crash process test use a new fixture project, verify recovery copies, then explicitly restore into a separate fixture. VM timer/commit reapplication is not yet a full reboot-persistence/cold-resume hardware test.
 
 ## Performance interpretation
 
@@ -278,7 +278,7 @@ The actual four-size PTY flow saves and links an original scratch note, promotes
 
 Prepared creation/retry and exact-target completion-write-failure tests synthesize durable phase/I/O conditions and restore known metadata before retry. They verify retained receipt/original/snapshot bytes, not real kernel power cuts, locks or cross-file atomicity. Rendering remains file/command-free. The separate VM boot probe does not perform these workflow interactions. Curated real 80×24 terminal frames are in [workflow-pty-screen.txt](evidence/workflow-pty-screen.txt); the small cursor/erase/UTF-8 tracker is not a full terminal emulator.
 
-To recapture the curated demo-only terminal frames, first build the no-audio binary, then run `python3 tools/capture-wros-screens.py` as a normal user. It uses new temporary projects/HOME, performs real saves/promotion/process restart and replaces only the two curated evidence text files; no user novel or host console mapping is opened. Review the resulting frames before recording their hashes.
+To recapture the curated demo-only terminal frames, first build the no-audio binary, then run `python3 tools/capture-wros-screens.py` as a normal user. It uses new temporary projects/HOME, performs real saves/promotion/process restart and replaces only the two curated evidence text files; no user project or host console mapping is opened. Review the resulting frames before recording their hashes.
 
 ## Initial M5 verification
 
@@ -296,7 +296,7 @@ The complete verifier runs both overlapping Rust configurations, both warning-de
 
 ## M7a common diagnostics / real optional Harper
 
-[Writing checks](WRITING_CHECKS.md) separates core controlled offset/fault/queue fixtures from actual pinned engine runs; 15 targeted UI cases include a genuine worker at all four sizes and genuine demo grammar replacement, plus location-bound consent/revocation/idle cleanup. Five `test_checks_pty.py` methods use the actual no-audio binary, disposable demo/HOME and real models: Unicode apply/undo/restart, once/novel/personal mutes, copied-novel consent, future/external refusal, edits during an in-flight check and supplementary lesson-40 proof retaining original 26. Ledger assertions wait for durable origin checkpoints, not merely source writes; analysis/debounce does not grant authorship credit.
+[Writing checks](WRITING_CHECKS.md) separates core controlled offset/fault/queue fixtures from actual pinned engine runs; 15 targeted UI cases include a genuine worker at all four sizes and genuine demo grammar replacement, plus location-bound consent/revocation/idle cleanup. Five `test_checks_pty.py` methods use the actual no-audio binary, disposable demo/HOME and real models: Unicode apply/undo/restart, once/project/personal mutes, copied-project consent, future/external refusal, edits during an in-flight check and supplementary lesson-40 proof retaining original 26. Ledger assertions wait for durable origin checkpoints, not merely source writes; analysis/debounce does not grant authorship credit.
 
 `tools/audit-writing-checks-assets.py` is a full-verifier gate for nine pinned packaged assets and seven retained upstream notices. Independent training/dictionary/legal/corresponding-source review remains open. [Debug resource measurements](evidence/writing-checks-resources.json) distinguish small Unicode vs specified repetitive 2,340-word fixture, cold/hot/CPU and baseline/kernel-peak RSS. Native cancel does not preempt a running parser or prove cache unloading. No physical battery/production Python claim. The VM-only probe now also requires a non-root actual model/apply/undo result under the installed stripped binary with zero NICs; it records loaded grammar separately from dashboard RSS. See [STATUS](archive/STATUS.md) for whether full software and VM qualification have actually run on the current source.
 

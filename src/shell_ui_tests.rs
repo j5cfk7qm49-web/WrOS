@@ -208,6 +208,63 @@ fn music_settings_cycle_and_save_every_source() {
 }
 
 #[test]
+fn tab_while_typing_a_search_switches_to_all_of_youtube() {
+    if !music_test_home("tab_while_typing_a_search_switches_to_all_of_youtube") {
+        return;
+    }
+    let (mut d, rx) = music_desk("youtube-scope");
+    d.app.open_player();
+    d.key(KeyCode::Char('/'));
+    d.typed("lofi");
+    d.draw();
+    assert!(d.shows("find on YouTube Music"), "{}", d.rows().join("\n"));
+    d.key(KeyCode::Tab);
+    d.draw();
+    assert!(d.shows("find on all of YouTube"), "{}", d.rows().join("\n"));
+    assert!(d.shows("tab: YouTube Music"));
+    assert_eq!(
+        music::Config::load().youtube_search,
+        music::SearchScope::AllOfYoutube,
+        "the choice is kept for next time"
+    );
+    d.key(KeyCode::Enter);
+    let sent: Vec<_> = rx.try_iter().collect();
+    assert!(
+        sent.contains(&music::Cmd::Search {
+            query: "lofi".into(),
+            scope: music::SearchScope::AllOfYoutube,
+        }),
+        "{sent:?}"
+    );
+    assert!(d.shows("searching all of YouTube for “lofi”"));
+}
+
+#[test]
+fn youtube_plays_as_it_arrives_until_switched_to_after_downloading() {
+    if !music_test_home("youtube_plays_as_it_arrives_until_switched_to_after_downloading") {
+        return;
+    }
+    let mut desk = Desk::open(book("youtube-play", true), 100, 30);
+    assert_eq!(
+        music::Config::load().youtube_play,
+        music::YoutubePlay::Stream
+    );
+    desk.app.toggle_youtube_play();
+    assert_eq!(desk.app.msg, "YouTube plays after downloading");
+    assert_eq!(
+        music::Config::load().youtube_play,
+        music::YoutubePlay::Download
+    );
+    assert!(!desk.app.music.is_awake(), "switching starts no player");
+    desk.app.toggle_youtube_play();
+    assert_eq!(desk.app.msg, "YouTube plays as it arrives");
+    assert_eq!(
+        music::Config::load().youtube_play,
+        music::YoutubePlay::Stream
+    );
+}
+
+#[test]
 fn jellyfin_setup_masks_password_and_escape_discards_edits() {
     if !music_test_home("jellyfin_setup_masks_password_and_escape_discards_edits") {
         return;
@@ -1488,7 +1545,7 @@ fn switching_sync_on_enables_the_book_then_syncs_and_shows_the_result() {
     desk.draw();
     assert!(desk.shows("Readable copies in Drive are not encrypted"));
     desk.key(KeyCode::Home);
-    desk.choose("Sync this book with Google Drive (readable files)");
+    desk.choose("Sync this project with Google Drive (readable files)");
     wait_sync(&mut desk);
     wait_sync(&mut desk);
     let ops: Vec<_> = sync_log(&dir)
@@ -1498,7 +1555,7 @@ fn switching_sync_on_enables_the_book_then_syncs_and_shows_the_result() {
     assert_eq!(ops, ["enable", "sync"]);
     assert!(desk.shows("    Synced "), "{}", desk.rows().join("\n"));
     assert!(desk.shows("1 up, 2 down, 0 deleted"));
-    assert!(desk.shows("Stop syncing this book"));
+    assert!(desk.shows("Stop syncing this project"));
     let next = desk.app.deck.shell.backup.sync.next.unwrap();
     assert!(next > std::time::Instant::now() + std::time::Duration::from_secs(4 * 60));
 }
@@ -2584,7 +2641,7 @@ fn update_path_entry_refuses_reserved_locations_without_sending_anything() {
         wait_system(&mut desk);
         let before = world.calls().len();
         desk.choose("Review a signed update bundle by path");
-        assert!(desk.shows("Create an encrypted backup first to keep your books safe."));
+        assert!(desk.shows("Create an encrypted backup first to keep your projects safe."));
         for (path, why) in [
             ("relative/bundle", "absolute directory path"),
             ("/etc", "update media"),
@@ -3046,7 +3103,7 @@ fn update_backup_not_set_up_does_not_block_but_is_shown_and_no_backup_is_never_c
     wait_system(&mut desk);
     reach_confirm(&mut desk);
     set_backup(&mut desk, false, false);
-    assert!(desk.shows("Backup: none is set up. An encrypted backup keeps your books safe."));
+    assert!(desk.shows("Backup: none is set up. An encrypted backup keeps your projects safe."));
     desk.key(KeyCode::Down);
     desk.key(KeyCode::Enter);
     wait_system(&mut desk);
@@ -3289,7 +3346,7 @@ fn recovery_shows_update_state_and_repair_sits_behind_a_default_cancel_confirmat
         system_panel(&mut desk, 6);
         wait_system(&mut desk);
         assert!(desk.shows("Each update keeps the previous WrOS version in the start menu."));
-        assert!(desk.shows("Create an encrypted backup to keep your books safe."));
+        assert!(desk.shows("Create an encrypted backup to keep your projects safe."));
         desk.choose("Recovery status, repair and staged update");
         wait_system(&mut desk);
         assert_eq!(route(&desk), Route::RecoveryView);
@@ -3785,8 +3842,86 @@ fn suspend_saves_and_arms_the_console_handoff_at_four_sizes() {
     }
 }
 
+/// A project in the private home's Documents, as the shelf finds it.
+fn documents_project(name: &str, old_names: bool) -> PathBuf {
+    let root = grimoire_core::paths::home().join("Documents").join(name);
+    fs::create_dir_all(&root).unwrap();
+    project::scaffold(&root).unwrap();
+    if old_names {
+        grimoire_core::project_files::restore_legacy(&root).unwrap();
+    }
+    fs::canonicalize(root).unwrap()
+}
+
+#[test]
+fn going_back_to_rc21_renames_projects_back_first() {
+    // Going back renames projects in ~/Documents: only ever in a private home.
+    if !music_test_home("going_back_to_rc21_renames_projects_back_first") {
+        return;
+    }
+    let renamed = documents_project("Alpha", false);
+    let already_old = documents_project("Beta", true);
+    let open = fs::canonicalize(book("go-back-names", true)).unwrap();
+    let mut desk = Desk::open(open.clone(), 120, 30);
+    let world = UpdateWorld::install(&mut desk);
+    world.sim.lock().unwrap().recovery.previous_version = Some("wros 0.1.0~rc21".into());
+    system_panel(&mut desk, 5);
+    wait_system(&mut desk);
+    desk.app.refresh_recovery();
+    wait_system(&mut desk);
+    desk.key(KeyCode::Home);
+    desk.choose("Go back to wros 0.1.0~rc21");
+    assert!(
+        desk.shows("Renames 2 projects' files back to the names wros 0.1.0~rc21 reads"),
+        "{}",
+        desk.rows().join("\n")
+    );
+    assert!(
+        renamed.join("project.toml").is_file(),
+        "nothing moves before confirming"
+    );
+
+    desk.choose("Go back to wros 0.1.0~rc21 · installs at the next restart");
+    wait_system(&mut desk);
+    assert_eq!(world.count(|r| *r == Request::GoBackToPreviousVersion), 1);
+    for root in [&renamed, &open] {
+        assert!(root.join("novel.toml").is_file(), "{}", root.display());
+        assert!(!root.join("project.toml").exists(), "{}", root.display());
+    }
+    assert!(already_old.join("novel.toml").is_file());
+    // Nothing renames them forward again before the restart.
+    desk.app.names_checked = None;
+    desk.app.tick_project_names();
+    assert!(open.join("novel.toml").is_file());
+}
+
+#[test]
+fn going_back_to_rc22_or_later_renames_nothing() {
+    if !music_test_home("going_back_to_rc22_or_later_renames_nothing") {
+        return;
+    }
+    let project = documents_project("Gamma", false);
+    let mut desk = Desk::open(book("go-back-rc22", true), 120, 30);
+    let world = UpdateWorld::install(&mut desk);
+    world.sim.lock().unwrap().recovery.previous_version = Some("wros 0.1.0~rc22".into());
+    system_panel(&mut desk, 5);
+    wait_system(&mut desk);
+    desk.app.refresh_recovery();
+    wait_system(&mut desk);
+    desk.key(KeyCode::Home);
+    desk.choose("Go back to wros 0.1.0~rc22");
+    assert!(!desk.shows("Renames"), "{}", desk.rows().join("\n"));
+    desk.choose("Go back to wros 0.1.0~rc22 · installs at the next restart");
+    wait_system(&mut desk);
+    assert!(project.join("project.toml").is_file());
+}
+
 #[test]
 fn going_back_is_offered_only_with_a_kept_version_and_asks_before_staging() {
+    // Going back can rename projects in ~/Documents: only ever in a private home.
+    if !music_test_home("going_back_is_offered_only_with_a_kept_version_and_asks_before_staging") {
+        return;
+    }
     let mut desk = Desk::open(book("update-go-back", true), 120, 30);
     let world = UpdateWorld::install(&mut desk);
     system_panel(&mut desk, 5);
@@ -3959,7 +4094,7 @@ fn settings_opens_as_a_box_with_the_page_visible_around_it() {
         rows[0]
     );
     assert!(
-        rows.iter().any(|r| r.contains("Novel Format")),
+        rows.iter().any(|r| r.contains("Project Format")),
         "the outline shows beside it"
     );
     assert!(

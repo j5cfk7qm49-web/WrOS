@@ -20,7 +20,7 @@ View › Show the pins sidebar, or Toggle pins sidebar in Find anything, shows i
 
 `space` collapses a card, `+` and `-` change its height, `c` cycles its color, `g` edits its category, and `J` and `K` change its order. These settings and scroll positions persist outside manuscript text.
 
-`s` cycles **Always → Novel → Chapter → Scene → Dashboard → Hidden**. Always means this project, not every book. Chapter and scene scopes capture the current manuscript context in Primary, regardless of which editor is focused. Open a manuscript scene in Primary before capturing those scopes. Hidden cards stay accessible in Pinboard. Dashboard-only and Always cards appear beside the home widgets when space permits and the Dashboard pins widget is visible; overflow and narrow-screen cards remain available in Pinboard.
+`s` cycles **Always → Project → Chapter → Scene → Dashboard → Hidden**. Always shows the pin in this project's writing view and on its dashboard. Chapter and scene scopes capture the current manuscript context in Primary, regardless of which editor is focused. Open a manuscript scene in Primary before capturing those scopes. Hidden cards stay accessible in Pinboard. Dashboard-only and Always cards appear beside the home widgets when space permits and the Dashboard pins widget is visible; overflow and narrow-screen cards remain available in Pinboard.
 
 ## Archive, Trash and safe persistence
 

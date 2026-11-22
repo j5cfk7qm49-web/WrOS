@@ -60,23 +60,23 @@ pkgs.testers.runNixOSTest {
             wait_screen(r"(?s)\A(?!.*WrOS · Overview)")
         installed.send_key("ctrl-k")
         wait_screen("FIND ANYTHING")
-        installed.send_chars("Open another book")
-        enter_row(r"^Open another book")
-        wait_screen("OPEN ANOTHER BOOK")
+        installed.send_chars("Open another project")
+        enter_row(r"^Open another project")
+        wait_screen("YOUR PROJECTS")
 
     def book_header(title):
         return "┌ " + title.upper() + " "
 
     def import_book():
         open_shelf()
-        enter_row(r"^Import a book")
+        enter_row(r"^Import a project")
         wait_screen(r"Google Drive\s+│")
         enter_row(r"^Google Drive$")
-        wait_screen(r"Timeline Book.*book.*synced")
-        enter_row(r"^Timeline Book.*book.*synced")
+        wait_screen(r"Timeline Book.*project.*synced")
+        enter_row(r"^Timeline Book.*project.*synced")
         wait_screen(r"Copied to ~/Documents/Timeline Book and checked\.")
         installed.send_key("ret")
-        wait_screen(r"(?s)\A(?!.*IMPORT A BOOK).*" + book_header("Timeline Book"))
+        wait_screen(r"(?s)\A(?!.*IMPORT A PROJECT).*" + book_header("Timeline Book"))
 
     def switch_book(title):
         header = book_header(title)
@@ -87,7 +87,7 @@ pkgs.testers.runNixOSTest {
             # The book opens in its editor, or on its Overview ("Grimoire · Drafting").
             overview = "│" + title + " · "
             text = wait_screen(
-                r"(?s)\A(?!.*OPEN ANOTHER BOOK).*(?:" + re.escape(header) + "|"
+                r"(?s)\A(?!.*YOUR PROJECTS).*(?:" + re.escape(header) + "|"
                 + re.escape(overview) + "|Syncing before leaving)"
             )
             if header in text or overview in text:
@@ -117,7 +117,8 @@ pkgs.testers.runNixOSTest {
         return shlex.join(["runuser", "-u", "writer", "--", "git", "--git-dir", repo, *args])
 
     def repository():
-        book_id = local + "/.grimoire/book-id"
+        # A project brought in has no id yet; WrOS gives it one under the rc22 name.
+        book_id = local + "/.grimoire/project-id"
         installed.wait_until_succeeds("test -s " + shlex.quote(book_id))
         identifier = installed.succeed("cat " + shlex.quote(book_id)).strip()
         return data + f"/sessions/{identifier}.git"
@@ -168,6 +169,15 @@ pkgs.testers.runNixOSTest {
             "test -s " + shlex.quote(data + "/wros/sync/12345678-1234-4234-8234-123456789abc/base.json"),
             timeout=180,
         )
+        # rc22: the project came with novel.toml, and the desk renames it once this version
+        # has said it starts (#164). Its words are unchanged.
+        installed.wait_until_succeeds(
+            "test -f " + shlex.quote(local + "/project.toml")
+            + " && test ! -e " + shlex.quote(local + "/novel.toml"),
+            timeout=120,
+        )
+        assert installed.succeed("cat " + shlex.quote(local + "/project.toml")).strip() \
+            == 'title = "Timeline Book"'
         write_scene("Riverbank", "Water at the gate.")
         write_scene("Watchtower", "Light in the window.")
         switch_book("Grimoire")
@@ -178,7 +188,7 @@ pkgs.testers.runNixOSTest {
         heads = installed.succeed(git(repo, "bundle", "list-heads", first_bundle))
         assert any(f" refs/tags/{tag}\n" in heads for tag in tags), heads
         files = installed.succeed(git(repo, "ls-tree", "-r", "--name-only", "HEAD")).splitlines()
-        assert {*scenes.values(), "novel.toml", "notes/Outline.md", ".grimoire/book-id",
+        assert {*scenes.values(), "project.toml", "notes/Outline.md", ".grimoire/project-id",
                 ".grimoire/resume.md"} <= set(files), files
         for folder in ("journal", "ledger"):
             assert any(p.startswith(f".grimoire/writingdeck/{folder}/") for p in files), files

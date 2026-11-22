@@ -67,7 +67,7 @@ Knowledge stays outside manuscript exports and does not earn typing credit.
 ## Draft milestones and scene variants
 
 Named **Draft milestones** snapshot every compiled manuscript scene across your
-book, while **Scene variants** store reversible alternative versions of the
+project, while **Scene variants** store reversible alternative versions of the
 active scene (such as a different point of view or ending).
 
 - Press `1` for **Named Milestones** and `2` for **Active Scene Variants**.

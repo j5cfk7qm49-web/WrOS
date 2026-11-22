@@ -136,7 +136,12 @@ pub fn books(base: &Path) -> Vec<Book> {
     };
     for entry in entries.flatten() {
         let dir = entry.path();
-        if !dir.join("novel.toml").is_file() {
+        if !grimoire_core::project_files::path(
+            &dir,
+            grimoire_core::project_files::FileKind::Settings,
+        )
+        .is_file()
+        {
             continue;
         }
         let loaded = Project::load(&dir).ok();
@@ -743,6 +748,24 @@ mod tests {
     }
 
     #[test]
+    fn books_lists_folders_with_either_name() {
+        let base = shelf("either-name");
+        for (folder, file, title) in [
+            ("old", "novel.toml", "From before rc22"),
+            ("new", "project.toml", "Renamed"),
+        ] {
+            let dir = base.join(folder);
+            fs::create_dir_all(dir.join("manuscript")).unwrap();
+            fs::write(dir.join(file), format!("title = \"{title}\"\n")).unwrap();
+        }
+        fs::create_dir_all(base.join("just a folder")).unwrap();
+        let mut titles: Vec<String> = books(&base).into_iter().map(|b| b.title).collect();
+        titles.sort();
+        assert_eq!(titles, ["From before rc22", "Renamed"]);
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
     fn a_stale_write_probe_does_not_prevent_choosing_a_writable_shelf() {
         let base = shelf("stale-probe");
         let dir = base.join("books");
@@ -764,7 +787,7 @@ mod tests {
         let to = book.path.join("nested");
         fs::create_dir_all(to.join("Book")).unwrap();
         assert!(shelf::move_books(&base, &to).is_err());
-        assert!(book.path.join("novel.toml").exists());
+        assert!(book.path.join("project.toml").exists());
         fs::remove_dir_all(base).unwrap();
     }
 
@@ -1164,7 +1187,7 @@ mod tests {
 
         assert_eq!(shelf::move_books(&from, &to).unwrap(), 1);
         assert!(
-            to.join("The Crossing").join("novel.toml").is_file(),
+            to.join("The Crossing").join("project.toml").is_file(),
             "the book arrived whole"
         );
         assert!(

@@ -116,7 +116,7 @@ impl Scope {
     /// "the whole book", "chapters 1–3", "the first 10,000 words".
     pub fn describe(&self) -> String {
         match *self {
-            Scope::Whole => "the whole book".into(),
+            Scope::Whole => "the whole project".into(),
             Scope::Chapters { from: 1, to: 1 } => "the first chapter".into(),
             Scope::Chapters { from: 1, to } => format!("the first {to} chapters"),
             Scope::Chapters { from, to } if from == to => format!("chapter {from}"),
@@ -281,7 +281,13 @@ pub fn preflight(p: &Project, opts: &ExportOptions) -> Result<ExportPreflight> {
             severity: crate::preflight::PreflightSeverity::Error,
             category: "Assets".into(),
             scene_id: None,
-            scene_title: Some("novel.toml".into()),
+            scene_title: Some(
+                crate::project_files::path(&p.root, crate::project_files::FileKind::Settings)
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .into(),
+            ),
             line: None,
             message: format!(
                 "Configured ebook cover '{}' is missing or is not a valid JPEG/PNG inside the project.",
@@ -705,7 +711,7 @@ pub(crate) fn book<'a>(p: &'a Project, parts: Option<&[usize]>, scope: Scope) ->
         let known = self::parts(p);
         for &i in chosen {
             if !known.iter().any(|&(k, _)| k == i) {
-                bail!("that is not one of the book's {noun}s");
+                bail!("that is not one of the project's {noun}s");
             }
         }
     }

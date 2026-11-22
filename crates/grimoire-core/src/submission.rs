@@ -525,56 +525,54 @@ fn put_key(old: &str, key: &str, value: &str) -> String {
     out
 }
 
-/// Save the byline, the contact block and the manuscript look to novel.toml.
-/// Refuses when novel.toml exists but can't be read, or doesn't read as TOML:
-/// rewriting settings it couldn't see would lose them.
-pub fn save(root: &Path, byline: &str, contact: &Contact, look: &Manuscript) -> Result<()> {
-    let path = root.join("novel.toml");
+/// The project's settings file (project.toml, or novel.toml before rc22), its name, and what
+/// it says. Refuses when it exists but can't be read, or doesn't read as TOML: rewriting
+/// settings it couldn't see would lose them.
+fn settings_text(root: &Path) -> Result<(std::path::PathBuf, String, String)> {
+    let path = crate::project_files::path(root, crate::project_files::FileKind::Settings);
+    let name = path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
     let old = match std::fs::read_to_string(&path) {
         Ok(s) => s,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
         Err(e) => {
             return Err(e).with_context(|| {
                 format!(
-                    "novel.toml can't be read right now, so it wasn't changed ({})",
+                    "{name} can't be read right now, so it wasn't changed ({})",
                     path.display()
                 )
             });
         }
     };
     if !old.trim().is_empty() && toml::from_str::<toml::Table>(&old).is_err() {
-        bail!("novel.toml doesn't read as settings right now, so it wasn't changed");
+        bail!("{name} doesn't read as settings right now, so it wasn't changed");
     }
+    Ok((path, name, old))
+}
+
+/// Save the byline, the contact block and the manuscript look to the project's settings.
+pub fn save(root: &Path, byline: &str, contact: &Contact, look: &Manuscript) -> Result<()> {
+    let (path, name, old) = settings_text(root)?;
     let text = put_key(&old, "author", &quoted(byline.trim()));
     let text = put_table(&text, "contact", &contact_table(contact));
     let text = put_table(&text, "manuscript", &manuscript_table(look));
     // Never write a file that wouldn't read back.
-    toml::from_str::<toml::Table>(&text).context("the new novel.toml didn't read back")?;
+    toml::from_str::<toml::Table>(&text)
+        .with_context(|| format!("the new {name} didn't read back"))?;
     crate::atomic::write_text(&path, &text)
 }
 
-/// Write the book's goal and a day's into novel.toml, leaving everything
-/// else in it as it was.
+/// Write the project's goal and a day's into its settings, leaving everything else in them as
+/// it was.
 pub fn save_goals(root: &Path, book: usize, day: usize) -> Result<()> {
-    let path = root.join("novel.toml");
-    let old = match std::fs::read_to_string(&path) {
-        Ok(s) => s,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
-        Err(e) => {
-            return Err(e).with_context(|| {
-                format!(
-                    "novel.toml can't be read right now, so it wasn't changed ({})",
-                    path.display()
-                )
-            });
-        }
-    };
-    if !old.trim().is_empty() && toml::from_str::<toml::Table>(&old).is_err() {
-        bail!("novel.toml doesn't read as settings right now, so it wasn't changed");
-    }
+    let (path, name, old) = settings_text(root)?;
     let text = put_key(&old, "target_words", &book.to_string());
     let text = put_key(&text, "daily_target", &day.to_string());
-    toml::from_str::<toml::Table>(&text).context("the new novel.toml didn't read back")?;
+    toml::from_str::<toml::Table>(&text)
+        .with_context(|| format!("the new {name} didn't read back"))?;
     crate::atomic::write_text(&path, &text)
 }
 

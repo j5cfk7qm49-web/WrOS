@@ -44,6 +44,7 @@ pub(crate) mod milestones;
 pub(crate) mod overlays;
 pub(crate) mod pins;
 pub(crate) mod productivity;
+pub(crate) mod project_names;
 pub(crate) mod prose_dashboard;
 pub(crate) mod review_notes;
 pub(crate) mod shell;
@@ -357,6 +358,12 @@ pub struct App {
     tree_stale: bool,
     /// The sync service the book's folder is in, if any (said at launch).
     pub cloud: Option<grimoire_core::cloud::Client>,
+    /// The project whose file names were last checked (rc22 renamed them), and whether
+    /// renaming is held off for this session (Go back put the old names back).
+    pub(crate) names_checked: Option<PathBuf>,
+    pub(crate) names_held: bool,
+    /// A project found with old names, waiting until they may be renamed.
+    pub(crate) names_waiting: Option<PathBuf>,
     /// The book still keeps its writing history in `.git` inside it.
     pub history_in_book: bool,
     /// When re-reading the tree last failed; it isn't tried again until
@@ -450,7 +457,7 @@ pub const CARD_W: u16 = 30;
 
 /// The export dialog's "How much" choices.
 pub const SAMPLE_KINDS: [&str; 4] = [
-    "the whole book",
+    "the whole project",
     "the first chapters",
     "chapters",
     "the first words",
@@ -1083,6 +1090,9 @@ impl App {
             last_disk_check: None,
             tree_stale: false,
             cloud: None,
+            names_checked: None,
+            names_held: false,
+            names_waiting: None,
             history_in_book: false,
             reload_failed: None,
             help_fit: std::cell::Cell::default(),
@@ -1125,7 +1135,8 @@ impl App {
             }
             if guide.is_some() {
                 app.msg =
-                    "a new book — this is how it's laid out · Tab to read, Esc for the menu".into();
+                    "a new project — this is how it's laid out · Tab to read, Esc for the menu"
+                        .into();
             }
             app.resume_where_left();
             app.note_where_it_syncs(setup.background);
@@ -1194,7 +1205,7 @@ impl App {
                 self.history_in_book = false;
                 self.sessions_on = sessions::is_enabled(&root);
                 self.msg = format!(
-                    "writing history moved out of the book to {} (the old copy is in the trash)",
+                    "writing history moved out of the project to {} (the old copy is in the trash)",
                     dir.display()
                 );
             }
@@ -1797,7 +1808,7 @@ impl App {
             )
         });
         if let Err(e) = self.reload_tree() {
-            self.msg = format!("couldn't re-read the book: {e}");
+            self.msg = format!("couldn't re-read the project: {e}");
             self.reload_failed = Some(Instant::now());
             self.tree_stale = true;
             return;
@@ -2490,7 +2501,7 @@ impl App {
                     self.reveal(i);
                     self.open_scene(i);
                 } else {
-                    self.msg = "Source is not loaded in this book; current editor kept".into();
+                    self.msg = "Source is not loaded in this project; current editor kept".into();
                 }
             }
             Action::FocusMode => self.toggle_focus_mode(),
@@ -3548,7 +3559,7 @@ impl App {
         if crate::installed_session() {
             if self.timeline.is_some() {
                 self.end_timeline_session(chrono::Local::now());
-                self.msg = "saving the session to the book's timeline".into();
+                self.msg = "saving the session to the project's timeline".into();
             }
             return None;
         }
@@ -3588,7 +3599,7 @@ impl App {
         }
         if !self.sessions_on && self.timeline.is_none() {
             if crate::installed_session() {
-                self.msg = "the book's timeline is unavailable".into();
+                self.msg = "the project's timeline is unavailable".into();
                 return;
             }
             self.overlay = Overlay::SessionsOff;
@@ -3600,9 +3611,9 @@ impl App {
             Ok(list) => {
                 let (pending, backup) = if self.timeline.is_some() {
                     let backup = if self.sync_enabled() {
-                        "book timeline · Google Drive sync enabled"
+                        "project timeline · Google Drive sync enabled"
                     } else {
-                        "local book timeline"
+                        "local project timeline"
                     };
                     (None, backup)
                 } else {
@@ -3917,7 +3928,7 @@ impl App {
             Ignore::Book => self.add_to_book(word),
             Ignore::Everywhere => {
                 let Some(path) = self.user_dict.clone() else {
-                    self.msg = "there's no word list for every book here".into();
+                    self.msg = "there's no word list for every project here".into();
                     return;
                 };
                 match spell::add_user_word(&path, word) {
@@ -3925,7 +3936,7 @@ impl App {
                         if let Some(s) = &mut self.speller {
                             s.add_words([word.to_string()]);
                         }
-                        self.msg = format!("“{word}” is now a word in every book");
+                        self.msg = format!("“{word}” is now a word in every project");
                     }
                     Err(e) => self.msg = format!("couldn't add it: {e}"),
                 }
@@ -3939,7 +3950,7 @@ impl App {
                 if let Some(s) = &mut self.speller {
                     s.add_words([word.to_string()]);
                 }
-                self.msg = format!("“{word}” added to this book's dictionary (dictionary.txt)");
+                self.msg = format!("“{word}” added to this project's dictionary (dictionary.txt)");
             }
             Err(e) => self.msg = format!("couldn't add it: {e}"),
         }
@@ -6073,6 +6084,30 @@ impl App {
         };
         self.refresh_music_file_counts();
         self.msg = format!("music: {}", source.label());
+    }
+
+    /// Settings › Music: YouTube plays as it arrives, or after downloading. A player that is
+    /// running starts again with the new way, so its queue starts over.
+    pub(crate) fn toggle_youtube_play(&mut self) {
+        let mut cfg = music::Config::load();
+        cfg.youtube_play = match cfg.youtube_play {
+            music::YoutubePlay::Stream => music::YoutubePlay::Download,
+            music::YoutubePlay::Download => music::YoutubePlay::Stream,
+        };
+        if let Err(e) = cfg.save() {
+            self.msg = format!("couldn't save how YouTube plays: {e}");
+            return;
+        }
+        let play = cfg.youtube_play;
+        self.music = if self.music.is_awake() {
+            Music::spawn(cfg)
+        } else {
+            Music::dormant(cfg)
+        };
+        self.msg = match play {
+            music::YoutubePlay::Stream => "YouTube plays as it arrives".into(),
+            music::YoutubePlay::Download => "YouTube plays after downloading".into(),
+        };
     }
 
     pub fn open_theme_picker(&mut self) {

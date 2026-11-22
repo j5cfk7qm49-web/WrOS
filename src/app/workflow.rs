@@ -486,7 +486,12 @@ impl App {
                     position,
                 )
         })();
-        self.msg=match result {Ok(())=>"Original intention saved and armed for next book open; no session duration or automatic prose invented".into(),Err(e)=>format!("Handoff not armed: {e:#}; original prose kept")};
+        self.msg = match result {
+            Ok(()) => "Original intention saved and armed for the next project opening; \
+                       no session duration or automatic prose invented"
+                .into(),
+            Err(e) => format!("Handoff not armed: {e:#}; original prose kept"),
+        };
     }
     pub fn apply_handoff_startup(&mut self) {
         let ready = self

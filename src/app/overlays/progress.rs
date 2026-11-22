@@ -227,7 +227,7 @@ impl App {
                 self.project.meta.daily_target = day;
                 self.overlay = Overlay::None;
                 self.msg = format!(
-                    "goals saved: {} words for the book, {} a day",
+                    "goals saved: {} words for the project, {} a day",
                     thousands(book),
                     thousands(day)
                 );
@@ -280,7 +280,7 @@ pub(super) fn draw_goals(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         )
     };
     let mut lines = vec![
-        number(0, "The book", book),
+        number(0, "The project", book),
         number(1, "Each day", day),
         Line::from(""),
         Line::from(Span::styled(" Or start from one of these:", dim)),

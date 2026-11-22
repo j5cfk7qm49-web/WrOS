@@ -177,7 +177,7 @@ impl App {
                         .scene_title
                         .as_deref()
                         .map(clean)
-                        .unwrap_or_else(|| "Book".into());
+                        .unwrap_or_else(|| "Project".into());
                     let line = issue.line.map_or(String::new(), |n| format!(" · line {n}"));
                     lines.push(format!(
                         "{} · {} · {place}{line}: {}",
@@ -338,7 +338,7 @@ pub(super) fn draw_export(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     }
     let how_much = FORMATS + parts.len();
     let what = match sample.0 {
-        0 => "the whole book".to_string(),
+        0 => "the whole project".to_string(),
         1 => format!("the first {} chapters", sample.1),
         2 => format!("chapters {}", sample.1),
         _ => format!("the first {} words", sample.1),
@@ -426,7 +426,7 @@ pub(super) fn draw_export(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         lines.push(Line::from(""));
     }
     let hint = if *sel == how_much {
-        " ←→ whole book / first chapters / chapters / words   type the number   x export"
+        " ←→ whole project / first chapters / chapters / words  0–9 set  x export"
     } else if *sel == PAPERBACK {
         " ←→ trim size   space/↵ tick   x export   esc close"
     } else {

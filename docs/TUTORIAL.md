@@ -11,7 +11,7 @@ Progress keeps lesson IDs this catalog does not have (a newer WrOS wrote them), 
 
 Open Help › Interactive tutorial, or find Interactive tutorial with Ctrl-K. Arrow keys select a lesson; Enter shows its instructions and then starts the real feature; `h` opens linked searchable offline help; `s` skips; Escape returns. Completed lessons can be replayed. Progress is schema-versioned, atomically guarded and stored with the project. There is no fake Next/Done button.
 
-Press `d` to open the safe demonstration project after saving the current project. WrOS reuses an existing marked Tutorial-N demo, or creates a new one if none exists. It never replaces an unrelated directory. Demo scenes, Markdown formatting, autosave, goals, corkboard and history use actual Grimoire code. Writing exercises cannot even be launched against an ordinary novel; they require the safe demo marker. Opening or switching panes alone cannot count as a text edit. Ordinary novels are not rewritten to satisfy lessons.
+Press `d` to open the safe demonstration project after saving the current project. WrOS reuses an existing marked Tutorial-N demo, or creates a new one if none exists. It never replaces an unrelated directory. Demo scenes, Markdown formatting, autosave, goals, corkboard and history use actual Grimoire code. Writing exercises cannot even be launched against an ordinary project; they require the safe demo marker. Opening or switching panes alone cannot count as a text edit. Ordinary projects are not rewritten to satisfy lessons.
 
 ```sh
 grimoire wros tutorial-demo /parent/NEW-demo
@@ -20,15 +20,15 @@ grimoire /parent/NEW-demo
 
 The catalog retains original IDs 1–39 and adds optional 40; a historic `SpellingOpened` completion of 26 never grants 40. Lesson 40 inserts no prose or model consent, is safe-demo-only, requires a genuine grammar edit and can be skipped without penalty.
 
-The demo contains original short text and a deliberate spelling error. Nothing is copied from an unreviewed exercise source. To return, use Open another book; your saved novel remains an ordinary separate folder. No routine deletes a previous demo to make room for a new one.
+The demo contains original short text and a deliberate spelling error. Nothing is copied from an unreviewed exercise source. To return, use Open another project…; your saved project remains an ordinary separate folder. No routine deletes a previous demo to make room for a new one.
 
 ## Coverage inventory
 
-| # | Lesson | State / actual completion event |
+| # | Lesson summary | State / actual completion event |
 |---|---|---|
 | 1 | Starting the OS/home | Wired: actual dashboard opened; boot itself separately VM-tested |
 | 2 | Keyboard layout selection | Wired: helper-confirmed layout; only installed console service can verify it |
-| 3 | Creating a novel | Wired: a new book is created successfully |
+| 3 | Creating a project | Wired: a new project is created successfully |
 | 4 | Writing and Markdown | Wired: actual demo editor text changes |
 | 5 | Scene/chapter navigation | Wired: actual open document changes |
 | 6 | Corkboard | Wired: actual corkboard overlay |
@@ -60,9 +60,9 @@ The demo contains original short text and a deliberate spelling error. Nothing i
 | 32 | Inline revision notes | Wired: safe-demo creation, original edit and explicit changed-anchor save; opening, cancelling, resolving or saving the same anchor cannot complete it |
 | 33 | Draft comparisons | Wired history view and durable milestone/variant workflow; creating a real snapshot or opening its comparison observes the existing event; optional guarded passage restore is explained without changing historic credit |
 | 34 | Footnotes | Wired: actual Word manuscript with page notes followed by successful matching nonempty PDF in the safe demo; viewing, Word alone, starting conversion and failures cannot complete it |
-| 35 | Export | Wired: real nonempty Markdown export in safe demo; canceled, failed and ordinary-novel attempts cannot complete the lesson; manuscript PDF/DOCX notes use the separate lesson 34 event |
+| 35 | Export | Wired: real nonempty Markdown export in safe demo; canceled, failed and ordinary-project attempts cannot complete the lesson; manuscript PDF/DOCX notes use the separate lesson 34 event |
 | 36 | Backing up and a test restore | Wired: a restore that finished, into a new folder (with or without the backup's settings); a failed restore, a backup alone or opening Backups is insufficient |
-| 37 | Reading your book on your phone | Wired: a sync run that reported `synced`; a sync stopped for deletions (`confirm`) or `offline` is insufficient |
+| 37 | Reading your project on your phone | Wired: a sync run that reported `synced`; a sync stopped for deletions (`confirm`) or `offline` is insufficient |
 | 38 | Wi-Fi/system settings | Wired: actual settings screen; hardware changes separately verified |
 | 39 | Recovery/troubleshooting | Wired: actual offline recovery manual, which now also explains the Esc recovery menu at boot; not a destructive crash simulation |
 | 40 | Optional local grammar: guarded review (supplemental) | Wired: explicit model permission, real completed grammar finding and actual current original-demo manuscript replacement; opening/navigation alone insufficient |
@@ -70,7 +70,7 @@ The demo contains original short text and a deliberate spelling error. Nothing i
 | 42 | Warm screen | Wired: a previewed warmth the writer chose to keep; a cancelled or timed-out preview is insufficient |
 | 43 | Going back a version | Wired: the Go back screen reached with a kept previous version; nothing is staged, and staying is the default row |
 | 44 | Finding Wi-Fi networks | Wired: a finished Wi-Fi scan; opening the page is insufficient |
-| 45 | Locking and sleep | Wired: the console lock handed the session back after the password; the lock never reads the book's keyboard input |
+| 45 | Locking and sleep | Wired: the console lock handed the session back after the password; the lock never reads the project's keyboard input |
 | 46 | Choosing what the lid does | A lid choice was written to settings |
 | 47 | Battery warnings | A new warning appeared during discharge |
 | 48 | Finding files on Google Drive | A folder listing finished while Your Drive files was open |
@@ -97,10 +97,10 @@ Instructions use arrows, Enter/Escape and function keys for physical-layout-inde
 
 Core tests verify all 50 IDs, rejection of unknown lessons, event matching, safe-demo gating, skip/replay, persisted progress and exclusive new-demo creation. A TUI sweep launches every lesson through the real tutorial menu at 80×24 and 136×42 in a fresh safe demo with a simulated system backend. It checks that the instructions give way to the feature. Spelling and history return to the editor when their operation has no view to open. This sweep does not replace hardware, account or feature-specific completion checks.
 
-TUI pin tests verify actual source selection/save and anchored scroll-and-return for lessons 11/12; opening a page or pressing Home without prior anchored scrolling is insufficient. TUI tests type/paste through the actual secondary routing/editor and validate persisted lesson 13 completion and replay, reject real-novel exercise launch, and prove open/navigation alone cannot complete it. Core tests and retained baseline lessons verify event matching, help topics and required sizes. Add new completion evidence and safe-demo tasks in the same change that implements each future feature.
+TUI pin tests verify actual source selection/save and anchored scroll-and-return for lessons 11/12; opening a page or pressing Home without prior anchored scrolling is insufficient. TUI tests type/paste through the actual secondary routing/editor and validate persisted lesson 13 completion and replay, reject real-project exercise launch, and prove open/navigation alone cannot complete it. Core tests and retained baseline lessons verify event matching, help topics and required sizes. Add new completion evidence and safe-demo tasks in the same change that implements each future feature.
 
-Lessons 15/16 exercise the original-source workflows described in [WORKFLOW](WORKFLOW.md). Lesson 16's event verifies a new App context with the saved source, not a measured reboot or process identity; separate compiled-app PTYs perform actual quit/restart and edit/undo the loaded original. Blank/failed/paste-only navigation and ordinary novels cannot manufacture completion.
+Lessons 15/16 exercise the original-source workflows described in [WORKFLOW](WORKFLOW.md). Lesson 16's event verifies a new App context with the saved source, not a measured reboot or process identity; separate compiled-app PTYs perform actual quit/restart and edit/undo the loaded original. Blank/failed/paste-only navigation and ordinary projects cannot manufacture completion.
 
 Earlier milestones added exercises 18/20/21 with controller tests for completion and noncompletion, then 22–24. Their historical counts (24 event-capable lessons in M5 and 27 in M6) describe those earlier catalogs. The current 50-lesson catalog and its completion conditions are listed above. Lessons 17/19 retain baseline goals/sprints. See [DAILY_CHALLENGES](DAILY_CHALLENGES.md) for the precise observed/source-word measurement policy and restart limits.
 
-M6 lessons 22–24 have real source/reference postconditions, ordinary-novel gating and completion/noncompletion tests in `src/spark_ui_tests.rs`. Lesson 24 reads the persisted ancestor chain, not a presentation-only spin count. A previously ready source retry is not a new save/scene publication. All content is optional and offline; these tutorial events are not evidence that a person performed a creative exercise. See [STORY_SPARK](STORY_SPARK.md).
+M6 lessons 22–24 have real source/reference postconditions, ordinary-project gating and completion/noncompletion tests in `src/spark_ui_tests.rs`. Lesson 24 reads the persisted ancestor chain, not a presentation-only spin count. A previously ready source retry is not a new save/scene publication. All content is optional and offline; these tutorial events are not evidence that a person performed a creative exercise. See [STORY_SPARK](STORY_SPARK.md).

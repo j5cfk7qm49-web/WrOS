@@ -1,6 +1,6 @@
 # Notes & TKs
 
-Leave yourself notes in the middle of the prose. They stay in the scene's file but **never reach the book**.
+Leave yourself notes in the middle of the prose. They stay in the scene's file but **stay out of exports**.
 
 - Anything between `%%` marks is a note: `%% check the date of the siege %%`. A note can run across several lines.
 - `TK`, on its own and in capitals, is the editor's mark for "to come": *she took the TK train north*.
@@ -9,7 +9,7 @@ Notes are shown dimmed in italics and TKs in bold. Neither is counted in any wor
 
 ## Finding them again
 
-- `Ctrl-T` lists every note and TK in the book. Type to filter the list; `Enter` goes to one.
+- `Ctrl-T` lists every note and TK in the project. Type to filter the list; `Enter` goes to one.
 - *Next TK* in `Ctrl-K` jumps to the next one after the cursor.
 
 ## TKs when you export

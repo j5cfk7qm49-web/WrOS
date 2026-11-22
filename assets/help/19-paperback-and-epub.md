@@ -11,15 +11,15 @@ Tick **Paperback** in the export dialog; `←` `→` on its row choose the trim 
 - Every chapter opens on a right-hand page, a third of the way down, with a small-caps lead-in (or a drop cap).
 - Justified, hyphenated text; an ornament between scenes; a title page and a copyright page.
 
-You get a Word file and, with LibreOffice installed, a print-ready PDF. `[paperback]` in `novel.toml` sets the font, size, the scene ornament and drop caps.
+You get a Word file and, with LibreOffice installed, a print-ready PDF. `[paperback]` in `project.toml` sets the font, size, the scene ornament and drop caps.
 
 ## EPUB
 
 For phones and e-readers.
 
-- **A cover**: put `cover.jpg` (or `cover.png`) in the book's folder.
+- **A cover**: put `cover.jpg` (or `cover.png`) in the project folder.
 - **A contents page**, as Kindle and others ask for.
-- **Details** from `[ebook]` in `novel.toml`: language, ISBN, publisher, description, subjects, series and number, rights, publication date.
+- **Details** from `[ebook]` in `project.toml`: language, ISBN, publisher, description, subjects, series and number, rights, publication date.
 
 ## Front and back matter
 

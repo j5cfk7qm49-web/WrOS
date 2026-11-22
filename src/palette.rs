@@ -184,7 +184,7 @@ impl Title {
             Title::File => "File",
             Title::Edit => "Edit",
             Title::View => "View",
-            Title::Book => "Book",
+            Title::Book => "Project",
             Title::Tools => "Tools",
             Title::Settings => "Settings",
             Title::Help => "Help",
@@ -278,7 +278,7 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
     let mut v = vec![
         Entry {
             label: "Overview".into(),
-            detail: "your book at a glance".into(),
+            detail: "your project at a glance".into(),
             key: "F12".into(),
             action: Action::Dashboard,
         },
@@ -308,13 +308,13 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
         Entry::new("Pin current document", "", Action::PinCurrent),
         Entry::new("Toggle pins sidebar", "", Action::TogglePins),
         Entry::new("Find in this scene", &format!("{m}F"), Action::FindInScene),
-        Entry::new("Find in the whole book", "/", Action::FindInBook),
+        Entry::new("Find in the whole project", "/", Action::FindInBook),
         Entry::new("New scene", "n", Action::NewScene),
         Entry::new("New chapter", "c", Action::NewChapter),
         Entry::new(format!("New {part}"), "p", Action::NewPart),
         Entry::new("New folder", "N", Action::NewFolder),
-        Entry::new("Start a new book", "", Action::NewBook),
-        Entry::new("Open another book", "", Action::OpenBook),
+        Entry::new("New project…", "", Action::NewBook),
+        Entry::new("Open another project…", "", Action::OpenBook),
         Entry::new("Rename", "r", Action::Rename),
         Entry::new("Delete (to the trash)", "d", Action::Delete),
         Entry::new("Move up", "Alt ↑", Action::MoveUp),
@@ -378,7 +378,7 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
             Action::Details,
         ),
         Entry::new(
-            "Goals: the book's word goal and each day's",
+            "Goals: the project's word goal and each day's",
             "",
             Action::Goals,
         ),
@@ -488,7 +488,7 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
     // The other books, by name, so switching is a few letters away.
     for root in app.other_books() {
         let mut e = Entry::new(
-            format!("Open the book {}", crate::books::title(&root)),
+            format!("Open the project {}", crate::books::title(&root)),
             "",
             Action::OpenBookAt(root.clone()),
         );

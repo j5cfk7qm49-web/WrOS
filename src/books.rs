@@ -98,19 +98,22 @@ pub fn forget(state: &Path, root: &Path) {
 
 /// A book's title from its `novel.toml`, or its folder's name.
 pub fn title(root: &Path) -> String {
-    std::fs::read_to_string(root.join("novel.toml"))
-        .ok()
-        .and_then(|s| {
-            s.lines()
-                .find_map(|l| l.strip_prefix("title = "))
-                .map(|v| v.trim().trim_matches('"').to_string())
-        })
-        .filter(|t| !t.is_empty())
-        .unwrap_or_else(|| {
-            root.file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_else(|| "Untitled".into())
-        })
+    std::fs::read_to_string(grimoire_core::project_files::path(
+        root,
+        grimoire_core::project_files::FileKind::Settings,
+    ))
+    .ok()
+    .and_then(|s| {
+        s.lines()
+            .find_map(|l| l.strip_prefix("title = "))
+            .map(|v| v.trim().trim_matches('"').to_string())
+    })
+    .filter(|t| !t.is_empty())
+    .unwrap_or_else(|| {
+        root.file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "Untitled".into())
+    })
 }
 
 /// A book's folder name, which is how the writer finds it on disk.

@@ -21,24 +21,24 @@ Cancel stops the operation and preserves the active manuscript. Delete clears a
 setup field. Configured backups run after saved changes and ten minutes without
 editing, at most hourly, with delayed retries after failures. Readable Google
 Drive sync runs on opening, 90 seconds after the last save or edit, and every five
-minutes while the book is open. Closing the book or shutting down asks for a
+minutes while the project is open. Closing the project or shutting down asks for a
 final sync after saving; retry the action once the sync finishes. Sleep starts a
 final sync and locks straight away. Offline attempts do not prevent leaving. A phone or a lost laptop may miss the last couple
 of minutes of writing. Uploads update the same Drive file, keeping its revision
 history. Google Docs round trips remain unavailable.
 Full guidance: docs/NATIVE_BACKUP.md in the installed documentation.
 
-## Books on Google Drive
+## Projects on Google Drive
 
 Open Settings › Backups and accounts › Google Drive › Your Drive files.
 It lists your whole Drive, folders first. Items with a copy on this laptop say so. A file or a
 whole folder copies to a new place here, and the copy is checked against Drive
-before it is kept. When the folder you are in is a book, the first row offers
-to copy it to this laptop and open it: the copy goes beside the book you have
-open, and opens once the check passes. You write on that copy; the book on
+before it is kept. When the folder you are in is a project, the first row is
+*Import this project…*. The copy goes beside the project you have
+open, and opens once the check passes. You write on that copy; the project on
 Drive stays as it was.
 
-A book is a folder, so any sync service carries it: Dropbox, Google Drive, pCloud, Box, OneDrive, iCloud Drive. WrOS checks for outside changes and keeps conflicting versions for review. Keep a separate verified backup too.
+A project is a folder, so any sync service carries it: Dropbox, Google Drive, pCloud, Box, OneDrive, iCloud Drive. WrOS checks for outside changes and keeps conflicting versions for review. Keep a separate verified backup too.
 
 ## Two devices change one scene
 
@@ -74,8 +74,8 @@ Everything WrOS names is safe on every service and computer: no characters Windo
 
 ## Good habits
 
-- Keep the book's folder available offline ("Always keep on this device", "Make available offline").
-- Don't put one book in two sync services at once.
-- Let the service finish syncing before you open the book on another device.
+- Keep the project's folder available offline ("Always keep on this device", "Make available offline").
+- Don't put one project in two sync services at once.
+- Let the service finish syncing before you open the project on another device.
 
-At launch the status bar says which service the book is in.
+At launch the status bar says which service the project is in.
