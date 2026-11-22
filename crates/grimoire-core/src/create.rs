@@ -78,6 +78,7 @@ pub fn offers(p: &Project, sel: Option<usize>) -> Vec<(char, String)> {
         v.iter().map(|&(k, w)| (k, w.to_string())).collect()
     };
     match area(p, sel) {
+        Area::Manuscript if p.meta.is_essay() => own(&[('n', "section")]),
         Area::Manuscript => vec![
             ('n', "scene".into()),
             ('c', "chapter".into()),
@@ -97,6 +98,19 @@ pub fn plan(
 ) -> Result<Plan, String> {
     let a = area(p, sel);
     let ms = area_dir(p, Area::Manuscript);
+    if p.meta.is_essay() && (a == Area::Manuscript || matches!(want, New::Chapter | New::Part)) {
+        return match want {
+            New::Scene => Ok(Plan {
+                noun: "section".into(),
+                made: want,
+                folder: false,
+                place: place(p, &ms),
+                dir: ms,
+                name: String::new(),
+            }),
+            _ => Err("An essay has a flat manuscript · press n to add a section.".into()),
+        };
+    }
     let here = sel.and_then(|i| folder_of(p, parents, i));
     let is_part = |f: usize| manuscript::section_of(p, f) == Section::Part;
 

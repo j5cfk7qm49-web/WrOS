@@ -28,6 +28,10 @@ pub struct ProjectMeta {
     pub title: String,
     pub author: String,
     pub draft: String,
+    pub template: String,
+    pub export_profile: String,
+    #[serde(deserialize_with = "lenient_table")]
+    pub mla: MlaDetails,
     pub target_words: usize,
     pub daily_target: usize,
     /// What this book calls its largest division: "Part", or "Act", or "Book".
@@ -131,6 +135,9 @@ impl Default for ProjectMeta {
             title: "Untitled".into(),
             author: String::new(),
             draft: String::new(),
+            template: String::new(),
+            export_profile: String::new(),
+            mla: MlaDetails::default(),
             target_words: 80_000,
             daily_target: 1_000,
             part_label: "Part".into(),
@@ -144,6 +151,14 @@ impl Default for ProjectMeta {
 }
 
 impl ProjectMeta {
+    pub fn uses_mla(&self) -> bool {
+        self.export_profile == "mla-9"
+    }
+
+    pub fn is_essay(&self) -> bool {
+        self.template == "essay"
+    }
+
     /// "Act" — capitalised, for naming a new one.
     pub fn part_word(&self) -> &str {
         let w = self.part_label.trim();
@@ -153,6 +168,28 @@ impl ProjectMeta {
     /// "act" — for a sentence.
     pub fn part_noun(&self) -> String {
         self.part_word().to_lowercase()
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct MlaDetails {
+    pub name: String,
+    pub surname: String,
+    pub instructor: String,
+    pub course: String,
+    pub date: String,
+}
+
+impl MlaDetails {
+    pub fn fields(&self) -> [(&'static str, &str); 5] {
+        [
+            ("Name", &self.name),
+            ("Running surname", &self.surname),
+            ("Instructor", &self.instructor),
+            ("Course", &self.course),
+            ("Date", &self.date),
+        ]
     }
 }
 
@@ -1523,16 +1560,23 @@ pub struct ShapeScene {
 pub enum Template {
     Novel,
     ShortStory,
+    Essay,
     Blank,
 }
 
 impl Template {
-    pub const ALL: [Template; 3] = [Template::Novel, Template::ShortStory, Template::Blank];
+    pub const ALL: [Template; 4] = [
+        Template::Novel,
+        Template::ShortStory,
+        Template::Essay,
+        Template::Blank,
+    ];
 
     pub fn name(self) -> &'static str {
         match self {
             Template::Novel => "Novel",
             Template::ShortStory => "Short story",
+            Template::Essay => "Essay",
             Template::Blank => "Blank",
         }
     }
@@ -1546,24 +1590,26 @@ impl Template {
             Template::ShortStory => {
                 "three chapters (a beginning, a middle and an end), three scenes in each, aiming for 5,000 words"
             }
+            Template::Essay => "Introduction, Body and Conclusion. Aim for 3,000 words.",
             Template::Blank => "an empty manuscript: build the rest your way",
         }
     }
 
-    pub fn shape(self) -> Shape {
+    pub fn scaffold(self, root: &Path, title: Option<&str>) -> Result<()> {
         match self {
-            Template::Novel => Shape::novel(),
-            Template::ShortStory => Shape::short_story(),
-            Template::Blank => Shape::blank(),
+            Template::Novel => scaffold_with(root, title, &Shape::novel()),
+            Template::ShortStory => scaffold_with(root, title, &Shape::short_story()),
+            Template::Essay => scaffold_essay(root, title),
+            Template::Blank => scaffold_with(root, title, &Shape::blank()),
         }
     }
 
-    /// `--short-story`, `short-story`, `blank`, `novel`: how the command line
-    /// names them.
+    /// Template names as written on the command line.
     pub fn parse(s: &str) -> Option<Template> {
         match s.trim_start_matches('-').to_lowercase().as_str() {
             "novel" => Some(Template::Novel),
             "short-story" | "short" | "story" => Some(Template::ShortStory),
+            "essay" => Some(Template::Essay),
             "blank" | "empty" => Some(Template::Blank),
             _ => None,
         }
@@ -1643,6 +1689,57 @@ pub fn scaffold(root: &Path) -> Result<()> {
     scaffold_with(root, None, &Shape::novel())
 }
 
+fn scaffold_title(root: &Path, title: Option<&str>) -> String {
+    title
+        .map(str::to_owned)
+        .or_else(|| root.file_name().map(|s| display_title(Path::new(s), None)))
+        .unwrap_or_else(|| "Untitled".into())
+}
+
+fn scaffold_essay(root: &Path, title: Option<&str>) -> Result<()> {
+    let manuscript = Area::Manuscript.path(root);
+    let settings = project_files::new_path(root, FileKind::Settings);
+    let sources = root.join("sources.json");
+    let guide = Area::Format.path(root);
+    for path in [&manuscript, &settings, &sources, &guide] {
+        match path.symlink_metadata() {
+            Ok(_) => anyhow::bail!("{} already exists", path.display()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e).with_context(|| format!("checking {}", path.display())),
+        }
+    }
+    // Serialize the title instead of interpolating it in quoted TOML.
+    let title = toml::to_string(&std::collections::BTreeMap::from([(
+        "title",
+        scaffold_title(root, title),
+    )]))?;
+    for area in [Area::Notes, Area::Research] {
+        let path = area.path(root);
+        fs::create_dir_all(&path).with_context(|| format!("creating {}", path.display()))?;
+    }
+    write_new(
+        &settings,
+        &format!(
+            "{title}author = \"\"\ndraft = \"1\"\ntemplate = \"essay\"\nexport_profile = \"mla-9\"\n\
+             target_words = 3000\ndaily_target = 500\n"
+        ),
+    )?;
+    write_new(&sources, "[]\n")?;
+    write_new(
+        &guide,
+        "# Essay\n\nWrite in the three sections under Manuscript. Rename, reorder or add sections as needed.\n\
+         Keep claims and quotes in Notes or Research. Project sources are saved in sources.json.\n",
+    )?;
+    write_new(&root.join(".gitignore"), ".grimoire/\n")?;
+    crate::sessions::assign_id(root, false)?;
+
+    fs::create_dir(&manuscript).with_context(|| format!("creating {}", manuscript.display()))?;
+    for title in ["Introduction", "Body", "Conclusion"] {
+        create(&manuscript, title, false)?;
+    }
+    Ok(())
+}
+
 /// Create a new book with `shape` in its manuscript, titled `title` (or
 /// after its folder). An empty shape gets only a manuscript folder; other
 /// shapes get the sections and starter pages.
@@ -1657,10 +1754,7 @@ pub fn scaffold_with(root: &Path, title: Option<&str>, shape: &Shape) -> Result<
         return Ok(());
     }
 
-    let title = title
-        .map(str::to_string)
-        .or_else(|| root.file_name().map(|s| display_title(Path::new(s), None)))
-        .unwrap_or_else(|| "Untitled".into());
+    let title = scaffold_title(root, title);
     let quoted = |t: &str| t.replace('"', "'");
 
     write_new(
@@ -1822,6 +1916,14 @@ fn has_folder(dir: &Path, name: &str) -> bool {
 /// in shape.
 pub fn upgrade(root: &Path) -> Result<Vec<String>> {
     if !root.join("manuscript").is_dir() {
+        return Ok(Vec::new());
+    }
+    let settings = project_files::path(root, FileKind::Settings);
+    if fs::read_to_string(settings)
+        .ok()
+        .and_then(|text| toml::from_str::<ProjectMeta>(&text).ok())
+        .is_some_and(|meta| meta.is_essay())
+    {
         return Ok(Vec::new());
     }
     let mut done = Vec::new();
@@ -3180,7 +3282,7 @@ mod tests {
     fn a_blank_book_contains_only_an_empty_manuscript() {
         let d = temp_dir("blank");
         let root = d.join("Blank-book");
-        scaffold_with(&root, None, &Template::Blank.shape()).unwrap();
+        Template::Blank.scaffold(&root, None).unwrap();
         for _ in 0..2 {
             assert!(upgrade(&root).unwrap().is_empty());
             let p = Project::load(&root).unwrap();
@@ -3245,9 +3347,50 @@ mod tests {
     }
 
     #[test]
+    fn essay_scaffold_has_flat_sections_and_mla_defaults() {
+        let d = temp_dir("essay-scaffold");
+        Template::parse("--essay")
+            .unwrap()
+            .scaffold(&d, Some("Reading & attention"))
+            .unwrap();
+        let p = Project::load(&d).unwrap();
+        assert!(p.meta.is_essay());
+        assert_eq!(p.meta.title, "Reading & attention");
+        assert_eq!(p.meta.target_words, 3_000);
+        assert_eq!(p.meta.export_profile, "mla-9");
+        let sections: Vec<_> = p.manuscript().into_iter().map(|i| &p.nodes[i]).collect();
+        assert_eq!(
+            sections
+                .iter()
+                .map(|n| n.title.as_str())
+                .collect::<Vec<_>>(),
+            ["Introduction", "Body", "Conclusion"]
+        );
+        assert!(
+            sections
+                .iter()
+                .all(|n| n.kind == Kind::Scene && n.body.is_empty())
+        );
+        assert_eq!(fs::read_to_string(d.join("sources.json")).unwrap(), "[]\n");
+        assert!(d.join(FileKind::Id.name()).is_file());
+        assert!(upgrade(&d).unwrap().is_empty());
+        assert!(d.join("notes").is_dir() && d.join("research").is_dir());
+        for area in [
+            Area::FrontMatter,
+            Area::BackMatter,
+            Area::Templates,
+            Area::Characters,
+            Area::Places,
+        ] {
+            assert!(!area.path(&d).exists(), "unexpected {area:?}");
+        }
+        fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
     fn a_short_story_keeps_the_starter_kit() {
         let d = temp_dir("short-story-kit");
-        scaffold_with(&d, None, &Template::ShortStory.shape()).unwrap();
+        Template::ShortStory.scaffold(&d, None).unwrap();
         for area in Area::ALL {
             assert!(area.path(&d).exists(), "missing {area:?}");
         }

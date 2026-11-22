@@ -222,14 +222,29 @@ impl App {
             }
             Title::Book => {
                 let part = self.project.meta.part_noun();
-                let mut rows = vec![
-                    BarRow::new("New scene…", "n", Action::NewScene),
-                    BarRow::new("New chapter…", "c", Action::NewChapter),
-                    BarRow::new(format!("New {part}…"), "p", Action::NewPart),
-                    BarRow::new("New folder…", "N", Action::NewFolder),
+                let section = self.essay_section_selected();
+                let mut rows = vec![BarRow::new(
+                    if section {
+                        "New section…"
+                    } else {
+                        "New scene…"
+                    },
+                    "n",
+                    Action::NewScene,
+                )];
+                if !self.project.meta.is_essay() {
+                    rows.extend([
+                        BarRow::new("New chapter…", "c", Action::NewChapter),
+                        BarRow::new(format!("New {part}…"), "p", Action::NewPart),
+                    ]);
+                }
+                if !section {
+                    rows.push(BarRow::new("New folder…", "N", Action::NewFolder));
+                }
+                rows.extend([
                     BarRow::new("Rename…", "r", Action::Rename),
                     BarRow::new("Delete…", "d", Action::Delete),
-                ];
+                ]);
                 if self.selection_in_trash() {
                     rows.push(BarRow::new("Restore from the Trash", "u", Action::Restore));
                 }

@@ -23,7 +23,7 @@ use grimoire_core::editor::{self, Editor};
 use grimoire_core::export;
 use grimoire_core::history;
 use grimoire_core::manuscript;
-use grimoire_core::project::{self, DiskChange, Kind, Project};
+use grimoire_core::project::{self, Area, DiskChange, Kind, Project};
 use grimoire_core::recovery;
 use grimoire_core::resume;
 use grimoire_core::search;
@@ -2341,6 +2341,23 @@ impl App {
         {
             self.reveal(i);
         }
+    }
+
+    pub(crate) fn essay_section_selected(&self) -> bool {
+        if !self.project.meta.is_essay() {
+            return false;
+        }
+        let selected = if self.focus.is_editor() {
+            self.open
+        } else {
+            self.visible.get(self.sel).copied()
+        };
+        selected.is_none_or(|i| {
+            matches!(
+                self.project.nodes[i].area,
+                Area::Manuscript | Area::Format | Area::Trash
+            )
+        })
     }
 
     /// Insert one original Markdown footnote at the active writing cursor.

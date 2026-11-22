@@ -334,7 +334,7 @@ impl App {
         };
         if let Err(e) = fs::create_dir_all(&root)
             .map_err(anyhow::Error::from)
-            .and_then(|()| project::scaffold_with(&root, None, &shape.shape()))
+            .and_then(|()| shape.scaffold(&root, None))
         {
             self.msg = format!(
                 "couldn't start a project at {}: {e:#}",
@@ -527,19 +527,26 @@ pub(super) fn draw_new_book(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     let mut extra = Vec::new();
     if !matches!(found, Where::Draft(_) | Where::Book(_)) {
         extra.push(Line::from(""));
-        let mut row = vec![Span::styled(" ", dim)];
-        for t_ in project::Template::ALL {
-            let on = t_ == *shape;
-            row.push(Span::styled(
-                format!("{} {}   ", if on { "●" } else { "○" }, t_.name()),
-                if on {
-                    Style::default().fg(t.accent)
-                } else {
-                    dim
-                },
-            ));
+        use project::Template::{Blank, Essay, Novel, ShortStory};
+        for (group, shapes) in [
+            ("Fiction", &[Novel, ShortStory][..]),
+            ("Non-fiction", &[Essay][..]),
+            ("", &[Blank][..]),
+        ] {
+            let mut row = vec![Span::styled(format!(" {group:<12} "), dim)];
+            for template in shapes {
+                let on = *template == *shape;
+                row.push(Span::styled(
+                    format!("{} {}   ", if on { "●" } else { "○" }, template.name()),
+                    if on {
+                        Style::default().fg(t.accent)
+                    } else {
+                        dim
+                    },
+                ));
+            }
+            extra.push(Line::from(row));
         }
-        extra.push(Line::from(row));
         let mut line = String::new();
         let mut said = Vec::new();
         for word in shape.about().split(' ') {
@@ -560,13 +567,7 @@ pub(super) fn draw_new_book(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         }
     }
     let under = match found {
-        Where::Nothing => (
-            Line::from(Span::styled(
-                " parts, chapters and scenes come ready to fill in",
-                dim,
-            )),
-            " type a name   tab shape   esc cancel",
-        ),
+        Where::Nothing => (Line::from(""), " type a name   tab shape   esc cancel"),
         Where::Free(p) => (
             Line::from(vec![
                 Span::styled(" it'll live in ", dim),

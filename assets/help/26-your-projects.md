@@ -10,15 +10,16 @@ Type a name and press `Enter`. That's all. `Tab` first picks what it starts as:
 
 - **Novel**: three parts of nine chapters, three scenes in each, aiming for 80,000 words.
 - **Short story**: three chapters (a beginning, a middle and an end), three scenes in each, aiming for 5,000 words.
-- **Blank**: one chapter with one empty scene, to build your own way.
+- **Essay**: Introduction, Body and Conclusion in a flat manuscript, aiming for 3,000 words. Press `n` in the outline to add a section.
+- **Blank**: an empty manuscript, to build your own way.
 
-Whichever you pick, you can add, rename and delete anything later. The project you had open is saved and put away first, and the new one opens on **Project Format**, a guide that begins "How this project is laid out". It comes with parts, chapters and scenes already in place, ready to fill in, rename or delete.
+You can add, rename and delete draft items later. WrOS saves the open project before switching. Novel, Short story and Essay include a **Project Format** guide.
 
 A plain name goes in a folder beside the project you had open. With *~/Documents/Grimoire* open, *The Long Night* becomes *~/Documents/The Long Night*. The box shows exactly where before you press `Enter`, and a path (like `~/Writing/The Long Night`) puts it anywhere you like.
 
 If there's already a project by that name, `Enter` opens it instead of making a second one. A folder that already has other things in it is left alone, so try another name.
 
-From a terminal, `grimoire new <folder>` starts one too, with `--short-story` or `--blank` for those shapes.
+From a terminal, `grimoire new <folder>` starts a novel. Use `--short-story`, `--essay` or `--blank` to choose another shape.
 
 Got a draft already? See *Bringing in a draft*, just below.
 

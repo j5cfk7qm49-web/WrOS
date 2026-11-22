@@ -303,7 +303,15 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
         Entry::new("Toggle pins sidebar", "", Action::TogglePins),
         Entry::new("Find in this scene", &format!("{m}F"), Action::FindInScene),
         Entry::new("Find in the whole project", "/", Action::FindInBook),
-        Entry::new("New scene", "n", Action::NewScene),
+        Entry::new(
+            if app.essay_section_selected() {
+                "New section…"
+            } else {
+                "New scene"
+            },
+            "n",
+            Action::NewScene,
+        ),
         Entry::new("New chapter", "c", Action::NewChapter),
         Entry::new(format!("New {part}"), "p", Action::NewPart),
         Entry::new("New folder", "N", Action::NewFolder),
