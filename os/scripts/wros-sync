@@ -108,7 +108,7 @@ def synced_name(relative):
 
 
 def is_text(relative, size):
-    return relative.lower().endswith(TEXT_SUFFIXES) and size <= TEXT_LIMIT
+    return size <= TEXT_LIMIT and (relative == 'sources.json' or relative.lower().endswith(TEXT_SUFFIXES))
 
 
 def scan_local(root):
