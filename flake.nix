@@ -1,5 +1,5 @@
 {
-  description = "WrOS rc22: offline-first writing appliance on NixOS";
+  description = "WrOS rc23: offline-first writing appliance on NixOS";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/f1e5c356f35d07e7b71a6b5e6c9338e0b029e0c0";
@@ -74,7 +74,7 @@
       # WrOS version, so an update carries it only when boot code changed.
       initrdOf = v: builtins.unsafeDiscardStringContext
         (mkWrosSystem v).config.system.build.initialRamdisk.drvPath;
-      initrdStable = let a = initrdOf "0.1.0~rc23"; b = initrdOf "0.1.0~rc99"; in
+      initrdStable = let a = initrdOf version; b = initrdOf "0.1.0~rc99"; in
         pkgs.runCommand "wros-initrd-stable" { } (if a == b then "touch $out" else ''
           echo "the initrd changes with the version string: ${a} vs ${b}"
           exit 1
