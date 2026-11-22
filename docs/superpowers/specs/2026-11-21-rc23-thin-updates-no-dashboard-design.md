@@ -37,6 +37,18 @@ Owner decisions 2026-11-21 (chat). The owner approved the approach summarised in
    - It opens on the desk with the demo project and a small dialog: **Install WrOS to disk** / **Try it first**.
    - **WrOS › Install WrOS to disk…** stays in the menu for later. (my call: the dialog shows once per boot.)
 
+9. **No copy of the WrOS repository in the system.** (Added 2026-11-21 after measuring rc22. Proceeding unless the owner objects.)
+   - rc22's update was 75 MB with no upstream packages in it: initrd 35.6 MB, a copy of the whole repository 17.9 MB, Grimoire 16.5 MB.
+   - The repository copy (44 MB on disk) comes from `builtins.readFile "${wrosRoot}/…"` and `"${wrosRoot}/…"` in `guards.nix`, `polkit.nix`, `live.nix` and `boot.nix`. String interpolation of the flake root copies and references the whole tree.
+   - Every such use becomes `wrosRoot + "/…"`, which copies only that file.
+   - A check fails the build if the system closure contains the flake source.
+10. **A boot image that stays the same between releases.**
+    - The initrd is one 35 MB file, re-sent whenever any byte inside changes. Between rc21 and rc22 only about 19 KiB of it changed: WrOS's version-stamped boot parts.
+    - The WrOS programs in the initrd are built without the version stamp, from only the sources they use, so the initrd changes only when boot code changes.
+    - A test builds the system at two version strings and checks that the initrd store path is identical.
+
+With 9 and 10, an update like rc22's drops from about 72 MB to about 20 MB (mostly Grimoire). Thin bundles (1) cut the releases that change upstream packages.
+
 ## Non-goals
 
 - Mirrors or a second host. GitHub Pages stays the only channel host, because thin bundles shrink what it serves to a few MB a release.
