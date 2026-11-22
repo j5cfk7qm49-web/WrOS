@@ -1,11 +1,30 @@
 # Brain, Library and Review (design)
 
-Status: direction approved by the owner, 2026-11-22. Calls marked "(my call)" are mine and
+Status: direction approved by the owner, 2026-11-22. The requirements added after design review are awaiting approval. Calls marked "(my call)" are mine and
 need the owner's review. This design replaces the rc25 Zotero client
 ([rc25 design](2026-11-21-rc25-zotero-library-pdfs-design.md)) and removes Zotero from rc24
 ([rc24 design](2026-11-21-rc24-essays-mla-zotero-design.md)). rc24's essays, MLA 9 export,
 per-project `sources.json` and `[@key, p. 12]` citations stay and are what this design's
 citations write into.
+
+## Open questions for the owner
+
+1. **New-device key (proposed).** Use a roughly 12-word recovery phrase. Type it on the laptop
+   or scan it as an offline QR code on the phone. Use a reviewed encoding with at least 128 bits
+   of random recovery entropy and a checksum. Derive a key that wraps the random library key.
+   Confirm the longer entry and the offline recovery workflow.
+2. **Smaller stage 1 (proposed).** Ship saved searches as lists, with Brain beside Write as the
+   only side pane in this release. Add editable tables and the other side-pane combinations
+   when their views land.
+3. **Cite an edition (proposed).** Make citations point at the edition quoted, with a stable work ID
+   alongside it. A paperback page and a revised scan can then retain their own bibliographic details.
+4. **Reader order.** Keep PDF extraction first as the foundation and the console fallback.
+   Deliver page images with the full anchor schema in the first complete PDF milestone. Add full
+   reflow after OCR, and decide on Foot sixel after measuring the fallback. This makes the original
+   text-first plan precise enough to avoid saving early highlights in a temporary format.
+5. **Measurements.** Use the proposed stage 0 budgets below and a corpus with English and Chinese
+   PDFs. Confirm the HP Stream run and access to representative pages. Keep any private papers on
+   the device and share hashes and timings.
 
 ## Why
 
@@ -40,8 +59,8 @@ Three new full-screen **views** next to today's writing screen, sharing one stor
 | **Review** | Due cards, optionally filtered by tag. |
 
 Views behave like window-manager workspaces: each keeps its own state, and you flip between them.
-Any view can pull another in as a **side pane**: the brain or a book beside a manuscript, the book a note points
-to beside the brain.
+The full design lets one view open another in a **side pane**: Brain or a book beside a manuscript,
+or a book beside a note. Stage 1 starts with Brain beside Write (proposed).
 
 ```
  Write │ Library │ Brain │ Review                                     ← view bar
@@ -60,7 +79,7 @@ to beside the brain.
 2. **Tags and supertags.** A supertag gives the nodes it tags fields. `#book` brings author, year,
    ISBN, status; `#article` brings DOI, journal; `#lecture` brings speaker, date. Supertags are
    defined by the owner in the brain itself, not hard-coded (the built-in source supertags ship as editable defaults).
-3. **Saved searches.** A node can be a live query (by tag, field, text, link), shown as a table or list.
+3. **Saved searches.** A node can be a live query by tag, field, text or link. Stage 1 runs bounded predicates and displays lists (proposed).
    The Library view is a saved search over source-type nodes.
 4. **Library.** A **work** is a brain node with a source supertag. It holds:
    - **Formats:** EPUB, PDF and audio files of the same work.
@@ -150,7 +169,7 @@ lost none ([tuna-os/gtk-office-suite#977](https://github.com/tuna-os/gtk-office-
 Automerge is the fallback.
 
 **Guardrails the owner accepted:**
-1. Stage 0 stress-tests Loro on our workload and on the HP Stream before real notes go in.
+1. Stage 0 stress-tests Loro on our workload and on the HP Stream before stage 1 ships.
 2. One pinned Loro version, upgraded on purpose.
 3. The readable Markdown copy always exists.
 4. Loro sits behind WrOS's own storage interface, so Automerge (with our own move handling) can
@@ -163,7 +182,10 @@ unauthenticated REST), and Logseq DB as the brain (beta, sync alpha, no third-pa
 
 - The four views and the name **views**. "Workspaces" already means Write's layout slots.
 - **Switching:** Super+1 … Super+4 switch views. A Super tap stays Find anything, which also searches notes and the
-  library. Super chords are unused today (`src/main.rs` drops them), so they are free.
+  library. `crates/wros-input/src/native.rs` and `src/main.rs` both drop Super chords today.
+  Enable the four view chords in both places and preserve tap detection. Test held and repeated keys,
+  release order, Colemak and QWERTY, and modal drafts. Menus and Find anything reach every view
+  that is available, including on the console.
 - **Brain editor:** an outliner (every line a node), not pages of prose.
 - **Library and brain:** the library is a saved search over supertagged nodes. A work holds formats, then
   highlights, then links.
@@ -187,12 +209,14 @@ After the review, 2026-11-22:
     citation dialog, so nothing is thrown away; stage 3 widens its search to the library. rc24's insertion guards still
     apply: the right pane, revision checks, one Undo step. (my call)
 - **Notes are encrypted on Drive.** Change files and snapshots are encrypted before upload.
-  - **New devices:** each one receives the key once from a device that already has it: a QR code for a phone, a
-    short code typed in for laptop to laptop.
+  - **New devices:** the owner wants a QR code for a phone and a code typed in for laptop to laptop.
+    The proposed recovery phrase above can serve both. A short code alone requires an authenticated,
+    expiring key exchange.
   - **Losing the key:** losing every copy loses the synced copy, like WrOS's existing recovery key, and the screens
     say so.
   - **Library files:** encrypted on Drive like the notes, through the same mailbox. (my call)
-- **Cited sources stay linked to their work.** A project's `sources.json` record carries the work ID it came from.
+- **Cited sources stay linked to their work.** A project's `sources.json` record carries its library
+  provenance. See [Citations and library editions](#citations-and-library-editions).
   - **When a work changes:** if its details change in the Library, opening or exporting the project says "Details
     for this source changed. Update?" A finished paper's Works Cited never changes silently.
   - **Hand-entered rc24 sources:** they stay project-only until the owner chooses to add one to the Library. (my call)
@@ -204,12 +228,19 @@ After the review, 2026-11-22:
 ### Data model (direction; details to the builder)
 
 - **Node.**
-  - **Contents:** a stable ID and a text body with inline formatting, links, tags and `@` references stored as ID tokens
-    (shown as titles, so renaming a work never breaks a link).
+  - **Contents:** a stable logical ID, schema version and text body. Inline links, tags and `@` references are
+    typed tokens with stable target IDs and optional anchor IDs. A token edits and moves as a unit.
+    Keep unresolved tokens recoverable and render the current target title when available.
+  - **Today and built-ins:** freeze the local civil date when opening Today. Use one logical ID per date
+    in the library, even when devices have different zones or independently open the same date.
+    Use fixed IDs for built-in supertags and fields. Merge duplicate initializations without dropping
+    edits, and preserve aliases created by recovery or migration.
   - **Place:** a parent and an order among siblings, in Loro's movable tree.
   - **Extras:** tag IDs, field values, and created and edited times.
-- **Supertag.** A node that defines fields: name, type (text, number, date, node link, URL, choice,
-  file), and whether the field is required. Built-in defaults:
+- **Supertag.** A node that defines fields with immutable IDs and editable names, types and required status.
+  Field types include text, number, date, node link, URL, choice and file. A type change preserves the
+  previous values until a checked conversion succeeds or the writer repairs them. Keep CSL mappings
+  keyed by field ID. Built-in defaults:
   - **Source types:** `#book`, `#article`, `#chapter`, `#lecture`, `#audio`, `#web`. Their fields map
     one-to-one onto CSL-JSON, so a work becomes a `sources.json` record.
   - **Others:** `#concept`, `#person`, `#card` (if cards are tagged rather than marked by syntax; builder's
@@ -225,15 +256,14 @@ After the review, 2026-11-22:
   laptop could mean loading gigabytes. Owner agreed; what they wanted was simple sync of books with notes.
 - **Anchor.** Where a highlight, note or bookmark points:
   - **EPUB:** a CFI plus the quoted text with some text before and after, so the anchor can be found again.
-  - **PDF:** page, character range, quads and quoted text.
+  - **PDF:** a versioned page-space and quote anchor with layered document identity, defined under Reader.
   - **Audio:** a time and an optional end time.
 
   Anchors that no longer match are shown as orphaned, never dropped.
 - **Highlight.** A node (so it can be linked, tagged and carded) with an anchor and a colour.
 - **Card.** Derived from a node's syntax (`::`, `{{ }}`, list/multi-line markers).
-- **Review log.** Append-only entries: card ID, time, grade 0–5, device. The schedule is
-  computed by replaying the log through FSRS, so merged logs from two devices give the same
-  schedule everywhere. (my call)
+- **Review log.** Append-only versioned events with stable event and card IDs, timestamp, device, local
+  day/zone, original grade 0–5 and rating-map version. The Review section defines deterministic replay. (my call)
 - **Project tags.** A project's slice is a tag. `project.toml` records which tag belongs to the project, so Write
   can offer "this project's notes" in its side pane. (my call)
 
@@ -246,51 +276,151 @@ The owner said one folder isn't required; it's my call because it keeps sync and
 |---|---|
 | Loro store (snapshot + updates) | `Brain/store/` |
 | Book files | `Brain/files/<sha-256>`, named by fingerprint, never changed once added. Backed up from stage 1 on (see Stages). |
-| Markdown copy | `Brain/readable/`, one file per top-level page (named pages and day pages), plus one per work with its highlights. Written after saves, never read back as truth. Never uploaded readable: Drive only ever gets encrypted files. |
-| SQLite index (FTS5) | `~/.cache/grimoire/brain/`, outside the folder. Disposable: rebuilt from Loro whenever missing or stale. |
+| Markdown copy | `Brain/readable/`, one file per top-level page or work, with ID-based filenames, readable text, links and fields. Update affected files asynchronously, and publish an atomic generation watermark after the projection completes. Detect and rebuild stale copies after a restart. Drive only receives encrypted data. |
+| SQLite index (FTS5) | `~/.cache/grimoire/brain/`, outside the folder. Stamp with index schema and indexed Loro version. Update affected pages in the background and rebuild from Loro whenever missing or stale. |
 
 The shelf must not mistake `~/Documents/Brain` for a writing project.
 
+### Local save and recovery (stage 1)
+
+Take an exclusive Brain writer lock. Acknowledge a save after its checked update is durable.
+Write a checksummed checkpoint to a new generation, synchronize it and its directory, and
+atomically advance a manifest. Keep the previous generation until the new one verifies.
+Replay complete checked updates after restart, quarantine truncated data and report what needs
+attention. Retain original downloaded bytes while Loro is waiting for dependencies. A full
+snapshot can omit unapplied updates. Retire covered bytes only after a verified durable checkpoint
+includes their operations. [Loro persistence](https://www.loro.dev/docs/tutorial/persistence)
+
+Add a Brain backup kind to `wros-backup` and schedule Brain-only edits independently of project saves.
+Use a pinned committed metadata generation and stream/reuse checked immutable blobs so backup and
+restore avoid extra library-sized copies on eMMC. Restore and verify to an isolated location before
+activation. Give a restored or cloned store fresh Loro session peers and a fresh mailbox device
+identity. An old backup opens in isolation. Return recovered content to the live library by explicit
+reintroduction so existing synced deletions retain their meaning.
+[Loro peer IDs](https://www.loro.dev/docs/concepts/peerid_management)
+
+### Citations and library editions
+
+Keep stable work and edition IDs separate. An edition supplies the bibliographic record and
+owns the applicable files and locators (proposed). Identical files share one SHA-256 blob.
+Use stable field IDs for CSL mappings even when a supertag's labels change.
+The rc24 source store preserves versioned provenance with each record through editing, per-key
+merge, backup and timeline restore. At stage 3 record the work ID, edition ID and a versioned
+fingerprint of the accepted library bibliographic fields. Normalize only the fields included in
+the fingerprint. Show a preview on open/export when library details change and preserve local
+edits, the citation key and existing locators unless the writer explicitly accepts a change.
+The accepted snapshot still supports export offline or if its Library target disappears.
+Hand-entered rc24 sources stay local until explicitly added to the Library. Offer to link matching
+keys or records without overwriting them.
+
 ### Sync (stage 5)
 
-- **Encryption:** everything under `WrOS/Brain/` is encrypted before upload (see the owner's decisions).
-- **Updates:** each device writes Loro updates, bounded change files, into `WrOS/Brain/changes/<device-id>/` on Drive
-  through the existing Drive helper (`os/scripts/wros-sync`, rclone). Each device only ever writes its own folder,
-  so Drive never has two writers on one file.
-- **Merging:** every device imports the others' change files. Loro merges them.
-- **Compaction:** occasionally a device writes a snapshot and the old change files are retired, without deleting
-  another device's unread files.
-- **Book files** go to `WrOS/Brain/files/`, encrypted, named by fingerprint (encrypted names), uploaded once.
-  Each device downloads the files set to sync there and fetches others on open. Free Google accounts have 15 GB,
-  so each work can be "sync this file" or "this device only"; the builder picks a sensible default size limit
-  (audiobooks fill the quota fast).
-- **Projects are not part of this.** They keep their existing readable Drive sync, unchanged.
-- **Syncthing was considered and left out:** Drive is already there, works when devices are never on together and
-  is reachable from a phone app; Syncthing would only add speed at home and no Google. Because sync is just moving
-  immutable files, another transport (Syncthing, iroh) can be added later without touching the rest.
-- **Same rules as WrOS's readable Drive sync:** sync never blocks typing, offline queues, and the screen
-  says what it is doing.
+Use WrOS's existing Google Drive sign-in and transfer primitives. Implement a Brain mailbox
+with its own protocol since the current helper accepts project roots. Keep all objects under
+`WrOS/Brain/` encrypted and authenticated. An immutable envelope names the library, schema
+and key version, object ID, author device and causal range. Use an established authenticated
+encryption construction and correctly generated nonces, with keys stored in private app data.
+Evaluate rclone crypt for authenticated contents, filename privacy and future phone
+interoperability before choosing the wire format. Include the sync key in an explicit encrypted
+offline recovery export. Keep credentials and keys out of generic settings backups.
+[rclone crypt](https://rclone.org/crypt/)
+
+Each device writes immutable bounded objects to its own `changes/<device-id>/` folder.
+Deduplicate retries by authenticated object identity. Track received and durably applied
+progress separately. Retry missing dependencies, and keep ambiguous duplicates until verified.
+A missing listing conveys neither deletion nor delivery. Test interrupted uploads, duplicates,
+out-of-order delivery and quota exhaustion. Sync runs in the background with offline status and
+keeps lock and power paths independent. [Drive duplicate names](https://rclone.org/drive/#duplicated-files)
+
+Start with full snapshots and retained CRDT history. Verify a durable snapshot's causal coverage
+before retiring mailbox objects, with a tested path for returning devices to retrieve the coverage.
+Wait for a causal checkpoint, explicit device-retirement rules and a recovery path before shallow
+history truncation. Defer remote blob collection until device recovery is proven.
+[Loro shallow snapshots](https://www.loro.dev/docs/concepts/shallow_snapshots)
+
+Keep media encrypted in `files/` under protected fingerprint-derived names. Upload a verified
+blob once and fetch it on open or through a device's download selection. Use quota feedback and
+a size-based default. Project Drive behavior remains independent.
 
 ### Reader (stage 4)
 
-- **EPUB:** parsed in Rust and reflowed into cells. Images come later.
-- **PDF:** pdfium (BSD/Apache) through `pdfium-render`, from the Nix package of pdfium binaries.
-  - **Text first:** selection maps to character boxes, then to anchors.
-  - **Page images:** come next, in the native DRM session. `wros-graphics` gains a way to draw an image into a pane's
-    rectangle.
-  - **Other sessions:** console and the Cage/Foot fallback stay in text mode.
-- **Audio:** reuse WrOS's existing playback (rodio/symphonia, or mpv, both already shipped). MP3, M4A
-  and M4B with chapters must play. Builder's choice which engine.
-- **Notes and highlights:** select, highlight, then note in the side pane at that anchor.
+- **EPUB:** parse in Rust and reflow into cells. Keep CFI plus quote/context for highlights.
+- **PDF engine:** PDFium through pinned `pdfium-render` in a dedicated helper. Use the explicit
+  Nix library path and matching bindings, with an installed render/extract smoke test. Bound its
+  output, memory, per-page deadline and restarts. Run Poppler utilities or MuPDF only as separate
+  benchmark/debug processes. Use no GPL or AGPL reader code or bindings.
+- **Text:** extract a versioned canonical Unicode stream in PDF character order with a map to
+  page boxes. Track character ranges independent of reading order. Group lines and blocks,
+  use structure tags where usable, split columns on gutters, and handle margin text, footnotes
+  and dehyphenation. The reflow projection maps back to canonical offsets and page boxes.
+  Use links to the page for equations, figures and tables that need their original layout.
+- **Native DRM:** compose the cached bitmap, highlights, overlay and cursor within the normal
+  frame before presentation. Handle resize and VT recovery. Provide keyboard zoom and pan,
+  bounded RAM and disk caches, nearby prefetch and viewport tiles at high zoom. Begin with
+  page text on console, Cage/Foot and wgpu. Consider Foot sixel after measurement.
+- **Anchors:** retain SHA-256, page index and printed label, unrotated PDF-space rectangles,
+  page geometry, versioned normalized quote/context, page-relative character ranges, anchor
+  version and text layer ID. Use optional PDF IDs and page geometry, image/text hashes and
+  page counts for classification. Reuse geometry when only the OCR layer changes. Across
+  revisions, require a unique confident match on quote, context and page alignment. Store
+  a new revision when rematching succeeds and keep mismatches visible for reattachment.
+  Scans support region marks before text becomes available.
+- **OCR:** start with the pinned standalone Tesseract CLI, one background thread per job,
+  one worker, with a second on idle AC only after measurement. Prioritize the open page and
+  next three. Record completion atomically by page, resume missing pages, and support pause.
+  Compare English, Simplified and Traditional Chinese models, including vertical layouts,
+  at 200 and 300 dpi. Try PP-OCRv5 on the HP Stream only if ONNX Runtime fits its CPU and RAM.
+  The Windows PC can produce compatible sidecars for offload.
+- **Storage:** cache per-page hOCR/TSV with a PDF fingerprint, transform, page and model version.
+  Keep cache data, tiles, OCR jobs and layout out of Loro. Store annotations, quote evidence
+  and anchor revisions in Loro. Leave original PDFs intact.
+- **Order:** extraction and basic console text, native page view and complete anchors, then
+  resumable OCR, full reflow, and hardened version-to-version re-anchoring.
+- **Audio (stage 6):** reuse a shipped playback engine. MP3, M4A and M4B with chapters must play.
+
+**HP Stream measurements.** Stage 3 prepares the kit and records results here when available.
+Record exact CPU and flags; pinned PDFium binding; cold helper and warm PDFium/hayro/Poppler
+render time and RSS; extraction accuracy, time and RSS; DRM composition and page flip;
+English and Chinese OCR time per page, RSS and character error at 200/300 dpi with one and two
+workers; 30-minute thermal and input behavior; PP-OCRv5 instruction compatibility, speed and RSS;
+ocrs English time and RSS; Unifont wide Hanzi; and Foot sixel. Use the owner's representative
+PDFs and the full [measurement matrix](2026-11-22-pdf-reader-ocr-research.md#hp-stream-measurement-record).
+Results pending.
 
 ### Review (stage 2)
 
-- **Scheduling:** `fsrs-rs` with default parameters at first. Optimising parameters from the owner's own log comes
-  later.
+- **Scheduling:** pin `fsrs-rs` and its parameter set. Version and document the mapping from original grades
+  0–5 to ratings. Keep all original events and their mapping version. A card ID survives text edits and cloze
+  reorder through persisted identities. Deduplicate events by ID, order by recorded effective time with stable
+  ID tie breaking, immunize replay against the receiving machine's clock and time zone, and preserve the
+  review's recorded local day and zone. Define and fixture-test clock-skew and day-boundary behavior before
+  relying on merged reviews. Cache schedules and recompute only affected cards.
 - **Screen:** shows the prompt, reveals the answer, and takes a grade 0–5 on number keys.
 - **Choosing cards:** a session can be filtered by tag or saved search. Due counts appear in the view bar.
 - **Naming:** Write already has "Review notes" (`src/app/review_notes.rs`), so menus say "Review cards"
   where the two could be confused. (my call)
+
+## Stage 0 correctness and performance gate
+
+Use a deterministic seed and a reference model with expected visible and recoverable content.
+Deletes hide the subtree even against a concurrent move or edit, with content retained for explicit
+recovery. Resolve competing field edits by a stable tie-break and keep the losing value recoverable.
+Undo reverses the local logical action and preserves concurrent work. Define split and join by stable
+node identities and boundary tokens. Check independently initialized built-ins and concurrent Today
+creation, uniqueness, acyclicity and convergence. Exercise two and three devices, churn, operation
+reordering, truncated writes, pending dependencies across restart, and rejoining from an old backup.
+
+Before running, fix a dated fixture and provisional thresholds. Start with 50,000 visible nodes
+ranging from short notes to 2 KiB entries, 500,000 accumulated operations, 10,000 deleted nodes,
+100,000 simulated review events and indexing/Markdown work active. Proposed targets on the
+HP Stream: cold open p95 ≤ 3 s, keystroke-to-display p95 ≤ 50 ms, foreground FTS p95 ≤ 150 ms,
+peak process-tree RSS during checkpoint ≤ 512 MiB, ordinary discrete edit ≤ 64 KiB written
+(amortized; record checkpoint separately), and temporary staging ≤ one extra checkpoint plus
+64 MiB. Record initial sizes, WAL and projection bytes, and actual temporary disk peak. A 4 GB VM
+can exercise the memory cap; use the laptop for CPU, disk and interaction qualification. Keep
+thresholds fixed for each reported run and identify any revisions. If Loro fails the correctness
+or hardware gate, document the failure and repeat the same gate with Automerge behind the
+storage interface before stage 1.
 
 ## Stages
 
@@ -298,23 +428,23 @@ Each stage ships on its own and is usable when it lands.
 
 | # | Stage | Done when |
 |---|---|---|
-| 0 | **Loro test** | A deterministic stress test merges thousands of random concurrent edits, moves, deletes and tag/field changes from 2–3 simulated devices, with no lost, duplicated or cyclic nodes. A 50,000-node store loads, searches and saves within budgets the builder sets and measures on the HP Stream (or a 4 GB VM if the laptop isn't available). If it fails, switch to Automerge before stage 1. |
-| 1 | **Brain view** | Outliner editing, links, backlinks, tags, supertags with fields, saved searches, Markdown copy, the view bar and Super+1..4, Brain opening to Today, and the brain as a side pane in Write. Laptop only. The `~/Documents/Brain` folder (store and, from stage 3, book files) joins WrOS's encrypted backups (`os/scripts/wros-backup`, which today covers only projects and a small settings profile), with a tested restore; a restored store takes a new Loro device ID so two devices never share one. (my call: backups only covered projects, so notes would otherwise be unprotected until stage 5) |
-| 2 | **Review view** | Card syntax, the review screen, 0–5 grades, FSRS from the replayed log, filtered review. |
-| 3 | **Library and `@`** | Works with formats, the sortable/filterable library, DOI/ISBN lookup, `.bib`/CSL-JSON import, the `@` picker in notes and manuscripts widening rc24's `@` picker from project sources to the whole library, writing rc24 citations and `sources.json` with linked work IDs. rc24 ships first (it's the next release) and builds the source store and `.bib`/CSL-JSON parser; this stage plugs into them. Stages 0–2 don't depend on rc24. |
-| 4 | **Reader** | EPUB with highlights and notes, then PDF text, then PDF page images in the native session. Cards from highlights. |
-| 5 | **Drive sync** | Two laptops editing offline converge after sync with nothing lost; book files sync, encrypted, with per-work "this device only". |
+| 0 | **Loro test** | The correctness and performance gate passes, with reproducible results from the HP Stream. |
+| 1 | **Brain view** | Outliner editing, links and backlinks, tags, supertags, list searches (proposed), Markdown copy, view bar, Super+1..4 and console alternatives. Brain opens to Today and can sit beside Write, using the project tag. The independent encrypted backup kind restores verified contents under a fresh device identity. |
+| 2 | **Review view** | Stable cards, original grades, deterministic FSRS replay, filtered sessions and due counts. |
+| 3 | **Library and @** | After rc24 ships: work/edition records, shared format blobs, sortable and filterable Library, DOI/ISBN lookup, shared import, a library-wide picker and accepted source provenance. Produce and run the PDF/OCR measurement kit on the HP Stream. |
+| 4 | **Reader** | EPUB, then PDF extraction, native page view and durable markup, OCR, and full reflow with console support. Make cards from highlights. |
+| 5 | **Drive sync** | Two devices editing offline converge with encrypted changes and media, recoverable history and per-file device choices. |
 | 6 | **Audio** | Playback with chapters, bookmarks and notes on a moment. |
 
 ## Left to the builder
 
 - **Crates and modules:** where the code lives, e.g. a new `grimoire-brain` crate under `crates/` used by
   `grimoire-app`.
-- **Formats:** the exact Loro container layout, change-file format and compaction rules.
+- **Formats:** the exact Loro container layout and envelope serialization within the recovery and sync rules above.
 - **Outliner keys:** within the owner's standing key decisions. Follow Logseq/Tana conventions where they don't
   clash, and work on the Linux console, where Super may not arrive. Every view must also be reachable
   from the menus and Find anything.
-- **Memory and speed budgets,** measured in stage 0.
+- **Memory and speed evidence:** measure the agreed budgets in stage 0 and record the candidate, corpus and hardware.
 - **Rendering:** EPUB parser and reflow details. How page images reach the screen in the native session.
 - **Mapping 0–5 grades to FSRS ratings,** documented so it can be tuned.
 - **Tests:** following the repo's patterns (`Desk` UI tests, PTY tests, VM tests).
