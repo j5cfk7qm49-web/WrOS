@@ -135,3 +135,17 @@ Effort for one builder, including tests. Allow about 17–25 working days. Work 
 
 1. Which two or three PDFs from your Zotero library should we use for acceptance? Include a scan or a figure-heavy PDF if it is a normal part of your reading.
 2. Is it enough in rc25 to view and quote marks made on other devices, with comment editing in WrOS limited to the annotations WrOS created?
+
+## Owner answer (2026-11-21): editing Zotero's own highlights
+
+- **The answer:** editing highlights made in Zotero (desktop or phone) is ideal, but "not so bad" if not feasible.
+- **What's known:**
+  - Annotations are items (`itemType: annotation`) in the synced library.
+  - The documented item PATCH/DELETE rules (version-checked; 412 on a stale version, 428 without `If-Unmodified-Since-Version`) don't exclude them.
+  - Zotero's own mobile apps edit them through the same sync API.
+- **What's unconfirmed:** the public schema lists no annotation fields, and the docs don't say which annotation fields are writable or immutable (`annotationType`).
+  - Sources: https://www.zotero.org/support/dev/web_api/v3/write_requests and https://api.zotero.org/schema
+- **Decision:** a spike in phase 0 against a disposable Zotero account answers it.
+  - If editing works: WrOS edits the comment, colour and tags of any Zotero annotation, and deletes them (with version checks).
+  - Otherwise: only those made in WrOS.
+- **Either way, read-only:** annotations embedded in the PDF file by other apps are read-only in Zotero itself, and stay read-only in WrOS (shown, quotable).
