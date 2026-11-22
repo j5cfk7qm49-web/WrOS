@@ -832,6 +832,45 @@ impl App {
             .retain(|p| root.join(&p.parked).exists());
         for pending in self.deck.shell.backup.sync.pending.clone() {
             let copy = root.join(&pending.parked);
+            if pending.path == grimoire_core::sources::FILENAME {
+                if self
+                    .deck
+                    .shell
+                    .backup
+                    .sync
+                    .announced
+                    .contains(&pending.parked)
+                {
+                    continue;
+                }
+                let result = pending.merge_base.as_ref().map_or_else(
+                    || Err(anyhow::anyhow!("The common version is unavailable.")),
+                    |base| grimoire_core::sources::merge_drive(&root, &copy, Path::new(base)),
+                );
+                match result {
+                    Ok(()) => {
+                        self.deck.shell.backup.sync.saved(Instant::now());
+                        if let Some(timeline) = &self.timeline {
+                            timeline.record(Entry::Save);
+                        }
+                        self.msg = "Merged independent changes to project sources.".into();
+                    }
+                    Err(e)
+                        if !self
+                            .deck
+                            .shell
+                            .backup
+                            .sync
+                            .announced
+                            .contains(&pending.parked) =>
+                    {
+                        self.msg = format!("Project sources need review: {e}");
+                        self.deck.shell.backup.sync.announced.push(pending.parked);
+                    }
+                    _ => (),
+                }
+                continue;
+            }
             let Some(ci) = self.project.nodes.iter().position(|n| n.path == copy) else {
                 continue; // not in the tree yet
             };

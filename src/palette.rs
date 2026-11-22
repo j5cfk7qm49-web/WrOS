@@ -54,6 +54,12 @@ pub enum Action {
     Footnotes,
     FootnoteAtCaret,
     InsertFootnote,
+    ProjectSources,
+    ProjectSourcesTimeline,
+    ProjectSourcesConflict,
+    MlaPaperDetails,
+    AddProjectSource,
+    ImportProjectSources,
     /// Every conflict copy in the book, to settle.
     Conflicts,
     NextTk,
@@ -364,6 +370,20 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
         Entry::new("Bold (on or off)", &format!("{m}B"), Action::Bold),
         Entry::new("Corkboard", "b", Action::Corkboard),
         Entry::new("Notes & TKs", &format!("{m}T"), Action::NotesList),
+        Entry::new("Project sources…", "", Action::ProjectSources),
+        Entry::new(
+            "Project sources timeline…",
+            "",
+            Action::ProjectSourcesTimeline,
+        ),
+        Entry::new(
+            "Resolve source conflict…",
+            "",
+            Action::ProjectSourcesConflict,
+        ),
+        Entry::new("MLA 9 paper details…", "", Action::MlaPaperDetails),
+        Entry::new("Add a source…", "", Action::AddProjectSource),
+        Entry::new("Import sources…", "", Action::ImportProjectSources),
         Entry::new("Footnotes · browse and jump", "", Action::Footnotes),
         Entry::new("Read footnote at caret", "", Action::FootnoteAtCaret),
         Entry::new(

@@ -169,39 +169,16 @@ impl Footnotes {
                         !note,
                         "nested footnote references cannot be rendered in Word/PDF; choose Markdown only"
                     );
-                    ensure!(
-                        self.notes.len() < 4096,
-                        "document exceeds 4096 page footnotes"
-                    );
                     let definition = definitions
                         .get(&crate::footnotes::normalize(label))
                         .ok_or_else(|| anyhow::anyhow!("footnote definition unavailable"))?;
-                    let id = self.notes.len() + 1;
                     let mut first_note = false;
-                    let mut paragraphs =
+                    let paragraphs =
                         self.render(definition, definitions, true, true, look, &mut first_note)?;
-                    ensure!(
-                        !paragraphs.is_empty(),
-                        "empty page-footnote definition; choose Markdown only"
-                    );
-                    paragraphs[0].runs.insert_str(0,"<w:r><w:rPr><w:rStyle w:val=\"FootnoteReference\"/></w:rPr><w:footnoteRef/></w:r><w:r><w:t xml:space=\"preserve\"> </w:t></w:r>");
-                    let content = paragraphs
-                        .iter()
-                        .map(|p| p.xml(None, 240))
-                        .collect::<String>();
-                    ensure!(
-                        self.bytes.saturating_add(content.len()) <= 16 * 1024 * 1024,
-                        "page footnotes exceed 16 MiB rendered content"
-                    );
-                    self.bytes += content.len();
-                    self.notes.push(format!(
-                        "<w:footnote w:id=\"{id}\">{content}</w:footnote>\n"
-                    ));
-                    let p = paragraph(&mut current, false, front, heading, quote, look, first);
-                    let _ = write!(
-                        p.runs,
-                        "<w:r><w:rPr><w:rStyle w:val=\"FootnoteReference\"/></w:rPr><w:footnoteReference w:id=\"{id}\"/></w:r>"
-                    );
+                    let reference = self.add(paragraphs)?;
+                    paragraph(&mut current, false, front, heading, quote, look, first)
+                        .runs
+                        .push_str(&reference);
                 }
                 Event::Html(_)
                 | Event::InlineHtml(_)
@@ -218,6 +195,33 @@ impl Footnotes {
         }
         flush(&mut current, &mut out);
         Ok(out)
+    }
+
+    pub(super) fn add(&mut self, mut paragraphs: Vec<Para>) -> Result<String> {
+        ensure!(
+            self.notes.len() < 4096,
+            "document exceeds 4096 page footnotes"
+        );
+        let id = self.notes.len() + 1;
+        let first = paragraphs
+            .first_mut()
+            .context("empty page-footnote definition; choose Markdown only")?;
+        first.runs.insert_str(0, "<w:r><w:rPr><w:rStyle w:val=\"FootnoteReference\"/></w:rPr><w:footnoteRef/></w:r><w:r><w:t xml:space=\"preserve\"> </w:t></w:r>");
+        let content = paragraphs
+            .iter()
+            .map(|p| p.xml(None, 240))
+            .collect::<String>();
+        ensure!(
+            self.bytes.saturating_add(content.len()) <= 16 * 1024 * 1024,
+            "page footnotes exceed 16 MiB rendered content"
+        );
+        self.bytes += content.len();
+        self.notes.push(format!(
+            "<w:footnote w:id=\"{id}\">{content}</w:footnote>\n"
+        ));
+        Ok(format!(
+            "<w:r><w:rPr><w:rStyle w:val=\"FootnoteReference\"/></w:rPr><w:footnoteReference w:id=\"{id}\"/></w:r>"
+        ))
     }
 
     pub fn is_empty(&self) -> bool {

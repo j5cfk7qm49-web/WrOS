@@ -35,6 +35,7 @@ mod reading;
 mod recover;
 mod session_list;
 mod shelf;
+mod sources;
 mod spelling;
 mod versions;
 
@@ -48,6 +49,7 @@ pub use footnotes::FootnoteRow;
 pub(crate) use help::lay_out as help_lay_out;
 #[cfg(test)]
 pub(crate) use menu::about_row;
+pub use sources::SourceDialog;
 
 impl App {
     /// A key while an overlay is up goes to that overlay alone.
@@ -71,6 +73,8 @@ impl App {
     fn route_overlay_key(&mut self, key: Key) {
         match self.overlay {
             Overlay::None => {}
+            Overlay::ProjectSources(_) => self.on_project_sources_key(key),
+            Overlay::PaperDetails { .. } => self.on_paper_details_key(key),
             Overlay::Deck(_) => self.on_deck_key(key),
             Overlay::Spark { .. } => self.on_spark_key(key),
             Overlay::Checks { .. } => self.on_checks_key(key),
@@ -259,6 +263,8 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         Overlay::History { .. } => versions::draw_history(f, app, area, t),
         Overlay::Bar { .. } => bar::draw_dropdowns(f, app, area, t),
         Overlay::NewBook { .. } => shelf::draw_new_book(f, app, area, t),
+        Overlay::ProjectSources(dialog) => sources::draw(f, dialog, area, t),
+        Overlay::PaperDetails { .. } => readers::draw_paper_details(f, app, area, t),
         Overlay::Books { .. } => shelf::draw_books(f, app, area, t),
         Overlay::Import(_) => import::draw(f, app, area, t),
         Overlay::DeleteBook { .. } => shelf::draw_delete_book(f, app, area, t),

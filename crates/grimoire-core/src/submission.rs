@@ -565,6 +565,32 @@ pub fn save(root: &Path, byline: &str, contact: &Contact, look: &Manuscript) -> 
     crate::atomic::write_text(&path, &text)
 }
 
+/// Save the paper's heading and export profile alongside the existing settings.
+pub fn save_mla(
+    root: &Path,
+    details: &crate::project::MlaDetails,
+    enabled: bool,
+    seen: Option<crate::sync::Fingerprint>,
+) -> Result<()> {
+    let (path, name, old) = settings_text(root)?;
+    let mut profile = old;
+    profile = put_key(
+        &profile,
+        "export_profile",
+        if enabled { "\"mla-9\"" } else { "\"\"" },
+    );
+    let details = format!("[mla]\n{}", toml::to_string(details)?);
+    let text = put_table(&profile, "mla", &details);
+    toml::from_str::<toml::Table>(&text)
+        .with_context(|| format!("the new {name} didn't read back"))?;
+    match crate::sync::save_guarded(&path, &text, seen)? {
+        crate::sync::SaveOutcome::Written => Ok(()),
+        crate::sync::SaveOutcome::Conflict { .. } => {
+            bail!("Project settings changed on disk. Open paper details again.")
+        }
+    }
+}
+
 /// Write the project's goal and a day's into its settings, leaving everything else in them as
 /// it was.
 pub fn save_goals(root: &Path, book: usize, day: usize) -> Result<()> {

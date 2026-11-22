@@ -157,6 +157,7 @@
         unlock-waits = vmTest ./nixos/tests/unlock-waits.nix;
         import-book = vmTest ./nixos/tests/import-book.nix;
         book-timeline = vmTest ./nixos/tests/book-timeline.nix;
+        mla-paper = vmTest ./nixos/tests/mla-paper.nix;
         helpers-no-fhs = vmTest ./nixos/tests/helpers-no-fhs.nix;
         start-frames = vmTest ./nixos/tests/start-frames.nix;
         boot-seams = vmTest ./nixos/tests/boot-seams.nix;

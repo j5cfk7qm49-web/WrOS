@@ -88,9 +88,15 @@ let
     pname = "grimoire";
     buildFeatures = [ "gui-drm" "gui-wgpu" "audio" ];
     cargoBuildFlags = [ "-p" "grimoire-tui" "--bin" "grimoire" ];
-    pathEnv = paths.rustPathEnv;
+    pathEnv = paths.rustPathEnv // {
+      WROS_TYPST = lib.getExe pkgs.typst;
+      WROS_MLA_FONT_DIR = "${pkgs.liberation_ttf}/share/fonts/truetype";
+    };
     postFixup = ''
       patchelf --add-rpath "${wgpuRuntimeLibs}" "$out/bin/grimoire"
+      install -Dm644 assets/csl/README.md "$out/share/doc/grimoire/csl/README.md"
+      install -Dm644 assets/csl/modern-language-association.csl "$out/share/doc/grimoire/csl/modern-language-association.csl"
+      install -Dm644 assets/csl/locales-en-US.xml "$out/share/doc/grimoire/csl/locales-en-US.xml"
     '';
   };
 

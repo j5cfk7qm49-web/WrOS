@@ -830,7 +830,7 @@ impl App {
                 }
                 result
             }
-            Key::Char('l') => {
+            Key::Char('l') if !self.project.meta.is_essay() => {
                 let result = self.save_check_options(|o| o.relaxed_dialogue = !o.relaxed_dialogue);
                 if result.is_ok() {
                     self.prose_dashboard.invalidate();
@@ -1425,5 +1425,10 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
             .style(Style::default().fg(theme.text)),
         body,
     );
-    f.render_widget(Paragraph::new("r run · d model once? · p profile · f fiction · l dialogue · o footnotes · v voice\nEnter inspect · Tab filter · a apply one · g original/Harper · w reviewed · x dismiss\n↑↓ select · PgUp/PgDn scroll · Esc back/close · F1 offline help").style(Style::default().fg(theme.dim)),footer);
+    let dialogue = if app.project.meta.is_essay() {
+        ""
+    } else {
+        " · l dialogue"
+    };
+    f.render_widget(Paragraph::new(format!("r run · d model once? · p profile · f fiction{dialogue} · o footnotes · v voice\nEnter inspect · Tab filter · a apply one · g original/Harper · w reviewed · x dismiss\n↑↓ select · PgUp/PgDn scroll · Esc back/close · F1 offline help")).style(Style::default().fg(theme.dim)),footer);
 }

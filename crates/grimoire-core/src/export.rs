@@ -46,6 +46,7 @@ use crate::typeset;
 mod docx_footnotes;
 mod epub_footnotes;
 mod footnote_source;
+mod mla;
 
 /// Roughly how much of a novel fits on one double-spaced manuscript page.
 const WORDS_PER_PAGE: usize = 250;
@@ -159,6 +160,8 @@ pub struct Exported {
     /// where its PDF belongs, for the caller to hand to
     /// [`crate::export_print::to_pdf`].
     pub paperback_document: Option<(String, PathBuf)>,
+    /// Prepared Typst layout for the desk's background PDF worker.
+    pub mla_document: Option<(String, PathBuf)>,
 }
 
 /// The book's top-level parts (acts), in order: node index and title.
@@ -172,6 +175,26 @@ pub fn parts(p: &Project) -> Vec<(usize, String)> {
 /// The TKs the export would carry, where they are — to warn before it runs.
 pub fn tks(p: &Project, opts: &ExportOptions) -> Result<Vec<String>> {
     Ok(book(p, opts.parts.as_deref(), opts.scope)?.tks)
+}
+
+/// Raw compilation retains citation syntax and reports unresolved references.
+pub fn citation_warnings(p: &Project) -> Vec<String> {
+    let Ok(selected) = book(p, None, Scope::Whole) else {
+        return Vec::new();
+    };
+    let options = ExportOptions {
+        docx: false,
+        epub: false,
+        markdown: true,
+        ..ExportOptions::default()
+    };
+    mla::issues(p, &selected, &options)
+        .into_iter()
+        .map(|issue| match issue.scene_title.as_ref().zip(issue.line) {
+            Some((file, line)) => format!("{file}:{line}: {}", issue.message),
+            None => issue.message,
+        })
+        .collect()
 }
 
 pub struct ExportPreflight {
@@ -191,7 +214,7 @@ pub fn preflight(p: &Project, opts: &ExportOptions) -> Result<ExportPreflight> {
     }
     let mut indices = selected.source_indices.clone();
     for (i, n) in p.nodes.iter().enumerate() {
-        if n.kind != Kind::Scene || !n.compile {
+        if p.meta.uses_mla() || n.kind != Kind::Scene || !n.compile {
             continue;
         }
         let edition = edition_of(p, n);
@@ -221,6 +244,21 @@ pub fn preflight(p: &Project, opts: &ExportOptions) -> Result<ExportPreflight> {
     }
     if indices.len() > 512 || bytes > 16 * 1024 * 1024 {
         bail!("preflight limit exceeded (512 scenes or 16 MiB); no partial report");
+    }
+    let mut citation_issues = mla::issues(p, &selected, opts);
+    if p.meta.uses_mla()
+        && (opts.docx || opts.pdf)
+        && citation_issues.is_empty()
+        && let Err(error) = mla::validate(p, &selected)
+    {
+        citation_issues.push(crate::preflight::PreflightIssue {
+            severity: crate::preflight::PreflightSeverity::Error,
+            category: "MLA 9".into(),
+            scene_title: None,
+            scene_id: None,
+            line: None,
+            message: format!("{error:#}"),
+        });
     }
     let scenes = indices
         .into_iter()
@@ -295,6 +333,10 @@ pub fn preflight(p: &Project, opts: &ExportOptions) -> Result<ExportPreflight> {
             ),
         });
     }
+    if report.issues.len() + citation_issues.len() > 512 {
+        bail!("preflight issue limit exceeded; no partial report");
+    }
+    report.issues.extend(citation_issues);
     Ok(ExportPreflight { report })
 }
 
@@ -307,6 +349,16 @@ pub fn export(p: &Project, opts: &ExportOptions) -> Result<Exported> {
     let mut book = book(p, opts.parts.as_deref(), opts.scope)?;
     if book.pieces.is_empty() {
         bail!("there's nothing written to export yet");
+    }
+    if p.meta.uses_mla() {
+        return mla::export(p, &book, opts);
+    }
+    let citation_issues = mla::issues(p, &book, opts);
+    if let Some(issue) = citation_issues
+        .iter()
+        .find(|i| i.severity == crate::preflight::PreflightSeverity::Error)
+    {
+        bail!("{}", issue.message);
     }
     // Validate/serialize Word before creating any output, including companion
     // formats. Invalid or unsupported note structures cannot publish a partial
@@ -373,7 +425,7 @@ pub fn export(p: &Project, opts: &ExportOptions) -> Result<Exported> {
     if opts.markdown {
         put(&format!("{stem}.md"), markdown(&book).as_bytes())?;
     }
-    let mut notes = Vec::new();
+    let mut notes: Vec<_> = citation_issues.into_iter().map(|i| i.message).collect();
     let mut paperback_document = None;
     if opts.paperback {
         let submission = std::mem::replace(&mut book.front, front_pages(p, Edition::Paperback));
@@ -415,6 +467,7 @@ pub fn export(p: &Project, opts: &ExportOptions) -> Result<Exported> {
         notes,
         manuscript_footnotes: manuscript_docx.as_ref().map_or(0, |(_, count)| *count),
         paperback_document,
+        mla_document: None,
     })
 }
 
@@ -1859,15 +1912,30 @@ fn docx(b: &Book) -> Result<(Vec<u8>, usize)> {
         look.page()
     );
 
-    let header = format!(
+    let header = page_header(&header_text(b));
+    docx_package(b.title, b.author, doc, header, &look, footnotes, false)
+}
+
+fn page_header(text: &str) -> String {
+    format!(
         "{XML_HEAD}<w:hdr xmlns:w=\"{W_NS}\" xmlns:r=\"{R_NS}\"><w:p><w:pPr><w:pStyle w:val=\"Header\"/></w:pPr>\
          {}<w:r><w:fldChar w:fldCharType=\"begin\"/></w:r>\
          <w:r><w:instrText xml:space=\"preserve\"> PAGE </w:instrText></w:r>\
          <w:r><w:fldChar w:fldCharType=\"separate\"/></w:r><w:r><w:t>1</w:t></w:r>\
          <w:r><w:fldChar w:fldCharType=\"end\"/></w:r></w:p></w:hdr>\n",
-        docx_text(&header_text(b))
-    );
+        docx_text(text)
+    )
+}
 
+fn docx_package(
+    title: &str,
+    author: &str,
+    doc: String,
+    header: String,
+    look: &Look,
+    footnotes: docx_footnotes::Footnotes,
+    mla: bool,
+) -> Result<(Vec<u8>, usize)> {
     let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ");
     let core = format!(
         "{XML_HEAD}<cp:coreProperties xmlns:cp=\"http://schemas.openxmlformats.org/package/2006/metadata/core-properties\" \
@@ -1877,8 +1945,8 @@ fn docx(b: &Book) -> Result<(Vec<u8>, usize)> {
          <dcterms:created xsi:type=\"dcterms:W3CDTF\">{now}</dcterms:created>\
          <dcterms:modified xsi:type=\"dcterms:W3CDTF\">{now}</dcterms:modified>\
          </cp:coreProperties>\n",
-        xml_escape(b.title),
-        xml_escape(b.author)
+        xml_escape(title),
+        xml_escape(author)
     );
 
     let files = [
@@ -1891,7 +1959,15 @@ fn docx(b: &Book) -> Result<(Vec<u8>, usize)> {
             "word/_rels/document.xml.rels",
             DOCX_DOCUMENT_RELS.to_string(),
         ),
-        ("word/styles.xml", docx_styles(&look)),
+        (
+            "word/styles.xml",
+            if mla {
+                let style = r#"<w:style w:type="paragraph" w:styleId="MlaWorksCited"><w:name w:val="Works Cited"/><w:basedOn w:val="Normal"/><w:pPr><w:ind w:left="720" w:hanging="720"/></w:pPr></w:style>"#;
+                docx_styles(look).replace("</w:styles>", &format!("{style}</w:styles>"))
+            } else {
+                docx_styles(look)
+            },
+        ),
         ("word/settings.xml", DOCX_SETTINGS.to_string()),
         ("word/header1.xml", header),
     ];
@@ -1903,7 +1979,7 @@ fn docx(b: &Book) -> Result<(Vec<u8>, usize)> {
                 "[Content_Types].xml" => *xml=xml.replace("</Types>","<Override PartName=\"/word/footnotes.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml\"/></Types>"),
                 "word/_rels/document.xml.rels" => *xml=xml.replace("</Relationships>","<Relationship Id=\"rIdFootnotes\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes\" Target=\"footnotes.xml\"/></Relationships>"),
                 "word/settings.xml" => *xml=xml.replace("<w:compat>","<w:footnotePr><w:pos w:val=\"pageBottom\"/><w:footnote w:id=\"-1\"/><w:footnote w:id=\"0\"/></w:footnotePr><w:compat>"),
-                "word/styles.xml" => *xml=xml.replace("</w:styles>",&format!("<w:style w:type=\"paragraph\" w:styleId=\"FootnoteText\"><w:name w:val=\"Footnote Text\"/><w:basedOn w:val=\"Normal\"/><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/><w:ind w:left=\"0\" w:right=\"0\" w:firstLine=\"0\"/></w:pPr><w:rPr><w:rFonts w:ascii=\"{}\" w:hAnsi=\"{}\"/><w:sz w:val=\"20\"/><w:szCs w:val=\"20\"/></w:rPr></w:style><w:style w:type=\"character\" w:styleId=\"FootnoteReference\"><w:name w:val=\"Footnote Reference\"/><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr></w:style></w:styles>",look.font,look.font)),
+                "word/styles.xml" => *xml=xml.replace("</w:styles>",&format!("<w:style w:type=\"paragraph\" w:styleId=\"FootnoteText\"><w:name w:val=\"Footnote Text\"/><w:basedOn w:val=\"Normal\"/><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"{}\" w:lineRule=\"auto\"/><w:ind w:left=\"0\" w:right=\"0\" w:firstLine=\"0\"/></w:pPr><w:rPr><w:rFonts w:ascii=\"{}\" w:hAnsi=\"{}\"/><w:sz w:val=\"{}\"/><w:szCs w:val=\"{}\"/></w:rPr></w:style><w:style w:type=\"character\" w:styleId=\"FootnoteReference\"><w:name w:val=\"Footnote Reference\"/><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr></w:style></w:styles>",if mla {480} else {240},look.font,look.font,if mla {24} else {20},if mla {24} else {20})),
                 _=>{}
             }
         }

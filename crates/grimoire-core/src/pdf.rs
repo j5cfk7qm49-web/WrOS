@@ -34,6 +34,70 @@ fn on_path(name: &str) -> Option<PathBuf> {
         .find(|p| p.is_file())
 }
 
+fn typst_paths() -> Option<(PathBuf, PathBuf)> {
+    let command = option_env!("WROS_TYPST")
+        .map(PathBuf::from)
+        .or_else(|| on_path(if cfg!(windows) { "typst.exe" } else { "typst" }))?;
+    let font_dir = option_env!("WROS_MLA_FONT_DIR")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("WROS_MLA_FONT_DIR").map(PathBuf::from))?;
+    font_dir
+        .join("LiberationSerif-Regular.ttf")
+        .is_file()
+        .then_some((command, font_dir))
+}
+
+pub fn has_typst() -> bool {
+    typst_paths().is_some()
+}
+
+/// Compile a generated MLA layout with the pinned fonts and publish it atomically.
+pub fn typst(layout: &str, output: &Path) -> Result<()> {
+    use std::process::Stdio;
+    use std::time::{Duration, Instant};
+    let (command, fonts) = typst_paths().context("MLA PDF needs Typst and Liberation Serif")?;
+    let stage = tempfile::tempdir().context("Creating a private PDF staging directory")?;
+    let input = stage.path().join("paper.typ");
+    let result = stage.path().join("paper.pdf");
+    std::fs::write(&input, layout)?;
+    let mut child = Command::new(command)
+        .current_dir(stage.path())
+        .args([
+            "compile",
+            "--ignore-system-fonts",
+            "--ignore-embedded-fonts",
+            "--font-path",
+        ])
+        .arg(fonts)
+        .arg(&input)
+        .arg(&result)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .context("Starting Typst")?;
+    let started = Instant::now();
+    let status = loop {
+        if let Some(status) = child.try_wait()? {
+            break status;
+        }
+        if started.elapsed() > Duration::from_secs(45) {
+            let _ = child.kill();
+            let _ = child.wait();
+            bail!("Typst took longer than 45 seconds");
+        }
+        std::thread::sleep(Duration::from_millis(30));
+    };
+    if !status.success() {
+        bail!("Typst couldn't lay out the paper");
+    }
+    let bytes = std::fs::read(&result).context("Reading the rendered PDF")?;
+    if !bytes.starts_with(b"%PDF-") {
+        bail!("Typst didn't write a PDF");
+    }
+    crate::atomic::write(output, &bytes)
+}
+
 /// LibreOffice, if this machine has it.
 pub fn find() -> Option<Office> {
     for name in ["soffice", "libreoffice", "soffice.exe"] {

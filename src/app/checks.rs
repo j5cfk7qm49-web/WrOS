@@ -922,7 +922,7 @@ impl App {
                     Key::Char('r') => {
                         self.save_check_options(|p| p.include_research = !p.include_research)?
                     }
-                    Key::Char('v') => {
+                    Key::Char('v') if !self.project.meta.is_essay() => {
                         self.save_check_options(|p| p.relaxed_dialogue = !p.relaxed_dialogue)?
                     }
                     Key::Char('x') => {
@@ -1074,7 +1074,11 @@ impl App {
                     format!("d English dialect: {:?} (native spelling keeps its own setting)", o.dialect),
                     format!("f Footnote bodies: {} (labels are never prose)", o.include_footnotes),
                     format!("n Notes: {} · r Research: {}", o.include_notes, o.include_research),
-                    format!("v Relax quoted dialogue style/capitalization: {}. Grammar is still checked. Attribution is a heuristic.", o.relaxed_dialogue),
+                ]);
+                if !self.project.meta.is_essay() {
+                    rows.push(format!("v Relax quoted dialogue style/capitalization: {}. Grammar is still checked. Attribution is a heuristic.", o.relaxed_dialogue));
+                }
+                rows.extend([
                     format!(
                         "Project rule mutes: {} · personal mutes: {}",
                         self.checks
@@ -1252,6 +1256,10 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             "↑↓ choose · Tab alternative · Enter source · a apply explicitly\n\
              i ignore this pass · n mute project rule · G personal rule (confirm)\n\
              r run once · l live on/off · s settings · c pause/clear · u reload · Esc"
+        }
+        Page::Settings if app.project.meta.is_essay() => {
+            "p profile · d dialect · f footnotes · n notes · r research\n\
+             x/X clear project/personal mutes · k revoke model permissions · u reload · Esc results"
         }
         Page::Settings => {
             "p profile · d dialect · f footnotes · n notes · r research · v dialogue\n\

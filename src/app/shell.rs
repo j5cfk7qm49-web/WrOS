@@ -990,7 +990,14 @@ fn page_entries(app: &App, route: Route) -> Vec<Entry> {
             rows
         }
         Route::WritingManuscript => {
-            let mut rows = setting_rows(app, &[Action::ManuscriptLook, Action::AuthorDetails]);
+            let mut rows = setting_rows(
+                app,
+                &[
+                    Action::ManuscriptLook,
+                    Action::AuthorDetails,
+                    Action::MlaPaperDetails,
+                ],
+            );
             rows.push(Entry::new(
                 "Footnotes · browse and jump",
                 Choice::Action(Action::Footnotes),

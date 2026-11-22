@@ -35,7 +35,11 @@ impl App {
                 if let Some(HistoryItem::Version { text, .. }) = versions.get(*sel) {
                     let (scene, text) = (scene.clone(), text.clone());
                     self.overlay = Overlay::None;
-                    self.restore_version(&scene, &text);
+                    if scene == self.project.root.join(grimoire_core::sources::FILENAME) {
+                        self.preview_sources_restore(&text);
+                    } else {
+                        self.restore_version(&scene, &text);
+                    }
                 }
             }
             Key::Esc => self.overlay = Overlay::None,

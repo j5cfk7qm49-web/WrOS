@@ -11,6 +11,29 @@ When the project is ready to send, *Export…* in the menu (*Export for readers*
 - **Typography**: curly quotes and apostrophes, real dashes and ellipses. Your own files stay exactly as you typed them.
 - **Nothing half-finished goes out quietly**: empty scenes and chapters are left out, `%% notes %%` are removed, and every TK is listed before anything is written.
 
+## Essay papers and sources
+
+Essay projects start with the **MLA 9 paper** layout. In Export, open
+**Paper details…** to enter your name, running surname, instructor, course and
+date. The project title appears above the body. A novel or other project can
+also choose this layout in the same form.
+
+Use **Tools › Notes › Add a source…** or **Import sources…** to add references.
+Import accepts BibTeX and CSL-JSON and shows a preview before saving. **Project
+sources…** opens the list for editing. Source metadata lives in `sources.json`
+beside the manuscript and travels with the project.
+
+Type `@` at the start of a word to choose a project source. Type `@@` for a
+literal at sign. Use the arrow keys and Enter to select a source, then enter a
+page or range if needed. Tab moves to **Author named in my sentence** and **Add
+another source**. Enter inserts the citation and Esc cancels. One Undo removes
+the inserted citation. Project sources remain available offline.
+
+Press `p` in Export to check citation keys and paper details before writing Word
+or PDF. MLA export formats the citations and adds Works Cited when the paper
+cites sources. Word uses Times New Roman. Typst embeds Liberation Serif in the
+PDF. The Markdown export preserves written markers such as `[@baron, p. 194]`.
+
 ## The export dialog
 
 - `↑` `↓` move between rows. `Space` or `Enter` ticks a format or a part.

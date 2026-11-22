@@ -566,6 +566,14 @@ impl PartialEq for HistoryTimeline {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Overlay {
     None,
+    ProjectSources(Box<overlays::SourceDialog>),
+    PaperDetails {
+        details: project::MlaDetails,
+        enabled: bool,
+        field: usize,
+        seen: Option<grimoire_core::sync::Fingerprint>,
+        back: Option<Box<Overlay>>,
+    },
     Deck(wros::Page),
     Pins,
     Journal,
@@ -2228,6 +2236,14 @@ impl App {
 
     /// Text pasted into the terminal arrives in one piece.
     pub fn paste(&mut self, text: &str) {
+        if matches!(self.overlay, Overlay::PaperDetails { .. }) {
+            self.paste_paper_details(text);
+            return;
+        }
+        if let Overlay::ProjectSources(dialog) = &mut self.overlay {
+            dialog.paste(text);
+            return;
+        }
         if matches!(
             self.overlay,
             Overlay::Footnotes { .. } | Overlay::FootnoteReader(_) | Overlay::Help { .. }
@@ -2626,6 +2642,12 @@ impl App {
             Action::Footnotes => self.open_footnotes(),
             Action::FootnoteAtCaret => self.open_footnote_at_caret(),
             Action::InsertFootnote => self.insert_new_footnote(),
+            Action::ProjectSources => self.open_project_sources(),
+            Action::ProjectSourcesTimeline => self.open_sources_timeline(),
+            Action::ProjectSourcesConflict => self.open_sources_conflict(),
+            Action::AddProjectSource => self.add_project_source(),
+            Action::ImportProjectSources => self.import_project_sources(),
+            Action::MlaPaperDetails => self.open_paper_details(None),
             Action::Conflicts => self.open_conflicts(),
             Action::NextTk => self.next_tk(),
             Action::NextDraft => self.next_draft(),
@@ -3096,7 +3118,7 @@ impl App {
         let trim =
             grimoire_core::export_print::Layout::from_meta(&self.project.meta.paperback).trim;
         self.overlay = Overlay::Export {
-            formats: [true, false, false, true, false],
+            formats: [true, false, false, !self.project.meta.uses_mla(), false],
             trim,
             parts,
             sample: (0, String::new()),
@@ -3228,7 +3250,21 @@ impl App {
                 // manuscript's from its DOCX, the paperback's from its layout.
                 let mut jobs: Vec<PdfJob> = Vec::new();
                 let office = self.office.clone().flatten();
-                if pdf {
+                if pdf && let Some((document, path)) = done.mla_document {
+                    if done.manuscript_footnotes > 0 {
+                        self.footnote_export_pending = Some(path.clone());
+                    }
+                    jobs.push((
+                        "PDF",
+                        Box::new(move || match grimoire_core::pdf::typst(&document, &path) {
+                            Ok(()) => Ok(path),
+                            Err(e) if path.is_file() => {
+                                Err(e.context("The existing PDF is from an earlier export"))
+                            }
+                            Err(e) => Err(e),
+                        }),
+                    ));
+                } else if pdf {
                     let docx = done
                         .files
                         .iter()
@@ -5162,6 +5198,9 @@ impl App {
     }
 
     pub fn on_editor_key(&mut self, key: Key) {
+        if key == Key::Char('@') && self.maybe_open_citation_picker() {
+            return;
+        }
         // With undo, a selection behaves the way it does everywhere else:
         // typing replaces it and Backspace or Delete removes it. Anything else
         // just lets go of it.
@@ -6114,6 +6153,13 @@ impl App {
                     c.words,
                     c.path.file_name().unwrap_or_default().to_string_lossy()
                 );
+                let warnings = export::citation_warnings(&self.project);
+                if let Some(first) = warnings.first() {
+                    self.msg = format!(
+                        "Compiled Markdown · {} citation issues · {first}",
+                        warnings.len()
+                    );
+                }
             }
             Err(e) => self.msg = format!("compile failed: {e}"),
         }

@@ -26,7 +26,10 @@ let
     doCheck = false;
     nativeBuildInputs = [ pkgs.pkg-config ];
     buildInputs = [ pkgs.alsa-lib pkgs.openssl pkgs.libdrm pkgs.libinput pkgs.systemd pkgs.seatd pkgs.libxkbcommon pkgs.wayland pkgs.mesa pkgs.libGL ];
-  } // paths.rustPathEnv);
+  } // paths.rustPathEnv // {
+    WROS_TYPST = lib.getExe pkgs.typst;
+    WROS_MLA_FONT_DIR = "${pkgs.liberation_ttf}/share/fonts/truetype";
+  });
 
   wlroots = import ./wlroots-0.18.nix { inherit pkgs; };
   python = pkgs.python3.withPackages (ps: [ ps.pillow ps.qrcode ]);

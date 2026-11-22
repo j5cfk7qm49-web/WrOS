@@ -13,6 +13,90 @@ const FORMATS: usize = 5;
 const PAPERBACK: usize = 2;
 
 impl App {
+    pub(crate) fn open_paper_details(&mut self, back: Option<Box<Overlay>>) {
+        use grimoire_core::{project_files, sync::Fingerprint};
+        let path = project_files::path(&self.project.root, project_files::FileKind::Settings);
+        let mut details = self.project.meta.mla.clone();
+        if details.name.is_empty() {
+            details.name.clone_from(&self.project.meta.author);
+        }
+        self.overlay = Overlay::PaperDetails {
+            details,
+            enabled: self.project.meta.uses_mla(),
+            field: 0,
+            seen: Fingerprint::read(&path),
+            back,
+        };
+    }
+
+    pub(super) fn on_paper_details_key(&mut self, key: Key) {
+        let Overlay::PaperDetails {
+            details,
+            enabled,
+            field,
+            seen,
+            back,
+        } = &mut self.overlay
+        else {
+            return;
+        };
+        match key {
+            Key::Tab | Key::Down => *field = (*field + 1) % 6,
+            Key::BackTab | Key::Up => *field = (*field + 5) % 6,
+            Key::Left | Key::Right | Key::Char(' ') if *field == 0 => *enabled = !*enabled,
+            Key::Esc => self.overlay = back.take().map_or(Overlay::None, |back| *back),
+            Key::Enter => {
+                let root = &self.project.root;
+                match grimoire_core::submission::save_mla(root, details, *enabled, *seen) {
+                    Ok(()) => {
+                        self.project.meta.mla = details.clone();
+                        self.project.meta.export_profile = if *enabled {
+                            "mla-9".into()
+                        } else {
+                            String::new()
+                        };
+                        self.overlay = back.take().map_or(Overlay::None, |back| *back);
+                        if self.project.meta.uses_mla()
+                            && let Overlay::Export { formats, .. } = &mut self.overlay
+                        {
+                            formats[2] = false;
+                            formats[3] = false;
+                        }
+                        self.deck.shell.backup.sync.saved(Instant::now());
+                        if let Some(timeline) = &self.timeline {
+                            timeline.record(Entry::Save);
+                        }
+                        self.msg = "Paper details saved.".into();
+                    }
+                    Err(e) => self.msg = format!("{e:#}"),
+                }
+            }
+            Key::Char(c) if *field > 0 && !c.is_control() => {
+                let value = mla_field(details, *field);
+                if value.chars().count() < 256 {
+                    value.push(c);
+                }
+            }
+            Key::Backspace if *field > 0 => {
+                mla_field(details, *field).pop();
+            }
+            _ => (),
+        }
+    }
+
+    pub fn paste_paper_details(&mut self, text: &str) {
+        if let Overlay::PaperDetails { details, field, .. } = &mut self.overlay
+            && *field > 0
+        {
+            let value = mla_field(details, *field);
+            value.extend(
+                text.chars()
+                    .filter(|c| !c.is_control())
+                    .take(256usize.saturating_sub(value.chars().count())),
+            );
+        }
+    }
+
     pub(super) fn on_export_key(&mut self, key: Key) {
         if let Overlay::Export {
             review: Some(review),
@@ -61,7 +145,8 @@ impl App {
             return;
         }
         let how_much = FORMATS + parts.len();
-        let (look_row, author_row, button) = (how_much + 1, how_much + 2, how_much + 3);
+        let (look_row, author_row, paper_row, button) =
+            (how_much + 1, how_much + 2, how_much + 3, how_much + 4);
         if list_nav(key, sel, button + 1, LIST) {
             return;
         }
@@ -122,6 +207,11 @@ impl App {
                 reset(tks);
                 let back = Box::new(self.overlay.clone());
                 self.open_author(Some(back));
+            }
+            Key::Enter | Key::Char(' ') if *sel == paper_row => {
+                reset(tks);
+                let back = Box::new(self.overlay.clone());
+                self.open_paper_details(Some(back));
             }
             Key::Enter | Key::Char('x') => self.export_pressed(),
             Key::Esc => self.overlay = Overlay::None,
@@ -200,6 +290,64 @@ impl App {
     }
 }
 
+fn mla_field(details: &mut project::MlaDetails, field: usize) -> &mut String {
+    match field {
+        1 => &mut details.name,
+        2 => &mut details.surname,
+        3 => &mut details.instructor,
+        4 => &mut details.course,
+        _ => &mut details.date,
+    }
+}
+
+pub(super) fn draw_paper_details(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
+    let Overlay::PaperDetails {
+        details,
+        enabled,
+        field,
+        ..
+    } = &app.overlay
+    else {
+        return;
+    };
+    let r = centred(area, area.width.min(70), area.height.min(12));
+    f.render_widget(Clear, r);
+    let block = pane_block("MLA 9 paper details", true, t);
+    let inner = block.inner(r);
+    f.render_widget(block, r);
+    let accent = Style::default().fg(t.accent);
+    let chosen = if *enabled {
+        "MLA 9 paper"
+    } else {
+        "Manuscript"
+    };
+    let mut lines = vec![Line::styled(
+        format!("Layout   ◂ {chosen} ▸"),
+        if *field == 0 {
+            accent
+        } else {
+            Style::default()
+        },
+    )];
+    for (i, (label, value)) in details.fields().into_iter().enumerate() {
+        let row = truncate(&format!("{label:<17} [{value}]"), inner.width as usize);
+        lines.push(Line::styled(
+            row,
+            if i + 1 == *field {
+                accent
+            } else {
+                Style::default()
+            },
+        ));
+    }
+    lines.push(Line::from("Date example · 22 November 2026"));
+    lines.push(hint_line(
+        "←/→ layout   Tab field   Enter save   Esc cancel",
+        t,
+    ));
+    f.render_widget(Paragraph::new(lines), inner);
+}
+
 pub(super) fn draw_export(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     let Overlay::Export {
         formats,
@@ -241,7 +389,7 @@ pub(super) fn draw_export(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         return;
     }
     let warn_rows = tks.as_ref().map_or(0, |v| v.len().min(3) + 2) as u16;
-    let h = (FORMATS as u16 + parts.len() as u16 + 15 + warn_rows).min(area.height);
+    let h = (FORMATS as u16 + parts.len() as u16 + 16 + warn_rows).min(area.height);
     let box_area = centred(area, area.width.saturating_sub(4).clamp(40, 80), h);
     f.render_widget(Clear, box_area);
     let block = pane_block("EXPORT FOR READERS", true, t);
@@ -303,7 +451,13 @@ pub(super) fn draw_export(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     };
 
     lines.push(Line::from(Span::styled(" Formats", bold)));
-    let pdf_note = if app.has_office() {
+    let pdf_note = if app.project.meta.uses_mla() {
+        if grimoire_core::pdf::has_typst() {
+            "MLA layout, made by Typst"
+        } else {
+            "needs Typst and Liberation Serif"
+        }
+    } else if app.has_office() {
         "the same pages, made by LibreOffice"
     } else {
         "needs LibreOffice (free) — libreoffice.org"
@@ -319,7 +473,12 @@ pub(super) fn draw_export(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     let notes = [
         (
             "Word document",
-            "manuscript format, for agents and editors".to_string(),
+            if app.project.meta.uses_mla() {
+                "editable MLA 9 paper"
+            } else {
+                "manuscript format, for agents and editors"
+            }
+            .to_string(),
         ),
         ("PDF", pdf_note.to_string()),
         ("Paperback", paperback_note),
@@ -390,8 +549,18 @@ pub(super) fn draw_export(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         (format!("{name} · {reach}"), dim)
     };
     lines.push(row2(how_much + 2, "Author details…", who.0, who.1));
+    lines.push(row2(
+        how_much + 3,
+        "Paper details…",
+        if m.uses_mla() {
+            "MLA 9 paper".into()
+        } else {
+            "Manuscript layout · choose MLA here".into()
+        },
+        dim,
+    ));
     lines.push(Line::from(""));
-    let button = how_much + 3;
+    let button = how_much + 4;
     let on = *sel == button;
     lines.push(Line::from(vec![
         marker(button),

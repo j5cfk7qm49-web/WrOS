@@ -221,6 +221,14 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "Create a unique Markdown footnote reference at the cursor and begin its definition. Undo restores the scene.",
             "notes",
         ),
+        Action::ProjectSources => ("Browse the saved sources in this project.", "compile"),
+        Action::ProjectSourcesTimeline => ("Preview and restore a saved source list.", "compile"),
+        Action::ProjectSourcesConflict => ("Review source changes from Google Drive.", "compile"),
+        Action::MlaPaperDetails => ("Set the paper heading and select MLA 9 layout.", "compile"),
+        Action::AddProjectSource => ("Enter the details for a project source.", "compile"),
+        Action::ImportProjectSources => {
+            ("Preview and import CSL-JSON or BibTeX sources.", "compile")
+        }
         Action::FootnoteAtCaret => (
             "Read the public footnote at the caret and navigate its references or original definition.",
             "notes",

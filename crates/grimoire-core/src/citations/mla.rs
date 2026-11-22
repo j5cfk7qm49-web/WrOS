@@ -145,10 +145,7 @@ fn flatten(children: &[ElemChild], omit_names: bool, runs: &mut Vec<Formatted>) 
         match child {
             ElemChild::Text(run) | ElemChild::Link { text: run, .. } => runs.push(run.clone()),
             ElemChild::Elem(e)
-                if omit_names && matches!(e.meta, Some(ElemMeta::Names | ElemMeta::Name(..))) =>
-            {
-                ()
-            }
+                if omit_names && matches!(e.meta, Some(ElemMeta::Names | ElemMeta::Name(..))) => {}
             ElemChild::Elem(e) => flatten(&e.children.0, omit_names, runs)?,
             ElemChild::Markup(_) | ElemChild::Transparent { .. } => {
                 anyhow::bail!("The MLA processor returned unsupported output.")

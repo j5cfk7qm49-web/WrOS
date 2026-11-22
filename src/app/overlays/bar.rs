@@ -120,6 +120,11 @@ impl App {
                         Action::MoveHistoryOut,
                     ));
                 }
+                rows.push(BarRow::new(
+                    "MLA 9 paper details…",
+                    "",
+                    Action::MlaPaperDetails,
+                ));
                 rows
             }
             Title::Edit => {
@@ -378,6 +383,19 @@ impl App {
                 BarRow::new("Writing journal…", "", Action::Journal),
                 BarRow::new("Scratchpad…", "", Action::Scratchpad),
                 BarRow::new("Session handoff…", "", Action::Handoff),
+                BarRow::new("Project sources…", "", Action::ProjectSources),
+                BarRow::new("Add a source…", "", Action::AddProjectSource),
+                BarRow::new("Import sources…", "", Action::ImportProjectSources),
+                BarRow::new(
+                    "Project sources timeline…",
+                    "",
+                    Action::ProjectSourcesTimeline,
+                ),
+                BarRow::new(
+                    "Resolve source conflict…",
+                    "",
+                    Action::ProjectSourcesConflict,
+                ),
             ],
             Side::Practice => vec![
                 BarRow::new("Progress…", "", Action::Progress),

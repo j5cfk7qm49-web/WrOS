@@ -1,6 +1,33 @@
 use super::*;
 
 #[test]
+fn citation_picker_obeys_word_boundaries_and_inserts_one_undo_step() {
+    for (w, h) in [(80, 24), (100, 30), (120, 40), (160, 50)] {
+        let mut d = metric_writer(&format!("citation-{w}"), w, h);
+        fs::write(
+            d.root.join("sources.json"),
+            r#"[{"id":"baron","type":"book","title":"Reading","author":[{"family":"Baron"}]}]"#,
+        )
+        .unwrap();
+        d.typed("name@example.test @@ ");
+        assert_eq!(d.app.editor.text(), "name@example.test @ ");
+        d.typed("@Baron");
+        assert!(d.shows("Cite a source"));
+        d.key(KeyCode::Esc);
+        assert_eq!(d.app.editor.text(), "name@example.test @ ");
+        d.typed("@Baron");
+        d.key(KeyCode::Enter);
+        d.typed("194");
+        d.key(KeyCode::Tab);
+        d.key(KeyCode::Char(' '));
+        d.key(KeyCode::Enter);
+        assert_eq!(d.app.editor.text(), "name@example.test @ [-@baron, p. 194]");
+        d.ctrl('z');
+        assert_eq!(d.app.editor.text(), "name@example.test @ ");
+    }
+}
+
+#[test]
 fn insertion_refuses_external_pending_parked_hidden_and_aliased_sources_without_editing() {
     let mut d = metric_writer("footnote-external", 80, 24);
     d.app.editor.set_text("Original λ.");

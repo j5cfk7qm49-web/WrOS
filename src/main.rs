@@ -122,6 +122,9 @@ fn main() -> Result<()> {
         } else {
             let c = manuscript::compile(&project)?;
             println!("Compiled {}", pretty(&c.path));
+            for warning in export::citation_warnings(&project) {
+                eprintln!("Citation: {warning}");
+            }
             println!(
                 "  {} chapters · {} scenes · {} words{}",
                 c.chapters,
@@ -435,12 +438,11 @@ fn export_command(mut args: impl Iterator<Item = String>) -> Result<()> {
     }
     // A trim size is only for the paperback, so asking for one asks for it.
     paperback |= trim.is_some();
-    if !(docx || epub || markdown || pdf || paperback) {
-        (docx, epub) = (true, true);
-    }
-
     let (root, _) = resolve_project(dir)?;
     let project = Project::load(&root).context("loading project")?;
+    if !(docx || epub || markdown || pdf || paperback) {
+        (docx, epub) = (true, !project.meta.uses_mla());
+    }
 
     // 1-based on the command line; node indices underneath.
     let parts = match numbers {

@@ -1,5 +1,29 @@
 # Testing and verification
 
+## RC24 essay and citations
+
+From the candidate checkout in the pinned NixOS development shell:
+
+~~~sh
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test -p grimoire-core --locked
+cargo test -p grimoire-tui --locked
+cargo test --no-default-features --features test-driver,pty-qa --test driven --locked
+nix build -L .#checks.x86_64-linux.mla-paper
+nix build -L .#checks.x86_64-linux.book-timeline .#checks.x86_64-linux.import-book
+nix build -L .#checks.x86_64-linux.app-suite
+nix path-info -Sh .#grimoire
+~~~
+
+The MLA VM check creates an Essay through the installed CLI. It inspects editable
+Word citations, real footnotes, the PDF's embedded font and running heads, and
+the preservation of older output when a source key is missing. Use the HP Stream
+to measure Typst's installed closure, peak memory and export time. Open the
+result in Word and visually check the MLA fixture against the published samples.
+Exercise the offline picker in DRM and Cage, then check Drive conflicts and
+source-only timeline restore with disposable projects. [RC24 design](superpowers/specs/2026-11-21-rc24-essays-mla-zotero-design.md)
+
 ## One command for a release candidate (#13)
 
 For NixOS, build the software checks `rust-suite`, `rust-suite-no-audio`,

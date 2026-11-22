@@ -9,6 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
+use unicode_normalization::UnicodeNormalization;
 
 use crate::sync::{self, Fingerprint, SaveOutcome};
 
@@ -209,6 +210,36 @@ impl Sources {
 
     pub fn get(&self, key: &str) -> Option<&Record> {
         self.0.get(key)
+    }
+
+    pub fn suggested_key(&self, record: &Record) -> String {
+        let author = record.get("author").and_then(|names| names.get(0));
+        let label = author
+            .and_then(|name| name["family"].as_str().or_else(|| name["literal"].as_str()))
+            .or_else(|| record.get("title").and_then(Value::as_str))
+            .unwrap_or_default();
+        let mut stem: String = label
+            .nfkd()
+            .filter(|c| c.is_ascii_alphanumeric())
+            .take(36)
+            .map(|c| c.to_ascii_lowercase())
+            .collect();
+        if stem.is_empty() {
+            stem.push_str("source");
+        }
+        if let Some(year) = record
+            .get("issued")
+            .and_then(|date| date["date-parts"][0][0].as_i64())
+        {
+            stem.push_str(&year.to_string());
+        }
+        if self.get(&stem).is_none() {
+            return stem;
+        }
+        (2..)
+            .map(|i| format!("{stem}-{i}"))
+            .find(|key| self.get(key).is_none())
+            .unwrap()
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&str, &Record)> {
@@ -546,6 +577,14 @@ mod tests {
         assert_eq!(records[1]["_wros"]["edition"], "e");
         assert_eq!(Sources::parse(&encoded).unwrap(), sources);
         assert!(Sources::parse(r#"[{"id":"a","type":"book"},{"id":"a","type":"book"}]"#).is_err());
+        let record = json!({"author":[{"family":"García"}],"issued":{"date-parts":[[2013]]}});
+        let mut entries = Sources::default();
+        let record = record.as_object().unwrap();
+        assert_eq!(entries.suggested_key(record), "garcia2013");
+        entries
+            .add(serde_json::from_value(json!({"id":"garcia2013","type":"book"})).unwrap())
+            .unwrap();
+        assert_eq!(entries.suggested_key(record), "garcia2013-2");
     }
 
     #[test]

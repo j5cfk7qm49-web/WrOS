@@ -56,7 +56,11 @@ impl App {
             | Overlay::DeleteBook { .. } => "books",
             Overlay::Themes { .. } | Overlay::Custom { .. } => "themes",
             Overlay::Sources { .. } | Overlay::Player { .. } => "music",
-            Overlay::Export { .. } | Overlay::Look { .. } | Overlay::Author { .. } => "compile",
+            Overlay::Export { .. }
+            | Overlay::Look { .. }
+            | Overlay::Author { .. }
+            | Overlay::ProjectSources(_)
+            | Overlay::PaperDetails { .. } => "compile",
             Overlay::Conflicts { .. } | Overlay::Settle { .. } | Overlay::Merge { .. } => "sync",
             Overlay::Cork { .. } => "corkboard",
             Overlay::History { .. } | Overlay::Recover { .. } => "history",
@@ -97,6 +101,7 @@ impl App {
     /// typed into something.
     pub fn question_opens_help(&self) -> bool {
         match &self.overlay {
+            Overlay::ProjectSources(_) | Overlay::PaperDetails { .. } => false,
             Overlay::Continuity => !self.continuity.typing(),
             Overlay::Milestones => !self.milestones.typing(),
             Overlay::ReviewNotes => !self.review_notes.typing(),
