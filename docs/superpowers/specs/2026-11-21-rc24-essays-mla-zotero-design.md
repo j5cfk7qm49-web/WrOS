@@ -159,3 +159,13 @@ Effort for one builder, including tests. Allow about 15–22 working days. Regis
 1. Can you share a redacted paper that your instructor accepted and any grading sheet that sets layout exceptions?
 2. Is typing a verifier of about 20 characters once per connection acceptable on the HP Stream?
 3. Which licensed Times New Roman font source can we use on the HP Stream for PDF acceptance?
+
+## Owner answers and a finding (2026-11-21, after this draft)
+
+- **The login:** typing the verifier code shown on the GitHub Pages callback is fine.
+- **MLA references:** use published MLA 9 sample papers (the MLA Style Center's and Purdue OWL's sample papers) as the fixtures the output must match. Their text isn't copied into the repository: build fixtures that reproduce their layout cases.
+- **Times New Roman needs no licence.** A `.docx` only names the font, and the reader's computer draws it. WrOS can't bundle Times New Roman (Monotype/Microsoft) and doesn't need to: MLA 9 asks for a legible font such as Times New Roman. PDFs WrOS makes use **Liberation Serif** (SIL OFL), which has Times New Roman's metrics.
+- **Finding: WrOS can't make PDFs today.**
+  - `export_print.rs` and `pdf.rs` shell out to LibreOffice, which is not in the WrOS system closure (only in the app-test environment), and the system ships only DejaVu fonts. So the PDF goal needs its own renderer.
+  - Recommended: **Typst** (in nixpkgs, 0.14.2 at the WrOS pin). It uses Hayagriva, ships an MLA style and embeds fonts. Add `pkgs.liberation_ttf` for the PDF.
+  - The builder measures Typst's closure size and checks its MLA 9 output against the fixtures before committing to it. Adding LibreOffice (hundreds of MB on a 32 GB laptop) is the rejected alternative.
