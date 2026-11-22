@@ -168,7 +168,7 @@ unauthenticated REST), and Logseq DB as the brain (beta, sync alpha, no third-pa
   highlights, then links.
 - **`@`:** works in notes and manuscripts alike; in manuscripts it writes rc24's citation format.
 - **Storage and sync:** Loro with the guardrails above. Each device keeps its own store; changes travel through Drive.
-- **Cards and grades:** RemNote's core card types; 0–5 grades over FSRS.
+- **Grades:** finer than four levels (the owner's ask). 0–5 over FSRS and RemNote's core card types are my call.
 - **Zotero:** none.
 - **Stage order:** below.
 
@@ -178,25 +178,26 @@ After the review, 2026-11-22:
   - **Pages:** the list of named pages is one key away.
   - **What a page is:** a top-level node, either a named page or a day page.
   - **Not a calendar:** a day page is just a page, with no calendar features. It is also not the Writing journal
-    (`docs/JOURNAL.md`), which stays as it is. Keep the names distinct on screen.
+    (`docs/JOURNAL.md`), which stays as it is. Keep the names distinct on screen. (my call)
 - **`@` in manuscripts opens the picker as you type,** but only when `@` starts a word.
   - **Literal `@`:** `name@email.com` never triggers it, and `@@` types a plain `@`.
   - **The picker:** has a page (locator) field and an "author named in my sentence" switch (rc24's `[-@key]`).
-  - **One way to cite:** it replaces rc24's separate Insert citation dialog. rc24's insertion guards still apply: the
-    right pane, revision checks, one Undo step.
+  - **One way to cite:** rc24 builds this picker from the start, over the project's sources, instead of a separate Insert
+    citation dialog, so nothing is thrown away; stage 3 widens its search to the library. rc24's insertion guards still
+    apply: the right pane, revision checks, one Undo step. (my call)
 - **Notes are encrypted on Drive.** Change files and snapshots are encrypted before upload.
-  - **New devices:** each one (including a future phone) receives the key once, e.g. by scanning a QR code shown on
-    a device that already has it.
+  - **New devices:** each one receives the key once from a device that already has it: a QR code for a phone, a
+    short code typed in for laptop to laptop.
   - **Losing the key:** losing every copy loses the synced copy, like WrOS's existing recovery key, and the screens
     say so.
   - **Library files:** they are the owner's own books, so encrypting them is the builder's call; say which in the
-    stage 5 plan.
+    stage 5 plan. (my call)
 - **Cited sources stay linked to their work.** A project's `sources.json` record carries the work ID it came from.
   - **When a work changes:** if its details change in the Library, opening or exporting the project says "Details
     for this source changed. Update?" A finished paper's Works Cited never changes silently.
-  - **Hand-entered rc24 sources:** they stay project-only until the owner chooses to add one to the Library.
+  - **Hand-entered rc24 sources:** they stay project-only until the owner chooses to add one to the Library. (my call)
   - **Same key or same source:** a project record that already matches the work's key or source is offered for
-    linking, never overwritten.
+    linking, never overwritten. (my call)
 
 ## Design
 
@@ -236,8 +237,8 @@ After the review, 2026-11-22:
 |---|---|
 | Loro store (snapshot + updates) | `~/.local/share/grimoire/brain/` |
 | SQLite index (FTS5) | Beside the store. Disposable: rebuilt from Loro whenever missing or stale. |
-| Library files | `~/Documents/Library/<work-id>/`, so ordinary backups include them |
-| Markdown copy | `~/Documents/Brain/`, one file per top-level page (named pages and day pages), plus one per work with its highlights. Written after saves, never read back as truth. |
+| Library files | `~/Documents/Library/<work-id>/`, visible to the owner. Backed up from stage 1 on (see Stages). |
+| Markdown copy | `~/Documents/Brain/`, one file per top-level page (named pages and day pages), plus one per work with its highlights. Written after saves, never read back as truth. Stays on the laptop: it is never uploaded readable. Drive only ever gets the encrypted store. (my call) |
 
 The shelf must not mistake `~/Documents/Library` or `~/Documents/Brain` for a writing project.
 
@@ -285,7 +286,7 @@ Each stage ships on its own and is usable when it lands.
 | 0 | **Loro test** | A deterministic stress test merges thousands of random concurrent edits, moves, deletes and tag/field changes from 2–3 simulated devices, with no lost, duplicated or cyclic nodes. A 50,000-node store loads, searches and saves within budgets the builder sets and measures on the HP Stream (or a 4 GB VM if the laptop isn't available). If it fails, switch to Automerge before stage 1. |
 | 1 | **Brain view** | Outliner editing, links, backlinks, tags, supertags with fields, saved searches, Markdown copy, the view bar and Super+1..4, Brain opening to Today, and the brain as a side pane in Write. Laptop only. The brain store and (from stage 3) `~/Documents/Library` join WrOS's encrypted backups (`os/scripts/wros-backup`, which today covers only projects and a small settings profile), with a tested restore; a restored store takes a new Loro device ID so two devices never share one. (my call: backups only covered projects, so notes would otherwise be unprotected until stage 5) |
 | 2 | **Review view** | Card syntax, the review screen, 0–5 grades, FSRS from the replayed log, filtered review. |
-| 3 | **Library and `@`** | Works with formats, the sortable/filterable library, DOI/ISBN lookup, `.bib`/CSL-JSON import, the `@` picker in notes and manuscripts writing rc24 citations and `sources.json` with linked work IDs. rc24 ships first (it's the next release) and builds the source store and `.bib`/CSL-JSON parser; this stage plugs into them. Stages 0–2 don't depend on rc24. |
+| 3 | **Library and `@`** | Works with formats, the sortable/filterable library, DOI/ISBN lookup, `.bib`/CSL-JSON import, the `@` picker in notes and manuscripts widening rc24's `@` picker from project sources to the whole library, writing rc24 citations and `sources.json` with linked work IDs. rc24 ships first (it's the next release) and builds the source store and `.bib`/CSL-JSON parser; this stage plugs into them. Stages 0–2 don't depend on rc24. |
 | 4 | **Reader** | EPUB with highlights and notes, then PDF text, then PDF page images in the native session. Cards from highlights. |
 | 5 | **Drive sync** | Two laptops editing offline converge after sync with nothing lost; library files sync. |
 | 6 | **Audio** | Playback with chapters, bookmarks and notes on a moment. |
