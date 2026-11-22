@@ -4864,14 +4864,16 @@ fn the_keyboard_selects_and_moves_a_word_at_a_time() {
     mods(&mut d, KeyCode::Char('b'), KeyModifiers::ALT);
     mods(&mut d, KeyCode::Char('x'), KeyModifiers::ALT);
     assert_eq!(d.app.editor.lines[0], before, "nothing typed");
-    // AltGr (Ctrl+Alt on Windows) types what it makes.
+    // AltGr (Ctrl+Alt on Windows) types a literal @ inside a word.
+    mods(&mut d, KeyCode::End, KeyModifiers::CONTROL);
+    d.typed("name");
     mods(
         &mut d,
         KeyCode::Char('@'),
         KeyModifiers::CONTROL | KeyModifiers::ALT,
     );
     assert!(
-        d.app.editor.lines[0].contains('@'),
+        d.app.editor.lines[0].ends_with("name@"),
         "{:?}",
         d.app.editor.lines[0]
     );
