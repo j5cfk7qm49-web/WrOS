@@ -47,8 +47,8 @@ in
   # ("illegal module type: @include"), which made every password fail. The same files are
   # used with the upstream spelling. nixos/pkgs/helpers.nix applies the same rewrite to the
   # copy of this text that wros-lock compares /etc/pam.d/vlock against.
-  environment.etc."pam.d/vlock".text = lib.mkForce (nixPam "${wrosRoot}/os/config/vlock.pam");
-  environment.etc."pam.d/wros-recovery".text = lib.mkForce (nixPam "${wrosRoot}/os/config/wros-recovery.pam");
+  environment.etc."pam.d/vlock".text = lib.mkForce (nixPam (wrosRoot + "/os/config/vlock.pam"));
+  environment.etc."pam.d/wros-recovery".text = lib.mkForce (nixPam (wrosRoot + "/os/config/wros-recovery.pam"));
   environment.etc."pam.d/common-auth".text = ''
     auth required ${pkgs.linux-pam}/lib/security/pam_unix.so nullok
   '';
@@ -57,9 +57,9 @@ in
   '';
 
   # Power, lid, sleep and reboot guards (os/config/60-wros-*-guard.conf)
-  services.logind.settings.Login = iniValues "${wrosRoot}/os/config/60-wros-power-guard.conf";
-  systemd.sleep.settings.Sleep = iniValues "${wrosRoot}/os/config/60-wros-sleep-guard.conf";
-  systemd.settings.Manager = iniValues "${wrosRoot}/os/config/60-wros-reboot-guard.conf";
+  services.logind.settings.Login = iniValues (wrosRoot + "/os/config/60-wros-power-guard.conf");
+  systemd.sleep.settings.Sleep = iniValues (wrosRoot + "/os/config/60-wros-sleep-guard.conf");
+  systemd.settings.Manager = iniValues (wrosRoot + "/os/config/60-wros-reboot-guard.conf");
 
   # Suspend requires the console lock proof; hibernate and hybrid-sleep are masked
   systemd.services.systemd-suspend.serviceConfig.ExecStartPre = [

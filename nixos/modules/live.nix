@@ -188,7 +188,7 @@ in
   ];
 
   security.polkit.extraConfig = lib.mkAfter ''
-    ${builtins.readFile "${wrosRoot}/os/config/50-wros-installer.rules"}
+    ${builtins.readFile (wrosRoot + "/os/config/50-wros-installer.rules")}
   '';
 
   systemd.services.wros-live-session = {

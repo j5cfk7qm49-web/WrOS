@@ -171,14 +171,14 @@ in
   environment.systemPackages = [ wrosPolkitPolicies ];
 
   security.polkit.extraConfig = ''
-    ${builtins.readFile "${wrosRoot}/os/config/50-wros-boot-settings.rules"}
-    ${builtins.readFile "${wrosRoot}/os/config/50-wros-clock.rules"}
-    ${builtins.readFile "${wrosRoot}/os/config/50-wros-display.rules"}
-    ${builtins.readFile "${wrosRoot}/os/config/50-wros-keyboard.rules"}
-    ${builtins.readFile "${wrosRoot}/os/config/50-wros-lock.rules"}
-    ${builtins.readFile "${wrosRoot}/os/config/50-wros-timezone.rules"}
-    ${builtins.readFile "${wrosRoot}/os/config/50-wros-update.rules"}
-    ${builtins.readFile "${wrosRoot}/os/config/51-wros-greeter-keyboard.rules"}
+    ${builtins.readFile (wrosRoot + "/os/config/50-wros-boot-settings.rules")}
+    ${builtins.readFile (wrosRoot + "/os/config/50-wros-clock.rules")}
+    ${builtins.readFile (wrosRoot + "/os/config/50-wros-display.rules")}
+    ${builtins.readFile (wrosRoot + "/os/config/50-wros-keyboard.rules")}
+    ${builtins.readFile (wrosRoot + "/os/config/50-wros-lock.rules")}
+    ${builtins.readFile (wrosRoot + "/os/config/50-wros-timezone.rules")}
+    ${builtins.readFile (wrosRoot + "/os/config/50-wros-update.rules")}
+    ${builtins.readFile (wrosRoot + "/os/config/51-wros-greeter-keyboard.rules")}
 
     // Joining and forgetting Wi-Fi networks (#141). Debian builds NetworkManager with
     // modify_system, so the person at the laptop never needed a password for this; NixOS's build
