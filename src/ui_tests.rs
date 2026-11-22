@@ -387,6 +387,16 @@ fn the_palette_runs_the_same_actions() {
     assert!(d.app.focus_mode);
 }
 
+#[test]
+fn typing_lock_in_the_palette_picks_lock() {
+    let mut d = Desk::open(book("palette-lock", true), 120, 35);
+    d.app.deck.lock_available = true;
+    d.ctrl('k');
+    d.typed("lock");
+    d.draw();
+    assert!(d.shows("▸ Lock"), "{}", d.rows().join("\n"));
+}
+
 // ---- the status bar ------------------------------------------------------
 
 #[test]

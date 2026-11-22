@@ -169,11 +169,8 @@ pkgs.testers.runNixOSTest {
             print(row)
     time.sleep(5)
     sketch("desk-at-login")
-    # The session may open on the dashboard, where Ctrl-K is not the command palette; Esc
-    # closes it (in the editor Esc opens the menu bar, which Esc closes again).
-    installed.send_key("esc")
-    time.sleep(2)
-    sketch("after-esc")
+    # The session opens on the desk (rc23 has no dashboard), where Ctrl-K is the command
+    # palette. Esc would open the menu bar instead, so none is pressed.
     installed.send_key("ctrl-k")
     time.sleep(1)
     installed.send_chars("lock")

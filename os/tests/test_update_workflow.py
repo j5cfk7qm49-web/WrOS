@@ -156,7 +156,10 @@ class Plan(unittest.TestCase):
         nixos = WORKFLOW.split("- name: Serve the NixOS release's offline-signed channel", 1)[1]
         nixos = nixos.split('\n      - ', 1)[0]
         self.assertIn("if: steps.plan.outputs.nixos != ''", nixos)
-        self.assertIn('releases/download/$NIXOS/wros-nixos-updates.tar', nixos)
+        self.assertIn('releases/download/$NIXOS"', nixos)
+        self.assertIn('"$base/wros-nixos-updates-thin.tar"', nixos)
+        self.assertIn('"$base/wros-nixos-updates.tar"', nixos)
+        self.assertLess(nixos.index('wros-nixos-updates-thin.tar'), nixos.index('"$base/wros-nixos-updates.tar"'))
         self.assertIn('tools/publish-nixos-updates.py check-bundle', nixos)
         self.assertIn('-size +99M', nixos)
         self.assertLess(WORKFLOW.index("Serve the NixOS release"), WORKFLOW.index('- name: Static pages'))

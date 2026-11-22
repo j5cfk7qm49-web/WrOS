@@ -60,11 +60,11 @@ class ProductivityPTY(unittest.TestCase):
                     terminal.until(lambda: (settings().get('schedule') or {}).get('target') == 50000 and
                                    len(settings()['schedule']['rest_days']) == 1,
                                    'explicit saved November target and rest-day choice')
-                    terminal.send(b'2n\r')
+                    terminal.send(b'\x0bAdvanced goals\rn\r')
                     field(terminal, '25')
                     terminal.until(lambda: bool(settings().get('goals')) and settings()['goals'][0].get('target') == 25,
                                    'actual configurable measured goal target')
-                    terminal.send(b'4n\x1b[B\r')
+                    terminal.send(b'\x0bAdvanced sprints\rn\x1b[B\r')
                     field(terminal, '3')
                     terminal.until(lambda: (settings().get('sprint') or {}).get('kind') == 'words',
                                    'actual word sprint started')

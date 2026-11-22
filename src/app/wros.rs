@@ -1436,6 +1436,7 @@ impl App {
                 self.overlay = Overlay::Deck(Page::Keyboard { sel: 0 });
             }
         }
+        self.run_pending_settings_row();
     }
     pub fn on_deck_key(&mut self, key: Key) {
         let Overlay::Deck(page) = self.overlay.clone() else {

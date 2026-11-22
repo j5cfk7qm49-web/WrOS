@@ -1349,6 +1349,45 @@ fn live_media_keeps_the_installer_in_the_wros_menu_with_confirmation() {
 }
 
 #[test]
+fn the_wros_menus_install_asks_even_while_storage_is_still_loading() {
+    // Opening Storage starts a status refresh; the menu's Install used to be dropped while
+    // that ran, leaving the writer on the Storage page with nothing asked.
+    let mut desk = Desk::open(book("menu-install-busy", true), 100, 30);
+    desk.app
+        .deck
+        .use_test_backend(Box::new(Simulated::laptop()));
+    desk.app.deck.live_session = true;
+    desk.app.deck.installer_available = true;
+    desk.menu(&["WrOS", "Install WrOS to disk"]);
+    assert!(desk.app.deck.busy, "opening Storage reads the status");
+    wait_system(&mut desk);
+    assert_eq!(desk.app.deck.shell.nav.current(), Route::InstallerConfirm);
+    assert!(
+        desk.shows("▸ Cancel and remain in the live writing session"),
+        "{}",
+        desk.rows().join("\n")
+    );
+    assert!(!desk.app.deck.installer_requested);
+}
+
+#[test]
+fn the_wros_menus_lock_waits_for_the_first_status_then_locks() {
+    // rc23 has no dashboard to read the system status at login, so the first Lock from the
+    // menu opens a Settings page that is still reading it. Lock used to be refused then.
+    let mut desk = Desk::open(book("menu-lock-busy", true), 100, 30);
+    desk.app
+        .deck
+        .use_test_backend(Box::new(Simulated::laptop()));
+    desk.app.deck.lock_available = true;
+    assert!(desk.app.deck.snapshot.is_none());
+    desk.menu(&["WrOS", "Lock"]);
+    assert!(desk.app.deck.busy, "opening the page reads the status");
+    assert!(!desk.app.deck.lock_requested);
+    wait_system(&mut desk);
+    assert!(desk.app.deck.lock_requested, "{}", desk.rows().join("\n"));
+}
+
+#[test]
 fn settings_descriptions_are_never_chosen_and_options_show_where_they_lead() {
     let mut desk = Desk::open(book("menu-row-kinds", true), 100, 30);
     desk.app.open_settings();

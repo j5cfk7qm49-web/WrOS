@@ -331,6 +331,9 @@ pub struct Shell {
     pub audio_status: Option<wros_sys::AudioStatus>,
     pub custom_keymaps: Vec<wros_sys::keyboard::CustomMapRegistration>,
     pub keyboard_wizard: Option<KeyboardWizardForm>,
+    /// A row the menu bar chose while its page was still reading the system status; it is
+    /// chosen when the reading finishes, if the writer is still on that page.
+    pub(crate) pending_row: Option<SettingsRow>,
 }
 impl Shell {
     pub fn load(root: &Path, background: bool) -> Self {
@@ -377,6 +380,7 @@ impl Shell {
             audio_status: None,
             custom_keymaps: Vec::new(),
             keyboard_wizard: None,
+            pending_row: None,
         };
         let result = (|| -> Result<()> {
             if state.path.is_symlink() {
@@ -427,6 +431,17 @@ impl Shell {
         if let Err(error) = result {
             self.notices.push(&error.to_string());
         }
+    }
+}
+
+/// The Settings page each menu-bar row is chosen on.
+fn settings_row_page(row: SettingsRow) -> Route {
+    match row {
+        SettingsRow::Lock | SettingsRow::Sleep | SettingsRow::Restart | SettingsRow::ShutDown => {
+            Route::Panel(Panel::Power)
+        }
+        SettingsRow::Install => Route::Panel(Panel::Storage),
+        SettingsRow::BackUpNow => Route::Backups,
     }
 }
 
@@ -2470,14 +2485,33 @@ impl App {
     /// power rows and File › Back up now run exactly what Settings runs, with
     /// the same confirmations, and leave the Settings box on that page.
     pub(crate) fn choose_in_settings(&mut self, row: SettingsRow) {
-        let page = match row {
-            SettingsRow::Lock
-            | SettingsRow::Sleep
-            | SettingsRow::Restart
-            | SettingsRow::ShutDown => Route::Panel(Panel::Power),
-            SettingsRow::Install => Route::Panel(Panel::Storage),
-            SettingsRow::BackUpNow => Route::Backups,
+        let was_busy = self.deck.busy;
+        self.deck.shell.pending_row = None;
+        self.open_settings_page(settings_row_page(row));
+        if !was_busy && self.deck.busy {
+            // Opening the page started reading the system status (the first time since
+            // login), and its rows refuse while that runs: choose once it is read.
+            self.deck.shell.pending_row = Some(row);
+            return;
+        }
+        self.choose_on_open_page(row);
+    }
+    /// Choose the row the menu bar asked for while its page was loading, once it has
+    /// loaded, if the writer is still on that page.
+    pub(crate) fn run_pending_settings_row(&mut self) {
+        if self.deck.busy {
+            return;
+        }
+        let Some(row) = self.deck.shell.pending_row.take() else {
+            return;
         };
+        if self.overlay == Overlay::Deck(wros::Page::Settings)
+            && self.deck.shell.nav.current() == settings_row_page(row)
+        {
+            self.choose_on_open_page(row);
+        }
+    }
+    fn choose_on_open_page(&mut self, row: SettingsRow) {
         let wanted = |choice: &Choice| match row {
             SettingsRow::Lock => matches!(choice, Choice::Lock),
             SettingsRow::Sleep => matches!(choice, Choice::System(8)),
@@ -2486,7 +2520,6 @@ impl App {
             SettingsRow::Install => matches!(choice, Choice::InstallerOpen),
             SettingsRow::BackUpNow => matches!(choice, Choice::BackupNow),
         };
-        self.open_settings_page(page);
         let rows = entries(self);
         if let Some(i) = rows.iter().position(|e| wanted(&e.choice)) {
             self.deck.shell.nav.select(i, rows.len());
@@ -2769,7 +2802,9 @@ impl App {
                             });
                         }
                     }
-                    Choice::InstallerOpen if !self.deck.busy => {
+                    // Asking is safe while a request runs (opening Storage refreshes it, so
+                    // the WrOS menu's Install always arrives busy); starting waits below.
+                    Choice::InstallerOpen => {
                         self.deck.shell.nav.open(Route::InstallerConfirm);
                         self.deck.shell.nav.select(0, 4);
                     }
@@ -2780,7 +2815,7 @@ impl App {
                         self.deck.shell.nav.back();
                         self.request_live_installer();
                     }
-                    Choice::InstallerOpen | Choice::InstallerResolve(true) => {}
+                    Choice::InstallerResolve(true) => {}
                     Choice::TimezoneOpen if !self.deck.busy => {
                         self.deck.shell.timezones = None;
                         self.deck.shell.timezone_query.clear();
