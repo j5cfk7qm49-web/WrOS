@@ -4514,6 +4514,8 @@ fn a_blank_book_from_the_menu_stays_empty_when_reopened() {
     d.menu(&["File", "New project…"]);
     d.key(KeyCode::Tab);
     d.key(KeyCode::Tab);
+    assert!(d.shows("● Essay"));
+    d.key(KeyCode::Tab);
     assert!(d.shows("● Blank"));
     assert!(d.shows("an empty manuscript"));
     d.typed(&name);
