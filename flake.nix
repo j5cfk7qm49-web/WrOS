@@ -163,6 +163,7 @@
         media-keys = vmTest ./nixos/tests/media-keys.nix;
         no-source-in-closure = noSourceInClosure;
         initrd-stable = initrdStable;
+        thin-update = vmTest ./nixos/tests/thin-update.nix;
         console-lock-vlock = vmTest ./nixos/tests/console-lock-vlock.nix;
         console-lock-text = vmTest ./nixos/tests/console-lock-text.nix;
         rust-suite = wrosPkgs.rust-suite;

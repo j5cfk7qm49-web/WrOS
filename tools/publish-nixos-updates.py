@@ -108,7 +108,7 @@ def check_bundle(tar, outdir, version, *, keyring=KEYRING, pin=PIN):
         verified = engine.verify_bundle(
             outdir, keyring=trusted[0], signers=trusted[1],
             version_file=Path('/nonexistent'), current_system=Path('/nonexistent'),
-            package_keyring=Path('/nonexistent'), store_dir=store)
+            package_keyring=Path('/nonexistent'), store_dir=store, allow_upstream_missing=True)
     if verified['version'] != version:
         raise ValueError(f'bundle publishes wros {verified["version"]}, not {version}')
     # The engine checks each file against the signed manifest, not that every package's archive

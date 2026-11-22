@@ -66,7 +66,8 @@ class NixosUpdateEngineTests(unittest.TestCase):
 
     def _make_signed_bundle(self, root, *, version='0.1.0~rc14',
                             toplevel='/nix/store/0123456789abcdfghijklmnpqrsvwxyz-nixos-system-wros-0.1.0-rc14',
-                            moment=None, tamper_nar=False, baseline=None, orphan_narinfo=False):
+                            moment=None, tamper_nar=False, baseline=None, orphan_narinfo=False,
+                            upstream=False):
         moment = moment or datetime(2026, 11, 14, 12, 0, tzinfo=timezone.utc)
         until = moment + timedelta(days=14)
         gnupg = root / 'gnupg'
@@ -152,6 +153,23 @@ class NixosUpdateEngineTests(unittest.TestCase):
             closure['cache_files'].append({
                 'path': orphan_rel, 'sha256': hashlib.sha256(orphan_bytes).hexdigest(),
                 'size': len(orphan_bytes), 'store_path': orphan})
+        if upstream:
+            # A thin bundle (rc23, #169): one package comes from cache.nixos.org, its files kept
+            # beside the bundle in root/upstream as the cache would serve them.
+            pkg = '/nix/store/abcdfghijklmnpqrsvwxyz0123456789-mpv-0.41.0'
+            pkg_hash = Path(pkg).name.split('-', 1)[0]
+            nar_name = 'nar/' + 'q' * 52 + '.nar.xz'
+            pkg_nar = b'upstream-nar-payload'
+            pkg_info = (f'StorePath: {pkg}\nURL: {nar_name}\nCompression: xz\n').encode()
+            served = root / 'upstream'
+            for rel, data in ((f'{pkg_hash}.narinfo', pkg_info), (nar_name, pkg_nar)):
+                (served / rel).parent.mkdir(parents=True, exist_ok=True)
+                (served / rel).write_bytes(data)
+                closure['cache_files'].append({
+                    'path': 'cache/' + rel, 'sha256': hashlib.sha256(data).hexdigest(),
+                    'size': len(data), 'store_path': pkg,
+                    'url': 'https://cache.nixos.org/' + rel})
+            closure['thin'] = True
         closure_raw = (json.dumps(closure, indent=2, sort_keys=True) + '\n').encode()
         (bundle / 'closure-manifest.json').write_bytes(closure_raw)
         if tamper_nar:
@@ -186,6 +204,125 @@ class NixosUpdateEngineTests(unittest.TestCase):
             return (bundle / url.removeprefix(self.engine.ONLINE_URL)).read_bytes()
 
         return bundle, paths, mock.patch.object(self.engine, 'http_get', side_effect=get_metadata)
+
+    # --- Thin bundles (rc23, #169) ---
+
+    def _thin_fetch(self, root, *, served=None, fail_with=None):
+        """fetch_online against a thin bundle: the channel from root/bundle, cache.nixos.org's
+        files from root/upstream, through a mirror base named in the system configuration."""
+        import io
+        import urllib.error
+        bundle, keyring, signers, moment = self._make_signed_bundle(
+            root, version='0.1.0~rc18', upstream=True,
+            toplevel='/nix/store/0123456789abcdfghijklmnpqrsvwxyz-nixos-system-wros-0.1.0-rc18')
+        (root / 'version').write_text('0.1.0~rc16\n', encoding='utf-8')
+        (root / 'store').mkdir()
+        mirror_file = root / 'update-upstream-url'
+        mirror_file.write_text('http://mirror.test/\n', encoding='utf-8')
+        asked = []
+        online = self.engine.ONLINE_URL
+
+        class Response(io.BytesIO):
+            status = 200
+
+        class Opener:
+            def open(self, url, timeout=None):
+                asked.append(url)
+                if url.startswith('http://mirror.test/'):
+                    if fail_with is not None:
+                        raise fail_with
+                    rel = url.removeprefix('http://mirror.test/')
+                    data = (served or {}).get(rel) or (root / 'upstream' / rel).read_bytes()
+                    return Response(data)
+                return Response((bundle / url.removeprefix(online)).read_bytes())
+
+        def get_metadata(url, _limit, _opener, **_kwargs):
+            return (bundle / url.removeprefix(self.engine.ONLINE_URL)).read_bytes()
+
+        cache = root / 'cache'
+        cache.mkdir()
+        with mock.patch.object(self.engine, 'http_get', side_effect=get_metadata):
+            try:
+                result = self.engine.fetch_online(
+                    cache=cache, keyring=keyring, signers=signers,
+                    now=moment + timedelta(minutes=1), version_file=root / 'version',
+                    current_system=root / 'current-system', store_dir=root / 'store',
+                    opener=Opener(), upstream_file=mirror_file)
+            finally:
+                staged = [p.name for p in cache.iterdir() if p.name != 'progress.json']
+        return result, asked, staged
+
+    def test_fetch_downloads_upstream_files_and_imports_like_hosted_ones(self):
+        with tempfile.TemporaryDirectory(prefix='wros-nixos-thin-') as tmp:
+            result, asked, _ = self._thin_fetch(Path(tmp))
+            self.assertEqual(result['status'], 'fetched')
+            mirrored = [u for u in asked if u.startswith('http://mirror.test/')]
+            self.assertEqual(sorted(mirrored), [
+                'http://mirror.test/abcdfghijklmnpqrsvwxyz0123456789.narinfo',
+                'http://mirror.test/nar/' + 'q' * 52 + '.nar.xz'])
+            fetched = Path(result['path'])
+            self.assertTrue((fetched / 'cache/abcdfghijklmnpqrsvwxyz0123456789.narinfo').is_file())
+            self.assertTrue((fetched / 'cache/nar' / ('q' * 52 + '.nar.xz')).is_file())
+
+    def test_a_tampered_upstream_file_is_refused(self):
+        with tempfile.TemporaryDirectory(prefix='wros-nixos-thin-') as tmp:
+            bad = {'nar/' + 'q' * 52 + '.nar.xz': b'upstream-nar-paylo4d'}
+            with self.assertRaisesRegex(ValueError, 'SHA-256'):
+                self._thin_fetch(Path(tmp), served=bad)
+            self.assertEqual(
+                [p.name for p in (Path(tmp) / 'cache').iterdir() if p.name != 'progress.json'], [],
+                'nothing was staged')
+
+    def test_fetch_reports_an_unreachable_upstream_and_stages_nothing(self):
+        import urllib.error
+        with tempfile.TemporaryDirectory(prefix='wros-nixos-thin-') as tmp:
+            with self.assertRaisesRegex(ValueError, "^Couldn't reach cache.nixos.org for .*mpv"):
+                self._thin_fetch(Path(tmp), fail_with=urllib.error.URLError('timed out'))
+            self.assertEqual(
+                [p.name for p in (Path(tmp) / 'cache').iterdir() if p.name != 'progress.json'], [])
+
+    def test_a_missing_upstream_file_is_named_and_stages_nothing(self):
+        import urllib.error
+        with tempfile.TemporaryDirectory(prefix='wros-nixos-thin-') as tmp:
+            gone = urllib.error.HTTPError('http://mirror.test/x', 404, 'Not Found', {}, None)
+            with self.assertRaisesRegex(ValueError, '^cache.nixos.org no longer has .*mpv-0.41.0'):
+                self._thin_fetch(Path(tmp), fail_with=gone)
+            self.assertEqual(
+                [p.name for p in (Path(tmp) / 'cache').iterdir() if p.name != 'progress.json'], [])
+
+    def test_an_offline_thin_bundle_is_refused_with_a_reason(self):
+        with tempfile.TemporaryDirectory(prefix='wros-nixos-thin-') as tmp:
+            root = Path(tmp)
+            bundle, keyring, signers, moment = self._make_signed_bundle(
+                root, version='0.1.0~rc18', upstream=True,
+                toplevel='/nix/store/0123456789abcdfghijklmnpqrsvwxyz-nixos-system-wros-0.1.0-rc18')
+            (root / 'store').mkdir()
+            args = dict(keyring=keyring, signers=signers, now=moment + timedelta(minutes=1),
+                        version_file=Path('/nonexistent'), current_system=Path('/nonexistent'),
+                        store_dir=root / 'store')
+            with self.assertRaisesRegex(ValueError, '^This update needs the internet'):
+                self.engine.verify_bundle(bundle, **args)
+            # The Pages channel of a thin bundle is checked without them.
+            self.assertTrue(self.engine.verify_bundle(bundle, allow_upstream_missing=True, **args)['verified'])
+
+    def test_upstream_urls_must_be_cache_nixos_org(self):
+        good = 'https://cache.nixos.org/nar/' + 'q' * 52 + '.nar.xz'
+        self.assertTrue(self.engine.UPSTREAM_URL_RE.fullmatch(good))
+        for bad in ('https://evil.example/nar/' + 'q' * 52 + '.nar.xz',
+                    'http://cache.nixos.org/nar/' + 'q' * 52 + '.nar.xz',
+                    'https://cache.nixos.org/nar/../' + 'q' * 49 + '.nar.xz',
+                    'https://cache.nixos.org/nar/' + 'Q' * 52 + '.nar.xz',
+                    'https://cache.nixos.org/' + 'e' * 32 + '.narinfo',
+                    'https://cache.nixos.org.evil/' + 'a' * 32 + '.narinfo'):
+            self.assertIsNone(self.engine.UPSTREAM_URL_RE.fullmatch(bad), bad)
+        with tempfile.TemporaryDirectory() as tmp:
+            conf = Path(tmp) / 'update-upstream-url'
+            self.assertEqual(self.engine.upstream_base(conf), 'https://cache.nixos.org/')
+            conf.write_text('http://10.0.2.2:8080/cache/\n', encoding='utf-8')
+            self.assertEqual(self.engine.upstream_base(conf), 'http://10.0.2.2:8080/cache/')
+            conf.write_text('file:///etc/shadow\n', encoding='utf-8')
+            with self.assertRaises(ValueError):
+                self.engine.upstream_base(conf)
 
     def test_check_online_requires_baseline_only_for_a_newer_delta(self):
         with tempfile.TemporaryDirectory(prefix='wros-nixos-check-') as tmp:

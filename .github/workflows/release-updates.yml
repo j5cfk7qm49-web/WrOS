@@ -206,9 +206,13 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p out/pages
+          # From rc24 a release can carry a thin bundle (#169): Pages serves it, and laptops fetch
+          # the upstream packages it lists from cache.nixos.org. The full one stays a release
+          # asset for update sticks, and is what Pages serves when there is no thin one.
+          base="https://github.com/$GITHUB_REPOSITORY/releases/download/$NIXOS"
           for attempt in $(seq 1 30); do
-            if curl -fsSL --proto '=https' -o out/wros-nixos-updates.tar \
-                "https://github.com/$GITHUB_REPOSITORY/releases/download/$NIXOS/wros-nixos-updates.tar"; then
+            if curl -fsSL --proto '=https' -o out/wros-nixos-updates.tar "$base/wros-nixos-updates-thin.tar" \
+                || curl -fsSL --proto '=https' -o out/wros-nixos-updates.tar "$base/wros-nixos-updates.tar"; then
               break
             fi
             [ "$attempt" -lt 30 ] || { echo "no wros-nixos-updates.tar on release $NIXOS" >&2; exit 1; }

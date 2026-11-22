@@ -59,6 +59,12 @@ MEDIA_LABEL = _base.MEDIA_LABEL
 MEDIA_FILESYSTEMS = _base.MEDIA_FILESYSTEMS
 DEBIAN_ONLINE_URL = _base.ONLINE_URL
 ONLINE_URL = 'https://j5cfk7qm49-web.github.io/WrOS/nixos-updates/'
+# Thin bundles (rc23, #169): upstream packages are listed in the signed manifest under their
+# cache.nixos.org address and fetched from there, checked like every other file. The system
+# configuration may name another base to fetch them from (a VM test's local copy); the manifest
+# itself only ever names cache.nixos.org.
+UPSTREAM_URL = 'https://cache.nixos.org/'
+DEFAULT_UPSTREAM_FILE = Path('/etc/wros/update-upstream-url')
 ONLINE_CACHE = _base.ONLINE_CACHE
 ONLINE_TIMEOUT = _base.ONLINE_TIMEOUT
 ALLOWED_MEDIA_PREFIXES = _base.ALLOWED_MEDIA_PREFIXES
@@ -89,6 +95,21 @@ CACHE_REL_RE = re.compile(
 RELEASE_ASSET_URL_RE = re.compile(
     r'^https://github\.com/j5cfk7qm49-web/WrOS/releases/download/v[0-9A-Za-z.+~-]+/[A-Za-z0-9._-]+$'
 )
+UPSTREAM_URL_RE = re.compile(
+    r'^https://cache\.nixos\.org/(?:[0-9a-df-np-sv-z]{32}\.narinfo|nar/[0-9a-df-np-sv-z]{52}\.nar(?:\.xz|\.zst)?)$'
+)
+
+
+def upstream_base(path=DEFAULT_UPSTREAM_FILE):
+    """Where to fetch cache.nixos.org's files from: cache.nixos.org itself, unless the (root-owned)
+    system configuration names another http(s) base ending in '/'."""
+    try:
+        value = Path(path).read_text(encoding='utf-8').strip()
+    except OSError:
+        return UPSTREAM_URL
+    if re.fullmatch(r'https?://[A-Za-z0-9.:\[\]-]+(?:/[A-Za-z0-9._~-]+)*/', value):
+        return value
+    fail(f'{path} must name an http(s) address ending in /')
 HEX64_RE = _base.HEX64_RE
 HEX32_RE = _base.HEX32_RE
 PKEXEC_UID_RE = _base.PKEXEC_UID_RE
@@ -359,8 +380,14 @@ def parse_closure_manifest(raw_bytes):
             fail(f'invalid size for {rel}')
         if sp is not None and (not isinstance(sp, str) or STORE_PATH_RE.fullmatch(sp) is None):
             fail(f'invalid store_path for {rel}: {sp!r}')
-        if url is not None and (not isinstance(url, str) or RELEASE_ASSET_URL_RE.fullmatch(url) is None):
-            fail(f'invalid release asset url for {rel}')
+        if url is not None and (
+                not isinstance(url, str)
+                or (RELEASE_ASSET_URL_RE.fullmatch(url) is None
+                    and UPSTREAM_URL_RE.fullmatch(url) is None)):
+            fail(f'invalid download address for {rel}')
+        if (url is not None and UPSTREAM_URL_RE.fullmatch(url) is not None
+                and rel != 'cache/' + url.removeprefix(UPSTREAM_URL)):
+            fail(f'{rel} must be staged where cache.nixos.org names it')
         if rel in seen_paths:
             fail(f'duplicate cache file in closure manifest: {rel}')
         seen_paths.add(rel)
@@ -385,8 +412,19 @@ def parse_closure_manifest(raw_bytes):
         'toplevel': toplevel,
         'baseline': baseline,
         'app_only': bool(manifest.get('app_only', False)),
+        # Some files come from cache.nixos.org instead of the bundle (rc23).
+        'thin': bool(manifest.get('thin', False)),
         'cache_files': cleaned_files,
     }
+
+
+def is_upstream(item):
+    return bool(item.get('url')) and UPSTREAM_URL_RE.fullmatch(item['url']) is not None
+
+
+NEEDS_INTERNET = ('This update needs the internet for packages it gets from cache.nixos.org: '
+                  'install it online from Settings › Updates, or put the full bundle from the '
+                  'release (wros-nixos-updates.tar) on the stick.')
 
 
 def missing_baseline(closure, store_dir):
@@ -405,7 +443,8 @@ def require_baseline(closure, store_dir):
         fail(f'This update needs WrOS {needs} first')
 
 
-def verify_closure_archives(bundle_root, closure, *, store_dir=Path('/nix/store'), allow_skipped_present=False):
+def verify_closure_archives(bundle_root, closure, *, store_dir=Path('/nix/store'), allow_skipped_present=False,
+                            allow_upstream_missing=False):
     """Verify every binary-cache file (.narinfo, .nar.zst, nix-cache-info) against the signed manifest BEFORE import."""
     bundle_root = Path(bundle_root)
     if bundle_root.is_symlink() or not bundle_root.is_dir():
@@ -419,6 +458,11 @@ def verify_closure_archives(bundle_root, closure, *, store_dir=Path('/nix/store'
         if not file_path.exists():
             if allow_skipped_present and sp and sp != closure['toplevel'] and store_has_path(sp, store_dir=store_dir):
                 continue
+            if is_upstream(item):
+                if allow_upstream_missing:
+                    # The Pages channel of a thin bundle: the laptop fetches these itself.
+                    continue
+                fail(NEEDS_INTERNET)
             fail(f'missing binary-cache file {rel}')
         if file_path.is_symlink() or not file_path.is_file():
             fail(f'binary-cache entry must be a regular file: {rel}')
@@ -439,7 +483,7 @@ def verify_open_nixos_bundle(bundle_dir, *, keyring=DEFAULT_KEYRING, signers=DEF
                              now=None, last_applied=None, suites=PINNED_SUITES,
                              version_file=DEFAULT_VERSION_FILE, current_system=DEFAULT_CURRENT_SYSTEM,
                              store_dir=Path('/nix/store'), package_keyring=None,
-                             allow_skipped_present=False):
+                             allow_skipped_present=False, allow_upstream_missing=False):
     bundle_dir = Path(bundle_dir)
     if bundle_dir.is_symlink() or not bundle_dir.is_dir():
         fail('update bundle path must be a regular directory')
@@ -469,7 +513,8 @@ def verify_open_nixos_bundle(bundle_dir, *, keyring=DEFAULT_KEYRING, signers=DEF
         fail('closure-manifest.json SHA-256 or byte size does not match signed Release metadata')
     closure = parse_closure_manifest(manifest_raw)
     verify_closure_archives(
-        bundle_dir, closure, store_dir=store_dir, allow_skipped_present=allow_skipped_present)
+        bundle_dir, closure, store_dir=store_dir, allow_skipped_present=allow_skipped_present,
+        allow_upstream_missing=allow_upstream_missing)
     installed_ver = current_installed_version(version_file=version_file, current_system=current_system)
     action = 'install'
     if installed_ver is not None:
@@ -508,12 +553,13 @@ def verify_bundle(bundle_dir, keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNERS, 
                   now=None, host_arch=None, last_applied=None, strict_path=False,
                   suites=PINNED_SUITES, package_keyring=None, version_file=DEFAULT_VERSION_FILE,
                   current_system=DEFAULT_CURRENT_SYSTEM, store_dir=Path('/nix/store'),
-                  allow_skipped_present=False):
+                  allow_skipped_present=False, allow_upstream_missing=False):
     raw = verify_open_nixos_bundle(
         bundle_dir, keyring=keyring, signers=signers, now=now, last_applied=last_applied,
         suites=suites, version_file=version_file, current_system=current_system,
         store_dir=store_dir, package_keyring=package_keyring,
-        allow_skipped_present=allow_skipped_present)
+        allow_skipped_present=allow_skipped_present,
+        allow_upstream_missing=allow_upstream_missing)
     narinfo_count = sum(1 for f in raw['closure']['cache_files'] if f['path'].endswith('.narinfo'))
     return {
         'verified': True,
@@ -1465,7 +1511,8 @@ def http_stream_to_file(url, dest_path, expected_size, expected_sha256, opener=N
 def fetch_online(*, base_url=ONLINE_URL, cache=ONLINE_CACHE, now=None,
                  keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNERS,
                  version_file=DEFAULT_VERSION_FILE, current_system=DEFAULT_CURRENT_SYSTEM,
-                 store_dir=Path('/nix/store'), package_keyring=None, opener=None, **_unused):
+                 store_dir=Path("/nix/store"), package_keyring=None, opener=None,
+                 upstream_file=DEFAULT_UPSTREAM_FILE, **_unused):
     previous = os.umask(0o022)
     keyring = resolve_trust_anchor(keyring)
     signers = resolve_trust_anchor(signers)
@@ -1500,7 +1547,26 @@ def fetch_online(*, base_url=ONLINE_URL, cache=ONLINE_CACHE, now=None,
         try:
             (partial / 'InRelease').write_bytes(inrelease)
             (partial / CLOSURE_MANIFEST_NAME).write_bytes(manifest_raw)
+            mirror = upstream_base(upstream_file)
             for item in to_download:
+                if is_upstream(item):
+                    file_url = mirror + item['url'].removeprefix(UPSTREAM_URL)
+                    package = Path(item.get('store_path') or item['path']).name
+                    try:
+                        http_stream_to_file(
+                            file_url, partial / item['path'], item['size'], item['sha256'],
+                            opener=opener, timeout=120, on_chunk=progress.add)
+                    except urllib.error.HTTPError as error:
+                        if error.code == 404:
+                            fail(f'cache.nixos.org no longer has {package}, which this update '
+                                 'needs. Nothing was staged. Install the full bundle from the '
+                                 'release on a stick.')
+                        fail(f"Couldn't download {package} from cache.nixos.org (HTTP "
+                             f'{error.code}). Nothing was staged; try again later.')
+                    except (urllib.error.URLError, OSError, TimeoutError) as error:
+                        fail(f"Couldn't reach cache.nixos.org for {package} ({error}). Nothing "
+                             'was staged; try again later.')
+                    continue
                 file_url = item.get('url') or (base_url + item['path'])
                 http_stream_to_file(
                     file_url, partial / item['path'], item['size'], item['sha256'],

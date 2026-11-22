@@ -69,10 +69,121 @@ def prune_to_delta(staging, cache_files, baseline, toplevel):
     return kept
 
 
+UPSTREAM = 'https://cache.nixos.org/'
+NIX32 = '0123456789abcdfghijklmnpqrsvwxyz'
+NAR_REL_RE = re.compile(r'^nar/[0-9a-df-np-sv-z]{52}\.nar(?:\.xz|\.zst)?$')
+
+
+def nix32_decode(text):
+    """Nix's base-32 (as in NarHash: sha256:…) to bytes."""
+    size = len(text) * 5 // 8
+    out = bytearray(size)
+    for n, char in enumerate(reversed(text)):
+        digit = NIX32.index(char)
+        bit = n * 5
+        i, j = bit // 8, bit % 8
+        out[i] |= (digit << j) & 0xff
+        if i + 1 < size:
+            out[i + 1] |= digit >> (8 - j)
+    return bytes(out)
+
+
+def narinfo_fields(text):
+    return dict(line.split(': ', 1) for line in text.splitlines() if ': ' in line)
+
+
+def fetch(url, limit):
+    """GET a cache file, or None if the cache doesn't have it."""
+    import urllib.error
+    import urllib.request
+    try:
+        with urllib.request.urlopen(url, timeout=60) as response:
+            data = response.read(limit + 1)
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return None
+        raise BuildError(f'{url}: HTTP {exc.code}') from None
+    except urllib.error.URLError as exc:
+        if isinstance(exc.reason, FileNotFoundError):  # a file:// copy without it
+            return None
+        raise BuildError(f'{url}: {exc.reason}') from None
+    if len(data) > limit:
+        raise BuildError(f'{url} is larger than {limit} bytes')
+    return data
+
+
+def decompress(name, data):
+    if name.endswith('.xz'):
+        import lzma
+        return lzma.decompress(data)
+    if name.endswith('.zst'):
+        res = subprocess.run(['zstd', '-dc'], input=data, capture_output=True, check=False)
+        if res.returncode != 0:
+            raise BuildError(f'could not decompress {name}')
+        return res.stdout
+    return data
+
+
+def thin_out(staging, cache_files, upstream, toplevel, keep):
+    """Leave out of the bundle every package cache.nixos.org already has byte for byte (#169): list
+    its .narinfo and archive under their cache.nixos.org address instead, with the SHA-256 and size
+    of cache.nixos.org's own files, so the laptop fetches them from there and checks them against
+    this signed manifest. A package whose NAR hash differs (WrOS built or patched it) stays. The
+    fetched files are written to `keep` for the bundle's self-check, not to the bundle."""
+    staging = Path(staging)
+    narinfo_items = [i for i in cache_files if i['path'].endswith('.narinfo')
+                     and i.get('store_path') and i['store_path'] != toplevel]
+    moved = {}
+    for item in narinfo_items:
+        local = narinfo_fields((staging / item['path']).read_text(encoding='utf-8'))
+        name = Path(item['path']).name
+        remote_bytes = fetch(upstream + name, 64 * 1024)
+        if remote_bytes is None:
+            continue
+        remote = narinfo_fields(remote_bytes.decode('utf-8'))
+        if remote.get('NarHash') != local.get('NarHash') or not NAR_REL_RE.fullmatch(remote.get('URL', '')):
+            continue
+        nar_rel = remote['URL']
+        archive = fetch(upstream + nar_rel, 1536 * 1024 * 1024)
+        if archive is None:
+            continue
+        algo, _, digest = local['NarHash'].partition(':')
+        if algo != 'sha256' or hashlib.sha256(decompress(nar_rel, archive)).digest() != nix32_decode(digest):
+            raise BuildError(f'cache.nixos.org\'s archive for {name} does not unpack to its NAR hash')
+        moved[item['path']] = (item['store_path'], name, remote_bytes, nar_rel, archive)
+    if not moved:
+        return cache_files, False
+    # Local archives still needed by a package that stays.
+    still_needed = {narinfo_url(staging / i['path']) for i in narinfo_items + [
+        i for i in cache_files if i['path'].endswith('.narinfo') and i.get('store_path') == toplevel]
+        if i['path'] not in moved}
+    kept = []
+    for item in cache_files:
+        if item['path'] in moved:
+            continue
+        if item['path'].startswith('cache/nar/') and item['path'] not in still_needed \
+                and any(narinfo_url(staging / p) == item['path'] for p in moved):
+            (staging / item['path']).unlink(missing_ok=True)
+            continue
+        kept.append(item)
+    for rel, (store_path, name, remote_bytes, nar_rel, archive) in moved.items():
+        (staging / rel).unlink(missing_ok=True)
+        for path, data, url in ((rel, remote_bytes, UPSTREAM + name),
+                                ('cache/' + nar_rel, archive, UPSTREAM + nar_rel)):
+            target = Path(keep) / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+            kept.append({'path': path, 'sha256': hashlib.sha256(data).hexdigest(),
+                         'size': len(data), 'store_path': store_path, 'url': url})
+    return kept, True
+
+
 def check_archives(root, cache_files):
-    """Every .narinfo in the bundle has its archive in the bundle."""
+    """Every .narinfo in the bundle has its archive in the bundle (or both come from cache.nixos.org)."""
     listed = {item['path'] for item in cache_files}
     for item in cache_files:
+        if (item.get('url') or '').startswith(UPSTREAM):
+            continue
         if item['path'].endswith('.narinfo'):
             url = narinfo_url(Path(root) / item['path'])
             if url not in listed or not (Path(root) / url).is_file():
@@ -158,6 +269,10 @@ def parse_args(argv):
     parser.add_argument('--date', help='Release Date as ISO 8601 UTC')
     parser.add_argument('--valid-days', type=int, default=14)
     parser.add_argument('--use-primary', action='store_true')
+    parser.add_argument('--thin', action='store_true',
+                        help='leave out packages cache.nixos.org has; laptops fetch them from there (#169)')
+    parser.add_argument('--upstream-url', default=UPSTREAM,
+                        help='where to look them up (tests: a file:// copy); the manifest always names cache.nixos.org')
     return parser.parse_args(argv)
 
 
@@ -194,6 +309,13 @@ def build(args):
             manifest_data['baseline'] = args.baseline_toplevel
             (staging / 'closure-manifest.json').write_text(
                 json.dumps(manifest_data, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+        upstream_files = Path(tempfile.mkdtemp(prefix='wros-nixos-upstream-'))
+        if args.thin:
+            manifest_data['cache_files'], manifest_data['thin'] = thin_out(
+                staging, manifest_data['cache_files'], args.upstream_url, manifest_data['toplevel'],
+                upstream_files)
+            (staging / 'closure-manifest.json').write_text(
+                json.dumps(manifest_data, indent=2, sort_keys=True) + '\n', encoding='utf-8')
         check_archives(staging, manifest_data['cache_files'])
         manifest_bytes = (staging / 'closure-manifest.json').read_bytes()
         closure = engine.parse_closure_manifest(manifest_bytes)
@@ -218,10 +340,16 @@ def build(args):
                 (fake_store / Path(closure['baseline']).name).mkdir()
             engine.TRUSTED_UID = os.geteuid()
             engine._base.TRUSTED_UID = os.geteuid()
+            # A thin bundle is checked as the laptop will have it: with cache.nixos.org's files
+            # beside the bundle's own.
+            whole = Path(check) / 'whole'
+            shutil.copytree(staging, whole)
+            shutil.copytree(upstream_files, whole, dirs_exist_ok=True)
             verified = engine.verify_bundle(
-                staging, keyring=keyring, signers=signers, suites=(args.suite,),
+                whole, keyring=keyring, signers=signers, suites=(args.suite,),
                 now=moment + timedelta(minutes=1), version_file=Path('/nonexistent'),
                 current_system=Path('/nonexistent'), store_dir=fake_store)
+            shutil.rmtree(upstream_files, ignore_errors=True)
         if out.exists():
             out.rmdir()
         staging.rename(out)

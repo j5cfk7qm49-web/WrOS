@@ -69,5 +69,96 @@ class Delta(unittest.TestCase):
                 tool.check_archives(tmp, old)
 
 
+def nix32(data):
+    """Nix's base-32, as in NarHash (the reverse of tool.nix32_decode)."""
+    out = []
+    length = (len(data) * 8 - 1) // 5 + 1
+    for n in range(length - 1, -1, -1):
+        b = n * 5
+        i, j = b // 8, b % 8
+        c = (data[i] >> j) | ((data[i + 1] << (8 - j)) if i + 1 < len(data) else 0)
+        out.append(tool.NIX32[c & 0x1f])
+    return ''.join(out)
+
+
+class Thin(unittest.TestCase):
+    """--thin (rc23, #169): packages cache.nixos.org has byte for byte are listed, not shipped."""
+
+    def setUp(self):
+        import hashlib
+        import lzma
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        self.staging, self.cache, self.keep = root / 'bundle', root / 'cache.nixos.org', root / 'keep'
+        (self.staging / 'cache/nar').mkdir(parents=True)
+        (self.cache / 'nar').mkdir(parents=True)
+        self.files = [{'path': 'cache/nix-cache-info', 'store_path': None}]
+        (self.staging / 'cache/nix-cache-info').write_text('StoreDir: /nix/store\n')
+        self.paths = {
+            'top': '/nix/store/' + 'a' * 32 + '-nixos-system-unnamed-0.1.0-rc23',
+            'mpv': '/nix/store/' + 'b' * 32 + '-mpv-0.41.0',          # on the cache, same NAR
+            'grimoire': '/nix/store/' + 'c' * 32 + '-grimoire-0.1.0',  # WrOS's own
+            'patched': '/nix/store/' + 'd' * 32 + '-greetd-0.10.3',    # on the cache, different NAR
+        }
+        for key, path in self.paths.items():
+            nar = f'{key} nar'.encode()
+            nar_hash = 'sha256:' + nix32(hashlib.sha256(nar).digest())
+            name = Path(path).name.split('-', 1)[0]
+            (self.staging / f'cache/{name}.narinfo').write_text(
+                f'StorePath: {path}\nURL: nar/{key}.nar.zst\nNarHash: {nar_hash}\n')
+            (self.staging / f'cache/nar/{key}.nar.zst').write_bytes(nar)
+            self.files += [{'path': f'cache/{name}.narinfo', 'store_path': path},
+                           {'path': f'cache/nar/{key}.nar.zst', 'store_path': path}]
+            if key in ('mpv', 'patched'):
+                served = nar if key == 'mpv' else b'their build'
+                remote_hash = 'sha256:' + nix32(hashlib.sha256(served).digest())
+                archive = 'nar/' + ('q' if key == 'mpv' else 'r') * 52 + '.nar.xz'
+                (self.cache / archive).write_bytes(lzma.compress(served))
+                (self.cache / f'{name}.narinfo').write_text(
+                    f'StorePath: {path}\nURL: {archive}\nCompression: xz\nNarHash: {remote_hash}\n')
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def thin(self):
+        return tool.thin_out(self.staging, self.files, self.cache.as_uri() + '/', self.paths['top'],
+                             self.keep)
+
+    def test_nix32_round_trips(self):
+        import hashlib
+        digest = hashlib.sha256(b'x').digest()
+        self.assertEqual(tool.nix32_decode(nix32(digest)), digest)
+
+    def test_thin_bundle_lists_upstream_files_with_their_cache_address(self):
+        kept, thin = self.thin()
+        self.assertTrue(thin)
+        by_path = {item['path']: item for item in kept}
+        mpv = 'b' * 32 + '.narinfo'
+        self.assertEqual(by_path[f'cache/{mpv}']['url'], 'https://cache.nixos.org/' + mpv)
+        nar = 'nar/' + 'q' * 52 + '.nar.xz'
+        self.assertEqual(by_path['cache/' + nar]['url'], 'https://cache.nixos.org/' + nar)
+        self.assertEqual(by_path['cache/' + nar]['sha256'],
+                         __import__('hashlib').sha256((self.cache / nar).read_bytes()).hexdigest())
+        self.assertNotIn('cache/nar/mpv.nar.zst', by_path, "WrOS's copy of mpv is left out")
+        self.assertFalse((self.staging / 'cache/nar/mpv.nar.zst').exists())
+        self.assertFalse((self.staging / f'cache/{mpv}').exists(), 'the laptop fetches it')
+        self.assertTrue((self.keep / 'cache' / nar).is_file(), 'kept for the self-check')
+        tool.check_archives(self.staging, kept)
+
+    def test_a_differing_nar_hash_stays_in_the_bundle(self):
+        kept, _ = self.thin()
+        by_path = {item['path']: item for item in kept}
+        for key in ('grimoire', 'patched', 'top'):
+            self.assertIn(f'cache/nar/{key}.nar.zst', by_path, key)
+            self.assertFalse(by_path[f'cache/nar/{key}.nar.zst'].get('url'), key)
+
+    def test_nothing_on_the_cache_leaves_the_bundle_whole(self):
+        for f in self.cache.glob('*.narinfo'):
+            f.unlink()
+        kept, thin = self.thin()
+        self.assertFalse(thin)
+        self.assertEqual(kept, self.files)
+
+
 if __name__ == '__main__':
     unittest.main()
