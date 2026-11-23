@@ -2,3 +2,4 @@
 
 pub mod loro_store;
 pub mod model;
+pub mod storage;
