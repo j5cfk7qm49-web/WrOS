@@ -124,9 +124,28 @@ peaked at 399 MiB. Automerge occupied 739 MiB at open before projecting and
 peaked at 1,295 MiB in the standalone checkpoint. Both configurations keep
 the entire operation history in one document and replay it on startup.
 
-The gate remains closed. Both configurations need lower cold-open latency
-and full checkpoint memory. The HP Stream results are pending, including the
-effect of its CPU and eMMC on the aged workload.
+### HP Stream 11
+
+The laptop ran the same Nix-built binary, commit cf452fc, seed 25001 and
+aged workload. It reported an Intel Celeron N4000, kernel 6.18.63 and
+3.66 GiB of usable RAM. The launcher placed the synthetic store in the
+writer's home directory.
+
+| Measurement | Loro |
+| --- | ---: |
+| Cold store open and first note, p95 | **8,145 ms** |
+| Durable edit and text preparation, p95 | 25.6 ms |
+| Bounded FTS search, p95 | **229.9 ms** |
+| Peak process RSS during checkpoint | **1,698 MiB** |
+| Journal bytes per edit, amortized | 2,096 B |
+| Temporary store growth during checkpoint | 54.4 MiB |
+
+Loro's standalone checkpoint used 405 MiB. The edit process reached
+1,188 MiB after projecting the operation history. The full checkpoint,
+cold open and ranked FTS search exceeded their limits on this laptop.
+[Raw Loro result](rc25-brain-hp-stream-loro.json)
+
+Stage 0 remains closed.
 
 ### Automated checks
 

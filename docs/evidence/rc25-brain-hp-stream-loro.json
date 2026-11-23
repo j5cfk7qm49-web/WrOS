@@ -1,0 +1,77 @@
+{
+  "schema": 1,
+  "engine": "loro",
+  "seed": 25001,
+  "profile": "aged",
+  "revision": "cf452fc11f73f08b2b2e1911fc48918fcf91f11a",
+  "measured_at_unix_seconds": 1795419555,
+  "machine": {
+    "os": "linux",
+    "architecture": "x86_64",
+    "kernel": "6.18.63",
+    "cpu": "Intel(R) Celeron(R) N4000 CPU @ 1.10GHz",
+    "memory_bytes": 3932655616,
+    "cgroup_memory_limit": null
+  },
+  "workload": {
+    "visible_nodes": 50000,
+    "deleted_nodes": 10000,
+    "accumulated_edits": 500000,
+    "review_events": 100000,
+    "latency_samples": 20
+  },
+  "initial_disk": {
+    "store_bytes": 114103052,
+    "index_bytes": 77074432,
+    "index_wal_bytes": 0,
+    "markdown_bytes": 52880421
+  },
+  "final_disk": {
+    "store_bytes": 114147020,
+    "index_bytes": 84086784,
+    "index_wal_bytes": 0,
+    "markdown_bytes": 52880479
+  },
+  "background_batches": 15085,
+  "checkpoint_size_bytes": 57053478,
+  "peak_index_wal_bytes": 10720272,
+  "process_write_bytes_during_edit_samples": 58486784,
+  "cold_open_peak_rss_bytes": 1241219072,
+  "store_open_rss_bytes": 89321472,
+  "first_projection_rss_bytes": 1245487104,
+  "checkpoint_start_rss_bytes": 907218944,
+  "storage_only_checkpoint_peak_rss_bytes": 424480768,
+  "metrics": {
+    "checkpoint_peak_rss_bytes": {
+      "observed": 1780666368,
+      "limit": 536870912,
+      "passed": false
+    },
+    "checkpoint_temporary_bytes": {
+      "observed": 57053673,
+      "limit": 124162342,
+      "passed": true
+    },
+    "cold_open_p95_ms": {
+      "observed": 8145.184224,
+      "limit": 3000,
+      "passed": false
+    },
+    "edit_to_text_p95_ms": {
+      "observed": 25.594822999999998,
+      "limit": 50,
+      "passed": true
+    },
+    "fts_p95_ms": {
+      "observed": 229.86927200000002,
+      "limit": 150,
+      "passed": false
+    },
+    "journal_bytes_per_edit": {
+      "observed": 2096,
+      "limit": 65536,
+      "passed": true
+    }
+  },
+  "within_limits": false
+}
