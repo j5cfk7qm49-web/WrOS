@@ -6,15 +6,16 @@
 use std::collections::{BTreeMap, BTreeSet, btree_map::Entry};
 
 use chrono::NaiveDate;
+use serde::{Deserialize, Serialize};
 
 /// A Lamport clock followed by a stable device ID for deterministic ties.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct OpId {
     pub clock: u64,
     pub device: u64,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Builtin {
     Book,
     Article,
@@ -26,34 +27,34 @@ pub enum Builtin {
     Person,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum NodeId {
     Note(OpId),
     Today(NaiveDate),
     Builtin(Builtin),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum FieldId {
     Custom(OpId),
     Builtin { tag: Builtin, slot: u16 },
 }
 
 /// A missing or stale sibling anchor appends to the destination.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Place {
     pub parent: Option<NodeId>,
     pub after: Option<NodeId>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Edit {
     pub id: OpId,
     pub dependencies: BTreeSet<OpId>,
     pub change: Change,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Change {
     Create {
         node: NodeId,
@@ -117,18 +118,18 @@ pub struct Model {
     edits: BTreeMap<OpId, Edit>,
 }
 
-impl Model {
-    pub fn insert(&mut self, edit: Edit) -> Result<(), ModelError> {
-        if edit
+impl Edit {
+    pub(crate) fn validate(&self) -> Result<(), ModelError> {
+        if self
             .dependencies
             .iter()
-            .any(|dependency| dependency.clock >= edit.id.clock)
+            .any(|dependency| dependency.clock >= self.id.clock)
         {
             return Err(ModelError::InvalidDependency);
         }
-        let target = match &edit.change {
+        let target = match &self.change {
             Change::Undo { target } => {
-                if edit.id.device != target.device {
+                if self.id.device != target.device {
                     return Err(ModelError::ForeignUndo);
                 }
                 Some(target)
@@ -136,9 +137,16 @@ impl Model {
             Change::Restore { deletion } => Some(deletion),
             _ => None,
         };
-        if target.is_some_and(|target| !edit.dependencies.contains(target)) {
+        if target.is_some_and(|target| !self.dependencies.contains(target)) {
             return Err(ModelError::UnobservedTarget);
         }
+        Ok(())
+    }
+}
+
+impl Model {
+    pub fn insert(&mut self, edit: Edit) -> Result<(), ModelError> {
+        edit.validate()?;
         match self.edits.entry(edit.id) {
             Entry::Vacant(slot) => {
                 slot.insert(edit);
