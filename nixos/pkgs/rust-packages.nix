@@ -66,6 +66,8 @@ let
       mkdir -p crates/${member}/src
       touch crates/${member}/src/lib.rs
     '') otherMembers}
+    mkdir -p crates/grimoire-brain/src/bin
+    touch crates/grimoire-brain/src/bin/brain-bench.rs
   '';
 
   mkWrosRustPkg = { pname, cargoBuildFlags, buildFeatures ? [], pathEnv, postFixup ? "", doCheck ? false,
@@ -120,6 +122,13 @@ let
     pname = "wros-installer";
     cargoBuildFlags = [ "-p" "wros-installer" ];
     pathEnv = paths.installerPathEnv;
+  };
+
+  brain-bench = mkWrosRustPkg {
+    pname = "brain-bench";
+    buildFeatures = [ "grimoire-brain/qualification" ];
+    cargoBuildFlags = [ "-p" "grimoire-brain" "--bin" "brain-bench" ];
+    pathEnv = {};
   };
 
   # The tests see the same tool paths as the shipped app (rustPathEnv), so they run the Nix
@@ -204,5 +213,5 @@ let
   };
 in
 {
-  inherit grimoire wros-greeter wros-boot wros-installer rust-suite rust-suite-no-audio rust-driven-suite;
+  inherit grimoire wros-greeter wros-boot wros-installer brain-bench rust-suite rust-suite-no-audio rust-driven-suite;
 }

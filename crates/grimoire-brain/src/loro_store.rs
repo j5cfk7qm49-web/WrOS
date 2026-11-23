@@ -91,6 +91,32 @@ impl LoroStore {
     /// Append one causal action and return only its binary update. Repeating
     /// the exact same local action returns an empty update.
     pub fn append(&mut self, edit: Edit) -> Result<Vec<u8>, StoreError> {
+        let before = self.doc.oplog_vv();
+        if !self.record(edit)? {
+            return Ok(Vec::new());
+        }
+        self.doc.commit();
+        Ok(self.doc.export(ExportMode::updates(&before))?)
+    }
+
+    // Building an aged fixture needs the same operations without exporting
+    // and fsyncing a half-million individual benchmark setup messages.
+    #[cfg(feature = "qualification")]
+    pub(crate) fn record_fixture_edit(&mut self, edit: Edit) -> Result<(), StoreError> {
+        self.record(edit)?;
+        self.doc.commit();
+        Ok(())
+    }
+
+    #[cfg(feature = "qualification")]
+    pub(crate) fn record_fixture_review(&self, review: String) -> Result<(), StoreError> {
+        self.doc
+            .get_list("benchmark-review-events-v1")
+            .push(review)?;
+        Ok(())
+    }
+
+    fn record(&mut self, edit: Edit) -> Result<bool, StoreError> {
         edit.validate()?;
         if edit.id.device != self.doc.peer_id() {
             return Err(StoreError::WrongDevice(edit.id));
@@ -105,20 +131,18 @@ impl LoroStore {
         let record = serde_json::to_string(&edit)?;
         if let Some(existing) = edits.get(&key) {
             return if string_value(existing)? == record {
-                Ok(Vec::new())
+                Ok(false)
             } else {
                 Err(ModelError::ReusedId.into())
             };
         }
-        let before = self.doc.oplog_vv();
         match edit.change {
             Change::Create { node, place } => self.create_native(node, place)?,
             Change::Move { node, place } => self.move_native(node, place)?,
             _ => {}
         }
         edits.insert(&key, record)?;
-        self.doc.commit();
-        Ok(self.doc.export(ExportMode::updates(&before))?)
+        Ok(true)
     }
 
     pub fn edit_count(&self) -> usize {

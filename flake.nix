@@ -131,6 +131,7 @@
           wros-greeter
           wros-boot
           wros-installer
+          brain-bench
           wros-console-reset
           wros-display-hw
           wros-cage

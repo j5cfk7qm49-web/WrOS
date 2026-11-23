@@ -89,6 +89,7 @@ in
     wros-greeter
     wros-boot
     wros-installer
+    brain-bench
     rust-suite
     rust-suite-no-audio
     rust-driven-suite;

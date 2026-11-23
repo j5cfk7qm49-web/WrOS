@@ -1,5 +1,20 @@
 # Testing and verification
 
+## RC25 Brain storage
+
+Run the focused Brain tests and build the benchmark on the pinned Nix toolchain.
+The benchmark is a separate package for qualification. It uses its own synthetic
+notes, search database and Markdown files.
+
+~~~sh
+cargo test -p grimoire-brain --features qualification --locked
+cargo clippy -p grimoire-brain --features qualification --all-targets --locked -- -D warnings
+nix build -L .#brain-bench
+~~~
+
+Keep the benchmark JSON with the candidate and run the aged profile on the HP
+Stream before approving the Brain view. [Workload and limits](evidence/rc25-brain-bench.md)
+
 ## RC24 essay and citations
 
 From the candidate checkout in the pinned NixOS development shell:
