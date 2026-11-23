@@ -2965,6 +2965,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "grimoire-brain"
+version = "0.7.5"
+dependencies = [
+ "chrono",
+]
+
+[[package]]
 name = "grimoire-core"
 version = "0.7.5"
 dependencies = [

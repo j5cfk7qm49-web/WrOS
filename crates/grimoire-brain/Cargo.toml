@@ -1,0 +1,10 @@
+[package]
+name = "grimoire-brain"
+version.workspace = true
+edition = "2024"
+license = "MIT"
+description = "Brain operations and reference model for Grimoire"
+publish = false
+
+[dependencies]
+chrono = { version = "0.4.45", default-features = false, features = ["std"] }
