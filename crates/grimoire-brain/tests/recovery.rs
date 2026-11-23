@@ -2,9 +2,11 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+use grimoire_brain::automerge_store::AutomergeStore;
 use grimoire_brain::loro_store::LoroStore;
 use grimoire_brain::model::{Change, Edit, NodeId, OpId, Place};
-use grimoire_brain::storage::{DurableStore, StorageError};
+use grimoire_brain::replica::Replica;
+use grimoire_brain::storage::{DurableStore, Journal, StorageError};
 
 fn edit(device: u64, clock: u64, change: Change) -> Edit {
     Edit {
@@ -60,14 +62,23 @@ fn amend(device: u64) -> Edit {
 
 #[test]
 fn interrupted_checkpoint_keeps_pending_update() {
+    checkpoint_keeps_pending_update::<LoroStore>();
+}
+
+#[test]
+fn interrupted_automerge_checkpoint_keeps_pending_update() {
+    checkpoint_keeps_pending_update::<AutomergeStore>();
+}
+
+fn checkpoint_keeps_pending_update<S: Replica>() {
     let folder = tempfile::tempdir().unwrap();
     let root = folder.path();
-    let mut source = LoroStore::new(1).unwrap();
+    let mut source = S::new(1).unwrap();
     let base = source.append(create(1)).unwrap();
     let missing = source.append(insert(1)).unwrap();
     let parked = source.append(amend(1)).unwrap();
 
-    let mut disk = DurableStore::open(root, 2).unwrap();
+    let mut disk = Journal::<S>::open(root, 2).unwrap();
     disk.import(&base).unwrap();
     disk.checkpoint().unwrap();
     disk.import(&parked).unwrap();
@@ -89,7 +100,7 @@ fn interrupted_checkpoint_keeps_pending_update() {
     )
     .unwrap();
 
-    let mut recovered = DurableStore::open(root, 2).unwrap();
+    let mut recovered = Journal::<S>::open(root, 2).unwrap();
     assert!(recovered.has_pending().unwrap());
     assert_eq!(
         recovered.project().unwrap().body(page(1)),
@@ -122,7 +133,7 @@ fn interrupted_checkpoint_keeps_pending_update() {
         "a verified fallback now covers the parked operation"
     );
     drop(recovered);
-    let reopened = DurableStore::open(root, 2).unwrap();
+    let reopened = Journal::<S>::open(root, 2).unwrap();
     assert_eq!(
         reopened.project().unwrap().body(page(1)),
         Some("Recovered words".into())
@@ -132,9 +143,18 @@ fn interrupted_checkpoint_keeps_pending_update() {
 
 #[test]
 fn a_damaged_latest_checkpoint_uses_the_previous_one_and_replays_saves() {
+    damaged_checkpoint_uses_previous::<LoroStore>();
+}
+
+#[test]
+fn damaged_automerge_checkpoint_uses_previous() {
+    damaged_checkpoint_uses_previous::<AutomergeStore>();
+}
+
+fn damaged_checkpoint_uses_previous<S: Replica>() {
     let folder = tempfile::tempdir().unwrap();
     let root = folder.path();
-    let mut disk = DurableStore::open(root, 3).unwrap();
+    let mut disk = Journal::<S>::open(root, 3).unwrap();
     disk.append(create(3)).unwrap();
     disk.checkpoint().unwrap();
     disk.append(insert(3)).unwrap();
@@ -147,7 +167,7 @@ fn a_damaged_latest_checkpoint_uses_the_previous_one_and_replays_saves() {
     )
     .unwrap();
 
-    let mut recovered = DurableStore::open(root, 3).unwrap();
+    let mut recovered = Journal::<S>::open(root, 3).unwrap();
     assert!(recovered.recovery().used_previous_checkpoint);
     assert_eq!(
         recovered.project().unwrap().body(page(3)),
@@ -155,7 +175,7 @@ fn a_damaged_latest_checkpoint_uses_the_previous_one_and_replays_saves() {
     );
     recovered.checkpoint().unwrap();
     drop(recovered);
-    let reopened = DurableStore::open(root, 3).unwrap();
+    let reopened = Journal::<S>::open(root, 3).unwrap();
     assert!(!reopened.recovery().used_previous_checkpoint);
     assert_eq!(
         reopened.project().unwrap().body(page(3)),

@@ -1,8 +1,10 @@
 use std::collections::BTreeSet;
 
 use chrono::NaiveDate;
+use grimoire_brain::automerge_store::AutomergeStore;
 use grimoire_brain::loro_store::LoroStore;
 use grimoire_brain::model::{Builtin, Change, Edit, FieldId, Model, NodeId, OpId, Place};
+use grimoire_brain::replica::Replica;
 
 #[derive(Clone)]
 struct Random(u64);
@@ -66,7 +68,7 @@ fn text(node: NodeId, text: &str) -> Change {
     }
 }
 
-fn apply(store: &mut LoroStore, model: &mut Model, op: Edit, trace: &mut Vec<Edit>) -> Vec<u8> {
+fn apply(store: &mut impl Replica, model: &mut Model, op: Edit, trace: &mut Vec<Edit>) -> Vec<u8> {
     trace.push(op.clone());
     model.insert(op.clone()).unwrap();
     store.append(op).unwrap()
@@ -74,13 +76,22 @@ fn apply(store: &mut LoroStore, model: &mut Model, op: Edit, trace: &mut Vec<Edi
 
 #[test]
 fn three_peers_converge_with_pending_dependencies() {
+    run_schedules::<LoroStore>();
+}
+
+#[test]
+fn automerge_peers_converge_with_pending_dependencies() {
+    run_schedules::<AutomergeStore>();
+}
+
+fn run_schedules<S: Replica>() {
     for seed in 25_001..25_009 {
-        run_schedule(seed, 2);
-        run_schedule(seed, 3);
+        run_schedule::<S>(seed, 2);
+        run_schedule::<S>(seed, 3);
     }
 }
 
-fn run_schedule(seed: u64, device_count: u64) {
+fn run_schedule<S: Replica>(seed: u64, device_count: u64) {
     let mut random = Random(seed);
     let parent = note(1, 1);
     let child = note(2, 1);
@@ -95,9 +106,7 @@ fn run_schedule(seed: u64, device_count: u64) {
     };
     let mut oracle = Model::default();
     let mut trace = Vec::new();
-    let mut peers: Vec<_> = (1..=device_count)
-        .map(|p| LoroStore::new(p).unwrap())
-        .collect();
+    let mut peers: Vec<_> = (1..=device_count).map(|p| S::new(p).unwrap()).collect();
     let base = [
         edit(1, 1, None, create(parent, None)),
         edit(2, 1, Some(id(1, 1)), create(child, Some(parent))),
@@ -186,18 +195,18 @@ fn run_schedule(seed: u64, device_count: u64) {
     }
 
     // Give the second device the last delta from device one first. Its only copy
-    // after restart comes from the checkpoint's pending sidecar.
+    // after restart comes from the checkpoint.
     let parked = updates
         .iter()
         .rposition(|(device, _)| *device == 1)
         .unwrap();
     peers[1].import(&updates[parked].1).unwrap();
     assert!(peers[1].has_pending().unwrap(), "seed {seed}");
-    peers[1] = LoroStore::restore(100, &peers[1].checkpoint().unwrap()).unwrap();
+    peers[1] = S::restore(100, &peers[1].checkpoint().unwrap()).unwrap();
     assert!(peers[1].has_pending().unwrap(), "seed {seed}");
 
     // A restored, old backup joins with a fresh device identity.
-    let mut restored = LoroStore::restore(200, &old_backup).unwrap();
+    let mut restored = S::restore(200, &old_backup).unwrap();
     let old_edit = edit(7, 200, Some(id(6, 1)), text(index, "From the old backup"));
     updates.push((200, apply(&mut restored, &mut oracle, old_edit, &mut trace)));
     peers.push(restored);

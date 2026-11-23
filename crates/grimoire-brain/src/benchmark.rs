@@ -15,9 +15,9 @@ use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
 use serde_json::Number;
 
-use crate::loro_store::LoroStore;
 use crate::model::{Builtin, Change, Edit, FieldId, NodeId, OpId, Place, Snapshot};
-use crate::storage::DurableStore;
+use crate::replica::{Engine, Replica};
+use crate::storage::Journal;
 
 type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
@@ -124,6 +124,7 @@ struct Disk {
 #[derive(Serialize)]
 struct Report<'a> {
     schema: u32,
+    engine: Engine,
     seed: u64,
     profile: Profile,
     revision: &'a str,
@@ -145,7 +146,7 @@ struct Report<'a> {
     within_limits: bool,
 }
 
-pub fn run(seed: u64, profile: Profile, revision: &str, output: &Path) -> Result<bool> {
+pub fn run<S: Replica>(seed: u64, profile: Profile, revision: &str, output: &Path) -> Result<bool> {
     let parent = output
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
@@ -156,7 +157,13 @@ pub fn run(seed: u64, profile: Profile, revision: &str, output: &Path) -> Result
     let paths = BenchPaths::new(scratch.path());
     let workload = profile.workload();
     let prepared = Command::new(std::env::current_exe()?)
-        .args(["--prepare-fixture", profile.name(), &seed.to_string()])
+        .args([
+            "--engine",
+            S::ENGINE.as_str(),
+            "--prepare-fixture",
+            profile.name(),
+            &seed.to_string(),
+        ])
         .arg(scratch.path())
         .status()?;
     if !prepared.success() {
@@ -167,10 +174,11 @@ pub fn run(seed: u64, profile: Profile, revision: &str, output: &Path) -> Result
     let initial_disk = paths.disk()?;
     eprintln!("Measuring Brain storage and search with the background writer active");
     let (sample, background_batches) = with_background_writer(&paths, || {
-        sample_workload(scratch.path(), &paths, &workload, target)
+        sample_workload::<S>(scratch.path(), &paths, &workload, target)
     })?;
     let final_disk = paths.disk()?;
-    let storage_only: CheckpointSample = run_worker("--storage-checkpoint", scratch.path())?;
+    let storage_only: CheckpointSample =
+        run_worker("--storage-checkpoint", scratch.path(), S::ENGINE)?;
     let metrics = BTreeMap::from([
         (
             "cold_open_p95_ms",
@@ -200,6 +208,7 @@ pub fn run(seed: u64, profile: Profile, revision: &str, output: &Path) -> Result
     let within_limits = metrics.values().all(|metric| metric.passed);
     let report = Report {
         schema: 1,
+        engine: S::ENGINE,
         seed,
         profile,
         revision,
@@ -230,22 +239,22 @@ pub fn run(seed: u64, profile: Profile, revision: &str, output: &Path) -> Result
 
 // Separate worker processes ensure fixture allocation and prior opens cannot
 // leave resident allocator pages in the checkpoint measurement process.
-pub fn prepare_worker(seed: u64, profile: Profile, root: &Path) -> Result<()> {
+pub fn prepare_worker<S: Replica>(seed: u64, profile: Profile, root: &Path) -> Result<()> {
     let paths = BenchPaths::new(root);
     let workload = profile.workload();
     eprintln!("Preparing the Brain benchmark fixture");
-    let target = seed_store(&paths.store, &workload, seed)?;
+    let target = seed_store::<S>(&paths.store, &workload, seed)?;
     eprintln!("Writing the initial SQLite index and Markdown copies");
-    setup_projections(&paths, &workload)?;
+    setup_projections::<S>(&paths, &workload)?;
     fs::write(root.join("target.json"), serde_json::to_vec(&target)?)?;
     Ok(())
 }
 
-pub fn cold_open_worker(root: &Path) -> Result<()> {
+pub fn cold_open_worker<S: Replica>(root: &Path) -> Result<()> {
     let target: FixtureNote = serde_json::from_slice(&fs::read(root.join("target.json"))?)?;
     let paths = BenchPaths::new(root);
     let start = Instant::now();
-    let disk = DurableStore::open(&paths.store, DEVICE)?;
+    let disk = Journal::<S>::open(&paths.store, DEVICE)?;
     let projection = disk.project()?;
     first_note(&projection, target.node)?;
     let elapsed = start.elapsed();
@@ -257,17 +266,21 @@ pub fn cold_open_worker(root: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn checkpoint_worker(root: &Path) -> Result<()> {
+pub fn checkpoint_worker<S: Replica>(root: &Path) -> Result<()> {
     let paths = BenchPaths::new(root);
-    let mut disk = DurableStore::open(&paths.store, DEVICE)?;
+    let mut disk = Journal::<S>::open(&paths.store, DEVICE)?;
     let record = measure_checkpoint(&mut disk, &paths)?;
     serde_json::to_writer(io::stdout().lock(), &record)?;
     Ok(())
 }
 
-fn run_worker<T: serde::de::DeserializeOwned>(mode: &str, root: &Path) -> Result<T> {
+fn run_worker<T: serde::de::DeserializeOwned>(
+    mode: &str,
+    root: &Path,
+    engine: Engine,
+) -> Result<T> {
     let result = Command::new(std::env::current_exe()?)
-        .arg(mode)
+        .args(["--engine", engine.as_str(), mode])
         .arg(root)
         .output()?;
     if !result.status.success() {
@@ -320,13 +333,13 @@ struct FixtureNote {
     last_tag: Option<OpId>,
 }
 
-struct Fixture {
-    store: LoroStore,
+struct Fixture<S: Replica> {
+    store: S,
     clock: u64,
     random: u64,
 }
 
-impl Fixture {
+impl<S: Replica> Fixture<S> {
     fn next_random(&mut self) -> u64 {
         // SplitMix64, including a valid sequence for seed zero.
         self.random = self.random.wrapping_add(0x9e3779b97f4a7c15);
@@ -360,9 +373,9 @@ fn make_edit(previous: u64, change: Change, extra: Option<OpId>) -> Edit {
     }
 }
 
-fn seed_store(root: &Path, workload: &Workload, seed: u64) -> Result<FixtureNote> {
+fn seed_store<S: Replica>(root: &Path, workload: &Workload, seed: u64) -> Result<FixtureNote> {
     let mut fixture = Fixture {
-        store: LoroStore::new(DEVICE)?,
+        store: S::new(DEVICE)?,
         clock: 0,
         random: seed,
     };
@@ -455,12 +468,15 @@ fn seed_store(root: &Path, workload: &Workload, seed: u64) -> Result<FixtureNote
         }
     }
     for event in 0..workload.review_events {
-        fixture.store.record_fixture_review(format!(
-            r#"{{"event":{event},"card":{},"grade":{},"day":{}}}"#,
-            event % workload.visible_nodes as u64,
-            event % 6,
-            event / 300,
-        ))?;
+        fixture.store.record_fixture_review(
+            format!(
+                r#"{{"event":{event},"card":{},"grade":{},"day":{}}}"#,
+                event % workload.visible_nodes as u64,
+                event % 6,
+                event / 300,
+            ),
+            event,
+        )?;
     }
     assert_eq!(
         fixture.store.edit_count() as u64,
@@ -468,7 +484,7 @@ fn seed_store(root: &Path, workload: &Workload, seed: u64) -> Result<FixtureNote
     );
     let checkpoint = fixture.store.checkpoint()?;
     drop(fixture);
-    let mut disk = DurableStore::open(root, DEVICE)?;
+    let mut disk = Journal::<S>::open(root, DEVICE)?;
     disk.import(&checkpoint.snapshot)?;
     drop(checkpoint);
     // Leave a normal pair of usable generations with no setup journal.
@@ -485,8 +501,8 @@ fn fixture_text(salt: u64) -> String {
     text
 }
 
-fn setup_projections(paths: &BenchPaths, workload: &Workload) -> Result<()> {
-    let view = DurableStore::open(&paths.store, DEVICE)?.project()?;
+fn setup_projections<S: Replica>(paths: &BenchPaths, workload: &Workload) -> Result<()> {
+    let view = Journal::<S>::open(&paths.store, DEVICE)?.project()?;
     fs::create_dir(&paths.readable)?;
     let mut connection = Connection::open(&paths.index)?;
     connection
@@ -583,7 +599,7 @@ struct Sample {
     checkpoint_size: u64,
 }
 
-fn sample_workload(
+fn sample_workload<S: Replica>(
     root: &Path,
     paths: &BenchPaths,
     workload: &Workload,
@@ -592,7 +608,7 @@ fn sample_workload(
     let mut cold_open = Vec::new();
     let mut cold_open_peak_rss = 0;
     for index in 0..workload.latency_samples {
-        let record: ColdOpen = run_worker("--cold-open", root)?;
+        let record: ColdOpen = run_worker("--cold-open", root, S::ENGINE)?;
         cold_open.push(record.elapsed);
         cold_open_peak_rss = cold_open_peak_rss.max(record.peak_rss);
         if (index + 1).is_multiple_of(5) {
@@ -603,7 +619,7 @@ fn sample_workload(
             );
         }
     }
-    let mut disk = DurableStore::open(&paths.store, DEVICE)?;
+    let mut disk = Journal::<S>::open(&paths.store, DEVICE)?;
     let store_open_rss = proc_kib("/proc/self/status", "VmRSS:")?;
     let mut line = first_note(&disk.project()?, target.node)?;
     let first_projection_rss = proc_kib("/proc/self/status", "VmRSS:")?;
@@ -695,7 +711,10 @@ struct CheckpointSample {
     peak_wal: u64,
 }
 
-fn measure_checkpoint(disk: &mut DurableStore, paths: &BenchPaths) -> Result<CheckpointSample> {
+fn measure_checkpoint<S: Replica>(
+    disk: &mut Journal<S>,
+    paths: &BenchPaths,
+) -> Result<CheckpointSample> {
     let baseline = directory_bytes(&paths.store)?;
     let rss_before = proc_kib("/proc/self/status", "VmRSS:")?;
     let wal = paths.index.with_file_name("search.sqlite-wal");

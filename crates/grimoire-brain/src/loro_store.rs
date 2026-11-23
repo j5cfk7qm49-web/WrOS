@@ -5,56 +5,23 @@
 //! and stable logical identities. The native tree exercises placement and
 //! merge behavior independently of that application projection.
 
-use loro::{
-    ExportMode, LoroDoc, LoroEncodeError, LoroError, LoroTree, LoroValue, TreeID, TreeParentId,
-    ValueOrContainer,
-};
-use thiserror::Error;
-
 use crate::model::{Change, Edit, Model, ModelError, NodeId, OpId, Place, Snapshot};
+use crate::replica::{Checkpoint, Engine, Replica, StoreError};
+use loro::{ExportMode, LoroDoc, LoroTree, LoroValue, TreeID, TreeParentId, ValueOrContainer};
 
 const EDITS: &str = "brain-edits-v1";
 const OUTLINE: &str = "brain-outline-v1";
 const LOCATIONS: &str = "brain-outline-ids-v1";
 const LOGICAL_ID: &str = "logical-id";
 
-#[derive(Debug, Error)]
-pub enum StoreError {
-    #[error("Loro could not apply an operation: {0}")]
-    Loro(#[from] LoroError),
-    #[error("Loro could not export the document: {0}")]
-    Encode(#[from] LoroEncodeError),
-    #[error("Invalid Brain record: {0}")]
-    Json(#[from] serde_json::Error),
-    #[error("Invalid Brain edit: {0:?}")]
-    Model(ModelError),
-    #[error("Local edit {0:?} belongs to another device")]
-    WrongDevice(OpId),
-    #[error("The local edit needs a missing operation: {0:?}")]
-    MissingDependency(OpId),
-    #[error("Unexpected value in the Brain document")]
-    InvalidDocument,
-}
-
-impl From<ModelError> for StoreError {
-    fn from(error: ModelError) -> Self {
-        Self::Model(error)
-    }
-}
-
-/// A consistent Loro snapshot and the received operations it could not apply.
-#[derive(Debug, Clone)]
-pub struct Checkpoint {
-    pub snapshot: Vec<u8>,
-    pub pending: Option<Vec<u8>>,
-}
-
 pub struct LoroStore {
     doc: LoroDoc,
 }
 
-impl LoroStore {
-    pub fn new(device: u64) -> Result<Self, StoreError> {
+impl Replica for LoroStore {
+    const ENGINE: Engine = Engine::Loro;
+
+    fn new(device: u64) -> Result<Self, StoreError> {
         let doc = LoroDoc::new();
         doc.set_peer_id(device)?;
         doc.get_tree(OUTLINE).enable_fractional_index(0);
@@ -63,7 +30,7 @@ impl LoroStore {
 
     /// A restored backup takes the identity of the importing device. An
     /// ordinary restart may reuse the same identity with its own latest files.
-    pub fn restore(device: u64, checkpoint: &Checkpoint) -> Result<Self, StoreError> {
+    fn restore(device: u64, checkpoint: &Checkpoint) -> Result<Self, StoreError> {
         let mut store = Self::new(device)?;
         store.import(&checkpoint.snapshot)?;
         if let Some(bytes) = &checkpoint.pending {
@@ -72,25 +39,25 @@ impl LoroStore {
         Ok(store)
     }
 
-    pub fn import(&mut self, bytes: &[u8]) -> Result<(), StoreError> {
+    fn import(&mut self, bytes: &[u8]) -> Result<(), StoreError> {
         self.doc.import(bytes)?;
         Ok(())
     }
 
-    pub fn checkpoint(&self) -> Result<Checkpoint, StoreError> {
+    fn checkpoint(&self) -> Result<Checkpoint, StoreError> {
         Ok(Checkpoint {
             snapshot: self.doc.export(ExportMode::Snapshot)?,
             pending: self.doc.export_pending_updates()?,
         })
     }
 
-    pub fn has_pending(&self) -> Result<bool, StoreError> {
+    fn has_pending(&self) -> Result<bool, StoreError> {
         Ok(self.doc.export_pending_updates()?.is_some())
     }
 
     /// Append one causal action and return only its binary update. Repeating
     /// the exact same local action returns an empty update.
-    pub fn append(&mut self, edit: Edit) -> Result<Vec<u8>, StoreError> {
+    fn append(&mut self, edit: Edit) -> Result<Vec<u8>, StoreError> {
         let before = self.doc.oplog_vv();
         if !self.record(edit)? {
             return Ok(Vec::new());
@@ -102,20 +69,45 @@ impl LoroStore {
     // Building an aged fixture needs the same operations without exporting
     // and fsyncing a half-million individual benchmark setup messages.
     #[cfg(feature = "qualification")]
-    pub(crate) fn record_fixture_edit(&mut self, edit: Edit) -> Result<(), StoreError> {
+    fn record_fixture_edit(&mut self, edit: Edit) -> Result<(), StoreError> {
         self.record(edit)?;
         self.doc.commit();
         Ok(())
     }
 
     #[cfg(feature = "qualification")]
-    pub(crate) fn record_fixture_review(&self, review: String) -> Result<(), StoreError> {
+    fn record_fixture_review(&mut self, review: String, _event: u64) -> Result<(), StoreError> {
         self.doc
             .get_list("benchmark-review-events-v1")
             .push(review)?;
         Ok(())
     }
 
+    #[cfg(feature = "qualification")]
+    fn edit_count(&self) -> usize {
+        self.doc.get_map(EDITS).len()
+    }
+
+    fn project(&self) -> Result<Snapshot, StoreError> {
+        let LoroValue::Map(records) = self.doc.get_map(EDITS).get_value() else {
+            return Err(StoreError::InvalidDocument);
+        };
+        let mut model = Model::default();
+        for (key, value) in records.iter() {
+            let LoroValue::String(record) = value else {
+                return Err(StoreError::InvalidDocument);
+            };
+            let edit: Edit = serde_json::from_str(record)?;
+            if *key != edit_key(edit.id) {
+                return Err(StoreError::InvalidDocument);
+            }
+            model.insert(edit)?;
+        }
+        Ok(model.snapshot())
+    }
+}
+
+impl LoroStore {
     fn record(&mut self, edit: Edit) -> Result<bool, StoreError> {
         edit.validate()?;
         if edit.id.device != self.doc.peer_id() {
@@ -143,28 +135,6 @@ impl LoroStore {
         }
         edits.insert(&key, record)?;
         Ok(true)
-    }
-
-    pub fn edit_count(&self) -> usize {
-        self.doc.get_map(EDITS).len()
-    }
-
-    pub fn project(&self) -> Result<Snapshot, StoreError> {
-        let LoroValue::Map(records) = self.doc.get_map(EDITS).get_value() else {
-            return Err(StoreError::InvalidDocument);
-        };
-        let mut model = Model::default();
-        for (key, value) in records.iter() {
-            let LoroValue::String(record) = value else {
-                return Err(StoreError::InvalidDocument);
-            };
-            let edit: Edit = serde_json::from_str(record)?;
-            if *key != edit_key(edit.id) {
-                return Err(StoreError::InvalidDocument);
-            }
-            model.insert(edit)?;
-        }
-        Ok(model.snapshot())
     }
 
     /// Read the native forest in tree order for the storage qualification.

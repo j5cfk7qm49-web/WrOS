@@ -7,10 +7,21 @@ use serde_json::Value;
 
 #[test]
 fn benchmark_writes_versioned_results() {
+    check_report("loro");
+}
+
+#[test]
+fn automerge_benchmark_writes_versioned_results() {
+    check_report("automerge");
+}
+
+fn check_report(engine: &str) {
     let folder = tempfile::tempdir().unwrap();
     let output = folder.path().join("result.json");
     let run = Command::new(env!("CARGO_BIN_EXE_brain-bench"))
         .args([
+            "--engine",
+            engine,
             "--seed",
             "25001",
             "--profile",
@@ -29,6 +40,7 @@ fn benchmark_writes_versioned_results() {
     );
     let record: Value = serde_json::from_slice(&fs::read(&output).unwrap()).unwrap();
     assert_eq!(record["schema"], 1);
+    assert_eq!(record["engine"], engine);
     assert_eq!(record["seed"], 25_001);
     assert_eq!(record["revision"], "fixture");
     assert_eq!(record["profile"], "smoke");

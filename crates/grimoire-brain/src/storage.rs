@@ -12,8 +12,9 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
-use crate::loro_store::{Checkpoint, LoroStore, StoreError};
+use crate::loro_store::LoroStore;
 use crate::model::{Edit, Snapshot};
+use crate::replica::{Checkpoint, Engine, Replica, StoreError};
 
 const CURRENT: &str = "CURRENT";
 const JOURNAL: &str = "journal";
@@ -28,6 +29,8 @@ pub enum StorageError {
     ReopenRequired,
     #[error("Invalid Brain checkpoint manifest")]
     InvalidManifest,
+    #[error("The Brain was created with a different replication engine")]
+    WrongEngine,
     #[error("Brain storage I/O failed: {0}")]
     Io(#[from] io::Error),
     #[error(transparent)]
@@ -52,14 +55,18 @@ struct Slot {
 #[derive(Debug, Clone, Copy, Deserialize, Serialize)]
 struct Manifest {
     schema: u32,
+    #[serde(default)]
+    engine: Engine,
     active: Slot,
     previous: Option<Slot>,
 }
 
-pub struct DurableStore {
+pub type DurableStore = Journal<LoroStore>;
+
+pub struct Journal<S: Replica> {
     root: PathBuf,
     _writer: File,
-    store: LoroStore,
+    store: S,
     selected: Option<Slot>,
     generation: u64,
     journal_tail: u64,
@@ -67,7 +74,7 @@ pub struct DurableStore {
     failed: bool,
 }
 
-impl DurableStore {
+impl<S: Replica> Journal<S> {
     pub fn open(root: &Path, device: u64) -> Result<Self, StorageError> {
         fs::create_dir_all(root)?;
         if let Some(parent) = root.parent().filter(|path| !path.as_os_str().is_empty()) {
@@ -89,10 +96,13 @@ impl DurableStore {
         sync_directory(root)?;
 
         let manifest = read_manifest(root)?;
+        if manifest.is_some_and(|manifest| manifest.engine != S::ENGINE) {
+            return Err(StorageError::WrongEngine);
+        }
         let generation = manifest.map_or(0, |value| value.active.generation);
         let mut recovery = RecoveryReport::default();
         let (mut store, selected) = match manifest {
-            None => (LoroStore::new(device)?, None),
+            None => (S::new(device)?, None),
             Some(manifest) => match open_slot(root, manifest.active, device) {
                 Ok(store) => (store, Some(manifest.active)),
                 Err(error) => {
@@ -153,8 +163,14 @@ impl DurableStore {
         let bytes = match self.store.append(edit) {
             Ok(bytes) => bytes,
             Err(error) => {
-                // A failed export can happen after Loro applied the edit.
-                self.failed |= matches!(error, StoreError::Encode(_) | StoreError::Loro(_));
+                // A failed export can happen after the engine applied the edit.
+                self.failed |= matches!(
+                    error,
+                    StoreError::Encode(_)
+                        | StoreError::Loro(_)
+                        | StoreError::Automerge(_)
+                        | StoreError::InvalidDocument
+                );
                 return Err(error.into());
             }
         };
@@ -166,7 +182,10 @@ impl DurableStore {
 
     pub fn import(&mut self, bytes: &[u8]) -> Result<(), StorageError> {
         self.require_healthy()?;
-        self.store.import(bytes)?;
+        if let Err(error) = self.store.import(bytes) {
+            self.failed = true;
+            return Err(error.into());
+        }
         self.save_update(bytes)
     }
 
@@ -177,14 +196,15 @@ impl DurableStore {
         let previous = self.selected;
         let active = Slot {
             generation,
-            covered_through: if checkpoint.pending.is_none() {
-                self.journal_tail
-            } else {
+            covered_through: if checkpoint.pending.is_some() || self.store.has_pending()? {
                 previous.map_or(0, |slot| slot.covered_through)
+            } else {
+                self.journal_tail
             },
             has_pending: checkpoint.pending.is_some(),
         };
-        if let Err(error) = publish_checkpoint(&self.root, active, previous, &checkpoint) {
+        if let Err(error) = publish_checkpoint(&self.root, active, previous, &checkpoint, S::ENGINE)
+        {
             self.failed = true;
             return Err(error);
         }
@@ -240,16 +260,13 @@ fn read_manifest(root: &Path) -> Result<Option<Manifest>, StorageError> {
     Ok(Some(manifest))
 }
 
-fn open_slot(root: &Path, slot: Slot, device: u64) -> Result<LoroStore, StorageError> {
+fn open_slot<S: Replica>(root: &Path, slot: Slot, device: u64) -> Result<S, StorageError> {
     let snapshot = read_checked(&checkpoint_file(root, slot.generation, "snapshot"))?;
     let pending = slot
         .has_pending
         .then(|| read_checked(&checkpoint_file(root, slot.generation, "pending")))
         .transpose()?;
-    Ok(LoroStore::restore(
-        device,
-        &Checkpoint { snapshot, pending },
-    )?)
+    Ok(S::restore(device, &Checkpoint { snapshot, pending })?)
 }
 
 fn publish_checkpoint(
@@ -257,6 +274,7 @@ fn publish_checkpoint(
     active: Slot,
     previous: Option<Slot>,
     checkpoint: &Checkpoint,
+    engine: Engine,
 ) -> Result<(), StorageError> {
     let snapshot = checkpoint_file(root, active.generation, "snapshot");
     write_checked(&snapshot, &checkpoint.snapshot)?;
@@ -268,6 +286,7 @@ fn publish_checkpoint(
     }
     let manifest = Manifest {
         schema: MANIFEST_SCHEMA,
+        engine,
         active,
         previous,
     };
