@@ -5,13 +5,14 @@ use std::error::Error;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use rusqlite::{Connection, params};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Number;
 
 use crate::loro_store::LoroStore;
@@ -41,6 +42,21 @@ struct Workload {
 }
 
 impl Profile {
+    pub fn parse(value: &std::ffi::OsStr) -> Result<Self> {
+        match value.to_str() {
+            Some("smoke") => Ok(Self::Smoke),
+            Some("aged") => Ok(Self::Aged),
+            _ => Err("Choose the smoke or aged profile".into()),
+        }
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::Smoke => "smoke",
+            Self::Aged => "aged",
+        }
+    }
+
     fn workload(self) -> Workload {
         match self {
             Self::Smoke => Workload {
@@ -120,6 +136,9 @@ struct Report<'a> {
     checkpoint_size_bytes: u64,
     peak_index_wal_bytes: u64,
     process_write_bytes_during_edit_samples: u64,
+    cold_open_peak_rss_bytes: u64,
+    checkpoint_start_rss_bytes: u64,
+    storage_only_checkpoint_peak_rss_bytes: u64,
     metrics: BTreeMap<&'static str, Metric>,
     within_limits: bool,
 }
@@ -134,15 +153,22 @@ pub fn run(seed: u64, profile: Profile, revision: &str, output: &Path) -> Result
         .tempdir_in(parent)?;
     let paths = BenchPaths::new(scratch.path());
     let workload = profile.workload();
-    eprintln!("Preparing the Brain benchmark fixture");
-    let target = seed_store(&paths.store, &workload, seed)?;
-    eprintln!("Writing the initial SQLite index and Markdown copies");
-    setup_projections(&paths, &workload)?;
+    let prepared = Command::new(std::env::current_exe()?)
+        .args(["--prepare-fixture", profile.name(), &seed.to_string()])
+        .arg(scratch.path())
+        .status()?;
+    if !prepared.success() {
+        return Err("Brain benchmark fixture preparation failed".into());
+    }
+    let target: FixtureNote =
+        serde_json::from_slice(&fs::read(scratch.path().join("target.json"))?)?;
     let initial_disk = paths.disk()?;
     eprintln!("Measuring Brain storage and search with the background writer active");
-    let (sample, background_batches) =
-        with_background_writer(&paths, || sample_workload(&paths, &workload, target))?;
+    let (sample, background_batches) = with_background_writer(&paths, || {
+        sample_workload(scratch.path(), &paths, &workload, target)
+    })?;
     let final_disk = paths.disk()?;
+    let storage_only: CheckpointSample = run_worker("--storage-checkpoint", scratch.path())?;
     let metrics = BTreeMap::from([
         (
             "cold_open_p95_ms",
@@ -184,6 +210,9 @@ pub fn run(seed: u64, profile: Profile, revision: &str, output: &Path) -> Result
         checkpoint_size_bytes: sample.checkpoint_size,
         peak_index_wal_bytes: sample.checkpoint.peak_wal,
         process_write_bytes_during_edit_samples: sample.edit_process_writes,
+        cold_open_peak_rss_bytes: sample.cold_open_peak_rss,
+        checkpoint_start_rss_bytes: sample.checkpoint.start_rss,
+        storage_only_checkpoint_peak_rss_bytes: storage_only.peak_rss,
         metrics,
         within_limits,
     };
@@ -193,6 +222,64 @@ pub fn run(seed: u64, profile: Profile, revision: &str, output: &Path) -> Result
     file.as_file().sync_all()?;
     file.persist_noclobber(output)?;
     Ok(within_limits)
+}
+
+// Separate worker processes ensure fixture allocation and prior opens cannot
+// leave resident allocator pages in the checkpoint measurement process.
+pub fn prepare_worker(seed: u64, profile: Profile, root: &Path) -> Result<()> {
+    let paths = BenchPaths::new(root);
+    let workload = profile.workload();
+    eprintln!("Preparing the Brain benchmark fixture");
+    let target = seed_store(&paths.store, &workload, seed)?;
+    eprintln!("Writing the initial SQLite index and Markdown copies");
+    setup_projections(&paths, &workload)?;
+    fs::write(root.join("target.json"), serde_json::to_vec(&target)?)?;
+    Ok(())
+}
+
+pub fn cold_open_worker(root: &Path) -> Result<()> {
+    let target: FixtureNote = serde_json::from_slice(&fs::read(root.join("target.json"))?)?;
+    let paths = BenchPaths::new(root);
+    let start = Instant::now();
+    let disk = DurableStore::open(&paths.store, DEVICE)?;
+    let projection = disk.project()?;
+    first_note(&projection, target.node)?;
+    let elapsed = start.elapsed();
+    let record = ColdOpen {
+        elapsed,
+        peak_rss: proc_kib("/proc/self/status", "VmHWM:")?,
+    };
+    serde_json::to_writer(io::stdout().lock(), &record)?;
+    Ok(())
+}
+
+pub fn checkpoint_worker(root: &Path) -> Result<()> {
+    let paths = BenchPaths::new(root);
+    let mut disk = DurableStore::open(&paths.store, DEVICE)?;
+    let record = measure_checkpoint(&mut disk, &paths)?;
+    serde_json::to_writer(io::stdout().lock(), &record)?;
+    Ok(())
+}
+
+fn run_worker<T: serde::de::DeserializeOwned>(mode: &str, root: &Path) -> Result<T> {
+    let result = Command::new(std::env::current_exe()?)
+        .arg(mode)
+        .arg(root)
+        .output()?;
+    if !result.status.success() {
+        return Err(format!(
+            "Benchmark worker {mode} failed: {}",
+            String::from_utf8_lossy(&result.stderr).trim()
+        )
+        .into());
+    }
+    Ok(serde_json::from_slice(&result.stdout)?)
+}
+
+#[derive(Deserialize, Serialize)]
+struct ColdOpen {
+    elapsed: Duration,
+    peak_rss: u64,
 }
 
 struct BenchPaths {
@@ -220,7 +307,7 @@ impl BenchPaths {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Deserialize, Serialize)]
 struct FixtureNote {
     node: NodeId,
     token: OpId,
@@ -481,6 +568,7 @@ fn background_batches(
 
 struct Sample {
     cold_open: Vec<Duration>,
+    cold_open_peak_rss: u64,
     edits: Vec<Duration>,
     searches: Vec<Duration>,
     edit_bytes: u64,
@@ -489,14 +577,18 @@ struct Sample {
     checkpoint_size: u64,
 }
 
-fn sample_workload(paths: &BenchPaths, workload: &Workload, target: FixtureNote) -> Result<Sample> {
+fn sample_workload(
+    root: &Path,
+    paths: &BenchPaths,
+    workload: &Workload,
+    target: FixtureNote,
+) -> Result<Sample> {
     let mut cold_open = Vec::new();
+    let mut cold_open_peak_rss = 0;
     for index in 0..workload.latency_samples {
-        let start = Instant::now();
-        let disk = DurableStore::open(&paths.store, DEVICE)?;
-        let projection = disk.project()?;
-        first_note(&projection, target.node)?;
-        cold_open.push(start.elapsed());
+        let record: ColdOpen = run_worker("--cold-open", root)?;
+        cold_open.push(record.elapsed);
+        cold_open_peak_rss = cold_open_peak_rss.max(record.peak_rss);
         if (index + 1).is_multiple_of(5) {
             eprintln!(
                 "Measured {} of {} cold opens",
@@ -552,15 +644,16 @@ fn sample_workload(paths: &BenchPaths, workload: &Workload, target: FixtureNote)
     }
     let edit_process_writes =
         proc_value("/proc/self/io", "write_bytes:")?.saturating_sub(initial_writes);
-    if first_note(&disk.project()?, target.node)? != line {
-        return Err("Saved edits did not appear in the Brain projection".into());
-    }
     let journal = directory_bytes(&paths.store.join("journal"))?;
     let new_bytes = journal.saturating_sub(initial_journal);
     let checkpoint = measure_checkpoint(&mut disk, paths)?;
     let checkpoint_size = checkpoint_size(&paths.store)?;
+    if first_note(&disk.project()?, target.node)? != line {
+        return Err("Saved edits did not appear in the Brain projection".into());
+    }
     Ok(Sample {
         cold_open,
+        cold_open_peak_rss,
         edits,
         searches,
         edit_bytes: new_bytes.div_ceil(workload.latency_samples as u64),
@@ -584,7 +677,9 @@ fn p95(mut samples: Vec<Duration>) -> Duration {
     samples[(samples.len() * 95).div_ceil(100) - 1]
 }
 
+#[derive(Deserialize, Serialize)]
 struct CheckpointSample {
+    start_rss: u64,
     peak_rss: u64,
     growth: u64,
     peak_wal: u64,
@@ -611,6 +706,7 @@ fn measure_checkpoint(disk: &mut DurableStore, paths: &BenchPaths) -> Result<Che
                 thread::sleep(Duration::from_millis(5));
             }
             Ok(CheckpointSample {
+                start_rss: rss_before,
                 peak_rss,
                 growth: peak_disk.saturating_sub(baseline),
                 peak_wal,

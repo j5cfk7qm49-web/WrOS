@@ -23,13 +23,17 @@ latency percentile uses 20 samples with the nearest-rank method.
 | Journal bytes per edit, amortized | 64 KiB |
 | Temporary store growth during checkpoint | One checkpoint plus 64 MiB |
 
-An open loads a new document and builds the first projection within the same
-benchmark process. The operating system may cache file data between opens.
+Fixture creation and each cold open run in a fresh process. An open loads a new
+document and builds the first projection. The operating system may cache file
+data between opens.
 The edit measurement covers durable save and line construction. Measure actual
 keyboard-to-display latency when the desk connects to the store. The benchmark
 samples RSS, temporary store size and index WAL bytes every five milliseconds
 during the checkpoint. It records Linux process writes during the edit samples
 separately, including writes from the background worker.
+The JSON also records a checkpoint from a fresh process that only opens the
+store. Use it to distinguish storage memory from the cost of building the
+application projection.
 
 ## Running on the HP Stream
 
@@ -47,5 +51,19 @@ run under a different name. The `smoke` profile checks the runner with a small
 corpus. Use the `aged` run on the laptop for the Stage 0 decision.
 
 ## Results
+
+The first aged run used commit 657593a, seed 25001, and NixOS-WSL on an Intel
+Core i7-9700K with a 4 GiB cgroup memory cap. It ran fixture preparation and
+repeated opens in the same process. Its results establish the initial
+memory problem.
+
+| Measurement | Observed | Limit met |
+| --- | ---: | :---: |
+| Cold store open and first note, p95 | 2,872 ms | Yes |
+| Durable edit and text preparation, p95 | 16.8 ms | Yes |
+| Bounded FTS search, p95 | 74.5 ms | Yes |
+| Peak process RSS during checkpoint | 1,899 MiB | No |
+| Journal bytes per edit, amortized | 2,096 B | Yes |
+| Temporary store growth during checkpoint | 54.4 MiB | Yes |
 
 HP Stream measurements are pending.

@@ -36,6 +36,14 @@ fn benchmark_writes_versioned_results() {
     assert!(record["workload"]["review_events"].as_u64().unwrap() > 0);
     assert!(record["background_batches"].as_u64().unwrap() > 0);
     assert!(record["initial_disk"]["store_bytes"].as_u64().unwrap() > 0);
+    assert!(record["cold_open_peak_rss_bytes"].as_u64().unwrap() > 0);
+    assert!(record["checkpoint_start_rss_bytes"].as_u64().unwrap() > 0);
+    assert!(
+        record["storage_only_checkpoint_peak_rss_bytes"]
+            .as_u64()
+            .unwrap()
+            > 0
+    );
     let metrics = &record["metrics"];
     for (name, limit) in [
         ("cold_open_p95_ms", 3000.0),

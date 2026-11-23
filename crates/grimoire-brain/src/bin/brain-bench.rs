@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use grimoire_brain::benchmark::{Profile, run};
+use grimoire_brain::benchmark::{
+    Profile, checkpoint_worker, cold_open_worker, prepare_worker, run,
+};
 
 fn main() -> ExitCode {
     match execute() {
@@ -18,7 +20,29 @@ fn execute() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut profile = None;
     let mut output = None;
     let mut revision = None;
-    let mut args = std::env::args_os().skip(1);
+    let mut args = std::env::args_os().skip(1).peekable();
+    match args.peek().and_then(|argument| argument.to_str()) {
+        Some("--prepare-fixture") => {
+            args.next();
+            let profile = Profile::parse(&args.next().ok_or("Missing fixture profile")?)?;
+            let seed = args.next().ok_or("Missing fixture seed")?;
+            let root = PathBuf::from(args.next().ok_or("Missing fixture folder")?);
+            return prepare_worker(
+                seed.to_str().ok_or("Invalid fixture seed")?.parse()?,
+                profile,
+                &root,
+            );
+        }
+        Some("--cold-open") => {
+            args.next();
+            return cold_open_worker(&PathBuf::from(args.next().ok_or("Missing fixture folder")?));
+        }
+        Some("--storage-checkpoint") => {
+            args.next();
+            return checkpoint_worker(&PathBuf::from(args.next().ok_or("Missing fixture folder")?));
+        }
+        _ => {}
+    }
     while let Some(flag) = args.next() {
         if flag == "--help" {
             println!(
@@ -29,9 +53,7 @@ fn execute() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let value = args.next().ok_or("Every option needs a value")?;
         match flag.to_str() {
             Some("--seed") => seed = Some(value.to_str().ok_or("Invalid seed")?.parse()?),
-            Some("--profile") if value == "smoke" => profile = Some(Profile::Smoke),
-            Some("--profile") if value == "aged" => profile = Some(Profile::Aged),
-            Some("--profile") => return Err("Choose the smoke or aged profile".into()),
+            Some("--profile") => profile = Some(Profile::parse(&value)?),
             Some("--output") => output = Some(PathBuf::from(value)),
             Some("--revision") => {
                 revision = Some(value.into_string().map_err(|_| "Invalid revision")?)
