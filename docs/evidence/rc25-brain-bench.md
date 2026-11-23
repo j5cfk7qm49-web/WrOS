@@ -126,24 +126,26 @@ the entire operation history in one document and replay it on startup.
 
 ### HP Stream 11
 
-The laptop ran the same Nix-built binary, commit cf452fc, seed 25001 and
+The HP Stream Laptop 11-ah0XX ran both engines from the same Nix-built
+binary on WrOS RC24, commit cf452fc for the benchmark, seed 25001 and the
 aged workload. It reported an Intel Celeron N4000, kernel 6.18.63 and
-3.66 GiB of usable RAM. The launcher placed the synthetic store in the
-writer's home directory.
+3.66 GiB of usable RAM. The synthetic store was in the home directory on
+encrypted ext4 backed by the internal eMMC.
 
-| Measurement | Loro |
-| --- | ---: |
-| Cold store open and first note, p95 | **8,145 ms** |
-| Durable edit and text preparation, p95 | 25.6 ms |
-| Bounded FTS search, p95 | **229.9 ms** |
-| Peak process RSS during checkpoint | **1,698 MiB** |
-| Journal bytes per edit, amortized | 2,096 B |
-| Temporary store growth during checkpoint | 54.4 MiB |
+| Measurement | Loro | Automerge |
+| --- | ---: | ---: |
+| Cold store open and first note, p95 | **8,145 ms** | **10,599 ms** |
+| Durable edit and text preparation, p95 | 25.6 ms | 18.7 ms |
+| Bounded FTS search, p95 | **229.9 ms** | **230.2 ms** |
+| Peak process RSS during checkpoint | **1,698 MiB** | **1,467 MiB** |
+| Journal bytes per edit, amortized | 2,096 B | 301 B |
+| Temporary store growth during checkpoint | 54.4 MiB | 12.0 MiB |
 
-Loro's standalone checkpoint used 405 MiB. The edit process reached
-1,188 MiB after projecting the operation history. The full checkpoint,
-cold open and ranked FTS search exceeded their limits on this laptop.
-[Raw Loro result](rc25-brain-hp-stream-loro.json)
+Both engines exceeded the limits for cold open, full checkpoint RSS and
+ranked FTS search. Loro's standalone checkpoint used 405 MiB, and the edit
+process reached 1,188 MiB after projecting the operation history. Automerge
+used 739 MiB at store open and 1,295 MiB in its standalone checkpoint.
+[Raw Loro result](rc25-brain-hp-stream-loro.json) · [Raw Automerge result](rc25-brain-hp-stream-automerge.json)
 
 Stage 0 remains closed.
 
