@@ -115,7 +115,13 @@ pub enum ModelError {
 
 #[derive(Debug, Default)]
 pub struct Model {
-    edits: BTreeMap<OpId, Edit>,
+    edits: BTreeMap<OpId, StoredEdit>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct StoredEdit {
+    dependencies: Box<[OpId]>,
+    change: Change,
 }
 
 impl Edit {
@@ -147,25 +153,38 @@ impl Edit {
 impl Model {
     pub fn insert(&mut self, edit: Edit) -> Result<(), ModelError> {
         edit.validate()?;
+        let record = StoredEdit {
+            dependencies: edit.dependencies.into_iter().collect(),
+            change: edit.change,
+        };
         match self.edits.entry(edit.id) {
             Entry::Vacant(slot) => {
-                slot.insert(edit);
+                slot.insert(record);
             }
-            Entry::Occupied(slot) if *slot.get() != edit => return Err(ModelError::ReusedId),
+            Entry::Occupied(slot) if *slot.get() != record => return Err(ModelError::ReusedId),
             Entry::Occupied(_) => {}
         }
         Ok(())
     }
 
     fn depends_on(&self, edit: OpId, dependency: OpId) -> bool {
-        let mut visit = Vec::from([edit]);
+        if edit <= dependency {
+            return false;
+        }
+        let Some(edit) = self.edits.get(&edit) else {
+            return false;
+        };
+        if edit.dependencies.binary_search(&dependency).is_ok() {
+            return true;
+        }
+        let mut visit = edit.dependencies.to_vec();
         let mut seen = BTreeSet::new();
         while let Some(id) = visit.pop() {
             if id <= dependency || !seen.insert(id) {
                 continue;
             }
             if let Some(edit) = self.edits.get(&id) {
-                if edit.dependencies.contains(&dependency) {
+                if edit.dependencies.binary_search(&dependency).is_ok() {
                     return true;
                 }
                 visit.extend(edit.dependencies.iter().copied());
@@ -175,23 +194,25 @@ impl Model {
     }
 
     pub fn snapshot(&self) -> Snapshot {
-        let mut ready = BTreeSet::new();
+        let mut pending = BTreeSet::new();
         let mut view = Snapshot::default();
+        // Every valid dependency sorts before the edit that refers to it.
         for (&id, edit) in &self.edits {
-            if edit.dependencies.is_subset(&ready) {
-                ready.insert(id);
-            } else {
-                view.pending.insert(id);
+            if edit.dependencies.iter().any(|dependency| {
+                pending.contains(dependency) || !self.edits.contains_key(dependency)
+            }) {
+                pending.insert(id);
             }
         }
+        let ready = || self.edits.iter().filter(|(id, _)| !pending.contains(*id));
         // Work backwards so undoing an Undo restores its original action.
         let mut undone = BTreeSet::new();
         let mut restored = BTreeSet::new();
-        for &id in ready.iter().rev() {
+        for (&id, edit) in ready().rev() {
             if undone.contains(&id) {
                 continue;
             }
-            match self.edits[&id].change {
+            match edit.change {
                 Change::Undo { target } => {
                     undone.insert(target);
                 }
@@ -201,10 +222,9 @@ impl Model {
                 _ => {}
             }
         }
-        let deletions: Vec<_> = ready
-            .iter()
-            .filter(|id| !undone.contains(id) && !restored.contains(id))
-            .filter_map(|id| match &self.edits[id].change {
+        let deletions: Vec<_> = ready()
+            .filter(|(id, _)| !undone.contains(*id) && !restored.contains(*id))
+            .filter_map(|(id, edit)| match &edit.change {
                 Change::Delete { members } => Some((*id, members)),
                 _ => None,
             })
@@ -215,8 +235,7 @@ impl Model {
                 .flat_map(|(_, members)| members.iter().copied()),
         );
 
-        for id in ready {
-            let edit = &self.edits[&id];
+        for (&id, edit) in ready() {
             let active = !undone.contains(&id);
             // A split or join can move text out of a deleted note. Keep that
             // text in the hidden note unless the delete already saw the move.
@@ -278,6 +297,7 @@ impl Model {
                 _ => {}
             }
         }
+        view.pending = pending;
         view
     }
 }

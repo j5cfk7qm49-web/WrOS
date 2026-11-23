@@ -137,6 +137,8 @@ struct Report<'a> {
     peak_index_wal_bytes: u64,
     process_write_bytes_during_edit_samples: u64,
     cold_open_peak_rss_bytes: u64,
+    store_open_rss_bytes: u64,
+    first_projection_rss_bytes: u64,
     checkpoint_start_rss_bytes: u64,
     storage_only_checkpoint_peak_rss_bytes: u64,
     metrics: BTreeMap<&'static str, Metric>,
@@ -211,6 +213,8 @@ pub fn run(seed: u64, profile: Profile, revision: &str, output: &Path) -> Result
         peak_index_wal_bytes: sample.checkpoint.peak_wal,
         process_write_bytes_during_edit_samples: sample.edit_process_writes,
         cold_open_peak_rss_bytes: sample.cold_open_peak_rss,
+        store_open_rss_bytes: sample.store_open_rss,
+        first_projection_rss_bytes: sample.first_projection_rss,
         checkpoint_start_rss_bytes: sample.checkpoint.start_rss,
         storage_only_checkpoint_peak_rss_bytes: storage_only.peak_rss,
         metrics,
@@ -569,6 +573,8 @@ fn background_batches(
 struct Sample {
     cold_open: Vec<Duration>,
     cold_open_peak_rss: u64,
+    store_open_rss: u64,
+    first_projection_rss: u64,
     edits: Vec<Duration>,
     searches: Vec<Duration>,
     edit_bytes: u64,
@@ -598,7 +604,9 @@ fn sample_workload(
         }
     }
     let mut disk = DurableStore::open(&paths.store, DEVICE)?;
+    let store_open_rss = proc_kib("/proc/self/status", "VmRSS:")?;
     let mut line = first_note(&disk.project()?, target.node)?;
+    let first_projection_rss = proc_kib("/proc/self/status", "VmRSS:")?;
     let initial_journal = directory_bytes(&paths.store.join("journal"))?;
     let mut edits = Vec::new();
     let mut searches = Vec::new();
@@ -654,6 +662,8 @@ fn sample_workload(
     Ok(Sample {
         cold_open,
         cold_open_peak_rss,
+        store_open_rss,
+        first_projection_rss,
         edits,
         searches,
         edit_bytes: new_bytes.div_ceil(workload.latency_samples as u64),

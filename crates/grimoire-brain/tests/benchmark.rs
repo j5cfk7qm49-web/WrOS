@@ -37,6 +37,8 @@ fn benchmark_writes_versioned_results() {
     assert!(record["background_batches"].as_u64().unwrap() > 0);
     assert!(record["initial_disk"]["store_bytes"].as_u64().unwrap() > 0);
     assert!(record["cold_open_peak_rss_bytes"].as_u64().unwrap() > 0);
+    assert!(record["store_open_rss_bytes"].as_u64().unwrap() > 0);
+    assert!(record["first_projection_rss_bytes"].as_u64().unwrap() > 0);
     assert!(record["checkpoint_start_rss_bytes"].as_u64().unwrap() > 0);
     assert!(
         record["storage_only_checkpoint_peak_rss_bytes"]

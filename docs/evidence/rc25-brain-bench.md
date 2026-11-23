@@ -66,4 +66,20 @@ memory problem.
 | Journal bytes per edit, amortized | 2,096 B | Yes |
 | Temporary store growth during checkpoint | 54.4 MiB | Yes |
 
-HP Stream measurements are pending.
+The isolated-process rerun used commit 8df3e64 on the same machine and seed.
+Cold open includes the Brain projection. The storage-only diagnostic opens
+the Loro document and checkpoints without reading the operation map.
+
+| Measurement | Observed | Limit met |
+| --- | ---: | :---: |
+| Cold store open and first note, p95 | 3,231 ms | No |
+| Durable edit and text preparation, p95 | 15.3 ms | Yes |
+| Bounded FTS search, p95 | 75.2 ms | Yes |
+| Peak process RSS during checkpoint | 1,794 MiB | No |
+| Journal bytes per edit, amortized | 2,096 B | Yes |
+| Temporary store growth during checkpoint | 54.4 MiB | Yes |
+
+Cold open peaked at 1,280 MiB. The edit process already held 962 MiB before
+it started the checkpoint. A fresh storage-only checkpoint peaked at
+404 MiB. These measurements include Loro 1.18.0 and the reference projection
+of the full history. The HP Stream measurement is pending.
