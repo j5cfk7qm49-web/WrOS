@@ -7,6 +7,7 @@ The benchmark is a separate package for qualification. It uses its own synthetic
 notes, search database and Markdown files.
 
 ~~~sh
+cargo fmt --all -- --check
 cargo test -p grimoire-brain --features qualification --locked
 cargo clippy -p grimoire-brain --features qualification --all-targets --locked -- -D warnings
 nix build -L .#brain-bench

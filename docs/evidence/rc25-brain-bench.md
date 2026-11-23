@@ -102,7 +102,36 @@ still exceeded both the cold-open and checkpoint limits.
 | Journal bytes per edit, amortized | 2,096 B | Yes |
 | Temporary store growth during checkpoint | 54.4 MiB | Yes |
 
-Replaying all live operation records creates the largest resident set before
-the checkpoint begins. The Automerge comparison keeps the same fixture and
-rules to measure whether its operation representation and checkpoint are a
-better fit for the target. The HP Stream measurements are pending.
+### Same-build engine comparison
+
+Commit cf452fc11f73f08b2b2e1911fc48918fcf91f11a ran both engines from the same
+Nix package on the same WSL host, each in its own 4 GiB cgroup. Both passed
+the seeded merge and disk recovery cases. The raw results are
+`wsl-aged-loro.json` and `wsl-aged-automerge.json` in the benchmark kit.
+
+| Measurement | Loro | Automerge |
+| --- | ---: | ---: |
+| Cold store open and first note, p95 | **3,078 ms** | **4,776 ms** |
+| Durable edit and text preparation, p95 | 25.3 ms | 9.9 ms |
+| Bounded FTS search, p95 | 73.4 ms | 74.4 ms |
+| Peak process RSS during checkpoint | **1,703 MiB** | **1,467 MiB** |
+| Journal bytes per edit, amortized | 2,096 B | 301 B |
+| Temporary store growth during checkpoint | 54.4 MiB | 12.0 MiB |
+
+The bold measurements exceed the limits. Loro rose from 85 MiB after open to
+1,188 MiB after the first complete projection. Its standalone checkpoint
+peaked at 399 MiB. Automerge occupied 739 MiB at open before projecting and
+peaked at 1,295 MiB in the standalone checkpoint. Both configurations keep
+the entire operation history in one document and replay it on startup.
+
+The gate remains closed. Both configurations need lower cold-open latency
+and full checkpoint memory. The HP Stream results are pending, including the
+effect of its CPU and eMMC on the aged workload.
+
+### Automated checks
+
+The pinned Nix development shell passed all 17 focused tests, workspace
+formatting and strict Clippy for the Brain crate. Each engine ran 16 seeded
+two- and three-device schedules. The packaged binary also passed both smoke
+runs. Its runtime dependencies are present in the released RC24 closure.
+[Commands](../TESTING.md#rc25-brain-storage)
