@@ -23,7 +23,10 @@ Run the Stage 1 desk, terminal and backup checks with the pinned toolchain.
 The terminal snapshots expect the uninstalled update-helper path.
 
 ~~~sh
-cargo test -p grimoire-tui --no-default-features --locked --bin grimoire brain
+cargo clippy -p grimoire-brain -p grimoire-tui -p wros-input --all-targets \
+  --features grimoire-brain/qualification,wros-input/native --no-default-features \
+  --locked -- -D warnings
+cargo test -p grimoire-tui --no-default-features --locked --bin grimoire
 cargo test -p wros-input --features native --locked
 WROS_PATH_HELPER_UPDATE=/usr/libexec/wros-update cargo test --no-default-features --features test-driver,pty-qa --test driven --locked
 nix build -L .#checks.x86_64-linux.brain-backup
@@ -33,6 +36,14 @@ The backup fixture uses a disposable encrypted Restic repository and tests
 Brain-only edits, read-back verification, an older snapshot, fresh device
 identity, and a corrupt journal. The installed HP Stream pass also checks
 structural editing, projection recovery, and input-to-display latency.
+
+The Nix Python suite sets the Restic and rclone paths for the book backup tests.
+To run only those tests in a Linux checkout with both helpers at the paths
+expected by `os/scripts/wros-backup`, use this command.
+
+~~~sh
+python3 -B os/tests/test_backup.py -v EncryptedBackup AutomaticBackup Retention SettingsProfile
+~~~
 
 ## RC24 essay and citations
 
