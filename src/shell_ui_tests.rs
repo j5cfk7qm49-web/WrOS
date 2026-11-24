@@ -1660,27 +1660,38 @@ fn saves_preserve_the_periodic_sync_deadline_and_the_delete_guard_asks_first() {
 }
 
 #[test]
-fn closing_a_book_waits_for_one_final_sync_after_saving() {
+fn switching_projects_saves_and_keeps_the_old_projects_sync_in_the_background() {
     let mut desk = Desk::open(book("sync-close", true), 120, 40);
-    let dir = sync_stub(&mut desk, r#"{"ok":true,"data":{"status":"synced"}}"#);
+    let dir = sync_stub(
+        &mut desk,
+        r#"{"ok":true,"data":{"status":"offline","message":"Drive could not be reached"}}"#,
+    );
     std::fs::write(desk.root.join(".grimoire/sync.json"), "{}").unwrap();
     desk.app.focus = Focus::Editor;
     desk.typed("Words saved when closing. ");
     let next = book("sync-close-next", true);
-    assert!(!desk.app.open_book(&next));
-    assert_eq!(desk.app.project.root, desk.root);
+    assert!(desk.app.open_book(&next), "{}", desk.app.msg);
+    assert_eq!(desk.app.project.root, next);
+    assert!(desk.app.deck.shell.backup.sync.job.is_none());
     assert!(
         std::fs::read_to_string(first_scene(&desk.root))
             .unwrap()
             .contains("Words saved when closing.")
     );
+    assert!(desk.app.open_book(&desk.root));
+    assert!(desk.app.deck.shell.backup.sync.job.is_some());
     wait_sync(&mut desk);
-    assert_eq!(sync_log(&dir).len(), 1);
-    assert!(desk.app.open_book(&next), "{}", desk.app.msg);
-    assert_eq!(
-        sync_log(&dir).len(),
-        1,
-        "the retry must not start another run"
+    let requests = sync_log(&dir);
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0]["project"], desk.root.to_string_lossy().as_ref());
+    assert!(
+        desk.app
+            .deck
+            .shell
+            .backup
+            .sync
+            .line()
+            .contains("could not be reached")
     );
 }
 

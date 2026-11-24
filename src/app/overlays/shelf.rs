@@ -395,7 +395,7 @@ impl App {
                 books::pretty(&root)
             ));
         }
-        if !self.try_quit() {
+        if !self.save_before_leaving() {
             return Err(format!("{} · so this project stays open for now", self.msg));
         }
         let stranded = project::restore_stranded(&root);
@@ -430,8 +430,7 @@ impl App {
             next.deck.carry_import_worker(&mut self.deck);
         }
         next.import_media = std::mem::take(&mut self.import_media);
-        next.deck.shell.backup.sync.script = self.deck.shell.backup.sync.script.take();
-        next.deck.shell.backup.sync.env = std::mem::take(&mut self.deck.shell.backup.sync.env);
+        self.carry_sync_when_switching(&mut next, here);
         std::mem::swap(&mut next.music, &mut self.music);
         std::mem::swap(&mut next.viz, &mut self.viz);
         std::mem::swap(&mut next.pomo, &mut self.pomo);

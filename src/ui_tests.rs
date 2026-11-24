@@ -2230,6 +2230,38 @@ fn export_says_what_tks_are_left_before_it_writes_anything() {
 }
 
 #[test]
+fn essay_export_waits_until_the_current_manuscript_can_be_saved() {
+    let mut d = Desk::open(book("essay-export-waits-for-save", true), 120, 40);
+    d.app.project.meta.export_profile = "mla-9".into();
+    d.app.project.meta.mla = grimoire_core::project::MlaDetails {
+        name: "A. Writer".into(),
+        surname: "Writer".into(),
+        instructor: "Professor Gray".into(),
+        course: "Literature".into(),
+        date: "24 November 2026".into(),
+    };
+    d.app.focus = Focus::Editor;
+    d.typed("The new argument belongs in the paper. ");
+    let scene = first_scene(&d.root);
+    let original = fs::read_to_string(&scene).unwrap();
+    let index = d.app.open.unwrap();
+    d.app.project.nodes[index].disk.unavailable = Some(grimoire_core::project::Unavailable {
+        tag: "waiting",
+        why: "The file cannot be checked yet".into(),
+    });
+    d.app.open_export();
+    d.typed("x");
+    assert!(!d.root.join("exports").exists());
+    assert_eq!(fs::read_to_string(&scene).unwrap(), original);
+    assert!(d.app.msg.contains("Export paused"));
+    assert!(d.app.project.nodes[index].body.contains("new argument"));
+    d.app.project.nodes[index].disk.unavailable = None;
+    d.typed("x");
+    assert!(d.root.join("exports").exists(), "{}", d.rows().join("\n"));
+    assert!(fs::read_to_string(&scene).unwrap().contains("new argument"));
+}
+
+#[test]
 fn unified_export_preflight_validates_links_assets_footnotes_privacy_and_continuity_at_four_sizes()
 {
     for (width, height) in [(80, 24), (100, 30), (120, 40), (160, 50)] {

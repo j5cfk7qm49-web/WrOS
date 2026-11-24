@@ -1942,6 +1942,10 @@ impl App {
     /// if session history is on. False (with a message) if something couldn't
     /// be saved; its words are in recovery either way.
     pub fn try_quit(&mut self) -> bool {
+        self.save_before_leaving() && self.sync_before_leave()
+    }
+
+    fn save_before_leaving(&mut self) -> bool {
         if !self.commit_saves() || self.project.dirty_count() != 0 || !self.save_brain_panes() {
             return false;
         }
@@ -1964,7 +1968,7 @@ impl App {
             // Keep this local snapshot even when a Git remote is configured.
             let _ = sessions::commit_session(&self.project.root, chrono::Local::now());
         }
-        self.sync_before_leave()
+        true
     }
 
     /// Last resort after a crash: keep every unsaved scene in recovery rather
@@ -3241,7 +3245,10 @@ impl App {
                 return;
             }
         };
-        self.commit_saves();
+        if !self.commit_saves() || self.project.dirty_count() != 0 {
+            self.msg = format!("Export paused · {}", self.msg);
+            return;
+        }
         if !warned
             && let Ok(found) = export::tks(&self.project, &opts)
             && !found.is_empty()

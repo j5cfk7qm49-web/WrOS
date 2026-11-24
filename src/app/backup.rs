@@ -173,6 +173,8 @@ pub struct Backups {
     pub notice: String,
     pub job: Option<service::Job>,
     pub sync: SyncState,
+    /// Keep each project's worker and reply until its project is reopened.
+    shelved_sync: std::collections::BTreeMap<PathBuf, SyncState>,
     /// True once a backup-service reply has been read since `status_ok` was
     /// last cleared. The update gate clears it before asking for fresh status
     /// so a stale or never-loaded status can never be mistaken for "no backups".
@@ -731,6 +733,26 @@ impl App {
     pub(crate) fn start_final_sync(&mut self) {
         if self.sync_enabled() && self.deck.shell.backup.sync.job.is_none() {
             self.request_sync_run(false);
+        }
+    }
+
+    pub(super) fn carry_sync_when_switching(&mut self, next: &mut Self, previous: PathBuf) {
+        self.start_final_sync();
+        let backups = &mut self.deck.shell.backup;
+        let mut sync = std::mem::take(&mut backups.sync);
+        let script = sync.script.take();
+        let env = std::mem::take(&mut sync.env);
+        sync.leaving = false;
+        let next_backups = &mut next.deck.shell.backup;
+        next_backups.shelved_sync = std::mem::take(&mut backups.shelved_sync);
+        next_backups.sync = next_backups
+            .shelved_sync
+            .remove(&next.project.root)
+            .unwrap_or_default();
+        next_backups.sync.script = script;
+        next_backups.sync.env = env;
+        if sync.job.is_some() || sync.last.is_some() {
+            next_backups.shelved_sync.insert(previous, sync);
         }
     }
 
