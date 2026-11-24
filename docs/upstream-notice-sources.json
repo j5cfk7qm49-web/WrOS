@@ -247,12 +247,13 @@
       "version": "0.3.14",
       "package_vcs_commit": "06663cfc569c6c770b28688f015f8a87fc04e156",
       "source_archive": "https://crates.io/api/v1/crates/serde_columnar/0.3.14/download",
-      "reason": "The crate omits the repository-root notice. Retained verbatim from the packaged VCS revision.",
+      "reason": "The crate omits the repository-root notice. Retained from the packaged VCS revision with LF line endings.",
       "files": [
         {
           "file": "os/licenses/upstream/serde_columnar-LICENSE.txt",
           "url": "https://raw.githubusercontent.com/loro-dev/columnar/06663cfc569c6c770b28688f015f8a87fc04e156/LICENSE",
-          "sha256": "a9af0e3a3ded007f9914a1125b736ec526d469105c6577e367e2a9ca4de39d6b"
+          "sha256": "a30fcf2049f0943390fe613d87dba142c450aee6a76353100ede1ff3d6788096",
+          "source_sha256": "a9af0e3a3ded007f9914a1125b736ec526d469105c6577e367e2a9ca4de39d6b"
         }
       ]
     },
@@ -261,12 +262,13 @@
       "version": "0.3.7",
       "package_vcs_commit": "82588626dfa4332971c1e98f2839eb6d1c3dae1d",
       "source_archive": "https://crates.io/api/v1/crates/serde_columnar_derive/0.3.7/download",
-      "reason": "The crate omits the repository-root notice. Retained verbatim from the packaged VCS revision.",
+      "reason": "The crate omits the repository-root notice. Retained from the packaged VCS revision with LF line endings.",
       "files": [
         {
           "file": "os/licenses/upstream/serde_columnar_derive-LICENSE.txt",
           "url": "https://raw.githubusercontent.com/loro-dev/columnar/82588626dfa4332971c1e98f2839eb6d1c3dae1d/LICENSE",
-          "sha256": "a9af0e3a3ded007f9914a1125b736ec526d469105c6577e367e2a9ca4de39d6b"
+          "sha256": "a30fcf2049f0943390fe613d87dba142c450aee6a76353100ede1ff3d6788096",
+          "source_sha256": "a9af0e3a3ded007f9914a1125b736ec526d469105c6577e367e2a9ca4de39d6b"
         }
       ]
     },
