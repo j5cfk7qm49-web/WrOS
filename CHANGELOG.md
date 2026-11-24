@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.0~rc28 · Save, sync and Review fixes
+
+- Open another project as soon as local saves finish. The previous project's
+  Drive sync continues in the background.
+- Pause essay export until the current manuscript can be saved.
+- Save a Brain note and its new Library backlinks together. Review keeps
+  the history of a cloze whose prompt stays the same when a duplicate is removed.
+- Use less work to count and select due cards. Reuse an existing attachment
+  without writing a temporary copy of it.
+
 ## 0.1.0~rc27 · Library
 
 - Browse and filter Library works by title, author, identifier or tag. A
