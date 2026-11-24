@@ -104,8 +104,8 @@ fn drafts(text: &str) -> Vec<Draft> {
         .collect()
 }
 
-/// Preserve exact cloze answers across moves. Pair the remaining slots in
-/// outline order when a kind retains the same number of unmatched cards.
+/// Preserve unchanged prompts first, then match cloze answers across moves.
+/// Pair the remaining slots when a kind keeps the same number of cards.
 pub fn cards_for_text(text: &str, old: &[Card], edit: OpId) -> Vec<Card> {
     if !looks_like_card(text) {
         return Vec::new();
@@ -113,15 +113,21 @@ pub fn cards_for_text(text: &str, old: &[Card], edit: OpId) -> Vec<Card> {
     let drafts = drafts(text);
     let mut assigned = vec![None; drafts.len()];
     let mut used = vec![false; old.len()];
-    for (position, item) in drafts.iter().enumerate() {
-        if let Some(index) = old.iter().enumerate().position(|(i, card)| {
-            !used[i]
-                && card.kind == item.kind
-                && card.answer == item.answer
-                && (item.kind == Kind::Cloze || card.prompt == item.prompt)
-        }) {
-            assigned[position] = Some(old[index].id);
-            used[index] = true;
+    for match_cloze_answer_only in [false, true] {
+        for (item, id) in drafts.iter().zip(&mut assigned) {
+            if id.is_some() {
+                continue;
+            }
+            if let Some(index) = old.iter().enumerate().position(|(i, card)| {
+                !used[i]
+                    && card.kind == item.kind
+                    && card.answer == item.answer
+                    && (card.prompt == item.prompt
+                        || match_cloze_answer_only && item.kind == Kind::Cloze)
+            }) {
+                *id = Some(old[index].id);
+                used[index] = true;
+            }
         }
     }
     for kind in [Kind::Forward, Kind::Reverse, Kind::Cloze] {

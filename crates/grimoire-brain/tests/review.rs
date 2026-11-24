@@ -31,6 +31,23 @@ fn edited_and_reordered_cards_keep_their_ids() {
 }
 
 #[test]
+fn removing_one_of_two_identical_cloze_answers_preserves_the_other_grade_history() {
+    let initial = cards_for_text(
+        "From {{north}} pass {{north}} then {{south}}.",
+        &[],
+        op(1, 2),
+    );
+    let edited = cards_for_text(
+        "From north pass {{north}} then {{south}}.",
+        &initial,
+        op(2, 2),
+    );
+    assert_eq!(edited.len(), 2);
+    assert_eq!(edited[0], initial[1]);
+    assert_eq!(edited[1], initial[2]);
+}
+
+#[test]
 fn two_way_and_outline_answers_keep_their_roles() {
     let cards = cards_for_text("mistletoe ::: gui", &[], op(7, 2));
     assert_eq!(cards.len(), 2);
@@ -190,7 +207,7 @@ fn an_rc25_cache_gets_cards_without_replaying_the_outline() {
     let mut stamp: Vec<u8> = cache
         .query_row("SELECT stamp FROM view_state", [], |row| row.get(0))
         .unwrap();
-    assert!(stamp.starts_with(b"paged-outline-v5\0"));
+    assert!(stamp.starts_with(b"paged-outline-v6\0"));
     stamp[b"paged-outline-v".len()] = b'4';
     cache
         .execute("UPDATE view_state SET stamp=?1", [&stamp])

@@ -259,20 +259,23 @@ pub(crate) fn due(db: &Connection, now: i64, filter: Option<&SavedQuery>) -> Res
                 return Ok(DueCards::default());
             };
             (
-                "EXISTS(SELECT 1 FROM live_notes JOIN brain_fts ON brain_fts.rowid=live_notes.rowid
-                    WHERE live_notes.node=c.node AND brain_fts MATCH ?2)",
+                "c.node IN (SELECT live_notes.node FROM brain_fts
+                    JOIN live_notes ON live_notes.rowid=brain_fts.rowid WHERE brain_fts MATCH ?2)",
                 pattern,
                 String::new(),
             )
         }
     };
     let mut selection = db.prepare_cached(&format!(
-        "SELECT c.card,c.definition,count(*) OVER() FROM review_cards AS c
-         LEFT JOIN review_schedules AS s ON s.card=c.card
-         WHERE (s.due IS NULL OR s.due<=?1) AND {predicate}
-           AND (NOT c.from_children OR {HAS_CHILD_ANSWER})
-           AND ?2 IS NOT NULL AND ?3 IS NOT NULL
-         ORDER BY coalesce(s.due,-9223372036854775808),c.card LIMIT 1",
+        "SELECT chosen.card,c.definition,chosen.total
+         FROM (
+            SELECT c.card,count(*) OVER() AS total FROM review_cards AS c
+            LEFT JOIN review_schedules AS s ON s.card=c.card
+            WHERE (s.due IS NULL OR s.due<=?1) AND {predicate}
+              AND (NOT c.from_children OR {HAS_CHILD_ANSWER})
+              AND ?2 IS NOT NULL AND ?3 IS NOT NULL
+            ORDER BY coalesce(s.due,-9223372036854775808),c.card LIMIT 1
+         ) AS chosen JOIN review_cards AS c ON c.card=chosen.card",
     ))?;
     let raw = selection
         .query_row(params![now, key, value], |row| {
